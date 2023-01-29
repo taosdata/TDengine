@@ -62,7 +62,7 @@ class Consumer(object):
         )
         if self.config.get('async_model'):
             self.pool = ThreadPoolExecutor(max_workers=self.config.get('workers'))
-            self.tasks: list[Future] = []
+            self.tasks = []
         # tags and table mapping # key: {location}_{groupId} value:
         self.tag_table_mapping = {}
         i = 0
@@ -117,14 +117,14 @@ class Consumer(object):
         if self.taos is not None:
             self.taos.close()
 
-    def _run(self, f: Callable[[ConsumerRecord], bool]):
+    def _run(self, f):
         for message in self.consumer:
             if self.config.get('async_model'):
                 self.pool.submit(f(message))
             else:
                 f(message)
 
-    def _run_batch(self, f: Callable[[list[list[ConsumerRecord]]], None]):
+    def _run_batch(self, f):
         while True:
             messages = self.consumer.poll(timeout_ms=500, max_records=self.config.get('batch_size'))
             if messages:
@@ -142,7 +142,7 @@ class Consumer(object):
         logging.info('## insert sql %s', sql)
         return self.taos.execute(sql=sql) == 1
 
-    def _to_taos_batch(self, messages: list[list[ConsumerRecord]]):
+    def _to_taos_batch(self, messages):
         sql = self._build_sql_batch(messages=messages)
         if len(sql) == 0:  # decode error, skip
             return
@@ -164,7 +164,7 @@ class Consumer(object):
         table_name = self._get_table_name(location=location, group_id=group_id)
         return self.INSERT_PART_SQL.format(table_name, ts, current, voltage, phase)
 
-    def _build_sql_batch(self, messages: list[list[ConsumerRecord]]) -> str:
+    def _build_sql_batch(self, messages) -> str:
         sql_list = []
         for partition_messages in messages:
             for message in partition_messages:

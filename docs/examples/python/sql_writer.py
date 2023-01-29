@@ -91,6 +91,10 @@ class SQLWriter:
             self.log.error("Execute SQL: %s", sql)
             raise e
 
+    def close(self):
+        if self._conn:
+            self._conn.close()
+
 
 if __name__ == '__main__':
     def get_connection_func():

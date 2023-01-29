@@ -4,6 +4,7 @@
 
 import logging
 import math
+import multiprocessing
 import sys
 import time
 import os
@@ -65,6 +66,7 @@ def run_read_task(task_id: int, task_queues: List[Queue], infinity):
 
 # ANCHOR_END: read
 
+
 # ANCHOR: write
 def run_write_task(task_id: int, queue: Queue, done_queue: Queue):
     from sql_writer import SQLWriter
@@ -96,6 +98,7 @@ def run_write_task(task_id: int, queue: Queue, done_queue: Queue):
         log.debug(f"lines={lines}")
         raise e
     finally:
+        writer.close()
         log.debug('write task over')
 
 
@@ -123,25 +126,29 @@ def set_global_config():
 # ANCHOR: monitor
 def run_monitor_process(done_queue: Queue):
     log = logging.getLogger("DataBaseMonitor")
-
-    def get_count():
+    conn = None
+    try:
         conn = get_connection()
-        res = conn.query("SELECT count(*) FROM test.meters")
-        rows = res.fetch_all()
-        return rows[0][0] if rows else 0
 
-    last_count = 0
-    while True:
-        try:
-            done = done_queue.get_nowait()
-            if done == _DONE_MESSAGE:
-                break
-        except Empty:
-            pass
-        time.sleep(10)
-        count = get_count()
-        log.info(f"count={count} speed={(count - last_count) / 10}")
-        last_count = count
+        def get_count():
+            res = conn.query("SELECT count(*) FROM test.meters")
+            rows = res.fetch_all()
+            return rows[0][0] if rows else 0
+
+        last_count = 0
+        while True:
+            try:
+                done = done_queue.get_nowait()
+                if done == _DONE_MESSAGE:
+                    break
+            except Empty:
+                pass
+            time.sleep(10)
+            count = get_count()
+            log.info(f"count={count} speed={(count - last_count) / 10}")
+            last_count = count
+    finally:
+        conn.close()
 
 
 # ANCHOR_END: monitor
@@ -156,6 +163,7 @@ def main(infinity):
     conn.execute("CREATE DATABASE IF NOT EXISTS test")
     conn.execute("CREATE STABLE IF NOT EXISTS test.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) "
                  "TAGS (location BINARY(64), groupId INT)")
+    conn.close()
 
     done_queue = Queue()
     monitor_process = Process(target=run_monitor_process, args=(done_queue,))
@@ -200,9 +208,6 @@ def main(infinity):
         [p.terminate() for p in write_processes]
         [q.close() for q in task_queues]
 
-    conn.execute("DROP DATABASE IF EXISTS test")
-    conn.close()
-
 
 def assign_queues(read_task_id, task_queues):
     """
@@ -215,5 +220,6 @@ def assign_queues(read_task_id, task_queues):
 
 
 if __name__ == '__main__':
+    multiprocessing.set_start_method('spawn')
     main(False)
 # ANCHOR_END: main
