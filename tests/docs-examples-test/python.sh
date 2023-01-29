@@ -77,3 +77,5 @@ python3 mockdatasource.py
 # 19
 python3 fast_write_example.py
 
+# 20
+python3 kafka_example.py

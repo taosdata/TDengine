@@ -26,7 +26,8 @@ class Consumer(object):
         'bath_consume': True,
         'batch_size': 1000,
         'async_model': True,
-        'workers': 10
+        'workers': 10,
+        'testing': False
     }
 
     LOCATIONS = ['California.SanFrancisco', 'California.LosAngles', 'California.SanDiego', 'California.SanJose',
@@ -46,11 +47,12 @@ class Consumer(object):
     def __init__(self, **configs):
         self.config: dict = self.DEFAULT_CONFIGS
         self.config.update(configs)
-        self.consumer = KafkaConsumer(
-            self.config.get('kafka_topic'),  # topic
-            bootstrap_servers=self.config.get('kafka_brokers'),
-            group_id=self.config.get('kafka_group_id'),
-        )
+        if not self.config.get('testing'):
+            self.consumer = KafkaConsumer(
+                self.config.get('kafka_topic'),  # topic
+                bootstrap_servers=self.config.get('kafka_brokers'),
+                group_id=self.config.get('kafka_group_id'),
+            )
         self.taos = taos.connect(
             host=self.config.get('taos_host'),
             user=self.config.get('taos_user'),
@@ -186,7 +188,54 @@ def _get_location_and_group(key: str) -> (str, int):
     return fields[0], fields[1]
 
 
+def test_to_taos(consumer: Consumer):
+    msg = {
+        'location': 'California.SanFrancisco',
+        'groupId': 1,
+        'ts': '2022-12-06 15:13:38.643',
+        'current': 3.41,
+        'voltage': 105,
+        'phase': 0.02027,
+    }
+    record = ConsumerRecord(checksum=None, headers=None, offset=1, key=None, value=json.dumps(msg), partition=1,
+                            topic='test', serialized_key_size=None, serialized_header_size=None,
+                            serialized_value_size=None, timestamp=time.time(), timestamp_type=None)
+    assert consumer._to_taos(message=record)
+
+
+def test_to_taos_batch(consumer: Consumer):
+    records = [
+        [
+            ConsumerRecord(checksum=None, headers=None, offset=1, key=None,
+                           value=json.dumps({'location': 'California.SanFrancisco',
+                                             'groupId': 1,
+                                             'ts': '2022-12-06 15:13:38.643',
+                                             'current': 3.41,
+                                             'voltage': 105,
+                                             'phase': 0.02027, }),
+                           partition=1, topic='test', serialized_key_size=None, serialized_header_size=None,
+                           serialized_value_size=None, timestamp=time.time(), timestamp_type=None),
+            ConsumerRecord(checksum=None, headers=None, offset=1, key=None,
+                           value=json.dumps({'location': 'California.LosAngles',
+                                             'groupId': 2,
+                                             'ts': '2022-12-06 15:13:39.643',
+                                             'current': 3.41,
+                                             'voltage': 102,
+                                             'phase': 0.02027, }),
+                           partition=1, topic='test', serialized_key_size=None, serialized_header_size=None,
+                           serialized_value_size=None, timestamp=time.time(), timestamp_type=None),
+        ]
+    ]
+
+    consumer._to_taos_batch(messages=records)
+
+
 if __name__ == '__main__':
-    consumer = Consumer(async_model=True)
+    consumer = Consumer(async_model=True, testing=True)
+    # init env
     consumer.init_env()
-    consumer.consume()
+    # consumer.consume()
+    # test build sql
+    # test build sql batch
+    test_to_taos(consumer)
+    test_to_taos_batch(consumer)
