@@ -455,7 +455,7 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
         if (code) goto _err;
       }
 
-      code = tsdbSnapWrite(pWriter->pTsdbSnapWriter, pData, nData);
+      code = tsdbSnapWrite(pWriter->pTsdbSnapWriter, pHdr);
       if (code) goto _err;
     } break;
     case SNAP_DATA_TQ_HANDLE: {
