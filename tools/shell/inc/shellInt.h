@@ -148,5 +148,6 @@ void shellRunSingleCommandWebsocketImp(char *command);
 
 // shellMain.c
 extern SShellObj shell;
+extern void tscWriteCrashInfo(int signum, void *sigInfo, void *context);
 
 #endif /*_TD_SHELL_INT_H_*/

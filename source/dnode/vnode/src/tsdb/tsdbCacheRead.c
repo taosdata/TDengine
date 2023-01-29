@@ -268,7 +268,10 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
   taosThreadMutexLock(&pr->readerMutex);
-  tsdbTakeReadSnap((STsdbReader*)pr, tsdbCacheQueryReseek, &pr->pReadSnap);
+  code = tsdbTakeReadSnap((STsdbReader*)pr, tsdbCacheQueryReseek, &pr->pReadSnap);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
   pr->pDataFReader = NULL;
   pr->pDataFReaderLast = NULL;
 
@@ -279,7 +282,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
       code = doExtractCacheRow(pr, lruCache, pKeyInfo->uid, &pRow, &h);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto _end;
       }
 
       if (h == NULL) {
@@ -352,7 +355,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];
       code = doExtractCacheRow(pr, lruCache, pKeyInfo->uid, &pRow, &h);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto _end;
       }
 
       if (h == NULL) {

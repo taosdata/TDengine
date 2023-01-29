@@ -2118,7 +2118,7 @@ int32_t ctgOpUpdateEpset(SCtgCacheOperation *operation) {
 
 _return:
 
-  if (dbCache) {
+  if (code == TSDB_CODE_SUCCESS && dbCache) {
     ctgWUnlockVgInfo(dbCache);
   }
 
