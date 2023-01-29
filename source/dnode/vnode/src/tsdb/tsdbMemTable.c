@@ -64,8 +64,6 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
     taosMemoryFree(pMemTable);
     goto _err;
   }
-  // pMemTable->qList.pNext = &pMemTable->qList;
-  // pMemTable->qList.ppNext = &pMemTable->qList.pNext;
   vnodeBufPoolRef(pMemTable->pPool);
 
   *ppMemTable = pMemTable;
@@ -111,30 +109,6 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitTbData *pSubmi
   STbData   *pTbData = NULL;
   tb_uid_t   suid = pSubmitTbData->suid;
   tb_uid_t   uid = pSubmitTbData->uid;
-
-#if 0
-  SMetaInfo info;
-  code = metaGetInfo(pTsdb->pVnode->pMeta, uid, &info, NULL);
-  if (code) {
-    code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
-    goto _err;
-  }
-  if (info.suid != suid) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto _err;
-  }
-  if (info.suid) {
-    metaGetInfo(pTsdb->pVnode->pMeta, info.suid, &info, NULL);
-  }
-  if (pSubmitTbData->sver != info.skmVer) {
-    tsdbError("vgId:%d, req sver:%d, skmVer:%d suid:%" PRId64 " uid:%" PRId64, TD_VID(pTsdb->pVnode),
-              pSubmitTbData->sver, info.skmVer, suid, uid);
-    code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
-    goto _err;
-  }
-
-  if (pRsp) pRsp->sver = info.skmVer;
-#endif
 
   // create/get STbData to op
   code = tsdbGetOrCreateTbData(pMemTable, suid, uid, &pTbData);
@@ -812,29 +786,3 @@ SArray *tsdbMemTableGetTbDataArray(SMemTable *pMemTable) {
 _exit:
   return aTbDataP;
 }
-
-// int32_t tsdbRecycleMemTable(SMemTable *pMemTable) {
-//   int32_t code = 0;
-
-//   SQueryNode *pNode = pMemTable->qList.pNext;
-//   while (1) {
-//     ASSERT(pNode != &pMemTable->qList);
-//     SQueryNode *pNextNode = pNode->pNext;
-
-//     if (pNextNode == &pMemTable->qList) {
-//       code = (*pNode->reseek)(pNode->pQHandle);
-//       if (code) goto _exit;
-//       break;
-//     } else {
-//       code = (*pNode->reseek)(pNode->pQHandle);
-//       if (code) goto _exit;
-//       pNode = pMemTable->qList.pNext;
-//       ASSERT(pNode == pNextNode);
-//     }
-//   }
-
-//   // NOTE: Take care here, pMemTable is destroyed
-
-// _exit:
-//   return code;
-// }

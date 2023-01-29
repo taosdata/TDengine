@@ -86,7 +86,7 @@ int32_t vnodeAlter(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs) {
     pNode->nodeId = pReq->replicas[i].id;
     pNode->nodePort = pReq->replicas[i].port;
     tstrncpy(pNode->nodeFqdn, pReq->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
-    tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
     vInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", pReq->vgId, i, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
   }
 
@@ -132,6 +132,21 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   if (ret < 0) {
     vError("failed to open vnode from %s since %s", path, tstrerror(terrno));
     return NULL;
+  }
+
+  // save vnode info on dnode ep changed
+  bool      updated = false;
+  SSyncCfg *pCfg = &info.config.syncCfg;
+  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+    SNodeInfo *pNode = &pCfg->nodeInfo[i];
+    if (tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort)) {
+      updated = true;
+    }
+  }
+  if (updated) {
+    vInfo("vgId:%d, save vnode info since dnode info changed", info.config.vgId);
+    (void)vnodeSaveInfo(dir, &info);
+    (void)vnodeCommitInfo(dir, &info);
   }
 
   // create handle

@@ -459,8 +459,10 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
 
   int32_t contLen = 0;
   void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
-  taosMemoryFreeClear(pSmaReq);
-  if (pReq == NULL) return -1;
+  if (pReq == NULL) {
+    taosMemoryFreeClear(pSmaReq);
+    return -1;
+  }
 
   action.pCont = pReq;
   action.contLen = contLen;
@@ -468,7 +470,18 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   action.acceptableCode = TSDB_CODE_VND_ALREADY_EXIST;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFreeClear(pSmaReq);
     taosMemoryFree(pReq);
+    return -1;
+  }
+
+  action.pCont = pSmaReq;
+  action.contLen = smaContLen;
+  action.msgType = TDMT_VND_CREATE_SMA;
+  action.acceptableCode = TSDB_CODE_TSMA_ALREADY_EXIST;
+
+  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFreeClear(pSmaReq);
     return -1;
   }
 

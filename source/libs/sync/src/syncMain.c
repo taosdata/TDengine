@@ -895,12 +895,23 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   // init by SSyncInfo
   pSyncNode->vgId = pSyncInfo->vgId;
   SSyncCfg* pCfg = &pSyncNode->raftCfg.cfg;
+  bool      updated = false;
   sInfo("vgId:%d, start to open sync node, replica:%d selfIndex:%d", pSyncNode->vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
     SNodeInfo* pNode = &pCfg->nodeInfo[i];
-    tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    if (tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort)) {
+      updated = true;
+    }
     sInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pSyncNode->vgId, i, pNode->nodeFqdn, pNode->nodePort,
           pNode->nodeId, pNode->clusterId);
+  }
+
+  if (updated) {
+    sInfo("vgId:%d, save config info since dnode info changed", pSyncNode->vgId);
+    if (syncWriteCfgFile(pSyncNode) != 0) {
+      sError("vgId:%d, failed to write sync cfg file on dnode info updated", pSyncNode->vgId);
+      goto _error;
+    }
   }
 
   pSyncNode->pWal = pSyncInfo->pWal;
@@ -2477,7 +2488,7 @@ static int32_t syncNodeAppendNoopOld(SSyncNode* ths) {
   LRUHandle* h = NULL;
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
-    int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
+    int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry, false);
     if (code != 0) {
       sError("append noop error");
       return -1;
@@ -2720,7 +2731,7 @@ int32_t syncNodeOnClientRequestOld(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRe
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     // append entry
-    code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
+    code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry, false);
     if (code != 0) {
       if (ths->replicaNum == 1) {
         if (h) {

@@ -146,6 +146,7 @@
 ,,y,script,./test.sh -f tsim/parser/precision_ns.sim
 ,,y,script,./test.sh -f tsim/parser/projection_limit_offset.sim
 ,,y,script,./test.sh -f tsim/parser/regex.sim
+,,y,script,./test.sh -f tsim/parser/regressiontest.sim
 ,,y,script,./test.sh -f tsim/parser/select_across_vnodes.sim
 ,,y,script,./test.sh -f tsim/parser/select_distinct_tag.sim
 ,,y,script,./test.sh -f tsim/parser/select_from_cache_disk.sim
@@ -1059,6 +1060,7 @@
 
 #develop test
 ,,n,develop-test,python3 ./test.py -f 2-query/table_count_scan.py
+,,n,develop-test,python3 ./test.py -f 2-query/show_create_db.py
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/custom_col_tag.py
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/default_json.py
@@ -1077,4 +1079,4 @@
 ,,n,docs-examples-test,bash node.sh
 ,,n,docs-examples-test,bash csharp.sh
 ,,n,docs-examples-test,bash jdbc.sh
-#,,n,docs-examples-test,bash go.sh
+,,n,docs-examples-test,bash go.sh

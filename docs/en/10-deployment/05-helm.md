@@ -22,7 +22,7 @@ Helm uses the kubectl and kubeconfig configurations to perform Kubernetes operat
 To use TDengine Chart, download it from GitHub:
 
 ```bash
-wget https://github.com/taosdata/TDengine-Operator/raw/3.0/helm/tdengine-3.0.0.tgz
+wget https://github.com/taosdata/TDengine-Operator/raw/3.0/helm/tdengine-3.0.2.tgz
 
 ```
 
@@ -38,7 +38,7 @@ With minikube, the default value is standard.
 Use Helm commands to install TDengine:
 
 ```bash
-helm install tdengine tdengine-3.0.0.tgz \
+helm install tdengine tdengine-3.0.2.tgz \
   --set storage.className=<your storage class name>
 
 ```
@@ -46,7 +46,7 @@ helm install tdengine tdengine-3.0.0.tgz \
 You can configure a small storage size in minikube to ensure that your deployment does not exceed your available disk space.
 
 ```bash
-helm install tdengine tdengine-3.0.0.tgz \
+helm install tdengine tdengine-3.0.2.tgz \
   --set storage.className=standard \
   --set storage.dataSize=2Gi \
   --set storage.logSize=10Mi
@@ -83,14 +83,14 @@ You can configure custom parameters in TDengine with the `values.yaml` file.
 Run the `helm show values` command to see all parameters supported by TDengine Chart.
 
 ```bash
-helm show values tdengine-3.0.0.tgz
+helm show values tdengine-3.0.2.tgz
 
 ```
 
 Save the output of this command as `values.yaml`. Then you can modify this file with your desired values and use it to deploy a TDengine cluster:
 
 ```bash
-helm install tdengine tdengine-3.0.0.tgz -f values.yaml
+helm install tdengine tdengine-3.0.2.tgz -f values.yaml
 
 ```
 
@@ -107,7 +107,7 @@ image:
   prefix: tdengine/tdengine
   #pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-#  tag: "3.0.0.0"
+#  tag: "3.0.2.0"
 
 service:
   # ClusterIP is the default service type, use NodeIP only if you know what you are doing.
@@ -155,15 +155,15 @@ clusterDomainSuffix: ""
 # See the [Configuration Variables](../../reference/config)
 #
 # Note:
-# 1. firstEp/secondEp: should not be setted here, it's auto generated at scale-up.
-# 2. serverPort: should not be setted, we'll use the default 6030 in many places.
-# 3. fqdn: will be auto generated in kubenetes, user should not care about it.
+# 1. firstEp/secondEp: should not be set here, it's auto generated at scale-up.
+# 2. serverPort: should not be set, we'll use the default 6030 in many places.
+# 3. fqdn: will be auto generated in kubernetes, user should not care about it.
 # 4. role: currently role is not supported - every node is able to be mnode and vnode.
 #
 # Btw, keep quotes "" around the value like below, even the value will be number or not.
 taoscfg:
   # Starts as cluster or not, must be 0 or 1.
-  #   0: all pods will start as a seperate TDengine server
+  #   0: all pods will start as a separate TDengine server
   #   1: pods will start as TDengine server cluster. [default]
   CLUSTER: "1"
 

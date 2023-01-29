@@ -252,8 +252,6 @@ void vnodeBufPoolUnRef(SVBufPool *pPool, bool proactive) {
   if (pVnode->onRecycle == pPool) {
     pVnode->onRecycle = NULL;
   } else {
-    ASSERT(proactive);
-
     if (pPool->recyclePrev) {
       pPool->recyclePrev->recycleNext = pPool->recycleNext;
     } else {
