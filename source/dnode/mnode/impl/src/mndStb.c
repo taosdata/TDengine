@@ -73,7 +73,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_META, mndProcessTableMetaReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TTL_TIMER, mndProcessTtlTimer);
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_CFG, mndProcessTableCfgReq);
-//  mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE, mndProcessRetrieveStbReq);
+  //  mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE, mndProcessRetrieveStbReq);
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_INDEX, mndProcessCreateIndexReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_INDEX, mndProcessDropIndexReq);
@@ -2539,30 +2539,30 @@ void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t
   }
 }
 
-//static int32_t mndProcessRetrieveStbReq(SRpcMsg *pReq) {
-//  SMnode    *pMnode = pReq->info.node;
-//  SShowMgmt *pMgmt = &pMnode->showMgmt;
-//  SShowObj  *pShow = NULL;
-//  int32_t    rowsToRead = SHOW_STEP_SIZE;
-//  int32_t    rowsRead = 0;
+// static int32_t mndProcessRetrieveStbReq(SRpcMsg *pReq) {
+//   SMnode    *pMnode = pReq->info.node;
+//   SShowMgmt *pMgmt = &pMnode->showMgmt;
+//   SShowObj  *pShow = NULL;
+//   int32_t    rowsToRead = SHOW_STEP_SIZE;
+//   int32_t    rowsRead = 0;
 //
-//  SRetrieveTableReq retrieveReq = {0};
-//  if (tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq) != 0) {
-//    terrno = TSDB_CODE_INVALID_MSG;
-//    return -1;
-//  }
+//   SRetrieveTableReq retrieveReq = {0};
+//   if (tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq) != 0) {
+//     terrno = TSDB_CODE_INVALID_MSG;
+//     return -1;
+//   }
 //
-//  SMnode    *pMnode = pReq->info.node;
-//  SSdb      *pSdb = pMnode->pSdb;
-//  int32_t    numOfRows = 0;
-//  SDbObj    *pDb = NULL;
-//  ESdbStatus objStatus = 0;
+//   SMnode    *pMnode = pReq->info.node;
+//   SSdb      *pSdb = pMnode->pSdb;
+//   int32_t    numOfRows = 0;
+//   SDbObj    *pDb = NULL;
+//   ESdbStatus objStatus = 0;
 //
-//  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-//  if (pUser == NULL) return 0;
-//  bool sysinfo = pUser->sysInfo;
+//   SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+//   if (pUser == NULL) return 0;
+//   bool sysinfo = pUser->sysInfo;
 //
-//  // Append the information_schema database into the result.
+//   // Append the information_schema database into the result.
 ////  if (!pShow->sysDbRsp) {
 ////    SDbObj infoschemaDb = {0};
 ////    setInformationSchemaDbCfg(pMnode, &infoschemaDb);
@@ -2815,7 +2815,6 @@ void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t
 //  return TSDB_CODE_SUCCESS;
 //}
 
-
 static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode  *pMnode = pReq->info.node;
   SSdb    *pSdb = pMnode->pSdb;
@@ -2926,8 +2925,8 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   return numOfRows;
 }
 
-static int32_t buildDbColsInfoBlock(const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size,
-                                    const char* dbName, const char* tbName) {
+static int32_t buildDbColsInfoBlock(const SSDataBlock *p, const SSysTableMeta *pSysDbTableMeta, size_t size,
+                                    const char *dbName, const char *tbName) {
   char    tName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   char    dName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   char    typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -2937,19 +2936,19 @@ static int32_t buildDbColsInfoBlock(const SSDataBlock* p, const SSysTableMeta* p
   STR_TO_VARSTR(typeName, "SYSTEM_TABLE");
 
   for (int32_t i = 0; i < size; ++i) {
-    const SSysTableMeta* pm = &pSysDbTableMeta[i];
-//    if (pm->sysInfo) {
-//      continue;
-//    }
-    if(tbName[0] && strncmp(tbName, pm->name, TSDB_TABLE_NAME_LEN) != 0){
+    const SSysTableMeta *pm = &pSysDbTableMeta[i];
+    //    if (pm->sysInfo) {
+    //      continue;
+    //    }
+    if (tbName[0] && strncmp(tbName, pm->name, TSDB_TABLE_NAME_LEN) != 0) {
       continue;
     }
 
     STR_TO_VARSTR(tName, pm->name);
 
-    for(int32_t j = 0; j < pm->colNum; j++){
+    for (int32_t j = 0; j < pm->colNum; j++) {
       // table name
-      SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, 0);
+      SColumnInfoData *pColInfoData = taosArrayGet(p->pDataBlock, 0);
       colDataAppend(pColInfoData, numOfRows, tName, false);
 
       // database name
@@ -2971,18 +2970,17 @@ static int32_t buildDbColsInfoBlock(const SSDataBlock* p, const SSysTableMeta* p
       char colTypeStr[VARSTR_HEADER_SIZE + 32];
       int  colTypeLen = sprintf(varDataVal(colTypeStr), "%s", tDataTypes[colType].name);
       if (colType == TSDB_DATA_TYPE_VARCHAR) {
-        colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d)",
-                              (int32_t)(pm->schema[j].bytes - VARSTR_HEADER_SIZE));
+        colTypeLen +=
+            sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d)", (int32_t)(pm->schema[j].bytes - VARSTR_HEADER_SIZE));
       } else if (colType == TSDB_DATA_TYPE_NCHAR) {
-        colTypeLen += sprintf(
-            varDataVal(colTypeStr) + colTypeLen, "(%d)",
-            (int32_t)((pm->schema[j].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+        colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d)",
+                              (int32_t)((pm->schema[j].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
       }
       varDataSetLen(colTypeStr, colTypeLen);
-      colDataAppend(pColInfoData, numOfRows, (char*)colTypeStr, false);
+      colDataAppend(pColInfoData, numOfRows, (char *)colTypeStr, false);
 
       pColInfoData = taosArrayGet(p->pDataBlock, 5);
-      colDataAppend(pColInfoData, numOfRows, (const char*)&pm->schema[j].bytes, false);
+      colDataAppend(pColInfoData, numOfRows, (const char *)&pm->schema[j].bytes, false);
       for (int32_t k = 6; k <= 8; ++k) {
         pColInfoData = taosArrayGet(p->pDataBlock, k);
         colDataAppendNULL(pColInfoData, numOfRows);
@@ -2995,11 +2993,12 @@ static int32_t buildDbColsInfoBlock(const SSDataBlock* p, const SSysTableMeta* p
   return numOfRows;
 }
 
-static int32_t buildSysDbColsInfo(SSDataBlock* p, char* db, char* tb) {
+static int32_t buildSysDbColsInfo(SSDataBlock *p, char *db, char *tb) {
   size_t               size = 0;
-  const SSysTableMeta* pSysDbTableMeta = NULL;
+  const SSysTableMeta *pSysDbTableMeta = NULL;
 
-  if(db[0] && strncmp(db, TSDB_INFORMATION_SCHEMA_DB, TSDB_DB_FNAME_LEN) != 0 && strncmp(db, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_DB_FNAME_LEN) != 0){
+  if (db[0] && strncmp(db, TSDB_INFORMATION_SCHEMA_DB, TSDB_DB_FNAME_LEN) != 0 &&
+      strncmp(db, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_DB_FNAME_LEN) != 0) {
     return p->info.rows;
   }
 
@@ -3025,7 +3024,7 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     if (pDb == NULL) return terrno;
   }
 
-  char    typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   STR_TO_VARSTR(typeName, "SUPER_TABLE");
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
@@ -3039,7 +3038,7 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     SName name = {0};
     char  stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     mndExtractTbNameFromStbFullName(pStb->name, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
-    if(pShow->filterTb[0] && strncmp(pShow->filterTb, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN) != 0){
+    if (pShow->filterTb[0] && strncmp(pShow->filterTb, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN) != 0) {
       sdbRelease(pSdb, pStb);
       continue;
     }
@@ -3052,8 +3051,8 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     tNameGetDbName(&name, varDataVal(db));
     varDataSetLen(db, strlen(varDataVal(db)));
 
-    for(int i = 0; i < pStb->numOfColumns; i++){
-      int32_t  cols = 0;
+    for (int i = 0; i < pStb->numOfColumns; i++) {
+      int32_t          cols = 0;
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)stbName, false);
 
@@ -3078,16 +3077,15 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d)",
                               (int32_t)(pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE));
       } else if (colType == TSDB_DATA_TYPE_NCHAR) {
-        colTypeLen += sprintf(
-            varDataVal(colTypeStr) + colTypeLen, "(%d)",
-            (int32_t)((pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+        colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d)",
+                              (int32_t)((pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
       }
       varDataSetLen(colTypeStr, colTypeLen);
-      colDataAppend(pColInfo, numOfRows, (char*)colTypeStr, false);
+      colDataAppend(pColInfo, numOfRows, (char *)colTypeStr, false);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char*)&pStb->pColumns[i].bytes, false);
-      while(cols < pShow->numOfColumns) {
+      colDataAppend(pColInfo, numOfRows, (const char *)&pStb->pColumns[i].bytes, false);
+      while (cols < pShow->numOfColumns) {
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataAppendNULL(pColInfo, numOfRows);
       }
@@ -3139,6 +3137,11 @@ int32_t mndAddIndexImpl(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pSt
   mndTransSetDbName(pTrans, pDb->name, pStb->name);
   if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
+  if (needRsp) {
+    void   *pCont = NULL;
+    int32_t contLen = 0;
+    mndTransSetRpcRsp(pTrans, pCont, contLen);
+  }
   if (mndSetAlterStbRedoLogs(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndSetAlterStbRedoActions2(pMnode, pTrans, pDb, pStb, sql, len) != 0) goto _OVER;
@@ -3182,7 +3185,7 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *ta
 
   SSchema *pTag = pNew->pTags + tag;
   if (IS_IDX_ON(pTag)) {
-    terrno = TSDB_CODE_MND_TAG_NOT_EXIST;
+    terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
     return -1;
   } else {
     pTag->flags |= COL_IDX_ON;
@@ -3227,7 +3230,11 @@ static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq) {
   }
 
   code = mndAddIndex(pMnode, pReq, &tagIdxReq, pDb, pStb);
-  if (code != 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST || terrno == TSDB_CODE_MND_TAG_NOT_EXIST) {
+    return terrno;
+  } else {
+    if (code != 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  }
 
   return TSDB_CODE_SUCCESS;
 
