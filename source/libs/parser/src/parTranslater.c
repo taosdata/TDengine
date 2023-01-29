@@ -5344,6 +5344,14 @@ static int32_t buildCreateTagIndexReq(STranslateContext* pCxt, SCreateIndexStmt*
   memset(&name, 0, sizeof(SName));
 
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), pReq->stbName);
+
+  SNode* pNode = NULL;
+  ASSERT(LIST_LENGTH(pStmt->pCols) == 1);
+  FOREACH(pNode, pStmt->pCols) {
+    SColumnNode* p = (SColumnNode*)pNode;
+    memcpy(pReq->colName, p->colName, sizeof(p->colName));
+  }
+
   // impl later
   return TSDB_CODE_SUCCESS;
 }

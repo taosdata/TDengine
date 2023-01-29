@@ -301,8 +301,7 @@ struct SSchema2 {
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
   char     alias[TSDB_COL_NAME_LEN];
-
-}
+};
 
 typedef struct {
   char     tbName[TSDB_TABLE_NAME_LEN];
@@ -356,14 +355,9 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
 
-<<<<<<< HEAD
-#define IS_BSMA_ON(s) (((s)->flags & 0x01) == COL_SMA_ON)
-#define IS_IDX_ON(s)  (((s)->flags & 0x2) == COL_IDX_ON)
-    == == ==
-    =
 #define IS_BSMA_ON(s)  (((s)->flags & 0x01) == COL_SMA_ON)
+#define IS_IDX_ON(s)   (((s)->flags & 0x2) == COL_IDX_ON)
 #define IS_SET_NULL(s) (((s)->flags & COL_SET_NULL) == COL_SET_NULL)
-        >>>>>>> origin / 3.0
 
 #define SSCHMEA_TYPE(s)  ((s)->type)
 #define SSCHMEA_FLAGS(s) ((s)->flags)
@@ -371,7 +365,7 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define SSCHMEA_BYTES(s) ((s)->bytes)
 #define SSCHMEA_NAME(s)  ((s)->name)
 
-                    typedef struct {
+typedef struct {
   int32_t  nCols;
   int32_t  version;
   SSchema* pSchema;
