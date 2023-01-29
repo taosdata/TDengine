@@ -678,7 +678,7 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* pReader, uint8_t** pp
 
   STsdb* pTsdb = pReader->pTsdb;
 
-  tBlockDataClear(&pReader->bData);
+  tBlockDataReset(&pReader->bData);
 
   for (;;) {
     // start a new file read if need
