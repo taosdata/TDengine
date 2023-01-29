@@ -4013,6 +4013,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
 
   qTrace("tsdb/reader: %p, untake snapshot", pReader);
   tsdbUntakeReadSnap(pReader, pReader->pReadSnap, true);
+  pReader->pReadSnap = NULL;
 
   taosThreadMutexDestroy(&pReader->readerMutex);
 
