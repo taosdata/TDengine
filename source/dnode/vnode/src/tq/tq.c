@@ -93,21 +93,21 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
 
   if (tqMetaOpen(pTq) < 0) {
-    ASSERT(0);
+    return NULL;
   }
 
   pTq->pOffsetStore = tqOffsetOpen(pTq);
   if (pTq->pOffsetStore == NULL) {
-    ASSERT(0);
+    return NULL;
   }
 
   pTq->pStreamMeta = streamMetaOpen(path, pTq, (FTaskExpand*)tqExpandTask, pTq->pVnode->config.vgId);
   if (pTq->pStreamMeta == NULL) {
-    ASSERT(0);
+    return NULL;
   }
 
   if (streamLoadTasks(pTq->pStreamMeta) < 0) {
-    ASSERT(0);
+    return NULL;
   }
 
   return pTq;

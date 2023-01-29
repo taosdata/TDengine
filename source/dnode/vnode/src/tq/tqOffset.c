@@ -101,7 +101,8 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
   }
   char* fname = tqOffsetBuildFName(pStore->pTq->path, 0);
   if (tqOffsetRestoreFromFile(pStore, fname) < 0) {
-    ASSERT(0);
+    taosMemoryFree(fname);
+    return NULL;
   }
   taosMemoryFree(fname);
   return pStore;

@@ -258,7 +258,6 @@ int32_t streamMetaAbort(SStreamMeta* pMeta) {
 int32_t streamLoadTasks(SStreamMeta* pMeta) {
   TBC* pCur = NULL;
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
-    ASSERT(0);
     return -1;
   }
 
