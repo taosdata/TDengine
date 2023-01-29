@@ -15,8 +15,8 @@
 
 #define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
+#include "os.h"
 #include <stdlib.h>
-#include "osDef.h"
 
 #ifdef WINDOWS
 void swapStr(char* j, char* J, int width) {
