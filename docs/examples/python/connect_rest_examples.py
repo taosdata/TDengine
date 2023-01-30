@@ -1,18 +1,19 @@
 # ANCHOR: connect
 from taosrest import connect, TaosRestConnection, TaosRestCursor
 
-conn: TaosRestConnection = connect(url="http://localhost:6041",
-                                   user="root",
-                                   password="taosdata",
-                                   timeout=30)
+conn = connect(url="http://localhost:6041",
+               user="root",
+               password="taosdata",
+               timeout=30)
 
 # ANCHOR_END: connect
 # ANCHOR: basic
 # create STable
-cursor: TaosRestCursor = conn.cursor()
+cursor = conn.cursor()
 cursor.execute("DROP DATABASE IF EXISTS power")
 cursor.execute("CREATE DATABASE power")
-cursor.execute("CREATE STABLE power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)")
+cursor.execute(
+    "CREATE STABLE power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)")
 
 # insert data
 cursor.execute("""INSERT INTO power.d1001 USING power.meters TAGS(California.SanFrancisco, 2) VALUES ('2018-10-03 14:38:05.000', 10.30000, 219, 0.31000) ('2018-10-03 14:38:15.000', 12.60000, 218, 0.33000) ('2018-10-03 14:38:16.800', 12.30000, 221, 0.31000)
@@ -28,7 +29,7 @@ print("queried row count:", cursor.rowcount)
 # get column names from cursor
 column_names = [meta[0] for meta in cursor.description]
 # get rows
-data: list[tuple] = cursor.fetchall()
+data = cursor.fetchall()
 print(column_names)
 for row in data:
     print(row)
