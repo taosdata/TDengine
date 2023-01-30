@@ -706,9 +706,8 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     }
   }
 
-  if (sver <= 0) {
-    metaError("meta/query: incorrect sver: %" PRId32 ".", sver);
-    code = TSDB_CODE_FAILED;
+  if (taosAssertDebug(sver > 0, __FILE__, __LINE__, "failed to get table schema version: %d", sver) < 0) {
+    code = TSDB_CODE_NOT_FOUND;
     goto _exit;
   }
 

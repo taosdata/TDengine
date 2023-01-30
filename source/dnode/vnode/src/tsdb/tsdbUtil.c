@@ -1133,6 +1133,7 @@ _exit:
 void tBlockDataReset(SBlockData *pBlockData) {
   pBlockData->suid = 0;
   pBlockData->uid = 0;
+  pBlockData->nRow = 0;
 }
 
 void tBlockDataClear(SBlockData *pBlockData) {

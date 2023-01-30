@@ -732,6 +732,8 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* pReader, uint8_t** pp
   }
 
   if (pReader->bData.nRow > 0) {
+    ASSERT(pReader->bData.suid || pReader->bData.uid);
+
     code = tsdbSnapCmprData(pReader, ppData);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
