@@ -54,7 +54,7 @@ typedef struct {
 #pragma warning(push)
 #pragma warning(disable : 4091)
 #include <DbgHelp.h>
-include <tchar.h>
+#include <tchar.h>
 #pragma warning(pop)
 
 LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
