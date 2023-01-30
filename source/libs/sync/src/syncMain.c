@@ -306,7 +306,7 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
     if (pSyncNode->replicaNum > 1) {
       // multi replicas
 
-      lastApplyIndex -= SYNC_VNODE_LOG_RETENTION;
+      lastApplyIndex = TMAX(lastApplyIndex - SYNC_VNODE_LOG_RETENTION, beginIndex - 1);
 
       if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
         pSyncNode->minMatchIndex = syncMinMatchIndex(pSyncNode);
