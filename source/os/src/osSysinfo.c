@@ -54,7 +54,6 @@ typedef struct {
 #pragma warning(push)
 #pragma warning(disable : 4091)
 #include <DbgHelp.h>
-#include <tchar.h>
 #pragma warning(pop)
 
 LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
@@ -290,7 +289,7 @@ bool getWinVersionReleaseName(char *releaseName, int32_t maxLen) {
   VS_FIXEDFILEINFO *pFileInfo;
 
   GetWindowsDirectory(szFileName, MAX_PATH);
-  _tcscat_s(szFileName, MAX_PATH, _T("\\explorer.exe"));
+  wsprintf(szFileName, L"%s%s", szFileName, L"\\explorer.exe");
   dwLen = GetFileVersionInfoSize(szFileName, &dwHandle);
   if (dwLen == 0) {
     return false;
@@ -303,7 +302,7 @@ bool getWinVersionReleaseName(char *releaseName, int32_t maxLen) {
     return false;
   }
 
-  if (!VerQueryValue(lpData, _T("\\"), (LPVOID *)&pFileInfo, &uLen)) {
+  if (!VerQueryValue(lpData, L"\\", (LPVOID *)&pFileInfo, &uLen)) {
     free(lpData);
     return false;
   }
