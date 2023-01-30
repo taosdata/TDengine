@@ -106,8 +106,8 @@ class Consumer(object):
             for task in self.tasks:
                 while not task.done():
                     pass
-            if self.pool is not None:
-                self.pool.shutdown()
+                if self.pool is not None:
+                    self.pool.shutdown()
 
         # clean data
         if self.config.get('clean_after_testing'):
@@ -239,3 +239,4 @@ if __name__ == '__main__':
     # test build sql batch
     test_to_taos(consumer)
     test_to_taos_batch(consumer)
+    
