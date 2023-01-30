@@ -678,7 +678,7 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* pReader, uint8_t** pp
 
   STsdb* pTsdb = pReader->pTsdb;
 
-  tBlockDataClear(&pReader->bData);
+  tBlockDataReset(&pReader->bData);
 
   for (;;) {
     // start a new file read if need
@@ -925,6 +925,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
   int32_t lino = 0;
 
   STsdbSnapReader* pReader = *ppReader;
+  STsdb*           pTsdb = pReader->pTsdb;
 
   // tombstone
   if (pReader->pTIter) {
@@ -957,9 +958,9 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pReader->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
-    tsdbDebug("vgId:%d %s done", TD_VID(pReader->pTsdb->pVnode), __func__);
+    tsdbDebug("vgId:%d %s done", TD_VID(pTsdb->pVnode), __func__);
   }
   *ppReader = NULL;
   return code;
@@ -1900,7 +1901,9 @@ _exit:
 }
 
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
-  int32_t          code = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
+
   STsdbSnapWriter* pWriter = *ppWriter;
   STsdb*           pTsdb = pWriter->pTsdb;
 
@@ -1913,7 +1916,7 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
     code = tsdbFSCommit(pWriter->pTsdb);
     if (code) {
       taosThreadRwlockUnlock(&pTsdb->rwLock);
-      goto _err;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     // unlock
@@ -1936,16 +1939,15 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
   for (int32_t iBuf = 0; iBuf < sizeof(pWriter->aBuf) / sizeof(uint8_t*); iBuf++) {
     tFree(pWriter->aBuf[iBuf]);
   }
-  tsdbInfo("vgId:%d, %s done", TD_VID(pWriter->pTsdb->pVnode), __func__);
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
-  return code;
 
-_err:
-  tsdbError("vgId:%d, vnode snapshot tsdb writer close for %s failed since %s", TD_VID(pWriter->pTsdb->pVnode),
-            pWriter->pTsdb->path, tstrerror(code));
-  taosMemoryFree(pWriter);
-  *ppWriter = NULL;
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  } else {
+    tsdbInfo("vgId:%d %s done", TD_VID(pTsdb->pVnode), __func__);
+  }
   return code;
 }
 
