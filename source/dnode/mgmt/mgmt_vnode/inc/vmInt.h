@@ -54,6 +54,7 @@ typedef struct {
   int32_t       vgVersion;
   int32_t       refCount;
   int8_t        dropped;
+  int8_t        disable;
   char         *path;
   SVnode       *pImpl;
   SMultiWorker  pWriteW;
@@ -87,6 +88,7 @@ SArray *vmGetMsgHandles();
 int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmProcessDisableVnodeWriteReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // vmFile.c
 int32_t     vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);

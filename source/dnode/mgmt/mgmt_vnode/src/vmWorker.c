@@ -43,6 +43,9 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_VND_ALTER_REPLICA:
       code = vmProcessAlterVnodeReq(pMgmt, pMsg);
       break;
+    case TDMT_VND_DISABLE_WRITE:
+      code = vmProcessDisableVnodeWriteReq(pMgmt, pMsg);
+      break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       dGError("msg:%p, not processed in vnode-mgmt queue", pMsg);
@@ -191,14 +194,21 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
         terrno = TSDB_CODE_NO_DISKSPACE;
         code = terrno;
         dError("vgId:%d, msg:%p put into vnode-write queue failed since %s", pVnode->vgId, pMsg, terrstr(code));
-      } else if ((pMsg->msgType == TDMT_VND_SUBMIT) && (grantCheck(TSDB_GRANT_STORAGE) != TSDB_CODE_SUCCESS)) {
+        break;
+      }
+      if (pMsg->msgType == TDMT_VND_SUBMIT && (grantCheck(TSDB_GRANT_STORAGE) != TSDB_CODE_SUCCESS)) {
         terrno = TSDB_CODE_VND_NO_WRITE_AUTH;
         code = terrno;
         dDebug("vgId:%d, msg:%p put into vnode-write queue failed since %s", pVnode->vgId, pMsg, terrstr(code));
-      } else {
-        dGTrace("vgId:%d, msg:%p put into vnode-write queue", pVnode->vgId, pMsg);
-        taosWriteQitem(pVnode->pWriteW.queue, pMsg);
+        break;
       }
+      if (pMsg->msgType != TDMT_VND_ALTER_CONFIRM && pVnode->disable) {
+        dDebug("vgId:%d, msg:%p put into vnode-write queue failed since its disable", pVnode->vgId, pMsg);
+        terrno = TSDB_CODE_VND_STOPPED;
+        break;
+      }
+      dGTrace("vgId:%d, msg:%p put into vnode-write queue", pVnode->vgId, pMsg);
+      taosWriteQitem(pVnode->pWriteW.queue, pMsg);
       break;
     case SYNC_QUEUE:
       dGTrace("vgId:%d, msg:%p put into vnode-sync queue", pVnode->vgId, pMsg);
