@@ -1515,7 +1515,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   code = smlBuildOutput(pQuery, pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
     uError("smlBuildOutput failed");
-    return code;
+    goto end;
   }
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
@@ -1538,6 +1538,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   SMqTaosxRspObj rspObj = {0};
   SDecoder       decoder = {0};
   STableMeta*    pTableMeta = NULL;
+  SVCreateTbReq* pCreateReqDst = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
   SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
@@ -1605,17 +1606,17 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     strcpy(pName.tname, tbName);
 
     // find schema data info
-    SVCreateTbReq pCreateReq = {0};
-
     for (int j = 0; j < rspObj.rsp.createTableNum; j++) {
       void**   dataTmp = taosArrayGet(rspObj.rsp.createTableReq, j);
       int32_t* lenTmp = taosArrayGet(rspObj.rsp.createTableLen, j);
 
       SDecoder decoderTmp = {0};
+      SVCreateTbReq pCreateReq = {0};
       tDecoderInit(&decoderTmp, *dataTmp, *lenTmp);
-      memset(&pCreateReq, 0, sizeof(SVCreateTbReq));
       if (tDecodeSVCreateTbReq(&decoderTmp, &pCreateReq) < 0) {
         tDecoderClear(&decoderTmp);
+        uError("WriteRaw: tDecodeSVCreateTbReq error");
+        code = TSDB_CODE_TMQ_INVALID_MSG;
         goto end;
       }
 
@@ -1625,13 +1626,18 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
         goto end;
       }
       if (strcmp(tbName, pCreateReq.name) == 0) {
-        strcpy(pName.tname, pCreateReq.ctb.stbName);
+        cloneSVreateTbReq(&pCreateReq, &pCreateReqDst);
         tDecoderClear(&decoderTmp);
         break;
       }
       tDecoderClear(&decoderTmp);
     }
 
+    if(pCreateReqDst){
+      strcpy(pName.tname, pCreateReqDst->ctb.stbName);
+    }else{
+      strcpy(pName.tname, tbName);
+    }
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       uError("WriteRaw:catalogGetTableMeta table not exist. table name: %s", tbName);
@@ -1650,16 +1656,27 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       goto end;
     }
 
+    if(pCreateReqDst){
+      pTableMeta->vgId = vg.vgId;
+      pTableMeta->uid  = pCreateReqDst->uid;
+    }
     void* hData = taosHashGet(pVgHash, &vg.vgId, sizeof(vg.vgId));
     if (hData == NULL) {
       taosHashPut(pVgHash, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg));
     }
 
-    code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, &pCreateReq, NULL, 0);
+    code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, pCreateReqDst, NULL, 0);
     if (code != TSDB_CODE_SUCCESS) {
       uError("WriteRaw:rawBlockBindData failed");
       goto end;
     }
+    pCreateReqDst = NULL;
+  }
+
+  code = smlBuildOutput(pQuery, pVgHash);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("smlBuildOutput failed");
+    goto end;
   }
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
@@ -1672,6 +1689,10 @@ end:
   destroyRequest(pRequest);
   taosHashCleanup(pVgHash);
   taosMemoryFreeClear(pTableMeta);
+  if (pCreateReqDst) {
+    tdDestroySVCreateTbReq(pCreateReqDst);
+    taosMemoryFree(pCreateReqDst);
+  }
   return code;
 }
 

@@ -683,6 +683,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
             .ver = pHead->version,
         };
         if (tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp) < 0) {
+          tqError("tmq poll: tqTaosxScanLog error %" PRId64 ", in vgId:%d, subkey %s", consumerId,
+                  TD_VID(pTq->pVnode), req.subKey);
+          return -1;
         }
         if (taosxRsp.blockNum > 0 /* threshold */) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
