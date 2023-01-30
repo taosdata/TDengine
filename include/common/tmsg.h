@@ -1288,6 +1288,17 @@ int32_t tSerializeSDisableVnodeWriteReq(void* buf, int32_t bufLen, SDisableVnode
 int32_t tDeserializeSDisableVnodeWriteReq(void* buf, int32_t bufLen, SDisableVnodeWriteReq* pReq);
 
 typedef struct {
+  int32_t  srcVgId;
+  int32_t  dstVgId;
+  uint32_t hashBegin;
+  uint32_t hashEnd;
+  int64_t  reserved;
+} SAlterVnodeHashRangeReq;
+
+int32_t tSerializeSAlterVnodeHashRangeReq(void* buf, int32_t bufLen, SAlterVnodeHashRangeReq* pReq);
+int32_t tDeserializeSAlterVnodeHashRangeReq(void* buf, int32_t bufLen, SAlterVnodeHashRangeReq* pReq);
+
+typedef struct {
   SMsgHead header;
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     tbName[TSDB_TABLE_NAME_LEN];

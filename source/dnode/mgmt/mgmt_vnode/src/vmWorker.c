@@ -41,10 +41,13 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       code = vmProcessDropVnodeReq(pMgmt, pMsg);
       break;
     case TDMT_VND_ALTER_REPLICA:
-      code = vmProcessAlterVnodeReq(pMgmt, pMsg);
+      code = vmProcessAlterVnodeReplicaReq(pMgmt, pMsg);
       break;
     case TDMT_VND_DISABLE_WRITE:
       code = vmProcessDisableVnodeWriteReq(pMgmt, pMsg);
+      break;
+    case TDMT_VND_ALTER_HASHRANGE:
+      code = vmProcessAlterHashRangeReq(pMgmt, pMsg);
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
