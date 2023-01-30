@@ -1939,6 +1939,7 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
   for (int32_t iBuf = 0; iBuf < sizeof(pWriter->aBuf) / sizeof(uint8_t*); iBuf++) {
     tFree(pWriter->aBuf[iBuf]);
   }
+  tsdbFSDestroy(&pWriter->fs);
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
 
