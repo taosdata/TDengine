@@ -770,7 +770,7 @@ function is_version_compatible() {
 deb_erase() {
   confirm=""
   while [ "" == "${confirm}" ]; do
-    echo -e -n "${RED}Exist tdengine deb detected, do you want to remove it? [yes|no] ${NC}:"
+    echo -e -n "${RED}Existing TDengine deb is detected, do you want to remove it? [yes|no] ${NC}:"
     read confirm
     if [ "yes" == "$confirm" ]; then
       ${csudo}dpkg --remove tdengine ||:
@@ -784,7 +784,7 @@ deb_erase() {
 rpm_erase() {
   confirm=""
   while [ "" == "${confirm}" ]; do
-    echo -e -n "${RED}Exist tdengine rpm detected, do you want to remove it? [yes|no] ${NC}:"
+    echo -e -n "${RED}Existing TDengine rpm is detected, do you want to remove it? [yes|no] ${NC}:"
     read confirm
     if [ "yes" == "$confirm" ]; then
       ${csudo}rpm -e tdengine ||:
