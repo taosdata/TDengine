@@ -219,10 +219,10 @@ void vnodeBufPoolAddToFreeList(SVBufPool *pPool) {
   if (pPool->node.size != size) {
     SVBufPool *pNewPool = NULL;
     if (vnodeBufPoolCreate(pVnode, pPool->id, size, &pNewPool) < 0) {
-      vWarn("vgId:%d failed to change buffer pool of id %d size from %" PRId64 " to %" PRId64 " since %s",
+      vWarn("vgId:%d, failed to change buffer pool of id %d size from %" PRId64 " to %" PRId64 " since %s",
             TD_VID(pVnode), pPool->id, pPool->node.size, size, tstrerror(errno));
     } else {
-      vInfo("vgId:%d buffer pool of id %d size changed from %" PRId64 " to %" PRId64, TD_VID(pVnode), pPool->id,
+      vInfo("vgId:%d, buffer pool of id %d size changed from %" PRId64 " to %" PRId64, TD_VID(pVnode), pPool->id,
             pPool->node.size, size);
 
       vnodeBufPoolDestroy(pPool);
@@ -232,7 +232,7 @@ void vnodeBufPoolAddToFreeList(SVBufPool *pPool) {
   }
 
   // add to free list
-  vDebug("vgId:%d buffer pool %p of id %d is added to free list", TD_VID(pVnode), pPool, pPool->id);
+  vDebug("vgId:%d, buffer pool %p of id %d is added to free list", TD_VID(pVnode), pPool, pPool->id);
   vnodeBufPoolReset(pPool);
   pPool->freeNext = pVnode->freeList;
   pVnode->freeList = pPool;
@@ -307,7 +307,7 @@ int32_t vnodeBufPoolRecycle(SVBufPool *pPool) {
 
   SVnode *pVnode = pPool->pVnode;
 
-  vDebug("vgId:%d recycle buffer pool %p of id %d", TD_VID(pVnode), pPool, pPool->id);
+  vDebug("vgId:%d, recycle buffer pool %p of id %d", TD_VID(pVnode), pPool, pPool->id);
 
   taosThreadMutexLock(&pPool->mutex);
 
