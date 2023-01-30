@@ -240,11 +240,11 @@ TEST(GeomFuncTest, makePointFunctionTwoColumns) {
   destroyScalarParam(pOutputGeomFromText, 1);
 }
 
-TEST(GeomFuncTest, makePointFunctionFirstConstant) {
+TEST(GeomFuncTest, makePointFunctionConstant) {
   int32_t rowNum = 3;
   SScalarParam *pOutputGeomFromText;
 
-  // call GeomFromText(<POINT>) and generate pOutputGeomFromText to compare later
+  // 1. call GeomFromText(<POINT>) and generate pOutputGeomFromText with first constant
   char strArray[rowNum][TSDB_MAX_BINARY_LEN];
   STR_TO_VARSTR(strArray[0], "POINT(3.0 5.0)");
   STR_TO_VARSTR(strArray[1], "POINT(3.0 -6.0)");
@@ -259,14 +259,8 @@ TEST(GeomFuncTest, makePointFunctionFirstConstant) {
                                 rowNum, pOutputGeomFromText);
 
   destroyScalarParam(pOutputGeomFromText, 1);
-}
 
-TEST(GeomFuncTest, makePointFunctionSecondConstant) {
-  int32_t rowNum = 3;
-  SScalarParam *pOutputGeomFromText;
-
-  // call GeomFromText(<POINT>) and generate pOutputGeomFromText to compare later
-  char strArray[rowNum][TSDB_MAX_BINARY_LEN];
+  // 2. call GeomFromText(<POINT>) and generate pOutputGeomFromText with second constant
   STR_TO_VARSTR(strArray[0], "POINT(2.0 3.0)");
   STR_TO_VARSTR(strArray[1], "POINT(3.0 3.0)");
   STR_TO_VARSTR(strArray[2], "POINT(-4.0 3.0)");
@@ -282,18 +276,18 @@ TEST(GeomFuncTest, makePointFunctionSecondConstant) {
   destroyScalarParam(pOutputGeomFromText, 1);
 }
 
-TEST(GeomFuncTest, makePointFunctionAllNull) {
+TEST(GeomFuncTest, makePointFunctionWithNull) {
   int32_t rowNum = 3;
   SScalarParam *pOutputGeomFromText;
 
-  // call GeomFromText(<POINT>) and generate pOutputGeomFromText with all NULL values to compare later
+  // call GeomFromText(<POINT>) and generate pOutputGeomFromText with all NULL values
   char strArray[rowNum][TSDB_MAX_BINARY_LEN];
   STR_TO_VARSTR(strArray[0], "");
   STR_TO_VARSTR(strArray[1], "");
   STR_TO_VARSTR(strArray[2], "");
   outputGeomParamByGeomFromText(strArray, rowNum, &pOutputGeomFromText);
 
-  // call MakePoint() with NULL type and INT column, and compare all NULL results
+  // 1. call MakePoint() with NULL type and INT column, and compare all NULL results
   int64_t intArray[rowNum] = MAKE_POINT_SECOND_COLUMN_VALUES;
   callMakePointAndCompareResult(TSDB_DATA_TYPE_NULL, 0, true,
                                 TSDB_DATA_TYPE_INT, intArray, false,
@@ -315,14 +309,8 @@ TEST(GeomFuncTest, makePointFunctionAllNull) {
                                 rowNum, pOutputGeomFromText);
 
   destroyScalarParam(pOutputGeomFromText, 1);
-}
 
-TEST(GeomFuncTest, makePointFunctionWithNull) {
-  int32_t rowNum = 3;
-  SScalarParam *pOutputGeomFromText;
-
-  // call GeomFromText(<POINT>) and generate pOutputGeomFromText with NULL value to compare later
-  char strArray[rowNum][TSDB_MAX_BINARY_LEN];
+  // 2. call GeomFromText(<POINT>) and generate pOutputGeomFromText with NULL value
   STR_TO_VARSTR(strArray[0], "POINT(2.0 5.0)");
   STR_TO_VARSTR(strArray[1], "");
   STR_TO_VARSTR(strArray[2], "POINT(-4.0 -7.0)");
