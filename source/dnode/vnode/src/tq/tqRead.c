@@ -671,7 +671,7 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
           sourceIdx++;
         } else if (pCol->cid == pColData->info.colId) {
           for (int32_t i = 0; i < pCol->nVal; i++) {
-            tColDataGetValue(pCol, sourceIdx, &colVal);
+            tColDataGetValue(pCol, i, &colVal);
 #if 0
             void* val = NULL;
             if (IS_STR_DATA_TYPE(colVal.type)) {
@@ -711,7 +711,6 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
 
       for (int32_t i = 0; i < numOfRows; i++) {
         SRow*   pRow = taosArrayGetP(pRows, i);
-        int32_t targetIdx = 0;
         int32_t sourceIdx = 0;
 
         for (int32_t j = 0; j < colActual; j++) {
@@ -744,7 +743,6 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
               }
 
               sourceIdx++;
-              targetIdx++;
               break;
             } else {
               ASSERT(0);
