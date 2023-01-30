@@ -1874,16 +1874,21 @@ _OVER:
 static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
   int32_t code = -1;
-  int32_t vgId = 2;
   SVgObj *pVgroup = NULL;
   SDbObj *pDb = NULL;
 
-  mInfo("vgId:%d, start to split", vgId);
+  SSplitVgroupReq req = {0};
+  if (tDeserializeSSplitVgroupReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mInfo("vgId:%d, start to split", req.vgId);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SPLIT_VGROUP) != 0) {
     goto _OVER;
   }
 
-  pVgroup = mndAcquireVgroup(pMnode, vgId);
+  pVgroup = mndAcquireVgroup(pMnode, req.vgId);
   if (pVgroup == NULL) goto _OVER;
 
   pDb = mndAcquireDb(pMnode, pVgroup->dbName);
