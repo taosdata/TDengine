@@ -323,6 +323,7 @@ The charset that takes effect is UTF-8.
 | Applicable    | Server Only                                 |
 | Meaning       | All data files are stored in this directory |
 | Default Value | /var/lib/taos                               |
+| Note          | The [Tiered Storage](https://docs.tdengine.com/tdinternal/arch/#tiered-storage) function needs to be used in conjunction with the [KEEP](https://docs.tdengine.com/taos-sql/database/#parameters) parameter |
 
 ### tempDir
 
@@ -603,7 +604,7 @@ The charset that takes effect is UTF-8.
 | Attribute     | Description                          |
 | -------- | ----------------------------- |
 | Applicable | Client only                                           |
-| Meaning     | Whether schemaless columns are consistently ordered |
+| Meaning     | Whether schemaless columns are consistently ordered, depat, discarded since 3.0.3.0|
 | Value Range     | 0: not consistent; 1: consistent.            |
 | Default   | 1                             |
 
@@ -665,7 +666,7 @@ The charset that takes effect is UTF-8.
 | 20  |     minimalTmpDirGB     | Yes              | Yes              |                                                   |
 | 21  |    smlChildTableName    | Yes              | Yes              |                                                   |
 | 22  |       smlTagName        | Yes              | Yes              |                                                   |
-| 23  |      smlDataFormat      | No              | Yes              |                                                   |
+| 23  |      smlDataFormat      | No              | Yes(discarded since 3.0.3.0)              |                                                   |
 | 24  |     statusInterval      | Yes              | Yes              |                                                   |
 | 25  |         logDir          | Yes              | Yes              |                                                   |
 | 26  |     minimalLogDirGB     | Yes              | Yes              |                                                   |

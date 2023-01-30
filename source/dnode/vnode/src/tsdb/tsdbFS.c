@@ -458,9 +458,8 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
       taosMemoryFree(pHeadF);
     }
   } else {
-    nRef = pHeadF->nRef;
-    *pHeadF = *pSetNew->pHeadF;
-    pHeadF->nRef = nRef;
+    ASSERT(pHeadF->offset == pSetNew->pHeadF->offset);
+    ASSERT(pHeadF->size == pSetNew->pHeadF->size);
   }
 
   // data
@@ -481,9 +480,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
       taosMemoryFree(pDataF);
     }
   } else {
-    nRef = pDataF->nRef;
-    *pDataF = *pSetNew->pDataF;
-    pDataF->nRef = nRef;
+    pDataF->size = pSetNew->pDataF->size;
   }
 
   // sma
@@ -504,9 +501,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
       taosMemoryFree(pSmaF);
     }
   } else {
-    nRef = pSmaF->nRef;
-    *pSmaF = *pSetNew->pSmaF;
-    pSmaF->nRef = nRef;
+    pSmaF->size = pSetNew->pSmaF->size;
   }
 
   // stt

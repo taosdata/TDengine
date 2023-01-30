@@ -306,7 +306,7 @@ SHOW [db_name.]VGROUPS;
 ## SHOW VNODES
 
 ```sql
-SHOW VNODES [dnode_name];
+SHOW VNODES {dnode_id | dnode_endpoint};
 ```
 
 显示当前系统中所有 VNODE 或某个 DNODE 的 VNODE 的信息。

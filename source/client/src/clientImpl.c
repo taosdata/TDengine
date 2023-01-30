@@ -1239,7 +1239,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
 
   int64_t transporterId = 0;
   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
-  
+
   tsem_wait(&pRequest->body.rspSem);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg =

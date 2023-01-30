@@ -671,7 +671,6 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
       goto end;
     }
 
-    colLength[c] = htonl(colLength[c]);
     int8_t* offset = pStart;
     if (IS_VAR_DATA_TYPE(pColSchema->type)) {
       pStart += numOfRows * sizeof(int32_t);

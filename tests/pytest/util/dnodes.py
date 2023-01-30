@@ -29,6 +29,7 @@ class TDSimClient:
         self.testCluster = False
         self.path = path
         self.cfgDict = {
+            "fqdn": "localhost",
             "numOfLogLines": "100000000",
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
@@ -119,6 +120,7 @@ class TDDnode:
         self.asan = False
         self.remoteIP = ""
         self.cfgDict = {
+            "fqdn": "localhost",
             "monitor": "0",
             "maxShellConns": "30000",
             "locale": "en_US.UTF-8",
