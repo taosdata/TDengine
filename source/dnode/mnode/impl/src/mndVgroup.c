@@ -1763,9 +1763,10 @@ static int32_t mndAddAdjustVnodeHashRangeAction(SMnode *pMnode, STrans *pTrans, 
 }
 
 static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgroup) {
-  int32_t code = -1;
-  STrans *pTrans = NULL;
-  SArray *pArray = mndBuildDnodesArray(pMnode, 0);
+  int32_t  code = -1;
+  STrans  *pTrans = NULL;
+  SSdbRaw *pRaw = NULL;
+  SArray  *pArray = mndBuildDnodesArray(pMnode, 0);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "split-vgroup");
   if (pTrans == NULL) goto _OVER;
@@ -1802,6 +1803,12 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
     mInfo("vgId:%d, vnode:%d dnode:%d", newVg1.vgId, i, newVg1.vnodeGid[i].dnodeId);
   }
 
+  pRaw = mndVgroupActionEncode(pVgroup);
+  if (pRaw == NULL) goto _OVER;
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPING);
+  pRaw = NULL;
+
   SVgObj newVg2 = {0};
   memcpy(&newVg2, &newVg1, sizeof(SVgObj));
   newVg1.replica = 1;
@@ -1829,35 +1836,23 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
     if (mndBuildAlterVgroupAction(pMnode, pTrans, pDb, pDb, &newVg2, pArray) != 0) goto _OVER;
   }
 
-  {
-    SSdbRaw *pRaw = mndVgroupActionEncode(&newVg1);
-    if (pRaw == NULL) return -1;
-    if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
-      sdbFreeRaw(pRaw);
-      return -1;
-    }
-    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-  }
+  pRaw = mndVgroupActionEncode(&newVg1);
+  if (pRaw == NULL) goto _OVER;
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  pRaw = NULL;
 
-  {
-    SSdbRaw *pRaw = mndVgroupActionEncode(&newVg2);
-    if (pRaw == NULL) return -1;
-    if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
-      sdbFreeRaw(pRaw);
-      return -1;
-    }
-    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-  }
+  pRaw = mndVgroupActionEncode(&newVg2);
+  if (pRaw == NULL) goto _OVER;
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  pRaw = NULL;
 
-  {
-    SSdbRaw *pRaw = mndVgroupActionEncode(pVgroup);
-    if (pRaw == NULL) return -1;
-    if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
-      sdbFreeRaw(pRaw);
-      return -1;
-    }
-    (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
-  }
+  pRaw = mndVgroupActionEncode(pVgroup);
+  if (pRaw == NULL) goto _OVER;
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+  pRaw = NULL;
 
   mInfo("vgId:%d, vgroup info after adjust hash, replica:%d hashBegin:%u hashEnd:%u vnode:0 dnode:%d", newVg1.vgId,
         newVg1.replica, newVg1.hashBegin, newVg1.hashEnd, newVg1.vnodeGid[0].dnodeId);
@@ -1876,6 +1871,7 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
 _OVER:
   taosArrayDestroy(pArray);
   mndTransDrop(pTrans);
+  sdbFreeRaw(pRaw);
   return code;
 }
 
