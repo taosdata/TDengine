@@ -54,6 +54,7 @@ typedef struct {
 #pragma warning(push)
 #pragma warning(disable : 4091)
 #include <DbgHelp.h>
+include <tchar.h>
 #pragma warning(pop)
 
 LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
@@ -279,11 +280,46 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 #endif
 }
 
+#ifdef WINDOWS
+bool getWinVersionReleaseName(char *releaseName, int32_t maxLen) {
+  TCHAR          szFileName[MAX_PATH];
+  DWORD             dwHandle;
+  DWORD             dwLen;
+  LPVOID            lpData;
+  UINT              uLen;
+  VS_FIXEDFILEINFO *pFileInfo;
 
+  GetWindowsDirectory(szFileName, MAX_PATH);
+  _tcscat_s(szFileName, MAX_PATH, _T("\\explorer.exe"));
+  dwLen = GetFileVersionInfoSize(szFileName, &dwHandle);
+  if (dwLen == 0) {
+    return false;
+  }
+
+  lpData = malloc(dwLen);
+  if (lpData == NULL) return false;
+  if (!GetFileVersionInfo(szFileName, dwHandle, dwLen, lpData)) {
+    free(lpData);
+    return false;
+  }
+
+  if (!VerQueryValue(lpData, _T("\\"), (LPVOID *)&pFileInfo, &uLen)) {
+    free(lpData);
+    return false;
+  }
+
+  snprintf(releaseName, maxLen, "Windows %d.%d", HIWORD(pFileInfo->dwProductVersionMS),
+           LOWORD(pFileInfo->dwProductVersionMS));
+  free(lpData);
+  return true;
+}
+#endif
 
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 #ifdef WINDOWS
-  snprintf(releaseName, maxLen, "Windows");
+  if (!getWinVersionReleaseName(releaseName, maxLen)) {
+    snprintf(releaseName, maxLen, "Windows");
+  }
   return 0;
 #elif defined(_TD_DARWIN_64)
   char osversion[32];
