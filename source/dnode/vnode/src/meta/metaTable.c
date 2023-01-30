@@ -430,7 +430,7 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     goto _err;
   }
 
-  if (oStbEntry.stbEntry.schemaTag.version != pReq->schemaTag.version) {
+  if (oStbEntry.stbEntry.schemaTag.version == pReq->schemaTag.version) {
     goto _err;
   }
 
@@ -456,10 +456,6 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     goto _err;
   }
 
-  // metaStatsCacheDrop(pMeta, nStbEntry.uid);
-
-  metaULock(pMeta);
-
   // Get target schema info
   SSchemaWrapper *pTagSchema = &pReq->schemaTag;
   if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
@@ -479,8 +475,8 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     goto _err;
   }
   for (;;) {
-    void *pKey, *pVal;
-    int   nKey, nVal;
+    void *pKey = NULL, *pVal = NULL;
+    int   nKey = 0, nVal = 0;
     rc = tdbTbcNext(pCtbIdxc, &pKey, &nKey, &pVal, &nVal);
     if (rc < 0) break;
     if (((SCtbIdxKey *)pKey)->suid != suid) {
@@ -513,6 +509,14 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, pMeta->txn);
     metaDestroyTagIdxKey(pTagIdxKey);
   }
+
+  nStbEntry.version = version;
+  nStbEntry.type = TSDB_SUPER_TABLE;
+  nStbEntry.uid = pReq->suid;
+  nStbEntry.name = pReq->name;
+  nStbEntry.stbEntry.schemaRow = pReq->schemaRow;
+  nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
+
   metaWLock(pMeta);
   // update table.db
   metaSaveToTbDb(pMeta, &nStbEntry);
