@@ -127,7 +127,7 @@ IF(TD_BULID_TAOSX)
             DEPENDS             taos
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND
-            COMMAND git pull origin main
+            COMMAND git pull || true
             COMMAND cargo update
             BUILD_COMMAND
             COMMAND LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} cargo build --release
@@ -142,7 +142,7 @@ IF(TD_BULID_TAOSX)
             DEPENDS             taos
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND
-            COMMAND git pull origin main
+            COMMAND git pull origin main || true
             COMMAND cargo update
             BUILD_COMMAND
             COMMAND set LIBRARY_PATH=$ENV{LIBRARY_PATH} && set LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} && cargo build --release
