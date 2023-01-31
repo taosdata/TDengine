@@ -628,7 +628,12 @@ static int32_t tsdbReleaseReader(STsdbReader* pReader) {
   return code;
 }
 
-void tsdbReleaseDataBlock(STsdbReader* pReader) { tsdbReleaseReader(pReader); }
+void tsdbReleaseDataBlock(STsdbReader* pReader) {
+  SReaderStatus* pStatus = &pReader->status;
+  if (!pStatus->composedDataBlock) {
+    tsdbReleaseReader(pReader);
+  }
+}
 
 static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsdbReader** ppReader, int32_t capacity,
                                 SSDataBlock* pResBlock, const char* idstr) {
