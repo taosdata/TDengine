@@ -3281,9 +3281,6 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static int32_t translatePartitionBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (NULL == pSelect->pPartitionByList) {
-    return TSDB_CODE_SUCCESS;
-  }
   pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
   int32_t code = translateExprList(pCxt, pSelect->pPartitionByList);
   if (TSDB_CODE_SUCCESS == code) {
@@ -5733,12 +5730,13 @@ static int32_t addSubtableNameToCreateStreamQuery(STranslateContext* pCxt, SCrea
 
 static int32_t addSubtableInfoToCreateStreamQuery(STranslateContext* pCxt, STableMeta* pMeta,
                                                   SCreateStreamStmt* pStmt) {
+  int32_t      code = TSDB_CODE_SUCCESS;
   SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
   if (NULL == pSelect->pPartitionByList) {
-    return addNullTagsForExistTable(pCxt, pMeta, pSelect);
+    code = addNullTagsForExistTable(pCxt, pMeta, pSelect);
+  } else {
+    code = addTagsToCreateStreamQuery(pCxt, pStmt, pSelect);
   }
-
-  int32_t code = addTagsToCreateStreamQuery(pCxt, pStmt, pSelect);
   if (TSDB_CODE_SUCCESS == code) {
     code = addSubtableNameToCreateStreamQuery(pCxt, pStmt, pSelect);
   }

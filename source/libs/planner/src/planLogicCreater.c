@@ -374,6 +374,20 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = addDefaultScanCol(pRealTable->pMeta, &pScan->pScanCols);
   }
 
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pTags && NULL == pSelect->pPartitionByList) {
+    pScan->pTags = nodesCloneList(pSelect->pTags);
+    if (NULL == pScan->pTags) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pSubtable && NULL == pSelect->pPartitionByList) {
+    pScan->pSubtable = nodesCloneNode(pSelect->pSubtable);
+    if (NULL == pScan->pSubtable) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
   // set output
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
