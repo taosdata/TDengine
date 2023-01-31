@@ -146,9 +146,9 @@ extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max,
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind);
 void    tColDataSortMerge(SArray *colDataArr);
 
-//for raw block
-int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes,
-                                    int32_t nRows, char* lengthOrbitmap, char *data);
+// for raw block
+int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
+                                    char *data);
 // for encode/decode
 int32_t tPutColData(uint8_t *pBuf, SColData *pColData);
 int32_t tGetColData(uint8_t *pBuf, SColData *pColData);
@@ -261,7 +261,13 @@ struct STag {
 
 // STSchema ================================
 STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version);
-void      tDestroyTSchema(STSchema *pTSchema);
+#define tDestroyTSchema(pTSchema) \
+  do {                            \
+    if (pTSchema) {               \
+      taosMemoryFree(pTSchema);   \
+      pTSchema = NULL;            \
+    }                             \
+  } while (0)
 
 #endif
 
