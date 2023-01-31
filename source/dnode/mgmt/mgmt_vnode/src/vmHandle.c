@@ -311,34 +311,13 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   int32_t srcVgId = req.srcVgId;
   int32_t dstVgId = req.dstVgId;
-  dInfo("vgId:%d, alter hashrange msg will be processed, dstVgId:%d, begin:%u, end:%u", req.srcVgId, req.dstVgId,
-        req.hashBegin, req.hashEnd);
+  dInfo("vgId:%d, start to alter vnode hashrange[%u, %u), dstVgId:%d", req.srcVgId, req.hashBegin, req.hashEnd,
+        req.dstVgId);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, srcVgId);
   if (pVnode == NULL) {
     dError("vgId:%d, failed to alter hashrange since %s", srcVgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
-    return -1;
-  }
-
-  dInfo("vgId:%d, start to close vnode", srcVgId);
-  vmCloseVnode(pMgmt, pVnode, true);
-
-  char srcPath[TSDB_FILENAME_LEN] = {0};
-  char dstPath[TSDB_FILENAME_LEN] = {0};
-  snprintf(srcPath, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, srcVgId);
-  snprintf(dstPath, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, dstVgId);
-
-  dInfo("vgId:%d, start to alter vnode hashrange at %s", srcVgId, srcPath);
-  if (vnodeAlterHashRange(srcPath, dstPath, &req, pMgmt->pTfs) < 0) {
-    dError("vgId:%d, failed to alter vnode hashrange since %s", srcVgId, terrstr());
-    return -1;
-  }
-
-  dInfo("vgId:%d, start to open vnode", dstVgId);
-  SVnode *pImpl = vnodeOpen(dstPath, pMgmt->pTfs, pMgmt->msgCb);
-  if (pImpl == NULL) {
-    dError("vgId:%d, failed to open vnode at %s since %s", dstVgId, dstPath, terrstr());
     return -1;
   }
 
@@ -348,6 +327,28 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       .vgVersion = pVnode->vgVersion,
   };
   tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
+
+  dInfo("vgId:%d, close vnode", srcVgId);
+  vmCloseVnode(pMgmt, pVnode, true);
+
+  char srcPath[TSDB_FILENAME_LEN] = {0};
+  char dstPath[TSDB_FILENAME_LEN] = {0};
+  snprintf(srcPath, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, srcVgId);
+  snprintf(dstPath, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, dstVgId);
+
+  dInfo("vgId:%d, alter vnode hashrange at %s", srcVgId, srcPath);
+  if (vnodeAlterHashRange(srcPath, dstPath, &req, pMgmt->pTfs) < 0) {
+    dError("vgId:%d, failed to alter vnode hashrange since %s", srcVgId, terrstr());
+    return -1;
+  }
+
+  dInfo("vgId:%d, open vnode", dstVgId);
+  SVnode *pImpl = vnodeOpen(dstPath, pMgmt->pTfs, pMgmt->msgCb);
+  if (pImpl == NULL) {
+    dError("vgId:%d, failed to open vnode at %s since %s", dstVgId, dstPath, terrstr());
+    return -1;
+  }
+
   if (vmOpenVnode(pMgmt, &wrapperCfg, pImpl) != 0) {
     dError("vgId:%d, failed to open vnode mgmt since %s", dstVgId, terrstr());
     return -1;

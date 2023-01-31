@@ -128,6 +128,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   if (commitAndRemoveWal) {
     dInfo("vgId:%d, commit data", pVnode->vgId);
     vnodeSyncCommit(pVnode->pImpl);
+    dInfo("vgId:%d, commit data finished", pVnode->vgId);
   }
 
   vnodeClose(pVnode->pImpl);
