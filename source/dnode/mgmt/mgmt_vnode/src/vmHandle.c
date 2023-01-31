@@ -359,6 +359,11 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
+  if (vmWriteVnodeListToFile(pMgmt) != 0) {
+    dError("vgId:%d, failed to write vnode list since %s", dstVgId, terrstr());
+    return -1;
+  }
+
   dInfo("vgId:%d, vnode hashrange is altered", dstVgId);
   return 0;
 }
