@@ -35,6 +35,20 @@ dumpName="taosdump"
 demoName="taosdemo"
 xname="taosx"
 
+clientName2="taos"
+serverName2="taosd"
+productName2="TDengine"
+emailName2="taosdata.com"
+
+benchmarkName2="${clientName2}Benchmark"
+dumpName2="${clientName2}dump"
+uninstallScript2="rm${clientName2}"
+
+historyFile="${clientName2}_history"
+logDir="/var/log/${clientName2}"
+configDir="/etc/${clientName2}"
+installDir="/usr/local/${clientName}"
+
 data_dir=${dataDir}
 log_dir=${logDir}
 cfg_install_dir=${configDir}
@@ -217,6 +231,13 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
+
+  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+    [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName2} || :
+    [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName2} || :
+    [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName2} || :
+    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript2} || :
+  fi
 }
 
 function install_lib() {
@@ -518,7 +539,7 @@ function install_config() {
   local_fqdn_check
 
   echo
-  echo -e -n "${GREEN}Enter FQDN:port (like h1.${emailName}:6030) of an existing ${productName} cluster node to join${NC}"
+  echo -e -n "${GREEN}Enter FQDN:port (like h1.${emailName2}:6030) of an existing ${productName2} cluster node to join${NC}"
   echo
   echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
   read firstEp
@@ -655,6 +676,9 @@ function clean_service_on_systemd() {
   fi
   ${csudo}systemctl disable tarbitratord &>/dev/null || echo &>/dev/null
   ${csudo}rm -f ${tarbitratord_service_config}
+  # if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+  #     ${csudo}rm -f ${service_config_dir}/${serverName2}.service
+  # fi
 }
 
 function install_service_on_systemd() {
@@ -663,6 +687,13 @@ function install_service_on_systemd() {
   [ -f ${script_dir}/cfg/${serverName}.service ] &&
     ${csudo}cp ${script_dir}/cfg/${serverName}.service \
       ${service_config_dir}/ || :
+
+  # if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+  #   [ -f ${script_dir}/cfg/${serverName}.service ] &&
+  #   ${csudo}cp ${script_dir}/cfg/${serverName}.service \
+  #     ${service_config_dir}/${serverName2}.service || :
+  # fi
+
   ${csudo}systemctl daemon-reload
 
   ${csudo}systemctl enable ${serverName}
@@ -793,7 +824,7 @@ function updateProduct() {
   tar -zxf ${tarName}
   install_jemalloc
 
-  echo -e "${GREEN}Start to update ${productName}...${NC}"
+  echo -e "${GREEN}Start to update ${productName2}...${NC}"
   # Stop the service if running
   if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
@@ -830,25 +861,25 @@ function updateProduct() {
     echo
     echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${cfg_install_dir}/${configFile}"
     [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To configure Taos Adapter ${NC}: edit ${configDir}/taosadapter.toml"
+      echo -e "${GREEN_DARK}To configure Adapter ${NC}: edit ${configDir}/taosadapter.toml"
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
       [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
+        echo -e "${GREEN_DARK}To start Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
     elif ((${service_mod} == 1)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
       [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}service taosadapter start${NC}"
+        echo -e "${GREEN_DARK}To start Adapter ${NC}: ${csudo}service taosadapter start${NC}"
     else
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ./${serverName}${NC}"
       [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName} Adapter ${NC}: taosadapter &${NC}"
     fi
 
     if [ ${openresty_work} = 'true' ]; then
-      echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${web_port}${NC}"
+      echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${web_port}${NC}"
     else
-      echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName} -h $serverFqdn${NC} in shell${NC}"
+      echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell${NC}"
     fi
 
     if ((${prompt_force} == 1)); then
@@ -856,13 +887,13 @@ function updateProduct() {
       echo -e "${RED}Please run '${serverName} --force-keep-file' at first time for the exist ${productName} $exist_version!${NC}"
     fi
     echo
-    echo -e "\033[44;32;1m${productName} is updated successfully!${NC}"
+    echo -e "\033[44;32;1m${productName2} is updated successfully!${NC}"
   else
     install_bin
     install_config
 
     echo
-    echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
+    echo -e "\033[44;32;1m${productName2} client is updated successfully!${NC}"
   fi
 
   rm -rf $(tar -tf ${tarName} | grep -v "^\./$")
@@ -876,7 +907,7 @@ function installProduct() {
   fi
   tar -zxf ${tarName}
 
-  echo -e "${GREEN}Start to install ${productName}...${NC}"
+  echo -e "${GREEN}Start to install ${productName2}...${NC}"
 
   install_main_path
 
@@ -965,7 +996,7 @@ serverFqdn=$(hostname)
 if [ "$verType" == "server" ]; then
   # Check default 2.x data file.
   if [ -x ${data_dir}/dnode/dnodeCfg.json ]; then
-    echo -e "\033[44;31;5mThe default data directory ${data_dir} contains old data of tdengine 2.x, please clear it before installing!\033[0m"
+    echo -e "\033[44;31;5mThe default data directory ${data_dir} contains old data of ${productName2} 2.x, please clear it before installing!\033[0m"
   else
     # Install server and client
     if [ -x ${bin_dir}/${serverName} ]; then
