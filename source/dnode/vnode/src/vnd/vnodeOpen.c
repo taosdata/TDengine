@@ -163,6 +163,8 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
     snprintf(dir, TSDB_FILENAME_LEN, "%s", srcPath);
   }
 
+  // todo add stat file to handle exception while vnode open
+
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
     vError("vgId:%d, failed to read vnode config from %s since %s", pReq->srcVgId, srcPath, tstrerror(terrno));
@@ -210,7 +212,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
     return -1;
   }
 
-  // todo compact here
+  // todo vnode compact here
 
   vInfo("vgId:%d, vnode hashrange is altered", info.config.vgId);
   return 0;
