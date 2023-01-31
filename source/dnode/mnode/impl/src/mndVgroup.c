@@ -1859,6 +1859,7 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
   int32_t  code = -1;
   STrans  *pTrans = NULL;
   SSdbRaw *pRaw = NULL;
+  SDbObj   dbObj = {0};
   SArray  *pArray = mndBuildDnodesArray(pMnode, 0);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "split-vgroup");
@@ -1955,6 +1956,20 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
   (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
   pRaw = NULL;
 
+  memcpy(&dbObj, pDb, sizeof(SDbObj));
+  if (dbObj.cfg.pRetensions != NULL) {
+    dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
+    if (dbObj.cfg.pRetensions == NULL) goto _OVER;
+  }
+  dbObj.vgVersion++;
+  dbObj.updateTime = taosGetTimestampMs();
+  dbObj.cfg.numOfVgroups++;
+  pRaw = mndDbActionEncode(&dbObj);
+  if (pRaw == NULL) goto _OVER;
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  pRaw = NULL;
+
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
@@ -1962,6 +1977,7 @@ _OVER:
   taosArrayDestroy(pArray);
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
+  taosArrayDestroy(dbObj.cfg.pRetensions);
   return code;
 }
 
