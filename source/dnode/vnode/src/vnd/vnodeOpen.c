@@ -107,6 +107,51 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
   return 0;
 }
 
+int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId, STfs *pTfs) {
+  int32_t ret = tfsRename(pTfs, srcPath, dstPath);
+  if (ret != 0) return ret;
+
+  char oldRname[TSDB_FILENAME_LEN] = {0};
+  char newRname[TSDB_FILENAME_LEN] = {0};
+  char tsdbPath[TSDB_FILENAME_LEN] = {0};
+  char tsdbFilePrefix[TSDB_FILENAME_LEN] = {0};
+  snprintf(tsdbPath, TSDB_FILENAME_LEN, "%s%stsdb", dstPath, TD_DIRSEP);
+  snprintf(tsdbFilePrefix, TSDB_FILENAME_LEN, "tsdb%sv", TD_DIRSEP);
+
+  STfsDir *tsdbDir = tfsOpendir(pTfs, tsdbPath);
+  if (tsdbDir == NULL) return 0;
+
+  while (1) {
+    const STfsFile *tsdbFile = tfsReaddir(tsdbDir);
+    if (tsdbFile == NULL) break;
+    if (tsdbFile->rname == NULL) continue;
+    tstrncpy(oldRname, tsdbFile->rname, TSDB_FILENAME_LEN);
+
+    char *tsdbFilePrefixPos = strstr(oldRname, tsdbFilePrefix);
+    if (tsdbFilePrefixPos == NULL) continue;
+
+    int32_t tsdbFileVgId = atoi(tsdbFilePrefixPos + 6);
+    if (tsdbFileVgId == srcVgId) {
+      char *tsdbFileSurfixPos = strstr(tsdbFilePrefixPos, "f");
+      if (tsdbFileSurfixPos == NULL) continue;
+
+      tsdbFilePrefixPos[6] = 0;
+      snprintf(newRname, TSDB_FILENAME_LEN, "%s%d%s", oldRname, dstVgId, tsdbFileSurfixPos);
+      vInfo("vgId:%d, rename file from %s to %s", dstVgId, tsdbFile->rname, newRname);
+
+      ret = tfsRename(pTfs, tsdbFile->rname, newRname);
+      if (ret != 0) {
+        vInfo("vgId:%d, failed to rename file from %s to %s since %s", dstVgId, tsdbFile->rname, newRname, terrstr());
+        tfsClosedir(tsdbDir);
+        return ret;
+      }
+    }
+  }
+
+  tfsClosedir(tsdbDir);
+  return 0;
+}
+
 int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnodeHashRangeReq *pReq, STfs *pTfs) {
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
@@ -158,7 +203,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
   }
 
   vInfo("vgId:%d, start to rename %s to %s", pReq->dstVgId, srcPath, dstPath);
-  ret = tfsRename(pTfs, srcPath, dstPath);
+  ret = vnodeRenameVgroupId(srcPath, dstPath, pReq->srcVgId, pReq->dstVgId, pTfs);
   if (ret < 0) {
     vError("vgId:%d, failed to rename vnode from %s to %s since %s", pReq->dstVgId, srcPath, dstPath,
            tstrerror(terrno));
