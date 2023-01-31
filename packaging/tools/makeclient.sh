@@ -13,10 +13,13 @@ osType=$5
 verMode=$6
 verType=$7
 pagMode=$8
-dbName=$9
+#comVersion=$9
+dbName=$10
 
-productName="TDengine"
-clientName="taos"
+productName="${11}"
+#serverName="${12}d"
+clientName="${12}"
+# cusEmail=${13}
 configFile="taos.cfg"
 tarName="taos.tar.gz"
 

@@ -20,9 +20,10 @@ dbName=${10}
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
 
-productName="TDengine"
-serverName="taosd"
-clientName="taos"
+productName="${11}"
+serverName="${12}d"
+clientName="${12}"
+# cusEmail=${13}
 configFile="taos.cfg"
 tarName="taos.tar.gz"
 dumpName="taosdump"
