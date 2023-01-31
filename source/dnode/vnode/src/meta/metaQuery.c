@@ -1377,7 +1377,9 @@ int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj 
       int64_t *uid = taosArrayGet(uidList, i);
       taosHashPut(uHash, uid, sizeof(int64_t), &i, sizeof(i));
     }
+    return 0;
   }
+
   while (1) {
     tb_uid_t id = metaCtbCursorNext(pCur);
     if (id == 0) {
