@@ -69,7 +69,7 @@ jobs:
 
       - name: Build taosX
         run: |
-          cargo build --release --no-default-features --features optin --features native-tls
+          cargo build --release --no-default-features --features optin --features rustls
           mv target/release/taosx target/release/taosx-amd64-musl
 
       - name: Upload artifacts
