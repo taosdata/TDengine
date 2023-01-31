@@ -322,13 +322,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, start to close vnode", srcVgId);
-  SWrapperCfg wrapperCfg = {
-      .dropped = pVnode->dropped,
-      .vgId = pVnode->vgId,
-      .vgVersion = pVnode->vgVersion,
-  };
-  tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
-  vmCloseVnode(pMgmt, pVnode);
+  vmCloseVnode(pMgmt, pVnode, true);
 
   char srcPath[TSDB_FILENAME_LEN] = {0};
   char dstPath[TSDB_FILENAME_LEN] = {0};
@@ -348,7 +342,12 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  wrapperCfg.vgId = dstVgId;
+  SWrapperCfg wrapperCfg = {
+      .dropped = pVnode->dropped,
+      .vgId = dstVgId,
+      .vgVersion = pVnode->vgVersion,
+  };
+  tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
   if (vmOpenVnode(pMgmt, &wrapperCfg, pImpl) != 0) {
     dError("vgId:%d, failed to open vnode mgmt since %s", dstVgId, terrstr());
     return -1;
@@ -407,7 +406,7 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       .vgVersion = pVnode->vgVersion,
   };
   tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
-  vmCloseVnode(pMgmt, pVnode);
+  vmCloseVnode(pMgmt, pVnode, false);
 
   char path[TSDB_FILENAME_LEN] = {0};
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vgId);
@@ -469,7 +468,7 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  vmCloseVnode(pMgmt, pVnode);
+  vmCloseVnode(pMgmt, pVnode, false);
   vmWriteVnodeListToFile(pMgmt);
 
   dInfo("vgId:%d, is dropped", vgId);

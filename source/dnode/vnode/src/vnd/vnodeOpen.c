@@ -124,8 +124,8 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
     return -1;
   }
 
-  vInfo("vgId:%d, alter hashrange from [%u, %u) to [%u, %u)", pReq->srcVgId,
-        info.config.hashBegin, info.config.hashEnd, pReq->hashBegin, pReq->hashEnd);
+  vInfo("vgId:%d, start to alter hashrange from [%u, %u) to [%u, %u)", pReq->srcVgId, info.config.hashBegin,
+        info.config.hashEnd, pReq->hashBegin, pReq->hashEnd);
   info.config.vgId = pReq->dstVgId;
   info.config.hashBegin = pReq->hashBegin;
   info.config.hashEnd = pReq->hashEnd;
@@ -164,6 +164,8 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
            tstrerror(terrno));
     return -1;
   }
+
+  // todo compact here
 
   vInfo("vgId:%d, vnode hashrange is altered", info.config.vgId);
   return 0;

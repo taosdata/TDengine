@@ -81,7 +81,7 @@ typedef struct {
 SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId);
 void       vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
 int32_t    vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl);
-void       vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
+void       vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal);
 
 // vmHandle.c
 SArray *vmGetMsgHandles();
