@@ -1261,7 +1261,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     goto END;
   }
 
-  bool    first = true;
+  int     count = 0;
   int32_t valid = 0;
   while (1) {
     void   *entryKey = NULL, *entryVal = NULL;
@@ -1269,24 +1269,26 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
 
     valid = tdbTbcGet(pCursor->pCur, (const void **)&entryKey, &nEntryKey, (const void **)&entryVal, &nEntryVal);
     if (valid < 0) {
-      tdbFree(entryVal);
       break;
     }
     STagIdxKey *p = entryKey;
     if (p == NULL) break;
-    if (p->type != pCursor->type) {
-      if (first) {
-        valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
-        if (valid < 0) break;
-        continue;
-      } else {
+
+    if (count >= 2) {
+      if (p->type != pCursor->type || p->suid != pCursor->suid) {
         break;
       }
+    } else {
+      count++;
+      if (p->type != pCursor->type) {
+        valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
+        if (valid < 0) {
+          break;
+        } else {
+          continue;
+        }
+      }
     }
-    if (p->suid != pKey->suid) {
-      break;
-    }
-    first = false;
     int32_t cmp = (*param->filterFunc)(p->data, pKey->data, pKey->type);
     if (cmp == 0) {
       // match
@@ -1298,11 +1300,13 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       }
       taosArrayPush(pUids, &tuid);
     } else if (cmp == 1) {
+      if (count >= 2) break;
       // not match but should continue to iter
     } else {
       // not match and no more result
-      break;
+      if (count >= 2) break;
     }
+    count++;
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) {
       break;
@@ -1335,7 +1339,7 @@ static int32_t metaGetTableTagByUid(SMeta *pMeta, int64_t suid, int64_t uid, voi
   return ret;
 }
 int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList, SHashObj *tags) {
-  const int32_t LIMIT = 128;
+  const int32_t LIMIT = 4096;
 
   int32_t isLock = false;
   int32_t sz = uidList ? taosArrayGetSize(uidList) : 0;
@@ -1377,7 +1381,6 @@ int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj 
       int64_t *uid = taosArrayGet(uidList, i);
       taosHashPut(uHash, uid, sizeof(int64_t), &i, sizeof(i));
     }
-    return 0;
   }
 
   while (1) {
