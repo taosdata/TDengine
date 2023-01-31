@@ -1771,8 +1771,10 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   char* pStart = p;
   char* pStart1 = p1;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    int32_t colLen = htonl(colLength[i]);
-    int32_t colLen1 = htonl(colLength1[i]);
+//    int32_t colLen = htonl(colLength[i]);
+//    int32_t colLen1 = htonl(colLength1[i]);
+    int32_t colLen = colLength[i];
+    int32_t colLen1 = colLength1[i];
     if(ASSERT(colLen < dataLen)){
       tscError("doConvertJson error: colLen:%d >= dataLen:%d", colLen, dataLen);
       return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -1831,7 +1833,8 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
       }
       colLen1 = len;
       totalLen += colLen1;
-      colLength1[i] = htonl(len);
+//      colLength1[i] = htonl(len);
+      colLength1[i] = len;
     } else if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       len = numOfRows * sizeof(int32_t);
       memcpy(pStart1, pStart, len);
@@ -1919,7 +1922,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 
   char* pStart = p;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    colLength[i] = htonl(colLength[i]);
+//    colLength[i] = htonl(colLength[i]);
     if (colLength[i] >= dataLen) {
       tscError("invalid colLength %d, dataLen %d", colLength[i], dataLen);
       return TSDB_CODE_TSC_INTERNAL_ERROR;

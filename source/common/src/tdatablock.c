@@ -2482,8 +2482,8 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, int32_t numOfCols) {
     }
     data += colSizes[col];
 
-    colSizes[col] = htonl(colSizes[col]);
-    uError("blockEncode col bytes:%d, type:%d, size:%d, htonl size:%d", pColRes->info.bytes, pColRes->info.type, htonl(colSizes[col]), colSizes[col]);
+//    colSizes[col] = htonl(colSizes[col]);
+//    uError("blockEncode col bytes:%d, type:%d, size:%d, htonl size:%d", pColRes->info.bytes, pColRes->info.type, htonl(colSizes[col]), colSizes[col]);
   }
 
   *actualLen = dataLen;
@@ -2547,7 +2547,7 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
   pStart += sizeof(int32_t) * numOfCols;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    colLen[i] = htonl(colLen[i]);
+//    colLen[i] = htonl(colLen[i]);
     ASSERT(colLen[i] >= 0);
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
