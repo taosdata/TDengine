@@ -1824,7 +1824,7 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   } else {
     for (int i = 0; i < pTagSchema->nCols; i++) {
       pTagColumn = &pTagSchema->pSchema[i];
-      if (!IS_IDX_ON(pTagColumn)) continue;
+      if (i != 0 && !IS_IDX_ON(pTagColumn)) continue;
 
       STagVal tagVal = {.cid = pTagColumn->colId};
       tTagGet((const STag *)pCtbEntry->ctbEntry.pTags, &tagVal);

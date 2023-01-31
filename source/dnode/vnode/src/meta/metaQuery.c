@@ -1217,7 +1217,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   pCursor->type = param->type;
 
   metaRLock(pMeta);
-  ret = tdbTbcOpen(pMeta->pCtimeIdx, &pCursor->pCur, NULL);
+  ret = tdbTbcOpen(pMeta->pTagIdx, &pCursor->pCur, NULL);
   if (ret < 0) {
     goto END;
   }
