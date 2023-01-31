@@ -54,6 +54,7 @@ int32_t vnodeAlter(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs);
 void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodePreClose(SVnode *pVnode);
+void    vnodePostClose(SVnode *pVnode);
 void    vnodeSyncCheckTimeout(SVnode *pVnode);
 void    vnodeClose(SVnode *pVnode);
 
@@ -88,6 +89,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
+void    vnodeProposeCommitOnNeed(SVnode *pVnode);
 
 // meta
 typedef struct SMeta       SMeta;  // todo: remove
@@ -150,7 +152,9 @@ typedef struct SMTbCursor SMTbCursor;
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
-int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
+int32_t     metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType);
+int32_t     metaTbCursorPrev(SMTbCursor *pTbCur);
+
 #endif
 
 // tsdb

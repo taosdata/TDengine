@@ -22,10 +22,10 @@
 #define SL_NODE_SIZE(l)               (sizeof(SMemSkipListNode) + ((l) << 4))
 #define SL_NODE_FORWARD(n, l)         ((n)->forwards[l])
 #define SL_NODE_BACKWARD(n, l)        ((n)->forwards[(n)->level + (l)])
-#define SL_GET_NODE_FORWARD(n, l)     ((SMemSkipListNode *)atomic_load_64((int64_t *)&SL_NODE_FORWARD(n, l)))
-#define SL_GET_NODE_BACKWARD(n, l)    ((SMemSkipListNode *)atomic_load_64((int64_t *)&SL_NODE_BACKWARD(n, l)))
-#define SL_SET_NODE_FORWARD(n, l, p)  atomic_store_64((int64_t *)&SL_NODE_FORWARD(n, l), (int64_t)(p))
-#define SL_SET_NODE_BACKWARD(n, l, p) atomic_store_64((int64_t *)&SL_NODE_BACKWARD(n, l), (int64_t)(p))
+#define SL_GET_NODE_FORWARD(n, l)     ((SMemSkipListNode *)atomic_load_ptr(&SL_NODE_FORWARD(n, l)))
+#define SL_GET_NODE_BACKWARD(n, l)    ((SMemSkipListNode *)atomic_load_ptr(&SL_NODE_BACKWARD(n, l)))
+#define SL_SET_NODE_FORWARD(n, l, p)  atomic_store_ptr(&SL_NODE_FORWARD(n, l), p)
+#define SL_SET_NODE_BACKWARD(n, l, p) atomic_store_ptr(&SL_NODE_BACKWARD(n, l), p)
 
 #define SL_MOVE_BACKWARD 0x1
 #define SL_MOVE_FROM_POS 0x2
@@ -64,8 +64,6 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
     taosMemoryFree(pMemTable);
     goto _err;
   }
-  pMemTable->qList.pNext = &pMemTable->qList;
-  pMemTable->qList.ppNext = &pMemTable->qList.pNext;
   vnodeBufPoolRef(pMemTable->pPool);
 
   *ppMemTable = pMemTable;
@@ -76,9 +74,9 @@ _err:
   return code;
 }
 
-void tsdbMemTableDestroy(SMemTable *pMemTable) {
+void tsdbMemTableDestroy(SMemTable *pMemTable, bool proactive) {
   if (pMemTable) {
-    vnodeBufPoolUnRef(pMemTable->pPool);
+    vnodeBufPoolUnRef(pMemTable->pPool, proactive);
     taosMemoryFree(pMemTable->aBucket);
     taosMemoryFree(pMemTable);
   }
@@ -111,30 +109,6 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitTbData *pSubmi
   STbData   *pTbData = NULL;
   tb_uid_t   suid = pSubmitTbData->suid;
   tb_uid_t   uid = pSubmitTbData->uid;
-
-#if 0
-  SMetaInfo info;
-  code = metaGetInfo(pTsdb->pVnode->pMeta, uid, &info, NULL);
-  if (code) {
-    code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
-    goto _err;
-  }
-  if (info.suid != suid) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto _err;
-  }
-  if (info.suid) {
-    metaGetInfo(pTsdb->pVnode->pMeta, info.suid, &info, NULL);
-  }
-  if (pSubmitTbData->sver != info.skmVer) {
-    tsdbError("vgId:%d, req sver:%d, skmVer:%d suid:%" PRId64 " uid:%" PRId64, TD_VID(pTsdb->pVnode),
-              pSubmitTbData->sver, info.skmVer, suid, uid);
-    code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
-    goto _err;
-  }
-
-  if (pRsp) pRsp->sver = info.skmVer;
-#endif
 
   // create/get STbData to op
   code = tsdbGetOrCreateTbData(pMemTable, suid, uid, &pTbData);
@@ -749,42 +723,27 @@ _exit:
 
 int32_t tsdbGetNRowsInTbData(STbData *pTbData) { return pTbData->sl.size; }
 
-int32_t tsdbRefMemTable(SMemTable *pMemTable, void *pQHandle, _tsdb_reseek_func_t reseek, SQueryNode **ppNode) {
+int32_t tsdbRefMemTable(SMemTable *pMemTable, SQueryNode *pQNode) {
   int32_t code = 0;
 
   int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
   ASSERT(nRef > 0);
-  /*
-  // register handle (todo: take concurrency in consideration)
-  *ppNode = taosMemoryMalloc(sizeof(SQueryNode));
-  if (*ppNode == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
-  (*ppNode)->pQHandle = pQHandle;
-  (*ppNode)->reseek = reseek;
-  (*ppNode)->pNext = pMemTable->qList.pNext;
-  (*ppNode)->ppNext = &pMemTable->qList.pNext;
-  pMemTable->qList.pNext->ppNext = &(*ppNode)->pNext;
-  pMemTable->qList.pNext = *ppNode;
-  */
+
+  vnodeBufPoolRegisterQuery(pMemTable->pPool, pQNode);
+
 _exit:
   return code;
 }
 
-int32_t tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode) {
+int32_t tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode, bool proactive) {
   int32_t code = 0;
-  /*
-  // unregister handle (todo: take concurrency in consideration)
+
   if (pNode) {
-    pNode->pNext->ppNext = pNode->ppNext;
-    *pNode->ppNext = pNode->pNext;
-    taosMemoryFree(pNode);
+    vnodeBufPoolDeregisterQuery(pMemTable->pPool, pNode, proactive);
   }
-  */
-  int32_t nRef = atomic_sub_fetch_32(&pMemTable->nRef, 1);
-  if (nRef == 0) {
-    tsdbMemTableDestroy(pMemTable);
+
+  if (atomic_sub_fetch_32(&pMemTable->nRef, 1) == 0) {
+    tsdbMemTableDestroy(pMemTable, proactive);
   }
 
   return code;
@@ -826,30 +785,4 @@ SArray *tsdbMemTableGetTbDataArray(SMemTable *pMemTable) {
 
 _exit:
   return aTbDataP;
-}
-
-int32_t tsdbRecycleMemTable(SMemTable *pMemTable) {
-  int32_t code = 0;
-
-  SQueryNode *pNode = pMemTable->qList.pNext;
-  while (1) {
-    ASSERT(pNode != &pMemTable->qList);
-    SQueryNode *pNextNode = pNode->pNext;
-
-    if (pNextNode == &pMemTable->qList) {
-      code = (*pNode->reseek)(pNode->pQHandle);
-      if (code) goto _exit;
-      break;
-    } else {
-      code = (*pNode->reseek)(pNode->pQHandle);
-      if (code) goto _exit;
-      pNode = pMemTable->qList.pNext;
-      ASSERT(pNode == pNextNode);
-    }
-  }
-
-  // NOTE: Take care here, pMemTable is destroyed
-
-_exit:
-  return code;
 }

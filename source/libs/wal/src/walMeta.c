@@ -289,19 +289,10 @@ void walAlignVersions(SWal* pWal) {
     }
     pWal->vers.lastVer = pWal->vers.snapshotVer;
   }
-  if (pWal->vers.commitVer < pWal->vers.snapshotVer) {
-    wWarn("vgId:%d, commitVer:%" PRId64 " is less than snapshotVer:%" PRId64 ". align with it.", pWal->cfg.vgId,
-          pWal->vers.commitVer, pWal->vers.snapshotVer);
-    pWal->vers.commitVer = pWal->vers.snapshotVer;
-  }
-  if (pWal->vers.appliedVer < pWal->vers.snapshotVer) {
-    wWarn("vgId:%d, appliedVer:%" PRId64 " is less than snapshotVer:%" PRId64 ". align with it.", pWal->cfg.vgId,
-          pWal->vers.appliedVer, pWal->vers.snapshotVer);
-    pWal->vers.appliedVer = pWal->vers.snapshotVer;
-  }
-
-  pWal->vers.commitVer = TMIN(pWal->vers.lastVer, pWal->vers.commitVer);
-  pWal->vers.appliedVer = TMIN(pWal->vers.commitVer, pWal->vers.appliedVer);
+  // reset commitVer and appliedVer
+  pWal->vers.commitVer = pWal->vers.snapshotVer;
+  pWal->vers.appliedVer = pWal->vers.snapshotVer;
+  wInfo("vgId:%d, reset commitVer to %" PRId64, pWal->cfg.vgId, pWal->vers.commitVer);
 }
 
 bool walLogEntriesComplete(const SWal* pWal) {
@@ -329,6 +320,35 @@ bool walLogEntriesComplete(const SWal* pWal) {
   }
 
   return complete;
+}
+
+int walTrimIdxFile(SWal* pWal, int32_t fileIdx) {
+  SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
+  ASSERT(pFileInfo != NULL);
+  char fnameStr[WAL_FILE_LEN];
+  walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
+
+  int64_t fileSize = 0;
+  taosStatFile(fnameStr, &fileSize, NULL);
+  int64_t records = TMAX(0, pFileInfo->lastVer - pFileInfo->firstVer + 1);
+  int64_t lastEndOffset = records * sizeof(SWalIdxEntry);
+
+  if (fileSize <= lastEndOffset) {
+    return 0;
+  }
+
+  TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
+  if (pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  wInfo("vgId:%d, trim idx file. file: %s, size: %" PRId64 ", offset: %" PRId64, pWal->cfg.vgId, fnameStr, fileSize,
+        lastEndOffset);
+
+  taosFtruncateFile(pFile, lastEndOffset);
+  taosCloseFile(&pFile);
+  return 0;
 }
 
 int walCheckAndRepairMeta(SWal* pWal) {
@@ -404,6 +424,8 @@ int walCheckAndRepairMeta(SWal* pWal) {
       continue;
     }
     updateMeta = true;
+
+    (void)walTrimIdxFile(pWal, fileIdx);
 
     int64_t lastVer = walScanLogGetLastVer(pWal, fileIdx);
     if (lastVer < 0) {
@@ -567,6 +589,7 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
     goto _err;
   }
 
+  int64_t count = 0;
   while (idxEntry.ver < pFileInfo->lastVer) {
     /*A(idxEntry.ver == ckHead.head.version);*/
 
@@ -578,16 +601,21 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
              idxEntry.offset, fLogNameStr);
       goto _err;
     }
-    wWarn("vgId:%d, wal idx append new entry %" PRId64 " %" PRId64, pWal->cfg.vgId, idxEntry.ver, idxEntry.offset);
     if (taosWriteFile(pIdxFile, &idxEntry, sizeof(SWalIdxEntry)) < 0) {
       wError("vgId:%d, failed to append file since %s. file:%s", pWal->cfg.vgId, terrstr(), fnameStr);
       goto _err;
     }
+    count++;
   }
 
   if (taosFsyncFile(pIdxFile) < 0) {
     wError("vgId:%d, faild to fsync file since %s. file:%s", pWal->cfg.vgId, terrstr(), fnameStr);
     goto _err;
+  }
+
+  if (count > 0) {
+    wInfo("vgId:%d, rebuilt %" PRId64 " wal idx entries until lastVer: %" PRId64, pWal->cfg.vgId, count,
+          pFileInfo->lastVer);
   }
 
   (void)taosCloseFile(&pLogFile);

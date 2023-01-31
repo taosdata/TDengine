@@ -61,10 +61,19 @@ struct SVBufPoolNode {
 };
 
 struct SVBufPool {
-  SVBufPool*        next;
+  SVBufPool* freeNext;
+  SVBufPool* recycleNext;
+  SVBufPool* recyclePrev;
+
+  // query handle list
+  TdThreadMutex mutex;
+  int32_t       nQuery;
+  SQueryNode    qList;
+
   SVnode*           pVnode;
-  TdThreadSpinlock* lock;
+  int32_t           id;
   volatile int32_t  nRef;
+  TdThreadSpinlock* lock;
   int64_t           size;
   uint8_t*          ptr;
   SVBufPoolNode*    pTail;
@@ -74,6 +83,8 @@ struct SVBufPool {
 int32_t vnodeOpenBufPool(SVnode* pVnode);
 int32_t vnodeCloseBufPool(SVnode* pVnode);
 void    vnodeBufPoolReset(SVBufPool* pPool);
+void    vnodeBufPoolAddToFreeList(SVBufPool* pPool);
+int32_t vnodeBufPoolRecycle(SVBufPool* pPool);
 
 // vnodeQuery.c
 int32_t vnodeQueryOpen(SVnode* pVnode);
@@ -86,6 +97,7 @@ int32_t vnodeGetBatchMeta(SVnode* pVnode, SRpcMsg* pMsg);
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);
 int32_t vnodeShouldCommit(SVnode* pVnode);
+void    vnodeUpdCommitSched(SVnode* pVnode);
 void    vnodeRollback(SVnode* pVnode);
 int32_t vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
 int32_t vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
@@ -102,10 +114,12 @@ int32_t vnodeSyncCompact(SVnode* pVnode);
 int32_t vnodeSyncOpen(SVnode* pVnode, char* path);
 int32_t vnodeSyncStart(SVnode* pVnode);
 void    vnodeSyncPreClose(SVnode* pVnode);
+void    vnodeSyncPostClose(SVnode* pVnode);
 void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg, int32_t code);
 bool    vnodeIsLeader(SVnode* pVnode);
 bool    vnodeIsRoleLeader(SVnode* pVnode);
+int     vnodeShouldCommit(SVnode* pVnode);
 
 #ifdef __cplusplus
 }

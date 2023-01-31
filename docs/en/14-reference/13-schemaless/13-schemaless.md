@@ -80,7 +80,7 @@ You can configure smlChildTableName in taos.cfg to specify table names, for exam
    NULL.
 6. For BINARY or NCHAR columns, if the length of the value provided in a data row exceeds the column type limit, the maximum length of characters allowed to be stored in the column is automatically increased (only incremented and not decremented) to ensure complete preservation of the data.
 7. Errors encountered throughout the processing will interrupt the writing process and return an error code.
-8. It is assumed that the order of field_set in a supertable is consistent, meaning that the first record contains all fields and subsequent records store fields in the same order. If the order is not consistent, set smlDataFormat in taos.cfg to false. Otherwise, data will be written out of order and a database error will occur.(smlDataFormat in taos.cfg default to false after version of 3.0.1.3)
+8. It is assumed that the order of field_set in a supertable is consistent, meaning that the first record contains all fields and subsequent records store fields in the same order. If the order is not consistent, set smlDataFormat in taos.cfg to false. Otherwise, data will be written out of order and a database error will occur.(smlDataFormat in taos.cfg default to false after version of 3.0.1.3, discarded since 3.0.3.0)
 
 :::tip
 All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed

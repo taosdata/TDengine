@@ -65,7 +65,6 @@ typedef struct SSmaInfo         SSmaInfo;
 typedef struct SBlockCol        SBlockCol;
 typedef struct SVersionRange    SVersionRange;
 typedef struct SLDataIter       SLDataIter;
-typedef struct SQueryNode       SQueryNode;
 typedef struct SDiskCol         SDiskCol;
 typedef struct SDiskData        SDiskData;
 typedef struct SDiskDataBuilder SDiskDataBuilder;
@@ -209,15 +208,14 @@ int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol
                         uint8_t **ppBuf);
 int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, int32_t nVal, SColData *pColData,
                           uint8_t **ppBuf);
+int32_t tRowInfoCmprFn(const void *p1, const void *p2);
 // tsdbMemTable ==============================================================================================
 // SMemTable
-typedef int32_t (*_tsdb_reseek_func_t)(void *pQHandle);
-
 int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
-void     tsdbMemTableDestroy(SMemTable *pMemTable);
+void     tsdbMemTableDestroy(SMemTable *pMemTable, bool proactive);
 STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid);
-int32_t  tsdbRefMemTable(SMemTable *pMemTable, void *pQHandle, _tsdb_reseek_func_t reseek, SQueryNode **ppNode);
-int32_t  tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode);
+int32_t  tsdbRefMemTable(SMemTable *pMemTable, SQueryNode *pQNode);
+int32_t  tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode, bool proactive);
 SArray  *tsdbMemTableGetTbDataArray(SMemTable *pMemTable);
 // STbDataIter
 int32_t tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
@@ -295,8 +293,8 @@ int32_t tsdbDelFReaderClose(SDelFReader **ppReader);
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData);
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 // tsdbRead.c ==============================================================================================
-int32_t tsdbTakeReadSnap(STsdbReader *pReader, _tsdb_reseek_func_t reseek, STsdbReadSnap **ppSnap);
-void    tsdbUntakeReadSnap(STsdbReader *pReader, STsdbReadSnap *pSnap);
+int32_t tsdbTakeReadSnap(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap);
+void    tsdbUntakeReadSnap(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
 // tsdbMerge.c ==============================================================================================
 int32_t tsdbMerge(STsdb *pTsdb);
 
@@ -371,13 +369,6 @@ struct STbData {
   STbData     *next;
 };
 
-struct SQueryNode {
-  SQueryNode         *pNext;
-  SQueryNode        **ppNext;
-  void               *pQHandle;
-  _tsdb_reseek_func_t reseek;
-};
-
 struct SMemTable {
   SRWLatch         latch;
   STsdb           *pTsdb;
@@ -394,7 +385,6 @@ struct SMemTable {
     int32_t   nBucket;
     STbData **aBucket;
   };
-  SQueryNode qList;
 };
 
 struct TSDBROW {

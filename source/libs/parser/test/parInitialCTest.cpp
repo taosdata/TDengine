@@ -872,9 +872,12 @@ TEST_F(ParserInitialCTest, createStream) {
       "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 PARTITION BY TBNAME tname, tag1 id INTERVAL(10S)");
   clearCreateStreamReq();
 
-  setCreateStreamReq("s1", "test", "create stream s1 into st1 as select max(c1), c2 from t1 interval(10s)", "st1",
-                     STREAM_CREATE_STABLE_FALSE);
-  run("CREATE STREAM s1 INTO st1 AS SELECT MAX(c1), c2 FROM t1 INTERVAL(10S)");
+  // st1 already exists
+  setCreateStreamReq(
+      "s1", "test",
+      "create stream s1 into st1 tags(tag2) as select max(c1), c2 from t1 partition by tbname tag2 interval(10s)",
+      "st1", STREAM_CREATE_STABLE_FALSE);
+  run("CREATE STREAM s1 INTO st1 TAGS(tag2) AS SELECT MAX(c1), c2 FROM t1 PARTITION BY TBNAME tag2 INTERVAL(10S)");
   clearCreateStreamReq();
 }
 

@@ -445,6 +445,7 @@ typedef struct {
   STableMetaRsp* pMeta;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
+  char           filterTb[TSDB_TABLE_NAME_LEN];
 } SShowObj;
 
 typedef struct {

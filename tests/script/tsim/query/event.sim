@@ -1,0 +1,69 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== prepare data 
+
+sql drop database if exists db1;
+sql create database db1 vgroups 5;
+sql use db1;
+sql create stable sta (ts timestamp, f1 int, f2 binary(10), f3 bool) tags(t1 int, t2 bool, t3 binary(10));
+sql create table tba1 using sta tags(0, false, '0');
+sql create table tba2 using sta tags(1, true, '1');
+sql create table tba3 using sta tags(null, null, '');
+sql create table tba4 using sta tags(1, false, null);
+sql create table tba5 using sta tags(3, true, 'aa');
+sql insert into tba1 values ('2022-09-26 15:15:01', 0, "a", false);
+sql insert into tba1 values ('2022-09-26 15:15:02', 1, "0", true);
+sql insert into tba1 values ('2022-09-26 15:15:03', 5, "5", false);
+sql insert into tba1 values ('2022-09-26 15:15:04', 3, 'b', false);
+sql insert into tba1 values ('2022-09-26 15:15:05', 0, '1', false);
+sql insert into tba1 values ('2022-09-26 15:15:06', 2, 'd', true);
+
+sql insert into tba2 values ('2022-09-27 15:15:01', 0, "a", false);
+sql insert into tba2 values ('2022-09-27 15:15:02', 1, "0", true);
+sql insert into tba2 values ('2022-09-27 15:15:03', 5, "5", false);
+sql insert into tba2 values ('2022-09-27 15:15:04', null, null, null);
+
+# child table: no window
+print ====> select count(*) from tba1 event_window start with f1 = 0 end with f2 = 'c';
+sql select count(*) from tba1 event_window start with f1 = 0 end with f2 = 'c';
+if $rows != 0 then
+  return -1
+endi
+
+# child table: single row window
+print ====> select count(*) from tba1 event_window start with f1 = 0 end with f3 = false;
+sql select count(*) from tba1 event_window start with f1 = 0 end with f3 = false
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 1 then
+  return -1
+endi
+
+# child table: multi rows window
+print ====> select count(*) from tba1 event_window start with f1 = 0 end with f2 = 'b';
+sql select count(*) from tba1 event_window start with f1 = 0 end with f2 = 'b';
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4 then
+  return -1
+endi
+
+# child table: multi windows
+print ====> select count(*) from tba1 event_window start with f1 >= 0 end with f3 = true;
+sql select count(*) from tba1 event_window start with f1 >= 0 end with f3 = true;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 2 then
+  return -1
+endi
+if $data10 != 4 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

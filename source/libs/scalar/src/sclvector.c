@@ -389,18 +389,18 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
     func = varToUnsigned;
   } else if (IS_FLOAT_TYPE(pCtx->outType)) {
     func = varToFloat;
-  } else if (pCtx->outType == TSDB_DATA_TYPE_BINARY) {  // nchar -> binary
-    ASSERT(pCtx->inType == TSDB_DATA_TYPE_NCHAR);
+  } else if (pCtx->outType == TSDB_DATA_TYPE_VARCHAR &&
+             pCtx->inType == TSDB_DATA_TYPE_NCHAR) {  // nchar -> binary
     func = ncharToVar;
     vton = true;
-  } else if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {  // binary -> nchar
-    ASSERT(pCtx->inType == TSDB_DATA_TYPE_VARCHAR);
+  } else if (pCtx->outType == TSDB_DATA_TYPE_NCHAR &&
+             pCtx->inType == TSDB_DATA_TYPE_VARCHAR) {  // binary -> nchar
     func = varToNchar;
     vton = true;
   } else if (TSDB_DATA_TYPE_TIMESTAMP == pCtx->outType) {
     func = varToTimestamp;
   } else {
-    sclError("invalid convert outType:%d", pCtx->outType);
+    sclError("invalid convert outType:%d, inType:%d", pCtx->outType, pCtx->inType);
     return TSDB_CODE_APP_ERROR;
   }
 
@@ -416,12 +416,10 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
     char   *data = colDataGetVarData(pCtx->pIn->columnData, i);
     int32_t convertType = pCtx->inType;
     if (pCtx->inType == TSDB_DATA_TYPE_JSON) {
-      if (*data == TSDB_DATA_TYPE_NULL) {
-        ASSERT(0);
-      } else if (*data == TSDB_DATA_TYPE_NCHAR) {
+      if (*data == TSDB_DATA_TYPE_NCHAR) {
         data += CHAR_BYTES;
         convertType = TSDB_DATA_TYPE_NCHAR;
-      } else if (tTagIsJson(data)) {
+      } else if (tTagIsJson(data) || *data == TSDB_DATA_TYPE_NULL) {
         terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
         return terrno;
       } else {
@@ -447,7 +445,11 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
         tmp[varDataLen(data)] = 0;
       } else if (TSDB_DATA_TYPE_NCHAR == convertType) {
         // we need to convert it to native char string, and then perform the string to numeric data
-        ASSERT(varDataLen(data) <= bufSize);
+        if (varDataLen(data) > bufSize) {
+          sclError("castConvert convert buffer size too small");
+          taosMemoryFreeClear(tmp);
+          return TSDB_CODE_APP_ERROR;
+        }
 
         int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp);
         if (len < 0) {
@@ -557,27 +559,17 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
   *fp = filterGetCompFunc(type, optr);
 
   if (IS_NUMERIC_TYPE(type)) {
-    if (typeLeft == TSDB_DATA_TYPE_NCHAR) {
-      ASSERT(0);
-      //      convertNcharToDouble(*pLeftData, pLeftOut);
-      //      *pLeftData = pLeftOut;
-    } else if (typeLeft == TSDB_DATA_TYPE_BINARY) {
-      ASSERT(0);
-      //      convertBinaryToDouble(*pLeftData, pLeftOut);
-      //      *pLeftData = pLeftOut;
+    if (typeLeft == TSDB_DATA_TYPE_NCHAR ||
+        typeLeft == TSDB_DATA_TYPE_VARCHAR) {
+      return false;
     } else if (typeLeft != type) {
       convertNumberToNumber(*pLeftData, pLeftOut, typeLeft, type);
       *pLeftData = pLeftOut;
     }
 
-    if (typeRight == TSDB_DATA_TYPE_NCHAR) {
-      ASSERT(0);
-      //      convertNcharToDouble(*pRightData, pRightOut);
-      //      *pRightData = pRightOut;
-    } else if (typeRight == TSDB_DATA_TYPE_BINARY) {
-      ASSERT(0);
-      //      convertBinaryToDouble(*pRightData, pRightOut);
-      //      *pRightData = pRightOut;
+    if (typeRight == TSDB_DATA_TYPE_NCHAR ||
+        typeRight == TSDB_DATA_TYPE_VARCHAR) {
+      return false;
     } else if (typeRight != type) {
       convertNumberToNumber(*pRightData, pRightOut, typeRight, type);
       *pRightData = pRightOut;
@@ -592,7 +584,7 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
       *freeRight = true;
     }
   } else {
-    ASSERT(0);
+    return false;
   }
 
   return true;
@@ -683,7 +675,10 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
   }
 
   if (overflow) {
-    ASSERT(1 == pIn->numOfRows);
+    if (1 != pIn->numOfRows) {
+      sclError("invalid numOfRows %d", pIn->numOfRows);
+      return TSDB_CODE_APP_ERROR;
+    }
 
     pOut->numOfRows = 0;
 
@@ -1938,7 +1933,6 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
     case OP_TYPE_JSON_CONTAINS:
       return vectorJsonContains;
     default:
-      ASSERT(0);
       return NULL;
   }
 }

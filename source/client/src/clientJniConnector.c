@@ -574,7 +574,11 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchBlockImp(JNI
   TAOS_RES *tres = (TAOS_RES *)res;
 
   int32_t numOfFields = taos_num_fields(tres);
-  assert(numOfFields > 0);
+  if(numOfFields <= 0){
+    jniError("jobj:%p, conn:%p, query interrupted. taos_num_fields error code:%d, msg:%s", jobj, tscon, numOfFields,
+             taos_errstr(tres));
+    return JNI_RESULT_SET_NULL;
+  }
 
   void   *data;
   int32_t numOfRows;

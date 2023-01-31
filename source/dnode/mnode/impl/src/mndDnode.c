@@ -180,6 +180,9 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_DNODE_RESERVE_SIZE, _OVER)
 
   terrno = 0;
+  if (tmsgUpdateDnodeInfo(&pDnode->id, NULL, pDnode->fqdn, &pDnode->port)) {
+    mInfo("dnode:%d, endpoint changed", pDnode->id);
+  }
 
 _OVER:
   if (terrno != 0) {
@@ -188,7 +191,7 @@ _OVER:
     return NULL;
   }
 
-  mTrace("dnode:%d, decode from raw:%p, row:%p", pDnode->id, pRaw, pDnode);
+  mTrace("dnode:%d, decode from raw:%p, row:%p ep:%s:%u", pDnode->id, pRaw, pDnode, pDnode->fqdn, pDnode->port);
   return pRow;
 }
 
@@ -308,7 +311,8 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
   void   *pIter = NULL;
   while (1) {
     SDnodeObj *pDnode = NULL;
-    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    ESdbStatus objStatus = 0;
+    pIter = sdbFetchAll(pSdb, SDB_DNODE, pIter, (void **)&pDnode, &objStatus, true);
     if (pIter == NULL) break;
 
     SDnodeEp dnodeEp = {0};
@@ -1050,7 +1054,7 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         status = "offline";
     }
 
-    char b1[9] = {0};
+    char b1[16] = {0};
     STR_TO_VARSTR(b1, status);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b1, false);

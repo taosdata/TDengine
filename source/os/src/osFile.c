@@ -191,7 +191,7 @@ int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
   int32_t         code = _stati64(path, &fileStat);
 #else
   struct stat fileStat;
-  int32_t     code = stat(path, &fileStat);
+  int32_t code = stat(path, &fileStat);
 #endif
   if (code < 0) {
     return code;
@@ -232,7 +232,7 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
 #else
 
   struct stat fileStat;
-  int32_t     code = fstat(pFile->fd, &fileStat);
+  int32_t code = fstat(pFile->fd, &fileStat);
   if (code < 0) {
     printf("taosFStatFile run fstat fail.");
     return code;
@@ -368,6 +368,9 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
 #endif
   ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
   if (pFile->fd < 0) {
+#if FILE_WITH_LOCK
+    taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
     return -1;
   }
   int64_t leftbytes = count;
@@ -415,6 +418,9 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 #endif
   ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
   if (pFile->fd < 0) {
+#if FILE_WITH_LOCK
+    taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
     return -1;
   }
 #ifdef WINDOWS
@@ -439,6 +445,9 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
   taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
   if (pFile->fd < 0) {
+#if FILE_WITH_LOCK
+    taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
     return 0;
   }
 
@@ -476,6 +485,9 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
 #endif
   ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
   if (pFile->fd < 0) {
+#if FILE_WITH_LOCK
+    taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
     return 0;
   }
 #ifdef WINDOWS
@@ -543,7 +555,7 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
 
 int32_t taosLockFile(TdFilePtr pFile) {
   ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
-  if(pFile->fd < 0) {
+  if (pFile->fd < 0) {
     return -1;
   }
 #ifdef WINDOWS
@@ -570,13 +582,13 @@ int32_t taosLockFile(TdFilePtr pFile) {
 
 int32_t taosUnLockFile(TdFilePtr pFile) {
   ASSERT(pFile->fd >= 0);
-  if(pFile->fd < 0) {
+  if (pFile->fd < 0) {
     return 0;
   }
 #ifdef WINDOWS
-  BOOL          fSuccess = FALSE;
-  OVERLAPPED    overlapped = {0};
-  HANDLE        hFile = (HANDLE)_get_osfhandle(pFile->fd);
+  BOOL       fSuccess = FALSE;
+  OVERLAPPED overlapped = {0};
+  HANDLE     hFile = (HANDLE)_get_osfhandle(pFile->fd);
 
   fSuccess = UnlockFileEx(hFile, 0, ~0, ~0, &overlapped);
   if (!fSuccess) {
@@ -592,7 +604,7 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
   if (pFile == NULL) {
     return 0;
   }
-  if(pFile->fd < 0) {
+  if (pFile->fd < 0) {
     printf("Ftruncate file error, fd arg was negative\n");
     return -1;
   }
@@ -669,7 +681,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
     return 0;
   }
   ASSERT(pFileIn->fd >= 0 && pFileOut->fd >= 0);
-  if(pFileIn->fd < 0 || pFileOut->fd < 0) {
+  if (pFileIn->fd < 0 || pFileOut->fd < 0) {
     return 0;
   }
 
@@ -829,7 +841,7 @@ int32_t taosEOFFile(TdFilePtr pFile) {
     return -1;
   }
   ASSERT(pFile->fp != NULL);
-  if(pFile->fp == NULL) {
+  if (pFile->fp == NULL) {
     return -1;
   }
 

@@ -1153,6 +1153,8 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow) {
 
           iMax[nMax] = i;
           max[nMax++] = pIter->input[i].pRow;
+        } else {
+          pIter->input[i].next = false;
         }
       }
     }

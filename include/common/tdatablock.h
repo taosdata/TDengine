@@ -41,6 +41,12 @@ typedef struct SBlockOrderInfo {
     BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
   } while (0)
 
+#define colDataSetNull_f_s(c_, r_)                                        \
+  do {                                                                    \
+    colDataSetNull_f((c_)->nullbitmap, r_);                               \
+    memset(((char*)(c_)->pData) + (c_)->info.bytes * (r_), 0, (c_)->info.bytes); \
+  } while (0)
+
 #define colDataClearNull_f(bm_, r_)                             \
   do {                                                          \
     BMCharPos(bm_, r_) &= ((char)(~(1u << (7u - BitPos(r_))))); \
@@ -136,7 +142,7 @@ static FORCE_INLINE void colDataAppendNULL(SColumnInfoData* pColumnInfoData, uin
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     colDataSetNull_var(pColumnInfoData, currentRow);  // it is a null value of VAR type.
   } else {
-    colDataSetNull_f(pColumnInfoData->nullbitmap, currentRow);
+    colDataSetNull_f_s(pColumnInfoData, currentRow);
   }
 
   pColumnInfoData->hasNull = true;
@@ -151,6 +157,7 @@ static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, ui
     for (int32_t i = start; i < start + nRows; ++i) {
       colDataSetNull_f(pColumnInfoData->nullbitmap, i);
     }
+    memset(pColumnInfoData->pData + start * pColumnInfoData->info.bytes, 0, pColumnInfoData->info.bytes * nRows);
   }
 
   pColumnInfoData->hasNull = true;
@@ -231,7 +238,6 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
 
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, bool clearPayload);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
-int32_t blockDataEnsureCapacityNoClear(SSDataBlock* pDataBlock, uint32_t numOfRows);
 
 void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
 void blockDataCleanup(SSDataBlock* pDataBlock);

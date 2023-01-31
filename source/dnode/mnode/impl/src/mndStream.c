@@ -314,7 +314,11 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   }
   tstrncpy(pObj->targetDb, pTargetDb->name, TSDB_DB_FNAME_LEN);
 
-  pObj->targetStbUid = mndGenerateUid(pObj->targetSTbName, TSDB_TABLE_FNAME_LEN);
+  if (pCreate->createStb == STREAM_CREATE_STABLE_TRUE) {
+    pObj->targetStbUid = mndGenerateUid(pObj->targetSTbName, TSDB_TABLE_FNAME_LEN);
+  } else {
+    pObj->targetStbUid = pCreate->targetStbUid;
+  }
   pObj->targetDbUid = pTargetDb->uid;
   mndReleaseDb(pMnode, pTargetDb);
 
@@ -332,6 +336,38 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   // extract output schema from ast
   if (qExtractResultSchema(pAst, (int32_t *)&pObj->outputSchema.nCols, &pObj->outputSchema.pSchema) != 0) {
     goto FAIL;
+  }
+
+  int32_t numOfNULL = taosArrayGetSize(pCreate->fillNullCols);
+  if(numOfNULL > 0) {
+    pObj->outputSchema.nCols += numOfNULL;
+    SSchema* pFullSchema = taosMemoryCalloc(pObj->outputSchema.nCols, sizeof(SSchema));
+    if (!pFullSchema) {
+      goto FAIL;
+    }
+
+    int32_t nullIndex = 0;
+    int32_t dataIndex = 0;
+    for (int16_t i = 0; i < pObj->outputSchema.nCols; i++) {
+      SColLocation* pos = taosArrayGet(pCreate->fillNullCols, nullIndex);
+      if (i < pos->slotId) {
+        pFullSchema[i].bytes = pObj->outputSchema.pSchema[dataIndex].bytes;
+        pFullSchema[i].colId = i + 1; // pObj->outputSchema.pSchema[dataIndex].colId;
+        pFullSchema[i].flags = pObj->outputSchema.pSchema[dataIndex].flags;
+        strcpy(pFullSchema[i].name, pObj->outputSchema.pSchema[dataIndex].name);
+        pFullSchema[i].type = pObj->outputSchema.pSchema[dataIndex].type;
+        dataIndex++;
+      } else {
+        pFullSchema[i].bytes = 0;
+        pFullSchema[i].colId = pos->colId;
+        pFullSchema[i].flags = COL_SET_NULL;
+        memset(pFullSchema[i].name, 0, TSDB_COL_NAME_LEN);
+        pFullSchema[i].type = pos->type;
+        nullIndex++;
+      }
+    }
+    taosMemoryFree(pObj->outputSchema.pSchema);
+    pObj->outputSchema.pSchema = pFullSchema;
   }
 
   SPlanContext cxt = {
@@ -465,7 +501,6 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
   SMCreateStbReq createReq = {0};
   tstrncpy(createReq.name, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
   createReq.numOfColumns = pStream->outputSchema.nCols;
-  createReq.numOfTags = 1;  // group id
   createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
   // build fields
   taosArraySetSize(createReq.pColumns, createReq.numOfColumns);
@@ -476,14 +511,29 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     pField->type = pStream->outputSchema.pSchema[i].type;
     pField->bytes = pStream->outputSchema.pSchema[i].bytes;
   }
-  createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
-  taosArraySetSize(createReq.pTags, 1);
-  // build tags
-  SField *pField = taosArrayGet(createReq.pTags, 0);
-  strcpy(pField->name, "group_id");
-  pField->type = TSDB_DATA_TYPE_UBIGINT;
-  pField->flags = 0;
-  pField->bytes = 8;
+
+  if (pStream->tagSchema.nCols == 0) {
+    createReq.numOfTags = 1;
+    createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
+    taosArraySetSize(createReq.pTags, createReq.numOfTags);
+    // build tags
+    SField *pField = taosArrayGet(createReq.pTags, 0);
+    strcpy(pField->name, "group_id");
+    pField->type = TSDB_DATA_TYPE_UBIGINT;
+    pField->flags = 0;
+    pField->bytes = 8;
+  } else {
+    createReq.numOfTags = pStream->tagSchema.nCols;
+    createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
+    taosArraySetSize(createReq.pTags, createReq.numOfTags);
+    for (int32_t i = 0; i < createReq.numOfTags; i++) {
+      SField *pField = taosArrayGet(createReq.pTags, i);
+      pField->bytes = pStream->tagSchema.pSchema[i].bytes;
+      pField->flags = pStream->tagSchema.pSchema[i].flags;
+      pField->type = pStream->tagSchema.pSchema[i].type;
+      tstrncpy(pField->name, pStream->tagSchema.pSchema[i].name, TSDB_COL_NAME_LEN);
+    }
+  }
 
   if (mndCheckCreateStbReq(&createReq) != 0) {
     goto _OVER;

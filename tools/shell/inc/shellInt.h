@@ -80,8 +80,9 @@ typedef struct {
 } SShellArgs;
 
 typedef struct {
-  const char* clientVersion;
-  const char* promptHeader;
+  const char *clientVersion;
+  char cusName[32];
+  char promptHeader[32];
   const char* promptContinue;
   const char* osname;
   int32_t     promptSize;
@@ -147,5 +148,6 @@ void shellRunSingleCommandWebsocketImp(char *command);
 
 // shellMain.c
 extern SShellObj shell;
+extern void tscWriteCrashInfo(int signum, void *sigInfo, void *context);
 
 #endif /*_TD_SHELL_INT_H_*/

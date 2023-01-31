@@ -483,7 +483,7 @@ int32_t ctgInitTask(SCtgJob* pJob, CTG_TASK_TYPE type, void* param, int32_t* tas
 
 _return:
   CTG_UNLOCK(CTG_WRITE, &pJob->taskLock);
-  
+
   return code;
 }
 
@@ -905,6 +905,14 @@ int32_t ctgCallUserCb(void* param) {
   return TSDB_CODE_SUCCESS;
 }
 
+void ctgUpdateJobErrCode(SCtgJob* pJob, int32_t errCode) {
+  if (!NEED_CLIENT_REFRESH_VG_ERROR(errCode) || errCode == TSDB_CODE_SUCCESS) return;
+
+  atomic_store_32(&pJob->jobResCode, errCode);
+  qDebug("QID:0x%" PRIx64 " ctg job errCode updated to %s", pJob->queryId, tstrerror(errCode));
+  return;
+}
+
 int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
   SCtgJob* pJob = pTask->pJob;
   int32_t  code = 0;
@@ -924,6 +932,8 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
   if (taskDone < taosArrayGetSize(pJob->pTasks)) {
     qDebug("QID:0x%" PRIx64 " task done: %d, total: %d", pJob->queryId, taskDone,
            (int32_t)taosArrayGetSize(pJob->pTasks));
+
+    ctgUpdateJobErrCode(pJob, rspCode);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -931,7 +941,8 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
 
 _return:
 
-  pJob->jobResCode = code;
+  ctgUpdateJobErrCode(pJob, rspCode);
+  // pJob->jobResCode = code;
 
   // taosSsleep(2);
   // qDebug("QID:0x%" PRIx64 " ctg after sleep", pJob->queryId);
@@ -988,6 +999,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
             CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
 
             ctgReleaseVgInfoToCache(pCtg, dbCache);
+            dbCache = NULL;
           } else {
             SBuildUseDBInput input = {0};
 
@@ -1098,7 +1110,8 @@ _return:
   }
 
   if (code) {
-    ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname, tstrerror(code));
+    ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname,
+                 tstrerror(code));
   }
   if (pTask->res || code) {
     ctgHandleTaskEnd(pTask, code);
@@ -1156,6 +1169,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
             CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
 
             ctgReleaseVgInfoToCache(pCtg, dbCache);
+            dbCache = NULL;
           } else {
             SBuildUseDBInput input = {0};
 
@@ -1286,7 +1300,8 @@ _return:
       TSWAP(pTask->res, ctx->pResList);
       taskDone = true;
     }
-    ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname, tstrerror(code));
+    ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname,
+                 tstrerror(code));
   }
 
   if (pTask->res && taskDone) {

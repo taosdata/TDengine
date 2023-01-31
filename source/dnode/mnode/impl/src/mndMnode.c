@@ -15,13 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "mndMnode.h"
+#include "mndCluster.h"
 #include "mndDnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndTrans.h"
 #include "tmisce.h"
-#include "mndCluster.h"
 
 #define MNODE_VER_NUMBER   1
 #define MNODE_RESERVE_SIZE 64
@@ -181,9 +181,8 @@ _OVER:
 
 static int32_t mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pObj) {
   mTrace("mnode:%d, perform insert action, row:%p", pObj->id, pObj);
-  pObj->pDnode = sdbAcquire(pSdb, SDB_DNODE, &pObj->id);
+  pObj->pDnode = sdbAcquireNotReadyObj(pSdb, SDB_DNODE, &pObj->id);
   if (pObj->pDnode == NULL) {
-    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
     mError("mnode:%d, failed to perform insert action since %s", pObj->id, terrstr());
     return -1;
   }
@@ -785,9 +784,9 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
 
     int32_t code = syncReconfig(pMnode->syncMgmt.sync, &cfg);
     if (code != 0) {
-      mError("vgId:1, failed to reconfig mnode sync since %s", terrstr());
+      mError("vgId:1, mnode sync reconfig failed since %s", terrstr());
     } else {
-      mInfo("vgId:1, reconfig mnode sync success");
+      mInfo("vgId:1, mnode sync reconfig success");
     }
   }
 }

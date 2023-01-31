@@ -239,6 +239,11 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo) {
   int32_t lino = 0;
   SVnode *pVnode = pSma->pVnode;
 
+  SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
+  if (!pSmaEnv) {
+    goto _exit;
+  }
+  
   code = tdRSmaFSCommit(pSma);
   TSDB_CHECK_CODE(code, lino, _exit);
 

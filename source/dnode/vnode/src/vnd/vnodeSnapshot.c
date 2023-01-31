@@ -406,8 +406,10 @@ static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_
     snprintf(dir, TSDB_FILENAME_LEN, "%s", pWriter->pVnode->path);
   }
 
-  SVnode *pVnode = pWriter->pVnode;
+  SVnodeStats vndStats = pWriter->info.config.vndStats;
+  SVnode     *pVnode = pWriter->pVnode;
   pWriter->info.config = pVnode->config;
+  pWriter->info.config.vndStats = vndStats;
   vDebug("vgId:%d, save config while write snapshot", pWriter->pVnode->config.vgId);
   if (vnodeSaveInfo(dir, &pWriter->info) < 0) {
     code = terrno;
@@ -453,7 +455,7 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
         if (code) goto _err;
       }
 
-      code = tsdbSnapWrite(pWriter->pTsdbSnapWriter, pData, nData);
+      code = tsdbSnapWrite(pWriter->pTsdbSnapWriter, pHdr);
       if (code) goto _err;
     } break;
     case SNAP_DATA_TQ_HANDLE: {

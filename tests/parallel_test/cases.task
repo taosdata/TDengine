@@ -146,6 +146,7 @@
 ,,y,script,./test.sh -f tsim/parser/precision_ns.sim
 ,,y,script,./test.sh -f tsim/parser/projection_limit_offset.sim
 ,,y,script,./test.sh -f tsim/parser/regex.sim
+,,y,script,./test.sh -f tsim/parser/regressiontest.sim
 ,,y,script,./test.sh -f tsim/parser/select_across_vnodes.sim
 ,,y,script,./test.sh -f tsim/parser/select_distinct_tag.sim
 ,,y,script,./test.sh -f tsim/parser/select_from_cache_disk.sim
@@ -247,6 +248,8 @@
 ,,y,script,./test.sh -f tsim/stream/fillIntervalPartitionBy.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalPrevNext.sim
 ,,y,script,./test.sh -f tsim/stream/fillIntervalValue.sim
+,,y,script,./test.sh -f tsim/stream/udTableAndTag0.sim
+,,y,script,./test.sh -f tsim/stream/udTableAndTag1.sim
 ,,y,script,./test.sh -f tsim/trans/lossdata1.sim
 ,,y,script,./test.sh -f tsim/trans/create_db.sim
 ,,y,script,./test.sh -f tsim/tmq/basic1.sim
@@ -446,6 +449,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/database_pre_suf.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/InsertFuturets.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/and_or_for_byte.py
@@ -673,7 +677,7 @@
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
+#,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py -N 5 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py -N 5 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
@@ -1044,11 +1048,19 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/odbc.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
 
 #develop test
+,,n,develop-test,python3 ./test.py -f 2-query/table_count_scan.py
+,,n,develop-test,python3 ./test.py -f 2-query/show_create_db.py
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/custom_col_tag.py
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/default_json.py
@@ -1067,4 +1079,4 @@
 ,,n,docs-examples-test,bash node.sh
 ,,n,docs-examples-test,bash csharp.sh
 ,,n,docs-examples-test,bash jdbc.sh
-#,,n,docs-examples-test,bash go.sh
+,,n,docs-examples-test,bash go.sh

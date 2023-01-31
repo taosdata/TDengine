@@ -265,7 +265,13 @@ struct STag {
 
 // STSchema ================================
 STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version);
-void      tDestroyTSchema(STSchema *pTSchema);
+#define tDestroyTSchema(pTSchema) \
+  do {                            \
+    if (pTSchema) {               \
+      taosMemoryFree(pTSchema);   \
+      pTSchema = NULL;            \
+    }                             \
+  } while (0)
 
 #endif
 

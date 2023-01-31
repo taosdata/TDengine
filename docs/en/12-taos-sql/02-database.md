@@ -30,8 +30,10 @@ database_option: {
   | WAL_LEVEL {1 | 2}
   | VGROUPS value
   | SINGLE_STABLE {0 | 1}
+  | STT_TRIGGER value
   | TABLE_PREFIX value
   | TABLE_SUFFIX value
+  | TSDB_PAGESIZE value
   | WAL_RETENTION_PERIOD value
   | WAL_ROLL_PERIOD value
   | WAL_RETENTION_SIZE value
@@ -56,7 +58,7 @@ database_option: {
 - WAL_FSYNC_PERIOD: specifies the interval (in milliseconds) at which data is written from the WAL to disk. This parameter takes effect only when the WAL parameter is set to 2. The default value is 3000. Enter a value between 0 and 180000. The value 0 indicates that incoming data is immediately written to disk.
 - MAXROWS: specifies the maximum number of rows recorded in a block. The default value is 4096.
 - MINROWS: specifies the minimum number of rows recorded in a block. The default value is 100.
-- KEEP: specifies the time for which data is retained. Enter a value between 1 and 365000. The default value is 3650. The value of the KEEP parameter must be greater than or equal to the value of the DURATION parameter. TDengine automatically deletes data that is older than the value of the KEEP parameter. You can use m (minutes), h (hours), and d (days) as the unit, for example KEEP 100h or KEEP 10d. If you do not include a unit, d is used by default.
+- KEEP: specifies the time for which data is retained. Enter a value between 1 and 365000. The default value is 3650. The value of the KEEP parameter must be greater than or equal to the value of the DURATION parameter. TDengine automatically deletes data that is older than the value of the KEEP parameter. You can use m (minutes), h (hours), and d (days) as the unit, for example KEEP 100h or KEEP 10d. If you do not include a unit, d is used by default. The Enterprise Edition supports [Tiered Storage](https://docs.tdengine.com/tdinternal/arch/#tiered-storage) function, thus multiple KEEP values (comma separated and up to 3 values supported, and meet keep 0 <= keep 1 <= keep 2, e.g. KEEP 100h,100d,3650d) are supported; the Community Edition does not support Tiered Storage function (although multiple keep values are configured, they do not take effect, only the maximum keep value is used as KEEP).
 - PAGES: specifies the number of pages in the metadata storage engine cache on each vnode. Enter a value greater than or equal to 64. The default value is 256. The space occupied by metadata storage on each vnode is equal to the product of the values of the PAGESIZE and PAGES parameters. The space occupied by default is 1 MB.
 - PAGESIZE: specifies the size (in KB) of each page in the metadata storage engine cache on each vnode. The default value is 4. Enter a value between 1 and 16384.
 - PRECISION: specifies the precision at which a database records timestamps. Enter ms for milliseconds, us for microseconds, or ns for nanoseconds. The default value is ms.
@@ -69,8 +71,10 @@ database_option: {
 - SINGLE_STABLE: specifies whether the database can contain more than one supertable.
   - 0: The database can contain multiple supertables.
   - 1: The database can contain only one supertable.
+- STT_TRIGGER: specifies the number of file merges triggered by flushed files. The default is 8, ranging from 1 to 16. For high-frequency scenarios with few tables, it is recommended to use the default configuration or a smaller value for this parameter; For multi-table low-frequency scenarios, it is recommended to configure this parameter with a larger value.
 - TABLE_PREFIX：The prefix length in the table name that is ignored when distributing table to vnode based on table name.
 - TABLE_SUFFIX：The suffix length in the table name that is ignored when distributing table to vnode based on table name.
+- TSDB_PAGESIZE: The page size of the data storage engine in a vnode. The unit is KB. The default is 4 KB. The range is 1 to 16384, that is, 1 KB to 16 MB.
 - WAL_RETENTION_PERIOD: specifies the time after which WAL files are deleted. This parameter is used for data subscription. Enter a time in seconds. The default value of single copy is 0. A value of 0 indicates that each WAL file is deleted immediately after its contents are written to disk. -1: WAL files are never deleted. The default value of multiple copy is 4 days.
 - WAL_RETENTION_SIZE: specifies the size at which WAL files are deleted. This parameter is used for data subscription. Enter a size in KB. The default value of single copy is 0. A value of 0 indicates that each WAL file is deleted immediately after its contents are written to disk. -1: WAL files are never deleted. The default value of multiple copy is -1.
 - WAL_ROLL_PERIOD: specifies the time after which WAL files are rotated. After this period elapses, a new WAL file is created. The default value of single copy is 0. A value of 0 indicates that a new WAL file is created only after the previous WAL file was written to disk. The default values of multiple copy is 1 day.
@@ -112,6 +116,10 @@ alter_database_options:
 alter_database_option: {
     CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}
   | CACHESIZE value
+  | BUFFER value
+  | PAGES value
+  | REPLICA value
+  | STT_TRIGGER value
   | WAL_LEVEL value
   | WAL_FSYNC_PERIOD value
   | KEEP value
@@ -154,3 +162,19 @@ TRIM DATABASE db_name;
 ```
 
 The preceding SQL statement deletes data that has expired and orders the remaining data in accordance with the storage configuration.
+
+## Redistribute Vgroup
+
+```sql
+REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3]
+```
+
+Adjust the distribution of vnodes in the vgroup according to the given list of dnodes. 
+
+## Balance Vgroup
+
+```sql
+BALANCE VGROUP
+```
+
+Automatically adjusts the distribution of vnodes in all vgroups of the cluster, which is equivalent to load balancing the data of the cluster at the vnode level.

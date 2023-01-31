@@ -833,6 +833,20 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
+void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    SResultRowEntryInfo* pResInfo = pCtx[i].resultInfo;
+    if (pResInfo == NULL) {
+      continue;
+    }
+
+    pResInfo->initialized = false;
+    pResInfo->numOfRes = 0;
+    pResInfo->isNullRes = 0;
+    pResInfo->complete = false;
+  }
+}
+
 void doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo) {
   if (pFilterInfo == NULL || pBlock->info.rows == 0) {
     return;
@@ -871,6 +885,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
     return;
   }
 
+  int8_t* pIndicator = (int8_t*)p->pData;
   int32_t totalRows = pBlock->info.rows;
 
   if (status == FILTER_RESULT_ALL_QUALIFIED) {
@@ -878,42 +893,134 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
     pBlock->info.rows = 0;
   } else {
-    SSDataBlock* px = createOneDataBlock(pBlock, true);
+    int32_t bmLen = BitmapLen(totalRows);
+    char*   pBitmap = NULL;
+    int32_t maxRows = 0;
 
     size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
     for (int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfoData* pSrc = taosArrayGet(px->pDataBlock, i);
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
       // it is a reserved column for scalar function, and no data in this column yet.
-      if (pDst->pData == NULL || pSrc->pData == NULL) {
+      if (pDst->pData == NULL) {
         continue;
       }
 
-      colInfoDataCleanup(pDst, pBlock->info.rows);
-
       int32_t numOfRows = 0;
-      for (int32_t j = 0; j < totalRows; ++j) {
-        if (((int8_t*)p->pData)[j] == 0) {
-          continue;
+      if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+        int32_t j = 0;
+        pDst->varmeta.length = 0;
+
+        while (j < totalRows) {
+          if (pIndicator[j] == 0) {
+            j += 1;
+            continue;
+          }
+
+          if (colDataIsNull_var(pDst, j)) {
+            colDataSetNull_var(pDst, numOfRows);
+          } else {
+            char* p1 = colDataGetVarData(pDst, j);
+            colDataAppend(pDst, numOfRows, p1, false);
+          }
+          numOfRows += 1;
+          j += 1;
         }
 
-        if (colDataIsNull_s(pSrc, j)) {
-          colDataAppendNULL(pDst, numOfRows);
-        } else {
-          colDataAppend(pDst, numOfRows, colDataGetData(pSrc, j), false);
+        if (maxRows < numOfRows) {
+          maxRows = numOfRows;
         }
-        numOfRows += 1;
+      } else {
+        if (pBitmap == NULL) {
+          pBitmap = taosMemoryCalloc(1, bmLen);
+        }
+
+        memcpy(pBitmap, pDst->nullbitmap, bmLen);
+        memset(pDst->nullbitmap, 0, bmLen);
+
+        int32_t j = 0;
+
+        switch (pDst->info.type) {
+          case TSDB_DATA_TYPE_BIGINT:
+          case TSDB_DATA_TYPE_UBIGINT:
+          case TSDB_DATA_TYPE_DOUBLE:
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            while (j < totalRows) {
+              if (pIndicator[j] == 0) {
+                j += 1;
+                continue;
+              }
+
+              if (colDataIsNull_f(pBitmap, j)) {
+                colDataSetNull_f(pDst->nullbitmap, numOfRows);
+              } else {
+                ((int64_t*)pDst->pData)[numOfRows] = ((int64_t*)pDst->pData)[j];
+              }
+              numOfRows += 1;
+              j += 1;
+            }
+            break;
+          case TSDB_DATA_TYPE_FLOAT:
+          case TSDB_DATA_TYPE_INT:
+          case TSDB_DATA_TYPE_UINT:
+            while (j < totalRows) {
+              if (pIndicator[j] == 0) {
+                j += 1;
+                continue;
+              }
+              if (colDataIsNull_f(pBitmap, j)) {
+                colDataSetNull_f(pDst->nullbitmap, numOfRows);
+              } else {
+                ((int32_t*)pDst->pData)[numOfRows] = ((int32_t*)pDst->pData)[j];
+              }
+              numOfRows += 1;
+              j += 1;
+            }
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+          case TSDB_DATA_TYPE_USMALLINT:
+            while (j < totalRows) {
+              if (pIndicator[j] == 0) {
+                j += 1;
+                continue;
+              }
+              if (colDataIsNull_f(pBitmap, j)) {
+                colDataSetNull_f(pDst->nullbitmap, numOfRows);
+              } else {
+                ((int16_t*)pDst->pData)[numOfRows] = ((int16_t*)pDst->pData)[j];
+              }
+              numOfRows += 1;
+              j += 1;
+            }
+            break;
+          case TSDB_DATA_TYPE_BOOL:
+          case TSDB_DATA_TYPE_TINYINT:
+          case TSDB_DATA_TYPE_UTINYINT:
+            while (j < totalRows) {
+              if (pIndicator[j] == 0) {
+                j += 1;
+                continue;
+              }
+              if (colDataIsNull_f(pBitmap, j)) {
+                colDataSetNull_f(pDst->nullbitmap, numOfRows);
+              } else {
+                ((int8_t*)pDst->pData)[numOfRows] = ((int8_t*)pDst->pData)[j];
+              }
+              numOfRows += 1;
+              j += 1;
+            }
+            break;
+        }
       }
 
-      // todo this value can be assigned directly
-      if (pBlock->info.rows == totalRows) {
-        pBlock->info.rows = numOfRows;
-      } else {
-        ASSERT(pBlock->info.rows == numOfRows);
+      if (maxRows < numOfRows) {
+        maxRows = numOfRows;
       }
     }
 
-    blockDataDestroy(px);  // fix memory leak
+    pBlock->info.rows = maxRows;
+    if (pBitmap != NULL) {
+      taosMemoryFree(pBitmap);
+    }
   }
 }
 
@@ -956,8 +1063,7 @@ static void setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, u
   pAggInfo->groupId = groupId;
 }
 
-static void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs,
-                              const int32_t* rowEntryOffset) {
+void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset) {
   bool returnNotNull = false;
   for (int32_t j = 0; j < numOfExprs; ++j) {
     SResultRowEntryInfo* pResInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
@@ -980,8 +1086,8 @@ static void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t nu
   }
 }
 
-static void doCopyResultToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
-                                    SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo) {
+void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
+                              SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo) {
   for (int32_t j = 0; j < numOfExprs; ++j) {
     int32_t slotId = pExprInfo[j].base.resSchema.slotId;
 
@@ -1017,7 +1123,7 @@ static void doCopyResultToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SR
 // todo refactor. SResultRow has direct pointer in miainfo
 int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
-  SFilePage*  page = getBufPage(pBuf, resultRowPosition->pageId);
+  SFilePage* page = getBufPage(pBuf, resultRowPosition->pageId);
   if (page == NULL) {
     qError("failed to get buffer, code:%s, %s", tstrerror(terrno), GET_TASKID(pTaskInfo));
     T_LONG_JMP(pTaskInfo->env, terrno);
@@ -1047,7 +1153,7 @@ int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPos
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  doCopyResultToDataBlock(pExprInfo, pSup->numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo);
+  copyResultrowToDataBlock(pExprInfo, pSup->numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo);
 
   releaseBufPage(pBuf, page);
   pBlock->info.rows += pRow->numOfRows;
@@ -1099,7 +1205,7 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
     }
 
     pGroupResInfo->index += 1;
-    doCopyResultToDataBlock(pExprInfo, numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo);
+    copyResultrowToDataBlock(pExprInfo, numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo);
 
     releaseBufPage(pBuf, page);
     pBlock->info.rows += pRow->numOfRows;
@@ -2128,8 +2234,6 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       pOperator = createCacherowsScanOperator(pScanNode, pHandle, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
       pOperator = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo);
-    } else {
-      ASSERT(0);
     }
 
     if (pOperator != NULL) {
@@ -2166,9 +2270,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL == type) {
     SIntervalPhysiNode* pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
-
-    bool isStream = (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type);
-    pOptr = createIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo, isStream);
+    pOptr = createIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type) {
     pOptr = createStreamIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == type) {
@@ -2220,8 +2322,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     pOptr = createIndefinitOutputOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC == type) {
     pOptr = createTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo);
-  } else {
-    ASSERT(0);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT == type) {
+    pOptr = createEventwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   }
 
   taosMemoryFree(ops);

@@ -1080,29 +1080,29 @@ static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
   SSortLogicNode* pSort = (SSortLogicNode*)pNode;
-  if (pSort->groupSort || !sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys) || 1 != LIST_LENGTH(pSort->node.pChildren)) {
+  if (!sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys) || 1 != LIST_LENGTH(pSort->node.pChildren)) {
     return false;
   }
   return true;
 }
 
-static int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool* pNotOptimize,
+static int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, bool* pNotOptimize,
                                                    SNodeList** pSequencingNodes) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-      if (NULL != pScan->pGroupTags || TSDB_SYSTEM_TABLE == pScan->tableType) {
+      if ((!groupSort && NULL != pScan->pGroupTags) || TSDB_SYSTEM_TABLE == pScan->tableType) {
         *pNotOptimize = true;
         return TSDB_CODE_SUCCESS;
       }
       return nodesListMakeAppend(pSequencingNodes, (SNode*)pNode);
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
-      int32_t code = sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0),
+      int32_t code = sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), groupSort,
                                                          pNotOptimize, pSequencingNodes);
       if (TSDB_CODE_SUCCESS == code) {
-        code = sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 1), pNotOptimize,
-                                                   pSequencingNodes);
+        code = sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 1), groupSort,
+                                                   pNotOptimize, pSequencingNodes);
       }
       return code;
     }
@@ -1121,13 +1121,13 @@ static int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool* pNot
     return TSDB_CODE_SUCCESS;
   }
 
-  return sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), pNotOptimize,
-                                             pSequencingNodes);
+  return sortPriKeyOptGetSequencingNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), groupSort,
+                                             pNotOptimize, pSequencingNodes);
 }
 
-static int32_t sortPriKeyOptGetSequencingNodes(SLogicNode* pNode, SNodeList** pSequencingNodes) {
+static int32_t sortPriKeyOptGetSequencingNodes(SLogicNode* pNode, bool groupSort, SNodeList** pSequencingNodes) {
   bool    notOptimize = false;
-  int32_t code = sortPriKeyOptGetSequencingNodesImpl(pNode, &notOptimize, pSequencingNodes);
+  int32_t code = sortPriKeyOptGetSequencingNodesImpl(pNode, groupSort, &notOptimize, pSequencingNodes);
   if (TSDB_CODE_SUCCESS != code || notOptimize) {
     NODES_CLEAR_LIST(*pSequencingNodes);
   }
@@ -1175,8 +1175,8 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
 static int32_t sortPrimaryKeyOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SSortLogicNode* pSort) {
   SNodeList* pSequencingNodes = NULL;
-  int32_t    code =
-      sortPriKeyOptGetSequencingNodes((SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0), &pSequencingNodes);
+  int32_t    code = sortPriKeyOptGetSequencingNodes((SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0),
+                                                    pSort->groupSort, &pSequencingNodes);
   if (TSDB_CODE_SUCCESS == code && NULL != pSequencingNodes) {
     code = sortPriKeyOptApply(pCxt, pLogicSubplan, pSort, pSequencingNodes);
   }
@@ -1334,10 +1334,11 @@ static int32_t smaIndexOptApplyIndex(SLogicSubplan* pLogicSubplan, SScanLogicNod
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceLogicNode(pLogicSubplan, pScan->node.pParent, pSmaScan);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    nodesDestroyNode((SNode*)pScan->node.pParent);
+  }
   return code;
 }
-
-static void smaIndexOptDestroySmaIndex(void* p) { taosMemoryFree(((STableIndexInfo*)p)->expr); }
 
 static int32_t smaIndexOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SScanLogicNode* pScan) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1348,8 +1349,6 @@ static int32_t smaIndexOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogi
     code = smaIndexOptCouldApplyIndex(pScan, pIndex, &pSmaCols);
     if (TSDB_CODE_SUCCESS == code && NULL != pSmaCols) {
       code = smaIndexOptApplyIndex(pLogicSubplan, pScan, pIndex, pSmaCols);
-      taosArrayDestroyEx(pScan->pSmaIndexes, smaIndexOptDestroySmaIndex);
-      pScan->pSmaIndexes = NULL;
       pCxt->optimized = true;
       break;
     }

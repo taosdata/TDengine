@@ -192,18 +192,17 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   void   *pReq;
   int32_t len;
   int32_t ret;
-
+  /*
   if (!pVnode->inUse) {
     terrno = TSDB_CODE_VND_NO_AVAIL_BUFPOOL;
     vError("vgId:%d, not ready to write since %s", TD_VID(pVnode), terrstr());
     return -1;
   }
-
+  */
   if (version <= pVnode->state.applied) {
     vError("vgId:%d, duplicate write request. version: %" PRId64 ", applied: %" PRId64 "", TD_VID(pVnode), version,
            pVnode->state.applied);
     terrno = TSDB_CODE_VND_DUP_REQUEST;
-    pRsp->info.handle = NULL;
     return -1;
   }
 
@@ -225,6 +224,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   // skip header
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   len = pMsg->contLen - sizeof(SMsgHead);
+  bool needCommit = false;
 
   switch (pMsg->msgType) {
     /* META */
@@ -321,9 +321,8 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       vnodeProcessAlterConfigReq(pVnode, version, pReq, len, pRsp);
       break;
     case TDMT_VND_COMMIT:
-      vnodeSyncCommit(pVnode);
-      vnodeBegin(pVnode);
-      goto _exit;
+      needCommit = true;
+      break;
     case TDMT_VND_COMPACT:
       vnodeProcessCompactVnodeReq(pVnode, version, pReq, len, pRsp);
       goto _exit;
@@ -343,7 +342,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   }
 
   // commit if need
-  if (vnodeShouldCommit(pVnode)) {
+  if (needCommit) {
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
     if (vnodeAsyncCommit(pVnode) < 0) {
       vError("vgId:%d, failed to vnode async commit since %s.", TD_VID(pVnode), tstrerror(terrno));
@@ -1006,6 +1005,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
           code = terrno;
           goto _exit;
         }
+        pSubmitTbData->uid = pSubmitTbData->pCreateTbReq->uid;  // update uid if table exist for using below
       }
     }
 

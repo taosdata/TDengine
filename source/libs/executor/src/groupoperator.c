@@ -593,8 +593,11 @@ void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInf
 
     int32_t pageId = 0;
     pPage = getNewBufPage(pInfo->pBuf, &pageId);
-    taosArrayPush(p->pPageList, &pageId);
+    if (pPage == NULL) {
+      return pPage;
+    }
 
+    taosArrayPush(p->pPageList, &pageId);
     *(int32_t*)pPage = 0;
   } else {
     int32_t* curId = taosArrayGetLast(p->pPageList);
@@ -612,6 +615,11 @@ void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInf
       // add a new page for current group
       int32_t pageId = 0;
       pPage = getNewBufPage(pInfo->pBuf, &pageId);
+      if (pPage == NULL) {
+        qError("failed to get new buffer, code:%s", tstrerror(terrno));
+        return NULL;
+      }
+
       taosArrayPush(p->pPageList, &pageId);
       memset(pPage, 0, getBufPageSize(pInfo->pBuf));
     }
@@ -917,6 +925,7 @@ uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, S
 }
 
 static bool hasRemainPartion(SStreamPartitionOperatorInfo* pInfo) { return pInfo->parIte != NULL; }
+static bool hasRemainTbName(SStreamPartitionOperatorInfo* pInfo) { return pInfo->pTbNameIte != NULL; }
 
 static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   SStreamPartitionOperatorInfo* pInfo = pOperator->info;
@@ -937,40 +946,13 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       colDataAppend(pDestCol, pDest->info.rows, pSrcData, isNull);
     }
     pDest->info.rows++;
-    if (pInfo->tbnameCalSup.numOfExprs > 0 && i == 0) {
-      void* tbname = NULL;
-      if (streamStateGetParName(pOperator->pTaskInfo->streamInfo.pState, pParInfo->groupId, &tbname) == 0) {
-        memcpy(pDest->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
-        tdbFree(tbname);
-      } else {
-        SSDataBlock* pTmpBlock = blockCopyOneRow(pSrc, rowIndex);
-        SSDataBlock* pResBlock = createDataBlock();
-        pResBlock->info.rowSize = TSDB_TABLE_NAME_LEN;
-        SColumnInfoData data = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, TSDB_TABLE_NAME_LEN, 0);
-        taosArrayPush(pResBlock->pDataBlock, &data);
-        blockDataEnsureCapacity(pResBlock, 1);
-        projectApplyFunctions(pInfo->tbnameCalSup.pExprInfo, pResBlock, pTmpBlock, pInfo->tbnameCalSup.pCtx, 1, NULL);
-        ASSERT(pResBlock->info.rows == 1);
-        ASSERT(taosArrayGetSize(pResBlock->pDataBlock) == 1);
-        SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, 0);
-        ASSERT(pCol->info.type == TSDB_DATA_TYPE_VARCHAR);
-        void* pData = colDataGetVarData(pCol, 0);
-        // TODO check tbname validity
-        if (pData != (void*)-1) {
-          memset(pDest->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
-          int32_t len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN - 1);
-          memcpy(pDest->info.parTbName, varDataVal(pData), len);
-          /*pDest->info.parTbName[len + 1] = 0;*/
-        } else {
-          pDest->info.parTbName[0] = 0;
-        }
-        if (pParInfo->groupId && pDest->info.parTbName[0]) {
-          streamStatePutParName(pOperator->pTaskInfo->streamInfo.pState, pParInfo->groupId, pDest->info.parTbName);
-        }
-        /*printf("\n\n set name %s\n\n", pDest->info.parTbName);*/
-        blockDataDestroy(pTmpBlock);
-        blockDataDestroy(pResBlock);
-      }
+  }
+  pDest->info.parTbName[0] = 0;
+  if (pInfo->tbnameCalSup.numOfExprs > 0) {
+    void* tbname = NULL;
+    if (streamStateGetParName(pOperator->pTaskInfo->streamInfo.pState, pParInfo->groupId, &tbname) == 0) {
+      memcpy(pDest->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
+      tdbFree(tbname);
     }
   }
   taosArrayDestroy(pParInfo->rowIds);
@@ -984,6 +966,60 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   ASSERT(pDest->info.rows > 0);
   printDataBlock(pDest, "stream partitionby");
   return pDest;
+}
+
+void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp* pTagSup, int64_t groupId,
+                          SSDataBlock* pSrcBlock, int32_t rowId, SSDataBlock* pDestBlock) {
+  void* pValue = NULL;
+  if (groupId != 0 && streamStateGetParName(pState, groupId, &pValue) != 0) {
+    SSDataBlock* pTmpBlock = blockCopyOneRow(pSrcBlock, rowId);
+    if (pTableSup->numOfExprs > 0) {
+      projectApplyFunctions(pTableSup->pExprInfo, pDestBlock, pTmpBlock, pTableSup->pCtx, pTableSup->numOfExprs, NULL);
+      SColumnInfoData* pTbCol = taosArrayGet(pDestBlock->pDataBlock, UD_TABLE_NAME_COLUMN_INDEX);
+      void* pData = colDataGetVarData(pTbCol, pDestBlock->info.rows - 1);
+      char* tbName = pSrcBlock->info.parTbName;
+      memset(tbName, 0, TSDB_TABLE_NAME_LEN);
+      int32_t len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN - 1);
+      memcpy(tbName, varDataVal(pData), len);
+      streamStatePutParName(pState, groupId, tbName);
+      pDestBlock->info.rows--;
+    } else {
+      void* pTbNameCol = taosArrayGet(pDestBlock->pDataBlock, UD_TABLE_NAME_COLUMN_INDEX);
+      colDataAppendNULL(pTbNameCol, pDestBlock->info.rows);
+      pSrcBlock->info.parTbName[0] = 0;
+    }
+
+    if (pTagSup->numOfExprs > 0) {
+      projectApplyFunctions(pTagSup->pExprInfo, pDestBlock, pTmpBlock, pTagSup->pCtx, pTagSup->numOfExprs, NULL);
+      pDestBlock->info.rows--;
+    }
+
+    void* pGpIdCol = taosArrayGet(pDestBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
+    colDataAppend(pGpIdCol, pDestBlock->info.rows, (const char*)&groupId, false);
+  
+    pDestBlock->info.rows++;
+    blockDataDestroy(pTmpBlock);
+  }
+  streamStateReleaseBuf(pState, NULL, pValue);
+}
+
+static SSDataBlock* buildStreamCreateTableResult(SOperatorInfo* pOperator) {
+  SStreamPartitionOperatorInfo* pInfo = pOperator->info;
+  if ( (pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0) || taosHashGetSize(pInfo->pPartitions) == 0) {
+    return NULL;
+  }
+  blockDataCleanup(pInfo->pCreateTbRes);
+  blockDataEnsureCapacity(pInfo->pCreateTbRes, taosHashGetSize(pInfo->pPartitions));
+  SSDataBlock* pSrc = pInfo->pInputDataBlock;
+
+  while (pInfo->pTbNameIte != NULL) {
+    SPartitionDataInfo* pParInfo = (SPartitionDataInfo*)pInfo->pTbNameIte;
+    int32_t rowId = *(int32_t*) taosArrayGet(pParInfo->rowIds, 0);
+    appendCreateTableRow(pOperator->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup, &pInfo->tagCalSup,
+                          pParInfo->groupId, pSrc, rowId, pInfo->pCreateTbRes);
+    pInfo->pTbNameIte = taosHashIterate(pInfo->pPartitions, pInfo->pTbNameIte);
+  }
+  return pInfo->pCreateTbRes->info.rows > 0 ? pInfo->pCreateTbRes : NULL;
 }
 
 static void doStreamHashPartitionImpl(SStreamPartitionOperatorInfo* pInfo, SSDataBlock* pBlock) {
@@ -1012,6 +1048,15 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
 
   SExecTaskInfo*                pTaskInfo = pOperator->pTaskInfo;
   SStreamPartitionOperatorInfo* pInfo = pOperator->info;
+  SSDataBlock*                  pCtRes = NULL;
+
+  if (hasRemainTbName(pInfo)) {
+    pCtRes = buildStreamCreateTableResult(pOperator);
+    if (pCtRes != NULL) {
+      return pCtRes;
+    }
+  }
+
   if (hasRemainPartion(pInfo)) {
     return buildStreamPartitionResult(pOperator);
   }
@@ -1039,6 +1084,7 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
         return pInfo->pDelRes;
       } break;
       default:
+        ASSERTS(pBlock->info.type == STREAM_CREATE_CHILD_TABLE, "invalid SSDataBlock type");
         return pBlock;
     }
 
@@ -1056,6 +1102,11 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
 
   pInfo->parIte = taosHashIterate(pInfo->pPartitions, NULL);
+  pInfo->pTbNameIte = taosHashIterate(pInfo->pPartitions, NULL);
+  pCtRes = buildStreamCreateTableResult(pOperator);
+  if (pCtRes != NULL) {
+    return pCtRes;
+  }
   return buildStreamPartitionResult(pOperator);
 }
 
@@ -1076,6 +1127,7 @@ static void destroyStreamPartitionOperatorInfo(void* param) {
   cleanupExprSupp(&pInfo->tagCalSup);
   blockDataDestroy(pInfo->pDelRes);
   taosHashCleanup(pInfo->pPartitions);
+  blockDataDestroy(pInfo->pCreateTbRes);
   taosMemoryFreeClear(param);
 }
 
@@ -1089,6 +1141,46 @@ void initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pParSup
   if (!pScanInfo->pUpdateInfo) {
     pScanInfo->pUpdateInfo = updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, 0);
   }
+}
+
+SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag) {
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  pBlock->info.hasVarCol = false;
+  pBlock->info.id.groupId = 0;
+  pBlock->info.rows = 0;
+  pBlock->info.type = STREAM_CREATE_CHILD_TABLE;
+  pBlock->info.watermark = INT64_MIN;
+
+  pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
+  SColumnInfoData infoData = {0};
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  if (tbName->numOfExprs > 0) {
+    infoData.info.bytes = tbName->pExprInfo->base.resSchema.bytes;
+  } else {
+    infoData.info.bytes = 1;
+  }
+  pBlock->info.rowSize += infoData.info.bytes;
+  // sub table name
+  taosArrayPush(pBlock->pDataBlock, &infoData);
+
+  SColumnInfoData gpIdData = {0};
+  gpIdData.info.type = TSDB_DATA_TYPE_UBIGINT;
+  gpIdData.info.bytes = 8;
+  pBlock->info.rowSize += gpIdData.info.bytes;
+  // group id
+  taosArrayPush(pBlock->pDataBlock, &gpIdData);
+
+  for (int32_t i = 0; i < tag->numOfExprs; i++) {
+    SColumnInfoData tagCol = {0};
+    tagCol.info.type = tag->pExprInfo[i].base.resSchema.type;
+    tagCol.info.bytes = tag->pExprInfo[i].base.resSchema.bytes;
+    tagCol.info.precision = tag->pExprInfo[i].base.resSchema.precision;
+    // tag info
+    taosArrayPush(pBlock->pDataBlock, &tagCol);
+    pBlock->info.rowSize += tagCol.info.bytes;
+  }
+
+  return pBlock;
 }
 
 SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStreamPartitionPhysiNode* pPartNode,
@@ -1110,6 +1202,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
     }
   }
 
+  pInfo->tbnameCalSup.numOfExprs = 0;
   if (pPartNode->pSubtable != NULL) {
     SExprInfo* pSubTableExpr = taosMemoryCalloc(1, sizeof(SExprInfo));
     if (pSubTableExpr == NULL) {
@@ -1124,9 +1217,10 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
     }
   }
 
+  pInfo->tagCalSup.numOfExprs = 0;
   if (pPartNode->pTags != NULL) {
     int32_t    numOfTags;
-    SExprInfo* pTagExpr = createExprInfo(pPartNode->pTags, NULL, &numOfTags);
+    SExprInfo* pTagExpr = createExpr(pPartNode->pTags, &numOfTags);
     if (pTagExpr == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _error;
@@ -1135,6 +1229,12 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _error;
     }
+  }
+
+  if (pInfo->tbnameCalSup.numOfExprs != 0 || pInfo->tagCalSup.numOfExprs != 0) {
+    pInfo->pCreateTbRes = buildCreateTableBlock(&pInfo->tbnameCalSup, &pInfo->tagCalSup);
+  } else {
+    pInfo->pCreateTbRes = NULL;
   }
 
   int32_t keyLen = 0;
@@ -1153,6 +1253,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   blockDataEnsureCapacity(pInfo->binfo.pRes, 4096);
 
   pInfo->parIte = NULL;
+  pInfo->pTbNameIte = NULL;
   pInfo->pInputDataBlock = NULL;
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);

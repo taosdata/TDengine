@@ -43,21 +43,29 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
   for (int i = 0; i < pNode->peersNum; ++i) {
     SRpcMsg rpcMsg = {0};
     ret = syncBuildRequestVote(&rpcMsg, pNode->vgId);
-    ASSERT(ret == 0);
+    if (ret < 0) {
+      sError("vgId:%d, failed to build request-vote msg since %s", pNode->vgId, terrstr());
+      continue;
+    }
 
     SyncRequestVote* pMsg = rpcMsg.pCont;
     pMsg->srcId = pNode->myRaftId;
     pMsg->destId = pNode->peersId[i];
-    pMsg->term = pNode->pRaftStore->currentTerm;
+    pMsg->term = pNode->raftStore.currentTerm;
 
     ret = syncNodeGetLastIndexTerm(pNode, &pMsg->lastLogIndex, &pMsg->lastLogTerm);
-    ASSERT(ret == 0);
+    if (ret < 0) {
+      sError("vgId:%d, failed to get index and term of last log since %s", pNode->vgId, terrstr());
+      continue;
+    }
 
     ret = syncNodeSendMsgById(&pNode->peersId[i], pNode, &rpcMsg);
-    ASSERT(ret == 0);
+    if (ret < 0) {
+      sError("vgId:%d, failed to send msg to peerId:%" PRId64, pNode->vgId, pNode->peersId[i].addr);
+      continue;
+    }
   }
-
-  return ret;
+  return 0;
 }
 
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
@@ -75,10 +83,10 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   }
 
   // start election
-  raftStoreNextTerm(pSyncNode->pRaftStore);
-  raftStoreClearVote(pSyncNode->pRaftStore);
-  voteGrantedReset(pSyncNode->pVotesGranted, pSyncNode->pRaftStore->currentTerm);
-  votesRespondReset(pSyncNode->pVotesRespond, pSyncNode->pRaftStore->currentTerm);
+  raftStoreNextTerm(pSyncNode);
+  raftStoreClearVote(pSyncNode);
+  voteGrantedReset(pSyncNode->pVotesGranted, pSyncNode->raftStore.currentTerm);
+  votesRespondReset(pSyncNode->pVotesRespond, pSyncNode->raftStore.currentTerm);
 
   syncNodeVoteForSelf(pSyncNode);
   if (voteGrantedMajority(pSyncNode->pVotesGranted)) {

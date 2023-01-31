@@ -1072,7 +1072,8 @@ void *shellThreadLoop(void *arg) {
 }
 
 int32_t shellExecute() {
-  printf(shell.info.clientVersion, taos_get_client_info());
+  printf(shell.info.clientVersion, shell.info.cusName,
+         taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;
@@ -1127,7 +1128,7 @@ int32_t shellExecute() {
   }
 
   if (tsem_init(&shell.cancelSem, 0, 0) != 0) {
-    printf("failed to create cancel semphore\r\n");
+    printf("failed to create cancel semaphore\r\n");
     return -1;
   }
 
@@ -1136,10 +1137,8 @@ int32_t shellExecute() {
 
   taosSetSignal(SIGTERM, shellQueryInterruptHandler);
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
-  taosSetSignal(SIGABRT, shellQueryInterruptHandler);
-
   taosSetSignal(SIGINT, shellQueryInterruptHandler);
-
+  
 #ifdef WEBSOCKET
   if (!shell.args.restful && !shell.args.cloud) {
 #endif

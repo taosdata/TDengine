@@ -474,9 +474,11 @@ typedef struct SStreamScanInfo {
   SNode*     pTagIndexCond;
 
   // recover
-  int32_t blockRecoverContiCnt;
-  int32_t blockRecoverTotCnt;
+  int32_t      blockRecoverContiCnt;
+  int32_t      blockRecoverTotCnt;
+  SSDataBlock* pRecoverRes;
 
+  SSDataBlock* pCreateTbRes;
 } SStreamScanInfo;
 
 typedef struct {
@@ -567,6 +569,8 @@ typedef struct SStreamIntervalOperatorInfo {
   SStreamState*      pState;
   SWinKey            delKey;
   uint64_t           numOfDatapack;
+  SArray*            pUpdated;
+  SHashObj*          pUpdatedMap;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -613,6 +617,8 @@ typedef struct SStreamSessionAggOperatorInfo {
   SPhysiNode*         pPhyNode;   // create new child
   bool                isFinal;
   bool                ignoreExpiredData;
+  SArray*             pUpdated;
+  SSHashObj*          pStUpdated;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -628,6 +634,8 @@ typedef struct SStreamStateAggOperatorInfo {
   void*               pDelIterator;
   SArray*             pChildren;  // cache for children's result;
   bool                ignoreExpiredData;
+  SArray*             pUpdated;
+  SSHashObj*          pSeUpdated;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
@@ -638,9 +646,11 @@ typedef struct SStreamPartitionOperatorInfo {
   SExprSupp             tagCalSup;
   SHashObj*             pPartitions;
   void*                 parIte;
+  void*                 pTbNameIte;
   SSDataBlock*          pInputDataBlock;
   int32_t               tsColIndex;
   SSDataBlock*          pDelRes;
+  SSDataBlock*          pCreateTbRes;
 } SStreamPartitionOperatorInfo;
 
 typedef struct SStreamFillSupporter {
@@ -708,7 +718,8 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
 void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo);
-void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo, SOperatorInfo* pOperator);
+void resetLimitInfoForNextGroup(SLimitInfo* pLimitInfo);
+bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo, SOperatorInfo* pOperator);
 
 void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData,
                                      int32_t offset, int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput);
@@ -732,6 +743,7 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, const char* name);
 
 void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset);
+void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,
                                    int16_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
@@ -762,7 +774,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** dowStreams, size_
 
 SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pTableScanNode, SReadHandle* readHandle, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, bool isStream);
+SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeIntervalPhysiNode* pIntervalPhyNode, SExecTaskInfo* pTaskInfo);
 
@@ -803,6 +815,8 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
 SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysiNode* pPhyFillNode, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode, SExecTaskInfo* pTaskInfo);
+
+SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo);
 // clang-format on
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
@@ -838,7 +852,6 @@ bool isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, SStreamState* pS
 void appendOneRowToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid,
                                       uint64_t* pGp, void* pTbName);
 uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
-void     calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock);
 
 int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
@@ -857,6 +870,15 @@ void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t ord
 int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo);
 int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int32_t pos,
                                             int32_t order, int64_t* pData);
+void    appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp* pTagSup, int64_t groupId,
+                             SSDataBlock* pSrcBlock, int32_t rowId, SSDataBlock* pDestBlock);
+
+SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag);
+SExprInfo*   createExpr(SNodeList* pNodeList, int32_t* numOfExprs);
+
+void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
+                             SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo);
+void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset) ;
 
 #ifdef __cplusplus
 }

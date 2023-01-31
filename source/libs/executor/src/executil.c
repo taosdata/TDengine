@@ -954,7 +954,7 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
           return -1;
         }
       } else {
-        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
+//        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
         terrno = 0;
       }
     }
@@ -1424,6 +1424,18 @@ void createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode) {
   createExprFromOneNode(pExp, pTargetNode->pExpr, pTargetNode->slotId);
 }
 
+SExprInfo* createExpr(SNodeList* pNodeList, int32_t* numOfExprs) {
+  *numOfExprs = LIST_LENGTH(pNodeList);
+  SExprInfo* pExprs = taosMemoryCalloc(*numOfExprs, sizeof(SExprInfo));
+
+  for (int32_t i = 0; i < (*numOfExprs); ++i) {
+    SExprInfo* pExp = &pExprs[i];
+    createExprFromOneNode(pExp, nodesListGetNode(pNodeList, i), i + UD_TAG_COLUMN_INDEX);
+  }
+
+  return pExprs;
+}
+
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs) {
   int32_t numOfFuncs = LIST_LENGTH(pNodeList);
   int32_t numOfGroupKeys = 0;
@@ -1757,6 +1769,11 @@ void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimit
   pLimitInfo->slimit = slimit;
   pLimitInfo->remainOffset = limit.offset;
   pLimitInfo->remainGroupOffset = slimit.offset;
+}
+
+void resetLimitInfoForNextGroup(SLimitInfo* pLimitInfo) {
+  pLimitInfo->numOfOutputRows = 0;
+  pLimitInfo->remainOffset = pLimitInfo->limit.offset;
 }
 
 uint64_t tableListGetSize(const STableListInfo* pTableList) {

@@ -175,8 +175,7 @@ static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, S
 
     // reset the value for a new group data
     // existing rows that belongs to previous group.
-    pLimitInfo->numOfOutputRows = 0;
-    pLimitInfo->remainOffset = pLimitInfo->limit.offset;
+    resetLimitInfoForNextGroup(pLimitInfo);
   }
 
   return PROJECT_RETRIEVE_DONE;
@@ -200,10 +199,18 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   if (pLimitInfo->limit.limit >= 0 && pLimitInfo->numOfOutputRows + pBlock->info.rows >= pLimitInfo->limit.limit) {
     int32_t keepRows = (int32_t)(pLimitInfo->limit.limit - pLimitInfo->numOfOutputRows);
     blockDataKeepFirstNRows(pBlock, keepRows);
+
     // TODO: optimize it later when partition by + limit
+    // all retrieved requirement has been fulfilled, let's finish this
     if ((pLimitInfo->slimit.limit == -1 && pLimitInfo->currentGroupId == 0) ||
         (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
       setOperatorCompleted(pOperator);
+    } else {
+      // Even current group is done, there may be many vgroups remain existed, and we need to continue to retrieve data
+      // from next group. So let's continue this retrieve process
+      if (keepRows == 0) {
+        return PROJECT_RETRIEVE_CONTINUE;
+      }
     }
   }
 
@@ -278,7 +285,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
       // for stream interval
       if (pBlock->info.type == STREAM_RETRIEVE || pBlock->info.type == STREAM_DELETE_RESULT ||
-          pBlock->info.type == STREAM_DELETE_DATA) {
+          pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
         // printDataBlock1(pBlock, "project1");
         return pBlock;
       }
@@ -358,7 +365,6 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
-  // printDataBlock1(p, "project");
   return (p->info.rows > 0) ? p : NULL;
 }
 

@@ -134,6 +134,21 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     return NULL;
   }
 
+  // save vnode info on dnode ep changed
+  bool      updated = false;
+  SSyncCfg *pCfg = &info.config.syncCfg;
+  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+    SNodeInfo *pNode = &pCfg->nodeInfo[i];
+    if (tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort)) {
+      updated = true;
+    }
+  }
+  if (updated) {
+    vInfo("vgId:%d, save vnode info since dnode info changed", info.config.vgId);
+    (void)vnodeSaveInfo(dir, &info);
+    (void)vnodeCommitInfo(dir, &info);
+  }
+
   // create handle
   pVnode = taosMemoryCalloc(1, sizeof(*pVnode) + strlen(path) + 1);
   if (pVnode == NULL) {
@@ -159,6 +174,8 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   tsem_init(&(pVnode->canCommit), 0, 1);
   taosThreadMutexInit(&pVnode->mutex, NULL);
   taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
+
+  vnodeUpdCommitSched(pVnode);
 
   int8_t rollback = vnodeShouldRollback(pVnode);
 
@@ -238,7 +255,7 @@ _err:
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
   if (pVnode->pSma) smaClose(pVnode->pSma);
   if (pVnode->pMeta) metaClose(pVnode->pMeta);
-  if (pVnode->pPool) vnodeCloseBufPool(pVnode);
+  if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
   tsem_destroy(&(pVnode->canCommit));
   taosMemoryFree(pVnode);
@@ -250,9 +267,11 @@ void vnodePreClose(SVnode *pVnode) {
   vnodeSyncPreClose(pVnode);
 }
 
+void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
+
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
-    vnodeSyncCommit(pVnode);
+    tsem_wait(&pVnode->canCommit);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     walClose(pVnode->pWal);
@@ -261,6 +280,8 @@ void vnodeClose(SVnode *pVnode) {
     smaClose(pVnode->pSma);
     metaClose(pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
+    tsem_post(&pVnode->canCommit);
+
     // destroy handle
     tsem_destroy(&(pVnode->canCommit));
     tsem_destroy(&pVnode->syncSem);

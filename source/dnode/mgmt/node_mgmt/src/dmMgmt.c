@@ -79,6 +79,13 @@ static void dmClearVars(SDnode *pDnode) {
 
   SDnodeData *pData = &pDnode->data;
   taosThreadRwlockWrlock(&pData->lock);
+  if (pData->oldDnodeEps != NULL) {
+    if (dmWriteEps(pData) == 0) {
+      dmRemoveDnodePairs(pData);
+    }
+    taosArrayDestroy(pData->oldDnodeEps);
+    pData->oldDnodeEps = NULL;
+  }
   if (pData->dnodeEps != NULL) {
     taosArrayDestroy(pData->dnodeEps);
     pData->dnodeEps = NULL;

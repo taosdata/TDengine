@@ -235,7 +235,7 @@ void shellRunSingleCommandWebsocketImp(char *command) {
       if (reconnectNum == 0) {
         continue;
       } else {
-        fprintf(stderr, "TDengine server is disconnected, will try to reconnect\n");
+        fprintf(stderr, "The server is disconnected, will try to reconnect\n");
       }
       return;
     }

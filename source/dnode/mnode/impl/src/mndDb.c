@@ -892,7 +892,7 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   cfgRsp.numOfRetensions = pDb->cfg.numOfRetensions;
   cfgRsp.pRetensions = pDb->cfg.pRetensions;
   cfgRsp.schemaless = pDb->cfg.schemaless;
-
+  cfgRsp.sstTrigger = pDb->cfg.sstTrigger;
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &cfgRsp);
   void   *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
@@ -1054,17 +1054,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   if (mndDropStreamByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropSmasByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
-
-  SUserObj *pUser = mndAcquireUser(pMnode, pDb->createUser);
-  if (pUser != NULL) {
-    pUser->authVersion++;
-    SSdbRaw *pCommitRaw = mndUserActionEncode(pUser);
-    if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-      mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
-      goto _OVER;
-    }
-    (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-  }
+  if (mndUserRemoveDb(pMnode, pTrans, pDb->name) != 0) goto _OVER;
 
   int32_t rspLen = 0;
   void   *pRsp = NULL;

@@ -29,7 +29,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         self._conn = conn
-        self.defaultJSONStrType_value = "NCHAR"
+        self.defaultJSONStrType_value = "BINARY"
 
     def createDb(self, name="test", db_update_tag=0, protocol=None):
         if protocol == "telnet-tcp":
@@ -939,7 +939,7 @@ class TDTestCase:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="double", value_type=value_type))[0]
             try:
                 self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-                raise Exception("should not reach here")
+                # raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 

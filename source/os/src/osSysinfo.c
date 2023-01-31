@@ -18,6 +18,7 @@
 #include "taoserror.h"
 
 #define PROCESS_ITEM 12
+#define UUIDLEN37 37
 
 typedef struct {
   uint64_t user;
@@ -279,11 +280,46 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 #endif
 }
 
+#ifdef WINDOWS
+bool getWinVersionReleaseName(char *releaseName, int32_t maxLen) {
+  TCHAR          szFileName[MAX_PATH];
+  DWORD             dwHandle;
+  DWORD             dwLen;
+  LPVOID            lpData;
+  UINT              uLen;
+  VS_FIXEDFILEINFO *pFileInfo;
 
+  GetWindowsDirectory(szFileName, MAX_PATH);
+  wsprintf(szFileName, L"%s%s", szFileName, L"\\explorer.exe");
+  dwLen = GetFileVersionInfoSize(szFileName, &dwHandle);
+  if (dwLen == 0) {
+    return false;
+  }
+
+  lpData = malloc(dwLen);
+  if (lpData == NULL) return false;
+  if (!GetFileVersionInfo(szFileName, dwHandle, dwLen, lpData)) {
+    free(lpData);
+    return false;
+  }
+
+  if (!VerQueryValue(lpData, L"\\", (LPVOID *)&pFileInfo, &uLen)) {
+    free(lpData);
+    return false;
+  }
+
+  snprintf(releaseName, maxLen, "Windows %d.%d", HIWORD(pFileInfo->dwProductVersionMS),
+           LOWORD(pFileInfo->dwProductVersionMS));
+  free(lpData);
+  return true;
+}
+#endif
 
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 #ifdef WINDOWS
-  snprintf(releaseName, maxLen, "Windows");
+  if (!getWinVersionReleaseName(releaseName, maxLen)) {
+    snprintf(releaseName, maxLen, "Windows");
+  }
   return 0;
 #elif defined(_TD_DARWIN_64)
   char osversion[32];
@@ -834,11 +870,16 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   return 0;
 #elif defined(_TD_DARWIN_64)
   uuid_t uuid = {0};
-  char   buf[37] = {0};
+  char   buf[UUIDLEN37];
+  memset(buf, 0, UUIDLEN37);
   uuid_generate(uuid);
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
   uuid_unparse_lower(uuid, buf);
-  memcpy(uid, buf, uidlen);
+  int n = snprintf(uid, uidlen, "%.*s", (int)sizeof(buf), buf);  // though less performance, much safer
+  if (n >= uidlen) {
+    // target buffer is too small
+    return -1;
+  }
   return 0;
 #else
   int len = 0;

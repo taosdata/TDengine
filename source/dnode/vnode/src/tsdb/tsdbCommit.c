@@ -175,7 +175,7 @@ int32_t tsdbCommit(STsdb *pTsdb, SCommitInfo *pInfo) {
     pTsdb->imem = NULL;
     taosThreadRwlockUnlock(&pTsdb->rwLock);
 
-    tsdbUnrefMemTable(pMemTable, NULL);
+    tsdbUnrefMemTable(pMemTable, NULL, true);
     goto _exit;
   }
 
@@ -1664,7 +1664,7 @@ int32_t tsdbFinishCommit(STsdb *pTsdb) {
   // unlock
   taosThreadRwlockUnlock(&pTsdb->rwLock);
   if (pMemTable) {
-    tsdbUnrefMemTable(pMemTable, NULL);
+    tsdbUnrefMemTable(pMemTable, NULL, true);
   }
 
 _exit:

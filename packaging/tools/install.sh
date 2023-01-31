@@ -481,10 +481,10 @@ function install_adapter_config() {
     ${csudo}mkdir -p ${cfg_install_dir}
     [ -f ${script_dir}/cfg/${adapterName}.toml ] && ${csudo}cp ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}
     [ -f ${cfg_install_dir}/${adapterName}.toml ] && ${csudo}chmod 644 ${cfg_install_dir}/${adapterName}.toml
+  else
+    [ -f ${script_dir}/cfg/${adapterName}.toml ] &&
+      ${csudo}cp -f ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}/${adapterName}.toml.new
   fi
-
-  [ -f ${script_dir}/cfg/${adapterName}.toml ] &&
-    ${csudo}cp -f ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}/${adapterName}.toml.new
 
   [ -f ${cfg_install_dir}/${adapterName}.toml ] &&
     ${csudo}ln -s ${cfg_install_dir}/${adapterName}.toml ${install_main_dir}/cfg/${adapterName}.toml
@@ -499,9 +499,10 @@ function install_config() {
     ${csudo}mkdir -p ${cfg_install_dir}
     [ -f ${script_dir}/cfg/${configFile} ] && ${csudo}cp ${script_dir}/cfg/${configFile} ${cfg_install_dir}
     ${csudo}chmod 644 ${cfg_install_dir}/*
+  else
+    ${csudo}cp -f ${script_dir}/cfg/${configFile} ${cfg_install_dir}/${configFile}.new
   fi
 
-  ${csudo}cp -f ${script_dir}/cfg/${configFile} ${cfg_install_dir}/${configFile}.new
   ${csudo}ln -s ${cfg_install_dir}/${configFile} ${install_main_dir}/cfg
 
   [ ! -z $1 ] && return 0 || : # only install client
@@ -742,6 +743,34 @@ function is_version_compatible() {
   esac
 }
 
+deb_erase() {
+  confirm=""
+  while [ "" == "${confirm}" ]; do
+    echo -e -n "${RED}Existing TDengine deb is detected, do you want to remove it? [yes|no] ${NC}:"
+    read confirm
+    if [ "yes" == "$confirm" ]; then
+      ${csudo}dpkg --remove tdengine ||:
+      break
+    elif [ "no" == "$confirm" ]; then
+      break
+    fi
+  done
+}
+
+rpm_erase() {
+  confirm=""
+  while [ "" == "${confirm}" ]; do
+    echo -e -n "${RED}Existing TDengine rpm is detected, do you want to remove it? [yes|no] ${NC}:"
+    read confirm
+    if [ "yes" == "$confirm" ]; then
+      ${csudo}rpm -e tdengine ||:
+      break
+    elif [ "no" == "$confirm" ]; then
+      break
+    fi
+  done
+}
+
 function updateProduct() {
   # Check if version compatible
   if ! is_version_compatible; then
@@ -754,6 +783,13 @@ function updateProduct() {
     echo "File ${tarName} does not exist"
     exit 1
   fi
+
+  if echo $osinfo | grep -qwi "centos"; then
+    rpm -q tdengine 2>&1 > /dev/null && rpm_erase tdengine ||:
+  elif echo $osinfo | grep -qwi "ubuntu"; then
+    dpkg -l tdengine 2>&1 > /dev/null && deb_erase tdengine ||:
+  fi
+
   tar -zxf ${tarName}
   install_jemalloc
 

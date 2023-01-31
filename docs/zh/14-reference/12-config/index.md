@@ -134,6 +134,24 @@ taos --dump-config
 | 取值范围 | 1-200000                                     |
 | 缺省值   | 30                                           |
 
+### telemetryReporting
+
+| 属性     | 说明                                         |
+| -------- | -------------------------------------------- |
+| 适用范围 | 仅服务端适用                                 |
+| 含义     |是否上传 telemetry |
+| 取值范围 | 0,1   0: 不上传；1：上传                                   |
+| 缺省值   | 1                                           |
+
+### crashReporting
+
+| 属性     | 说明                                         |
+| -------- | -------------------------------------------- |
+| 适用范围 | 仅服务端适用                                 |
+| 含义     |是否上传 crash 信息 |
+| 取值范围 | 0,1   0: 不上传；1：上传                                   |
+| 缺省值   | 1                                           |
+
 ## 查询相关
 
 ### queryPolicy
@@ -305,6 +323,7 @@ charset 的有效值是 UTF-8。
 | 适用范围 | 仅服务端适用                               |
 | 含义     | 数据文件目录，所有的数据文件都将写入该目录 |
 | 缺省值   | /var/lib/taos                              |
+| 补充说明 | [多级存储](https://docs.taosdata.com/tdinternal/arch/#%E5%A4%9A%E7%BA%A7%E5%AD%98%E5%82%A8) 功能需要与 [KEEP](https://docs.taosdata.com/taos-sql/database/#%E5%8F%82%E6%95%B0%E8%AF%B4%E6%98%8E) 参数配合使用 |
 
 ### tempDir
 
@@ -597,7 +616,7 @@ charset 的有效值是 UTF-8。
 | 属性     | 说明                          |
 | -------- | ----------------------------- |
 | 适用范围 | 仅客户端适用                  |
-| 含义     | schemaless 列数据是否顺序一致 |
+| 含义     | schemaless 列数据是否顺序一致，从3.0.3.0开始，该配置废弃 |
 | 值域     | 0：不一致；1: 一致            |
 | 缺省值   | 1                             |
 
@@ -657,7 +676,7 @@ charset 的有效值是 UTF-8。
 | 20  |     minimalTmpDirGB     | 是              | 是              |                                                   |
 | 21  |    smlChildTableName    | 是              | 是              |                                                   |
 | 22  |       smlTagName        | 是              | 是              |                                                   |
-| 23  |      smlDataFormat      | 否              | 是              |                                                   |
+| 23  |      smlDataFormat      | 否              | 是（从3.0.3.0开始，该配置废弃）              |                                                   |
 | 24  |     statusInterval      | 是              | 是              |                                                   |
 | 25  |         logDir          | 是              | 是              |                                                   |
 | 26  |     minimalLogDirGB     | 是              | 是              |                                                   |
@@ -698,7 +717,7 @@ charset 的有效值是 UTF-8。
 | 2  |   numOfThreadsPerCore   | 是              | 否              | 有其它参数设置多种线程池的大小                    |
 | 3  |       numOfMnodes       | 是              | 否              | 通过 create mnode 命令动态创建 mnode              |
 | 4  |        vnodeBak         | 是              | 否              | 3.0 行为未知                                      |
-| 5  |         balance         | 是              | 否              | 负载均衡功能由 split/merge vgroups 实现           |
+| 5  |         balance         | 是              | 否              | 负载均衡功能由 split/merge vgroups 实现 （暂不支持）           |
 | 6  |     balanceInterval     | 是              | 否              | 随着 balance 参数失效                             |
 | 7  |    offlineThreshold     | 是              | 否              | 3.0 行为未知                                      |
 | 8  |          role           | 是              | 否              | 由 supportVnode 决定是否能够创建                  |

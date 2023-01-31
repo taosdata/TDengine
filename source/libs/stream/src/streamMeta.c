@@ -69,8 +69,7 @@ _err:
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
-  tdbCommit(pMeta->db, pMeta->txn);
-  tdbPostCommit(pMeta->db, pMeta->txn);
+  tdbAbort(pMeta->db, pMeta->txn);
   tdbTbClose(pMeta->pTaskDb);
   tdbTbClose(pMeta->pCheckpointDb);
   tdbClose(pMeta->db);
@@ -88,6 +87,7 @@ void streamMetaClose(SStreamMeta* pMeta) {
     /*streamMetaReleaseTask(pMeta, pTask);*/
   }
   taosHashCleanup(pMeta->pTasks);
+  taosHashCleanup(pMeta->pRecoverStatus);
   taosMemoryFree(pMeta->path);
   taosMemoryFree(pMeta);
 }
@@ -207,6 +207,7 @@ void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
   if (ppTask) {
     SStreamTask* pTask = *ppTask;
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
+    tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), pMeta->txn);
     /*if (pTask->timer) {
      * taosTmrStop(pTask->timer);*/
     /*pTask->timer = NULL;*/
