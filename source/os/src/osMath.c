@@ -15,7 +15,6 @@
 
 #define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
-#include "os.h"
 #include <stdlib.h>
 #include "talgo.h"
 
