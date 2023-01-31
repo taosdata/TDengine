@@ -122,14 +122,16 @@ function clean_bin() {
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
   ${csudo}rm -f ${bin_link_dir}/taosx || :
 
-  ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
-  ${csudo}rm -f ${bin_link_dir}/${serverName2} || :
-  ${csudo}rm -f ${bin_link_dir}/${adapterName2} || :
-  ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
-  ${csudo}rm -f ${bin_link_dir}/${demoName2} || :
-  ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
-  ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
-  ${csudo}rm -f ${bin_link_dir}/${xname2} || :
+  if [ "$verMode" == "cluster" ] && [ ${clientName} != ${clientName2}]; then
+    ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
+    ${csudo}rm -f ${bin_link_dir}/${serverName2} || :
+    ${csudo}rm -f ${bin_link_dir}/${adapterName2} || :
+    ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
+    ${csudo}rm -f ${bin_link_dir}/${demoName2} || :
+    ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
+    ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
+    ${csudo}rm -f ${bin_link_dir}/${xname2} || :
+  fi
 }
 
 function clean_local_bin() {
