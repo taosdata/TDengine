@@ -62,3 +62,9 @@ void tmsgReportStartup(const char* name, const char* desc) { (*defaultMsgCb.repo
 void tmsgUpdateDnodeInfo(int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port) {
   (*defaultMsgCb.updateDnodeInfoFp)(defaultMsgCb.data, dnodeId, clusterId, fqdn, port);
 }
+
+void tmsgUpdateDnodeEpSet(SEpSet* epset) {
+  for (int32_t i = 0; i < epset->numOfEps; ++i) {
+    tmsgUpdateDnodeInfo(NULL, NULL, epset->eps[i].fqdn, &epset->eps[i].port);
+  }
+}

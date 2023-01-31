@@ -194,6 +194,8 @@ typedef struct SQWorker {
   SMsgCb    msgCb;
   SQWStat   stat;
   int32_t  *destroyed;
+
+  int8_t    nodeStopped;
 } SQWorker;
 
 typedef struct SQWorkerMgmt {
@@ -228,8 +230,13 @@ typedef struct SQWorkerMgmt {
       case QW_PHASE_POST_FETCH:                                              \
         ctx->inFetch = 0;                                                    \
         break;                                                               \
-      default:                                                               \
+      case QW_PHASE_PRE_QUERY:                                               \
+      case QW_PHASE_POST_QUERY:                                              \
+      case QW_PHASE_PRE_CQUERY:                                              \
+      case QW_PHASE_POST_CQUERY:                                             \
         atomic_store_8(&(ctx)->phase, _value);                               \
+        break;                                                               \
+      default:                                                               \
         break;                                                               \
     }                                                                        \
   } while (0)

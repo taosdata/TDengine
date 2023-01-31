@@ -79,6 +79,7 @@ sql insert into db.ctb6 values(now, 6, "6")
 sql insert into db.ctb7 values(now, 7, "7")
 sql insert into db.ctb8 values(now, 8, "8")
 sql insert into db.ctb9 values(now, 9, "9")
+sql flush database db;
 
 print =============== step3: create dnodes
 sql create dnode $hostname port 7300
