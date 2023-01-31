@@ -35,6 +35,23 @@ dumpName="taosdump"
 demoName="taosdemo"
 xname="taosx"
 
+clientName2="taos"
+serverName2="taosd"
+productName2="TDengine"
+emailName2="taosdata.com"
+
+adapterName2="${clientName}adapter"
+benchmarkName2="${clientName}Benchmark"
+dumpName2="${clientName}dump"
+demoName2="${clientName}demo"
+xname2="${clientName}x"
+uninstallScript2="rm${clientName}"
+
+historyFile="${clientName}_history"
+logDir="/var/log/${clientName}"
+configDir="/etc/${clientName}"
+installDir="/usr/local/${clientName}"
+
 data_dir=${dataDir}
 log_dir=${logDir}
 cfg_install_dir=${configDir}
@@ -217,6 +234,17 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
+
+  if [ "$verMode" == "cluster" ]; then
+    [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName2} || :
+    [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName2} || :
+    [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName2} || :
+    [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName2} || :
+    [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName2} || :
+    [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName2} || :
+    [ -x ${install_main_dir}/bin/${xname} ] && ${csudo}ln -s ${install_main_dir}/bin/${xname} ${bin_link_dir}/${xname2} || :
+    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript2} || :
+  fi
 }
 
 function install_lib() {
@@ -965,7 +993,7 @@ serverFqdn=$(hostname)
 if [ "$verType" == "server" ]; then
   # Check default 2.x data file.
   if [ -x ${data_dir}/dnode/dnodeCfg.json ]; then
-    echo -e "\033[44;31;5mThe default data directory ${data_dir} contains old data of tdengine 2.x, please clear it before installing!\033[0m"
+    echo -e "\033[44;31;5mThe default data directory ${data_dir} contains old data of ${productName2} 2.x, please clear it before installing!\033[0m"
   else
     # Install server and client
     if [ -x ${bin_dir}/${serverName} ]; then

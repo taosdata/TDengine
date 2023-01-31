@@ -16,14 +16,17 @@ verType=$7
 pagMode=$8
 versionComp=$9
 dbName=${10}
+productNameNew="${11}"
+serverNameNew="${12}d"
+clientNameNew="${12}"
+cusEmailNew="${13}"
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
 
-productName="${11}"
-serverName="${12}d"
-clientName="${12}"
-# cusEmail=${13}
+productName="TDengine"
+serverName="taosd"
+clientName="taos"
 configFile="taos.cfg"
 tarName="taos.tar.gz"
 dumpName="taosdump"
@@ -226,6 +229,10 @@ fi
 
 if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
+  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverNameNew}\"/g" remove_temp.sh
+  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientNameNew}\"/g" remove_temp.sh
+  sed -i "s/productName2=\"TDengine\"/productName2=\"${productNameNew}\"/g" remove_temp.sh
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmailNew}\"/g" remove_temp.sh
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 if [ "$verMode" == "cloud" ]; then
@@ -248,16 +255,21 @@ fi
 
 cd ${curr_dir}
 cp ${install_files} ${install_dir}
+cp ${install_dir}/install.sh install_temp.sh
 if [ "$verMode" == "cluster" ]; then
-  sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/install.sh >>install_temp.sh
+  sed -i 's/verMode=edge/verMode=cluster/g' install_temp.sh
+  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverNameNew}\"/g" install_temp.sh
+  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientNameNew}\"/g" install_temp.sh
+  sed -i "s/productName2=\"TDengine\"/productName2=\"${productNameNew}\"/g" install_temp.sh
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmailNew}\"/g" install_temp.sh
   mv install_temp.sh ${install_dir}/install.sh
 fi
 if [ "$verMode" == "cloud" ]; then
-  sed 's/verMode=edge/verMode=cloud/g' ${install_dir}/install.sh >>install_temp.sh
+  sed -i 's/verMode=edge/verMode=cloud/g' install_temp.sh
   mv install_temp.sh ${install_dir}/install.sh
 fi
 if [ "$pagMode" == "lite" ]; then
-  sed 's/pagMode=full/pagMode=lite/g' ${install_dir}/install.sh >>install_temp.sh
+  sed -i 's/pagMode=full/pagMode=lite/g' install_temp.sh
   mv install_temp.sh ${install_dir}/install.sh
 fi
 chmod a+x ${install_dir}/install.sh

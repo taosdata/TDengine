@@ -36,6 +36,19 @@ clientName="taos"
 uninstallScript="rmtaos"
 productName="TDengine"
 
+serverName2="taosd"
+clientName2="taos"
+productName2="TDengine"
+
+adapterName2="${clientName}adapter"
+benchmarkName2="${clientName}Benchmark"
+dumpName2="${clientName}dump"
+demoName2="${clientName}demo"
+xname2="${clientName}x"
+uninstallScript2="rm${clientName}"
+
+installDir="/usr/local/${clientName}"
+
 #install main path
 install_main_dir=${installDir}
 data_link_dir=${installDir}/data
@@ -107,6 +120,16 @@ function clean_bin() {
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
+  ${csudo}rm -f ${bin_link_dir}/taosx || :
+
+  ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
+  ${csudo}rm -f ${bin_link_dir}/${serverName2} || :
+  ${csudo}rm -f ${bin_link_dir}/${adapterName2} || :
+  ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
+  ${csudo}rm -f ${bin_link_dir}/${demoName2} || :
+  ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
+  ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
+  ${csudo}rm -f ${bin_link_dir}/${xname2} || :
 }
 
 function clean_local_bin() {
