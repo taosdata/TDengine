@@ -528,9 +528,8 @@ void taos_stop_query(TAOS_RES *res) {
   SRequestObj *pRequest = (SRequestObj *)res;
   pRequest->killed = true;
 
-  int32_t numOfFields = taos_num_fields(pRequest);
   // It is not a query, no need to stop.
-  if (numOfFields == 0) {
+  if (NULL == pRequest->pQuery || QUERY_EXEC_MODE_SCHEDULE != pRequest->pQuery->execMode) {
     tscDebug("request 0x%" PRIx64 " no need to be killed since not query", pRequest->requestId);
     return;
   }

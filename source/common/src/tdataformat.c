@@ -1532,10 +1532,6 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   return pTSchema;
 }
 
-void tDestroyTSchema(STSchema *pTSchema) {
-  if (pTSchema) taosMemoryFree(pTSchema);
-}
-
 // SColData ========================================
 void tColDataDestroy(void *ph) {
   SColData *pColData = (SColData *)ph;

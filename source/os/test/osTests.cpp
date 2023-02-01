@@ -34,6 +34,12 @@ TEST(osTest, osSystem) {
   ELogLevel   level = DEBUG_FATAL;
   int32_t     dflag = 255;  // tsLogEmbedded ? 255 : uDebugFlag
   taosPrintTrace(flags, level, dflag, 0);
+
+  const int sysLen = 64;
+  char      osSysName[sysLen];
+  int       ret = taosGetOsReleaseName(osSysName, sysLen);
+  printf("os systeme name:%s\n", osSysName);
+  ASSERT_EQ(ret, 0);
 }
 
 void fileOperateOnFree(void *param) {

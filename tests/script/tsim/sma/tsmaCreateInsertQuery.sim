@@ -136,7 +136,76 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 sleep 50
 
+print =============== select * from ct1 from memory after reboot
+sql select * from ct1;
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+print $data30 $data31 $data32 $data33
+print $data40 $data41 $data42 $data43
+if $rows != 5 then
+  print rows $rows != 5
+  return -1
+endi
 
+print =============== select * from stb from memory in designated vgroup after reboot
+sql select _wstart, _wend, min(c1),max(c2),max(c1) from stb interval(5m,10s) sliding(5m);
+print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
+if $rows != 1 then
+  print rows $rows != 1
+  return -1
+endi
+
+if $data02 != -13 then
+  print data02 $data02 != -13
+  return -1
+endi
+
+if $data03 != 20.00000 then
+  print data03 $data03 != 20.00000
+  return -1
+endi
+
+if $data04 != 20 then
+  print data04 $data04 != 20
+  return -1
+endi
+
+print =============== select * from stb from memory in common vgroups after reboot
+sql select _wstart, _wend, min(c1),max(c2),max(c1),max(c3) from stb interval(5m,10s) sliding(5m);
+print $data00 $data01 $data02 $data03 $data04 $data05
+if $rows != 1 then
+  print rows $rows != 1
+  return -1
+endi
+
+if $data02 != -13 then
+  print data02 $data02 != -13
+  return -1
+endi
+
+if $data03 != 20.00000 then
+  print data03 $data03 != 20.00000
+  return -1
+endi
+
+if $data04 != 20 then
+  print data04 $data04 != 20
+  return -1
+endi
+
+if $data05 != 30.000000000 then
+  print data05 $data05 != 30.000000000
+  return -1
+endi
+
+
+#==================== flush database to trigger commit data to file
+sql flush database d1;
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+sleep 50
 print =============== select * from ct1 from file
 sql select * from ct1;
 print $data00 $data01 $data02 $data03
