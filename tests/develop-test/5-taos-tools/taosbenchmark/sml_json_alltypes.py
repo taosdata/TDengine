@@ -23,8 +23,9 @@ class TDTestCase:
         [TD-11510] taosBenchmark test cases
         """
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug("start to execute %s" % __file__)
+        self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor(), logSql)
 
     def getPath(self, tool="taosBenchmark"):
@@ -62,7 +63,7 @@ class TDTestCase:
         major_ver = client_ver.split(".")[0]
 
         binPath = self.getPath()
-        cmd = "%s -f ./taosbenchmark/json/sml_json_alltypes.json" % binPath
+        cmd = "%s -f ./5-taos-tools/taosbenchmark/json/sml_json_alltypes.json" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
