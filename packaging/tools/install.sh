@@ -546,7 +546,7 @@ function install_config() {
   local_fqdn_check
 
   echo
-  echo -e -n "${GREEN}Enter FQDN:port (like h1.${emailName}:6030) of an existing ${productName} cluster node to join${NC}"
+  echo -e -n "${GREEN}Enter FQDN:port (like h1.${emailName2}:6030) of an existing ${productName2} cluster node to join${NC}"
   echo
   echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
   read firstEp
@@ -821,7 +821,7 @@ function updateProduct() {
   tar -zxf ${tarName}
   install_jemalloc
 
-  echo -e "${GREEN}Start to update ${productName}...${NC}"
+  echo -e "${GREEN}Start to update ${productName2}...${NC}"
   # Stop the service if running
   if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
@@ -856,41 +856,41 @@ function updateProduct() {
     openresty_work=false
 
     echo
-    echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${cfg_install_dir}/${configFile}"
+    echo -e "${GREEN_DARK}To configure ${productName2} ${NC}: edit ${cfg_install_dir}/${configFile}"
     [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To configure Taos Adapter ${NC}: edit ${configDir}/taosadapter.toml"
+      echo -e "${GREEN_DARK}To configure ${clientName2} Adapter ${NC}: edit ${configDir}/taosadapter.toml"
     if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}systemctl start ${serverName2}${NC}"
       [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2} Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
     elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
+      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}service ${serverName2} start${NC}"
       [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}service taosadapter start${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}service ${clientName2}adapter start${NC}"
     else
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ./${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ./${serverName2}${NC}"
       [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: taosadapter &${NC}"
     fi
 
     if [ ${openresty_work} = 'true' ]; then
-      echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${web_port}${NC}"
+      echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${web_port}${NC}"
     else
-      echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName} -h $serverFqdn${NC} in shell${NC}"
+      echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell${NC}"
     fi
 
     if ((${prompt_force} == 1)); then
       echo ""
-      echo -e "${RED}Please run '${serverName} --force-keep-file' at first time for the exist ${productName} $exist_version!${NC}"
+      echo -e "${RED}Please run '${serverName2} --force-keep-file' at first time for the exist ${productName2} $exist_version!${NC}"
     fi
     echo
-    echo -e "\033[44;32;1m${productName} is updated successfully!${NC}"
+    echo -e "\033[44;32;1m${productName2} is updated successfully!${NC}"
   else
     install_bin
     install_config
 
     echo
-    echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
+    echo -e "\033[44;32;1m${productName2} client is updated successfully!${NC}"
   fi
 
   rm -rf $(tar -tf ${tarName} | grep -v "^\./$")
@@ -904,7 +904,7 @@ function installProduct() {
   fi
   tar -zxf ${tarName}
 
-  echo -e "${GREEN}Start to install ${productName}...${NC}"
+  echo -e "${GREEN}Start to install ${productName2}...${NC}"
 
   install_main_path
 
