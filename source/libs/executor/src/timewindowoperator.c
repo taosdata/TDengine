@@ -1614,7 +1614,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   }
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-  cleanupGroupResInfo(&pInfo->groupResInfo);
+  pInfo->groupResInfo.pRows = taosArrayDestroy(pInfo->groupResInfo.pRows);
   cleanupExprSupp(&pInfo->scalarSupp);
 
   taosMemoryFreeClear(param);
