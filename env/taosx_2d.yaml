@@ -112,12 +112,12 @@ settings:
         logDir: /data/cyjia/data/taosd
         debugFlag: 143
   - name: taosx
-    fqdn: [u1-40]
+    fqdn: [u1-41]
     spec:
       version: 0.0.0.0
       taos_version: 3.0.0.1
       config_dir: /data/cyjia/data/taosd
       taos_config:
-        firstEP: u1-40:6030
+        firstEP: u1-41:6030
         logDir: /data/cyjia/data/taosd
         debugFlag: 143
