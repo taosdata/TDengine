@@ -16,10 +16,10 @@ verType=$7
 pagMode=$8
 versionComp=$9
 dbName=${10}
-productNameNew="${11}"
-serverNameNew="${12}d"
-clientNameNew="${12}"
-cusEmailNew="${13}"
+productName2="${11}"
+serverName2="${12}d"
+clientName2="${12}"
+cusEmail2="${13}"
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
@@ -42,11 +42,11 @@ release_dir="${top_dir}/release"
 
 #package_name='linux'
 if [ "$verMode" == "cluster" ]; then
-  install_dir="${release_dir}/${productName}-enterprise-server-${version}"
+  install_dir="${release_dir}/${productName2}-enterprise-server-${version}"
 elif [ "$verMode" == "cloud" ]; then
-  install_dir="${release_dir}/${productName}-cloud-server-${version}"
+  install_dir="${release_dir}/${productName2}-cloud-server-${version}"
 else
-  install_dir="${release_dir}/${productName}-server-${version}"
+  install_dir="${release_dir}/${productName2}-server-${version}"
 fi
 
 if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
@@ -54,11 +54,11 @@ if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
   [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
   taostools_ver=$(git tag |grep -v taos | sort | tail -1)
-  taostools_install_dir="${release_dir}/${clientName}Tools-${taostools_ver}"
+  taostools_install_dir="${release_dir}/${clientName2}Tools-${taostools_ver}"
 
   cd ${curr_dir}
 else
-  taostools_install_dir="${release_dir}/${clientName}Tools-${version}"
+  taostools_install_dir="${release_dir}/${clientName2}Tools-${version}"
 fi
 
 # Directories and files
@@ -229,10 +229,10 @@ fi
 
 if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
-  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverNameNew}\"/g" remove_temp.sh
-  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientNameNew}\"/g" remove_temp.sh
-  sed -i "s/productName2=\"TDengine\"/productName2=\"${productNameNew}\"/g" remove_temp.sh
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmailNew}\"/g" remove_temp.sh
+  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" remove_temp.sh
+  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" remove_temp.sh
+  sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" remove_temp.sh
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmail2}\"/g" remove_temp.sh
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 if [ "$verMode" == "cloud" ]; then
@@ -258,10 +258,10 @@ cp ${install_files} ${install_dir}
 cp ${install_dir}/install.sh install_temp.sh
 if [ "$verMode" == "cluster" ]; then
   sed -i 's/verMode=edge/verMode=cluster/g' install_temp.sh
-  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverNameNew}\"/g" install_temp.sh
-  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientNameNew}\"/g" install_temp.sh
-  sed -i "s/productName2=\"TDengine\"/productName2=\"${productNameNew}\"/g" install_temp.sh
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmailNew}\"/g" install_temp.sh
+  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" install_temp.sh
+  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" install_temp.sh
+  sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" install_temp.sh
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmail2}\"/g" install_temp.sh
   mv install_temp.sh ${install_dir}/install.sh
 fi
 if [ "$verMode" == "cloud" ]; then
