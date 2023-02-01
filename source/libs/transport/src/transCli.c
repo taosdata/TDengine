@@ -1311,12 +1311,10 @@ static FORCE_INLINE void destroyCmsgAndAhandle(void* param) {
   SCliMsg*  pMsg = arg->param1;
   SCliThrd* pThrd = arg->param2;
 
-  tDebug("destroy Ahandle A");
   if (pThrd != NULL && pThrd->destroyAhandleFp != NULL) {
-    tDebug("destroy Ahandle B");
+    tDebug("destroy Ahandle");
     pThrd->destroyAhandleFp(pMsg->ctx->ahandle);
   }
-  tDebug("destroy Ahandle C");
 
   transDestroyConnCtx(pMsg->ctx);
   destroyUserdata(&pMsg->msg);

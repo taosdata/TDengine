@@ -1459,6 +1459,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   if (0 != taosAsyncExec(doProcessMsgFromServer, arg, NULL)) {
     tscError("failed to sched msg to tsc, tsc ready to quit");
     rpcFreeCont(pMsg->pCont);
+    destroySendMsgInfo(pMsg->info.ahandle);
     taosMemoryFree(arg->pEpset);
     taosMemoryFree(arg);
   }
