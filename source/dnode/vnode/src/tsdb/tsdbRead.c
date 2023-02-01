@@ -2693,15 +2693,23 @@ static void extractOrderedTableUidList(SUidOrderCheckInfo* pOrderCheckInfo, SRea
   void* p = taosHashIterate(pStatus->pTableMap, NULL);
   while (p != NULL) {
     STableBlockScanInfo* pScanInfo = *(STableBlockScanInfo**)p;
-
-    // reset the last del file index
-    pScanInfo->lastBlockDelIndex = getInitialDelIndex(pScanInfo->delSkyline, order);
-
     pOrderCheckInfo->tableUidList[index++] = pScanInfo->uid;
     p = taosHashIterate(pStatus->pTableMap, p);
   }
 
   taosSort(pOrderCheckInfo->tableUidList, total, sizeof(uint64_t), uidComparFunc);
+}
+
+// reset the last del file index
+static void resetScanBlockLastBlockDelIndex(SReaderStatus* pStatus, int32_t order) {
+  void* p = taosHashIterate(pStatus->pTableMap, NULL);
+  while (p != NULL) {
+    STableBlockScanInfo* pScanInfo = *(STableBlockScanInfo**)p;
+
+    // reset the last del file index
+    pScanInfo->lastBlockDelIndex = getInitialDelIndex(pScanInfo->delSkyline, order);
+    p = taosHashIterate(pStatus->pTableMap, p);
+  }
 }
 
 static int32_t initOrderCheckInfo(SUidOrderCheckInfo* pOrderCheckInfo, STsdbReader* pReader) {
@@ -3052,6 +3060,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
 
       // this file does not have data files, let's start check the last block file if exists
       if (pBlockIter->numOfBlocks == 0) {
+        resetScanBlockLastBlockDelIndex(&pReader->status, pReader->order);
         goto _begin;
       }
     }
@@ -3083,6 +3092,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
             // data blocks in current file are exhausted, let's try the next file now
             tBlockDataReset(&pReader->status.fileBlockData);
             resetDataBlockIterator(pBlockIter, pReader->order);
+            resetScanBlockLastBlockDelIndex(&pReader->status, pReader->order);
             goto _begin;
           } else {
             code = initForFirstBlockInFile(pReader, pBlockIter);
@@ -3094,6 +3104,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
 
             // this file does not have blocks, let's start check the last block file
             if (pBlockIter->numOfBlocks == 0) {
+              resetScanBlockLastBlockDelIndex(&pReader->status, pReader->order);
               goto _begin;
             }
           }
