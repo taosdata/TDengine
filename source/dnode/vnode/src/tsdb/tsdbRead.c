@@ -215,6 +215,7 @@ static int32_t       doBuildDataBlock(STsdbReader* pReader);
 static TSDBKEY       getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* pReader);
 static bool          hasDataInFileBlock(const SBlockData* pBlockData, const SFileBlockDumpInfo* pDumpInfo);
 static void          initBlockDumpInfo(STsdbReader* pReader, SDataBlockIter* pBlockIter);
+static int32_t       getInitialDelIndex(const SArray* pDelSkyline, int32_t order);
 
 static bool outOfTimeWindow(int64_t ts, STimeWindow* pWindow) { return (ts > pWindow->ekey) || (ts < pWindow->skey); }
 
@@ -2526,6 +2527,14 @@ _end:
 
 void setComposedBlockFlag(STsdbReader* pReader, bool composed) { pReader->status.composedDataBlock = composed; }
 
+int32_t getInitialDelIndex(const SArray* pDelSkyline, int32_t order) {
+  if (pDelSkyline == NULL) {
+    return 0;
+  }
+
+  return ASCENDING_TRAVERSE(order) ? 0 : taosArrayGetSize(pDelSkyline) - 1;
+}
+
 int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader, STbData* pMemTbData,
                                STbData* piMemTbData) {
   if (pBlockScanInfo->delSkyline != NULL) {
@@ -2543,7 +2552,6 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
     if (pIdx != NULL) {
       code = tsdbReadDelData(pReader->pDelFReader, pIdx, pDelData);
     }
-
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
     }
@@ -2572,11 +2580,13 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
   }
 
   taosArrayDestroy(pDelData);
-  pBlockScanInfo->iter.index =
-      ASCENDING_TRAVERSE(pReader->order) ? 0 : taosArrayGetSize(pBlockScanInfo->delSkyline) - 1;
-  pBlockScanInfo->iiter.index = pBlockScanInfo->iter.index;
-  pBlockScanInfo->fileDelIndex = pBlockScanInfo->iter.index;
-  pBlockScanInfo->lastBlockDelIndex = pBlockScanInfo->iter.index;
+  int32_t index = getInitialDelIndex(pBlockScanInfo->delSkyline, pReader->order);
+
+  pBlockScanInfo->iter.index = index;
+  pBlockScanInfo->iiter.index = index;
+  pBlockScanInfo->fileDelIndex = index;
+  pBlockScanInfo->lastBlockDelIndex = index;
+
   return code;
 
 _err:
@@ -2676,13 +2686,17 @@ static int32_t uidComparFunc(const void* p1, const void* p2) {
   }
 }
 
-static void extractOrderedTableUidList(SUidOrderCheckInfo* pOrderCheckInfo, SReaderStatus* pStatus) {
+static void extractOrderedTableUidList(SUidOrderCheckInfo* pOrderCheckInfo, SReaderStatus* pStatus, int32_t order) {
   int32_t index = 0;
   int32_t total = taosHashGetSize(pStatus->pTableMap);
 
   void* p = taosHashIterate(pStatus->pTableMap, NULL);
   while (p != NULL) {
     STableBlockScanInfo* pScanInfo = *(STableBlockScanInfo**)p;
+
+    // reset the last del file index
+    pScanInfo->lastBlockDelIndex = getInitialDelIndex(pScanInfo->delSkyline, order);
+
     pOrderCheckInfo->tableUidList[index++] = pScanInfo->uid;
     p = taosHashIterate(pStatus->pTableMap, p);
   }
@@ -2690,7 +2704,9 @@ static void extractOrderedTableUidList(SUidOrderCheckInfo* pOrderCheckInfo, SRea
   taosSort(pOrderCheckInfo->tableUidList, total, sizeof(uint64_t), uidComparFunc);
 }
 
-static int32_t initOrderCheckInfo(SUidOrderCheckInfo* pOrderCheckInfo, SReaderStatus* pStatus) {
+static int32_t initOrderCheckInfo(SUidOrderCheckInfo* pOrderCheckInfo, STsdbReader* pReader) {
+  SReaderStatus* pStatus = &pReader->status;
+
   int32_t total = taosHashGetSize(pStatus->pTableMap);
   if (total == 0) {
     return TSDB_CODE_SUCCESS;
@@ -2703,7 +2719,7 @@ static int32_t initOrderCheckInfo(SUidOrderCheckInfo* pOrderCheckInfo, SReaderSt
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    extractOrderedTableUidList(pOrderCheckInfo, pStatus);
+    extractOrderedTableUidList(pOrderCheckInfo, pStatus, pReader->order);
     uint64_t uid = pOrderCheckInfo->tableUidList[0];
     pStatus->pTableIter = taosHashGet(pStatus->pTableMap, &uid, sizeof(uid));
   } else {
@@ -2720,7 +2736,7 @@ static int32_t initOrderCheckInfo(SUidOrderCheckInfo* pOrderCheckInfo, SReaderSt
         }
 
         pOrderCheckInfo->tableUidList = p;
-        extractOrderedTableUidList(pOrderCheckInfo, pStatus);
+        extractOrderedTableUidList(pOrderCheckInfo, pStatus, pReader->order);
 
         uid = pOrderCheckInfo->tableUidList[0];
         pStatus->pTableIter = taosHashGet(pStatus->pTableMap, &uid, sizeof(uid));
@@ -2740,11 +2756,7 @@ static bool moveToNextTable(SUidOrderCheckInfo* pOrderedCheckInfo, SReaderStatus
 
   uint64_t uid = pOrderedCheckInfo->tableUidList[pOrderedCheckInfo->currentIndex];
   pStatus->pTableIter = taosHashGet(pStatus->pTableMap, &uid, sizeof(uid));
-  if (pStatus->pTableIter == NULL) {
-    return false;
-  }
-
-  return true;
+  return (pStatus->pTableIter != NULL);
 }
 
 static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
@@ -2752,7 +2764,7 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
   SLastBlockReader* pLastBlockReader = pStatus->fileIter.pLastBlockReader;
 
   SUidOrderCheckInfo* pOrderedCheckInfo = &pStatus->uidCheckInfo;
-  int32_t             code = initOrderCheckInfo(pOrderedCheckInfo, pStatus);
+  int32_t             code = initOrderCheckInfo(pOrderedCheckInfo, pReader);
   if (code != TSDB_CODE_SUCCESS || (taosHashGetSize(pStatus->pTableMap) == 0)) {
     return code;
   }
