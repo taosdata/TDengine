@@ -23,11 +23,13 @@ jobs:
         with:
           toolchain: nightly
           default: true
+
       - name: Install compiler
         run: |
           yum install -y autoconf make automake cmake gcc gcc-g++ openssl-devel
 
       - uses: actions/cache@v3
+        name: Cargo Caches
         with:
           path: |
             ~/.cargo/bin/
@@ -36,9 +38,17 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ steps.setup-rust.outputs.rustc_hash }}
 
+      - uses: actions/cache@v3
+        name: Target Caches
+        with:
+          path: |
+            target
+          key: ${{ runner.os }}-cargo-target
+
       - name: Build taosX
         run: |
           cargo build --release --no-default-features --features optin --features native-tls
+          strip target/release/taosx
           mv target/release/taosx target/release/taosx-amd64
 
       - name: Upload artifacts
@@ -56,20 +66,29 @@ jobs:
 
       - name: Install compiler
         run: |
-          apk add autoconf make automake cmake gcc g++ openssl-dev
+          apk add autoconf make automake cmake gcc g++ openssl-dev tar
 
       - uses: actions/cache@v3
+        name: Cargo Caches
         with:
           path: |
             ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-${{ steps.setup-rust.outputs.rustc_hash }}
+          key: alpine-cargo
+
+      - uses: actions/cache@v3
+        name: Target Caches
+        with:
+          path: |
+            target
+          key: alpine-target
 
       - name: Build taosX
         run: |
           cargo build --release --no-default-features --features optin --features rustls
+          strip target/release/taosx
           mv target/release/taosx target/release/taosx-amd64-musl
 
       - name: Upload artifacts
