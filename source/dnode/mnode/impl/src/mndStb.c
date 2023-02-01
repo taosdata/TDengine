@@ -3130,7 +3130,7 @@ static int32_t mndCheckIndexReq(SCreateTagIndexReq *pReq) {
 int32_t mndAddIndexImpl(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp, void *sql,
                         int32_t len) {
   // impl later
-  int32_t code = -1;
+  int32_t code = 0;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "create-stb-index");
   if (pTrans == NULL) goto _OVER;
 
@@ -3138,11 +3138,6 @@ int32_t mndAddIndexImpl(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pSt
   mndTransSetDbName(pTrans, pDb->name, pStb->name);
   if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
-  if (needRsp) {
-    void   *pCont = NULL;
-    int32_t contLen = 0;
-    mndTransSetRpcRsp(pTrans, pCont, contLen);
-  }
   if (mndSetAlterStbRedoLogs(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndSetAlterStbRedoActions2(pMnode, pTrans, pDb, pStb, sql, len) != 0) goto _OVER;
@@ -3234,11 +3229,8 @@ static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq) {
   if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST || terrno == TSDB_CODE_MND_TAG_NOT_EXIST) {
     return terrno;
   } else {
-    if (code != 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+    if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
-
-  return TSDB_CODE_SUCCESS;
-
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stb:%s, failed to create index since %s", tagIdxReq.stbName, terrstr());
