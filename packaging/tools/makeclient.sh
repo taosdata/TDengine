@@ -57,7 +57,6 @@ if [ "$verMode" == "cluster" ]; then
   sed -i 's/verMode=edge/verMode=cluster/g' ${script_dir}/remove_client.sh
   sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" ${script_dir}/remove_client.sh
   sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" ${script_dir}/remove_client.sh
-  mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 
 if [ "$osType" != "Darwin" ]; then
@@ -152,10 +151,10 @@ fi
 
 if [ "$verMode" == "cluster" ]; then
   sed -i 's/verMode=edge/verMode=cluster/g' install_client_temp.sh
-  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" install_temp.sh
-  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" install_temp.sh
-  sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" install_temp.sh
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmail2}\"/g" install_temp.sh
+  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" install_client_temp.sh
+  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" install_client_temp.sh
+  sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" install_client_temp.sh
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmail2}\"/g" install_client_temp.sh
 
   mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
