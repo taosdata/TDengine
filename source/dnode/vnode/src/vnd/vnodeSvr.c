@@ -883,6 +883,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   bool           tbCreated = false;
   terrno = TSDB_CODE_SUCCESS;
 
+  vDebug("vgId:%d %s start, version:%" PRId64 ", len:%d", TD_VID(pVnode), __func__, version);
+
   pRsp->code = 0;
   pSubmitReq->version = version;
   statis.nBatchInsert = 1;
@@ -1019,7 +1021,7 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, statis.nBatchInsert);
   atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, statis.nBatchInsertSuccess);
 
-  vDebug("vgId:%d, submit success, index:%" PRId64, pVnode->config.vgId, version);
+  vDebug("vgId:%d %s done, index:%" PRId64, TD_VID(pVnode), __func__, version);
   return 0;
 }
 
