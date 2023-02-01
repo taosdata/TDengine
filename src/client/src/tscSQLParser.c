@@ -10495,6 +10495,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg8 = "condition missing for join query";
   const char* msg9 = "not support 3 level select";
   const char* msg10 = "limit user forbid query normal or child table, you can query from stable.";
+  const char* msg11 = "only support join on tables of the same database";
 
   int32_t  code = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
@@ -10688,6 +10689,17 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, type);
 
     int32_t joinQuery = (pSqlNode->from != NULL && taosArrayGetSize(pSqlNode->from->list) > 1);
+
+    if (joinQuery) {
+      // the code must be done after all table meta is loaded.
+      for (int32_t i = 0; i < (int32_t)numOfTables - 1; ++i) {
+        STableMetaInfo *tmi1 = pQueryInfo->pTableMetaInfo[i];
+        STableMetaInfo *tmi2 = pQueryInfo->pTableMetaInfo[i + 1];
+        if (tmi1 != NULL && tmi2 != NULL && strcmp(tmi1->name.dbname, tmi2->name.dbname) != 0) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg11);
+        }
+      }
+    }
 
     // parse the group by clause in the first place
     if (validateGroupbyNode(pQueryInfo, pSqlNode->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {
