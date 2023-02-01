@@ -1274,13 +1274,13 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     STagIdxKey *p = entryKey;
     if (p == NULL) break;
 
-    if (count >= 2) {
-      if (p->type != pCursor->type || p->suid != pCursor->suid) {
+    if (count >= 3) {
+      if (p->type != pCursor->type || p->suid != pCursor->suid || p->cid != pCursor->cid) {
         break;
       }
     } else {
       count++;
-      if (p->type != pCursor->type) {
+      if (p->type != pCursor->type || p->suid != pCursor->suid || p->cid != pCursor->cid) {
         valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
         if (valid < 0) {
           break;
@@ -1300,11 +1300,11 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       }
       taosArrayPush(pUids, &tuid);
     } else if (cmp == 1) {
-      if (count >= 2) break;
-      // not match but should continue to iter
+      if (count >= 3) break;
+      //  not match but should continue to iter
     } else {
       // not match and no more result
-      if (count >= 2) break;
+      if (count >= 3) break;
     }
     count++;
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
