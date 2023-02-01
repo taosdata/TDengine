@@ -118,9 +118,7 @@ void callGeomFromText(int32_t inputType, void *strArray, int32_t rowNum,
 
 void callGeomFromTextWrapper1(int32_t inputType, void *strArray, int32_t rowNum, SScalarParam **pOutputGeomFromText) {
   SScalarParam *pInputGeomFromText;
-
   callGeomFromText(inputType, strArray, rowNum, &pInputGeomFromText, pOutputGeomFromText, TSDB_CODE_SUCCESS);
-
   destroyScalarParam(pInputGeomFromText, 1);
 }
 
@@ -207,7 +205,7 @@ void compareVarDataColumn(SColumnInfoData *columnData1, SColumnInfoData *columnD
 
 void callMakePointAndCompareResult(int32_t type1, void *valueArray1, bool isConstant1,
                                    int32_t type2, void *valueArray2, bool isConstant2,
-                                   int32_t rowNum, SScalarParam *pOutputGeomFromText) {
+                                   SScalarParam *pExpectedResult, int32_t rowNum) {
   int32_t rowNum1 = isConstant1 ? 1 : rowNum;
   int32_t rowNum2 = isConstant2 ? 1 : rowNum;
 
@@ -222,12 +220,37 @@ void callMakePointAndCompareResult(int32_t type1, void *valueArray1, bool isCons
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   ASSERT_EQ(pOutputMakePoint->columnData->info.type, TSDB_DATA_TYPE_GEOMETRY);
-  ASSERT_EQ(pOutputGeomFromText->columnData->info.type, TSDB_DATA_TYPE_GEOMETRY);
+  ASSERT_EQ(pExpectedResult->columnData->info.type, TSDB_DATA_TYPE_GEOMETRY);
 
-  compareVarDataColumn(pOutputMakePoint->columnData, pOutputGeomFromText->columnData, rowNum);
+  compareVarDataColumn(pOutputMakePoint->columnData, pExpectedResult->columnData, rowNum);
 
   destroyScalarParam(pInputMakePoint, 2);
   destroyScalarParam(pOutputMakePoint, 1);
+}
+
+void callIntersectsAndCompareResult(SScalarParam *pInputIntersects, int32_t rowNum, int32_t expectedCode, int8_t expectedResult[]) {
+  SScalarParam *pOutputIntersects;
+  makeOneScalarParam(&pOutputIntersects, TSDB_DATA_TYPE_BOOL, 0, rowNum);
+  int32_t code = intersectsFunction(pInputIntersects, 2, pOutputIntersects);
+  ASSERT_EQ(code, expectedCode);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    int8_t res = -1;
+    for (int32_t i = 0; i < rowNum; ++i) {
+      bool isNull1 = colDataIsNull_s(pOutputIntersects->columnData, i);
+      if (isNull1) {
+        res = -1;
+      }
+      else {
+        res = *(bool*)colDataGetData(pOutputIntersects->columnData, i);
+      }
+
+      ASSERT_EQ(res, expectedResult[i]);
+    }
+  }
+
+  destroyScalarParam(pOutputIntersects, 1);
+  destroyScalarParam(pInputIntersects, 2);
 }
 
 #define MAKE_POINT_FIRST_COLUMN_VALUES {2, 3, -4}
@@ -235,114 +258,114 @@ void callMakePointAndCompareResult(int32_t type1, void *valueArray1, bool isCons
 
 TEST(GeomFuncTest, makePointFunctionTwoColumns) {
   int32_t rowNum = 3;
-  SScalarParam *pOutputGeomFromText;
+  SScalarParam *pExpectedResult;
 
-  // call GeomFromText(<POINT>) and generate pOutputGeomFromText to compare later
+  // call GeomFromText(<POINT>) and generate pExpectedResult to compare later
   char strArray[rowNum][TSDB_MAX_BINARY_LEN];
   STR_TO_VARSTR(strArray[0], "POINT(2.0 5.0)");
   STR_TO_VARSTR(strArray[1], "POINT(3.0 -6.0)");
   STR_TO_VARSTR(strArray[2], "POINT(-4.0 -7.0)");
-  callGeomFromTextWrapper2(strArray, rowNum, &pOutputGeomFromText);
+  callGeomFromTextWrapper2(strArray, rowNum, &pExpectedResult);
 
   // call MakePoint() with TINYINT and SMALLINT, and compare with result of GeomFromText(<POINT>)
   int8_t tinyIntArray1[rowNum] = MAKE_POINT_FIRST_COLUMN_VALUES;
   int16_t smallIntArray2[rowNum] = MAKE_POINT_SECOND_COLUMN_VALUES;
   callMakePointAndCompareResult(TSDB_DATA_TYPE_TINYINT, tinyIntArray1, false,
                                 TSDB_DATA_TYPE_SMALLINT, smallIntArray2, false,
-                                rowNum, pOutputGeomFromText);
+                                pExpectedResult, rowNum);
 
   // call MakePoint() with INT and BIGINT, and compare with result of GeomFromText(<POINT>)
   int32_t intArray1[rowNum] = MAKE_POINT_FIRST_COLUMN_VALUES;
   int64_t bigIntArray2[rowNum] = MAKE_POINT_SECOND_COLUMN_VALUES;
   callMakePointAndCompareResult(TSDB_DATA_TYPE_INT, intArray1, false,
                                 TSDB_DATA_TYPE_BIGINT, bigIntArray2, false,
-                                rowNum, pOutputGeomFromText);
+                                pExpectedResult, rowNum);
 
   // call MakePoint() with FLOAT and DOUBLE, and compare with result of GeomFromText(<POINT>)
   float floatArray1[rowNum] = MAKE_POINT_FIRST_COLUMN_VALUES;
   double doubleArray2[rowNum] = MAKE_POINT_SECOND_COLUMN_VALUES;
   callMakePointAndCompareResult(TSDB_DATA_TYPE_FLOAT, floatArray1, false,
                                 TSDB_DATA_TYPE_DOUBLE, doubleArray2, false,
-                                rowNum, pOutputGeomFromText);
+                                pExpectedResult, rowNum);
 
-  destroyScalarParam(pOutputGeomFromText, 1);
+  destroyScalarParam(pExpectedResult, 1);
 }
 
 TEST(GeomFuncTest, makePointFunctionConstant) {
   int32_t rowNum = 3;
-  SScalarParam *pOutputGeomFromText;
+  SScalarParam *pExpectedResult;
 
-  // 1. call GeomFromText(<POINT>) and generate pOutputGeomFromText with first constant
+  // 1. call GeomFromText(<POINT>) and generate pExpectedResult with first constant
   char strArray[rowNum][TSDB_MAX_BINARY_LEN];
   STR_TO_VARSTR(strArray[0], "POINT(3.0 5.0)");
   STR_TO_VARSTR(strArray[1], "POINT(3.0 -6.0)");
   STR_TO_VARSTR(strArray[2], "POINT(3.0 -7.0)");
-  callGeomFromTextWrapper2(strArray, rowNum, &pOutputGeomFromText);
+  callGeomFromTextWrapper2(strArray, rowNum, &pExpectedResult);
 
   // call MakePoint() with TINYINT constant and BIGINT column, and compare with result of GeomFromText(<POINT>)
   int8_t tinyIntConstant = 3;
   int64_t bigIntArray[rowNum] = MAKE_POINT_SECOND_COLUMN_VALUES;
   callMakePointAndCompareResult(TSDB_DATA_TYPE_TINYINT, &tinyIntConstant, true,
                                 TSDB_DATA_TYPE_BIGINT, bigIntArray, false,
-                                rowNum, pOutputGeomFromText);
+                                pExpectedResult, rowNum);
 
-  destroyScalarParam(pOutputGeomFromText, 1);
+  destroyScalarParam(pExpectedResult, 1);
 
-  // 2. call GeomFromText(<POINT>) and generate pOutputGeomFromText with second constant
+  // 2. call GeomFromText(<POINT>) and generate pExpectedResult with second constant
   STR_TO_VARSTR(strArray[0], "POINT(2.0 3.0)");
   STR_TO_VARSTR(strArray[1], "POINT(3.0 3.0)");
   STR_TO_VARSTR(strArray[2], "POINT(-4.0 3.0)");
-  callGeomFromTextWrapper2(strArray, rowNum, &pOutputGeomFromText);
+  callGeomFromTextWrapper2(strArray, rowNum, &pExpectedResult);
 
   // call MakePoint() with INT column and FLOAT constant, and compare with result of GeomFromText(<POINT>)
   int32_t intArray[rowNum] = MAKE_POINT_FIRST_COLUMN_VALUES;
   float floatConstant = 3;
   callMakePointAndCompareResult(TSDB_DATA_TYPE_INT, intArray, false,
                                 TSDB_DATA_TYPE_FLOAT, &floatConstant, true,
-                                rowNum, pOutputGeomFromText);
+                                pExpectedResult, rowNum);
 
-  destroyScalarParam(pOutputGeomFromText, 1);
+  destroyScalarParam(pExpectedResult, 1);
 }
 
 TEST(GeomFuncTest, makePointFunctionWithNull) {
   int32_t rowNum = 3;
-  SScalarParam *pOutputGeomFromText;
+  SScalarParam *pExpectedResult;
 
-  // call GeomFromText(<POINT>) and generate pOutputGeomFromText with all NULL values
+  // call GeomFromText(<POINT>) and generate pExpectedResult with all NULL values
   char strArray[rowNum][TSDB_MAX_BINARY_LEN];
   STR_TO_VARSTR(strArray[0], "");
   STR_TO_VARSTR(strArray[1], "");
   STR_TO_VARSTR(strArray[2], "");
-  callGeomFromTextWrapper2(strArray, rowNum, &pOutputGeomFromText);
+  callGeomFromTextWrapper2(strArray, rowNum, &pExpectedResult);
 
   // 1. call MakePoint() with NULL type and INT column, and compare all NULL results
   int64_t intArray[rowNum] = MAKE_POINT_SECOND_COLUMN_VALUES;
   callMakePointAndCompareResult(TSDB_DATA_TYPE_NULL, 0, true,
                                 TSDB_DATA_TYPE_INT, intArray, false,
-                                rowNum, pOutputGeomFromText);
+                                pExpectedResult, rowNum);
   // swap params and compare
   callMakePointAndCompareResult(TSDB_DATA_TYPE_INT, intArray, false,
                                 TSDB_DATA_TYPE_NULL, 0, true,
-                                rowNum, pOutputGeomFromText);
+                                pExpectedResult, rowNum);
 
   // call MakePoint() with SMALLINT NULL constant and BIGINT column, and compare all NULL results
   int16_t smallIntConstant = TSDB_DATA_SMALLINT_NULL;
   int64_t bigIntArray[rowNum] = MAKE_POINT_SECOND_COLUMN_VALUES;
   callMakePointAndCompareResult(TSDB_DATA_TYPE_SMALLINT, &smallIntConstant, true,
                                 TSDB_DATA_TYPE_BIGINT, bigIntArray, false,
-                                rowNum, pOutputGeomFromText);
+                                pExpectedResult, rowNum);
   // swap params and compare
   callMakePointAndCompareResult(TSDB_DATA_TYPE_BIGINT, bigIntArray, false,
                                 TSDB_DATA_TYPE_SMALLINT, &smallIntConstant, true,
-                                rowNum, pOutputGeomFromText);
+                                pExpectedResult, rowNum);
 
-  destroyScalarParam(pOutputGeomFromText, 1);
+  destroyScalarParam(pExpectedResult, 1);
 
-  // 2. call GeomFromText(<POINT>) and generate pOutputGeomFromText with NULL value
+  // 2. call GeomFromText(<POINT>) and generate pExpectedResult with NULL value
   STR_TO_VARSTR(strArray[0], "POINT(2.0 5.0)");
   STR_TO_VARSTR(strArray[1], "");
   STR_TO_VARSTR(strArray[2], "POINT(-4.0 -7.0)");
-  callGeomFromTextWrapper2(strArray, rowNum, &pOutputGeomFromText);
+  callGeomFromTextWrapper2(strArray, rowNum, &pExpectedResult);
 
   // call MakePoint() with TINYINT column with NULL value and FLOAT column, and compare results with NULL value
   int8_t tinyIntArray[rowNum] = MAKE_POINT_FIRST_COLUMN_VALUES;
@@ -350,7 +373,7 @@ TEST(GeomFuncTest, makePointFunctionWithNull) {
   float floatArray[rowNum] = MAKE_POINT_SECOND_COLUMN_VALUES;
   callMakePointAndCompareResult(TSDB_DATA_TYPE_TINYINT, tinyIntArray, false,
                                 TSDB_DATA_TYPE_FLOAT, floatArray, false,
-                                rowNum, pOutputGeomFromText);
+                                pExpectedResult, rowNum);
 
   // call MakePoint() with SMALLINT column and DOUBLE column with NULL value, and compare results with NULL value
   int16_t smallIntArray[rowNum] = MAKE_POINT_FIRST_COLUMN_VALUES;
@@ -358,24 +381,13 @@ TEST(GeomFuncTest, makePointFunctionWithNull) {
   *(((uint64_t*)doubleArray) + 1) = TSDB_DATA_DOUBLE_NULL; //set value as NULL for index 1
   callMakePointAndCompareResult(TSDB_DATA_TYPE_SMALLINT, smallIntArray, false,
                                 TSDB_DATA_TYPE_DOUBLE, doubleArray, false,
-                                rowNum, pOutputGeomFromText);
+                                pExpectedResult, rowNum);
 
-  destroyScalarParam(pOutputGeomFromText, 1);
+  destroyScalarParam(pExpectedResult, 1);
 }
 
 TEST(GeomFuncTest, geomFromTextFunction) {
   int32_t rowNum = 4;
-  SScalarParam *pInputGeomFromText;
-  SScalarParam *pOutputGeomFromText;
-
-  // test on input NULL type
-  callGeomFromTextWrapper1(TSDB_DATA_TYPE_NULL, 0, 1, &pOutputGeomFromText);
-  ASSERT_EQ(colDataIsNull_s(pOutputGeomFromText->columnData, 0), true);
-  destroyScalarParam(pOutputGeomFromText, 1);
-
-  // test on input wrong type [ToDo] make sure it is handled in geomFunc
-  int32_t intConstant = 3;
-  callGeomFromTextWrapper3(TSDB_DATA_TYPE_INT, &intConstant, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
 
   // test on input main geometry types like POINT, LINESTRING, POLYGON with right or wrong contents
   char strArray[rowNum][TSDB_MAX_BINARY_LEN];
@@ -396,6 +408,8 @@ TEST(GeomFuncTest, geomFromTextFunction) {
   callGeomFromTextWrapper4(strArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
 
   // test on input of GeomFromText (with NULL value) and output of AsText are same after calling GeomFromText() and AsText()
+  SScalarParam *pInputGeomFromText;
+  SScalarParam *pOutputGeomFromText;
   SScalarParam *pOutputAsText;
 
   STR_TO_VARSTR(strArray[0], "POINT (2.000000 5.000000)");
@@ -413,9 +427,20 @@ TEST(GeomFuncTest, geomFromTextFunction) {
   destroyScalarParam(pInputGeomFromText, 1);
   destroyScalarParam(pOutputGeomFromText, 1);
   destroyScalarParam(pOutputAsText, 1);
+
+  // test on input NULL type
+  callGeomFromTextWrapper1(TSDB_DATA_TYPE_NULL, 0, 1, &pOutputGeomFromText);
+  ASSERT_EQ(colDataIsNull_s(pOutputGeomFromText->columnData, 0), true);
+  destroyScalarParam(pOutputGeomFromText, 1);
+
+  // test on input wrong type [ToDo] make sure it is handled in geomFunc
+  int32_t intConstant = 3;
+  callGeomFromTextWrapper3(TSDB_DATA_TYPE_INT, &intConstant, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
 }
 
 TEST(GeomFuncTest, asTextFunction) {
+  // test on input right content has been tested in geomFromTextFunction
+
   // test on input NULL type
   SScalarParam *pOutputAsText;
   callAsTextWrapper1(TSDB_DATA_TYPE_NULL, 0, 1, &pOutputAsText);
@@ -430,48 +455,90 @@ TEST(GeomFuncTest, asTextFunction) {
   char strInput[TSDB_MAX_BINARY_LEN];
   STR_TO_VARSTR(strInput, "XXX");
   callAsTextWrapper2(TSDB_DATA_TYPE_GEOMETRY, strInput, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
-
-  // test on input right content has been tested in geomFromTextFunction
 }
 
-TEST(GeomFuncTest, intersectsFunctionTwoColumns) {
+TEST(GeomFuncTest, intersectsFunction) {
   int32_t rowNum = 6;
 
-  // call GeomFromText() and generate pOutputGeomFromText as input for Intersects()
-  char strArray[rowNum][TSDB_MAX_BINARY_LEN];
-  SScalarParam *pOutputGeomFromText = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  char strArray1[rowNum][TSDB_MAX_BINARY_LEN];
+  STR_TO_VARSTR(strArray1[0], "POINT(3.5 7.0)");
+  STR_TO_VARSTR(strArray1[1], "POINT(3.0 3.0)");
+  STR_TO_VARSTR(strArray1[2], "POINT(4.0 7.0)");
+  STR_TO_VARSTR(strArray1[3], "LINESTRING(1.0 1.0, 2.0 2.0, 5.0 5.0)");
+  STR_TO_VARSTR(strArray1[4], "LINESTRING(1.0 1.0, 2.0 2.0, 3.0 5.0)");
+  STR_TO_VARSTR(strArray1[5], "POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))");
 
-  STR_TO_VARSTR(strArray[0], "POINT(2.0 5.0)");
-  STR_TO_VARSTR(strArray[1], "POINT(3.0 3.0)");
-  STR_TO_VARSTR(strArray[2], "POINT(4.0 7.0)");
-  STR_TO_VARSTR(strArray[3], "LINESTRING(1.0 1.0, 2.0 2.0, 5.0 5.0)");
-  STR_TO_VARSTR(strArray[4], "LINESTRING(1.0 1.0, 2.0 2.0, 3.0 5.0)");
-  STR_TO_VARSTR(strArray[5], "POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))");
-  callGeomFromTextWrapper5(strArray, rowNum, pOutputGeomFromText);
+  char strArray2[rowNum][TSDB_MAX_BINARY_LEN];
+  STR_TO_VARSTR(strArray2[0], "POINT(3.5 7.0)");
+  STR_TO_VARSTR(strArray2[1], "LINESTRING(1.0 1.0, 2.0 2.0, 5.0 6.0)");
+  STR_TO_VARSTR(strArray2[2], "POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))");
+  STR_TO_VARSTR(strArray2[3], "LINESTRING(1.0 4.0, 2.0 3.0, 5.0 0.0)");
+  STR_TO_VARSTR(strArray2[4], "POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))");
+  STR_TO_VARSTR(strArray2[5], "POLYGON((5.0 6.0, 7.0 6.0, 7.0 8.0, 5.0 8.0, 5.0 6.0))");
 
-  STR_TO_VARSTR(strArray[0], "POINT(2.0 5.0)");
-  STR_TO_VARSTR(strArray[1], "LINESTRING(1.0 1.0, 2.0 2.0, 5.0 6.0)");
-  STR_TO_VARSTR(strArray[2], "POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))");
-  STR_TO_VARSTR(strArray[3], "LINESTRING(1.0 4.0, 2.0 3.0, 5.0 0.0)");
-  STR_TO_VARSTR(strArray[4], "POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))");
-  STR_TO_VARSTR(strArray[5], "POLYGON((5.0 6.0, 7.0 6.0, 7.0 8.0, 5.0 8.0, 5.0 6.0))");
-  callGeomFromTextWrapper5(strArray, rowNum, pOutputGeomFromText + 1);
+  // input two columns
+  SScalarParam *pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  callGeomFromTextWrapper5(strArray1, rowNum, pInputIntersects);  //pInputIntersects come from GeomFromText()
+  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects + 1);
+  int8_t expectedResultTwoCol[rowNum] = {1, 0, 1, 1, 0, 1}; // 1: true, 0: false, -1: null
+  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultTwoCol);
 
-  bool resArray[rowNum] = {true, false, true, true, false, true};
+  // swap two columns
+  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects);
+  callGeomFromTextWrapper5(strArray1, rowNum, pInputIntersects + 1);
+  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultTwoCol);
 
-  // call Intersects()
-  SScalarParam *pOutputIntersects;
-  makeOneScalarParam(&pOutputIntersects, TSDB_DATA_TYPE_BOOL, 0, rowNum);
-  int32_t code = intersectsFunction(pOutputGeomFromText, 2, pOutputIntersects);   // pOutputGeomFromText is input for Intersects()
-  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  // the first is constant
+  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  callGeomFromTextWrapper5(strArray1, 1, pInputIntersects);
+  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects + 1);
+  int8_t expectedResultFirstConst[rowNum] = {1, 0, 1, 0, 1, 0};
+  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultFirstConst);
 
-  for (int32_t i = 0; i < rowNum; ++i) {
-    bool res = *(bool*)colDataGetData(pOutputIntersects->columnData, i);
-    ASSERT_EQ(res, resArray[i]);
-  }
+  // the second is constant
+  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  callGeomFromTextWrapper5(strArray1, rowNum, pInputIntersects);
+  callGeomFromTextWrapper5(strArray2, 1, pInputIntersects + 1);
+  int8_t expectedResultSecondConst[rowNum] = {1, 0, 0, 0, 0, 1};
+  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultSecondConst);
 
-  destroyScalarParam(pOutputIntersects, 1);
-  destroyScalarParam(pOutputGeomFromText, 2);
+  // the two are constants
+  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  callGeomFromTextWrapper5(strArray1, 1, pInputIntersects);
+  callGeomFromTextWrapper5(strArray2, 1, pInputIntersects + 1);
+  int8_t expectedResultTwoConst[1] = {1};
+  callIntersectsAndCompareResult(pInputIntersects, 1, TSDB_CODE_SUCCESS, expectedResultTwoConst);
+
+  // the first is NULL type
+  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  setScalarParam(pInputIntersects, TSDB_DATA_TYPE_NULL, 0, 1);
+  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects + 1);
+  int8_t expectedResultNullType[rowNum] = {-1, -1, -1, -1, -1, -1};
+  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultNullType);
+
+  // the second is NULL type
+  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  callGeomFromTextWrapper5(strArray1, rowNum, pInputIntersects);
+  setScalarParam(pInputIntersects + 1, TSDB_DATA_TYPE_NULL, 0, 1);
+  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultNullType);
+
+  // the two are with NULL value
+  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  STR_TO_VARSTR(strArray1[2], "");
+  STR_TO_VARSTR(strArray2[4], "");
+  callGeomFromTextWrapper5(strArray1, rowNum, pInputIntersects);
+  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects + 1);
+  int8_t expectedResultWithNull[rowNum] = {1, 0, -1, 1, -1, 1};
+  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultWithNull);
+
+  // the first is with wrong content
+  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  char strInput[TSDB_MAX_BINARY_LEN];
+  STR_TO_VARSTR(strInput, "XXX");
+  setScalarParam(pInputIntersects, TSDB_DATA_TYPE_GEOMETRY, strInput, 1);
+  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects + 1);
+  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, 0);
 }
 
 int main(int argc, char **argv) {
