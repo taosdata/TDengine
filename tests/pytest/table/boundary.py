@@ -144,9 +144,9 @@ class TDTestCase:
         maxRowSize = self.getLimitFromSourceCode('TSDB_MAX_BYTES_PER_ROW') - 8
         maxCols = self.getLimitFromSourceCode('TSDB_MAX_COLUMNS') - 1
 
-        # for binary cols, 2 bytes are used for length
-        colLen = (maxRowSize - maxCols * 2) // maxCols
-        firstColLen = maxRowSize - 2 * maxCols - colLen * (maxCols - 1)
+        # for binary cols, 2 bytes are used for length, 4 bytes are used for VarDataOffsetT
+        colLen = (maxRowSize - maxCols * 6) // maxCols
+        firstColLen = maxRowSize - 6 * maxCols - colLen * (maxCols - 1)
 
         sql = "create table cars (ts timestamp, c0 binary(%d)" % firstColLen
         for i in range(1, maxCols):

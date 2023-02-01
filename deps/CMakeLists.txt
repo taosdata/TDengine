@@ -39,7 +39,7 @@ IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
     PREFIX        "jemalloc"
     SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/jemalloc
     BUILD_IN_SOURCE     1
-    CONFIGURE_COMMAND   ./autogen.sh COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
+    CONFIGURE_COMMAND   ./autogen.sh COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/ --disable-initial-exec-tls
     BUILD_COMMAND       ${MAKE}
   )
   INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)

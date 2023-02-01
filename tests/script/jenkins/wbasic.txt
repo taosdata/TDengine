@@ -98,6 +98,7 @@ wtest.bat -f general/import/replica1.sim
 
 wtest.bat -f general/insert/basic.sim
 wtest.bat -f general/insert/insert_drop.sim
+wtest.bat -f general/insert/insert_update2.sim
 wtest.bat -f general/insert/query_block1_memory.sim
 wtest.bat -f general/insert/query_block2_memory.sim
 wtest.bat -f general/insert/query_block1_file.sim

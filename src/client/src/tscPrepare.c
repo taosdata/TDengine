@@ -723,7 +723,7 @@ static FORCE_INLINE int doBindParam(STableDataBlocks* pBlock, char* data, SParam
             if ((*bind->length) > (uintptr_t)param->bytes) {
               return TSDB_CODE_TSC_INVALID_VALUE;
             }
-            short size = (short)*bind->length;
+            uint16_t size = (uint16_t)*bind->length;
             STR_WITH_SIZE_TO_VARSTR(data + param->offset, bind->buffer, size);
             return TSDB_CODE_SUCCESS;
           }
@@ -777,7 +777,7 @@ static FORCE_INLINE int doBindParam(STableDataBlocks* pBlock, char* data, SParam
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  short size = 0;
+  uint16_t size = 0;
   switch(param->type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
@@ -808,7 +808,7 @@ static FORCE_INLINE int doBindParam(STableDataBlocks* pBlock, char* data, SParam
         tscError("column length is too big");
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
-      size = (short)*pBind->length;
+      size = (uint16_t)*pBind->length;
       STR_WITH_SIZE_TO_VARSTR(data + param->offset, pBind->buffer, size);
       return TSDB_CODE_SUCCESS;
 
@@ -905,6 +905,12 @@ static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MU
 
     if (pBind->is_null != NULL && pBind->is_null[i]) {
       setNull(data + param->offset, param->type, param->bytes);
+      if (param->offset == 0) {
+        if (tsCheckTimestamp(pBlock, data) != TSDB_CODE_SUCCESS) {
+          tscError("invalid timestamp");
+          return TSDB_CODE_TSC_INVALID_VALUE;
+        }
+      }
       continue;
     }
 
@@ -922,7 +928,7 @@ static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MU
         tscError("binary length too long, ignore it, max:%d, actual:%d", param->bytes, (int32_t)pBind->length[i]);
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
-      int16_t bsize = (short)pBind->length[i];
+      uint16_t bsize = (uint16_t)pBind->length[i];
       STR_WITH_SIZE_TO_VARSTR(data + param->offset, (char *)pBind->buffer + pBind->buffer_length * i, bsize);
     } else if (param->type == TSDB_DATA_TYPE_NCHAR) {
       if (pBind->length[i] > (uintptr_t)param->bytes) {

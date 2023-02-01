@@ -509,6 +509,7 @@ bool shouldRewTableMeta(SSqlObj* pSql, SRpcMsg* rpcMsg) {
       rpcMsg->code != TSDB_CODE_VND_INVALID_VGROUP_ID &&
       rpcMsg->code != TSDB_CODE_QRY_INVALID_SCHEMA_VERSION &&
       rpcMsg->code != TSDB_CODE_RPC_NETWORK_UNAVAIL &&
+      rpcMsg->code != TSDB_CODE_RPC_VGROUP_NOT_CONNECTED &&
       rpcMsg->code != TSDB_CODE_APP_NOT_READY ) {
     return false;
   }
@@ -1290,7 +1291,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       *(int8_t*) pMsg = pUdfInfo->resType;
       pMsg += sizeof(pUdfInfo->resType);
 
-      *(int16_t*) pMsg = htons(pUdfInfo->resBytes);
+      *(uint16_t *)pMsg = htons(pUdfInfo->resBytes);
       pMsg += sizeof(pUdfInfo->resBytes);
 
       STR_TO_VARSTR(pMsg, pUdfInfo->name);
@@ -2594,9 +2595,9 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
       STableMetaVgroupInfo p = {.pTableMeta = pTableMeta,};
       size_t keyLen = strnlen(pMetaMsg->tableFname, TSDB_TABLE_FNAME_LEN);
       void* t = taosHashGet(pParentCmd->pTableMetaMap, pMetaMsg->tableFname, keyLen);
-      assert(t == NULL);
-
-      taosHashPut(pParentCmd->pTableMetaMap, pMetaMsg->tableFname, keyLen, &p, sizeof(STableMetaVgroupInfo));
+      if(t == NULL) {
+        taosHashPut(pParentCmd->pTableMetaMap, pMetaMsg->tableFname, keyLen, &p, sizeof(STableMetaVgroupInfo));
+      }
     } else {
       freeMeta = true;
     }

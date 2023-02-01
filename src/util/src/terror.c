@@ -69,6 +69,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_APP_NOT_READY,                "Database not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               "Unable to resolve FQDN")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_VERSION,          "Invalid app version")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_SHORTCUT,                 "Shortcut")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_VGROUP_NOT_CONNECTED,     "Vgroup could not be connected")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_COM_OPS_NOT_SUPPORT,          "Operation not supported")

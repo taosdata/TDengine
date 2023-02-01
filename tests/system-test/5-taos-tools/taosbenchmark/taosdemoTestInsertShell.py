@@ -201,13 +201,25 @@ class TDTestCase:
         tdSql.query("select count(*) from `test.0`")
         tdSql.checkData(0, 0, 100)
 
-        # taosdemo error
-        # too max length
-        sql = "%staosBenchmark -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b float,int,NCHAR\(4096\) \
-                -w 40 -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I taosc" % (binPath,cfgPath)
+        # max valid length - row
+        sql = "%staosBenchmark -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b float,int,NCHAR\(16370\) \
+                -w 40 -T 8 -i 10 -S 1000 -r 48 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I taosc" % (binPath,cfgPath)
         tdLog.info("%s" % sql ) 
-        assert os.system("%s" % sql ) != 0   
+        assert os.system("%s" % sql ) == 0
+
+        # taosdemo error
+        # too max length - column
+        sql = "%staosBenchmark -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b NCHAR\(16380\) \
+                -w 40 -T 8 -i 10 -S 1000 -r 48 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I taosc" % (binPath,cfgPath)
+        tdLog.info("%s" % sql ) 
+        assert os.system("%s" % sql ) != 0
                  
+        # too max length - row
+        sql = "%staosBenchmark -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b float,int,NCHAR\(16371\) \
+                -w 40 -T 8 -i 10 -S 1000 -r 48 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I taosc" % (binPath,cfgPath)
+        tdLog.info("%s" % sql ) 
+        assert os.system("%s" % sql ) != 0
+
         # error password  
         sql = "%staosBenchmark -u root -c %s -h localhost -P 6030 -p123 -d db1 -a 1 -l 10 -b float,int,NCHAR\(40\) \
         -w 40 -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I stmt" % (binPath,cfgPath)

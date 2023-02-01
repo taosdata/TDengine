@@ -319,7 +319,7 @@ if [ "$verMode" == "cluster" ]; then
         git clone --depth 1 https://github.com/taosdata/taos-connector-dotnet ${install_dir}/connector/dotnet
         rm -rf ${install_dir}/connector/dotnet/.git ||:
 
-        git clone --depth 1 https://github.com/taosdata/libtaos-rs ${install_dir}/connector/rust
+        git clone --depth 1 https://github.com/taosdata/taos-connector-rust ${install_dir}/connector/rust
         rm -rf ${install_dir}/connector/rust/.git ||:
         # cp -r ${connector_dir}/python ${install_dir}/connector
         # cp -r ${connector_dir}/nodejs ${install_dir}/connector
@@ -336,7 +336,8 @@ cd ${release_dir}
 #  install_dir has been distinguishes  cluster from  edege, so comments this code
 pkg_name=${install_dir}-${osType}-${cpuType}
 
-taostools_pkg_name=${taostools_install_dir}-${osType}-${cpuType}
+versionCompFirst=$(echo ${versionComp} | awk -F '.' '{print $1}')
+taostools_pkg_name=${taostools_install_dir}-${osType}-${cpuType}-comp${versionCompFirst}
 
 # if [ "$verMode" == "cluster" ]; then
 #   pkg_name=${install_dir}-${osType}-${cpuType}

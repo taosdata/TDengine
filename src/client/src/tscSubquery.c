@@ -3462,6 +3462,7 @@ static bool needRetryInsert(SSqlObj* pParentObj) {
 
     if (code != TSDB_CODE_TDB_TABLE_RECONFIGURE && code != TSDB_CODE_TDB_INVALID_TABLE_ID &&
         code != TSDB_CODE_VND_INVALID_VGROUP_ID && code != TSDB_CODE_RPC_NETWORK_UNAVAIL &&
+        code != TSDB_CODE_RPC_VGROUP_NOT_CONNECTED &&
         code != TSDB_CODE_APP_NOT_READY) {
       pParentObj->res.code = code;
       ret = false;
@@ -3747,7 +3748,7 @@ _error:
   return pRes->code;
 }
 
-static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t columnIndex, int16_t* bytes) {
+static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t columnIndex, uint16_t* bytes) {
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
   SInternalField* pInfo = (SInternalField*) TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, columnIndex);
@@ -3805,7 +3806,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   pRes->data = pFilePage->data;
   char* data = pRes->data;
 
-  int16_t bytes = 0;
+  uint16_t bytes = 0;
 
   tscRestoreFuncForSTableQuery(pQueryInfo);
   tscFieldInfoUpdateOffset(pQueryInfo);

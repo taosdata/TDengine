@@ -42,28 +42,28 @@ enum ScriptState {
 typedef struct {
   SHashObj  *funcId;    //func already registed in lua_env, may be no use
   lua_State *lua_state; // lua env 
-} ScriptEnv;   
+} ScriptEnv;
 
 typedef struct ScriptCtx {
   // one-more-space-for-null-terminator to support function name
   // at most USER_FUNC_NAME_LIMIT bytes long actually
-  char        funcName[USER_FUNC_NAME_LIMIT+1];
-  int8_t      state; 
-  ScriptEnv  *pEnv;
-  int8_t      isAgg; // agg function or not
-  
-  // init value of udf script
-  int8_t      resType;
-  int16_t     resBytes; 
+  char       funcName[USER_FUNC_NAME_LIMIT + 1];
+  int8_t     state;
+  ScriptEnv *pEnv;
+  int8_t     isAgg;  // agg function or not
 
-  int32_t     numOfOutput; 
-  int32_t     offset;
-  
+  // init value of udf script
+  int8_t   resType;
+  uint16_t resBytes;
+
+  int32_t numOfOutput;
+  int32_t offset;
+
 } ScriptCtx;
 
 int taosLoadScriptInit(void *pInit);
-void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iBytes, int32_t numOfRows, 
-    int64_t *ptsList, int64_t key, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, int16_t oBytes);
+void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, uint16_t iBytes, int32_t numOfRows, 
+    int64_t *ptsList, int64_t key, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, uint16_t oBytes);
 void taosLoadScriptFinalize(void *pInit, int64_t key, char *pOutput, int32_t *output);
 void taosLoadScriptMerge(void *pCtx, char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput);
 void taosLoadScriptDestroy(void *pInit);
@@ -75,7 +75,7 @@ typedef struct {
   pthread_mutex_t mutex;
 } ScriptEnvPool;
 
-ScriptCtx* createScriptCtx(char *str, int8_t resType, int16_t resBytes);
+ScriptCtx* createScriptCtx(char *str, int8_t resType, uint16_t resBytes);
 void       destroyScriptCtx(void *pScriptCtx);
 
 int32_t scriptEnvPoolInit();

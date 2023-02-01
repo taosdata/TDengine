@@ -1874,7 +1874,7 @@ void tscDestroyDataBlock(SSqlObj *pSql, STableDataBlocks* pDataBlock, bool remov
   destroySTableDataBlocks(pDataBlock);
 }
 
-SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, int16_t bytes,
+SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, uint16_t bytes,
                                    uint32_t offset) {
   uint32_t needed = pDataBlock->numOfParams + 1;
   if (needed > pDataBlock->numOfAllocedParams) {
@@ -2404,7 +2404,7 @@ int32_t tscAllocPayload(SSqlCmd* pCmd, int size) {
   return code;
 }
 
-TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes) {
+TAOS_FIELD tscCreateField(int8_t type, const char* name, uint16_t bytes) {
   TAOS_FIELD f = { .type = type, .bytes = bytes, };
   tstrncpy(f.name, name, sizeof(f.name));
   return f;
@@ -2632,7 +2632,7 @@ void tscFieldInfoCopy(SFieldInfo* pFieldInfo, const SFieldInfo* pSrc, const SArr
 
 
 SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                         int16_t size, int16_t resColId, int32_t interSize, int32_t colType) {
+                         uint16_t size, int16_t resColId, int32_t interSize, int32_t colType) {
   SExprInfo* pExpr = calloc(1, sizeof(SExprInfo));
   if (pExpr == NULL) {
     return NULL;
@@ -2694,7 +2694,7 @@ SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SCo
 }
 
 SExprInfo* tscExprInsert(SQueryInfo* pQueryInfo, int32_t idx, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                           int16_t size, int16_t resColId, int32_t interSize, bool isTagCol) {
+                           uint16_t size, int16_t resColId, int32_t interSize, bool isTagCol) {
   int32_t num = (int32_t)taosArrayGetSize(pQueryInfo->exprList);
   if (idx == num) {
     return tscExprAppend(pQueryInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
@@ -2707,7 +2707,7 @@ SExprInfo* tscExprInsert(SQueryInfo* pQueryInfo, int32_t idx, int16_t functionId
 }
 
 SExprInfo* tscExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                           int16_t size, int16_t resColId, int32_t interSize, bool isTagCol) {
+                           uint16_t size, int16_t resColId, int32_t interSize, bool isTagCol) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pColIndex->tableIndex);
   SExprInfo* pExpr = tscExprCreate(pTableMetaInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
   taosArrayPush(pQueryInfo->exprList, &pExpr);
@@ -3264,7 +3264,7 @@ int32_t tscColCondCopy(SArray** dest, const SArray* src, uint64_t uid, int16_t t
   }
 
   size_t s = taosArrayGetSize(src);
-  *dest = taosArrayInit(s, sizeof(SCond));
+  *dest = taosArrayInit(s, sizeof(STblCond));
 
   for (int32_t i = 0; i < s; ++i) {
     STblCond* pCond = taosArrayGet(src, i);

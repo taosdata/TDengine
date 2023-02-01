@@ -208,7 +208,7 @@ void tColModelCompact(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxE
 void     tColModelErase(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxCapacity, int32_t s, int32_t e);
 SSchema1 *getColumnModelSchema(SColumnModel *pColumnModel, int32_t index);
 
-int16_t getColumnModelOffset(SColumnModel *pColumnModel, int32_t index);
+uint16_t getColumnModelOffset(SColumnModel *pColumnModel, int32_t index);
 
 typedef struct SSrcColumnInfo {
   int32_t functionId;
