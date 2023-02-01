@@ -83,7 +83,7 @@ class TDTestCase:
         tdSql.checkData(1, 1, "DOUBLE")
         tdSql.query("describe db.stb8")
         if major_ver == "3":
-            tdSql.checkData(1, 1, "VARCHAR")
+            tdSql.checkData(1, 1, "NCHAR")
             tdSql.checkData(1, 2, 16)
         else:
             tdSql.checkData(1, 1, "NCHAR")
@@ -91,7 +91,7 @@ class TDTestCase:
 
         tdSql.query("describe db.stb9")
         if major_ver == "3":
-            tdSql.checkData(1, 1, "VARCHAR")
+            tdSql.checkData(1, 1, "NCHAR")
             tdSql.checkData(1, 2, 16)
         else:
             tdSql.checkData(1, 1, "NCHAR")
