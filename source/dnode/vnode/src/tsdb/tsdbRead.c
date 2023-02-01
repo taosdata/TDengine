@@ -4019,6 +4019,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
     return;
   }
 
+  tsdbAcquireReader(pReader);
   {
     if (pReader->innerReader[0] != NULL || pReader->innerReader[1] != NULL) {
       STsdbReader* p = pReader->innerReader[0];
@@ -4076,9 +4077,11 @@ void tsdbReaderClose(STsdbReader* pReader) {
     pReader->pDelIdx = NULL;
   }
 
-  qTrace("tsdb/reader: %p, untake snapshot", pReader);
+  qTrace("tsdb/reader-close: %p, untake snapshot", pReader);
   tsdbUntakeReadSnap(pReader, pReader->pReadSnap, true);
   pReader->pReadSnap = NULL;
+
+  tsdbReleaseReader(pReader);
 
   tsdbUninitReaderLock(pReader);
 
