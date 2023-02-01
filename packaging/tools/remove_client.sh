@@ -53,7 +53,7 @@ function clean_bin() {
     ${csudo}rm -f ${bin_link_dir}/${uninstallScript}    || :
     ${csudo}rm -f ${bin_link_dir}/set_core  || :
 
-    if [ "$verMode" == "cluster" ] && [ ${clientName} != ${clientName2}]; then
+    if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
         ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
         ${csudo}rm -f ${bin_link_dir}/${demoName2} || :
         ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :

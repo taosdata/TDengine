@@ -125,7 +125,7 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
 
-  if [ "$verMode" == "cluster" ] && [ ${clientName} != ${clientName2}]; then
+  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
     #Make link
     [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName2}                 || :
     if [ "$osType" != "Darwin" ]; then

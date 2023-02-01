@@ -40,12 +40,12 @@ serverName2="taosd"
 clientName2="taos"
 productName2="TDengine"
 
-adapterName2="${clientName}adapter"
-benchmarkName2="${clientName}Benchmark"
-dumpName2="${clientName}dump"
-demoName2="${clientName}demo"
-xname2="${clientName}x"
-uninstallScript2="rm${clientName}"
+adapterName2="${clientName2}adapter"
+benchmarkName2="${clientName2}Benchmark"
+dumpName2="${clientName2}dump"
+demoName2="${clientName2}demo"
+xname2="${clientName2}x"
+uninstallScript2="rm${clientName2}"
 
 installDir="/usr/local/${clientName}"
 
@@ -120,9 +120,10 @@ function clean_bin() {
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
+  ${csudo}rm -f ${bin_link_dir}/taoskeeper || :
   ${csudo}rm -f ${bin_link_dir}/taosx || :
 
-  if [ "$verMode" == "cluster" ] && [ ${clientName} != ${clientName2}]; then
+  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
     ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
     ${csudo}rm -f ${bin_link_dir}/${serverName2} || :
     ${csudo}rm -f ${bin_link_dir}/${adapterName2} || :
