@@ -791,6 +791,9 @@ expr(A) ::= ID(X) LP exprlist(Y) RP(E). { tStrTokenAppend(pInfo->funcs, &X); A =
 // for parsing sql functions with wildcard for parameters. e.g., count(*)/first(*)/last(*) operation
 expr(A) ::= ID(X) LP STAR RP(Y).     { tStrTokenAppend(pInfo->funcs, &X); A = tSqlExprCreateFunction(NULL, &X, &Y, X.type); }
 
+// for parsing sql functions without parameters
+expr(A) ::= ID(X) LP RP(Y).     { tStrTokenAppend(pInfo->funcs, &X); A = tSqlExprCreateFunction(tSqlExprListAppend(0, 0, 0, 0), &X, &Y, X.type); }
+
 // for parsing sql function CAST(column as typename) 
 expr(A) ::= ID(X) LP expr(B) AS typename(C) RP(Y).     { tStrTokenAppend(pInfo->funcs, &X); A = tSqlExprCreateFuncWithParams(pInfo, B, &C, &X, &Y, X.type); }
 
@@ -855,7 +858,6 @@ expr(A) ::= expr(X) IN LP exprlist(Y) RP.   {A = tSqlExprCreate(X, (tSqlExpr*)Y,
 exprlist(A) ::= exprlist(X) COMMA expritem(Y). {A = tSqlExprListAppend(X,Y,0, 0);}
 exprlist(A) ::= expritem(X).                   {A = tSqlExprListAppend(0,X,0, 0);}
 expritem(A) ::= expr(X).                       {A = X;}
-expritem(A) ::= .                              {A = 0;}
 
 ///////////////////////////////////reset query cache//////////////////////////////////////
 cmd ::= RESET QUERY CACHE.  { setDCLSqlElems(pInfo, TSDB_SQL_RESET_CACHE, 0);}
