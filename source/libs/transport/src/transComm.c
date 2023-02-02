@@ -205,7 +205,6 @@ bool transReadComplete(SConnBuffer* connBuf) {
 
 int transSetConnOption(uv_tcp_t* stream) {
 #if defined(WINDOWS) || defined(DARWIN)
-  // do nothing
 #else
   uv_tcp_keepalive(stream, 1, 20);
 #endif
