@@ -140,7 +140,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   while (1) {
     SSDataBlock* pBlock = pDownstream->fpSet.getNextFn(pDownstream);
     if (pBlock == NULL) {
-      if (pInfo->totalInputRows == 0) {
+      if (pInfo->totalInputRows == 0 && !pInfo->pFillInfo->forceFill) {
         setOperatorCompleted(pOperator);
         return NULL;
       }
