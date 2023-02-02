@@ -15,11 +15,8 @@ uninstallScript="rmtaos"
 clientName2="taos"
 productName2="TDengine"
 
-adapterName2="${clientName}adapter"
 benchmarkName2="${clientName}Benchmark"
 dumpName2="${clientName}dump"
-demoName2="${clientName}demo"
-xname2="${clientName}x"
 uninstallScript2="rm${clientName}"
 
 installDir="/usr/local/${clientName}"
@@ -55,7 +52,6 @@ function clean_bin() {
 
     if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
         ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
-        ${csudo}rm -f ${bin_link_dir}/${demoName2} || :
         ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
         ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
     fi

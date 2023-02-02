@@ -28,11 +28,9 @@ serverName2="taosd"
 productName2="TDengine"
 emailName2="taosdata.com"
 
-adapterName2="${clientName2}adapter"
 benchmarkName2="${clientName2}Benchmark"
 dumpName2="${clientName2}dump"
 demoName2="${clientName2}demo"
-xname2="${clientName2}x"
 uninstallScript2="rm${clientName2}"
 
 if [ "$osType" != "Darwin" ]; then

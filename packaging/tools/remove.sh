@@ -40,11 +40,8 @@ serverName2="taosd"
 clientName2="taos"
 productName2="TDengine"
 
-adapterName2="${clientName2}adapter"
 benchmarkName2="${clientName2}Benchmark"
 dumpName2="${clientName2}dump"
-demoName2="${clientName2}demo"
-xname2="${clientName2}x"
 uninstallScript2="rm${clientName2}"
 
 installDir="/usr/local/${clientName}"
@@ -125,13 +122,9 @@ function clean_bin() {
 
   if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
     ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
-    ${csudo}rm -f ${bin_link_dir}/${serverName2} || :
-    ${csudo}rm -f ${bin_link_dir}/${adapterName2} || :
     ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
-    ${csudo}rm -f ${bin_link_dir}/${demoName2} || :
     ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
     ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
-    ${csudo}rm -f ${bin_link_dir}/${xname2} || :
   fi
 }
 

@@ -40,11 +40,8 @@ serverName2="taosd"
 productName2="TDengine"
 emailName2="taosdata.com"
 
-adapterName2="${clientName2}adapter"
 benchmarkName2="${clientName2}Benchmark"
 dumpName2="${clientName2}dump"
-demoName2="${clientName2}demo"
-xname2="${clientName2}x"
 uninstallScript2="rm${clientName2}"
 
 historyFile="${clientName2}_history"
@@ -237,12 +234,8 @@ function install_bin() {
 
   if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
     [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName2} || :
-    [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName2} || :
-    [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName2} || :
-    [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName2} || :
     [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName2} || :
     [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName2} || :
-    [ -x ${install_main_dir}/bin/${xname} ] && ${csudo}ln -s ${install_main_dir}/bin/${xname} ${bin_link_dir}/${xname2} || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript2} || :
   fi
 }
@@ -683,6 +676,9 @@ function clean_service_on_systemd() {
   fi
   ${csudo}systemctl disable tarbitratord &>/dev/null || echo &>/dev/null
   ${csudo}rm -f ${tarbitratord_service_config}
+  # if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+  #     ${csudo}rm -f ${service_config_dir}/${serverName2}.service
+  # fi
 }
 
 function install_service_on_systemd() {
@@ -691,6 +687,13 @@ function install_service_on_systemd() {
   [ -f ${script_dir}/cfg/${serverName}.service ] &&
     ${csudo}cp ${script_dir}/cfg/${serverName}.service \
       ${service_config_dir}/ || :
+
+  # if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+  #   [ -f ${script_dir}/cfg/${serverName}.service ] &&
+  #   ${csudo}cp ${script_dir}/cfg/${serverName}.service \
+  #     ${service_config_dir}/${serverName2}.service || :
+  # fi
+
   ${csudo}systemctl daemon-reload
 
   ${csudo}systemctl enable ${serverName}
@@ -856,21 +859,21 @@ function updateProduct() {
     openresty_work=false
 
     echo
-    echo -e "${GREEN_DARK}To configure ${productName2} ${NC}: edit ${cfg_install_dir}/${configFile}"
+    echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${cfg_install_dir}/${configFile}"
     [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To configure ${clientName2} Adapter ${NC}: edit ${configDir}/taosadapter.toml"
+      echo -e "${GREEN_DARK}To configure Adapter ${NC}: edit ${configDir}/taosadapter.toml"
     if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}systemctl start ${serverName2}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
       [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
+        echo -e "${GREEN_DARK}To start Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
     elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}service ${serverName2} start${NC}"
+      echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
       [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}service ${clientName2}adapter start${NC}"
+        echo -e "${GREEN_DARK}To start Adapter ${NC}: ${csudo}service taosadapter start${NC}"
     else
-      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ./${serverName2}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ./${serverName}${NC}"
       [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: taosadapter &${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName} Adapter ${NC}: taosadapter &${NC}"
     fi
 
     if [ ${openresty_work} = 'true' ]; then
@@ -881,7 +884,7 @@ function updateProduct() {
 
     if ((${prompt_force} == 1)); then
       echo ""
-      echo -e "${RED}Please run '${serverName2} --force-keep-file' at first time for the exist ${productName2} $exist_version!${NC}"
+      echo -e "${RED}Please run '${serverName} --force-keep-file' at first time for the exist ${productName} $exist_version!${NC}"
     fi
     echo
     echo -e "\033[44;32;1m${productName2} is updated successfully!${NC}"
