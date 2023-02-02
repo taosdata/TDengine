@@ -12,7 +12,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef USE_UV
 #include "transComm.h"
 
 typedef struct SConnList {
@@ -175,6 +174,8 @@ static FORCE_INLINE void transDestroyConnCtx(STransConnCtx* ctx);
 // thread obj
 static SCliThrd* createThrdObj(void* trans);
 static void      destroyThrdObj(SCliThrd* pThrd);
+
+static void destroyThrd(SCliThrd* pThrd);
 
 static void cliWalkCb(uv_handle_t* handle, void* arg);
 
@@ -949,7 +950,10 @@ static void cliHandleQuit(SCliMsg* pMsg, SCliThrd* pThrd) {
   pThrd->quit = true;
   tDebug("cli work thread %p start to quit", pThrd);
   destroyCmsg(pMsg);
+
   destroyConnPool(pThrd->pool);
+  pThrd->pool = NULL;
+
   uv_walk(pThrd->loop, cliWalkCb, NULL);
 }
 static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd) {
@@ -1273,15 +1277,31 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   cli->numOfThreads = numOfThreads;
   cli->pThreadObj = (SCliThrd**)taosMemoryCalloc(cli->numOfThreads, sizeof(SCliThrd*));
 
+  int init = 0;
   for (int i = 0; i < cli->numOfThreads; i++) {
     SCliThrd* pThrd = createThrdObj(shandle);
-    int       err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
-    if (err == 0) {
-      tDebug("success to create tranport-cli thread:%d", i);
+    if (pThrd == NULL) {
+      init = -1;
+      break;
     }
     cli->pThreadObj[i] = pThrd;
   }
+  if (init != 0) {
+    for (int i = 0; i < cli->numOfThreads; i++) {
+      SCliThrd* pThrd = cli->pThreadObj[i];
+      destroyThrdObj(pThrd);
+    }
+  }
 
+  for (int i = 0; i < cli->numOfThreads; i++) {
+    SCliThrd* pThrd = cli->pThreadObj[i];
+    int       err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
+    if (err == 0) {
+      tDebug("success to create tranport-cli thread:%d", i);
+    } else {
+      return NULL;
+    }
+  }
   return cli;
 }
 
@@ -1330,9 +1350,23 @@ static SCliThrd* createThrdObj(void* trans) {
   taosThreadMutexInit(&pThrd->msgMtx, NULL);
 
   pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
-  uv_loop_init(pThrd->loop);
+
+  int err = uv_loop_init(pThrd->loop);
+  if (err != 0) {
+    tError("failed to init uv_loop,err: %s", uv_err_name(err));
+    taosMemoryFree(pThrd->loop);
+    taosThreadMutexDestroy(&pThrd->msgMtx);
+    taosMemoryFree(pThrd);
+    return NULL;
+  }
 
   pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 8, pThrd, cliAsyncCb);
+  if (pThrd->asyncPool == NULL) {
+    tError("failed to init async pool");
+    taosMemoryFree(pThrd->loop);
+    taosThreadMutexDestroy(&pThrd->msgMtx);
+    taosMemoryFree(pThrd);
+  }
 
   pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
   uv_prepare_init(pThrd->loop, pThrd->prepare);
@@ -1362,13 +1396,19 @@ static SCliThrd* createThrdObj(void* trans) {
   pThrd->quit = false;
   return pThrd;
 }
-static void destroyThrdObj(SCliThrd* pThrd) {
+static void destroyThrd(SCliThrd* pThrd) {
   if (pThrd == NULL) {
     return;
   }
 
   taosThreadJoin(pThrd->thread, NULL);
   CLI_RELEASE_UV(pThrd->loop);
+  destroyThrdObj(pThrd);
+}
+
+static void destroyThrdObj(SCliThrd* pThrd) {
+  if (pThrd == NULL) return;
+
   taosThreadMutexDestroy(&pThrd->msgMtx);
   TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliMsg, destroyCmsg);
   transAsyncPoolDestroy(pThrd->asyncPool);
@@ -1381,11 +1421,14 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     uv_timer_t* timer = taosArrayGetP(pThrd->timerList, i);
     taosMemoryFree(timer);
   }
+
   taosArrayDestroy(pThrd->timerList);
   taosMemoryFree(pThrd->prepare);
   taosMemoryFree(pThrd->loop);
+
   taosHashCleanup(pThrd->fqdn2ipCache);
   taosHashCleanup(pThrd->failFastCache);
+  taosHashCleanup(pThrd->pool);
   taosMemoryFree(pThrd);
 }
 
@@ -1716,7 +1759,7 @@ void transCloseClient(void* arg) {
   SCliObj* cli = arg;
   for (int i = 0; i < cli->numOfThreads; i++) {
     cliSendQuit(cli->pThreadObj[i]);
-    destroyThrdObj(cli->pThreadObj[i]);
+    destroyThrd(cli->pThreadObj[i]);
   }
   taosMemoryFree(cli->pThreadObj);
   taosMemoryFree(cli);
@@ -1933,4 +1976,3 @@ int64_t transAllocHandle() {
 
   return exh->refId;
 }
-#endif

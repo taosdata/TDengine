@@ -12,8 +12,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef USE_UV
-
 #include "transComm.h"
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
@@ -1347,5 +1345,3 @@ _return2:
 }
 
 int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
-
-#endif

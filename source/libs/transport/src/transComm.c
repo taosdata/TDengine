@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifdef USE_UV
 
 #include "transComm.h"
 
@@ -210,6 +209,7 @@ int transSetConnOption(uv_tcp_t* stream) {
 }
 
 SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
+  int         code = 0;
   SAsyncPool* pool = taosMemoryCalloc(1, sizeof(SAsyncPool));
   pool->nAsync = sz;
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
@@ -221,13 +221,25 @@ SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
     taosThreadMutexInit(&item->mtx, NULL);
 
     uv_async_t* async = &(pool->asyncs[i]);
-    uv_async_init(loop, async, cb);
     async->data = item;
+
+    int err = uv_async_init(loop, async, cb);
+    if (err != 0) {
+      tError("failed to init async pool,reason:%s", uv_err_name(err));
+      code = -1;
+      break;
+    }
   }
+  if (code == -1) {
+    transAsyncPoolDestroy(pool);
+    return NULL;
+  }
+
   return pool;
 }
 
 void transAsyncPoolDestroy(SAsyncPool* pool) {
+  if (pool == NULL) return;
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
 
@@ -489,6 +501,7 @@ int transDQCreate(uv_loop_t* loop, SDelayQueue** queue) {
 }
 
 void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
+  if (queue == NULL) return;
   taosMemoryFree(queue->timer);
 
   while (heapSize(queue->heap) > 0) {
@@ -638,4 +651,3 @@ void transDestoryExHandle(void* handle) {
   }
   taosMemoryFree(handle);
 }
-#endif
