@@ -805,7 +805,7 @@ void cliSend(SCliConn* pConn) {
 
   if (transQueueEmpty(&pConn->cliMsgs)) {
     tError("%s conn %p not msg to send", pTransInst->label, pConn);
-    cliHandleExecept(pConn);
+    cliHandleExcept(pConn);
     return;
   }
 
