@@ -14,10 +14,14 @@ git pull
 
 cd $script_dir/repository/TDinternal/community
 git clean -fxd
-git pull
+git checkout  main 
+git pull origin main 
 git submodule update --init --recursive
 
 cd $script_dir
+cp $script_dir/repository/TDinternal/community/tests/ci/build_image.sh  .
+cp $script_dir/repository/TDinternal/community/tests/ci/daily_build_image.sh  .
+
 ./build_image.sh || exit 1
 docker image prune -f 
 ips="\
