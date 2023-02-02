@@ -642,6 +642,7 @@
 6,,pytest,python3 test.py -f functions/function_elapsed.py
 6,,pytest,python3 test.py -f alter/alterColMultiTimes.py
 6,,develop-test,python3 ./test.py -f 2-query/ts_2016.py
+6,,develop-test,python3 ./test.py -f 2-query/ts_2523.py
 6,,develop-test,python3 ./test.py -f 2-query/escape.py
 6,,develop-test,python3 ./test.py -f 2-query/TD-14763.py
 5,,system-test,python3 ./test.py -f 4-taosAdapter/taosAdapter_insert.py
