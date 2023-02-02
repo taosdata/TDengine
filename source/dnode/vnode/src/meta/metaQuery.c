@@ -1346,13 +1346,14 @@ static int32_t metaGetTableTagByUid(SMeta *pMeta, int64_t suid, int64_t uid, voi
 
   return ret;
 }
+
 int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList, SHashObj *tags) {
   const int32_t LIMIT = 128;
 
   int32_t isLock = false;
   int32_t sz = uidList ? taosArrayGetSize(uidList) : 0;
   for (int i = 0; i < sz; i++) {
-    tb_uid_t *id = taosArrayGet(uidList, i);
+    SFilterTableInfo *p = taosArrayGet(uidList, i);
 
     if (i % LIMIT == 0) {
       if (isLock) metaULock(pMeta);
@@ -1361,20 +1362,20 @@ int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList, SHas
       isLock = true;
     }
 
-    if (taosHashGet(tags, id, sizeof(tb_uid_t)) == NULL) {
+//    if (taosHashGet(tags, &p->uid, sizeof(tb_uid_t)) == NULL) {
       void   *val = NULL;
       int32_t len = 0;
-      if (metaGetTableTagByUid(pMeta, suid, *id, &val, &len, false) == 0) {
-        taosHashPut(tags, id, sizeof(tb_uid_t), val, len);
+      if (metaGetTableTagByUid(pMeta, suid, p->uid, &val, &len, false) == 0) {
+        p->pTagVal = taosMemoryMalloc(len);
+        memcpy(p->pTagVal, val, len);
         tdbFree(val);
       } else {
         metaError("vgId:%d, failed to table tags, suid: %" PRId64 ", uid: %" PRId64 "", TD_VID(pMeta->pVnode), suid,
-                  *id);
+                  p->uid);
       }
     }
-  }
+//  }
   if (isLock) metaULock(pMeta);
-
   return 0;
 }
 
