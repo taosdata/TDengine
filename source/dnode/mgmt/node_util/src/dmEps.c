@@ -332,40 +332,48 @@ void dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
   }
 }
 
-int32_t dmUpdateDnodeInfo(void *data, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port) {
+void dmUpdateDnodeInfo(void *data, int32_t *did, int64_t *clusterId, char *fqdn, uint16_t *port) {
   SDnodeData *pData = data;
-  int32_t     ret = -1;
+  int32_t     dnodeId = -1;
+  if (did != NULL) dnodeId = *did;
+
   taosThreadRwlockRdlock(&pData->lock);
-  if (*dnodeId <= 0) {
-    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pData->dnodeEps); ++i) {
-      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, i);
+
+  if (pData->oldDnodeEps != NULL) {
+    int32_t size = (int32_t)taosArrayGetSize(pData->oldDnodeEps);
+    for (int32_t i = 0; i < size; ++i) {
+      SDnodeEp *pDnodeEp = taosArrayGet(pData->oldDnodeEps, i);
       if (strcmp(pDnodeEp->ep.fqdn, fqdn) == 0 && pDnodeEp->ep.port == *port) {
-        dInfo("dnode:%s:%u, update dnodeId from %d to %d", fqdn, *port, *dnodeId, pDnodeEp->id);
-        *dnodeId = pDnodeEp->id;
-        *clusterId = pData->clusterId;
-        ret = 0;
-      }
-    }
-    if (ret != 0) {
-      dInfo("dnode:%s:%u, failed to update dnodeId:%d", fqdn, *port, *dnodeId);
-    }
-  } else {
-    SDnodeEp *pDnodeEp = taosHashGet(pData->dnodeHash, dnodeId, sizeof(int32_t));
-    if (pDnodeEp) {
-      if (strcmp(pDnodeEp->ep.fqdn, fqdn) != 0) {
-        dInfo("dnode:%d, update port from %s to %s", *dnodeId, fqdn, pDnodeEp->ep.fqdn);
+        dInfo("dnode:%d, update ep:%s:%u to %s:%u", dnodeId, fqdn, *port, pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
         tstrncpy(fqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
-      }
-      if (pDnodeEp->ep.port != *port) {
-        dInfo("dnode:%d, update port from %u to %u", *dnodeId, *port, pDnodeEp->ep.port);
         *port = pDnodeEp->ep.port;
       }
-      *clusterId = pData->clusterId;
-      ret = 0;
-    } else {
-      dInfo("dnode:%d, failed to update dnode info", *dnodeId);
     }
   }
+
+  if (did != NULL && dnodeId <= 0) {
+    int32_t size = (int32_t)taosArrayGetSize(pData->dnodeEps);
+    for (int32_t i = 0; i < size; ++i) {
+      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, i);
+      if (strcmp(pDnodeEp->ep.fqdn, fqdn) == 0 && pDnodeEp->ep.port == *port) {
+        dInfo("dnode:%s:%u, update dnodeId to dnode:%d", fqdn, *port, pDnodeEp->id);
+        *did = pDnodeEp->id;
+        if (clusterId != NULL) *clusterId = pData->clusterId;
+      }
+    }
+  }
+
+  if (dnodeId > 0) {
+    SDnodeEp *pDnodeEp = taosHashGet(pData->dnodeHash, &dnodeId, sizeof(int32_t));
+    if (pDnodeEp) {
+      if (strcmp(pDnodeEp->ep.fqdn, fqdn) != 0 || pDnodeEp->ep.port != *port) {
+        dInfo("dnode:%d, update ep:%s:%u to %s:%u", dnodeId, fqdn, *port, pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
+        tstrncpy(fqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
+        *port = pDnodeEp->ep.port;
+      }
+      if (clusterId != NULL) *clusterId = pData->clusterId;
+    }
+  }
+
   taosThreadRwlockUnlock(&pData->lock);
-  return ret;
 }

@@ -193,7 +193,7 @@ typedef struct SSyncLogStore {
   SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);
   SyncTerm (*syncLogLastTerm)(struct SSyncLogStore* pLogStore);
 
-  int32_t (*syncLogAppendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
+  int32_t (*syncLogAppendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, bool forcSync);
   int32_t (*syncLogGetEntry)(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
   int32_t (*syncLogTruncate)(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
 

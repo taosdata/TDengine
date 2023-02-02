@@ -1760,6 +1760,9 @@ static int32_t getTableSchemaFromMetaData(SInsertParseContext* pCxt, const SMeta
   if (TSDB_CODE_SUCCESS == code && !isStb && TSDB_SUPER_TABLE == pStmt->pTableMeta->tableType) {
     code = buildInvalidOperationMsg(&pCxt->msg, "insert data into super table is not supported");
   }
+  if (TSDB_CODE_SUCCESS == code && isStb) {
+    code = storeTableMeta(pCxt, pStmt);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = getTableVgroupFromMetaData(pMetaData->pTableHash, pStmt, isStb);
   }

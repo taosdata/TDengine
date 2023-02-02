@@ -77,6 +77,31 @@ void walUnrefVer(SWalRef *pRef) {
 }
 #endif
 
+SWalRef *walRefFirstVer(SWal *pWal, SWalRef *pRef) {
+  if (pRef == NULL) {
+    pRef = walOpenRef(pWal);
+    if (pRef == NULL) {
+      return NULL;
+    }
+  }
+  taosThreadMutexLock(&pWal->mutex);
+
+  int64_t ver = walGetFirstVer(pWal);
+
+  wDebug("vgId:%d, wal ref version %" PRId64 " for first", pWal->cfg.vgId, ver);
+
+  pRef->refVer = ver;
+  // bsearch in fileSet
+  SWalFileInfo tmpInfo;
+  tmpInfo.firstVer = ver;
+  SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
+  ASSERT(pRet != NULL);
+  pRef->refFile = pRet->firstVer;
+
+  taosThreadMutexUnlock(&pWal->mutex);
+  return pRef;
+}
+
 SWalRef *walRefCommittedVer(SWal *pWal) {
   SWalRef *pRef = walOpenRef(pWal);
   if (pRef == NULL) {
@@ -85,6 +110,8 @@ SWalRef *walRefCommittedVer(SWal *pWal) {
   taosThreadMutexLock(&pWal->mutex);
 
   int64_t ver = walGetCommittedVer(pWal);
+
+  wDebug("vgId:%d, wal ref version %" PRId64 " for committed", pWal->cfg.vgId, ver);
 
   pRef->refVer = ver;
   // bsearch in fileSet

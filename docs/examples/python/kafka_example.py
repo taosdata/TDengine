@@ -26,7 +26,8 @@ class Consumer(object):
         'bath_consume': True,
         'batch_size': 1000,
         'async_model': True,
-        'workers': 10
+        'workers': 10,
+        'testing': False
     }
 
     LOCATIONS = ['California.SanFrancisco', 'California.LosAngles', 'California.SanDiego', 'California.SanJose',
@@ -46,11 +47,12 @@ class Consumer(object):
     def __init__(self, **configs):
         self.config: dict = self.DEFAULT_CONFIGS
         self.config.update(configs)
-        self.consumer = KafkaConsumer(
-            self.config.get('kafka_topic'),  # topic
-            bootstrap_servers=self.config.get('kafka_brokers'),
-            group_id=self.config.get('kafka_group_id'),
-        )
+        if not self.config.get('testing'):
+            self.consumer = KafkaConsumer(
+                self.config.get('kafka_topic'),  # topic
+                bootstrap_servers=self.config.get('kafka_brokers'),
+                group_id=self.config.get('kafka_group_id'),
+            )
         self.taos = taos.connect(
             host=self.config.get('taos_host'),
             user=self.config.get('taos_user'),
@@ -60,7 +62,7 @@ class Consumer(object):
         )
         if self.config.get('async_model'):
             self.pool = ThreadPoolExecutor(max_workers=self.config.get('workers'))
-            self.tasks: list[Future] = []
+            self.tasks = []
         # tags and table mapping # key: {location}_{groupId} value:
         self.tag_table_mapping = {}
         i = 0
@@ -104,8 +106,8 @@ class Consumer(object):
             for task in self.tasks:
                 while not task.done():
                     pass
-            if self.pool is not None:
-                self.pool.shutdown()
+                if self.pool is not None:
+                    self.pool.shutdown()
 
         # clean data
         if self.config.get('clean_after_testing'):
@@ -115,14 +117,14 @@ class Consumer(object):
         if self.taos is not None:
             self.taos.close()
 
-    def _run(self, f: Callable[[ConsumerRecord], bool]):
+    def _run(self, f):
         for message in self.consumer:
             if self.config.get('async_model'):
                 self.pool.submit(f(message))
             else:
                 f(message)
 
-    def _run_batch(self, f: Callable[[list[list[ConsumerRecord]]], None]):
+    def _run_batch(self, f):
         while True:
             messages = self.consumer.poll(timeout_ms=500, max_records=self.config.get('batch_size'))
             if messages:
@@ -140,7 +142,7 @@ class Consumer(object):
         logging.info('## insert sql %s', sql)
         return self.taos.execute(sql=sql) == 1
 
-    def _to_taos_batch(self, messages: list[list[ConsumerRecord]]):
+    def _to_taos_batch(self, messages):
         sql = self._build_sql_batch(messages=messages)
         if len(sql) == 0:  # decode error, skip
             return
@@ -162,7 +164,7 @@ class Consumer(object):
         table_name = self._get_table_name(location=location, group_id=group_id)
         return self.INSERT_PART_SQL.format(table_name, ts, current, voltage, phase)
 
-    def _build_sql_batch(self, messages: list[list[ConsumerRecord]]) -> str:
+    def _build_sql_batch(self, messages) -> str:
         sql_list = []
         for partition_messages in messages:
             for message in partition_messages:
@@ -186,7 +188,55 @@ def _get_location_and_group(key: str) -> (str, int):
     return fields[0], fields[1]
 
 
+def test_to_taos(consumer: Consumer):
+    msg = {
+        'location': 'California.SanFrancisco',
+        'groupId': 1,
+        'ts': '2022-12-06 15:13:38.643',
+        'current': 3.41,
+        'voltage': 105,
+        'phase': 0.02027,
+    }
+    record = ConsumerRecord(checksum=None, headers=None, offset=1, key=None, value=json.dumps(msg), partition=1,
+                            topic='test', serialized_key_size=None, serialized_header_size=None,
+                            serialized_value_size=None, timestamp=time.time(), timestamp_type=None)
+    assert consumer._to_taos(message=record)
+
+
+def test_to_taos_batch(consumer: Consumer):
+    records = [
+        [
+            ConsumerRecord(checksum=None, headers=None, offset=1, key=None,
+                           value=json.dumps({'location': 'California.SanFrancisco',
+                                             'groupId': 1,
+                                             'ts': '2022-12-06 15:13:38.643',
+                                             'current': 3.41,
+                                             'voltage': 105,
+                                             'phase': 0.02027, }),
+                           partition=1, topic='test', serialized_key_size=None, serialized_header_size=None,
+                           serialized_value_size=None, timestamp=time.time(), timestamp_type=None),
+            ConsumerRecord(checksum=None, headers=None, offset=1, key=None,
+                           value=json.dumps({'location': 'California.LosAngles',
+                                             'groupId': 2,
+                                             'ts': '2022-12-06 15:13:39.643',
+                                             'current': 3.41,
+                                             'voltage': 102,
+                                             'phase': 0.02027, }),
+                           partition=1, topic='test', serialized_key_size=None, serialized_header_size=None,
+                           serialized_value_size=None, timestamp=time.time(), timestamp_type=None),
+        ]
+    ]
+
+    consumer._to_taos_batch(messages=records)
+
+
 if __name__ == '__main__':
-    consumer = Consumer(async_model=True)
+    consumer = Consumer(async_model=True, testing=True)
+    # init env
     consumer.init_env()
-    consumer.consume()
+    # consumer.consume()
+    # test build sql
+    # test build sql batch
+    test_to_taos(consumer)
+    test_to_taos_batch(consumer)
+    

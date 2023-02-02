@@ -499,7 +499,7 @@ enum {
 #define DEFAULT_PAGESIZE 4096
 
 #define VNODE_TIMEOUT_SEC 60
-#define MNODE_TIMEOUT_SEC 10
+#define MNODE_TIMEOUT_SEC 60
 
 #ifdef __cplusplus
 }

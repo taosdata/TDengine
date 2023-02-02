@@ -1448,6 +1448,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   end:
   taosMemoryFreeClear(pTableMeta);
   qDestroyQuery(pQuery);
+  destroyRequest(pRequest);
   taosMemoryFree(subReq);
   return code;
 }
@@ -1639,6 +1640,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   end:
   taosMemoryFreeClear(pTableMeta);
   qDestroyQuery(pQuery);
+  destroyRequest(pRequest);
   taosMemoryFree(subReq);
   return code;
 }

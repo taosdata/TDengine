@@ -20,7 +20,10 @@
 // todo refactor API
 
 SArray* taosArrayInit(size_t size, size_t elemSize) {
-  assert(elemSize > 0);
+  if (elemSize == 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 
   if (size < TARRAY_MIN_SIZE) {
     size = TARRAY_MIN_SIZE;
@@ -116,8 +119,6 @@ void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
 }
 
 void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)(void*)) {
-  assert(pArray);
-
   size_t size = pArray->size;
   if (size <= 1) {
     return;
@@ -156,8 +157,6 @@ void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)
 }
 
 void taosArrayRemoveDuplicateP(SArray* pArray, __compar_fn_t comparFn, void (*fp)(void*)) {
-  assert(pArray);
-
   size_t size = pArray->size;
   if (size <= 1) {
     return;
@@ -215,11 +214,10 @@ void* taosArrayReserve(SArray* pArray, int32_t num) {
 }
 
 void* taosArrayPop(SArray* pArray) {
-  assert(pArray != NULL);
-
   if (pArray->size == 0) {
     return NULL;
   }
+
   pArray->size -= 1;
   return TARRAY_GET_ELEM(pArray, pArray->size);
 }
@@ -228,16 +226,21 @@ void* taosArrayGet(const SArray* pArray, size_t index) {
   if (NULL == pArray) {
     return NULL;
   }
-  assert(index < pArray->size);
+
+  if (index >= pArray->size) {
+    uError("index is out of range, current:%"PRIzu" max:%d", index, pArray->capacity);
+    return NULL;
+  }
+
   return TARRAY_GET_ELEM(pArray, index);
 }
 
 void* taosArrayGetP(const SArray* pArray, size_t index) {
-  assert(index < pArray->size);
-
-  void* d = TARRAY_GET_ELEM(pArray, index);
-
-  return *(void**)d;
+  void** p = taosArrayGet(pArray, index);
+  if (p == NULL) {
+    return NULL;
+  }
+  return *p;
 }
 
 void* taosArrayGetLast(const SArray* pArray) {
@@ -322,9 +325,12 @@ void taosArrayRemove(SArray* pArray, size_t index) {
 }
 
 SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize) {
-  assert(src != NULL && elemSize > 0);
-  SArray* pDst = taosArrayInit(size, elemSize);
+  if (elemSize <= 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 
+  SArray* pDst = taosArrayInit(size, elemSize);
   memcpy(pDst->pData, src, elemSize * size);
   pDst->size = size;
 
@@ -332,8 +338,6 @@ SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize) {
 }
 
 SArray* taosArrayDup(const SArray* pSrc, __array_item_dup_fn_t fn) {
-  assert(pSrc != NULL);
-
   if (pSrc->size == 0) {  // empty array list
     return taosArrayInit(8, pSrc->elemSize);
   }
@@ -425,14 +429,10 @@ void taosArrayDestroyEx(SArray* pArray, FDelete fp) {
 }
 
 void taosArraySort(SArray* pArray, __compar_fn_t compar) {
-  ASSERT(pArray != NULL && compar != NULL);
   taosSort(pArray->pData, pArray->size, pArray->elemSize, compar);
 }
 
 void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn, int32_t flags) {
-  assert(pArray != NULL && comparFn != NULL);
-  assert(key != NULL);
-
   return taosbsearch(key, pArray->pData, pArray->size, pArray->elemSize, comparFn, flags);
 }
 
