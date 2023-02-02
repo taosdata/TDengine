@@ -9680,7 +9680,7 @@ int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
       intervalRange = pQueryInfo->interval.interval;
     }
     // number of result is not greater than 10,000,000
-    if ((timeRange == 0) || (timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
+    if ((timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
