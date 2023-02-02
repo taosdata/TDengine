@@ -1347,7 +1347,7 @@ static int32_t metaGetTableTagByUid(SMeta *pMeta, int64_t suid, int64_t uid, voi
   return ret;
 }
 
-int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList, SHashObj *tags) {
+int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList) {
   const int32_t LIMIT = 128;
 
   int32_t isLock = false;

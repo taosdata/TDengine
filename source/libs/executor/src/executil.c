@@ -419,8 +419,6 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
   SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
 
   //  int64_t stt = taosGetTimestampUs();
-//  tags = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-
   SArray* pRes = taosArrayInit(10, sizeof(SFilterTableInfo));
   int32_t filter = optimizeTbnameInCond(metaHandle, suid, pRes, pTagCond, tags);
   if (filter == 0) {  // tbname in filter is activated, do nothing and return
@@ -444,7 +442,6 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
     terrno = 0;
     goto end;
   } else {
-//  if (filter == -1) {
     // here we retrieve all tags from the vnode table-meta store
     code = metaGetTableTags(metaHandle, suid, uidList, tags);
     if (code != TSDB_CODE_SUCCESS) {
@@ -492,18 +489,11 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
       if (pColInfo->info.colId == -1) {  // tbname
         char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
         STR_TO_VARSTR(str, p1->name);
-
-//        metaGetTableNameByUid(metaHandle, *uid, str);
         colDataAppend(pColInfo, i, str, false);
 #if TAG_FILTER_DEBUG
         qDebug("tagfilter uid:%ld, tbname:%s", *uid, str + 2);
 #endif
       } else {
-//        void* pTagsVal = taosHashGet(tags, uid, sizeof(uint64_t));
-//        if (pTagsVal == NULL) {
-//          continue;
-//        }
-
         STagVal tagVal = {0};
         tagVal.cid = pColInfo->info.colId;
         const char* p = metaGetTableTagVal(p1->pTagVal, pColInfo->info.type, &tagVal);
@@ -879,17 +869,13 @@ static int32_t filterTableInfoCompare(const void* a, const void* b) {
 
 static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* pRes, SNode* cond, SHashObj* tags) {
   int32_t ret = -1;
-  if (nodeType(cond) == QUERY_NODE_OPERATOR) {
+  int32_t ntype = nodeType(cond);
+
+  if (ntype == QUERY_NODE_OPERATOR) {
     ret = optimizeTbnameInCondImpl(metaHandle, pRes, cond);
-    if (ret == 0) {
-//      metaGetTableTagsByUids(metaHandle, suid, pRes, tags);
-//      removeInvalidUid(pRes, tags);
-    } else { // ret == -1
-      // do nothing
-    }
   }
 
-  if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
+  if (ntype != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
     return ret;
   }
 
@@ -916,7 +902,7 @@ static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* pRes
   taosArrayRemoveDuplicate(pRes, filterTableInfoCompare, NULL);
 
   if (hasTbnameCond) {
-    ret = metaGetTableTagsByUids(metaHandle, suid, pRes, tags);
+    ret = metaGetTableTagsByUids(metaHandle, suid, pRes);
     removeInvalidUid(pRes, tags);
   }
 
