@@ -6330,7 +6330,6 @@ static int32_t createSelectStmtForShow(ENodeType showType, SSelectStmt** pStmt) 
 }
 
 static int32_t createSelectStmtForShowTableDist(SShowTableDistributedStmt* pStmt, SSelectStmt** pOutput) {
-
   return createSimpleSelectStmt(pStmt->dbName, pStmt->tableName, 0, NULL, pOutput);
 }
 
