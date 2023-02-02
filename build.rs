@@ -35,15 +35,13 @@ fn main() {
         std::env::set_var("DATABASE_URL", &dsn);
 
         let dotenv = root.join(".env");
-        if dotenv.exists() {
-            let mut file = std::fs::File::options().append(true).open(dotenv).unwrap();
-            file.write_fmt(format_args!("DATABASE_URL=sqlite:{}\n", db.display()))
-                .unwrap();
+        let mut file = if dotenv.exists() {
+            std::fs::File::options().append(true).open(dotenv).unwrap()
         } else {
-            let mut file = std::fs::File::create(dotenv).unwrap();
-            file.write_fmt(format_args!("DATABASE_URL=sqlite:{}\n", db.display()))
-                .unwrap();
-        }
+            std::fs::File::create(dotenv).unwrap()
+        };
+        file.write_fmt(format_args!("DATABASE_URL={dsn}\n"))
+            .unwrap();
 
         sqlx::test_block_on(init_sqlx(&dsn)).unwrap();
     }
