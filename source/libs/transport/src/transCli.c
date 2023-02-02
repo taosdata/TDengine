@@ -800,9 +800,13 @@ static void cliSendCb(uv_write_t* req, int status) {
 }
 
 void cliSend(SCliConn* pConn) {
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pTransInst = pThrd->pTransInst;
+
   bool empty = transQueueEmpty(&pConn->cliMsgs);
-  ASSERTS(empty == false, "trans-cli get invalid msg");
   if (empty == true) {
+    tError("%s conn %p not msg to send", pTransInst->label, pConn);
+    cliHandleExcept(pConn);
     return;
   }
 
@@ -811,9 +815,6 @@ void cliSend(SCliConn* pConn) {
   pCliMsg->sent = 1;
 
   STransConnCtx* pCtx = pCliMsg->ctx;
-
-  SCliThrd* pThrd = pConn->hostThrd;
-  STrans*   pTransInst = pThrd->pTransInst;
 
   STransMsg* pMsg = (STransMsg*)(&pCliMsg->msg);
   if (pMsg->pCont == 0) {
@@ -1155,7 +1156,6 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
       conn->timer->data = NULL;
       taosArrayPush(pThrd->timerList, &conn->timer);
       conn->timer = NULL;
-
       cliHandleExcept(conn);
       return;
     }
