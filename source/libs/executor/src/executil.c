@@ -1074,15 +1074,19 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       return code;
     }
   } else {
-    // try to retrieve the result from meta cache
-    T_MD5_CTX context = {0};
-    genTagFilterDigest(pTagCond, &context);
 
-    bool acquired = false;
-    metaGetCachedTableUidList(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), res, &acquired);
-    if (acquired) {
-      qDebug("retrieve table uid list from cache, numOfTables:%d", (int32_t)taosArrayGetSize(res));
-      goto _end;
+    T_MD5_CTX context = {0};
+
+    if (tsTagFilterCache) {
+      // try to retrieve the result from meta cache
+      genTagFilterDigest(pTagCond, &context);
+
+      bool acquired = false;
+      metaGetCachedTableUidList(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), res, &acquired);
+      if (acquired) {
+        qDebug("retrieve table uid list from cache, numOfTables:%d", (int32_t)taosArrayGetSize(res));
+        goto _end;
+      }
     }
 
     if (!pTagCond) {  // no tag filter condition exists, let's fetch all tables of this super table
@@ -1118,7 +1122,9 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       memcpy(pPayload + sizeof(int32_t), taosArrayGet(res, 0), numOfTables * sizeof(uint64_t));
     }
 
-    metaUidFilterCachePut(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), pPayload, size, 1);
+    if (tsTagFilterCache) {
+      metaUidFilterCachePut(metaHandle, pScanNode->suid, context.digest, tListLen(context.digest), pPayload, size, 1);
+    }
   }
 
 _end:
