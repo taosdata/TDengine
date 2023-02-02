@@ -59,4 +59,3 @@ class TDTestCase:
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
-~
