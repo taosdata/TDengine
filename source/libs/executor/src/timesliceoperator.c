@@ -433,6 +433,11 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
       break;
     }
 
+    if (pSliceInfo->scalarSup.pExprInfo != NULL) {
+      SExprSupp* pExprSup = &pSliceInfo->scalarSup;
+      projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
+    }
+
     int32_t code = initKeeperInfo(pSliceInfo, pBlock);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
@@ -531,6 +536,8 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
   }
 
+  doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
+
   // restore the value
   setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
   if (pResBlock->info.rows == 0) {
@@ -564,6 +571,11 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
+  }
+
+  code = filterInitFromNode((SNode*)pInterpPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
   }
 
   pInfo->tsCol = extractColumnFromColumnNode((SColumnNode*)pInterpPhyNode->pTimeSeries);
