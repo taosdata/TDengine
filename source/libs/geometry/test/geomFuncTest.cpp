@@ -434,8 +434,8 @@ TEST(GeomFuncTest, geomFromTextFunction) {
   destroyScalarParam(pOutputGeomFromText, 1);
 
   // test on input wrong type [ToDo] make sure it is handled in geomFunc
-  int32_t intConstant = 3;
-  callGeomFromTextWrapper3(TSDB_DATA_TYPE_INT, &intConstant, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+  int32_t intInput = 3;
+  callGeomFromTextWrapper3(TSDB_DATA_TYPE_INT, &intInput, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
 }
 
 TEST(GeomFuncTest, asTextFunction) {
@@ -448,8 +448,8 @@ TEST(GeomFuncTest, asTextFunction) {
   destroyScalarParam(pOutputAsText, 1);
 
   // test on input wrong type [ToDo] make sure it is handled in geomFunc
-  int32_t intConstant = 3;
-  callAsTextWrapper2(TSDB_DATA_TYPE_INT, &intConstant, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+  int32_t intInput = 3;
+  callAsTextWrapper2(TSDB_DATA_TYPE_INT, &intInput, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
 
   // test on input wrong content
   char strInput[TSDB_MAX_BINARY_LEN];
@@ -532,12 +532,26 @@ TEST(GeomFuncTest, intersectsFunction) {
   int8_t expectedResultWithNull[rowNum] = {1, 0, -1, 1, -1, 1};
   callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultWithNull);
 
-  // the first is with wrong content
+  // the first is only empty content
   pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
   char strInput[TSDB_MAX_BINARY_LEN];
-  STR_TO_VARSTR(strInput, "XXX");
+  STR_TO_VARSTR(strInput, "");
   setScalarParam(pInputIntersects, TSDB_DATA_TYPE_GEOMETRY, strInput, 1);
   callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects + 1);
+  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultNullType);
+
+  // the first is only wrong type
+  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  int32_t intInput = 3;
+  setScalarParam(pInputIntersects, TSDB_DATA_TYPE_INT, &intInput, 1);
+  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects + 1);
+  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, 0);
+
+  // the second is only wrong content
+  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  STR_TO_VARSTR(strInput, "XXX");
+  callGeomFromTextWrapper5(strArray1, rowNum, pInputIntersects);
+  setScalarParam(pInputIntersects + 1, TSDB_DATA_TYPE_GEOMETRY, strInput, 1);
   callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, 0);
 }
 
