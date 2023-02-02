@@ -456,7 +456,8 @@ void* destroyStreamFillLinearInfo(SStreamFillLinearInfo* pFillLinear) {
   return NULL;
 }
 void* destroyStreamFillInfo(SStreamFillInfo* pFillInfo) {
-  if (pFillInfo->type == TSDB_FILL_SET_VALUE || pFillInfo->type == TSDB_FILL_NULL) {
+  if (pFillInfo->type == TSDB_FILL_SET_VALUE || pFillInfo->type == TSDB_FILL_SET_VALUE_F
+      pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {
     taosMemoryFreeClear(pFillInfo->pResRow->pRowVal);
     taosMemoryFreeClear(pFillInfo->pResRow);
   }
@@ -661,7 +662,9 @@ void setDeleteFillValueInfo(TSKEY start, TSKEY end, SStreamFillSupporter* pFillS
   pFillInfo->pos = FILL_POS_INVALID;
   switch (pFillInfo->type) {
     case TSDB_FILL_NULL:
+    case TSDB_FILL_NULL_F:
     case TSDB_FILL_SET_VALUE:
+    case TSDB_FILL_SET_VALUE_F:
       break;
     case TSDB_FILL_PREV:
       pFillInfo->pResRow = &pFillSup->prev;
@@ -720,7 +723,9 @@ void setFillValueInfo(SSDataBlock* pBlock, TSKEY ts, int32_t rowId, SStreamFillS
   pFillInfo->pos = FILL_POS_INVALID;
   switch (pFillInfo->type) {
     case TSDB_FILL_NULL:
-    case TSDB_FILL_SET_VALUE: {
+    case TSDB_FILL_NULL_F:
+    case TSDB_FILL_SET_VALUE:
+    case TSDB_FILL_SET_VALUE_F: {
       if (pFillSup->prev.key == pFillInfo->preRowKey) {
         resetFillWindow(&pFillSup->prev);
       }
@@ -1360,7 +1365,8 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
   pFillInfo->pLinearInfo->winIndex = 0;
 
   pFillInfo->pResRow = NULL;
-  if (pFillSup->type == TSDB_FILL_SET_VALUE || pFillSup->type == TSDB_FILL_NULL) {
+  if (pFillSup->type == TSDB_FILL_SET_VALUE || pFillSup->type == TSDB_FILL_SET_VALUE_F 
+   || pFillSup->type == TSDB_FILL_NULL || pFillSup->type == TSDB_FILL_NULL_F) {
     pFillInfo->pResRow = taosMemoryCalloc(1, sizeof(SResultRowData));
     pFillInfo->pResRow->key = INT64_MIN;
     pFillInfo->pResRow->pRowVal = taosMemoryCalloc(1, pFillSup->rowSize);
@@ -1405,7 +1411,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
     goto _error;
   }
 
-  if (pInfo->pFillInfo->type == TSDB_FILL_SET_VALUE) {
+  if (pInfo->pFillInfo->type == TSDB_FILL_SET_VALUE || pInfo->pFillInfo->type == TSDB_FILL_SET_VALUE_F) {
     for (int32_t i = 0; i < pInfo->pFillSup->numOfAllCols; ++i) {
       SFillColInfo*    pFillCol = pInfo->pFillSup->pAllColInfo + i;
       int32_t          slotId = GET_DEST_SLOT_ID(pFillCol);
