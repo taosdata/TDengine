@@ -312,10 +312,8 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 
   walApplyVer(pVnode->pWal, version);
 
-  vInfo("vgId:%d, push msg begin", pVnode->config.vgId);
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
     vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
-    vInfo("vgId:%d, push msg end", pVnode->config.vgId);
     return -1;
   }
   vInfo("vgId:%d, push msg end", pVnode->config.vgId);
@@ -885,8 +883,6 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   SVStatis       statis = {0};
   bool           tbCreated = false;
   terrno = TSDB_CODE_SUCCESS;
-
-  vDebug("vgId:%d %s start, version:%" PRId64 ", len:%d", TD_VID(pVnode), __func__, version);
 
   pRsp->code = 0;
   pSubmitReq->version = version;
