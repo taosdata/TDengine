@@ -1161,7 +1161,6 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     }
     uv_timer_start(conn->timer, cliConnTimeout, TRANS_CONN_TIMEOUT, 0);
   }
-  STraceId* trace = &pMsg->msg.info.traceId;
   tGTrace("%s conn %p ready", pTransInst->label, conn);
 }
 static void cliAsyncCb(uv_async_t* handle) {
