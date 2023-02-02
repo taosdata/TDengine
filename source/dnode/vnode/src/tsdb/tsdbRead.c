@@ -81,6 +81,7 @@ typedef struct SIOCostSummary {
   double  createScanInfoList;
   double  getTbFromMemTime;
   double  getTbFromIMemTime;
+  double  initDelSkylineIterTime;
 } SIOCostSummary;
 
 typedef struct SBlockLoadSuppInfo {
@@ -2227,7 +2228,9 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
     tsdbDebug("%p uid:%" PRId64 ", no data in imem, %s", pReader, pBlockScanInfo->uid, pReader->idStr);
   }
 
+  st = taosGetTimestampUs();
   initDelSkylineIterator(pBlockScanInfo, pReader, d, di);
+  pReader->cost.initDelSkylineIterTime += (taosGetTimestampUs() - st) / 1000.0;
 
   pBlockScanInfo->iterInit = true;
   return TSDB_CODE_SUCCESS;
@@ -4013,12 +4016,12 @@ void tsdbReaderClose(STsdbReader* pReader) {
             "build in-memory-block-time:%.2f ms, lastBlocks:%" PRId64
             ", lastBlocks-time:%.2f ms, composed-blocks:%" PRId64
             ", composed-blocks-time:%.2fms, STableBlockScanInfo size:%.2f Kb, creatTime:%.2f ms,"
-            ", getTbFromMem-time:%.2f ms, getTbFromIMem-time:%.2f ms, %s",
+            ", getTbFromMem-time:%.2f ms, getTbFromIMem-time:%.2f ms, initDelSkylineIterTime:%.2f ms, %s",
             pReader, pCost->headFileLoad, pCost->headFileLoadTime, pCost->smaDataLoad, pCost->smaLoadTime,
             pCost->numOfBlocks, pCost->blockLoadTime, pCost->buildmemBlock, pCost->lastBlockLoad,
             pCost->lastBlockLoadTime, pCost->composedBlocks, pCost->buildComposedBlockTime,
             numOfTables * sizeof(STableBlockScanInfo) / 1000.0, pCost->createScanInfoList, 
-            pCost->getTbFromMemTime, pCost->getTbFromIMemTime, pReader->idStr);
+            pCost->getTbFromMemTime, pCost->getTbFromIMemTime, pCost->initDelSkylineIterTime, pReader->idStr);
 
   taosMemoryFree(pReader->idStr);
   taosMemoryFree(pReader->pSchema);
