@@ -707,7 +707,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       } else {
         /*A(pHandle->fetchMeta);*/
         /*A(IS_META_MSG(pHead->msgType));*/
-        tqDebug("fetch meta msg, ver:%" PRId64 ", type:%d", pHead->version, pHead->msgType);
+        tqDebug("fetch meta msg, ver:%" PRId64 ", type:%s", pHead->version, TMSG_INFO(pHead->msgType));
         tqOffsetResetToLog(&metaRsp.rspOffset, fetchVer);
         metaRsp.resMsgType = pHead->msgType;
         metaRsp.metaRspLen = pHead->bodyLen;

@@ -1307,7 +1307,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   taosHashPut(pVgHash, (const char*)&vgData.vgId, sizeof(vgData.vgId), (char*)&vgData, sizeof(vgData));
 
-  code = rawBlockBindData(pQuery, pTableMeta, pData, NULL, fields, numFields);
+  code = rawBlockBindData(pQuery, pTableMeta, pData, NULL, fields, numFields, false);
   if (code != TSDB_CODE_SUCCESS) {
     uError("WriteRaw:rawBlockBindData failed");
     goto end;
@@ -1387,7 +1387,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   taosHashPut(pVgHash, (const char*)&vgData.vgId, sizeof(vgData.vgId), (char*)&vgData, sizeof(vgData));
 
-  code = rawBlockBindData(pQuery, pTableMeta, pData, NULL, NULL, 0);
+  code = rawBlockBindData(pQuery, pTableMeta, pData, NULL, NULL, 0, false);
   if (code != TSDB_CODE_SUCCESS) {
     uError("WriteRaw:rawBlockBindData failed");
     goto end;
@@ -1515,7 +1515,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
       fields[i].bytes = pSW->pSchema[i].bytes;
       tstrncpy(fields[i].name, pSW->pSchema[i].name, tListLen(pSW->pSchema[i].name));
     }
-    code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, NULL, fields, pSW->nCols);
+    code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, NULL, fields, pSW->nCols, true);
     taosMemoryFree(fields);
     if (code != TSDB_CODE_SUCCESS) {
       uError("WriteRaw:rawBlockBindData failed");
@@ -1686,7 +1686,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       fields[i].bytes = pSW->pSchema[i].bytes;
       tstrncpy(fields[i].name, pSW->pSchema[i].name, tListLen(pSW->pSchema[i].name));
     }
-    code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, pCreateReqDst, fields, pSW->nCols);
+    code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, pCreateReqDst, fields, pSW->nCols, true);
     taosMemoryFree(fields);
     if (code != TSDB_CODE_SUCCESS) {
       uError("WriteRaw:rawBlockBindData failed");

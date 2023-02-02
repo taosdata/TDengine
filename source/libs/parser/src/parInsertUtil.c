@@ -608,7 +608,7 @@ static int bindFileds(SBoundColInfo* pBoundInfo, SSchema* pSchema, TAOS_FIELD* f
 }
 
 int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, TAOS_FIELD* tFields,
-                     int numFields) {
+                     int numFields, bool needChangeLength) {
   STableDataCxt* pTableCxt = NULL;
   int            ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
                                           sizeof(pTableMeta->uid), pTableMeta, &pCreateTb, &pTableCxt, true);
@@ -682,8 +682,11 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
 
     tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
     fields += sizeof(int8_t) + sizeof(int32_t);
-    pStart += colLength[c];
-//    pStart += htonl(colLength[c]);
+    if(needChangeLength) {
+      pStart += htonl(colLength[c]);
+    }else{
+      pStart += colLength[c];
+    }
   }
 
 end:

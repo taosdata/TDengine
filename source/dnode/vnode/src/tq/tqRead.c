@@ -454,12 +454,13 @@ bool tqNextDataBlockFilterOut2(STqReader* pReader, SHashObj* filterOutUids) {
   int32_t blockSz = taosArrayGetSize(pReader->submit.aSubmitTbData);
   while (pReader->nextBlk < blockSz) {
     SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
-    if (pReader->tbIdHash == NULL) return true;
+    if (filterOutUids == NULL) return true;
 
-    void* ret = taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t));
+    void* ret = taosHashGet(filterOutUids, &pSubmitTbData->uid, sizeof(int64_t));
     if (ret == NULL) {
       return true;
     }
+    pReader->nextBlk++;
   }
 
   tDestroySSubmitReq2(&pReader->submit, TSDB_MSG_FLG_DECODE);
