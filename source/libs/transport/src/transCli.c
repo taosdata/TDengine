@@ -672,7 +672,6 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
   conn->stream = (uv_stream_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
   uv_tcp_init(pThrd->loop, (uv_tcp_t*)(conn->stream));
   conn->stream->data = conn;
-  transSetConnOption((uv_tcp_t*)conn->stream);
 
   uv_timer_t* timer = taosArrayGetSize(pThrd->timerList) > 0 ? *(uv_timer_t**)taosArrayPop(pThrd->timerList) : NULL;
   if (timer == NULL) {
@@ -887,6 +886,7 @@ _RETURN:
 void cliConnCb(uv_connect_t* req, int status) {
   SCliConn* pConn = req->data;
   SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pTransInst = pThrd->pTransInst;
 
   if (pConn->timer != NULL) {
     uv_timer_stop(pConn->timer);
@@ -897,7 +897,6 @@ void cliConnCb(uv_connect_t* req, int status) {
 
   if (status != 0) {
     SCliMsg* pMsg = transQueueGet(&pConn->cliMsgs, 0);
-    STrans*  pTransInst = pThrd->pTransInst;
 
     tError("%s msg %s failed to send, conn %p failed to connect to %s:%d, reason: %s", CONN_GET_INST_LABEL(pConn),
            pMsg ? TMSG_INFO(pMsg->msg.msgType) : 0, pConn, pConn->ip, pConn->port, uv_strerror(status));
@@ -1063,11 +1062,12 @@ static FORCE_INLINE void cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
 void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   STrans*        pTransInst = pThrd->pTransInst;
   STransConnCtx* pCtx = pMsg->ctx;
+  STraceId*      trace = &(pMsg->msg.info.traceId);
 
   cliMayCvtFqdnToIp(&pCtx->epSet, &pThrd->cvtAddr);
 
   if (!EPSET_IS_VALID(&pCtx->epSet)) {
-    tError("invalid epset");
+    tGError("%s, msg %s sent with invalid epset", pTransInst->label, TMSG_INFO(pMsg->msg.msgType));
     destroyCmsg(pMsg);
     return;
   }
@@ -1082,9 +1082,8 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     if (item != NULL) {
       int32_t elapse = (int32_t)(taosGetTimestampMs() - item->timestamp);
       if (item->count >= pTransInst->failFastThreshold && (elapse >= 0 && elapse <= pTransInst->failFastInterval)) {
-        STraceId* trace = &(pMsg->msg.info.traceId);
-        tGTrace("%s, msg %s cancel to send, reason: failed to connect %s:%d: count: %d, at %d", pTransInst->label,
-                TMSG_INFO(pMsg->msg.msgType), ip, port, item->count, elapse);
+        tGWarn("%s, msg %s cancel to send, reason: failed to connect %s:%d: count: %d, at %d", pTransInst->label,
+               TMSG_INFO(pMsg->msg.msgType), ip, port, item->count, elapse);
         destroyCmsg(pMsg);
         return;
       }
@@ -1125,10 +1124,29 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     addr.sin_addr.s_addr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ip);
     addr.sin_port = (uint16_t)htons((uint16_t)conn->port);
 
-    STraceId* trace = &(pMsg->msg.info.traceId);
     tGTrace("%s conn %p try to connect to %s:%d", pTransInst->label, conn, conn->ip, conn->port);
 
-    int ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
+    // int ret = transSetConnOption((uv_tcp_t*)conn->stream);
+    int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 4);
+    if (fd == -1) {
+      tGError("%s conn %p failed to create socket", transLabel(pTransInst), conn);
+      cliHandleExcept(conn);
+      return;
+    }
+    int ret = uv_tcp_open((uv_tcp_t*)conn->stream, fd);
+    if (ret != 0) {
+      tGError("%s conn %p failed to open socket, err:%s", transLabel(pTransInst), conn, uv_err_name(ret));
+      cliHandleExcept(conn);
+      return;
+    }
+    ret = transSetConnOption((uv_tcp_t*)conn->stream);
+    if (ret != 0) {
+      tGError("%s conn %p failed to set socket opt, err:%s", transLabel(pTransInst), conn, uv_err_name(ret));
+      cliHandleExcept(conn);
+      return;
+    }
+
+    ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
     if (ret != 0) {
       tGError("%s conn %p failed to connect to %s:%d, reason:%s", pTransInst->label, conn, conn->ip, conn->port,
               uv_err_name(ret));

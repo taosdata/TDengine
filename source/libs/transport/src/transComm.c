@@ -204,8 +204,8 @@ bool transReadComplete(SConnBuffer* connBuf) {
 }
 
 int transSetConnOption(uv_tcp_t* stream) {
+  uv_tcp_keepalive(stream, 1, 20);
   return uv_tcp_nodelay(stream, 1);
-  // int ret = uv_tcp_keepalive(stream, 5, 60);
 }
 
 SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
