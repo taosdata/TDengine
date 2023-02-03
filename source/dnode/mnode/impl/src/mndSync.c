@@ -85,7 +85,11 @@ int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta
         pRaw, pMgmt->transSec, pMgmt->transSeq);
 
   if (pMeta->code == 0) {
-    sdbWriteWithoutFree(pMnode->pSdb, pRaw);
+    int32_t code = sdbWriteWithoutFree(pMnode->pSdb, pRaw);
+    if (code != 0) {
+      mError("trans:%d, failed to write to sdb since %s", transId, terrstr());
+      return 0;
+    }
     sdbSetApplyInfo(pMnode->pSdb, pMeta->index, pMeta->term, pMeta->lastConfigIndex);
   }
 
