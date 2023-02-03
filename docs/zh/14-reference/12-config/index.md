@@ -172,7 +172,7 @@ taos --dump-config
 | 含义     | sma index 的优化策略 |
 | 单位     | 无                   |
 | 缺省值   | 0                    |
-| 补充说明 |0: 表示不使用 sma index，永远从原始数据进行查询<br>1: 表示使用 sma index，对符合的语句，直接从预计算的结果进行查询 |
+| 补充说明 |0: 表示不使用 sma index，永远从原始数据进行查询; 1: 表示使用 sma index，对符合的语句，直接从预计算的结果进行查询 |
 
 ### maxNumOfDistinctRes
 
