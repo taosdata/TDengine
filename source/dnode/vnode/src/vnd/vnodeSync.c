@@ -219,7 +219,7 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
             isWeak, isBlock, msg, numOfMsgs, arrayPos, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGError("vgId:%d, msg:%p failed to process since restore not finished", vgId, pMsg);
+      vGError("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg, TMSG_INFO(pMsg->msgType));
       terrno = TSDB_CODE_SYN_RESTORING;
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
       rpcFreeCont(pMsg->pCont);
@@ -228,7 +228,7 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
     }
 
     if (pMsgArr == NULL || pIsWeakArr == NULL) {
-      vGError("vgId:%d, msg:%p failed to process since out of memory", vgId, pMsg);
+      vGError("vgId:%d, msg:%p failed to process since out of memory, type:%s", vgId, pMsg, TMSG_INFO(pMsg->msgType));
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       vnodeHandleProposeError(pVnode, pMsg, terrno);
       rpcFreeCont(pMsg->pCont);
@@ -281,7 +281,7 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
             vnodeIsMsgBlock(pMsg->msgType), msg, numOfMsgs, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGError("vgId:%d, msg:%p failed to process since restore not finished", vgId, pMsg);
+      vGError("vgId:%d, msg:%p failed to process since restore not finished, type:%s", vgId, pMsg, TMSG_INFO(pMsg->msgType));
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_SYN_RESTORING);
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
@@ -635,7 +635,7 @@ int32_t vnodeSyncStart(SVnode *pVnode) {
 }
 
 void vnodeSyncPreClose(SVnode *pVnode) {
-  vInfo("vgId:%d, pre close sync", pVnode->config.vgId);
+  vInfo("vgId:%d, sync pre close", pVnode->config.vgId);
   syncLeaderTransfer(pVnode->sync);
   syncPreStop(pVnode->sync);
 
@@ -649,7 +649,7 @@ void vnodeSyncPreClose(SVnode *pVnode) {
 }
 
 void vnodeSyncPostClose(SVnode *pVnode) {
-  vInfo("vgId:%d, post close sync", pVnode->config.vgId);
+  vInfo("vgId:%d, sync post close", pVnode->config.vgId);
   syncPostStop(pVnode->sync);
 }
 
