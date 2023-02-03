@@ -132,6 +132,7 @@ typedef struct SqlFunctionCtx {
   SInputColumnInfoData input;
   SResultDataInfo      resDataInfo;
   uint32_t             order;       // data block scanner order: asc|desc
+  uint8_t              isPseudoFunc;// denote current function is pseudo function or not [added for perf reason]
   uint8_t              scanFlag;    // record current running step, default: 0
   int16_t              functionId;  // function id
   char                *pOutput;     // final result output buffer, point to sdata->data

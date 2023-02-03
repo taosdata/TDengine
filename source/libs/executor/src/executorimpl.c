@@ -365,7 +365,7 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
       pCtx[k].input.colDataSMAIsSet = false;
     }
 
-    if (fmIsWindowPseudoColumnFunc(pCtx[k].functionId)) {
+    if (pCtx[k].isPseudoFunc) {
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
 
       char* p = GET_ROWCELL_INTERBUF(pEntryInfo);
@@ -819,7 +819,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
       continue;
     }
 
-    if (fmIsWindowPseudoColumnFunc(pCtx[i].functionId)) {
+    if (pCtx[i].isPseudoFunc) {
       continue;
     }
 
