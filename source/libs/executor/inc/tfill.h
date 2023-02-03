@@ -62,7 +62,6 @@ typedef struct SFillInfo {
   int32_t      srcTsSlotId;   // timestamp column id in the source data block.
   int32_t      order;         // order [TSDB_ORDER_ASC|TSDB_ORDER_DESC]
   int32_t      type;          // fill type
-  bool         forceFill;     // force fill values
   int32_t      numOfRows;     // number of rows in the input data block
   int32_t      index;         // active row index
   int32_t      numOfTotal;    // number of filled rows in one round

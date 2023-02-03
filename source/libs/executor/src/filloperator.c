@@ -140,7 +140,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   while (1) {
     SSDataBlock* pBlock = pDownstream->fpSet.getNextFn(pDownstream);
     if (pBlock == NULL) {
-      if (pInfo->totalInputRows == 0 && !pInfo->pFillInfo->forceFill) {
+      if (pInfo->totalInputRows == 0 && (pInfo->pFillInfo->type != TSDB_FILL_NULL_F && pInfo->pFillInfo->type != TSDB_FILL_SET_VALUE_F)) {
         setOperatorCompleted(pOperator);
         return NULL;
       }
@@ -456,7 +456,7 @@ void* destroyStreamFillLinearInfo(SStreamFillLinearInfo* pFillLinear) {
   return NULL;
 }
 void* destroyStreamFillInfo(SStreamFillInfo* pFillInfo) {
-  if (pFillInfo->type == TSDB_FILL_SET_VALUE || pFillInfo->type == TSDB_FILL_SET_VALUE_F
+  if (pFillInfo->type == TSDB_FILL_SET_VALUE || pFillInfo->type == TSDB_FILL_SET_VALUE_F ||
       pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {
     taosMemoryFreeClear(pFillInfo->pResRow->pRowVal);
     taosMemoryFreeClear(pFillInfo->pResRow);
@@ -1433,7 +1433,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
         pCell->isNull = true;
       }
     }
-  } else if (pInfo->pFillInfo->type == TSDB_FILL_NULL) {
+  } else if (pInfo->pFillInfo->type == TSDB_FILL_NULL || pInfo->pFillInfo->type == TSDB_FILL_NULL_F) {
     for (int32_t i = 0; i < pInfo->pFillSup->numOfAllCols; ++i) {
       SFillColInfo*    pFillCol = pInfo->pFillSup->pAllColInfo + i;
       int32_t          slotId = GET_DEST_SLOT_ID(pFillCol);
