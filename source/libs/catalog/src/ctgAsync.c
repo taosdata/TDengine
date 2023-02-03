@@ -906,9 +906,14 @@ int32_t ctgCallUserCb(void* param) {
 }
 
 void ctgUpdateJobErrCode(SCtgJob* pJob, int32_t errCode) {
-  if (!NEED_CLIENT_REFRESH_VG_ERROR(errCode) || errCode == TSDB_CODE_SUCCESS) return;
+  if (errCode == TSDB_CODE_SUCCESS) return;
 
-  atomic_store_32(&pJob->jobResCode, errCode);
+  if (NEED_CLIENT_HANDLE_ERROR(errCode)) {
+    atomic_store_32(&pJob->jobResCode, errCode);
+  } else if (0 != atomic_val_compare_exchange_32(&pJob->jobResCode, 0, errCode)) {
+    return;
+  }
+  
   qDebug("QID:0x%" PRIx64 " ctg job errCode updated to %s", pJob->queryId, tstrerror(errCode));
   return;
 }
