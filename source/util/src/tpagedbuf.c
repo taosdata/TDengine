@@ -372,12 +372,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
     goto _error;
   }
 
-  pPBuf->assistBuf = taosMemoryMalloc(pPBuf->pageSize + 2);  // EXTRA BYTES
-  if (pPBuf->assistBuf == NULL) {
-    goto _error;
-  }
-
-  pPBuf->all = tSimpleHashInit(20, fn);
+  pPBuf->all = tSimpleHashInit(64, fn);
   if (pPBuf->all == NULL) {
     goto _error;
   }
