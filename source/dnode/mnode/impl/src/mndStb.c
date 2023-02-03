@@ -971,9 +971,8 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
         code = 0;
         goto _OVER;
       } else if (pStb->uid != createReq.suid) {
-        mError("stb:%s, already exist while create, input suid:%" PRId64 " not match with exist suid:%" PRId64,
-               createReq.name, createReq.suid, pStb->uid);
-        terrno = TSDB_CODE_MND_STABLE_UID_NOT_MATCH;
+        mInfo("stb:%s, alter table does not need to be done, because table is deleted", createReq.name);
+        code = 0;
         goto _OVER;
       } else if (createReq.tagVer > 0 || createReq.colVer > 0) {
         int32_t tagDelta = createReq.tagVer - pStb->tagVer;

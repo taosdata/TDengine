@@ -1126,7 +1126,7 @@ static int32_t taosDeleteData(TAOS* taos, void* meta, int32_t metaLen) {
   TAOS_RES*    res = taos_query(taos, sql);
   SRequestObj* pRequest = (SRequestObj*)res;
   code = pRequest->code;
-  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_PAR_GET_META_ERROR) {
     code = TSDB_CODE_SUCCESS;
   }
   taos_free_result(res);

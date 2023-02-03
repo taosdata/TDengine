@@ -43,7 +43,7 @@ class TDTestCase:
         tdSql.execute('use db_taosx')
         tdSql.query("show tables")
         if drop:
-            tdSql.checkRows(10)
+            tdSql.checkRows(11)
         else:
             tdSql.checkRows(16)
         tdSql.query("select * from jt order by i")
@@ -74,7 +74,7 @@ class TDTestCase:
         tdSql.execute('use abc1')
         tdSql.query("show tables")
         if drop:
-            tdSql.checkRows(10)
+            tdSql.checkRows(11)
         else:
             tdSql.checkRows(16)
         tdSql.query("select * from jt order by i")
