@@ -55,7 +55,7 @@ typedef struct TdSocket {
 #endif
   int      refId;
   SocketFd fd;
-} * TdSocketPtr, TdSocket;
+} *TdSocketPtr, TdSocket;
 
 typedef struct TdSocketServer {
 #if SOCKET_WITH_LOCK
@@ -63,7 +63,7 @@ typedef struct TdSocketServer {
 #endif
   int      refId;
   SocketFd fd;
-} * TdSocketServerPtr, TdSocketServer;
+} *TdSocketServerPtr, TdSocketServer;
 
 typedef struct TdEpoll {
 #if SOCKET_WITH_LOCK
@@ -71,7 +71,7 @@ typedef struct TdEpoll {
 #endif
   int     refId;
   EpollFd fd;
-} * TdEpollPtr, TdEpoll;
+} *TdEpollPtr, TdEpoll;
 
 #if 0
 int32_t taosSendto(TdSocketPtr pSocket, void *buf, int len, unsigned int flags, const struct sockaddr *dest_addr,
@@ -1005,7 +1005,7 @@ int32_t taosGetFqdn(char *fqdn) {
   // immediately
   // hints.ai_family = AF_INET;
   strcpy(fqdn, hostname);
-  strcpy(fqdn+strlen(hostname), ".local");
+  strcpy(fqdn + strlen(hostname), ".local");
 #else   // __APPLE__
   struct addrinfo  hints = {0};
   struct addrinfo *result = NULL;
