@@ -31,13 +31,8 @@ sql insert into $tb values ( $ts , $x )
 $x = $x + 1
 endw
 
-print ================== restart server to commit data into disk
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
-system sh/exec.sh -n dnode1 -s start
-print ================== server restart completed
-sql connect
+sql flush database $db
 
-sql use $db
 sql delete from $tb where ts=1537146000000
 sql delete from $tb where ts=1537146409500
 
@@ -63,7 +58,6 @@ if $rows != 8198 then
   return -1
 endi
 
-print ===========================>  TD-22077  && TD-21877
 sql drop database if exists $db -x step1
 sql create database $db vgroups 1;
 
@@ -88,6 +82,8 @@ endw
 
 sql flush database $db
 
+print ===========================>  TD-22077  && TD-21877
+
 sql insert into t1 values('2018-09-17 09:00:26', 26);
 sql insert into t2 values('2018-09-17 09:00:25', 25);
 
@@ -96,5 +92,34 @@ sql flush  database reg_db0;
 
 sql delete from st1 where ts<='2018-9-17 09:00:26';
 sql select * from st1;
+
+sql drop table t1
+sql drop table t2
+
+print =========================================>TD-22196
+sql create table t1 using st1 tags(1);
+
+$i = 0
+$ts = 1674977959000
+$rowNum = 200
+
+$x = 0
+while $x < $rowNum
+$xs = $x * $delta
+$ts = $ts0 + $xs
+sql insert into t1 values ( $ts , $x )
+$x = $x + 1
+$ts = $ts + 1000
+endw
+
+sql flush database $db
+sql select min(c),max(c) from t1
+if $data00 != 0 then
+   return -1
+endi
+
+if $data01 != 199 then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
