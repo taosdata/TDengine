@@ -794,7 +794,8 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     switch (pCol->info.type) {
       case TSDB_DATA_TYPE_UBIGINT:
       case TSDB_DATA_TYPE_BIGINT:
-        colDataAppendInt64(pCol, currentRow, &pRes->v);
+        ((int64_t*)pCol->pData)[currentRow] = pRes->v;
+//        colDataAppendInt64(pCol, currentRow, &pRes->v);
         break;
       case TSDB_DATA_TYPE_UINT:
       case TSDB_DATA_TYPE_INT:
@@ -822,10 +823,12 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     colDataAppendNULL(pCol, currentRow);
   }
 
-  if (pEntryInfo->numOfRes > 0) {
-    code = setSelectivityValue(pCtx, pBlock, &pRes->tuplePos, currentRow);
-  } else {
-    code = setSelectivityValue(pCtx, pBlock, &pRes->nullTuplePos, currentRow);
+  if (pCtx->subsidiaries.num > 0) {
+    if (pEntryInfo->numOfRes > 0) {
+      code = setSelectivityValue(pCtx, pBlock, &pRes->tuplePos, currentRow);
+    } else {
+      code = setSelectivityValue(pCtx, pBlock, &pRes->nullTuplePos, currentRow);
+    }
   }
 
   return code;

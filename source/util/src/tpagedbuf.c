@@ -2,7 +2,7 @@
 #include "tpagedbuf.h"
 #include "taoserror.h"
 #include "tcompression.h"
-#include "thash.h"
+#include "tsimplehash.h"
 #include "tlog.h"
 
 #define GET_PAYLOAD_DATA(_p)          ((char*)(_p)->pData + POINTER_BYTES)
@@ -38,7 +38,7 @@ struct SDiskbasedBuf {
   int32_t   inMemPages;  // numOfPages that are allocated in memory
   SList*    freePgList;  // free page list
   SArray*   pIdList;     // page id list
-  SHashObj* all;
+  SSHashObj*all;
   SList*    lruList;
   void*     emptyDummyIdList;  // dummy id list
   void*     assistBuf;         // assistant buffer for compress/decompress data
@@ -377,7 +377,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
     goto _error;
   }
 
-  pPBuf->all = taosHashInit(10, fn, true, false);
+  pPBuf->all = tSimpleHashInit(20, fn);
   if (pPBuf->all == NULL) {
     goto _error;
   }
@@ -438,7 +438,7 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
     }
 
     // add to hash map
-    taosHashPut(pBuf->all, pageId, sizeof(int32_t), &pi, POINTER_BYTES);
+    tSimpleHashPut(pBuf->all, pageId, sizeof(int32_t), &pi, POINTER_BYTES);
     pBuf->totalBufSize += pBuf->pageSize;
   }
 
@@ -463,7 +463,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
 
   pBuf->statis.getPages += 1;
 
-  SPageInfo** pi = taosHashGet(pBuf->all, &id, sizeof(int32_t));
+  SPageInfo** pi = tSimpleHashGet(pBuf->all, &id, sizeof(int32_t));
   if (pi == NULL || *pi == NULL) {
     uError("failed to locate the buffer page:%d, %s", id, pBuf->id);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -615,7 +615,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   taosArrayDestroy(pBuf->emptyDummyIdList);
   taosArrayDestroy(pBuf->pFree);
 
-  taosHashCleanup(pBuf->all);
+  tSimpleHashCleanup(pBuf->all);
 
   taosMemoryFreeClear(pBuf->id);
   taosMemoryFreeClear(pBuf->assistBuf);
@@ -711,7 +711,7 @@ void clearDiskbasedBuf(SDiskbasedBuf* pBuf) {
   taosArrayClear(pBuf->emptyDummyIdList);
   taosArrayClear(pBuf->pFree);
 
-  taosHashClear(pBuf->all);
+  tSimpleHashClear(pBuf->all);
 
   pBuf->numOfPages = 0;  // all pages are in buffer in the first place
   pBuf->totalBufSize = 0;

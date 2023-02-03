@@ -1065,7 +1065,7 @@ static void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t nu
       pRow->numOfRows = pResInfo->numOfRes;
     }
 
-    if (fmIsNotNullOutputFunc(pCtx[j].functionId)) {
+    if (pCtx[j].isNotNullFunc) {
       returnNotNull = true;
     }
   }
