@@ -1460,6 +1460,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     tscError("failed to sched msg to tsc, tsc ready to quit");
     rpcFreeCont(pMsg->pCont);
     taosMemoryFree(arg->pEpset);
+    destroySendMsgInfo(pMsg->info.ahandle);
     taosMemoryFree(arg);
   }
 }
