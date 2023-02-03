@@ -20,7 +20,7 @@
 
 #include "clientSml.h"
 
-int32_t is_same_child_table_telnet(const void *a, const void *b){
+int32_t is_same_child_table_telnet(const void *a, const void *b, size_t len){
   SSmlLineInfo *t1 = (SSmlLineInfo *)a;
   SSmlLineInfo *t2 = (SSmlLineInfo *)b;
 //  uError("is_same_child_table_telnet len:%d,%d %s,%s @@@ len:%d,%d %s,%s", t1->measureLen, t2->measureLen,
@@ -70,7 +70,7 @@ static void smlParseTelnetElement(char **sql, char *sqlEnd, char **data, int32_t
 }
 
 static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SSmlLineInfo *elements, SSmlMsgBuf *msg) {
-  if(is_same_child_table_telnet(elements, &info->preLine) == 0){
+  if(is_same_child_table_telnet(elements, &info->preLine, 0) == 0){
     return TSDB_CODE_SUCCESS;
   }
 
@@ -83,9 +83,9 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
   SArray *superKV = NULL;
   if(info->dataFormat){
     if(!isSameMeasure){
-      SSmlSTableMeta *sMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, elements->measure, elements->measureLen, NULL);
-
-      if(unlikely(sMeta == NULL)){
+      SSmlSTableMeta **tmp = (SSmlSTableMeta **)taosHashGet(info->superTables, elements->measure, elements->measureLen);
+      SSmlSTableMeta *sMeta = NULL;
+      if(unlikely(tmp == NULL)){
         STableMeta * pTableMeta = smlGetMeta(info, elements->measure, elements->measureLen);
         if(pTableMeta == NULL){
           info->dataFormat = false;
@@ -94,10 +94,11 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
         }
         sMeta = smlBuildSTableMeta(info->dataFormat);
         sMeta->tableMeta = pTableMeta;
-        nodeListSet(&info->superTables, elements->measure, elements->measureLen, sMeta, NULL);
+        taosHashPut(info->superTables, elements->measure, elements->measureLen, &sMeta, POINTER_BYTES);
+        tmp = &sMeta;
       }
-      info->currSTableMeta = sMeta->tableMeta;
-      superKV = sMeta->tags;
+      info->currSTableMeta = (*tmp)->tableMeta;
+      superKV = (*tmp)->tags;
 
       if(unlikely(taosArrayGetSize(superKV) == 0)){
         isSuperKVInit = false;
@@ -183,13 +184,13 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
         SSmlKv *maxKV = (SSmlKv *)taosArrayGet(maxKVs, cnt);
         if(unlikely(kv.length > maxKV->length)){
           maxKV->length = kv.length;
-          SSmlSTableMeta *tableMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, elements->measure, elements->measureLen, NULL);
+          SSmlSTableMeta **tableMeta = (SSmlSTableMeta **)taosHashGet(info->superTables, elements->measure, elements->measureLen);
           if(unlikely(NULL == tableMeta)){
             uError("SML:0x%" PRIx64 " NULL == tableMeta", info->id);
             return TSDB_CODE_SML_INTERNAL_ERROR;
           }
 
-          SSmlKv *oldKV = (SSmlKv *)taosArrayGet(tableMeta->tags, cnt);
+          SSmlKv *oldKV = (SSmlKv *)taosArrayGet((*tableMeta)->tags, cnt);
           oldKV->length = kv.length;
           info->needModifySchema = true;
         }
@@ -229,8 +230,14 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
     taosArrayPush(preLineKV, &kv);
     cnt++;
   }
-  SSmlTableInfo *tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements, POINTER_BYTES, is_same_child_table_telnet);
-  if (unlikely(tinfo == NULL)) {
+
+  elements->measureTag = (char*)taosMemoryMalloc(elements->measureLen + elements->tagsLen);
+  memcpy(elements->measureTag, elements->measure, elements->measureLen);
+  memcpy(elements->measureTag + elements->measureLen, elements->tags, elements->tagsLen);
+
+  SSmlTableInfo **tmp = (SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen);
+  SSmlTableInfo *tinfo = NULL;
+  if (unlikely(tmp == NULL)) {
     tinfo = smlBuildTableInfo(1, elements->measure, elements->measureLen);
     if (!tinfo) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -249,12 +256,13 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
       }
     }
 
-    SSmlLineInfo *key = (SSmlLineInfo *)taosMemoryMalloc(sizeof(SSmlLineInfo));
-    *key = *elements;
-    tinfo->key = key;
-    nodeListSet(&info->childTables, key, POINTER_BYTES, tinfo, is_same_child_table_telnet);
+//    SSmlLineInfo *key = (SSmlLineInfo *)taosMemoryMalloc(sizeof(SSmlLineInfo));
+//    *key = *elements;
+//    tinfo->key = key;
+    taosHashPut(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen, &tinfo, POINTER_BYTES);
+    tmp = &tinfo;
   }
-  if (info->dataFormat) info->currTableDataCtx = tinfo->tableDataCtx;
+  if (info->dataFormat) info->currTableDataCtx = (*tmp)->tableDataCtx;
 
   return TSDB_CODE_SUCCESS;
 }
