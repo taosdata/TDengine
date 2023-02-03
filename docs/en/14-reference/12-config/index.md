@@ -172,7 +172,7 @@ The parameters described in this document by the effect that they have on the sy
 | Meaning  | SMA index optimization policy |
 | Unit     | None                            |
 | Default Value | 0                                                 |
-| Notes |0: Disable SMA indexing and perform all queries on non-indexed data.<br>1: Enable SMA indexing and perform queries from suitable statements on precomputation results.|
+| Notes |0: Disable SMA indexing and perform all queries on non-indexed data; 1: Enable SMA indexing and perform queries from suitable statements on precomputation results.|
 
 ### countAlwaysReturnValue 
 
