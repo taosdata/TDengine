@@ -114,7 +114,8 @@ static void* doInternalAlloc(SSHashObj* pHashObj, int32_t size) {
   }
 }
 
-static SHNode *doCreateHashNode(SSHashObj* pHashObj, const void *key, size_t keyLen, const void *data, size_t dataLen) {
+static SHNode *doCreateHashNode(SSHashObj *pHashObj, const void *key, size_t keyLen, const void *data, size_t dataLen,
+                                uint32_t hashVal) {
   SHNode *pNewNode = doInternalAlloc(pHashObj, sizeof(SHNode) + keyLen + dataLen);
   if (!pNewNode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -124,6 +125,8 @@ static SHNode *doCreateHashNode(SSHashObj* pHashObj, const void *key, size_t key
   pNewNode->keyLen = keyLen;
   pNewNode->dataLen = dataLen;
   pNewNode->next = NULL;
+  pNewNode->hashVal = hashVal;
+
   if (data) {
     memcpy(GET_SHASH_NODE_DATA(pNewNode), data, dataLen);
   }
@@ -167,10 +170,7 @@ static void tSimpleHashTableResize(SSHashObj *pHashObj) {
     SHNode *pPrev = NULL;
 
     while (pNode != NULL) {
-      void    *key = GET_SHASH_NODE_KEY(pNode, pNode->dataLen);
-      uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)pNode->keyLen);
-
-      int32_t newIdx = HASH_INDEX(hashVal, pHashObj->capacity);
+      int32_t newIdx = HASH_INDEX(pNode->hashVal, pHashObj->capacity);
       pNext = pNode->next;
       if (newIdx != idx) {
         if (!pPrev) {
@@ -211,7 +211,7 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
 
   SHNode *pNode = pHashObj->hashList[slot];
   if (!pNode) {
-    SHNode *pNewNode = doCreateHashNode(pHashObj, key, keyLen, data, dataLen);
+    SHNode *pNewNode = doCreateHashNode(pHashObj, key, keyLen, data, dataLen, hashVal);
     if (!pNewNode) {
       return -1;
     }
@@ -229,7 +229,7 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
   }
 
   if (!pNode) {
-    SHNode *pNewNode = doCreateHashNode(pHashObj, key, keyLen, data, dataLen);
+    SHNode *pNewNode = doCreateHashNode(pHashObj, key, keyLen, data, dataLen, hashVal);
     if (!pNewNode) {
       return -1;
     }
