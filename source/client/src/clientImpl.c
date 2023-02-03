@@ -138,6 +138,12 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     p->mgmtEp = epSet;
     taosThreadMutexInit(&p->qnodeMutex, NULL);
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores / 2);
+    if (p->pTransporter == NULL) {
+      taosThreadMutexUnlock(&appInfo.mutex);
+      taosMemoryFreeClear(key);
+      taosMemoryFree(p);
+      return NULL;
+    }
     p->pAppHbMgr = appHbMgrInit(p, key);
     if (NULL == p->pAppHbMgr) {
       destroyAppInst(p);
