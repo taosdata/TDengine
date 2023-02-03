@@ -7132,3 +7132,56 @@ void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
     }
   }
 }
+
+int32_t tSerializeSMPauseStreamReq(void *buf, int32_t bufLen, const SMPauseStreamReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMPauseStreamReq(void *buf, int32_t bufLen, SMPauseStreamReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSMResumeStreamReq(void *buf, int32_t bufLen, const SMResumeStreamReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igUntreated) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMResumeStreamReq(void *buf, int32_t bufLen, SMResumeStreamReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igUntreated) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
