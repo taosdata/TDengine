@@ -2719,20 +2719,6 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void extractOrderedTableUidList(SUidOrderedList* pOrderCheckInfo, SReaderStatus* pStatus, int32_t order) {
-  int32_t index = 0;
-  int32_t total = taosHashGetSize(pStatus->pTableMap);
-
-  void* p = taosHashIterate(pStatus->pTableMap, NULL);
-  while (p != NULL) {
-    STableBlockScanInfo* pScanInfo = *(STableBlockScanInfo**)p;
-    pOrderCheckInfo->tableUidList[index++] = pScanInfo->uid;
-    p = taosHashIterate(pStatus->pTableMap, p);
-  }
-
-  taosSort(pOrderCheckInfo->tableUidList, total, sizeof(uint64_t), uidComparFunc);
-}
-
 // reset the last del file index
 static void resetScanBlockLastBlockDelIndex(SReaderStatus* pStatus, int32_t order) {
   void* p = taosHashIterate(pStatus->pTableMap, NULL);
@@ -2744,49 +2730,6 @@ static void resetScanBlockLastBlockDelIndex(SReaderStatus* pStatus, int32_t orde
     p = taosHashIterate(pStatus->pTableMap, p);
   }
 }
-
-//static int32_t initOrderCheckInfo(SUidOrderedList* pOrderCheckInfo, STsdbReader* pReader) {
-//  SReaderStatus* pStatus = &pReader->status;
-//
-//  int32_t total = taosHashGetSize(pStatus->pTableMap);
-//  if (total == 0) {
-//    return TSDB_CODE_SUCCESS;
-//  }
-//
-//  if (pOrderCheckInfo->tableUidList == NULL) {
-//    pOrderCheckInfo->currentIndex = 0;
-//    pOrderCheckInfo->tableUidList = taosMemoryMalloc(total * sizeof(uint64_t));
-//    if (pOrderCheckInfo->tableUidList == NULL) {
-//      return TSDB_CODE_OUT_OF_MEMORY;
-//    }
-//
-//    extractOrderedTableUidList(pOrderCheckInfo, pStatus, pReader->order);
-//    uint64_t uid = pOrderCheckInfo->tableUidList[0];
-//    pStatus->pTableIter = taosHashGet(pStatus->pTableMap, &uid, sizeof(uid));
-//  } else {
-//    if (pStatus->pTableIter == NULL) {  // it is the last block of a new file
-//      pOrderCheckInfo->currentIndex = 0;
-//      uint64_t uid = pOrderCheckInfo->tableUidList[pOrderCheckInfo->currentIndex];
-//      pStatus->pTableIter = taosHashGet(pStatus->pTableMap, &uid, sizeof(uid));
-//
-//      // the tableMap has already updated, let's also update the order list
-//      if (pStatus->pTableIter == NULL) {
-//        void* p = taosMemoryRealloc(pOrderCheckInfo->tableUidList, total * sizeof(uint64_t));
-//        if (p == NULL) {
-//          return TSDB_CODE_OUT_OF_MEMORY;
-//        }
-//
-//        pOrderCheckInfo->tableUidList = p;
-//        extractOrderedTableUidList(pOrderCheckInfo, pStatus, pReader->order);
-//
-//        uid = pOrderCheckInfo->tableUidList[0];
-//        pStatus->pTableIter = taosHashGet(pStatus->pTableMap, &uid, sizeof(uid));
-//      }
-//    }
-//  }
-//
-//  return TSDB_CODE_SUCCESS;
-//}
 
 static void resetTableListIndex(SReaderStatus *pStatus) {
   SUidOrderedList* pList = &pStatus->uidCheckInfo;
