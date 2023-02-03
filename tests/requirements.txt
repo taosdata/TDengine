@@ -3,3 +3,4 @@ numpy
 fabric2
 psutil
 pandas
+toml

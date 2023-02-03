@@ -234,7 +234,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
     }
 
     SSchTask *pTask = taosArrayGet(pLevel->subTasks, 0);
-    if (SUBPLAN_TYPE_MODIFY != pTask->plan->subplanType) {
+    if (SUBPLAN_TYPE_MODIFY != pTask->plan->subplanType || EXPLAIN_MODE_DISABLE != pJob->attr.explainMode) {
       pJob->attr.needFetch = true;
     }
   }
@@ -484,7 +484,7 @@ int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
   if (TSDB_CODE_SCH_IGNORE_ERROR == errCode) {
     return TSDB_CODE_SCH_IGNORE_ERROR;
   }
-  
+
   schUpdateJobErrCode(pJob, errCode);
 
   int32_t code = atomic_load_32(&pJob->errCode);

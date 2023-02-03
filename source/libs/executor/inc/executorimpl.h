@@ -570,7 +570,7 @@ typedef struct SStreamIntervalOperatorInfo {
   SWinKey            delKey;
   uint64_t           numOfDatapack;
   SArray*            pUpdated;
-  SHashObj*          pUpdatedMap;
+  SSHashObj*         pUpdatedMap;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
