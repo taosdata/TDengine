@@ -353,33 +353,33 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
     //}
   }
 
-  pDb = mndAcquireDbByIdx(pMnode, createReq.idxName);
-  if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    goto _OVER;
-  }
+  // pDb = mndAcquireDbByIdx(pMnode, createReq.idxName);
+  // if (pDb == NULL) {
+  //   terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+  //   goto _OVER;
+  / e
+}
 
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
-    goto _OVER;
-  }
+if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+  goto _OVER;
+}
 
-  code = mndAddIndex(pMnode, pReq, &createReq, pDb, pStb);
-  if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST || terrno == TSDB_CODE_MND_TAG_NOT_EXIST) {
-    return terrno;
-  } else {
-    if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-  }
+code = mndAddIndex(pMnode, pReq, &createReq, pDb, pStb);
+if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST || terrno == TSDB_CODE_MND_TAG_NOT_EXIST) {
+  return terrno;
+} else {
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+}
 
-_OVER:
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("stb:%s, failed to create since %s", createReq.idxName, terrstr());
-  }
+_OVER : if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+  mError("stb:%s, failed to create since %s", createReq.idxName, terrstr());
+}
 
-  mndReleaseStb(pMnode, pStb);
-  mndReleaseIdx(pMnode, pIdx);
-  mndReleaseDb(pMnode, pDb);
+mndReleaseStb(pMnode, pStb);
+mndReleaseIdx(pMnode, pIdx);
+mndReleaseDb(pMnode, pDb);
 
-  return code;
+return code;
 }
 
 static int32_t mndSetDropIdxRedoLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
@@ -387,7 +387,7 @@ static int32_t mndSetDropIdxRedoLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pI
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
   if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING) != 0) return -1;
-
+ 
   return 0;
 }
 
