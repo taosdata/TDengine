@@ -138,7 +138,8 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
     }
   }
 
-  p->pLoadInfo = tCreateLastBlockLoadInfo(p->pSchema, NULL, 0);
+  int32_t numOfStt = ((SVnode*)pVnode)->config.sttTrigger;
+  p->pLoadInfo = tCreateLastBlockLoadInfo(p->pSchema, NULL, 0, numOfStt);
   if (p->pLoadInfo == NULL) {
     tsdbCacherowsReaderClose(p);
     return TSDB_CODE_OUT_OF_MEMORY;

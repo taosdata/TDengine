@@ -482,8 +482,11 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet, STsdb
 
   if (pLReader->pInfo == NULL) {
     // here we ignore the first column, which is always be the primary timestamp column
+    SBlockLoadSuppInfo* pInfo = &pReader->suppInfo;
+
+    int32_t numOfStt = pReader->pTsdb->pVnode->config.sttTrigger;
     pLReader->pInfo =
-        tCreateLastBlockLoadInfo(pReader->pSchema, &pReader->suppInfo.colId[1], pReader->suppInfo.numOfCols - 1);
+        tCreateLastBlockLoadInfo(pReader->pSchema, &pInfo->colId[1], pInfo->numOfCols - 1, numOfStt);
     if (pLReader->pInfo == NULL) {
       tsdbDebug("init fileset iterator failed, code:%s %s", tstrerror(terrno), pReader->idStr);
       return terrno;
@@ -655,7 +658,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
     goto _end;
   }
 
-  setColumnIdSlotList(&pReader->suppInfo, pCond->colList, pCond->pSlotList, pCond->numOfCols);
+  setColumnIdSlotList(pSup, pCond->colList, pCond->pSlotList, pCond->numOfCols);
 
   *ppReader = pReader;
   return code;

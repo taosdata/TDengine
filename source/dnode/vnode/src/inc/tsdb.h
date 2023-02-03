@@ -645,6 +645,7 @@ typedef struct SSttBlockLoadInfo {
   int16_t   *colIds;
   int32_t    numOfCols;
   bool       sttBlockLoaded;
+  int32_t    numOfStt;
 
   // keep the last access position, this position may be used to reduce the binary times for
   // starting last block data for a new table
@@ -710,7 +711,7 @@ bool    tMergeTreeNext(SMergeTree *pMTree);
 TSDBROW tMergeTreeGetRow(SMergeTree *pMTree);
 void    tMergeTreeClose(SMergeTree *pMTree);
 
-SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols);
+SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, int32_t numOfStt);
 void               resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void               getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double *el);
 void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
