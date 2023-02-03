@@ -162,7 +162,7 @@ taos --dump-config
 | 含义     | 查询语句的执行策略            |
 | 单位     | 无                            |
 | 缺省值   | 1                             |
-| 补充说明 | 1: 只使用 vnode，不使用 qnode<br>2: 没有扫描算子的子任务在 qnode 执行，带扫描算子的子任务在 vnode 执行<br>3: vnode 只运行扫描算子，其余算子均在 qnode 执行 |
+| 补充说明 | 1: 只使用 vnode，不使用 qnode; 2: 没有扫描算子的子任务在 qnode 执行，带扫描算子的子任务在 vnode 执行; 3: vnode 只运行扫描算子，其余算子均在 qnode 执行 |
 
 ### querySmaOptimize
 
