@@ -1786,7 +1786,7 @@ FETCH_NEXT_BLOCK:
     int32_t      current = pInfo->validBlockIndex++;
     SPackedData* pPacked = taosArrayGet(pInfo->pBlockLists, current);
     SSDataBlock* pBlock = pPacked->pDataBlock;
-    if (pBlock->info.id.groupId && pBlock->info.parTbName[0]) {
+    if (pBlock->info.parTbName[0]) {
       streamStatePutParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, pBlock->info.parTbName);
     }
     // TODO move into scan

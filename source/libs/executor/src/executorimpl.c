@@ -2589,26 +2589,22 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
 
   for (int32_t i = pGroupResInfo->index; i < numOfRows; i += 1) {
-    SResKeyPos* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
+    SWinKey* pKey = taosArrayGet(pGroupResInfo->pRows, i);
     int32_t     size = 0;
     void*       pVal = NULL;
-    SWinKey     key = {
-            .ts = *(TSKEY*)pPos->key,
-            .groupId = pPos->groupId,
-    };
-    int32_t code = streamStateGet(pState, &key, &pVal, &size);
+    int32_t code = streamStateGet(pState, pKey, &pVal, &size);
     ASSERT(code == 0);
     SResultRow* pRow = (SResultRow*)pVal;
     doUpdateNumOfRows(pCtx, pRow, numOfExprs, rowEntryOffset);
     // no results, continue to check the next one
     if (pRow->numOfRows == 0) {
       pGroupResInfo->index += 1;
-      releaseOutputBuf(pState, &key, pRow);
+      releaseOutputBuf(pState, pKey, pRow);
       continue;
     }
 
     if (pBlock->info.id.groupId == 0) {
-      pBlock->info.id.groupId = pPos->groupId;
+      pBlock->info.id.groupId = pKey->groupId;
       void* tbname = NULL;
       if (streamStateGetParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, &tbname) < 0) {
         pBlock->info.parTbName[0] = 0;
@@ -2618,15 +2614,15 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
       tdbFree(tbname);
     } else {
       // current value belongs to different group, it can't be packed into one datablock
-      if (pBlock->info.id.groupId != pPos->groupId) {
-        releaseOutputBuf(pState, &key, pRow);
+      if (pBlock->info.id.groupId != pKey->groupId) {
+        releaseOutputBuf(pState, pKey, pRow);
         break;
       }
     }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
       ASSERT(pBlock->info.rows > 0);
-      releaseOutputBuf(pState, &key, pRow);
+      releaseOutputBuf(pState, pKey, pRow);
       break;
     }
 
@@ -2656,7 +2652,7 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
     }
 
     pBlock->info.rows += pRow->numOfRows;
-    releaseOutputBuf(pState, &key, pRow);
+    releaseOutputBuf(pState, pKey, pRow);
   }
   pBlock->info.dataLoad = 1;
   blockDataUpdateTsWindow(pBlock, 0);
