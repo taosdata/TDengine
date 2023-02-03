@@ -364,9 +364,9 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
     }
   }
 
-  if (pRsp->blockNum == 0) {
-    return -1;
-  }
+//  if (pRsp->blockNum == 0) {
+//    return -1;
+//  }
 
   return 0;
 }
