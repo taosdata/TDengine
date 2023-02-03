@@ -162,7 +162,7 @@ The parameters described in this document by the effect that they have on the sy
 | Meaning     | Execution policy for query statements            |
 | Unit     | None                            |
 | Default   | 1                             |
-| Value Range | 1: Run queries on vnodes and not on qnodes<br>2: Run subtasks without scan operators on qnodes and subtasks with scan operators on vnodes.<br>3: Only run scan operators on vnodes; run all other operators on qnodes. |
+| Value Range | 1: Run queries on vnodes and not on qnodes; 2: Run subtasks without scan operators on qnodes and subtasks with scan operators on vnodes; 3: Only run scan operators on vnodes, and run all other operators on qnodes. |
 
 ### querySmaOptimize
 
