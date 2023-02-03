@@ -834,4 +834,57 @@ endi
 
 print ====== test _wstart end
 
+print insert into ts1 values(-1648791211000,1,2,3)
+
+sql create database test7  vgroups 1;
+sql use test7;
+sql create stable st(ts timestamp, a int, b int , c int) tags(ta int,tb int,tc int);
+sql create table ts1 using st tags(1,1,1);
+sql create stream streams7 trigger at_once into streamt7 as select _wstart, count(*) from ts1 interval(10s) ;
+
+sql insert into ts1 values(1648791211000,1,2,3);
+sql_error insert into ts1 values(-1648791211000,1,2,3);
+
+loop18:
+
+sleep 200
+sql select * from streamt7;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop18
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop18
+endi
+
+sql_error insert into ts1 values(-1648791211001,1,2,3) (1648791211001,1,2,3);
+
+sql select _wstart, count(*) from ts1 interval(10s) ;
+
+print $data00 $data01
+print $data10 $data11
+
+loop19:
+
+sleep 200
+sql select * from streamt7;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop19
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
