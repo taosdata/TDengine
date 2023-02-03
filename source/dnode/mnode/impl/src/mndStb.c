@@ -48,7 +48,6 @@ static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessTableCfgReq(SRpcMsg *pReq);
 static int32_t  mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
                                void *alterOriData, int32_t alterOriDataLen);
-static int32_t  mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbname, int64_t suid, col_id_t colId);
 
 static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq);
 static int32_t mndProcessDropIndexReq(SRpcMsg *pReq);
@@ -75,10 +74,10 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_CFG, mndProcessTableCfgReq);
   //  mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE, mndProcessRetrieveStbReq);
 
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_INDEX, mndProcessCreateIndexReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_INDEX, mndProcessDropIndexReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_CREATE_INDEX_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_DROP_INDEX_RSP, mndTransProcessRsp);
+  // mndSetMsgHandle(pMnode, TDMT_MND_CREATE_INDEX, mndProcessCreateIndexReq);
+  // mndSetMsgHandle(pMnode, TDMT_MND_DROP_INDEX, mndProcessDropIndexReq);
+  // mndSetMsgHandle(pMnode, TDMT_VND_CREATE_INDEX_RSP, mndTransProcessRsp);
+  // mndSetMsgHandle(pMnode, TDMT_VND_DROP_INDEX_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STB, mndRetrieveStb);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STB, mndCancelGetNextStb);
@@ -432,8 +431,8 @@ static FORCE_INLINE int32_t schemaExColIdCompare(const void *colId, const void *
   return 0;
 }
 
-static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen,
-                                   void *alterOriData, int32_t alterOriDataLen) {
+void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen, void *alterOriData,
+                            int32_t alterOriDataLen) {
   SEncoder       encoder = {0};
   int32_t        contLen;
   SName          name = {0};
@@ -1093,7 +1092,7 @@ static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
   return 0;
 }
 
-static int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew) {
+int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew) {
   pNew->pTags = taosMemoryCalloc(pNew->numOfTags, sizeof(SSchema));
   pNew->pColumns = taosMemoryCalloc(pNew->numOfColumns, sizeof(SSchema));
   if (pNew->pTags == NULL || pNew->pColumns == NULL) {
@@ -3127,7 +3126,7 @@ static int32_t mndCheckIndexReq(SCreateTagIndexReq *pReq) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mndAddIndexImpl(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp, void *sql,
+/*int32_t mndAddIndexImpl(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp, void *sql,
                         int32_t len) {
   // impl later
   int32_t code = 0;
@@ -3253,4 +3252,4 @@ static int32_t mndProcessDropIndexReq(SRpcMsg *pReq) {
   return TSDB_CODE_SUCCESS;
 _OVER:
   return code;
-}
+}*/
