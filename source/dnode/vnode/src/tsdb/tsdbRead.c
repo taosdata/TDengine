@@ -573,6 +573,68 @@ static SSDataBlock* createResBlock(SQueryTableDataCond* pCond, int32_t capacity)
   return pResBlock;
 }
 
+static int32_t tsdbInitReaderLock(STsdbReader* pReader) {
+  int32_t code = -1;
+  qTrace("tsdb/read: %p, pre-init read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+
+  code = taosThreadMutexInit(&pReader->readerMutex, NULL);
+
+  qTrace("tsdb/read: %p, post-init read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+
+  return code;
+}
+
+static int32_t tsdbUninitReaderLock(STsdbReader* pReader) {
+  int32_t code = -1;
+  qTrace("tsdb/read: %p, pre-uninit read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+
+  code = taosThreadMutexDestroy(&pReader->readerMutex);
+
+  qTrace("tsdb/read: %p, post-uninit read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+
+  return code;
+}
+
+static int32_t tsdbAcquireReader(STsdbReader* pReader) {
+  int32_t code = -1;
+  qTrace("tsdb/read: %p, pre-take read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+
+  code = taosThreadMutexLock(&pReader->readerMutex);
+
+  qTrace("tsdb/read: %p, post-take read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+
+  return code;
+}
+
+static int32_t tsdbTryAcquireReader(STsdbReader* pReader) {
+  int32_t code = -1;
+  qTrace("tsdb/read: %p, pre-trytake read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+
+  code = taosThreadMutexTryLock(&pReader->readerMutex);
+
+  qTrace("tsdb/read: %p, post-trytake read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+
+  return code;
+}
+
+static int32_t tsdbReleaseReader(STsdbReader* pReader) {
+  int32_t code = -1;
+  qTrace("tsdb/read: %p, pre-untake read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+
+  code = taosThreadMutexUnlock(&pReader->readerMutex);
+
+  qTrace("tsdb/read: %p, post-untake read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+
+  return code;
+}
+
+void tsdbReleaseDataBlock(STsdbReader* pReader) {
+  SReaderStatus* pStatus = &pReader->status;
+  if (!pStatus->composedDataBlock) {
+    tsdbReleaseReader(pReader);
+  }
+}
+
 static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsdbReader** ppReader, int32_t capacity,
                                 SSDataBlock* pResBlock, const char* idstr) {
   int32_t      code = 0;
@@ -636,7 +698,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
 
   setColumnIdSlotList(&pReader->suppInfo, pCond->colList, pCond->pSlotList, pCond->numOfCols);
 
-  taosThreadMutexInit(&pReader->readerMutex, NULL);
+  tsdbInitReaderLock(pReader);
 
   *ppReader = pReader;
   return code;
@@ -1776,12 +1838,15 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     }
 
     if (minKey == k.ts) {
+      STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
+      if (pSchema == NULL) {
+        return terrno;
+      }
       if (init) {
-        tsdbRowMerge(&merge, pRow);
+        tsdbRowMergerAdd(&merge, pRow, pSchema);
       } else {
         init = true;
-        STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
-        int32_t   code = tsdbRowMergerInit(&merge, pRow, pSchema);
+        int32_t code = tsdbRowMergerInit(&merge, pRow, pSchema);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
@@ -2882,7 +2947,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
     if (pResBlock->info.rows > 0) {
       tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64
-                    " rows:%d, elapsed time:%.2f ms %s",
+                " rows:%d, elapsed time:%.2f ms %s",
                 pReader, pResBlock->info.id.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
                 pResBlock->info.rows, el, pReader->idStr);
     }
@@ -2932,7 +2997,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
       if (pResBlock->info.rows > 0) {
         tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64
-                      " rows:%d, elapsed time:%.2f ms %s",
+                  " rows:%d, elapsed time:%.2f ms %s",
                   pReader, pResBlock->info.id.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
                   pResBlock->info.rows, el, pReader->idStr);
       }
@@ -3954,6 +4019,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
     return;
   }
 
+  tsdbAcquireReader(pReader);
   {
     if (pReader->innerReader[0] != NULL || pReader->innerReader[1] != NULL) {
       STsdbReader* p = pReader->innerReader[0];
@@ -4011,10 +4077,13 @@ void tsdbReaderClose(STsdbReader* pReader) {
     pReader->pDelIdx = NULL;
   }
 
-  qTrace("tsdb/reader: %p, untake snapshot", pReader);
+  qTrace("tsdb/reader-close: %p, untake snapshot", pReader);
   tsdbUntakeReadSnap(pReader, pReader->pReadSnap, true);
+  pReader->pReadSnap = NULL;
 
-  taosThreadMutexDestroy(&pReader->readerMutex);
+  tsdbReleaseReader(pReader);
+
+  tsdbUninitReaderLock(pReader);
 
   taosMemoryFree(pReader->status.uidCheckInfo.tableUidList);
   SIOCostSummary* pCost = &pReader->cost;
@@ -4096,6 +4165,28 @@ int32_t tsdbReaderSuspend(STsdbReader* pReader) {
       // pInfo->lastKey = ts;
     }
   } else {
+    // resetDataBlockScanInfo excluding lastKey
+    STableBlockScanInfo** p = NULL;
+
+    while ((p = taosHashIterate(pStatus->pTableMap, p)) != NULL) {
+      STableBlockScanInfo* pInfo = *(STableBlockScanInfo**)p;
+
+      pInfo->iterInit = false;
+      pInfo->iter.hasVal = false;
+      pInfo->iiter.hasVal = false;
+
+      if (pInfo->iter.iter != NULL) {
+        pInfo->iter.iter = tsdbTbDataIterDestroy(pInfo->iter.iter);
+      }
+
+      if (pInfo->iiter.iter != NULL) {
+        pInfo->iiter.iter = tsdbTbDataIterDestroy(pInfo->iiter.iter);
+      }
+
+      pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
+      // pInfo->lastKey = ts;
+    }
+
     pBlockScanInfo = pStatus->pTableIter == NULL ? NULL : *pStatus->pTableIter;
     if (pBlockScanInfo) {
       // save lastKey to restore memory iterator
@@ -4104,7 +4195,8 @@ int32_t tsdbReaderSuspend(STsdbReader* pReader) {
 
       // reset current current table's data block scan info,
       pBlockScanInfo->iterInit = false;
-      // pBlockScanInfo->iiter.hasVal = false;
+      pBlockScanInfo->iter.hasVal = false;
+      pBlockScanInfo->iiter.hasVal = false;
       if (pBlockScanInfo->iter.iter != NULL) {
         pBlockScanInfo->iter.iter = tsdbTbDataIterDestroy(pBlockScanInfo->iter.iter);
       }
@@ -4138,16 +4230,16 @@ static int32_t tsdbSetQueryReseek(void* pQHandle) {
   int32_t      code = 0;
   STsdbReader* pReader = pQHandle;
 
-  code = taosThreadMutexTryLock(&pReader->readerMutex);
+  code = tsdbTryAcquireReader(pReader);
   if (code == 0) {
     if (pReader->suspended) {
-      taosThreadMutexUnlock(&pReader->readerMutex);
+      tsdbReleaseReader(pReader);
       return code;
     }
 
     tsdbReaderSuspend(pReader);
 
-    taosThreadMutexUnlock(&pReader->readerMutex);
+    tsdbReleaseReader(pReader);
 
     return code;
   } else if (code == EBUSY) {
@@ -4248,8 +4340,9 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
 
   SReaderStatus* pStatus = &pReader->status;
 
-  qTrace("tsdb/read: %p, take read mutex", pReader);
-  taosThreadMutexLock(&pReader->readerMutex);
+  int32_t code = tsdbAcquireReader(pReader);
+  qTrace("tsdb/read: %p, take read mutex, code: %d", pReader, code);
+
   if (pReader->suspended) {
     tsdbReaderResume(pReader);
   }
@@ -4261,7 +4354,7 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
       pStatus = &pReader->innerReader[0]->status;
       if (pStatus->composedDataBlock) {
         qTrace("tsdb/read: %p, unlock read mutex", pReader);
-        taosThreadMutexUnlock(&pReader->readerMutex);
+        tsdbReleaseReader(pReader);
       }
 
       return ret;
@@ -4284,7 +4377,7 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   if (ret) {
     if (pStatus->composedDataBlock) {
       qTrace("tsdb/read: %p, unlock read mutex", pReader);
-      taosThreadMutexUnlock(&pReader->readerMutex);
+      tsdbReleaseReader(pReader);
     }
 
     return ret;
@@ -4304,7 +4397,7 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
       pStatus = &pReader->innerReader[1]->status;
       if (pStatus->composedDataBlock) {
         qTrace("tsdb/read: %p, unlock read mutex", pReader);
-        taosThreadMutexUnlock(&pReader->readerMutex);
+        tsdbReleaseReader(pReader);
       }
 
       return ret1;
@@ -4312,7 +4405,7 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   }
 
   qTrace("tsdb/read: %p, unlock read mutex", pReader);
-  taosThreadMutexUnlock(&pReader->readerMutex);
+  tsdbReleaseReader(pReader);
 
   return false;
 }
@@ -4471,13 +4564,6 @@ static SSDataBlock* doRetrieveDataBlock(STsdbReader* pReader) {
   return pReader->pResBlock;
 }
 
-void tsdbReleaseDataBlock(STsdbReader* pReader) {
-  // SReaderStatus* pStatus = &pReader->status;
-  // if (!pStatus->composedDataBlock) {
-  taosThreadMutexUnlock(&pReader->readerMutex);
-  //}
-}
-
 SSDataBlock* tsdbRetrieveDataBlock(STsdbReader* pReader, SArray* pIdList) {
   STsdbReader* pTReader = pReader;
   if (pReader->type == TIMEWINDOW_RANGE_EXTERNAL) {
@@ -4496,7 +4582,7 @@ SSDataBlock* tsdbRetrieveDataBlock(STsdbReader* pReader, SArray* pIdList) {
   SSDataBlock* ret = doRetrieveDataBlock(pTReader);
 
   qTrace("tsdb/read-retrieve: %p, unlock read mutex", pReader);
-  taosThreadMutexUnlock(&pReader->readerMutex);
+  tsdbReleaseReader(pReader);
 
   return ret;
 }
@@ -4505,7 +4591,7 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   SReaderStatus* pStatus = &pReader->status;
 
   qTrace("tsdb/reader-reset: %p, take read mutex", pReader);
-  taosThreadMutexLock(&pReader->readerMutex);
+  tsdbAcquireReader(pReader);
 
   if (pReader->suspended) {
     tsdbReaderResume(pReader);
@@ -4514,7 +4600,7 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   if (isEmptyQueryTimeWindow(&pReader->window) || pReader->pReadSnap == NULL) {
     tsdbDebug("tsdb reader reset return %p", pReader->pReadSnap);
 
-    taosThreadMutexUnlock(&pReader->readerMutex);
+    tsdbReleaseReader(pReader);
 
     return TSDB_CODE_SUCCESS;
   }
@@ -4552,7 +4638,7 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
       tsdbError("%p reset reader failed, numOfTables:%d, query range:%" PRId64 " - %" PRId64 " in query %s", pReader,
                 numOfTables, pReader->window.skey, pReader->window.ekey, pReader->idStr);
 
-      taosThreadMutexUnlock(&pReader->readerMutex);
+      tsdbReleaseReader(pReader);
 
       return code;
     }
@@ -4563,7 +4649,7 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
             pReader, pReader->suid, numOfTables, pCond->twindows.skey, pReader->window.skey, pReader->window.ekey,
             pReader->idStr);
 
-  taosThreadMutexUnlock(&pReader->readerMutex);
+  tsdbReleaseReader(pReader);
 
   return code;
 }
@@ -4648,7 +4734,7 @@ int64_t tsdbGetNumOfRowsInMemTable(STsdbReader* pReader) {
   int64_t rows = 0;
 
   SReaderStatus* pStatus = &pReader->status;
-  taosThreadMutexLock(&pReader->readerMutex);
+  tsdbAcquireReader(pReader);
   if (pReader->suspended) {
     tsdbReaderResume(pReader);
   }
@@ -4678,7 +4764,7 @@ int64_t tsdbGetNumOfRowsInMemTable(STsdbReader* pReader) {
     pStatus->pTableIter = taosHashIterate(pStatus->pTableMap, pStatus->pTableIter);
   }
 
-  taosThreadMutexUnlock(&pReader->readerMutex);
+  tsdbReleaseReader(pReader);
 
   return rows;
 }

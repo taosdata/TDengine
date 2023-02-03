@@ -206,7 +206,7 @@ class TDTestCase:
         paraDict['rowsPerTbl'] = self.rowsPerTbl
         consumerId     = 1
         if self.snapshot == 0:
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (2))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1/2))
         elif self.snapshot == 1:
             expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1))
 

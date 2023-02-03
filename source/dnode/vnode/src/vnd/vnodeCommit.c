@@ -28,10 +28,10 @@ static int32_t vnodeTryRecycleBufPool(SVnode *pVnode) {
 
   if (pVnode->onRecycle == NULL) {
     if (pVnode->recycleHead == NULL) {
-      vDebug("vgId:%d no recyclable buffer pool", TD_VID(pVnode));
+      vDebug("vgId:%d, no recyclable buffer pool", TD_VID(pVnode));
       goto _exit;
     } else {
-      vDebug("vgId:%d buffer pool %p of id %d on recycle queue, try to recycle", TD_VID(pVnode), pVnode->recycleHead,
+      vDebug("vgId:%d, buffer pool %p of id %d on recycle queue, try to recycle", TD_VID(pVnode), pVnode->recycleHead,
              pVnode->recycleHead->id);
 
       pVnode->onRecycle = pVnode->recycleHead;
@@ -50,7 +50,7 @@ static int32_t vnodeTryRecycleBufPool(SVnode *pVnode) {
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed since %s", TD_VID(pVnode), __func__, tstrerror(code));
+    vError("vgId:%d, %s failed since %s", TD_VID(pVnode), __func__, tstrerror(code));
   }
   return code;
 }
@@ -65,7 +65,7 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
     ++nTry;
 
     if (pVnode->freeList) {
-      vDebug("vgId:%d allocate free buffer pool on %d try, pPool:%p id:%d", TD_VID(pVnode), nTry, pVnode->freeList,
+      vDebug("vgId:%d, allocate free buffer pool on %d try, pPool:%p id:%d", TD_VID(pVnode), nTry, pVnode->freeList,
              pVnode->freeList->id);
 
       pVnode->inUse = pVnode->freeList;
@@ -74,13 +74,13 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
       pVnode->inUse->freeNext = NULL;
       break;
     } else {
-      vDebug("vgId:%d no free buffer pool on %d try, try to recycle...", TD_VID(pVnode), nTry);
-      /*
+      vDebug("vgId:%d, no free buffer pool on %d try, try to recycle...", TD_VID(pVnode), nTry);
+
       code = vnodeTryRecycleBufPool(pVnode);
       TSDB_CHECK_CODE(code, lino, _exit);
-      */
+
       if (pVnode->freeList == NULL) {
-        vDebug("vgId:%d no free buffer pool on %d try, wait %d ms...", TD_VID(pVnode), nTry, WAIT_TIME_MILI_SEC);
+        vDebug("vgId:%d, no free buffer pool on %d try, wait %d ms...", TD_VID(pVnode), nTry, WAIT_TIME_MILI_SEC);
 
         struct timeval  tv;
         struct timespec ts;
@@ -105,7 +105,7 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
 _exit:
   taosThreadMutexUnlock(&pVnode->mutex);
   if (code) {
-    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -140,7 +140,7 @@ int vnodeBegin(SVnode *pVnode) {
 _exit:
   if (code) {
     terrno = code;
-    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -351,7 +351,7 @@ static void vnodeReturnBufPool(SVnode *pVnode) {
   if (nRef == 0) {
     vnodeBufPoolAddToFreeList(pPool);
   } else if (nRef > 0) {
-    vDebug("vgId:%d buffer pool %p of id %d is added to recycle queue", TD_VID(pVnode), pPool, pPool->id);
+    vDebug("vgId:%d, buffer pool %p of id %d is added to recycle queue", TD_VID(pVnode), pPool, pPool->id);
 
     if (pVnode->recycleTail == NULL) {
       pPool->recyclePrev = pPool->recycleNext = NULL;

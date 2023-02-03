@@ -290,7 +290,8 @@ int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta*
   }
   int32_t code = createTableDataCxt(pTableMeta, pCreateTbReq, pTableCxt, colMode);
   if (TSDB_CODE_SUCCESS == code) {
-    code = taosHashPut(pHash, id, idLen, pTableCxt, POINTER_BYTES);
+    void* pData = *pTableCxt; // deal scan coverity
+    code = taosHashPut(pHash, id, idLen, &pData, POINTER_BYTES);
   }
   return code;
 }
@@ -671,7 +672,6 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
       goto end;
     }
 
-    colLength[c] = htonl(colLength[c]);
     int8_t* offset = pStart;
     if (IS_VAR_DATA_TYPE(pColSchema->type)) {
       pStart += numOfRows * sizeof(int32_t);

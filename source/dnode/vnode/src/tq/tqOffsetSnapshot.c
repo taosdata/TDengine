@@ -56,7 +56,7 @@ int32_t tqOffsetSnapRead(STqOffsetReader* pReader, uint8_t** ppData) {
   TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ);
   if (pFile == NULL) {
     taosMemoryFree(fname);
-    return -1;
+    return 0;
   }
 
   int64_t sz = 0;

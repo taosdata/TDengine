@@ -32,7 +32,6 @@
 #define DB_VER_NUMBER   1
 #define DB_RESERVE_SIZE 54
 
-static SSdbRaw *mndDbActionEncode(SDbObj *pDb);
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionDelete(SSdb *pSdb, SDbObj *pDb);
@@ -74,7 +73,7 @@ int32_t mndInitDb(SMnode *pMnode) {
 
 void mndCleanupDb(SMnode *pMnode) {}
 
-static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
+SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t  size = sizeof(SDbObj) + pDb->cfg.numOfRetensions * sizeof(SRetention) + DB_RESERVE_SIZE;
@@ -259,6 +258,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->updateTime = pNew->updateTime;
   pOld->cfgVersion = pNew->cfgVersion;
   pOld->vgVersion = pNew->vgVersion;
+  pOld->cfg.numOfVgroups = pNew->cfg.numOfVgroups;
   pOld->cfg.buffer = pNew->cfg.buffer;
   pOld->cfg.pageSize = pNew->cfg.pageSize;
   pOld->cfg.pages = pNew->cfg.pages;
@@ -889,7 +889,7 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   cfgRsp.numOfRetensions = pDb->cfg.numOfRetensions;
   cfgRsp.pRetensions = pDb->cfg.pRetensions;
   cfgRsp.schemaless = pDb->cfg.schemaless;
-
+  cfgRsp.sstTrigger = pDb->cfg.sstTrigger;
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &cfgRsp);
   void   *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {

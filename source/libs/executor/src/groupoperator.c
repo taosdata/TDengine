@@ -593,8 +593,11 @@ void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInf
 
     int32_t pageId = 0;
     pPage = getNewBufPage(pInfo->pBuf, &pageId);
-    taosArrayPush(p->pPageList, &pageId);
+    if (pPage == NULL) {
+      return pPage;
+    }
 
+    taosArrayPush(p->pPageList, &pageId);
     *(int32_t*)pPage = 0;
   } else {
     int32_t* curId = taosArrayGetLast(p->pPageList);
@@ -612,6 +615,11 @@ void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInf
       // add a new page for current group
       int32_t pageId = 0;
       pPage = getNewBufPage(pInfo->pBuf, &pageId);
+      if (pPage == NULL) {
+        qError("failed to get new buffer, code:%s", tstrerror(terrno));
+        return NULL;
+      }
+
       taosArrayPush(p->pPageList, &pageId);
       memset(pPage, 0, getBufPageSize(pInfo->pBuf));
     }
@@ -963,7 +971,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
 void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp* pTagSup, int64_t groupId,
                           SSDataBlock* pSrcBlock, int32_t rowId, SSDataBlock* pDestBlock) {
   void* pValue = NULL;
-  if (groupId != 0 && streamStateGetParName(pState, groupId, &pValue) != 0) {
+  if (streamStateGetParName(pState, groupId, &pValue) != 0) {
     SSDataBlock* pTmpBlock = blockCopyOneRow(pSrcBlock, rowId);
     if (pTableSup->numOfExprs > 0) {
       projectApplyFunctions(pTableSup->pExprInfo, pDestBlock, pTmpBlock, pTableSup->pCtx, pTableSup->numOfExprs, NULL);

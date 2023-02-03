@@ -162,11 +162,7 @@ The parameters described in this document by the effect that they have on the sy
 | Meaning     | Execution policy for query statements            |
 | Unit     | None                            |
 | Default   | 1                             |
-| Value Range | 1: Run queries on vnodes and not on qnodes 
-
-2: Run subtasks without scan operators on qnodes and subtasks with scan operators on vnodes.
-
-3: Only run scan operators on vnodes; run all other operators on qnodes. |
+| Value Range | 1: Run queries on vnodes and not on qnodes; 2: Run subtasks without scan operators on qnodes and subtasks with scan operators on vnodes; 3: Only run scan operators on vnodes, and run all other operators on qnodes. |
 
 ### querySmaOptimize
 
@@ -176,11 +172,7 @@ The parameters described in this document by the effect that they have on the sy
 | Meaning  | SMA index optimization policy |
 | Unit     | None                            |
 | Default Value | 0                                                 |
-| Notes |
-
-0: Disable SMA indexing and perform all queries on non-indexed data.
-
-1: Enable SMA indexing and perform queries from suitable statements on precomputation results.|
+| Notes |0: Disable SMA indexing and perform all queries on non-indexed data; 1: Enable SMA indexing and perform queries from suitable statements on precomputation results.|
 
 ### countAlwaysReturnValue 
 
@@ -323,6 +315,7 @@ The charset that takes effect is UTF-8.
 | Applicable    | Server Only                                 |
 | Meaning       | All data files are stored in this directory |
 | Default Value | /var/lib/taos                               |
+| Note          | The [Tiered Storage](https://docs.tdengine.com/tdinternal/arch/#tiered-storage) function needs to be used in conjunction with the [KEEP](https://docs.tdengine.com/taos-sql/database/#parameters) parameter |
 
 ### tempDir
 

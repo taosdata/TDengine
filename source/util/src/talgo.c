@@ -41,12 +41,6 @@ static void median(void *src, int64_t size, int64_t s, int64_t e, const void *pa
 
   ASSERT(comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, s), param) <= 0 &&
          comparFn(elePtrAt(src, size, s), elePtrAt(src, size, e), param) <= 0);
-
-#ifdef _DEBUG_VIEW
-//  tTagsPrints(src[s], pOrderDesc->pColumnModel, &pOrderDesc->orderIdx);
-//  tTagsPrints(src[mid], pOrderDesc->pColumnModel, &pOrderDesc->orderIdx);
-//  tTagsPrints(src[e], pOrderDesc->pColumnModel, &pOrderDesc->orderIdx);
-#endif
 }
 
 static void tInsertSort(void *src, int64_t size, int32_t s, int32_t e, const void *param, __ext_compar_fn_t comparFn,
@@ -278,14 +272,4 @@ void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, 
   }
 
   taosMemoryFree(buf);
-  /*
-    char *buf = taosMemoryCalloc(1, size);
-
-    for (i = len - 1; i > 0; i--) {
-      doswap(elePtrAt(base, size, 0), elePtrAt(base, size, i));
-      taosheapadjust(base, size, 0, i - 1, parcompar, compar, parswap, swap, maxroot);
-    }
-
-    taosMemoryFreeClear(buf);
-  */
 }

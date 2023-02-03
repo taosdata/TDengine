@@ -203,7 +203,7 @@ _err:
 
 int metaClose(SMeta *pMeta) {
   if (pMeta) {
-    if (pMeta->pEnv) tdbAbort(pMeta->pEnv, pMeta->txn);
+    if (pMeta->pEnv) metaAbort(pMeta);
     if (pMeta->pCache) metaCacheClose(pMeta);
     if (pMeta->pIdx) metaCloseIdx(pMeta);
     if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
