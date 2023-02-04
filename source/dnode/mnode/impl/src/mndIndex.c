@@ -122,6 +122,30 @@ int mndSetCreateIdxRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStb
 
   return 0;
 }
+static void *mndBuildDropIdxReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStbObj, SIdxObj *pIdx, int32_t *contLen) {
+  // TODO
+  SDropIndexReq req = {0};
+  memcpy(req.colName, pIdx->colName, sizeof(pIdx->colName));
+  memcpy(req.stb, pIdx->stb, sizeof(pIdx->stb));
+  req.dbUid = pIdx->dbUid;
+  req.stbUid = pIdx->stbUid;
+
+  mInfo("idx: %s start to build drop index req", pIdx->name);
+  int32_t len = tSerializeSDropIdxReq(NULL, 0, &req);
+  if (len < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  void *pCont = taosMemoryCalloc(1, len);
+  if (pCont == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  tSerializeSDropIdxReq(pCont, len, &req);
+  *contLen = len;
+  return pCont;
+}
 int mndSetDropIdxRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb, SIdxObj *pIdx) {
   SSdb   *pSdb = pMnode->pSdb;
   SVgObj *pVgroup = NULL;
@@ -136,7 +160,8 @@ int mndSetDropIdxRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbOb
       continue;
     }
 
-    void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, NULL, 0);
+    int32_t len;
+    void   *pReq = mndBuildDropIdxReq(pMnode, pVgroup, pStb, pIdx, &len);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
@@ -145,7 +170,7 @@ int mndSetDropIdxRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbOb
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pReq;
-    action.contLen = contLen;
+    action.contLen = len;
     action.msgType = TDMT_VND_DROP_INDEX;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       taosMemoryFree(pReq);
@@ -802,21 +827,21 @@ static int32_t mndDropIdx(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SIdxObj *p
   if (mndSetDropIdxCommitLogs(pMnode, pTrans, pIdx) != 0) goto _OVER;
 
   if (mndSetUpdateIdxStbCommitLogs(pMnode, pTrans, pStb, &newObj, pIdx->colName) != 0) goto _OVER;
-  if (mndSetDropIdxRedoActions(pMnode, pTrans, pStb, &newObj, pIdx) != 0) goto _OVER;
+  if (mndSetDropIdxRedoActions(pMnode, pTrans, pDb, &newObj, pIdx) != 0) goto _OVER;
 
 _OVER:
   mndTransDrop(pTrans);
   mndReleaseStb(pMnode, pStb);
+  return code;
 }
 static int32_t mndProcessDropIdxReq(SRpcMsg *pReq) {
   SMnode  *pMnode = pReq->info.node;
-  int32_t  code = -1;
   int32_t  code = -1;
   SDbObj  *pDb = NULL;
   SIdxObj *pIdx = NULL;
 
   SDropTagIndexReq req = {0};
-  if (tDeserializeSDropTagIdxReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+  if (tDeserializeSDropTagIdxReq(pReq->pCont, pReq->contLen, &req) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -834,7 +859,7 @@ static int32_t mndProcessDropIdxReq(SRpcMsg *pReq) {
     }
   }
 
-  pDb = mndAcquireDbByIdx(pMnode, dropReq.name);
+  pDb = mndAcquireDbByIdx(pMnode, req.name);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
     goto _OVER;
@@ -852,6 +877,7 @@ _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("idx:%s, failed to drop since %s", req.name, terrstr());
   }
+  return code;
 }
 static int32_t mndProcessGetIdxReq(SRpcMsg *pReq) {
   // do nothing

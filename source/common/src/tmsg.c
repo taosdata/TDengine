@@ -4042,6 +4042,44 @@ int32_t tDeserializeSDropVnodeReq(void *buf, int32_t bufLen, SDropVnodeReq *pReq
   tDecoderClear(&decoder);
   return 0;
 }
+int32_t tSerializeSDropIdxReq(void *buf, int32_t bufLen, SDropIndexReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->colName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->stb) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->stbUid) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->dbUid) < 0) return -1;
+  for (int32_t i = 0; i < 8; ++i) {
+    if (tEncodeI64(&encoder, pReq->reserved[i]) < 0) return -1;
+  }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+  // TODO
+  return 0;
+}
+int32_t tDeserializeSDropIdxReq(void *buf, int32_t bufLen, SDropIndexReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->colName) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->stb) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->stbUid) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->dbUid) < 0) return -1;
+  for (int32_t i = 0; i < 8; ++i) {
+    if (tDecodeI64(&decoder, &pReq->reserved[i]) < 0) return -1;
+  }
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  // TODO
+  return 0;
+}
 
 int32_t tSerializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq *pReq) {
   SEncoder encoder = {0};

@@ -1250,6 +1250,17 @@ int32_t tSerializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq);
 int32_t tDeserializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq);
 
 typedef struct {
+  char    colName[TSDB_COL_NAME_LEN];
+  char    stb[TSDB_TABLE_FNAME_LEN];
+  int64_t stbUid;
+  int64_t dbUid;
+  int64_t reserved[8];
+} SDropIndexReq;
+
+int32_t tSerializeSDropIdxReq(void* buf, int32_t bufLen, SDropIndexReq* pReq);
+int32_t tDeserializeSDropIdxReq(void* buf, int32_t bufLen, SDropIndexReq* pReq);
+
+typedef struct {
   int64_t dbUid;
   char    db[TSDB_DB_FNAME_LEN];
   int64_t reserved[8];
