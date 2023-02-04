@@ -54,7 +54,7 @@ static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
   read += mndRetrieveTagIdx(pReq, pShow, pBlock, rows - read);
 
-  return read; 
+  return read;
 }
 static void mndCancelGetNextIdx(SMnode *pMnode, void *pIter) {
   // TODO
@@ -1259,6 +1259,18 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pSma->createdTime, false);
+
+    char col[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(col, (char *)"");
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)col, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+
+    char tag[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(tag, (char *)"sma_index");
+    colDataAppend(pColInfo, numOfRows, (const char *)tag, false);
 
     numOfRows++;
     sdbRelease(pSdb, pSma);

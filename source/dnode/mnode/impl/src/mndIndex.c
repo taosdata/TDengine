@@ -205,6 +205,7 @@ static SSdbRaw *mndIdxActionEncode(SIdxObj *pIdx) {
   SDB_SET_BINARY(pRaw, dataPos, pIdx->stb, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pIdx->db, TSDB_DB_FNAME_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pIdx->dstTbName, TSDB_DB_FNAME_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pIdx->colName, TSDB_COL_NAME_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pIdx->createdTime, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pIdx->uid, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pIdx->stbUid, _OVER)
@@ -251,6 +252,7 @@ static SSdbRow *mndIdxActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, pIdx->stb, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pIdx->db, TSDB_DB_FNAME_LEN, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pIdx->dstTbName, TSDB_DB_FNAME_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pIdx->colName, TSDB_COL_NAME_LEN, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pIdx->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pIdx->uid, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pIdx->stbUid, _OVER)
@@ -640,6 +642,7 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
     SName idxName = {0};
     tNameFromString(&idxName, pIdx->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     char n1[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+
     STR_TO_VARSTR(n1, (char *)tNameGetTableName(&idxName));
 
     char n2[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -665,6 +668,18 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pIdx->createdTime, false);
+
+    char col[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(col, (char *)pIdx->colName);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)col, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+
+    char tag[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(tag, (char *)"tag_index");
+    colDataAppend(pColInfo, numOfRows, (const char *)tag, false);
 
     numOfRows++;
     sdbRelease(pSdb, pIdx);
