@@ -778,7 +778,7 @@ static void cliSendCb(uv_write_t* req, int status) {
   SCliMsg* pMsg = !transQueueEmpty(&pConn->cliMsgs) ? transQueueGet(&pConn->cliMsgs, 0) : NULL;
   if (pMsg != NULL) {
     int64_t cost = taosGetTimestampUs() - pMsg->st;
-    if (cost > 1000) {
+    if (cost > 1000 * 20) {
       tWarn("%s conn %p send cost:%dus, send exception", CONN_GET_INST_LABEL(pConn), pConn, (int)cost);
     }
   }
@@ -1049,8 +1049,8 @@ static FORCE_INLINE uint32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn) 
       terrno = TAOS_SYSTEM_ERROR(errno);
       tError("failed to get ip from fqdn:%s since %s", fqdn, terrstr());
       return addr;
-    }    
-    
+    }
+
     taosHashPut(cache, fqdn, strlen(fqdn), &addr, sizeof(addr));
   } else {
     addr = *v;
@@ -1132,7 +1132,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
       cliHandleExcept(conn);
       return;
     }
-    
+
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = ipaddr;
