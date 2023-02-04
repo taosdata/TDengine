@@ -2811,13 +2811,7 @@ typedef struct {
 int32_t tSerializeSCreateTagIdxReq(void* buf, int32_t bufLen, SCreateTagIndexReq* pReq);
 int32_t tDeserializeSCreateTagIdxReq(void* buf, int32_t bufLen, SCreateTagIndexReq* pReq);
 
-typedef struct {
-  char   dbFName[TSDB_DB_FNAME_LEN];
-  char   stbName[TSDB_TABLE_FNAME_LEN];
-  char   colName[TSDB_COL_NAME_LEN];
-  char   idxName[TSDB_COL_NAME_LEN];
-  int8_t idxType;
-} SDropTagIndexReq;
+typedef SMDropSmaReq SDropTagIndexReq;
 
 int32_t tSerializeSDropTagIdxReq(void* buf, int32_t bufLen, SDropTagIndexReq* pReq);
 int32_t tDeserializeSDropTagIdxReq(void* buf, int32_t bufLen, SDropTagIndexReq* pReq);
