@@ -14,9 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndIndex.h"
 #include "mndDb.h"
 #include "mndDnode.h"
-#include "mndIdx.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
@@ -68,11 +68,12 @@ int32_t mndInitIdx(SMnode *pMnode) {
   // mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessDropIdxReq);
   // mndSetMsgHandle(pMnode, TDMT_VND_CREATE_SMA_RSP, mndTransProcessRsp);
   // mndSetMsgHandle(pMnode, TDMT_VND_DROP_SMA_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_GET_INDEX, mndProcessGetIdxReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_GET_TABLE_INDEX, mndProcessGetTbIdxReq);
+  // mndSetMsgHandle(pMnode, TDMT_MND_GET_INDEX, mndProcessGetIdxReq);
+  // mndSetMsgHandle(pMnode, TDMT_MND_GET_TABLE_INDEX, mndProcessGetTbIdxReq);
 
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndRetrieveIdx);
-  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndCancelGetNextIdx);
+  // type same with sma
+  // mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndRetrieveIdx);
+  // mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndCancelGetNextIdx);
   return sdbSetTable(pMnode->pSdb, table);
 }
 
@@ -612,11 +613,11 @@ static int32_t mndProcessGetTbIdxReq(SRpcMsg *pReq) {
   return 0;
 }
 
-static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode  *pMnode = pReq->info.node;
   SSdb    *pSdb = pMnode->pSdb;
   int32_t  numOfRows = 0;
-  SSmaObj *pSma = NULL;
+  SIdxObj *pIdx = NULL;
   int32_t  cols = 0;
 
   SDbObj *pDb = NULL;
@@ -624,28 +625,28 @@ static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     pDb = mndAcquireDb(pMnode, pShow->db);
     if (pDb == NULL) return 0;
   }
-
+  int invalid = -1;
   while (numOfRows < rows) {
-    pShow->pIter = sdbFetch(pSdb, SDB_SMA, pShow->pIter, (void **)&pSma);
+    pShow->pIter = sdbFetch(pSdb, SDB_IDX, pShow->pIter, (void **)&pIdx);
     if (pShow->pIter == NULL) break;
 
-    if (NULL != pDb && pSma->dbUid != pDb->uid) {
-      sdbRelease(pSdb, pSma);
+    if (NULL != pDb && pIdx->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pIdx);
       continue;
     }
 
     cols = 0;
 
-    SName smaName = {0};
-    tNameFromString(&smaName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    SName idxName = {0};
+    tNameFromString(&idxName, pIdx->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     char n1[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(n1, (char *)tNameGetTableName(&smaName));
+    STR_TO_VARSTR(n1, (char *)tNameGetTableName(&idxName));
 
     char n2[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(n2, (char *)mndGetDbStr(pSma->db));
+    STR_TO_VARSTR(n2, (char *)mndGetDbStr(pIdx->db));
 
     SName stbName = {0};
-    tNameFromString(&stbName, pSma->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    tNameFromString(&stbName, pIdx->stb, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     char n3[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(n3, (char *)tNameGetTableName(&stbName));
 
@@ -659,13 +660,14 @@ static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     colDataAppend(pColInfo, numOfRows, (const char *)n3, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pSma->dstVgId, false);
+
+    colDataAppend(pColInfo, numOfRows, (const char *)&invalid, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pSma->createdTime, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pIdx->createdTime, false);
 
     numOfRows++;
-    sdbRelease(pSdb, pSma);
+    sdbRelease(pSdb, pIdx);
   }
 
   mndReleaseDb(pMnode, pDb);

@@ -21,7 +21,7 @@
 #include "mndDnode.h"
 #include "mndFunc.h"
 #include "mndGrant.h"
-#include "mndIdx.h"
+#include "mndIndex.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPerfSchema.h"
