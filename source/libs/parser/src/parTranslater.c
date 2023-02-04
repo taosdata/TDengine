@@ -5340,10 +5340,14 @@ static int32_t buildCreateFullTextReq(STranslateContext* pCxt, SCreateIndexStmt*
 
 static int32_t buildCreateTagIndexReq(STranslateContext* pCxt, SCreateIndexStmt* pStmt, SCreateTagIndexReq* pReq) {
   SName name;
-  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->indexDbName, pStmt->indexName, &name), pReq->dbFName);
+  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->indexDbName, pStmt->indexName, &name), pReq->idxName);
   memset(&name, 0, sizeof(SName));
 
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), pReq->stbName);
+  memset(&name, 0, sizeof(SName));
+
+  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  tNameGetFullDbName(&name, pReq->dbFName);
 
   SNode* pNode = NULL;
   ASSERT(LIST_LENGTH(pStmt->pCols) == 1);

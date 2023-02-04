@@ -60,6 +60,8 @@ const char *sdbTableName(ESdbType type) {
       return "db";
     case SDB_FUNC:
       return "func";
+    case SDB_IDX:
+      return "idx";
     default:
       return "undefine";
   }
