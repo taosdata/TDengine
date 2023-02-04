@@ -1453,6 +1453,19 @@ _err:
   return -1;
 }
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  // impl later
+  SDropIndexReq req = {0};
+  pRsp->msgType = TDMT_VND_CREATE_INDEX_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  if (tDeserializeSDropIdxReq(pReq, len, &req)) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+  if (metaDropIndexFromSTable(pVnode->pMeta, version, &req) < 0) {
+    pRsp->code = terrno;
+    return -1;
+  }
   return TSDB_CODE_SUCCESS;
 }
