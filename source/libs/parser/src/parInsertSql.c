@@ -18,16 +18,23 @@
 #include "tglobal.h"
 #include "ttime.h"
 
-#define NEXT_TOKEN_WITH_PREV(pSql, token)     \
-  do {                                        \
-    int32_t index = 0;                        \
-    token = tStrGetToken(pSql, &index, true); \
-    pSql += index;                            \
+#define NEXT_TOKEN_WITH_PREV(pSql, token)           \
+  do {                                              \
+    int32_t index = 0;                              \
+    token = tStrGetToken(pSql, &index, true, NULL); \
+    pSql += index;                                  \
   } while (0)
 
-#define NEXT_TOKEN_KEEP_SQL(pSql, token, index) \
-  do {                                          \
-    token = tStrGetToken(pSql, &index, false);  \
+#define NEXT_TOKEN_WITH_PREV_EXT(pSql, token, pIgnoreComma) \
+  do {                                                      \
+    int32_t index = 0;                                      \
+    token = tStrGetToken(pSql, &index, true, pIgnoreComma); \
+    pSql += index;                                          \
+  } while (0)
+
+#define NEXT_TOKEN_KEEP_SQL(pSql, token, index)      \
+  do {                                               \
+    token = tStrGetToken(pSql, &index, false, NULL); \
   } while (0)
 
 #define NEXT_VALID_TOKEN(pSql, token)           \
@@ -302,12 +309,12 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
    * e.g., now+12a, now-5h
    */
   index = 0;
-  SToken token = tStrGetToken(pTokenEnd, &index, false);
+  SToken token = tStrGetToken(pTokenEnd, &index, false, NULL);
   pTokenEnd += index;
 
   if (token.type == TK_NK_MINUS || token.type == TK_NK_PLUS) {
     index = 0;
-    SToken valueToken = tStrGetToken(pTokenEnd, &index, false);
+    SToken valueToken = tStrGetToken(pTokenEnd, &index, false, NULL);
     pTokenEnd += index;
 
     if (valueToken.n < 2) {
@@ -1240,10 +1247,14 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataB
   int32_t code = tdSRowResetBuf(pBuilder, row);
   // 1. set the parsed value from sql string
   for (int i = 0; i < pCols->numOfBound && TSDB_CODE_SUCCESS == code; ++i) {
-    NEXT_TOKEN_WITH_PREV(*pSql, *pToken);
-    SSchema* pSchema = &pSchemas[pCols->boundColumns[i]];
+    const char* pOrigSql = *pSql;
+    bool        ignoreComma = false;
+    NEXT_TOKEN_WITH_PREV_EXT(*pSql, *pToken, &ignoreComma);
+    if (ignoreComma) {
+      code = buildSyntaxErrMsg(&pCxt->msg, "invalid data or symbol", pOrigSql);
+    }
 
-    if (pToken->type == TK_NK_QUESTION) {
+    if (TSDB_CODE_SUCCESS == code && pToken->type == TK_NK_QUESTION) {
       isParseBindParam = true;
       if (NULL == pCxt->pComCxt->pStmtCb) {
         code = buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", pToken->z);
@@ -1260,10 +1271,10 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataB
     }
 
     if (TSDB_CODE_SUCCESS == code) {
-      param.schema = pSchema;
+      param.schema = &pSchemas[pCols->boundColumns[i]];
       insGetSTSRowAppendInfo(pBuilder->rowType, pCols, i, &param.toffset, &param.colIdx);
-      code = parseValueToken(pCxt, pSql, pToken, pSchema, getTableInfo(pDataBuf->pTableMeta).precision, insMemRowAppend,
-                             &param);
+      code = parseValueToken(pCxt, pSql, pToken, param.schema, getTableInfo(pDataBuf->pTableMeta).precision,
+                             insMemRowAppend, &param);
     }
 
     if (TSDB_CODE_SUCCESS == code && i < pCols->numOfBound - 1) {
