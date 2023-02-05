@@ -1,7 +1,7 @@
 ---
-sidebar_label: UDF
 title: User-Defined Functions (UDF)
-description: "You can define your own scalar and aggregate functions to expand the query capabilities of TDengine."
+sidebar_label: UDF
+description: This document describes how to create user-defined functions (UDF), your own scalar and aggregate functions that can expand the query capabilities of TDengine.
 ---
 
 The built-in functions of TDengine may not be sufficient for the use cases of every application. In this case, you can define custom functions for use in TDengine queries. These are known as user-defined functions (UDF). A user-defined function takes one column of data or the result of a subquery as its input.

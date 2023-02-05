@@ -1,6 +1,7 @@
 ---
-sidebar_label: Helm
 title: Use Helm to deploy TDengine
+sidebar_label: Helm
+description: This document describes how to deploy TDengine on Kubernetes by using Helm.
 ---
 
 Helm is a package manager for Kubernetes that can provide more capabilities in deploying on Kubernetes.

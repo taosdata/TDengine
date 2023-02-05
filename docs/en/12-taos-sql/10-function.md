@@ -1,6 +1,7 @@
 ---
-sidebar_label: Functions
 title: Functions
+sidebar_label: Functions
+description: This document describes the standard SQL functions available in TDengine.
 toc_max_heading_level: 4
 ---
 

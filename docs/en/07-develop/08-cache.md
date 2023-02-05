@@ -1,7 +1,7 @@
 ---
-sidebar_label: Caching
 title: Caching
-description: "This document describes the caching component of TDengine."
+sidebar_label: Caching
+description: This document describes the caching component of TDengine.
 ---
 
 TDengine uses various kinds of caching techniques to efficiently write and query data. This document describes the caching component of TDengine.
