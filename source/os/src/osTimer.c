@@ -114,27 +114,28 @@ static void         *taosProcessAlarmSignal(void *tharg) {
 
   taosThreadCleanupPush(taosDeleteTimer, &timerId);
 
-  struct itimerspec ts;
-  ts.it_value.tv_sec = 0;
-  ts.it_value.tv_nsec = 1000000 * MSECONDS_PER_TICK;
-  ts.it_interval.tv_sec = 0;
-  ts.it_interval.tv_nsec = 1000000 * MSECONDS_PER_TICK;
+  do {
+    struct itimerspec ts;
+    ts.it_value.tv_sec = 0;
+    ts.it_value.tv_nsec = 1000000 * MSECONDS_PER_TICK;
+    ts.it_interval.tv_sec = 0;
+    ts.it_interval.tv_nsec = 1000000 * MSECONDS_PER_TICK;
 
-  if (timer_settime(timerId, 0, &ts, NULL)) {
-            // printf("Failed to init timer");
-    return NULL;
-  }
-
-  int signo;
-  while (!stopTimer) {
-            if (sigwait(&sigset, &signo)) {
-              // printf("Failed to wait signal: number %d", signo);
-      continue;
+    if (timer_settime(timerId, 0, &ts, NULL)) {
+      // printf("Failed to init timer");
+      break;
     }
-            /* //printf("Signal handling: number %d ......\n", signo); */
 
-            callback(0);
-  }
+    int signo;
+    while (!stopTimer) {
+      if (sigwait(&sigset, &signo)) {
+        // printf("Failed to wait signal: number %d", signo);
+        continue;
+      }
+      /* //printf("Signal handling: number %d ......\n", signo); */
+      callback(0);
+    }
+  } while (0);
 
   taosThreadCleanupPop(1);
 
