@@ -565,7 +565,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
   int32_t  colId = -1;
   for (int i = 0; i < oStbEntry.stbEntry.schemaTag.nCols; i++) {
     SSchema *schema = oStbEntry.stbEntry.schemaTag.pSchema + i;
-    if (strncmp(schema->name, pReq->colName, sizeof(pReq->colName))) {
+    if (0 == strncmp(schema->name, pReq->colName, sizeof(pReq->colName))) {
       if (IS_IDX_ON(schema)) {
         pCol = schema;
       }
