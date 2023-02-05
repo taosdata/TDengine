@@ -16,6 +16,7 @@ int32_t  mndDropIdxsByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t  mndGetTableIdx(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool *exist);
 
 int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq);
 #ifdef __cplusplus
 }
 #endif

@@ -47,7 +47,7 @@ static int32_t  mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 static void     mndCancelGetNextSma(SMnode *pMnode, void *pIter);
 static void     mndDestroySmaObj(SSmaObj *pSmaObj);
 
-// sma index and tag index
+// retrieve sma index and tag index
 static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   // TODO
   int32_t read = mndRetrieveSma(pReq, pShow, pBlock, rows);
@@ -55,6 +55,16 @@ static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   read += mndRetrieveTagIdx(pReq, pShow, pBlock, rows - read);
 
   return read;
+}
+
+static int32_t mndProcessDropIdxReq(SRpcMsg *pReq) {
+  int ret = mndProcessDropSmaReq(pReq);
+  if (terrno == TSDB_CODE_MND_SMA_NOT_EXIST) {
+    terrno = 0;
+    ret = mndProcessDropTagIdxReq(pReq);
+  } else {
+  }
+  return ret;
 }
 static void mndCancelGetNextIdx(SMnode *pMnode, void *pIter) {
   // TODO
@@ -71,7 +81,7 @@ int32_t mndInitSma(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SMA, mndProcessCreateSmaReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessDropSmaReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessDropIdxReq);
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_SMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_SMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_INDEX, mndProcessGetSmaReq);
