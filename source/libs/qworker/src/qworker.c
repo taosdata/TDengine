@@ -263,6 +263,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
   SOutputData        output = {0};
 
   if (NULL == ctx->sinkHandle) {
+    pOutput->queryEnd = true;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -758,7 +759,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     }
 
     QW_LOCK(QW_WRITE, &ctx->lock);
-    if (qComplete || (queryStop && (0 == atomic_load_8((int8_t *)&ctx->queryContinue))) || code) {
+    if (atomic_load_8((int8_t*)&ctx->queryEnd) || (queryStop && (0 == atomic_load_8((int8_t *)&ctx->queryContinue))) || code) {
       // Note: query is not running anymore
       QW_SET_PHASE(ctx, QW_PHASE_POST_CQUERY);
       QW_UNLOCK(QW_WRITE, &ctx->lock);
