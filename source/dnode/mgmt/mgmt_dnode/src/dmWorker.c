@@ -233,9 +233,10 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_SYSTABLE_RETRIEVE:
       code = dmProcessRetrieve(pMgmt, pMsg);
       break;
-    case TDMT_MND_GRANT:
+    case TDMT_MND_GRANT: {
       code = dmProcessGrantReq(&pMgmt->pData->clusterId, pMsg);
       break;
+    }
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       dGError("msg:%p, not processed in mgmt queue", pMsg);
