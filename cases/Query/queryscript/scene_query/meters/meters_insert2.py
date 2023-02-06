@@ -132,6 +132,25 @@ class TDTestQuery(TDCase):
             self.tdSql.execute('''insert into stb0_9  (ts , c0 , c1 , c2 , c3 , c4 ) values(now-1h, %d, %d, %f, 'varchar.%s', 'nchar.%s') ;''' 
                 % (fake.random_int(min=-10000, max=10000, step=1), fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr(), fake.address()))
 
+            self.tdSql.execute('''insert into stb0_1  (ts , c0 , c1 , c2 , c3 , c4 ) values(now+1s, %d, %d, %f, 'varchar.%s', 'nchar.%s') ;''' 
+                % (fake.random_int(min=-10000, max=10000, step=1), fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr(), fake.address()))
+            self.tdSql.execute('''insert into stb0_2  (ts , c0 , c1 , c2 , c3 , c4 ) values(now+1m, %d, %d, %f, 'varchar.%s', 'nchar.%s') ;''' 
+                % (fake.random_int(min=-10000, max=10000, step=1), fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr(), fake.address()))
+            self.tdSql.execute('''insert into stb0_3  (ts , c0 , c1 , c2 , c3 , c4 ) values(now+1h, %d, %d, %f, 'varchar.%s', 'nchar.%s') ;''' 
+                % (fake.random_int(min=-10000, max=10000, step=1), fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr(), fake.address()))
+            self.tdSql.execute('''insert into stb0_4  (ts , c0 , c1 , c2 , c3 , c4 ) values(now+1s, %d, %d, %f, 'varchar.%s', 'nchar.%s') ;''' 
+                % (fake.random_int(min=-10000, max=10000, step=1), fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr(), fake.address()))
+            self.tdSql.execute('''insert into stb0_5  (ts , c0 , c1 , c2 , c3 , c4 ) values(now+1m, %d, %d, %f, 'varchar.%s', 'nchar.%s') ;''' 
+                % (fake.random_int(min=-10000, max=10000, step=1), fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr(), fake.address()))
+            self.tdSql.execute('''insert into stb0_6  (ts , c0 , c1 , c2 , c3 , c4 ) values(now+1h, %d, %d, %f, 'varchar.%s', 'nchar.%s') ;''' 
+                % (fake.random_int(min=-10000, max=10000, step=1), fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr(), fake.address()))
+            self.tdSql.execute('''insert into stb0_7  (ts , c0 , c1 , c2 , c3 , c4 ) values(now+1s, %d, %d, %f, 'varchar.%s', 'nchar.%s') ;''' 
+                % (fake.random_int(min=-10000, max=10000, step=1), fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr(), fake.address()))
+            self.tdSql.execute('''insert into stb0_8  (ts , c0 , c1 , c2 , c3 , c4 ) values(now+1m, %d, %d, %f, 'varchar.%s', 'nchar.%s') ;''' 
+                % (fake.random_int(min=-10000, max=10000, step=1), fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr(), fake.address()))
+            self.tdSql.execute('''insert into stb0_9  (ts , c0 , c1 , c2 , c3 , c4 ) values(now+1h, %d, %d, %f, 'varchar.%s', 'nchar.%s') ;''' 
+                % (fake.random_int(min=-10000, max=10000, step=1), fake.random_int(min=-127, max=127, step=1) , fake.pyfloat() , fake.pystr(), fake.address()))
+
         self.tdSql.query("select count(*) from stb0;")
         self.logger.info("\n==========================count(result)=%d=======\n" %self.tdSql.getData(0,0))
 
