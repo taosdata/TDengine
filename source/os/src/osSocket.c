@@ -1060,7 +1060,7 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
 #if defined(WINDOWS)
   SOCKET fd;
 #else
-  int      fd;
+  int fd;
 #endif
   if ((fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
     return -1;
@@ -1071,11 +1071,12 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
     return -1;
   }
 #elif defined(_TD_DARWIN_64)
-  uint32_t conn_timeout_ms = timeout * 1000;
-  if (0 != setsockopt(fd, IPPROTO_TCP, TCP_CONNECTIONTIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
-    taosCloseSocketNoCheck1(fd);
-    return -1;
-  }
+  // invalid config
+  // uint32_t conn_timeout_ms = timeout * 1000;
+  // if (0 != setsockopt(fd, IPPROTO_TCP, TCP_CONNECTIONTIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
+  //  taosCloseSocketNoCheck1(fd);
+  //  return -1;
+  //}
 #else  // Linux like systems
   uint32_t conn_timeout_ms = timeout * 1000;
   if (0 != setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
