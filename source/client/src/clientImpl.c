@@ -1402,8 +1402,6 @@ int32_t doProcessMsgFromServer(void* param) {
         tscError("0x%" PRIx64 " rsp msg:%s, code:%s rspLen:%d, elapsed time:%d ms, reqId:0x%" PRIx64, pRequest->self,
                  TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), pMsg->contLen, elapsed / 1000, pRequest->requestId);
       }
-
-      taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
     }
   }
 
@@ -1423,6 +1421,11 @@ int32_t doProcessMsgFromServer(void* param) {
   }
 
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
+
+  if (pTscObj) {
+    taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
+  }
+
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
 
