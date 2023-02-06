@@ -791,16 +791,18 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   }
   (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mInfo("trans:%d, sync to other mnodes, stage:%s", pTrans->id, mndTransStr(pTrans->stage));
+  mInfo("trans:%d, sync to other mnodes, stage:%s createTime:%" PRId64, pTrans->id, mndTransStr(pTrans->stage),
+        pTrans->createdTime);
   int32_t code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
-    mError("trans:%d, failed to sync, errno:%s code:%s", pTrans->id, terrstr(), tstrerror(code));
+    mError("trans:%d, failed to sync, errno:%s code:%s createTime:%" PRId64 " saved trans:%d", pTrans->id, terrstr(),
+           tstrerror(code), pTrans->createdTime, pMnode->syncMgmt.transId);
     sdbFreeRaw(pRaw);
     return -1;
   }
 
   sdbFreeRaw(pRaw);
-  mInfo("trans:%d, sync finished", pTrans->id);
+  mInfo("trans:%d, sync finished, createTime:%" PRId64, pTrans->id, pTrans->createdTime);
   return 0;
 }
 
@@ -1495,7 +1497,8 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
     mError("trans:%d, failed to write sdb since %s", pTrans->id, terrstr());
   }
 
-  mInfo("trans:%d, execute finished, code:0x%x, failedTimes:%d", pTrans->id, pTrans->code, pTrans->failedTimes);
+  mInfo("trans:%d, execute finished, code:0x%x, failedTimes:%d createTime:%" PRId64, pTrans->id, pTrans->code,
+        pTrans->failedTimes, pTrans->createdTime);
   return continueExec;
 }
 
@@ -1503,7 +1506,8 @@ void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
   bool continueExec = true;
 
   while (continueExec) {
-    mInfo("trans:%d, continue to execute, stage:%s", pTrans->id, mndTransStr(pTrans->stage));
+    mInfo("trans:%d, continue to execute, stage:%s createTime:%" PRId64, pTrans->id, mndTransStr(pTrans->stage),
+          pTrans->createdTime);
     pTrans->lastExecTime = taosGetTimestampMs();
     switch (pTrans->stage) {
       case TRN_STAGE_PREPARE:
