@@ -1,7 +1,7 @@
 ---
-sidebar_label: taosTools
 title: taosTools Release History and Download Links
-description: taosTools release history, Release Notes, download links.
+sidebar_label: taosTools
+description: This document provides download links for all released versions of taosTools compatible with TDengine 3.0.
 ---
 
 taosTools installation packages can be downloaded at the following links:
