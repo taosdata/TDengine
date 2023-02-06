@@ -905,7 +905,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   pTrans->rpcRsp = NULL;
   pTrans->rpcRspLen = 0;
 
-  mndTransExecute(pMnode, pNew);
+  mndTransExecute(pMnode, pNew, true);
   mndReleaseTrans(pMnode, pNew);
   return 0;
 }
@@ -1068,7 +1068,7 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
 
   mInfo("trans:%d, %s:%d response is received, code:0x%x, accept:0x%x retry:0x%x", transId, mndTransStr(pAction->stage),
         action, pRsp->code, pAction->acceptableCode, pAction->retryCode);
-  mndTransExecute(pMnode, pTrans);
+  mndTransExecute(pMnode, pTrans, true);
 
 _OVER:
   mndReleaseTrans(pMnode, pTrans);
@@ -1502,12 +1502,12 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
   return continueExec;
 }
 
-void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
+void mndTransExecute(SMnode *pMnode, STrans *pTrans, bool isLeader) {
   bool continueExec = true;
 
   while (continueExec) {
-    mInfo("trans:%d, continue to execute, stage:%s createTime:%" PRId64, pTrans->id, mndTransStr(pTrans->stage),
-          pTrans->createdTime);
+    mInfo("trans:%d, continue to execute, stage:%s createTime:%" PRId64 " leader:%d", pTrans->id,
+          mndTransStr(pTrans->stage), pTrans->createdTime, isLeader);
     pTrans->lastExecTime = taosGetTimestampMs();
     switch (pTrans->stage) {
       case TRN_STAGE_PREPARE:
@@ -1517,13 +1517,23 @@ void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
         continueExec = mndTransPerformRedoActionStage(pMnode, pTrans);
         break;
       case TRN_STAGE_COMMIT:
-        continueExec = mndTransPerformCommitStage(pMnode, pTrans);
+        if (isLeader) {
+          continueExec = mndTransPerformCommitStage(pMnode, pTrans);
+        } else {
+          mInfo("trans:%d, can not commit since not leader", pTrans->id);
+          continueExec = false;
+        }
         break;
       case TRN_STAGE_COMMIT_ACTION:
         continueExec = mndTransPerformCommitActionStage(pMnode, pTrans);
         break;
       case TRN_STAGE_ROLLBACK:
-        continueExec = mndTransPerformRollbackStage(pMnode, pTrans);
+        if (isLeader) {
+          continueExec = mndTransPerformRollbackStage(pMnode, pTrans);
+        } else {
+          mInfo("trans:%d, can not rollback since not leader", pTrans->id);
+          continueExec = false;
+        }
         break;
       case TRN_STAGE_UNDO_ACTION:
         continueExec = mndTransPerformUndoActionStage(pMnode, pTrans);
@@ -1566,7 +1576,7 @@ int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
     pAction->errCode = 0;
   }
 
-  mndTransExecute(pMnode, pTrans);
+  mndTransExecute(pMnode, pTrans, true);
   return 0;
 }
 
@@ -1624,7 +1634,7 @@ void mndTransPullup(SMnode *pMnode) {
     int32_t *pTransId = taosArrayGet(pArray, i);
     STrans  *pTrans = mndAcquireTrans(pMnode, *pTransId);
     if (pTrans != NULL) {
-      mndTransExecute(pMnode, pTrans);
+      mndTransExecute(pMnode, pTrans, true);
     }
     mndReleaseTrans(pMnode, pTrans);
   }
