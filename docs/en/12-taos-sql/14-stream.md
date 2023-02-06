@@ -1,6 +1,7 @@
 ---
-sidebar_label: Stream Processing
 title: Stream Processing
+sidebar_label: Stream Processing
+description: This document describes the SQL statements related to the stream processing component of TDengine.
 ---
 
 Raw time-series data is often cleaned and preprocessed before being permanently stored in a database. Stream processing components like Kafka, Flink, and Spark are often deployed alongside a time-series database to handle these operations, increasing system complexity and maintenance costs.

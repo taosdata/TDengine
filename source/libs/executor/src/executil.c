@@ -155,7 +155,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
 
 void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList) {
   if (pGroupResInfo->pRows != NULL) {
-    taosArrayDestroyP(pGroupResInfo->pRows, taosMemoryFree);
+    taosArrayDestroy(pGroupResInfo->pRows);
   }
 
   pGroupResInfo->pRows = pArrayList;
@@ -1759,6 +1759,10 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {
   return (pLimitInfo->limit.limit != -1 || pLimitInfo->limit.offset != -1 || pLimitInfo->slimit.limit != -1 ||
           pLimitInfo->slimit.offset != -1);
+}
+
+bool hasSlimitOffsetInfo(SLimitInfo* pLimitInfo) {
+  return (pLimitInfo->slimit.limit != -1 || pLimitInfo->slimit.offset != -1);
 }
 
 void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo) {

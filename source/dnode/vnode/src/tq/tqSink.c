@@ -488,9 +488,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
             };
             void* pData = colDataGetData(pTagData, rowId);
             if (colDataIsNull_s(pTagData, rowId)) {
-              tagVal.type = TSDB_DATA_TYPE_NULL;
-              tagVal.pData = NULL;
-              tagVal.nData = 0;
+              continue;
             } else if (IS_VAR_DATA_TYPE(pTagData->info.type)) {
               tagVal.nData = varDataLen(pData);
               tagVal.pData = varDataVal(pData);

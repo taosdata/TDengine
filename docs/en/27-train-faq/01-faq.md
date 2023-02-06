@@ -1,5 +1,6 @@
 ---
 title: Frequently Asked Questions
+description: This document describes the frequently asked questions about TDengine.
 ---
 
 ## Submit an Issue
