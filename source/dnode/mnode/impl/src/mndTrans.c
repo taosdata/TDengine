@@ -791,7 +791,8 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   }
   (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mInfo("trans:%d, sync to other mnodes, stage:%s", pTrans->id, mndTransStr(pTrans->stage));
+  mInfo("trans:%d, sync to other mnodes, stage:%s createTime:%" PRId64, pTrans->id, mndTransStr(pTrans->stage),
+        pTrans->createdTime);
   int32_t code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
     mError("trans:%d, failed to sync, errno:%s code:%s createTime:%" PRId64 " saved trans:%d", pTrans->id, terrstr(),
@@ -801,7 +802,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   }
 
   sdbFreeRaw(pRaw);
-  mInfo("trans:%d, sync finished", pTrans->id);
+  mInfo("trans:%d, sync finished, createTime:%" PRId64, pTrans->id, pTrans->createdTime);
   return 0;
 }
 
@@ -1498,9 +1499,6 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
 
   mInfo("trans:%d, execute finished, code:0x%x, failedTimes:%d createTime:%" PRId64, pTrans->id, pTrans->code,
         pTrans->failedTimes, pTrans->createdTime);
-  pMnode->syncMgmt.transId = 0;
-  pMnode->syncMgmt.transSec = 0;
-  pMnode->syncMgmt.transSeq = 0;
   return continueExec;
 }
 
