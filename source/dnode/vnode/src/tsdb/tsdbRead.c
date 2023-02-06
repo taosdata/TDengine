@@ -660,7 +660,8 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
   SArray* aBlockIdx = (SArray*)taosLRUCacheValue(pFileReader->pTsdb->biCache, handle);
   size_t  num = taosArrayGetSize(aBlockIdx);
   if (num == 0) {
-    taosArrayDestroy(aBlockIdx);
+    tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
+    // taosArrayDestroy(aBlockIdx);
     return TSDB_CODE_SUCCESS;
   }
 
