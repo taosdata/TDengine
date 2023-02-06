@@ -28,7 +28,7 @@ typedef struct SSIdx {
   void *pIdx;
 } SSIdx;
 
-int32_t mndCheckIdxExist(SMnode *pMnode, char *name, int type, SSIdx *idx);
+int32_t mndAcquireGlobalIdx(SMnode *pMnode, char *name, int type, SSIdx *idx);
 
 #ifdef __cplusplus
 }

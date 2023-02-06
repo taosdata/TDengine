@@ -417,7 +417,7 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
     goto _OVER;
   }
   SSIdx idx = {0};
-  if (mndCheckIdxExist(pMnode, createReq.idxName, SDB_IDX, &idx) == 0) {
+  if (mndAcquireGlobalIdx(pMnode, createReq.idxName, SDB_IDX, &idx) == 0) {
     pIdx = idx.pIdx;
   }
   if (pIdx != NULL) {
@@ -884,7 +884,7 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
   }
   mInfo("idx:%s, start to drop", req.name);
   SSIdx idx = {0};
-  if (mndCheckIdxExist(pMnode, req.name, SDB_IDX, &idx) == 0) {
+  if (mndAcquireGlobalIdx(pMnode, req.name, SDB_IDX, &idx) == 0) {
     pIdx = idx.pIdx;
   }
 

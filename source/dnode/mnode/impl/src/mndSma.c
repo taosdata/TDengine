@@ -737,7 +737,7 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
   SSIdx idx = {0};
-  if (mndCheckIdxExist(pMnode, createReq.name, SDB_SMA, &idx) == 0) {
+  if (mndAcquireGlobalIdx(pMnode, createReq.name, SDB_SMA, &idx) == 0) {
     pSma = idx.pIdx;
   }
 
@@ -987,7 +987,7 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
   mInfo("sma:%s, start to drop", dropReq.name);
 
   SSIdx idx = {0};
-  if (mndCheckIdxExist(pMnode, dropReq.name, SDB_SMA, &idx) == 0) {
+  if (mndAcquireGlobalIdx(pMnode, dropReq.name, SDB_SMA, &idx) == 0) {
     pSma = idx.pIdx;
   }
   if (pSma == NULL) {
@@ -1028,7 +1028,11 @@ static int32_t mndGetSma(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp 
   int32_t  code = -1;
   SSmaObj *pSma = NULL;
 
-  pSma = mndAcquireSma(pMnode, indexReq->indexFName);
+  SSIdx idx = {0};
+  if (0 == mndAcquireGlobalIdx(pMnode, indexReq->indexFName, SDB_SMA, &idx)) {
+    pSma = idx.pIdx;
+  }
+
   if (pSma == NULL) {
     *exist = false;
     return 0;

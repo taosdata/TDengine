@@ -26,9 +26,11 @@ static void *mndGetIdx(SMnode *pMnode, char *name, int type) {
   return pIdx;
 }
 
-int mndCheckIdxExist(SMnode *pMnode, char *name, int type, SSIdx *idx) {
+int mndAcquireGlobalIdx(SMnode *pMnode, char *name, int type, SSIdx *idx) {
   SSmaObj *pSma = mndGetIdx(pMnode, name, SDB_SMA);
   SIdxObj *pIdx = mndGetIdx(pMnode, name, SDB_IDX);
+
+  terrno = 0;
 
   if (pSma == NULL && pIdx == NULL) return 0;
 
@@ -40,11 +42,11 @@ int mndCheckIdxExist(SMnode *pMnode, char *name, int type, SSIdx *idx) {
       mndReleaseSma(pMnode, pSma);
     }
   } else {
-    if (type == SDB_SMA) {
-      mndReleaseIdx(pMnode, pIdx);
-    } else {
+    if (type == SDB_IDX) {
       idx->type = SDB_IDX;
       idx->pIdx = pIdx;
+    } else {
+      mndReleaseIdx(pMnode, pIdx);
     }
   }
   return 0;
