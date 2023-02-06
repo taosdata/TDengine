@@ -256,7 +256,7 @@ int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
 
     if(unlikely(index >= OTD_JSON_FIELDS_NUM)) {
       uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start)
-      break;
+      return -1;
     }
 
     char *sTmp = *start;
@@ -385,7 +385,7 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
 
     if(unlikely(index >= OTD_JSON_FIELDS_NUM)) {
       uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start)
-      break;
+      return -1;
     }
 
     if((*start)[1] == 'm'){
