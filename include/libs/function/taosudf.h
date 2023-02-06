@@ -259,6 +259,39 @@ typedef int32_t (*TUdfAggProcessFunc)(SUdfDataBlock *block, SUdfInterBuf *interB
 typedef int32_t (*TUdfAggMergeFunc)(SUdfInterBuf *inputBuf1, SUdfInterBuf *inputBuf2, SUdfInterBuf *outputBuf);
 typedef int32_t (*TUdfAggFinishFunc)(SUdfInterBuf *buf, SUdfInterBuf *resultData);
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// TODO: capacity for path and 
+// define macro for name and path len or use dynamic allocation/shared with SUdf.
+
+typedef struct SUdfInfo {
+  char name[65];
+
+  int8_t  funcType;
+  int8_t  scriptType;
+  int8_t  outputType;
+  int32_t outputLen;
+  int32_t bufSize;
+
+  char path[512];
+} SUdfInfo;
+
+// TODO: deprecate SUdfInterBuf.numOfResult or add isInitial to SUdfInterBuf
+
+typedef int32_t (*TScriptUdfScalarProcFunc)(SUdfDataBlock *block, SUdfColumn *resultCol, void *udfCtx);
+
+typedef int32_t (*TScriptUdfAggStartFunc)(SUdfInterBuf *buf, void *udfCtx);
+typedef int32_t (*TScriptUdfAggProcessFunc)(SUdfDataBlock *block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf,
+                                            void *udfCtx);
+typedef int32_t (*TScriptUdfAggMergeFunc)(SUdfInterBuf *inputBuf1, SUdfInterBuf *inputBuf2, SUdfInterBuf *outputBuf,
+                                          void *udfCtx);
+typedef int32_t (*TScriptUdfAggFinishFunc)(SUdfInterBuf *buf, SUdfInterBuf *resultData, void *udfCtx);
+typedef int32_t (*TScriptUdfInitFunc)(SUdfInfo *info, void **pUdfCtx);
+typedef int32_t (*TScriptUdfDestoryFunc)(void *udfCtx);
+
+// the following function is for open/close script plugin.
+typedef int32_t (*TScriptOpenFunc)(void *scriptCtx);
+typedef int32_t (*TScriptCloseFunc)(void *scriptCtx);
+
 #ifdef __cplusplus
 }
 #endif
