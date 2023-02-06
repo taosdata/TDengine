@@ -394,17 +394,17 @@ TEST(GeomFuncTest, geomFromTextFunction) {
 
   STR_TO_VARSTR(strArray[0], "POINT(2 5)");
   callGeomFromTextWrapper4(strArray, 1, TSDB_CODE_SUCCESS);
-  STR_TO_VARSTR(strArray[0], "POIN(2 5)");
+  STR_TO_VARSTR(strArray[0], "POIN(2 5)"); // lack of the last letter of 'POINT'
   callGeomFromTextWrapper4(strArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
 
   STR_TO_VARSTR(strArray[0], "LINESTRING(3 -6.1,-7.1 4.2)");
   callGeomFromTextWrapper4(strArray, 1, TSDB_CODE_SUCCESS);
-  STR_TO_VARSTR(strArray[0], "LINESTRING(3 -6.1,-7.1 4.2,)"); //redundant comma at the end
+  STR_TO_VARSTR(strArray[0], "LINESTRING(3 -6.1,-7.1 4.2,)"); // redundant comma at the end
   callGeomFromTextWrapper4(strArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
 
   STR_TO_VARSTR(strArray[0], "POLYGON((-71.1 42.3,-71.2 42.4,-71.3 42.5,-71.1 42.3))");
   callGeomFromTextWrapper4(strArray, 1, TSDB_CODE_SUCCESS);
-  STR_TO_VARSTR(strArray[0], "POLYGON((-71.1 42.3,-71.2 42.4,-71.3 42.5,-71.1 42.8))"); //the first point and last one are not same
+  STR_TO_VARSTR(strArray[0], "POLYGON((-71.1 42.3,-71.2 42.4,-71.3 42.5,-71.1 42.8))"); // the first point and last one are not same
   callGeomFromTextWrapper4(strArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
 
   // test on input of GeomFromText (with NULL value) and output of AsText are same after calling GeomFromText() and AsText()

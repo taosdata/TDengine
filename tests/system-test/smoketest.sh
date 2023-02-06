@@ -109,6 +109,8 @@ python3 ./test.py -f 2-query/function_null.py
 #python3 ./test.py -f 2-query/function_null.py -R
 python3 ./test.py -f 2-query/function_stateduration.py
 #python3 ./test.py -f 2-query/function_stateduration.py -R
+python3 ./test.py -f 2-query/geometry.py
+#python3 ./test.py -f 2-query/geometry.py -R
 python3 ./test.py -f 2-query/histogram.py
 #python3 ./test.py -f 2-query/histogram.py -R
 python3 ./test.py -f 2-query/hyperloglog.py
