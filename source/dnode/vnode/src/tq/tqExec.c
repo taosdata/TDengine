@@ -363,7 +363,8 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
       }
     }
   }
-
+  taosArrayDestroy(pBlocks);
+  taosArrayDestroy(pSchemas);
 //  if (pRsp->blockNum == 0) {
 //    return -1;
 //  }
