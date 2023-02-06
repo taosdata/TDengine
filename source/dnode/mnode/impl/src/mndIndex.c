@@ -17,6 +17,7 @@
 #include "mndIndex.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndIndexComm.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
@@ -415,8 +416,10 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
     mError("idx:%s, failed to create since stb:%s not exist", createReq.idxName, createReq.stbName);
     goto _OVER;
   }
-
-  pIdx = mndAcquireIdx(pMnode, createReq.idxName);
+  SSIdx idx = {0};
+  if (mndCheckIdxExist(pMnode, createReq.idxName, SDB_IDX, &idx) == 0) {
+    pIdx = idx.pIdx;
+  }
   if (pIdx != NULL) {
     terrno = TSDB_CODE_MND_SMA_ALREADY_EXIST;
     goto _OVER;
@@ -880,6 +883,10 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
     goto _OVER;
   }
   mInfo("idx:%s, start to drop", req.name);
+  SSIdx idx = {0};
+  if (mndCheckIdxExist(pMnode, req.name, SDB_IDX, &idx) == 0) {
+    pIdx = idx.pIdx;
+  }
 
   pIdx = mndAcquireIdx(pMnode, req.name);
   if (pIdx == NULL) {

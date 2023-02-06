@@ -18,6 +18,7 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndIndex.h"
+#include "mndIndexComm.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
@@ -735,8 +736,11 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
     goto _OVER;
   }
+  SSIdx idx = {0};
+  if (mndCheckIdxExist(pMnode, createReq.name, SDB_SMA, &idx) == 0) {
+    pSma = idx.pIdx;
+  }
 
-  pSma = mndAcquireSma(pMnode, createReq.name);
   if (pSma != NULL) {
     if (createReq.igExists) {
       mInfo("sma:%s, already exist in sma:%s, ignore exist is set", createReq.name, pSma->name);
@@ -982,7 +986,10 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
 
   mInfo("sma:%s, start to drop", dropReq.name);
 
-  pSma = mndAcquireSma(pMnode, dropReq.name);
+  SSIdx idx = {0};
+  if (mndCheckIdxExist(pMnode, dropReq.name, SDB_SMA, &idx) == 0) {
+    pSma = idx.pIdx;
+  }
   if (pSma == NULL) {
     if (dropReq.igNotExists) {
       mInfo("sma:%s, not exist, ignore not exist is set", dropReq.name);
