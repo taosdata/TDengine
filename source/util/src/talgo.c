@@ -28,14 +28,14 @@ static void median(void *src, int64_t size, int64_t s, int64_t e, const void *pa
                    void *buf) {
   int32_t mid = ((int32_t)(e - s) >> 1u) + (int32_t)s;
 
-  if (comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, s), param) == 1) {
+  if (comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, s), param) > 0) {
     doswap(elePtrAt(src, size, mid), elePtrAt(src, size, s), size, buf);
   }
 
-  if (comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, e), param) == 1) {
+  if (comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, e), param) > 0) {
     doswap(elePtrAt(src, size, mid), elePtrAt(src, size, s), size, buf);
     doswap(elePtrAt(src, size, mid), elePtrAt(src, size, e), size, buf);
-  } else if (comparFn(elePtrAt(src, size, s), elePtrAt(src, size, e), param) == 1) {
+  } else if (comparFn(elePtrAt(src, size, s), elePtrAt(src, size, e), param) > 0) {
     doswap(elePtrAt(src, size, s), elePtrAt(src, size, e), size, buf);
   }
 
@@ -47,7 +47,7 @@ static void tInsertSort(void *src, int64_t size, int32_t s, int32_t e, const voi
                         void *buf) {
   for (int32_t i = s + 1; i <= e; ++i) {
     for (int32_t j = i; j > s; --j) {
-      if (comparFn(elePtrAt(src, size, j), elePtrAt(src, size, j - 1), param) == -1) {
+      if (comparFn(elePtrAt(src, size, j), elePtrAt(src, size, j - 1), param) < 0) {
         doswap(elePtrAt(src, size, j), elePtrAt(src, size, j - 1), size, buf);
       } else {
         break;

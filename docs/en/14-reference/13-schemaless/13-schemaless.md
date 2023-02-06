@@ -1,6 +1,6 @@
 ---
 title: Schemaless Writing
-description: 'The Schemaless write method eliminates the need to create super tables/sub tables in advance and automatically creates the storage structure corresponding to the data, as it is written to the interface.'
+description: This document describes how to use the schemaless write component of TDengine.
 ---
 
 In IoT applications, data is collected for many purposes such as intelligent control, business analysis, device monitoring and so on. Due to changes in business or functional requirements or changes in device hardware, the application logic and even the data collected may change. Schemaless writing automatically creates storage structures for your data as it is being written to TDengine, so that you do not need to create supertables in advance. When necessary, schemaless writing

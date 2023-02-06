@@ -1207,7 +1207,7 @@ static int32_t tsdbSnapWriteTableRow(STsdbSnapWriter* pWriter, TSDBROW* pRow) {
             TSDB_CHECK_CODE(code, lino, _exit);
           }
 
-          tMapDataPutItem(&pWriter->pDIter->dIter.mDataBlk, &dataBlk, tPutDataBlk);
+          tMapDataPutItem(&pWriter->mDataBlk, &dataBlk, tPutDataBlk);
           pWriter->pDIter->dIter.iDataBlk++;
         } else {
           code = tsdbReadDataBlockEx(pWriter->pDataFReader, &dataBlk, &pWriter->pDIter->dIter.bData);

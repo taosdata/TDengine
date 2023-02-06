@@ -1,6 +1,6 @@
 ---
 title: Deploying TDengine with Docker
-description: "This chapter focuses on starting the TDengine service in a container and accessing it."
+description: This chapter describes how to start and access TDengine in a Docker container.
 ---
 
 This chapter describes how to start the TDengine service in a container and access it. Users can control the behavior of the service in the container by using environment variables on the docker run command-line or in the docker-compose file.

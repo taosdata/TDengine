@@ -1,6 +1,7 @@
 ---
-sidebar_label: OpenTSDB Migration to TDengine
 title: Best Practices for Migrating OpenTSDB Applications to TDengine
+sidebar_label: OpenTSDB Migration to TDengine
+description: This document describes the best practices for migrating an OpenTSDB application to TDengine.
 ---
 
 As a distributed, scalable, distributed time-series database platform based on HBase, and thanks to its first-mover advantage, OpenTSDB is widely used for monitoring in DevOps. However, as new technologies like cloud computing, microservices, and containerization technology has developed rapidly, Enterprise-level services are becoming more and more diverse and the architecture is becoming more complex.

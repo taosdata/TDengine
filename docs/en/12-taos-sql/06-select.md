@@ -1,6 +1,7 @@
 ---
-sidebar_label: Select
 title: Select
+sidebar_label: Select
+description: This document describes how to query data in TDengine.
 ---
 
 ## Syntax
