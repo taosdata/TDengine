@@ -1552,8 +1552,7 @@ static bool fileBlockShouldLoad(STsdbReader* pReader, SFileDataBlockInfo* pBlock
 
   // log the reason why load the datablock for profile
   if (loadDataBlock) {
-    tsdbDebug("%p uid:%" PRIu64
-              " need to load the datablock, overlapwithneighborblock:%d, hasDup:%d, partiallyRequired:%d, "
+    tsdbDebug("%p uid:%" PRIu64 " need to load the datablock, overlapneighbor:%d, hasDup:%d, partiallyRequired:%d, "
               "overlapWithKey:%d, greaterThanBuf:%d, overlapWithDel:%d, overlapWithlastBlock:%d, %s",
               pReader, pBlockInfo->uid, info.overlapWithNeighborBlock, info.hasDupTs, info.partiallyRequired,
               info.overlapWithKeyInBuf, info.moreThanCapcity, info.overlapWithDelInfo, info.overlapWithLastBlock,
@@ -2595,21 +2594,37 @@ _err:
 }
 
 TSDBKEY getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* pReader) {
-  TSDBKEY  key = {.ts = TSKEY_INITIAL_VAL};
+  bool asc = ASCENDING_TRAVERSE(pReader->order);
+  TSKEY initialVal = asc? TSKEY_MIN:TSKEY_MAX;
+
+  TSDBKEY  key = {.ts = initialVal}, ikey = {.ts = initialVal};
+
+  bool hasKey = false, hasIKey = false;
   TSDBROW* pRow = getValidMemRow(&pScanInfo->iter, pScanInfo->delSkyline, pReader);
   if (pRow != NULL) {
+    hasKey = true;
     key = TSDBROW_KEY(pRow);
   }
 
-  pRow = getValidMemRow(&pScanInfo->iiter, pScanInfo->delSkyline, pReader);
-  if (pRow != NULL) {
-    TSDBKEY k = TSDBROW_KEY(pRow);
-    if (key.ts > k.ts) {
-      key = k;
-    }
+  TSDBROW* pIRow = getValidMemRow(&pScanInfo->iiter, pScanInfo->delSkyline, pReader);
+  if (pIRow != NULL) {
+    hasIKey = true;
+    ikey = TSDBROW_KEY(pIRow);
   }
-
-  return key;
+  
+  if (hasKey) {
+    if (hasIKey) { // has data in mem & imem
+      if (asc) {
+        return key.ts <= ikey.ts ? key : ikey;
+      } else  {
+        return key.ts <= ikey.ts ? ikey: key;
+      }
+    } else {  // no data in imem
+      return key;
+    }
+  } else {  // no data in mem & imem, return the initial value
+    return hasIKey? ikey:key;
+  }
 }
 
 static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
@@ -3997,11 +4012,9 @@ void tsdbReaderClose(STsdbReader* pReader) {
   }
 
   tsdbDebug("%p :io-cost summary: head-file:%" PRIu64 ", head-file time:%.2f ms, SMA:%" PRId64
-            " SMA-time:%.2f ms, fileBlocks:%" PRId64
-            ", fileBlocks-load-time:%.2f ms, "
-            "build in-memory-block-time:%.2f ms, lastBlocks:%" PRId64
-            ", lastBlocks-time:%.2f ms, composed-blocks:%" PRId64
-            ", composed-blocks-time:%.2fms, STableBlockScanInfo size:%.2f Kb, creatTime:%.2f ms, %s",
+            " SMA-time:%.2f ms, fileBlocks:%" PRId64 ", fileBlocks-load-time:%.2f ms, "
+            "build in-memory-block-time:%.2f ms, lastBlocks:%" PRId64 ", lastBlocks-time:%.2f ms, composed-blocks:%" PRId64
+            ", composed-blocks-time:%.2fms, STableBlockScanInfo size:%.2f Kb, createTime:%.2f ms, %s",
             pReader, pCost->headFileLoad, pCost->headFileLoadTime, pCost->smaDataLoad, pCost->smaLoadTime,
             pCost->numOfBlocks, pCost->blockLoadTime, pCost->buildmemBlock, pCost->lastBlockLoad,
             pCost->lastBlockLoadTime, pCost->composedBlocks, pCost->buildComposedBlockTime,
