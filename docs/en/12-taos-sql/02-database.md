@@ -1,7 +1,7 @@
 ---
-sidebar_label: Database
 title: Database
-description: "create and drop database, show or change database parameters"
+sidebar_label: Database
+description: This document describes how to create and perform operations on databases.
 ---
 
 ## Create a Database

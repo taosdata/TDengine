@@ -1,6 +1,6 @@
 ---
 title: Configuration Parameters
-description: "Configuration parameters for client and server in TDengine"
+description: This document describes the configuration parameters for the TDengine server and client.
 ---
 
 ## Configuration File on Server Side
@@ -162,7 +162,7 @@ The parameters described in this document by the effect that they have on the sy
 | Meaning     | Execution policy for query statements            |
 | Unit     | None                            |
 | Default   | 1                             |
-| Value Range | 1: Run queries on vnodes and not on qnodes<br>2: Run subtasks without scan operators on qnodes and subtasks with scan operators on vnodes.<br>3: Only run scan operators on vnodes; run all other operators on qnodes. |
+| Value Range | 1: Run queries on vnodes and not on qnodes; 2: Run subtasks without scan operators on qnodes and subtasks with scan operators on vnodes; 3: Only run scan operators on vnodes, and run all other operators on qnodes. |
 
 ### querySmaOptimize
 
@@ -172,7 +172,7 @@ The parameters described in this document by the effect that they have on the sy
 | Meaning  | SMA index optimization policy |
 | Unit     | None                            |
 | Default Value | 0                                                 |
-| Notes |0: Disable SMA indexing and perform all queries on non-indexed data.<br>1: Enable SMA indexing and perform queries from suitable statements on precomputation results.|
+| Notes |0: Disable SMA indexing and perform all queries on non-indexed data; 1: Enable SMA indexing and perform queries from suitable statements on precomputation results.|
 
 ### countAlwaysReturnValue 
 
