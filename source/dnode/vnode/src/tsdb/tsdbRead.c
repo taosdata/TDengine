@@ -4410,7 +4410,7 @@ int64_t tsdbGetNumOfRowsInMemTable(STsdbReader* pReader) {
     STableBlockScanInfo* pBlockScanInfo = *(STableBlockScanInfo**)pStatus->pTableIter;
 
     STbData* d = NULL;
-    if (pReader->pTsdb->mem != NULL) {
+    if (pReader->pReadSnap->pMem != NULL) {
       d = tsdbGetTbDataFromMemTable(pReader->pReadSnap->pMem, pReader->suid, pBlockScanInfo->uid);
       if (d != NULL) {
         rows += tsdbGetNRowsInTbData(d);
@@ -4418,7 +4418,7 @@ int64_t tsdbGetNumOfRowsInMemTable(STsdbReader* pReader) {
     }
 
     STbData* di = NULL;
-    if (pReader->pTsdb->imem != NULL) {
+    if (pReader->pReadSnap->pIMem != NULL) {
       di = tsdbGetTbDataFromMemTable(pReader->pReadSnap->pIMem, pReader->suid, pBlockScanInfo->uid);
       if (di != NULL) {
         rows += tsdbGetNRowsInTbData(di);
