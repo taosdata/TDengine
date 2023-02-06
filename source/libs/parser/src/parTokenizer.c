@@ -622,7 +622,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
   return 0;
 }
 
-SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
+SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreComma) {
   SToken t0 = {0};
 
   // here we reach the end of sql string, null-terminated string
@@ -641,6 +641,10 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
         return t0;
+      }
+
+      if (NULL != pIgnoreComma && t == ',') {
+        *pIgnoreComma = true;
       }
 
       t = str[++(*i)];

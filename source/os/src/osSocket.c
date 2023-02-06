@@ -944,7 +944,7 @@ uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
   iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
   if (iResult != 0) {
     // printf("WSAStartup failed: %d\n", iResult);
-    return 1;
+    return 0xFFFFFFFF;
   }
 #endif
   struct addrinfo hints = {0};
