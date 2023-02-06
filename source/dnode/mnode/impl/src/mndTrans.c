@@ -572,8 +572,20 @@ static void mndTransUpdateActions(SArray *pOldArray, SArray *pNewArray) {
 }
 
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
-  mTrace("trans:%d, perform update action, old row:%p stage:%s, new row:%p stage:%s", pOld->id, pOld,
-         mndTransStr(pOld->stage), pNew, mndTransStr(pNew->stage));
+  mTrace("trans:%d, perform update action, old row:%p stage:%s create:%" PRId64 ", new row:%p stage:%s create:%" PRId64,
+         pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage),
+         pNew->createdTime);
+
+  if (pOld->createdTime != pNew->createdTime) {
+    mError("trans:%d, failed to perform update action since createTime not match, old row:%p stage:%s create:%" PRId64
+           ", new row:%p stage:%s create:%" PRId64,
+           pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage),
+           pNew->createdTime);
+    // only occured while sync timeout
+    terrno = TSDB_CODE_MND_TRNAS_SYNC_TIMEOUT;
+    return -1;
+  }
+
   mndTransUpdateActions(pOld->redoActions, pNew->redoActions);
   mndTransUpdateActions(pOld->undoActions, pNew->undoActions);
   mndTransUpdateActions(pOld->commitActions, pNew->commitActions);

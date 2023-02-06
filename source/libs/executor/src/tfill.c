@@ -447,32 +447,6 @@ struct SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t 
 
   taosResetFillInfo(pFillInfo, skey);
 
-  switch (fillType) {
-    case FILL_MODE_NONE:
-      pFillInfo->type = TSDB_FILL_NONE;
-      break;
-    case FILL_MODE_PREV:
-      pFillInfo->type = TSDB_FILL_PREV;
-      break;
-    case FILL_MODE_NULL:
-      pFillInfo->type = TSDB_FILL_NULL;
-      break;
-    case FILL_MODE_LINEAR:
-      pFillInfo->type = TSDB_FILL_LINEAR;
-      break;
-    case FILL_MODE_NEXT:
-      pFillInfo->type = TSDB_FILL_NEXT;
-      break;
-    case FILL_MODE_VALUE:
-      pFillInfo->type = TSDB_FILL_SET_VALUE;
-      break;
-    default: {
-      taosMemoryFree(pFillInfo);
-      terrno = TSDB_CODE_INVALID_PARA;
-      return NULL;
-    }
-  }
-
   pFillInfo->type = fillType;
   pFillInfo->pFillCol = pCol;
   pFillInfo->numOfCols = numOfFillCols + numOfNotFillCols;

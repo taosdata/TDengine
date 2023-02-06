@@ -929,8 +929,9 @@ int32_t tRowMergerGetRow(SRowMerger *pMerger, STSRow **ppRow) {
   return code;
 }
 
+/*
 // delete skyline ======================================================
-static int32_t tsdbMergeSkyline(SArray *aSkyline1, SArray *aSkyline2, SArray *aSkyline) {
+static int32_t tsdbMergeSkyline2(SArray *aSkyline1, SArray *aSkyline2, SArray *aSkyline) {
   int32_t  code = 0;
   int32_t  i1 = 0;
   int32_t  n1 = taosArrayGetSize(aSkyline1);
@@ -996,7 +997,141 @@ static int32_t tsdbMergeSkyline(SArray *aSkyline1, SArray *aSkyline2, SArray *aS
 _exit:
   return code;
 }
+*/
+
+// delete skyline ======================================================
+static int32_t tsdbMergeSkyline(SArray *pSkyline1, SArray *pSkyline2, SArray *pSkyline) {
+  int32_t  code = 0;
+  int32_t  i1 = 0;
+  int32_t  n1 = taosArrayGetSize(pSkyline1);
+  int32_t  i2 = 0;
+  int32_t  n2 = taosArrayGetSize(pSkyline2);
+  TSDBKEY *pKey1;
+  TSDBKEY *pKey2;
+  int64_t  version1 = 0;
+  int64_t  version2 = 0;
+
+  ASSERT(n1 > 0 && n2 > 0);
+
+  taosArrayClear(pSkyline);
+  TSDBKEY **pItem = TARRAY_GET_ELEM(pSkyline, 0);
+
+  while (i1 < n1 && i2 < n2) {
+    pKey1 = (TSDBKEY *)taosArrayGetP(pSkyline1, i1);
+    pKey2 = (TSDBKEY *)taosArrayGetP(pSkyline2, i2);
+
+    if (pKey1->ts < pKey2->ts) {
+      version1 = pKey1->version;
+      *pItem = pKey1;
+      i1++;
+    } else if (pKey1->ts > pKey2->ts) {
+      version2 = pKey2->version;
+      *pItem = pKey2;
+      i2++;
+    } else {
+      version1 = pKey1->version;
+      version2 = pKey2->version;
+      *pItem = pKey1;
+      i1++;
+      i2++;
+    }
+
+    (*pItem)->version = TMAX(version1, version2);
+    pItem++;
+  }
+
+  while (i1 < n1) {
+    pKey1 = (TSDBKEY *)taosArrayGetP(pSkyline1, i1);
+    *pItem = pKey1;
+    pItem++;
+    i1++;
+  }
+
+  while (i2 < n2) {
+    pKey2 = (TSDBKEY *)taosArrayGetP(pSkyline2, i2);
+    *pItem = pKey2;
+    pItem++;
+    i2++;
+  }
+
+  taosArraySetSize(pSkyline, TARRAY_ELEM_IDX(pSkyline, pItem));
+
+_exit:
+  return code;
+}
+
+
+int32_t tsdbBuildDeleteSkylineImpl(SArray *aSkyline, int32_t sidx, int32_t eidx, SArray *pSkyline) {
+  int32_t   code = 0;
+  SDelData *pDelData;
+  int32_t   midx;
+
+  taosArrayClear(pSkyline);
+  if (sidx == eidx) {    
+    TSDBKEY *pItem1 = taosArrayGet(aSkyline, sidx * 2);
+    TSDBKEY *pItem2 = taosArrayGet(aSkyline, sidx * 2 + 1);
+    taosArrayPush(pSkyline, &pItem1);
+    taosArrayPush(pSkyline, &pItem2);
+  } else {
+    SArray *pSkyline1 = NULL;
+    SArray *pSkyline2 = NULL;
+    midx = (sidx + eidx) / 2;
+
+    pSkyline1 = taosArrayInit((midx - sidx + 1) * 2, POINTER_BYTES);
+    pSkyline2 = taosArrayInit((eidx - midx) * 2, POINTER_BYTES);
+    if (pSkyline1 == NULL || pSkyline1 == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _clear;
+    }
+
+    code = tsdbBuildDeleteSkylineImpl(aSkyline, sidx, midx, pSkyline1);
+    if (code) goto _clear;
+
+    code = tsdbBuildDeleteSkylineImpl(aSkyline, midx + 1, eidx, pSkyline2);
+    if (code) goto _clear;
+
+    code = tsdbMergeSkyline(pSkyline1, pSkyline2, pSkyline);
+
+  _clear:
+    taosArrayDestroy(pSkyline1);
+    taosArrayDestroy(pSkyline2);
+  }
+
+  return code;
+}
+
+
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline) {
+  SDelData *pDelData;
+  int32_t code = 0;
+  int32_t dataNum = eidx - sidx + 1;
+  SArray *aTmpSkyline = taosArrayInit(dataNum * 2, sizeof(TSDBKEY));
+  SArray *pSkyline = taosArrayInit(dataNum * 2, POINTER_BYTES);
+  
+  for (int32_t i = sidx; i <= eidx; ++i) {
+    pDelData = (SDelData *)taosArrayGet(aDelData, i);
+    taosArrayPush(aTmpSkyline, &(TSDBKEY){.ts = pDelData->sKey, .version = pDelData->version});
+    taosArrayPush(aTmpSkyline, &(TSDBKEY){.ts = pDelData->eKey, .version = 0});
+  }
+
+  code = tsdbBuildDeleteSkylineImpl(aTmpSkyline, sidx, eidx, pSkyline);
+  if (code) goto _clear;
+
+  int32_t skylineNum = taosArrayGetSize(pSkyline);
+  for (int32_t i = 0; i < skylineNum; ++i) {
+     TSDBKEY *p = taosArrayGetP(pSkyline, i);
+     taosArrayPush(aSkyline, p);
+  }
+
+_clear:
+  taosArrayDestroy(aTmpSkyline);
+  taosArrayDestroy(pSkyline);
+
+  return code;
+}
+
+/*
+int32_t tsdbBuildDeleteSkyline2(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline) {
   int32_t   code = 0;
   SDelData *pDelData;
   int32_t   midx;
@@ -1033,6 +1168,7 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
 
   return code;
 }
+*/
 
 // SBlockData ======================================================
 int32_t tBlockDataCreate(SBlockData *pBlockData) {

@@ -56,4 +56,7 @@ int  metaPrepareAsyncCommit(SMeta *pMeta) {
 }
 
 // abort the meta txn
-int metaAbort(SMeta *pMeta) { return tdbAbort(pMeta->pEnv, pMeta->txn); }
+int metaAbort(SMeta *pMeta) {
+  if (!pMeta->txn) return 0;
+  return tdbAbort(pMeta->pEnv, pMeta->txn);
+}

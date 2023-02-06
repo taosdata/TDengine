@@ -737,7 +737,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
   pBuf->type = type;
 
   if (IS_NULL_TYPE(type)) {
-    numOfElems = 0;
     goto _over;
   }
 
@@ -749,9 +748,8 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
       goto _over;
     }
 
-    void*   tval = NULL;
     int16_t index = 0;
-    tval = isMinFunc? &pInput->pColumnDataAgg[0]->min: &pInput->pColumnDataAgg[0]->max;
+    void*   tval = (isMinFunc) ? &pInput->pColumnDataAgg[0]->min : &pInput->pColumnDataAgg[0]->max;
 
     if (!pBuf->assign) {
       if (type == TSDB_DATA_TYPE_FLOAT) {
@@ -801,8 +799,21 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
       }
     }
 
+        if (pCtx->subsidiaries.num > 0) {
+          index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
+          if (index >= 0) {
+            int32_t code = saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
+            if (code != TSDB_CODE_SUCCESS) {
+              return code;
+            }
+          }
+        }
+      }
+    }
+
+    numOfElems = 1;
     pBuf->assign = true;
-    return code;
+    goto _over;
   }
 
   int32_t start = pInput->startRowIndex;
