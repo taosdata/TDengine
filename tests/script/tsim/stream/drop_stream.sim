@@ -55,9 +55,9 @@ sql create stream stb_asin_stream trigger at_once into output_asin_stb as select
 sql create stream ctb_asin_stream trigger at_once into output_asin_ctb as select ts, asin(c1), asin(c2), c3 from scalar_ct1;
 sql create stream tb_asin_stream trigger at_once into output_asin_tb as select ts, asin(c1), asin(c2), c3 from scalar_tb;
 sql create stream stb_atan_stream trigger at_once into output_atan_stb as select ts, atan(c1), atan(c2), c3 from scalar_stb partition by tbname;
-sql create stream ctb_atan_stream trigger at_once into output_atan_ctb as select ts, atan(c1), atan(c2), c3 from scalar_ct1;
-sql create stream tb_atan_stream trigger at_once into output_atan_tb as select ts, atan(c1), atan(c2), c3 from scalar_tb;
-sql create stream stb_ceil_stream trigger at_once into output_ceil_stb as select ts, ceil(c1), ceil(c2), c3 from scalar_stb partition by tbname;
+# sql create stream ctb_atan_stream trigger at_once into output_atan_ctb as select ts, atan(c1), atan(c2), c3 from scalar_ct1;
+# sql create stream tb_atan_stream trigger at_once into output_atan_tb as select ts, atan(c1), atan(c2), c3 from scalar_tb;
+# sql create stream stb_ceil_stream trigger at_once into output_ceil_stb as select ts, ceil(c1), ceil(c2), c3 from scalar_stb partition by tbname;
 # sql create stream ctb_ceil_stream trigger at_once into output_ceil_ctb as select ts, ceil(c1), ceil(c2), c3 from scalar_ct1;
 # sql create stream tb_ceil_stream trigger at_once into output_ceil_tb as select ts, ceil(c1), ceil(c2), c3 from scalar_tb;
 # sql create stream stb_cos_stream trigger at_once into output_cos_stb as select ts, cos(c1), cos(c2), c3 from scalar_stb partition by tbname;

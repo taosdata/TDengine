@@ -647,6 +647,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
       if (pStream->sourceDbUid == streamObj.sourceDbUid) {
         ++numOfStream;
       }
+      sdbRelease(pMnode->pSdb, pStream);
       if (numOfStream > MND_STREAM_MAX_NUM) {
         mError("too many streams, no more than 10 for each database");
         terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
