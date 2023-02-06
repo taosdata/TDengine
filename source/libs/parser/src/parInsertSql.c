@@ -1252,25 +1252,26 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataB
     NEXT_TOKEN_WITH_PREV_EXT(*pSql, *pToken, &ignoreComma);
     if (ignoreComma) {
       code = buildSyntaxErrMsg(&pCxt->msg, "invalid data or symbol", pOrigSql);
+      break;
     }
 
-    if (TSDB_CODE_SUCCESS == code && pToken->type == TK_NK_QUESTION) {
+    if (pToken->type == TK_NK_QUESTION) {
       isParseBindParam = true;
       if (NULL == pCxt->pComCxt->pStmtCb) {
         code = buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", pToken->z);
+        break;
       }
-      continue;
-    }
+    } else {
+      if (TK_NK_RP == pToken->type) {
+        code = generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_COLUMNS_NUM);
+        break;
+      }
 
-    if (TSDB_CODE_SUCCESS == code && TK_NK_RP == pToken->type) {
-      code = generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_COLUMNS_NUM);
-    }
+      if (isParseBindParam) {
+        code = buildInvalidOperationMsg(&pCxt->msg, "no mix usage for ? and values");
+        break;
+      }
 
-    if (TSDB_CODE_SUCCESS == code && isParseBindParam) {
-      code = buildInvalidOperationMsg(&pCxt->msg, "no mix usage for ? and values");
-    }
-
-    if (TSDB_CODE_SUCCESS == code) {
       param.schema = &pSchemas[pCols->boundColumns[i]];
       insGetSTSRowAppendInfo(pBuilder->rowType, pCols, i, &param.toffset, &param.colIdx);
       code = parseValueToken(pCxt, pSql, pToken, param.schema, getTableInfo(pDataBuf->pTableMeta).precision,
