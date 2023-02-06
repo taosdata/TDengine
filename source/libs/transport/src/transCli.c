@@ -1045,6 +1045,12 @@ static FORCE_INLINE uint32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn) 
   uint32_t* v = taosHashGet(cache, fqdn, strlen(fqdn));
   if (v == NULL) {
     addr = taosGetIpv4FromFqdn(fqdn);
+    if (addr == 0xffffffff) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      tError("failed to get ip from fqdn:%s since %s", fqdn, terrstr());
+      return addr;
+    }    
+    
     taosHashPut(cache, fqdn, strlen(fqdn), &addr, sizeof(addr));
   } else {
     addr = *v;
@@ -1116,9 +1122,20 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     conn->ip = strdup(EPSET_GET_INUSE_IP(&pCtx->epSet));
     conn->port = EPSET_GET_INUSE_PORT(&pCtx->epSet);
 
+    uint32_t ipaddr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ip);
+    if (ipaddr == 0xffffffff) {
+      uv_timer_stop(conn->timer);
+      conn->timer->data = NULL;
+      taosArrayPush(pThrd->timerList, &conn->timer);
+      conn->timer = NULL;
+
+      cliHandleExcept(conn);
+      return;
+    }
+    
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ip);
+    addr.sin_addr.s_addr = ipaddr;
     addr.sin_port = (uint16_t)htons((uint16_t)conn->port);
 
     STraceId* trace = &(pMsg->msg.info.traceId);
