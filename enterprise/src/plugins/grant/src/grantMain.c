@@ -659,7 +659,6 @@ static void grantResetMaster(SMnode *pMnode) {
   if (clusterCreateTime > 0) {
     recheckClusterTime = false;
     grantStatus.expireTimeSec = clusterCreateTime + GRANT_DEFAULT;
-    grantStatus.expireTimeSec = grantStatus.expireTimeSec > curTime ? grantStatus.expireTimeSec : curTime;
     grantStatus.expireTimeSec += GRANT_TOLERENCE;
     grantStatus.expired = false;
 
