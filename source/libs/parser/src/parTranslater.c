@@ -806,7 +806,11 @@ static void setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColum
     strcpy(pCol->node.aliasName, pCol->colName);
   }
   if ('\0' == pCol->node.userAlias[0]) {
-    strcpy(pCol->node.userAlias, pCol->colName);
+    if (!tsKeepColumnName || '\0' == pExpr->userAlias[0]) {
+      strcpy(pCol->node.userAlias, pCol->colName);
+    } else {
+      strcpy(pCol->node.userAlias, pExpr->userAlias);
+    }
   }
   pCol->node.resType = pExpr->resType;
 }
@@ -875,7 +879,7 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
     SNode*          pNode;
     FOREACH(pNode, pProjectList) {
       SExprNode* pExpr = (SExprNode*)pNode;
-      if (0 == strcmp(pCol->colName, pExpr->aliasName)) {
+      if (0 == strcmp(pCol->colName, pExpr->aliasName) || (tsKeepColumnName && 0 == strcmp(pCol->colName, pExpr->userAlias))) {
         if (*pFound) {
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
         }
