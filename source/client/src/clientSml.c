@@ -1120,7 +1120,7 @@ SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
   info->maxTagKVs = taosArrayInit(8, sizeof(SSmlKv));
   info->preLineColKV = taosArrayInit(8, sizeof(SSmlKv));
 
-  if (NULL == info->pVgHash) {
+  if (NULL == info->pVgHash || NULL == info->childTables || NULL == info->superTables) {
     uError("create SSmlHandle failed");
     goto cleanup;
   }
@@ -1298,6 +1298,9 @@ int32_t smlClearForRerun(SSmlHandle *info) {
     smlDestroySTableMeta(*oneSTable);
     oneSTable = (SSmlSTableMeta **)taosHashIterate(info->superTables, oneSTable);
   }
+
+  taosHashClear(info->childTables);
+  taosHashClear(info->superTables);
 
   if (!info->dataFormat) {
     if (unlikely(info->lines != NULL)) {
