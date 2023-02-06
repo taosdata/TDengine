@@ -1311,7 +1311,11 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   for (int i = 0; i < cli->numOfThreads; i++) {
     SCliThrd* pThrd = createThrdObj(shandle);
-    int       err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
+    if (pThrd == NULL) {
+      return NULL;
+    }
+
+    int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
     if (err == 0) {
       tDebug("success to create tranport-cli thread:%d", i);
     }
@@ -1368,9 +1372,23 @@ static SCliThrd* createThrdObj(void* trans) {
   taosThreadMutexInit(&pThrd->msgMtx, NULL);
 
   pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
-  uv_loop_init(pThrd->loop);
-
+  int err = uv_loop_init(pThrd->loop);
+  if (err != 0) {
+    tError("failed to init uv_loop, reason:%s", uv_err_name(err));
+    taosMemoryFree(pThrd->loop);
+    taosThreadMutexDestroy(&pThrd->msgMtx);
+    taosMemoryFree(pThrd);
+    return NULL;
+  }
   pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 8, pThrd, cliAsyncCb);
+  if (pThrd->asyncPool == NULL) {
+    tError("failed to init async pool");
+    uv_loop_close(pThrd->loop);
+    taosMemoryFree(pThrd->loop);
+    taosThreadMutexDestroy(&pThrd->msgMtx);
+    taosMemoryFree(pThrd);
+    return NULL;
+  }
 
   pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
   uv_prepare_init(pThrd->loop, pThrd->prepare);

@@ -218,24 +218,37 @@ SAsyncPool* transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
   pool->nAsync = sz;
   pool->asyncs = taosMemoryCalloc(1, sizeof(uv_async_t) * pool->nAsync);
 
-  for (int i = 0; i < pool->nAsync; i++) {
+  int i = 0, err = 0;
+  for (i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+
     SAsyncItem* item = taosMemoryCalloc(1, sizeof(SAsyncItem));
     item->pThrd = arg;
     QUEUE_INIT(&item->qmsg);
     taosThreadMutexInit(&item->mtx, NULL);
 
-    uv_async_t* async = &(pool->asyncs[i]);
-    uv_async_init(loop, async, cb);
     async->data = item;
+    err = uv_async_init(loop, async, cb);
+    if (err != 0) {
+      tError("failed to init async, reason:%s", uv_err_name(err));
+      break;
+    }
   }
+
+  if (i != pool->nAsync) {
+    transAsyncPoolDestroy(pool);
+    pool = NULL;
+  }
+
   return pool;
 }
 
 void transAsyncPoolDestroy(SAsyncPool* pool) {
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
-
     SAsyncItem* item = async->data;
+    if (item == NULL) continue;
+
     taosThreadMutexDestroy(&item->mtx);
     taosMemoryFree(item);
   }
