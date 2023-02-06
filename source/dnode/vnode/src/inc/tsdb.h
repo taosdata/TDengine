@@ -69,6 +69,8 @@ typedef struct SDiskCol         SDiskCol;
 typedef struct SDiskData        SDiskData;
 typedef struct SDiskDataBuilder SDiskDataBuilder;
 typedef struct SBlkInfo         SBlkInfo;
+typedef struct STsdbDataIter2   STsdbDataIter2;
+typedef struct STsdbFilterInfo  STsdbFilterInfo;
 
 #define TSDBROW_ROW_FMT ((int8_t)0x0)
 #define TSDBROW_COL_FMT ((int8_t)0x1)
@@ -279,6 +281,7 @@ int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *m
 int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk);
 int32_t tsdbReadBlockSma(SDataFReader *pReader, SDataBlk *pBlock, SArray *aColumnDataAgg);
 int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pBlock, SBlockData *pBlockData);
+int32_t tsdbReadDataBlockEx(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData);
 int32_t tsdbReadSttBlock(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData);
 int32_t tsdbReadSttBlockEx(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData);
 // SDelFWriter
@@ -310,6 +313,25 @@ int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TAB
 int32_t tDiskDataBuilderClear(SDiskDataBuilder *pBuilder);
 int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTSchema, TABLEID *pId);
 int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData, const SBlkInfo **ppBlkInfo);
+// tsdbDataIter.c ==============================================================================================
+#define TSDB_MEM_TABLE_DATA_ITER 0
+#define TSDB_DATA_FILE_DATA_ITER 1
+#define TSDB_STT_FILE_DATA_ITER  2
+#define TSDB_TOMB_FILE_DATA_ITER 3
+
+#define TSDB_FILTER_FLAG_BY_VERSION 0x1
+
+#define TSDB_RBTN_TO_DATA_ITER(pNode) ((STsdbDataIter2 *)(((char *)pNode) - offsetof(STsdbDataIter2, rbtn)))
+/* open */
+int32_t tsdbOpenDataFileDataIter(SDataFReader *pReader, STsdbDataIter2 **ppIter);
+int32_t tsdbOpenSttFileDataIter(SDataFReader *pReader, int32_t iStt, STsdbDataIter2 **ppIter);
+int32_t tsdbOpenTombFileDataIter(SDelFReader *pReader, STsdbDataIter2 **ppIter);
+/* close */
+void tsdbCloseDataIter2(STsdbDataIter2 *pIter);
+/* cmpr */
+int32_t tsdbDataIterCmprFn(const SRBTreeNode *pNode1, const SRBTreeNode *pNode2);
+/* next */
+int32_t tsdbDataIterNext2(STsdbDataIter2 *pIter, STsdbFilterInfo *pFilterInfo);
 
 // structs =======================
 struct STsdbFS {
@@ -829,6 +851,62 @@ static FORCE_INLINE TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
 }
 
 int32_t tRowInfoCmprFn(const void *p1, const void *p2);
+
+typedef struct {
+  int64_t  suid;
+  int64_t  uid;
+  SDelData delData;
+} SDelInfo;
+
+struct STsdbDataIter2 {
+  STsdbDataIter2 *next;
+  SRBTreeNode     rbtn;
+
+  int32_t  type;
+  SRowInfo rowInfo;
+  SDelInfo delInfo;
+  union {
+    // TSDB_MEM_TABLE_DATA_ITER
+    struct {
+      SMemTable *pMemTable;
+    } mIter;
+
+    // TSDB_DATA_FILE_DATA_ITER
+    struct {
+      SDataFReader *pReader;
+      SArray       *aBlockIdx;  // SArray<SBlockIdx>
+      SMapData      mDataBlk;
+      SBlockData    bData;
+      int32_t       iBlockIdx;
+      int32_t       iDataBlk;
+      int32_t       iRow;
+    } dIter;
+
+    // TSDB_STT_FILE_DATA_ITER
+    struct {
+      SDataFReader *pReader;
+      int32_t       iStt;
+      SArray       *aSttBlk;
+      SBlockData    bData;
+      int32_t       iSttBlk;
+      int32_t       iRow;
+    } sIter;
+    // TSDB_TOMB_FILE_DATA_ITER
+    struct {
+      SDelFReader *pReader;
+      SArray      *aDelIdx;
+      SArray      *aDelData;
+      int32_t      iDelIdx;
+      int32_t      iDelData;
+    } tIter;
+  };
+};
+
+struct STsdbFilterInfo {
+  int32_t flag;
+  int64_t sver;
+  int64_t ever;
+};
 
 #ifdef __cplusplus
 }

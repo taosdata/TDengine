@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#if 0
 
 #define TSDB_ITER_TYPE_MEM 0x0
 #define TSDB_ITER_TYPE_DAT 0x1
@@ -943,11 +944,13 @@ _exit:
   tsdbCloseCompactor(pCompactor);
   return code;
 }
+#endif
 
 int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
   int32_t code = 0;
   int32_t lino = 0;
 
+#if 0 
   STsdbCompactor *pCompactor = &(STsdbCompactor){0};
 
   // begin compact
@@ -977,5 +980,6 @@ _exit:
     tsdbCommitCompact(pCompactor);
   }
   tsdbEndCompact(pCompactor);
+#endif
   return code;
 }
