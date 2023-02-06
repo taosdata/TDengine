@@ -22,7 +22,7 @@
 #if 1
 #define GRANT_DEFAULT        60*86400
 #define GRANT_TOLERENCE      86400  //86400
-#define GRANT_CHECK_INTERVAL 60     //60seconds
+#define GRANT_CHECK_INTERVAL 3600   //3600seconds
 #define GRANT_HEART_BEAT_MSG 60     //60seconds
 #else
 #define GRANT_DEFAULT        60
@@ -34,6 +34,7 @@
 #define GRANT_MACHINE_KEY_LEN     24
 #define GRANT_MACHINE_RAW_LEN     18
 #define GRANT_MACHINE_ENCRYPT_LEN 16
+#define GRANT_CLUSTER_ID_LEN      40
 
 #define GRANT_ACTIVE_KEY_LEN      108
 #define GRANT_ACTIVE_RAW_LEN      80
@@ -57,10 +58,11 @@
 
 typedef struct {
   char     machine[GRANT_MACHINE_KEY_LEN + 1];
+  char     clusterId[GRANT_CLUSTER_ID_LEN + 1];
   char     active[GRANT_ACTIVE_KEY_LEN + 1];
   bool     granted;
   bool     updateForced;
-  uint32_t usbDongle;
+  bool     usbDongle;
   uint32_t officialVersion;
   uint32_t expireTimeSec;
   uint32_t limitStorage;
@@ -87,7 +89,7 @@ typedef struct {
   uint64_t limitStorage;
   uint64_t curTimeSeries;
   uint64_t limitTimeSeries;
-  uint32_t lastReceived;
+  uint32_t lastCheck;
   uint32_t curSpeed;
   uint32_t limitSpeed;
   uint32_t curQueryTime;
@@ -125,10 +127,11 @@ typedef struct {
   uint32_t reserveKey2;
 } SGrantMsg;
 
-char* grantGetMachineSerials();
+char *grantGetMachineSerials();
 bool  grantGenActiveCode(SGrantObj *grant);
 bool  grantParseActiveCode(SGrantObj *grant);
 bool  grantCheckMachineCode(SGrantObj *grant);
-void  grantActiveSystem(const char* cfgFile);
+bool  grantCheckClusterId(SGrantObj *grant);
+void  grantActiveSystem(const char *cfgFile);
 
 #endif
