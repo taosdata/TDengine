@@ -1,6 +1,6 @@
 ---
 title: Configuration Parameters
-description: "Configuration parameters for client and server in TDengine"
+description: This document describes the configuration parameters for the TDengine server and client.
 ---
 
 ## Configuration File on Server Side

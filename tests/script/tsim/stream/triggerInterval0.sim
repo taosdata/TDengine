@@ -29,69 +29,119 @@ sql insert into t1 values(1648791223001,2,2,3,1.1);
 sql insert into t1 values(1648791223002,2,2,3,1.1);
 sql insert into t1 values(1648791223003,2,2,3,1.1);
 sql insert into t1 values(1648791223001,2,2,3,1.1);
+
+print step 0
+
+$loop_count = 0
+
+loop0:
 sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 sql select * from streamt;
+
 if $rows != 1 then
   print ======$rows
-  return -1
+  goto loop0
 endi
 
 if $data01 != 1 then
   print ======$data01
-  return -1
+  goto loop0
 endi
 
 sql insert into t1 values(1648791233001,2,2,3,1.1);
+
+print step 1
+
+$loop_count = 0
+
+loop1:
 sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 sql select * from streamt;
 if $rows != 2 then
   print ======$rows
-  return -1
+  goto loop1
 endi
 if $data01 != 1 then
   print ======$data01
-  return -1
+  goto loop1
 endi
 if $data11 != 3 then
   print ======$data11
-  return -1
+  goto loop1
 endi
 
 sql insert into t1 values(1648791223004,2,2,3,1.1);
 sql insert into t1 values(1648791223004,2,2,3,1.1);
 sql insert into t1 values(1648791223005,2,2,3,1.1);
+
+print step 2
+
+$loop_count = 0
+
+loop2:
 sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 sql select * from streamt;
 if $rows != 2 then
   print ======$rows
-  return -1
+  goto loop2
 endi
+
 if $data01 != 1 then
   print ======$data01
-  return -1
+  goto loop2
 endi
 if $data11 != 5 then
   print ======$data11
-  return -1
+  goto loop2
 endi
 
 
 sql insert into t1 values(1648791233002,3,2,3,2.1);
 sql insert into t1 values(1648791213002,4,2,3,3.1) 
 sql insert into t1 values(1648791213002,4,2,3,4.1);
+
+print step 3
+
+$loop_count = 0
+
+loop3:
 sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 sql select * from streamt;
 if $rows != 2 then
   print ======$rows
-  return -1
+  goto loop3
 endi
 if $data01 != 2 then
   print ======$data01
-  return -1
+  goto loop3
 endi
 if $data11 != 5 then
   print ======$data11
-  return -1
+  goto loop3
 endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

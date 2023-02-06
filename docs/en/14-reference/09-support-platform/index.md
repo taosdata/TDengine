@@ -1,6 +1,6 @@
 ---
 title: List of supported platforms
-description: "List of platforms supported by TDengine server, client, and connector"
+description: This document describes the supported platforms for the TDengine server, client, and connectors.
 ---
 
 ## List of supported platforms for TDengine server

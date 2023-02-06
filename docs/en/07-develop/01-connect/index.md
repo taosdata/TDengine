@@ -1,7 +1,7 @@
 ---
-sidebar_label: Connect
 title: Connect to TDengine
-description: "How to establish connections to TDengine and how to install and use TDengine connectors."
+sidebar_label: Connect
+description: This document describes how to establish connections to TDengine and how to install and use TDengine connectors.
 ---
 
 import Tabs from "@theme/Tabs";
