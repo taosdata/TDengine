@@ -190,6 +190,7 @@ static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, S
   return PROJECT_RETRIEVE_DONE;
 }
 
+// todo refactor
 static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SSDataBlock* pBlock,
                                     SOperatorInfo* pOperator) {
   // set current group id
