@@ -1,6 +1,7 @@
 ---
-sidebar_label: High Performance Writing
 title: High Performance Writing
+sidebar_label: High Performance Writing
+description: This document describes how to achieve high performance when writing data into TDengine.
 ---
 
 import Tabs from "@theme/Tabs";

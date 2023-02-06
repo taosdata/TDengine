@@ -41,6 +41,7 @@ static int32_t  mndProcessTtlTimer(SRpcMsg *pReq);
 static int32_t  mndProcessCreateStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropStbReq(SRpcMsg *pReq);
+static int32_t  mndProcessDropTtltbReq(SRpcMsg *pReq);
 static int32_t  mndProcessTableMetaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static int32_t  mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -65,6 +66,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_STB, mndProcessAlterStbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STB, mndProcessDropStbReq);
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_STB_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TTL_TABLE_RSP, mndProcessDropTtltbReq);
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_META, mndProcessTableMetaReq);
@@ -2177,6 +2179,10 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
     nodesDestroyNode(pAst);
     nodesDestroyList(pNodeList);
   }
+  return 0;
+}
+
+static int32_t mndProcessDropTtltbReq(SRpcMsg *pRsp) {
   return 0;
 }
 

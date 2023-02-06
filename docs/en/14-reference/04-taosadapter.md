@@ -1,7 +1,7 @@
 ---
-title: "taosAdapter"
-description: "taosAdapter is a TDengine companion tool that acts as a bridge and adapter between TDengine clusters and applications. It provides an easy-to-use and efficient way to ingest data directly from data collection agent software such as Telegraf, StatsD, collectd, etc. It also provides an InfluxDB/OpenTSDB compatible data ingestion interface, allowing InfluxDB/OpenTSDB applications to be seamlessly ported to TDengine."
-sidebar_label: "taosAdapter"
+title: taosAdapter
+sidebar_label: taosAdapter
+description: This document describes how to use taosAdapter, a TDengine companion tool that acts as a bridge and adapter between TDengine clusters and applications.
 ---
 
 import Prometheus from "./_prometheus.mdx"
