@@ -1,6 +1,7 @@
 ---
-sidebar_label: Insert
 title: Insert
+sidebar_label: Insert
+description: This document describes how to insert data into TDengine.
 ---
 
 ## Syntax

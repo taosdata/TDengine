@@ -1,6 +1,7 @@
 ---
-sidebar_label: Package
 title: Quick Install from Package
+sidebar_label: Package
+description: This document describes how to install TDengine on Linux, Windows, and macOS and perform queries and inserts.
 ---
 
 import Tabs from "@theme/Tabs";
