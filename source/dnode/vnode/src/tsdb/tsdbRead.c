@@ -2604,9 +2604,9 @@ _err:
 
 TSDBKEY getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* pReader) {
   bool asc = ASCENDING_TRAVERSE(pReader->order);
-  TSKEY initialVal = asc? TSKEY_MIN:TSKEY_MAX;
+//  TSKEY initialVal = asc? TSKEY_MIN:TSKEY_MAX;
 
-  TSDBKEY  key = {.ts = initialVal}, ikey = {.ts = initialVal};
+  TSDBKEY  key = {.ts = TSKEY_INITIAL_VAL}, ikey = {.ts = TSKEY_INITIAL_VAL};
 
   bool hasKey = false, hasIKey = false;
   TSDBROW* pRow = getValidMemRow(&pScanInfo->iter, pScanInfo->delSkyline, pReader);
@@ -2631,8 +2631,10 @@ TSDBKEY getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* pReader)
     } else {  // no data in imem
       return key;
     }
-  } else {  // no data in mem & imem, return the initial value
-    return hasIKey? ikey:key;
+  } else {
+    // no data in mem & imem, return the initial value
+    // only imem has data, return ikey
+    return ikey;
   }
 }
 
@@ -2862,21 +2864,14 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
   ASSERT(pBlockInfo != NULL);
 
-  //  if (pBlockInfo != NULL) {
   pScanInfo = *(STableBlockScanInfo**)taosHashGet(pReader->status.pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
-  //  } else {
-  //    pScanInfo = *pReader->status.pTableIter;
-  //  }
-
   if (pScanInfo == NULL) {
     tsdbError("failed to get table scan-info, %s", pReader->idStr);
     code = TSDB_CODE_INVALID_PARA;
     return code;
   }
 
-  //  if (pBlockInfo != NULL) {
   pBlock = getCurrentBlock(pBlockIter);
-  //  }
 
   initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
   TSDBKEY keyInBuf = getCurrentKeyInBuf(pScanInfo, pReader);
