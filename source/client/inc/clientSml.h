@@ -229,7 +229,7 @@ SSmlTableInfo*    smlBuildTableInfo(int numRows, const char* measure, int32_t me
 SSmlSTableMeta*   smlBuildSTableMeta(bool isDataFormat);
 int32_t           smlSetCTableName(SSmlTableInfo *oneTable);
 STableMeta*       smlGetMeta(SSmlHandle *info, const void* measure, int32_t measureLen);
-int32_t           is_same_child_table_telnet(const void *a, const void *b, size_t len);
+int32_t           is_same_child_table_telnet(const void *a, const void *b);
 int64_t           smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t len);
 int32_t           smlClearForRerun(SSmlHandle *info);
 int32_t           smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg);

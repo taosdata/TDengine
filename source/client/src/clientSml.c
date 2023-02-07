@@ -1323,7 +1323,6 @@ int32_t smlClearForRerun(SSmlHandle *info) {
 static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char *rawLineEnd, int numLines) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (info->protocol == TSDB_SML_JSON_PROTOCOL) {
-    taosHashSetEqualFp(info->childTables, is_same_child_table_telnet);
     if (lines) {
       code = smlParseJSON(info, *lines);
     } else if (rawLine) {
@@ -1368,7 +1367,6 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
         code = smlParseInfluxString(info, tmp, tmp + len, info->lines + i);
       }
     } else if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
-      taosHashSetEqualFp(info->childTables, is_same_child_table_telnet);
       if (info->dataFormat) {
         SSmlLineInfo element = {0};
         code = smlParseTelnetString(info, (char *)tmp, (char *)tmp + len, &element);

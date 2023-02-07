@@ -20,7 +20,7 @@
 
 #include "clientSml.h"
 
-int32_t is_same_child_table_telnet(const void *a, const void *b, size_t len){
+int32_t is_same_child_table_telnet(const void *a, const void *b){
   SSmlLineInfo *t1 = (SSmlLineInfo *)a;
   SSmlLineInfo *t2 = (SSmlLineInfo *)b;
 //  uError("is_same_child_table_telnet len:%d,%d %s,%s @@@ len:%d,%d %s,%s", t1->measureLen, t2->measureLen,
@@ -70,7 +70,7 @@ static void smlParseTelnetElement(char **sql, char *sqlEnd, char **data, int32_t
 }
 
 static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SSmlLineInfo *elements, SSmlMsgBuf *msg) {
-  if(is_same_child_table_telnet(elements, &info->preLine, 0) == 0){
+  if(is_same_child_table_telnet(elements, &info->preLine) == 0){
     return TSDB_CODE_SUCCESS;
   }
 

@@ -1010,7 +1010,7 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
   bool needFree = info->dataFormat;
   elements->tags = cJSON_PrintUnformatted(tagsJson);
   elements->tagsLen = strlen(elements->tags);
-  if(is_same_child_table_telnet(elements, &info->preLine, 0) != 0) {
+  if(is_same_child_table_telnet(elements, &info->preLine) != 0) {
     ret = smlParseTagsFromJSON(info, tagsJson, elements);
     if (unlikely(ret)) {
       uError("OTD:0x%" PRIx64 " Unable to parse tags from JSON payload", info->id);
@@ -1180,7 +1180,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
   }
 
   // Parse tags
-  if(is_same_child_table_telnet(elements, &info->preLine, 0) != 0){
+  if(is_same_child_table_telnet(elements, &info->preLine) != 0){
     char tmp = *(elements->tags + elements->tagsLen);
     *(elements->tags + elements->tagsLen) = 0;
     cJSON* tagsJson = cJSON_Parse(elements->tags);
