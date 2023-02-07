@@ -76,6 +76,9 @@ typedef struct SRSmaSnapReader    SRSmaSnapReader;
 typedef struct SRSmaSnapWriter    SRSmaSnapWriter;
 typedef struct SSnapDataHdr       SSnapDataHdr;
 typedef struct SCommitInfo        SCommitInfo;
+typedef struct SCompactInfo       SCompactInfo;
+typedef struct SMergeInfo         SMergeInfo;
+typedef struct SMigrateInfo       SMigrateInfo;
 typedef struct SQueryNode         SQueryNode;
 
 #define VNODE_META_DIR  "meta"
@@ -323,6 +326,13 @@ struct SVnodeInfo {
 };
 
 typedef enum {
+  VND_TASK_COMMIT = 0,
+  VND_TASK_COMPACT = 1,
+  VND_TASK_MERGE = 2,
+  VND_TASK_MIGRATE = 3,
+} EVTaskType;
+
+typedef enum {
   TSDB_TYPE_TSDB = 0,     // TSDB
   TSDB_TYPE_TSMA = 1,     // TSMA
   TSDB_TYPE_RSMA_L0 = 2,  // RSMA Level 0
@@ -342,6 +352,11 @@ typedef struct SVCommitSched {
   int64_t commitMs;
   int64_t maxWaitMs;
 } SVCommitSched;
+
+typedef struct {
+  void* trimTask;
+  void* mergeTask;
+} SVTrimHandle;
 
 struct SVnode {
   char*     path;
@@ -369,11 +384,14 @@ struct SVnode {
   STQ*          pTq;
   SSink*        pSink;
   tsem_t        canCommit;
+  tsem_t        canTrim;
   SVCommitSched commitSched;
+  SVTrimHandle  trimHandle;
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;
   bool          restored;
+  int8_t        commitMode;
   tsem_t        syncSem;
   int32_t       blockSec;
   int64_t       blockSeq;
@@ -450,6 +468,22 @@ struct SCommitInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
   TXN*       txn;
+};
+
+struct SCompactInfo {
+  SVnodeInfo info;
+  SVnode*    pVnode;
+};
+
+struct SMergeInfo {
+  SVnodeInfo info;
+  SVnode*    pVnode;
+  TXN*       txn;
+};
+
+struct SMigrateInfo {
+  SVnodeInfo info;
+  SVnode*    pVnode;
 };
 
 #ifdef __cplusplus

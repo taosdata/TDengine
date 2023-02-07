@@ -403,7 +403,7 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   }
 
   // schedule the task
-  code = vnodeScheduleTask(vnodeCommitTask, pInfo);
+  code = vnodePutScheduleTask(pVnode, vnodeCommitTask, pInfo, VND_TASK_COMMIT);
 
 _exit:
   if (code) {
