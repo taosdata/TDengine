@@ -71,6 +71,7 @@ static void smlParseTelnetElement(char **sql, char *sqlEnd, char **data, int32_t
 
 static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SSmlLineInfo *elements, SSmlMsgBuf *msg) {
   if(is_same_child_table_telnet(elements, &info->preLine) == 0){
+    elements->measureTag = info->preLine.measureTag;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -234,6 +235,7 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
   elements->measureTag = (char*)taosMemoryMalloc(elements->measureLen + elements->tagsLen);
   memcpy(elements->measureTag, elements->measure, elements->measureLen);
   memcpy(elements->measureTag + elements->measureLen, elements->tags, elements->tagsLen);
+  elements->measureTagsLen = elements->measureLen + elements->tagsLen;
 
   SSmlTableInfo **tmp = (SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen);
   SSmlTableInfo *tinfo = NULL;

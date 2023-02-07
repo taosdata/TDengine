@@ -812,6 +812,7 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
   elements->measureTag = (char*)taosMemoryMalloc(elements->measureLen + elements->tagsLen);
   memcpy(elements->measureTag, elements->measure, elements->measureLen);
   memcpy(elements->measureTag + elements->measureLen, elements->tags, elements->tagsLen);
+  elements->measureTagsLen = elements->measureLen + elements->tagsLen;
 
   SSmlTableInfo **tmp = (SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen);
   SSmlTableInfo *tinfo = NULL;
@@ -1018,6 +1019,8 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
       elements->tags = NULL;
       return ret;
     }
+  }else{
+    elements->measureTag = info->preLine.measureTag;
   }
 
   if(needFree){
@@ -1196,6 +1199,8 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
       uError("OTD:0x%" PRIx64 " Unable to parse tags from JSON payload", info->id);
       return ret;
     }
+  }else{
+    elements->measureTag = info->preLine.measureTag;
   }
 
   if(unlikely(info->reRun)){

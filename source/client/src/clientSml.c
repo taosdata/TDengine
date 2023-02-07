@@ -1082,7 +1082,8 @@ void smlDestroyInfo(SSmlHandle *info) {
       if (info->parseJsonByLib) {
         taosMemoryFree(info->lines[i].tags);
       }
-      taosMemoryFree(info->lines[i].measureTag);
+      if(info->lines[i].measureTagsLen != 0)
+        taosMemoryFree(info->lines[i].measureTag);
     }
     taosMemoryFree(info->lines);
   }
