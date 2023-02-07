@@ -16,6 +16,9 @@ print $data00 $data01 $data02
 sql use test;
 
 sql create table t1(ts timestamp, a int, b int , c int, d double, id int);
+
+print create stream streams1 trigger at_once  into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
+
 sql create stream streams1 trigger at_once  into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
 
 sql insert into t1 values(1648791213000,1,2,3,1.0,1);
@@ -79,85 +82,87 @@ endi
 
 if $data03 != 1 then
   print ======$data03
-  return -1
+  goto loop1
 endi
 
 if $data04 != 1 then
   print ======$data04
-  return -1
+  goto loop1
 endi
 
 if $data05 != 3 then
   print ======$data05
-  return -1
+  goto loop1
 endi
 
 if $data06 != 5 then
   print ======$data06
-  return -1
+  goto loop1
 endi
 
 # row 1
 if $data11 != 1 then
   print ======$data11
-  return -1
+  goto loop1
 endi
 
 if $data12 != 1 then
   print ======$data12
-  return -1
+  goto loop1
 endi
 
 if $data13 != 2 then
   print ======$data13
-  return -1
+  goto loop1
 endi
 
 if $data14 != 2 then
   print ======$data14
-  return -1
+  goto loop1
 endi
 
 if $data15 != 3 then
   print ======$data15
-  return -1
+  goto loop1
 endi
 
 if $data16 != 4 then
   print ======$data16
-  return -1
+  goto loop1
 endi
 
 # row 2
 if $data21 != 1 then
   print ======$data21
-  return -1
+  goto loop1
 endi
 
 if $data22 != 1 then
   print ======$data22
-  return -1
+  goto loop1
 endi
 
 if $data23 != 1 then
   print ======$data23
-  return -1
+  goto loop1
 endi
 
 if $data24 != 1 then
   print ======$data24
-  return -1
+  goto loop1
 endi
 
 if $data25 != 3 then
   print ======$data25
-  return -1
+  goto loop1
 endi
 
 if $data26 != 6 then
   print ======$data26
-  return -1
+  goto loop1
 endi
+
+print loop1 end
 
 sql insert into t1 values(1648791213011,1,2,3,1.0,7);
 
@@ -174,33 +179,31 @@ endi
 if $data21 != 2 then
   print =====data21=$data21
   goto loop2
-  return -1
 endi
 
 if $data22 != 2 then
   print =====data22=$data22
   goto loop2
-  return -1
 endi
 
 if $data23 != 2 then
   print ======$data23
-  return -1
+  goto loop2
 endi
 
 if $data24 != 1 then
   print ======$data24
-  return -1
+  goto loop2
 endi
 
 if $data25 != 3 then
   print ======$data25
-  return -1
+  goto loop2
 endi
 
 if $data26 != 7 then
   print ======$data26
-  return -1
+  goto loop2
 endi
 
 sql insert into t1 values(1648791213011,1,2,3,1.0,8);
@@ -238,99 +241,93 @@ endi
 if $data21 != 1 then
   print =====data21=$data21
   goto loop3
-  return -1
 endi
 
 if $data22 != 1 then
   print =====data22=$data22
   goto loop3
-  return -1
 endi
 
 if $data23 != 10 then
   print ======$data23
-  return -1
+  goto loop3
 endi
 
 if $data24 != 10 then
   print ======$data24
-  return -1
+  goto loop3
 endi
 
 if $data25 != 10 then
   print ======$data25
-  return -1
+  goto loop3
 endi
 
 if $data26 != 12 then
   print ======$data26
-  return -1
+  goto loop3
 endi
 
 # row 3
 if $data31 != 1 then
   print =====data31=$data31
   goto loop3
-  return -1
 endi
 
 if $data32 != 1 then
   print =====data32=$data32
   goto loop3
-  return -1
 endi
 
 if $data33 != 3 then
   print ======$data33
-  return -1
+  goto loop3
 endi
 
 if $data34 != 3 then
   print ======$data34
-  return -1
+  goto loop3
 endi
 
 if $data35 != 3 then
   print ======$data35
-  return -1
+  goto loop3
 endi
 
 if $data36 != 10 then
   print ======$data36
-  return -1
+  goto loop3
 endi
 
 # row 4
 if $data41 != 1 then
   print =====data41=$data41
   goto loop3
-  return -1
 endi
 
 if $data42 != 1 then
   print =====data42=$data42
   goto loop3
-  return -1
 endi
 
 if $data43 != 1 then
   print ======$data43
-  return -1
+  goto loop3
 endi
 
 if $data44 != 1 then
   print ======$data44
-  return -1
+  goto loop3
 endi
 
 if $data45 != 3 then
   print ======$data45
-  return -1
+  goto loop3
 endi
 
 if $data46 != 11 then
   print ======$data46
-  return -1
+  goto loop3
 endi
 
 sql insert into t1 values(1648791213030,3,12,12,12.0,13);
@@ -360,94 +357,92 @@ endi
 
 if $data02 != 2 then
   print ======$data02
-  return -1
+  goto loop4
 endi
 
 if $data03 != 6 then
   print ======$data03
-  return -1
+  goto loop4
 endi
 
 if $data04 != 3 then
   print ======$data04
-  return -1
+  goto loop4
 endi
 
 if $data05 != 3 then
   print ======$data05
-  return -1
+  goto loop4
 endi
 
 if $data06 != 15 then
   print ======$data06
-  return -1
+  goto loop4
 endi
 
 # row 1
 if $data11 != 1 then
   print =====data11=$data11
   goto loop4
-  return -1
 endi
 
 if $data12 != 1 then
   print =====data12=$data12
   goto loop4
-  return -1
 endi
 
 if $data13 != 15 then
   print ======$data13
-  return -1
+  goto loop4
 endi
 
 if $data14 != 15 then
   print ======$data14
-  return -1
+  goto loop4
 endi
 
 if $data15 != 15 then
   print ======$data15
-  return -1
+  goto loop4
 endi
 
 if $data16 != 16 then
   print ======$data16
-  return -1
+  goto loop4
 endi
 
 # row 2
 if $data21 != 1 then
   print =====data21=$data21
   goto loop4
-  return -1
 endi
 
 if $data22 != 1 then
   print =====data22=$data22
   goto loop4
-  return -1
 endi
 
 if $data23 != 1 then
   print ======$data23
-  return -1
+  goto loop4
 endi
 
 if $data24 != 1 then
   print ======$data24
-  return -1
+  goto loop4
 endi
 
 if $data25 != 13 then
   print ======$data25
-  return -1
+  goto loop4
 endi
 
 if $data26 != 14 then
   print ======$data26
-  return -1
+  goto loop4
 endi
+
+print loop4 end
 
 sql create database test1 vgroups 1;
 sql select * from information_schema.ins_databases;
@@ -457,6 +452,9 @@ print $data00 $data01 $data02
 sql use test1;
 
 sql create table t1(ts timestamp, a int, b int , c int, d double, id int);
+
+print create stream streams2 trigger at_once  into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
+
 sql create stream streams2 trigger at_once  into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
 
 sql insert into t1 values(1648791212000,2,2,3,1.0,1);
@@ -502,6 +500,9 @@ sql create database test3 vgroups 1;
 sql use test3;
 
 sql create table t1(ts timestamp, a int, b int , c int, d double, id int);
+
+print create stream streams3 trigger at_once  into streamt3 as select  _wstart, count(*) c1, sum(b) c3 from t1 state_window(a);
+
 sql create stream streams3 trigger at_once  into streamt3 as select  _wstart, count(*) c1, sum(b) c3 from t1 state_window(a);
 sql insert into t1 values(1648791212000,1,2,3,1.0,1);
 sql insert into t1 values(1648791213000,2,2,3,1.0,1);
@@ -543,7 +544,6 @@ if $rows != 10 then
   goto loop6
 endi
 
-
 sql drop stream if exists streams4;
 sql drop database if exists test4;
 sql drop stable if exists streamt4;
@@ -552,7 +552,10 @@ sql use test4;
 sql create table st (ts timestamp, c1 tinyint, c2 smallint) tags (t1 tinyint) ;
 sql create table t1 using st tags (-81) ;
 sql create table t2 using st tags (-81) ;
-sql create stream if not exists streams4 trigger window_close into streamt4 as select _wstart AS start, min(c1),count(c1) from t1 state_window(c1);
+
+print create stream if not exists streams4 trigger window_close into streamt4 as select _wstart AS startts, min(c1),count(c1) from t1 state_window(c1);
+
+sql create stream if not exists streams4 trigger window_close into streamt4 as select _wstart AS startts, min(c1),count(c1) from t1 state_window(c1);
 
 sql insert into t1 (ts, c1) values (1668073288209, 11);
 sql insert into t1 (ts, c1) values (1668073288210, 11);
@@ -567,7 +570,7 @@ loop7:
 
 sleep 200
 
-sql select * from streamt4 order by start;
+sql select * from streamt4 order by startts;
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -606,7 +609,7 @@ loop8:
 
 sleep 200
 
-sql select * from streamt4 order by start;
+sql select * from streamt4 order by startts;
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -636,11 +639,11 @@ sql insert into t1 (ts, c1) values (1668073288225, 65);
 sql insert into t1 (ts, c1) values (1668073288226, 65);
 
 $loop_count = 0
-loop8:
+loop81:
 
 sleep 200
 
-sql select * from streamt4 order by start;
+sql select * from streamt4 order by startts;
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -649,27 +652,27 @@ endi
 
 if $rows != 2 then
   print =====rows=$rows
-  goto loop8
+  goto loop81
 endi
 
 if $data01 != 11 then
   print =====data01=$data01
-  goto loop8
+  goto loop81
 endi
 
 if $data02 != 5 then
   print =====data02=$data02
-  goto loop8
+  goto loop81
 endi
 
 if $data11 != 29 then
   print =====data11=$data11
-  goto loop8
+  goto loop81
 endi
 
 if $data12 != 1 then
   print =====data12=$data12
-  goto loop8
+  goto loop81
 endi
 
 sql insert into t1 (ts, c1) values (1668073288224, 64);
@@ -679,7 +682,7 @@ loop9:
 
 sleep 200
 
-sql select * from streamt4 order by start;
+sql select * from streamt4 order by startts;
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -738,6 +741,9 @@ sql use test5;
 sql create table tb (ts timestamp, a int);
 sql insert into tb values (now + 1m , 1 );
 sql create table b (c timestamp, d int, e int , f int, g double);
+
+print create stream streams0 trigger at_once into streamt as select _wstart c1, count(*) c2, max(a) c3 from tb state_window(a);
+
 sql create stream streams0 trigger at_once into streamt as select _wstart c1, count(*) c2, max(a) c3 from tb state_window(a);
 sql insert into b values(1648791213000,NULL,NULL,NULL,NULL);
 sql select * from streamt order by c1, c2, c3;
@@ -791,5 +797,7 @@ if $data00 != 2 then
   print =====data00=$data00
   goto loop10
 endi
+
+print state0 end
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
