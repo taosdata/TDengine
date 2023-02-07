@@ -126,6 +126,30 @@ static uint64_t allocateNewPositionInFile(SDiskbasedBuf* pBuf, size_t size) {
 
 static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize + POINTER_BYTES + sizeof(SFilePage); }
 
+static int32_t doFlushBufPageImpl(SDiskbasedBuf* pBuf, int64_t offset, const char* pData, int32_t size) {
+  int32_t ret = taosLSeekFile(pBuf->pFile, offset, SEEK_SET);
+  if (ret == -1) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+
+  ret = (int32_t)taosWriteFile(pBuf->pFile, pData, size);
+  if (ret != size) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+
+  // extend the file
+  if (pBuf->fileSize < offset + size) {
+    pBuf->fileSize = offset + size;
+  }
+
+  pBuf->statis.flushBytes += size;
+  pBuf->statis.flushPages += 1;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   if (pg->pData == NULL || pg->used) {
     uError("invalid params in paged buffer process when flushing buf to disk, %s", pBuf->id);
@@ -134,7 +158,9 @@ static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   }
 
   int32_t size = pBuf->pageSize;
-  char*   t = NULL;
+  int64_t offset = pg->offset;
+
+  char* t = NULL;
   if ((!HAS_DATA_IN_DISK(pg)) || pg->dirty) {
     void* payload = GET_PAYLOAD_DATA(pg);
     t = doCompressData(payload, pBuf->pageSize, &size, pBuf);
@@ -147,59 +173,29 @@ static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   // this page is flushed to disk for the first time
   if (pg->dirty) {
     if (!HAS_DATA_IN_DISK(pg)) {
-      pg->offset = allocateNewPositionInFile(pBuf, size);
+      offset = allocateNewPositionInFile(pBuf, size);
       pBuf->nextPos += size;
 
-      int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
-      if (ret == -1) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
+      int32_t code = doFlushBufPageImpl(pBuf, offset, t, size);
+      if (code != TSDB_CODE_SUCCESS) {
         return NULL;
       }
-
-      ret = (int32_t)taosWriteFile(pBuf->pFile, t, size);
-      if (ret != size) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return NULL;
-      }
-
-      // extend the file size
-      if (pBuf->fileSize < pg->offset + size) {
-        pBuf->fileSize = pg->offset + size;
-      }
-
-      pBuf->statis.flushBytes += size;
-      pBuf->statis.flushPages += 1;
     } else {
       // length becomes greater, current space is not enough, allocate new place, otherwise, do nothing
       if (pg->length < size) {
         // 1. add current space to free list
-        SPageDiskInfo dinfo = {.length = pg->length, .offset = pg->offset};
+        SPageDiskInfo dinfo = {.length = pg->length, .offset = offset};
         taosArrayPush(pBuf->pFree, &dinfo);
 
         // 2. allocate new position, and update the info
-        pg->offset = allocateNewPositionInFile(pBuf, size);
+        offset = allocateNewPositionInFile(pBuf, size);
         pBuf->nextPos += size;
       }
 
-      // 3. write to disk.
-      int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
-      if (ret == -1) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
+      int32_t code = doFlushBufPageImpl(pBuf, offset, t, size);
+      if (code != TSDB_CODE_SUCCESS) {
         return NULL;
       }
-
-      ret = (int32_t)taosWriteFile(pBuf->pFile, t, size);
-      if (ret != size) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return NULL;
-      }
-
-      if (pBuf->fileSize < pg->offset + size) {
-        pBuf->fileSize = pg->offset + size;
-      }
-
-      pBuf->statis.flushBytes += size;
-      pBuf->statis.flushPages += 1;
     }
   } else {  // NOTE: the size may be -1, the this recycle page has not been flushed to disk yet.
     size = pg->length;
@@ -209,9 +205,10 @@ static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   memset(pDataBuf, 0, getAllocPageSize(pBuf->pageSize));
 
 #ifdef BUF_PAGE_DEBUG
-  uDebug("page_flush %p, pageId:%d, offset:%d", pDataBuf, pg->pageId, pg->offset);
+  uDebug("page_flush %p, pageId:%d, offset:%d", pDataBuf, pg->pageId, offset);
 #endif
 
+  pg->offset = offset;
   pg->length = size;  // on disk size
   return pDataBuf;
 }
