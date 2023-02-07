@@ -978,12 +978,14 @@ sliding_opt(A) ::= SLIDING NK_LP duration_literal(B) NK_RP.                     
 fill_opt(A) ::= .                                                                 { A = NULL; }
 fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                                    { A = createFillNode(pCxt, B, NULL); }
 fill_opt(A) ::= FILL NK_LP VALUE NK_COMMA literal_list(B) NK_RP.                  { A = createFillNode(pCxt, FILL_MODE_VALUE, createNodeListNode(pCxt, B)); }  
+fill_opt(A) ::= FILL NK_LP VALUE_F NK_COMMA literal_list(B) NK_RP.                { A = createFillNode(pCxt, FILL_MODE_VALUE_F, createNodeListNode(pCxt, B)); }  
 
 %type fill_mode                                                                   { EFillMode }
 %destructor fill_mode                                                             { }
 fill_mode(A) ::= NONE.                                                            { A = FILL_MODE_NONE; }
 fill_mode(A) ::= PREV.                                                            { A = FILL_MODE_PREV; }
 fill_mode(A) ::= NULL.                                                            { A = FILL_MODE_NULL; }
+fill_mode(A) ::= NULL_F.                                                          { A = FILL_MODE_NULL_F; }
 fill_mode(A) ::= LINEAR.                                                          { A = FILL_MODE_LINEAR; }
 fill_mode(A) ::= NEXT.                                                            { A = FILL_MODE_NEXT; }
 
