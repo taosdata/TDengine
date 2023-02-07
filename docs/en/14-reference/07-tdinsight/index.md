@@ -327,7 +327,7 @@ Currently, only the number of logins per minute is reported.
 Support monitoring taosAdapter request statistics and status details. Includes.
 
 1. **Http Request Total**: number of total requests.
-2. **Http Request Fail**: number of failed requets.
+2. **Http Request Fail**: number of failed requests.
 3. **CPU Used**: CPU usage of taosAdapter.
 4. **Memory Used**: Memory usage of taosAdapter.
 5. **Http Request Inflight**: number of real-time requests.
