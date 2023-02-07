@@ -656,7 +656,7 @@ static int32_t tsdbSnapCmprData(STsdbSnapReader* pReader, uint8_t** ppData) {
   }
 
   SSnapDataHdr* pHdr = (SSnapDataHdr*)*ppData;
-  pHdr->type = SNAP_DATA_TSDB;
+  pHdr->type = pReader->type;
   pHdr->size = size;
 
   memcpy(pHdr->data, pReader->aBuf[3], aBufN[3]);
@@ -1207,7 +1207,7 @@ static int32_t tsdbSnapWriteTableRow(STsdbSnapWriter* pWriter, TSDBROW* pRow) {
             TSDB_CHECK_CODE(code, lino, _exit);
           }
 
-          tMapDataPutItem(&pWriter->pDIter->dIter.mDataBlk, &dataBlk, tPutDataBlk);
+          tMapDataPutItem(&pWriter->mDataBlk, &dataBlk, tPutDataBlk);
           pWriter->pDIter->dIter.iDataBlk++;
         } else {
           code = tsdbReadDataBlockEx(pWriter->pDataFReader, &dataBlk, &pWriter->pDIter->dIter.bData);
@@ -1645,8 +1645,8 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
-    tsdbTrace("vgId:%d %s done, suid:%" PRId64 " uid:%" PRId64, TD_VID(pWriter->pTsdb->pVnode), __func__, pId->suid,
-              pId->uid);
+    tsdbTrace("vgId:%d %s done, suid:%" PRId64 " uid:%" PRId64, TD_VID(pWriter->pTsdb->pVnode), __func__,
+              pWriter->tbid.suid, pWriter->tbid.uid);
   }
   return code;
 }

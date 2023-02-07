@@ -1,6 +1,7 @@
 ---
-sidebar_label: JSON Type
 title: JSON Type
+sidebar_label: JSON Type
+description: This document describes the JSON data type in TDengine.
 ---
 
 

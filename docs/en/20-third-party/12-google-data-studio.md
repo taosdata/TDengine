@@ -1,6 +1,7 @@
 ---
-sidebar_label: Google Data Studio
 title: Use Google Data Studio to access TDengine
+sidebar_label: Google Data Studio
+description: This document describes how to integrate TDengine with Google Data Studio.
 ---
 
 Data Studio is a powerful tool for reporting and visualization, offering a wide variety of charts and connectors and making it easy to generate reports based on predefined templates. Its ease of use and robust ecosystem have made it one of the first choices for people working in data analysis.

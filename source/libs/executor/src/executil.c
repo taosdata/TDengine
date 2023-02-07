@@ -1761,6 +1761,10 @@ bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {
           pLimitInfo->slimit.offset != -1);
 }
 
+bool hasSlimitOffsetInfo(SLimitInfo* pLimitInfo) {
+  return (pLimitInfo->slimit.limit != -1 || pLimitInfo->slimit.offset != -1);
+}
+
 void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo) {
   SLimit limit = {.limit = getLimit(pLimit), .offset = getOffset(pLimit)};
   SLimit slimit = {.limit = getLimit(pSLimit), .offset = getOffset(pSLimit)};

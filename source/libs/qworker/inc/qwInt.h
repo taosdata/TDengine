@@ -194,6 +194,8 @@ typedef struct SQWorker {
   SMsgCb    msgCb;
   SQWStat   stat;
   int32_t  *destroyed;
+
+  int8_t    nodeStopped;
 } SQWorker;
 
 typedef struct SQWorkerMgmt {

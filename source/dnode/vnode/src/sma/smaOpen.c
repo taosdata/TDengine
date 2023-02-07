@@ -167,6 +167,7 @@ _exit:
 
 int32_t smaClose(SSma *pSma) {
   if (pSma) {
+    smaPreClose(pSma);
     taosThreadMutexDestroy(&pSma->mutex);
     SMA_TSMA_ENV(pSma) = tdFreeSmaEnv(SMA_TSMA_ENV(pSma));
     SMA_RSMA_ENV(pSma) = tdFreeSmaEnv(SMA_RSMA_ENV(pSma));
