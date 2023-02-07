@@ -725,7 +725,8 @@ typedef struct {
   SArray      *aSkyLine;  // SArray<TSDBKEY>
   int32_t      iDelIdx;
   int32_t      iSkyLine;
-  int8_t       onGoing;
+  TSDBKEY     *pDKey;
+  TSDBKEY      dKey;
 
   // Reader
   SDataFReader   *pReader;
@@ -751,8 +752,7 @@ static int32_t tsdbCompactWriteTableDataStart(STsdbCompactor *pCompactor, TABLEI
   // tombstone
   for (;;) {
     if (pCompactor->iDelIdx >= taosArrayGetSize(pCompactor->aDelIdx)) {
-      if (pCompactor->aSkyLine) taosArrayClear(pCompactor->aSkyLine);
-      pCompactor->iSkyLine = 0;
+      pCompactor->pDKey = NULL;
       break;
     }
 
@@ -771,10 +771,18 @@ static int32_t tsdbCompactWriteTableDataStart(STsdbCompactor *pCompactor, TABLEI
       TSDB_CHECK_CODE(code, lino, _exit);
 
       pCompactor->iSkyLine = 0;
+      if (pCompactor->iSkyLine < taosArrayGetSize(pCompactor->aSkyLine)) {
+        TSDBKEY *pKey = (TSDBKEY *)taosArrayGet(pCompactor->aSkyLine, pCompactor->iSkyLine);
+
+        pCompactor->dKey.version = 0;
+        pCompactor->dKey.ts = pKey->ts;
+        pCompactor->pDKey = &pCompactor->dKey;
+      } else {
+        pCompactor->pDKey = NULL;
+      }
       break;
     } else {
-      if (pCompactor->aSkyLine) taosArrayClear(pCompactor->aSkyLine);
-      pCompactor->iSkyLine = 0;
+      pCompactor->pDKey = NULL;
       break;
     }
   }
@@ -859,38 +867,45 @@ _exit:
 }
 
 static bool tsdbCompactRowIsDeleted(STsdbCompactor *pCompactor, TSDBROW *pRow) {
-  // TSDBKEY tKey = TSDBROW_KEY(pRow);
+  TSDBKEY tKey = TSDBROW_KEY(pRow);
 
-  // while (tKey.ts > pCompactor->sKey.ts) {
-  //   pCompactor->sKey.version = pCompactor->aTSDBKEY[pCompactor->iKey].version;
-  //   pCompactor->iKey++;
-  //   if (pCompactor->iKey < taosArrayGetSize(pCompactor->aSkyLine)) {
-  //     pCompactor->sKey.ts = pCompactor->aTSDBKEY[pCompactor->iKey].ts;
-  //   } else {
-  //     pCompactor->sKey.ts = TSKEY_MAX;
-  //   }
-  // }
+  if (tKey.ts > pCompactor->pDKey->ts) {
+    while (tKey.ts > pCompactor->pDKey->ts) {
+      TSDBKEY *pKey = (TSDBKEY *)taosArrayGet(pCompactor->aSkyLine, pCompactor->iSkyLine);
 
-  // if (tKey.ts < pCompactor->sKey.ts) {
-  //   if (tKey.version > pCompactor->sKey.version) {
-  //     return false;
-  //   } else {
-  //     return true;
-  //   }
-  // } else if (tKey.ts == pCompactor->sKey.ts) {
-  //   int64_t version;
-  //   if (pCompactor->iKey < taosArrayGetSize(pCompactor->aSkyLine)) {
-  //     version = TMAX(pCompactor->sKey.version, pCompactor->aTSDBKEY[pCompactor->iKey].version);
-  //   } else {
-  //     version = pCompactor->sKey.version;
-  //   }
+      pCompactor->pDKey->version = pKey->version;
+      pCompactor->iSkyLine++;
+      if (pCompactor->iSkyLine < taosArrayGetSize(pCompactor->aSkyLine)) {
+        TSDBKEY *pKey = (TSDBKEY *)taosArrayGet(pCompactor->aSkyLine, pCompactor->iSkyLine);
 
-  //   if (tKey.version > version) {
-  //     return false;
-  //   } else {
-  //     return true;
-  //   }
-  // }
+        pCompactor->dKey.ts = pKey->ts;
+      } else {
+        pCompactor->pDKey = NULL;
+        return false;
+      }
+    }
+  }
+
+  if (tKey.ts < pCompactor->pDKey->ts) {
+    if (tKey.version > pCompactor->pDKey->version) {
+      return false;
+    } else {
+      return true;
+    }
+  } else if (tKey.ts == pCompactor->pDKey->ts) {
+    int64_t version;
+    if (pCompactor->iSkyLine < taosArrayGetSize(pCompactor->aSkyLine)) {
+      version = TMAX(pCompactor->pDKey->version, pCompactor->aTSDBKEY[pCompactor->iKey].version);
+    } else {
+      version = pCompactor->pDKey->version;
+    }
+
+    if (tKey.version > version) {
+      return false;
+    } else {
+      return true;
+    }
+  }
 
   return false;
 }
@@ -919,7 +934,7 @@ static int32_t tsdbCompactWriteTableData(STsdbCompactor *pCompactor, SRowInfo *p
   }
 
   // check if row is deleted
-  if (pCompactor->onGoing && tsdbCompactRowIsDeleted(pCompactor, &pRowInfo->row)) goto _exit;
+  if (pCompactor->pDKey && tsdbCompactRowIsDeleted(pCompactor, &pRowInfo->row)) goto _exit;
 
   code = tBlockDataUpsertRow(&pCompactor->bData, &pRowInfo->row, NULL, pRowInfo->uid);
   TSDB_CHECK_CODE(code, lino, _exit);
