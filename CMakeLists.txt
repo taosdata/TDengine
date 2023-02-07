@@ -18,6 +18,10 @@ include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.version)
 
+if(NOT TD_WINDOWS)
+  add_compile_options(-fvisibility=hidden)
+endif()
+
 # contrib
 add_subdirectory(contrib)
 

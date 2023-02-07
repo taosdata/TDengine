@@ -489,6 +489,10 @@ void tscStopCrashReport() {
 }
 
 
+// `tscWriteCrashInfo` is what-so-ever undocumented api which is solely for `taos` shell tool to use
+// to make it exported in `libtaos.so/libtaos.dylib/taos.dll`, we intentionally re-declare again
+DLL_EXPORT void tscWriteCrashInfo(int signum, void *sigInfo, void *context);
+
 void tscWriteCrashInfo(int signum, void *sigInfo, void *context) {
   char *pMsg = NULL;
   const char *flags = "UTL FATAL ";

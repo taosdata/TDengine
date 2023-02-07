@@ -147,6 +147,10 @@ void shellRunSingleCommandWebsocketImp(char *command);
 
 // shellMain.c
 extern SShellObj shell;
-extern void tscWriteCrashInfo(int signum, void *sigInfo, void *context);
+// it seems that `tscWriteCrashInfo` is what-so-ever undocumented api which is solely for `taos` shell tool to use
+// thus we declare the function here
+// TODO: move this to `taos.h`?
+//       or, create a specific folder where such undocumented-apis could be declared
+DLL_EXPORT void tscWriteCrashInfo(int signum, void *sigInfo, void *context);
 
 #endif /*_TD_SHELL_INT_H_*/
