@@ -58,7 +58,7 @@ extern int32_t tMsgDict[];
 #define TMSG_INFO(TYPE)                                                                                                \
   ((TYPE) < TDMT_DND_MAX_MSG || (TYPE) < TDMT_MND_MAX_MSG || (TYPE) < TDMT_VND_MAX_MSG || (TYPE) < TDMT_SCH_MAX_MSG || \
    (TYPE) < TDMT_STREAM_MAX_MSG || (TYPE) < TDMT_MON_MAX_MSG || (TYPE) < TDMT_SYNC_MAX_MSG) ||                         \
-          (TYPE) < TDMT_VND_STREAM_MSG || (TYPE) < TDMT_VND_TMQ_MSG                                                    \
+          (TYPE) < TDMT_VND_STREAM_MSG || (TYPE) < TDMT_VND_TMQ_MSG || (TYPE) < TDMT_VND_TMQ_MAX_MSG                   \
       ? tMsgInfo[tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE)]                                                   \
       : 0
 
@@ -144,12 +144,14 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_TABLE_UPDATE_OPTIONS      9
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME  10
 
-#define TSDB_FILL_NONE      0
-#define TSDB_FILL_NULL      1
-#define TSDB_FILL_SET_VALUE 2
-#define TSDB_FILL_LINEAR    3
-#define TSDB_FILL_PREV      4
-#define TSDB_FILL_NEXT      5
+#define TSDB_FILL_NONE        0
+#define TSDB_FILL_NULL        1
+#define TSDB_FILL_NULL_F      2
+#define TSDB_FILL_SET_VALUE   3
+#define TSDB_FILL_SET_VALUE_F 4
+#define TSDB_FILL_LINEAR      5
+#define TSDB_FILL_PREV        6
+#define TSDB_FILL_NEXT        7
 
 #define TSDB_ALTER_USER_PASSWD                 0x1
 #define TSDB_ALTER_USER_SUPERUSER              0x2
