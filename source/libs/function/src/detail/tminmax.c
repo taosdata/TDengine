@@ -799,18 +799,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
       }
     }
 
-        if (pCtx->subsidiaries.num > 0) {
-          index = findRowIndex(pInput->startRowIndex, pInput->numOfRows, pCol, tval);
-          if (index >= 0) {
-            int32_t code = saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
-            if (code != TSDB_CODE_SUCCESS) {
-              return code;
-            }
-          }
-        }
-      }
-    }
-
     numOfElems = 1;
     pBuf->assign = true;
     goto _over;
@@ -939,5 +927,5 @@ _over:
   }
 
   *nElems = numOfElems;
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
