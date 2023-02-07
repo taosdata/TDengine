@@ -94,7 +94,7 @@ typedef struct TAOS_FIELD_E {
   int32_t bytes;
 } TAOS_FIELD_E;
 
-#ifdef WINDOWS
+#ifdef _WIN32
 #define DLL_EXPORT __declspec(dllexport)
 #else
 #define DLL_EXPORT __attribute__((visibility("default")))
