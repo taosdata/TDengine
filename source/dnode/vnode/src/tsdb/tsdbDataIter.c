@@ -15,6 +15,8 @@
 
 #include "tsdb.h"
 
+// STsdbDataIter2
+
 /* open */
 int32_t tsdbOpenDataFileDataIter(SDataFReader* pReader, STsdbDataIter2** ppIter) {
   int32_t code = 0;
@@ -392,3 +394,23 @@ int32_t tsdbDataIterNext2(STsdbDataIter2* pIter, STsdbFilterInfo* pFilterInfo) {
 }
 
 /* get */
+
+// STsdbFSetIter
+typedef struct STsdbFSetDataIter {
+  STsdb*  pTsdb;
+  int32_t flags;
+
+  /* tombstone */
+  SDelFReader* pDelFReader;
+  SArray*      aDelIdx;    // SArray<SDelIdx>
+  SArray*      aDelData;   // SArray<SDelData>
+  SArray*      aSkeyLine;  // SArray<TABLEID>
+  int32_t      iDelIdx;
+  int32_t      iSkyLine;
+
+  /* time-series data */
+  SDataFReader*   pReader;
+  STsdbDataIter2* iterList;
+  STsdbDataIter2* pIter;
+  SRBTree         rbt;
+} STsdbFSetDataIter;
