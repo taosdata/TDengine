@@ -1,7 +1,7 @@
 ---
-sidebar_label: TDengine
 title: TDengine Release History and Download Links
-description: TDengine release history, Release Notes and download links.
+sidebar_label: TDengine
+description: This document provides download links for all released versions of TDengine 3.0.
 ---
 
 TDengine 3.x installation packages can be downloaded at the following links:

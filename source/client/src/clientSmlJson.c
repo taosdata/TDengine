@@ -256,7 +256,7 @@ int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
 
     if(unlikely(index >= OTD_JSON_FIELDS_NUM)) {
       uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start)
-      break;
+      return -1;
     }
 
     char *sTmp = *start;
@@ -275,6 +275,7 @@ int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
         }
         if(unlikely(isInQuote && *(*start) == '"')){
           element->measureLen = (*start) - element->measure;
+          (*start)++;
           break;
         }
         (*start)++;
@@ -384,7 +385,7 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
 
     if(unlikely(index >= OTD_JSON_FIELDS_NUM)) {
       uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start)
-      break;
+      return -1;
     }
 
     if((*start)[1] == 'm'){
@@ -393,6 +394,7 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
       while(*(*start)){
         if(unlikely(*(*start) == '"')){
           element->measureLen = (*start) - element->measure;
+          (*start)++;
           break;
         }
         (*start)++;
@@ -406,15 +408,14 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
           element->timestampLen = tmp - (*start);
           *start = tmp;
         }
-        continue;
-      }
-
-      while(*(*start)){
-        if(unlikely(*(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32)){
-          element->timestampLen = (*start) - element->timestamp;
-          break;
+      }else{
+        while(*(*start)){
+          if(unlikely(*(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32)){
+            element->timestampLen = (*start) - element->timestamp;
+            break;
+          }
+          (*start)++;
         }
-        (*start)++;
       }
     }else if((*start)[1] == 'v'){
       (*start) += offset[index++];
@@ -425,14 +426,14 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
           element->colsLen = tmp - (*start);
           *start = tmp;
         }
-        continue;
-      }
-      while(*(*start)){
-        if(unlikely( *(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32)){
-          element->colsLen = (*start) - element->cols;
-          break;
+      }else{
+        while(*(*start)){
+          if(unlikely( *(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32)){
+            element->colsLen = (*start) - element->cols;
+            break;
+          }
+          (*start)++;
         }
-        (*start)++;
       }
     }else if((*start)[1] == 't' && (*start)[2] == 'a'){
       (*start) += offset[index++];
@@ -442,7 +443,6 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
         element->tagsLen = tmp - (*start);
         *start = tmp;
       }
-      continue;
     }
     if(*(*start) == '}'){
       (*start)++;
@@ -1282,6 +1282,7 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
         }
       }
       ret = smlParseJSONString(info, &dataPointStart, info->lines + cnt);
+      if((info->lines + cnt)->measure == NULL) break;
     }
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       uError("SML:0x%" PRIx64 " Invalid JSON Payload 1:%s", info->id, payload);
