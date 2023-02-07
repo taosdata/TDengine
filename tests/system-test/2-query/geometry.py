@@ -12,7 +12,7 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
         # WKT strings to be input as GEOMETRY type
-        self.point = "POINT (1.000000 1.500000)"
+        self.point = "POINT (3.000000 3.000000)"
         self.lineString = "LINESTRING (1.000000 1.000000, 2.000000 2.000000, 5.000000 5.000000)"
         self.polygon = "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))"
 
@@ -54,28 +54,91 @@ class TDTestCase:
         tdSql.error(f"insert into {dbname}.ct2 values (now(), 1, 1.1, NULL, 2)")
 
     def geomFromText_test(self, dbname = "db"):
-        # contsant input
-        tdSql.query(f"select ST_AsText(ST_GeomFromText('{self.point}'))")
-        tdSql.checkEqual(tdSql.queryResult[0][0], self.point)
-
         # column input, including NULL value
-        #tdSql.query(f"select ST_GeomFromText(c3), c4 from {dbname}.t1")  # [ToDo] use the line until GEOMETRY type is supported  in taos-connector-python
+        #tdSql.query(f"select ST_GeomFromText(c3), c4 from {dbname}.t1")  # [ToDo] use the line once GEOMETRY type is supported  in taos-connector-python
         tdSql.query(f"select ST_AsText(ST_GeomFromText(c3)), ST_AsText(c4) from {dbname}.t1")
         for i in range(tdSql.queryRows):
             tdSql.checkEqual(tdSql.queryResult[i][0], tdSql.queryResult[i][1])
 
+        # constant input
+        tdSql.query(f"select ST_AsText(ST_GeomFromText('{self.point}'))")
+        tdSql.checkEqual(tdSql.queryResult[0][0], self.point)
+
+        # wrong type input
+        tdSql.error(f"select ST_GeomFromText(c1) from {dbname}.t1")
+
+        # wrong number of params input
+        tdSql.error(f"select ST_GeomFromText() from {dbname}.t1")
+        tdSql.error(f"select ST_GeomFromText(c3, c3) from {dbname}.t1")
+
         # wrong content input has been tested in insert step
 
     def asText_test(self, dbname = "db"):
-        # contsant input has been tested in geomFromText_test
-
         # column input, including NULL value
         tdSql.query(f"select c3, ST_AsText(c4) from {dbname}.ct1")
         for i in range(tdSql.queryRows):
             tdSql.checkEqual(tdSql.queryResult[i][0], tdSql.queryResult[i][1])
 
+        # constant input has been tested in geomFromText_test
+
+        # wrong type input
+        tdSql.error(f"select ST_AsText(c2) from {dbname}.ct1")
+
+        # wrong number of params input
+        tdSql.error(f"select ST_AsText() from {dbname}.ct1")
+        tdSql.error(f"select ST_AsText(c4, c4) from {dbname}.ct1")
+
         # wrong content input
         tdSql.error(f"select ST_AsText('XXX')")
+
+    def intersects_test(self, dbname = "db"):
+        # two columns input, including NULL value
+        repectedResult = [True, True, True, None]
+        tdSql.query(f"select ST_Intersects(ST_GeomFromText(c3), c4) from {dbname}.t1")
+        for i in range(tdSql.queryRows):
+            tdSql.checkData(i, 0, repectedResult[i])
+
+        # constant and column input
+        repectedResult = [True, True, False, None]
+        tdSql.query(f"select ST_Intersects(ST_GeomFromText('{self.point}'), c4) from {dbname}.t1")
+        for i in range(tdSql.queryRows):
+            tdSql.checkData(i, 0, repectedResult[i])
+
+        # column and constant input
+        tdSql.query(f"select ST_Intersects(c4, ST_GeomFromText('{self.point}')) from {dbname}.t1")
+        for i in range(tdSql.queryRows):
+            tdSql.checkData(i, 0, repectedResult[i])
+
+        # two constants input
+        tdSql.query(f"select ST_Intersects(ST_GeomFromText('{self.point}'), ST_GeomFromText('{self.lineString}'))")
+        tdSql.checkEqual(tdSql.queryResult[0][0], True)
+
+        tdSql.query(f"select ST_Intersects(ST_GeomFromText('{self.point}'), ST_GeomFromText('{self.polygon}'))")
+        tdSql.checkEqual(tdSql.queryResult[0][0], False)
+
+        # NULL type input
+        tdSql.query(f"select ST_Intersects(NULL, ST_GeomFromText('{self.point}'))")
+        tdSql.checkEqual(tdSql.queryResult[0][0], None)
+
+        tdSql.query(f"select ST_Intersects(ST_GeomFromText('{self.lineString}'), NULL)")
+        tdSql.checkEqual(tdSql.queryResult[0][0], None)
+
+        # wrong type input
+        tdSql.error(f"select ST_Intersects(c1, c4) from {dbname}.t1")
+        tdSql.error(f"select ST_Intersects(c4, c2) from {dbname}.t1")
+
+        # wrong number of params input
+        tdSql.error(f"select ST_Intersects(c4) from {dbname}.t1")
+        tdSql.error(f"select ST_Intersects(ST_GeomFromText(c3), c4, c4) from {dbname}.t1")
+
+        # wrong content input
+        tdSql.error(f"select ST_Intersects(c4, 'XXX') from {dbname}.t1")
+
+        # used in where clause
+        repectedResult = [self.point, self.lineString]
+        tdSql.query(f"select c3 from {dbname}.t1 where ST_Intersects(ST_GeomFromText('{self.point}'), c4)=true")
+        for i in range(tdSql.queryRows):
+            tdSql.checkData(i, 0, repectedResult[i])
 
     def run(self):
         tdSql.prepare()
@@ -88,6 +151,9 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step3: ST_AsText function test")
         self.asText_test()
+
+        tdLog.printNoPrefix("==========step3: ST_Intersects function test")
+        self.intersects_test()
 
     def stop(self):
         tdSql.close()
