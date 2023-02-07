@@ -110,6 +110,8 @@ bool taosValidFile(TdFilePtr pFile);
 
 int32_t taosGetErrorFile(TdFilePtr pFile);
 
+int32_t taosCompressFile(char *srcFileName, char *destFileName);
+
 #ifdef __cplusplus
 }
 #endif
