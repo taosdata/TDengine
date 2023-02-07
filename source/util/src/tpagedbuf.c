@@ -56,6 +56,9 @@ static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
     char path[PATH_MAX] = {0};
     taosGetTmpfilePath(pBuf->prefix, "paged-buf", path);
     pBuf->path = taosMemoryStrDup(path);
+    if (pBuf->path == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   pBuf->pFile =
@@ -166,6 +169,7 @@ static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
     t = doCompressData(payload, pBuf->pageSize, &size, pBuf);
     if (size < 0) {
       uError("failed to compress data when flushing data to disk, %s", pBuf->id);
+      terrno = TSDB_CODE_INVALID_PARA;
       return NULL;
     }
   }
@@ -300,6 +304,7 @@ static SListNode* getEldestUnrefedPage(SDiskbasedBuf* pBuf) {
 static char* evictBufPage(SDiskbasedBuf* pBuf) {
   SListNode* pn = getEldestUnrefedPage(pBuf);
   if (pn == NULL) {  // no available buffer pages now, return.
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -396,8 +401,8 @@ static char* doExtractPage(SDiskbasedBuf* pBuf) {
   if (NO_IN_MEM_AVAILABLE_PAGES(pBuf)) {
     availablePage = evictBufPage(pBuf);
     if (availablePage == NULL) {
-      if (terrno == 0) terrno = TSDB_CODE_OUT_OF_MEMORY;
-      uWarn("no available buf pages, current:%d, max:%d, %s", listNEles(pBuf->lruList), pBuf->inMemPages, pBuf->id)
+      uWarn("no available buf pages, current:%d, max:%d, reason: %s, %s", listNEles(pBuf->lruList), pBuf->inMemPages,
+            terrstr(), pBuf->id)
     }
   } else {
     availablePage =
