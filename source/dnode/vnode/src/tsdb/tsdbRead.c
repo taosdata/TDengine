@@ -3896,8 +3896,6 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
   //  no valid error code set in metaGetTbTSchema, so let's set the error code here.
   //  we should proceed in case of tmq processing.
   if (pCond->suid != 0) {
-    taosSsleep(20);
-
     pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pReader->suid, -1, 1);
     if (pReader->pSchema == NULL) {
       tsdbError("failed to get table schema, suid:%" PRIu64 ", ver:-1, %s", pReader->suid, pReader->idStr);

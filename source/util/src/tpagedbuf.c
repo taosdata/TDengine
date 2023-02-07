@@ -397,7 +397,7 @@ static char* doExtractPage(SDiskbasedBuf* pBuf) {
     availablePage = evictBufPage(pBuf);
     if (availablePage == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      uWarn("no available buf pages, current:%d, max:%d", listNEles(pBuf->lruList), pBuf->inMemPages)
+      uWarn("no available buf pages, current:%d, max:%d, %s", listNEles(pBuf->lruList), pBuf->inMemPages, pBuf->id);
     }
   } else {
     availablePage = taosMemoryCalloc(1, getAllocPageSize(pBuf->pageSize));  // add extract bytes in case of zipped buffer increased.
@@ -564,7 +564,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
     needRemoveFile = true;
     uDebug(
         "Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page "
-        "size:%.2f Kb, %s\n",
+        "size:%.2f Kb, %s",
         pBuf->totalBufSize / 1024.0, pBuf->numOfPages, listNEles(pBuf->lruList) * pBuf->pageSize / 1024.0,
         listNEles(pBuf->lruList), pBuf->fileSize / 1024.0, pBuf->pageSize / 1024.0f, pBuf->id);
 
@@ -581,8 +581,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
              ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f, ps->loadPages);
     } else {
       uDebug(
-          "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages), avgPageSize:%.2f "
-          "Kb",
+          "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages), avgPgSize:%.2f Kb",
           ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f,
           ps->loadPages, ps->loadBytes / (1024.0 * ps->loadPages));
     }
