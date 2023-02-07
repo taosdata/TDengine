@@ -113,7 +113,7 @@ done
 
 osType=$(uname)
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} allocator=${allocator} verNumber=${verNumber} verNumberComp=${verNumberComp} httpdBuild=${httpdBuild}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} allocator=${allocator} verNumber=${verNumber} verNumberComp=${verNumberComp} httpdBuild=${httpdBuild} cusPrompt=${cusPrompt} cusName=${cusName} cusEmail=${cusEmail}"
 
 curr_dir=$(pwd)
 
@@ -328,8 +328,10 @@ if [ "$osType" != "Darwin" ]; then
   echo "====do tar.gz package for all systems===="
   cd ${top_dir}/community/packaging/tools
 
-  ${csudo}./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusEmail}
-  ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${cusName} ${cusEmail}
+  echo "${csudo}./makepkg.sh ${compile_dir} ${verNumber} \"${build_time}\" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}"
+  ${csudo}./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}
+  echo "${csudo}./makeclient.sh ${compile_dir} ${verNumber} \"${build_time}\" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}"
+  ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName} ${cusName} ${cusPrompt} ${cusEmail}
 
 else
     echo "No need to run release.sh on macOS"

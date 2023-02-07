@@ -5,49 +5,69 @@ set community_dir=%~dp0\..
 set package_dir=%cd%
 set install_dir=C:\TDengine
 
-:: %1 name %2 version
-if !%1==! GOTO USAGE
-if !%2==! GOTO USAGE
+set cusName=TDengine
+set cusPrompt=taos
+set cusEmail=support@taosdata.com
 
-if "%1" == "cluster" (
+:param
+if "%1"=="" (
+    goto :readfinish
+)
+if %1 == -v ( set "verType=%2" && shift && shift && goto :param )
+if %1 == -n ( set "version=%2" && shift && shift && goto :param )
+if %1 == -N ( set "cusName=%2" && shift && shift && goto :param )
+if %1 == -M ( set "cusEmail=%2"  && shift && shift && goto :param )
+if %1 == -P ( set "cusPrompt=%2" && shift && shift && goto :param )
+
+@REM unused
+if %1 == -b ( shift && shift && goto :param )
+if %1 == -V ( shift && shift && goto :param )
+if %1 == -c ( shift && shift && goto :param )
+if %1 == -l ( shift && shift && goto :param )
+echo unkown argument %1
+goto :eof
+:readfinish
+
+if "%verType%" == "cluster" (
 	set work_dir=%internal_dir%
-	set packagServerName_x64=TDengine-enterprise-server-%2-beta-Windows-x64
-	@REM set packagServerName_x86=TDengine-enterprise-server-%2-beta-Windows-x86
-	set packagClientName_x64=TDengine-enterprise-client-%2-beta-Windows-x64
-	set packagClientName_x86=TDengine-enterprise-client-%2-beta-Windows-x86
+	set packagServerName_x64=%cusName%-enterprise-server-%version%-beta-Windows-x64
+	@REM set packagServerName_x86=%cusName%-enterprise-server-%version%-beta-Windows-x86
+	set packagClientName_x64=%cusName%-enterprise-client-%version%-beta-Windows-x64
+	set packagClientName_x86=%cusName%-enterprise-client-%version%-beta-Windows-x86
 ) else (
 	set work_dir=%community_dir%
-	set packagServerName_x64=TDengine-server-%2-Windows-x64
-	@REM set packagServerName_x86=TDengine-server-%2-Windows-x86
-	set packagClientName_x64=TDengine-client-%2-Windows-x64
-	set packagClientName_x86=TDengine-client-%2-Windows-x86
+	set packagServerName_x64=%cusName%-server-%version%-Windows-x64
+	@REM set packagServerName_x86=%cusName%-server-%version%-Windows-x86
+	set packagClientName_x64=%cusName%-client-%version%-Windows-x64
+	set packagClientName_x86=%cusName%-client-%version%-Windows-x86
 )
 
-echo release windows-client for %1, version: %2
+echo release windows-client for %verType%, version: %version%
 if not exist %work_dir%\debug (
 	md %work_dir%\debug
 )
-if not exist %work_dir%\debug\ver-%2-x64 (
-	md %work_dir%\debug\ver-%2-x64
+if not exist %work_dir%\debug\ver-%version%-x64 (
+	md %work_dir%\debug\ver-%version%-x64
 ) else (
-	rd /S /Q %work_dir%\debug\ver-%2-x64
-	md %work_dir%\debug\ver-%2-x64
+	rd /S /Q %work_dir%\debug\ver-%version%-x64
+	md %work_dir%\debug\ver-%version%-x64
 )
-if not exist %work_dir%\debug\ver-%2-x86 (
-	md %work_dir%\debug\ver-%2-x86
+if not exist %work_dir%\debug\ver-%version%-x86 (
+	md %work_dir%\debug\ver-%version%-x86
 ) else (
-	rd /S /Q %work_dir%\debug\ver-%2-x86
-	md %work_dir%\debug\ver-%2-x86
+	rd /S /Q %work_dir%\debug\ver-%version%-x86
+	md %work_dir%\debug\ver-%version%-x86
 )
 
-cd %work_dir%\debug\ver-%2-x64
+cd %work_dir%\debug\ver-%version%-x64
 call vcvarsall.bat x64
-cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%2 -DCPUTYPE=x64
+echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%"
+cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%
 cmake --build .
 rd /s /Q C:\TDengine
 cmake --install .
 if not %errorlevel% == 0  ( call :RUNFAILED build x64 failed & exit /b 1)
-if "%1" == "cluster" (
+if "%verType%" == "cluster" (
 	md  %install_dir%\connector
 	git clone --depth 1 https://github.com/taosdata/driver-go %install_dir%/connector/go
 	rm -rf %install_dir%/connector/go/.git*
@@ -74,9 +94,9 @@ if "%1" == "cluster" (
     xcopy /S %examples_dir%\C#  %install_dir%\examples\C#\*
 )
 cd %package_dir%
-iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%2" /DMyAppExcludeSource="" tools\tdengine.iss /O..\release
+iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" tools\tdengine.iss /O..\release
 if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x64% failed & exit /b 1)
-iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%2" /DMyAppExcludeSource="taosd.exe" tools\tdengine.iss /O..\release
+iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosd.exe" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" tools\tdengine.iss /O..\release
 if not %errorlevel% == 0  ( call :RUNFAILED package %packagClientName_x64% failed & exit /b 1)
 
 goto EXIT0
