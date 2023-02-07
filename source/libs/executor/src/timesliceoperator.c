@@ -181,12 +181,14 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
     int32_t srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
     switch (pSliceInfo->fillType) {
-      case TSDB_FILL_NULL: {
+      case TSDB_FILL_NULL:
+      case TSDB_FILL_NULL_F: {
         colDataAppendNULL(pDst, rows);
         break;
       }
 
-      case TSDB_FILL_SET_VALUE: {
+      case TSDB_FILL_SET_VALUE:
+      case TSDB_FILL_SET_VALUE_F: {
         SVariant* pVar = &pSliceInfo->pFillColInfo[j].fillVal;
 
         if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
