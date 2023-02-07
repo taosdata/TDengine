@@ -758,7 +758,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
 
             pTColVal->value.nData = pColVal->value.nData;
             if (pTColVal->value.nData) {
-              memcpy(pTColVal->value.pData,  pColVal->value.pData, pTColVal->value.nData);
+              memcpy(pTColVal->value.pData, pColVal->value.pData, pTColVal->value.nData);
             }
             pTColVal->flag = 0;
           } else {
@@ -1133,6 +1133,7 @@ _exit:
 void tBlockDataReset(SBlockData *pBlockData) {
   pBlockData->suid = 0;
   pBlockData->uid = 0;
+  pBlockData->nRow = 0;
 }
 
 void tBlockDataClear(SBlockData *pBlockData) {
