@@ -515,7 +515,7 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
   pIter->rInfo.row = tsdbRowFromBlockData(pBlockData, pIter->iRow);
 
 _exit:
-  return (terrno == TSDB_CODE_SUCCESS) && (pIter->pSttBlk != NULL);
+  return (terrno == TSDB_CODE_SUCCESS) && (pIter->pSttBlk != NULL) && (pBlockData != NULL);
 }
 
 SRowInfo *tLDataIterGet(SLDataIter *pIter) { return &pIter->rInfo; }
