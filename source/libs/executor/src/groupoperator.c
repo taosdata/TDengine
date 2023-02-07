@@ -1109,7 +1109,7 @@ void initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pParSup
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->partitionSup = *pParSup;
   pScanInfo->pPartScalarSup = pExpr;
-  if (!pScanInfo->pUpdateInfo) {
+  if (!pScanInfo->igCheckUpdate && !pScanInfo->pUpdateInfo) {
     pScanInfo->pUpdateInfo = updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, 0);
   }
 }

@@ -357,6 +357,7 @@ typedef struct STableScanPhysiNode {
   int64_t        watermark;
   int8_t         igExpired;
   bool           assignBlockUid;
+  int8_t         igCheckUpdate;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
