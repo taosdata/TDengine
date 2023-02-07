@@ -1271,7 +1271,7 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
     if(info->dataFormat) {
       SSmlLineInfo element = {0};
       ret = smlParseJSONString(info, &dataPointStart, &element);
-      taosMemoryFree(element.measureTag);
+      if(element.measureTagsLen != 0) taosMemoryFree(element.measureTag);
     }else{
       if(cnt >= payloadNum){
         payloadNum = payloadNum << 1;

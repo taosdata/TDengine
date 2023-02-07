@@ -1371,7 +1371,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
       if (info->dataFormat) {
         SSmlLineInfo element = {0};
         code = smlParseTelnetString(info, (char *)tmp, (char *)tmp + len, &element);
-        taosMemoryFree(element.measureTag);
+        if(element.measureTagsLen != 0) taosMemoryFree(element.measureTag);
       } else {
         code = smlParseTelnetString(info, (char *)tmp, (char *)tmp + len, info->lines + i);
       }
