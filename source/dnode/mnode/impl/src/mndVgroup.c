@@ -798,7 +798,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pDb->compactStartTime <= 0) {
-      colDataAppendNULL(pColInfo, rows);
+      colDataAppendNULL(pColInfo, numOfRows);
     } else {
       colDataAppend(pColInfo, numOfRows, (const char *)&pDb->compactStartTime, false);
     }
@@ -1175,7 +1175,8 @@ int32_t mndAddAlterVnodeReplicaAction(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   return 0;
 }
 
-static int32_t mndAddDisableVnodeWriteAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int32_t dnodeId) {
+static int32_t mndAddDisableVnodeWriteAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup,
+                                             int32_t dnodeId) {
   SDnodeObj *pDnode = mndAcquireDnode(pMnode, dnodeId);
   if (pDnode == NULL) return -1;
 
