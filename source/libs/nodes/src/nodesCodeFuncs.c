@@ -176,7 +176,7 @@ const char* nodesNodeName(ENodeType type) {
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
       return "ShowDbAliveStmt";
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
-      return "ShowClusterAliveStmt";      
+      return "ShowClusterAliveStmt";
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
       return "RedistributeVgroupStmt";
     case QUERY_NODE_SPLIT_VGROUP_STMT:
@@ -2595,6 +2595,7 @@ static const char* jkQueryInsertPhysiPlanTableType = "TableType";
 static const char* jkQueryInsertPhysiPlanTableFName = "TableFName";
 static const char* jkQueryInsertPhysiPlanVgId = "VgId";
 static const char* jkQueryInsertPhysiPlanEpSet = "EpSet";
+static const char* jkQueryInsertPhysiPlanExplain = "Explain";
 
 static int32_t physiQueryInsertNodeToJson(const void* pObj, SJson* pJson) {
   const SQueryInserterNode* pNode = (const SQueryInserterNode*)pObj;
@@ -2620,6 +2621,9 @@ static int32_t physiQueryInsertNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkQueryInsertPhysiPlanEpSet, epSetToJson, &pNode->epSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkQueryInsertPhysiPlanExplain, pNode->explain);
   }
 
   return code;
@@ -2649,6 +2653,9 @@ static int32_t jsonToPhysiQueryInsertNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToObject(pJson, jkQueryInsertPhysiPlanEpSet, jsonToEpSet, &pNode->epSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkQueryInsertPhysiPlanExplain, &pNode->explain);
   }
 
   return code;

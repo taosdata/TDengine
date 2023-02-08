@@ -562,6 +562,7 @@ typedef struct SQueryInserterNode {
   char          tableName[TSDB_TABLE_NAME_LEN];
   int32_t       vgId;
   SEpSet        epSet;
+  bool          explain;
 } SQueryInserterNode;
 
 typedef struct SDataDeleterNode {

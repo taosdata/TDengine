@@ -537,7 +537,9 @@ int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRs
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCC);
 
-  schProcessOnDataFetched(pJob);
+  if (!SCH_IS_INSERT_JOB(pJob)) {
+    schProcessOnDataFetched(pJob);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -682,7 +684,7 @@ void schFreeJobImpl(void *job) {
 int32_t schJobFetchRows(SSchJob *pJob) {
   int32_t code = 0;
 
-  if (!(pJob->attr.explainMode == EXPLAIN_MODE_STATIC)) {
+  if (!(pJob->attr.explainMode == EXPLAIN_MODE_STATIC) && !(SCH_IS_EXPLAIN_JOB(pJob) && SCH_IS_INSERT_JOB(pJob))) {
     SCH_ERR_RET(schLaunchFetchTask(pJob));
 
     if (schChkCurrentOp(pJob, SCH_OP_FETCH, true)) {

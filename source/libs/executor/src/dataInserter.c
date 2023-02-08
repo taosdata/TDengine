@@ -46,6 +46,7 @@ typedef struct SDataInserterHandle {
   uint64_t            cachedSize;
   TdThreadMutex       mutex;
   tsem_t              ready;
+  bool                explain;
 } SDataInserterHandle;
 
 typedef struct SSubmitRspParam {
@@ -333,26 +334,28 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
 
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
-  taosArrayPush(pInserter->pDataBlocks, &pInput->pData);
-  void*   pMsg = NULL;
-  int32_t msgLen = 0;
-  int32_t code = dataBlocksToSubmitReq(pInserter, &pMsg, &msgLen);
-  if (code) {
-    return code;
-  }
+  if (!pInserter->explain) {
+    taosArrayPush(pInserter->pDataBlocks, &pInput->pData);
+    void*   pMsg = NULL;
+    int32_t msgLen = 0;
+    int32_t code = dataBlocksToSubmitReq(pInserter, &pMsg, &msgLen);
+    if (code) {
+      return code;
+    }
 
-  taosArrayClear(pInserter->pDataBlocks);
+    taosArrayClear(pInserter->pDataBlocks);
 
-  code = sendSubmitRequest(pInserter, pMsg, msgLen, pInserter->pParam->readHandle->pMsgCb->clientRpc,
-                           &pInserter->pNode->epSet);
-  if (code) {
-    return code;
-  }
+    code = sendSubmitRequest(pInserter, pMsg, msgLen, pInserter->pParam->readHandle->pMsgCb->clientRpc,
+                             &pInserter->pNode->epSet);
+    if (code) {
+      return code;
+    }
 
-  tsem_wait(&pInserter->ready);
+    tsem_wait(&pInserter->ready);
 
-  if (pInserter->submitRes.code) {
-    return pInserter->submitRes.code;
+    if (pInserter->submitRes.code) {
+      return pInserter->submitRes.code;
+    }
   }
 
   *pContinue = true;
@@ -412,6 +415,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   inserter->pParam = pParam;
   inserter->status = DS_BUF_EMPTY;
   inserter->queryEnd = false;
+  inserter->explain = pInserterNode->explain;
 
   int64_t suid = 0;
   int32_t code =
