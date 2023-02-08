@@ -95,6 +95,8 @@ static int32_t tsdbAbortCompact(STsdbCompactor *pCompactor) {
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  } else {
+    tsdbInfo("vgId:%d %s done", TD_VID(pTsdb->pVnode), __func__);
   }
   return code;
 }
@@ -580,6 +582,15 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s, commit ID:%" PRId64, TD_VID(pTsdb->pVnode), __func__, lino,
               tstrerror(code), pCompactor->commitID);
+    tBlockDataDestroy(&pCompactor->sData);
+    tBlockDataDestroy(&pCompactor->bData);
+    if (pCompactor->fs.pDelFile) {
+      taosArrayDestroy(pCompactor->aSkyLine);
+      taosArrayDestroy(pCompactor->aDelData);
+      taosArrayDestroy(pCompactor->aDelIdx);
+      if (pCompactor->pDelFReader) tsdbDelFReaderClose(&pCompactor->pDelFReader);
+    }
+    tsdbFSDestroy(&pCompactor->fs);
   } else {
     tsdbInfo("vgId:%d %s done, commit ID:%" PRId64, TD_VID(pTsdb->pVnode), __func__, pCompactor->commitID);
   }
@@ -588,16 +599,12 @@ _exit:
 
 int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
   int32_t code = 0;
-  int32_t lino = 0;
 
   STsdbCompactor *pCompactor = &(STsdbCompactor){0};
 
-  // begin compact
-  code = tsdbBeginCompact(pTsdb, pCompactor);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  if ((code = tsdbBeginCompact(pTsdb, pCompactor))) return code;
 
-  // loop to compact each file set
-  while (true) {
+  for (;;) {
     SDFileSet *pSet = (SDFileSet *)taosArraySearch(pCompactor->fs.aDFileSet, &(SDFileSet){.fid = pCompactor->fid},
                                                    tDFileSetCmprFn, TD_GT);
     if (pSet == NULL) {
@@ -605,18 +612,13 @@ int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
       break;
     }
 
-    code = tsdbCompactFileSet(pCompactor, pSet);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    if ((code = tsdbCompactFileSet(pCompactor, pSet))) goto _exit;
   }
 
-  code = tsdbFSUpsertDelFile(&pCompactor->fs, NULL);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  if ((code = tsdbFSUpsertDelFile(&pCompactor->fs, NULL))) goto _exit;
 
 _exit:
-  // commit/abort compact
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s, commit ID:%" PRId64, TD_VID(pTsdb->pVnode), __func__, lino,
-              tstrerror(code), pCompactor->commitID);
     tsdbAbortCompact(pCompactor);
   } else {
     tsdbCommitCompact(pCompactor);

@@ -16,7 +16,6 @@
 #include "tsdb.h"
 
 // STsdbDataIter2
-
 /* open */
 int32_t tsdbOpenDataFileDataIter(SDataFReader* pReader, STsdbDataIter2** ppIter) {
   int32_t code = 0;
