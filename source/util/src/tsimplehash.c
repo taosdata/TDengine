@@ -367,6 +367,7 @@ void tSimpleHashCleanup(SSHashObj *pHashObj) {
     return;
   }
 
+  taosArrayDestroyEx(pHashObj->pHashNodeBuf, destroyItems);
   tSimpleHashClear(pHashObj);
   taosMemoryFreeClear(pHashObj->hashList);
   taosMemoryFree(pHashObj);
