@@ -60,6 +60,6 @@ target_link_libraries(
     PRIVATE os util common transport nodes parser command planner catalog scheduler function qcom
 )
 
-#if(${BUILD_TEST})
+if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)
-#endif(${BUILD_TEST})
+endif(${BUILD_TEST})
