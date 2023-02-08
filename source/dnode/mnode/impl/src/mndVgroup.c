@@ -428,7 +428,7 @@ static void *mndBuildAlterVnodeHashRangeReq(SMnode *pMnode, SVgObj *pVgroup, int
       .hashEnd = pVgroup->hashEnd,
   };
 
-  mInfo("vgId:%d, build alter vnode hashrange req, dstVgId:%d, begin:%u, end:%u", pVgroup->vgId, dstVgId,
+  mInfo("vgId:%d, build alter vnode hashrange req, dstVgId:%d, hashrange:[%u, %u]", pVgroup->vgId, dstVgId,
         pVgroup->hashBegin, pVgroup->hashEnd);
   int32_t contLen = tSerializeSAlterVnodeHashRangeReq(NULL, 0, &alterReq);
   if (contLen < 0) {
@@ -1894,12 +1894,6 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
   }
   if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVg1) != 0) goto _OVER;
 
-  mInfo("vgId:%d, vgroup info after adjust replica, replica:%d hashBegin:%u hashEnd:%u vnode:0 dnode:%d", newVg1.vgId,
-        newVg1.replica, newVg1.hashBegin, newVg1.hashEnd, newVg1.vnodeGid[0].dnodeId);
-  for (int32_t i = 0; i < newVg1.replica; ++i) {
-    mInfo("vgId:%d, vnode:%d dnode:%d", newVg1.vgId, i, newVg1.vnodeGid[i].dnodeId);
-  }
-
   SVgObj newVg2 = {0};
   memcpy(&newVg2, &newVg1, sizeof(SVgObj));
   newVg1.replica = 1;
@@ -1911,13 +1905,13 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
   memcpy(&newVg2.vnodeGid[0], &newVg2.vnodeGid[1], sizeof(SVnodeGid));
   memset(&newVg2.vnodeGid[1], 0, sizeof(SVnodeGid));
 
-  mInfo("vgId:%d, vgroup info after adjust hash, replica:%d hashBegin:%u hashEnd:%u vnode:0 dnode:%d", newVg1.vgId,
-        newVg1.replica, newVg1.hashBegin, newVg1.hashEnd, newVg1.vnodeGid[0].dnodeId);
+  mInfo("vgId:%d, vgroup info after split, replica:%d hashrange:[%u, %u] vnode:0 dnode:%d", newVg1.vgId, newVg1.replica,
+        newVg1.hashBegin, newVg1.hashEnd, newVg1.vnodeGid[0].dnodeId);
   for (int32_t i = 0; i < newVg1.replica; ++i) {
     mInfo("vgId:%d, vnode:%d dnode:%d", newVg1.vgId, i, newVg1.vnodeGid[i].dnodeId);
   }
-  mInfo("vgId:%d, vgroup info after adjust hash, replica:%d hashBegin:%u hashEnd:%u vnode:0 dnode:%d", newVg2.vgId,
-        newVg2.replica, newVg2.hashBegin, newVg2.hashEnd, newVg2.vnodeGid[0].dnodeId);
+  mInfo("vgId:%d, vgroup info after split, replica:%d hashrange:[%u, %u] vnode:0 dnode:%d", newVg2.vgId, newVg2.replica,
+        newVg2.hashBegin, newVg2.hashEnd, newVg2.vnodeGid[0].dnodeId);
   for (int32_t i = 0; i < newVg1.replica; ++i) {
     mInfo("vgId:%d, vnode:%d dnode:%d", newVg2.vgId, i, newVg2.vnodeGid[i].dnodeId);
   }

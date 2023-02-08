@@ -311,7 +311,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   int32_t srcVgId = req.srcVgId;
   int32_t dstVgId = req.dstVgId;
-  dInfo("vgId:%d, start to alter vnode hashrange[%u, %u), dstVgId:%d", req.srcVgId, req.hashBegin, req.hashEnd,
+  dInfo("vgId:%d, start to alter vnode hashrange:[%u, %u], dstVgId:%d", req.srcVgId, req.hashBegin, req.hashEnd,
         req.dstVgId);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, srcVgId);
@@ -342,7 +342,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  dInfo("vgId:%d, start to open vnode", dstVgId);
+  dInfo("vgId:%d, open vnode", dstVgId);
   SVnode *pImpl = vnodeOpen(dstPath, pMgmt->pTfs, pMgmt->msgCb);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", dstVgId, dstPath, terrstr());
@@ -376,7 +376,7 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   int32_t vgId = alterReq.vgId;
-  dInfo("vgId:%d, start to alter vnode, replica:%d selfIndex:%d strict:%d", vgId, alterReq.replica, alterReq.selfIndex,
+  dInfo("vgId:%d, start to alter vnode replica:%d selfIndex:%d strict:%d", vgId, alterReq.replica, alterReq.selfIndex,
         alterReq.strict);
   for (int32_t i = 0; i < alterReq.replica; ++i) {
     SReplica *pReplica = &alterReq.replicas[i];
@@ -423,7 +423,7 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  dInfo("vgId:%d, start to open vnode", vgId);
+  dInfo("vgId:%d, close vnode", vgId);
   SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
