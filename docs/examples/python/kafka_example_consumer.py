@@ -127,7 +127,7 @@ class Consumer(object):
     def _json_to_taos(self, messages):
         """
 
-        tans a batch of json data to sql, and insert into TDengine
+        convert a batch of json data to sql, and insert into TDengine
         :param messages:
         :return:
         """
@@ -137,7 +137,7 @@ class Consumer(object):
     def _line_to_taos(self, messages):
         """
 
-        tans a batch of line data to sql, and insert into TDengine
+        convert a batch of lines data to sql, and insert into TDengine
         :param messages:
         :return:
         """
