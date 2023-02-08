@@ -209,7 +209,7 @@ static int32_t tsdbSnapCmprData(STsdbSnapReader* pReader, uint8_t** ppData) {
   }
 
   SSnapDataHdr* pHdr = (SSnapDataHdr*)*ppData;
-  pHdr->type = SNAP_DATA_TSDB;
+  pHdr->type = pReader->type;
   pHdr->size = size;
 
   memcpy(pHdr->data, pReader->aBuf[3], aBufN[3]);
