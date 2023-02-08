@@ -202,6 +202,7 @@ int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol
                         uint8_t **ppBuf);
 int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, int32_t nVal, SColData *pColData,
                           uint8_t **ppBuf);
+int32_t tRowInfoCmprFn(const void *p1, const void *p2);
 // tsdbMemTable ==============================================================================================
 // SMemTable
 int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
@@ -320,6 +321,8 @@ struct STsdb {
   STsdbFS        fs;
   SLRUCache     *lruCache;
   TdThreadMutex  lruMutex;
+  SLRUCache     *biCache;
+  TdThreadMutex  biMutex;
 };
 
 struct TSDBKEY {
@@ -744,6 +747,9 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
 int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);
 int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);
 int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
+
+int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHandle **handle);
+int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h);
 
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);

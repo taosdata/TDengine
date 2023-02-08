@@ -1553,10 +1553,33 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
   // select percentile() without from clause is also valid
   if ((NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
                           (TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
-                           TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType))) ||
-      NULL != pSelect->pPartitionByList) {
+                           TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType)))) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
                                    "%s is only supported in single table query", pFunc->functionName);
+  }
+  if (NULL != pSelect->pPartitionByList) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "%s function is not supported in partition query", pFunc->functionName);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateBlockDistFunc(STranslateContext* pCtx, SFunctionNode* pFunc) {
+  if (!fmIsBlockDistFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!isSelectStmt(pCtx->pCurrStmt)) {
+    return generateSyntaxErrMsgExt(&pCtx->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
+                                   "%s is only supported in single table query", pFunc->functionName);
+  }
+  SSelectStmt* pSelect = (SSelectStmt*)pCtx->pCurrStmt;
+  SNode*       pTable = pSelect->pFromTable;
+  if (NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
+                         (TSDB_SUPER_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+                          TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+                          TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType))) {
+    return generateSyntaxErrMsgExt(&pCtx->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "%s is only supported on super table, child table or normal table", pFunc->functionName);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1720,7 +1743,7 @@ static int32_t rewriteSystemInfoFunc(STranslateContext* pCxt, SNode** pNode) {
   return TSDB_CODE_PAR_INTERNAL_ERROR;
 }
 
-static int32_t translateNoramlFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
+static int32_t translateNormalFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
   int32_t code = translateAggFunc(pCxt, pFunc);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateScanPseudoColumnFunc(pCxt, pFunc);
@@ -1751,6 +1774,9 @@ static int32_t translateNoramlFunction(STranslateContext* pCxt, SFunctionNode* p
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateTimelineFunc(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateBlockDistFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     setFuncClassification(pCxt->pCurrStmt, pFunc);
@@ -1812,7 +1838,7 @@ static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pF
   if (fmIsClientPseudoColumnFunc((*pFunc)->funcId)) {
     return rewriteClientPseudoColumnFunc(pCxt, (SNode**)pFunc);
   }
-  return translateNoramlFunction(pCxt, *pFunc);
+  return translateNormalFunction(pCxt, *pFunc);
 }
 
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
@@ -2978,7 +3004,7 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
     intervalRange = pInterval->datum.i;
   }
 
-  if ((timeRange == 0) || (timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
+  if ((timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
   }
 
