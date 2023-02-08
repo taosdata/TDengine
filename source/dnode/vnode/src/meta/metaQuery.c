@@ -1268,6 +1268,8 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
 
   int     count = 0;
   int32_t valid = 0;
+
+  static const int8_t TRY_ERROR_LIMIT = 4;
   while (1) {
     void   *entryKey = NULL, *entryVal = NULL;
     int32_t nEntryKey, nEntryVal;
@@ -1279,7 +1281,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     STagIdxKey *p = entryKey;
     if (p == NULL) break;
 
-    if (count >= 4) {
+    if (count >= TRY_ERROR_LIMIT) {
       if (p->type != pCursor->type || p->suid != pCursor->suid || p->cid != pCursor->cid) {
         break;
       }
@@ -1305,11 +1307,11 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       }
       taosArrayPush(pUids, &tuid);
     } else if (cmp == 1) {
-      if (count >= 4) break;
+      if (count >= TRY_ERROR_LIMIT) break;
       //  not match but should continue to iter
     } else {
       // not match and no more result
-      if (count >= 4) break;
+      if (count >= TRY_ERROR_LIMIT) break;
     }
     count++;
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
