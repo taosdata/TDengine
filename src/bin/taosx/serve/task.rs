@@ -5,7 +5,9 @@ use std::{
 };
 
 use actix_web::{
-    delete, get, patch, post,
+    delete, get,
+    http::header::ContentType,
+    patch, post,
     web::{Data, Json, Path, Query, ServiceConfig},
     HttpResponse, Responder,
 };
@@ -707,27 +709,6 @@ impl TaskController {
     }
 }
 
-pub(super) fn configure(store: Data<TaskController>) -> impl FnOnce(&mut ServiceConfig) {
-    |config: &mut ServiceConfig| {
-        config
-            .app_data(store)
-            // .service(search_tasks)
-            .service(get_tasks)
-            .service(get_tasks_count)
-            .service(create_task)
-            .service(update_task)
-            .service(delete_task)
-            .service(replicate)
-            .service(subscribe)
-            .service(get_task_by_id)
-            .service(start_task)
-            .service(stop_task)
-            .service(metrics_exporter)
-            // .service(update_task)
-            ;
-    }
-}
-
 /// State.
 ///
 /// Initial state: Created.
@@ -1000,6 +981,7 @@ impl TaskFilter {
 /// curl localhost:6040/tasks
 /// ```
 #[utoipa::path(
+    tag = "tasks",
     responses(
         (status = 200, description = "List current task items", body = [Task])
     ),
@@ -1031,6 +1013,7 @@ pub(super) async fn get_tasks(
 /// curl localhost:6040/tasks
 /// ```
 #[utoipa::path(
+    tag = "tasks",
     responses(
         (status = 200, description = "Tasks count (deleted tasks will not be included by default)", body = [usize])
     ),
@@ -1063,6 +1046,7 @@ pub(super) async fn get_tasks_count(
 /// curl localhost:8080/task -d '{"from": "tmq:///test", "to": "local:test"}'
 /// ```
 #[utoipa::path(
+    tag = "tasks",
     request_body = NewTask,
     responses(
         (status = 201, description = "Task created successfully", body = Task),
@@ -1161,13 +1145,13 @@ impl NewReplicate {
 /// curl localhost:8080/task -d '{"from": "tmq:///test", "to": "local:test"}'
 /// ```
 #[utoipa::path(
+    tag = "tasks",
     request_body = NewReplicate,
     responses(
         (status = 201, description = "Task created successfully", body = Task),
         // (status = 409, description = "Task with id already exists", body = ErrorResponse, example = json!(ErrorResponse::Conflict(String::from("id = 1"))))
     )
 )]
-#[deprecated]
 #[post("/tasks/replicate")]
 pub(super) async fn replicate(
     task: Json<NewReplicate>,
@@ -1295,6 +1279,7 @@ impl NewSubscribe {
 /// curl localhost:8080/tasks/subscribe -d '{"username": "tmq:///test", "to": "local:test"}'
 /// ```
 #[utoipa::path(
+    tag = "tasks",
     request_body = NewSubscribe,
     responses(
         (status = 201, description = "Task created successfully", body = Task),
@@ -1333,6 +1318,7 @@ pub(super) async fn subscribe(
 /// Api will delete task from shared in-memory storage by the provided id and return success 200.
 /// If storage does not contain `Task` with given id 404 not found will be returned.
 #[utoipa::path(
+    tag = "tasks",
     request_body = UpdateTask,
     responses(
         (status = 200, description = "Task deleted successfully"),
@@ -1366,6 +1352,7 @@ pub(super) async fn update_task(
 /// Api will delete task from shared in-memory storage by the provided id and return success 200.
 /// If storage does not contain `Task` with given id 404 not found will be returned.
 #[utoipa::path(
+    tag = "tasks",
     responses(
         (status = 200, description = "Task deleted successfully"),
         // (status = 401, description = "Unauthorized to delete Task", body = ErrorResponse, example = json!(ErrorResponse::Unauthorized(String::from("missing api key")))),
@@ -1391,6 +1378,7 @@ pub(super) async fn delete_task(id: Path<i64>, task_store: Data<TaskController>)
 ///
 /// Return found `Task` with status 200 or 404 not found if `Task` is not found from shared in-memory storage.
 #[utoipa::path(
+    tag = "tasks",
     responses(
         (status = 200, description = "Task found from storage", body = Task),
         (status = 404, description = "Task not found by id", body = Failed)
@@ -1419,6 +1407,7 @@ pub(super) async fn get_task_by_id(
 ///
 /// If storage does not contain `Task` with given id 404 not found will be returned.
 #[utoipa::path(
+    tag = "tasks",
     responses(
         (status = 200, description = "Task started successfully"),
         (status = 404, description = "Task not found by id", body = Failed),
@@ -1449,6 +1438,7 @@ pub(super) async fn start_task(id: Path<i64>, task_store: Data<TaskController>) 
 ///
 /// If storage does not contain `Task` with given id 404 not found will be returned.
 #[utoipa::path(
+    tag = "tasks",
     responses(
         (status = 200, description = "Task stopped successfully"),
         (status = 404, description = "Task not found by id", body = Failed),

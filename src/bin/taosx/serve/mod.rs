@@ -4,15 +4,21 @@ use anyhow::Result;
 
 use clap::Parser;
 
-use actix_web::{middleware::Logger, web::Data, App, HttpServer};
+use actix_web::{
+    middleware::Logger,
+    web::{Data, ServiceConfig},
+    App, HttpServer,
+};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use task::*;
 
+mod data_sources;
 mod metrics;
 mod task;
 
+use data_sources::*;
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
     #[clap(short = 'l', long, default_value = "0.0.0.0:6050")]
@@ -36,6 +42,35 @@ impl Default for Cli {
     }
 }
 
+fn configure(store: Data<TaskController>) -> impl FnOnce(&mut ServiceConfig) {
+    |config: &mut ServiceConfig| {
+        config
+            .app_data(store)
+            // .service(search_tasks)
+            .service(get_tasks)
+            .service(get_tasks_count)
+            .service(create_task)
+            .service(update_task)
+            .service(delete_task)
+            .service(replicate)
+            .service(subscribe)
+            .service(get_task_by_id)
+            .service(start_task)
+            .service(stop_task)
+            .service(metrics::metrics_exporter)
+            .service(data_in_sources)
+            .service(data_in_sources_validate)
+            .service(data_in_new_task)
+            .service(data_in_task_list)
+            .service(data_in_get_task_by_id)
+            .service(data_in_start_task)
+            .service(data_in_stop_task)
+            .service(data_in_delete_task)
+            // .service(update_task)
+            ;
+    }
+}
+
 impl Cli {
     pub(super) async fn run_with(
         self,
@@ -45,18 +80,22 @@ impl Cli {
         #[derive(OpenApi)]
         #[openapi(
             components(
-            schemas(
-                // NewReplicate,
-                // NewSubscribe,
-                NewTask,
-                UpdateTask,
-                Cluster,
-                StreamType,
-                Task,
-                Failed
-            ),
-            responses(
-            )
+                schemas(
+                    // NewReplicate,
+                    // NewSubscribe,
+                    NewTask,
+                    UpdateTask,
+                    Cluster,
+                    StreamType,
+                    Task,
+                    Failed,
+                    DataSourceInput,
+                    CloudTarget,
+                    Transformer,
+                    DataIn,
+                ),
+                responses(
+                )
             ),
             paths(
                 task::get_tasks,
@@ -69,10 +108,20 @@ impl Cli {
                 task::get_task_by_id,
                 // task::replicate,
                 // task::subscribe,
-                metrics::metrics_exporter
+                metrics::metrics_exporter,
+                data_in_sources,
+                data_in_sources_validate,
+                data_in_new_task,
+                data_in_task_list,
+                data_in_get_task_by_id,
+                data_in_start_task,
+                data_in_stop_task,
+                data_in_delete_task,
             ),
             tags(
-                (name = "tasks", description = "Task management endpoints")
+                (name = "tasks", description = "Task management endpoints"),
+                (name = "data sources", description = "Data in/out"),
+
             ),
         )]
         struct ApiDoc;
@@ -107,7 +156,7 @@ impl Cli {
             App::new()
                 .wrap(Logger::default())
                 .app_data(recorder.clone())
-                .configure(task::configure(store.clone()))
+                .configure(configure(store.clone()))
                 .service(
                     SwaggerUi::new("/swagger-ui/{_:.*}")
                         .url("/api-doc/openapi.json", openapi.clone()),

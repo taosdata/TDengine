@@ -18,6 +18,7 @@ pub async fn is_available_enterprise_edition(taos: &Taos) -> bool {
             }
         }
     }
+    // let grant  = taos.query_one::<_, Grant>("select version, 1, expire_time from information_schema.ins_cluster").await;
     let grant = taos.query_one::<_, Grant>("show grants").await;
     match grant {
         Ok(Some(grant)) => {
