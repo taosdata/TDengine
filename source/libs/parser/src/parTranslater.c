@@ -1550,10 +1550,13 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
   // select percentile() without from clause is also valid
   if ((NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
                           (TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
-                           TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType))) ||
-      NULL != pSelect->pPartitionByList) {
+                           TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType)))) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
                                    "%s is only supported in single table query", pFunc->functionName);
+  }
+  if (NULL != pSelect->pPartitionByList) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "%s function is not supported in partition query", pFunc->functionName);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2979,7 +2982,7 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
     intervalRange = pInterval->datum.i;
   }
 
-  if ((timeRange == 0) || (timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
+  if ((timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
   }
 
@@ -3514,7 +3517,7 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
     if (comp > 0) {
       SNode*  pRightFunc = NULL;
       int32_t code = createCastFunc(pCxt, pRight, pLeftExpr->resType, &pRightFunc);
-      if (TSDB_CODE_SUCCESS != code) {
+      if (TSDB_CODE_SUCCESS != code || NULL == pRightFunc) { // deal scan coverity
         return code;
       }
       REPLACE_LIST2_NODE(pRightFunc);
@@ -3522,7 +3525,7 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
     } else if (comp < 0) {
       SNode*  pLeftFunc = NULL;
       int32_t code = createCastFunc(pCxt, pLeft, pRightExpr->resType, &pLeftFunc);
-      if (TSDB_CODE_SUCCESS != code) {
+      if (TSDB_CODE_SUCCESS != code || NULL == pLeftFunc) { // deal scan coverity
         return code;
       }
       REPLACE_LIST1_NODE(pLeftFunc);

@@ -1,5 +1,6 @@
 ---
 title: Data Import
+description: This document describes how to import data into TDengine.
 ---
 
 There are multiple ways of importing data provided by TDengine: import with script, import from data file, import using `taosdump`.

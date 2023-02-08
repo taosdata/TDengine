@@ -1,6 +1,7 @@
 ---
-sidebar_label: Supertable
 title: Supertable
+sidebar_label: Supertable
+description: This document describes how to create and perform operations on supertables.
 ---
 
 ## Create a Supertable

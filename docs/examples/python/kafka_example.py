@@ -106,8 +106,8 @@ class Consumer(object):
             for task in self.tasks:
                 while not task.done():
                     pass
-            if self.pool is not None:
-                self.pool.shutdown()
+                if self.pool is not None:
+                    self.pool.shutdown()
 
         # clean data
         if self.config.get('clean_after_testing'):

@@ -142,7 +142,7 @@ SHOW DATABASES;
 ### 显示一个数据库的创建语句
 
 ```
-SHOW CREATE DATABASE db_name;
+SHOW CREATE DATABASE db_name \G;
 ```
 
 常用于数据库迁移。对一个已经存在的数据库，返回其创建语句；在另一个集群中执行该语句，就能得到一个设置完全相同的 Database。
@@ -150,7 +150,7 @@ SHOW CREATE DATABASE db_name;
 ### 查看数据库参数
 
 ```sql
-SELECT * FROM INFORMATION_SCHEMA.INS_DATABASES WHERE NAME='DBNAME' \G;
+SELECT * FROM INFORMATION_SCHEMA.INS_DATABASES WHERE NAME='db_name' \G;
 ```
 
 会列出指定数据库的配置参数，并且每行只显示一个参数。

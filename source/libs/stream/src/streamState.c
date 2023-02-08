@@ -199,7 +199,7 @@ void streamStateClose(SStreamState* pState) {
 }
 
 int32_t streamStateBegin(SStreamState* pState) {
-  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, NULL, NULL, NULL,
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     tdbAbort(pState->pTdbState->db, pState->pTdbState->txn);
     return -1;
@@ -215,7 +215,7 @@ int32_t streamStateCommit(SStreamState* pState) {
     return -1;
   }
 
-  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, NULL, NULL, NULL,
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
@@ -227,7 +227,7 @@ int32_t streamStateAbort(SStreamState* pState) {
     return -1;
   }
 
-  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, NULL, NULL, NULL,
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
