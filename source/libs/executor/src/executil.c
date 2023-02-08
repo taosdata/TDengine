@@ -1831,9 +1831,9 @@ int32_t tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalG
 
   int32_t offset = pTableList->groupOffset[ordinalGroupIndex];
   if (ordinalGroupIndex < total - 1) {
-    *size = pTableList->groupOffset[offset + 1] - pTableList->groupOffset[offset];
+    *size = pTableList->groupOffset[ordinalGroupIndex + 1] - offset;
   } else {
-    *size = total - pTableList->groupOffset[offset] - 1;
+    *size = total - offset;
   }
 
   *pKeyInfo = taosArrayGet(pTableList->pTableList, offset);
