@@ -1260,17 +1260,17 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   if (tdbTbcMoveTo(pCursor->pCur, pKey, nKey, &cmp) < 0) {
     goto END;
   }
-  if (param->reverse) {
-    if (tdbTbcMoveToNext(pCursor->pCur) < 0) tdbTbcMoveToLast(pCursor->pCur);
-  } else {
-    if (tdbTbcMoveToPrev(pCursor->pCur) < 0) tdbTbcMoveToFirst(pCursor->pCur);
-  }
+  // if (param->reverse) {
+  //   if (tdbTbcMoveToNext(pCursor->pCur) < 0) tdbTbcMoveToLast(pCursor->pCur);
+  // } else {
+  //  if (tdbTbcMoveToPrev(pCursor->pCur) < 0) tdbTbcMoveToFirst(pCursor->pCur);
+  //}
 
   int     count = 0;
   int32_t valid = 0;
 
   static const int8_t TRY_ERROR_LIMIT = 4;
-  while (1) {
+  do {
     void   *entryKey = NULL, *entryVal = NULL;
     int32_t nEntryKey, nEntryVal;
 
@@ -1318,7 +1318,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     if (valid < 0) {
       break;
     }
-  }
+  } while (1);
 
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
