@@ -40,6 +40,9 @@ class TDTestCase:
         self.multiThreadRun(tlist)
         tdSql.query(f'select * from information_schema.ins_databases')
 
+        # double comma insert check error
+        tdSql.error("insert into test.tb(ts, c11) values(now,,100)")
+
 
     def stop(self):
         tdSql.close()
