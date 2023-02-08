@@ -228,7 +228,7 @@ int32_t tsCompressINTImp(const char *const input, const int32_t nelements, char 
 }
 
 int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, char *const output, const char type) {
-#if 1
+#if __AVX2__
   int32_t word_length = 0;
   switch (type) {
     case TSDB_DATA_TYPE_BIGINT:
