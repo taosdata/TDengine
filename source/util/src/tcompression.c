@@ -228,7 +228,7 @@ int32_t tsCompressINTImp(const char *const input, const int32_t nelements, char 
 }
 
 int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, char *const output, const char type) {
-#if __AVX2__
+
   int32_t word_length = 0;
   switch (type) {
     case TSDB_DATA_TYPE_BIGINT:
@@ -264,6 +264,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
   int32_t     _pos = 0;
   int64_t     prev_value = 0;
 
+#if __AVX2__
   while (1) {
     if (_pos == nelements) break;
 
@@ -433,41 +434,6 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
 
   return nelements * word_length;
 #else
-
-  int32_t word_length = 0;
-  switch (type) {
-    case TSDB_DATA_TYPE_BIGINT:
-      word_length = LONG_BYTES;
-      break;
-    case TSDB_DATA_TYPE_INT:
-      word_length = INT_BYTES;
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      word_length = SHORT_BYTES;
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-      word_length = CHAR_BYTES;
-      break;
-    default:
-    uError("Invalid decompress integer type:%d", type);
-      return -1;
-  }
-
-  // If not compressed.
-  if (input[0] == 1) {
-    memcpy(output, input + 1, nelements * word_length);
-    return nelements * word_length;
-  }
-
-  // Selector value:              0    1   2   3   4   5   6   7   8  9  10  11
-  // 12  13  14  15
-  char    bit_per_integer[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 60};
-  int32_t selector_to_elems[] = {240, 120, 60, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1};
-
-  const char *ip = input + 1;
-  int32_t     count = 0;
-  int32_t     _pos = 0;
-  int64_t     prev_value = 0;
 
   while (1) {
     if (count == nelements) break;
