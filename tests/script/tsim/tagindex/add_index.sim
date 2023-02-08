@@ -7,7 +7,7 @@ print ======== step0
 $dbPrefix = ta_3_db
 $tbPrefix = ta_3_tb
 $mtPrefix = ta_3_mt
-$tbNum = 101 
+$tbNum = 6 
 $rowNum = 20
 $totalNum = 200
 
@@ -60,6 +60,7 @@ while $i < $tbNum
   $i = $i + 1
 endw
 
+# great equal than 
 $i = 0
 while $i < $tbNum
   sql select * from $mtPrefix where t2 >= $i ;
@@ -69,5 +70,48 @@ while $i < $tbNum
   endi
   $i = $i + 1
 endw
+
+# great than 
+$i = 0
+while $i < $tbNum
+  sql select * from $mtPrefix where t2 > $i ;
+  $tmp = $tbNum - $i
+  
+  $tmp = $tmp - 1
+  if $rows != $tmp then
+    print $rows
+    print $i
+    print $tmp
+    return -1
+  endi
+  $i = $i + 1
+endw
+
+# lower equal than 
+$i = 0
+while $i < $tbNum
+  sql select * from $mtPrefix where t2 <= $i ;
+  $tmp = $i + 1
+  if $rows != $tmp then
+    return -1
+  endi
+  $i = $i + 1
+endw
+
+# lower equal than 
+$i = 0
+while $i < $tbNum
+  sql select * from $mtPrefix where t2 < $i ;
+  $tmp = $i 
+  if $rows != $tmp then
+    return -1
+  endi
+  $i = $i + 1
+endw
+
+
+
+
+
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

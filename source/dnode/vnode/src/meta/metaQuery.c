@@ -1260,6 +1260,14 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   if (tdbTbcMoveTo(pCursor->pCur, pKey, nKey, &cmp) < 0) {
     goto END;
   }
+  if (cmp < 0) {
+  } else if (cmp > 0) {
+    if (param->reverse) {
+      tdbTbcMoveToPrev(pCursor->pCur);
+    } else {
+      tdbTbcMoveToNext(pCursor->pCur);
+    }
+  }
 
   int     count = 0;
   int32_t valid = 0;
