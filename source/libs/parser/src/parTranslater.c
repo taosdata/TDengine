@@ -3517,7 +3517,7 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
     if (comp > 0) {
       SNode*  pRightFunc = NULL;
       int32_t code = createCastFunc(pCxt, pRight, pLeftExpr->resType, &pRightFunc);
-      if (TSDB_CODE_SUCCESS != code || NULL == pRightFunc) { // deal scan coverity
+      if (TSDB_CODE_SUCCESS != code || NULL == pRightFunc) {  // deal scan coverity
         return code;
       }
       REPLACE_LIST2_NODE(pRightFunc);
@@ -3525,7 +3525,7 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
     } else if (comp < 0) {
       SNode*  pLeftFunc = NULL;
       int32_t code = createCastFunc(pCxt, pLeft, pRightExpr->resType, &pLeftFunc);
-      if (TSDB_CODE_SUCCESS != code || NULL == pLeftFunc) { // deal scan coverity
+      if (TSDB_CODE_SUCCESS != code || NULL == pLeftFunc) {  // deal scan coverity
         return code;
       }
       REPLACE_LIST1_NODE(pLeftFunc);
@@ -5817,7 +5817,7 @@ static int32_t projColPosCompar(const void* l, const void* r) {
   return ((SProjColPos*)l)->colId > ((SProjColPos*)r)->colId;
 }
 
-static void projColPosDelete(void* p) { taosMemoryFree(((SProjColPos*)p)->pProj); }
+static void projColPosDelete(void* p) { nodesDestroyNode(((SProjColPos*)p)->pProj); }
 
 static int32_t addProjToProjColPos(STranslateContext* pCxt, const SSchema* pSchema, SNode* pProj, SArray* pProjColPos) {
   SNode* pNewProj = nodesCloneNode(pProj);
