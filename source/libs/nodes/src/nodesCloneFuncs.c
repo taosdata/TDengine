@@ -380,6 +380,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(deleteMark);
   COPY_SCALAR_FIELD(igExpired);
+  COPY_SCALAR_FIELD(igCheckUpdate);
   CLONE_NODE_LIST_FIELD(pGroupTags);
   COPY_SCALAR_FIELD(groupSort);
   CLONE_NODE_LIST_FIELD(pTags);
