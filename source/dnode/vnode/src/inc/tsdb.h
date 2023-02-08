@@ -311,6 +311,7 @@ int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData, 
 
 // structs =======================
 struct STsdbFS {
+  int32_t   nMaxStt;
   SDelFile *pDelFile;
   SArray   *aDFileSet;  // SArray<SDFileSet>
 };

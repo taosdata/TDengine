@@ -59,7 +59,9 @@ void    vnodePostClose(SVnode *pVnode);
 void    vnodeSyncCheckTimeout(SVnode *pVnode);
 void    vnodeClose(SVnode *pVnode);
 int32_t vnodeSyncCommit(SVnode *pVnode);
-int32_t vnodeBegin(SVnode* pVnode);
+int32_t vnodeBegin(SVnode *pVnode);
+int32_t vnodeMigrate(SVnode *pVnode, SVTrimDbReq *pReq);
+int32_t vnodeCompact(SVnode *pVnode);
 
 int32_t vnodeStart(SVnode *pVnode);
 void    vnodeStop(SVnode *pVnode);

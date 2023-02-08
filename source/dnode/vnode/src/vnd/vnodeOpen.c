@@ -283,6 +283,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
 
   tsem_init(&pVnode->syncSem, 0, 0);
   tsem_init(&(pVnode->canCommit), 0, 1);
+  tsem_init(&(pVnode->canTrim), 0, 1);
   taosThreadMutexInit(&pVnode->mutex, NULL);
   taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
@@ -369,6 +370,7 @@ _err:
   if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
   tsem_destroy(&(pVnode->canCommit));
+  tsem_destroy(&(pVnode->canTrim));
   taosMemoryFree(pVnode);
   return NULL;
 }
@@ -383,6 +385,7 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     tsem_wait(&pVnode->canCommit);
+    tsem_wait(&pVnode->canTrim);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     walClose(pVnode->pWal);
@@ -392,9 +395,11 @@ void vnodeClose(SVnode *pVnode) {
     metaClose(pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
     tsem_post(&pVnode->canCommit);
+    tsem_post(&pVnode->canTrim);
 
     // destroy handle
     tsem_destroy(&(pVnode->canCommit));
+    tsem_destroy(&(pVnode->canTrim));
     tsem_destroy(&pVnode->syncSem);
     taosThreadCondDestroy(&pVnode->poolNotEmpty);
     taosThreadMutexDestroy(&pVnode->mutex);

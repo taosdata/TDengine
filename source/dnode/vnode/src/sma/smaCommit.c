@@ -47,14 +47,6 @@ int32_t smaPrepareAsyncCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitIm
 int32_t smaCommit(SSma *pSma, SCommitInfo *pInfo) { return tdProcessRSmaAsyncCommitImpl(pSma, pInfo); }
 
 /**
- * @brief async commit, only applicable to Rollup SMA
- *
- * @param pSma
- * @return int32_t
- */
-int32_t smaPostCommit(SSma *pSma) { return tdProcessRSmaAsyncPostCommitImpl(pSma); }
-
-/**
  * @brief prepare rsma1/2, and set rsma trigger stat active
  *
  * @param pSma
@@ -103,6 +95,17 @@ _exit:
   return code;
 }
 
+int32_t smaCanCommit(SSma *pSma) {
+  int32_t result = 1;
+
+  result = tsdbCanCommit(VND_RSMA1(pSma->pVnode));
+  if (result) {
+    result = tsdbCanCommit(VND_RSMA2(pSma->pVnode));
+  }
+
+  return result;
+}
+
 int32_t smaFinishCommit(SSma *pSma) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -117,6 +120,9 @@ int32_t smaFinishCommit(SSma *pSma) {
   if (VND_RSMA2(pVnode) && (code = tsdbFinishCommit(VND_RSMA2(pVnode))) < 0) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
+
+  code = tdProcessRSmaAsyncPostCommitImpl(pSma);
+
 _exit:
   if (code) {
     smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
@@ -195,10 +201,10 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
       nLoops = 0;
     }
   }
+  smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
   if (!isCommit) goto _exit;
 
-  smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
   code = tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
   TSDB_CHECK_CODE(code, lino, _exit);
 

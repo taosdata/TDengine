@@ -161,6 +161,18 @@ int32_t tsdbPrepareCommit(STsdb *pTsdb) {
   return 0;
 }
 
+int32_t tsdbCanCommit(STsdb *pTsdb) {
+  int32_t result = 1;
+  if (pTsdb) {
+    taosThreadRwlockRdlock(&pTsdb->rwLock);
+    if (pTsdb->fs.nMaxStt >= TSDB_MAX_STT_TRIGGER) {
+      result = 0;
+    }
+    taosThreadRwlockUnlock(&pTsdb->rwLock);
+  }
+  return result;
+}
+
 int32_t tsdbCommit(STsdb *pTsdb, SCommitInfo *pInfo) {
   if (!pTsdb) return 0;
 

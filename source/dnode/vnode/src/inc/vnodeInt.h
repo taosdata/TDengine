@@ -175,6 +175,7 @@ int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* 
 int     tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
 int32_t tsdbPrepareCommit(STsdb* pTsdb);
+int32_t tsdbCanCommit(STsdb* pTsdb);
 int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbFinishCommit(STsdb* pTsdb);
 int32_t tsdbRollbackCommit(STsdb* pTsdb);
@@ -226,9 +227,9 @@ int32_t smaOpen(SVnode* pVnode, int8_t rollback);
 int32_t smaClose(SSma* pSma);
 int32_t smaBegin(SSma* pSma);
 int32_t smaPrepareAsyncCommit(SSma* pSma);
+int32_t smaCanCommit(SSma* pSma);
 int32_t smaCommit(SSma* pSma, SCommitInfo* pInfo);
 int32_t smaFinishCommit(SSma* pSma);
-int32_t smaPostCommit(SSma* pSma);
 int32_t smaDoRetention(SSma* pSma, int64_t now);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
@@ -325,12 +326,9 @@ struct SVnodeInfo {
   SVStatis  statis;
 };
 
-typedef enum {
-  VND_TASK_COMMIT = 0,
-  VND_TASK_COMPACT = 1,
-  VND_TASK_MERGE = 2,
-  VND_TASK_MIGRATE = 3,
-} EVTaskType;
+enum { COMMIT_MODE_ONLY = 0, COMMIT_MODE_MIX = 1 };
+
+enum { VND_TASK_COMMIT = 0, VND_TASK_COMPACT = 1, VND_TASK_MERGE = 2, VND_TASK_MIGRATE = 3 };
 
 typedef enum {
   TSDB_TYPE_TSDB = 0,     // TSDB
@@ -354,9 +352,14 @@ typedef struct SVCommitSched {
 } SVCommitSched;
 
 typedef struct {
-  void* trimTask;
-  void* mergeTask;
-} SVTrimHandle;
+  SRWLatch lock;         // e.g. commitMode
+  int8_t   nCommitTask;  // in running(vnodeCommitImpl), not including the one in schedule queue
+  int8_t   nMergeTask;   // in running
+  int8_t   nTrimTask;    // in running
+  void*    trimStash; // 
+  void*    mergeStash;
+  void*    commitStash;  // SCommitInfo
+} SVBatchHandle;
 
 struct SVnode {
   char*     path;
@@ -386,7 +389,7 @@ struct SVnode {
   tsem_t        canCommit;
   tsem_t        canTrim;
   SVCommitSched commitSched;
-  SVTrimHandle  trimHandle;
+  SVBatchHandle batchHandle;
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;
@@ -403,13 +406,16 @@ struct SVnode {
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
 
-#define VND_TSDB(vnd)       ((vnd)->pTsdb)
-#define VND_RSMA0(vnd)      ((vnd)->pTsdb)
-#define VND_RSMA1(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L0])
-#define VND_RSMA2(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L1])
-#define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
-#define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
-#define VND_IS_TSMA(v)      ((v)->config.isTsma == 1)
+#define VND_TSDB(vnd)         ((vnd)->pTsdb)
+#define VND_RSMA0(vnd)        ((vnd)->pTsdb)
+#define VND_RSMA1(vnd)        ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L0])
+#define VND_RSMA2(vnd)        ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L1])
+#define VND_RETENTIONS(vnd)   (&(vnd)->config.tsdbCfg.retentions)
+#define VND_IS_RSMA(v)        ((v)->config.isRsma == 1)
+#define VND_IS_TSMA(v)        ((v)->config.isTsma == 1)
+#define VND_IS_COMMIT_ONLY(v) (atomic_load_8(&(v)->commitMode) == COMMIT_MODE_ONLY)
+#define VND_ST_COMMIT_ONLY(v) (atomic_store_8(&(v)->commitMode, COMMIT_MODE_ONLY))
+#define VND_ST_COMMIT_MIX(v)  (atomic_store_8(&(v)->commitMode, COMMIT_MODE_MIX))
 
 struct STbUidStore {
   tb_uid_t  suid;
@@ -468,22 +474,33 @@ struct SCommitInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
   TXN*       txn;
+  int8_t     canCommit;
 };
 
 struct SCompactInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
+  int32_t    minFid;
+  int32_t    maxFid;
+  int32_t    index;
+  int32_t    maxIndex;
 };
 
 struct SMergeInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
   TXN*       txn;
+  int32_t    fid;
 };
 
 struct SMigrateInfo {
-  SVnodeInfo info;
-  SVnode*    pVnode;
+  SVnodeInfo  info;
+  SVnode*     pVnode;
+  SVTrimDbReq req;
+  int32_t     minFid;
+  int32_t     maxFid;
+  int32_t     index;
+  int32_t     maxIndex;
 };
 
 #ifdef __cplusplus

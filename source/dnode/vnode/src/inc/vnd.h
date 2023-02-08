@@ -117,7 +117,7 @@ bool    vnodeIsLeader(SVnode* pVnode);
 bool    vnodeIsRoleLeader(SVnode* pVnode);
 int     vnodeShouldCommit(SVnode* pVnode);
 
-// vnodeTrim.c
+// vnodeBatch.c
 int32_t vnodePutScheduleTask(SVnode* pVnode, int (*execute)(void*), void* arg, int8_t type);
 
 #ifdef __cplusplus

@@ -303,6 +303,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->info.state.commitTerm = pVnode->state.applyTerm;
   pInfo->info.state.commitID = pVnode->state.commitID;
   pInfo->pVnode = pVnode;
+  pInfo->canCommit = 1;
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
   // save info
@@ -368,22 +369,39 @@ static void vnodeReturnBufPool(SVnode *pVnode) {
 
   taosThreadMutexUnlock(&pVnode->mutex);
 }
+
+static FORCE_INLINE int32_t vnodeCanCommit(SVnode *pVnode) {
+  if (VND_IS_COMMIT_ONLY(pVnode)) return 1;
+  // nSttF < MAX_STT_TRIGGER in COMMIT_MIX mode
+  return tsdbCanCommit(pVnode->pTsdb) && smaCanCommit(pVnode->pSma);
+}
+
 static int32_t vnodeCommitTask(void *arg) {
   int32_t code = 0;
 
   SCommitInfo *pInfo = (SCommitInfo *)arg;
   SVnode      *pVnode = pInfo->pVnode;
 
+  // check commit
+  if (!vnodeCanCommit(pVnode)) {
+    pInfo->canCommit = 0;
+    code = vnodePutScheduleTask(pVnode, vnodeCommitTask, pInfo, VND_TASK_COMMIT);
+    if (code) goto _exit;
+    return code;
+  }
+
   // commit
   code = vnodeCommitImpl(pInfo);
   if (code) goto _exit;
 
+  // TODO: should return vnodeReturnBufPool in _exit?
   vnodeReturnBufPool(pVnode);
 
 _exit:
   // end commit
   tsem_post(&pVnode->canCommit);
   taosMemoryFree(pInfo);
+  // TODO: vnodeTrimScheduleCheck.
   return code;
 }
 
@@ -439,10 +457,13 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
 
   vnodeUpdCommitSched(pVnode);
 
+  ASSERT(0 == atomic_fetch_add_8(&pVnode->batchHandle.nCommitTask, 1));
+
   // persist wal before starting
   if (walPersist(pVnode->pWal) < 0) {
+    code = terrno;
     vError("vgId:%d, failed to persist wal since %s", TD_VID(pVnode), terrstr());
-    return -1;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (pVnode->pTfs) {
@@ -488,20 +509,18 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
 
   pVnode->state.committed = pInfo->info.state.committed;
 
-  if (smaPostCommit(pVnode->pSma) < 0) {
-    vError("vgId:%d, failed to post-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
-  }
-
   syncEndSnapshot(pVnode->sync);
 
 _exit:
+  
+  ASSERT(0 == atomic_sub_fetch_8(&pVnode->batchHandle.nCommitTask, 1));
+
   if (code) {
     vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   } else {
     vInfo("vgId:%d, commit end", TD_VID(pVnode));
   }
-  return 0;
+  return code;
 }
 
 bool vnodeShouldRollback(SVnode *pVnode) {
