@@ -45,7 +45,6 @@ class TDTestCase:
         tdSql.query(f'select * from information_schema.ins_databases')
 
 
-
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
