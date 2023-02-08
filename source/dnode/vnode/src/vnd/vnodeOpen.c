@@ -171,8 +171,8 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
     return -1;
   }
 
-  vInfo("vgId:%d, start to alter hashrange from [%u, %u) to [%u, %u)", pReq->srcVgId, info.config.hashBegin,
-        info.config.hashEnd, pReq->hashBegin, pReq->hashEnd);
+  vInfo("vgId:%d, alter hashrange from [%u, %u] to [%u, %u]", pReq->srcVgId, info.config.hashBegin, info.config.hashEnd,
+        pReq->hashBegin, pReq->hashEnd);
   info.config.vgId = pReq->dstVgId;
   info.config.hashBegin = pReq->hashBegin;
   info.config.hashEnd = pReq->hashEnd;
@@ -204,7 +204,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
     return -1;
   }
 
-  vInfo("vgId:%d, start to rename %s to %s", pReq->dstVgId, srcPath, dstPath);
+  vInfo("vgId:%d, rename %s to %s", pReq->dstVgId, srcPath, dstPath);
   ret = vnodeRenameVgroupId(srcPath, dstPath, pReq->srcVgId, pReq->dstVgId, pTfs);
   if (ret < 0) {
     vError("vgId:%d, failed to rename vnode from %s to %s since %s", pReq->dstVgId, srcPath, dstPath,
