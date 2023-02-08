@@ -867,23 +867,25 @@ _exit:
 }
 
 static bool tsdbCompactRowIsDeleted(STsdbCompactor *pCompactor, TSDBROW *pRow) {
-  TSDBKEY tKey = TSDBROW_KEY(pRow);
+  TSDBKEY  tKey = TSDBROW_KEY(pRow);
+  TSDBKEY *aKey = (TSDBKEY *)TARRAY_DATA(pCompactor->aSkyLine);
+  int32_t  nKey = TARRAY_SIZE(pCompactor->aSkyLine);
 
   if (tKey.ts > pCompactor->pDKey->ts) {
-    while (tKey.ts > pCompactor->pDKey->ts) {
-      TSDBKEY *pKey = (TSDBKEY *)taosArrayGet(pCompactor->aSkyLine, pCompactor->iSkyLine);
-
-      pCompactor->pDKey->version = pKey->version;
+    do {
+      pCompactor->pDKey->version = aKey[pCompactor->iSkyLine].version;
       pCompactor->iSkyLine++;
-      if (pCompactor->iSkyLine < taosArrayGetSize(pCompactor->aSkyLine)) {
-        TSDBKEY *pKey = (TSDBKEY *)taosArrayGet(pCompactor->aSkyLine, pCompactor->iSkyLine);
-
-        pCompactor->dKey.ts = pKey->ts;
+      if (pCompactor->iSkyLine < nKey) {
+        pCompactor->dKey.ts = aKey[pCompactor->iSkyLine].ts;
       } else {
-        pCompactor->pDKey = NULL;
-        return false;
+        if (pCompactor->pDKey->version == 0) {
+          pCompactor->pDKey = NULL;
+          return false;
+        } else {
+          pCompactor->pDKey->ts = INT64_MAX;
+        }
       }
-    }
+    } while (tKey.ts > pCompactor->pDKey->ts);
   }
 
   if (tKey.ts < pCompactor->pDKey->ts) {
@@ -893,14 +895,8 @@ static bool tsdbCompactRowIsDeleted(STsdbCompactor *pCompactor, TSDBROW *pRow) {
       return true;
     }
   } else if (tKey.ts == pCompactor->pDKey->ts) {
-    int64_t version;
-    if (pCompactor->iSkyLine < taosArrayGetSize(pCompactor->aSkyLine)) {
-      version = TMAX(pCompactor->pDKey->version, pCompactor->aTSDBKEY[pCompactor->iKey].version);
-    } else {
-      version = pCompactor->pDKey->version;
-    }
-
-    if (tKey.version > version) {
+    ASSERT(pCompactor->iSkyLine < nKey);
+    if (tKey.version > TMAX(pCompactor->pDKey->version, aKey[pCompactor->iSkyLine].version)) {
       return false;
     } else {
       return true;
