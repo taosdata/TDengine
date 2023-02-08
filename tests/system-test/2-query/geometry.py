@@ -16,6 +16,12 @@ class TDTestCase:
         self.lineString = "LINESTRING (1.000000 1.000000, 2.000000 2.000000, 5.000000 5.000000)"
         self.polygon = "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))"
 
+        # expected errno
+        self.errno_PAR_SYNTAX_ERROR = -2147473920
+        self.errno_FUNTION_PARA_TYPE = -2147473406;
+        self.errno_FUNTION_PARA_NUM = -2147473407;
+        self.errno_FUNTION_PARA_VALUE = -2147483114;
+
     def prepare_data(self, dbname = "db"):
         tdSql.execute(
             f'''create table {dbname}.t1
@@ -41,17 +47,17 @@ class TDTestCase:
         tdSql.execute(f"insert into {dbname}.ct2 values{values}")
 
         # lack of the last letter of 'POINT'
-        tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 'POIN(1.0 1.5)')")
+        tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 'POIN(1.0 1.5)')", self.errno_FUNTION_PARA_VALUE)
         # redundant comma at the end
-        tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 'LINESTRING(1.0 1.0, 2.0 2.0, 5.0 5.0,)')")
+        tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 'LINESTRING(1.0 1.0, 2.0 2.0, 5.0 5.0,)')", self.errno_FUNTION_PARA_VALUE)
         #  the first point and last one are not same
-        tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0))')")
+        tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0))')", self.errno_FUNTION_PARA_VALUE)
         # empty WTK
-        tdSql.error(f"insert into {dbname}.ct2 values (now(), 1, 1.1, NULL, '')")
+        tdSql.error(f"insert into {dbname}.ct2 values (now(), 1, 1.1, NULL, '')", self.errno_FUNTION_PARA_VALUE)
         # wrong WTK at all
-        tdSql.error(f"insert into {dbname}.ct2 values (now(), 1, 1.1, NULL, 'XXX')")
+        tdSql.error(f"insert into {dbname}.ct2 values (now(), 1, 1.1, NULL, 'XXX')", self.errno_FUNTION_PARA_VALUE)
         # wrong type
-        tdSql.error(f"insert into {dbname}.ct2 values (now(), 1, 1.1, NULL, 2)")
+        tdSql.error(f"insert into {dbname}.ct2 values (now(), 1, 1.1, NULL, 2)", self.errno_FUNTION_PARA_VALUE)
 
     def geomFromText_test(self, dbname = "db"):
         # column input, including NULL value
@@ -65,11 +71,11 @@ class TDTestCase:
         tdSql.checkEqual(tdSql.queryResult[0][0], self.point)
 
         # wrong type input
-        tdSql.error(f"select ST_GeomFromText(c1) from {dbname}.t1")
+        tdSql.error(f"select ST_GeomFromText(c1) from {dbname}.t1", self.errno_FUNTION_PARA_TYPE)
 
         # wrong number of params input
-        tdSql.error(f"select ST_GeomFromText() from {dbname}.t1")
-        tdSql.error(f"select ST_GeomFromText(c3, c3) from {dbname}.t1")
+        tdSql.error(f"select ST_GeomFromText()", self.errno_PAR_SYNTAX_ERROR)
+        tdSql.error(f"select ST_GeomFromText(c3, c3) from {dbname}.t1", self.errno_FUNTION_PARA_NUM)
 
         # wrong content input has been tested in insert step
 
@@ -82,14 +88,12 @@ class TDTestCase:
         # constant input has been tested in geomFromText_test
 
         # wrong type input
-        tdSql.error(f"select ST_AsText(c2) from {dbname}.ct1")
+        tdSql.error(f"select ST_AsText(c2) from {dbname}.ct1", self.errno_FUNTION_PARA_TYPE)
+        tdSql.error(f"select ST_AsText('XXX')", self.errno_FUNTION_PARA_TYPE)
 
         # wrong number of params input
-        tdSql.error(f"select ST_AsText() from {dbname}.ct1")
-        tdSql.error(f"select ST_AsText(c4, c4) from {dbname}.ct1")
-
-        # wrong content input
-        tdSql.error(f"select ST_AsText('XXX')")
+        tdSql.error(f"select ST_AsText() from {dbname}.ct1", self.errno_PAR_SYNTAX_ERROR)
+        tdSql.error(f"select ST_AsText(c4, c4) from {dbname}.ct1", self.errno_FUNTION_PARA_NUM)
 
     def intersects_test(self, dbname = "db"):
         # two columns input, including NULL value
@@ -124,15 +128,13 @@ class TDTestCase:
         tdSql.checkEqual(tdSql.queryResult[0][0], None)
 
         # wrong type input
-        tdSql.error(f"select ST_Intersects(c1, c4) from {dbname}.t1")
-        tdSql.error(f"select ST_Intersects(c4, c2) from {dbname}.t1")
+        tdSql.error(f"select ST_Intersects(c1, c4) from {dbname}.t1", self.errno_FUNTION_PARA_TYPE)
+        tdSql.error(f"select ST_Intersects(c4, c2) from {dbname}.t1", self.errno_FUNTION_PARA_TYPE)
+        tdSql.error(f"select ST_Intersects(c4, 'XXX') from {dbname}.t1", self.errno_FUNTION_PARA_TYPE)
 
         # wrong number of params input
-        tdSql.error(f"select ST_Intersects(c4) from {dbname}.t1")
-        tdSql.error(f"select ST_Intersects(ST_GeomFromText(c3), c4, c4) from {dbname}.t1")
-
-        # wrong content input
-        tdSql.error(f"select ST_Intersects(c4, 'XXX') from {dbname}.t1")
+        tdSql.error(f"select ST_Intersects(c4) from {dbname}.t1", self.errno_FUNTION_PARA_NUM)
+        tdSql.error(f"select ST_Intersects(ST_GeomFromText(c3), c4, c4) from {dbname}.t1", self.errno_FUNTION_PARA_NUM)
 
         # used in where clause
         repectedResult = [self.point, self.lineString]
