@@ -76,8 +76,6 @@ $i = 0
 while $i < $tbNum
   sql select * from $mtPrefix where t2 > $i ;
   $tmp = $tbNum - $i
-  
-  $tmp = $tmp - 1
   if $rows != $tmp then
     print $rows
     print $i
