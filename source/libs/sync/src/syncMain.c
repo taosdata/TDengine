@@ -85,7 +85,7 @@ int64_t syncOpen(SSyncInfo* pSyncInfo) {
 int32_t syncStart(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
-    sError("failed to acquire rid: %" PRId64 " of tsNodeReftId for pSyncNode", rid);
+    sError("failed to acquire rid:%" PRId64 " of tsNodeReftId for pSyncNode", rid);
     return -1;
   }
 
@@ -756,7 +756,7 @@ int32_t syncNodeLogStoreRestoreOnNeed(SSyncNode* pNode) {
   SyncIndex lastVer = pNode->pLogStore->syncLogLastIndex(pNode->pLogStore);
   if (lastVer < commitIndex || firstVer > commitIndex + 1) {
     if (pNode->pLogStore->syncLogRestoreFromSnapshot(pNode->pLogStore, commitIndex)) {
-      sError("vgId:%d, failed to restore log store from snapshot since %s. lastVer: %" PRId64 ", snapshotVer: %" PRId64,
+      sError("vgId:%d, failed to restore log store from snapshot since %s. lastVer:%" PRId64 ", snapshotVer:%" PRId64,
              pNode->vgId, terrstr(), lastVer, commitIndex);
       return -1;
     }
@@ -1112,7 +1112,7 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   SyncIndex endIndex = pSyncNode->pLogBuf->endIndex;
   if (lastVer != -1 && endIndex != lastVer + 1) {
     terrno = TSDB_CODE_WAL_LOG_INCOMPLETE;
-    sError("vgId:%d, failed to restore sync node since %s. expected lastLogIndex: %" PRId64 ", lastVer: %" PRId64 "",
+    sError("vgId:%d, failed to restore sync node since %s. expected lastLogIndex:%" PRId64 ", lastVer:%" PRId64 "",
            pSyncNode->vgId, terrstr(), endIndex - 1, lastVer);
     return -1;
   }
@@ -1831,7 +1831,7 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 
   SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
   ASSERT(lastIndex >= 0);
-  sInfo("vgId:%d, become leader. term: %" PRId64 ", commit index: %" PRId64 ", last index: %" PRId64 "",
+  sInfo("vgId:%d, become leader. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64 "",
         pSyncNode->vgId, pSyncNode->raftStore.currentTerm, pSyncNode->commitIndex, lastIndex);
 }
 
@@ -1850,7 +1850,7 @@ void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER);
   pSyncNode->state = TAOS_SYNC_STATE_CANDIDATE;
   SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-  sInfo("vgId:%d, become candidate from follower. term: %" PRId64 ", commit index: %" PRId64 ", last index: %" PRId64,
+  sInfo("vgId:%d, become candidate from follower. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64,
         pSyncNode->vgId, pSyncNode->raftStore.currentTerm, pSyncNode->commitIndex, lastIndex);
 
   sNTrace(pSyncNode, "follower to candidate");
@@ -1860,7 +1860,7 @@ void syncNodeLeader2Follower(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
   syncNodeBecomeFollower(pSyncNode, "leader to follower");
   SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-  sInfo("vgId:%d, become follower from leader. term: %" PRId64 ", commit index: %" PRId64 ", last index: %" PRId64,
+  sInfo("vgId:%d, become follower from leader. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64,
         pSyncNode->vgId, pSyncNode->raftStore.currentTerm, pSyncNode->commitIndex, lastIndex);
 
   sNTrace(pSyncNode, "leader to follower");
@@ -1870,7 +1870,7 @@ void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
   syncNodeBecomeFollower(pSyncNode, "candidate to follower");
   SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-  sInfo("vgId:%d, become follower from candidate. term: %" PRId64 ", commit index: %" PRId64 ", last index: %" PRId64,
+  sInfo("vgId:%d, become follower from candidate. term:%" PRId64 ", commit index:%" PRId64 ", last index:%" PRId64,
         pSyncNode->vgId, pSyncNode->raftStore.currentTerm, pSyncNode->commitIndex, lastIndex);
 
   sNTrace(pSyncNode, "candidate to follower");
@@ -2310,7 +2310,7 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   // proceed match index, with replicating on needed
   SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, NULL);
 
-  sTrace("vgId:%d, append raft entry. index: %" PRId64 ", term: %" PRId64 " pBuf: [%" PRId64 " %" PRId64 " %" PRId64
+  sTrace("vgId:%d, append raft entry. index:%" PRId64 ", term:%" PRId64 " pBuf: [%" PRId64 " %" PRId64 " %" PRId64
          ", %" PRId64 ")",
          ths->vgId, pEntry->index, pEntry->term, ths->pLogBuf->startIndex, ths->pLogBuf->commitIndex,
          ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
@@ -2483,7 +2483,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
         sError("vgId:%d, sync enqueue step-down msg error, code:%d", ths->vgId, code);
         rpcFreeCont(rpcMsgLocalCmd.pCont);
       } else {
-        sTrace("vgId:%d, sync enqueue step-down msg, new-term: %" PRId64, ths->vgId, pSyncMsg->currentTerm);
+        sTrace("vgId:%d, sync enqueue step-down msg, new-term:%" PRId64, ths->vgId, pSyncMsg->currentTerm);
       }
     }
   }
@@ -2549,7 +2549,7 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
     }
     if (syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
-      sError("vgId:%d, failed to commit raft log since %s. commit index: %" PRId64 "", ths->vgId, terrstr(),
+      sError("vgId:%d, failed to commit raft log since %s. commit index:%" PRId64 "", ths->vgId, terrstr(),
              ths->commitIndex);
     }
   } else {
