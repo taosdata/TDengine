@@ -93,6 +93,7 @@ typedef struct SScanLogicNode {
   int64_t       watermark;
   int64_t       deleteMark;
   int8_t        igExpired;
+  int8_t        igCheckUpdate;
   SArray*       pSmaIndexes;
   SNodeList*    pGroupTags;
   bool          groupSort;
@@ -217,6 +218,7 @@ typedef struct SWindowLogicNode {
   int64_t          watermark;
   int64_t          deleteMark;
   int8_t           igExpired;
+  int8_t           igCheckUpdate;
   EWindowAlgorithm windowAlgo;
   EOrder           inputTsOrder;
   EOrder           outputTsOrder;
