@@ -14,7 +14,7 @@ CREATE_STABLE_SQL = 'create stable meters (ts timestamp, current float, voltage 
 CREATE_TABLE_SQL = 'create table if not exists {} using meters tags (\'{}\', {})'
 
 
-def create_database_and_tables(host: str, port: int, user: str, password: str, db: str, table_count: int):
+def create_database_and_tables(host, port, user, password, db, table_count):
     tags_tables = _init_tags_table_names(table_count=table_count)
     conn = taos.connect(host=host, port=port, user=user, password=password)
 
@@ -31,14 +31,14 @@ def create_database_and_tables(host: str, port: int, user: str, password: str, d
     conn.close()
 
 
-def clean(host: str, port: int, user: str, password: str, db: str):
+def clean(host, port, user, password, db):
     conn = taos.connect(host=host, port=port, user=user, password=password)
     conn.execute(DROP_DATABASE_SQL.format(db))
     conn.close()
 
 
-def _init_tags_table_names(table_count: int) -> dict[str:list[str]]:
-    tags_table_names: dict[str:list[str]] = {}
+def _init_tags_table_names(table_count):
+    tags_table_names = {}
     group_id = 0
     for i in range(table_count):
         table_name = 'd{}'.format(i)
@@ -56,10 +56,10 @@ def _init_tags_table_names(table_count: int) -> dict[str:list[str]]:
     return tags_table_names
 
 
-def _tag_table_mapping_key(location: str, group_id: int):
+def _tag_table_mapping_key(location, group_id):
     return '{}_{}'.format(location, group_id)
 
 
-def _get_location_and_group(key: str) -> (str, int):
+def _get_location_and_group(key):
     fields = key.split('_')
     return fields[0], fields[1]

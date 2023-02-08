@@ -34,7 +34,7 @@ class Consumer(object):
     INSERT_PART_SQL = '{} values (\'{}\', {}, {}, {})'
 
     def __init__(self, **configs):
-        self.config: dict = self.DEFAULT_CONFIGS
+        self.config = self.DEFAULT_CONFIGS
         self.config.update(configs)
 
         self.consumer = None
@@ -54,7 +54,7 @@ class Consumer(object):
         )
         if self.config.get('workers') > 1:
             self.pool = ThreadPoolExecutor(max_workers=self.config.get('workers'))
-            self.tasks: list[Future] = []
+            self.tasks = []
         # tags and table mapping # key: {location}_{groupId} value:
 
     def consume(self):
@@ -102,7 +102,7 @@ class Consumer(object):
         if self.conns is not None:
             self.conns.close()
 
-    def _run(self, f: Callable[[list[list[ConsumerRecord]]], None]):
+    def _run(self, f):
         """
 
         run in batch consuming mode
@@ -124,7 +124,7 @@ class Consumer(object):
                 logging.warning('## test over.')  # just for test.
                 return  # just for test.
 
-    def _json_to_taos(self, messages: list[list[ConsumerRecord]]):
+    def _json_to_taos(self, messages):
         """
 
         tans a batch of json data to sql, and insert into TDengine
@@ -134,7 +134,7 @@ class Consumer(object):
         sql = self._build_sql_from_json(messages=messages)
         self.conns.execute(sql=sql)
 
-    def _line_to_taos(self, messages: list[list[ConsumerRecord]]):
+    def _line_to_taos(self, messages):
         """
 
         tans a batch of line data to sql, and insert into TDengine
@@ -148,7 +148,7 @@ class Consumer(object):
         sql = self.INSERT_SQL_HEADER + ' '.join(lines)
         self.conns.execute(sql=sql)
 
-    def _build_single_sql_from_json(self, msg_value: str) -> str:
+    def _build_single_sql_from_json(self, msg_value):
         try:
             data = json.loads(msg_value)
         except JSONDecodeError as e:
@@ -164,7 +164,7 @@ class Consumer(object):
 
         return self.INSERT_PART_SQL.format(table_name, ts, current, voltage, phase)
 
-    def _build_sql_from_json(self, messages: list[list[ConsumerRecord]]) -> str:
+    def _build_sql_from_json(self, messages):
         sql_list = []
         for partition_messages in messages:
             for message in partition_messages:
@@ -213,8 +213,8 @@ def test_line_to_taos(consumer: Consumer):
     consumer._line_to_taos(messages=records)
 
 
-def consume(kafka_brokers: str, kafka_topic: str, kafka_group_id: str, taos_host: str, taos_port: int, taos_user: str,
-            taos_password: str, taos_database: str, message_type: str, max_poll: int, workers: int):
+def consume(kafka_brokers, kafka_topic, kafka_group_id, taos_host, taos_port, taos_user,
+            taos_password, taos_database, message_type, max_poll, workers):
     c = Consumer(kafka_brokers=kafka_brokers, kafka_topic=kafka_topic, kafka_group_id=kafka_group_id,
                  taos_host=taos_host, taos_port=taos_port, taos_user=taos_user, taos_password=taos_password,
                  taos_database=taos_database, message_type=message_type, max_poll=max_poll, workers=workers)
