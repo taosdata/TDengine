@@ -81,6 +81,15 @@ if $rows == 0 then
   return -1
 endi
 
+sleep 3000
+
+sql drop stream if exists streamd1;
+sql drop stream if exists streamd2;
+sql drop stream if exists streamd3;
+sql drop stream if exists streamd4;
+sql drop stream if exists streamd5;
+sql drop stream if exists streamd6;
+
 sql create stream streamd10 into streamd10 as select _wstart, _wend, count(*), first(ca), last(cb) as c2 from t1 interval(10s);
 
 sql desc streamd10;
@@ -99,15 +108,6 @@ sql desc streamd12;
 if $rows == 0 then
   return -1
 endi
-
-sleep 3000
-
-sql drop stream if exists streamd1;
-sql drop stream if exists streamd2;
-sql drop stream if exists streamd3;
-sql drop stream if exists streamd4;
-sql drop stream if exists streamd5;
-sql drop stream if exists streamd6;
 
 
 _OVER:

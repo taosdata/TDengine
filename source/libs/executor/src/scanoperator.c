@@ -2368,8 +2368,6 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->pUpdateDataRes = createSpecialDataBlock(STREAM_CLEAR);
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
   pInfo->partitionSup.needCalc = false;
-  //todo(liuyao) for test
-  pTableScanNode->igCheckUpdate = true;
   pInfo->igCheckUpdate = pTableScanNode->igCheckUpdate;
   pInfo->igExpired = pTableScanNode->igExpired;
 
