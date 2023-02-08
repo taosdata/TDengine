@@ -17,10 +17,12 @@ class TDTestCase:
         self.polygon = "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))"
 
         # expected errno
+        self.errno_TSC_SQL_SYNTAX_ERROR = -2147483114;
         self.errno_PAR_SYNTAX_ERROR = -2147473920
-        self.errno_FUNTION_PARA_TYPE = -2147473406;
+
         self.errno_FUNTION_PARA_NUM = -2147473407;
-        self.errno_FUNTION_PARA_VALUE = -2147483114;
+        self.errno_FUNTION_PARA_TYPE = -2147473406;
+        self.errno_FUNTION_PARA_VALUE = -2147473405;
 
     def prepare_data(self, dbname = "db"):
         tdSql.execute(
@@ -46,22 +48,20 @@ class TDTestCase:
         tdSql.execute(f"insert into {dbname}.ct1 values{values}")
         tdSql.execute(f"insert into {dbname}.ct2 values{values}")
 
-        # lack of the last letter of 'POINT'
-        tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 'POIN(1.0 1.5)')", self.errno_FUNTION_PARA_VALUE)
-        # redundant comma at the end
-        tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 'LINESTRING(1.0 1.0, 2.0 2.0, 5.0 5.0,)')", self.errno_FUNTION_PARA_VALUE)
-        #  the first point and last one are not same
-        tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0))')", self.errno_FUNTION_PARA_VALUE)
-        # empty WTK
-        tdSql.error(f"insert into {dbname}.ct2 values (now(), 1, 1.1, NULL, '')", self.errno_FUNTION_PARA_VALUE)
+        # the following errors would happen when casting a string to GEOMETRY by ST_GeomFromText(), but raise an error as syntax error
+        # wrong WTK
+        tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 'POIN(1.0 1.5)')", self.errno_TSC_SQL_SYNTAX_ERROR)
         # wrong WTK at all
-        tdSql.error(f"insert into {dbname}.ct2 values (now(), 1, 1.1, NULL, 'XXX')", self.errno_FUNTION_PARA_VALUE)
+        tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 'XXX')", self.errno_TSC_SQL_SYNTAX_ERROR)
+        # empty WTK
+        tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, '')", self.errno_TSC_SQL_SYNTAX_ERROR)
         # wrong type
-        tdSql.error(f"insert into {dbname}.ct2 values (now(), 1, 1.1, NULL, 2)", self.errno_FUNTION_PARA_VALUE)
+        tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 2)", self.errno_TSC_SQL_SYNTAX_ERROR)
 
     def geomFromText_test(self, dbname = "db"):
+        # [ToDo] remove ST_AsText() calling in geomFromText_test once GEOMETRY type is supported  in taos-connector-python
+
         # column input, including NULL value
-        #tdSql.query(f"select ST_GeomFromText(c3), c4 from {dbname}.t1")  # [ToDo] use the line once GEOMETRY type is supported  in taos-connector-python
         tdSql.query(f"select ST_AsText(ST_GeomFromText(c3)), ST_AsText(c4) from {dbname}.t1")
         for i in range(tdSql.queryRows):
             tdSql.checkEqual(tdSql.queryResult[i][0], tdSql.queryResult[i][1])
@@ -70,14 +70,31 @@ class TDTestCase:
         tdSql.query(f"select ST_AsText(ST_GeomFromText('{self.point}'))")
         tdSql.checkEqual(tdSql.queryResult[0][0], self.point)
 
+        # empty input
+        tdSql.query(f"select ST_AsText(ST_GeomFromText(''))")
+        tdSql.checkEqual(tdSql.queryResult[0][0], None)
+
+        # NULL input
+        tdSql.query(f"select ST_AsText(ST_GeomFromText(NULL))")
+        tdSql.checkEqual(tdSql.queryResult[0][0], None)
+
         # wrong type input
+        tdSql.error(f"select ST_GeomFromText(2)", self.errno_FUNTION_PARA_TYPE)
         tdSql.error(f"select ST_GeomFromText(c1) from {dbname}.t1", self.errno_FUNTION_PARA_TYPE)
 
         # wrong number of params input
         tdSql.error(f"select ST_GeomFromText()", self.errno_PAR_SYNTAX_ERROR)
         tdSql.error(f"select ST_GeomFromText(c3, c3) from {dbname}.t1", self.errno_FUNTION_PARA_NUM)
 
-        # wrong content input has been tested in insert step
+        # wrong param content input
+        # lack of the last letter of 'POINT'
+        tdSql.error(f"select ST_GeomFromText('POIN(1.0 1.5)')", self.errno_FUNTION_PARA_VALUE)
+        # redundant comma at the end
+        tdSql.error(f"select ST_GeomFromText('LINESTRING(1.0 1.0, 2.0 2.0, 5.0 5.0,)')", self.errno_FUNTION_PARA_VALUE)
+        # the first point and last one are not same
+        tdSql.error(f"select ST_GeomFromText('POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0))')", self.errno_FUNTION_PARA_VALUE)
+        # wrong WTK at all
+        tdSql.error(f"select ST_GeomFromText('XXX')", self.errno_FUNTION_PARA_VALUE)
 
     def asText_test(self, dbname = "db"):
         # column input, including NULL value
@@ -85,15 +102,25 @@ class TDTestCase:
         for i in range(tdSql.queryRows):
             tdSql.checkEqual(tdSql.queryResult[i][0], tdSql.queryResult[i][1])
 
-        # constant input has been tested in geomFromText_test
+        # constant input
+        tdSql.query(f"select ST_AsText(c4) from {dbname}.ct1 where c1 = 1")
+        tdSql.checkEqual(tdSql.queryResult[0][0], self.point)
+
+        # empty input should NOT happen for GEOMETRY type
+
+        # NULL input
+        tdSql.query(f"select ST_AsText(NULL)")
+        tdSql.checkEqual(tdSql.queryResult[0][0], None)
 
         # wrong type input
-        tdSql.error(f"select ST_AsText(c2) from {dbname}.ct1", self.errno_FUNTION_PARA_TYPE)
         tdSql.error(f"select ST_AsText('XXX')", self.errno_FUNTION_PARA_TYPE)
+        tdSql.error(f"select ST_AsText(c2) from {dbname}.ct1", self.errno_FUNTION_PARA_TYPE)
 
         # wrong number of params input
         tdSql.error(f"select ST_AsText() from {dbname}.ct1", self.errno_PAR_SYNTAX_ERROR)
         tdSql.error(f"select ST_AsText(c4, c4) from {dbname}.ct1", self.errno_FUNTION_PARA_NUM)
+
+        # wrong param content input should NOT happen for GEOMETRY type
 
     def intersects_test(self, dbname = "db"):
         # two columns input, including NULL value
@@ -125,6 +152,9 @@ class TDTestCase:
         tdSql.checkEqual(tdSql.queryResult[0][0], None)
 
         tdSql.query(f"select ST_Intersects(ST_GeomFromText('{self.lineString}'), NULL)")
+        tdSql.checkEqual(tdSql.queryResult[0][0], None)
+
+        tdSql.query(f"select ST_Intersects(NULL, NULL)")
         tdSql.checkEqual(tdSql.queryResult[0][0], None)
 
         # wrong type input
