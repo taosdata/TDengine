@@ -2960,6 +2960,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
       SDataBlockInfo* pInfo = &pReader->pResBlock->info;
       pInfo->rows = pBlock->nRow;
       pInfo->id.uid = pScanInfo->uid;
+      pInfo->dataLoad = 0;
       pInfo->window = (STimeWindow){.skey = pBlock->minKey.ts, .ekey = pBlock->maxKey.ts};
       setComposedBlockFlag(pReader, false);
       setBlockAllDumped(&pStatus->fBlockDumpInfo, pBlock->maxKey.ts, pReader->order);

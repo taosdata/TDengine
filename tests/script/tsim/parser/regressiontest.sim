@@ -122,4 +122,28 @@ if $data01 != 199 then
   return -1
 endi
 
+sql drop table t1
+
+$rowNum = 8200
+$ts0 = 1537146000000
+sql create table t1 (ts timestamp, c1 int)
+
+$i = 0
+$ts = $ts0
+
+$x = 0
+while $x < $rowNum
+$xs = $x * $delta
+$ts = $ts0 + $xs
+sql insert into t1 values ( $ts , $x )
+$x = $x + 1
+endw
+
+sql delete from t1 where ts<=1537146409500
+
+sql flush database $db
+
+print =====================================>TD-22007
+sql select count(*) from t1 interval(10a)
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
