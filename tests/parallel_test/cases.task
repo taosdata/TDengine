@@ -1047,6 +1047,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
