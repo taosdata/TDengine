@@ -7,7 +7,7 @@ print ======== step0
 $dbPrefix = ta_3_db
 $tbPrefix = ta_3_tb
 $mtPrefix = ta_3_mt
-$tbNum = 1000
+$tbNum = 101 
 $rowNum = 20
 $totalNum = 200
 
@@ -15,7 +15,7 @@ print =============== create database
 sql create database $dbPrefix 
 sql use $dbPrefix 
 
-print =============== create super table and register rsma
+print =============== create super table and register tag index 
 sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 int, t2 int, t3 int, t4 int, t5 int)
 
 sql show stables
@@ -28,7 +28,8 @@ print =============== create child table
 $i = 0 
 while $i < $tbNum 
     $tb = $tbPrefix . $i 
-    sql create table $tb using $mtPrefix  tags($i, $i, $i,$i, $i);
+    sql create table $tb using $mtPrefix tags( $i , $i , $i , $i , $i );
+    $i = $i + 1
 endw
 
 sql show tables
@@ -42,20 +43,31 @@ print =============== insert data into each table
 $i = 0
 while $i < $tbNum
   $tb = $tbPrefix . $i
-  sql insert into $sb values(now, 10);
+  sql insert into $tb values(now, 10);
+  $i = $i + 1
 endw
 
 
-sql create index ti2 on $tb(t2)
-#sql create index ti2 on $tb(t3)
+sql create index ti2 on $mtPrefix (t2)
 
+# equal
+$i = 0
+while $i < $tbNum
+  sql select * from $mtPrefix where t2= $i ;
+  if $rows != 1 then
+    return -1
+  endi
+  $i = $i + 1
+endw
 
 $i = 0
 while $i < $tbNum
-  sql select * from $mtPrefix where t2=$i;
-  if $rows > 1 then
+  sql select * from $mtPrefix where t2 >= $i ;
+  $tmp = $tbNum - $i
+  if $rows != $tmp then
     return -1
   endi
+  $i = $i + 1
 endw
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
