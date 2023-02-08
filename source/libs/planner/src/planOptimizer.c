@@ -332,6 +332,7 @@ static void scanPathOptSetScanWin(SScanLogicNode* pScan) {
     pScan->watermark = ((SWindowLogicNode*)pParent)->watermark;
     pScan->deleteMark = ((SWindowLogicNode*)pParent)->deleteMark;
     pScan->igExpired = ((SWindowLogicNode*)pParent)->igExpired;
+    pScan->igCheckUpdate = ((SWindowLogicNode*)pParent)->igCheckUpdate;
   }
 }
 

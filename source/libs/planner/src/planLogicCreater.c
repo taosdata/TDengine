@@ -705,6 +705,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     pWindow->watermark = pCxt->pPlanCxt->watermark;
     pWindow->deleteMark = pCxt->pPlanCxt->deleteMark;
     pWindow->igExpired = pCxt->pPlanCxt->igExpired;
+    pWindow->igCheckUpdate = pCxt->pPlanCxt->igCheckUpdate;
   }
   pWindow->inputTsOrder = ORDER_ASC;
   pWindow->outputTsOrder = ORDER_ASC;
