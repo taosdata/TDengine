@@ -320,6 +320,7 @@ int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData, 
 #define TSDB_TOMB_FILE_DATA_ITER 3
 
 #define TSDB_FILTER_FLAG_BY_VERSION 0x1
+#define TSDB_FILTER_FLAG_BY_TABLEID 0x2
 
 #define TSDB_RBTN_TO_DATA_ITER(pNode) ((STsdbDataIter2 *)(((char *)pNode) - offsetof(STsdbDataIter2, rbtn)))
 /* open */
@@ -906,6 +907,7 @@ struct STsdbFilterInfo {
   int32_t flag;
   int64_t sver;
   int64_t ever;
+  TABLEID tbid;
 };
 
 #ifdef __cplusplus

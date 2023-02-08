@@ -1250,10 +1250,7 @@ _exit:
 int32_t tBlockDataTryUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, int64_t uid) {
   if (pBlockData->nRow == 0) {
     return 1;
-  }
-
-  int64_t luid = pBlockData->uid ? pBlockData->uid : pBlockData->aUid[pBlockData->nRow - 1];
-  if (luid == uid && pBlockData->aTSKEY[pBlockData->nRow - 1] == TSDBROW_TS(pRow)) {
+  } else if (pBlockData->aTSKEY[pBlockData->nRow - 1] == TSDBROW_TS(pRow)) {
     return pBlockData->nRow;
   } else {
     return pBlockData->nRow + 1;
@@ -1261,31 +1258,7 @@ int32_t tBlockDataTryUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, int64_t ui
 }
 
 int32_t tBlockDataUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid) {
-  int32_t code = 0;
-
-  ASSERT(pBlockData->suid || pBlockData->uid);
-
-  if (pBlockData->nRow == 0) {
-    pBlockData->uid = uid;
-    return tBlockDataAppendRow(pBlockData, pRow, pTSchema, uid);
-  }
-
-  if (pBlockData->uid && pBlockData->uid != uid) {
-    ASSERT(pBlockData->suid);
-
-    code = tRealloc((uint8_t **)&pBlockData->aUid, sizeof(int64_t) * (pBlockData->nRow + 1));
-    if (code) return code;
-
-    for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
-      pBlockData->aUid[iRow] = pBlockData->uid;
-    }
-
-    pBlockData->uid = 0;
-  }
-
-  // decide append/update row
-  int64_t luid = pBlockData->uid ? pBlockData->uid : pBlockData->aUid[pBlockData->nRow - 1];
-  if (luid == uid && pBlockData->aTSKEY[pBlockData->nRow - 1] == TSDBROW_TS(pRow)) {
+  if (pBlockData->aTSKEY[pBlockData->nRow - 1] == TSDBROW_TS(pRow)) {
     return tBlockDataUpdateRow(pBlockData, pRow, pTSchema);
   } else {
     return tBlockDataAppendRow(pBlockData, pRow, pTSchema, uid);

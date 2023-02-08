@@ -310,43 +310,67 @@ _exit:
   return code;
 }
 
+static bool tsdbCompactTableIsDropped(STsdbCompactor *pCompactor) {
+  SMetaInfo info;
+
+  if (pCompactor->pIter->rowInfo.uid == pCompactor->tbid.uid) return false;
+  if (metaGetInfo(pCompactor->pTsdb->pVnode->pMeta, pCompactor->tbid.uid, &info, NULL)) {
+    return true;
+  }
+  return false;
+}
 static int32_t tsdbCompactNextRow(STsdbCompactor *pCompactor, SRowInfo **ppRowInfo) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (pCompactor->pIter) {
-    code = tsdbDataIterNext2(pCompactor->pIter, NULL /* TODO */);
-    TSDB_CHECK_CODE(code, lino, _exit);
+  for (;;) {
+    if (pCompactor->pIter) {
+      code = tsdbDataIterNext2(pCompactor->pIter, NULL);
+      TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (pCompactor->pIter->rowInfo.suid == 0 && pCompactor->pIter->rowInfo.uid == 0) {
-      pCompactor->pIter = NULL;
-    } else {
-      SRBTreeNode *pNode = tRBTreeMin(&pCompactor->rbt);
-      if (pNode) {
-        int32_t c = tsdbDataIterCmprFn(&pCompactor->pIter->rbtn, pNode);
-        if (c > 0) {
-          tRBTreePut(&pCompactor->rbt, &pCompactor->pIter->rbtn);
-          pCompactor->pIter = NULL;
-        } else if (c == 0) {
-          ASSERT(0);
+      if (pCompactor->pIter->rowInfo.suid == 0 && pCompactor->pIter->rowInfo.uid == 0) {
+        pCompactor->pIter = NULL;
+      } else {
+        SRBTreeNode *pNode = tRBTreeMin(&pCompactor->rbt);
+        if (pNode) {
+          int32_t c = tsdbDataIterCmprFn(&pCompactor->pIter->rbtn, pNode);
+          if (c > 0) {
+            tRBTreePut(&pCompactor->rbt, &pCompactor->pIter->rbtn);
+            pCompactor->pIter = NULL;
+          } else if (c == 0) {
+            ASSERT(0);
+          }
         }
       }
     }
-  }
 
-  if (pCompactor->pIter == NULL) {
-    SRBTreeNode *pNode = tRBTreeMin(&pCompactor->rbt);
-    if (pNode) {
-      tRBTreeDrop(&pCompactor->rbt, pNode);
-      pCompactor->pIter = TSDB_RBTN_TO_DATA_ITER(pNode);
+    if (pCompactor->pIter == NULL) {
+      SRBTreeNode *pNode = tRBTreeDropMin(&pCompactor->rbt);
+      if (pNode) {
+        pCompactor->pIter = TSDB_RBTN_TO_DATA_ITER(pNode);
+      }
     }
-  }
 
-  if (ppRowInfo) {
     if (pCompactor->pIter) {
-      *ppRowInfo = &pCompactor->pIter->rowInfo;
+      if (tsdbCompactTableIsDropped(pCompactor)) {
+        TABLEID tbid = {.suid = pCompactor->pIter->rowInfo.suid, .uid = pCompactor->pIter->rowInfo.uid};
+        tRBTreeClear(&pCompactor->rbt);
+        for (pCompactor->pIter = pCompactor->iterList; pCompactor->pIter; pCompactor->pIter = pCompactor->pIter->next) {
+          code = tsdbDataIterNext2(pCompactor->pIter,
+                                   &(STsdbFilterInfo){.flag = TSDB_FILTER_FLAG_BY_TABLEID, .tbid = tbid});
+          TSDB_CHECK_CODE(code, lino, _exit);
+
+          if (pCompactor->pIter->rowInfo.suid || pCompactor->pIter->rowInfo.uid) {
+            tRBTreePut(&pCompactor->rbt, &pCompactor->pIter->rbtn);
+          }
+        }
+      } else {
+        *ppRowInfo = &pCompactor->pIter->rowInfo;
+        break;
+      }
     } else {
       *ppRowInfo = NULL;
+      break;
     }
   }
 
@@ -497,7 +521,7 @@ static int32_t tsdbCompactFileSet(STsdbCompactor *pCompactor, SDFileSet *pSet) {
   code = tsdbCompactFileSetStart(pCompactor, pSet);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // do compact
+  // do compact, end with a NULL row
   SRowInfo *pRowInfo;
   do {
     code = tsdbCompactNextRow(pCompactor, &pRowInfo);

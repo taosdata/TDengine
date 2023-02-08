@@ -202,6 +202,13 @@ static int32_t tsdbDataFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* 
   for (;;) {
     while (pIter->dIter.iRow < pIter->dIter.bData.nRow) {
       if (pFilterInfo) {
+        if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_TABLEID) {
+          if (pFilterInfo->tbid.uid == pIter->dIter.bData.uid) {
+            pIter->dIter.iRow = pIter->dIter.bData.nRow;
+            continue;
+          }
+        }
+
         if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_VERSION) {
           if (pIter->dIter.bData.aVersion[pIter->dIter.iRow] < pFilterInfo->sver ||
               pIter->dIter.bData.aVersion[pIter->dIter.iRow] > pFilterInfo->ever) {
@@ -211,8 +218,8 @@ static int32_t tsdbDataFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* 
         }
       }
 
-      pIter->rowInfo.suid = pIter->dIter.bData.suid;
-      pIter->rowInfo.uid = pIter->dIter.bData.uid;
+      ASSERT(pIter->rowInfo.suid == pIter->dIter.bData.suid);
+      ASSERT(pIter->rowInfo.uid = pIter->dIter.bData.uid);
       pIter->rowInfo.row = tsdbRowFromBlockData(&pIter->dIter.bData, pIter->dIter.iRow);
       pIter->dIter.iRow++;
       goto _exit;
@@ -225,6 +232,13 @@ static int32_t tsdbDataFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* 
 
         // filter
         if (pFilterInfo) {
+          if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_TABLEID) {
+            if (tTABLEIDCmprFn(&pFilterInfo->tbid, &pIter->rowInfo) == 0) {
+              pIter->dIter.iDataBlk = pIter->dIter.mDataBlk.nItem;
+              continue;
+            }
+          }
+
           if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_VERSION) {
             if (pFilterInfo->sver > dataBlk.maxVer || pFilterInfo->ever < dataBlk.minVer) {
               pIter->dIter.iDataBlk++;
@@ -248,8 +262,21 @@ static int32_t tsdbDataFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* 
         if (pIter->dIter.iBlockIdx < taosArrayGetSize(pIter->dIter.aBlockIdx)) {
           SBlockIdx* pBlockIdx = taosArrayGet(pIter->dIter.aBlockIdx, pIter->dIter.iBlockIdx);
 
+          if (pFilterInfo && (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_TABLEID)) {
+            int32_t c = tTABLEIDCmprFn(pBlockIdx, &pFilterInfo->tbid);
+            if (c == 0) {
+              pIter->dIter.iBlockIdx++;
+              continue;
+            } else if (c < 0) {
+              ASSERT(0);
+            }
+          }
+
           code = tsdbReadDataBlk(pIter->dIter.pReader, pBlockIdx, &pIter->dIter.mDataBlk);
           TSDB_CHECK_CODE(code, lino, _exit);
+
+          pIter->rowInfo.suid = pBlockIdx->suid;
+          pIter->rowInfo.uid = pBlockIdx->uid;
 
           pIter->dIter.iBlockIdx++;
           pIter->dIter.iDataBlk = 0;
@@ -277,6 +304,14 @@ static int32_t tsdbSttFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* p
   for (;;) {
     while (pIter->sIter.iRow < pIter->sIter.bData.nRow) {
       if (pFilterInfo) {
+        if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_TABLEID) {
+          int64_t uid = pIter->sIter.bData.uid ? pIter->sIter.bData.uid : pIter->sIter.bData.aUid[pIter->sIter.iRow];
+          if (pFilterInfo->tbid.uid == uid) {
+            pIter->sIter.iRow++;
+            continue;
+          }
+        }
+
         if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_VERSION) {
           if (pFilterInfo->sver > pIter->sIter.bData.aVersion[pIter->sIter.iRow] ||
               pFilterInfo->ever < pIter->sIter.bData.aVersion[pIter->sIter.iRow]) {
@@ -298,6 +333,14 @@ static int32_t tsdbSttFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* p
         SSttBlk* pSttBlk = taosArrayGet(pIter->sIter.aSttBlk, pIter->sIter.iSttBlk);
 
         if (pFilterInfo) {
+          if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_TABLEID) {
+            if (pSttBlk->suid == pFilterInfo->tbid.suid && pSttBlk->minUid == pFilterInfo->tbid.uid &&
+                pSttBlk->maxUid == pFilterInfo->tbid.uid) {
+              pIter->sIter.iSttBlk++;
+              continue;
+            }
+          }
+
           if (pFilterInfo->flag & TSDB_FILTER_FLAG_BY_VERSION) {
             if (pFilterInfo->sver > pSttBlk->maxVer || pFilterInfo->ever < pSttBlk->minVer) {
               pIter->sIter.iSttBlk++;
