@@ -295,7 +295,7 @@ int32_t tfsRmdir(STfs *pTfs, const char *rname) {
     for (int32_t id = 0; id < pTier->ndisk; id++) {
       STfsDisk *pDisk = pTier->disks[id];
       snprintf(aname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
-      uInfo("tfs remove dir : path:%s aname:%s rname:[%s]", pDisk->path, aname, rname);
+      uInfo("tfs remove dir:%s aname:%s rname:[%s]", pDisk->path, aname, rname);
       taosRemoveDir(aname);
     }
   }
