@@ -1,4 +1,5 @@
-taostest --setup=taosx_2d.yaml --case=taosx/full_sync.py --keep --containers
+taostest --setup=taosx_2d.yaml --case=taosx/rename_table.py --keep --containers
+taostest --use=taosx_2d.yaml --case=taosx/full_sync.py --keep --containers
 taostest --use=taosx_2d.yaml --case=taosx/add_sync.py --keep --containers
 # taostest --setup=taosx_2d.yaml --case=taosx/delete_sync.py --keep
 taostest --use=taosx_2d.yaml --case=taosx/update_sync.py --keep --containers
@@ -7,5 +8,5 @@ taostest --use=taosx_2d.yaml --case=taosx/full_backup.py --keep --containers
 taostest --use=taosx_2d.yaml --case=taosx/add_backup.py --keep --containers
 taostest --use=taosx_2d.yaml --case=taosx/update_backup.py --keep --containers
 # taostest --setup=taosx_2d.yaml --case=taosx/delete_backup.py --keep
-taostest --use=taosx_2d.yaml --case=taosx/rename_table.py --keep --containers
+
 # taostest --use=taosx_2d.yaml --case=taosx/data_export.py --keep --containers
