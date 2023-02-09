@@ -29,7 +29,7 @@ class StreamComputingTest(TDCase):
 
         self.taospy_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taospy")
         self._fqdn = self.taospy_setting["fqdn"][0]
-        
+
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         self.fqdn = self.taosd_setting["fqdn"][0]
         self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
@@ -40,7 +40,7 @@ class StreamComputingTest(TDCase):
         self.case_name = None
         self.tbname = None
         self.precision = "ms"
-        
+
         self.case_name = str()
         self.dbname = "stream_test"
         self.stb_name = str()
@@ -56,14 +56,13 @@ class StreamComputingTest(TDCase):
         self.offset = 1000
         self.interation = 10
         self.default_interval = 5
-        
 
         self.range_count = 5
         self.vgroups = 10
         self.vgroups_list = [1, self.vgroups]
         self.des_table_suffix = "_output"
         self.stream_suffix = "_stream"
-        
+
         self.update = True
         self.disorder = True
         if self.disorder:
@@ -134,7 +133,7 @@ class StreamComputingTest(TDCase):
         self.tb_filter_des_select_elm = self.stb_filter_des_select_elm.partition(", t1")[0]
 
         self.state_window_range = list()
-        
+
     def update_delete_history_data(self):
         self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.record_history_ts)
         self.tdCom.insert_rows(tbname=self.tb_name, ts_value=self.record_history_ts)
@@ -198,7 +197,6 @@ class StreamComputingTest(TDCase):
         else:
             return int(start_ts/self.offset)*self.offset + (interval - (int(start_ts/self.offset))%interval)*self.offset
 
-    
     def cal_watermark_window_close_session_endts(self, start_ts, watermark=None, session=None):
         """cal endts for close window
 
@@ -247,7 +245,7 @@ class StreamComputingTest(TDCase):
         self.tb_stream_des_table = f'{self.tb_name}{self.des_table_suffix}'
         self.date_time = self.tdCom.genTs(precision=self.precision)[0]
         self.tdCom.stream_latency_log = self.run_log_dir + "/latency.log"
-        
+
         self.tdCom.createDb(dbname=self.dbname, vgroups=self.vgroups, precision=self.precision)
         self.tdCom.create_stable(dbname=self.dbname, stbname=self.stb_name)
         self.tdCom.create_ctable(dbname=self.dbname, stbname=self.stb_name, ctbname=self.ctb_name)
@@ -314,7 +312,6 @@ class StreamComputingTest(TDCase):
             self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
         if need_return:
             return count
-        
 
     def life_cycle(self, long_duration="14400m"):
         self.case_name = sys._getframe().f_code.co_name
@@ -575,10 +572,10 @@ class StreamComputingTest(TDCase):
                 ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", {partition_elm_alias}), "{self.subtable_suffix}")' if self.subtable else None
                 tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", {partition_elm_alias}), "{self.subtable_suffix}")' if self.subtable else None
         else:
-            stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast(cast(abs({partition_elm_alias}) as timestamp) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
-            ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast(cast(abs({partition_elm_alias}) as timestamp) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
-            tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast(abs({partition_elm_alias}) as timestamp) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
-        
+            stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast(cast(abs(cast({partition_elm_alias} as int)) as bigint) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
+            ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast(cast(abs(cast({partition_elm_alias} as int)) as bigint) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
+            tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast(abs(cast({partition_elm_alias} as int)) as bigint) as varchar(100))), "{self.subtable_suffix}")' if self.subtable else None
+
         self.tdCom.write_latency(self.case_name)
         if fill_value:
             if "value" in fill_value.lower():
@@ -623,7 +620,6 @@ class StreamComputingTest(TDCase):
         if self.subtable:
             # self.tdSql.query(f'select count(*) from {self.stb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
             # self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
-            
             for tname in [self.stb_name, self.ctb_name]:
                 self.tdSql.query(f'select * from {self.ctb_name}')
                 ptn_counter = 0
@@ -678,7 +674,6 @@ class StreamComputingTest(TDCase):
                 self.tdCom.insert_rows(tbname=self.tb_name, ts_value=future_ts)
                 self.date_time = start_time
                 for i in range(self.range_count):
-                    
                     ts_value = str(self.date_time+self.dataDict["interval"])+f'+{i*10}s'
                     ts_cast_delete_value = self.tdCom.time_cast(ts_value)
                     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
@@ -746,7 +741,7 @@ class StreamComputingTest(TDCase):
             # self.tdCom.insert_rows(tbname=self.tb_name, ts_value=future_ts)
             # self.date_time = start_time
             # for i in range(self.range_count):
-                
+
             #     ts_value = str(self.date_time+self.dataDict["interval"])+f'+{i*10}s'
             #     ts_cast_delete_value = self.tdCom.time_cast(ts_value)
             #     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
@@ -806,7 +801,7 @@ class StreamComputingTest(TDCase):
             stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
             ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
             tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
-        
+
         state_window_col_name = self.dataDict["state_window"]
         if case_when:
             stream_state_window = case_when
@@ -833,7 +828,7 @@ class StreamComputingTest(TDCase):
                 if self.delete and i%2 != 0:
                     self.tdSql.execute(f'delete from {self.tb_name} where ts = {dt}')
                 self.date_time += 1
-                
+
         # for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
         for tbname in [self.ctb_name, self.tb_name]:
             if tbname != self.tb_name:
@@ -886,7 +881,7 @@ class StreamComputingTest(TDCase):
         self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.date_time, need_null=True)
         self.tdSql.query(f'select * from information_schema.ins_tables where table_name = "{exceed_child_tbname[:-1]}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 1)
-        
+
     def at_once_session(self, session, ignore_expired=None, partition="tbname", delete=False, fill_history_value=None, case_when=None):
         self.delete = delete
         self.case_name = sys._getframe().f_code.co_name
@@ -918,7 +913,7 @@ class StreamComputingTest(TDCase):
             ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast(cast({partition_elm_alias} as bigint) as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
             # TODO confirm
             tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast({partition_elm_alias} as bigint) as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
-        
+
 
         self.tdCom.write_latency(self.case_name)
         # create stb/ctb/tb stream
@@ -928,7 +923,7 @@ class StreamComputingTest(TDCase):
         for i in range(self.range_count):
             ctb_name = self.tdCom.get_long_name()
             self.tdCom.create_ctable(stbname=self.stb_name, ctbname=ctb_name)
-            
+
             if i == 0:
                 window_close_ts = self.cal_watermark_window_close_session_endts(self.date_time, session=session)
             else:
@@ -958,7 +953,7 @@ class StreamComputingTest(TDCase):
                 #     dt = f'cast({self.date_time-1} as timestamp)'
                 #     self.tdCom.delete_rows(tbname=ctb_name, start_ts=dt)
                 # ts_value += 1
-            
+
             # check result
             if partition != "tbname":
                 for colname in self.partition_by_downsampling_function_list:
@@ -1002,7 +997,7 @@ class StreamComputingTest(TDCase):
             if self.delete:
                 self.tdCom.delete_rows(tbname=self.ctb_name, start_ts=self.tdCom.time_cast(self.record_history_ts, "-"))
                 self.tdCom.delete_rows(tbname=self.tb_name, start_ts=self.tdCom.time_cast(self.record_history_ts, "-"))
-        
+
         if self.subtable:
             # self.tdSql.query(f'select count(*) from {self.stb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
             # self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
@@ -1059,7 +1054,7 @@ class StreamComputingTest(TDCase):
             stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
             ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
             tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
-        
+
 
         self.tdCom.write_latency(self.case_name)
         if watermark is not None:
@@ -1108,7 +1103,7 @@ class StreamComputingTest(TDCase):
                         else:
                             self.tdSql.query(f'select start, {self.tb_output_select_str} from {tbname}')
                         self.tdSql.checkEqual(self.tdSql.query_row, i)
-            
+
             self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts-1)
             self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts-1)
             if self.update and i%2 == 0:
@@ -1128,7 +1123,7 @@ class StreamComputingTest(TDCase):
             if self.update and i%2 == 0:
                 self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
                 self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
-            
+
             # for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
             if not fill_value:
                 for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
@@ -1388,10 +1383,10 @@ class StreamComputingTest(TDCase):
             if self.update and i%2 == 0:
                 self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
                 self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
-            
+
             if i == 0:
                 init_num = 2 + i
-                if watermark is not None: 
+                if watermark is not None:
                     init_num += 1
             else:
                 init_num += 1
@@ -1434,7 +1429,7 @@ class StreamComputingTest(TDCase):
                     for num in range(int(window_close_ts/self.offset-self.date_time/self.offset)):
                         self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=self.date_time+num*self.offset)
                         self.tdCom.insert_rows(tbname=self.tb_name, ts_value=self.date_time+num*self.offset)
-                    
+
                     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts-1)
                     self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts-1)
                     self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
@@ -1452,8 +1447,8 @@ class StreamComputingTest(TDCase):
                     if "value" in fill_value.lower():
                         fill_value='VALUE,1,2,3,6,7,8,9,10,11'
                     self.tdCom.check_query_data(f'select start, {self.fill_tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.fill_tb_source_select_str}  from {tbname}  where ts >= {start_ts} and ts <= {end_ts}+{self.dataDict["interval"]}s+{fill_watermark_value}  interval({self.dataDict["interval"]}s) fill ({fill_value})', fill_value=fill_value)
-    
-            
+
+
 
     def watermark_window_close_session(self, session, watermark, fill_history_value=None):
         self.case_name = sys._getframe().f_code.co_name
@@ -1499,7 +1494,7 @@ class StreamComputingTest(TDCase):
             if self.update and i%2 == 0:
                 self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=window_close_ts)
                 self.tdCom.insert_rows(tbname=self.tb_name, ts_value=window_close_ts)
-            
+
             if fill_history_value:
                 self.update_delete_history_data()
 
@@ -1593,7 +1588,7 @@ class StreamComputingTest(TDCase):
         # self.prepare_stream_data()
         self.case_name = sys._getframe().f_code.co_name
         self.prepare_data()
-        
+
         self.tdSql.execute('create table if not exists scalar_stb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
         self.tdSql.execute('create table scalar_ct1 using scalar_stb tags(10);')
         # self.tdSql.execute(f'create table scalar_ct2 using scalar_stb tags(-20);')
@@ -1623,6 +1618,40 @@ class StreamComputingTest(TDCase):
             self.tdCom.check_stream_field_type(f"describe output_{math_function}_stb", math_function)
             self.tdCom.check_stream_field_type(f"describe output_{math_function}_ctb", math_function)
             self.tdCom.check_stream_field_type(f"describe output_{math_function}_tb", math_function)
+            for tbname in ["scalar_ct1", "scalar_tb"]:
+                self.tdSql.execute(f'insert into {tbname} values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
+                self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
+                self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+2s, 0, Null, "hebei", "TDengine", Null);')
+            for i in range(self.range_count):
+                self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{i}s, 100, -100.1, "hebei", Null, "Bigdata");')
+                self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{i}s, 100, -100.1, "heBei", Null, "Bigdata");')
+                if self.update and i%2 == 0:
+                    self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{i}s, 50, -50.1, Null, "heBei", "Bigdata1");')
+                    self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{i}s, 50, -50.1, Null, "heBei", "Bigdata1");')
+                if self.delete and i%2 != 0:
+                    dt = f'cast({self.date_time-1} as timestamp)'
+                    self.tdSql.execute(f'delete from scalar_ct1 where ts = {dt};')
+                    self.tdSql.execute(f'delete from scalar_tb where ts = {dt};')
+
+                if fill_history_value:
+                    self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}-{self.range_count-1}s, 50, -50.1, Null, "heBei", "Bigdata1");')
+                    self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}-{self.range_count-1}s, 50, -50.1, Null, "heBei", "Bigdata1");')
+                    dt = f'cast({self.date_time-(self.range_count-1)} as timestamp)'
+                    self.tdSql.execute(f'delete from scalar_ct1 where ts = {dt};')
+                    self.tdSql.execute(f'delete from scalar_tb where ts = {dt};')
+            if math_function == "log" or math_function == "pow":
+                self.tdCom.check_query_data(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_stb order by ts;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_stb  partition by {partition} order by ts;')
+                self.tdCom.check_query_data(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_ctb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_ct1;')
+                self.tdCom.check_query_data(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_tb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_tb;')
+            else:
+                self.tdCom.check_query_data(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb order by ts;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb  partition by {partition} order by ts;')
+                self.tdCom.check_query_data(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_ctb;', f'select {math_function}(c1), {math_function}(c2) from scalar_ct1;')
+                self.tdCom.check_query_data(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_tb;', f'select {math_function}(c1), {math_function}(c2) from scalar_tb;')
+            self.tdSql.execute(f'drop stream if exists stb_{math_function}_stream')
+            self.tdSql.execute(f'drop stream if exists ctb_{math_function}_stream')
+            self.tdSql.execute(f'drop stream if exists tb_{math_function}_stream')
+
+
         for string_function in string_function_list:
             if string_function == "concat":
                 self.tdSql.execute(f'create stream stb_{string_function}_stream {fill_history} into output_{string_function}_stb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb partition by {partition};')
@@ -1643,109 +1672,210 @@ class StreamComputingTest(TDCase):
             self.tdCom.check_stream_field_type(f"describe output_{string_function}_stb", string_function)
             self.tdCom.check_stream_field_type(f"describe output_{string_function}_ctb", string_function)
             self.tdCom.check_stream_field_type(f"describe output_{string_function}_tb", string_function)
-
-        for tbname in ["scalar_ct1", "scalar_tb"]:
-            self.tdSql.execute(f'insert into {tbname} values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
-            self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
-            self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+2s, 0, Null, "hebei", "TDengine", Null);')
-
-        count = 1
-        step_count = 1
-        for i in range(self.range_count):
-            self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{i}s, 100, -100.1, "hebei", Null, "Bigdata");')
-            self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{i}s, 100, -100.1, "heBei", Null, "Bigdata");')
-            if self.update and i%2 == 0:
-                self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{i}s, 50, -50.1, Null, "heBei", "Bigdata1");')
-                self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{i}s, 50, -50.1, Null, "heBei", "Bigdata1");')
-            if self.delete and i%2 != 0:
-                dt = f'cast({self.date_time-1} as timestamp)'
-                self.tdSql.execute(f'delete from scalar_ct1 where ts = {dt};')
-                self.tdSql.execute(f'delete from scalar_tb where ts = {dt};')
-            # if i % 2 == 0:
-            #     step_count += i
-            #     for j in range(count, step_count):
-            #         self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{j}s, 100, -100.1, "hebei", Null, "Bigdata");')
-            #         self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{j}s, 100, -100.1, "heBei", Null, "Bigdata");')
-            #     count += i
-            # else:
-            #     step_count += 1
-            #     for i in range(2):
-            #         self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{count}s, -50, 50.1, "beiJing", "TDengine", "taos");')
-            #         self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{count}s, -50, 50.1, "beiJing", "TDengine", "taos");')
-            #     count += 1
-
-            if fill_history_value:
-                self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}-{self.range_count-1}s, 50, -50.1, Null, "heBei", "Bigdata1");')
-                self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}-{self.range_count-1}s, 50, -50.1, Null, "heBei", "Bigdata1");')
-                dt = f'cast({self.date_time-(self.range_count-1)} as timestamp)'
-                self.tdSql.execute(f'delete from scalar_ct1 where ts = {dt};')
-                self.tdSql.execute(f'delete from scalar_tb where ts = {dt};')
-
-            for math_function in math_function_list:
-                if math_function == "log" or math_function == "pow":
-                    self.tdCom.check_query_data(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_stb order by ts;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_stb  partition by {partition} order by ts;')
-                    self.tdCom.check_query_data(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_ctb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_ct1;')
-                    self.tdCom.check_query_data(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_tb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_tb;')
-                else:
-                    self.tdCom.check_query_data(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb order by ts;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb  partition by {partition} order by ts;')
-                    self.tdCom.check_query_data(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_ctb;', f'select {math_function}(c1), {math_function}(c2) from scalar_ct1;')
-                    self.tdCom.check_query_data(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_tb;', f'select {math_function}(c1), {math_function}(c2) from scalar_tb;')
-            for string_function in string_function_list:
-                if string_function == "concat":
-                    self.tdCom.check_query_data(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_stb order by ts;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb order by ts;')
-                    self.tdCom.check_query_data(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_ctb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_ct1;')
-                    self.tdCom.check_query_data(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_tb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_tb;')
-                elif string_function == "concat_ws":
-                    self.tdCom.check_query_data(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_stb order by ts;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb order by ts;')
-                    self.tdCom.check_query_data(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_ctb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_ct1;')
-                    self.tdCom.check_query_data(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_tb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_tb;')
-                elif string_function == "substr":
-                    self.tdCom.check_query_data(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_stb order by ts;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb order by ts;')
-                    self.tdCom.check_query_data(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_ctb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_ct1;')
-                    self.tdCom.check_query_data(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_tb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_tb;')
-                else:
-                    self.tdCom.check_query_data(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_stb order by ts;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb order by ts;')
-                    self.tdCom.check_query_data(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_ctb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_ct1;')
-                    self.tdCom.check_query_data(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_tb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_tb;')
-            
-        # count = 1
-        # step_count = 1
-        # for i in range(1, 20):
-        #     if i % 2 == 0:
-        #         step_count += i
-        #         for j in range(count, step_count):
-        #             self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{j}s, -1, 1, "hebei", Null, "Bigdata");')
-        #             self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{j}s, -1, 1, "hebei", Null, "Bigdata");')
-        #         count += i
-        #     else:
-        #         step_count += 1
-        #         for i in range(2):
-        #             self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{count}s, -1, 1, "hebei", Null, "Bigdata");')
-        #             self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{count}s, -1, 1, "hebei", Null, "Bigdata");')
-        #         count += 1
-        #     # check result
-        #     self.tdCom.check_stream(f'select {select_elm} from output_data_filter_stb where {filter_sql};', f'select {select_elm} from data_filter_stb where {filter_sql};', count-1)
-        #     self.tdCom.check_stream(f'select {select_elm} from output_data_filter_ctb where {filter_sql};', f'select {select_elm} from data_filter_ct1 where {filter_sql};', count-1)
-        #     self.tdCom.check_stream(f'select {select_elm} from output_data_filter_tb where {filter_sql};', f'select {select_elm} from data_filter_tb where {filter_sql};', count-1)       
+            for tbname in ["scalar_ct1", "scalar_tb"]:
+                self.tdSql.execute(f'insert into {tbname} values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
+                self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
+                self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+2s, 0, Null, "hebei", "TDengine", Null);')
 
 
+            for i in range(self.range_count):
+                self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{i}s, 100, -100.1, "hebei", Null, "Bigdata");')
+                self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{i}s, 100, -100.1, "heBei", Null, "Bigdata");')
+                if self.update and i%2 == 0:
+                    self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{i}s, 50, -50.1, Null, "heBei", "Bigdata1");')
+                    self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{i}s, 50, -50.1, Null, "heBei", "Bigdata1");')
+                if self.delete and i%2 != 0:
+                    dt = f'cast({self.date_time-1} as timestamp)'
+                    self.tdSql.execute(f'delete from scalar_ct1 where ts = {dt};')
+                    self.tdSql.execute(f'delete from scalar_tb where ts = {dt};')
 
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+3s, -1, 1, "hebei", Null, "Bigdata");')
-        # for math_function in math_function_list:
-        #     if math_function == "log" or math_function == "pow":
-        #         self.tdCom.check_stream(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_stb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_stb;', 4)
-        #     else:
-        #         self.tdCom.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb;', 4)
-        
-        # for string_function in string_function_list:
-        #     if string_function == "concat":
-        #         self.tdCom.check_stream(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_stb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb;', 4)
-        #     elif string_function == "concat_ws":
-        #         self.tdCom.check_stream(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_stb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb;', 4)
-        #     elif string_function == "substr":
-        #         self.tdCom.check_stream(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_stb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb;', 4)
-        #     else:
-        #         self.tdCom.check_stream(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_stb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb;', 4)
+                if fill_history_value:
+                    self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}-{self.range_count-1}s, 50, -50.1, Null, "heBei", "Bigdata1");')
+                    self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}-{self.range_count-1}s, 50, -50.1, Null, "heBei", "Bigdata1");')
+                    dt = f'cast({self.date_time-(self.range_count-1)} as timestamp)'
+                    self.tdSql.execute(f'delete from scalar_ct1 where ts = {dt};')
+                    self.tdSql.execute(f'delete from scalar_tb where ts = {dt};')
+
+
+            if string_function == "concat":
+                self.tdCom.check_query_data(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_stb order by ts;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb order by ts;')
+                self.tdCom.check_query_data(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_ctb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_ct1;')
+                self.tdCom.check_query_data(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_tb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_tb;')
+            elif string_function == "concat_ws":
+                self.tdCom.check_query_data(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_stb order by ts;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb order by ts;')
+                self.tdCom.check_query_data(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_ctb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_ct1;')
+                self.tdCom.check_query_data(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_tb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_tb;')
+            elif string_function == "substr":
+                self.tdCom.check_query_data(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_stb order by ts;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb order by ts;')
+                self.tdCom.check_query_data(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_ctb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_ct1;')
+                self.tdCom.check_query_data(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_tb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_tb;')
+            else:
+                self.tdCom.check_query_data(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_stb order by ts;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb order by ts;')
+                self.tdCom.check_query_data(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_ctb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_ct1;')
+                self.tdCom.check_query_data(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_tb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_tb;')
+
+            self.tdSql.execute(f'drop stream if exists stb_{string_function}_stream')
+            self.tdSql.execute(f'drop stream if exists ctb_{string_function}_stream')
+            self.tdSql.execute(f'drop stream if exists tb_{string_function}_stream')
+
+    # def scalar_function(self, partition="tbname", delete=False, fill_history_value=None):
+    #     self.delete = delete
+    #     # self.prepare_stream_data()
+    #     self.case_name = sys._getframe().f_code.co_name
+    #     self.prepare_data()
+
+    #     self.tdSql.execute('create table if not exists scalar_stb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
+    #     self.tdSql.execute('create table scalar_ct1 using scalar_stb tags(10);')
+    #     # self.tdSql.execute(f'create table scalar_ct2 using scalar_stb tags(-20);')
+    #     # self.tdSql.execute(f'create table scalar_ct3 using scalar_stb tags(0);')
+    #     self.tdSql.execute('create table if not exists scalar_tb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20));')
+
+    #     if fill_history_value is None:
+    #         fill_history = ""
+    #     else:
+    #         fill_history = f'fill_history {fill_history_value}'
+    #         for i in range(self.range_count):
+    #             self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}-{i}s, 100, -100.1, "hebei", Null, "Bigdata");')
+    #             self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}-{i}s, 100, -100.1, "heBei", Null, "Bigdata");')
+
+    #     # self.tdCom.write_latency(self.case_name)
+    #     math_function_list = ["abs", "acos", "asin", "atan", "ceil", "cos", "floor", "log", "pow", "round", "sin", "sqrt", "tan"]
+    #     string_function_list = ["char_length", "concat", "concat_ws", "length", "lower", "ltrim", "rtrim", "substr", "upper"]
+    #     for math_function in math_function_list:
+    #         if math_function in ["log", "pow"]:
+    #             self.tdSql.execute(f'create stream stb_{math_function}_stream trigger at_once {fill_history} into output_{math_function}_stb as select ts, {math_function}(c1, 2), {math_function}(c2, 2), c3 from scalar_stb partition by {partition};')
+    #             self.tdSql.execute(f'create stream ctb_{math_function}_stream trigger at_once {fill_history} into output_{math_function}_ctb as select ts, {math_function}(c1, 2), {math_function}(c2, 2), c3 from scalar_ct1;')
+    #             self.tdSql.execute(f'create stream tb_{math_function}_stream trigger at_once {fill_history} into output_{math_function}_tb as select ts, {math_function}(c1, 2), {math_function}(c2, 2), c3 from scalar_tb;')
+    #         else:
+    #             self.tdSql.execute(f'create stream stb_{math_function}_stream trigger at_once {fill_history} into output_{math_function}_stb as select ts, {math_function}(c1), {math_function}(c2), c3 from scalar_stb partition by {partition};')
+    #             self.tdSql.execute(f'create stream ctb_{math_function}_stream trigger at_once {fill_history} into output_{math_function}_ctb as select ts, {math_function}(c1), {math_function}(c2), c3 from scalar_ct1;')
+    #             self.tdSql.execute(f'create stream tb_{math_function}_stream trigger at_once {fill_history} into output_{math_function}_tb as select ts, {math_function}(c1), {math_function}(c2), c3 from scalar_tb;')
+    #         self.tdCom.check_stream_field_type(f"describe output_{math_function}_stb", math_function)
+    #         self.tdCom.check_stream_field_type(f"describe output_{math_function}_ctb", math_function)
+    #         self.tdCom.check_stream_field_type(f"describe output_{math_function}_tb", math_function)
+    #     for string_function in string_function_list:
+    #         if string_function == "concat":
+    #             self.tdSql.execute(f'create stream stb_{string_function}_stream {fill_history} into output_{string_function}_stb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb partition by {partition};')
+    #             self.tdSql.execute(f'create stream ctb_{string_function}_stream {fill_history} into output_{string_function}_ctb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_ct1;')
+    #             self.tdSql.execute(f'create stream tb_{string_function}_stream {fill_history} into output_{string_function}_tb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_tb;')
+    #         elif string_function == "concat_ws":
+    #             self.tdSql.execute(f'create stream stb_{string_function}_stream {fill_history} into output_{string_function}_stb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb partition by {partition};')
+    #             self.tdSql.execute(f'create stream ctb_{string_function}_stream {fill_history} into output_{string_function}_ctb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_ct1;')
+    #             self.tdSql.execute(f'create stream tb_{string_function}_stream {fill_history} into output_{string_function}_tb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_tb;')
+    #         elif string_function == "substr":
+    #             self.tdSql.execute(f'create stream stb_{string_function}_stream {fill_history} into output_{string_function}_stb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb partition by {partition};')
+    #             self.tdSql.execute(f'create stream ctb_{string_function}_stream {fill_history} into output_{string_function}_ctb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_ct1;')
+    #             self.tdSql.execute(f'create stream tb_{string_function}_stream {fill_history} into output_{string_function}_tb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_tb;')
+    #         else:
+    #             self.tdSql.execute(f'create stream stb_{string_function}_stream {fill_history} into output_{string_function}_stb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb partition by {partition};')
+    #             self.tdSql.execute(f'create stream ctb_{string_function}_stream {fill_history} into output_{string_function}_ctb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_ct1;')
+    #             self.tdSql.execute(f'create stream tb_{string_function}_stream {fill_history} into output_{string_function}_tb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_tb;')
+    #         self.tdCom.check_stream_field_type(f"describe output_{string_function}_stb", string_function)
+    #         self.tdCom.check_stream_field_type(f"describe output_{string_function}_ctb", string_function)
+    #         self.tdCom.check_stream_field_type(f"describe output_{string_function}_tb", string_function)
+
+    #     for tbname in ["scalar_ct1", "scalar_tb"]:
+    #         self.tdSql.execute(f'insert into {tbname} values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
+    #         self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
+    #         self.tdSql.execute(f'insert into {tbname} values ({self.date_time}+2s, 0, Null, "hebei", "TDengine", Null);')
+
+    #     count = 1
+    #     step_count = 1
+    #     for i in range(self.range_count):
+    #         self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{i}s, 100, -100.1, "hebei", Null, "Bigdata");')
+    #         self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{i}s, 100, -100.1, "heBei", Null, "Bigdata");')
+    #         if self.update and i%2 == 0:
+    #             self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{i}s, 50, -50.1, Null, "heBei", "Bigdata1");')
+    #             self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{i}s, 50, -50.1, Null, "heBei", "Bigdata1");')
+    #         if self.delete and i%2 != 0:
+    #             dt = f'cast({self.date_time-1} as timestamp)'
+    #             self.tdSql.execute(f'delete from scalar_ct1 where ts = {dt};')
+    #             self.tdSql.execute(f'delete from scalar_tb where ts = {dt};')
+    #         # if i % 2 == 0:
+    #         #     step_count += i
+    #         #     for j in range(count, step_count):
+    #         #         self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{j}s, 100, -100.1, "hebei", Null, "Bigdata");')
+    #         #         self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{j}s, 100, -100.1, "heBei", Null, "Bigdata");')
+    #         #     count += i
+    #         # else:
+    #         #     step_count += 1
+    #         #     for i in range(2):
+    #         #         self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{count}s, -50, 50.1, "beiJing", "TDengine", "taos");')
+    #         #         self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{count}s, -50, 50.1, "beiJing", "TDengine", "taos");')
+    #         #     count += 1
+
+    #         if fill_history_value:
+    #             self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}-{self.range_count-1}s, 50, -50.1, Null, "heBei", "Bigdata1");')
+    #             self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}-{self.range_count-1}s, 50, -50.1, Null, "heBei", "Bigdata1");')
+    #             dt = f'cast({self.date_time-(self.range_count-1)} as timestamp)'
+    #             self.tdSql.execute(f'delete from scalar_ct1 where ts = {dt};')
+    #             self.tdSql.execute(f'delete from scalar_tb where ts = {dt};')
+
+    #         for math_function in math_function_list:
+    #             if math_function == "log" or math_function == "pow":
+    #                 self.tdCom.check_query_data(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_stb order by ts;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_stb  partition by {partition} order by ts;')
+    #                 self.tdCom.check_query_data(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_ctb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_ct1;')
+    #                 self.tdCom.check_query_data(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_tb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_tb;')
+    #             else:
+    #                 self.tdCom.check_query_data(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb order by ts;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb  partition by {partition} order by ts;')
+    #                 self.tdCom.check_query_data(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_ctb;', f'select {math_function}(c1), {math_function}(c2) from scalar_ct1;')
+    #                 self.tdCom.check_query_data(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_tb;', f'select {math_function}(c1), {math_function}(c2) from scalar_tb;')
+    #         for string_function in string_function_list:
+    #             if string_function == "concat":
+    #                 self.tdCom.check_query_data(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_stb order by ts;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb order by ts;')
+    #                 self.tdCom.check_query_data(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_ctb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_ct1;')
+    #                 self.tdCom.check_query_data(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_tb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_tb;')
+    #             elif string_function == "concat_ws":
+    #                 self.tdCom.check_query_data(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_stb order by ts;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb order by ts;')
+    #                 self.tdCom.check_query_data(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_ctb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_ct1;')
+    #                 self.tdCom.check_query_data(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_tb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_tb;')
+    #             elif string_function == "substr":
+    #                 self.tdCom.check_query_data(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_stb order by ts;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb order by ts;')
+    #                 self.tdCom.check_query_data(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_ctb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_ct1;')
+    #                 self.tdCom.check_query_data(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_tb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_tb;')
+    #             else:
+    #                 self.tdCom.check_query_data(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_stb order by ts;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb order by ts;')
+    #                 self.tdCom.check_query_data(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_ctb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_ct1;')
+    #                 self.tdCom.check_query_data(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_tb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_tb;')
+
+    #     # count = 1
+    #     # step_count = 1
+    #     # for i in range(1, 20):
+    #     #     if i % 2 == 0:
+    #     #         step_count += i
+    #     #         for j in range(count, step_count):
+    #     #             self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{j}s, -1, 1, "hebei", Null, "Bigdata");')
+    #     #             self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{j}s, -1, 1, "hebei", Null, "Bigdata");')
+    #     #         count += i
+    #     #     else:
+    #     #         step_count += 1
+    #     #         for i in range(2):
+    #     #             self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+{count}s, -1, 1, "hebei", Null, "Bigdata");')
+    #     #             self.tdSql.execute(f'insert into scalar_tb values ({self.date_time}+{count}s, -1, 1, "hebei", Null, "Bigdata");')
+    #     #         count += 1
+    #     #     # check result
+    #     #     self.tdCom.check_stream(f'select {select_elm} from output_data_filter_stb where {filter_sql};', f'select {select_elm} from data_filter_stb where {filter_sql};', count-1)
+    #     #     self.tdCom.check_stream(f'select {select_elm} from output_data_filter_ctb where {filter_sql};', f'select {select_elm} from data_filter_ct1 where {filter_sql};', count-1)
+    #     #     self.tdCom.check_stream(f'select {select_elm} from output_data_filter_tb where {filter_sql};', f'select {select_elm} from data_filter_tb where {filter_sql};', count-1)
+
+
+
+    #     # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+3s, -1, 1, "hebei", Null, "Bigdata");')
+    #     # for math_function in math_function_list:
+    #     #     if math_function == "log" or math_function == "pow":
+    #     #         self.tdCom.check_stream(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_stb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_stb;', 4)
+    #     #     else:
+    #     #         self.tdCom.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb;', 4)
+
+    #     # for string_function in string_function_list:
+    #     #     if string_function == "concat":
+    #     #         self.tdCom.check_stream(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_stb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb;', 4)
+    #     #     elif string_function == "concat_ws":
+    #     #         self.tdCom.check_stream(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_stb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb;', 4)
+    #     #     elif string_function == "substr":
+    #     #         self.tdCom.check_stream(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_stb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb;', 4)
+    #     #     else:
+    #     #         self.tdCom.check_stream(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_stb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb;', 4)
 
 
     def partitionby_interval(self, interval=None, partition_by_elm="tbname", ignore_expired=None):
@@ -1917,7 +2047,7 @@ class StreamComputingTest(TDCase):
             for ts_value in [self.date_time, window_close_ts]:
                 self.tdCom.insert_rows(tbname=self.ctb_name, ts_value=ts_value)
                 self.tdCom.insert_rows(tbname=self.tb_name, ts_value=ts_value)
-            
+
             for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
                 if tbname != self.tb_name:
                     self.tdCom.check_stream(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s) limit {i+1}', i+1)
@@ -1931,7 +2061,7 @@ class StreamComputingTest(TDCase):
         stream_name = self.tdCom.get_long_name()
         dbname2 = self.tdCom.get_long_name()
         self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.stb as select * from {self.dbname}.{self.case_name}_stb')
-    
+
     def create_none_source_tb_stream(self):
         self.case_name = sys._getframe().f_code.co_name
         self.prepare_data()
@@ -1942,7 +2072,7 @@ class StreamComputingTest(TDCase):
         for tbname in ["stb", "ct1", "tb1"]:
             self.tdSql.execute(f'drop table if exists {self.dbname}.{self.case_name}_{tbname}')
             self.tdSql.error(f'create stream if not exists {stream_name}_{tbname} into {dbname2}.{tbname} as select * from {self.dbname}.{self.case_name}_stb')
-    
+
     def create_none_source_tb_tag_stream(self):
         self.case_name = sys._getframe().f_code.co_name
         self.prepare_data()
@@ -1952,7 +2082,7 @@ class StreamComputingTest(TDCase):
         self.tdCom.createDb(dbname2)
         for tbname in ["stb"]:
             self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.{tbname} as select ts,t100 from {self.dbname}.{self.case_name}_{tbname}')
-    
+
     def create_none_source_tb_col_stream(self):
         self.case_name = sys._getframe().f_code.co_name
         self.prepare_data()
@@ -1962,7 +2092,7 @@ class StreamComputingTest(TDCase):
         self.tdCom.createDb(dbname2)
         for tbname in ["ct1", "tb1"]:
             self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.{tbname} as select ts,c100 from {self.dbname}.{self.case_name}_{tbname}')
-    
+
     def create_error_source_sql_stream(self):
         self.case_name = sys._getframe().f_code.co_name
         self.prepare_data()
@@ -1978,7 +2108,7 @@ class StreamComputingTest(TDCase):
                         ]
         for error_sql in error_sql_list:
             self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.target_tb as {error_sql}')
-    
+
 
     def insert_after_restart(self, delete=False, fill_history_value=None):
         self.data_filter(delete=delete, fill_history_value=fill_history_value)
@@ -2044,7 +2174,7 @@ class StreamComputingTest(TDCase):
         # self.tdCom.createDb(dbname2)
         # for tbname in ["ct1", "tb1"]:
         #     self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.{tbname} as select ts,c100 from {self.dbname}.{self.case_name}_{tbname}')
-    
+
 
     def run(self):
         # ! not stable
@@ -2078,39 +2208,31 @@ class StreamComputingTest(TDCase):
             self.data_filter(delete=True, fill_history_value=1)
             # # ! rep3 bug
             self.life_cycle()
-            self.scalar_function(partition="tbname")
-            self.scalar_function(partition="tbname", delete=True)
             self.scalar_function(partition="tbname", delete=True, fill_history_value=1)
-            self.scalar_function(partition="tbname,c1")
-            self.scalar_function(partition="tbname,c1", delete=True)
             self.scalar_function(partition="tbname,c1", delete=True, fill_history_value=1)
             self.stream_tandem()
             self.udf_test(8, "int")
             self.udf_test(8, "int", 1)
             self.udaf_test(10, 8, "double")
             self.udaf_test(10, 8, "double", 1)
-            
+
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname")
-            # ! TD-21698
-            # self.at_once_interval(interval=random.randint(10, 15), partition="c1")
-            # self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)")
+            self.at_once_interval(interval=random.randint(10, 15), partition="c1")
+            self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)")
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True)
-            # ! TD-21698
-            # self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
-            # self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
+            self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
+            self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
             ## return
             for fill_history_value in [None, 1]:
                 self.at_once_state_window(state_window="c1", partition="tbname", fill_history_value=fill_history_value)
-                # # ! TD-21698
-                # self.at_once_state_window(state_window="c1", partition="c1", fill_history_value=fill_history_value)
-                # self.at_once_state_window(state_window="c1", partition="abs(c1)", fill_history_value=fill_history_value)
+                self.at_once_state_window(state_window="c1", partition="c1", fill_history_value=fill_history_value)
+                self.at_once_state_window(state_window="c1", partition="abs(c1)", fill_history_value=fill_history_value)
                 self.at_once_state_window(state_window="c1", partition="tbname", delete=True, fill_history_value=fill_history_value)
-                # # ! TD-21698
-                # self.at_once_state_window(state_window="c1", partition="c1", delete=True, fill_history_value=fill_history_value)
-                # self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
+                self.at_once_state_window(state_window="c1", partition="c1", delete=True, fill_history_value=fill_history_value)
+                self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="tbname", fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="c1", fill_history_value=fill_history_value)
-                # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", fill_history_value=fill_history_value)
+                self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="tbname", delete=True, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="c1", delete=True, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
@@ -2126,7 +2248,7 @@ class StreamComputingTest(TDCase):
             self.subtable_exceed_test()
             ## TODO not stable
             # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
-            # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found 
+            # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found
             self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
 
             self.partitionby_interval(interval=None, partition_by_elm="tbname")
@@ -2154,9 +2276,9 @@ class StreamComputingTest(TDCase):
 
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname", fill_history_value=1, fill_value="NULL")
             # # TODO not stable
-            # self.at_once_interval(interval=random.randint(10, 12), partition="c1", fill_value="NULL")
+            self.at_once_interval(interval=random.randint(10, 12), partition="c1", fill_value="NULL")
             self.at_once_interval(interval=random.randint(10, 15), partition="c1", fill_value="NULL", delete=True)
-            
+
             self.at_once_state_window(state_window="c2", partition="tbname", case_when="case when c1 < 0 then c1 else c2 end")
             self.at_once_state_window(state_window="c1", partition="tbname", case_when="case when c1 >= 0 then c1 else c2 end")
             self.at_once_interval(interval=random.randint(10, 15), partition=self.stream_case_when_tbname, case_when=f'case when {self.stream_case_when_tbname} = tbname then {self.partition_tbname_alias} else tbname end')
@@ -2181,7 +2303,7 @@ class StreamComputingTest(TDCase):
             # self.at_once_interval(interval=random.randint(10, 15), partition="c1", fill_value="NULL")
             # self.at_once_interval(interval=random.randint(10, 15), partition="c1", fill_value="NULL", delete=True)
 
-            
+
 
             # self.window_close_interval(interval=random.randint(10, 15), watermark=None, fill_value="NULL")
             # self.window_close_interval(interval=random.randint(10, 15), watermark=None, fill_value="NEXT")
