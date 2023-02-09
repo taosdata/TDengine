@@ -510,16 +510,8 @@ SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths) {
     SSyncLogStoreData *pData = ths->pLogStore->data;
     SWal              *pWal = pData->pWal;
 
-    bool    isEmpty = ths->pLogStore->syncLogIsEmpty(ths->pLogStore);
     int64_t walCommitVer = walGetCommittedVer(pWal);
-
-    if (!isEmpty && ths->commitIndex != walCommitVer) {
-      sNError(ths, "commit not same, wal-commit:%" PRId64 ", commit:%" PRId64 ", ignore", walCommitVer,
-              ths->commitIndex);
-      snapStart = walCommitVer + 1;
-    } else {
-      snapStart = ths->commitIndex + 1;
-    }
+    snapStart = TMAX(ths->commitIndex, walCommitVer) + 1;
 
     sNInfo(ths, "snapshot begin index is %" PRId64, snapStart);
   }

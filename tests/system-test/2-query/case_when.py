@@ -111,6 +111,17 @@ class TDTestCase:
         sql2 = "select (case when sum(q_smallint)=0 then null else sum(q_smallint) end) from %s.stable_1_1 limit 100;"  %database
         self.constant_check(database,sql1,sql2,0)
         
+        #TD-20257
+        sql1 = "select tbname,first(ts),q_int,q_smallint,q_bigint,case when q_int <0 then 1 else 0 end from %s.stable_1 where tbname = 'stable_1_1' and ts < now partition by tbname state_window(case when q_int <0 then 1 else 0 end);"  %database
+        sql2 = "select tbname,first(ts),q_int,q_smallint,q_bigint,case when q_int <0 then 1 else 0 end from %s.stable_1_1 where ts < now partition by tbname state_window(case when q_int <0 then 1 else 0 end);"  %database
+        self.constant_check(database,sql1,sql2,0)
+        self.constant_check(database,sql1,sql2,1)
+        self.constant_check(database,sql1,sql2,2)
+        self.constant_check(database,sql1,sql2,3)
+        self.constant_check(database,sql1,sql2,4)
+        self.constant_check(database,sql1,sql2,5)
+        
+        #TD-20260
         sql1 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1 where tbname = 'stable_1_1' and ts < now state_window(case when q_smallint <0 then 1 else 0 end);"  %database
         sql2 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1_1 where ts < now state_window(case when q_smallint <0 then 1 else 0 end);"  %database
         self.constant_check(database,sql1,sql2,0)
