@@ -516,7 +516,7 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   }
 
   if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
-    if (QW_PHASE_POST_FETCH != phase || qwTaskNotInExec(ctx)) {
+    if (QW_PHASE_POST_FETCH != phase || ((!QW_QUERY_RUNNING(ctx)) && qwTaskNotInExec(ctx))) {
       QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
       QW_ERR_JRET(ctx->rspCode);
     }
