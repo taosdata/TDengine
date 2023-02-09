@@ -192,4 +192,94 @@ endi
 
 print step 3 end
 
+print step 4 start
+
+sql drop stream if exists streams3;
+sql drop database if exists test3;
+sql create database test3  vgroups 4;
+sql use test3;
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+print create stream streams3 trigger at_once ignore update 1 into streamt3 as select  _wstart c1, count(*) c2, max(b) c3 from st interval(10s);
+
+sql create stream streams3 trigger at_once ignore update 1 into streamt3 as select  _wstart c1, count(*) c2, max(b) c3 from st interval(10s);
+
+sql insert into t1 values(1648791213000,1,1,1);
+sql insert into t1 values(1648791213000,2,2,2);
+
+sql insert into t2 values(1648791213000,1,1,1);
+sql insert into t2 values(1648791213000,2,2,2);
+
+$loop_count = 0
+
+loop0:
+sleep 300
+sql select * from streamt3 order by 1,2,3;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $data01 != 4 then
+  print =====data01=$data01
+  goto loop0
+endi
+
+if $data02 != 2 then
+  print =====data02=$data02
+  goto loop0
+endi
+
+
+sql insert into t1 values(1648791213000,3,3,3);
+
+$loop_count = 0
+
+loop1:
+sleep 300
+sql select * from streamt3 order by 1,2,3;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $data01 != 5 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data02 != 3 then
+  print =====data02=$data02
+  goto loop1
+endi
+
+sql insert into t2 values(1648791213000,4,4,4);
+
+$loop_count = 0
+
+loop1:
+sleep 300
+sql select * from streamt3 order by 1,2,3;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $data01 != 6 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data02 != 4 then
+  print =====data02=$data02
+  goto loop1
+endi
+
+print step 4 end
+
 system sh/stop_dnodes.sh
