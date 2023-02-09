@@ -1386,9 +1386,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   // save to uid.idx
   metaUpdateUidIdx(pMeta, &ctbEntry);
 
-  if (iCol == 0) {
-    metaUpdateTagIdx(pMeta, &ctbEntry);
-  }
+  metaUpdateTagIdx(pMeta, &ctbEntry);
 
   if (NULL == ctbEntry.ctbEntry.pTags) {
     metaError("meta/table: null tags, update tag val failed.");

@@ -1085,7 +1085,10 @@ int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) 
   }
 
   int32_t valid = 0;
-  while (1) {
+  int32_t count = 0;
+
+  static const int8_t TRY_ERROR_LIMIT = 4;
+  do {
     void   *entryKey = NULL;
     int32_t nEntryKey = -1;
     valid = tdbTbcGet(pCursor->pCur, (const void **)&entryKey, &nEntryKey, NULL, NULL);
@@ -1094,17 +1097,17 @@ int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) 
     SCtimeIdxKey *p = entryKey;
 
     int32_t cmp = (*param->filterFunc)((void *)&p->ctime, (void *)&pCtimeKey->ctime, param->type);
-    if (cmp == 0) taosArrayPush(pUids, &p->uid);
-
-    if (param->reverse == false) {
-      if (cmp == -1) break;
-    } else if (param->reverse) {
-      if (cmp == 1) break;
+    if (cmp == 0)
+      taosArrayPush(pUids, &p->uid);
+    else {
+      if (count >= TRY_ERROR_LIMIT) {
+        break;
+      }
     }
-
+    count++;
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) break;
-  }
+  } while (1);
 
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
@@ -1139,9 +1142,11 @@ int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   if (tdbTbcMoveTo(pCursor->pCur, pName, strlen(pName) + 1, &cmp) < 0) {
     goto END;
   }
-  bool    first = true;
   int32_t valid = 0;
-  while (1) {
+  int32_t count = 0;
+
+  int32_t TRY_ERROR_LIMIT = 4;
+  do {
     void   *pEntryKey = NULL, *pEntryVal = NULL;
     int32_t nEntryKey = -1, nEntryVal = 0;
     valid = tdbTbcGet(pCursor->pCur, (const void **)pEntryKey, &nEntryKey, (const void **)&pEntryVal, &nEntryVal);
@@ -1152,16 +1157,17 @@ int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     if (cmp == 0) {
       tb_uid_t tuid = *(tb_uid_t *)pEntryVal;
       taosArrayPush(pUids, &tuid);
-    } else if (cmp == 1) {
-      // next
     } else {
-      break;
+      if (count >= TRY_ERROR_LIMIT) {
+        break;
+      }
     }
+    count++;
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) {
       break;
     }
-  }
+  } while (1);
 
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
@@ -1260,11 +1266,6 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   if (tdbTbcMoveTo(pCursor->pCur, pKey, nKey, &cmp) < 0) {
     goto END;
   }
-  // if (param->reverse) {
-  //   if (tdbTbcMoveToNext(pCursor->pCur) < 0) tdbTbcMoveToLast(pCursor->pCur);
-  // } else {
-  //  if (tdbTbcMoveToPrev(pCursor->pCur) < 0) tdbTbcMoveToFirst(pCursor->pCur);
-  //}
 
   int     count = 0;
   int32_t valid = 0;
@@ -1306,11 +1307,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
         tuid = *(tb_uid_t *)(p->data + tDataTypes[pCursor->type].bytes);
       }
       taosArrayPush(pUids, &tuid);
-    } else if (cmp == 1) {
-      if (count >= TRY_ERROR_LIMIT) break;
-      //  not match but should continue to iter
     } else {
-      // not match and no more result
       if (count >= TRY_ERROR_LIMIT) break;
     }
     count++;
