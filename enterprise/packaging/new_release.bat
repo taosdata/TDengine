@@ -81,9 +81,9 @@ if "%verType%" == "cluster" (
 	rm -rf %install_dir%/connector/rust/.git*
 
   	md %install_dir%\examples
-  	set examples_dir=%internal_dir%\community\examples
-
-	echo "xcopy %examples_dir% to %install_dir%\examples"
+	
+    set examples_dir="%internal_dir%\community\examples"
+    echo "xcopy %examples_dir% to %install_dir%\examples"
     xcopy /S %examples_dir%\c %install_dir%\examples\c\*
     xcopy /S %examples_dir%\JDBC  %install_dir%\examples\JDBC\*
     xcopy /S %examples_dir%\matlab  %install_dir%\examples\matlab\*
@@ -94,9 +94,9 @@ if "%verType%" == "cluster" (
     xcopy /S %examples_dir%\C#  %install_dir%\examples\C#\*
 )
 cd %package_dir%
-iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" tools\tdengine.iss /O..\release
+iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
 if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x64% failed & exit /b 1)
-iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosd.exe" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" tools\tdengine.iss /O..\release
+iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosd.exe" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
 if not %errorlevel% == 0  ( call :RUNFAILED package %packagClientName_x64% failed & exit /b 1)
 
 goto EXIT0
