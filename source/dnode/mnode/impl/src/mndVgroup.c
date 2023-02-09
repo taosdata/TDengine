@@ -796,12 +796,12 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->isTsma, false);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    if (pDb == NULL || pDb->compactStartTime <= 0) {
-      colDataAppendNULL(pColInfo, numOfRows);
-    } else {
-      colDataAppend(pColInfo, numOfRows, (const char *)&pDb->compactStartTime, false);
-    }
+    // pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    // if (pDb == NULL || pDb->compactStartTime <= 0) {
+    //   colDataAppendNULL(pColInfo, numOfRows);
+    // } else {
+    //   colDataAppend(pColInfo, numOfRows, (const char *)&pDb->compactStartTime, false);
+    // }
 
     numOfRows++;
     sdbRelease(pSdb, pVgroup);
