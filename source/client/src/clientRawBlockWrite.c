@@ -25,6 +25,10 @@
 #include "tref.h"
 #include "ttimer.h"
 
+static tb_uid_t processSuid(tb_uid_t suid, char* db){
+  return suid + MurmurHash3_32(db, strlen(db));
+}
+
 static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id,
                                   int8_t t) {
   char*  string = NULL;
@@ -690,7 +694,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   pReq.numOfColumns = req.schemaRow.nCols;
   pReq.numOfTags = req.schemaTag.nCols;
   pReq.commentLen = -1;
-  pReq.suid = req.suid;
+  pReq.suid = processSuid(req.suid, pRequest->pDb);;
   pReq.source = TD_REQ_FROM_TAOX;
   pReq.igExists = true;
 
@@ -762,7 +766,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
   // build drop stable
   pReq.igNotExists = true;
   pReq.source = TD_REQ_FROM_TAOX;
-  pReq.suid = req.suid;
+  pReq.suid = processSuid(req.suid, pRequest->pDb);
 
   STscObj* pTscObj = pRequest->pTscObj;
   SName    tableName = {0};
@@ -880,6 +884,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     if (pCreateReq->type == TSDB_CHILD_TABLE) {
       STableMeta* pTableMeta = NULL;
       SName       sName = {0};
+      pCreateReq->ctb.suid = processSuid(pCreateReq->ctb.suid, pRequest->pDb);
       toName(pTscObj->acctId, pRequest->pDb, pCreateReq->ctb.stbName, &sName);
       code = catalogGetTableMeta(pCatalog, &conn, &sName, &pTableMeta);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1017,6 +1022,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pDropReq = req.pReqs + iReq;
     pDropReq->igNotExists = true;
+    pDropReq->suid = processSuid(pDropReq->suid, pRequest->pDb);
 
     SVgroupInfo pInfo = {0};
     SName       pName = {0};
@@ -1638,6 +1644,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       }
       if (strcmp(tbName, pCreateReq.name) == 0) {
         cloneSVreateTbReq(&pCreateReq, &pCreateReqDst);
+        pCreateReqDst->ctb.suid = processSuid(pCreateReqDst->ctb.suid, pRequest->pDb);
         tDecoderClear(&decoderTmp);
         break;
       }
