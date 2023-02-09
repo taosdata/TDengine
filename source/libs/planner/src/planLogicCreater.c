@@ -343,6 +343,13 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;
+  if (pCxt->pPlanCxt->streamQuery) {
+    pScan->triggerType = pCxt->pPlanCxt->triggerType;
+    pScan->watermark = pCxt->pPlanCxt->watermark;
+    pScan->deleteMark = pCxt->pPlanCxt->deleteMark;
+    pScan->igExpired = pCxt->pPlanCxt->igExpired;
+    pScan->igCheckUpdate = pCxt->pPlanCxt->igCheckUpdate;
+  }
 
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {
