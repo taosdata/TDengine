@@ -31,6 +31,8 @@
 #define MND_STREAM_VER_NUMBER   2
 #define MND_STREAM_RESERVE_SIZE 64
 
+#define MND_STREAM_MAX_NUM 10
+
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pStream, SStreamObj *pNewStream);
@@ -664,6 +666,35 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
+  }
+
+  {
+    int32_t numOfStream = 0;
+
+    SStreamObj *pStream = NULL;
+    void       *pIter = NULL;
+
+    while (1) {
+      pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void **)&pStream);
+      if (pIter == NULL) {
+        if (numOfStream > MND_STREAM_MAX_NUM) {
+          mError("too many streams, no more than 10 for each database");
+          terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+          goto _OVER;
+        }
+        break;
+      }
+
+      if (pStream->sourceDbUid == streamObj.sourceDbUid) {
+        ++numOfStream;
+      }
+      sdbRelease(pMnode->pSdb, pStream);
+      if (numOfStream > MND_STREAM_MAX_NUM) {
+        mError("too many streams, no more than 10 for each database");
+        terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+        goto _OVER;
+      }
+    }
   }
 
   pDb = mndAcquireDb(pMnode, streamObj.sourceDb);

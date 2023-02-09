@@ -27,7 +27,7 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
   const char* pSql = pStr;
 
   int32_t index = 0;
-  SToken  t = tStrGetToken((char*)pStr, &index, false);
+  SToken  t = tStrGetToken((char*)pStr, &index, false, NULL);
   if (TK_INSERT != t.type && TK_IMPORT != t.type) {
     return false;
   }
@@ -35,7 +35,7 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
   do {
     pStr += index;
     index = 0;
-    t = tStrGetToken((char*)pStr, &index, false);
+    t = tStrGetToken((char*)pStr, &index, false, NULL);
     if (TK_USING == t.type || TK_VALUES == t.type || TK_FILE == t.type) {
       return true;
     } else if (TK_SELECT == t.type) {

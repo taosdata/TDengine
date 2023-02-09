@@ -233,8 +233,10 @@ typedef struct SEventWindowNode {
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
   FILL_MODE_VALUE,
+  FILL_MODE_VALUE_F,
   FILL_MODE_PREV,
   FILL_MODE_NULL,
+  FILL_MODE_NULL_F,
   FILL_MODE_LINEAR,
   FILL_MODE_NEXT
 } EFillMode;
