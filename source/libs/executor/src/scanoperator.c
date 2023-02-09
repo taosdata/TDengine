@@ -1554,7 +1554,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     while (tqNextDataBlock2(pInfo->tqReader)) {
       SSDataBlock block = {0};
 
-      int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader);
+      int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader, NULL);
 
       if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
         continue;
@@ -1963,7 +1963,7 @@ FETCH_NEXT_BLOCK:
       while (tqNextDataBlock2(pInfo->tqReader)) {
         SSDataBlock block = {0};
 
-        int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader);
+        int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader, NULL);
 
         if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
           continue;
