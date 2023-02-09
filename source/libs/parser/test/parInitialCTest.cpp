@@ -643,7 +643,8 @@ TEST_F(ParserInitialCTest, createStream) {
   auto setCreateStreamReq = [&](const char* pStream, const char* pSrcDb, const char* pSql, const char* pDstStb,
                                 int8_t igExists = 0, int8_t triggerType = STREAM_TRIGGER_AT_ONCE, int64_t maxDelay = 0,
                                 int64_t watermark = 0, int8_t igExpired = STREAM_DEFAULT_IGNORE_EXPIRED,
-                                int8_t fillHistory = STREAM_DEFAULT_FILL_HISTORY) {
+                                int8_t fillHistory = STREAM_DEFAULT_FILL_HISTORY,
+                                int8_t igUpdate = STREAM_DEFAULT_IGNORE_UPDATE) {
     snprintf(expect.name, sizeof(expect.name), "0.%s", pStream);
     snprintf(expect.sourceDB, sizeof(expect.sourceDB), "0.%s", pSrcDb);
     snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
@@ -654,6 +655,7 @@ TEST_F(ParserInitialCTest, createStream) {
     expect.watermark = watermark;
     expect.fillHistory = fillHistory;
     expect.igExpired = igExpired;
+    expect.igUpdate = igUpdate;
   };
 
   auto addTag = [&](const char* pFieldName, uint8_t type, int32_t bytes = 0) {
@@ -699,6 +701,7 @@ TEST_F(ParserInitialCTest, createStream) {
         ASSERT_EQ(pField->flags, pExpectField->flags);
       }
     }
+    ASSERT_EQ(req.igUpdate, expect.igUpdate);
     tFreeSCMCreateStreamReq(&req);
   });
 
@@ -708,12 +711,11 @@ TEST_F(ParserInitialCTest, createStream) {
 
   setCreateStreamReq(
       "s1", "test",
-      "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired 0 fill_history 1 into st1 "
-      "as select count(*) from t1 interval(10s)",
-      "st1", 1, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_SECOND, 0, 1);
-  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 FILL_HISTORY 1 INTO st1 AS "
-      "SELECT COUNT(*) "
-      "FROM t1 INTERVAL(10S)");
+      "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired 0 fill_history 1 ignore "
+      "update 1 into st1 as select count(*) from t1 interval(10s)",
+      "st1", 1, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_SECOND, 0, 1, 1);
+  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 FILL_HISTORY 1 IGNORE "
+      "UPDATE 1 INTO st1 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 
   setCreateStreamReq("s1", "test",
