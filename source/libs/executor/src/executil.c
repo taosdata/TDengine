@@ -1658,11 +1658,17 @@ int32_t convertFillType(int32_t mode) {
     case FILL_MODE_NULL:
       type = TSDB_FILL_NULL;
       break;
+    case FILL_MODE_NULL_F:
+      type = TSDB_FILL_NULL_F;
+      break;
     case FILL_MODE_NEXT:
       type = TSDB_FILL_NEXT;
       break;
     case FILL_MODE_VALUE:
       type = TSDB_FILL_SET_VALUE;
+      break;
+    case FILL_MODE_VALUE_F:
+      type = TSDB_FILL_SET_VALUE_F;
       break;
     case FILL_MODE_LINEAR:
       type = TSDB_FILL_LINEAR;
@@ -1812,28 +1818,30 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
 
 int32_t tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalGroupIndex, STableKeyInfo** pKeyInfo,
                               int32_t* size) {
-  int32_t total = tableListGetOutputGroups(pTableList);
-  if (ordinalGroupIndex < 0 || ordinalGroupIndex >= total) {
+  int32_t totalGroups = tableListGetOutputGroups(pTableList);
+  int32_t numOfTables =  tableListGetSize(pTableList);
+
+  if (ordinalGroupIndex < 0 || ordinalGroupIndex >= totalGroups) {
     return TSDB_CODE_INVALID_PARA;
   }
 
   // here handle two special cases:
   // 1. only one group exists, and 2. one table exists for each group.
-  if (total == 1) {
-    *size = tableListGetSize(pTableList);
+  if (totalGroups == 1) {
+    *size = numOfTables;
     *pKeyInfo = (*size == 0) ? NULL : taosArrayGet(pTableList->pTableList, 0);
     return TSDB_CODE_SUCCESS;
-  } else if (total == tableListGetSize(pTableList)) {
+  } else if (totalGroups == numOfTables) {
     *size = 1;
     *pKeyInfo = taosArrayGet(pTableList->pTableList, ordinalGroupIndex);
     return TSDB_CODE_SUCCESS;
   }
 
   int32_t offset = pTableList->groupOffset[ordinalGroupIndex];
-  if (ordinalGroupIndex < total - 1) {
-    *size = pTableList->groupOffset[offset + 1] - pTableList->groupOffset[offset];
+  if (ordinalGroupIndex < totalGroups - 1) {
+    *size = pTableList->groupOffset[ordinalGroupIndex + 1] - offset;
   } else {
-    *size = total - pTableList->groupOffset[offset] - 1;
+    *size = numOfTables - offset;
   }
 
   *pKeyInfo = taosArrayGet(pTableList->pTableList, offset);

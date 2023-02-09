@@ -178,6 +178,7 @@
 ,,y,script,./test.sh -f tsim/query/udf_with_const.sim
 ,,y,script,./test.sh -f tsim/query/sys_tbname.sim
 ,,y,script,./test.sh -f tsim/query/groupby.sim
+,,y,script,./test.sh -f tsim/query/forceFill.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
@@ -405,7 +406,7 @@
 ,,y,script,./test.sh -f tmp/monitor.sim
 
 #system test
-
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellError.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellNetChk.py
@@ -1046,6 +1047,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py

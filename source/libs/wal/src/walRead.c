@@ -594,3 +594,12 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
 
   return 0;
 }
+
+void walReadReset(SWalReader *pReader) {
+  taosThreadMutexLock(&pReader->mutex);
+  taosCloseFile(&pReader->pIdxFile);
+  taosCloseFile(&pReader->pLogFile);
+  pReader->curInvalid = 1;
+  pReader->curFileFirstVer = -1;
+  taosThreadMutexUnlock(&pReader->mutex);
+}
