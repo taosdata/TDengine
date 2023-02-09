@@ -3,7 +3,7 @@
 #define MyAppURL "http://www.taosdata.com/"
 #define MyAppBeforeInstallTxt "windows_before_install.txt"
 #define MyAppIco "favicon.ico"
-#define MyAppInstallDir "C:\{#CusName}"
+#define MyAppInstallDir "C:\TDengine"
 #define MyAppOutputDir "./"
 #define MyAppSourceDir "C:\TDengine"
 ;#define MyAppAllFile "\*"
