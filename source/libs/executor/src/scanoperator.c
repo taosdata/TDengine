@@ -636,6 +636,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
 
   while (tsdbNextDataBlock(pTableScanInfo->base.dataReader)) {
     if (isTaskKilled(pTaskInfo)) {
+      tsdbReleaseDataBlock(pTableScanInfo->base.dataReader);
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
@@ -2044,6 +2045,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     if (pInfo->dataReader && tsdbNextDataBlock(pInfo->dataReader)) {
       if (isTaskKilled(pTaskInfo)) {
+        tsdbReleaseDataBlock(pInfo->dataReader);
         longjmp(pTaskInfo->env, pTaskInfo->code);
       }
 
@@ -2545,6 +2547,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   qTrace("tsdb/read-table-data: %p, enter next reader", reader);
   while (tsdbNextDataBlock(reader)) {
     if (isTaskKilled(pTaskInfo)) {
+      tsdbReleaseDataBlock(reader);
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
