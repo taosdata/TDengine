@@ -450,8 +450,10 @@ struct SCommitInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
   TXN*       txn;
-};
 
+  // APIs
+  int32_t (*commitFn)(STsdb* pTsdb, SCommitInfo* pInfo);
+};
 #ifdef __cplusplus
 }
 #endif

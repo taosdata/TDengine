@@ -5530,7 +5530,7 @@ static int32_t translateDropCGroup(STranslateContext* pCxt, SDropCGroupStmt* pSt
 }
 
 static int32_t translateAlterLocal(STranslateContext* pCxt, SAlterLocalStmt* pStmt) {
-  // todo
+  // The statement is executed directly on the client without constructing a message.
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5543,6 +5543,14 @@ static int32_t translateExplain(STranslateContext* pCxt, SExplainStmt* pStmt) {
 
 static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) {
   return refreshGetTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pStmt->pMeta);
+}
+
+static int32_t translateCompact(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
+  SCompactDbReq compactReq = {0};
+  SName         name;
+  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  tNameGetFullDbName(&name, compactReq.db);
+  return buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &compactReq);
 }
 
 static int32_t translateKillConnection(STranslateContext* pCxt, SKillStmt* pStmt) {
@@ -6477,6 +6485,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DESCRIBE_STMT:
       code = translateDescribe(pCxt, (SDescribeStmt*)pNode);
+      break;
+    case QUERY_NODE_COMPACT_DATABASE_STMT:
+      code = translateCompact(pCxt, (SCompactDatabaseStmt*)pNode);
       break;
     case QUERY_NODE_KILL_CONNECTION_STMT:
       code = translateKillConnection(pCxt, (SKillStmt*)pNode);

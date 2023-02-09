@@ -1243,7 +1243,7 @@ int32_t tDeserializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq
 typedef struct {
   int64_t dbUid;
   char    db[TSDB_DB_FNAME_LEN];
-  int64_t reserved[8];
+  int64_t compactStartTime;
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);

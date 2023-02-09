@@ -289,7 +289,7 @@ _err:
   return -1;
 }
 
-static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
+int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   char    dir[TSDB_FILENAME_LEN] = {0};

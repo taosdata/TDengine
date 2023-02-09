@@ -374,8 +374,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDescribeStmt));
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
       return makeNode(type, sizeof(SNode));
-    case QUERY_NODE_COMPACT_STMT:
-      break;
+    case QUERY_NODE_COMPACT_DATABASE_STMT:
+      return makeNode(type, sizeof(SCompactDatabaseStmt));
     case QUERY_NODE_CREATE_FUNCTION_STMT:
       return makeNode(type, sizeof(SCreateFunctionStmt));
     case QUERY_NODE_DROP_FUNCTION_STMT:
@@ -923,7 +923,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFree(((SDescribeStmt*)pNode)->pMeta);
       break;
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:  // no pointer field
-    case QUERY_NODE_COMPACT_STMT:            // no pointer field
+    case QUERY_NODE_COMPACT_DATABASE_STMT:   // no pointer field
     case QUERY_NODE_CREATE_FUNCTION_STMT:    // no pointer field
     case QUERY_NODE_DROP_FUNCTION_STMT:      // no pointer field
       break;
