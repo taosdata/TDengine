@@ -452,7 +452,7 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     }
   }
 
-  if (diffIdx == -1) {
+  if (diffIdx == -1 && diffIdx == 0) {
     goto _err;
   }
 
@@ -566,7 +566,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
   for (int i = 0; i < oStbEntry.stbEntry.schemaTag.nCols; i++) {
     SSchema *schema = oStbEntry.stbEntry.schemaTag.pSchema + i;
     if (0 == strncmp(schema->name, pReq->colName, sizeof(pReq->colName))) {
-      if (IS_IDX_ON(schema)) {
+      if (i != 0 || IS_IDX_ON(schema)) {
         pCol = schema;
       }
       break;

@@ -823,7 +823,11 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *re
   if (tag < 0) {
     terrno = TSDB_CODE_MND_TAG_NOT_EXIST;
     return -1;
+  } else if (tag == 0) {
+    terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
+    return -1;
   }
+
   col_id_t colId = pStb->pTags[tag].colId;
   if (mndCheckColAndTagModifiable(pMnode, pStb->name, pStb->uid, colId) != 0) {
     return -1;

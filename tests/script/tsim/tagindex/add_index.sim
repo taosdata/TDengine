@@ -43,14 +43,25 @@ print =============== insert data into each table
 $i = 0
 while $i < $tbNum
   $tb = $tbPrefix . $i
-  sql insert into $tb values(now, 10);
+  sql insert into $tb values(now, $i );
   $i = $i + 1
 endw
 
 
 sql create index ti2 on $mtPrefix (t2)
 
-# equal
+print ==== test name conflict
+# 
+sql_error create index ti3 on $mtPrefix(t2) 
+
+sql_error create index ti2 on $mtPrefix(t2) 
+sql_error create index ti2 on $mtPrefix(t1) 
+sql_error create index ti2 on $mtPrefix(t3) 
+sql_error create index ti2 on $mtPrefix(txx) 
+
+
+print ===== test operator equal
+
 $i = 0
 while $i < $tbNum
   sql select * from $mtPrefix where t2= $i ;
@@ -60,6 +71,9 @@ while $i < $tbNum
   $i = $i + 1
 endw
 
+
+
+print ===== test operator great equal 
 # great equal than 
 $i = 0
 while $i < $tbNum
@@ -71,21 +85,19 @@ while $i < $tbNum
   $i = $i + 1
 endw
 
-# great than 
+print ===== test operator great 
 $i = 0
 while $i < $tbNum
   sql select * from $mtPrefix where t2 > $i ;
   $tmp = $tbNum - $i
+  $tmp = $tmp - 1
   if $rows != $tmp then
-    print $rows
-    print $i
-    print $tmp
     return -1
   endi
   $i = $i + 1
 endw
 
-# lower equal than 
+print ===== test operator lower 
 $i = 0
 while $i < $tbNum
   sql select * from $mtPrefix where t2 <= $i ;
@@ -96,6 +108,7 @@ while $i < $tbNum
   $i = $i + 1
 endw
 
+print ===== test operator lower than 
 # lower equal than 
 $i = 0
 while $i < $tbNum
@@ -107,9 +120,105 @@ while $i < $tbNum
   $i = $i + 1
 endw
 
+print ===== add table after index created
+$interval = $tbNum + $tbNum 
+$i = $interval  
+$limit = $interval + $tbNum 
+while $i < $limit
+    $tb = $tbPrefix . $i 
+    sql insert into $tb using $mtPrefix tags( $i , $i , $i , $i , $i ) values( now, $i ) 
+    $i = $i + 1
+endw
 
 
 
+print ===== add table after index created (opeator  great equal than)
+# great equal than 
+$i = $interval 
+while $i < $limit
+  sql select * from $mtPrefix where t2 >= $i ;
+  $tmp = $limit - $i
+  if $rows != $tmp then
+    return -1
+  endi
+  $i = $i + 1
+endw
+
+
+print ===== add table after index created (opeator great than)
+# great than 
+$i = $interval 
+while $i < $limit
+  sql select * from $mtPrefix where t2 > $i ;
+  $tmp = $limit - $i
+  $tmp = $tmp - 1
+  if $rows != $tmp then
+    return -1
+  endi
+  $i = $i + 1
+endw
+
+print ===== drop table after index created 
+
+# drop table
+$dropTbNum = $tbNum / 2 
+$i = 0
+
+while $i < $tbNum
+  $tb = $tbPrefix . $i 
+  sql drop table $tb
+  $i = $i + 1
+endw
+
+print ===== drop table after index created(opeator lower than)
+
+# lower equal than 
+$i = $interval 
+while $i < $limit
+  sql select * from $mtPrefix where t2 < $i ;
+  $tmp = $i  - $interval
+  if $rows != $tmp then
+    return -1
+  endi
+  $i = $i + 1
+endw
+
+
+print ===== drop table after index created(opeator lower equal than)
+
+# lower equal than 
+$i = $interval 
+while $i < $limit
+  sql select * from $mtPrefix where t2 <= $i ;
+  
+  $tmp = $i  - $interval
+  $tmp = $tmp + 1
+  if $rows != $tmp then
+    return -1
+  endi
+  $i = $i + 1
+endw
+
+
+print === show index
+
+sql select * from information_schema.ins_indexes
+if $rows != 1 then 
+  return -1
+endi
+
+
+print === drop index ti2
+sql drop index ti2
+
+print === drop not exist index
+sql_error drop index t2
+sql_error drop index t3
+
+
+
+sql_error create index ti0 on $mtPrefix (t1)
+sql_error create index t2i on ta_3_tb17 (t2)
 
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
