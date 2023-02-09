@@ -11,8 +11,8 @@ SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW
 SELECT [DISTINCT] select_list
     from_clause
     [WHERE condition]
-    [interp_clause]
     [partition_by_clause]
+    [interp_clause]
     [window_clause]
     [group_by_clause]
     [order_by_clasue]
