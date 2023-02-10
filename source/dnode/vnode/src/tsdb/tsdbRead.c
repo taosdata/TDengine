@@ -423,7 +423,9 @@ static STimeWindow updateQueryTimeWindow(STsdb* pTsdb, STimeWindow* pWindow) {
   return win;
 }
 
+// note: currently not need this limitation
 static void limitOutputBufferSize(const SQueryTableDataCond* pCond, int32_t* capacity) {
+#if 0
   int32_t rowLen = 0;
   for (int32_t i = 0; i < pCond->numOfCols; ++i) {
     rowLen += pCond->colList[i].bytes;
@@ -434,6 +436,7 @@ static void limitOutputBufferSize(const SQueryTableDataCond* pCond, int32_t* cap
   if ((*capacity) * rowLen > TWOMB) {
     (*capacity) = TWOMB / rowLen;
   }
+#endif
 }
 
 // init file iterator
@@ -618,7 +621,6 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
     goto _end;
   }
 
-  // todo refactor.
   limitOutputBufferSize(pCond, &pReader->capacity);
 
   // allocate buffer in order to load data blocks from file
