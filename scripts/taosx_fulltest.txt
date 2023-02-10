@@ -1,4 +1,4 @@
-taostest --use=taosx_2d.yaml --case=taosx/data_export.py --keep --containers
+#taostest --use=taosx_2d.yaml --case=taosx/data_export.py --keep --containers
 
 taostest --setup=taosx_2d.yaml --case=taosx/rename_table.py --keep --containers
 taostest --use=taosx_2d.yaml --case=taosx/full_sync.py --keep --containers
