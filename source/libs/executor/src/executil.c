@@ -1040,10 +1040,9 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     } else {
       // failed to find the result in the cache, let try to calculate the results
       if (pTagIndexCond) {
-        SIndexMetaArg metaArg = {.metaEx = metaHandle,
-                                 .idx = tsdbGetIdx(metaHandle),
-                                 .ivtIdx = tsdbGetIvtIdx(metaHandle),
-                                 .suid = pScanNode->uid};
+        void* pIndex = tsdbGetIvtIdx(metaHandle);
+        SIndexMetaArg metaArg = {
+            .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = pIndex, .suid = pScanNode->uid};
 
         SIdxFltStatus status = SFLT_NOT_INDEX;
         code = doFilterTag(pTagIndexCond, &metaArg, pUidList, &status);
