@@ -84,6 +84,12 @@
           return this.$store.state.console.sqlStr;
         },
         set: function (val) {
+          // console.log(this.$refs.sqlStr,this.$refs.sqlStr.codemirror.doc.lineCount(),'code----mirror----00000');
+          // if(this.$refs.sqlStr.codemirror.doc.lineCount()>1){
+          //   this.$refs.sqlStr.codemirror.doc.cantEdit=true
+          // }else{
+          //   this.$refs.sqlStr.codemirror.doc.cantEdit=false
+          // }
           this.$store.commit("console/SET_SQLSTR", val);
         },
       },
@@ -118,16 +124,21 @@
     },
     methods: {
       onReady(ins) {
+        console.log(ins,'mirror-ready');
         this.comIns = ins;
       },
       blur() {
         this.currentPosition = this.comIns.getCursor();
+
+        console.log('code---blur',this.comIns);
       },
       async handleSendSQL() {
         if (this.requestIng) return;
         this.requestIng = true;
         let sqlStr = this.comIns.getSelection() || this.sqlStr;
         let { isSendSQL, updated_sqlStr } = await proprocess_sql(sqlStr); // 预处理要执行的sql语句
+
+        console.log('执行sql',isSendSQL, updated_sqlStr);
         if (isSendSQL) {
           await this.$store.dispatch("console/sendConsoleSQL", updated_sqlStr);
         }

@@ -18,8 +18,8 @@ export default {
   computed: {
     docsUrl() {
       return this.$store.state.language == "en"
-        ? "https://docs.tdengine.com/cloud/"
-        : "https://docs.tdengine.com/cloud/";
+        ? "https://docs.tdengine.com/"
+        : "https://docs.tdengine.com/";
     },
     discordUrl() {
       return this.$store.state.language == "en"

@@ -1,8 +1,8 @@
 @font-face {
   font-family: "element-icons"; /* Project id 3857053 */
-  src: url('iconfont.woff2?t=1673339842888') format('woff2'),
-       url('iconfont.woff?t=1673339842888') format('woff'),
-       url('iconfont.ttf?t=1673339842888') format('truetype');
+  src: url('iconfont.woff2?t=1676017494434') format('woff2'),
+       url('iconfont.woff?t=1676017494434') format('woff'),
+       url('iconfont.ttf?t=1676017494434') format('truetype');
 }
 
 .element-icons {
@@ -11,6 +11,26 @@
   font-style: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.el-icon-tuitetwitter44:before {
+  content: "\e6ef";
+}
+
+.el-icon-youtube:before {
+  content: "\e600";
+}
+
+.el-icon-Linkedin:before {
+  content: "\e637";
+}
+
+.el-icon-github-fill:before {
+  content: "\e885";
+}
+
+.el-icon-discord:before {
+  content: "\e60b";
 }
 
 .el-icon-tingzhi:before {

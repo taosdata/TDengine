@@ -15,6 +15,14 @@
         prop="data_source_name"
       ></el-table-column>
       <el-table-column
+        :label="$t('topic.data_source_type')"
+        prop="data_source_type"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('topic.data_source_target')"
+        prop="data_source_target"
+      ></el-table-column>
+      <el-table-column
         :label="$t('topic.status')"
         prop="status"
       ></el-table-column>
@@ -137,24 +145,32 @@ export default {
         {
           id: 1,
           data_source_name: "InfluxDB",
+          data_source_type:'type123',
+          data_source_target:'target123',
           status: "Pending",
           create_time: "2022-10-10 12:02:10",
         },
         {
           id: 2,
           data_source_name: "OpenTSDB",
+          data_source_type:'type123',
+          data_source_target:'target123',
           status: "Fullfiled",
           create_time: "2022-10-20 12:02:10",
         },
         {
           id: 3,
           data_source_name: "OPC",
+          data_source_type:'type123',
+          data_source_target:'target123',
           status: "Fullfiled",
           create_time: "2022-10-20 12:02:10",
         },
         {
           id: 4,
           data_source_name: "Kafka",
+          data_source_type:'type123',
+          data_source_target:'target123',
           status: "Fullfiled",
           create_time: "2022-10-20 12:02:10",
         },

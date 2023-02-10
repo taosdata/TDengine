@@ -116,6 +116,7 @@ export function objToLine(target) {
 
 // json to object
 export function jsonToObj(data) {
+  console.log(typeof data,data)
   if (typeof data != "string") return {};
   let result;
   try {

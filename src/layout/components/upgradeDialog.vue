@@ -1,6 +1,6 @@
 <template>
   <el-dialog :visible.sync="visible" center :title="title" :width="width + 'px'">
-    <Plan :step.sync="step" :currentPlan="currentPricePlan" :cloudAndRegion="cloudAndRegion" @change="planChange" />
+    <!-- <Plan :step.sync="step" :currentPlan="currentPricePlan" :cloudAndRegion="cloudAndRegion" @change="planChange" /> -->
   </el-dialog>
 </template>
 

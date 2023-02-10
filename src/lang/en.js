@@ -807,7 +807,9 @@ export default {
     endpoint:'End Point',
     vnodes:'VNodes',
     support_vnodes:"Support VNodes",
-    data_source_name:'Data Source Name',
+    data_source_name:'Name',
+    data_source_type:'Type',
+    data_source_target:'Target',
     
     note:'Note',
     cores:'Cores',

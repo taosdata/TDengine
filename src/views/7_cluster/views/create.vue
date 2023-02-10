@@ -48,7 +48,7 @@
       <p class="errorText" v-show="errorText">{{ errorText }}</p>
     </el-form>
     <p class="default-tip" @click="upgrade" v-show="cannotCreate" v-html="upgradePlanTip"></p>
-    <Plan v-model="dialog" :cloudAndRegion="planCloudAndRegion" @close="dialog = false" @stepChange="stepChange" @change="planChange" />
+    <!-- <Plan v-model="dialog" :cloudAndRegion="planCloudAndRegion" @close="dialog = false" @stepChange="stepChange" @change="planChange" /> -->
   </div>
 </template>
 

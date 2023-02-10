@@ -26,6 +26,7 @@ const state = {
 
 const mutations = {
   SET_SQLSTR: (state, sqlStr) => {
+    console.log('sql注入',sqlStr);
     state.sqlStr = sqlStr;
   },
   ADD_SQLSTR: (state, sqlStr) => {
@@ -39,6 +40,7 @@ const mutations = {
     localStorage.setItem("record_history" + appId, JSON.stringify(state.history));
   },
   SET_USE_DB: (state, useDB) => {
+    console.log(useDB,'useDB')
     state.useDB = useDB;
     // Cookies.set('useDB', useDB)
   },
@@ -55,6 +57,7 @@ const mutations = {
     state.activeTab = activeTab;
   },
   CHANGE_TREE_KEY(state) {
+    console.log(state.treeKey,'tree----key');
     state.treeKey += 1;
   },
   CANCEL_DETAIL(state) {
@@ -64,6 +67,12 @@ const mutations = {
   SET_CURRENT_INFO_DATA(state, data) {
     state.currentInfoData = data;
   },
+  SET_FAVORITE(state,data){
+    state.favorites=data
+  },
+  SET_SHAREDFAVOURTIE(state,data){
+    state.sharedFavorites=data
+  }
 };
 
 const actions = {
@@ -78,13 +87,13 @@ const actions = {
         handleFail(res, state, commit, rootState, sql, startTime);
       });
   },
-  getFavorites({ state }) {
-    return getFavorites()
-      .then(res => {
-        state.favorites = res;
-      })
-      .catch(() => (state.favorites = []));
-  },
+  // getFavorites({ state }) {
+  //   return getFavorites()
+  //     .then(res => {
+  //       state.favorites = res;
+  //     })
+  //     .catch(() => (state.favorites = []));
+  // },
   getSharedFavorites({ state }) {
     return getSharedFavorites()
       .then(data => {
@@ -111,6 +120,7 @@ function handleSuccess(res, state, commit, rootState, sql, startTime) {
   });
   // 切换到output panel显示执行结果
   commit("SET_ACTIVE_TAB", "grid");
+  console.log('切换到output panel显示执行结果')
   state.shellData = [head.map(item => item)].concat(data);
   state.result = Object.freeze(compHeadAndData(res.column_meta, data));
   state.head = Object.freeze(head);

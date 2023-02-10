@@ -10,7 +10,7 @@
     </div>
     <!-- 添加工单 -->
     <el-dialog :title="$t('support.addOrder')" width="1000px" :visible.sync="dialog">
-      <addFrom :typeList="issueTypeList" @close="dialogClose" />
+      <!-- <addFrom :typeList="issueTypeList" @close="dialogClose" /> -->
     </el-dialog>
   </div>
 </template>
@@ -28,7 +28,7 @@
       };
     },
     created() {
-      this.$store.dispatch("issues/getIssueTypeList");
+      // this.$store.dispatch("issues/getIssueTypeList");
     },
     mounted() {},
     computed: {},

@@ -7,7 +7,7 @@ const getters = {
     // 如果集群状态只有为running才可以进行操作
     return state.app.clusterStatus == "Running";
   },
-  appId: state => state.app.current_cluster.id || "",
+  appId: state => state.app.current_cluster.id || "1597864550720372736",
   role: state => state.app.userInfo?.role_id || "1",
   currentCloudAndRegion: state => state.app.currentCloudAndRegion,
   userInfo: state => state.app.userInfo,

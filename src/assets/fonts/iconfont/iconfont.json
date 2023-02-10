@@ -6,6 +6,41 @@
   "description": "taosexplorer",
   "glyphs": [
     {
+      "icon_id": "515380",
+      "name": "推特_twitter44",
+      "font_class": "tuitetwitter44",
+      "unicode": "e6ef",
+      "unicode_decimal": 59119
+    },
+    {
+      "icon_id": "1203642",
+      "name": "youtube",
+      "font_class": "youtube",
+      "unicode": "e600",
+      "unicode_decimal": 58880
+    },
+    {
+      "icon_id": "4546495",
+      "name": "Linkedin",
+      "font_class": "Linkedin",
+      "unicode": "e637",
+      "unicode_decimal": 58935
+    },
+    {
+      "icon_id": "4937000",
+      "name": "github-fill",
+      "font_class": "github-fill",
+      "unicode": "e885",
+      "unicode_decimal": 59525
+    },
+    {
+      "icon_id": "26267561",
+      "name": "discord",
+      "font_class": "discord",
+      "unicode": "e60b",
+      "unicode_decimal": 58891
+    },
+    {
       "icon_id": "5651501",
       "name": "停止",
       "font_class": "tingzhi",

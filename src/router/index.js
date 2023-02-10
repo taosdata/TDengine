@@ -5,8 +5,9 @@ Vue.use(Router);
 const layoutCommonChildren = [
   {
     path: "",
-    redirect: "explorer",
+    redirect: "login",
   },
+
   {
     path: "dataIn",
     component: () => import("@/views/3_dataIn"),
@@ -15,7 +16,7 @@ const layoutCommonChildren = [
         path: "",
         component: () => import("@/views/3_dataIn/views/main.vue"),
       },
-      
+
       {
         path: 'source/:sourceName',
         props: true,
@@ -300,6 +301,12 @@ const costantRoutes = [
     name: "404",
     component: () => import("@/views/404"),
   },
+  {
+    path: '/login',
+    name:'Login',
+    component: () => import("@/views/0_login")
+
+  }
 ];
 
 function createRouter(routes) {
@@ -317,9 +324,6 @@ router.onError(error => {
   const jsPattern = /Loading chunk (\S)+ failed/g;
   const cssPattern = /Loading CSS chunk (\S)+ failed/g;
   const isChunkLoadFailed = error.message.match(jsPattern || cssPattern);
-
-
-  console.log(router, '哈哈哈', isChunkLoadFailed)
   const targetPath = router.history.pending.fullPath;
   if (isChunkLoadFailed) {
     localStorage.setItem("targetPath", targetPath);
@@ -346,6 +350,5 @@ export function addRoutes(role) {
     router.addRoute("layout", item);
   });
 }
-console.log(router, '----')
 addRoutes()
 export default router;

@@ -79,7 +79,10 @@
     "rules": {
       "no-debugger": "off",
       "no-unused-vars": "off",
-      "vue/no-unused-components": "off"
+      "vue/no-unused-components": "off",
+      "no-useless-escape":"off",
+      "no-unreachable":"off",
+      "no-case-declarations":"off"
     },
     "ignorePatterns": [
       "/WebSocket/**"

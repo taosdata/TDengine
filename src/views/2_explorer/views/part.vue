@@ -38,9 +38,9 @@
           <PanelView @refresh="refresh"></PanelView>
         </section>
       </el-tab-pane>
-      <el-tab-pane name="xterm" label="Shell">
+      <!-- <el-tab-pane name="xterm" label="Shell">
         <Xterm></Xterm>
-      </el-tab-pane>
+      </el-tab-pane> -->
       <el-tab-pane name="detail" v-if="tabName" :label="tabName">
         <Detail></Detail>
       </el-tab-pane>
@@ -53,6 +53,7 @@
   import Sql from "./components/sql";
   import PanelView from "./components/panel.vue";
   import { addFavorite, delFavorite } from "@/api/gateway/console";
+  import moment from 'moment'
   import { mapState } from "vuex";
   import Xterm from "./components/xterm";
   export default {
@@ -99,18 +100,42 @@
         if (this.requestIng) return;
         this.requestIng = true;
         await this.$refs.sql.handleSendSQL();
+
+        console.log('run sql----');
+        this.$store.commit("console/CHANGE_TREE_KEY");
         this.requestIng = false;
       },
       async toggleFavorite() {
-        this.favorited
-          ? await delFavorite(this.favorited)
-              .then(() => this.$message.success(this.$t("operateSucc")))
-              .catch(() => {})
-          : await addFavorite(this.sqlStr)
-              .then(() => this.$message.success(this.$t("operateSucc")))
-              .catch(() => {});
+        console.log(this.sqlStr,this.$store.state,'this.favorited');
+
+        let obj={
+          accountId:this.$store.state.app.token,
+          appId:this.$store.state.app.token,
+          create_time:moment().format('YYYY-MM-DD HH:mm:ss'),
+          created_by:this.$store.state.app.token,
+          id:new Date().getTime(),
+          sql:this.sqlStr,
+          update_time:moment().format('YYYY-MM-DD HH:mm:ss'),
+          updated_by:this.$store.state.app.token,
+          userId:this.$store.state.app.token
+        }
+        if( localStorage.getItem('favorite_record')){
+          let favorites=JSON.parse(localStorage.getItem('favorite_record'))
+          favorites.push(obj)
+          localStorage.setItem('favorite_record',JSON.stringify(favorites))
+        }else{
+          localStorage.setItem('favorite_record',JSON.stringify([].concat(obj)))
+        }
+        // this.favorited
+        //   ? await delFavorite(this.favorited)
+        //       .then(() => this.$message.success(this.$t("operateSucc")))
+        //       .catch(() => {})
+        //   : await addFavorite(this.sqlStr)
+        //       .then(() => this.$message.success(this.$t("operateSucc")))
+        //       .catch(() => {});
         this.$store.commit("console/SET_ACTIVE_TAB", "favorites");
-        this.$store.dispatch("console/getFavorites");
+        this.$store.commit("console/SET_FAVORITE",JSON.parse(localStorage.getItem('favorite_record')));
+        // this.$store.dispatch("console/getFavorites");
       },
       tabClick({ name }) {
         if (name == "detail") return;

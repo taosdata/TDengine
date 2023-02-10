@@ -161,6 +161,7 @@ export default {
     },
 
     data(newVal) {
+      console.log(newVal,'tree---------data----')
       this.store.setData(newVal);
     },
 
@@ -324,7 +325,6 @@ export default {
 
   created() {
     this.isTree = true;
-
     this.store = new TreeStore({
       key: this.nodeKey,
       data: this.data,

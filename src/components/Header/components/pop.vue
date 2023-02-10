@@ -14,6 +14,7 @@
 </template>
 <script>
 export default {
+  name:'SearchPop',
   props: {
     hidden: {
       type: Boolean,

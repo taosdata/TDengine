@@ -18,6 +18,7 @@ const state = {
 let dbConfigTemp = {};
 const mutations = {
   SET_DBLIST: (state, dbList) => {
+    console.log(dbList,'dbList---')
     state.dbList = dbList;
   },
   SET_CURRENT_PAGE: (state, currentPage) => {

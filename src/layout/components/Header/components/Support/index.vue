@@ -1,15 +1,17 @@
 <template>
   <div class="support-content">
+    <a class="support-block-url" target="_blank" :href="supportUrl">
     <el-tooltip class="item" effect="light" content="Support" placement="bottom">
       <div class="support-block" @click="showSupportDialog">
         <Icon name="support" style="width: 26px; height: 26px; margin-left: 2px;"></Icon>
       </div>
     </el-tooltip>
+    </a>
       
     
 
     <el-dialog :title="$t('support.addOrder')" width="1000px" :visible.sync="dialog" append-to-body>
-      <addFrom :typeList="issueTypeList" @close="dialogClose" />
+      <!-- <addFrom :typeList="issueTypeList" @close="dialogClose" /> -->
     </el-dialog>
   </div>
 </template>
@@ -25,13 +27,20 @@ export default {
       dialog: false
     };
   },
+   computed: {
+    supportUrl() {
+      return this.$store.state.language == "en"
+        ? "https://tdengine.com/"
+        : "https://tdengine.com/";
+    }
+  },
   created() {
-    this.$store.dispatch("issues/getIssueTypeList");
+    // this.$store.dispatch("issues/getIssueTypeList");
   },
   methods: {
     showSupportDialog() {
       console.log("support");
-      this.dialog = true;
+      // this.dialog = true;
     },
     dialogClose() {
       this.dialog = false;

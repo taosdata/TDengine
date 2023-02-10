@@ -69,7 +69,10 @@
     },
     methods: {
       logout() {
-        this.$store.dispatch("app/logout");
+        // this.$store.dispatch("app/logout");
+        this.$router.push({
+          path:'/login'
+        })
       },
       close() {
         this.dialogVisible = false;

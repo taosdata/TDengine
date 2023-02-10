@@ -54,7 +54,8 @@
       },
       wsurl() {
         // return "ws://gw.ali.cloud.taosdata.com:8080/rest/ws?token=a6a0f770213fb9706f5eb9ad24aaf5020f7b8d79";
-        return `${this.current_cluster.gateway_url.replace(/^http/, "ws")}/rest/ws?token=${this.current_cluster.token.token}`;
+        // return `${this.current_cluster.gateway_url.replace(/^http/, "ws")}/rest/ws?token=${this.current_cluster.token.token}`;
+        return `${'https://gw.us-east-1.aws.cloud.tdengine.com'.replace(/^http/, "ws")}/rest/ws?token=c7063aa13fb703585f6a0a444652be829f826d1b`;
       },
       useDB() {
         return this.$store.state.console.useDB;
@@ -85,6 +86,7 @@
       },
     },
     created() {
+      console.log('xterm----load')
       this.initWs();
     },
     methods: {
@@ -94,7 +96,7 @@
         this.ws
           .connect()
           .then(() => {
-            console.log("ws connect success");
+            console.log("ws connect success",this.currentUseDB);
             this.$BusOnAndAutoOff("console/useDB", dbname => {
               const sql = `use ${dbname};`;
               if (sql == this.currentUseDB) return;

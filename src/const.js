@@ -381,5 +381,5 @@ export const ReplicationTaskCanStartStatus = ["stopped"];
 
 export const $bus = mitt();
 
-export const CustomShellContent = ["Welcome to TDengine Cloud"];
+export const CustomShellContent = ["Welcome to TDengine "];
 

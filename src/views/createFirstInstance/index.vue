@@ -42,7 +42,7 @@
         <p class="errorText" v-show="errorText">{{ errorText }}</p>
       </el-form>
     </section>
-    <Plan v-model="dialog" :cloudAndRegion="planCloudAndRegion" @close="dialog = false" @stepChange="stepChange" @change="planChange" />
+    <!-- <Plan v-model="dialog" :cloudAndRegion="planCloudAndRegion" @close="dialog = false" @stepChange="stepChange" @change="planChange" /> -->
   </div>
 </template>
 

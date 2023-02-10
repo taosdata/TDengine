@@ -94,7 +94,7 @@
         <el-form-item label="Database" prop="db" required>
           <el-input v-model.trim="ruleForm.db"></el-input>
         </el-form-item>
-        <el-form-item label="File" prop="file" required>
+        <el-form-item label="Directory" prop="file" required>
           <el-input v-model.trim="ruleForm.file"></el-input>
         </el-form-item>
       </el-form>

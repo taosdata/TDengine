@@ -1,31 +1,39 @@
 import { request } from "@/utils/request";
-import { jsonToObj } from "@/utils";
+// import { jsonToObj } from "@/utils";
 import store from "@/store";
 import { compHeadAndData } from "@/utils";
 import { Message } from "element-ui";
 export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.appId) {
   return request({
-    url: "/data/sql/" + appId,
-    method: "post",
+    url:'/rest/sql',
+    method: 'post',
     timeout: 120000,
-    data: { sql: sqlStr },
+    data:sqlStr
+    // data:type==='s'?{ sql: sqlStr }:''
+    // data: { sql: sqlStr },
   }).then(data => {
-    let cData = jsonToObj(data);
+
+    console.log(data, 'kkkkcc-----')
+    // return data;
+    // let cData = jsonToObj(data);
+    let cData=JSON.parse(JSON.stringify(data))
     if (cData.code == 0) return composeData ? compHeadAndData(cData.column_meta, cData.data) : cData;
     return Promise.reject(cData?.desc ? cData : { desc: data || "Service Unavailable, please try again later!" });
+  }).catch(e => {
+    console.log(e, '错误');
   });
 }
 
 export function executeDBOperations(sql, appId = store.getters.appId) {
   return request({
-    url: `/private/data/sql/${appId}`,
+    // url: `/private/data/sql/${appId}`,
+    url:'/rest/sql',
     method: "post",
-    data: {
-      sql,
-    },
+    data: sql
   })
     .then(data => {
-      data = jsonToObj(data);
+      // data = jsonToObj(data);
+      data = JSON.parse(JSON.stringify((data)));
       if (data.code == 0) return compHeadAndData(data.column_meta, data.data);
       return Promise.reject(data);
     })
@@ -34,9 +42,9 @@ export function executeDBOperations(sql, appId = store.getters.appId) {
       return Promise.reject(err);
     });
 }
-export async function getPaginationData(countSql, dataSql, currentPage, pageSize, handleDataFn, appId = store.getters.appId) {
+export async function getPaginationData(countSql, dataSql, currentPage, pageSize, handleDataFn, appId = store.getters.appId,type,normalCount,normalSql) {
   // 查询数量
-  const count = await sendSQLReq(countSql, false, appId)
+  const count = await sendSQLReq(type==='union'?countSql+ 'union '+normalCount:countSql, false, appId)
     .then(({ data }) => {
       return data?.[0]?.[0] || 0;
     })
@@ -49,6 +57,9 @@ export async function getPaginationData(countSql, dataSql, currentPage, pageSize
   // 查询数据
   if (dataSql.endsWith(";")) {
     dataSql = dataSql.slice(0, -1);
+  }
+  if(type==='union'){//查询database下所有stable和所有table的
+    dataSql= '( '+dataSql + `limit ${startIndex},${pageSize}`+ ')  union '+normalSql
   }
   let data = await sendSQLReq(`${dataSql} limit ${startIndex},${pageSize};`, true, appId).catch(err => {
     Message.error(err.desc);
@@ -63,14 +74,15 @@ export async function getPaginationData(countSql, dataSql, currentPage, pageSize
 // 通过token执行sql
 export function executeSQLByToken(sql, token) {
   return request({
-    url: `/data/sql/token/${token}`,
+    url: `/rest/sql/token/${token}`,
     method: "post",
     data: {
       sql,
     },
   })
     .then(data => {
-      data = jsonToObj(data);
+      // data = jsonToObj(data);
+      data = JSON.parse(JSON.stringify((data)));
       if (data.code == 0) return compHeadAndData(data.column_meta, data.data);
       return Promise.reject(data);
     })
@@ -82,10 +94,13 @@ export function executeSQLByToken(sql, token) {
 
 
 // 获取个人收藏列表
-export function getFavorites() {
+export function getFavorites(sql) {
   return request({
-    url: "/data/favorite",
-    params: { app_id: store.getters.appId },
+    // url: "/api/region/1/data/favorite",
+    url:'/rest/sql',
+    method:'post',
+    data:sql
+    // params: { app_id: '1597864550720372736' },
   });
 }
 
@@ -110,10 +125,13 @@ export function delFavorite(id) {
 }
 
 // 获取共享收藏列表
-export function getSharedFavorites() {
+export function getSharedFavorites(sql) {
   return request({
-    url: "/data/shared_favorite",
-    params: { app_id: store.getters.appId },
+    // url: "/api/region/1/data/shared_favorite",
+    url:'/rest/sql',
+    method:'post',
+    data:sql
+    // params: { app_id: store.getters.appId },
   });
 }
 

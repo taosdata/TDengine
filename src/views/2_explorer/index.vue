@@ -28,11 +28,11 @@
     },
     computed: {},
     created() {
-      this.$store.dispatch("console/getFavorites");
-      this.$store.dispatch("console/getSharedFavorites");
+      // this.$store.dispatch("console/getFavorites");
+      // this.$store.dispatch("console/getSharedFavorites");
       // 获取当前用户的控制台执行记录
-      this.$store.state.console.history = localStorage.getItem("record_history" + this.$store.getters.appId)
-        ? JSON.parse(localStorage.getItem("record_history" + this.$store.getters.appId))
+      this.$store.state.console.history = localStorage.getItem("record_history") //+ this.$store.getters.appId)
+        ? JSON.parse(localStorage.getItem("record_history"))// + this.$store.getters.appId))
         : [];
     },
     mounted() {

@@ -83,7 +83,6 @@ const mutations = {
   },
   SET_CURRENT_CLUSTER(state, current_cluster) {
     const isFirstCreate = window.location.pathname == "/createFirstInstance";
-    debugger
     if (current_cluster?.id) {
       /**
        * 获取当前集群的url进行比较和切换
@@ -202,7 +201,7 @@ const actions = {
       commit("SET_USERINFO", user);
       if (user.status == 2) {
         // 判断用户状态，如果是2， 跳转到引导页，完善信息
-        dispatch("logout", false);
+        // dispatch("logout", false);
         return false;
       } else if (user.status == 1) {
         // 用户状态，如果是1，信息已经完善，跳转到首页
@@ -211,6 +210,7 @@ const actions = {
     });
   },
   getClusterList({ state, commit, dispatch }, isRefresh = true) {
+    console.log('getClusterList')
     commit("CLEAR_TIMEOUT");
     return new Promise(resolve => {
       let fn = () => {
@@ -224,7 +224,9 @@ const actions = {
               resolve();
               return;
             }
+            console.log('处理集群列表-----appId');
             let cluster = handleCluster();
+            debugger
             commit("SET_CURRENT_CLUSTER", cluster);
             resolve();
             // 刷新时需要判断集群列表中是否有除了Running、Suspened的状态的集群
@@ -256,6 +258,7 @@ const actions = {
     });
   },
   logout({ commit }, request = true) {
+    console.log()
     const run = () => {
       // 退出就得置空
       commit("SET_TOKEN", "");
@@ -365,6 +368,7 @@ function handleCluster() {
    * 2.如果没有就获取当前url的region下的一个集群（先查找running的，没有就取第一个）
    * 3.如果当前url没有找到归属的region，就不设置集群
    */
+  console.log('获取appid--------')
   if (!refreshCount) {
     getCurentRegionCluster();
   }

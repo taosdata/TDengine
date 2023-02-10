@@ -3,7 +3,7 @@ import { Message } from "element-ui";
 import { DBFILED, HIDEDB } from "@/const";
 import { request } from "@/utils/request";
 import store from "@/store";
-import { jsonToObj } from "@/utils";
+// import { jsonToObj } from "@/utils";
 import { executeDBOperations } from "@/api/gateway/console";
 // 用于查询数据库查重
 let dbCache = [];
@@ -12,10 +12,11 @@ export async function getDBListReq(appId) {
   /**
    * 先使用show databses获取列表
    */
+  
   return sendSQLReq(`show databases;`, true, appId)
     .then(data => {
       return (dbCache = handleDataKey(
-        data.filter(item => !HIDEDB.includes(item.name)),
+        data.filter(item =>!HIDEDB.includes(item.name) ),
         "database"
       ));
     })
@@ -57,14 +58,15 @@ export function getDBStruct(dbName) {
 export function deleteDBReq(payload, appId = store.getters.appId) {
   let { dbName } = payload;
   return request({
-    url: `/private/data/sql/dropdb/${appId}/${dbName}`,
-    data: {
-      sql: `DROP DATABASE ${dbName};`,
-    },
+    // url: `/private/data/sql/dropdb/${appId}/${dbName}`,
+    url:'/rest/sql',
+    data: `DROP DATABASE ${dbName};`,
+    
     method: "post",
   })
     .then(data => {
-      data = jsonToObj(data);
+      // data = jsonToObj(data);
+      data=JSON.parse(JSON.stringify(data))
       if (data.code == 0) return data;
       return Promise.reject(data);
     })
@@ -76,9 +78,10 @@ export function deleteDBReq(payload, appId = store.getters.appId) {
 
 export function createDB(data, name, appId = store.getters.appId) {
   return request({
-    url: `/private/data/sql/createdb/${appId}/${name}`,
-    data: {
-      sql: `CREATE DATABASE ${name} ${Object.keys(DBFILED)
+    // url: `/private/data/sql/createdb/${appId}/${name}`,
+    url:'/rest/sql',
+    data: 
+      `CREATE DATABASE ${name} ${Object.keys(DBFILED)
         .map(item => {
           let value = data[item];
           const isString = DBFILED[item]?.type == "string";
@@ -89,11 +92,12 @@ export function createDB(data, name, appId = store.getters.appId) {
           return item + " " + value;
         })
         .join(" ")};`,
-    },
+    
     method: "post",
   })
     .then(data => {
-      data = jsonToObj(data);
+      // data = jsonToObj(data);
+      data=JSON.parse(JSON.stringify(data))
       if (data.code == 0) return data;
       return Promise.reject(data);
     })
@@ -121,16 +125,19 @@ export function checkDBName(dbName) {
 }
 
 export function handleDataKey(data, type, parent = "") {
+  console.log(data, type,'data, type');
+  debugger
   return data.map(item => {
-    item.typeName = type;
+    item.typeName =item.rollup?'table': type;
     if (!item.name) {
       item.name = item[type + "_name"];
+      // item.name=item.databaseName
     }
     item.parent = parent;
     if ((type == "database" && item.name == "log") || parent.startsWith("log.") || parent == "log") {
       item.noOperate = true;
     }
-    item["node-key"] = item.name + type + parent;
+    item["node-key"] = item.name + type + parent +Math.random();
     return item;
   });
 }

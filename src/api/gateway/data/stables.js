@@ -4,9 +4,11 @@ import { Message } from "element-ui";
 import { VariableTableColumnType } from "@/const";
 export function getStableListReq(params, dbName) {
   let { currentPage, pageSize } = params;
-  const countSql = `select count(*) from information_schema.ins_stables where db_name='${dbName}';`;
-  const dataSql = `select * from information_schema.ins_stables where db_name='${dbName}'`;
-  return getPaginationData(countSql, dataSql, currentPage, pageSize, data => handleDataKey(data, "stable", dbName));
+  const countSql = `select count(*) from information_schema.ins_stables where db_name='${dbName}'  `;
+  const dataSql = `select * from information_schema.ins_stables where db_name='${dbName}' `;
+  const normalTableCount=`select count(*) from information_schema.ins_tables where db_name='${dbName}';`
+  const normalTableSql=`select * from information_schema.ins_tables where db_name='${dbName}'`
+  return getPaginationData(countSql, dataSql, currentPage, pageSize, data => handleDataKey(data, "stable", dbName),'','union',normalTableCount,normalTableSql);
 }
 
 export function deleteStableReq(payload) {
