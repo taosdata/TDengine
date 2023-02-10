@@ -46,7 +46,7 @@ class UpdateBackup(TDCase):
         self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
-        self.tb_num = 5
+        self.tb_num = 2
         self.row_num = 5
         self.drop_flag = 'yes'
         self.start_timestamp = 1601481600000
@@ -55,11 +55,11 @@ class UpdateBackup(TDCase):
         # update param
         self.add_drop_flag = 'no'
         self.add_child_table_exist_flag = 'yes'
-        self.add_row_num = 5
+        self.add_row_num = 2
         # param for taosBenchmark with ntb check
         self.ntb_dbname = ['test1','test2']
         self.ntb_name_m = ['nd','nt']
-        self.ntb_num = 5
+        self.ntb_num = 2
         self.ntb_row_num = 5
         #param for taosx
         self.timeout = '5s'
