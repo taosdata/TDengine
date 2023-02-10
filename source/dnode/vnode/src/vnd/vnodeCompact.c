@@ -65,10 +65,10 @@ static int32_t vnodePrepareCompact(SVnode *pVnode, SCompactInfo *pInfo) {
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed at line %d since %s, commit ID:%d", TD_VID(pVnode), __func__, lino, tstrerror(code),
+    vError("vgId:%d %s failed at line %d since %s, commit ID:%" PRId64, TD_VID(pVnode), __func__, lino, tstrerror(code),
            pVnode->state.commitID);
   } else {
-    vDebug("vgId:%d %s done, commit ID:%d", TD_VID(pVnode), __func__, pVnode->state.commitID);
+    vDebug("vgId:%d %s done, commit ID:%" PRId64, TD_VID(pVnode), __func__, pVnode->state.commitID);
   }
   return code;
 }

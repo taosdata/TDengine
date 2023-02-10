@@ -333,7 +333,7 @@ _exit:
     vError("vgId:%d, %s failed at line %d since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, lino,
            tstrerror(code), pVnode->state.commitID);
   } else {
-    vDebug("vgId:%d, %s done, commit id:%d", TD_VID(pVnode), __func__, pInfo->info.state.commitID);
+    vDebug("vgId:%d, %s done, commit id:%" PRId64, TD_VID(pVnode), __func__, pInfo->info.state.commitID);
   }
 
   return code;
