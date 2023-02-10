@@ -1007,14 +1007,12 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   int32_t code = TSDB_CODE_SUCCESS;
   size_t  numOfTables = 0;
 
-  uint64_t tableUid = pScanNode->uid;
   pListInfo->suid = pScanNode->suid;
-
   SArray* pUidList = taosArrayInit(8, sizeof(uint64_t));
 
   if (pScanNode->tableType != TSDB_SUPER_TABLE) {
-    if (metaIsTableExist(metaHandle, tableUid)) {
-      taosArrayPush(pUidList, &tableUid);
+    if (metaIsTableExist(metaHandle, pScanNode->uid)) {
+      taosArrayPush(pUidList, &pScanNode->uid);
     }
 
     code = doFilterByTagCond(pListInfo, pUidList, pTagCond, metaHandle);
@@ -1042,8 +1040,10 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     } else {
       // failed to find the result in the cache, let try to calculate the results
       if (pTagIndexCond) {
-        SIndexMetaArg metaArg = {
-            .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
+        SIndexMetaArg metaArg = {.metaEx = metaHandle,
+                                 .idx = tsdbGetIdx(metaHandle),
+                                 .ivtIdx = tsdbGetIvtIdx(metaHandle),
+                                 .suid = pScanNode->uid};
 
         SIdxFltStatus status = SFLT_NOT_INDEX;
         code = doFilterTag(pTagIndexCond, &metaArg, pUidList, &status);
