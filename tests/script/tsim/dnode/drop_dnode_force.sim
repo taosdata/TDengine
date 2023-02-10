@@ -50,6 +50,21 @@ endi
 print =============== step2 create database
 sql create database d1 vgroups 1 replica 3
 sql use d1
+
+$wt = 0
+stepwt1:
+ 	$wt = $wt + 1
+ 	sleep 1000
+ 	if $wt == 200 then
+ 	  print ====> dnode not ready!
+ 		return -1
+ 	endi
+sql show transactions
+if $rows != 0 then
+  print wait 1 seconds to alter
+  goto stepwt1
+endi
+
 sql create table d1.st0 (ts timestamp, i int) tags (j int)
 sql create table d1.c0 using st0 tags(0)
 sql create table d1.c1 using st0 tags(1)
