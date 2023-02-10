@@ -367,11 +367,11 @@ typedef struct SSortExecInfo {
   int32_t readBytes;   // read io bytes
 } SSortExecInfo;
 
-typedef struct SFilterTableInfo {
+typedef struct STUidTagInfo {
   char*    name;
   uint64_t uid;
   void*    pTagVal;
-} SFilterTableInfo;
+} STUidTagInfo;
 
 // stream special block column
 

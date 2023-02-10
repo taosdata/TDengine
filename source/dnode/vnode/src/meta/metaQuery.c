@@ -1378,7 +1378,7 @@ int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList) {
   int32_t isLock = false;
   int32_t sz = uidList ? taosArrayGetSize(uidList) : 0;
   for (int i = 0; i < sz; i++) {
-    SFilterTableInfo *p = taosArrayGet(uidList, i);
+    STUidTagInfo *p = taosArrayGet(uidList, i);
 
     if (i % LIMIT == 0) {
       if (isLock) metaULock(pMeta);
@@ -1404,18 +1404,18 @@ int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList) {
   return 0;
 }
 
-int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags) {
+int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *pUidTagInfo) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pMeta, suid, 1);
 
   // If len > 0 means there already have uids, and we only want the
   // tags of the specified tables, of which uid in the uid list. Otherwise, all table tags are retrieved and kept
   // in the hash map, that may require a lot of memory
   SHashObj *pSepecifiedUidMap = NULL;
-  size_t    len = taosArrayGetSize(uidList);
-  if (len > 0) {
-    pSepecifiedUidMap = taosHashInit(len / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-    for (int i = 0; i < len; i++) {
-      int64_t *uid = taosArrayGet(uidList, i);
+  size_t    numOfElems = taosArrayGetSize(pUidTagInfo);
+  if (numOfElems > 0) {
+    pSepecifiedUidMap = taosHashInit(numOfElems / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    for (int i = 0; i < numOfElems; i++) {
+      int64_t *uid = taosArrayGet(pUidTagInfo, i);
       taosHashPut(pSepecifiedUidMap, uid, sizeof(int64_t), 0, 0);
     }
   }
@@ -1426,13 +1426,15 @@ int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj 
       break;
     }
 
-    if (len > 0 && taosHashGet(pSepecifiedUidMap, &uid, sizeof(int64_t)) == NULL) {
+    if (numOfElems > 0 && taosHashGet(pSepecifiedUidMap, &uid, sizeof(int64_t)) == NULL) {
       continue;
-    } else if (len == 0) {
-      taosArrayPush(uidList, &uid);
-    }
+    } else if (numOfElems == 0) {
+      STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
+      info.pTagVal = taosMemoryMalloc(pCur->vLen);
+      memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
 
-    taosHashPut(tags, &uid, sizeof(uint64_t), pCur->pVal, pCur->vLen);
+      taosArrayPush(pUidTagInfo, &info);
+    }
   }
 
   taosHashCleanup(pSepecifiedUidMap);
