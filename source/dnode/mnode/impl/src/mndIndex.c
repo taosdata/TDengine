@@ -277,7 +277,7 @@ static SSdbRow *mndIdxActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    taosMemoryFreeClear(pRow);
+    sdbFreeRaw(pRaw);
     return NULL;
   }
 
@@ -780,15 +780,16 @@ int32_t mndAddIndexImpl(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pSt
   if (mndSetUpdateIdxStbCommitLogs(pMnode, pTrans, pStb, &newStb, pIdx->colName, 1) != 0) goto _OVER;
   if (mndSetCreateIdxRedoActions(pMnode, pTrans, pDb, &newStb, pIdx) != 0) goto _OVER;
 
-  // if (mndSetAlterStbRedoLogs(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
-  // if (mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
-  // if (mndSetAlterStbRedoActions2(pMnode, pTrans, pDb, pStb, sql, len) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
-  return code;
+  code = 0;
 
 _OVER:
   // mndDestoryIdxObj(pIdx);
+  if (newStb.pTags != NULL) {
+    taosMemoryFree(newStb.pTags);
+    taosMemoryFree(newStb.pColumns);
+  }
   mndTransDrop(pTrans);
   return code;
 }
@@ -872,6 +873,11 @@ static int32_t mndDropIdx(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SIdxObj *p
   code = 0;
 
 _OVER:
+  if (newObj.pTags != NULL) {
+    taosMemoryFree(newObj.pTags);
+    taosMemoryFree(newObj.pColumns);
+  }
+
   mndTransDrop(pTrans);
   mndReleaseStb(pMnode, pStb);
   return code;

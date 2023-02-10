@@ -7,7 +7,7 @@ print ======== step0
 $dbPrefix = ta_3_db
 $tbPrefix = ta_3_tb
 $mtPrefix = ta_3_mt
-$tbNum = 100 
+$tbNum = 10 
 $rowNum = 20
 $totalNum = 200
 
