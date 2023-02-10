@@ -314,7 +314,7 @@ static bool tsdbCompactTableIsDropped(STsdbCompactor *pCompactor) {
   SMetaInfo info;
 
   if (pCompactor->pIter->rowInfo.uid == pCompactor->tbid.uid) return false;
-  if (metaGetInfo(pCompactor->pTsdb->pVnode->pMeta, pCompactor->tbid.uid, &info, NULL)) {
+  if (metaGetInfo(pCompactor->pTsdb->pVnode->pMeta, pCompactor->pIter->rowInfo.uid, &info, NULL)) {
     return true;
   }
   return false;
