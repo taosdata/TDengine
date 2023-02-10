@@ -1641,6 +1641,8 @@ static bool tryCopyDistinctRowFromFileBlock(STsdbReader* pReader, SBlockData* pB
 
 static bool nextRowFromLastBlocks(SLastBlockReader* pLastBlockReader, STableBlockScanInfo* pScanInfo,
                                   SVersionRange* pVerRange) {
+  int32_t step = ASCENDING_TRAVERSE(pLastBlockReader->order)? 1:-1;
+
   while (1) {
     bool hasVal = tMergeTreeNext(&pLastBlockReader->mergeTree);
     if (!hasVal) {
@@ -1652,6 +1654,12 @@ static bool nextRowFromLastBlocks(SLastBlockReader* pLastBlockReader, STableBloc
     if (hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->lastBlockDelIndex, &k, pLastBlockReader->order, pVerRange)) {
       pScanInfo->lastKey = k.ts;
     } else {
+      // the qualifed ts may equal to k.ts, only a greater version one.
+      // here we need to fallback one step.
+      if (pScanInfo->lastKey == k.ts) {
+        pScanInfo->lastKey -= step;
+      }
+
       return true;
     }
   }
