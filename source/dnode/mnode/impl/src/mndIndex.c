@@ -62,6 +62,7 @@ int32_t mndInitIdx(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_INDEX, mndProcessCreateIdxReq);
   // mndSetMsgHandle(pMnode, TDMT_MND_DROP_INDEX, mndProcessDropIdxReq);
+
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_INDEX_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_INDEX_RSP, mndTransProcessRsp);
 
@@ -421,7 +422,7 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
     pIdx = idx.pIdx;
   }
   if (pIdx != NULL) {
-    terrno = TSDB_CODE_MND_SMA_ALREADY_EXIST;
+    terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
     goto _OVER;
   }
 
@@ -800,7 +801,7 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *re
   memcpy(idxObj.colName, req->colName, TSDB_COL_NAME_LEN);
 
   idxObj.createdTime = taosGetTimestampMs();
-  idxObj.uid = mndGenerateUid(req->idxName, TSDB_TABLE_FNAME_LEN);
+  idxObj.uid = mndGenerateUid(req->idxName, strlen(req->idxName));
   idxObj.stbUid = pStb->uid;
   idxObj.dbUid = pStb->dbUid;
 
@@ -899,7 +900,7 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
       code = 0;
       goto _OVER;
     } else {
-      terrno = TSDB_CODE_MND_SMA_NOT_EXIST;
+      terrno = TSDB_CODE_MND_TAG_INDEX_NOT_EXIST;
       goto _OVER;
     }
   }

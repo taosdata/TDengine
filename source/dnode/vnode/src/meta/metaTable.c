@@ -478,7 +478,13 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
     void *pKey = NULL, *pVal = NULL;
     int   nKey = 0, nVal = 0;
     rc = tdbTbcNext(pCtbIdxc, &pKey, &nKey, &pVal, &nVal);
-    if (rc < 0) break;
+    if (rc < 0) {
+      tdbFree(pKey);
+      tdbFree(pVal);
+      tdbTbcClose(pCtbIdxc);
+      pCtbIdxc = NULL;
+      break;
+    }
     if (((SCtbIdxKey *)pKey)->suid != suid) {
       tdbFree(pKey);
       tdbFree(pVal);
@@ -500,10 +506,12 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
       pTagData = &(tagVal.i64);
       nTagData = tDataTypes[pCol->type].bytes;
     }
-
-    if (metaCreateTagIdxKey(suid, pCol->colId, pTagData, nTagData, pCol->type, table->uid, &pTagIdxKey, &nTagIdxKey) <
-        0) {
+    rc = metaCreateTagIdxKey(suid, pCol->colId, pTagData, nTagData, pCol->type, table->uid, &pTagIdxKey, &nTagIdxKey);
+    tdbFree(pKey);
+    tdbFree(pVal);
+    if (rc < 0) {
       metaDestroyTagIdxKey(pTagIdxKey);
+      tdbTbcClose(pCtbIdxc);
       goto _err;
     }
 
@@ -529,8 +537,15 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   tDecoderClear(&dc);
+  tdbFree(pData);
+
+  tdbTbcClose(pCtbIdxc);
   return TSDB_CODE_SUCCESS;
 _err:
+  if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
+  tDecoderClear(&dc);
+  tdbFree(pData);
+
   return TSDB_CODE_VND_COL_ALREADY_EXISTS;
 }
 int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) {
@@ -557,7 +572,6 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
   tbDbKey.uid = suid;
   tbDbKey.version = ((SUidIdxVal *)pData)[0].version;
   tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pData, &nData);
-
   tDecoderInit(&dc, pData, nData);
   ret = metaDecodeEntry(&dc, &oStbEntry);
   if (ret < 0) {
@@ -594,7 +608,13 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
     void *pKey = NULL, *pVal = NULL;
     int   nKey = 0, nVal = 0;
     rc = tdbTbcNext(pCtbIdxc, &pKey, &nKey, &pVal, &nVal);
-    if (rc < 0) break;
+    if (rc < 0) {
+      tdbFree(pKey);
+      tdbFree(pVal);
+      tdbTbcClose(pCtbIdxc);
+      pCtbIdxc = NULL;
+      break;
+    }
     if (((SCtbIdxKey *)pKey)->suid != suid) {
       tdbFree(pKey);
       tdbFree(pVal);
@@ -616,13 +636,18 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
       pTagData = &(tagVal.i64);
       nTagData = tDataTypes[pCol->type].bytes;
     }
-
-    if (metaCreateTagIdxKey(suid, pCol->colId, pTagData, nTagData, pCol->type, table->uid, &pTagIdxKey, &nTagIdxKey) <
-        0) {
+    rc = metaCreateTagIdxKey(suid, pCol->colId, pTagData, nTagData, pCol->type, table->uid, &pTagIdxKey, &nTagIdxKey);
+    tdbFree(pKey);
+    tdbFree(pVal);
+    if (rc < 0) {
       metaDestroyTagIdxKey(pTagIdxKey);
+      tdbTbcClose(pCtbIdxc);
       goto _err;
     }
+
+    metaWLock(pMeta);
     tdbTbDelete(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, pMeta->txn);
+    metaULock(pMeta);
     metaDestroyTagIdxKey(pTagIdxKey);
   }
 
@@ -641,9 +666,6 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
   nStbEntry.stbEntry.schemaTag = *tag;
   nStbEntry.stbEntry.rsmaParam = oStbEntry.stbEntry.rsmaParam;
 
-  taosMemoryFree(row);
-  taosMemoryFree(tag);
-
   metaWLock(pMeta);
   // update table.db
   metaSaveToTbDb(pMeta, &nStbEntry);
@@ -651,12 +673,20 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
   metaUpdateUidIdx(pMeta, &nStbEntry);
   metaULock(pMeta);
 
+  tDeleteSSchemaWrapper(tag);
+  tDeleteSSchemaWrapper(row);
+
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   tDecoderClear(&dc);
-  return TSDB_CODE_SUCCESS;
-  // impl later
+  tdbFree(pData);
+
+  tdbTbcClose(pCtbIdxc);
   return TSDB_CODE_SUCCESS;
 _err:
+  if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
+  tDecoderClear(&dc);
+  tdbFree(pData);
+
   return -1;
 }
 
@@ -1746,10 +1776,12 @@ static int metaDropTagIndex(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterT
   }
   tdbTbcClose(pTagIdxc);
 
+  metaWLock(pMeta);
   for (int i = 0; i < taosArrayGetSize(tagIdxList); i++) {
     SMetaPair *pair = taosArrayGet(tagIdxList, i);
     tdbTbDelete(pMeta->pTagIdx, pair->key, pair->nkey, pMeta->txn);
   }
+  metaULock(pMeta);
 
   taosArrayDestroy(tagIdxList);
 
