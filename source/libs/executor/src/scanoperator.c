@@ -781,6 +781,10 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
+
+      if (pInfo->pResBlock->info.capacity > pOperator->resultInfo.capacity) {
+        pOperator->resultInfo.capacity = pInfo->pResBlock->info.capacity;
+      }
     }
 
     SSDataBlock* result = doGroupedTableScan(pOperator);
@@ -884,7 +888,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
-  blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
+//  blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
 
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
