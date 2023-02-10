@@ -124,7 +124,7 @@ static char  tsProcIOFile[25] = {0};
 static void taosGetProcIOnfos() {
   tsPageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
   tsOpenMax = sysconf(_SC_OPEN_MAX);
-  tsStreamMax = sysconf(_SC_STREAM_MAX);
+  tsStreamMax = TMAX(sysconf(_SC_STREAM_MAX), 0);
   tsProcId = (pid_t)syscall(SYS_gettid);
 
   snprintf(tsProcMemFile, sizeof(tsProcMemFile), "/proc/%d/status", tsProcId);

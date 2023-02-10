@@ -2,7 +2,19 @@
 
 set +e
 #set -x
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    TD_OS="Darwin"
+else
+    OS=$(cat /etc/*-release | grep "^NAME=" | cut -d= -f2)
+    len=$(echo ${#OS})
+    len=$((len-2))
+    TD_OS=$(echo -ne ${OS:1:${len}} | cut -d" " -f1)
+fi
 
+if [[ "$TD_OS" == "Alpine" ]]; then
+    echo -e "os is Alpine,skip check Asan"
+    exit 0
+fi
 unset LD_PRELOAD
 SCRIPT_DIR=`dirname $0`
 cd $SCRIPT_DIR/../

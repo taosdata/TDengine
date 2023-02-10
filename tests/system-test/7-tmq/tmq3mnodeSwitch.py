@@ -236,8 +236,8 @@ class TDTestCase:
         tdDnodes[0].starttaosd()
         self.check3mnode()
 
-        tdLog.info("3. stop dnode 1")
-        tdDnodes[1].stoptaosd()
+        tdLog.info("3. stop dnode 2")
+        tdDnodes[2].stoptaosd()
         time.sleep(10)
         self.check3mnode1off()
 
