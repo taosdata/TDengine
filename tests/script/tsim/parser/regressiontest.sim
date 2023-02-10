@@ -186,4 +186,10 @@ if $data11 != 4 then
   return -1
 endi
 
+print ===============================================> TS-2613
+sql select * from information_schema.ins_databases limit 1 offset 1;
+if $rows != 1 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
