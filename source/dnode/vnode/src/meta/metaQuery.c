@@ -1415,25 +1415,40 @@ int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *pUidTagInfo) {
   if (numOfElems > 0) {
     pSepecifiedUidMap = taosHashInit(numOfElems / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     for (int i = 0; i < numOfElems; i++) {
-      int64_t *uid = taosArrayGet(pUidTagInfo, i);
-      taosHashPut(pSepecifiedUidMap, uid, sizeof(int64_t), 0, 0);
+      STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, i);
+      taosHashPut(pSepecifiedUidMap, &pTagInfo->uid, sizeof(uint64_t), &i, sizeof(int32_t));
     }
   }
 
-  while (1) {
-    tb_uid_t uid = metaCtbCursorNext(pCur);
-    if (uid == 0) {
-      break;
-    }
+  if (numOfElems == 0) {  // all data needs to be added into the pUidTagInfo list
+    while (1) {
+      tb_uid_t uid = metaCtbCursorNext(pCur);
+      if (uid == 0) {
+        break;
+      }
 
-    if (numOfElems > 0 && taosHashGet(pSepecifiedUidMap, &uid, sizeof(int64_t)) == NULL) {
-      continue;
-    } else if (numOfElems == 0) {
       STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
       info.pTagVal = taosMemoryMalloc(pCur->vLen);
       memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
-
       taosArrayPush(pUidTagInfo, &info);
+    }
+  } else {  // only the specified tables need to be added
+    while (1) {
+      tb_uid_t uid = metaCtbCursorNext(pCur);
+      if (uid == 0) {
+        break;
+      }
+
+      int32_t *index = taosHashGet(pSepecifiedUidMap, &uid, sizeof(uint64_t));
+      if (index == NULL) {
+        continue;
+      }
+
+      STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, *index);
+      if (pTagInfo->pTagVal == NULL) {
+        pTagInfo->pTagVal = taosMemoryMalloc(pCur->vLen);
+        memcpy(pTagInfo->pTagVal, pCur->pVal, pCur->vLen);
+      }
     }
   }
 
