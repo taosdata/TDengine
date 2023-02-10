@@ -3837,7 +3837,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
 
   int32_t capacity = 0;
   if (pResBlock == NULL) {
-    capacity = 4096;
+    capacity = pVnode->config.tsdbCfg.maxRows;
   } else {
     capacity = pResBlock->info.capacity;
   }
