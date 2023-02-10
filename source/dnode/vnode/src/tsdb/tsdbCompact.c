@@ -88,9 +88,8 @@ static int32_t tsdbAbortCompact(STsdbCompactor *pCompactor) {
   int32_t lino = 0;
 
   STsdb *pTsdb = pCompactor->pTsdb;
-
-  // TODO
-  ASSERT(0);
+  code = tsdbFSRollback(pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -571,12 +570,12 @@ static void tsdbEndCompact(STsdbCompactor *pCompactor) {
   tsdbInfo("vgId:%d %s done, commit ID:%" PRId64, TD_VID(pCompactor->pTsdb->pVnode), __func__, pCompactor->commitID);
 }
 
-static int32_t tsdbBeginCompact(STsdb *pTsdb, STsdbCompactor *pCompactor) {
+static int32_t tsdbBeginCompact(STsdb *pTsdb, SCompactInfo *pInfo, STsdbCompactor *pCompactor) {
   int32_t code = 0;
   int32_t lino = 0;
 
   pCompactor->pTsdb = pTsdb;
-  pCompactor->commitID = 0;  // TODO
+  pCompactor->commitID = pInfo->commitID;
   pCompactor->cmprAlg = pTsdb->pVnode->config.tsdbCfg.compression;
   pCompactor->maxRows = pTsdb->pVnode->config.tsdbCfg.maxRows;
   pCompactor->minRows = pTsdb->pVnode->config.tsdbCfg.minRows;
@@ -637,12 +636,12 @@ _exit:
   return code;
 }
 
-int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
+int32_t tsdbCompact(STsdb *pTsdb, SCompactInfo *pInfo) {
   int32_t code = 0;
 
   STsdbCompactor *pCompactor = &(STsdbCompactor){0};
 
-  if ((code = tsdbBeginCompact(pTsdb, pCompactor))) return code;
+  if ((code = tsdbBeginCompact(pTsdb, pInfo, pCompactor))) return code;
 
   for (;;) {
     SDFileSet *pSet = (SDFileSet *)taosArraySearch(pCompactor->fs.aDFileSet, &(SDFileSet){.fid = pCompactor->fid},
