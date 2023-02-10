@@ -506,7 +506,10 @@ int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
       metaDestroyTagIdxKey(pTagIdxKey);
       goto _err;
     }
+
+    metaWLock(pMeta);
     tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, pMeta->txn);
+    metaULock(pMeta);
     metaDestroyTagIdxKey(pTagIdxKey);
   }
 
