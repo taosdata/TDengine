@@ -124,7 +124,7 @@ int32_t tsCompressMsgSize = -1;
 int32_t tsCompressColData = -1;
 
 // count/hyperloglog function always return values in case of all NULL data or Empty data set.
-int32_t tsCountAlwaysReturnValue = 1;
+int32_t tsCountAlwaysReturnValue = 0;
 
 // 10 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 10;
