@@ -112,7 +112,7 @@ void createNewTable(TAOS* pConn, int32_t index) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 20; i += 20) {
+  for(int32_t i = 0; i < 2000; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
@@ -692,6 +692,7 @@ TEST(testCase, insert_test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+#endif
 
 TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -725,7 +726,7 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 200000; ++i) {
+  for (int32_t i = 0; i < 2; ++i) {
     printf("create table :%d\n", i);
     createNewTable(pConn, i);
   }
@@ -751,6 +752,7 @@ TEST(testCase, projection_query_tables) {
   taos_close(pConn);
 }
 
+#if 0
 TEST(testCase, tsbs_perf_test) {
   TdThread qid[20] = {0};
 
@@ -759,8 +761,6 @@ TEST(testCase, tsbs_perf_test) {
   }
   getchar();
 }
-
-#endif
 
 TEST(testCase, projection_query_stables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -790,7 +790,6 @@ TEST(testCase, projection_query_stables) {
   taos_close(pConn);
 }
 
-#if 0
 TEST(testCase, agg_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -831,7 +830,7 @@ TEST(testCase, async_api_test) {
   ASSERT_NE(pConn, nullptr);
 
   taos_query(pConn, "use abc1");
-#if 0
+
   TAOS_RES* pRes = taos_query(pConn, "insert into tu(ts) values('2022-02-27 12:12:61')");
   if (taos_errno(pRes) != 0) {
     printf("failed, reason:%s\n", taos_errstr(pRes));
@@ -854,7 +853,6 @@ TEST(testCase, async_api_test) {
     printf("%s\n", str);
     memset(str, 0, sizeof(str));
   }
-#endif
 
   taos_query_a(pConn, "select count(*) from tu", queryCallback, pConn);
   getchar();

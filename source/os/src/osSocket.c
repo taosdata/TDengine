@@ -55,7 +55,7 @@ typedef struct TdSocket {
 #endif
   int      refId;
   SocketFd fd;
-} * TdSocketPtr, TdSocket;
+} *TdSocketPtr, TdSocket;
 
 typedef struct TdSocketServer {
 #if SOCKET_WITH_LOCK
@@ -63,7 +63,7 @@ typedef struct TdSocketServer {
 #endif
   int      refId;
   SocketFd fd;
-} * TdSocketServerPtr, TdSocketServer;
+} *TdSocketServerPtr, TdSocketServer;
 
 typedef struct TdEpoll {
 #if SOCKET_WITH_LOCK
@@ -71,7 +71,7 @@ typedef struct TdEpoll {
 #endif
   int     refId;
   EpollFd fd;
-} * TdEpollPtr, TdEpoll;
+} *TdEpollPtr, TdEpoll;
 
 #if 0
 int32_t taosSendto(TdSocketPtr pSocket, void *buf, int len, unsigned int flags, const struct sockaddr *dest_addr,
@@ -944,7 +944,7 @@ uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
   iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
   if (iResult != 0) {
     // printf("WSAStartup failed: %d\n", iResult);
-    return 1;
+    return 0xFFFFFFFF;
   }
 #endif
   struct addrinfo hints = {0};
@@ -1005,7 +1005,7 @@ int32_t taosGetFqdn(char *fqdn) {
   // immediately
   // hints.ai_family = AF_INET;
   strcpy(fqdn, hostname);
-  strcpy(fqdn+strlen(hostname), ".local");
+  strcpy(fqdn + strlen(hostname), ".local");
 #else   // __APPLE__
   struct addrinfo  hints = {0};
   struct addrinfo *result = NULL;
@@ -1060,7 +1060,7 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
 #if defined(WINDOWS)
   SOCKET fd;
 #else
-  int      fd;
+  int fd;
 #endif
   if ((fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
     return -1;
@@ -1071,11 +1071,12 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
     return -1;
   }
 #elif defined(_TD_DARWIN_64)
-  uint32_t conn_timeout_ms = timeout * 1000;
-  if (0 != setsockopt(fd, IPPROTO_TCP, TCP_CONNECTIONTIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
-    taosCloseSocketNoCheck1(fd);
-    return -1;
-  }
+  // invalid config
+  // uint32_t conn_timeout_ms = timeout * 1000;
+  // if (0 != setsockopt(fd, IPPROTO_TCP, TCP_CONNECTIONTIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
+  //  taosCloseSocketNoCheck1(fd);
+  //  return -1;
+  //}
 #else  // Linux like systems
   uint32_t conn_timeout_ms = timeout * 1000;
   if (0 != setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {

@@ -1105,6 +1105,17 @@ SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, int32_t 
   return (SNode*)pStmt;
 }
 
+SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkDbName(pCxt, pDbName, false)) {
+    return NULL;
+  }
+  SCompactDatabaseStmt* pStmt = (SCompactDatabaseStmt*)nodesMakeNode(QUERY_NODE_COMPACT_DATABASE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  return (SNode*)pStmt;
+}
+
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   STableOptions* pOptions = (STableOptions*)nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
@@ -1764,13 +1775,6 @@ SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable) {
 SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   SNode* pStmt = nodesMakeNode(QUERY_NODE_RESET_QUERY_CACHE_STMT);
-  CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
-}
-
-SNode* createCompactStmt(SAstCreateContext* pCxt, SNodeList* pVgroups) {
-  CHECK_PARSER_STATUS(pCxt);
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_COMPACT_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   return pStmt;
 }

@@ -33,9 +33,12 @@ typedef int32_t (*tRBTreeCmprFn)(const SRBTreeNode *, const SRBTreeNode *);
 #define tRBTreeMax(T) ((T)->max == ((T)->NIL) ? NULL : (T)->max)
 
 void         tRBTreeCreate(SRBTree *pTree, tRBTreeCmprFn cmprFn);
+void         tRBTreeClear(SRBTree *pTree);
 SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *z);
 void         tRBTreeDrop(SRBTree *pTree, SRBTreeNode *z);
 SRBTreeNode *tRBTreeDropByKey(SRBTree *pTree, void *pKey);
+SRBTreeNode *tRBTreeDropMin(SRBTree *pTree);
+SRBTreeNode *tRBTreeDropMax(SRBTree *pTree);
 SRBTreeNode *tRBTreeGet(SRBTree *pTree, const SRBTreeNode *pKeyNode);
 
 // SRBTreeIter =============================================
