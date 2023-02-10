@@ -895,12 +895,14 @@ static void doSetQualifiedUid(SArray* pUidList, const SArray* pUidTagList, bool*
 
 static void copyExistedUids(SArray* pUidTagList, const SArray* pUidList) {
   int32_t numOfExisted = taosArrayGetSize(pUidList);
-  if (numOfExisted) {
-    for(int32_t i = 0; i < numOfExisted; ++i) {
-      uint64_t* uid = taosArrayGet(pUidList, i);
-      STUidTagInfo info = {.uid = *uid};
-      taosArrayPush(pUidTagList, &info);
-    }
+  if (numOfExisted == 0) {
+    return;
+  }
+
+  for(int32_t i = 0; i < numOfExisted; ++i) {
+    uint64_t* uid = taosArrayGet(pUidList, i);
+    STUidTagInfo info = {.uid = *uid};
+    taosArrayPush(pUidTagList, &info);
   }
 }
 
@@ -1065,7 +1067,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       size_t size = numOfTables * sizeof(uint64_t) + sizeof(int32_t);
       char*  pPayload = taosMemoryMalloc(size);
 
-      // todo convert to uid list
       if (numOfTables > 0) {
         *(int32_t*)pPayload = numOfTables;
       memcpy(pPayload + sizeof(int32_t), taosArrayGet(pRes, 0), numOfTables * sizeof(uint64_t));
