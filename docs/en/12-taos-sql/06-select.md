@@ -12,6 +12,7 @@ SELECT [DISTINCT] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
+    [interp_clause]
     [window_clause]
     [group_by_clause]
     [order_by_clasue]
@@ -52,8 +53,11 @@ window_clause: {
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
 
+interp_clause:
+    RANGE(ts_val, ts_val), EVERY(every_val), FILL(fill_mod_and_val)
+
 partition_by_clause:
-    PARTITION BY expr [, expr] ... 
+    PARTITION BY expr [, expr] ...
 
 group_by_clause:
     GROUP BY expr [, expr] ... HAVING condition

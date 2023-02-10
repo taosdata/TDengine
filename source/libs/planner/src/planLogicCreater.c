@@ -343,6 +343,13 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;
+  if (pCxt->pPlanCxt->streamQuery) {
+    pScan->triggerType = pCxt->pPlanCxt->triggerType;
+    pScan->watermark = pCxt->pPlanCxt->watermark;
+    pScan->deleteMark = pCxt->pPlanCxt->deleteMark;
+    pScan->igExpired = pCxt->pPlanCxt->igExpired;
+    pScan->igCheckUpdate = pCxt->pPlanCxt->igCheckUpdate;
+  }
 
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {
@@ -705,6 +712,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     pWindow->watermark = pCxt->pPlanCxt->watermark;
     pWindow->deleteMark = pCxt->pPlanCxt->deleteMark;
     pWindow->igExpired = pCxt->pPlanCxt->igExpired;
+    pWindow->igCheckUpdate = pCxt->pPlanCxt->igCheckUpdate;
   }
   pWindow->inputTsOrder = ORDER_ASC;
   pWindow->outputTsOrder = ORDER_ASC;

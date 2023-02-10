@@ -582,6 +582,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->triggerType = pScanLogicNode->triggerType;
   pTableScan->watermark = pScanLogicNode->watermark;
   pTableScan->igExpired = pScanLogicNode->igExpired;
+  pTableScan->igCheckUpdate = pScanLogicNode->igCheckUpdate;
   pTableScan->assignBlockUid = pCxt->pPlanCxt->rSmaQuery ? true : false;
 
   int32_t code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);

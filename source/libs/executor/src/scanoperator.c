@@ -446,6 +446,16 @@ static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
 // const void *key, size_t keyLen, void *value
 static void freeCachedMetaItem(const void* key, size_t keyLen, void* value) { freeTableCachedVal(value); }
 
+
+static void doSetNullValue(SSDataBlock* pBlock, const SExprInfo* pExpr, int32_t numOfExpr) {
+  for (int32_t j = 0; j < numOfExpr; ++j) {
+    int32_t dstSlotId = pExpr[j].base.resSchema.slotId;
+
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
+    colDataAppendNNULL(pColInfoData, 0, pBlock->info.rows);
+  }
+}
+
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, const char* idStr, STableMetaCacheInfo* pCache) {
   // currently only the tbname pseudo column
@@ -465,14 +475,22 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   SMetaReader mr = {0};
   LRUHandle*  h = NULL;
 
+  // todo refactor: extract method
+  // the handling of the null data should be packed in the extracted method
+
   // 1. check if it is existed in meta cache
   if (pCache == NULL) {
     metaReaderInit(&mr, pHandle->meta, 0);
     code = metaGetTableEntryByUidCache(&mr, pBlock->info.id.uid);
     if (code != TSDB_CODE_SUCCESS) {
+
+      // when encounter the TSDB_CODE_PAR_TABLE_NOT_EXIST error, we proceed.
       if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
         qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s",
               pBlock->info.id.uid, tstrerror(terrno), idStr);
+
+        // append null value before return to caller, since the caller will ignore this error code and proceed
+        doSetNullValue(pBlock, pExpr, numOfExpr);
       } else {
         qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(terrno),
                idStr);
@@ -498,6 +516,8 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
         if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
           qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s",
                 pBlock->info.id.uid, tstrerror(terrno), idStr);
+          // append null value before return to caller, since the caller will ignore this error code and proceed
+          doSetNullValue(pBlock, pExpr, numOfExpr);
         } else {
           qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(terrno),
                  idStr);
@@ -761,6 +781,10 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
+
+      if (pInfo->pResBlock->info.capacity > pOperator->resultInfo.capacity) {
+        pOperator->resultInfo.capacity = pInfo->pResBlock->info.capacity;
+      }
     }
 
     SSDataBlock* result = doGroupedTableScan(pOperator);
@@ -864,7 +888,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
-  blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
+//  blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
 
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1415,7 +1439,12 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
     dumyInfo.cur.pageId = -1;
     bool        isClosed = false;
     STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
-    if (tableInserted && isOverdue(tsCol[rowId], &pInfo->twAggSup)) {
+    bool overDue = isOverdue(tsCol[rowId], &pInfo->twAggSup);
+    if (pInfo->igExpired && overDue) {
+      continue;
+    }
+
+    if (tableInserted && overDue) {
       win = getActiveTimeWindow(NULL, &dumyInfo, tsCol[rowId], &pInfo->interval, TSDB_ORDER_ASC);
       isClosed = isCloseWindow(&win, &pInfo->twAggSup);
     }
@@ -1681,41 +1710,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   SStreamScanInfo* pInfo = pOperator->info;
 
   qDebug("stream scan called");
-#if 0
-  SStreamState* pState = pTaskInfo->streamInfo.pState;
-  if (pState) {
-    printf(">>>>>>>> stream write backend\n");
-    SWinKey key = {
-        .ts = 1,
-        .groupId = 2,
-    };
-    char tmp[100] = "abcdefg1";
-    if (streamStatePut(pState, &key, &tmp, strlen(tmp) + 1) < 0) {
-      ASSERT(0);
-    }
-
-    key.ts = 2;
-    char tmp2[100] = "abcdefg2";
-    if (streamStatePut(pState, &key, &tmp2, strlen(tmp2) + 1) < 0) {
-      ASSERT(0);
-    }
-
-    key.groupId = 5;
-    key.ts = 1;
-    char tmp3[100] = "abcdefg3";
-    if (streamStatePut(pState, &key, &tmp3, strlen(tmp3) + 1) < 0) {
-      ASSERT(0);
-    }
-
-    char*   val2 = NULL;
-    int32_t sz;
-    if (streamStateGet(pState, &key, (void**)&val2, &sz) < 0) {
-      ASSERT(0);
-    }
-    printf("stream read %s %d\n", val2, sz);
-    streamFreeVal(val2);
-  }
-#endif
 
   if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE1 ||
       pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE2) {
@@ -2348,6 +2342,9 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->pUpdateDataRes = createSpecialDataBlock(STREAM_CLEAR);
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
   pInfo->partitionSup.needCalc = false;
+  pInfo->igCheckUpdate = pTableScanNode->igCheckUpdate;
+  pInfo->igExpired = pTableScanNode->igExpired;
+  pInfo->twAggSup.maxTs = INT64_MIN;
 
   setOperatorInfo(pOperator, "StreamScanOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);

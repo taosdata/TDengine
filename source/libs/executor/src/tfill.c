@@ -186,7 +186,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
         }
       }
     }
-  } else if (pFillInfo->type == TSDB_FILL_NULL) {  // fill with NULL
+  } else if (pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {  // fill with NULL
     setNullRow(pBlock, pFillInfo, index);
   } else {  // fill with user specified value for each column
     for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
@@ -349,7 +349,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
               bool isNull = colDataIsNull_s(pSrc, pFillInfo->index);
               colDataAppend(pDst, index, src, isNull);
               saveColData(pFillInfo->prev.pRowVal, i, src, isNull);  // todo:
-            } else if (pFillInfo->type == TSDB_FILL_NULL) {
+            } else if (pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {
               colDataAppendNULL(pDst, index);
             } else if (pFillInfo->type == TSDB_FILL_NEXT) {
               SArray*     p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->next.pRowVal : pFillInfo->prev.pRowVal;
@@ -546,15 +546,14 @@ bool taosFillHasMoreResults(SFillInfo* pFillInfo) {
 }
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t maxNumOfRows) {
-  SColumnInfoData* pCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->srcTsSlotId);
-
-  int64_t* tsList = (int64_t*)pCol->pData;
   int32_t  numOfRows = taosNumOfRemainRows(pFillInfo);
 
   TSKEY ekey1 = ekey;
 
   int64_t numOfRes = -1;
   if (numOfRows > 0) {  // still fill gap within current data block, not generating data after the result set.
+    SColumnInfoData* pCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->srcTsSlotId);    
+    int64_t* tsList = (int64_t*)pCol->pData;
     TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];
     numOfRes = taosTimeCountInterval(lastKey, pFillInfo->currentKey, pFillInfo->interval.sliding,
                                      pFillInfo->interval.slidingUnit, pFillInfo->interval.precision);

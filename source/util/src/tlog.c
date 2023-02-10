@@ -115,7 +115,6 @@ static int32_t   taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t m
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(TdFilePtr pFile);
 static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum);
-static int32_t   taosCompressFile(char *srcFileName, char *destFileName);
 
 static FORCE_INLINE void taosUpdateDaylight() {
   struct tm      Tm, *ptm;
@@ -746,50 +745,6 @@ static void *taosAsyncOutputLog(void *param) {
   }
 
   return NULL;
-}
-
-int32_t taosCompressFile(char *srcFileName, char *destFileName) {
-  int32_t compressSize = 163840;
-  int32_t ret = 0;
-  int32_t len = 0;
-  char   *data = taosMemoryMalloc(compressSize);
-  //  gzFile  dstFp = NULL;
-
-  // srcFp = fopen(srcFileName, "r");
-  TdFilePtr pSrcFile = taosOpenFile(srcFileName, TD_FILE_READ);
-  if (pSrcFile == NULL) {
-    ret = -1;
-    goto cmp_end;
-  }
-
-  TdFilePtr pFile = taosOpenFile(destFileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pFile == NULL) {
-    ret = -2;
-    goto cmp_end;
-  }
-
-  //  dstFp = gzdopen(fd, "wb6f");
-  //  if (dstFp == NULL) {
-  //    ret = -3;
-  //    close(fd);
-  //    goto cmp_end;
-  //  }
-  //
-  //  while (!feof(srcFp)) {
-  //    len = (int32_t)fread(data, 1, compressSize, srcFp);
-  //    (void)gzwrite(dstFp, data, len);
-  //  }
-
-cmp_end:
-  if (pSrcFile) {
-    taosCloseFile(&pSrcFile);
-  }
-  //  if (dstFp) {
-  //    gzclose(dstFp);
-  //  }
-  taosMemoryFree(data);
-
-  return ret;
 }
 
 bool taosAssertDebug(bool condition, const char *file, int32_t line, const char *format, ...) {
