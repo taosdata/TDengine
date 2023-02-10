@@ -474,6 +474,8 @@ typedef struct SStreamScanInfo {
   int32_t blockRecoverContiCnt;
   int32_t blockRecoverTotCnt;
 
+  int8_t igCheckUpdate;
+  int8_t igExpired;
 } SStreamScanInfo;
 
 typedef struct {

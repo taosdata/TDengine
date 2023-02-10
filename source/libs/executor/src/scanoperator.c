@@ -1435,7 +1435,12 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
     dumyInfo.cur.pageId = -1;
     bool        isClosed = false;
     STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
-    if (tableInserted && isOverdue(tsCol[rowId], &pInfo->twAggSup)) {
+    bool overDue = isOverdue(tsCol[rowId], &pInfo->twAggSup);
+    if (pInfo->igExpired && overDue) {
+      continue;
+    }
+
+    if (tableInserted && overDue) {
       win = getActiveTimeWindow(NULL, &dumyInfo, tsCol[rowId], &pInfo->interval, TSDB_ORDER_ASC);
       isClosed = isCloseWindow(&win, &pInfo->twAggSup);
     }
@@ -1701,41 +1706,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   SStreamScanInfo* pInfo = pOperator->info;
 
   qDebug("stream scan called");
-#if 0
-  SStreamState* pState = pTaskInfo->streamInfo.pState;
-  if (pState) {
-    printf(">>>>>>>> stream write backend\n");
-    SWinKey key = {
-        .ts = 1,
-        .groupId = 2,
-    };
-    char tmp[100] = "abcdefg1";
-    if (streamStatePut(pState, &key, &tmp, strlen(tmp) + 1) < 0) {
-      ASSERT(0);
-    }
-
-    key.ts = 2;
-    char tmp2[100] = "abcdefg2";
-    if (streamStatePut(pState, &key, &tmp2, strlen(tmp2) + 1) < 0) {
-      ASSERT(0);
-    }
-
-    key.groupId = 5;
-    key.ts = 1;
-    char tmp3[100] = "abcdefg3";
-    if (streamStatePut(pState, &key, &tmp3, strlen(tmp3) + 1) < 0) {
-      ASSERT(0);
-    }
-
-    char*   val2 = NULL;
-    int32_t sz;
-    if (streamStateGet(pState, &key, (void**)&val2, &sz) < 0) {
-      ASSERT(0);
-    }
-    printf("stream read %s %d\n", val2, sz);
-    streamFreeVal(val2);
-  }
-#endif
 
   if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE1 ||
       pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE2) {
@@ -2368,6 +2338,9 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->pUpdateDataRes = createSpecialDataBlock(STREAM_CLEAR);
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
   pInfo->partitionSup.needCalc = false;
+  pInfo->igCheckUpdate = pTableScanNode->igCheckUpdate;
+  pInfo->igExpired = pTableScanNode->igExpired;
+  pInfo->twAggSup.maxTs = INT64_MIN;
 
   setOperatorInfo(pOperator, "StreamScanOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);

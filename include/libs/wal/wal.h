@@ -191,6 +191,7 @@ int32_t walApplyVer(SWal *, int64_t ver);
 // read
 SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond);
 void        walCloseReader(SWalReader *pRead);
+void        walReadReset(SWalReader *pReader);
 int32_t     walReadVer(SWalReader *pRead, int64_t ver);
 int32_t     walReadSeekVer(SWalReader *pRead, int64_t ver);
 int32_t     walNextValidMsg(SWalReader *pRead);
