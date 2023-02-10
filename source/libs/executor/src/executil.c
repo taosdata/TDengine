@@ -977,7 +977,7 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
 
   code = createResultData(&type, numOfTables, &output);
   if (code != TSDB_CODE_SUCCESS) {
-    terrno = code                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     k;
+    terrno = code;
     goto end;
   }
 
