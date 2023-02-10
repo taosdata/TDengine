@@ -165,7 +165,7 @@ if $data00 != 10 then
   return -1
 endi
 
-sql select last_row(*) from st1 group by a
+sql select last_row(*) from st1 group by a order by a desc
 if $rows != 2 then
   return -1
 endi

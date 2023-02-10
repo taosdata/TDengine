@@ -694,10 +694,12 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
       continue;
     }
 
-    if (pBlockIdx->uid == pList->tableUidList[j]) {
-      i += 1;
+    if (pBlockIdx->uid > pList->tableUidList[j]) {
       j += 1;
+      continue;
+    }
 
+    if (pBlockIdx->uid == pList->tableUidList[j]) {
       // this block belongs to a table that is not queried.
       void* p = taosHashGet(pReader->status.pTableMap, &pBlockIdx->uid, sizeof(uint64_t));
       if (p == NULL) {
@@ -711,9 +713,8 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
       }
 
       taosArrayPush(pIndexList, pBlockIdx);
-    }
 
-    if (pBlockIdx->uid > pList->tableUidList[j]) {
+      i += 1;
       j += 1;
     }
   }

@@ -127,23 +127,29 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
   pGroupResInfo->pRows = taosArrayInit(size, POINTER_BYTES);
 
   size_t  keyLen = 0;
-  int32_t num = 0, iter = 0, itemSize = 0;
+  int32_t iter = 0;
+  int32_t bufLen = 0, offset = 0;
 
+  // todo move away and record this during create window
+  while ((pData = tSimpleHashIterate(pHashmap, pData, &iter)) != NULL) {
+    /*void* key = */tSimpleHashGetKey(pData, &keyLen);
+    bufLen += keyLen + sizeof(SResultRowPosition);
+  }
+
+  pGroupResInfo->pBuf = taosMemoryMalloc(bufLen);
+
+  iter = 0;
   while ((pData = tSimpleHashIterate(pHashmap, pData, &iter)) != NULL) {
     void* key = tSimpleHashGetKey(pData, &keyLen);
 
-    if (pGroupResInfo->pBuf == NULL) {
-      itemSize = keyLen + sizeof(SResultRowPosition);
-      pGroupResInfo->pBuf = taosMemoryMalloc(size * itemSize);
-    }
-
-    SResKeyPos* p = (SResKeyPos*)(pGroupResInfo->pBuf + num * itemSize);
+    SResKeyPos* p = (SResKeyPos*) (pGroupResInfo->pBuf + offset);
 
     p->groupId = *(uint64_t*)key;
     p->pos = *(SResultRowPosition*)pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
     taosArrayPush(pGroupResInfo->pRows, &p);
-    num += 1;
+
+    offset += keyLen + sizeof(struct SResultRowPosition);
   }
 
   if (order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC) {
