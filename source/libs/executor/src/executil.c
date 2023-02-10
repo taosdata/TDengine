@@ -890,8 +890,6 @@ static void doSetQualifiedUid(SArray* pUidList, const SArray* pUidTagList, bool*
     if (pResultList[i]) {
       taosArrayPush(pUidList, &uid);
     }
-
-    i += 1;
   }
 }
 
