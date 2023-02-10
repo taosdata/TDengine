@@ -389,6 +389,7 @@ typedef struct SStreamOptions {
   SNode*    pDeleteMark;
   int8_t    fillHistory;
   int8_t    ignoreExpired;
+  int8_t    ignoreUpdate;
 } SStreamOptions;
 
 typedef struct SCreateStreamStmt {

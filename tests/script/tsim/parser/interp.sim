@@ -72,4 +72,33 @@ sql_error select interp(*) from nt5931 where ts=now
 sql_error select interp(*) from st5931 where ts=now
 sql_error select interp(*) from ct5931 where ts=now
 
+sql create stable sta (ts timestamp, f1 double, f2 binary(200)) tags(t1 int);
+sql create table tba1 using sta tags(1);
+sql insert into tba1 values ('2022-04-26 15:15:01', -3.0, "a");
+sql insert into tba1 values ('2022-04-26 15:15:05', 3.0, "b");
+sql select a from (select interp(f1) as a from tba1 where ts >= '2022-04-26 15:15:01' and ts <= '2022-04-26 15:15:05' range('2022-04-26 15:15:01','2022-04-26 15:15:05') every(1s) fill(linear)) where a > 0;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 1.500000000 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+
+sql select a from (select interp(f1+1) as a from tba1 where ts >= '2022-04-26 15:15:01' and ts <= '2022-04-26 15:15:05' range('2022-04-26 15:15:01','2022-04-26 15:15:05') every(1s) fill(linear)) where a > 0;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 1.000000000 then
+  return -1
+endi
+if $data10 != 2.500000000 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

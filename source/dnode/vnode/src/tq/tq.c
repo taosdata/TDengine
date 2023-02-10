@@ -93,21 +93,21 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
 
   if (tqMetaOpen(pTq) < 0) {
-    ASSERT(0);
+    return NULL;
   }
 
   pTq->pOffsetStore = tqOffsetOpen(pTq);
   if (pTq->pOffsetStore == NULL) {
-    ASSERT(0);
+    return NULL;
   }
 
   pTq->pStreamMeta = streamMetaOpen(path, pTq, (FTaskExpand*)tqExpandTask, pTq->pVnode->config.vgId);
   if (pTq->pStreamMeta == NULL) {
-    ASSERT(0);
+    return NULL;
   }
 
   if (streamLoadTasks(pTq->pStreamMeta) < 0) {
-    ASSERT(0);
+    return NULL;
   }
 
   return pTq;
@@ -521,7 +521,12 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
             tqOffsetResetToData(&fetchOffsetNew, 0, 0);
           }
         } else {
-          tqOffsetResetToLog(&fetchOffsetNew, walGetFirstVer(pTq->pVnode->pWal));
+          pHandle->pRef = walRefFirstVer(pTq->pVnode->pWal, pHandle->pRef);
+          if (pHandle->pRef == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            return -1;
+          }
+          tqOffsetResetToLog(&fetchOffsetNew, pHandle->pRef->refVer - 1);
         }
       } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
         if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
@@ -718,6 +723,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen) {
   SMqVDeleteReq* pReq = (SMqVDeleteReq*)msg;
+
+  tqDebug("vgId:%d, delete sub: %s", pTq->pVnode->config.vgId, pReq->subKey);
 
   taosWLockLatch(&pTq->pushLock);
   int32_t code = taosHashRemove(pTq->pPushMgr, pReq->subKey, strlen(pReq->subKey));

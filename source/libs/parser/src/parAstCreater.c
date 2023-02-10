@@ -1763,6 +1763,7 @@ SNode* createStreamOptions(SAstCreateContext* pCxt) {
   pOptions->triggerType = STREAM_TRIGGER_AT_ONCE;
   pOptions->fillHistory = STREAM_DEFAULT_FILL_HISTORY;
   pOptions->ignoreExpired = STREAM_DEFAULT_IGNORE_EXPIRED;
+  pOptions->ignoreUpdate = STREAM_DEFAULT_IGNORE_UPDATE;
   return (SNode*)pOptions;
 }
 
