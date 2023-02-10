@@ -528,7 +528,12 @@ SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId) {
   return pArray;
 }
 
-static int32_t mndCompareDnodeId(int32_t *dnode1Id, int32_t *dnode2Id) { return *dnode1Id >= *dnode2Id ? 1 : 0; }
+static int32_t mndCompareDnodeId(int32_t *dnode1Id, int32_t *dnode2Id) {
+    if (*dnode1Id == *dnode2Id) {
+        return 0;
+    }
+    return *dnode1Id > *dnode2Id ? 1 : -1;
+}
 
 static float mndGetDnodeScore(SDnodeObj *pDnode, int32_t additionDnodes, float ratio) {
   float totalDnodes = pDnode->numOfVnodes + (float)pDnode->numOfOtherNodes * ratio + additionDnodes;
@@ -536,9 +541,12 @@ static float mndGetDnodeScore(SDnodeObj *pDnode, int32_t additionDnodes, float r
 }
 
 static int32_t mndCompareDnodeVnodes(SDnodeObj *pDnode1, SDnodeObj *pDnode2) {
-  float d1Score = mndGetDnodeScore(pDnode1, 0, 0.9);
-  float d2Score = mndGetDnodeScore(pDnode2, 0, 0.9);
-  return d1Score >= d2Score ? 1 : 0;
+    float d1Score = mndGetDnodeScore(pDnode1, 0, 0.9);
+    float d2Score = mndGetDnodeScore(pDnode2, 0, 0.9);
+    if (d1Score == d2Score) {
+        return 0;
+    }
+    return d1Score > d2Score ? 1 : -1;
 }
 
 void mndSortVnodeGid(SVgObj *pVgroup) {

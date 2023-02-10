@@ -51,6 +51,10 @@ elseif(TD_DARWIN_64)
     target_link_libraries(
         os PUBLIC dl m iconv
     )
+elseif(TD_ALPINE)
+    target_link_libraries(
+            os PUBLIC dl m rt unwind
+    )
 else()
     target_link_libraries(
         os PUBLIC dl m rt
