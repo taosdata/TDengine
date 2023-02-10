@@ -298,6 +298,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->watermark = pCreate->watermark;
   pObj->fillHistory = pCreate->fillHistory;
   pObj->deleteMark = pCreate->deleteMark;
+  pObj->igCheckUpdate = pCreate->igUpdate;
 
   memcpy(pObj->sourceDb, pCreate->sourceDB, TSDB_DB_FNAME_LEN);
   SDbObj *pSourceDb = mndAcquireDb(pMnode, pCreate->sourceDB);
@@ -347,6 +348,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .watermark = pObj->watermark,
       .igExpired = pObj->igExpired,
       .deleteMark = pObj->deleteMark,
+      .igCheckUpdate = pObj->igCheckUpdate,
   };
 
   // using ast and param to build physical plan

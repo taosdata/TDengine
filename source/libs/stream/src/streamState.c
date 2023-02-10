@@ -128,7 +128,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     memset(statePath, 0, 1024);
     tstrncpy(statePath, path, 1024);
   }
-  if (tdbOpen(statePath, szPage, pages, &pState->pTdbState->db, 0) < 0) {
+  if (tdbOpen(statePath, szPage, pages, &pState->pTdbState->db, 1) < 0) {
     goto _err;
   }
 

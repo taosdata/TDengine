@@ -1726,7 +1726,7 @@ void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SAggSuppor
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->windowSup.parentType = type;
   pScanInfo->windowSup.pIntervalAggSup = pSup;
-  if (!pScanInfo->pUpdateInfo) {
+  if (!pScanInfo->igCheckUpdate && !pScanInfo->pUpdateInfo) {
     pScanInfo->pUpdateInfo = updateInfoInitP(pInterval, pTwSup->waterMark);
   }
   pScanInfo->interval = *pInterval;
@@ -2893,7 +2893,7 @@ void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uin
   }
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->windowSup = (SWindowSupporter){.pStreamAggSup = pAggSup, .gap = pAggSup->gap, .parentType = type};
-  if (!pScanInfo->pUpdateInfo) {
+  if (!pScanInfo->igCheckUpdate && !pScanInfo->pUpdateInfo) {
     pScanInfo->pUpdateInfo = updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, pTwSup->waterMark);
   }
   pScanInfo->twAggSup = *pTwSup;

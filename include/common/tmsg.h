@@ -144,12 +144,14 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_TABLE_UPDATE_OPTIONS      9
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME  10
 
-#define TSDB_FILL_NONE      0
-#define TSDB_FILL_NULL      1
-#define TSDB_FILL_SET_VALUE 2
-#define TSDB_FILL_LINEAR    3
-#define TSDB_FILL_PREV      4
-#define TSDB_FILL_NEXT      5
+#define TSDB_FILL_NONE        0
+#define TSDB_FILL_NULL        1
+#define TSDB_FILL_NULL_F      2
+#define TSDB_FILL_SET_VALUE   3
+#define TSDB_FILL_SET_VALUE_F 4
+#define TSDB_FILL_LINEAR      5
+#define TSDB_FILL_PREV        6
+#define TSDB_FILL_NEXT        7
 
 #define TSDB_ALTER_USER_PASSWD                 0x1
 #define TSDB_ALTER_USER_SUPERUSER              0x2
@@ -1752,6 +1754,7 @@ typedef struct {
 #define STREAM_FILL_HISTORY_ON        1
 #define STREAM_FILL_HISTORY_OFF       0
 #define STREAM_DEFAULT_FILL_HISTORY   STREAM_FILL_HISTORY_OFF
+#define STREAM_DEFAULT_IGNORE_UPDATE  0
 
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
@@ -1770,6 +1773,7 @@ typedef struct {
   // 3.0.20
   int64_t checkpointFreq;  // ms
   int64_t deleteMark;
+  int8_t  igUpdate;
 } SCMCreateStreamReq;
 
 typedef struct {
