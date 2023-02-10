@@ -550,7 +550,6 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py
