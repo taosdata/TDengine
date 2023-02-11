@@ -263,10 +263,12 @@ char* key_tags[] = {"tags("};
 char* key_select[] = {"select "};
 
 char* key_systable[] = {
-    "ins_dnodes",        "ins_mnodes",    "ins_modules",      "ins_qnodes",  "ins_snodes",          "ins_cluster",
-    "ins_databases",     "ins_functions", "ins_indexes",      "ins_stables", "ins_tables",          "ins_tags",
-    "ins_users",         "ins_grants",    "ins_vgroups",      "ins_configs", "ins_dnode_variables", "ins_topics",
-    "ins_subscriptions", "ins_streams",   "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges"};
+    "ins_dnodes",        "ins_mnodes",     "ins_modules",      "ins_qnodes",  "ins_snodes",          "ins_cluster",
+    "ins_databases",     "ins_functions",  "ins_indexes",      "ins_stables", "ins_tables",          "ins_tags",
+    "ins_users",         "ins_grants",     "ins_vgroups",      "ins_configs", "ins_dnode_variables", "ins_topics",
+    "ins_subscriptions", "ins_streams",    "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges", "perf_connections",
+    "perf_queries",      "perf_consumers", "perf_trans",       "perf_apps"};
+
 
 //
 //  ------- gobal variant define ---------
