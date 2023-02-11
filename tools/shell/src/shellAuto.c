@@ -617,10 +617,6 @@ bool shellAutoInit() {
   // threads
   memset(threads, 0, sizeof(TdThread*) * WT_FROM_DB_CNT);
 
-  // init database and stable
-  tireSearchWord(WT_VAR_DBNAME, "");
-  tireSearchWord(WT_VAR_STABLE, "");
-
   // generate varType
   GenerateVarType(WT_VAR_FUNC, functions, sizeof(functions) / sizeof(char*));
   GenerateVarType(WT_VAR_KEYWORD, keywords, sizeof(keywords) / sizeof(char*));
@@ -638,7 +634,12 @@ bool shellAutoInit() {
 }
 
 // set conn
-void shellSetConn(TAOS* conn) { varCon = conn; }
+void shellSetConn(TAOS* conn) { 
+  varCon = conn; 
+  // init database and stable
+  tireSearchWord(WT_VAR_DBNAME, "");
+  tireSearchWord(WT_VAR_STABLE, "");
+}
 
 // exit shell auto funciton, shell exit call once
 void shellAutoExit() {
@@ -817,6 +818,7 @@ void* varObtainThread(void* param) {
 // only match next one word from all match words, return valuue must free by caller
 char* matchNextPrefix(STire* tire, char* pre) {
   SMatch* match = NULL;
+  if(tire == NULL) return NULL;
 
   // re-use last result
   if (lastMatch) {
