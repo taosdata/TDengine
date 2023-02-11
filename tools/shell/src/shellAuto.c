@@ -1689,7 +1689,8 @@ bool matchEnd(TAOS* con, SShellCmd* cmd) {
     last = elast + 1;
   }
 
-  if(strlen(last) < 2 ) {
+  // less one char can match
+  if(strlen(last) == 0 ) {
     goto _return;
   }
 
