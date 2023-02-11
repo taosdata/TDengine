@@ -261,6 +261,12 @@ char* key_tags[] = {"tags("};
 
 char* key_select[] = {"select "};
 
+char* key_systable[] = {
+    "ins_dnodes",        "ins_mnodes",    "ins_modules",      "ins_qnodes",  "ins_snodes",          "ins_cluster",
+    "ins_databases",     "ins_functions", "ins_indexes",      "ins_stables", "ins_tables",          "ins_tags",
+    "ins_users",         "ins_grants",    "ins_vgroups",      "ins_configs", "ins_dnode_variables", "ins_topics",
+    "ins_subscriptions", "ins_streams",   "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges"};
+
 //
 //  ------- gobal variant define ---------
 //
@@ -292,8 +298,9 @@ bool    waitAutoFill = false;
 #define WT_VAR_TBOPTION       16
 #define WT_VAR_USERACTION     17
 #define WT_VAR_KEYSELECT      18
+#define WT_VAR_SYSTABLE       19
 
-#define WT_VAR_CNT 19
+#define WT_VAR_CNT 20
 
 #define WT_FROM_DB_MAX 6  // max get content from db
 #define WT_FROM_DB_CNT (WT_FROM_DB_MAX + 1)
@@ -609,6 +616,10 @@ bool shellAutoInit() {
   // threads
   memset(threads, 0, sizeof(TdThread*) * WT_FROM_DB_CNT);
 
+  // init database and stable
+  tireSearchWord(WT_VAR_DBNAME, "");
+  tireSearchWord(WT_VAR_STABLE, "");
+
   // generate varType
   GenerateVarType(WT_VAR_FUNC, functions, sizeof(functions) / sizeof(char*));
   GenerateVarType(WT_VAR_KEYWORD, keywords, sizeof(keywords) / sizeof(char*));
@@ -620,6 +631,7 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_TBOPTION, tb_options, sizeof(tb_options) / sizeof(char*));
   GenerateVarType(WT_VAR_USERACTION, user_actions, sizeof(user_actions) / sizeof(char*));
   GenerateVarType(WT_VAR_KEYSELECT, key_select, sizeof(key_select) / sizeof(char*));
+  GenerateVarType(WT_VAR_SYSTABLE, key_systable, sizeof(key_systable) / sizeof(char*));
 
   return true;
 }
@@ -1661,6 +1673,32 @@ bool matchOther(TAOS* con, SShellCmd* cmd) {
   return false;
 }
 
+// last match if nothing matched
+bool matchEnd(TAOS* con, SShellCmd* cmd) {
+  // str dump
+  bool ret = false;
+  char* ps = strndup(cmd->command, cmd->commandSize);
+  char* last = lastWord(ps);
+  if(strlen(last) < 2 ) {
+    goto _return;
+  }
+
+  // match database
+  if (fillWithType(con, last, WT_VAR_DBNAME)) {
+    ret = true
+    goto _return;
+  }
+
+  if (fillWithType(con, last, WT_VAR_SYSTABLE)) {
+    ret = true
+    goto _return;
+  }
+
+_return:
+  taosMemoryFree(ps);
+  return ret;
+}
+
 // main key press tab
 void pressTabKey(SShellCmd* cmd) {
   // check
@@ -1695,6 +1733,9 @@ void pressTabKey(SShellCmd* cmd) {
   // manual match like select * from ...
   matched = matchSelectQuery(varCon, cmd);
   if (matched) return;
+
+  // match end
+  matched = matchEnd(varCon, cmd);
 
   return;
 }
