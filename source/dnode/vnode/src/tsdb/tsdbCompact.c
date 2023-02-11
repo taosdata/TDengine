@@ -435,7 +435,8 @@ static int32_t tsdbCompactFileSetStart(STsdbCompactor *pCompactor, SDFileSet *pS
                                           .pDataF = &(SDataFile){.commitID = pCompactor->commitID},
                                           .pSmaF = &(SSmaFile){.commitID = pCompactor->commitID},
                                           .nSttF = 1,
-                                          .aSttF = {&(SSttFile){.commitID = pCompactor->commitID}}});
+                                          .aSttF = {&(SSttFile){.commitID = pCompactor->commitID}}},
+                             false);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (pCompactor->aBlockIdx) {
@@ -636,7 +637,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbCompact(STsdb *pTsdb, int32_t flag) {
+int32_t tsdbCompact(STsdb *pTsdb, void* arg, int64_t varg) {
   int32_t code = 0;
 
   STsdbCompactor *pCompactor = &(STsdbCompactor){0};
@@ -663,6 +664,6 @@ _exit:
     tsdbCommitCompact(pCompactor);
   }
   tsdbEndCompact(pCompactor);
->>>>>>> 3.0
+
   return code;
 }

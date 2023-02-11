@@ -15,7 +15,7 @@
 
 #include "vnd.h"
 
-extern int32_t tsdbCompact(STsdb *pTsdb, int32_t flag);
+extern int32_t tsdbCompact(STsdb *pTsdb, void* flag, int64_t varg);
 
 int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo);
 
@@ -24,16 +24,16 @@ static int32_t vnodeCompactImpl(SCommitInfo *pInfo) {
   int32_t lino = 0;
 
   // TODO
-  SVnode *pVnode = pInfo->pVnode;
+  SVnode *pVnode = pInfo->taskInfo.pVnode;
 
-  code = tsdbCompact(pVnode->pTsdb, 0);
+  code = tsdbCompact(pVnode->pTsdb, NULL, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed since %s", TD_VID(pInfo->pVnode), __func__, tstrerror(code));
+    vError("vgId:%d %s failed since %s", TD_VID(pVnode), __func__, tstrerror(code));
   } else {
-    vDebug("vgId:%d %s done", TD_VID(pInfo->pVnode), __func__);
+    vDebug("vgId:%d %s done", TD_VID(pVnode), __func__);
   }
   return code;
 }
@@ -47,7 +47,7 @@ static int32_t vnodeCompactTask(void *param) {
   vnodeCompactImpl(pInfo);
 
   // end compact
-  tsem_post(&pInfo->pVnode->canCommit);
+  tsem_post(&pInfo->taskInfo.pVnode->canCommit);
 
 _exit:
   taosMemoryFree(pInfo);
@@ -68,7 +68,7 @@ int32_t vnodeAsyncCompact(SVnode *pVnode) {
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed since %s", TD_VID(pInfo->pVnode), __func__, tstrerror(code));
+    vError("vgId:%d %s failed since %s", TD_VID(pVnode), __func__, tstrerror(code));
   }
   return code;
 }
