@@ -1685,12 +1685,12 @@ bool matchEnd(TAOS* con, SShellCmd* cmd) {
 
   // match database
   if (fillWithType(con, last, WT_VAR_DBNAME)) {
-    ret = true
+    ret = true;
     goto _return;
   }
 
   if (fillWithType(con, last, WT_VAR_SYSTABLE)) {
-    ret = true
+    ret = true;
     goto _return;
   }
 
