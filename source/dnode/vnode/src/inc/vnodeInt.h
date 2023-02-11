@@ -491,6 +491,8 @@ struct SCommitInfo {
   TXN*       txn;
   int8_t     canCommit;
   int8_t     nMaxStt;
+  // APIs
+  int32_t (*commitFn)(STsdb* pTsdb, SCommitInfo* pInfo);
 };
 
 struct SCompactInfo {
@@ -526,6 +528,7 @@ static FORCE_INLINE void vndDummyFunction(SVnode *pVnode, const char* funcName, 
 #define VND_DUMMY_FUNC(v, n) vndDummyFunction((v), __func__, __LINE__, (n))
 
 static const char* vTaskName[VND_TASK_MAX] = {"commit", "compact", "merge", "migrate"};
+
 
 #ifdef __cplusplus
 }

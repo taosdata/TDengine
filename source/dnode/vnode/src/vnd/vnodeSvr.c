@@ -29,6 +29,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *p
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t  code = 0;
@@ -318,6 +319,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     case TDMT_VND_COMMIT:
       needCommit = true;
       break;
+    case TDMT_VND_COMPACT:
+      vnodeProcessCompactVnodeReq(pVnode, version, pReq, len, pRsp);
+      goto _exit;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
       return -1;
@@ -1338,7 +1342,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void 
   tDecodeSBatchDeleteReq(&decoder, &deleteReq);
 
   SMetaReader mr = {0};
-  metaReaderInit(&mr, pVnode->pMeta, 0);
+  metaReaderInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
 
   int32_t sz = taosArrayGetSize(deleteReq.deleteReqs);
   for (int32_t i = 0; i < sz; i++) {
@@ -1406,4 +1410,19 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq
 
 _err:
   return code;
+}
+
+static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  SCompactVnodeReq req = {0};
+  if (tDeserializeSCompactVnodeReq(pReq, len, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return TSDB_CODE_INVALID_MSG;
+  }
+  vInfo("vgId:%d, compact msg will be processed, db:%s dbUid:%" PRId64 " compactStartTime:%" PRId64, TD_VID(pVnode),
+        req.db, req.dbUid, req.compactStartTime);
+
+  vnodeAsyncCompact(pVnode);
+  vnodeBegin(pVnode);
+
+  return 0;
 }
