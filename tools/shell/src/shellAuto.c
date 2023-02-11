@@ -638,7 +638,6 @@ void shellSetConn(TAOS* conn) {
   varCon = conn; 
   // init database and stable
   tireSearchWord(WT_VAR_DBNAME, "");
-  tireSearchWord(WT_VAR_STABLE, "");
 }
 
 // exit shell auto funciton, shell exit call once
@@ -1957,6 +1956,7 @@ void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb) {
 
   if (dealUseDB(sql)) {
     // change to new db
+    tireSearchWord(WT_VAR_STABLE, "");
     return;
   }
 
