@@ -32,6 +32,7 @@ void shellShowOnScreen(SShellCmd* cmd);
 void shellInsertChar(SShellCmd* cmd, char* c, int size);
 void shellInsertStr(SShellCmd* cmd, char* str, int size);
 bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* p, int32_t len);
+char* tireSearchWord(int type, char* pre);
 
 typedef struct SAutoPtr {
   STire* p;
@@ -1684,12 +1685,12 @@ bool matchEnd(TAOS* con, SShellCmd* cmd) {
   }
 
   // match database
-  if (fillWithType(con, last, WT_VAR_DBNAME)) {
+  if (fillWithType(con, cmd, last, WT_VAR_DBNAME)) {
     ret = true;
     goto _return;
   }
 
-  if (fillWithType(con, last, WT_VAR_SYSTABLE)) {
+  if (fillWithType(con, cmd, last, WT_VAR_SYSTABLE)) {
     ret = true;
     goto _return;
   }
