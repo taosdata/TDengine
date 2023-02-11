@@ -29,7 +29,7 @@ taos -C
 taos --dump-config
 ```
 
-# Configuration Parameters
+## Configuration Parameters
 
 :::note
 The parameters described in this document by the effect that they have on the system.
