@@ -544,6 +544,7 @@ stream_options(A) ::= stream_options(B) TRIGGER MAX_DELAY duration_literal(C).  
 stream_options(A) ::= stream_options(B) WATERMARK duration_literal(C).            { ((SStreamOptions*)B)->pWatermark = releaseRawExprNode(pCxt, C); A = B; }
 stream_options(A) ::= stream_options(B) IGNORE EXPIRED NK_INTEGER(C).             { ((SStreamOptions*)B)->ignoreExpired = taosStr2Int8(C.z, NULL, 10); A = B; }
 stream_options(A) ::= stream_options(B) FILL_HISTORY NK_INTEGER(C).               { ((SStreamOptions*)B)->fillHistory = taosStr2Int8(C.z, NULL, 10); A = B; }
+stream_options(A) ::= stream_options(B) IGNORE UPDATE NK_INTEGER(C).              { ((SStreamOptions*)B)->ignoreUpdate = taosStr2Int8(C.z, NULL, 10); A = B; }
 
 subtable_opt(A) ::= .                                                             { A = NULL; }
 subtable_opt(A) ::= SUBTABLE NK_LP expression(B) NK_RP.                           { A = releaseRawExprNode(pCxt, B); }
@@ -978,12 +979,14 @@ sliding_opt(A) ::= SLIDING NK_LP duration_literal(B) NK_RP.                     
 fill_opt(A) ::= .                                                                 { A = NULL; }
 fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                                    { A = createFillNode(pCxt, B, NULL); }
 fill_opt(A) ::= FILL NK_LP VALUE NK_COMMA literal_list(B) NK_RP.                  { A = createFillNode(pCxt, FILL_MODE_VALUE, createNodeListNode(pCxt, B)); }  
+fill_opt(A) ::= FILL NK_LP VALUE_F NK_COMMA literal_list(B) NK_RP.                { A = createFillNode(pCxt, FILL_MODE_VALUE_F, createNodeListNode(pCxt, B)); }  
 
 %type fill_mode                                                                   { EFillMode }
 %destructor fill_mode                                                             { }
 fill_mode(A) ::= NONE.                                                            { A = FILL_MODE_NONE; }
 fill_mode(A) ::= PREV.                                                            { A = FILL_MODE_PREV; }
 fill_mode(A) ::= NULL.                                                            { A = FILL_MODE_NULL; }
+fill_mode(A) ::= NULL_F.                                                          { A = FILL_MODE_NULL_F; }
 fill_mode(A) ::= LINEAR.                                                          { A = FILL_MODE_LINEAR; }
 fill_mode(A) ::= NEXT.                                                            { A = FILL_MODE_NEXT; }
 
@@ -1075,4 +1078,4 @@ null_ordering_opt(A) ::= NULLS LAST.                                            
 
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA COMPACT CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL 
   FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE REPLACE RESTRICT ROW SEMI STAR STATEMENT
-  STRICT STRING TIMES UPDATE VALUES VARIABLE VIEW WAL.
+  STRICT STRING TIMES VALUES VARIABLE VIEW WAL.

@@ -81,7 +81,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransProcessRsp(SRpcMsg *pRsp);
 void    mndTransPullup(SMnode *pMnode);
 int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans);
-void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
+void    mndTransExecute(SMnode *pMnode, STrans *pTrans, bool isLeader);
 int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, const char *dbname);
 
 #ifdef __cplusplus

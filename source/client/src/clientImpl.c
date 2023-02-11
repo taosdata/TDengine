@@ -138,6 +138,12 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     p->mgmtEp = epSet;
     taosThreadMutexInit(&p->qnodeMutex, NULL);
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores / 2);
+    if (p->pTransporter == NULL) {
+      taosThreadMutexUnlock(&appInfo.mutex);
+      taosMemoryFreeClear(key);
+      taosMemoryFree(p);
+      return NULL;
+    }
     p->pAppHbMgr = appHbMgrInit(p, key);
     if (NULL == p->pAppHbMgr) {
       destroyAppInst(p);
@@ -1402,8 +1408,6 @@ int32_t doProcessMsgFromServer(void* param) {
         tscError("0x%" PRIx64 " rsp msg:%s, code:%s rspLen:%d, elapsed time:%d ms, reqId:0x%" PRIx64, pRequest->self,
                  TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), pMsg->contLen, elapsed / 1000, pRequest->requestId);
       }
-
-      taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
     }
   }
 
@@ -1423,6 +1427,11 @@ int32_t doProcessMsgFromServer(void* param) {
   }
 
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
+
+  if (pTscObj) {
+    taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
+  }
+
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
 
@@ -1460,6 +1469,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     tscError("failed to sched msg to tsc, tsc ready to quit");
     rpcFreeCont(pMsg->pCont);
     taosMemoryFree(arg->pEpset);
+    destroySendMsgInfo(pMsg->info.ahandle);
     taosMemoryFree(arg);
   }
 }

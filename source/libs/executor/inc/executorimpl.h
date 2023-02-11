@@ -474,6 +474,8 @@ typedef struct SStreamScanInfo {
   int32_t blockRecoverContiCnt;
   int32_t blockRecoverTotCnt;
 
+  int8_t igCheckUpdate;
+  int8_t igExpired;
 } SStreamScanInfo;
 
 typedef struct {
@@ -704,9 +706,10 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
                             SDiskbasedBuf* pBuf);
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
+bool hasSlimitOffsetInfo(SLimitInfo* pLimitInfo);
 void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo);
 void resetLimitInfoForNextGroup(SLimitInfo* pLimitInfo);
-bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo, SOperatorInfo* pOperator);
+bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
 void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData,
                                      int32_t offset, int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput);

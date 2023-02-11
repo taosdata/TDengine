@@ -457,6 +457,11 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
   SPgno  journalSize = 0;
   int    ret;
 
+  if (pTxn->jfd == 0) {
+    // txn is commited
+    return 0;
+  }
+
   // sync the journal file
   ret = tdbOsFSync(pTxn->jfd);
   if (ret < 0) {

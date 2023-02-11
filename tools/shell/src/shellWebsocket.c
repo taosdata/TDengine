@@ -218,8 +218,13 @@ void shellRunSingleCommandWebsocketImp(char *command) {
     res = ws_query_timeout(shell.ws_conn, command, shell.args.timeout);
     int code = ws_errno(res);
     if (code != 0 && !shell.stop_query) {
-      et = taosGetTimestampUs();
-      fprintf(stderr, "\nDB: error: %s (%.6fs)\n", ws_errstr(res), (et - st)/1E6);
+      // websocket interface masked off first bit from standard error number.
+      if (TSDB_CODE_PAR_SYNTAX_ERROR == (code|0x80000000)) {
+        et = taosGetTimestampUs();
+        fprintf(stderr, "\nDB: error: %s (%.6fs)\n", ws_errstr(res), (et - st)/1E6);
+        ws_free_result(res);
+        return;
+      }
       if (code == TSDB_CODE_WS_SEND_TIMEOUT || code == TSDB_CODE_WS_RECV_TIMEOUT) {
         fprintf(stderr, "Hint: use -t to increase the timeout in seconds\n");
       } else if (code == TSDB_CODE_WS_INTERNAL_ERRO || code == TSDB_CODE_WS_CLOSED) {

@@ -2,12 +2,20 @@
 
 for /F %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
 
-goto %1
+if "%1" NEQ "" goto %1
+
 :needAdmin
 
 if exist C:\\TDengine\\data\\dnode\\dnodeCfg.json (
   echo The default data directory C:/TDengine/data contains old data of tdengine 2.x, please clear it before installing!
 )
+
+rem // stop and delete service
+mshta vbscript:createobject("shell.application").shellexecute("%~s0",":stop_delete","","runas",1)(window.close)
+echo This might take a few moment to accomplish deleting service taosd/taosadapter ...
+call :check_svc taosd
+call :check_svc taosadapter
+
 set source_dir=%2
 set source_dir=%source_dir:/=\\%
 set binary_dir=%3
@@ -60,7 +68,6 @@ if exist %binary_dir%\\build\\bin\\taosdump.exe (
 
 copy %binary_dir%\\build\\bin\\taosd.exe %target_dir% > nul
 copy %binary_dir%\\build\\bin\\udfd.exe %target_dir% > nul
-
 if exist %binary_dir%\\build\\bin\\taosadapter.exe (
     copy %binary_dir%\\build\\bin\\taosadapter.exe %target_dir% > nul
 )
@@ -80,22 +87,23 @@ goto :eof
 
 :hasAdmin
 
-sc query "taosd" && sc stop taosd && sc delete taosd
-sc query "taosadapter" && sc stop taosadapter && sc delete taosd
+call :stop_delete
+call :check_svc taosd
+call :check_svc taosadapter
 
 copy /y C:\\TDengine\\driver\\taos.dll C:\\Windows\\System32 > nul
 if exist C:\\TDengine\\driver\\taosws.dll (
     copy /y C:\\TDengine\\driver\\taosws.dll C:\\Windows\\System32 > nul
 )
 
-sc query "taosd" >nul || sc create "taosd" binPath= "C:\\TDengine\\taosd.exe --win_service" start= DEMAND
-sc query "taosadapter" >nul || sc create "taosadapter" binPath= "C:\\TDengine\\taosadapter.exe" start= DEMAND
+rem // create services
+sc create "taosd" binPath= "C:\\TDengine\\taosd.exe --win_service" start= DEMAND
+sc create "taosadapter" binPath= "C:\\TDengine\\taosadapter.exe" start= DEMAND
 
 set "env=HKLM\System\CurrentControlSet\Control\Session Manager\Environment"
 for /f "tokens=2*" %%I in ('reg query "%env%" /v Path ^| findstr /i "\<Path\>"') do (
 
-    rem // make addition persistent through reboots
-    reg add "%env%" /f /v Path /t REG_EXPAND_SZ /d "%%J;C:\TDengine"
+    call :append_if_not_exists %%J
 
     rem // apply change to the current process
     for %%a in ("%%J;C:\TDengine") do path %%~a
@@ -105,3 +113,36 @@ rem // use setx to set a temporary throwaway value to trigger a WM_SETTINGCHANGE
 rem // applies change to new console windows without requiring a reboot
 (setx /m foo bar & reg delete "%env%" /f /v foo) >NUL 2>NUL
 
+goto :end
+
+:append_if_not_exists
+set "_origin_paths=%*"
+set "_paths=%*"
+set "_found=0"
+:loop
+for /f "tokens=1* delims=;" %%x in ("%_paths%") do (
+    if "%%x" EQU "C:\TDengine" (
+      set "_found=1"
+    ) else (
+      set "_paths=%%y"
+      goto :loop
+    )
+)
+if "%_found%" == "0" (
+  rem // make addition persistent through reboots
+  reg add "%env%" /f /v Path /t REG_EXPAND_SZ /d "%_origin_paths%;C:\TDengine"
+)
+exit /B 0
+
+:stop_delete
+sc stop taosd
+sc delete taosd
+sc stop taosadapter
+sc delete taosadapter
+exit /B 0
+
+:check_svc
+sc query %1 >nul 2>nul && goto :check_svc %1
+exit /B 0
+
+:end

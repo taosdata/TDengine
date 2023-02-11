@@ -249,6 +249,7 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
 
   int64_t ts2 = taosGetTimestampNs();
   code = walReadVer(pWalHandle, index);
+  walReadReset(pWalHandle);
   int64_t ts3 = taosGetTimestampNs();
 
   // code = walReadVerCached(pWalHandle, index);

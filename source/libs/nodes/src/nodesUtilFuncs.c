@@ -1990,10 +1990,14 @@ char* nodesGetFillModeString(EFillMode mode) {
       return "none";
     case FILL_MODE_VALUE:
       return "value";
+    case FILL_MODE_VALUE_F:
+      return "value_f";
     case FILL_MODE_PREV:
       return "prev";
     case FILL_MODE_NULL:
       return "null";
+    case FILL_MODE_NULL_F:
+      return "null_f";
     case FILL_MODE_LINEAR:
       return "linear";
     case FILL_MODE_NEXT:
