@@ -348,9 +348,9 @@ void showHelp() {
       "\n\
   ----- A ----- \n\
     alter database <db_name> <db_options> \n\
-    alter dnode <dnode_id> \"resetlog\";\n\
-    alter dnode <dnode_id> \"monitor\" \"0\";\n\
-    alter dnode <dnode_id> \"monitor\" \"1\";\n\
+    alter dnode <dnode_id> 'resetlog';\n\
+    alter dnode <dnode_id> 'monitor' '0';\n\
+    alter dnode <dnode_id> 'monitor' \"1\";\n\
     alter dnode <dnode_id> \"debugflag\" \"143\";\n\
     alter all dnodes \"monitor\" \"0\";\n\
     alter all dnodes \"monitor\" \"1\";\n\
@@ -389,7 +389,7 @@ void showHelp() {
   ----- E ----- \n\
     explain select clause ...\n\
   ----- F ----- \n\
-    flush database <db_name>;
+    flush database <db_name>;\n\
   ----- H ----- \n\
     help;\n\
   ----- I ----- \n\
