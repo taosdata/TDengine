@@ -1682,6 +1682,11 @@ bool matchEnd(TAOS* con, SShellCmd* cmd) {
   bool ret = false;
   char* ps = strndup(cmd->command, cmd->commandSize);
   char* last = lastWord(ps);
+  char* elast = strrchr(last, '.'); // find end last
+  if(elast) {
+    last = elast;
+  }
+
   if(strlen(last) < 2 ) {
     goto _return;
   }
