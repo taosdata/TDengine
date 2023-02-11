@@ -1684,7 +1684,7 @@ bool matchEnd(TAOS* con, SShellCmd* cmd) {
   char* last = lastWord(ps);
   char* elast = strrchr(last, '.'); // find end last
   if(elast) {
-    last = elast;
+    last = elast + 1;
   }
 
   if(strlen(last) < 2 ) {
