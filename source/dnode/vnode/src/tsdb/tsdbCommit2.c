@@ -47,7 +47,7 @@ typedef struct {
   int32_t minRow;
   int32_t maxRow;
   int8_t  cmprAlg;
-  int8_t  sttTrigger;
+  int8_t  sttTrigger; 
   SArray *aTbDataP;  // memory
   STsdbFS fs;        // disk
   // --------------
@@ -508,6 +508,7 @@ _exit:
   return code;
 }
 
+#if 0
 static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   int32_t    code = 0;
   int32_t    lino = 0;
@@ -528,6 +529,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   // Reader
   SDFileSet tDFileSet = {.fid = pCommitter->commitFid};
   pRSet = (SDFileSet *)taosArraySearch(pCommitter->fs.aDFileSet, &tDFileSet, tDFileSetCmprFn, TD_EQ);
+
   if (pRSet) {
     code = tsdbDataFReaderOpen(&pCommitter->dReader.pReader, pTsdb, pRSet);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -548,6 +550,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   } else {
     pCommitter->dReader.pBlockIdx = NULL;
   }
+  pCommitter->dReader.pBlockIdx = NULL;
 
   // Writer
   SHeadFile fHead = {.commitID = pCommitter->commitID};
@@ -602,6 +605,142 @@ _exit:
   }
   return code;
 }
+
+int32_t tsdbWriteDataBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SMapData *mDataBlk, int8_t cmprAlg) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (pBlockData->nRow == 0) return code;
+
+  SDataBlk dataBlk;
+  tDataBlkReset(&dataBlk);
+
+  // info
+  dataBlk.nRow += pBlockData->nRow;
+  for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
+    TSDBKEY key = {.ts = pBlockData->aTSKEY[iRow], .version = pBlockData->aVersion[iRow]};
+
+    if (iRow == 0) {
+      if (tsdbKeyCmprFn(&dataBlk.minKey, &key) > 0) {
+        dataBlk.minKey = key;
+      }
+    } else {
+      if (pBlockData->aTSKEY[iRow] == pBlockData->aTSKEY[iRow - 1]) {
+        dataBlk.hasDup = 1;
+      }
+    }
+
+    if (iRow == pBlockData->nRow - 1 && tsdbKeyCmprFn(&dataBlk.maxKey, &key) < 0) {
+      dataBlk.maxKey = key;
+    }
+
+    dataBlk.minVer = TMIN(dataBlk.minVer, key.version);
+    dataBlk.maxVer = TMAX(dataBlk.maxVer, key.version);
+  }
+
+  // write
+  dataBlk.nSubBlock++;
+  code = tsdbWriteBlockData(pWriter, pBlockData, &dataBlk.aSubBlock[dataBlk.nSubBlock - 1],
+                            ((dataBlk.nSubBlock == 1) && !dataBlk.hasDup) ? &dataBlk.smaInfo : NULL, cmprAlg, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // put SDataBlk
+  code = tMapDataPutItem(mDataBlk, &dataBlk, tPutDataBlk);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // clear
+  tBlockDataClear(pBlockData);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
+  }
+  return code;
+}
+#endif
+
+#if 1
+static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  STsdb     *pTsdb = pCommitter->pTsdb;
+  SDFileSet *pRSet = NULL;
+
+  // memory
+  pCommitter->commitFid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
+  pCommitter->expLevel = tsdbFidLevel(pCommitter->commitFid, &pCommitter->pTsdb->keepCfg, taosGetTimestampSec());
+  tsdbFidKeyRange(pCommitter->commitFid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
+                  &pCommitter->maxKey);
+#if 0
+  ASSERT(pCommitter->minKey <= pCommitter->nextKey && pCommitter->maxKey >= pCommitter->nextKey);
+#endif
+
+  pCommitter->nextKey = TSKEY_MAX;
+
+  // Reader
+  SDFileSet tDFileSet = {.fid = pCommitter->commitFid};
+  pRSet = (SDFileSet *)taosArraySearch(pCommitter->fs.aDFileSet, &tDFileSet, tDFileSetCmprFn, TD_EQ);
+
+  pCommitter->dReader.pBlockIdx = NULL;
+
+  // Writer
+  SHeadFile fHead = {.commitID = pCommitter->commitID};
+  SDataFile fData = {.commitID = pCommitter->commitID};
+  SSmaFile  fSma = {.commitID = pCommitter->commitID};
+  SSttFile  fStt = {.commitID = pCommitter->commitID};
+  SDFileSet wSet = {.fid = pCommitter->commitFid, .pHeadF = &fHead, .pDataF = &fData, .pSmaF = &fSma};
+
+  SDiskID did = {0};
+  if (tfsAllocDisk(pTsdb->pVnode->pTfs, pCommitter->expLevel, &did) < 0) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, did);
+
+  if (pRSet) {
+    ASSERT(pRSet->nSttF < TSDB_MAX_STT_TRIGGER);
+    fData = *pRSet->pDataF;
+    fSma = *pRSet->pSmaF;
+    wSet.diskId = pRSet->diskId;
+    for (int32_t iStt = 0; iStt < pRSet->nSttF; iStt++) {
+      wSet.aSttF[iStt] = pRSet->aSttF[iStt];
+    }
+    wSet.nSttF = pRSet->nSttF + 1;
+  } else {
+    wSet.diskId = did;
+    wSet.nSttF = 1;
+  }
+  
+  fStt.diskId = did;
+  wSet.aSttF[wSet.nSttF - 1] = &fStt;
+  
+  if (pCommitter->fs.nMaxStt < wSet.nSttF) pCommitter->fs.nMaxStt = wSet.nSttF;
+
+  code = tsdbDataFWriterOpen(&pCommitter->dWriter.pWriter, pTsdb, &wSet, true);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  taosArrayClear(pCommitter->dWriter.aBlockIdx);
+  taosArrayClear(pCommitter->dWriter.aSttBlk);
+  tMapDataReset(&pCommitter->dWriter.mBlock);
+  tBlockDataReset(&pCommitter->dWriter.bData);
+#if USE_STREAM_COMPRESSION
+  tDiskDataBuilderClear(pCommitter->dWriter.pBuilder);
+#else
+  tBlockDataReset(&pCommitter->dWriter.bDatal);
+#endif
+
+  // open iter
+  code = tsdbOpenCommitIter(pCommitter);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+#endif
 
 int32_t tsdbWriteDataBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SMapData *mDataBlk, int8_t cmprAlg) {
   int32_t code = 0;

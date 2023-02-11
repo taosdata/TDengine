@@ -260,7 +260,7 @@ int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet);
 int32_t tsdbFSUpsertDelFile(STsdbFS *pFS, SDelFile *pDelFile);
 // tsdbReaderWriter.c ==============================================================================================
 // SDataFWriter
-int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet);
+int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet, bool sttOnly);
 int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync);
 int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter);
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx);
@@ -269,6 +269,9 @@ int32_t tsdbWriteSttBlk(SDataFWriter *pWriter, SArray *aSttBlk);
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
                            int8_t cmprAlg, int8_t toLast);
 int32_t tsdbWriteDiskData(SDataFWriter *pWriter, const SDiskData *pDiskData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo);
+
+int32_t tsdbDataFWriterOpenEx(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet);
+int32_t tsdbDataFWriterCloseEx(SDataFWriter **ppWriter, int8_t sync);
 
 int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
 // SDataFReader
@@ -641,6 +644,7 @@ struct STsdbReadSnap {
 struct SDataFWriter {
   STsdb    *pTsdb;
   SDFileSet wSet;
+  bool      sttOnly;
 
   STsdbFD *pHeadFD;
   STsdbFD *pDataFD;

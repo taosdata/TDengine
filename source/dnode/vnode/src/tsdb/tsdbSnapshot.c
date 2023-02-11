@@ -1348,7 +1348,7 @@ static int32_t tsdbSnapWriteFileDataStart(STsdbSnapWriter* pWriter, int32_t fid)
                     .pSmaF = (pSet) ? pSet->pSmaF : &(SSmaFile){.commitID = pWriter->commitID},
                     .nSttF = 1,
                     .aSttF = {&(SSttFile){.commitID = pWriter->commitID}}};
-  code = tsdbDataFWriterOpen(&pWriter->pDataFWriter, pTsdb, &wSet);
+  code = tsdbDataFWriterOpen(&pWriter->pDataFWriter, pTsdb, &wSet, false);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (pWriter->aBlockIdx) {

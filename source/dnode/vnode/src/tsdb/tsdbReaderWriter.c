@@ -212,7 +212,7 @@ _exit:
 }
 
 // SDataFWriter ====================================================
-int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet) {
+int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet, bool sttOnly) {
   int32_t       code = 0;
   int32_t       flag;
   int64_t       n;
@@ -228,6 +228,7 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
     goto _err;
   }
   pWriter->pTsdb = pTsdb;
+  pWriter->sttOnly = sttOnly;
   pWriter->wSet = (SDFileSet){.diskId = pSet->diskId,
                               .fid = pSet->fid,
                               .pHeadF = &pWriter->fHead,
@@ -242,45 +243,47 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
     pWriter->fStt[iStt] = *pSet->aSttF[iStt];
   }
 
-  // head
-  flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
-  tsdbHeadFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fHead, fname);
-  code = tsdbOpenFile(fname, szPage, flag, &pWriter->pHeadFD);
-  if (code) goto _err;
-
-  code = tsdbWriteFile(pWriter->pHeadFD, 0, hdr, TSDB_FHDR_SIZE);
-  if (code) goto _err;
-  pWriter->fHead.size += TSDB_FHDR_SIZE;
-
-  // data
-  if (pWriter->fData.size == 0) {
+  if (!sttOnly) {
+    // head
     flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
-  } else {
-    flag = TD_FILE_READ | TD_FILE_WRITE;
-  }
-  tsdbDataFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fData, fname);
-  code = tsdbOpenFile(fname, szPage, flag, &pWriter->pDataFD);
-  if (code) goto _err;
-  if (pWriter->fData.size == 0) {
-    code = tsdbWriteFile(pWriter->pDataFD, 0, hdr, TSDB_FHDR_SIZE);
-    if (code) goto _err;
-    pWriter->fData.size += TSDB_FHDR_SIZE;
-  }
-
-  // sma
-  if (pWriter->fSma.size == 0) {
-    flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
-  } else {
-    flag = TD_FILE_READ | TD_FILE_WRITE;
-  }
-  tsdbSmaFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fSma, fname);
-  code = tsdbOpenFile(fname, szPage, flag, &pWriter->pSmaFD);
-  if (code) goto _err;
-  if (pWriter->fSma.size == 0) {
-    code = tsdbWriteFile(pWriter->pSmaFD, 0, hdr, TSDB_FHDR_SIZE);
+    tsdbHeadFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fHead, fname);
+    code = tsdbOpenFile(fname, szPage, flag, &pWriter->pHeadFD);
     if (code) goto _err;
 
-    pWriter->fSma.size += TSDB_FHDR_SIZE;
+    code = tsdbWriteFile(pWriter->pHeadFD, 0, hdr, TSDB_FHDR_SIZE);
+    if (code) goto _err;
+    pWriter->fHead.size += TSDB_FHDR_SIZE;
+
+    // data
+    if (pWriter->fData.size == 0) {
+      flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
+    } else {
+      flag = TD_FILE_READ | TD_FILE_WRITE;
+    }
+    tsdbDataFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fData, fname);
+    code = tsdbOpenFile(fname, szPage, flag, &pWriter->pDataFD);
+    if (code) goto _err;
+    if (pWriter->fData.size == 0) {
+      code = tsdbWriteFile(pWriter->pDataFD, 0, hdr, TSDB_FHDR_SIZE);
+      if (code) goto _err;
+      pWriter->fData.size += TSDB_FHDR_SIZE;
+    }
+
+    // sma
+    if (pWriter->fSma.size == 0) {
+      flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
+    } else {
+      flag = TD_FILE_READ | TD_FILE_WRITE;
+    }
+    tsdbSmaFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fSma, fname);
+    code = tsdbOpenFile(fname, szPage, flag, &pWriter->pSmaFD);
+    if (code) goto _err;
+    if (pWriter->fSma.size == 0) {
+      code = tsdbWriteFile(pWriter->pSmaFD, 0, hdr, TSDB_FHDR_SIZE);
+      if (code) goto _err;
+
+      pWriter->fSma.size += TSDB_FHDR_SIZE;
+    }
   }
 
   // stt
@@ -310,22 +313,26 @@ int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync) {
 
   pTsdb = (*ppWriter)->pTsdb;
   if (sync) {
-    code = tsdbFsyncFile((*ppWriter)->pHeadFD);
-    if (code) goto _err;
+    if (!(*ppWriter)->sttOnly) {
+      code = tsdbFsyncFile((*ppWriter)->pHeadFD);
+      if (code) goto _err;
 
-    code = tsdbFsyncFile((*ppWriter)->pDataFD);
-    if (code) goto _err;
+      code = tsdbFsyncFile((*ppWriter)->pDataFD);
+      if (code) goto _err;
 
-    code = tsdbFsyncFile((*ppWriter)->pSmaFD);
-    if (code) goto _err;
+      code = tsdbFsyncFile((*ppWriter)->pSmaFD);
+      if (code) goto _err;
+    }
 
     code = tsdbFsyncFile((*ppWriter)->pSttFD);
     if (code) goto _err;
   }
 
-  tsdbCloseFile(&(*ppWriter)->pHeadFD);
-  tsdbCloseFile(&(*ppWriter)->pDataFD);
-  tsdbCloseFile(&(*ppWriter)->pSmaFD);
+  if (!(*ppWriter)->sttOnly) {
+    tsdbCloseFile(&(*ppWriter)->pHeadFD);
+    tsdbCloseFile(&(*ppWriter)->pDataFD);
+    tsdbCloseFile(&(*ppWriter)->pSmaFD);
+  }
   tsdbCloseFile(&(*ppWriter)->pSttFD);
 
   for (int32_t iBuf = 0; iBuf < sizeof((*ppWriter)->aBuf) / sizeof(uint8_t *); iBuf++) {
@@ -346,23 +353,25 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter) {
   int64_t n;
   char    hdr[TSDB_FHDR_SIZE];
 
-  // head ==============
-  memset(hdr, 0, TSDB_FHDR_SIZE);
-  tPutHeadFile(hdr, &pWriter->fHead);
-  code = tsdbWriteFile(pWriter->pHeadFD, 0, hdr, TSDB_FHDR_SIZE);
-  if (code) goto _err;
+  if (!pWriter->sttOnly) {
+    // head ==============
+    memset(hdr, 0, TSDB_FHDR_SIZE);
+    tPutHeadFile(hdr, &pWriter->fHead);
+    code = tsdbWriteFile(pWriter->pHeadFD, 0, hdr, TSDB_FHDR_SIZE);
+    if (code) goto _err;
 
-  // data ==============
-  memset(hdr, 0, TSDB_FHDR_SIZE);
-  tPutDataFile(hdr, &pWriter->fData);
-  code = tsdbWriteFile(pWriter->pDataFD, 0, hdr, TSDB_FHDR_SIZE);
-  if (code) goto _err;
+    // data ==============
+    memset(hdr, 0, TSDB_FHDR_SIZE);
+    tPutDataFile(hdr, &pWriter->fData);
+    code = tsdbWriteFile(pWriter->pDataFD, 0, hdr, TSDB_FHDR_SIZE);
+    if (code) goto _err;
 
-  // sma ==============
-  memset(hdr, 0, TSDB_FHDR_SIZE);
-  tPutSmaFile(hdr, &pWriter->fSma);
-  code = tsdbWriteFile(pWriter->pSmaFD, 0, hdr, TSDB_FHDR_SIZE);
-  if (code) goto _err;
+    // sma ==============
+    memset(hdr, 0, TSDB_FHDR_SIZE);
+    tPutSmaFile(hdr, &pWriter->fSma);
+    code = tsdbWriteFile(pWriter->pSmaFD, 0, hdr, TSDB_FHDR_SIZE);
+    if (code) goto _err;
+  }
 
   // stt ==============
   memset(hdr, 0, TSDB_FHDR_SIZE);
