@@ -1132,6 +1132,7 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
 
 // main key press tab , matched return true else false
 bool firstMatchCommand(TAOS* con, SShellCmd* cmd) {
+  if(con == NULL || cmd == NULL) return false;
   // parse command
   SWords* input = (SWords*)taosMemoryMalloc(sizeof(SWords));
   memset(input, 0, sizeof(SWords));
