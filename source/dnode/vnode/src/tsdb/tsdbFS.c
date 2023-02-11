@@ -21,8 +21,10 @@ static int32_t tsdbFSToBinary(uint8_t *p, STsdbFS *pFS) {
   int8_t   hasDel = pFS->pDelFile ? 1 : 0;
   uint32_t nSet = taosArrayGetSize(pFS->aDFileSet);
 
+  pFS->nMaxStt = 0;
+
   // version
-  n += tPutI8(p ? p + n : p, 0);
+  n += tPutI8(p ? p + n : p, 1);  // 0->1
 
   // SDelFile
   n += tPutI8(p ? p + n : p, hasDel);
@@ -33,7 +35,9 @@ static int32_t tsdbFSToBinary(uint8_t *p, STsdbFS *pFS) {
   // SArray<SDFileSet>
   n += tPutU32v(p ? p + n : p, nSet);
   for (uint32_t iSet = 0; iSet < nSet; iSet++) {
-    n += tPutDFileSet(p ? p + n : p, (SDFileSet *)taosArrayGet(pFS->aDFileSet, iSet));
+    SDFileSet *pDFileSet = (SDFileSet *)taosArrayGet(pFS->aDFileSet, iSet);
+    n += tPutDFileSet(p ? p + n : p, pDFileSet);
+    if (pFS->nMaxStt < pDFileSet->nSttF) pFS->nMaxStt = pDFileSet->nSttF;
   }
 
   return n;
@@ -42,9 +46,15 @@ static int32_t tsdbFSToBinary(uint8_t *p, STsdbFS *pFS) {
 static int32_t tsdbBinaryToFS(uint8_t *pData, int64_t nData, STsdbFS *pFS) {
   int32_t code = 0;
   int32_t n = 0;
+  int8_t  ver = 0;
 
   // version
-  n += tGetI8(pData + n, NULL);
+  n += tGetI8(pData + n, &ver);
+
+  if (ver < 0 || ver > 1) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _exit;
+  }
 
   // SDelFile
   int8_t hasDel = 0;
@@ -69,7 +79,7 @@ static int32_t tsdbBinaryToFS(uint8_t *pData, int64_t nData, STsdbFS *pFS) {
   for (uint32_t iSet = 0; iSet < nSet; iSet++) {
     SDFileSet fSet = {0};
 
-    int32_t nt = tGetDFileSet(pData + n, &fSet);
+    int32_t nt = tGetDFileSet(pData + n, &fSet, ver);
     if (nt < 0) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;

@@ -80,6 +80,8 @@ typedef struct SCompactInfo       SCompactInfo;
 typedef struct SMergeInfo         SMergeInfo;
 typedef struct SMigrateInfo       SMigrateInfo;
 typedef struct SQueryNode         SQueryNode;
+typedef struct SFidRange          SFidRange;
+typedef struct SVTaskInfo         SVTaskInfo;
 
 #define VNODE_META_DIR  "meta"
 #define VNODE_TSDB_DIR  "tsdb"
@@ -171,6 +173,11 @@ typedef struct SMetaInfo {
 int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo, SMetaReader* pReader);
 
 // tsdb
+struct SFidRange {
+  int32_t minFid;
+  int32_t maxFid;
+};
+
 int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback);
 int     tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
@@ -179,12 +186,16 @@ int32_t tsdbCanCommit(STsdb* pTsdb);
 int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbFinishCommit(STsdb* pTsdb);
 int32_t tsdbRollbackCommit(STsdb* pTsdb);
-int32_t tsdbDoRetention(STsdb* pTsdb, int64_t now);
+int32_t tsdbMerge(STsdb* pTsdb, void* arg, int64_t varg);
+int32_t tsdbCompact(STsdb* pTsdb, void* arg, int64_t varg);
+int32_t tsdbDoRetention(STsdb* pTsdb, void* arg, int64_t now);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
 int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
+int32_t tsdbBatchExec(STsdb* pTsdb, void* arg, int64_t varg);
+
 
 // tq
 int     tqInit();
@@ -230,7 +241,7 @@ int32_t smaPrepareAsyncCommit(SSma* pSma);
 int32_t smaCanCommit(SSma* pSma);
 int32_t smaCommit(SSma* pSma, SCommitInfo* pInfo);
 int32_t smaFinishCommit(SSma* pSma);
-int32_t smaDoRetention(SSma* pSma, int64_t now);
+int32_t smaBatchExec(SSma* pSma, void* arg, int64_t varg);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
@@ -326,9 +337,9 @@ struct SVnodeInfo {
   SVStatis  statis;
 };
 
-enum { COMMIT_MODE_ONLY = 0, COMMIT_MODE_MIX = 1 };
+enum { COMMIT_ONLY = 0, COMMIT_MIX = 1 };
 
-enum { VND_TASK_COMMIT = 0, VND_TASK_COMPACT = 1, VND_TASK_MERGE = 2, VND_TASK_MIGRATE = 3 };
+enum { VND_TASK_COMMIT = 0, VND_TASK_COMPACT = 1, VND_TASK_MERGE = 2, VND_TASK_MIGRATE = 3, VND_TASK_MAX };
 
 typedef enum {
   TSDB_TYPE_TSDB = 0,     // TSDB
@@ -352,13 +363,16 @@ typedef struct SVCommitSched {
 } SVCommitSched;
 
 typedef struct {
-  SRWLatch lock;         // e.g. commitMode
-  int8_t   nCommitTask;  // in running(vnodeCommitImpl), not including the one in schedule queue
-  int8_t   nMergeTask;   // in running
-  int8_t   nTrimTask;    // in running
-  void*    trimStash; // 
-  void*    mergeStash;
-  void*    commitStash;  // SCommitInfo
+  SRWLatch lock;  // e.g. commitMode
+  int32_t  nRef;
+  bool     inClose;
+  int8_t   nCommitTask;   // in running(vnodeCommitImpl), not including the one in stash
+  int8_t   nMergeTask;    // in running
+  int8_t   nTrimTask;     // in running(compact/migrate)
+  void*    commitStash;   // SCommitInfo
+  void*    compactStash;  // SCompactInfo
+  void*    migrateStash;  // SMigrateInfo
+  void*    mergeStash;    // SMergeInfo
 } SVBatchHandle;
 
 struct SVnode {
@@ -386,15 +400,14 @@ struct SVnode {
   SWal*         pWal;
   STQ*          pTq;
   SSink*        pSink;
-  tsem_t        canCommit;
-  tsem_t        canTrim;
+  tsem_t        canCommit;  // commit
   SVCommitSched commitSched;
   SVBatchHandle batchHandle;
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;
   bool          restored;
-  int8_t        commitMode;
+  int8_t        commitMode;  // TODO: COMMIT_ONLY = 0, COMMIT_MIX = 1
   tsem_t        syncSem;
   int32_t       blockSec;
   int64_t       blockSeq;
@@ -406,16 +419,13 @@ struct SVnode {
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
 
-#define VND_TSDB(vnd)         ((vnd)->pTsdb)
-#define VND_RSMA0(vnd)        ((vnd)->pTsdb)
-#define VND_RSMA1(vnd)        ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L0])
-#define VND_RSMA2(vnd)        ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L1])
-#define VND_RETENTIONS(vnd)   (&(vnd)->config.tsdbCfg.retentions)
-#define VND_IS_RSMA(v)        ((v)->config.isRsma == 1)
-#define VND_IS_TSMA(v)        ((v)->config.isTsma == 1)
-#define VND_IS_COMMIT_ONLY(v) (atomic_load_8(&(v)->commitMode) == COMMIT_MODE_ONLY)
-#define VND_ST_COMMIT_ONLY(v) (atomic_store_8(&(v)->commitMode, COMMIT_MODE_ONLY))
-#define VND_ST_COMMIT_MIX(v)  (atomic_store_8(&(v)->commitMode, COMMIT_MODE_MIX))
+#define VND_TSDB(vnd)       ((vnd)->pTsdb)
+#define VND_RSMA0(vnd)      ((vnd)->pTsdb)
+#define VND_RSMA1(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L0])
+#define VND_RSMA2(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L1])
+#define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
+#define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
+#define VND_IS_TSMA(v)      ((v)->config.isTsma == 1)
 
 struct STbUidStore {
   tb_uid_t  suid;
@@ -470,38 +480,52 @@ struct SSnapDataHdr {
   uint8_t data[];
 };
 
+struct SVTaskInfo {
+  int8_t  type;
+  SVnode* pVnode;
+};
+
 struct SCommitInfo {
+  SVTaskInfo taskInfo;
   SVnodeInfo info;
-  SVnode*    pVnode;
   TXN*       txn;
   int8_t     canCommit;
+  int8_t     nMaxStt;
 };
 
 struct SCompactInfo {
+  SVTaskInfo taskInfo;
   SVnodeInfo info;
-  SVnode*    pVnode;
-  int32_t    minFid;
-  int32_t    maxFid;
+  SFidRange  fRange;
   int32_t    index;
   int32_t    maxIndex;
 };
 
 struct SMergeInfo {
+  SVTaskInfo taskInfo;
   SVnodeInfo info;
-  SVnode*    pVnode;
   TXN*       txn;
-  int32_t    fid;
 };
 
 struct SMigrateInfo {
+  SVTaskInfo  taskInfo;
   SVnodeInfo  info;
-  SVnode*     pVnode;
   SVTrimDbReq req;
-  int32_t     minFid;
-  int32_t     maxFid;
+  SFidRange   fRange;
   int32_t     index;
   int32_t     maxIndex;
 };
+
+static FORCE_INLINE void vndDummyFunction(SVnode *pVnode, const char* funcName, int32_t lino, int32_t nRunningSec) {
+  for (int32_t i = 1; i <= nRunningSec; ++i) {
+    taosSsleep(1);
+    uInfo("vgId:%d, %s:%d %d of %d second(s) elasped", TD_VID(pVnode), funcName, lino, i, nRunningSec);
+  }
+}
+
+#define VND_DUMMY_FUNC(v, n) vndDummyFunction((v), __func__, __LINE__, (n))
+
+static const char* vTaskName[VND_TASK_MAX] = {"commit", "compact", "merge", "migrate"};
 
 #ifdef __cplusplus
 }

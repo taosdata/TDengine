@@ -596,26 +596,32 @@ static int32_t tdFetchSubmitReqSuids(SSubmitReq2 *pMsg, STbUidStore *pStore) {
 }
 
 /**
- * @brief retention of rsma1/rsma2
+ * @brief compact/merge/migrate for rsma1/rsma2
  *
  * @param pSma
- * @param now
+ * @param arg
+ * @param varg
  * @return int32_t
  */
-int32_t smaDoRetention(SSma *pSma, int64_t now) {
-  int32_t code = TSDB_CODE_SUCCESS;
+int32_t smaBatchExec(SSma *pSma, void *arg, int64_t varg) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
   if (!VND_IS_RSMA(pSma->pVnode)) {
-    return code;
+    goto _exit;
   }
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
-      code = tsdbDoRetention(pSma->pRSmaTsdb[i], now);
-      if (code) goto _end;
+      code = tsdbBatchExec(pSma->pRSmaTsdb[i], arg, varg);
+      TSDB_CHECK_CODE(code, lino, _exit)
     }
   }
+_exit:
+  if (code) {
+    smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pSma->pVnode), __func__, lino, tstrerror(code));
+  }
 
-_end:
   return code;
 }
 

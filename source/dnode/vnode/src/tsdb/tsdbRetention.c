@@ -15,7 +15,7 @@
 
 #include "tsdb.h"
 
-static bool tsdbShouldDoRetention(STsdb *pTsdb, int64_t now) {
+static bool tsdbShouldDoRetention(STsdb *pTsdb, void *arg, int64_t now) {
   for (int32_t iSet = 0; iSet < taosArrayGetSize(pTsdb->fs.aDFileSet); iSet++) {
     SDFileSet *pSet = (SDFileSet *)taosArrayGet(pTsdb->fs.aDFileSet, iSet);
     int32_t    expLevel = tsdbFidLevel(pSet->fid, &pTsdb->keepCfg, now);
@@ -39,10 +39,12 @@ static bool tsdbShouldDoRetention(STsdb *pTsdb, int64_t now) {
   return false;
 }
 
-int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
+int32_t tsdbDoRetention(STsdb *pTsdb, void *arg, int64_t now) {
   int32_t code = 0;
 
-  if (!tsdbShouldDoRetention(pTsdb, now)) {
+  VND_DUMMY_FUNC(pTsdb->pVnode, 5);
+
+  if (!tsdbShouldDoRetention(pTsdb, arg, now)) {
     return code;
   }
 

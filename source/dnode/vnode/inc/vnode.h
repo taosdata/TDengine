@@ -63,6 +63,8 @@ int32_t vnodeBegin(SVnode *pVnode);
 int32_t vnodeMigrate(SVnode *pVnode, SVTrimDbReq *pReq);
 int32_t vnodeCompact(SVnode *pVnode);
 
+int32_t vnodeBatchSchedule(SVnode *pVnode, int8_t type, void *arg);
+
 int32_t vnodeStart(SVnode *pVnode);
 void    vnodeStop(SVnode *pVnode);
 int64_t vnodeGetSyncHandle(SVnode *pVnode);

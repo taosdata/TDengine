@@ -20,8 +20,12 @@ typedef struct {
   STsdbFS fs;
 } STsdbCompactor;
 
-int32_t tsdbCompact(STsdb *pTsdb) {
+int32_t tsdbCompact(STsdb *pTsdb, void* arg, int64_t varg) {
   int32_t code = 0;
   // TODO
+  for (int32_t i = 0; i < 10; ++i) {
+    taosSsleep(1);
+    tsdbInfo("%s:%d sleep %d", __func__, __LINE__, i);
+  }
   return code;
 }

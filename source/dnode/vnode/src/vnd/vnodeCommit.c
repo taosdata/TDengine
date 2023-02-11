@@ -302,7 +302,8 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->info.state.committed = pVnode->state.applied;
   pInfo->info.state.commitTerm = pVnode->state.applyTerm;
   pInfo->info.state.commitID = pVnode->state.commitID;
-  pInfo->pVnode = pVnode;
+  pInfo->taskInfo.type = VND_TASK_COMMIT;
+  pInfo->taskInfo.pVnode = pVnode;
   pInfo->canCommit = 1;
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
@@ -371,21 +372,22 @@ static void vnodeReturnBufPool(SVnode *pVnode) {
 }
 
 static FORCE_INLINE int32_t vnodeCanCommit(SVnode *pVnode) {
-  if (VND_IS_COMMIT_ONLY(pVnode)) return 1;
   // nSttF < MAX_STT_TRIGGER in COMMIT_MIX mode
   return tsdbCanCommit(pVnode->pTsdb) && smaCanCommit(pVnode->pSma);
 }
 
-static int32_t vnodeCommitTask(void *arg) {
+int32_t vnodeCommitTask(void *arg) {
   int32_t code = 0;
 
   SCommitInfo *pInfo = (SCommitInfo *)arg;
-  SVnode      *pVnode = pInfo->pVnode;
+  SVnode      *pVnode = pInfo->taskInfo.pVnode;
+
+  ASSERT(pInfo->taskInfo.type == VND_TASK_COMMIT);
 
   // check commit
   if (!vnodeCanCommit(pVnode)) {
     pInfo->canCommit = 0;
-    code = vnodePutScheduleTask(pVnode, vnodeCommitTask, pInfo, VND_TASK_COMMIT);
+    code = vnodeBatchPutSchedule(pVnode, vnodeCommitTask, pInfo, VND_TASK_COMMIT);
     if (code) goto _exit;
     return code;
   }
@@ -400,8 +402,9 @@ static int32_t vnodeCommitTask(void *arg) {
 _exit:
   // end commit
   tsem_post(&pVnode->canCommit);
+  vnodeBatchPostSchedule(pVnode, pInfo, VND_TASK_COMMIT);
   taosMemoryFree(pInfo);
-  // TODO: vnodeTrimScheduleCheck.
+
   return code;
 }
 
@@ -421,7 +424,7 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   }
 
   // schedule the task
-  code = vnodePutScheduleTask(pVnode, vnodeCommitTask, pInfo, VND_TASK_COMMIT);
+  code = vnodeBatchPutSchedule(pVnode, vnodeCommitTask, pInfo, VND_TASK_COMMIT);
 
 _exit:
   if (code) {
@@ -450,14 +453,12 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   int32_t lino = 0;
 
   char    dir[TSDB_FILENAME_LEN] = {0};
-  SVnode *pVnode = pInfo->pVnode;
+  SVnode *pVnode = pInfo->taskInfo.pVnode;
 
   vInfo("vgId:%d, start to commit, commitId:%" PRId64 " version:%" PRId64 " term: %" PRId64, TD_VID(pVnode),
         pInfo->info.state.commitID, pInfo->info.state.committed, pInfo->info.state.commitTerm);
 
   vnodeUpdCommitSched(pVnode);
-
-  ASSERT(0 == atomic_fetch_add_8(&pVnode->batchHandle.nCommitTask, 1));
 
   // persist wal before starting
   if (walPersist(pVnode->pWal) < 0) {
@@ -513,8 +514,6 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
 
 _exit:
   
-  ASSERT(0 == atomic_sub_fetch_8(&pVnode->batchHandle.nCommitTask, 1));
-
   if (code) {
     vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   } else {

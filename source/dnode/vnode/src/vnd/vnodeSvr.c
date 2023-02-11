@@ -484,7 +484,8 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
   code = smaDoRetention(pVnode->pSma, trimReq.timestamp);
   if (code) goto _exit;
 #endif
-  code = vnodeMigrate(pVnode, &trimReq);
+  // code = vnodeMigrate(pVnode, &trimReq);
+  code = vnodeBatchSchedule(pVnode, VND_TASK_MIGRATE, &trimReq);
 
 _exit:
   return code;

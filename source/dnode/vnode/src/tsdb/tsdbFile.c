@@ -56,6 +56,8 @@ static int32_t tGetDataFile(uint8_t *p, SDataFile *pDataFile) {
 int32_t tPutSttFile(uint8_t *p, SSttFile *pSttFile) {
   int32_t n = 0;
 
+  n += tPutI32v(p ? p + n : p, pSttFile->diskId.level);
+  n += tPutI32v(p ? p + n : p, pSttFile->diskId.id);
   n += tPutI64v(p ? p + n : p, pSttFile->commitID);
   n += tPutI64v(p ? p + n : p, pSttFile->size);
   n += tPutI64v(p ? p + n : p, pSttFile->offset);
@@ -63,8 +65,16 @@ int32_t tPutSttFile(uint8_t *p, SSttFile *pSttFile) {
   return n;
 }
 
-static int32_t tGetSttFile(uint8_t *p, SSttFile *pSttFile) {
+static int32_t tGetSttFile(uint8_t *p, SSttFile *pSttFile, SDiskID *did, int8_t ver) {
   int32_t n = 0;
+
+  if (ver == 1) {
+    n += tGetI32v(p + n, &pSttFile->diskId.level);
+    n += tGetI32v(p + n, &pSttFile->diskId.id);
+  } else if (ver == 0) {
+    pSttFile->diskId.level = did->level;
+    pSttFile->diskId.id = did->id;
+  }
 
   n += tGetI64v(p + n, &pSttFile->commitID);
   n += tGetI64v(p + n, &pSttFile->size);
@@ -203,7 +213,7 @@ int32_t tPutDFileSet(uint8_t *p, SDFileSet *pSet) {
   return n;
 }
 
-int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
+int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet, int8_t ver) {
   int32_t n = 0;
 
   n += tGetI32v(p + n, &pSet->diskId.level);
@@ -242,7 +252,7 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
       return -1;
     }
     pSet->aSttF[iStt]->nRef = 1;
-    n += tGetSttFile(p + n, pSet->aSttF[iStt]);
+    n += tGetSttFile(p + n, pSet->aSttF[iStt], &pSet->diskId, ver);
   }
 
   return n;

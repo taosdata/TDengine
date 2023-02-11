@@ -38,9 +38,11 @@ target_sources(
     "src/sma/smaTimeRange.c"
 
     # tsdb
-    "src/tsdb/tsdbCommit.c"
+    # "src/tsdb/tsdbCommit.c"
+    "src/tsdb/tsdbCommit2.c"
     "src/tsdb/tsdbFile.c"
     "src/tsdb/tsdbFS.c"
+    "src/tsdb/tsdbFSWriter.c"
     "src/tsdb/tsdbOpen.c"
     "src/tsdb/tsdbMemTable.c"
     "src/tsdb/tsdbRead.c"
@@ -53,6 +55,7 @@ target_sources(
     "src/tsdb/tsdbRetention.c"
     "src/tsdb/tsdbDiskData.c"
     "src/tsdb/tsdbCompact.c"
+    "src/tsdb/tsdbMerge.c"
     "src/tsdb/tsdbMergeTree.c"
 
     # tq

@@ -399,7 +399,7 @@ int32_t* taosGetErrno();
 // #define TSDB_CODE_VND_IS_FLOWCTRL            TAOS_DEF_ERROR_CODE(0, 0x050C) // 2.x
 // #define TSDB_CODE_VND_IS_DROPPING            TAOS_DEF_ERROR_CODE(0, 0x050D) // 2.x
 // #define TSDB_CODE_VND_IS_BALANCING           TAOS_DEF_ERROR_CODE(0, 0x050E) // 2.x
-// #define TSDB_CODE_VND_IS_CLOSING             TAOS_DEF_ERROR_CODE(0, 0x0510) // 2.x
+#define TSDB_CODE_VND_IS_CLOSING                TAOS_DEF_ERROR_CODE(0, 0x0510) // 2.x
 // #define TSDB_CODE_VND_NOT_SYNCED             TAOS_DEF_ERROR_CODE(0, 0x0511) // 2.x
 #define TSDB_CODE_VND_NO_WRITE_AUTH             TAOS_DEF_ERROR_CODE(0, 0x0512)
 // #define TSDB_CODE_VND_IS_SYNCING             TAOS_DEF_ERROR_CODE(0, 0x0513) // 2.x
@@ -416,6 +416,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_VND_STOPPED                   TAOS_DEF_ERROR_CODE(0, 0x0529)
 #define TSDB_CODE_VND_DUP_REQUEST               TAOS_DEF_ERROR_CODE(0, 0x0530)
 #define TSDB_CODE_VND_QUERY_BUSY                TAOS_DEF_ERROR_CODE(0, 0x0531)
+#define TSDB_CODE_VND_TASK_ALREADY_EXIST        TAOS_DEF_ERROR_CODE(0, 0x0532)
 
 // tsdb
 #define TSDB_CODE_TDB_INVALID_TABLE_ID          TAOS_DEF_ERROR_CODE(0, 0x0600)

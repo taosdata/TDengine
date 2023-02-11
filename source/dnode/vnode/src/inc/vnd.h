@@ -105,6 +105,7 @@ int32_t vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
 int32_t vnodeSyncCommit(SVnode* pVnode);
 int32_t vnodeAsyncCommit(SVnode* pVnode);
 bool    vnodeShouldRollback(SVnode* pVnode);
+int32_t vnodeCommitTask(void* arg);
 
 // vnodeSync.c
 int32_t vnodeSyncOpen(SVnode* pVnode, char* path);
@@ -118,7 +119,11 @@ bool    vnodeIsRoleLeader(SVnode* pVnode);
 int     vnodeShouldCommit(SVnode* pVnode);
 
 // vnodeBatch.c
-int32_t vnodePutScheduleTask(SVnode* pVnode, int (*execute)(void*), void* arg, int8_t type);
+int32_t vnodeBatchPutSchedule(SVnode* pVnode, int (*execute)(void*), void* arg, int8_t type);
+int32_t vnodeBatchPostSchedule(SVnode* pVnode, void* arg, int8_t type);
+int32_t vnodeBatchPreClose(SVnode* pVnode);
+int32_t vnodeBatchClose(SVnode* pVnode);
+
 
 #ifdef __cplusplus
 }
