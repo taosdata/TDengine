@@ -1670,11 +1670,17 @@ int32_t convertFillType(int32_t mode) {
     case FILL_MODE_NULL:
       type = TSDB_FILL_NULL;
       break;
+    case FILL_MODE_NULL_F:
+      type = TSDB_FILL_NULL_F;
+      break;
     case FILL_MODE_NEXT:
       type = TSDB_FILL_NEXT;
       break;
     case FILL_MODE_VALUE:
       type = TSDB_FILL_SET_VALUE;
+      break;
+    case FILL_MODE_VALUE_F:
+      type = TSDB_FILL_SET_VALUE_F;
       break;
     case FILL_MODE_LINEAR:
       type = TSDB_FILL_LINEAR;

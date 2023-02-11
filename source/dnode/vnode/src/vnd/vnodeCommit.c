@@ -289,18 +289,12 @@ _err:
   return -1;
 }
 
-static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
+int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   char    dir[TSDB_FILENAME_LEN] = {0};
 
   tsem_wait(&pVnode->canCommit);
-
-  taosThreadMutexLock(&pVnode->mutex);
-  ASSERT(pVnode->onCommit == NULL);
-  pVnode->onCommit = pVnode->inUse;
-  pVnode->inUse = NULL;
-  taosThreadMutexUnlock(&pVnode->mutex);
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
@@ -330,6 +324,12 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
 
   code = smaPrepareAsyncCommit(pVnode->pSma);
   if (code) goto _exit;
+
+  taosThreadMutexLock(&pVnode->mutex);
+  ASSERT(pVnode->onCommit == NULL);
+  pVnode->onCommit = pVnode->inUse;
+  pVnode->inUse = NULL;
+  taosThreadMutexUnlock(&pVnode->mutex);
 
 _exit:
   if (code) {

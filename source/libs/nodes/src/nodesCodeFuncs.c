@@ -165,6 +165,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ExplainStmt";
     case QUERY_NODE_DESCRIBE_STMT:
       return "DescribeStmt";
+    case QUERY_NODE_COMPACT_DATABASE_STMT:
+      return "CompactDatabaseStmt";
     case QUERY_NODE_CREATE_STREAM_STMT:
       return "CreateStreamStmt";
     case QUERY_NODE_DROP_STREAM_STMT:
@@ -176,7 +178,7 @@ const char* nodesNodeName(ENodeType type) {
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
       return "ShowDbAliveStmt";
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
-      return "ShowClusterAliveStmt";      
+      return "ShowClusterAliveStmt";
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
       return "RedistributeVgroupStmt";
     case QUERY_NODE_SPLIT_VGROUP_STMT:
@@ -2595,6 +2597,7 @@ static const char* jkQueryInsertPhysiPlanTableType = "TableType";
 static const char* jkQueryInsertPhysiPlanTableFName = "TableFName";
 static const char* jkQueryInsertPhysiPlanVgId = "VgId";
 static const char* jkQueryInsertPhysiPlanEpSet = "EpSet";
+static const char* jkQueryInsertPhysiPlanExplain = "Explain";
 
 static int32_t physiQueryInsertNodeToJson(const void* pObj, SJson* pJson) {
   const SQueryInserterNode* pNode = (const SQueryInserterNode*)pObj;
@@ -2620,6 +2623,9 @@ static int32_t physiQueryInsertNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkQueryInsertPhysiPlanEpSet, epSetToJson, &pNode->epSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkQueryInsertPhysiPlanExplain, pNode->explain);
   }
 
   return code;
@@ -2649,6 +2655,9 @@ static int32_t jsonToPhysiQueryInsertNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToObject(pJson, jkQueryInsertPhysiPlanEpSet, jsonToEpSet, &pNode->epSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkQueryInsertPhysiPlanExplain, &pNode->explain);
   }
 
   return code;
@@ -5686,6 +5695,18 @@ static int32_t jsonToDescribeStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkCompactDatabaseStmtDbName = "DbName";
+
+static int32_t compactDatabaseStmtToJson(const void* pObj, SJson* pJson) {
+  const SCompactDatabaseStmt* pNode = (const SCompactDatabaseStmt*)pObj;
+  return tjsonAddStringToObject(pJson, jkCompactDatabaseStmtDbName, pNode->dbName);
+}
+
+static int32_t jsonToCompactDatabaseStmt(const SJson* pJson, void* pObj) {
+  SCompactDatabaseStmt* pNode = (SCompactDatabaseStmt*)pObj;
+  return tjsonGetStringValue(pJson, jkCompactDatabaseStmtDbName, pNode->dbName);
+}
+
 static const char* jkCreateStreamStmtStreamName = "StreamName";
 static const char* jkCreateStreamStmtTargetDbName = "TargetDbName";
 static const char* jkCreateStreamStmtTargetTabName = "TargetTabName";
@@ -6397,6 +6418,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return explainStmtToJson(pObj, pJson);
     case QUERY_NODE_DESCRIBE_STMT:
       return describeStmtToJson(pObj, pJson);
+    case QUERY_NODE_COMPACT_DATABASE_STMT:
+      return compactDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return createStreamStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_STREAM_STMT:
@@ -6703,6 +6726,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToExplainStmt(pJson, pObj);
     case QUERY_NODE_DESCRIBE_STMT:
       return jsonToDescribeStmt(pJson, pObj);
+    case QUERY_NODE_COMPACT_DATABASE_STMT:
+      return jsonToCompactDatabaseStmt(pJson, pObj);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return jsonToCreateStreamStmt(pJson, pObj);
     case QUERY_NODE_DROP_STREAM_STMT:

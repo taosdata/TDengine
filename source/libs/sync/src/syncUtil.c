@@ -43,7 +43,7 @@ void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
 bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId) {
   uint32_t ipv4 = taosGetIpv4FromFqdn(pInfo->nodeFqdn);
   if (ipv4 == 0xFFFFFFFF || ipv4 == 1) {
-    sError("failed to resolve ipv4 addr, fqdn: %s", pInfo->nodeFqdn);
+    sError("failed to resolve ipv4 addr, fqdn:%s", pInfo->nodeFqdn);
     terrno = TSDB_CODE_TSC_INVALID_FQDN;
     return false;
   }

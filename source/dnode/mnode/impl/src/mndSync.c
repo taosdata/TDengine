@@ -85,7 +85,11 @@ int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta
         pRaw, pMgmt->transSec, pMgmt->transSeq);
 
   if (pMeta->code == 0) {
-    sdbWriteWithoutFree(pMnode->pSdb, pRaw);
+    int32_t code = sdbWriteWithoutFree(pMnode->pSdb, pRaw);
+    if (code != 0) {
+      mError("trans:%d, failed to write to sdb since %s", transId, terrstr());
+      return 0;
+    }
     sdbSetApplyInfo(pMnode->pSdb, pMeta->index, pMeta->term, pMeta->lastConfigIndex);
   }
 
@@ -110,8 +114,9 @@ int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta
     taosThreadMutexUnlock(&pMgmt->lock);
     STrans *pTrans = mndAcquireTrans(pMnode, transId);
     if (pTrans != NULL) {
-      mInfo("trans:%d, execute in mnode which not leader or sync timeout", transId);
-      mndTransExecute(pMnode, pTrans);
+      mInfo("trans:%d, execute in mnode which not leader or sync timeout, createTime:%" PRId64 " saved trans:%d",
+            transId, pTrans->createdTime, pMgmt->transId);
+      mndTransExecute(pMnode, pTrans, false);
       mndReleaseTrans(pMnode, pTrans);
       // sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
     } else {
@@ -368,7 +373,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   taosThreadMutexLock(&pMgmt->lock);
   pMgmt->errCode = 0;
 
-  if (pMgmt->transId != 0) {
+  if (pMgmt->transId != 0 /* && pMgmt->transId != transId*/) {
     mError("trans:%d, can't be proposed since trans:%d already waiting for confirm", transId, pMgmt->transId);
     taosThreadMutexUnlock(&pMgmt->lock);
     rpcFreeCont(req.pCont);
