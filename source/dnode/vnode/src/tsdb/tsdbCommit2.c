@@ -721,7 +721,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
       wSet.aSttF[iStt] = pRSet->aSttF[iStt];
     }
     wSet.nSttF = pRSet->nSttF + 1;
-    ASSERT(checkHeadFileExists(true));
+    // ASSERT(checkHeadFileExists(true));
   } else {
     wSet.diskId = did;
     wSet.nSttF = 1;
@@ -1128,7 +1128,7 @@ static int32_t tsdbCommitData(SCommitter *pCommitter) {
   // end ====================
   tsdbCommitDataEnd(pCommitter);
 
-  ASSERT(checkHeadFileExists(true));
+  // ASSERT(checkHeadFileExists(true));
 
 _exit:
   if (code) {

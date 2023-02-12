@@ -39,13 +39,13 @@ _exit:
   return code;
 }
 
-static int32_t vnodePrepareCompact(SVnode *pVnode, SMergeInfo *pInfo) {
+static int32_t vnodePrepareMerge(SVnode *pVnode, SMergeInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
 
   tsem_wait(&pVnode->canCommit);
 
-  pInfo->taskInfo.type = VND_TASK_COMPACT;
+  pInfo->taskInfo.type = VND_TASK_MERGE;
   pInfo->taskInfo.pVnode = pVnode;
   pInfo->flag = 0;
   pInfo->commitID = atomic_add_fetch_64(&pVnode->state.commitID, 1);
@@ -72,7 +72,7 @@ _exit:
   }
   return code;
 }
-int32_t vnodeAsyncCompact(SVnode *pVnode) {
+int32_t vnodeAsyncMerge(SVnode *pVnode) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -82,12 +82,13 @@ int32_t vnodeAsyncCompact(SVnode *pVnode) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  vnodeAsyncCommit(pVnode);
+//   vnodeAsyncCommit(pVnode);
 
-  code = vnodePrepareCompact(pVnode, pInfo);
+  code = vnodePrepareMerge(pVnode, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  vnodeScheduleTask(vnodeMergeTask, pInfo);
+//   vnodeScheduleTask(vnodeMergeTask, pInfo);
+  vnodeBatchPutSchedule(pVnode, vnodeBatchTask, pInfo);
 
 _exit:
   if (code) {
@@ -97,11 +98,4 @@ _exit:
     vInfo("vgId:%d %s done", TD_VID(pVnode), __func__);
   }
   return code;
-}
-
-int32_t vnodeSyncCompact(SVnode *pVnode) {
-  vnodeAsyncCompact(pVnode);
-  tsem_wait(&pVnode->canCommit);
-  tsem_post(&pVnode->canCommit);
-  return 0;
 }

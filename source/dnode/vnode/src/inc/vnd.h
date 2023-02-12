@@ -123,11 +123,11 @@ bool    vnodeIsRoleLeader(SVnode* pVnode);
 int     vnodeShouldCommit(SVnode* pVnode);
 
 // vnodeBatch.c
-int32_t vnodeBatchPutSchedule(SVnode* pVnode, int (*execute)(void*), void* arg, int8_t type);
-int32_t vnodeBatchPostSchedule(SVnode* pVnode, void* arg, int8_t type);
+int32_t vnodeBatchPutSchedule(SVnode* pVnode, int (*execute)(void*), void* arg);
+int32_t vnodeBatchPostSchedule(SVnode* pVnode, void* arg);
 int32_t vnodeBatchPreClose(SVnode* pVnode);
 int32_t vnodeBatchClose(SVnode* pVnode);
-
+int32_t vnodeBatchTask(void* arg);
 
 #ifdef __cplusplus
 }

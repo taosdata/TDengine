@@ -88,7 +88,8 @@ int32_t vnodeAsyncCompact(SVnode *pVnode) {
   code = vnodePrepareCompact(pVnode, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  vnodeScheduleTask(vnodeCompactTask, pInfo);
+  // vnodeScheduleTask(vnodeCompactTask, pInfo);
+  vnodeBatchPutSchedule(pVnode, vnodeBatchTask, pInfo);
 
 _exit:
   if (code) {
