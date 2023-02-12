@@ -33,6 +33,7 @@ void shellInsertChar(SShellCmd* cmd, char* c, int size);
 void shellInsertStr(SShellCmd* cmd, char* str, int size);
 bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* p, int32_t len);
 char* tireSearchWord(int type, char* pre);
+bool updateTireValue(int type, bool autoFill) ;
 
 typedef struct SAutoPtr {
   STire* p;
@@ -639,7 +640,7 @@ bool shellAutoInit() {
 void shellSetConn(TAOS* conn) { 
   varCon = conn; 
   // init database and stable
-  tireSearchWord(WT_VAR_DBNAME, "");
+  updateTireValue(WT_VAR_DBNAME, false);
 }
 
 // exit shell auto funciton, shell exit call once
@@ -739,6 +740,38 @@ void putBackAutoPtr(int type, STire* tire) {
 //
 //  -------------------  var Word --------------------------
 //
+
+// return true is need update value by async
+bool updateTireValue(int type, bool autoFill) {
+  // TYPE CONTEXT GET FROM DB
+  taosThreadMutexLock(&tiresMutex);
+
+  // check need obtain from server
+  if (tires[type] == NULL) {
+    waitAutoFill = autoFill;
+    // need async obtain var names from db sever
+    if (threads[type] != NULL) {
+      if (taosThreadRunning(threads[type])) {
+        // thread running , need not obtain again, return
+        taosThreadMutexUnlock(&tiresMutex);
+        return NULL;
+      }
+      // destroy previous thread handle for new create thread handle
+      taosDestroyThread(threads[type]);
+      threads[type] = NULL;
+    }
+
+    // create new
+    void* param = taosMemoryMalloc(sizeof(int));
+    *((int*)param) = type;
+    threads[type] = taosCreateThread(varObtainThread, param);
+    taosThreadMutexUnlock(&tiresMutex);
+    return true;
+  }
+  taosThreadMutexUnlock(&tiresMutex);
+
+  return false;
+}
 
 #define MAX_CACHED_CNT 100000  // max cached rows 10w
 // write sql result to var name, return write rows cnt
@@ -905,36 +938,13 @@ char* tireSearchWord(int type, char* pre) {
     return matchNextPrefix(tire, pre);
   }
 
-  // TYPE CONTEXT GET FROM DB
-  taosThreadMutexLock(&tiresMutex);
-
-  // check need obtain from server
-  if (tires[type] == NULL) {
-    waitAutoFill = true;
-    // need async obtain var names from db sever
-    if (threads[type] != NULL) {
-      if (taosThreadRunning(threads[type])) {
-        // thread running , need not obtain again, return
-        taosThreadMutexUnlock(&tiresMutex);
-        return NULL;
-      }
-      // destroy previous thread handle for new create thread handle
-      taosDestroyThread(threads[type]);
-      threads[type] = NULL;
-    }
-
-    // create new
-    void* param = taosMemoryMalloc(sizeof(int));
-    *((int*)param) = type;
-    threads[type] = taosCreateThread(varObtainThread, param);
-    taosThreadMutexUnlock(&tiresMutex);
-    return NULL;
-  }
-  taosThreadMutexUnlock(&tiresMutex);
-
   // can obtain var names from local
   STire* tire = getAutoPtr(type);
   if (tire == NULL) {
+    return NULL;
+  }
+
+  if(updateTireValue(type, true)) {
     return NULL;
   }
 
@@ -1695,9 +1705,12 @@ bool matchEnd(TAOS* con, SShellCmd* cmd) {
   }
 
   // match database
-  if (fillWithType(con, cmd, last, WT_VAR_DBNAME)) {
-    ret = true;
-    goto _return;
+  if(elast == NUL) {
+    // dot need not completed with dbname
+    if (fillWithType(con, cmd, last, WT_VAR_DBNAME)) {
+      ret = true;
+      goto _return;
+    }
   }
 
   if (fillWithType(con, cmd, last, WT_VAR_SYSTABLE)) {
@@ -1964,7 +1977,7 @@ void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb) {
 
   if (dealUseDB(sql)) {
     // change to new db
-    tireSearchWord(WT_VAR_STABLE, "");
+    updateTireValue(WT_VAR_STABLE, false);
     return;
   }
 
