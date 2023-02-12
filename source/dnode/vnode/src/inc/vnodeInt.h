@@ -196,7 +196,6 @@ int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid
 int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 int32_t tsdbBatchExec(STsdb* pTsdb, void* arg, int64_t varg);
 
-
 // tq
 int     tqInit();
 void    tqCleanUp();
@@ -504,8 +503,8 @@ struct SCompactInfo {
 
 struct SMergeInfo {
   SVTaskInfo taskInfo;
-  SVnodeInfo info;
-  TXN*       txn;
+  int32_t    flag;
+  int64_t    commitID;
 };
 
 struct SMigrateInfo {
@@ -517,7 +516,7 @@ struct SMigrateInfo {
   int32_t     maxIndex;
 };
 
-static FORCE_INLINE void vndDummyFunction(SVnode *pVnode, const char* funcName, int32_t lino, int32_t nRunningSec) {
+static FORCE_INLINE void vndDummyFunction(SVnode* pVnode, const char* funcName, int32_t lino, int32_t nRunningSec) {
   for (int32_t i = 1; i <= nRunningSec; ++i) {
     taosSsleep(1);
     uInfo("vgId:%d, %s:%d %d of %d second(s) elasped", TD_VID(pVnode), funcName, lino, i, nRunningSec);

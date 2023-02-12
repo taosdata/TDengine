@@ -389,7 +389,6 @@ void vnodeClose(SVnode *pVnode) {
     vnodeQueryClose(pVnode);
     walClose(pVnode->pWal);
     tqClose(pVnode->pTq);
-
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
     smaClose(pVnode->pSma);
     metaClose(pVnode->pMeta);

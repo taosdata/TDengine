@@ -16,6 +16,7 @@ target_sources(
     "src/vnd/vnodeSnapshot.c"
     "src/vnd/vnodeCompact.c"
     "src/vnd/vnodeBatch.c"
+    "src/vnd/vnodeMerge.c"
 
     # meta
     "src/meta/metaOpen.c"

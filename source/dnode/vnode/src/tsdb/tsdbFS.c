@@ -778,12 +778,12 @@ int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback) {
   // open impl
   char current[TSDB_FILENAME_LEN] = {0};
   char current_t[TSDB_FILENAME_LEN] = {0};
+  tsdbGetCurrentFName(pTsdb, current, current_t, VND_TASK_MAX);
 
   if (taosCheckExistFile(current)) {
     code = tsdbLoadFSFromFile(current, &pTsdb->fs);
     TSDB_CHECK_CODE(code, lino, _exit);
     
-    tsdbGetCurrentFName(pTsdb, current, current_t, VND_TASK_MAX);
     if (taosCheckExistFile(current_t)) {
       code = tsdbFSCommit(pTsdb, VND_TASK_MAX);
       TSDB_CHECK_CODE(code, lino, _exit);
