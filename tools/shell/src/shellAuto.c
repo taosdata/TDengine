@@ -741,38 +741,6 @@ void putBackAutoPtr(int type, STire* tire) {
 //  -------------------  var Word --------------------------
 //
 
-// return true is need update value by async
-bool updateTireValue(int type, bool autoFill) {
-  // TYPE CONTEXT GET FROM DB
-  taosThreadMutexLock(&tiresMutex);
-
-  // check need obtain from server
-  if (tires[type] == NULL) {
-    waitAutoFill = autoFill;
-    // need async obtain var names from db sever
-    if (threads[type] != NULL) {
-      if (taosThreadRunning(threads[type])) {
-        // thread running , need not obtain again, return
-        taosThreadMutexUnlock(&tiresMutex);
-        return NULL;
-      }
-      // destroy previous thread handle for new create thread handle
-      taosDestroyThread(threads[type]);
-      threads[type] = NULL;
-    }
-
-    // create new
-    void* param = taosMemoryMalloc(sizeof(int));
-    *((int*)param) = type;
-    threads[type] = taosCreateThread(varObtainThread, param);
-    taosThreadMutexUnlock(&tiresMutex);
-    return true;
-  }
-  taosThreadMutexUnlock(&tiresMutex);
-
-  return false;
-}
-
 #define MAX_CACHED_CNT 100000  // max cached rows 10w
 // write sql result to var name, return write rows cnt
 int writeVarNames(int type, TAOS_RES* tres) {
@@ -847,6 +815,38 @@ void* varObtainThread(void* param) {
   }
 
   return NULL;
+}
+
+// return true is need update value by async
+bool updateTireValue(int type, bool autoFill) {
+  // TYPE CONTEXT GET FROM DB
+  taosThreadMutexLock(&tiresMutex);
+
+  // check need obtain from server
+  if (tires[type] == NULL) {
+    waitAutoFill = autoFill;
+    // need async obtain var names from db sever
+    if (threads[type] != NULL) {
+      if (taosThreadRunning(threads[type])) {
+        // thread running , need not obtain again, return
+        taosThreadMutexUnlock(&tiresMutex);
+        return NULL;
+      }
+      // destroy previous thread handle for new create thread handle
+      taosDestroyThread(threads[type]);
+      threads[type] = NULL;
+    }
+
+    // create new
+    void* param = taosMemoryMalloc(sizeof(int));
+    *((int*)param) = type;
+    threads[type] = taosCreateThread(varObtainThread, param);
+    taosThreadMutexUnlock(&tiresMutex);
+    return true;
+  }
+  taosThreadMutexUnlock(&tiresMutex);
+
+  return false;
 }
 
 // only match next one word from all match words, return valuue must free by caller
