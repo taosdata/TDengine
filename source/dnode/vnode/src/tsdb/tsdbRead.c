@@ -423,19 +423,6 @@ static STimeWindow updateQueryTimeWindow(STsdb* pTsdb, STimeWindow* pWindow) {
   return win;
 }
 
-static void limitOutputBufferSize(const SQueryTableDataCond* pCond, int32_t* capacity) {
-  int32_t rowLen = 0;
-  for (int32_t i = 0; i < pCond->numOfCols; ++i) {
-    rowLen += pCond->colList[i].bytes;
-  }
-
-  // make sure the output SSDataBlock size be less than 2MB.
-  const int32_t TWOMB = 2 * 1024 * 1024;
-  if ((*capacity) * rowLen > TWOMB) {
-    (*capacity) = TWOMB / rowLen;
-  }
-}
-
 // init file iterator
 static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet, STsdbReader* pReader) {
   size_t numOfFileset = taosArrayGetSize(aDFileSet);
@@ -617,9 +604,6 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
     code = TSDB_CODE_INVALID_PARA;
     goto _end;
   }
-
-  // todo refactor.
-  limitOutputBufferSize(pCond, &pReader->capacity);
 
   // allocate buffer in order to load data blocks from file
   SBlockLoadSuppInfo* pSup = &pReader->suppInfo;
@@ -3835,11 +3819,9 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     pCond->twindows.ekey -= 1;
   }
 
-  int32_t capacity = 0;
-  if (pResBlock == NULL) {
-    capacity = 4096;
-  } else {
-    capacity = pResBlock->info.capacity;
+  int32_t capacity = pVnode->config.tsdbCfg.maxRows;
+  if (pResBlock != NULL) {
+    blockDataEnsureCapacity(pResBlock, capacity);
   }
 
   int32_t code = tsdbReaderCreate(pVnode, pCond, ppReader, capacity, pResBlock, idstr);
