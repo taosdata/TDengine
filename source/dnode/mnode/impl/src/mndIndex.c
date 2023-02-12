@@ -277,7 +277,7 @@ static SSdbRow *mndIdxActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    sdbFreeRaw(pRow);
+    taosMemoryFree(pRow);
     return NULL;
   }
 

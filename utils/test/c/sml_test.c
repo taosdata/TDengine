@@ -930,7 +930,10 @@ int sml_ts2164_Test() {
 int sml_ttl_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "drop database if exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
   taos_free_result(pRes);
 
   const char *sql[] = {
@@ -1093,7 +1096,7 @@ int main(int argc, char *argv[]) {
   }
 
   int ret = 0;
-  ret = sml_ts2385_Test();
+  ret = sml_ts2385_Test();    // this test case need config sml table name using ./sml_test config_file
   ASSERT(!ret);
   //  for(int i = 0; i < sizeof(str)/sizeof(str[0]); i++){
   //    printf("str:%s \t %d\n", str[i], smlCalTypeSum(str[i], strlen(str[i])));

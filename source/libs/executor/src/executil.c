@@ -162,7 +162,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
 
 void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList) {
   if (pGroupResInfo->pRows != NULL) {
-    taosArrayDestroyP(pGroupResInfo->pRows, taosMemoryFree);
+    taosArrayDestroy(pGroupResInfo->pRows);
   }
 
   pGroupResInfo->pRows = pArrayList;
@@ -1698,11 +1698,17 @@ int32_t convertFillType(int32_t mode) {
     case FILL_MODE_NULL:
       type = TSDB_FILL_NULL;
       break;
+    case FILL_MODE_NULL_F:
+      type = TSDB_FILL_NULL_F;
+      break;
     case FILL_MODE_NEXT:
       type = TSDB_FILL_NEXT;
       break;
     case FILL_MODE_VALUE:
       type = TSDB_FILL_SET_VALUE;
+      break;
+    case FILL_MODE_VALUE_F:
+      type = TSDB_FILL_SET_VALUE_F;
       break;
     case FILL_MODE_LINEAR:
       type = TSDB_FILL_LINEAR;
@@ -1787,6 +1793,10 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {
   return (pLimitInfo->limit.limit != -1 || pLimitInfo->limit.offset != -1 || pLimitInfo->slimit.limit != -1 ||
           pLimitInfo->slimit.offset != -1);
+}
+
+bool hasSlimitOffsetInfo(SLimitInfo* pLimitInfo) {
+  return (pLimitInfo->slimit.limit != -1 || pLimitInfo->slimit.offset != -1);
 }
 
 void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo) {

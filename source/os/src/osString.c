@@ -351,7 +351,7 @@ char *taosStrCaseStr(const char *str, const char *pattern) {
 
 int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
   int64_t tmp = strtoll(str, pEnd, radix);
-#ifdef DARWIN
+#if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
@@ -363,7 +363,7 @@ int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
 
 uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
   uint64_t tmp = strtoull(str, pEnd, radix);
-#ifdef DARWIN
+#if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
@@ -375,7 +375,7 @@ uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
 
 int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
   int32_t tmp = strtol(str, pEnd, radix);
-#ifdef DARWIN
+#if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
@@ -387,7 +387,7 @@ int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
 
 uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
   uint32_t tmp = strtol(str, pEnd, radix);
-#ifdef DARWIN
+#if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
@@ -399,7 +399,7 @@ uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
 
 int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
   int32_t tmp = strtol(str, pEnd, radix);
-#ifdef DARWIN
+#if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
@@ -413,7 +413,7 @@ int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
 
 uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
   uint32_t tmp = strtoul(str, pEnd, radix);
-#ifdef DARWIN
+#if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
@@ -437,7 +437,7 @@ int8_t taosStr2Int8(const char *str, char **pEnd, int32_t radix) {
 
 uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
   uint32_t tmp = strtoul(str, pEnd, radix);
-#ifdef DARWIN
+#if defined(DARWIN) || defined(_ALPINE)
   if (errno == EINVAL) errno = 0;
 #endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR

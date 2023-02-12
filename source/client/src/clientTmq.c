@@ -1885,9 +1885,6 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
     }
 
     tmq_list_destroy(lst);
-
-    /*return rsp;*/
-    return 0;
   }
   taosRemoveRef(tmqMgmt.rsetId, tmq->refId);
   return 0;

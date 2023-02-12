@@ -162,11 +162,7 @@ taos --dump-config
 | 含义     | 查询语句的执行策略            |
 | 单位     | 无                            |
 | 缺省值   | 1                             |
-| 补充说明 | 1: 只使用 vnode，不使用 qnode |
-
-2: 没有扫描算子的子任务在 qnode 执行，带扫描算子的子任务在 vnode 执行
-
-3: vnode 只运行扫描算子，其余算子均在 qnode 执行 |
+| 补充说明 | 1: 只使用 vnode，不使用 qnode; 2: 没有扫描算子的子任务在 qnode 执行，带扫描算子的子任务在 vnode 执行; 3: vnode 只运行扫描算子，其余算子均在 qnode 执行 |
 
 ### querySmaOptimize
 
@@ -176,11 +172,7 @@ taos --dump-config
 | 含义     | sma index 的优化策略 |
 | 单位     | 无                   |
 | 缺省值   | 0                    |
-| 补充说明 |
-
-0: 表示不使用 sma index，永远从原始数据进行查询
-
-1: 表示使用 sma index，对符合的语句，直接从预计算的结果进行查询 |
+| 补充说明 |0: 表示不使用 sma index，永远从原始数据进行查询; 1: 表示使用 sma index，对符合的语句，直接从预计算的结果进行查询 |
 
 ### maxNumOfDistinctRes
 
@@ -323,6 +315,7 @@ charset 的有效值是 UTF-8。
 | 适用范围 | 仅服务端适用                               |
 | 含义     | 数据文件目录，所有的数据文件都将写入该目录 |
 | 缺省值   | /var/lib/taos                              |
+| 补充说明 | [多级存储](https://docs.taosdata.com/tdinternal/arch/#%E5%A4%9A%E7%BA%A7%E5%AD%98%E5%82%A8) 功能需要与 [KEEP](https://docs.taosdata.com/taos-sql/database/#%E5%8F%82%E6%95%B0%E8%AF%B4%E6%98%8E) 参数配合使用 |
 
 ### tempDir
 
@@ -388,7 +381,7 @@ charset 的有效值是 UTF-8。
 | 属性     | 说明                                         |
 | -------- | -------------------------------------------- |
 | 适用范围 | 服务端和客户端均适用                         |
-| 含义     | 当日志文件夹的磁盘大小小于该值时，停止写日志 |
+| 含义     | 当日志文件夹所在磁盘可用空间大小小于该值时，停止写日志 |
 | 单位     | GB                                           |
 | 缺省值   | 1.0                                          |
 
@@ -615,7 +608,7 @@ charset 的有效值是 UTF-8。
 | 属性     | 说明                          |
 | -------- | ----------------------------- |
 | 适用范围 | 仅客户端适用                  |
-| 含义     | schemaless 列数据是否顺序一致 |
+| 含义     | schemaless 列数据是否顺序一致，从3.0.3.0开始，该配置废弃 |
 | 值域     | 0：不一致；1: 一致            |
 | 缺省值   | 1                             |
 
@@ -675,7 +668,7 @@ charset 的有效值是 UTF-8。
 | 20  |     minimalTmpDirGB     | 是              | 是              |                                                   |
 | 21  |    smlChildTableName    | 是              | 是              |                                                   |
 | 22  |       smlTagName        | 是              | 是              |                                                   |
-| 23  |      smlDataFormat      | 否              | 是              |                                                   |
+| 23  |      smlDataFormat      | 否              | 是（从3.0.3.0开始，该配置废弃）              |                                                   |
 | 24  |     statusInterval      | 是              | 是              |                                                   |
 | 25  |         logDir          | 是              | 是              |                                                   |
 | 26  |     minimalLogDirGB     | 是              | 是              |                                                   |

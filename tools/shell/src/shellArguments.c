@@ -97,7 +97,11 @@ void shellPrintHelp() {
 
 #ifdef LINUX
 #include <argp.h>
+#ifdef _ALPINE
+#include <termios.h>
+#else
 #include <termio.h>
+#endif
 
 const char *argp_program_version = version;
 const char *argp_program_bug_address = cusEmail;

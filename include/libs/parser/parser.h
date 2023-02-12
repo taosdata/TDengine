@@ -86,10 +86,11 @@ void    qCleanupKeywordsTable();
 int32_t     qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash);
 int32_t     qResetStmtDataBlock(STableDataCxt* block, bool keepBuf);
 int32_t     qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool reset);
-int32_t     qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, uint64_t suid, int32_t vgId, bool rebuildCreateTb);
+int32_t     qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, uint64_t suid, int32_t vgId,
+                                  bool rebuildCreateTb);
 void        qDestroyStmtDataBlock(STableDataCxt* pBlock);
 STableMeta* qGetTableMetaInDataBlock(STableDataCxt* pDataBlock);
-int32_t qCloneCurrentTbData(STableDataCxt*       pDataBlock, SSubmitTbData **pData);
+int32_t     qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData);
 
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx);
 int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery);
@@ -104,18 +105,18 @@ void    destroyBoundColumnInfo(void* pBoundInfo);
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                      int32_t msgBufLen);
 
-void    qDestroyBoundColInfo(void* pInfo);
+void qDestroyBoundColInfo(void* pInfo);
 
-SQuery* smlInitHandle();
-int32_t smlBuildRow(STableDataCxt* pTableCxt);
-int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void *kv, int32_t index);
+SQuery*        smlInitHandle();
+int32_t        smlBuildRow(STableDataCxt* pTableCxt);
+int32_t        smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* kv, int32_t index);
 STableDataCxt* smlInitTableDataCtx(SQuery* query, STableMeta* pTableMeta);
 
-int32_t smlBindData(SQuery* handle, bool dataFormat, SArray* tags, SArray* colsSchema, SArray* cols, STableMeta* pTableMeta,
-                    char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl, char* msgBuf, int16_t msgBufLen);
+int32_t smlBindData(SQuery* handle, bool dataFormat, SArray* tags, SArray* colsSchema, SArray* cols,
+                    STableMeta* pTableMeta, char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl,
+                    char* msgBuf, int16_t msgBufLen);
 int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash);
-
-int     rawBlockBindData(SQuery *query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, TAOS_FIELD *fields, int numFields);
+int     rawBlockBindData(SQuery *query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, TAOS_FIELD *fields, int numFields, bool needChangeLength);
 
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
 SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap);

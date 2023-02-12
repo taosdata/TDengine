@@ -520,7 +520,12 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
             tqOffsetResetToData(&fetchOffsetNew, 0, 0);
           }
         } else {
-          tqOffsetResetToLog(&fetchOffsetNew, walGetFirstVer(pTq->pVnode->pWal));
+          pHandle->pRef = walRefFirstVer(pTq->pVnode->pWal, pHandle->pRef);
+          if (pHandle->pRef == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            return -1;
+          }
+          tqOffsetResetToLog(&fetchOffsetNew, pHandle->pRef->refVer - 1);
         }
       } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
         if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
@@ -683,6 +688,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
             .ver = pHead->version,
         };
         if (tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp) < 0) {
+          tqError("tmq poll: tqTaosxScanLog error %" PRId64 ", in vgId:%d, subkey %s", consumerId,
+                  TD_VID(pTq->pVnode), req.subKey);
+          return -1;
         }
         if (taosxRsp.blockNum > 0 /* threshold */) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
@@ -699,7 +707,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       } else {
         /*A(pHandle->fetchMeta);*/
         /*A(IS_META_MSG(pHead->msgType));*/
-        tqDebug("fetch meta msg, ver:%" PRId64 ", type:%d", pHead->version, pHead->msgType);
+        tqDebug("fetch meta msg, ver:%" PRId64 ", type:%s", pHead->version, TMSG_INFO(pHead->msgType));
         tqOffsetResetToLog(&metaRsp.rspOffset, fetchVer);
         metaRsp.resMsgType = pHead->msgType;
         metaRsp.metaRspLen = pHead->bodyLen;

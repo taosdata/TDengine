@@ -671,7 +671,7 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
   conn->stream = (uv_stream_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
   uv_tcp_init(pThrd->loop, (uv_tcp_t*)(conn->stream));
   conn->stream->data = conn;
-  transSetConnOption((uv_tcp_t*)conn->stream);
+  // transSetConnOption((uv_tcp_t*)conn->stream);
 
   uv_timer_t* timer = taosArrayGetSize(pThrd->timerList) > 0 ? *(uv_timer_t**)taosArrayPop(pThrd->timerList) : NULL;
   if (timer == NULL) {
@@ -778,7 +778,7 @@ static void cliSendCb(uv_write_t* req, int status) {
   SCliMsg* pMsg = !transQueueEmpty(&pConn->cliMsgs) ? transQueueGet(&pConn->cliMsgs, 0) : NULL;
   if (pMsg != NULL) {
     int64_t cost = taosGetTimestampUs() - pMsg->st;
-    if (cost > 1000) {
+    if (cost > 1000 * 20) {
       tWarn("%s conn %p send cost:%dus, send exception", CONN_GET_INST_LABEL(pConn), pConn, (int)cost);
     }
   }
@@ -800,9 +800,12 @@ static void cliSendCb(uv_write_t* req, int status) {
 }
 
 void cliSend(SCliConn* pConn) {
-  bool empty = transQueueEmpty(&pConn->cliMsgs);
-  ASSERTS(empty == false, "trans-cli get invalid msg");
-  if (empty == true) {
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pTransInst = pThrd->pTransInst;
+
+  if (transQueueEmpty(&pConn->cliMsgs)) {
+    tError("%s conn %p not msg to send", pTransInst->label, pConn);
+    cliHandleExcept(pConn);
     return;
   }
 
@@ -811,9 +814,6 @@ void cliSend(SCliConn* pConn) {
   pCliMsg->sent = 1;
 
   STransConnCtx* pCtx = pCliMsg->ctx;
-
-  SCliThrd* pThrd = pConn->hostThrd;
-  STrans*   pTransInst = pThrd->pTransInst;
 
   STransMsg* pMsg = (STransMsg*)(&pCliMsg->msg);
   if (pMsg->pCont == 0) {
@@ -1045,6 +1045,12 @@ static FORCE_INLINE uint32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn) 
   uint32_t* v = taosHashGet(cache, fqdn, strlen(fqdn));
   if (v == NULL) {
     addr = taosGetIpv4FromFqdn(fqdn);
+    if (addr == 0xffffffff) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      tError("failed to get ip from fqdn:%s since %s", fqdn, terrstr());
+      return addr;
+    }
+
     taosHashPut(cache, fqdn, strlen(fqdn), &addr, sizeof(addr));
   } else {
     addr = *v;
@@ -1061,9 +1067,10 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   STransConnCtx* pCtx = pMsg->ctx;
 
   cliMayCvtFqdnToIp(&pCtx->epSet, &pThrd->cvtAddr);
+  STraceId* trace = &pMsg->msg.info.traceId;
 
   if (!EPSET_IS_VALID(&pCtx->epSet)) {
-    tError("invalid epset");
+    tGError("%s, msg %s sent with invalid epset", pTransInst->label, TMSG_INFO(pMsg->msg.msgType));
     destroyCmsg(pMsg);
     return;
   }
@@ -1116,15 +1123,45 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     conn->ip = strdup(EPSET_GET_INUSE_IP(&pCtx->epSet));
     conn->port = EPSET_GET_INUSE_PORT(&pCtx->epSet);
 
+    uint32_t ipaddr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ip);
+    if (ipaddr == 0xffffffff) {
+      uv_timer_stop(conn->timer);
+      conn->timer->data = NULL;
+      taosArrayPush(pThrd->timerList, &conn->timer);
+      conn->timer = NULL;
+
+      cliHandleExcept(conn);
+      return;
+    }
+
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ip);
+    addr.sin_addr.s_addr = ipaddr;
     addr.sin_port = (uint16_t)htons((uint16_t)conn->port);
 
-    STraceId* trace = &(pMsg->msg.info.traceId);
     tGTrace("%s conn %p try to connect to %s:%d", pTransInst->label, conn, conn->ip, conn->port);
+    int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 4);
+    if (fd == -1) {
+      tGError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
+              tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      cliHandleExcept(conn);
+      errno = 0;
+      return;
+    }
+    int ret = uv_tcp_open((uv_tcp_t*)conn->stream, fd);
+    if (ret != 0) {
+      tGError("%s conn %p failed to set stream, reason:%s", transLabel(pTransInst), conn, uv_err_name(ret));
+      cliHandleExcept(conn);
+      return;
+    }
+    ret = transSetConnOption((uv_tcp_t*)conn->stream);
+    if (ret != 0) {
+      tGError("%s conn %p failed to set socket opt, reason:%s", transLabel(pTransInst), conn, uv_err_name(ret));
+      cliHandleExcept(conn);
+      return;
+    }
 
-    int ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
+    ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
     if (ret != 0) {
       tGError("%s conn %p failed to connect to %s:%d, reason:%s", pTransInst->label, conn, conn->ip, conn->port,
               uv_err_name(ret));
@@ -1139,7 +1176,6 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     }
     uv_timer_start(conn->timer, cliConnTimeout, TRANS_CONN_TIMEOUT, 0);
   }
-  STraceId* trace = &pMsg->msg.info.traceId;
   tGTrace("%s conn %p ready", pTransInst->label, conn);
 }
 static void cliAsyncCb(uv_async_t* handle) {
@@ -1275,7 +1311,11 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   for (int i = 0; i < cli->numOfThreads; i++) {
     SCliThrd* pThrd = createThrdObj(shandle);
-    int       err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
+    if (pThrd == NULL) {
+      return NULL;
+    }
+
+    int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
     if (err == 0) {
       tDebug("success to create tranport-cli thread:%d", i);
     }
@@ -1332,9 +1372,23 @@ static SCliThrd* createThrdObj(void* trans) {
   taosThreadMutexInit(&pThrd->msgMtx, NULL);
 
   pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
-  uv_loop_init(pThrd->loop);
-
+  int err = uv_loop_init(pThrd->loop);
+  if (err != 0) {
+    tError("failed to init uv_loop, reason:%s", uv_err_name(err));
+    taosMemoryFree(pThrd->loop);
+    taosThreadMutexDestroy(&pThrd->msgMtx);
+    taosMemoryFree(pThrd);
+    return NULL;
+  }
   pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 8, pThrd, cliAsyncCb);
+  if (pThrd->asyncPool == NULL) {
+    tError("failed to init async pool");
+    uv_loop_close(pThrd->loop);
+    taosMemoryFree(pThrd->loop);
+    taosThreadMutexDestroy(&pThrd->msgMtx);
+    taosMemoryFree(pThrd);
+    return NULL;
+  }
 
   pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
   uv_prepare_init(pThrd->loop, pThrd->prepare);

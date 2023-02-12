@@ -41,6 +41,7 @@ static int32_t  mndProcessTtlTimer(SRpcMsg *pReq);
 static int32_t  mndProcessCreateStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropStbReq(SRpcMsg *pReq);
+static int32_t  mndProcessDropTtltbReq(SRpcMsg *pReq);
 static int32_t  mndProcessTableMetaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static int32_t  mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -67,6 +68,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_STB, mndProcessAlterStbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STB, mndProcessDropStbReq);
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_STB_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TTL_TABLE_RSP, mndProcessDropTtltbReq);
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_META, mndProcessTableMetaReq);
@@ -978,9 +980,8 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
         code = 0;
         goto _OVER;
       } else if (pStb->uid != createReq.suid) {
-        mError("stb:%s, already exist while create, input suid:%" PRId64 " not match with exist suid:%" PRId64,
-               createReq.name, createReq.suid, pStb->uid);
-        terrno = TSDB_CODE_MND_STABLE_UID_NOT_MATCH;
+        mInfo("stb:%s, alter table does not need to be done, because table is deleted", createReq.name);
+        code = 0;
         goto _OVER;
       } else if (createReq.tagVer > 0 || createReq.colVer > 0) {
         int32_t tagDelta = createReq.tagVer - pStb->tagVer;
@@ -2223,6 +2224,10 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
     nodesDestroyNode(pAst);
     nodesDestroyList(pNodeList);
   }
+  return 0;
+}
+
+static int32_t mndProcessDropTtltbReq(SRpcMsg *pRsp) {
   return 0;
 }
 

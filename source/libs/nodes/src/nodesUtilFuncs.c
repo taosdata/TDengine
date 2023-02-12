@@ -374,8 +374,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDescribeStmt));
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
       return makeNode(type, sizeof(SNode));
-    case QUERY_NODE_COMPACT_STMT:
-      break;
+    case QUERY_NODE_COMPACT_DATABASE_STMT:
+      return makeNode(type, sizeof(SCompactDatabaseStmt));
     case QUERY_NODE_CREATE_FUNCTION_STMT:
       return makeNode(type, sizeof(SCreateFunctionStmt));
     case QUERY_NODE_DROP_FUNCTION_STMT:
@@ -436,7 +436,7 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SShowCreateDatabaseStmt));
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
-      return makeNode(type, sizeof(SShowAliveStmt));      
+      return makeNode(type, sizeof(SShowAliveStmt));
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return makeNode(type, sizeof(SShowCreateTableStmt));
@@ -923,7 +923,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFree(((SDescribeStmt*)pNode)->pMeta);
       break;
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:  // no pointer field
-    case QUERY_NODE_COMPACT_STMT:            // no pointer field
+    case QUERY_NODE_COMPACT_DATABASE_STMT:   // no pointer field
     case QUERY_NODE_CREATE_FUNCTION_STMT:    // no pointer field
     case QUERY_NODE_DROP_FUNCTION_STMT:      // no pointer field
       break;
@@ -964,7 +964,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:    
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
@@ -1103,6 +1103,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pTspk);
       nodesDestroyNode(pLogicNode->pTsEnd);
       nodesDestroyNode(pLogicNode->pStateExpr);
+      nodesDestroyNode(pLogicNode->pStartCond);
+      nodesDestroyNode(pLogicNode->pEndCond);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_FILL: {
@@ -2017,10 +2019,14 @@ char* nodesGetFillModeString(EFillMode mode) {
       return "none";
     case FILL_MODE_VALUE:
       return "value";
+    case FILL_MODE_VALUE_F:
+      return "value_f";
     case FILL_MODE_PREV:
       return "prev";
     case FILL_MODE_NULL:
       return "null";
+    case FILL_MODE_NULL_F:
+      return "null_f";
     case FILL_MODE_LINEAR:
       return "linear";
     case FILL_MODE_NEXT:
