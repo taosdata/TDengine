@@ -108,7 +108,7 @@ static void* doInternalAlloc(SSHashObj* pHashObj, int32_t size) {
     taosArrayPush(pHashObj->pHashNodeBuf, &pNewPage);
     return pNewPage;
   } else {
-    void* pPos = (*p) + pHashObj->offset;
+    void* pPos = (char*)(*p) + pHashObj->offset;
     pHashObj->offset += size;
     return pPos;
   }
