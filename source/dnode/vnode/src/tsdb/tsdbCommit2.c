@@ -18,6 +18,7 @@
 typedef enum { MEMORY_DATA_ITER = 0, STT_DATA_ITER } EDataIterT;
 
 #define USE_STREAM_COMPRESSION 0
+#define COMMIT_ONLY
 
 typedef struct {
   SRBTreeNode n;
@@ -94,6 +95,10 @@ typedef struct {
   SArray      *aDelData;  // SArray<SDelData>
 } SCommitter;
 
+static bool checkHeadFileExists(bool check) {
+  return taosCheckExistFile("/data/lib/taos/vnode/vnode2/tsdb/v2f1853ver1.head");
+}
+
 static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter, SCommitInfo *pInfo);
 static int32_t tsdbCommitData(SCommitter *pCommitter);
 static int32_t tsdbCommitDel(SCommitter *pCommitter);
@@ -161,11 +166,11 @@ int32_t tsdbPrepareCommit(STsdb *pTsdb) {
   return 0;
 }
 
-int32_t tsdbCanCommit(STsdb *pTsdb) {
+int32_t tsdbAllowCommit(STsdb *pTsdb) {
   int32_t result = 1;
   if (pTsdb) {
     taosThreadRwlockRdlock(&pTsdb->rwLock);
-    if (pTsdb->fs.nMaxStt >= TSDB_MAX_STT_TRIGGER) {
+    if (pTsdb->fs.nMaxSttF >= TSDB_MAX_STT_TRIGGER) {
       result = 0;
     }
     taosThreadRwlockUnlock(&pTsdb->rwLock);
@@ -197,6 +202,7 @@ int32_t tsdbCommit(STsdb *pTsdb, SCommitInfo *pInfo) {
 
   // commit impl
   code = tsdbCommitData(&commith);
+
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbCommitDel(&commith);
@@ -458,6 +464,9 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
   tRBTreePut(&pCommitter->rbt, (SRBTreeNode *)pIter);
 
   // disk
+#ifdef COMMIT_ONLY
+  pCommitter->toLastOnly = 1;
+#else
   pCommitter->toLastOnly = 0;
   SDataFReader *pReader = pCommitter->dReader.pReader;
   if (pReader) {
@@ -496,6 +505,7 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
       }
     }
   }
+#endif
 
   code = tsdbNextCommitRow(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -660,6 +670,8 @@ _exit:
 }
 #endif
 
+
+
 #if 1
 static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   int32_t    code = 0;
@@ -682,6 +694,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   SDFileSet tDFileSet = {.fid = pCommitter->commitFid};
   pRSet = (SDFileSet *)taosArraySearch(pCommitter->fs.aDFileSet, &tDFileSet, tDFileSetCmprFn, TD_EQ);
 
+  // not read head file and dReader.pBlockIdx is NULL in COMMIT_ONLY mode.
   pCommitter->dReader.pBlockIdx = NULL;
 
   // Writer
@@ -700,6 +713,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
 
   if (pRSet) {
     ASSERT(pRSet->nSttF < TSDB_MAX_STT_TRIGGER);
+    fHead = *pRSet->pHeadF;
     fData = *pRSet->pDataF;
     fSma = *pRSet->pSmaF;
     wSet.diskId = pRSet->diskId;
@@ -707,17 +721,19 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
       wSet.aSttF[iStt] = pRSet->aSttF[iStt];
     }
     wSet.nSttF = pRSet->nSttF + 1;
+    ASSERT(checkHeadFileExists(true));
   } else {
     wSet.diskId = did;
     wSet.nSttF = 1;
   }
-  
-  fStt.diskId = did;
-  wSet.aSttF[wSet.nSttF - 1] = &fStt;
-  
-  if (pCommitter->fs.nMaxStt < wSet.nSttF) pCommitter->fs.nMaxStt = wSet.nSttF;
 
-  code = tsdbDataFWriterOpen(&pCommitter->dWriter.pWriter, pTsdb, &wSet, true);
+    fStt.diskId = did;
+  wSet.aSttF[wSet.nSttF - 1] = &fStt;
+
+  if (pCommitter->fs.nMaxSttF < wSet.nSttF) pCommitter->fs.nMaxSttF = wSet.nSttF;
+
+  // COMMIT_ONLY
+  code = tsdbDataFWriterOpen(&pCommitter->dWriter.pWriter, pTsdb, &wSet, pRSet ? true : false);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   taosArrayClear(pCommitter->dWriter.aBlockIdx);
@@ -1104,12 +1120,15 @@ static int32_t tsdbCommitData(SCommitter *pCommitter) {
   // impl ====================
   pCommitter->nextKey = pMemTable->minKey;
   while (pCommitter->nextKey < TSKEY_MAX) {
+    // #ifndef COMMIT_ONLY
     code = tsdbCommitFileData(pCommitter);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // end ====================
   tsdbCommitDataEnd(pCommitter);
+
+  ASSERT(checkHeadFileExists(true));
 
 _exit:
   if (code) {
@@ -1764,6 +1783,7 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
 
     // end
     if (pCommitter->dWriter.mBlock.nItem > 0) {
+      ASSERT(0);
       SBlockIdx blockIdx = {.suid = id.suid, .uid = id.uid};
       code = tsdbWriteDataBlk(pCommitter->dWriter.pWriter, &pCommitter->dWriter.mBlock, &blockIdx);
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -1796,7 +1816,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbFinishCommit(STsdb *pTsdb) {
+int32_t tsdbFinishCommit(STsdb *pTsdb, int8_t type) {
   int32_t    code = 0;
   int32_t    lino = 0;
   SMemTable *pMemTable = pTsdb->imem;
@@ -1804,7 +1824,7 @@ int32_t tsdbFinishCommit(STsdb *pTsdb) {
   // lock
   taosThreadRwlockWrlock(&pTsdb->rwLock);
 
-  code = tsdbFSCommit(pTsdb);
+  code = tsdbFSCommit(pTsdb, type);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -1827,11 +1847,11 @@ _exit:
   return code;
 }
 
-int32_t tsdbRollbackCommit(STsdb *pTsdb) {
+int32_t tsdbRollbackCommit(STsdb *pTsdb, int8_t type) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbFSRollback(pTsdb);
+  code = tsdbFSRollback(pTsdb, type);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

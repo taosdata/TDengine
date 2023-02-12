@@ -254,8 +254,8 @@ int32_t tsdbFSClose(STsdb *pTsdb);
 int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS);
 void    tsdbFSDestroy(STsdbFS *pFS);
 int32_t tDFileSetCmprFn(const void *p1, const void *p2);
-int32_t tsdbFSCommit(STsdb *pTsdb);
-int32_t tsdbFSRollback(STsdb *pTsdb);
+int32_t tsdbFSCommit(STsdb *pTsdb, int8_t type);
+int32_t tsdbFSRollback(STsdb *pTsdb, int8_t type);
 int32_t tsdbFSPrepareCommit(STsdb *pTsdb, STsdbFS *pFS);
 int32_t tsdbFSRef(STsdb *pTsdb, STsdbFS *pFS);
 void    tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS);
@@ -273,9 +273,6 @@ int32_t tsdbWriteSttBlk(SDataFWriter *pWriter, SArray *aSttBlk);
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
                            int8_t cmprAlg, int8_t toLast);
 int32_t tsdbWriteDiskData(SDataFWriter *pWriter, const SDiskData *pDiskData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo);
-
-int32_t tsdbDataFWriterOpenEx(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet);
-int32_t tsdbDataFWriterCloseEx(SDataFWriter **ppWriter, int8_t sync);
 
 int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
 // SDataFReader
@@ -341,7 +338,8 @@ int32_t tsdbDataIterNext2(STsdbDataIter2 *pIter, STsdbFilterInfo *pFilterInfo);
 
 // structs =======================
 struct STsdbFS {
-  int8_t    nMaxStt;  // memory variable
+  int8_t    type;
+  int8_t    nMaxSttF;  // memory variable
   SDelFile *pDelFile;
   SArray   *aDFileSet;  // SArray<SDFileSet>
 };

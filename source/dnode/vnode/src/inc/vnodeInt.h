@@ -182,10 +182,10 @@ int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* 
 int     tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
 int32_t tsdbPrepareCommit(STsdb* pTsdb);
-int32_t tsdbCanCommit(STsdb* pTsdb);
+int32_t tsdbAllowCommit(STsdb* pTsdb);
 int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
-int32_t tsdbFinishCommit(STsdb* pTsdb);
-int32_t tsdbRollbackCommit(STsdb* pTsdb);
+int32_t tsdbFinishCommit(STsdb* pTsdb, int8_t type);
+int32_t tsdbRollbackCommit(STsdb* pTsdb, int8_t type);
 int32_t tsdbMerge(STsdb* pTsdb, void* arg, int64_t varg);
 int32_t tsdbCompact(STsdb* pTsdb, void* arg, int64_t varg);
 int32_t tsdbDoRetention(STsdb* pTsdb, void* arg, int64_t varg);
@@ -238,9 +238,9 @@ int32_t smaOpen(SVnode* pVnode, int8_t rollback);
 int32_t smaClose(SSma* pSma);
 int32_t smaBegin(SSma* pSma);
 int32_t smaPrepareAsyncCommit(SSma* pSma);
-int32_t smaCanCommit(SSma* pSma);
+int32_t smaAllowCommit(SSma* pSma);
 int32_t smaCommit(SSma* pSma, SCommitInfo* pInfo);
-int32_t smaFinishCommit(SSma* pSma);
+int32_t smaFinishCommit(SSma* pSma, int8_t type);
 int32_t smaBatchExec(SSma* pSma, void* arg, int64_t varg);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
@@ -400,7 +400,7 @@ struct SVnode {
   SWal*         pWal;
   STQ*          pTq;
   SSink*        pSink;
-  tsem_t        canCommit;  // commit
+  tsem_t        canCommit;
   SVCommitSched commitSched;
   SVBatchHandle batchHandle;
   int64_t       sync;
@@ -489,8 +489,8 @@ struct SCommitInfo {
   SVTaskInfo taskInfo;
   SVnodeInfo info;
   TXN*       txn;
-  int8_t     canCommit;
-  int8_t     nMaxStt;
+  int8_t     allowCommit;
+  int8_t     nMaxSttF;
   // APIs
   int32_t (*commitFn)(STsdb* pTsdb, SCommitInfo* pInfo);
 };

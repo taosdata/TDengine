@@ -95,18 +95,22 @@ _exit:
   return code;
 }
 
-int32_t smaCanCommit(SSma *pSma) {
+int32_t smaAllowCommit(SSma *pSma) {
   int32_t result = 1;
 
-  result = tsdbCanCommit(VND_RSMA1(pSma->pVnode));
+  if (!SMA_RSMA_ENV(pSma)) {
+    return result;
+  }
+
+  result = tsdbAllowCommit(VND_RSMA1(pSma->pVnode));
   if (result) {
-    result = tsdbCanCommit(VND_RSMA2(pSma->pVnode));
+    result = tsdbAllowCommit(VND_RSMA2(pSma->pVnode));
   }
 
   return result;
 }
 
-int32_t smaFinishCommit(SSma *pSma) {
+int32_t smaFinishCommit(SSma *pSma, int8_t type) {
   int32_t code = 0;
   int32_t lino = 0;
   SVnode *pVnode = pSma->pVnode;
@@ -114,10 +118,10 @@ int32_t smaFinishCommit(SSma *pSma) {
   code = tdRSmaFSFinishCommit(pSma);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  if (VND_RSMA1(pVnode) && (code = tsdbFinishCommit(VND_RSMA1(pVnode))) < 0) {
+  if (VND_RSMA1(pVnode) && (code = tsdbFinishCommit(VND_RSMA1(pVnode), type)) < 0) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  if (VND_RSMA2(pVnode) && (code = tsdbFinishCommit(VND_RSMA2(pVnode))) < 0) {
+  if (VND_RSMA2(pVnode) && (code = tsdbFinishCommit(VND_RSMA2(pVnode), type)) < 0) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

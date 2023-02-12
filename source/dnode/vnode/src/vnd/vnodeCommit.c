@@ -304,7 +304,7 @@ int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->info.state.commitID = pVnode->state.commitID;
   pInfo->taskInfo.type = VND_TASK_COMMIT;
   pInfo->taskInfo.pVnode = pVnode;
-  pInfo->canCommit = 1;
+  pInfo->allowCommit = 1;
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
   // save info
@@ -371,9 +371,9 @@ static void vnodeReturnBufPool(SVnode *pVnode) {
   taosThreadMutexUnlock(&pVnode->mutex);
 }
 
-static FORCE_INLINE int32_t vnodeCanCommit(SVnode *pVnode) {
+static FORCE_INLINE int32_t vnodeAllowCommit(SVnode *pVnode) {
   // nSttF < MAX_STT_TRIGGER in COMMIT_MIX mode
-  return tsdbCanCommit(pVnode->pTsdb) && smaCanCommit(pVnode->pSma);
+  return tsdbAllowCommit(pVnode->pTsdb) && smaAllowCommit(pVnode->pSma);
 }
 
 int32_t vnodeCommitTask(void *arg) {
@@ -385,8 +385,8 @@ int32_t vnodeCommitTask(void *arg) {
   ASSERT(pInfo->taskInfo.type == VND_TASK_COMMIT);
 
   // check commit
-  if (!vnodeCanCommit(pVnode)) {
-    pInfo->canCommit = 0;
+  if (!vnodeAllowCommit(pVnode)) {
+    pInfo->allowCommit = 0;
     code = vnodeBatchPutSchedule(pVnode, vnodeCommitTask, pInfo, VND_TASK_COMMIT);
     if (code) goto _exit;
     return code;
@@ -495,11 +495,11 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  code = tsdbFinishCommit(pVnode->pTsdb);
+  code = tsdbFinishCommit(pVnode->pTsdb, VND_TASK_COMMIT);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (VND_IS_RSMA(pVnode)) {
-    code = smaFinishCommit(pVnode->pSma);
+    code = smaFinishCommit(pVnode->pSma, VND_TASK_COMMIT);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

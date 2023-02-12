@@ -15,13 +15,15 @@
 
 #include "tsdb.h"
 
+#define FS_SUFFIX(type) ((type) == VND_TASK_COMMIT ? "t" : "r")
+
 // =================================================================================================
 static int32_t tsdbFSToBinary(uint8_t *p, STsdbFS *pFS) {
   int32_t  n = 0;
   int8_t   hasDel = pFS->pDelFile ? 1 : 0;
   uint32_t nSet = taosArrayGetSize(pFS->aDFileSet);
 
-  pFS->nMaxStt = 0;
+  pFS->nMaxSttF = 0;
 
   // version
   n += tPutI8(p ? p + n : p, 1);  // 0->1
@@ -37,7 +39,7 @@ static int32_t tsdbFSToBinary(uint8_t *p, STsdbFS *pFS) {
   for (uint32_t iSet = 0; iSet < nSet; iSet++) {
     SDFileSet *pDFileSet = (SDFileSet *)taosArrayGet(pFS->aDFileSet, iSet);
     n += tPutDFileSet(p ? p + n : p, pDFileSet);
-    if (pFS->nMaxStt < pDFileSet->nSttF) pFS->nMaxStt = pDFileSet->nSttF;
+    if (pFS->nMaxSttF < pDFileSet->nSttF) pFS->nMaxSttF = pDFileSet->nSttF;
   }
 
   return n;
@@ -279,7 +281,7 @@ int32_t tDFileSetCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
-static void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
+static void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t, int8_t type) {
   SVnode *pVnode = pTsdb->pVnode;
   if (pVnode->pTfs) {
     if (current) {
@@ -287,15 +289,15 @@ static void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
                pTsdb->path, TD_DIRSEP);
     }
     if (current_t) {
-      snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%s%s%sCURRENT.t", tfsGetPrimaryPath(pTsdb->pVnode->pTfs), TD_DIRSEP,
-               pTsdb->path, TD_DIRSEP);
+      snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%s%s%sCURRENT.%s", tfsGetPrimaryPath(pTsdb->pVnode->pTfs),
+               TD_DIRSEP, pTsdb->path, TD_DIRSEP, FS_SUFFIX(type));
     }
   } else {
     if (current) {
       snprintf(current, TSDB_FILENAME_LEN - 1, "%s%sCURRENT", pTsdb->path, TD_DIRSEP);
     }
     if (current_t) {
-      snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%sCURRENT.t", pTsdb->path, TD_DIRSEP);
+      snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%sCURRENT.%s", pTsdb->path, TD_DIRSEP, FS_SUFFIX(type));
     }
   }
 }
@@ -713,14 +715,14 @@ _exit:
 }
 
 // EXPOSED APIS ====================================================================================
-int32_t tsdbFSCommit(STsdb *pTsdb) {
+int32_t tsdbFSCommit(STsdb *pTsdb, int8_t type) {
   int32_t code = 0;
   int32_t lino = 0;
   STsdbFS fs = {0};
 
   char current[TSDB_FILENAME_LEN] = {0};
   char current_t[TSDB_FILENAME_LEN] = {0};
-  tsdbGetCurrentFName(pTsdb, current, current_t);
+  tsdbGetCurrentFName(pTsdb, current, current_t, type);
 
   if (!taosCheckExistFile(current_t)) goto _exit;
 
@@ -749,12 +751,12 @@ _exit:
   return code;
 }
 
-int32_t tsdbFSRollback(STsdb *pTsdb) {
+int32_t tsdbFSRollback(STsdb *pTsdb, int8_t type) {
   int32_t code = 0;
   int32_t lino = 0;
 
   char current_t[TSDB_FILENAME_LEN] = {0};
-  tsdbGetCurrentFName(pTsdb, NULL, current_t);
+  tsdbGetCurrentFName(pTsdb, NULL, current_t, type);
   (void)taosRemoveFile(current_t);
 
 _exit:
@@ -776,18 +778,24 @@ int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback) {
   // open impl
   char current[TSDB_FILENAME_LEN] = {0};
   char current_t[TSDB_FILENAME_LEN] = {0};
-  tsdbGetCurrentFName(pTsdb, current, current_t);
 
   if (taosCheckExistFile(current)) {
     code = tsdbLoadFSFromFile(current, &pTsdb->fs);
     TSDB_CHECK_CODE(code, lino, _exit);
+    
+    tsdbGetCurrentFName(pTsdb, current, current_t, VND_TASK_MAX);
+    if (taosCheckExistFile(current_t)) {
+      code = tsdbFSCommit(pTsdb, VND_TASK_MAX);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
 
+    tsdbGetCurrentFName(pTsdb, current, current_t, VND_TASK_COMMIT);
     if (taosCheckExistFile(current_t)) {
       if (rollback) {
-        code = tsdbFSRollback(pTsdb);
+        code = tsdbFSRollback(pTsdb, VND_TASK_COMMIT);
         TSDB_CHECK_CODE(code, lino, _exit);
       } else {
-        code = tsdbFSCommit(pTsdb);
+        code = tsdbFSCommit(pTsdb, VND_TASK_COMMIT);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
@@ -848,6 +856,7 @@ int32_t tsdbFSClose(STsdb *pTsdb) {
 int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
   int32_t code = 0;
   int32_t lino = 0;
+  int8_t  nMaxSttF = 0;
 
   pFS->pDelFile = NULL;
   if (pFS->aDFileSet) {
@@ -907,6 +916,7 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
       }
       *fSet.aSttF[fSet.nSttF] = *pSet->aSttF[fSet.nSttF];
     }
+    if (pSet->nSttF > nMaxSttF) nMaxSttF = pSet->nSttF;
 
     if (taosArrayPush(pFS->aDFileSet, &fSet) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -915,6 +925,7 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
   }
 
 _exit:
+  pFS->nMaxSttF = nMaxSttF;
   if (code) {
     tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
@@ -1036,7 +1047,7 @@ int32_t tsdbFSPrepareCommit(STsdb *pTsdb, STsdbFS *pFSNew) {
   int32_t lino = 0;
   char    tfname[TSDB_FILENAME_LEN];
 
-  tsdbGetCurrentFName(pTsdb, NULL, tfname);
+  tsdbGetCurrentFName(pTsdb, NULL, tfname, pFSNew->type);
 
   // gnrt CURRENT.t
   code = tsdbSaveFSToFile(pFSNew, tfname);

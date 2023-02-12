@@ -161,11 +161,11 @@ int32_t tsdbPrepareCommit(STsdb *pTsdb) {
   return 0;
 }
 
-int32_t tsdbCanCommit(STsdb *pTsdb) {
+int32_t tsdbAllowCommit(STsdb *pTsdb) {
   int32_t result = 1;
   if (pTsdb) {
     taosThreadRwlockRdlock(&pTsdb->rwLock);
-    if (pTsdb->fs.nMaxStt >= TSDB_MAX_STT_TRIGGER) {
+    if (pTsdb->fs.nMaxSttF >= TSDB_MAX_STT_TRIGGER) {
       result = 0;
     }
     taosThreadRwlockUnlock(&pTsdb->rwLock);
@@ -579,7 +579,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
     wSet.nSttF = 1;
   }
   wSet.aSttF[wSet.nSttF - 1] = &fStt;
-  code = tsdbDataFWriterOpen(&pCommitter->dWriter.pWriter, pTsdb, &wSet);
+  code = tsdbDataFWriterOpen(&pCommitter->dWriter.pWriter, pTsdb, &wSet, false);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   taosArrayClear(pCommitter->dWriter.aBlockIdx);
@@ -1657,7 +1657,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbFinishCommit(STsdb *pTsdb) {
+int32_t tsdbFinishCommit(STsdb *pTsdb, int8_t type) {
   int32_t    code = 0;
   int32_t    lino = 0;
   SMemTable *pMemTable = pTsdb->imem;
@@ -1665,7 +1665,7 @@ int32_t tsdbFinishCommit(STsdb *pTsdb) {
   // lock
   taosThreadRwlockWrlock(&pTsdb->rwLock);
 
-  code = tsdbFSCommit(pTsdb);
+  code = tsdbFSCommit(pTsdb, type);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -1688,11 +1688,11 @@ _exit:
   return code;
 }
 
-int32_t tsdbRollbackCommit(STsdb *pTsdb) {
+int32_t tsdbRollbackCommit(STsdb *pTsdb, int8_t type) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbFSRollback(pTsdb);
+  code = tsdbFSRollback(pTsdb, type);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

@@ -68,7 +68,7 @@ static int32_t tsdbCommitCompact(STsdbCompactor *pCompactor) {
 
   taosThreadRwlockWrlock(&pTsdb->rwLock);
 
-  code = tsdbFSCommit(pTsdb);
+  code = tsdbFSCommit(pTsdb, pCompactor->fs.type);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     TSDB_CHECK_CODE(code, lino, _exit);

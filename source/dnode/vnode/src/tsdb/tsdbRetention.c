@@ -21,8 +21,16 @@ static bool tsdbShouldDoRetention(STsdb *pTsdb, void *arg, int64_t now) {
     int32_t    expLevel = tsdbFidLevel(pSet->fid, &pTsdb->keepCfg, now);
     SDiskID    did;
 
-    if (expLevel == pSet->diskId.level) continue;
+    if (expLevel == pSet->diskId.level) {
+      for (int32_t iSttF = 0; iSttF < pSet->nSttF; ++iSttF) {
+        if (expLevel != pSet->diskId.level) {
+          goto _retention;
+        }
+      }
+      continue;
+    }
 
+  _retention:
     if (expLevel < 0) {
       return true;
     } else {
@@ -49,7 +57,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, void *arg, int64_t now) {
   }
 
   // do retention
-  STsdbFS fs = {0};
+  STsdbFS fs = {.type = VND_TASK_MIGRATE};
 
   code = tsdbFSCopy(pTsdb, &fs);
   if (code) goto _err;
@@ -93,7 +101,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, void *arg, int64_t now) {
 
   taosThreadRwlockWrlock(&pTsdb->rwLock);
 
-  code = tsdbFSCommit(pTsdb);
+  code = tsdbFSCommit(pTsdb, fs.type);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     goto _err;

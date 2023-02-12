@@ -67,16 +67,14 @@ static int32_t vndScheduleCommitTask(SVnode* pVnode, int (*exec)(void*), void* a
 
   // lock
   vndBatchWLock(pHandle);
-  if (pInfo->canCommit) {
+  if (pInfo->allowCommit) {
     code = vnodeScheduleTask(exec, arg);
     TSDB_CHECK_CODE(code, lino, _exit);
     vndBatchAddRef(pHandle);
   } else {
-    if (!pHandle->commitStash) {
-      pHandle->commitStash == pInfo;
-    } else {
-      ASSERT(pHandle->commitStash == pInfo);
-    }
+    ASSERT(pHandle->commitStash == NULL);
+    pHandle->commitStash == pInfo;
+    
     if ((pHandle->nMergeTask == 0) && (pHandle->mergeStash == NULL)) {
       SMergeInfo* pMergeInfo = NULL;
       vndScheduleMergeTask(pVnode, vndBatchTask, pMergeInfo);
@@ -207,7 +205,7 @@ static int32_t vndPostScheduleCommit(SVnode* pVnode, void* arg) {
   SVBatchHandle* pHandle = &pVnode->batchHandle;
 
   vndBatchWLock(pHandle);
-  if (!pInfo->canCommit && !pHandle->mergeStash && pHandle->nMergeTask == 0) {
+  if (!pInfo->allowCommit && !pHandle->mergeStash && pHandle->nMergeTask == 0) {
     SMergeInfo* pMergeInfo = NULL;
     vndScheduleMergeTask(pVnode, vndBatchTask, pMergeInfo);
   }
@@ -233,8 +231,8 @@ static int32_t vndPostScheduleMerge(SVnode* pVnode, void* arg) {
   ASSERT(pHandle->nCommitTask == 0);
   if (pHandle->commitStash) {
     SCommitInfo* pCommitInfo = (SCommitInfo*)pHandle->commitStash;
-    ASSERT(pCommitInfo->canCommit == 0);
-    pCommitInfo->canCommit = 1;
+    ASSERT(pCommitInfo->allowCommit == 0);
+    pCommitInfo->allowCommit = 1;
     if ((code = vnodeScheduleTask(vnodeCommitTask, pCommitInfo))) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
