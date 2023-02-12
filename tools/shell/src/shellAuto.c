@@ -938,13 +938,13 @@ char* tireSearchWord(int type, char* pre) {
     return matchNextPrefix(tire, pre);
   }
 
-  // can obtain var names from local
-  STire* tire = getAutoPtr(type);
-  if (tire == NULL) {
+  if(updateTireValue(type, true)) {
     return NULL;
   }
 
-  if(updateTireValue(type, true)) {
+  // can obtain var names from local
+  STire* tire = getAutoPtr(type);
+  if (tire == NULL) {
     return NULL;
   }
 
