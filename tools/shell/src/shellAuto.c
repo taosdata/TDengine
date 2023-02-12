@@ -1705,7 +1705,7 @@ bool matchEnd(TAOS* con, SShellCmd* cmd) {
   }
 
   // match database
-  if(elast == NUL) {
+  if(elast == NULL) {
     // dot need not completed with dbname
     if (fillWithType(con, cmd, last, WT_VAR_DBNAME)) {
       ret = true;
