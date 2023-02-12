@@ -300,7 +300,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->info.config = pVnode->config;
   pInfo->info.state.committed = pVnode->state.applied;
   pInfo->info.state.commitTerm = pVnode->state.applyTerm;
-  pInfo->info.state.commitID = ++pVnode->state.commitID;
+  pInfo->info.state.commitID = atomic_add_fetch_64(&pVnode->state.commitID, 1);
   pInfo->allowCommit = 1;
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
@@ -382,6 +382,9 @@ int32_t vnodeCommitTask(void *arg) {
   ASSERT(pInfo->taskInfo.type == VND_TASK_COMMIT);
 
   // check commit
+  int8_t nCommitTask = pVnode->batchHandle.nCommitTask;
+  ASSERTS(nCommitTask == 1, "nCommitTask is %" PRIi8, nCommitTask);
+
   if (!vnodeAllowCommit(pVnode)) {
     pInfo->allowCommit = 0;
     code = vnodeBatchPutSchedule(pVnode, vnodeCommitTask, pInfo);
@@ -393,13 +396,13 @@ int32_t vnodeCommitTask(void *arg) {
   code = vnodeCommitImpl(pInfo);
   if (code) goto _exit;
 
+_exit:
+
   // TODO: should return vnodeReturnBufPool in _exit?
   vnodeReturnBufPool(pVnode);
-
-_exit:
   // end commit
-  tsem_post(&pVnode->canCommit);
   vnodeBatchPostSchedule(pVnode, pInfo);
+  tsem_post(&pVnode->canCommit);
   taosMemoryFree(pInfo);
 
   return code;

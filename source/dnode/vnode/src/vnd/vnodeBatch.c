@@ -23,6 +23,10 @@ static int32_t vndScheduleCommitTask(SVnode* pVnode, int (*exec)(void*), void* a
 static int32_t vndScheduleCompactTask(SVnode* pVnode, int (*exec)(void*), void* arg);
 static int32_t vndScheduleMergeTask(SVnode* pVnode, int (*exec)(void*), void* arg);
 static int32_t vndScheduleMigrateTask(SVnode* pVnode, int (*exec)(void*), void* arg);
+static int32_t vndPostScheduleCommit(SVnode* pVnode, void* arg);
+static int32_t vndPostScheduleCompact(SVnode* pVnode, void* arg);
+static int32_t vndPostScheduleMerge(SVnode* pVnode, void* arg);
+static int32_t vndPostScheduleMigrate(SVnode* pVnode, void* arg);
 // static int32_t vndPrepareCommit(SVnode* pVnode, void* arg, void** ppInfo);
 static int32_t vndPrepareCompact(SVnode* pVnode, void* arg, void** ppInfo);
 static int32_t vndPrepareMerge(SVnode* pVnode, void* arg, void** ppInfo);
@@ -66,13 +70,16 @@ static int32_t vndScheduleCommitTask(SVnode* pVnode, int (*exec)(void*), void* a
   // lock
   vndBatchWLock(pHandle);
   if (pInfo->allowCommit) {
-    code = vnodeScheduleTask(exec, arg);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    ++pHandle->nCommitTask;
+    if ((code = vnodeScheduleTask(exec, arg))) {
+      --pHandle->nCommitTask;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
     vndBatchAddRef(pHandle);
   } else {
     ASSERT(pHandle->commitStash == NULL);
-    pHandle->commitStash == pInfo;
-    
+    pHandle->commitStash = pInfo;
+
     if ((pHandle->nMergeTask == 0) && (pHandle->mergeStash == NULL)) {
       SMergeInfo* pMergeInfo = NULL;
       vndScheduleMergeTask(pVnode, vnodeBatchTask, pMergeInfo);
@@ -95,24 +102,26 @@ static int32_t vndScheduleMergeTask(SVnode* pVnode, int (*exec)(void*), void* ar
   SMergeInfo*    pInfo = (SMergeInfo*)arg;
   SVBatchHandle* pHandle = &pVnode->batchHandle;
 
-  // lock
-  vndBatchWLock(pHandle);
+  ASSERT(arg);
+
+  // no need to lock since it triggered by commit task which with lock already
   ASSERT(pHandle->nMergeTask == 0);
   ASSERT(pHandle->mergeStash == NULL);
+  ASSERT(pHandle->nCommitTask == 1);
 
   if (pHandle->nTrimTask > 0) {
     pHandle->mergeStash = arg;
   } else {
+    ++pHandle->nMergeTask;
     if ((code = vnodeScheduleTask(exec, arg))) {
+      --pHandle->nMergeTask;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     vndBatchAddRef(pHandle);
-    ++pHandle->nMergeTask;
   }
 
 _exit:
-  // unlock
-  vndBatchWUnLock(pHandle);
+  ASSERT(pHandle->nCommitTask == 1);
   if (code) {
     taosMemoryFree(arg);
     vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
@@ -141,11 +150,12 @@ static int32_t vndScheduleMigrateTask(SVnode* pVnode, int (*exec)(void*), void* 
   if (pHandle->nMergeTask || pHandle->nTrimTask) {
     pHandle->migrateStash = arg;
   } else {
+    ++pHandle->nTrimTask;
     if ((code = vnodeScheduleTask(exec, arg))) {
+      --pHandle->nTrimTask;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     vndBatchAddRef(pHandle);
-    ++pHandle->nTrimTask;
   }
 
 _exit:
@@ -178,11 +188,12 @@ static int32_t vndScheduleCompactTask(SVnode* pVnode, int (*exec)(void*), void* 
   if (pHandle->nMergeTask || pHandle->nTrimTask) {
     pHandle->compactStash = arg;
   } else {
+    ++pHandle->nTrimTask;
     if ((code = vnodeScheduleTask(exec, arg))) {
+      --pHandle->nTrimTask;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     vndBatchAddRef(pHandle);
-    ++pHandle->nTrimTask;
   }
 
 _exit:
@@ -203,13 +214,17 @@ static int32_t vndPostScheduleCommit(SVnode* pVnode, void* arg) {
   SVBatchHandle* pHandle = &pVnode->batchHandle;
 
   vndBatchWLock(pHandle);
-  if (!pInfo->allowCommit && !pHandle->mergeStash && pHandle->nMergeTask == 0) {
-    SMergeInfo* pMergeInfo = NULL;
+  if (pInfo->nMaxSttF >= pVnode->config.sttTrigger && !pHandle->mergeStash && pHandle->nMergeTask == 0) {
+    void* pMergeInfo = NULL;
+    code = vndPrepareMerge(pVnode, NULL, &pMergeInfo);
+    TSDB_CHECK_CODE(code, lino, _exit);
     vndScheduleMergeTask(pVnode, vnodeBatchTask, pMergeInfo);
   }
+  ASSERT(pInfo->nMaxSttF >= 0 && pInfo->nMaxSttF <= TSDB_MAX_STT_TRIGGER);
 
 _exit:
   --pHandle->nCommitTask;
+  ASSERT(pHandle->nCommitTask == 0);
   vndBatchSubRef(&pVnode->batchHandle);
   vndBatchWUnLock(pHandle);
   if (code) {
@@ -226,34 +241,37 @@ static int32_t vndPostScheduleMerge(SVnode* pVnode, void* arg) {
   SVBatchHandle* pHandle = &pVnode->batchHandle;
 
   vndBatchWLock(pHandle);
-  ASSERT(pHandle->nCommitTask == 0);
+  ASSERT(pHandle->nCommitTask == 0 || pHandle->nCommitTask == 1);
   if (pHandle->commitStash) {
     SCommitInfo* pCommitInfo = (SCommitInfo*)pHandle->commitStash;
     ASSERT(pCommitInfo->allowCommit == 0);
     pCommitInfo->allowCommit = 1;
+    ++pHandle->nCommitTask;
     if ((code = vnodeScheduleTask(vnodeCommitTask, pCommitInfo))) {
+      --pHandle->nCommitTask;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     pHandle->commitStash = NULL;
     vndBatchAddRef(pHandle);
-    ++pHandle->nCommitTask;
   }
 
   ASSERT(pHandle->nTrimTask == 0);
   if (pHandle->compactStash) {
+    ++pHandle->nTrimTask;
     if ((code = vnodeScheduleTask(vnodeBatchTask, pHandle->compactStash))) {
+      --pHandle->nTrimTask;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     pHandle->compactStash = NULL;
     vndBatchAddRef(pHandle);
-    ++pHandle->nTrimTask;
   } else if (pHandle->migrateStash) {
+    ++pHandle->nTrimTask;
     if ((code = vnodeScheduleTask(vnodeBatchTask, pHandle->migrateStash))) {
+      --pHandle->nTrimTask;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     pHandle->migrateStash = NULL;
     vndBatchAddRef(pHandle);
-    ++pHandle->nTrimTask;
   }
 
 _exit:
@@ -276,32 +294,35 @@ static int32_t vndPostScheduleMigrate(SVnode* pVnode, void* arg) {
   ASSERT(pHandle->nTrimTask == 1);
   ASSERT(pHandle->nMergeTask == 0);
   if (pHandle->mergeStash) {
+    ++pHandle->nMergeTask;
     if ((code = vnodeScheduleTask(vnodeBatchTask, pHandle->mergeStash))) {
+      --pHandle->nMergeTask;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     vndBatchAddRef(pHandle);
+
     pHandle->mergeStash = NULL;
-    ++pHandle->nMergeTask;
   } else if (pHandle->compactStash) {
+    ++pHandle->nTrimTask;
     if ((code = vnodeScheduleTask(vnodeBatchTask, pHandle->compactStash))) {
+      --pHandle->nTrimTask;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     vndBatchAddRef(pHandle);
     pHandle->compactStash = NULL;
-    ++pHandle->nTrimTask;
   } else if (pHandle->migrateStash) {
+    ++pHandle->nTrimTask;
     if ((code = vnodeScheduleTask(vnodeBatchTask, pHandle->migrateStash))) {
+      --pHandle->nTrimTask;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     vndBatchAddRef(pHandle);
     pHandle->migrateStash = NULL;
-    ++pHandle->nTrimTask;
   }
 
 _exit:
   --pHandle->nTrimTask;
   vndBatchWUnLock(pHandle);
-
 
   if (code) {
     vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
@@ -338,6 +359,7 @@ int32_t vnodeBatchPostSchedule(SVnode* pVnode, void* arg) {
 
 int32_t vnodeBatchPutSchedule(SVnode* pVnode, int (*exec)(void*), void* arg) {
   int32_t code = 0;
+  ASSERT(arg);
   switch (((SVTaskInfo*)arg)->type) {
     case VND_TASK_COMMIT:
       code = vndScheduleCommitTask(pVnode, exec, arg);
@@ -377,9 +399,29 @@ _exit:
 }
 
 static int32_t vndPrepareMerge(SVnode* pVnode, void* arg, void** ppInfo) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t     code = 0;
+  int32_t     lino = 0;
+  SMergeInfo* pInfo = NULL;
+
+  *ppInfo = (SMergeInfo*)taosMemoryCalloc(1, sizeof(SMergeInfo));
+  if (NULL == *ppInfo) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  pInfo = *ppInfo;
+  pInfo->taskInfo.type = VND_TASK_MERGE;
+  pInfo->taskInfo.pVnode = pVnode;
+  pInfo->flag = 0;
+  pInfo->commitID = atomic_add_fetch_64(&pVnode->state.commitID, 1);
+
 _exit:
+  if (code) {
+    vError("vgId:%d %s failed at line %d since %s, commit ID:%" PRId64, TD_VID(pVnode), __func__, lino, tstrerror(code),
+           pVnode->state.commitID);
+  } else {
+    vDebug("vgId:%d %s done, commit ID:%" PRId64, TD_VID(pVnode), __func__, pVnode->state.commitID);
+  }
   return code;
 }
 
@@ -450,11 +492,9 @@ int32_t vnodeBatchTask(void* arg) {
 
 _exit:
   if (code) {
-    vError("vgId:%d, vnode batch task failed since %s", TD_VID(pVnode), tstrerror(code));
-  } else {
-    vnodeBatchPostSchedule(pVnode, pInfo);
+    vError("vgId:%d, vnode batch task(%s) failed since %s", TD_VID(pVnode), vTaskName[pInfo->type], tstrerror(code));
   }
-
+  vnodeBatchPostSchedule(pVnode, pInfo);
   if (pInfo->type != VND_TASK_COMMIT) {
     vndBatchSubRef(&pVnode->batchHandle);
     taosMemoryFree(pInfo);

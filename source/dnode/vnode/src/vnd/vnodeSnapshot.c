@@ -311,7 +311,7 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
   pWriter->ever = ever;
 
   // inc commit ID
-  pWriter->commitID = ++pVnode->state.commitID;
+  pWriter->commitID = atomic_add_fetch_64(&pVnode->state.commitID, 1);
 
   vInfo("vgId:%d, vnode snapshot writer opened, sver:%" PRId64 " ever:%" PRId64 " commit id:%" PRId64, TD_VID(pVnode),
         sver, ever, pWriter->commitID);

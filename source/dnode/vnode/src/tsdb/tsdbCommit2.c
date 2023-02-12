@@ -208,6 +208,7 @@ int32_t tsdbCommit(STsdb *pTsdb, SCommitInfo *pInfo) {
   code = tsdbCommitDel(&commith);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  pInfo->nMaxSttF = commith.fs.nMaxSttF;
   // end commit
   code = tsdbEndCommit(&commith, 0);
   TSDB_CHECK_CODE(code, lino, _exit);

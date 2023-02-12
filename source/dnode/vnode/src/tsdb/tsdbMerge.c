@@ -395,8 +395,8 @@ static int32_t tsdbMergeFileSetStart(STsdbMerger *pMerger, SDFileSet *pSet) {
   code = tsdbDataFReaderOpen(&pMerger->pReader, pMerger->pTsdb, pSet);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbOpenDataFileDataIter(pMerger->pReader, &pMerger->pIter);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  // code = tsdbOpenDataFileDataIter(pMerger->pReader, &pMerger->pIter); 
+  // TSDB_CHECK_CODE(code, lino, _exit);
 
   tRBTreeCreate(&pMerger->rbt, tsdbDataIterCmprFn);
   if (pMerger->pIter) {
@@ -582,8 +582,11 @@ static int32_t tsdbBeginMerge(STsdb *pTsdb, SMergeInfo *pInfo, STsdbMerger *pMer
   pMerger->minRows = pTsdb->pVnode->config.tsdbCfg.minRows;
   pMerger->fid = INT32_MIN;
 
+  ASSERT(pInfo->taskInfo.type = VND_TASK_MERGE);
+
   code = tsdbFSCopy(pTsdb, &pMerger->fs);
   TSDB_CHECK_CODE(code, lino, _exit);
+  pMerger->fs.type = VND_TASK_MERGE;
 
   /* tombstone */
   if (pMerger->fs.pDelFile) {

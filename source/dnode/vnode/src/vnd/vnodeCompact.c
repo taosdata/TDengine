@@ -49,7 +49,7 @@ static int32_t vnodePrepareCompact(SVnode *pVnode, SCompactInfo *pInfo) {
   pInfo->taskInfo.type = VND_TASK_COMPACT;
   pInfo->taskInfo.pVnode = pVnode;
   pInfo->flag = 0;
-  pInfo->commitID = ++pVnode->state.commitID;
+  pInfo->commitID = atomic_add_fetch_64(&pVnode->state.commitID, 1);
 
   char       dir[TSDB_FILENAME_LEN] = {0};
   SVnodeInfo info = {0};
