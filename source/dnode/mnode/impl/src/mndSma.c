@@ -63,7 +63,6 @@ static int32_t mndProcessDropIdxReq(SRpcMsg *pReq) {
   if (terrno == TSDB_CODE_MND_SMA_NOT_EXIST) {
     terrno = 0;
     ret = mndProcessDropTagIdxReq(pReq);
-  } else {
   }
   return ret;
 }

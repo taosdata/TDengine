@@ -277,11 +277,11 @@ static SSdbRow *mndIdxActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    sdbFreeRaw(pRaw);
+    sdbFreeRaw(pRow);
     return NULL;
   }
 
-  mTrace("sma:%s, decode from raw:%p, row:%p", pIdx->name, pRaw, pIdx);
+  mTrace("idx:%s, decode from raw:%p, row:%p", pIdx->name, pRaw, pIdx);
   return pRow;
 }
 
@@ -291,12 +291,12 @@ static int32_t mndIdxActionInsert(SSdb *pSdb, SIdxObj *pIdx) {
 }
 
 static int32_t mndIdxActionDelete(SSdb *pSdb, SIdxObj *pIdx) {
-  mTrace("sma:%s, perform delete action, row:%p", pIdx->name, pIdx);
+  mTrace("idx:%s, perform delete action, row:%p", pIdx->name, pIdx);
   return 0;
 }
 
 static int32_t mndIdxActionUpdate(SSdb *pSdb, SIdxObj *pOld, SIdxObj *pNew) {
-  mTrace("sma:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
+  mTrace("idx:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
   return 0;
 }
 
@@ -873,10 +873,8 @@ static int32_t mndDropIdx(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SIdxObj *p
   code = 0;
 
 _OVER:
-  if (newObj.pTags != NULL) {
-    taosMemoryFree(newObj.pTags);
-    taosMemoryFree(newObj.pColumns);
-  }
+  taosMemoryFree(newObj.pTags);
+  taosMemoryFree(newObj.pColumns);
 
   mndTransDrop(pTrans);
   mndReleaseStb(pMnode, pStb);
@@ -898,8 +896,6 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
   if (mndAcquireGlobalIdx(pMnode, req.name, SDB_IDX, &idx) == 0) {
     pIdx = idx.pIdx;
   }
-
-  pIdx = mndAcquireIdx(pMnode, req.name);
   if (pIdx == NULL) {
     if (req.igNotExists) {
       mInfo("idx:%s, not exist, ignore not exist is set", req.name);
@@ -923,12 +919,13 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
 
   code = mndDropIdx(pMnode, pReq, pDb, pIdx);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-  return code;
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("idx:%s, failed to drop since %s", req.name, terrstr());
   }
+  mndReleaseIdx(pMnode, pIdx);
+  mndReleaseDb(pMnode, pDb);
   return code;
 }
 static int32_t mndProcessGetIdxReq(SRpcMsg *pReq) {
