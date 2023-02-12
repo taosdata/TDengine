@@ -329,7 +329,7 @@ static int32_t uidComparFunc(const void* p1, const void* p2) {
 
 // NOTE: speedup the whole processing by preparing the buffer for STableBlockScanInfo in batch model
 static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, const STableKeyInfo* idList,
-                                         int32_t numOfTables) {
+                                         STableUidList *pUidList, int32_t numOfTables) {
   // allocate buffer in order to load data blocks from file
   // todo use simple hash instead, optimize the memory consumption
   SHashObj* pTableMap =
@@ -341,19 +341,17 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf
   int64_t st = taosGetTimestampUs();
   initBlockScanInfoBuf(pBuf, numOfTables);
 
-  STableUidList* pOrderedCheckInfo = &pTsdbReader->status.uidList;
-
-  pOrderedCheckInfo->tableUidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
-  if (pOrderedCheckInfo->tableUidList == NULL) {
+  pUidList->tableUidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
+  if (pUidList->tableUidList == NULL) {
     return NULL;
   }
-  pOrderedCheckInfo->currentIndex = 0;
+  pUidList->currentIndex = 0;
 
   for (int32_t j = 0; j < numOfTables; ++j) {
     STableBlockScanInfo* pScanInfo = getPosInBlockInfoBuf(pBuf, j);
 
     pScanInfo->uid = idList[j].uid;
-    pOrderedCheckInfo->tableUidList[j] = idList[j].uid;
+    pUidList->tableUidList[j] = idList[j].uid;
 
     if (ASCENDING_TRAVERSE(pTsdbReader->order)) {
       int64_t skey = pTsdbReader->window.skey;
@@ -368,7 +366,7 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf
               pScanInfo->lastKey, pTsdbReader->idStr);
   }
 
-  taosSort(pOrderedCheckInfo->tableUidList, numOfTables, sizeof(uint64_t), uidComparFunc);
+  taosSort(pUidList->tableUidList, numOfTables, sizeof(uint64_t), uidComparFunc);
 
   pTsdbReader->cost.createScanInfoList = (taosGetTimestampUs() - st) / 1000.0;
   tsdbDebug("%p create %d tables scan-info, size:%.2f Kb, elapsed time:%.2f ms, %s", pTsdbReader, numOfTables,
@@ -3891,7 +3889,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
   }
 
   STsdbReader* p = (pReader->innerReader[0] != NULL) ? pReader->innerReader[0] : pReader;
-  pReader->status.pTableMap = createDataBlockScanInfo(p, &pReader->blockInfoBuf, pTableList, numOfTables);
+  pReader->status.pTableMap = createDataBlockScanInfo(p, &pReader->blockInfoBuf, pTableList, &pReader->status.uidList, numOfTables);
   if (pReader->status.pTableMap == NULL) {
     *ppReader = NULL;
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -3916,12 +3914,14 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
       // we need only one row
       pPrevReader->capacity = 1;
       pPrevReader->status.pTableMap = pReader->status.pTableMap;
+      pPrevReader->status.uidList = pReader->status.uidList;
       pPrevReader->pSchema = pReader->pSchema;
       pPrevReader->pMemSchema = pReader->pMemSchema;
       pPrevReader->pReadSnap = pReader->pReadSnap;
 
       pNextReader->capacity = 1;
       pNextReader->status.pTableMap = pReader->status.pTableMap;
+      pNextReader->status.uidList = pReader->status.uidList;
       pNextReader->pSchema = pReader->pSchema;
       pNextReader->pMemSchema = pReader->pMemSchema;
       pNextReader->pReadSnap = pReader->pReadSnap;
@@ -3952,6 +3952,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
       STsdbReader* p = pReader->innerReader[0];
 
       p->status.pTableMap = NULL;
+      p->status.uidList.tableUidList = NULL;
       p->pReadSnap = NULL;
       p->pSchema = NULL;
       p->pMemSchema = NULL;
@@ -3959,6 +3960,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
       p = pReader->innerReader[1];
 
       p->status.pTableMap = NULL;
+      p->status.uidList.tableUidList = NULL;
       p->pReadSnap = NULL;
       p->pSchema = NULL;
       p->pMemSchema = NULL;
