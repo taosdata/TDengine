@@ -32,6 +32,7 @@ void shellShowOnScreen(SShellCmd* cmd);
 void shellInsertChar(SShellCmd* cmd, char* c, int size);
 void shellInsertStr(SShellCmd* cmd, char* str, int size);
 bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* p, int32_t len);
+char* tireSearchWord(int type, char* pre);
 
 typedef struct SAutoPtr {
   STire* p;
@@ -60,23 +61,22 @@ SWords shellCommands[] = {
     {"alter database <db_name> <alter_db_options> <anyword> <alter_db_options> <anyword> <alter_db_options> <anyword> "
      "<alter_db_options> <anyword> <alter_db_options> <anyword> ;",
      0, 0, NULL},
-    {"alter dnode <dnode_id> balance ", 0, 0, NULL},
-    {"alter dnode <dnode_id> resetlog;", 0, 0, NULL},
-    {"alter dnode <dnode_id> debugFlag 141;", 0, 0, NULL},
-    {"alter dnode <dnode_id> monitor 1;", 0, 0, NULL},
-    {"alter all dnodes monitor ", 0, 0, NULL},
-    {"alter alldnodes balance ", 0, 0, NULL},
-    {"alter alldnodes resetlog;", 0, 0, NULL},
-    {"alter alldnodes debugFlag 141;", 0, 0, NULL},
-    {"alter alldnodes monitor 1;", 0, 0, NULL},
+    {"alter dnode <dnode_id> \"resetlog\";", 0, 0, NULL},
+    {"alter dnode <dnode_id> \"debugFlag\" \"141\";", 0, 0, NULL},
+    {"alter dnode <dnode_id> \"monitor\" \"0\";", 0, 0, NULL},
+    {"alter dnode <dnode_id> \"monitor\" \"1\";", 0, 0, NULL},
+    {"alter all dnodes \"resetlog\";", 0, 0, NULL},
+    {"alter all dnodes \"debugFlag\" \"141\";", 0, 0, NULL},
+    {"alter all dnodes \"monitor\" \"0\";", 0, 0, NULL},
+    {"alter all dnodes \"monitor\" \"1\";", 0, 0, NULL},
     {"alter table <tb_name> <tb_actions> <anyword> ;", 0, 0, NULL},
     {"alter table modify column", 0, 0, NULL},
-    {"alter local resetlog;", 0, 0, NULL},
-    {"alter local DebugFlag 143;", 0, 0, NULL},
-    {"alter local cDebugFlag 143;", 0, 0, NULL},
-    {"alter local uDebugFlag 143;", 0, 0, NULL},
-    {"alter local rpcDebugFlag 143;", 0, 0, NULL},
-    {"alter local tmrDebugFlag 143;", 0, 0, NULL},
+    {"alter local \"resetlog\";", 0, 0, NULL},
+    {"alter local \"DebugFlag\" \"143\";", 0, 0, NULL},
+    {"alter local \"cDebugFlag\" \"143\";", 0, 0, NULL},
+    {"alter local \"uDebugFlag\" \"143\";", 0, 0, NULL},
+    {"alter local \"rpcDebugFlag\" \"143\";", 0, 0, NULL},
+    {"alter local \"tmrDebugFlag\" \"143\";", 0, 0, NULL},
     {"alter topic", 0, 0, NULL},
     {"alter user <user_name> <user_actions> <anyword> ;", 0, 0, NULL},
     // 20
@@ -108,6 +108,7 @@ SWords shellCommands[] = {
     {"drop topic <topic_name> ;", 0, 0, NULL},
     {"drop stream <stream_name> ;", 0, 0, NULL},
     {"explain select", 0, 0, NULL},  // 44 append sub sql
+    {"flush database <db_name> ;", 0, 0, NULL},
     {"help;", 0, 0, NULL},
     {"grant all on <anyword> to <user_name> ;", 0, 0, NULL},
     {"grant read on <anyword> to <user_name> ;", 0, 0, NULL},
@@ -121,7 +122,6 @@ SWords shellCommands[] = {
     {"revoke read on <anyword> from <user_name> ;", 0, 0, NULL},
     {"revoke write on <anyword> from <user_name> ;", 0, 0, NULL},
     {"select * from <all_table>", 0, 0, NULL},
-    {"select _block_dist() from <all_table> \\G;", 0, 0, NULL},
     {"select client_version();", 0, 0, NULL},
     // 60
     {"select current_user();", 0, 0, NULL},
@@ -247,7 +247,7 @@ char* db_options[] = {"keep ",
                       "wal_retention_size ",
                       "wal_segment_size "};
 
-char* alter_db_options[] = {"keep ", "cachemodel ", "cachesize ", "wal_fsync_period ", "wal_level "};
+char* alter_db_options[] = {"cachemodel ", "replica ", "keep ",  "cachesize ", "wal_fsync_period ", "wal_level "};
 
 char* data_types[] = {"timestamp",    "int",
                       "int unsigned", "varchar(16)",
@@ -261,6 +261,14 @@ char* data_types[] = {"timestamp",    "int",
 char* key_tags[] = {"tags("};
 
 char* key_select[] = {"select "};
+
+char* key_systable[] = {
+    "ins_dnodes",        "ins_mnodes",     "ins_modules",      "ins_qnodes",  "ins_snodes",          "ins_cluster",
+    "ins_databases",     "ins_functions",  "ins_indexes",      "ins_stables", "ins_tables",          "ins_tags",
+    "ins_users",         "ins_grants",     "ins_vgroups",      "ins_configs", "ins_dnode_variables", "ins_topics",
+    "ins_subscriptions", "ins_streams",    "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges", "perf_connections",
+    "perf_queries",      "perf_consumers", "perf_trans",       "perf_apps"};
+
 
 //
 //  ------- gobal variant define ---------
@@ -293,8 +301,9 @@ bool    waitAutoFill = false;
 #define WT_VAR_TBOPTION       16
 #define WT_VAR_USERACTION     17
 #define WT_VAR_KEYSELECT      18
+#define WT_VAR_SYSTABLE       19
 
-#define WT_VAR_CNT 19
+#define WT_VAR_CNT 20
 
 #define WT_FROM_DB_MAX 6  // max get content from db
 #define WT_FROM_DB_CNT (WT_FROM_DB_MAX + 1)
@@ -327,19 +336,19 @@ int        cntDel = 0;        // delete byte count after next press tab
 
 // show auto tab introduction
 void printfIntroduction() {
-  printf("   ******************************  Tab Completion  **********************************\n");
-  printf("   *   The TDengine CLI supports tab completion for a variety of items,             *\n");
-  printf("   *   including database names, table names, function names and keywords.          *\n");
-  printf("   *   The full list of shortcut keys is as follows:                                *\n");
-  printf("   *    [ TAB ]        ......  complete the current word                            *\n");
-  printf("   *                   ......  if used on a blank line, display all valid commands  *\n");
-  printf("   *    [ Ctrl + A ]   ......  move cursor to the st[A]rt of the line               *\n");
-  printf("   *    [ Ctrl + E ]   ......  move cursor to the [E]nd of the line                 *\n");
-  printf("   *    [ Ctrl + W ]   ......  move cursor to the middle of the line                *\n");
-  printf("   *    [ Ctrl + L ]   ......  clear the entire screen                              *\n");
-  printf("   *    [ Ctrl + K ]   ......  clear the screen after the cursor                    *\n");
-  printf("   *    [ Ctrl + U ]   ......  clear the screen before the cursor                   *\n");
-  printf("   **********************************************************************************\n\n");
+  printf("  ******************************  Tab Completion  *************************************\n");
+  printf("  *   The TDengine CLI supports tab completion for a variety of items,                *\n");
+  printf("  *   including database names, table names, function names and keywords.             *\n");
+  printf("  *   The full list of shortcut keys is as follows:                                   *\n");
+  printf("  *    [ TAB ]        ......  complete the current word                               *\n");
+  printf("  *                   ......  if used on a blank line, display all supported commands *\n");
+  printf("  *    [ Ctrl + A ]   ......  move cursor to the st[A]rt of the line                  *\n");
+  printf("  *    [ Ctrl + E ]   ......  move cursor to the [E]nd of the line                    *\n");
+  printf("  *    [ Ctrl + W ]   ......  move cursor to the middle of the line                   *\n");
+  printf("  *    [ Ctrl + L ]   ......  clear the entire screen                                 *\n");
+  printf("  *    [ Ctrl + K ]   ......  clear the screen after the cursor                       *\n");
+  printf("  *    [ Ctrl + U ]   ......  clear the screen before the cursor                      *\n");
+  printf("  *************************************************************************************\n\n");
 }
 
 void showHelp() {
@@ -348,23 +357,24 @@ void showHelp() {
       "\n\
   ----- A ----- \n\
     alter database <db_name> <db_options> \n\
-    alter dnode <dnode_id> balance \n\
-    alter dnode <dnode_id> resetlog;\n\
-    alter all dnodes monitor \n\
-    alter alldnodes balance \n\
-    alter alldnodes resetlog;\n\
-    alter alldnodes debugFlag \n\
-    alter alldnodes monitor \n\
+    alter dnode <dnode_id> 'resetlog';\n\
+    alter dnode <dnode_id> 'monitor' '0';\n\
+    alter dnode <dnode_id> 'monitor' \"1\";\n\
+    alter dnode <dnode_id> \"debugflag\" \"143\";\n\
+    alter all dnodes \"monitor\" \"0\";\n\
+    alter all dnodes \"monitor\" \"1\";\n\
+    alter all dnodes \"resetlog\";\n\
+    alter all dnodes \"debugFlag\" \n\
     alter table <tb_name> <tb_actions> ;\n\
     alter table modify column\n\
-    alter local resetlog;\n\
-    alter local DebugFlag 143;\n\
+    alter local \"resetlog\";\n\
+    alter local \"DebugFlag\" \"143\";\n\
     alter topic\n\
     alter user <user_name> <user_actions> ...\n\
   ----- C ----- \n\
     create table <tb_name> using <stb_name> tags ...\n\
     create database <db_name> <db_options>  ...\n\
-    create dnode ...\n\
+    create dnode \"fqdn:port\"n\
     create index ...\n\
     create mnode on dnode <dnode_id> ;\n\
     create qnode on dnode <dnode_id> ;\n\
@@ -387,6 +397,8 @@ void showHelp() {
     drop stream <stream_name> ;\n\
   ----- E ----- \n\
     explain select clause ...\n\
+  ----- F ----- \n\
+    flush database <db_name>;\n\
   ----- H ----- \n\
     help;\n\
   ----- I ----- \n\
@@ -409,7 +421,6 @@ void showHelp() {
     revoke write on <priv_level> from <user_name> ;\n\
   ----- S ----- \n\
     select * from <all_table> where ... \n\
-    select _block_dist() from <all_table>;\n\
     select client_version();\n\
     select current_user();\n\
     select database();\n\
@@ -619,12 +630,17 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_TBOPTION, tb_options, sizeof(tb_options) / sizeof(char*));
   GenerateVarType(WT_VAR_USERACTION, user_actions, sizeof(user_actions) / sizeof(char*));
   GenerateVarType(WT_VAR_KEYSELECT, key_select, sizeof(key_select) / sizeof(char*));
+  GenerateVarType(WT_VAR_SYSTABLE, key_systable, sizeof(key_systable) / sizeof(char*));
 
   return true;
 }
 
 // set conn
-void shellSetConn(TAOS* conn) { varCon = conn; }
+void shellSetConn(TAOS* conn) { 
+  varCon = conn; 
+  // init database and stable
+  tireSearchWord(WT_VAR_DBNAME, "");
+}
 
 // exit shell auto funciton, shell exit call once
 void shellAutoExit() {
@@ -803,6 +819,7 @@ void* varObtainThread(void* param) {
 // only match next one word from all match words, return valuue must free by caller
 char* matchNextPrefix(STire* tire, char* pre) {
   SMatch* match = NULL;
+  if(tire == NULL) return NULL;
 
   // re-use last result
   if (lastMatch) {
@@ -1116,6 +1133,7 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
 
 // main key press tab , matched return true else false
 bool firstMatchCommand(TAOS* con, SShellCmd* cmd) {
+  if(con == NULL || cmd == NULL) return false;
   // parse command
   SWords* input = (SWords*)taosMemoryMalloc(sizeof(SWords));
   memset(input, 0, sizeof(SWords));
@@ -1660,6 +1678,38 @@ bool matchOther(TAOS* con, SShellCmd* cmd) {
   return false;
 }
 
+// last match if nothing matched
+bool matchEnd(TAOS* con, SShellCmd* cmd) {
+  // str dump
+  bool ret = false;
+  char* ps = strndup(cmd->command, cmd->commandSize);
+  char* last = lastWord(ps);
+  char* elast = strrchr(last, '.'); // find end last
+  if(elast) {
+    last = elast + 1;
+  }
+
+  // less one char can match
+  if(strlen(last) == 0 ) {
+    goto _return;
+  }
+
+  // match database
+  if (fillWithType(con, cmd, last, WT_VAR_DBNAME)) {
+    ret = true;
+    goto _return;
+  }
+
+  if (fillWithType(con, cmd, last, WT_VAR_SYSTABLE)) {
+    ret = true;
+    goto _return;
+  }
+
+_return:
+  taosMemoryFree(ps);
+  return ret;
+}
+
 // main key press tab
 void pressTabKey(SShellCmd* cmd) {
   // check
@@ -1694,6 +1744,9 @@ void pressTabKey(SShellCmd* cmd) {
   // manual match like select * from ...
   matched = matchSelectQuery(varCon, cmd);
   if (matched) return;
+
+  // match end
+  matched = matchEnd(varCon, cmd);
 
   return;
 }
@@ -1911,6 +1964,7 @@ void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb) {
 
   if (dealUseDB(sql)) {
     // change to new db
+    tireSearchWord(WT_VAR_STABLE, "");
     return;
   }
 
