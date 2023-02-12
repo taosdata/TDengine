@@ -1,5 +1,4 @@
 add_subdirectory(tdb)
-add_subdirectory(cache)
 add_subdirectory(transport)
 add_subdirectory(wal)
 add_subdirectory(monitor)

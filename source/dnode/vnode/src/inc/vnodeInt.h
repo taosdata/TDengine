@@ -184,10 +184,10 @@ int32_t tsdbBegin(STsdb* pTsdb);
 int32_t tsdbPrepareCommit(STsdb* pTsdb);
 int32_t tsdbAllowCommit(STsdb* pTsdb);
 int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
+int32_t tsdbCompact(STsdb* pTsdb, void* arg, int64_t varg);
 int32_t tsdbFinishCommit(STsdb* pTsdb, int8_t type);
 int32_t tsdbRollbackCommit(STsdb* pTsdb, int8_t type);
 int32_t tsdbMerge(STsdb* pTsdb, void* arg, int64_t varg);
-int32_t tsdbCompact(STsdb* pTsdb, void* arg, int64_t varg);
 int32_t tsdbDoRetention(STsdb* pTsdb, void* arg, int64_t varg);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
@@ -491,13 +491,12 @@ struct SCommitInfo {
   TXN*       txn;
   int8_t     allowCommit;
   int8_t     nMaxSttF;
-  // APIs
-  int32_t (*commitFn)(STsdb* pTsdb, SCommitInfo* pInfo);
 };
 
 struct SCompactInfo {
   SVTaskInfo taskInfo;
-  SVnodeInfo info;
+  int32_t    flag;
+  int64_t    commitID;
   SFidRange  fRange;
   int32_t    index;
   int32_t    maxIndex;
@@ -528,7 +527,6 @@ static FORCE_INLINE void vndDummyFunction(SVnode *pVnode, const char* funcName, 
 #define VND_DUMMY_FUNC(v, n) vndDummyFunction((v), __func__, __LINE__, (n))
 
 static const char* vTaskName[VND_TASK_MAX] = {"commit", "compact", "merge", "migrate"};
-
 
 #ifdef __cplusplus
 }

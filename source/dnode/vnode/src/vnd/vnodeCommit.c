@@ -113,8 +113,6 @@ int vnodeBegin(SVnode *pVnode) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  pVnode->state.commitID++;
-
   // alloc buffer pool
   code = vnodeGetBufPoolToUse(pVnode);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -221,7 +219,7 @@ _err:
   return -1;
 }
 
-int vnodeCommitInfo(const char *dir, const SVnodeInfo *pInfo) {
+int vnodeCommitInfo(const char *dir) {
   char fname[TSDB_FILENAME_LEN];
   char tfname[TSDB_FILENAME_LEN];
 
@@ -233,8 +231,7 @@ int vnodeCommitInfo(const char *dir, const SVnodeInfo *pInfo) {
     return -1;
   }
 
-  vInfo("vgId:%d, vnode info is committed", pInfo->config.vgId);
-
+  vInfo("vnode info is committed, dir:%s", dir);
   return 0;
 }
 
@@ -289,7 +286,7 @@ _err:
   return -1;
 }
 
-int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
+static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   char    dir[TSDB_FILENAME_LEN] = {0};
@@ -301,7 +298,7 @@ int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->info.config = pVnode->config;
   pInfo->info.state.committed = pVnode->state.applied;
   pInfo->info.state.commitTerm = pVnode->state.applyTerm;
-  pInfo->info.state.commitID = pVnode->state.commitID;
+  pInfo->info.state.commitID = ++pVnode->state.commitID;
   pInfo->taskInfo.type = VND_TASK_COMMIT;
   pInfo->taskInfo.pVnode = pVnode;
   pInfo->allowCommit = 1;
@@ -338,7 +335,7 @@ _exit:
     vError("vgId:%d, %s failed at line %d since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, lino,
            tstrerror(code), pVnode->state.commitID);
   } else {
-    vDebug("vgId:%d, %s done", TD_VID(pVnode), __func__);
+    vDebug("vgId:%d, %s done, commit id:%" PRId64, TD_VID(pVnode), __func__, pInfo->info.state.commitID);
   }
 
   return code;
@@ -490,7 +487,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   }
 
   // commit info
-  if (vnodeCommitInfo(dir, &pInfo->info) < 0) {
+  if (vnodeCommitInfo(dir) < 0) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
