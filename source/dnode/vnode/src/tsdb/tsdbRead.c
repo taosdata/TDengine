@@ -4073,11 +4073,11 @@ static bool doTsdbNextDataBlock(STsdbReader* pReader) {
 }
 
 bool tsdbNextDataBlock(STsdbReader* pReader) {
-  if (isEmptyQueryTimeWindow(&pReader->window)) {
+  if (isEmptyQueryTimeWindow(&pReader->window) || pReader->step == EXTERNAL_ROWS_NEXT) {
     return false;
   }
 
-  if (pReader->innerReader[0] != NULL && pReader->step == 0) {
+  if (pReader->step == 0 && pReader->innerReader[0] != NULL) {
     bool ret = doTsdbNextDataBlock(pReader->innerReader[0]);
     pReader->step = EXTERNAL_ROWS_PREV;
     if (ret) {
@@ -4102,7 +4102,7 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
     return ret;
   }
 
-  if (pReader->innerReader[1] != NULL && pReader->step == EXTERNAL_ROWS_MAIN) {
+  if (pReader->step == EXTERNAL_ROWS_MAIN && pReader->innerReader[1] != NULL) {
     // prepare for the next row scan
     int32_t code = doOpenReaderImpl(pReader->innerReader[1]);
     resetAllDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->window.ekey);
@@ -4110,10 +4110,10 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
       return code;
     }
 
-    bool ret1 = doTsdbNextDataBlock(pReader->innerReader[1]);
+    ret = doTsdbNextDataBlock(pReader->innerReader[1]);
     pReader->step = EXTERNAL_ROWS_NEXT;
-    if (ret1) {
-      return ret1;
+    if (ret) {
+      return ret;
     }
   }
 
