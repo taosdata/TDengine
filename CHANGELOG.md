@@ -1,3 +1,17 @@
+<a name="v0.4.2"></a>
+## v0.4.2 TDengine Data Replication Toolkit (2023-02-13)
+
+
+#### Bug Fixes
+
+*   apply new version of taos-query ([e8feac4f](https://github.com/taosdata/taosx.git/commit/e8feac4fec8be467aa1c2f8469a12a19032dd455))
+*   retry write raw in case 0x032C ([7bbf11a5](https://github.com/taosdata/taosx.git/commit/7bbf11a534d33499d77f1c8715e1386f381cfff8))
+*   fix .env error on windows ([e1ce433c](https://github.com/taosdata/taosx.git/commit/e1ce433c38520c41bc166cf4d795035b03fb52e5))
+*   force dynamic linking in musl target ([907d2e92](https://github.com/taosdata/taosx.git/commit/907d2e92feaec7e02c50bbad8a0e5a2d93154ff5))
+*   fix database locked error ([3c56e238](https://github.com/taosdata/taosx.git/commit/3c56e238a27c9d480594e60c3cc3e249a353ae23))
+
+
+
 <a name="v0.4.0"></a>
 ## v0.4.0 TDengine Data Replication Toolkit (2023-01-10)
 
