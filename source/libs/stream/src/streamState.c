@@ -127,7 +127,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     tstrncpy(statePath, path, 1024);
   }
 
-  char cfgPath[1024];
+  char cfgPath[1030];
   sprintf(cfgPath, "%s/cfg", statePath);
 
   char cfg[1024];
@@ -141,10 +141,8 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
   } else {
     taosMulModeMkDir(statePath, 0755);
     pCfgFile = taosOpenFile(cfgPath, TD_FILE_WRITE | TD_FILE_CREATE);
-    szPage = szPage < 0 ? 4096 * 8 : szPage;
-    pages = pages < 0 ? 256 * 32 : pages;
-    /*szPage = szPage < 0 ? 4096 : szPage;*/
-    /*pages = pages < 0 ? 256 : pages;*/
+    szPage = szPage < 0 ? 4096 : szPage;
+    pages = pages < 0 ? 256 : pages;
     sprintf(cfg, "%d\n%d\n", szPage, pages);
     taosWriteFile(pCfgFile, cfg, strlen(cfg));
   }
