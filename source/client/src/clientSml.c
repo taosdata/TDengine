@@ -1017,11 +1017,11 @@ void smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag) {
     taosHashCleanup(kvHash);
   }
 
-//  if (info->parseJsonByLib) {
-//    SSmlLineInfo *key = (SSmlLineInfo *)(tag->key);
-//    if (key != NULL) taosMemoryFree(key->tags);
-//  }
-//  taosMemoryFree(tag->key);
+  //  if (info->parseJsonByLib) {
+  //    SSmlLineInfo *key = (SSmlLineInfo *)(tag->key);
+  //    if (key != NULL) taosMemoryFree(key->tags);
+  //  }
+  //  taosMemoryFree(tag->key);
   taosArrayDestroy(tag->cols);
   taosArrayDestroy(tag->tags);
   taosMemoryFree(tag);
@@ -1082,8 +1082,7 @@ void smlDestroyInfo(SSmlHandle *info) {
       if (info->parseJsonByLib) {
         taosMemoryFree(info->lines[i].tags);
       }
-      if(info->lines[i].measureTagsLen != 0)
-        taosMemoryFree(info->lines[i].measureTag);
+      if (info->lines[i].measureTagsLen != 0) taosMemoryFree(info->lines[i].measureTag);
     }
     taosMemoryFree(info->lines);
   }
@@ -1157,9 +1156,11 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
     if (info->protocol == TSDB_SML_LINE_PROTOCOL) {
       tinfo = *(SSmlTableInfo **)taosHashGet(info->childTables, elements->measure, elements->measureTagsLen);
     } else if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
-      tinfo = *(SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen);
+      tinfo = *(SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag,
+                                             elements->measureLen + elements->tagsLen);
     } else {
-      tinfo = *(SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen);
+      tinfo = *(SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag,
+                                             elements->measureLen + elements->tagsLen);
     }
 
     if (tinfo == NULL) {
@@ -1247,9 +1248,9 @@ static int32_t smlInsertData(SSmlHandle *info) {
     (*pMeta)->tableMeta->vgId = vg.vgId;
     (*pMeta)->tableMeta->uid = tableData->uid;  // one table merge data block together according uid
 
-    code = smlBindData(info->pQuery, info->dataFormat, tableData->tags, (*pMeta)->cols, tableData->cols, (*pMeta)->tableMeta,
-                       tableData->childTableName, tableData->sTableName, tableData->sTableNameLen, info->ttl,
-                       info->msgBuf.buf, info->msgBuf.len);
+    code = smlBindData(info->pQuery, info->dataFormat, tableData->tags, (*pMeta)->cols, tableData->cols,
+                       (*pMeta)->tableMeta, tableData->childTableName, tableData->sTableName, tableData->sTableNameLen,
+                       info->ttl, info->msgBuf.buf, info->msgBuf.len);
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%" PRIx64 " smlBindData failed", info->id);
       return code;
@@ -1371,7 +1372,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
       if (info->dataFormat) {
         SSmlLineInfo element = {0};
         code = smlParseTelnetString(info, (char *)tmp, (char *)tmp + len, &element);
-        if(element.measureTagsLen != 0) taosMemoryFree(element.measureTag);
+        if (element.measureTagsLen != 0) taosMemoryFree(element.measureTag);
       } else {
         code = smlParseTelnetString(info, (char *)tmp, (char *)tmp + len, info->lines + i);
       }
