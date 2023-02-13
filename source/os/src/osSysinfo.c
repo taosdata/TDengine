@@ -18,6 +18,7 @@
 #include "taoserror.h"
 
 #define PROCESS_ITEM 12
+#define UUIDLEN37 37
 
 typedef struct {
   uint64_t user;
@@ -830,7 +831,8 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   return 0;
 #elif defined(_TD_DARWIN_64)
   uuid_t uuid = {0};
-  char   buf[37] = {0};
+  char   buf[UUIDLEN37];
+  memset(buf, 0, UUIDLEN37);
   uuid_generate(uuid);
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
   uuid_unparse_lower(uuid, buf);

@@ -215,8 +215,15 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
 
-      tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
-                              taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader, pTaskInfo->id.str);
+      code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
+                                     taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader,
+                                     pTaskInfo->id.str);
+      if (code != TSDB_CODE_SUCCESS) {
+        pInfo->currentGroupIndex += 1;
+        taosArrayClear(pInfo->pUidList);
+        continue;
+      }
+
       taosArrayClear(pInfo->pUidList);
 
       code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pUidList);
