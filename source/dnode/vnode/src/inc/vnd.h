@@ -100,11 +100,15 @@ int32_t vnodeShouldCommit(SVnode* pVnode);
 void    vnodeUpdCommitSched(SVnode* pVnode);
 void    vnodeRollback(SVnode* pVnode);
 int32_t vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
-int32_t vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
+int32_t vnodeCommitInfo(const char* dir);
 int32_t vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
 int32_t vnodeSyncCommit(SVnode* pVnode);
 int32_t vnodeAsyncCommit(SVnode* pVnode);
 bool    vnodeShouldRollback(SVnode* pVnode);
+
+// vnodeCompact.c
+int32_t vnodeAsyncCompact(SVnode* pVnode);
+int32_t vnodeSyncCompact(SVnode* pVnode);
 
 // vnodeSync.c
 int32_t vnodeSyncOpen(SVnode* pVnode, char* path);

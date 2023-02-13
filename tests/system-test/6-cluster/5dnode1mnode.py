@@ -145,8 +145,8 @@ class TDTestCase:
         tdSql.query("show db.alive;")
         tdSql.checkData(0, 0, 1)
 
-        # stop 5 dnode 
-        self.TDDnodes.stoptaosd(5)
+        # stop 3 dnode
+        self.TDDnodes.stoptaosd(3)
         tdSql.checkDataLoop(0, 0, 2, "show cluster alive;", 20, 0.5)
         
         tdSql.query("show db.alive;")

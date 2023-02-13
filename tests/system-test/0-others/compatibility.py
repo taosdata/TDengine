@@ -99,6 +99,10 @@ class TDTestCase:
 
 
     def run(self):
+        distro_id = distro.id()
+        if distro_id == "alpine":
+            tdLog.info(f"alpine skip compatibility test")
+            return True
         bPath = self.getBuildPath()
         cPath = self.getCfgPath()
         dbname = "test"

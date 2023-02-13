@@ -58,7 +58,7 @@ extern int32_t tMsgDict[];
 #define TMSG_INFO(TYPE)                                                                                                \
   ((TYPE) < TDMT_DND_MAX_MSG || (TYPE) < TDMT_MND_MAX_MSG || (TYPE) < TDMT_VND_MAX_MSG || (TYPE) < TDMT_SCH_MAX_MSG || \
    (TYPE) < TDMT_STREAM_MAX_MSG || (TYPE) < TDMT_MON_MAX_MSG || (TYPE) < TDMT_SYNC_MAX_MSG) ||                         \
-          (TYPE) < TDMT_VND_STREAM_MSG || (TYPE) < TDMT_VND_TMQ_MSG                                                    \
+          (TYPE) < TDMT_VND_STREAM_MSG || (TYPE) < TDMT_VND_TMQ_MSG || (TYPE) < TDMT_VND_TMQ_MAX_MSG                   \
       ? tMsgInfo[tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE)]                                                   \
       : 0
 
@@ -145,12 +145,14 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_TABLE_UPDATE_OPTIONS      9
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME  10
 
-#define TSDB_FILL_NONE      0
-#define TSDB_FILL_NULL      1
-#define TSDB_FILL_SET_VALUE 2
-#define TSDB_FILL_LINEAR    3
-#define TSDB_FILL_PREV      4
-#define TSDB_FILL_NEXT      5
+#define TSDB_FILL_NONE        0
+#define TSDB_FILL_NULL        1
+#define TSDB_FILL_NULL_F      2
+#define TSDB_FILL_SET_VALUE   3
+#define TSDB_FILL_SET_VALUE_F 4
+#define TSDB_FILL_LINEAR      5
+#define TSDB_FILL_PREV        6
+#define TSDB_FILL_NEXT        7
 
 #define TSDB_ALTER_USER_PASSWD                 0x1
 #define TSDB_ALTER_USER_SUPERUSER              0x2
@@ -1241,7 +1243,7 @@ int32_t tDeserializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq
 typedef struct {
   int64_t dbUid;
   char    db[TSDB_DB_FNAME_LEN];
-  int64_t reserved[8];
+  int64_t compactStartTime;
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
@@ -1280,8 +1282,8 @@ int32_t tSerializeSAlterVnodeReplicaReq(void* buf, int32_t bufLen, SAlterVnodeRe
 int32_t tDeserializeSAlterVnodeReplicaReq(void* buf, int32_t bufLen, SAlterVnodeReplicaReq* pReq);
 
 typedef struct {
-  int32_t  vgId;
-  int8_t   disable;
+  int32_t vgId;
+  int8_t  disable;
 } SDisableVnodeWriteReq;
 
 int32_t tSerializeSDisableVnodeWriteReq(void* buf, int32_t bufLen, SDisableVnodeWriteReq* pReq);
@@ -1781,6 +1783,7 @@ typedef struct {
 #define STREAM_FILL_HISTORY_ON        1
 #define STREAM_FILL_HISTORY_OFF       0
 #define STREAM_DEFAULT_FILL_HISTORY   STREAM_FILL_HISTORY_OFF
+#define STREAM_DEFAULT_IGNORE_UPDATE  0
 #define STREAM_CREATE_STABLE_TRUE     1
 #define STREAM_CREATE_STABLE_FALSE    0
 
@@ -1809,7 +1812,8 @@ typedef struct {
   // 3.0.2.3
   int8_t   createStb;
   uint64_t targetStbUid;
-  SArray*  fillNullCols; // array of SColLocation
+  SArray*  fillNullCols;  // array of SColLocation
+  int8_t   igUpdate;
 } SCMCreateStreamReq;
 
 typedef struct {

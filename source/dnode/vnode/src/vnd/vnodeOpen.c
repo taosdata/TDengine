@@ -49,7 +49,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   info.state.commitID = 0;
 
   vInfo("vgId:%d, save config while create", pCfg->vgId);
-  if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir, &info) < 0) {
+  if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir) < 0) {
     vError("vgId:%d, failed to save vnode config since %s", pCfg ? pCfg->vgId : 0, tstrerror(terrno));
     return -1;
   }
@@ -97,7 +97,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *p
     return -1;
   }
 
-  ret = vnodeCommitInfo(dir, &info);
+  ret = vnodeCommitInfo(dir);
   if (ret < 0) {
     vError("vgId:%d, failed to commit vnode config since %s", pReq->vgId, tstrerror(terrno));
     return -1;
@@ -171,8 +171,8 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
     return -1;
   }
 
-  vInfo("vgId:%d, start to alter hashrange from [%u, %u) to [%u, %u)", pReq->srcVgId, info.config.hashBegin,
-        info.config.hashEnd, pReq->hashBegin, pReq->hashEnd);
+  vInfo("vgId:%d, alter hashrange from [%u, %u] to [%u, %u]", pReq->srcVgId, info.config.hashBegin, info.config.hashEnd,
+        pReq->hashBegin, pReq->hashEnd);
   info.config.vgId = pReq->dstVgId;
   info.config.hashBegin = pReq->hashBegin;
   info.config.hashEnd = pReq->hashEnd;
@@ -198,13 +198,13 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
     return -1;
   }
 
-  ret = vnodeCommitInfo(dir, &info);
+  ret = vnodeCommitInfo(dir);
   if (ret < 0) {
     vError("vgId:%d, failed to commit vnode config since %s", pReq->dstVgId, tstrerror(terrno));
     return -1;
   }
 
-  vInfo("vgId:%d, start to rename %s to %s", pReq->dstVgId, srcPath, dstPath);
+  vInfo("vgId:%d, rename %s to %s", pReq->dstVgId, srcPath, dstPath);
   ret = vnodeRenameVgroupId(srcPath, dstPath, pReq->srcVgId, pReq->dstVgId, pTfs);
   if (ret < 0) {
     vError("vgId:%d, failed to rename vnode from %s to %s since %s", pReq->dstVgId, srcPath, dstPath,
@@ -257,7 +257,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   if (updated) {
     vInfo("vgId:%d, save vnode info since dnode info changed", info.config.vgId);
     (void)vnodeSaveInfo(dir, &info);
-    (void)vnodeCommitInfo(dir, &info);
+    (void)vnodeCommitInfo(dir);
   }
 
   // create handle

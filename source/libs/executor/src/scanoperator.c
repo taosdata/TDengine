@@ -312,8 +312,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     tsdbReleaseDataBlock(pTableScanInfo->dataReader);
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
-    qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
-           pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
+    qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d, uid:%" PRIu64, GET_TASKID(pTaskInfo),
+           pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows, pBlockInfo->id.uid);
     doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, 1);
     pCost->skipBlocks += 1;
     tsdbReleaseDataBlock(pTableScanInfo->dataReader);
@@ -399,7 +399,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   }
 
   bool limitReached = applyLimitOffset(&pTableScanInfo->limitInfo, pBlock, pTaskInfo);
-  if (limitReached) { // set operator flag is done
+  if (limitReached) {  // set operator flag is done
     setOperatorCompleted(pOperator);
   }
 
@@ -450,6 +450,15 @@ static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
 // const void *key, size_t keyLen, void *value
 static void freeCachedMetaItem(const void* key, size_t keyLen, void* value) { freeTableCachedVal(value); }
 
+static void doSetNullValue(SSDataBlock* pBlock, const SExprInfo* pExpr, int32_t numOfExpr) {
+  for (int32_t j = 0; j < numOfExpr; ++j) {
+    int32_t dstSlotId = pExpr[j].base.resSchema.slotId;
+
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
+    colDataAppendNNULL(pColInfoData, 0, pBlock->info.rows);
+  }
+}
+
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, const char* idStr, STableMetaCacheInfo* pCache) {
   // currently only the tbname pseudo column
@@ -469,14 +478,21 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   SMetaReader mr = {0};
   LRUHandle*  h = NULL;
 
+  // todo refactor: extract method
+  // the handling of the null data should be packed in the extracted method
+
   // 1. check if it is existed in meta cache
   if (pCache == NULL) {
     metaReaderInit(&mr, pHandle->meta, 0);
     code = metaGetTableEntryByUidCache(&mr, pBlock->info.id.uid);
     if (code != TSDB_CODE_SUCCESS) {
+      // when encounter the TSDB_CODE_PAR_TABLE_NOT_EXIST error, we proceed.
       if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
         qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s",
               pBlock->info.id.uid, tstrerror(terrno), idStr);
+
+        // append null value before return to caller, since the caller will ignore this error code and proceed
+        doSetNullValue(pBlock, pExpr, numOfExpr);
       } else {
         qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(terrno),
                idStr);
@@ -502,6 +518,8 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
         if (terrno == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
           qWarn("failed to get table meta, table may have been dropped, uid:0x%" PRIx64 ", code:%s, %s",
                 pBlock->info.id.uid, tstrerror(terrno), idStr);
+          // append null value before return to caller, since the caller will ignore this error code and proceed
+          doSetNullValue(pBlock, pExpr, numOfExpr);
         } else {
           qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.id.uid, tstrerror(terrno),
                  idStr);
@@ -618,7 +636,13 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
 
   while (tsdbNextDataBlock(pTableScanInfo->base.dataReader)) {
     if (isTaskKilled(pTaskInfo)) {
+      tsdbReleaseDataBlock(pTableScanInfo->base.dataReader);
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    }
+
+    if (pOperator->status == OP_EXEC_DONE) {
+      tsdbReleaseDataBlock(pTableScanInfo->base.dataReader);
+      break;
     }
 
     // process this data block based on the probabilities
@@ -632,9 +656,8 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
 
     uint32_t status = 0;
     int32_t  code = loadDataBlock(pOperator, &pTableScanInfo->base, pBlock, &status);
-    //    int32_t  code = loadDataBlockOnDemand(pOperator->pRuntimeEnv, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
-      T_LONG_JMP(pOperator->pTaskInfo->env, code);
+      T_LONG_JMP(pTaskInfo->env, code);
     }
 
     // current block is filter out according to filter condition, continue load the next block
@@ -1410,7 +1433,12 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
     dumyInfo.cur.pageId = -1;
     bool        isClosed = false;
     STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
-    if (tableInserted && isOverdue(tsCol[rowId], &pInfo->twAggSup)) {
+    bool overDue = isOverdue(tsCol[rowId], &pInfo->twAggSup);
+    if (pInfo->igExpired && overDue) {
+      continue;
+    }
+
+    if (tableInserted && overDue) {
       win = getActiveTimeWindow(NULL, &dumyInfo, tsCol[rowId], &pInfo->interval, TSDB_ORDER_ASC);
       isClosed = isCloseWindow(&win, &pInfo->twAggSup);
     }
@@ -2022,6 +2050,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     if (pInfo->dataReader && tsdbNextDataBlock(pInfo->dataReader)) {
       if (isTaskKilled(pTaskInfo)) {
+        tsdbReleaseDataBlock(pInfo->dataReader);
         longjmp(pTaskInfo->env, pTaskInfo->code);
       }
 
@@ -2343,6 +2372,9 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->pUpdateDataRes = createSpecialDataBlock(STREAM_CLEAR);
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
   pInfo->partitionSup.needCalc = false;
+  pInfo->igCheckUpdate = pTableScanNode->igCheckUpdate;
+  pInfo->igExpired = pTableScanNode->igExpired;
+  pInfo->twAggSup.maxTs = INT64_MIN;
 
   setOperatorInfo(pOperator, "StreamScanOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
@@ -2523,6 +2555,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   qTrace("tsdb/read-table-data: %p, enter next reader", reader);
   while (tsdbNextDataBlock(reader)) {
     if (isTaskKilled(pTaskInfo)) {
+      tsdbReleaseDataBlock(reader);
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
@@ -2539,7 +2572,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     }
 
     uint32_t status = 0;
-    loadDataBlock(pOperator, &pInfo->base, pBlock, &status);
+    code = loadDataBlock(pOperator, &pInfo->base, pBlock, &status);
     //    code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
@@ -2714,10 +2747,13 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
     }
   }
 
-  applyLimitOffset(&pInfo->limitInfo, pResBlock, pTaskInfo);
-  qDebug("%s get sorted row block, rows:%d, limit:%"PRId64, GET_TASKID(pTaskInfo), pResBlock->info.rows,
-      pInfo->limitInfo.numOfOutputRows);
+  bool limitReached = applyLimitOffset(&pInfo->limitInfo, pResBlock, pTaskInfo);
+  qDebug("%s get sorted row block, rows:%d, limit:%" PRId64, GET_TASKID(pTaskInfo), pResBlock->info.rows,
+         pInfo->limitInfo.numOfOutputRows);
 
+  if (limitReached) {
+    resetLimitInfoForNextGroup(&pInfo->limitInfo);
+  }
   return (pResBlock->info.rows > 0) ? pResBlock : NULL;
 }
 

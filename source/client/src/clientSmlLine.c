@@ -148,9 +148,9 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
   SArray *superKV = NULL;
   if(info->dataFormat){
     if(unlikely(!isSameMeasure)){
-      SSmlSTableMeta *sMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, currElement->measure, currElement->measureLen, NULL);
-
-      if(unlikely(sMeta == NULL)){
+      SSmlSTableMeta **tmp = (SSmlSTableMeta **)taosHashGet(info->superTables, currElement->measure, currElement->measureLen);
+      SSmlSTableMeta *sMeta = NULL;
+      if(unlikely(tmp == NULL)){
         STableMeta * pTableMeta = smlGetMeta(info, currElement->measure, currElement->measureLen);
         if(pTableMeta == NULL){
           info->dataFormat = false;
@@ -159,10 +159,11 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
         }
         sMeta = smlBuildSTableMeta(info->dataFormat);
         sMeta->tableMeta = pTableMeta;
-        nodeListSet(&info->superTables, currElement->measure, currElement->measureLen, sMeta, NULL);
+        taosHashPut(info->superTables, currElement->measure, currElement->measureLen, &sMeta, POINTER_BYTES);
+        tmp = &sMeta;
       }
-      info->currSTableMeta = sMeta->tableMeta;
-      superKV = sMeta->tags;
+      info->currSTableMeta = (*tmp)->tableMeta;
+      superKV = (*tmp)->tags;
 
       if(unlikely(taosArrayGetSize(superKV) == 0)){
         isSuperKVInit = false;
@@ -258,13 +259,13 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
         SSmlKv *maxKV = (SSmlKv *)taosArrayGet(maxKVs, cnt);
         if(unlikely(kv.length > maxKV->length)){
           maxKV->length = kv.length;
-          SSmlSTableMeta *tableMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, currElement->measure, currElement->measureLen, NULL);
+          SSmlSTableMeta **tableMeta = (SSmlSTableMeta **)taosHashGet(info->superTables, currElement->measure, currElement->measureLen);
           if(unlikely(NULL == tableMeta)){
             uError("SML:0x%" PRIx64 " NULL == tableMeta", info->id);
             return TSDB_CODE_SML_INTERNAL_ERROR;
           }
 
-          SSmlKv *oldKV = (SSmlKv *)taosArrayGet(tableMeta->tags, cnt);
+          SSmlKv *oldKV = (SSmlKv *)taosArrayGet((*tableMeta)->tags, cnt);
           oldKV->length = kv.length;
           info->needModifySchema = true;
         }
@@ -310,7 +311,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
     (*sql)++;
   }
 
-  void* oneTable = nodeListGet(info->childTables, currElement->measure, currElement->measureTagsLen, NULL);
+  void* oneTable = taosHashGet(info->childTables, currElement->measure, currElement->measureTagsLen);
   if ((oneTable != NULL)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -332,7 +333,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd,
     }
   }
 
-  nodeListSet(&info->childTables, currElement->measure, currElement->measureTagsLen, tinfo, NULL);
+  taosHashPut(info->childTables, currElement->measure, currElement->measureTagsLen, &tinfo, POINTER_BYTES);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -345,18 +346,18 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd,
   SArray *superKV = NULL;
   if(info->dataFormat){
     if(unlikely(!isSameCTable)){
-      SSmlTableInfo *oneTable = (SSmlTableInfo *)nodeListGet(info->childTables, currElement->measure, currElement->measureTagsLen, NULL);
+      SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashGet(info->childTables, currElement->measure, currElement->measureTagsLen);
       if (unlikely(oneTable == NULL)) {
         smlBuildInvalidDataMsg(&info->msgBuf, "child table should inside", currElement->measure);
         return TSDB_CODE_SML_INVALID_DATA;
       }
-      info->currTableDataCtx = oneTable->tableDataCtx;
+      info->currTableDataCtx = (*oneTable)->tableDataCtx;
     }
 
     if(unlikely(!isSameMeasure)){
-      SSmlSTableMeta *sMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, currElement->measure, currElement->measureLen, NULL);
-
-      if(unlikely(sMeta == NULL)){
+      SSmlSTableMeta **tmp = (SSmlSTableMeta **)taosHashGet(info->superTables, currElement->measure, currElement->measureLen);
+      SSmlSTableMeta *sMeta = NULL;
+      if(unlikely(tmp == NULL)){
         STableMeta * pTableMeta = smlGetMeta(info, currElement->measure, currElement->measureLen);
         if(pTableMeta == NULL){
           info->dataFormat = false;
@@ -365,10 +366,11 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd,
         }
         sMeta = smlBuildSTableMeta(info->dataFormat);
         sMeta->tableMeta = pTableMeta;
-        nodeListSet(&info->superTables, currElement->measure, currElement->measureLen, sMeta, NULL);
+        taosHashPut(info->superTables, currElement->measure, currElement->measureLen, &sMeta, POINTER_BYTES);
+        tmp = &sMeta;
       }
-      info->currSTableMeta = sMeta->tableMeta;
-      superKV = sMeta->cols;
+      info->currSTableMeta = (*tmp)->tableMeta;
+      superKV = (*tmp)->cols;
       if(unlikely(taosArrayGetSize(superKV) == 0)){
         isSuperKVInit = false;
       }
@@ -487,13 +489,13 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd,
 
         if(unlikely(IS_VAR_DATA_TYPE(kv.type) && kv.length > maxKV->length)){
           maxKV->length = kv.length;
-          SSmlSTableMeta *tableMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, currElement->measure, currElement->measureLen, NULL);
+          SSmlSTableMeta **tableMeta = (SSmlSTableMeta **)taosHashGet(info->superTables, currElement->measure, currElement->measureLen);
           if(unlikely(NULL == tableMeta)){
             uError("SML:0x%" PRIx64 " NULL == tableMeta", info->id);
             return TSDB_CODE_SML_INTERNAL_ERROR;
           }
 
-          SSmlKv *oldKV = (SSmlKv *)taosArrayGet(tableMeta->cols, cnt);
+          SSmlKv *oldKV = (SSmlKv *)taosArrayGet((*tableMeta)->cols, cnt);
           oldKV->length = kv.length;
           info->needModifySchema = true;
         }

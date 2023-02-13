@@ -8,15 +8,23 @@
 
 set +e
 #set -x
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  TD_OS="Darwin"
+else
+  OS=$(cat /etc/*-release | grep "^NAME=" | cut -d= -f2)
+  len=$(echo ${#OS})
+  len=$((len - 2))
+  TD_OS=$(echo -ne ${OS:1:${len}} | cut -d" " -f1)
+fi
 
-UNAME_BIN=`which uname`
-OS_TYPE=`$UNAME_BIN`
+UNAME_BIN=$(which uname)
+OS_TYPE=$($UNAME_BIN)
 
 cd .
 
 # Get responsible directories
-CODE_DIR=`dirname $0`
-CODE_DIR=`pwd`
+CODE_DIR=$(dirname $0)
+CODE_DIR=$(pwd)
 
 IN_TDINTERNAL="community"
 if [[ "$CODE_DIR" == *"$IN_TDINTERNAL"* ]]; then
@@ -25,19 +33,15 @@ else
   cd ../../
 fi
 
-TOP_DIR=`pwd`
-TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
+TOP_DIR=$(pwd)
+TAOSD_DIR=$(find . -name "taosd" | grep bin | head -n1)
 
-if [[ "$OS_TYPE" != "Darwin" ]]; then
-  cut_opt="--field="
-else
-  cut_opt="-f "
-fi
+cut_opt="-f "
 
 if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
+  BIN_DIR=$(find . -name "taosd" | grep bin | head -n1 | cut -d '/' ${cut_opt}2,3)
 else
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2`
+  BIN_DIR=$(find . -name "taosd" | grep bin | head -n1 | cut -d '/' ${cut_opt}2)
 fi
 
 declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
@@ -66,35 +70,38 @@ ulimit -c unlimited
 #sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
 
 echo "ExcuteCmd:" $*
-AsanFile=$ASAN_DIR/psim.info
-echo "AsanFile:" $AsanFile
 
-unset LD_PRELOAD
-#export LD_PRELOAD=libasan.so.5
-export LD_PRELOAD=`gcc -print-file-name=libasan.so`
-echo "Preload AsanSo:" $?
-
-$* -a 2> $AsanFile
-
-unset LD_PRELOAD
-for ((i=1;i<=20;i++))
-do
-  AsanFileLen=`cat $AsanFile | wc -l`
-  echo "AsanFileLen:" $AsanFileLen
-  if [ $AsanFileLen -gt 10 ]; then
-    break
-  fi
-  sleep 1
-done 
-
-AsanFileSuccessLen=`grep -w successfully $AsanFile | wc -l`
-echo "AsanFileSuccessLen:" $AsanFileSuccessLen
-
-if [ $AsanFileSuccessLen -gt 0 ]; then
-  echo "Execute script successfully and check asan"
-  $CODE_DIR/../script/sh/checkAsan.sh
+if [[ "$TD_OS" == "Alpine" ]]; then
+  $*
 else
-  echo "Execute script failure"
-  exit 1
-fi
+  AsanFile=$ASAN_DIR/psim.info
+  echo "AsanFile:" $AsanFile
 
+  unset LD_PRELOAD
+  #export LD_PRELOAD=libasan.so.5
+  export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
+  echo "Preload AsanSo:" $?
+
+  $* -a 2>$AsanFile
+
+  unset LD_PRELOAD
+  for ((i = 1; i <= 20; i++)); do
+    AsanFileLen=$(cat $AsanFile | wc -l)
+    echo "AsanFileLen:" $AsanFileLen
+    if [ $AsanFileLen -gt 10 ]; then
+      break
+    fi
+    sleep 1
+  done
+
+  AsanFileSuccessLen=$(grep -w successfully $AsanFile | wc -l)
+  echo "AsanFileSuccessLen:" $AsanFileSuccessLen
+
+  if [ $AsanFileSuccessLen -gt 0 ]; then
+    echo "Execute script successfully and check asan"
+    $CODE_DIR/../script/sh/checkAsan.sh
+  else
+    echo "Execute script failure"
+    exit 1
+  fi
+fi

@@ -20,11 +20,11 @@
 
 struct SToken;
 
-#define NEXT_TOKEN(pSql, sToken)                \
-  do {                                          \
-    int32_t index = 0;                          \
-    sToken = tStrGetToken(pSql, &index, false); \
-    pSql += index;                              \
+#define NEXT_TOKEN(pSql, sToken)                      \
+  do {                                                \
+    int32_t index = 0;                                \
+    sToken = tStrGetToken(pSql, &index, false, NULL); \
+    pSql += index;                                    \
   } while (0)
 
 #define CHECK_CODE(expr)             \

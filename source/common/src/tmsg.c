@@ -3992,9 +3992,7 @@ int32_t tSerializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq *
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->dbUid) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
-  for (int32_t i = 0; i < 8; ++i) {
-    if (tEncodeI64(&encoder, pReq->reserved[i]) < 0) return -1;
-  }
+  if (tEncodeI64(&encoder, pReq->compactStartTime) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4009,9 +4007,7 @@ int32_t tDeserializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->dbUid) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
-  for (int32_t i = 0; i < 8; ++i) {
-    if (tDecodeI64(&decoder, &pReq->reserved[i]) < 0) return -1;
-  }
+  if (tDecodeI64(&decoder, &pReq->compactStartTime) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -5489,6 +5485,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
   }
+
   if (tEncodeI8(&encoder, pReq->createStb) < 0) return -1;
   if (tEncodeU64(&encoder, pReq->targetStbUid) < 0) return -1;
   if (tEncodeI32(&encoder, taosArrayGetSize(pReq->fillNullCols)) < 0) return -1;
@@ -5498,6 +5495,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
     if (tEncodeI16(&encoder, pCol->colId) < 0) return -1;
     if (tEncodeI8(&encoder, pCol->type) < 0) return -1;
   }
+  if (tEncodeI8(&encoder, pReq->igUpdate) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -5580,6 +5578,8 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
       }
     }
   }
+
+  if (tDecodeI8(&decoder, &pReq->igUpdate) < 0) return -1;
 
   tEndDecode(&decoder);
 
