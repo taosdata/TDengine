@@ -28,7 +28,7 @@ taosKeeper needs to be executed on the terminal of the operating system, it supp
 
 ```shell
 monitor 1
-monitorFqdn localhost # taoskeeper 服务的 FQDN
+monitorFqdn localhost # taoskeeper's FQDN
 ```
 
 For more information, see [TDengine Monitoring Configuration](../config/#monitoring).
