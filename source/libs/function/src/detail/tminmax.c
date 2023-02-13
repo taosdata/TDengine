@@ -372,7 +372,7 @@ static void handleInt8Col(const void* data, int32_t start, int32_t numOfRows, SM
     pBuf->v = i8VectorCmpAVX2(data, numOfRows, isMinFunc, signVal);
   } else {
     if (!pBuf->assign) {
-      pBuf->v = ((int8_t*)data)[0];
+      pBuf->v = ((int8_t*)data)[start];
     }
 
     if (signVal) {
@@ -406,7 +406,7 @@ static void handleInt16Col(const void* data, int32_t start, int32_t numOfRows, S
     pBuf->v = i16VectorCmpAVX2(data, numOfRows, isMinFunc, signVal);
   } else {
     if (!pBuf->assign) {
-      pBuf->v = ((int16_t*)data)[0];
+      pBuf->v = ((int16_t*)data)[start];
     }
 
     if (signVal) {
@@ -440,7 +440,7 @@ static void handleInt32Col(const void* data, int32_t start, int32_t numOfRows, S
     pBuf->v = i32VectorCmpAVX2(data, numOfRows, isMinFunc, signVal);
   } else {
     if (!pBuf->assign) {
-      pBuf->v = ((int32_t*)data)[0];
+      pBuf->v = ((int32_t*)data)[start];
     }
 
     if (signVal) {
@@ -470,7 +470,7 @@ static void handleInt32Col(const void* data, int32_t start, int32_t numOfRows, S
 static void handleInt64Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                            bool signVal) {
   if (!pBuf->assign) {
-    pBuf->v = ((int64_t*)data)[0];
+    pBuf->v = ((int64_t*)data)[start];
   }
 
   if (signVal) {
@@ -504,7 +504,7 @@ static void handleFloatCol(SColumnInfoData* pCol, int32_t start, int32_t numOfRo
     *val = floatVectorCmpAVX(pData, numOfRows, isMinFunc);
   } else {
     if (!pBuf->assign) {
-      *val = pData[0];
+      *val = pData[start];
     }
 
     if (isMinFunc) {  // min
@@ -535,7 +535,7 @@ static void handleDoubleCol(SColumnInfoData* pCol, int32_t start, int32_t numOfR
     *val = (double)doubleVectorCmpAVX(pData, numOfRows, isMinFunc);
   } else {
     if (!pBuf->assign) {
-      *val = pData[0];
+      *val = pData[start];
     }
 
     if (isMinFunc) {  // min
