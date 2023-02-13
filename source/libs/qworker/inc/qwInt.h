@@ -114,14 +114,14 @@ typedef struct SQWTaskStatus {
 typedef struct SQWTaskCtx {
   SRWLatch lock;
   int8_t   phase;
+  int8_t   inFetch;
   int8_t   taskType;
   int8_t   explain;
   int8_t   needFetch;
   int8_t   localExec;
   int32_t  msgType;
-  int32_t  fetchType;
-  int32_t  execId;
   int32_t  level;
+  uint64_t sId;
 
   bool    queryGotData;
   bool    queryRsped;
@@ -221,8 +221,16 @@ typedef struct SQWorkerMgmt {
 #define QW_GET_PHASE(ctx) atomic_load_8(&(ctx)->phase)
 #define QW_SET_PHASE(ctx, _value)                                            \
   do {                                                                       \
-    if ((_value) != QW_PHASE_PRE_FETCH && (_value) != QW_PHASE_POST_FETCH) { \
-      atomic_store_8(&(ctx)->phase, _value);                                 \
+    switch (_value) {                                                        \
+      case QW_PHASE_PRE_FETCH:                                               \
+        ctx->inFetch = 1;                                                    \
+        break;                                                               \
+      case QW_PHASE_POST_FETCH:                                              \
+        ctx->inFetch = 0;                                                    \
+        break;                                                               \
+      default:                                                               \
+        atomic_store_8(&(ctx)->phase, _value);                               \
+        break;                                                               \
     }                                                                        \
   } while (0)
 
@@ -230,6 +238,7 @@ typedef struct SQWorkerMgmt {
 #define QW_UPDATE_RSP_CODE(ctx, code) atomic_val_compare_exchange_32(&(ctx)->rspCode, 0, code)
 
 #define QW_QUERY_RUNNING(ctx) (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
+#define QW_FETCH_RUNNING(ctx) ((ctx)->inFetch)
 
 #define QW_SET_QTID(id, qId, tId, eId)                              \
   do {                                                              \
@@ -316,34 +325,34 @@ typedef struct SQWorkerMgmt {
 #define QW_LOCK(type, _lock)                                                                       \
   do {                                                                                             \
     if (QW_READ == (type)) {                                                                       \
-      assert(atomic_load_32((_lock)) >= 0);                                                        \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before read lock");                \
       QW_LOCK_DEBUG("QW RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRLockLatch(_lock);                                                                       \
       QW_LOCK_DEBUG("QW RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) > 0);                                                         \
+      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value after read lock");                  \
     } else {                                                                                       \
-      assert(atomic_load_32((_lock)) >= 0);                                                        \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value before write lock");               \
       QW_LOCK_DEBUG("QW WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWLockLatch(_lock);                                                                       \
       QW_LOCK_DEBUG("QW WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);                               \
+      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value after write lock");  \
     }                                                                                              \
   } while (0)
 
 #define QW_UNLOCK(type, _lock)                                                                      \
   do {                                                                                              \
     if (QW_READ == (type)) {                                                                        \
-      assert(atomic_load_32((_lock)) > 0);                                                          \
+      ASSERTS(atomic_load_32((_lock)) > 0, "invalid lock value before read unlock");                \
       QW_LOCK_DEBUG("QW RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRUnLockLatch(_lock);                                                                      \
       QW_LOCK_DEBUG("QW RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) >= 0);                                                         \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after read unlock");                \
     } else {                                                                                        \
-      assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);                                \
+      ASSERTS(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY, "invalid lock value before write unlock");   \
       QW_LOCK_DEBUG("QW WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWUnLockLatch(_lock);                                                                      \
       QW_LOCK_DEBUG("QW WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
-      assert(atomic_load_32((_lock)) >= 0);                                                         \
+      ASSERTS(atomic_load_32((_lock)) >= 0, "invalid lock value after write unlock");               \
     }                                                                                               \
   } while (0)
 

@@ -677,9 +677,12 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
               req.epoch, TD_VID(pTq->pVnode), fetchVer, pHead->msgType);
 
       if (pHead->msgType == TDMT_VND_SUBMIT) {
-        SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
-
-        if (tqTaosxScanLog(pTq, pHandle, pCont, &taosxRsp) < 0) {
+        SPackedData submit = {
+            .msgStr = POINTER_SHIFT(pHead->body, sizeof(SMsgHead)),
+            .msgLen = pHead->bodyLen - sizeof(SMsgHead),
+            .ver = pHead->version,
+        };
+        if (tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp) < 0) {
         }
         if (taosxRsp.blockNum > 0 /* threshold */) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
@@ -722,6 +725,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen) {
   SMqVDeleteReq* pReq = (SMqVDeleteReq*)msg;
 
+  tqDebug("vgId:%d, tq process delete sub req %s", pTq->pVnode->config.vgId, pReq->subKey);
+
   taosWLockLatch(&pTq->pushLock);
   int32_t code = taosHashRemove(pTq->pPushMgr, pReq->subKey, strlen(pReq->subKey));
   if (code != 0) {
@@ -731,6 +736,7 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
 
   STqHandle* pHandle = taosHashGet(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
   if (pHandle) {
+    // walCloseRef(pHandle->pWalReader->pWal, pHandle->pRef->refId);
     if (pHandle->pRef) {
       walCloseRef(pTq->pVnode->pWal, pHandle->pRef->refId);
     }
@@ -787,6 +793,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
   SMqRebVgReq req = {0};
   tDecodeSMqRebVgReq(msg, &req);
   // todo lock
+
+  tqDebug("vgId:%d, tq process sub req %s", pTq->pVnode->config.vgId, req.subKey);
+
   STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
   if (pHandle == NULL) {
     if (req.oldConsumerId != -1) {
@@ -877,6 +886,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
     atomic_store_64(&pHandle->consumerId, req.newConsumerId);
     atomic_add_fetch_32(&pHandle->epoch, 1);
     taosMemoryFree(req.qmsg);
+    if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+      qStreamCloseTsdbReader(pHandle->execHandle.task);
+    }
     if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
     }
     // close handle
@@ -954,14 +966,14 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->smaSink.smaSink = smaHandleRes;
   } else if (pTask->outputType == TASK_OUTPUT__TABLE) {
     pTask->tbSink.vnode = pTq->pVnode;
-    pTask->tbSink.tbSinkFunc = tqSinkToTablePipeline;
+    pTask->tbSink.tbSinkFunc = tqSinkToTablePipeline2;
 
     /*A(pTask->tbSink.pSchemaWrapper);*/
     /*A(pTask->tbSink.pSchemaWrapper->pSchema);*/
 
     pTask->tbSink.pTSchema =
-        tdGetSTSChemaFromSSChema(pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols, 1);
-    /*A(pTask->tbSink.pTSchema);*/
+        tBuildTSchema(pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols, 1);
+    ASSERT(pTask->tbSink.pTSchema);
   }
 
   streamSetupTrigger(pTask);
@@ -1010,6 +1022,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
     tqError("unable to encode rsp %d", __LINE__);
     return -1;
   }
+
   void* buf = rpcMallocCont(sizeof(SMsgHead) + len);
   ((SMsgHead*)buf)->vgId = htonl(req.upstreamNodeId);
 
@@ -1112,6 +1125,11 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   // do recovery step 1
   streamSourceRecoverScanStep1(pTask);
 
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+    return 0;
+  }
+
   // build msg to launch next step
   SStreamRecoverStep2Req req;
   code = streamBuildSourceRecover2Req(pTask, &req);
@@ -1121,6 +1139,10 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+    return 0;
+  }
 
   // serialize msg
   int32_t len = sizeof(SStreamRecoverStep1Req);
@@ -1158,6 +1180,11 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t version, char* msg, int32_t m
   if (code < 0) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
+  }
+
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+    return 0;
   }
 
   // restore param
@@ -1334,12 +1361,12 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   return 0;
 }
 
-int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
-  void*              pIter = NULL;
-  bool               failed = false;
-  SStreamDataSubmit* pSubmit = NULL;
+int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
+  void*               pIter = NULL;
+  bool                failed = false;
+  SStreamDataSubmit2* pSubmit = NULL;
 
-  pSubmit = streamDataSubmitNew(pReq);
+  pSubmit = streamDataSubmitNew(submit);
   if (pSubmit == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tqError("failed to create data submit for stream since out of memory");
@@ -1356,7 +1383,7 @@ int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
       continue;
     }
 
-    tqDebug("data submit enqueue stream task: %d, ver: %" PRId64, pTask->taskId, ver);
+    tqDebug("data submit enqueue stream task: %d, ver: %" PRId64, pTask->taskId, submit.ver);
 
     if (!failed) {
       if (streamTaskInput(pTask, (SStreamQueueItem*)pSubmit) < 0) {

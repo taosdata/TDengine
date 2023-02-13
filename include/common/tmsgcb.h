@@ -39,6 +39,7 @@ typedef enum {
   QUEUE_MAX,
 } EQueueType;
 
+typedef void (*UpdateDnodeInfoFp)(void* pData, int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port);
 typedef int32_t (*PutToQueueFp)(void* pMgmt, EQueueType qtype, SRpcMsg* pMsg);
 typedef int32_t (*GetQueueSizeFp)(void* pMgmt, int32_t vgId, EQueueType qtype);
 typedef int32_t (*SendReqFp)(const SEpSet* pEpSet, SRpcMsg* pMsg);
@@ -48,6 +49,7 @@ typedef void (*ReleaseHandleFp)(SRpcHandleInfo* pHandle, int8_t type);
 typedef void (*ReportStartup)(const char* name, const char* desc);
 
 typedef struct {
+  void*                   data;
   void*                   mgmt;
   void*                   clientRpc;
   PutToQueueFp            putToQueueFp;
@@ -57,6 +59,7 @@ typedef struct {
   RegisterBrokenLinkArgFp registerBrokenLinkArgFp;
   ReleaseHandleFp         releaseHandleFp;
   ReportStartup           reportStartupFp;
+  UpdateDnodeInfoFp       updateDnodeInfoFp;
 } SMsgCb;
 
 void    tmsgSetDefault(const SMsgCb* msgcb);
@@ -67,6 +70,7 @@ void    tmsgSendRsp(SRpcMsg* pMsg);
 void    tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg);
 void    tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type);
 void    tmsgReportStartup(const char* name, const char* desc);
+void    tmsgUpdateDnodeInfo(int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port);
 
 #ifdef __cplusplus
 }

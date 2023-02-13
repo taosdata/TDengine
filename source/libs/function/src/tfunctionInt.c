@@ -20,7 +20,6 @@
 #include "ttypes.h"
 
 #include "function.h"
-#include "tbuffer.h"
 #include "tcompression.h"
 #include "tdatablock.h"
 #include "tfunctionInt.h"
@@ -40,8 +39,6 @@ int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock
       maxRows = pResInfo->numOfRes;
     }
   }
-
-  assert(maxRows >= 0);
 
   blockDataEnsureCapacity(pResBlock, maxRows);
   for (int32_t i = 0; i < num; ++i) {
@@ -64,7 +61,6 @@ int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock
 }
 
 bool isRowEntryCompleted(struct SResultRowEntryInfo* pEntry) {
-  assert(pEntry != NULL);
   return pEntry->complete;
 }
 

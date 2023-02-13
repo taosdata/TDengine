@@ -107,7 +107,8 @@ SOperatorInfo* createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   SExprInfo* pExprInfo = createExprInfo(pEventWindowNode->window.pFuncs, NULL, &num);
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
-  code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str);
+  code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
+                    pTaskInfo->streamInfo.pState);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

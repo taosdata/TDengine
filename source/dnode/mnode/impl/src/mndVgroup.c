@@ -425,6 +425,7 @@ void *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgOb
 static bool mndResetDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SDnodeObj *pDnode = pObj;
   pDnode->numOfVnodes = 0;
+  pDnode->numOfOtherNodes = 0;
   return true;
 }
 
@@ -447,7 +448,7 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
         pDnode->numOfVnodes, pDnode->numOfSupportVnodes, isMnode, online, pDnode->memAvail, pDnode->memUsed);
 
   if (isMnode) {
-    pDnode->numOfVnodes++;
+    pDnode->numOfOtherNodes++;
   }
 
   if (online && pDnode->numOfSupportVnodes > 0) {
@@ -468,14 +469,25 @@ SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId) {
 
   sdbTraverse(pSdb, SDB_DNODE, mndResetDnodesArrayFp, NULL, NULL, NULL);
   sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesArrayFp, pArray, &exceptDnodeId, NULL);
+
+  mDebug("build %d dnodes array", (int32_t)taosArrayGetSize(pArray));
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pArray); ++i) {
+    SDnodeObj *pDnode = taosArrayGet(pArray, i);
+    mDebug("dnode:%d, vnodes:%d others:%d", pDnode->id, pDnode->numOfVnodes, pDnode->numOfOtherNodes);
+  }
   return pArray;
 }
 
 static int32_t mndCompareDnodeId(int32_t *dnode1Id, int32_t *dnode2Id) { return *dnode1Id >= *dnode2Id ? 1 : 0; }
 
+static float mndGetDnodeScore(SDnodeObj *pDnode, int32_t additionDnodes, float ratio) {
+  float totalDnodes = pDnode->numOfVnodes + (float)pDnode->numOfOtherNodes * ratio + additionDnodes;
+  return totalDnodes / pDnode->numOfSupportVnodes;
+}
+
 static int32_t mndCompareDnodeVnodes(SDnodeObj *pDnode1, SDnodeObj *pDnode2) {
-  float d1Score = (float)pDnode1->numOfVnodes / pDnode1->numOfSupportVnodes;
-  float d2Score = (float)pDnode2->numOfVnodes / pDnode2->numOfSupportVnodes;
+  float d1Score = mndGetDnodeScore(pDnode1, 0, 0.9);
+  float d2Score = mndGetDnodeScore(pDnode2, 0, 0.9);
   return d1Score >= d2Score ? 1 : 0;
 }
 
@@ -494,7 +506,12 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup
   int32_t allocedVnodes = 0;
   void   *pIter = NULL;
 
+  mDebug("start to sort %d dnodes", (int32_t)taosArrayGetSize(pArray));
   taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pArray); ++i) {
+    SDnodeObj *pDnode = taosArrayGet(pArray, i);
+    mDebug("dnode:%d, score:%f", pDnode->id, mndGetDnodeScore(pDnode, 0, 0.9));
+  }
 
   int32_t size = taosArrayGetSize(pArray);
   if (size < pVgroup->replica) {
@@ -875,7 +892,7 @@ static int32_t mndAddVnodeToVgroup(SMnode *pMnode, STrans *pTrans, SVgObj *pVgro
   taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
     SDnodeObj *pDnode = taosArrayGet(pArray, i);
-    mInfo("dnode:%d, equivalent vnodes:%d", pDnode->id, pDnode->numOfVnodes);
+    mInfo("dnode:%d, equivalent vnodes:%d others:%d", pDnode->id, pDnode->numOfVnodes, pDnode->numOfOtherNodes);
   }
 
   SVnodeGid *pVgid = &pVgroup->vnodeGid[pVgroup->replica];
@@ -935,7 +952,7 @@ static int32_t mndRemoveVnodeFromVgroup(SMnode *pMnode, STrans *pTrans, SVgObj *
   taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
     SDnodeObj *pDnode = taosArrayGet(pArray, i);
-    mInfo("dnode:%d, equivalent vnodes:%d", pDnode->id, pDnode->numOfVnodes);
+    mInfo("dnode:%d, equivalent vnodes:%d others:%d", pDnode->id, pDnode->numOfVnodes, pDnode->numOfOtherNodes);
   }
 
   int32_t code = -1;
@@ -1424,10 +1441,10 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
 
   {
     SSdbRaw *pRaw = mndVgroupActionEncode(&newVg);
-    if (pRaw == NULL) return -1;
+    if (pRaw == NULL) goto _OVER;
     if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
       sdbFreeRaw(pRaw);
-      return -1;
+      goto _OVER;
     }
     (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
   }
@@ -1970,16 +1987,16 @@ static int32_t mndBalanceVgroup(SMnode *pMnode, SRpcMsg *pReq, SArray *pArray) {
     taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
     for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
       SDnodeObj *pDnode = taosArrayGet(pArray, i);
-      mInfo("dnode:%d, equivalent vnodes:%d support:%d, score:%f", pDnode->id, pDnode->numOfVnodes,
-            pDnode->numOfSupportVnodes, (float)pDnode->numOfVnodes / pDnode->numOfSupportVnodes);
+      mInfo("dnode:%d, equivalent vnodes:%d others:%d support:%d, score:%f", pDnode->id, pDnode->numOfVnodes,
+            pDnode->numOfSupportVnodes, pDnode->numOfOtherNodes, mndGetDnodeScore(pDnode, 0, 1));
     }
 
     SDnodeObj *pSrc = taosArrayGet(pArray, taosArrayGetSize(pArray) - 1);
     SDnodeObj *pDst = taosArrayGet(pArray, 0);
 
-    float srcScore = (float)(pSrc->numOfVnodes - 1) / pSrc->numOfSupportVnodes;
-    float dstScore = (float)(pDst->numOfVnodes + 1) / pDst->numOfSupportVnodes;
-    mInfo("trans:%d, after balance, src dnode:%d score:%f, dst dnode:%d score:%f", pTrans->id, pSrc->id, srcScore,
+    float srcScore = mndGetDnodeScore(pSrc, -1, 1);
+    float dstScore = mndGetDnodeScore(pDst, 1, 1);
+    mInfo("trans:%d, after balance, src dnode:%d score:%f, dst dnode:%d score:%f", pTrans->id, pSrc->id, dstScore,
           pDst->id, dstScore);
 
     if (srcScore > dstScore - 0.000001) {

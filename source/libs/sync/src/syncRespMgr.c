@@ -118,12 +118,12 @@ static void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
   SRespStub *pStub = (SRespStub *)taosHashIterate(pObj->pRespHash, NULL);
   int        cnt = 0;
   int        sum = 0;
-  SSyncNode *pSyncNode = pObj->data;
+  SSyncNode *pNode = pObj->data;
 
   SArray *delIndexArray = taosArrayInit(4, sizeof(uint64_t));
   if (delIndexArray == NULL) return;
 
-  sDebug("vgId:%d, resp manager begin clean by ttl", pSyncNode->vgId);
+  sDebug("vgId:%d, resp manager begin clean by ttl", pNode->vgId);
   while (pStub) {
     size_t    len;
     void     *key = taosHashGetKey(pStub, &len);
@@ -140,20 +140,18 @@ static void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
           .lastConfigIndex = SYNC_INDEX_INVALID,
           .isWeak = false,
           .code = TSDB_CODE_SYN_TIMEOUT,
-          .state = pSyncNode->state,
+          .state = pNode->state,
           .seqNum = *pSeqNum,
           .term = SYNC_TERM_INVALID,
-          .currentTerm = pSyncNode->pRaftStore->currentTerm,
+          .currentTerm = pNode->raftStore.currentTerm,
           .flag = 0,
       };
 
       pStub->rpcMsg.pCont = NULL;
       pStub->rpcMsg.contLen = 0;
 
-      // TODO: and make rpcMsg body, call commit cb
-      // pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &pStub->rpcMsg, cbMeta);
       SRpcMsg rpcMsg = {.info = pStub->rpcMsg.info, .code = TSDB_CODE_SYN_TIMEOUT};
-      sInfo("vgId:%d, message handle:%p expired, type:%s ahandle:%p", pSyncNode->vgId, rpcMsg.info.handle,
+      sInfo("vgId:%d, message handle:%p expired, type:%s ahandle:%p", pNode->vgId, rpcMsg.info.handle,
             TMSG_INFO(pStub->rpcMsg.msgType), rpcMsg.info.ahandle);
       rpcSendResponse(&rpcMsg);
     }
@@ -162,12 +160,12 @@ static void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
   }
 
   int32_t arraySize = taosArrayGetSize(delIndexArray);
-  sDebug("vgId:%d, resp manager end clean by ttl, sum:%d, cnt:%d, array-size:%d", pSyncNode->vgId, sum, cnt, arraySize);
+  sDebug("vgId:%d, resp manager end clean by ttl, sum:%d, cnt:%d, array-size:%d", pNode->vgId, sum, cnt, arraySize);
 
   for (int32_t i = 0; i < arraySize; ++i) {
     uint64_t *pSeqNum = taosArrayGet(delIndexArray, i);
     taosHashRemove(pObj->pRespHash, pSeqNum, sizeof(uint64_t));
-    sDebug("vgId:%d, resp manager clean by ttl, seq:%" PRId64, pSyncNode->vgId, *pSeqNum);
+    sDebug("vgId:%d, resp manager clean by ttl, seq:%" PRId64, pNode->vgId, *pSeqNum);
   }
   taosArrayDestroy(delIndexArray);
 }

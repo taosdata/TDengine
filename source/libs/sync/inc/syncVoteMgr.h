@@ -30,12 +30,12 @@ typedef struct SVotesGranted {
   SyncTerm   term;
   int32_t    quorum;
   bool       toLeader;
-  SSyncNode *pSyncNode;
+  SSyncNode *pNode;
 } SVotesGranted;
 
-SVotesGranted *voteGrantedCreate(SSyncNode *pSyncNode);
+SVotesGranted *voteGrantedCreate(SSyncNode *pNode);
 void           voteGrantedDestroy(SVotesGranted *pVotesGranted);
-void           voteGrantedUpdate(SVotesGranted *pVotesGranted, SSyncNode *pSyncNode);
+void           voteGrantedUpdate(SVotesGranted *pVotesGranted, SSyncNode *pNode);
 bool           voteGrantedMajority(SVotesGranted *pVotesGranted);
 void           voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg);
 void           voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term);
@@ -45,12 +45,12 @@ typedef struct SVotesRespond {
   bool       isRespond[TSDB_MAX_REPLICA];
   int32_t    replicaNum;
   SyncTerm   term;
-  SSyncNode *pSyncNode;
+  SSyncNode *pNode;
 } SVotesRespond;
 
-SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode);
+SVotesRespond *votesRespondCreate(SSyncNode *pNode);
 void           votesRespondDestory(SVotesRespond *pVotesRespond);
-void           votesRespondUpdate(SVotesRespond *pVotesRespond, SSyncNode *pSyncNode);
+void           votesRespondUpdate(SVotesRespond *pVotesRespond, SSyncNode *pNode);
 bool           votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId);
 void           votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *pMsg);
 void           votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term);

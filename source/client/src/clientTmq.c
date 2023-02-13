@@ -418,7 +418,10 @@ int32_t tmqCommitDone(SMqCommitCbParamSet* pParamSet) {
 
 static void tmqCommitRspCountDown(SMqCommitCbParamSet* pParamSet) {
   int32_t waitingRspNum = atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
-  ASSERT(waitingRspNum >= 0);
+  if(ASSERT(waitingRspNum >= 0)){
+    tscError("tmqCommitRspCountDown error:%d", waitingRspNum);
+    return;
+  }
   if (waitingRspNum == 0) {
     tmqCommitDone(pParamSet);
   }
@@ -909,10 +912,12 @@ void tmqFreeImpl(void* handle) {
   tmq_t* tmq = (tmq_t*)handle;
 
   // TODO stop timer
-  tmqClearUnhandleMsg(tmq);
-  if (tmq->mqueue) taosCloseQueue(tmq->mqueue);
+  if (tmq->mqueue) {
+    tmqClearUnhandleMsg(tmq);
+    taosCloseQueue(tmq->mqueue);
+  }
   if (tmq->delayedTask) taosCloseQueue(tmq->delayedTask);
-  if (tmq->qall) taosFreeQall(tmq->qall);
+  taosFreeQall(tmq->qall);
 
   tsem_destroy(&tmq->rspSem);
 
