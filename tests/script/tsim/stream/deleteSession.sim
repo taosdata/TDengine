@@ -524,6 +524,112 @@ if $data42 != 14 then
   goto loop20
 endi
 
+sql drop database if exists test4;
+sql drop stream if exists streams4;
+sql create database test4  vgroups 1;
+sql use test4;
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+print create stream streams4 trigger at_once  into streamt4 as select  _wstart, count(*) c1 from st partition by tbname session(ts, 2s);
+sql create stream streams4 trigger at_once  into streamt4 as select  _wstart, count(*) c1 from st partition by tbname session(ts, 2s);
+
+sql insert into t1 values(1648791210000,1,2,3);
+sql insert into t1 values(1648791220000,2,2,3);
+sql insert into t1 values(1648791221000,2,2,3);
+sql insert into t1 values(1648791222000,2,2,3);
+sql insert into t1 values(1648791223000,2,2,3);
+sql insert into t1 values(1648791231000,2,2,3);
+
+sql insert into t2 values(1648791210000,1,2,3);
+sql insert into t2 values(1648791220000,2,2,3);
+sql insert into t2 values(1648791221000,2,2,3);
+sql insert into t2 values(1648791231000,2,2,3);
+
+$loop_count = 0
+
+loop21:
+sleep 200
+sql select * from streamt4 order by c1 desc;;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 6 then
+  print =====rows=$rows
+  goto loop21
+endi
+
+if $data01 != 4 then
+  print =====data01=$data01
+  goto loop21
+endi
+
+if $data11 != 2 then
+  print =====data11=$data11
+  goto loop21
+endi
+
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop21
+endi
+
+if $data31 != 1 then
+  print =====data31=$data31
+  goto loop21
+endi
+
+if $data41 != 1 then
+  print =====data41=$data41
+  goto loop21
+endi
+
+if $data51 != 1 then
+  print =====data51=$data51
+  goto loop21
+endi
+
+print delete from st where ts >= 1648791220000 and ts <=1648791223000;
+sql delete from st where ts >= 1648791220000 and ts <=1648791223000;
+
+loop22:
+sleep 200
+sql select * from streamt4 order by c1 desc;;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop22
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop22
+endi
+
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop22
+endi
+
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop22
+endi
+
+if $data31 != 1 then
+  print =====data31=$data31
+  goto loop22
+endi
+
 $loop_all = $loop_all + 1
 print ============loop_all=$loop_all
 

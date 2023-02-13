@@ -1175,6 +1175,20 @@ static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32
   }
 }
 
+static int32_t getPreSessionWindow(SStreamAggSupporter* pAggSup, TSKEY startTs, TSKEY endTs, uint64_t groupId,
+                                      SSessionKey* pKey) {
+  pKey->win.skey = startTs;
+  pKey->win.ekey = endTs;
+  pKey->groupId = groupId;
+  
+  SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentPrev(pAggSup->pState, pKey);
+  int32_t          code = streamStateSessionGetKVByCur(pCur, pKey, NULL, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    SET_SESSION_WIN_KEY_INVALID(pKey);
+  }
+  return code;
+}
+
 static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
   blockDataCleanup(pDestBlock);
   if (pSrcBlock->info.rows == 0) {
@@ -1210,7 +1224,14 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
     }
     SSessionKey endWin = {0};
     getCurSessionWindow(pInfo->windowSup.pStreamAggSup, endData[i], endData[i], groupId, &endWin);
-    ASSERT(!IS_INVALID_SESSION_WIN_KEY(endWin));
+    if(IS_INVALID_SESSION_WIN_KEY(endWin)) {
+      getPreSessionWindow(pInfo->windowSup.pStreamAggSup, endData[i], endData[i], groupId, &endWin);
+    }
+    if (IS_INVALID_SESSION_WIN_KEY(startWin)) {
+      // window has been closed.
+      qError("generate session scan range failed. rang start:%" PRIx64 ", end:%" PRIx64 , startData[i], endData[i]);
+      continue;
+    }
     colDataAppend(pDestStartCol, i, (const char*)&startWin.win.skey, false);
     colDataAppend(pDestEndCol, i, (const char*)&endWin.win.ekey, false);
 
