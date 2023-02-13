@@ -1123,11 +1123,11 @@ int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) 
     if (cmp == 0)
       taosArrayPush(pUids, &p->uid);
     else {
+      count++;
       if (count >= TRY_ERROR_LIMIT) {
         break;
       }
     }
-    count++;
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) break;
   } while (1);
@@ -1181,11 +1181,11 @@ int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       tb_uid_t tuid = *(tb_uid_t *)pEntryVal;
       taosArrayPush(pUids, &tuid);
     } else {
+      count++;
       if (count >= TRY_ERROR_LIMIT) {
         break;
       }
     }
-    count++;
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) {
       break;
