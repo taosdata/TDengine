@@ -107,8 +107,6 @@ static inline int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, 
 }
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {
-  szPage = szPage < 0 ? 4096 * 8 : szPage;
-  pages = pages < 0 ? 256 * 32 : pages;
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   if (pState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -128,6 +126,30 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     memset(statePath, 0, 1024);
     tstrncpy(statePath, path, 1024);
   }
+
+  char cfgPath[1024];
+  sprintf(cfgPath, "%s/cfg", statePath);
+
+  char cfg[1024];
+  memset(cfg, 0, 1024);
+  TdFilePtr pCfgFile = taosOpenFile(cfgPath, TD_FILE_READ);
+  if (pCfgFile != NULL) {
+    int64_t size;
+    taosFStatFile(pCfgFile, &size, NULL);
+    taosReadFile(pCfgFile, cfg, size);
+    sscanf(cfg, "%d\n%d\n", &szPage, &pages);
+  } else {
+    taosMulModeMkDir(statePath, 0755);
+    pCfgFile = taosOpenFile(cfgPath, TD_FILE_WRITE | TD_FILE_CREATE);
+    szPage = szPage < 0 ? 4096 * 8 : szPage;
+    pages = pages < 0 ? 256 * 32 : pages;
+    /*szPage = szPage < 0 ? 4096 : szPage;*/
+    /*pages = pages < 0 ? 256 : pages;*/
+    sprintf(cfg, "%d\n%d\n", szPage, pages);
+    taosWriteFile(pCfgFile, cfg, strlen(cfg));
+  }
+  taosCloseFile(&pCfgFile);
+
   if (tdbOpen(statePath, szPage, pages, &pState->pTdbState->db, 1) < 0) {
     goto _err;
   }
