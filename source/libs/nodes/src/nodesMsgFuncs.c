@@ -315,6 +315,11 @@ static int32_t tlvDecodeImpl(STlv* pTlv, void* pValue, int32_t len) {
 }
 
 static int32_t tlvDecodeValueImpl(STlvDecoder* pDecoder, void* pValue, int32_t len) {
+  // compatible with lower version messages
+  if (pDecoder->bufSize == pDecoder->offset) {
+    memset(pValue, 0, len);
+    return TSDB_CODE_SUCCESS;
+  }
   if (len > pDecoder->bufSize - pDecoder->offset) {
     return TSDB_CODE_FAILED;
   }
