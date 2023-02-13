@@ -798,9 +798,18 @@ class StreamComputingTest(TDCase):
             ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", {partition_elm_alias}), "{self.subtable_suffix}")' if self.subtable else None
             tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", {partition_elm_alias}), "{self.subtable_suffix}")' if self.subtable else None
         else:
-            stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
-            ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
-            tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
+            if 'abs' in partition:
+                stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast(abs(cast({partition_elm_alias} as int)) as binary(20))), "{self.subtable_suffix}")' if self.subtable else None
+                ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast(cast(abs(cast({partition_elm_alias} as int)) as bigint) as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
+                tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast(abs(cast({partition_elm_alias} as int)) as bigint) as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
+
+            else:
+                stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as binary(20))), "{self.subtable_suffix}")' if self.subtable else None
+                ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast(cast({partition_elm_alias} as bigint) as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
+                tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast(cast({partition_elm_alias} as bigint) as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
+            # stb_subtable_value = f'concat(concat("{self.stb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
+            # ctb_subtable_value = f'concat(concat("{self.ctb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
+            # tb_subtable_value = f'concat(concat("{self.tb_name}_{self.subtable_prefix}", cast({partition_elm_alias} as varchar(20))), "{self.subtable_suffix}")' if self.subtable else None
 
         state_window_col_name = self.dataDict["state_window"]
         if case_when:
