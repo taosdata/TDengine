@@ -1,6 +1,6 @@
 [package]
 name = "taosx"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 homepage = "https://taosdata.com"
 description = "taosX - TDengine data integration tool"
