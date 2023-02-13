@@ -1057,14 +1057,13 @@ _exit:
   return code;
 }
 
-
 int32_t tsdbBuildDeleteSkylineImpl(SArray *aSkyline, int32_t sidx, int32_t eidx, SArray *pSkyline) {
   int32_t   code = 0;
   SDelData *pDelData;
   int32_t   midx;
 
   taosArrayClear(pSkyline);
-  if (sidx == eidx) {    
+  if (sidx == eidx) {
     TSDBKEY *pItem1 = taosArrayGet(aSkyline, sidx * 2);
     TSDBKEY *pItem2 = taosArrayGet(aSkyline, sidx * 2 + 1);
     taosArrayPush(pSkyline, &pItem1);
@@ -1097,14 +1096,13 @@ int32_t tsdbBuildDeleteSkylineImpl(SArray *aSkyline, int32_t sidx, int32_t eidx,
   return code;
 }
 
-
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline) {
   SDelData *pDelData;
-  int32_t code = 0;
-  int32_t dataNum = eidx - sidx + 1;
-  SArray *aTmpSkyline = taosArrayInit(dataNum * 2, sizeof(TSDBKEY));
-  SArray *pSkyline = taosArrayInit(dataNum * 2, POINTER_BYTES);
-  
+  int32_t   code = 0;
+  int32_t   dataNum = eidx - sidx + 1;
+  SArray   *aTmpSkyline = taosArrayInit(dataNum * 2, sizeof(TSDBKEY));
+  SArray   *pSkyline = taosArrayInit(dataNum * 2, POINTER_BYTES);
+
   for (int32_t i = sidx; i <= eidx; ++i) {
     pDelData = (SDelData *)taosArrayGet(aDelData, i);
     taosArrayPush(aTmpSkyline, &(TSDBKEY){.ts = pDelData->sKey, .version = pDelData->version});
@@ -1116,8 +1114,8 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
 
   int32_t skylineNum = taosArrayGetSize(pSkyline);
   for (int32_t i = 0; i < skylineNum; ++i) {
-     TSDBKEY *p = taosArrayGetP(pSkyline, i);
-     taosArrayPush(aSkyline, p);
+    TSDBKEY *p = taosArrayGetP(pSkyline, i);
+    taosArrayPush(aSkyline, p);
   }
 
 _clear:
@@ -1394,7 +1392,7 @@ int32_t tBlockDataTryUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, int64_t ui
 }
 
 int32_t tBlockDataUpsertRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid) {
-  if (pBlockData->aTSKEY[pBlockData->nRow - 1] == TSDBROW_TS(pRow)) {
+  if (pBlockData->nRow > 0 && pBlockData->aTSKEY[pBlockData->nRow - 1] == TSDBROW_TS(pRow)) {
     return tBlockDataUpdateRow(pBlockData, pRow, pTSchema);
   } else {
     return tBlockDataAppendRow(pBlockData, pRow, pTSchema, uid);

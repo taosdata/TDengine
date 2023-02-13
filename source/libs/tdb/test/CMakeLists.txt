@@ -6,7 +6,11 @@ target_link_libraries(tdbTest tdb gtest gtest_main)
 add_executable(tdbUtilTest "tdbUtilTest.cpp")
 target_link_libraries(tdbUtilTest tdb gtest gtest_main)
 
-# tdbUtilTest
+# overflow pages testing
 add_executable(tdbExOVFLTest "tdbExOVFLTest.cpp")
 target_link_libraries(tdbExOVFLTest tdb gtest gtest_main)
+
+# page defragment testing
+add_executable(tdbPageDefragmentTest "tdbPageDefragmentTest.cpp")
+target_link_libraries(tdbPageDefragmentTest tdb gtest gtest_main)
 

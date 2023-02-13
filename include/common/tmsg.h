@@ -1305,8 +1305,8 @@ int32_t tSerializeSAlterVnodeReplicaReq(void* buf, int32_t bufLen, SAlterVnodeRe
 int32_t tDeserializeSAlterVnodeReplicaReq(void* buf, int32_t bufLen, SAlterVnodeReplicaReq* pReq);
 
 typedef struct {
-  int32_t  vgId;
-  int8_t   disable;
+  int32_t vgId;
+  int8_t  disable;
 } SDisableVnodeWriteReq;
 
 int32_t tSerializeSDisableVnodeWriteReq(void* buf, int32_t bufLen, SDisableVnodeWriteReq* pReq);
@@ -1806,6 +1806,7 @@ typedef struct {
 #define STREAM_FILL_HISTORY_ON        1
 #define STREAM_FILL_HISTORY_OFF       0
 #define STREAM_DEFAULT_FILL_HISTORY   STREAM_FILL_HISTORY_OFF
+#define STREAM_DEFAULT_IGNORE_UPDATE  0
 #define STREAM_CREATE_STABLE_TRUE     1
 #define STREAM_CREATE_STABLE_FALSE    0
 
@@ -1835,6 +1836,7 @@ typedef struct {
   int8_t   createStb;
   uint64_t targetStbUid;
   SArray*  fillNullCols;  // array of SColLocation
+  int8_t   igUpdate;
 } SCMCreateStreamReq;
 
 typedef struct {

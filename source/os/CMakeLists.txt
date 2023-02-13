@@ -37,7 +37,9 @@ if(CHECK_STR2INT_ERROR)
     add_definitions(-DTD_CHECK_STR_TO_INT_ERROR)
 endif()
 target_link_libraries(
-    os PUBLIC pthread
+    os
+    PUBLIC pthread
+    PUBLIC zlibstatic
 )
 if(TD_WINDOWS)
     target_link_libraries(
