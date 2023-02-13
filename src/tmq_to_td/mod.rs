@@ -128,7 +128,7 @@ async fn write_data(
         if actions.is_empty() {
             if target_is_v3 {
                 if let Err(err) = taos
-                    .write_raw_meta(unsafe { std::mem::transmute(data.as_raw_data().await?) })
+                    .write_raw_meta(&unsafe { std::mem::transmute(data.as_raw_data().await?) })
                     .await
                 {
                     let errstr = err.to_string();
@@ -165,7 +165,7 @@ async fn write_meta(
     // log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
     if actions.is_empty() {
         if target_is_v3 {
-            if let Err(err) = taos.write_raw_meta(meta.as_raw_meta().await?).await {
+            if let Err(err) = taos.write_raw_meta(&meta.as_raw_meta().await?).await {
                 let errstr = err.to_string();
                 if errstr.contains("[0x032C]") {
                     log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
