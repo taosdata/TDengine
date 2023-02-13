@@ -1,6 +1,7 @@
 ---
-sidebar_label: Operators
 title: Operators
+sidebar_label: Operators
+description: This document describes the SQL operators available in TDengine.
 ---
 
 ## Arithmetic Operators

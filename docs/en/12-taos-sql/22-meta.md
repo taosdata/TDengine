@@ -1,6 +1,7 @@
 ---
-sidebar_label: Metadata
 title: Information_Schema Database
+sidebar_label: Metadata
+description: This document describes how to use the INFORMATION_SCHEMA database in TDengine.
 ---
 
 TDengine includes a built-in database named `INFORMATION_SCHEMA` to provide access to database metadata, system information, and status information. This information includes database names, table names, and currently running SQL statements. All information related to TDengine maintenance is stored in this database. It contains several read-only tables. These tables are more accurately described as views, and they do not correspond to specific files. You can query these tables but cannot write data to them. The INFORMATION_SCHEMA database is intended to provide a unified method for SHOW commands to access data. However, using SELECT ... FROM INFORMATION_SCHEMA.tablename offers several advantages over SHOW commands:

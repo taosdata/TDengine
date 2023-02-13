@@ -18,16 +18,23 @@
 #include "tglobal.h"
 #include "ttime.h"
 
-#define NEXT_TOKEN_WITH_PREV(pSql, token)     \
-  do {                                        \
-    int32_t index = 0;                        \
-    token = tStrGetToken(pSql, &index, true); \
-    pSql += index;                            \
+#define NEXT_TOKEN_WITH_PREV(pSql, token)           \
+  do {                                              \
+    int32_t index = 0;                              \
+    token = tStrGetToken(pSql, &index, true, NULL); \
+    pSql += index;                                  \
   } while (0)
 
-#define NEXT_TOKEN_KEEP_SQL(pSql, token, index) \
-  do {                                          \
-    token = tStrGetToken(pSql, &index, false);  \
+#define NEXT_TOKEN_WITH_PREV_EXT(pSql, token, pIgnoreComma) \
+  do {                                                      \
+    int32_t index = 0;                                      \
+    token = tStrGetToken(pSql, &index, true, pIgnoreComma); \
+    pSql += index;                                          \
+  } while (0)
+
+#define NEXT_TOKEN_KEEP_SQL(pSql, token, index)      \
+  do {                                               \
+    token = tStrGetToken(pSql, &index, false, NULL); \
   } while (0)
 
 #define NEXT_VALID_TOKEN(pSql, token)           \
@@ -266,12 +273,12 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
    * e.g., now+12a, now-5h
    */
   index = 0;
-  SToken token = tStrGetToken(pTokenEnd, &index, false);
+  SToken token = tStrGetToken(pTokenEnd, &index, false, NULL);
   pTokenEnd += index;
 
   if (token.type == TK_NK_MINUS || token.type == TK_NK_PLUS) {
     index = 0;
-    SToken valueToken = tStrGetToken(pTokenEnd, &index, false);
+    SToken valueToken = tStrGetToken(pTokenEnd, &index, false, NULL);
     pTokenEnd += index;
 
     if (valueToken.n < 2) {
@@ -1240,7 +1247,14 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
   int32_t code = TSDB_CODE_SUCCESS;
   // 1. set the parsed value from sql string
   for (int i = 0; i < pCols->numOfBound && TSDB_CODE_SUCCESS == code; ++i) {
-    NEXT_TOKEN_WITH_PREV(*pSql, *pToken);
+    const char* pOrigSql = *pSql;
+    bool        ignoreComma = false;
+    NEXT_TOKEN_WITH_PREV_EXT(*pSql, *pToken, &ignoreComma);
+    if (ignoreComma) {
+      code = buildSyntaxErrMsg(&pCxt->msg, "invalid data or symbol", pOrigSql);
+      break;
+    }
+
     SSchema* pSchema = &pSchemas[pCols->pColIndex[i]];
     SColVal* pVal = taosArrayGet(pTableCxt->pValues, pCols->pColIndex[i]);
 
@@ -1248,20 +1262,22 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
       isParseBindParam = true;
       if (NULL == pCxt->pComCxt->pStmtCb) {
         code = buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", pToken->z);
+        break;
       }
-      continue;
-    }
+    } else {
+      if (TK_NK_RP == pToken->type) {
+        code = generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_COLUMNS_NUM);
+        break;
+      }
 
-    if (TSDB_CODE_SUCCESS == code && TK_NK_RP == pToken->type) {
-      code = generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_COLUMNS_NUM);
-    }
+      if (isParseBindParam) {
+        code = buildInvalidOperationMsg(&pCxt->msg, "no mix usage for ? and values");
+        break;
+      }
 
-    if (TSDB_CODE_SUCCESS == code && isParseBindParam) {
-      code = buildInvalidOperationMsg(&pCxt->msg, "no mix usage for ? and values");
-    }
-
-    if (TSDB_CODE_SUCCESS == code) {
-      code = parseValueToken(pCxt, pSql, pToken, pSchema, getTableInfo(pTableCxt->pMeta).precision, pVal);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = parseValueToken(pCxt, pSql, pToken, pSchema, getTableInfo(pTableCxt->pMeta).precision, pVal);
+      }
     }
 
     if (TSDB_CODE_SUCCESS == code && i < pCols->numOfBound - 1) {
@@ -1692,6 +1708,9 @@ static int32_t getTableSchemaFromMetaData(SInsertParseContext* pCxt, const SMeta
   }
   if (TSDB_CODE_SUCCESS == code && !isStb && TSDB_SUPER_TABLE == pStmt->pTableMeta->tableType) {
     code = buildInvalidOperationMsg(&pCxt->msg, "insert data into super table is not supported");
+  }
+  if (TSDB_CODE_SUCCESS == code && isStb) {
+    code = storeTableMeta(pCxt, pStmt);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = getTableVgroupFromMetaData(pMetaData->pTableHash, pStmt, isStb);

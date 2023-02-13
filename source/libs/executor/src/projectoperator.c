@@ -90,7 +90,16 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 
   pInfo->binfo.pRes = pResBlock;
   pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
-  pInfo->mergeDataBlocks = (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) ? false : pProjPhyNode->mergeDataBlock;
+
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+    pInfo->mergeDataBlocks = false;
+  } else {
+    if (!pProjPhyNode->ignoreGroupId) {
+      pInfo->mergeDataBlocks = false;
+    } else {
+      pInfo->mergeDataBlocks = pProjPhyNode->mergeDataBlock;
+    }
+  }
 
   int32_t numOfRows = 4096;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
@@ -181,40 +190,20 @@ static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, S
   return PROJECT_RETRIEVE_DONE;
 }
 
+// todo refactor
 static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SSDataBlock* pBlock,
                                     SOperatorInfo* pOperator) {
   // set current group id
   pLimitInfo->currentGroupId = groupId;
-
-  if (pLimitInfo->remainOffset >= pBlock->info.rows) {
-    pLimitInfo->remainOffset -= pBlock->info.rows;
-    blockDataCleanup(pBlock);
+  bool limitReached = applyLimitOffset(pLimitInfo, pBlock, pOperator->pTaskInfo);
+  if (pBlock->info.rows == 0) {
     return PROJECT_RETRIEVE_CONTINUE;
-  } else if (pLimitInfo->remainOffset < pBlock->info.rows && pLimitInfo->remainOffset > 0) {
-    blockDataTrimFirstNRows(pBlock, pLimitInfo->remainOffset);
-    pLimitInfo->remainOffset = 0;
-  }
-
-  // check for the limitation in each group
-  if (pLimitInfo->limit.limit >= 0 && pLimitInfo->numOfOutputRows + pBlock->info.rows >= pLimitInfo->limit.limit) {
-    int32_t keepRows = (int32_t)(pLimitInfo->limit.limit - pLimitInfo->numOfOutputRows);
-    blockDataKeepFirstNRows(pBlock, keepRows);
-
-    // TODO: optimize it later when partition by + limit
-    // all retrieved requirement has been fulfilled, let's finish this
-    if ((pLimitInfo->slimit.limit == -1 && pLimitInfo->currentGroupId == 0) ||
-        (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
+  } else {
+    if (limitReached && (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
       setOperatorCompleted(pOperator);
-    } else {
-      // Even current group is done, there may be many vgroups remain existed, and we need to continue to retrieve data
-      // from next group. So let's continue this retrieve process
-      if (keepRows == 0) {
-        return PROJECT_RETRIEVE_CONTINUE;
-      }
     }
   }
 
-  pLimitInfo->numOfOutputRows += pBlock->info.rows;
   return PROJECT_RETRIEVE_DONE;
 }
 

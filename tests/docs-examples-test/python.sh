@@ -83,4 +83,5 @@ python3 fast_write_example.py
 
 # 20
 pip3 install kafka-python
-python3 kafka_example.py
+python3 kafka_example_consumer.py
+

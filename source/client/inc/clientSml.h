@@ -99,6 +99,7 @@ typedef struct {
   char *tags;
   char *cols;
   char *timestamp;
+  char *measureTag;
 
   int32_t measureLen;
   int32_t measureTagsLen;
@@ -114,7 +115,7 @@ typedef struct {
   int32_t     sTableNameLen;
   char        childTableName[TSDB_TABLE_NAME_LEN];
   uint64_t    uid;
-  void       *key;        // for openTsdb
+//  void       *key;        // for openTsdb
 
   SArray *tags;
 
@@ -166,8 +167,8 @@ typedef struct {
   int32_t         ttl;
   int32_t         uid; // used for automatic create child table
 
-  NodeList *childTables;
-  NodeList *superTables;
+  SHashObj *childTables;
+  SHashObj *superTables;
   SHashObj *pVgHash;
 
   STscObj     *taos;

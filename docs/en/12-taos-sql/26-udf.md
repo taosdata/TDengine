@@ -1,6 +1,7 @@
 ---
-sidebar_label: User-Defined Functions
 title: User-Defined Functions (UDF)
+sidebar_label: User-Defined Functions
+description: This document describes the SQL statements related to user-defined functions (UDF) in TDengine.
 ---
 
 You can create user-defined functions and import them into TDengine.
