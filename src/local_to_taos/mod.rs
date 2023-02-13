@@ -6,6 +6,7 @@ use tokio::sync::Semaphore;
 
 use crate::{taoz::ZCodec, tmq_to_local::LocalConfig, utils::is_available_enterprise_edition};
 
+#[async_backtrace::framed]
 async fn restore(
     id: usize,
     path: impl AsRef<Path>,

@@ -252,7 +252,7 @@ impl LocalConfig {
 
     pub fn write_to(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref();
-        let bytes = toml::to_vec(self)?;
+        let bytes = toml::to_string(self)?;
         std::fs::write(path, bytes)?;
         Ok(())
     }
