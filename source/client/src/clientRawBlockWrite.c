@@ -694,11 +694,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   pReq.numOfColumns = req.schemaRow.nCols;
   pReq.numOfTags = req.schemaTag.nCols;
   pReq.commentLen = -1;
-<<<<<<< HEAD
-  pReq.suid = processSuid(req.suid, pRequest->pDb);;
-=======
   pReq.suid = processSuid(req.suid, pRequest->pDb);
->>>>>>> 6483b92f0c645b36facfb2f3415b8df9449264cf
   pReq.source = TD_REQ_FROM_TAOX;
   pReq.igExists = true;
 
