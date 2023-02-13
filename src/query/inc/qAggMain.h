@@ -196,6 +196,7 @@ typedef struct SQLFunctionCtx {
   uint32_t     order;     // asc|desc
   int16_t      inputType;
   int32_t      inputBytes;
+  bool         hasColDataInput;  // the input data block has column data
 
   int16_t      outputType;
   int32_t      outputBytes;   // size of results, determined by function and input column data type

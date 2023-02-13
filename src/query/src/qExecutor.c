@@ -1322,6 +1322,7 @@ static void doSetInputDataBlockInfo(SOperatorInfo* pOperator, SQLFunctionCtx* pC
     pCtx[i].order = order;
     pCtx[i].size = pBlock->info.rows;
     pCtx[i].currentStage = (uint8_t)pOperator->pRuntimeEnv->scanFlag;
+    pCtx[i].hasColDataInput = false;
 
     setBlockStatisInfo(&pCtx[i], pBlock, &pOperator->pExpr[i].base.colInfo);
   }
@@ -1349,6 +1350,7 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
     pCtx[i].order = order;
     pCtx[i].size = pBlock->info.rows;
     pCtx[i].currentStage = (uint8_t)pOperator->pRuntimeEnv->scanFlag;
+    pCtx[i].hasColDataInput = (pBlock->pDataBlock != NULL);
 
     setBlockStatisInfo(&pCtx[i], pBlock, &pOperator->pExpr[i].base.colInfo);
 
@@ -2129,6 +2131,9 @@ static bool functionNeedToExecute(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx*
   }
 
   if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_FIRST) {
+    if (pCtx->hasColDataInput == false) {
+      return false;
+    }
     // if param[2] is set value, input data come from client, order is no relation with pQueryAttr->order, so always
     // return true
     if (pCtx->param[2].nType == TSDB_DATA_TYPE_INT) return true;
@@ -2137,6 +2142,9 @@ static bool functionNeedToExecute(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx*
 
   // denote the order type
   if ((functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_LAST)) {
+    if (pCtx->hasColDataInput == false) {
+      return false;
+    }
     // if param[2] is set value, input data come from client, order is no relation with pQueryAttr->order, so always
     // return true
     if (pCtx->param[2].nType == TSDB_DATA_TYPE_INT) return true;
@@ -2259,6 +2267,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     } else {
       pCtx->inputBytes = pSqlExpr->colBytes;
     }
+    pCtx->hasColDataInput = false;
 
     pCtx->ptsOutputBuf = NULL;
 
