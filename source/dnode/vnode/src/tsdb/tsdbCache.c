@@ -244,6 +244,11 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
     int16_t nCol = taosArrayGetSize(pLast);
     int16_t iCol = 0;
 
+    if (nCol != pTSchema->numOfCols) {
+      invalidate = true;
+      goto _invalidate;
+    }
+
     SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLast, iCol);
     if (keyTs > tTsVal->ts) {
       STColumn *pTColumn = &pTSchema->columns[0];
@@ -259,6 +264,12 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
 
         SColVal colVal = {0};
         tTSRowGetVal(row, pTSchema, iCol, &colVal);
+
+        if (colVal.cid != tColVal->cid) {
+          invalidate = true;
+          goto _invalidate;
+        }
+
         if (!COL_VAL_IS_NONE(&colVal)) {
           if (keyTs == tTsVal1->ts && !COL_VAL_IS_NONE(tColVal)) {
             invalidate = true;
@@ -315,6 +326,11 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb 
     int16_t nCol = taosArrayGetSize(pLast);
     int16_t iCol = 0;
 
+    if (nCol != pTSchema->numOfCols) {
+      invalidate = true;
+      goto _invalidate;
+    }
+
     SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLast, iCol);
     if (keyTs > tTsVal->ts) {
       STColumn *pTColumn = &pTSchema->columns[0];
@@ -330,6 +346,12 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb 
 
         SColVal colVal = {0};
         tTSRowGetVal(row, pTSchema, iCol, &colVal);
+
+        if (colVal.cid != tColVal->cid) {
+          invalidate = true;
+          goto _invalidate;
+        }
+
         if (COL_VAL_IS_VALUE(&colVal)) {
           if (keyTs == tTsVal1->ts && COL_VAL_IS_VALUE(tColVal)) {
             invalidate = true;
