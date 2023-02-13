@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
 
 use anyhow::{bail, Context, Result};
 use taos::*;
@@ -29,11 +29,17 @@ async fn restore(
             Ok(message) => match message {
                 MessageSet::Meta(meta) => {
                     // dbg!(&meta);
-                    if let Err(err) = taos.write_raw_meta(meta).await {
-                        if err.to_string().contains("0x032C") {
-                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                    if let Err(err) = taos.write_raw_meta(&meta).await {
+                        let err_str = err.to_string();
+                        if err_str.contains("0x032C") {
+                            log::warn!("found error 0x032C, retry once");
+                            tokio::time::sleep(Duration::from_nanos(100)).await;
+                            taos.write_raw_meta(&meta).await?;
+                        } else if err_str.contains("0x2603") {
+                            log::warn!("found error 0x2603, retry once");
+                            taos.write_raw_meta(&meta).await?;
                         } else {
-                            Err(err).context("create table error")?;
+                            Err(err).context("create table error with write_raw")?;
                         }
                     };
                 }
