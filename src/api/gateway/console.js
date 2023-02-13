@@ -13,7 +13,6 @@ export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.ap
     // data: { sql: sqlStr },
   }).then(data => {
 
-    console.log(data, 'kkkkcc-----')
     // return data;
     // let cData = jsonToObj(data);
     let cData=JSON.parse(JSON.stringify(data))

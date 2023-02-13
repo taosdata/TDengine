@@ -216,7 +216,6 @@ export default {
     // 这里由于有默认打开的key，所以其他同层已经打开的结构并不会触发收起回调
     async expandChange(data) {
       // 由于点击展开图标不会触发节点点击时间所以使用展开触发
-      console.log(data,'展开了');
       switch (data.typeName) {
         case "table":
           await this.$store
@@ -230,8 +229,6 @@ export default {
           break;
         case "database":
           this.$bus.emit("console/useDB", data.name);
-
-          console.log('展开操作',data,this.$store.state);
           break;
         default:
           break;
@@ -239,7 +236,6 @@ export default {
       this.changePartActive();
     },
     async loadNode(node, resolve) {
-      console.log('tree------loading',node);
       let data = node.data;
       switch (node.data?.typeName) {
         case "database":
@@ -271,7 +267,6 @@ export default {
         default:
           // eslint-disable-next-line no-case-declarations
           let dbList = await getDBListReq();
-          console.log(dbList, "dbListdbListdbList");
           this.$store.commit("dbs/SET_DBLIST", dbList);
           return resolve(dbList);
       }
@@ -324,7 +319,6 @@ export default {
       this.defaultExpandedKeys = result.reverse();
     },
     async add(data, node) {
-      console.log(data,node,'添加操作----');
       await this.handleVar(data, node);
       switch (data.typeName) {
         case "database":

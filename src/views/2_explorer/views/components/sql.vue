@@ -124,13 +124,10 @@
     },
     methods: {
       onReady(ins) {
-        console.log(ins,'mirror-ready');
         this.comIns = ins;
       },
       blur() {
         this.currentPosition = this.comIns.getCursor();
-
-        console.log('code---blur',this.comIns);
       },
       async handleSendSQL() {
         if (this.requestIng) return;
@@ -138,7 +135,7 @@
         let sqlStr = this.comIns.getSelection() || this.sqlStr;
         let { isSendSQL, updated_sqlStr } = await proprocess_sql(sqlStr); // 预处理要执行的sql语句
 
-        console.log('执行sql',isSendSQL, updated_sqlStr);
+        
         if (isSendSQL) {
           await this.$store.dispatch("console/sendConsoleSQL", updated_sqlStr);
         }

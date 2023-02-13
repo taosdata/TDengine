@@ -14,7 +14,6 @@ let msg = "";
 let setTokenTimer = null;
 request.interceptors.request.use(
   config => {
-    console.log(config,store.getters.token,'store.getters.token')
     if (store.getters.token) {
       // 让每个请求都携带token
       config.headers["Authorization"] = store.getters.token;
@@ -49,7 +48,6 @@ request.interceptors.response.use(
     if (res.type) return Promise.resolve(res);
     res.code += "";
 
-    console.log(res,res.code==='21200','=====');
     if (checkRegion(res.code)) {
       // token过期, 让用户重新登录
       store.dispatch("app/logout", false);
@@ -74,7 +72,6 @@ request.interceptors.response.use(
     //   }, 1000);
     // }
     if(res.code==='0'){//针对 'show databses'
-      console.log('000000');
       return Promise.resolve(res)
     }
     if(res.code==='21200'){//测试用---后续删除

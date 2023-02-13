@@ -100,13 +100,10 @@
         if (this.requestIng) return;
         this.requestIng = true;
         await this.$refs.sql.handleSendSQL();
-
-        console.log('run sql----');
         this.$store.commit("console/CHANGE_TREE_KEY");
         this.requestIng = false;
       },
       async toggleFavorite() {
-        console.log(this.sqlStr,this.$store.state,'this.favorited');
 
         let obj={
           accountId:this.$store.state.app.token,
