@@ -298,7 +298,6 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
 
       if (rowIndex < pBlock->info.rows) {
         doEventWindowAggImpl(pInfo, pSup, startIndex, rowIndex, pBlock, tsList, pTaskInfo);
-
         doUpdateNumOfRows(pSup->pCtx, pInfo->pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
 
         // check buffer size
@@ -328,9 +327,9 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
       }
 
       if (pInfo->inWindow) {
-        continue;
+        continue;  // try to find the end position
       } else {
-        break;
+        break;  // no valid start position, quit
       }
     }
   }
