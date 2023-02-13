@@ -71,6 +71,7 @@ typedef struct SRaftId {
 typedef struct SRaftStore {
   SyncTerm currentTerm;
   SRaftId  voteFor;
+  TdThreadMutex mutex;
 } SRaftStore;
 
 typedef struct SSyncHbTimerData {
@@ -282,7 +283,7 @@ void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
 
 // raft vote --------------
 void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
-void syncNodeVoteForSelf(SSyncNode* pSyncNode);
+void syncNodeVoteForSelf(SSyncNode* pSyncNode, SyncTerm term);
 
 // log replication
 SSyncLogReplMgr* syncNodeGetLogReplMgr(SSyncNode* pNode, SRaftId* pDestId);

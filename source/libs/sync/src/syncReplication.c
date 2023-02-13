@@ -107,7 +107,7 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
     pSyncMsg->srcId = pSyncNode->myRaftId;
     pSyncMsg->destId = pSyncNode->peersId[i];
-    pSyncMsg->term = pSyncNode->raftStore.currentTerm;
+    pSyncMsg->term = raftStoreGetTerm(pSyncNode);
     pSyncMsg->commitIndex = pSyncNode->commitIndex;
     pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
     pSyncMsg->privateTerm = 0;
