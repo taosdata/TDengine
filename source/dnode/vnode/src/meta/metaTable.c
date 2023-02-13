@@ -1972,8 +1972,8 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
 
   SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
   if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
-    STagVal tagVal = {.cid = pTagColumn->colId};
     pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[0];
+    STagVal tagVal = {.cid = pTagColumn->colId};
 
     pTagData = pCtbEntry->ctbEntry.pTags;
     nTagData = ((const STag *)pCtbEntry->ctbEntry.pTags)->len;
