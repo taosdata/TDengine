@@ -15,60 +15,86 @@
 
 #include "vnd.h"
 
-extern int32_t tsdbCompact(STsdb *pTsdb, int32_t flag);
-
-int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo);
-
-static int32_t vnodeCompactImpl(SCommitInfo *pInfo) {
+static int32_t vnodeCompactTask(void *param) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  // TODO
-  SVnode *pVnode = pInfo->pVnode;
+  SCompactInfo *pInfo = (SCompactInfo *)param;
+  SVnode       *pVnode = pInfo->pVnode;
 
-  code = tsdbCompact(pVnode->pTsdb, 0);
+  // do compact
+  code = tsdbCompact(pInfo->pVnode->pTsdb, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-_exit:
-  if (code) {
-    vError("vgId:%d %s failed since %s", TD_VID(pInfo->pVnode), __func__, tstrerror(code));
-  } else {
-    vDebug("vgId:%d %s done", TD_VID(pInfo->pVnode), __func__);
-  }
-  return code;
-}
-
-static int32_t vnodeCompactTask(void *param) {
-  int32_t code = 0;
-
-  SCommitInfo *pInfo = (SCommitInfo *)param;
-
-  // compact
-  vnodeCompactImpl(pInfo);
-
   // end compact
-  tsem_post(&pInfo->pVnode->canCommit);
+  char dir[TSDB_FILENAME_LEN] = {0};
+  if (pVnode->pTfs) {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
+  } else {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
+  }
+  vnodeCommitInfo(dir);
 
 _exit:
   taosMemoryFree(pInfo);
+  tsem_post(&pInfo->pVnode->canCommit);
+  return code;
+}
+static int32_t vnodePrepareCompact(SVnode *pVnode, SCompactInfo *pInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  tsem_wait(&pVnode->canCommit);
+
+  pInfo->pVnode = pVnode;
+  pInfo->flag = 0;
+  pInfo->commitID = ++pVnode->state.commitID;
+
+  char       dir[TSDB_FILENAME_LEN] = {0};
+  SVnodeInfo info = {0};
+
+  if (pVnode->pTfs) {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
+  } else {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
+  }
+
+  vnodeLoadInfo(dir, &info);
+  info.state.commitID = pInfo->commitID;
+  vnodeSaveInfo(dir, &info);
+
+_exit:
+  if (code) {
+    vError("vgId:%d %s failed at line %d since %s, commit ID:%" PRId64, TD_VID(pVnode), __func__, lino, tstrerror(code),
+           pVnode->state.commitID);
+  } else {
+    vDebug("vgId:%d %s done, commit ID:%" PRId64, TD_VID(pVnode), __func__, pVnode->state.commitID);
+  }
   return code;
 }
 int32_t vnodeAsyncCompact(SVnode *pVnode) {
   int32_t code = 0;
+  int32_t lino = 0;
 
-  // schedule compact task
-  SCommitInfo *pInfo = taosMemoryCalloc(1, sizeof(*pInfo));
-  if (NULL == pInfo) {
+  SCompactInfo *pInfo = taosMemoryCalloc(1, sizeof(*pInfo));
+  if (pInfo == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  vnodePrepareCommit(pVnode, pInfo);
+  vnodeAsyncCommit(pVnode);
+
+  code = vnodePrepareCompact(pVnode, pInfo);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   vnodeScheduleTask(vnodeCompactTask, pInfo);
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed since %s", TD_VID(pInfo->pVnode), __func__, tstrerror(code));
+    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+    if (pInfo) taosMemoryFree(pInfo);
+  } else {
+    vInfo("vgId:%d %s done", TD_VID(pVnode), __func__);
   }
   return code;
 }

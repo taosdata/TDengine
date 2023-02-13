@@ -15,7 +15,7 @@ $db = $dbPrefix . $i
 
 sql drop database if exists $db -x step1
 step1:
-sql create database $db vgroups 1;
+sql create database $db vgroups 1 cachemodel 'last_row'
 
 sql use $db
 sql create table $tb (ts timestamp, c1 int)
@@ -119,6 +119,76 @@ if $data00 != 0 then
 endi
 
 if $data01 != 199 then
+  return -1
+endi
+
+sql drop table t1
+
+$rowNum = 8200
+$ts0 = 1537146000000
+sql create table t1 (ts timestamp, c1 int)
+
+$i = 0
+$ts = $ts0
+
+$x = 0
+while $x < $rowNum
+$xs = $x * $delta
+$ts = $ts0 + $xs
+sql insert into t1 values ( $ts , $x )
+$x = $x + 1
+endw
+
+sql delete from t1 where ts<=1537146409500
+
+sql flush database $db
+
+print =====================================>TD-22007
+sql select count(*) from t1 interval(10a)
+
+sql drop table t1
+
+sql create table st1 (ts timestamp, k int) tags(a int);
+sql insert into t1 using st1 tags(1) values('2020-1-1 10:10:10', 0);
+sql insert into t2 using st1 tags(1) values('2020-1-1 10:10:11', 1);
+sql insert into t3 using st1 tags(1) values('2020-1-1 10:10:12', 2);
+sql insert into t4 using st1 tags(1) values('2020-1-1 10:10:13', 3);
+sql insert into t5 using st1 tags(1) values('2020-1-1 10:10:14', 4);
+sql insert into t6 using st1 tags(2) values('2020-1-1 10:10:15', 5);
+sql insert into t7 using st1 tags(2) values('2020-1-1 10:10:16', 6);
+sql insert into t8 using st1 tags(2) values('2020-1-1 10:10:17', 7);
+sql insert into t9 using st1 tags(2) values('2020-1-1 10:10:18', 8);
+sql insert into t10 using st1 tags(2) values('2020-1-1 10:10:19', 9);
+
+sql select count(*) from st1
+if $data00 != 10 then
+  return -1
+endi
+
+sql select last_row(*) from st1 group by a
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @20-01-01 10:10:19.000@ then
+  return -1
+endi
+
+if $data01 != 9 then
+  return -1
+endi
+
+if $data10 != @20-01-01 10:10:14.000@ then
+  return -1
+endi
+
+if $data11 != 4 then
+  return -1
+endi
+
+print ===============================================> TS-2613
+sql select * from information_schema.ins_databases limit 1 offset 1;
+if $rows != 1 then
   return -1
 endi
 
