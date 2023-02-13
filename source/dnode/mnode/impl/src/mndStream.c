@@ -297,6 +297,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->triggerParam = pCreate->maxDelay;
   pObj->watermark = pCreate->watermark;
   pObj->fillHistory = pCreate->fillHistory;
+  pObj->deleteMark = pCreate->deleteMark;
   pObj->igCheckUpdate = pCreate->igUpdate;
 
   memcpy(pObj->sourceDb, pCreate->sourceDB, TSDB_DB_FNAME_LEN);
@@ -346,6 +347,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .triggerType = pObj->trigger == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : pObj->trigger,
       .watermark = pObj->watermark,
       .igExpired = pObj->igExpired,
+      .deleteMark = pObj->deleteMark,
       .igCheckUpdate = pObj->igCheckUpdate,
   };
 

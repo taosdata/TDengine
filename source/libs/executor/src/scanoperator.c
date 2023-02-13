@@ -2752,6 +2752,10 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
 
   SSDataBlock* pBlock = NULL;
   while (pInfo->tableStartIndex < tableListSize) {
+    if (isTaskKilled(pTaskInfo)) {
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    }
+
     pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pInfo->pResBlock, pOperator->resultInfo.capacity,
                                               pOperator);
     if (pBlock != NULL) {
