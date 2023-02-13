@@ -312,10 +312,13 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 
   walApplyVer(pVnode->pWal, version);
 
+  /*vInfo("vgId:%d, push msg begin", pVnode->config.vgId);*/
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
+    /*vInfo("vgId:%d, push msg end", pVnode->config.vgId);*/
     vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
+  /*vInfo("vgId:%d, push msg end", pVnode->config.vgId);*/
 
   // commit if need
   if (needCommit) {
@@ -1019,7 +1022,7 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, statis.nBatchInsert);
   atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, statis.nBatchInsertSuccess);
 
-  vDebug("vgId:%d, submit success, index:%" PRId64, pVnode->config.vgId, version);
+  vDebug("vgId:%d %s done, index:%" PRId64, TD_VID(pVnode), __func__, version);
   return 0;
 }
 
