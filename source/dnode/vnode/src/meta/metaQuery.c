@@ -1331,7 +1331,11 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       }
       taosArrayPush(pUids, &tuid);
     } else {
-      if (count >= TRY_ERROR_LIMIT) break;
+      if (count >= TRY_ERROR_LIMIT) {
+        if (param->equal == false) {
+          break;
+        }
+      }
     }
     count++;
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);

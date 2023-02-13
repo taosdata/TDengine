@@ -383,11 +383,17 @@ static FORCE_INLINE int sifEqual(void *a, void *b, int16_t dtype) {
   //__compar_fn_t func = idxGetCompar(dtype);
   return (int)tDoCompare(func, QUERY_TERM, a, b);
 }
-static FORCE_INLINE FilterFunc sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
+static FORCE_INLINE FilterFunc sifGetFilterFunc(EIndexQueryType type, bool *reverse, bool *equal) {
   if (type == QUERY_LESS_EQUAL || type == QUERY_LESS_THAN) {
     *reverse = true;
   } else {
     *reverse = false;
+  }
+
+  if (type == QUERY_LESS_EQUAL || type == QUERY_GREATER_EQUAL) {
+    *equal = true;
+  } else {
+    *equal = false;
   }
   if (type == QUERY_LESS_EQUAL)
     return sifLessEqual;
@@ -474,14 +480,15 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     ret = indexJsonSearch(arg->ivtIdx, mtm, output->result);
     indexMultiTermQueryDestroy(mtm);
   } else {
-    bool       reverse;
-    FilterFunc filterFunc = sifGetFilterFunc(qtype, &reverse);
+    bool       reverse, equal;
+    FilterFunc filterFunc = sifGetFilterFunc(qtype, &reverse, &equal);
 
     SMetaFltParam param = {.suid = arg->suid,
                            .cid = left->colId,
                            .type = left->colValType,
                            .val = right->condValue,
                            .reverse = reverse,
+                           .equal = equal,
                            .filterFunc = filterFunc};
 
     char buf[128] = {0};
