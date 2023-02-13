@@ -943,8 +943,12 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
 
   //  int64_t stt = taosGetTimestampUs();
   SArray* pUidTagList = taosArrayInit(10, sizeof(STUidTagInfo));
+  copyExistedUids(pUidTagList, pUidList);
+
   int32_t filter = optimizeTbnameInCond(metaHandle, pListInfo->suid, pUidTagList, pTagCond);
   if (filter == 0) {  // tbname in filter is activated, do nothing and return
+    taosArrayClear(pUidList);
+
     int32_t numOfRows = taosArrayGetSize(pUidTagList);
     taosArrayEnsureCap(pUidList, numOfRows);
     for(int32_t i = 0; i < numOfRows; ++i) {
@@ -956,7 +960,6 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
     goto end;
   } else {
     // here we retrieve all tags from the vnode table-meta store
-    copyExistedUids(pUidTagList, pUidList);
     code = metaGetTableTags(metaHandle, pListInfo->suid, pUidTagList);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code), pListInfo->suid);
