@@ -25,6 +25,8 @@
 #include "tref.h"
 #include "ttimer.h"
 
+static tb_uid_t processSuid(tb_uid_t suid, char* db) { return suid + MurmurHash3_32(db, strlen(db)); }
+
 static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id,
                                   int8_t t) {
   char*  string = NULL;
@@ -690,7 +692,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   pReq.numOfColumns = req.schemaRow.nCols;
   pReq.numOfTags = req.schemaTag.nCols;
   pReq.commentLen = -1;
-  pReq.suid = req.suid;
+  pReq.suid = processSuid(req.suid, pRequest->pDb);
   pReq.source = TD_REQ_FROM_TAOX;
   pReq.igExists = true;
 
@@ -762,7 +764,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
   // build drop stable
   pReq.igNotExists = true;
   pReq.source = TD_REQ_FROM_TAOX;
-  pReq.suid = req.suid;
+  pReq.suid = processSuid(req.suid, pRequest->pDb);
 
   STscObj* pTscObj = pRequest->pTscObj;
   SName    tableName = {0};
@@ -880,6 +882,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     if (pCreateReq->type == TSDB_CHILD_TABLE) {
       STableMeta* pTableMeta = NULL;
       SName       sName = {0};
+      pCreateReq->ctb.suid = processSuid(pCreateReq->ctb.suid, pRequest->pDb);
       toName(pTscObj->acctId, pRequest->pDb, pCreateReq->ctb.stbName, &sName);
       code = catalogGetTableMeta(pCatalog, &conn, &sName, &pTableMeta);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1017,6 +1020,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pDropReq = req.pReqs + iReq;
     pDropReq->igNotExists = true;
+    pDropReq->suid = processSuid(pDropReq->suid, pRequest->pDb);
 
     SVgroupInfo pInfo = {0};
     SName       pName = {0};
@@ -1506,11 +1510,11 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     }
 
     SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.rsp.blockSchema, rspObj.resIter);
-    TAOS_FIELD* fields = taosMemoryCalloc(pSW->nCols, sizeof(TAOS_FIELD));
-    if(fields == NULL){
+    TAOS_FIELD*     fields = taosMemoryCalloc(pSW->nCols, sizeof(TAOS_FIELD));
+    if (fields == NULL) {
       goto end;
     }
-    for(int i = 0; i < pSW->nCols; i++){
+    for (int i = 0; i < pSW->nCols; i++) {
       fields[i].type = pSW->pSchema[i].type;
       fields[i].bytes = pSW->pSchema[i].bytes;
       tstrncpy(fields[i].name, pSW->pSchema[i].name, tListLen(pSW->pSchema[i].name));
@@ -1621,7 +1625,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       void**   dataTmp = taosArrayGet(rspObj.rsp.createTableReq, j);
       int32_t* lenTmp = taosArrayGet(rspObj.rsp.createTableLen, j);
 
-      SDecoder decoderTmp = {0};
+      SDecoder      decoderTmp = {0};
       SVCreateTbReq pCreateReq = {0};
       tDecoderInit(&decoderTmp, *dataTmp, *lenTmp);
       if (tDecodeSVCreateTbReq(&decoderTmp, &pCreateReq) < 0) {
@@ -1644,9 +1648,9 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       tDecoderClear(&decoderTmp);
     }
 
-    if(pCreateReqDst){
+    if (pCreateReqDst) {
       strcpy(pName.tname, pCreateReqDst->ctb.stbName);
-    }else{
+    } else {
       strcpy(pName.tname, tbName);
     }
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
@@ -1667,9 +1671,9 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       goto end;
     }
 
-    if(pCreateReqDst){
+    if (pCreateReqDst) {
       pTableMeta->vgId = vg.vgId;
-      pTableMeta->uid  = pCreateReqDst->uid;
+      pTableMeta->uid = pCreateReqDst->uid;
     }
     void* hData = taosHashGet(pVgHash, &vg.vgId, sizeof(vg.vgId));
     if (hData == NULL) {
@@ -1677,11 +1681,11 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     }
 
     SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.rsp.blockSchema, rspObj.resIter);
-    TAOS_FIELD* fields = taosMemoryCalloc(pSW->nCols, sizeof(TAOS_FIELD));
-    if(fields == NULL){
+    TAOS_FIELD*     fields = taosMemoryCalloc(pSW->nCols, sizeof(TAOS_FIELD));
+    if (fields == NULL) {
       goto end;
     }
-    for(int i = 0; i < pSW->nCols; i++){
+    for (int i = 0; i < pSW->nCols; i++) {
       fields[i].type = pSW->pSchema[i].type;
       fields[i].bytes = pSW->pSchema[i].bytes;
       tstrncpy(fields[i].name, pSW->pSchema[i].name, tListLen(pSW->pSchema[i].name));

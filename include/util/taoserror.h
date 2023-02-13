@@ -111,6 +111,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_NOT_FOUND                     TAOS_DEF_ERROR_CODE(0, 0x012A)
 #define TSDB_CODE_NO_DISKSPACE                  TAOS_DEF_ERROR_CODE(0, 0x012B)
 #define TSDB_CODE_TIMEOUT_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x012C)
+#define TSDB_CODE_MSG_ENCODE_ERROR              TAOS_DEF_ERROR_CODE(0, 0x012D)
 
 #define TSDB_CODE_APP_IS_STARTING               TAOS_DEF_ERROR_CODE(0, 0x0130) //
 #define TSDB_CODE_APP_IS_STOPPING               TAOS_DEF_ERROR_CODE(0, 0x0131) //

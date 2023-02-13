@@ -426,7 +426,13 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   SVnode       *pVnode = pWriter->pVnode;
 
   ASSERT(pHdr->size + sizeof(SSnapDataHdr) == nData);
-  ASSERT(pHdr->index == pWriter->index + 1);
+
+  if (pHdr->index != pWriter->index + 1) {
+    vError("vgId:%d, unexpected vnode snapshot msg. index:%" PRId64 ", expected index:%" PRId64, TD_VID(pVnode),
+           pHdr->index, pWriter->index + 1);
+    return -1;
+  }
+
   pWriter->index = pHdr->index;
 
   vDebug("vgId:%d, vnode snapshot write data, index:%" PRId64 " type:%d blockLen:%d", TD_VID(pVnode), pHdr->index,
