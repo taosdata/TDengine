@@ -122,16 +122,16 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
 
     // delete files in descending order
     int fileSetSize = taosArrayGetSize(pWal->fileInfoSet);
-    for (int i = fileSetSize - 1; i >= pWal->writeCur + 1; i--) {
-      walBuildLogName(pWal, ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, i))->firstVer, fnameStr);
+    for (int i = pWal->writeCur + 1; i < fileSetSize; i++) {
+      SWalFileInfo* pInfo = taosArrayPop(pWal->fileInfoSet);
+
+      walBuildLogName(pWal, pInfo->firstVer, fnameStr);
       wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
       taosRemoveFile(fnameStr);
-      walBuildIdxName(pWal, ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, i))->firstVer, fnameStr);
+      walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
       wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
       taosRemoveFile(fnameStr);
     }
-    // pop from fileInfoSet
-    taosArraySetSize(pWal->fileInfoSet, pWal->writeCur + 1);
   }
 
   walBuildIdxName(pWal, walGetCurFileFirstVer(pWal), fnameStr);

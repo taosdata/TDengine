@@ -1054,9 +1054,7 @@ static int32_t tsdbMergeSkyline(SArray *pSkyline1, SArray *pSkyline2, SArray *pS
     i2++;
   }
 
-  taosArraySetSize(pSkyline, TARRAY_ELEM_IDX(pSkyline, pItem));
-
-_exit:
+  pSkyline->size = TARRAY_ELEM_IDX(pSkyline, pItem);
   return code;
 }
 
