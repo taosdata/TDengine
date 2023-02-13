@@ -1302,24 +1302,23 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     if (valid < 0) {
       break;
     }
+    if (count >= TRY_ERROR_LIMIT) {
+      break;
+    }
+
     STagIdxKey *p = entryKey;
     if (p == NULL) break;
 
-    if (count >= TRY_ERROR_LIMIT) {
-      if (p->type != pCursor->type || p->suid != pCursor->suid || p->cid != pCursor->cid) {
+    if (p->type != pCursor->type || p->suid != pCursor->suid || p->cid != pCursor->cid) {
+      count++;
+      valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
+      if (valid < 0) {
         break;
-      }
-    } else {
-      if (p->type != pCursor->type || p->suid != pCursor->suid || p->cid != pCursor->cid) {
-        count++;
-        valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
-        if (valid < 0) {
-          break;
-        } else {
-          continue;
-        }
+      } else {
+        continue;
       }
     }
+
     int32_t cmp = (*param->filterFunc)(p->data, pKey->data, pKey->type);
     if (cmp == 0) {
       // match
@@ -1331,13 +1330,8 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       }
       taosArrayPush(pUids, &tuid);
     } else {
-      if (count >= TRY_ERROR_LIMIT) {
-        if (param->equal == false) {
-          break;
-        }
-      }
+      // opt later
     }
-    count++;
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) {
       break;
