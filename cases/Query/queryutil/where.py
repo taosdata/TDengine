@@ -332,6 +332,59 @@ class TDWhere():
         #     time_window = td_session
         
         # return time_window
+        
+    def event_window(self):   
+        t_int_where = ['t_bigint < -9223372036854775807 and ' , 't_bigint > 9223372036854775807 and ',
+        't_smallint < -32767 and ', 't_smallint > 32767 and ',
+        't_tinyint < -127 and ' , 't_tinyint > 127 and ' , 
+        't_int > 2147483647 and ' , 't_int < -2147483647 and ',
+        't_bigint between  9223372036854775807 and -9223372036854775807 and ','t_smallint between 32767 and -32767 and ',
+        't_int between 2147483647 and -2147483647 and ', 't_tinyint between 127 and -127  and ',
+        't_tinyint = 128 and ','t_smallint = 88888 and ','t_int = 8888888888 and ','t_bigint = 9999972036854775807 and ',
+        't_tinyint == 128 and ','t_smallint == 88888 and ','t_int == 8888888888 and ','t_bigint == 9999972036854775807 and ',
+        't_bigint is null and ' , 't_int is null and ' , 't_smallint is null and ' , 't_tinyint is null and ' ,]
+
+        t_fl_do_where = ['t_float < -3.4E38 and ','t_float > 3.4E38 and ', 't_double < -1.7E308 and ','t_double > 1.7E308 and ', 
+        't_float between 3.4E38 and -3.4E38 and ','t_double between 1.7E308 and -1.7E308 and ' ,
+        't_float is null and ' ,'t_double is null and ' ,]
+
+        t_nc_bi_bo_ts_where = [ 't_bool is null and ' ,'t_binary is null and ' ,'t_nchar is null and ' ,
+        't_ts is null and' ,  't_ts >= now +100h and ' , 't_ts < 0 and ',  't_ts between now +100h and 0 and ',]
+
+        t_where_null = random.sample(t_int_where,4) + random.sample(t_fl_do_where,2) + random.sample(t_nc_bi_bo_ts_where,2)
+        
+        t_like = ['t_binary like \'binary_\' and','t_binary like \'0%\' and','t_nchar like \'nchar_\' and','t_nchar like \'0%\' and',]
+        t_match = ['t_binary nmatch \'binary\' and','t_binary match \'binarynchar\' and','t_nchar nmatch \'nchar\' and','t_nchar match \'binarynchar\' and',]
+        t_like_match = random.sample(t_like,1) + random.sample(t_match,1)
+        t_match_regular = ['loc match \'(elbats)\' and', 'loc match \'(^qwertyuiopzxcvnmdfghj)\' and',]
+        t_like_match = random.sample(t_like,1) + random.sample(t_match,1) + random.sample(t_match_regular,2)
+        t_like_match_null = random.sample(t_like_match,1)
+
+        t_tinyint_list=[]
+        for i in range(1000,2000):
+            t_tinyint_list.append(i)
+        t_tinyint_list = "t_tinyint in (" + str(t_tinyint_list).replace("[","").replace("]","") + ")"
+        
+        t_in_where = [t_tinyint_list , 't_bool in (0 , 1) ' ,  't_bool in ( true , false) ' ,' (t_bool = true or  t_bool = false)' , '(t_bool = 0 or t_bool = 1)',]
+        
+        event_window_support_data_types = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)'] 
+        event_window_support_data_operators = ['>','<','=','!=','>=','<=']
+        
+        data_int = 1;
+        data_float = 2;
+        data_str = 'abc';
+        
+        state_window = random.sample(func,1)+random.sample(window_support_types,1)
+        single_state_window = str(state_window).replace("[","").replace("]","").replace("'","").replace(", ","")
+        
+        start_trigger_condition = random.sample(event_windows,1)
+        end_trigger_condition = random.sample(event_windows,1)
+        
+        event_window = ' EVENT_WINDOW START WITH ' + '%s' + ' END WITH ' + '%s' %(start_trigger_condition,end_trigger_condition)
+        
+        # EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+
+        return event_window
 
     def time_window_new(self,i):  
         #数字后面的时间单位可以是 u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。 
@@ -363,7 +416,7 @@ class TDWhere():
         sliding_interval_offset = 'interval'+'(' + sliding_interval_no_offset + ',' + sliding_interval_offset + ')'
         
         #单fill,对时间强要求
-        fills = ['NONE','VALUE,100','PREV','NULL','LINEAR','NEXT','VALUE,10000']
+        fills = ['NONE','VALUE,100','VALUE_F,100','PREV','NULL','NULL_F','LINEAR','NEXT','VALUE,10000','VALUE_F,10000']
         fill_base = str(random.sample(fills,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'")
         single_fill = 'Fill' +'(' +fill_base + ')'
 
