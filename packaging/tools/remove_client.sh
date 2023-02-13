@@ -12,6 +12,15 @@ installDir="/usr/local/taos"
 clientName="taos"
 uninstallScript="rmtaos"
 
+clientName2="taos"
+productName2="TDengine"
+
+benchmarkName2="${clientName}Benchmark"
+dumpName2="${clientName}dump"
+uninstallScript2="rm${clientName}"
+
+installDir="/usr/local/${clientName}"
+
 #install main path
 install_main_dir=${installDir}
 
@@ -40,6 +49,12 @@ function clean_bin() {
     ${csudo}rm -f ${bin_link_dir}/taosdump  || :
     ${csudo}rm -f ${bin_link_dir}/${uninstallScript}    || :
     ${csudo}rm -f ${bin_link_dir}/set_core  || :
+
+    if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+        ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
+        ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
+        ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
+    fi
 }
 
 function clean_lib() {
@@ -82,5 +97,5 @@ clean_config
 
 ${csudo}rm -rf ${install_main_dir}
 
-echo -e "${GREEN}TDengine client is removed successfully!${NC}"
+echo -e "${GREEN}${productName2} client is removed successfully!${NC}"
 echo 

@@ -28,10 +28,10 @@ static int32_t vnodeTryRecycleBufPool(SVnode *pVnode) {
 
   if (pVnode->onRecycle == NULL) {
     if (pVnode->recycleHead == NULL) {
-      vDebug("vgId:%d no recyclable buffer pool", TD_VID(pVnode));
+      vDebug("vgId:%d, no recyclable buffer pool", TD_VID(pVnode));
       goto _exit;
     } else {
-      vDebug("vgId:%d buffer pool %p of id %d on recycle queue, try to recycle", TD_VID(pVnode), pVnode->recycleHead,
+      vDebug("vgId:%d, buffer pool %p of id %d on recycle queue, try to recycle", TD_VID(pVnode), pVnode->recycleHead,
              pVnode->recycleHead->id);
 
       pVnode->onRecycle = pVnode->recycleHead;
@@ -50,7 +50,7 @@ static int32_t vnodeTryRecycleBufPool(SVnode *pVnode) {
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed since %s", TD_VID(pVnode), __func__, tstrerror(code));
+    vError("vgId:%d, %s failed since %s", TD_VID(pVnode), __func__, tstrerror(code));
   }
   return code;
 }
@@ -65,7 +65,7 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
     ++nTry;
 
     if (pVnode->freeList) {
-      vDebug("vgId:%d allocate free buffer pool on %d try, pPool:%p id:%d", TD_VID(pVnode), nTry, pVnode->freeList,
+      vDebug("vgId:%d, allocate free buffer pool on %d try, pPool:%p id:%d", TD_VID(pVnode), nTry, pVnode->freeList,
              pVnode->freeList->id);
 
       pVnode->inUse = pVnode->freeList;
@@ -74,13 +74,13 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
       pVnode->inUse->freeNext = NULL;
       break;
     } else {
-      vDebug("vgId:%d no free buffer pool on %d try, try to recycle...", TD_VID(pVnode), nTry);
+      vDebug("vgId:%d, no free buffer pool on %d try, try to recycle...", TD_VID(pVnode), nTry);
 
       code = vnodeTryRecycleBufPool(pVnode);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       if (pVnode->freeList == NULL) {
-        vDebug("vgId:%d no free buffer pool on %d try, wait %d ms...", TD_VID(pVnode), nTry, WAIT_TIME_MILI_SEC);
+        vDebug("vgId:%d, no free buffer pool on %d try, wait %d ms...", TD_VID(pVnode), nTry, WAIT_TIME_MILI_SEC);
 
         struct timeval  tv;
         struct timespec ts;
@@ -105,15 +105,13 @@ static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
 _exit:
   taosThreadMutexUnlock(&pVnode->mutex);
   if (code) {
-    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
 int vnodeBegin(SVnode *pVnode) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  pVnode->state.commitID++;
 
   // alloc buffer pool
   code = vnodeGetBufPoolToUse(pVnode);
@@ -140,7 +138,7 @@ int vnodeBegin(SVnode *pVnode) {
 _exit:
   if (code) {
     terrno = code;
-    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -221,7 +219,7 @@ _err:
   return -1;
 }
 
-int vnodeCommitInfo(const char *dir, const SVnodeInfo *pInfo) {
+int vnodeCommitInfo(const char *dir) {
   char fname[TSDB_FILENAME_LEN];
   char tfname[TSDB_FILENAME_LEN];
 
@@ -233,8 +231,7 @@ int vnodeCommitInfo(const char *dir, const SVnodeInfo *pInfo) {
     return -1;
   }
 
-  vInfo("vgId:%d, vnode info is committed", pInfo->config.vgId);
-
+  vInfo("vnode info is committed, dir:%s", dir);
   return 0;
 }
 
@@ -296,18 +293,12 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
 
   tsem_wait(&pVnode->canCommit);
 
-  taosThreadMutexLock(&pVnode->mutex);
-  ASSERT(pVnode->onCommit == NULL);
-  pVnode->onCommit = pVnode->inUse;
-  pVnode->inUse = NULL;
-  taosThreadMutexUnlock(&pVnode->mutex);
-
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
   pInfo->info.config = pVnode->config;
   pInfo->info.state.committed = pVnode->state.applied;
   pInfo->info.state.commitTerm = pVnode->state.applyTerm;
-  pInfo->info.state.commitID = pVnode->state.commitID;
+  pInfo->info.state.commitID = ++pVnode->state.commitID;
   pInfo->pVnode = pVnode;
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
@@ -331,12 +322,18 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   code = smaPrepareAsyncCommit(pVnode->pSma);
   if (code) goto _exit;
 
+  taosThreadMutexLock(&pVnode->mutex);
+  ASSERT(pVnode->onCommit == NULL);
+  pVnode->onCommit = pVnode->inUse;
+  pVnode->inUse = NULL;
+  taosThreadMutexUnlock(&pVnode->mutex);
+
 _exit:
   if (code) {
     vError("vgId:%d, %s failed at line %d since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, lino,
            tstrerror(code), pVnode->state.commitID);
   } else {
-    vDebug("vgId:%d, %s done", TD_VID(pVnode), __func__);
+    vDebug("vgId:%d, %s done, commit id:%" PRId64, TD_VID(pVnode), __func__, pInfo->info.state.commitID);
   }
 
   return code;
@@ -351,7 +348,7 @@ static void vnodeReturnBufPool(SVnode *pVnode) {
   if (nRef == 0) {
     vnodeBufPoolAddToFreeList(pPool);
   } else if (nRef > 0) {
-    vDebug("vgId:%d buffer pool %p of id %d is added to recycle queue", TD_VID(pVnode), pPool, pPool->id);
+    vDebug("vgId:%d, buffer pool %p of id %d is added to recycle queue", TD_VID(pVnode), pPool, pPool->id);
 
     if (pVnode->recycleTail == NULL) {
       pPool->recyclePrev = pPool->recycleNext = NULL;
@@ -468,7 +465,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   }
 
   // commit info
-  if (vnodeCommitInfo(dir, &pInfo->info) < 0) {
+  if (vnodeCommitInfo(dir) < 0) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }

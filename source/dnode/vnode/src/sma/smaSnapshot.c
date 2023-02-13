@@ -446,10 +446,10 @@ int32_t rsmaSnapWrite(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   // rsma1/rsma2
   if (pHdr->type == SNAP_DATA_RSMA1) {
     pHdr->type = SNAP_DATA_TSDB;
-    code = tsdbSnapWrite(pWriter->pDataWriter[0], pData, nData);
+    code = tsdbSnapWrite(pWriter->pDataWriter[0], pHdr);
   } else if (pHdr->type == SNAP_DATA_RSMA2) {
     pHdr->type = SNAP_DATA_TSDB;
-    code = tsdbSnapWrite(pWriter->pDataWriter[1], pData, nData);
+    code = tsdbSnapWrite(pWriter->pDataWriter[1], pHdr);
   } else if (pHdr->type == SNAP_DATA_QTASK) {
     code = rsmaSnapWriteQTaskInfo(pWriter, pData, nData);
   } else {

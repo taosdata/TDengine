@@ -61,6 +61,7 @@ static SKeyword keywordTable[] = {
     {"COLUMN",               TK_COLUMN},
     {"COMMENT",              TK_COMMENT},
     {"COMP",                 TK_COMP},
+    {"COMPACT",              TK_COMPACT},
     {"CONNECTION",           TK_CONNECTION},
     {"CONNECTIONS",          TK_CONNECTIONS},
     {"CONNS",                TK_CONNS},
@@ -149,6 +150,7 @@ static SKeyword keywordTable[] = {
     {"NOT",                  TK_NOT},
     {"NOW",                  TK_NOW},
     {"NULL",                 TK_NULL},
+    {"NULL_F",               TK_NULL_F},
     {"NULLS",                TK_NULLS},
     {"OFFSET",               TK_OFFSET},
     {"ON",                   TK_ON},
@@ -234,11 +236,13 @@ static SKeyword keywordTable[] = {
     {"TTL",                  TK_TTL},
     {"UNION",                TK_UNION},
     {"UNSIGNED",             TK_UNSIGNED},
+    {"UPDATE",                  TK_UPDATE},
     {"USE",                  TK_USE},
     {"USER",                 TK_USER},
     {"USERS",                TK_USERS},
     {"USING",                TK_USING},
     {"VALUE",                TK_VALUE},
+    {"VALUE_F",              TK_VALUE_F},
     {"VALUES",               TK_VALUES},
     {"VARCHAR",              TK_VARCHAR},
     {"VARIABLES",            TK_VARIABLES},
@@ -624,7 +628,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
   return 0;
 }
 
-SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
+SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreComma) {
   SToken t0 = {0};
 
   // here we reach the end of sql string, null-terminated string
@@ -643,6 +647,10 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
         return t0;
+      }
+
+      if (NULL != pIgnoreComma && t == ',') {
+        *pIgnoreComma = true;
       }
 
       t = str[++(*i)];

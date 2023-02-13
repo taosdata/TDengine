@@ -1,6 +1,7 @@
 ---
-sidebar_label: collectd
 title: collectd writing
+sidebar_label: collectd
+description: This document describes how to integrate TDengine with collectd.
 ---
 
 import CollectD from "../14-reference/_collectd.mdx"

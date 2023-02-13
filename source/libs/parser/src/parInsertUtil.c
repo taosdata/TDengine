@@ -290,7 +290,8 @@ int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta*
   }
   int32_t code = createTableDataCxt(pTableMeta, pCreateTbReq, pTableCxt, colMode);
   if (TSDB_CODE_SUCCESS == code) {
-    code = taosHashPut(pHash, id, idLen, pTableCxt, POINTER_BYTES);
+    void* pData = *pTableCxt; // deal scan coverity
+    code = taosHashPut(pHash, id, idLen, &pData, POINTER_BYTES);
   }
   return code;
 }
@@ -608,7 +609,7 @@ static int bindFileds(SBoundColInfo* pBoundInfo, SSchema* pSchema, TAOS_FIELD* f
 }
 
 int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, TAOS_FIELD* tFields,
-                     int numFields) {
+                     int numFields, bool needChangeLength) {
   STableDataCxt* pTableCxt = NULL;
   int            ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
                                           sizeof(pTableMeta->uid), pTableMeta, &pCreateTb, &pTableCxt, true);
@@ -678,10 +679,15 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
       pStart += BitmapLen(numOfRows);
     }
     char* pData = pStart;
+//    uError("rawBlockBindData col bytes:%d, type:%d, size:%d, htonl size:%d", pColSchema->bytes, pColSchema->type, colLength[c], htonl(colLength[c]));
 
     tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
     fields += sizeof(int8_t) + sizeof(int32_t);
-    pStart += colLength[c];
+    if(needChangeLength) {
+      pStart += htonl(colLength[c]);
+    }else{
+      pStart += colLength[c];
+    }
   }
 
 end:

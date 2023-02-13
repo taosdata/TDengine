@@ -124,7 +124,7 @@ static char  tsProcIOFile[25] = {0};
 static void taosGetProcIOnfos() {
   tsPageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
   tsOpenMax = sysconf(_SC_OPEN_MAX);
-  tsStreamMax = sysconf(_SC_STREAM_MAX);
+  tsStreamMax = TMAX(sysconf(_SC_STREAM_MAX), 0);
   tsProcId = (pid_t)syscall(SYS_gettid);
 
   snprintf(tsProcMemFile, sizeof(tsProcMemFile), "/proc/%d/status", tsProcId);
@@ -280,11 +280,46 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 #endif
 }
 
+#ifdef WINDOWS
+bool getWinVersionReleaseName(char *releaseName, int32_t maxLen) {
+  TCHAR          szFileName[MAX_PATH];
+  DWORD             dwHandle;
+  DWORD             dwLen;
+  LPVOID            lpData;
+  UINT              uLen;
+  VS_FIXEDFILEINFO *pFileInfo;
 
+  GetWindowsDirectory(szFileName, MAX_PATH);
+  wsprintf(szFileName, L"%s%s", szFileName, L"\\explorer.exe");
+  dwLen = GetFileVersionInfoSize(szFileName, &dwHandle);
+  if (dwLen == 0) {
+    return false;
+  }
+
+  lpData = malloc(dwLen);
+  if (lpData == NULL) return false;
+  if (!GetFileVersionInfo(szFileName, dwHandle, dwLen, lpData)) {
+    free(lpData);
+    return false;
+  }
+
+  if (!VerQueryValue(lpData, L"\\", (LPVOID *)&pFileInfo, &uLen)) {
+    free(lpData);
+    return false;
+  }
+
+  snprintf(releaseName, maxLen, "Windows %d.%d", HIWORD(pFileInfo->dwProductVersionMS),
+           LOWORD(pFileInfo->dwProductVersionMS));
+  free(lpData);
+  return true;
+}
+#endif
 
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 #ifdef WINDOWS
-  snprintf(releaseName, maxLen, "Windows");
+  if (!getWinVersionReleaseName(releaseName, maxLen)) {
+    snprintf(releaseName, maxLen, "Windows");
+  }
   return 0;
 #elif defined(_TD_DARWIN_64)
   char osversion[32];

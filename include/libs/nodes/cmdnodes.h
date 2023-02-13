@@ -124,6 +124,11 @@ typedef struct STrimDatabaseStmt {
   int32_t   maxSpeed;
 } STrimDatabaseStmt;
 
+typedef struct SCompactDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+} SCompactDatabaseStmt;
+
 typedef struct STableOptions {
   ENodeType  type;
   bool       commentNull;
@@ -395,6 +400,7 @@ typedef struct SStreamOptions {
   SNode*    pDeleteMark;
   int8_t    fillHistory;
   int8_t    ignoreExpired;
+  int8_t    ignoreUpdate;
 } SStreamOptions;
 
 typedef struct SCreateStreamStmt {

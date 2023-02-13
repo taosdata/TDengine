@@ -17,10 +17,18 @@
 
 extern SSmaMgmt smaMgmt;
 
-static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma);
+static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit);
 static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo);
 static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma);
 static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
+
+/**
+ * @brief only applicable to Rollup SMA
+ *
+ * @param pSma
+ * @return int32_t
+ */
+int32_t smaPreClose(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma, false); }
 
 /**
  * @brief async commit, only applicable to Rollup SMA
@@ -28,7 +36,7 @@ static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
  * @param pSma
  * @return int32_t
  */
-int32_t smaPrepareAsyncCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
+int32_t smaPrepareAsyncCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma, true); }
 
 /**
  * @brief async commit, only applicable to Rollup SMA
@@ -122,9 +130,10 @@ _exit:
  *  2) Wait all running fetch task finish to fetch and put submitMsg into level 2/3 wQueue(blocking level 1 write)
  *
  * @param pSma
+ * @param isCommit
  * @return int32_t
  */
-static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
+static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -139,28 +148,30 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
 
   // step 1: set rsma stat
   atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
-  while (atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 1) != 0) {
-    ++nLoops;
-    if (nLoops > 1000) {
-      sched_yield();
-      nLoops = 0;
+  if (isCommit) {
+    while (atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 1) != 0) {
+      ++nLoops;
+      if (nLoops > 1000) {
+        sched_yield();
+        nLoops = 0;
+      }
+    }
+
+    pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
+    if (ASSERTS(pRSmaStat->commitAppliedVer >= -1, "commit applied version %" PRIi64 " < -1",
+                pRSmaStat->commitAppliedVer)) {
+      code = TSDB_CODE_APP_ERROR;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
-  pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
-  if (ASSERTS(pRSmaStat->commitAppliedVer >= 0, "commit applied version %" PRIi64 " < 0",
-              pRSmaStat->commitAppliedVer)) {
-    code = TSDB_CODE_APP_ERROR;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
   // step 2: wait for all triggered fetch tasks to finish
   nLoops = 0;
   while (1) {
-    if (T_REF_VAL_GET(pStat) == 0) {
-      smaDebug("vgId:%d, rsma commit, fetch tasks are all finished", SMA_VID(pSma));
+    if (atomic_load_32(&pRSmaStat->nFetchAll) <= 0) {
+      smaDebug("vgId:%d, rsma commit:%d, fetch tasks are all finished", SMA_VID(pSma), isCommit);
       break;
     } else {
-      smaDebug("vgId:%d, rsma commit, fetch tasks are not all finished yet", SMA_VID(pSma));
+      smaDebug("vgId:%d, rsma commit%d, fetch tasks are not all finished yet", SMA_VID(pSma), isCommit);
     }
     ++nLoops;
     if (nLoops > 1000) {
@@ -174,7 +185,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
    *  1) This is high cost task and should not put in asyncPreCommit originally.
    *  2) But, if put in asyncCommit, would trigger taskInfo cloning frequently.
    */
-  smaInfo("vgId:%d, rsma commit, wait for all items to be consumed, TID:%p", SMA_VID(pSma),
+  smaInfo("vgId:%d, rsma commit:%d, wait for all items to be consumed, TID:%p", SMA_VID(pSma), isCommit,
           (void *)taosGetSelfPthreadId());
   nLoops = 0;
   while (atomic_load_64(&pRSmaStat->nBufItems) > 0) {
@@ -184,10 +195,13 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
       nLoops = 0;
     }
   }
+
+  if (!isCommit) goto _exit;
+
   smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
   code = tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
   TSDB_CHECK_CODE(code, lino, _exit);
-  
+
   smaInfo("vgId:%d, rsma commit, operator state committed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
 #if 0  // consuming task of qTaskInfo clone 
@@ -223,7 +237,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
 
 _exit:
   if (code) {
-    smaError("vgId:%d, %s failed at line %d since %s", SMA_VID(pSma), __func__, lino, tstrerror(code));
+    smaError("vgId:%d, %s failed at line %d since %s(%d)", SMA_VID(pSma), __func__, lino, tstrerror(code), isCommit);
   }
   return code;
 }
@@ -243,7 +257,7 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma, SCommitInfo *pInfo) {
   if (!pSmaEnv) {
     goto _exit;
   }
-  
+
   code = tdRSmaFSCommit(pSma);
   TSDB_CHECK_CODE(code, lino, _exit);
 

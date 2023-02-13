@@ -112,7 +112,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
   pMsg->lastConfig = pSender->lastConfig;
   pMsg->startTime = pSender->startTime;
-  pMsg->seq = SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT;
+  pMsg->seq = SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT;
 
   // event log
   syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "snapshot sender start");
@@ -379,7 +379,7 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *p
   }
 
   pReceiver->start = true;
-  pReceiver->ack = SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT;
+  pReceiver->ack = SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT;
   pReceiver->term = pReceiver->pSyncNode->raftStore.currentTerm;
   pReceiver->fromId = pPreMsg->srcId;
   pReceiver->startTime = pPreMsg->startTime;
@@ -510,16 +510,8 @@ SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths) {
     SSyncLogStoreData *pData = ths->pLogStore->data;
     SWal              *pWal = pData->pWal;
 
-    bool    isEmpty = ths->pLogStore->syncLogIsEmpty(ths->pLogStore);
     int64_t walCommitVer = walGetCommittedVer(pWal);
-
-    if (!isEmpty && ths->commitIndex != walCommitVer) {
-      sNError(ths, "commit not same, wal-commit:%" PRId64 ", commit:%" PRId64 ", ignore", walCommitVer,
-              ths->commitIndex);
-      snapStart = walCommitVer + 1;
-    } else {
-      snapStart = ths->commitIndex + 1;
-    }
+    snapStart = TMAX(ths->commitIndex, walCommitVer) + 1;
 
     sNInfo(ths, "snapshot begin index is %" PRId64, snapStart);
   }
@@ -527,7 +519,7 @@ SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths) {
   return snapStart;
 }
 
-static int32_t syncNodeOnSnapshotPre(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
+static int32_t syncNodeOnSnapshotPrep(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
   SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
   int64_t                timeNow = taosGetTimestampMs();
   int32_t                code = 0;
@@ -565,7 +557,7 @@ _START_RECEIVER:
   } else {
     // waiting for clock match
     while (timeNow < pMsg->startTime) {
-      sRInfo(pReceiver, "snapshot receiver pre waitting for true time, now:%" PRId64 ", stime:%" PRId64, timeNow,
+      sRInfo(pReceiver, "snapshot receiver pre waitting for true time, now:%" PRId64 ", startTime:%" PRId64, timeNow,
              pMsg->startTime);
       taosMsleep(10);
       timeNow = taosGetTimestampMs();
@@ -765,7 +757,7 @@ static int32_t syncNodeOnSnapshotEnd(SSyncNode *pSyncNode, SyncSnapshotSend *pMs
 
 // receiver on message
 //
-// condition 1, recv SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT
+// condition 1, recv SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT
 //              if receiver already start
 //                    if sender.start-time > receiver.start-time, restart receiver(reply snapshot start)
 //                    if sender.start-time = receiver.start-time, maybe duplicate msg
@@ -809,9 +801,9 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
   int32_t code = 0;
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
     if (pMsg->term == pSyncNode->raftStore.currentTerm) {
-      if (pMsg->seq == SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT) {
+      if (pMsg->seq == SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT) {
         syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq pre-snapshot");
-        code = syncNodeOnSnapshotPre(pSyncNode, pMsg);
+        code = syncNodeOnSnapshotPrep(pSyncNode, pMsg);
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_BEGIN) {
         syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq begin");
         code = syncNodeOnSnapshotBegin(pSyncNode, pMsg);
@@ -848,7 +840,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
   return code;
 }
 
-static int32_t syncNodeOnSnapshotPreRsp(SSyncNode *pSyncNode, SSyncSnapshotSender *pSender, SyncSnapshotRsp *pMsg) {
+static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSender *pSender, SyncSnapshotRsp *pMsg) {
   SSnapshot snapshot = {0};
   pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
@@ -945,8 +937,8 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
 
   if (pMsg->startTime != pSender->startTime) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "snapshot sender and receiver time not match");
-    sSError(pSender, "sender:%" PRId64 " receiver:%" PRId64 " time not match, code:0x%x", pMsg->startTime,
-            pSender->startTime, pMsg->code);
+    sSError(pSender, "sender:%" PRId64 " receiver:%" PRId64 " time not match, error:%s 0x%x", pMsg->startTime,
+            pSender->startTime, tstrerror(pMsg->code), pMsg->code);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     goto _ERROR;
   }
@@ -961,15 +953,15 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
 
   if (pMsg->code != 0) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "receive error code");
-    sSError(pSender, "snapshot sender receive error code:0x%x and stop sender", pMsg->code);
+    sSError(pSender, "snapshot sender receive error:%s 0x%x and stop sender", tstrerror(pMsg->code), pMsg->code);
     terrno = pMsg->code;
     goto _ERROR;
   }
 
   // prepare <begin, end>, send begin msg
-  if (pMsg->ack == SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT) {
+  if (pMsg->ack == SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq pre-snapshot");
-    return syncNodeOnSnapshotPreRsp(pSyncNode, pSender, pMsg);
+    return syncNodeOnSnapshotPrepRsp(pSyncNode, pSender, pMsg);
   }
 
   if (pSender->pReader == NULL || pSender->finish) {

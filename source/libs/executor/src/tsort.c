@@ -190,8 +190,9 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
       qError("Add to buf failed since %s", terrstr(terrno));
       return terrno;
     }
+
     int32_t code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize,
-                                      "doAddToBuf", tsTempDir);
+                                      "sortExternalBuf", tsTempDir);
     dBufSetPrintInfo(pHandle->pBuf);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -635,6 +636,7 @@ int32_t getProperSortPageSize(size_t rowSize, uint32_t numOfCols) {
 
 static int32_t createInitialSources(SSortHandle* pHandle) {
   size_t sortBufSize = pHandle->numOfPages * pHandle->pageSize;
+  int32_t code = 0;
 
   if (pHandle->type == SORT_SINGLESOURCE_SORT) {
     SSortSource** pSource = taosArrayGet(pHandle->pOrderedSource, 0);
@@ -663,8 +665,8 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
         pHandle->beforeFp(pBlock, pHandle->param);
       }
 
-      int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock);
-      if (code != 0) {
+      code = blockDataMerge(pHandle->pDataBlock, pBlock);
+      if (code != TSDB_CODE_SUCCESS) {
         if (source->param && !source->onlyRef) {
           taosMemoryFree(source->param);
         }
@@ -689,6 +691,7 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
             blockDataDestroy(source->src.pBlock);
             source->src.pBlock = NULL;
           }
+
           taosMemoryFree(source);
           return code;
         }
@@ -696,13 +699,17 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
         int64_t el = taosGetTimestampUs() - p;
         pHandle->sortElapsed += el;
 
-        doAddToBuf(pHandle->pDataBlock, pHandle);
+        code = doAddToBuf(pHandle->pDataBlock, pHandle);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
     }
 
     if (source->param && !source->onlyRef) {
       taosMemoryFree(source->param);
     }
+
     taosMemoryFree(source);
 
     if (pHandle->pDataBlock != NULL && pHandle->pDataBlock->info.rows > 0) {
@@ -711,7 +718,7 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
       // Perform the in-memory sort and then flush data in the buffer into disk.
       int64_t p = taosGetTimestampUs();
 
-      int32_t code = blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
+      code = blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
       if (code != 0) {
         return code;
       }
@@ -729,12 +736,12 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
         pHandle->tupleHandle.pBlock = pHandle->pDataBlock;
         return 0;
       } else {
-        doAddToBuf(pHandle->pDataBlock, pHandle);
+        code = doAddToBuf(pHandle->pDataBlock, pHandle);
       }
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t tsortOpen(SSortHandle* pHandle) {

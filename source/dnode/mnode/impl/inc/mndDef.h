@@ -328,6 +328,7 @@ typedef struct {
   SDbCfg   cfg;
   SRWLatch lock;
   int64_t  stateTs;
+  int64_t  compactStartTime;
 } SDbObj;
 
 typedef struct {
@@ -649,6 +650,7 @@ typedef struct {
   int64_t checkpointFreq;  // ms
   int64_t currentTick;     // do not serialize
   int64_t deleteMark;
+  int8_t  igCheckUpdate;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);

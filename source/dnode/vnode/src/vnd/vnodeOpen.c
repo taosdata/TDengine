@@ -49,7 +49,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   info.state.commitID = 0;
 
   vInfo("vgId:%d, save config while create", pCfg->vgId);
-  if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir, &info) < 0) {
+  if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir) < 0) {
     vError("vgId:%d, failed to save vnode config since %s", pCfg ? pCfg->vgId : 0, tstrerror(terrno));
     return -1;
   }
@@ -58,7 +58,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   return 0;
 }
 
-int32_t vnodeAlter(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs) {
+int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs) {
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    ret = 0;
@@ -97,13 +97,124 @@ int32_t vnodeAlter(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs) {
     return -1;
   }
 
-  ret = vnodeCommitInfo(dir, &info);
+  ret = vnodeCommitInfo(dir);
   if (ret < 0) {
     vError("vgId:%d, failed to commit vnode config since %s", pReq->vgId, tstrerror(terrno));
     return -1;
   }
 
   vInfo("vgId:%d, vnode config is saved", info.config.vgId);
+  return 0;
+}
+
+int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId, STfs *pTfs) {
+  int32_t ret = tfsRename(pTfs, srcPath, dstPath);
+  if (ret != 0) return ret;
+
+  char oldRname[TSDB_FILENAME_LEN] = {0};
+  char newRname[TSDB_FILENAME_LEN] = {0};
+  char tsdbPath[TSDB_FILENAME_LEN] = {0};
+  char tsdbFilePrefix[TSDB_FILENAME_LEN] = {0};
+  snprintf(tsdbPath, TSDB_FILENAME_LEN, "%s%stsdb", dstPath, TD_DIRSEP);
+  snprintf(tsdbFilePrefix, TSDB_FILENAME_LEN, "tsdb%sv", TD_DIRSEP);
+
+  STfsDir *tsdbDir = tfsOpendir(pTfs, tsdbPath);
+  if (tsdbDir == NULL) return 0;
+
+  while (1) {
+    const STfsFile *tsdbFile = tfsReaddir(tsdbDir);
+    if (tsdbFile == NULL) break;
+    if (tsdbFile->rname == NULL) continue;
+    tstrncpy(oldRname, tsdbFile->rname, TSDB_FILENAME_LEN);
+
+    char *tsdbFilePrefixPos = strstr(oldRname, tsdbFilePrefix);
+    if (tsdbFilePrefixPos == NULL) continue;
+
+    int32_t tsdbFileVgId = atoi(tsdbFilePrefixPos + 6);
+    if (tsdbFileVgId == srcVgId) {
+      char *tsdbFileSurfixPos = strstr(tsdbFilePrefixPos, "f");
+      if (tsdbFileSurfixPos == NULL) continue;
+
+      tsdbFilePrefixPos[6] = 0;
+      snprintf(newRname, TSDB_FILENAME_LEN, "%s%d%s", oldRname, dstVgId, tsdbFileSurfixPos);
+      vInfo("vgId:%d, rename file from %s to %s", dstVgId, tsdbFile->rname, newRname);
+
+      ret = tfsRename(pTfs, tsdbFile->rname, newRname);
+      if (ret != 0) {
+        vInfo("vgId:%d, failed to rename file from %s to %s since %s", dstVgId, tsdbFile->rname, newRname, terrstr());
+        tfsClosedir(tsdbDir);
+        return ret;
+      }
+    }
+  }
+
+  tfsClosedir(tsdbDir);
+  return 0;
+}
+
+int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnodeHashRangeReq *pReq, STfs *pTfs) {
+  SVnodeInfo info = {0};
+  char       dir[TSDB_FILENAME_LEN] = {0};
+  int32_t    ret = 0;
+
+  if (pTfs) {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, srcPath);
+  } else {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s", srcPath);
+  }
+
+  // todo add stat file to handle exception while vnode open
+
+  ret = vnodeLoadInfo(dir, &info);
+  if (ret < 0) {
+    vError("vgId:%d, failed to read vnode config from %s since %s", pReq->srcVgId, srcPath, tstrerror(terrno));
+    return -1;
+  }
+
+  vInfo("vgId:%d, alter hashrange from [%u, %u] to [%u, %u]", pReq->srcVgId, info.config.hashBegin, info.config.hashEnd,
+        pReq->hashBegin, pReq->hashEnd);
+  info.config.vgId = pReq->dstVgId;
+  info.config.hashBegin = pReq->hashBegin;
+  info.config.hashEnd = pReq->hashEnd;
+  info.config.walCfg.vgId = pReq->dstVgId;
+
+  SSyncCfg *pCfg = &info.config.syncCfg;
+  pCfg->myIndex = 0;
+  pCfg->replicaNum = 1;
+  memset(&pCfg->nodeInfo, 0, sizeof(pCfg->nodeInfo));
+
+  vInfo("vgId:%d, alter vnode replicas to 1", pReq->srcVgId);
+  SNodeInfo *pNode = &pCfg->nodeInfo[0];
+  pNode->nodePort = tsServerPort;
+  tstrncpy(pNode->nodeFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  (void)tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+  vInfo("vgId:%d, ep:%s:%u dnode:%d", pReq->srcVgId, pNode->nodeFqdn, pNode->nodePort, pNode->nodeId);
+
+  info.config.syncCfg = *pCfg;
+
+  ret = vnodeSaveInfo(dir, &info);
+  if (ret < 0) {
+    vError("vgId:%d, failed to save vnode config since %s", pReq->dstVgId, tstrerror(terrno));
+    return -1;
+  }
+
+  ret = vnodeCommitInfo(dir);
+  if (ret < 0) {
+    vError("vgId:%d, failed to commit vnode config since %s", pReq->dstVgId, tstrerror(terrno));
+    return -1;
+  }
+
+  vInfo("vgId:%d, rename %s to %s", pReq->dstVgId, srcPath, dstPath);
+  ret = vnodeRenameVgroupId(srcPath, dstPath, pReq->srcVgId, pReq->dstVgId, pTfs);
+  if (ret < 0) {
+    vError("vgId:%d, failed to rename vnode from %s to %s since %s", pReq->dstVgId, srcPath, dstPath,
+           tstrerror(terrno));
+    return -1;
+  }
+
+  // todo vnode compact here
+
+  vInfo("vgId:%d, vnode hashrange is altered", info.config.vgId);
   return 0;
 }
 
@@ -146,7 +257,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   if (updated) {
     vInfo("vgId:%d, save vnode info since dnode info changed", info.config.vgId);
     (void)vnodeSaveInfo(dir, &info);
-    (void)vnodeCommitInfo(dir, &info);
+    (void)vnodeCommitInfo(dir);
   }
 
   // create handle

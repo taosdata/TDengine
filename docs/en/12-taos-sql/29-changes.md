@@ -1,7 +1,7 @@
 ---
-sidebar_label: Changes in TDengine 3.0
 title: Changes in TDengine 3.0
-description: "This document explains how TDengine SQL has changed in version 3.0."
+sidebar_label: Changes in TDengine 3.0
+description: This document describes how TDengine SQL has changed in version 3.0 compared with previous versions.
 ---
 
 ## Basic SQL Elements

@@ -15,8 +15,8 @@
 
 #define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
-#include "os.h"
 #include <stdlib.h>
+#include "talgo.h"
 
 #ifdef WINDOWS
 void swapStr(char* j, char* J, int width) {
@@ -41,7 +41,7 @@ int32_t qsortHelper(const void* p1, const void* p2, const void* param) {
 void taosSort(void* base, int64_t sz, int64_t width, __compar_fn_t compar) {
 #ifdef _ALPINE
   void* param = compar;
-  taosqsort(base, width, sz, param, qsortHelper);
+  taosqsort(base, sz, width, param, qsortHelper);
 #else
   qsort(base, sz, width, compar);
 #endif
