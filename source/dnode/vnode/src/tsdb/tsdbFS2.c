@@ -444,17 +444,111 @@ _exit:
   }
   return code;
 }
+#if 0
+static int32_t tsdbRemoveHeadSttF(STsdb *pTsdb, SDFileSet *pSet, bool unRef) {
+  int32_t code = 0;
+  int32_t nRef = 0;
+  char    fname[TSDB_FILENAME_LEN] = {0};
+
+  ASSERT(pSet->nSttF > 0);
+
+  SSttFile *pSttF = pSet->aSttF[0];
+  int64_t   commitId = pSttF->commitID;
+  int32_t   n = 0;
+
+  for (n = 0; n < pSet->nSttF; ++n) {
+    pSttF = pSet->aSttF[n];
+    ASSERT(pSttF);
+    if (pSttF->commitID != commitId) {
+      break;
+    }
+    if (unRef) {
+      nRef = atomic_sub_fetch_32(&pSttF->nRef, 1);
+      if (nRef == 0) {
+        tsdbSttFileName(pTsdb, pSttF->diskId, pSet->fid, pSttF, fname);
+        (void)taosRemoveFile(fname);
+      }
+    }
+
+    taosMemoryFree(pSttF);
+  }
+  memmove(&pSet->aSttF, &pSet->aSttF[n], POINTER_BYTES * n);
+  int32_t j = n;
+  while (j++ < pSet->nSttF) {
+    pSet->aSttF[j] = NULL;
+  }
+  pSet->nSttF -= n;
+
+  return code;
+}
+#endif
+static int32_t tsdbRemoveHeadSttF(STsdb *pTsdb, SDFileSet *pSet, bool unRef, int32_t *index) {
+  int32_t code = 0;
+  int32_t nRef = 0;
+  char    fname[TSDB_FILENAME_LEN] = {0};
+
+  ASSERT(pSet->nSttF > 0);
+
+  SSttFile *pSttF = pSet->aSttF[0];
+  int64_t   commitId = pSttF->commitID;
+  int32_t   n = 0;
+
+  for (n = 0; n < pSet->nSttF; ++n) {
+    pSttF = pSet->aSttF[n];
+    ASSERT(pSttF);
+    if (pSttF->commitID != commitId) {
+      break;
+    }
+    if (unRef) {
+      nRef = atomic_sub_fetch_32(&pSttF->nRef, 1);
+      if (nRef == 0) {
+        tsdbSttFileName(pTsdb, pSttF->diskId, pSet->fid, pSttF, fname);
+        (void)taosRemoveFile(fname);
+      }
+    }
+
+    taosMemoryFree(pSttF);
+  }
+  if (index) *index = n;
+
+  return code;
+}
 
 static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSetNew) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t nRef = 0;
-  bool    sameDisk = ((pSetOld->diskId.level == pSetNew->diskId.level) && (pSetOld->diskId.id == pSetNew->diskId.id));
   char    fname[TSDB_FILENAME_LEN] = {0};
 
   // head
   SHeadFile *pHeadF = pSetOld->pHeadF;
-  if ((!sameDisk) || (pHeadF->commitID != pSetNew->pHeadF->commitID)) {
+  if (pHeadF->commitID == pSetNew->pHeadF->commitID) {
+    if (pSetNew->action == TD_ACT_ADD) {  // from migrate
+      pSetOld->pHeadF = (SHeadFile *)taosMemoryMalloc(sizeof(SHeadFile));
+      if (pSetOld->pHeadF == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      *pSetOld->pHeadF = *pSetNew->pHeadF;
+      pSetOld->pHeadF->nRef = 1;
+
+      nRef = atomic_sub_fetch_32(&pHeadF->nRef, 1);
+      if (nRef == 0) {
+        tsdbHeadFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pHeadF, fname);
+        (void)taosRemoveFile(fname);
+        taosMemoryFree(pHeadF);
+      }
+    } else if (pSetNew->action == TD_ACT_NO) {
+      ASSERTS(pHeadF->offset == pSetNew->pHeadF->offset,
+              "headf: fid %d commitID %" PRIi64 " offset %" PRIi64 " != %" PRIi64, pSetNew->fid, pHeadF->commitID,
+              pHeadF->offset, pSetNew->pHeadF->offset);
+      ASSERTS(pHeadF->size == pSetNew->pHeadF->size, "headf: fid %d commitID %" PRIi64 " size %" PRIi64 " != %" PRIi64,
+              pSetNew->fid, pHeadF->commitID, pHeadF->size, pSetNew->pHeadF->size);
+    } else {
+      ASSERTS(0, "headf: fid %d commitID %" PRIi64 " invalid action %" PRIi8, pSetNew->fid, pHeadF->commitID,
+              pSetNew->action);
+    }
+  } else if (pHeadF->commitID < pSetNew->pHeadF->commitID) {  // from compact/merge
     pSetOld->pHeadF = (SHeadFile *)taosMemoryMalloc(sizeof(SHeadFile));
     if (pSetOld->pHeadF == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -470,13 +564,36 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
       taosMemoryFree(pHeadF);
     }
   } else {
-    ASSERT(pHeadF->offset == pSetNew->pHeadF->offset);
-    ASSERT(pHeadF->size == pSetNew->pHeadF->size);
+    ASSERTS(pSetNew->action == TD_ACT_NO, "headf: fid %d commitID %" PRIi64 " invalid action %" PRIi8, pSetNew->fid,
+            pHeadF->commitID, pSetNew->action);
   }
 
   // data
   SDataFile *pDataF = pSetOld->pDataF;
-  if ((!sameDisk) || (pDataF->commitID != pSetNew->pDataF->commitID)) {
+  if (pDataF->commitID == pSetNew->pDataF->commitID) {
+    if (pSetNew->action == TD_ACT_ADD) {  // from migrate
+      pSetOld->pDataF = (SDataFile *)taosMemoryMalloc(sizeof(SDataFile));
+      if (pSetOld->pDataF == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      *pSetOld->pDataF = *pSetNew->pDataF;
+      pSetOld->pDataF->nRef = 1;
+
+      nRef = atomic_sub_fetch_32(&pDataF->nRef, 1);
+      if (nRef == 0) {
+        tsdbDataFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pDataF, fname);
+        (void)taosRemoveFile(fname);
+        taosMemoryFree(pDataF);
+      }
+    } else if (pSetNew->action == TD_ACT_NO) {
+      ASSERTS(pDataF->size == pSetNew->pDataF->size, "dataf: fid %d commitID %" PRIi64 " size %" PRIi64 " != %" PRIi64,
+              pSetNew->fid, pDataF->commitID, pDataF->size, pSetNew->pDataF->size);
+    } else {
+      ASSERTS(0, "dataf: fid %d commitID %" PRIi64 " invalid action %" PRIi8, pSetNew->fid, pDataF->commitID,
+              pSetNew->action);
+    }
+  } else if (pDataF->commitID < pSetNew->pDataF->commitID) {
     pSetOld->pDataF = (SDataFile *)taosMemoryMalloc(sizeof(SDataFile));
     if (pSetOld->pDataF == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -492,12 +609,36 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
       taosMemoryFree(pDataF);
     }
   } else {
-    pDataF->size = pSetNew->pDataF->size;
+    ASSERTS(pSetNew->action == TD_ACT_NO, "dataf: fid %d commitID %" PRIi64 " invalid action %" PRIi8, pSetNew->fid,
+            pDataF->commitID, pSetNew->action);
   }
 
   // sma
   SSmaFile *pSmaF = pSetOld->pSmaF;
-  if ((!sameDisk) || (pSmaF->commitID != pSetNew->pSmaF->commitID)) {
+  if (pSmaF->commitID == pSetNew->pSmaF->commitID) {
+    if (pSetNew->action == TD_ACT_ADD) {  // from migrate
+      pSetOld->pSmaF = (SSmaFile *)taosMemoryMalloc(sizeof(SSmaFile));
+      if (pSetOld->pSmaF == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      *pSetOld->pSmaF = *pSetNew->pSmaF;
+      pSetOld->pSmaF->nRef = 1;
+
+      nRef = atomic_sub_fetch_32(&pSmaF->nRef, 1);
+      if (nRef == 0) {
+        tsdbSmaFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pSmaF, fname);
+        (void)taosRemoveFile(fname);
+        taosMemoryFree(pSmaF);
+      }
+    } else if (pSetNew->action == TD_ACT_NO) {
+      ASSERTS(pSmaF->size == pSetNew->pSmaF->size, "smaf: fid %d commitID %" PRIi64 " size %" PRIi64 " != %" PRIi64,
+              pSetNew->fid, pSmaF->commitID, pSmaF->size, pSetNew->pSmaF->size);
+    } else {
+      ASSERTS(0, "smaf: fid %d commitID %" PRIi64 " invalid action %" PRIi8, pSetNew->fid, pSmaF->commitID,
+              pSetNew->action);
+    }
+  } else if (pSmaF->commitID < pSetNew->pSmaF->commitID) {
     pSetOld->pSmaF = (SSmaFile *)taosMemoryMalloc(sizeof(SSmaFile));
     if (pSetOld->pSmaF == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -513,10 +654,12 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
       taosMemoryFree(pSmaF);
     }
   } else {
-    pSmaF->size = pSetNew->pSmaF->size;
+    ASSERTS(pSetNew->action == TD_ACT_NO, "smaf: fid %d commitID %" PRIi64 " invalid action %" PRIi8, pSetNew->fid,
+            pSmaF->commitID, pSetNew->action);
   }
 
   // stt
+#if 0
   if (sameDisk) {
     if (pSetNew->nSttF > pSetOld->nSttF) {
       ASSERT(pSetNew->nSttF == pSetOld->nSttF + 1);
@@ -598,10 +741,99 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
       pSetOld->nSttF++;
     }
   }
+#endif
+  ASSERT(pSetNew->nSttF > 0 && pSetNew->nSttF <= TSDB_MAX_STT_TRIGGER);
+  ASSERT(pSetOld->nSttF > 0 && pSetOld->nSttF <= TSDB_MAX_STT_TRIGGER);
+  int8_t newSttAct = pSetNew->aSttF[pSetNew->nSttF - 1]->action;
+  int8_t oldSttAct = pSetOld->aSttF[pSetOld->nSttF - 1]->action;
+  ASSERT(newSttAct >= TD_ACT_NO && newSttAct < TD_ACT_MAX);
+  ASSERT(oldSttAct >= TD_ACT_NO && oldSttAct < TD_ACT_MAX);
 
-  if (!sameDisk) {
-    pSetOld->diskId = pSetNew->diskId;
+  SSttFile *aSttMerge[TSDB_MAX_STT_TRIGGER] = {0};
+
+  SSttFile *pSttFOld = pSetOld->aSttF[0];
+  SSttFile *pSttFNew = pSetNew->aSttF[0];
+
+  int32_t iOld = 0;
+  int32_t iNew = 0;
+  int32_t iMerge = 0;
+
+  if (pSttFOld->commitID < pSttFNew->commitID) {
+    // migrate/commit, then compact/merge, remove the 1st group with the same commitID in pSttFOld
+    // compact/merge, then compact, remove the 1st  group with the same commitID in pSttFOld
+    ASSERT(pSetNew->action == TD_ACT_ADD);
+    tsdbRemoveHeadSttF(pTsdb, pSetOld, true, &iOld);
+  } else if (pSttFOld->commitID > pSttFNew->commitID) {
+    // compact/merge, then commit, remove the 1st group with the same commitId in pSttFNew
+    // compact/merge,
+    ASSERT(pSetNew->action == TD_ACT_NO);
+    tsdbRemoveHeadSttF(pTsdb, pSetNew, false, &iNew);
   }
+
+  while (true) {
+    int32_t nOld = pSetOld->nSttF;
+    int32_t nNew = pSetNew->nSttF;
+
+    if (iOld >= nOld && iNew >= nNew) break;
+
+    SSttFile *pSttFOld = (iOld < nOld) ? pSetOld->aSttF[iOld] : NULL;
+    SSttFile *pSttFNew = (iNew < nNew) ? pSetNew->aSttF[iNew] : NULL;
+
+    if (pSttFOld && pSttFNew && pSttFOld->commitID == pSttFNew->commitID) {
+      if (pSttFNew->action == TD_ACT_ADD) {  // migrate
+        nRef = atomic_sub_fetch_32(&pSttFOld->nRef, 1);
+        if (nRef == 0) {
+          tsdbSttFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pSttFOld, fname);
+          (void)taosRemoveFile(fname);
+        }
+        taosMemoryFree(pSttFOld);
+        ++iOld;
+        ++iNew;
+        // save to merge
+        aSttMerge[iMerge++] = pSttFNew;
+        aSttMerge[iMerge]->nRef = 1;
+        aSttMerge[iMerge]->action = TD_ACT_NO;
+      } else if (pSttFNew->action == TD_ACT_NO) {  // commit
+        // keep old, free new
+        taosMemoryFree(pSttFNew);
+        // save to merge
+        aSttMerge[iMerge++] = pSttFOld;
+        aSttMerge[iMerge]->action = TD_ACT_NO;
+      } else {
+        ASSERT(0);
+      }
+      continue;
+    }
+
+    if (pSttFOld && pSttFNew) {
+      if (pSttFOld->commitID < pSttFNew->commitID) {
+        aSttMerge[iMerge++] = pSttFOld;
+        aSttMerge[iMerge]->action = TD_ACT_NO;
+        ++iOld;
+      } else if (pSttFOld->commitID > pSttFNew->commitID) {
+        aSttMerge[iMerge++] = pSttFNew;
+        aSttMerge[iMerge]->nRef = 1;
+        aSttMerge[iMerge]->action = TD_ACT_NO;
+        ++iNew;
+      } else {
+        ASSERT(0);
+      }
+    } else if (pSttFOld) {
+      aSttMerge[iMerge++] = pSttFOld;
+      aSttMerge[iMerge]->action = TD_ACT_NO;
+      ++iOld;
+    } else if (pSttFNew) {
+      aSttMerge[iMerge++] = pSttFNew;
+      aSttMerge[iMerge]->nRef = 1;
+      aSttMerge[iMerge]->action = TD_ACT_NO;
+      ++iNew;
+    }
+  }
+
+  // assign the value
+  pSetOld->nSttF = iMerge;
+  ASSERT(iMerge > 0 && iMerge <= TSDB_MAX_STT_TRIGGER);
+  memcpy(pSetOld->aSttF, aSttMerge, POINTER_BYTES * TSDB_MAX_STT_TRIGGER);
 
 _exit:
   if (code) {
@@ -677,7 +909,7 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
         code = tsdbRemoveFileSet(pTsdb, pSetOld);
         TSDB_CHECK_CODE(code, lino, _exit);
         taosArrayRemove(pTsdb->fs.aDFileSet, iOld);
-      } else {
+      } else if (pSetNew->action == TD_ACT_ADD) {
         code = tsdbNewFileSet(pTsdb, &fSet, pSetNew);
         TSDB_CHECK_CODE(code, lino, _exit)
 
@@ -688,12 +920,18 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
 
         iOld++;
         iNew++;
+      } else if (pSetNew->action == TD_ACT_NO) {
+        // skip the pSetNew since already removed
+        iNew++;
+      } else {
+        ASSERTS(0, "%d:%d invalid pSetNew action %" PRIi8, pSetOld->fid, pSetNew->fid, pSetNew->action);
+        iNew++;
       }
     } else if (pSetOld) {
       code = tsdbRemoveFileSet(pTsdb, pSetOld);
       TSDB_CHECK_CODE(code, lino, _exit);
       taosArrayRemove(pTsdb->fs.aDFileSet, iOld);
-    } else {
+    } else if (pSetNew->action == TD_ACT_ADD) {
       code = tsdbNewFileSet(pTsdb, &fSet, pSetNew);
       TSDB_CHECK_CODE(code, lino, _exit)
 
@@ -703,6 +941,12 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
       }
 
       iOld++;
+      iNew++;
+    } else if (pSetNew->action == TD_ACT_NO) {
+      // skip the pSetNew since already removed
+      iNew++;
+    } else {
+      ASSERTS(0, "%d:%d invalid pSetNew action %" PRIi8, INT32_MIN, pSetNew->fid, pSetNew->action);
       iNew++;
     }
   }
@@ -783,7 +1027,7 @@ int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback) {
   if (taosCheckExistFile(current)) {
     code = tsdbLoadFSFromFile(current, &pTsdb->fs);
     TSDB_CHECK_CODE(code, lino, _exit);
-    
+
     if (taosCheckExistFile(current_t)) {
       code = tsdbFSCommit(pTsdb, VND_TASK_MAX);
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -858,6 +1102,9 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
   int32_t lino = 0;
   uint8_t nMaxSttF = 0;
 
+  // lock
+  taosThreadRwlockRdlock(&pTsdb->rwLock);
+
   pFS->pDelFile = NULL;
   if (pFS->aDFileSet) {
     taosArrayClear(pFS->aDFileSet);
@@ -881,7 +1128,7 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
 
   for (int32_t iSet = 0; iSet < taosArrayGetSize(pTsdb->fs.aDFileSet); iSet++) {
     SDFileSet *pSet = (SDFileSet *)taosArrayGet(pTsdb->fs.aDFileSet, iSet);
-    SDFileSet  fSet = {.diskId = pSet->diskId, .fid = pSet->fid};
+    SDFileSet  fSet = {.diskId = pSet->diskId, .fid = pSet->fid, .action = pSet->action};
 
     // head
     fSet.pHeadF = (SHeadFile *)taosMemoryMalloc(sizeof(SHeadFile));
@@ -925,6 +1172,7 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
   }
 
 _exit:
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
   pFS->nMaxSttF = nMaxSttF;
   if (code) {
     tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
@@ -980,7 +1228,7 @@ int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet) {
         *pDFileSet->aSttF[pDFileSet->nSttF] = *pSet->aSttF[pSet->nSttF - 1];
         pDFileSet->nSttF++;
       } else if (pSet->nSttF < pDFileSet->nSttF) {
-        ASSERT(pSet->nSttF == 1);
+        // ASSERT(pSet->nSttF == 1);
         for (int32_t iStt = 1; iStt < pDFileSet->nSttF; iStt++) {
           taosMemoryFree(pDFileSet->aSttF[iStt]);
         }

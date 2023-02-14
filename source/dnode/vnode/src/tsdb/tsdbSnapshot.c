@@ -1443,7 +1443,7 @@ int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  code = tsdbFSPrepareCommit(pWriter->pTsdb, &pWriter->fs);
+  code = tsdbFSPrepareCommit(pWriter->pTsdb, &pWriter->fs, VND_TASK_COMMIT);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

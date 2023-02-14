@@ -1076,7 +1076,7 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
     code = eno;
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    code = tsdbFSPrepareCommit(pCommitter->pTsdb, &pCommitter->fs);
+    code = tsdbFSPrepareCommit(pCommitter->pTsdb, &pCommitter->fs, VND_TASK_COMMIT);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

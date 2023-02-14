@@ -25,7 +25,7 @@ int32_t tPutHeadFile(uint8_t *p, SHeadFile *pHeadFile) {
   return n;
 }
 
-static int32_t tGetHeadFile(uint8_t *p, SHeadFile *pHeadFile) {
+static int32_t tGetHeadFile(uint8_t *p, SHeadFile *pHeadFile, int8_t ver) {
   int32_t n = 0;
 
   n += tGetI64v(p + n, &pHeadFile->commitID);
@@ -44,8 +44,9 @@ int32_t tPutDataFile(uint8_t *p, SDataFile *pDataFile) {
   return n;
 }
 
-static int32_t tGetDataFile(uint8_t *p, SDataFile *pDataFile) {
+static int32_t tGetDataFile(uint8_t *p, SDataFile *pDataFile, int8_t ver) {
   int32_t n = 0;
+
 
   n += tGetI64v(p + n, &pDataFile->commitID);
   n += tGetI64v(p + n, &pDataFile->size);
@@ -56,6 +57,7 @@ static int32_t tGetDataFile(uint8_t *p, SDataFile *pDataFile) {
 int32_t tPutSttFile(uint8_t *p, SSttFile *pSttFile) {
   int32_t n = 0;
 
+  n += tPutI8(p ? p + n : p, pSttFile->action);
   n += tPutI32v(p ? p + n : p, pSttFile->diskId.level);
   n += tPutI32v(p ? p + n : p, pSttFile->diskId.id);
   n += tPutI64v(p ? p + n : p, pSttFile->commitID);
@@ -69,9 +71,11 @@ static int32_t tGetSttFile(uint8_t *p, SSttFile *pSttFile, SDiskID *did, int8_t 
   int32_t n = 0;
 
   if (ver == 1) {
+    n += tGetI8(p + n, &pSttFile->action);
     n += tGetI32v(p + n, &pSttFile->diskId.level);
     n += tGetI32v(p + n, &pSttFile->diskId.id);
-  } else if (ver == 0) {
+  } else {
+    pSttFile->action = TD_ACT_NO;
     pSttFile->diskId.level = did->level;
     pSttFile->diskId.id = did->id;
   }
@@ -92,7 +96,7 @@ int32_t tPutSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
   return n;
 }
 
-static int32_t tGetSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
+static int32_t tGetSmaFile(uint8_t *p, SSmaFile *pSmaFile, int8_t ver) {
   int32_t n = 0;
 
   n += tGetI64v(p + n, &pSmaFile->commitID);
@@ -198,6 +202,7 @@ int32_t tPutDFileSet(uint8_t *p, SDFileSet *pSet) {
   n += tPutI32v(p ? p + n : p, pSet->diskId.level);
   n += tPutI32v(p ? p + n : p, pSet->diskId.id);
   n += tPutI32v(p ? p + n : p, pSet->fid);
+  n += tPutI8(p ? p + n : p, pSet->action);
 
   // data
   n += tPutHeadFile(p ? p + n : p, pSet->pHeadF);
@@ -219,6 +224,11 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet, int8_t ver) {
   n += tGetI32v(p + n, &pSet->diskId.level);
   n += tGetI32v(p + n, &pSet->diskId.id);
   n += tGetI32v(p + n, &pSet->fid);
+  if(ver == 1) {
+    n += tGetI8(p + n, &pSet->action);
+  } else {
+    pSet->action = TD_ACT_NO;
+  }
 
   // head
   pSet->pHeadF = (SHeadFile *)taosMemoryCalloc(1, sizeof(SHeadFile));
@@ -226,7 +236,7 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet, int8_t ver) {
     return -1;
   }
   pSet->pHeadF->nRef = 1;
-  n += tGetHeadFile(p + n, pSet->pHeadF);
+  n += tGetHeadFile(p + n, pSet->pHeadF, ver);
 
   // data
   pSet->pDataF = (SDataFile *)taosMemoryCalloc(1, sizeof(SDataFile));
@@ -234,7 +244,7 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet, int8_t ver) {
     return -1;
   }
   pSet->pDataF->nRef = 1;
-  n += tGetDataFile(p + n, pSet->pDataF);
+  n += tGetDataFile(p + n, pSet->pDataF, ver);
 
   // sma
   pSet->pSmaF = (SSmaFile *)taosMemoryCalloc(1, sizeof(SSmaFile));
@@ -242,7 +252,7 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet, int8_t ver) {
     return -1;
   }
   pSet->pSmaF->nRef = 1;
-  n += tGetSmaFile(p + n, pSet->pSmaF);
+  n += tGetSmaFile(p + n, pSet->pSmaF, ver);
 
   // stt
   n += tGetU8(p + n, &pSet->nSttF);

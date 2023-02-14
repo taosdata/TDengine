@@ -63,12 +63,12 @@ static int32_t tsdbCommitCompact(STsdbCompactor *pCompactor) {
 
   STsdb *pTsdb = pCompactor->pTsdb;
 
-  code = tsdbFSPrepareCommit(pTsdb, &pCompactor->fs);
+  code = tsdbFSPrepareCommit(pTsdb, &pCompactor->fs, VND_TASK_COMPACT);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   taosThreadRwlockWrlock(&pTsdb->rwLock);
 
-  code = tsdbFSCommit(pTsdb, pCompactor->fs.type);
+  code = tsdbFSCommit(pTsdb, VND_TASK_COMPACT);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -428,15 +428,16 @@ static int32_t tsdbCompactFileSetStart(STsdbCompactor *pCompactor, SDFileSet *pS
   pCompactor->pIter = NULL;
 
   /* writer */
-  code = tsdbDataFWriterOpen(&pCompactor->pWriter, pCompactor->pTsdb,
-                             &(SDFileSet){.fid = pCompactor->fid,
-                                          .diskId = pSet->diskId,
-                                          .pHeadF = &(SHeadFile){.commitID = pCompactor->commitID},
-                                          .pDataF = &(SDataFile){.commitID = pCompactor->commitID},
-                                          .pSmaF = &(SSmaFile){.commitID = pCompactor->commitID},
-                                          .nSttF = 1,
-                                          .aSttF = {&(SSttFile){.commitID = pCompactor->commitID}}},
-                             false);
+  code = tsdbDataFWriterOpen(
+      &pCompactor->pWriter, pCompactor->pTsdb,
+      &(SDFileSet){.fid = pCompactor->fid,
+                   .diskId = pSet->diskId,
+                   .pHeadF = &(SHeadFile){.commitID = pCompactor->commitID},
+                   .pDataF = &(SDataFile){.commitID = pCompactor->commitID},
+                   .pSmaF = &(SSmaFile){.commitID = pCompactor->commitID},
+                   .nSttF = 1,
+                   .aSttF = {&(SSttFile){.diskId = pSet->diskId, .commitID = pCompactor->commitID}}},
+      false);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (pCompactor->aBlockIdx) {

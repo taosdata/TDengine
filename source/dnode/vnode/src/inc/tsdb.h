@@ -47,13 +47,16 @@ typedef struct SSttBlk          SSttBlk;
 typedef struct SDiskDataHdr     SDiskDataHdr;
 typedef struct SBlockData       SBlockData;
 typedef struct SDelFile         SDelFile;
+typedef struct SHeadFileV0      SHeadFileV0;
+typedef struct SDataFileV0      SDataFileV0;
+typedef struct SSttFileV0       SSttFileV0;
+typedef struct SSmaFileV0       SSmaFileV0;
+typedef struct SDFileSetV0      SDFileSetV0;
 typedef struct SHeadFile        SHeadFile;
 typedef struct SDataFile        SDataFile;
 typedef struct SSttFile         SSttFile;
 typedef struct SSmaFile         SSmaFile;
 typedef struct SDFileSet        SDFileSet;
-typedef struct SSttFileV0       SSttFileV0;
-typedef struct SDFileSetV0      SDFileSetV0;
 typedef struct SDataFWriter     SDataFWriter;
 typedef struct SDataFReader     SDataFReader;
 typedef struct SDelFWriter      SDelFWriter;
@@ -256,7 +259,7 @@ void    tsdbFSDestroy(STsdbFS *pFS);
 int32_t tDFileSetCmprFn(const void *p1, const void *p2);
 int32_t tsdbFSCommit(STsdb *pTsdb, int8_t type);
 int32_t tsdbFSRollback(STsdb *pTsdb, int8_t type);
-int32_t tsdbFSPrepareCommit(STsdb *pTsdb, STsdbFS *pFS);
+int32_t tsdbFSPrepareCommit(STsdb *pTsdb, STsdbFS *pFS, int8_t type);
 int32_t tsdbFSRef(STsdb *pTsdb, STsdbFS *pFS);
 void    tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS);
 
@@ -338,8 +341,7 @@ int32_t tsdbDataIterNext2(STsdbDataIter2 *pIter, STsdbFilterInfo *pFilterInfo);
 
 // structs =======================
 struct STsdbFS {
-  int8_t    type;
-  int8_t    nMaxSttF;  // memory variable
+  uint8_t   nMaxSttF;  // memory variable
   SDelFile *pDelFile;
   SArray   *aDFileSet;  // SArray<SDFileSet>
 };
@@ -565,12 +567,29 @@ struct SDelFile {
   int64_t offset;
 };
 
+enum { TD_ACT_NO, TD_ACT_ADD, TD_ACT_MAX };
+
+struct SHeadFileV0 {
+  volatile int32_t nRef;
+
+  int64_t commitID;
+  int64_t size;
+  int64_t offset;
+};
+
 struct SHeadFile {
   volatile int32_t nRef;
 
   int64_t commitID;
   int64_t size;
   int64_t offset;
+};
+
+struct SDataFileV0 {
+  volatile int32_t nRef;
+
+  int64_t commitID;
+  int64_t size;
 };
 
 struct SDataFile {
@@ -591,10 +610,18 @@ struct SSttFileV0 {
 struct SSttFile {
   volatile int32_t nRef;
 
+  int8_t  action;
   SDiskID diskId;
   int64_t commitID;
   int64_t size;
   int64_t offset;
+};
+
+struct SSmaFileV0 {
+  volatile int32_t nRef;
+
+  int64_t commitID;
+  int64_t size;
 };
 
 struct SSmaFile {
@@ -617,6 +644,7 @@ struct SDFileSetV0 {
 struct SDFileSet {
   SDiskID    diskId;
   int32_t    fid;
+  int8_t     action;
   SHeadFile *pHeadF;
   SDataFile *pDataF;
   SSmaFile  *pSmaF;

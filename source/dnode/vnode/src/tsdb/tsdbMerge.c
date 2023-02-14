@@ -63,12 +63,12 @@ static int32_t tsdbCommitMerge(STsdbMerger *pMerger) {
 
   STsdb *pTsdb = pMerger->pTsdb;
 
-  code = tsdbFSPrepareCommit(pTsdb, &pMerger->fs);
+  code = tsdbFSPrepareCommit(pTsdb, &pMerger->fs, VND_TASK_MERGE);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   taosThreadRwlockWrlock(&pTsdb->rwLock);
 
-  code = tsdbFSCommit(pTsdb, pMerger->fs.type);
+  code = tsdbFSCommit(pTsdb, VND_TASK_MERGE);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -428,15 +428,16 @@ static int32_t tsdbMergeFileSetStart(STsdbMerger *pMerger, SDFileSet *pSet) {
   pMerger->pIter = NULL;
 
   /* writer */
-  code = tsdbDataFWriterOpen(&pMerger->pWriter, pMerger->pTsdb,
-                             &(SDFileSet){.fid = pMerger->fid,
-                                          .diskId = pSet->diskId,
-                                          .pHeadF = &(SHeadFile){.commitID = pMerger->commitID},
-                                          .pDataF = &(SDataFile){.commitID = pMerger->commitID},
-                                          .pSmaF = &(SSmaFile){.commitID = pMerger->commitID},
-                                          .nSttF = 1,
-                                          .aSttF = {&(SSttFile){.commitID = pMerger->commitID}}},
-                             false);
+  code =
+      tsdbDataFWriterOpen(&pMerger->pWriter, pMerger->pTsdb,
+                          &(SDFileSet){.fid = pMerger->fid,
+                                       .diskId = pSet->diskId,
+                                       .pHeadF = &(SHeadFile){.commitID = pMerger->commitID},
+                                       .pDataF = &(SDataFile){.commitID = pMerger->commitID},
+                                       .pSmaF = &(SSmaFile){.commitID = pMerger->commitID},
+                                       .nSttF = 1,
+                                       .aSttF = {&(SSttFile){.diskId = pSet->diskId, .commitID = pMerger->commitID}}},
+                          false);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (pMerger->aBlockIdx) {
@@ -586,7 +587,6 @@ static int32_t tsdbBeginMerge(STsdb *pTsdb, SMergeInfo *pInfo, STsdbMerger *pMer
 
   code = tsdbFSCopy(pTsdb, &pMerger->fs);
   TSDB_CHECK_CODE(code, lino, _exit);
-  pMerger->fs.type = VND_TASK_MERGE;
 
   /* tombstone */
   if (pMerger->fs.pDelFile) {

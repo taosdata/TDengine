@@ -336,9 +336,9 @@ struct SVnodeInfo {
   SVStatis  statis;
 };
 
-enum { COMMIT_ONLY = 0, COMMIT_MIX = 1 };
+enum { COMMIT_ONLY, COMMIT_MIX, COMMIT_MAX };
 
-enum { VND_TASK_COMMIT = 0, VND_TASK_COMPACT = 1, VND_TASK_MERGE = 2, VND_TASK_MIGRATE = 3, VND_TASK_MAX };
+enum { VND_TASK_COMMIT, VND_TASK_COMPACT, VND_TASK_MERGE, VND_TASK_MIGRATE, VND_TASK_MAX };
 
 typedef enum {
   TSDB_TYPE_TSDB = 0,     // TSDB
@@ -362,7 +362,7 @@ typedef struct SVCommitSched {
 } SVCommitSched;
 
 typedef struct {
-  SRWLatch lock;  // e.g. commitMode
+  SRWLatch lock;
   int32_t  nRef;
   bool     inClose;
   int8_t   nCommitTask;   // in running(vnodeCommitImpl), not including the one in stash
@@ -489,7 +489,7 @@ struct SCommitInfo {
   SVnodeInfo info;
   TXN*       txn;
   int8_t     allowCommit;
-  int8_t     nMaxSttF;
+  uint8_t    nMaxSttF;
 };
 
 struct SCompactInfo {
