@@ -810,7 +810,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
     pSchema->type = pField->type;
     pSchema->bytes = pField->bytes;
     if (i == 0) {
-      SSCHMEA_SET_IDX_ON(pSchema)
+      SSCHMEA_SET_IDX_ON(pSchema);
     }
     memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
     pSchema->colId = pDst->nextColId;
