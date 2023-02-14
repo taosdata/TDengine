@@ -106,7 +106,7 @@ The parameters described in this document by the effect that they have on the sy
 | Applicable | Server only                                           |
 | Meaning       | The switch for monitoring inside server. The main object of monitoring is to collect information about load on physical nodes, including CPU usage, memory usage, disk usage, and network bandwidth. Monitoring information is sent over HTTP to the taosKeeper service specified by `monitorFqdn` and `monitorProt`.
 | Value Range   | 0: monitoring disabled, 1: monitoring enabled                                                                                                                                                                |
-| Default   | 1                                                                                                                                                                                                  |
+| Default   | 0                                                                                                                                                                                                  |
 
 ### monitorFqdn
 

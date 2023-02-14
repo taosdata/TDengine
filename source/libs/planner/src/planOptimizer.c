@@ -328,10 +328,6 @@ static void scanPathOptSetScanWin(SScanLogicNode* pScan) {
     pScan->sliding = ((SWindowLogicNode*)pParent)->sliding;
     pScan->intervalUnit = ((SWindowLogicNode*)pParent)->intervalUnit;
     pScan->slidingUnit = ((SWindowLogicNode*)pParent)->slidingUnit;
-    pScan->triggerType = ((SWindowLogicNode*)pParent)->triggerType;
-    pScan->watermark = ((SWindowLogicNode*)pParent)->watermark;
-    pScan->deleteMark = ((SWindowLogicNode*)pParent)->deleteMark;
-    pScan->igExpired = ((SWindowLogicNode*)pParent)->igExpired;
   }
 }
 
