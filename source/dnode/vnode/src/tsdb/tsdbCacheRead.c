@@ -41,6 +41,13 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
         int32_t   slotId = slotIds[i];
         SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
 
+        // add check for null value, caused by the modification of table schema (new column added).
+        if (pColVal == NULL) {
+          p->ts = 0;
+          p->isNull = true;
+          continue;
+        }
+
         p->ts = pColVal->ts;
         p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
         allNullRow = p->isNull & allNullRow;
