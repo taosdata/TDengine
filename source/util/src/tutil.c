@@ -323,8 +323,13 @@ char *strbetween(char *string, char *begin, char *end) {
 int32_t tintToHex(uint64_t val, char hex[]) {
   const char hexstr[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
-  int32_t j = 0;
-  int32_t k = 0;
+  int32_t j = 0, k = 0;
+  if (val == 0)  {
+    hex[j++] = hexstr[0];
+    return j;
+  }
+
+  // ignore the initial 0
   while((val & (((uint64_t)0xfL) << ((15 - k) * 4))) == 0) {
     k += 1;
   }

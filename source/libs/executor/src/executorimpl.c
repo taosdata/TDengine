@@ -1988,14 +1988,12 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
   setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
 
   pTaskInfo->schemaInfo.dbname = strdup(dbFName);
-  pTaskInfo->id.queryId = queryId;
   pTaskInfo->execModel = model;
   pTaskInfo->pTableInfoList = tableListCreate();
   pTaskInfo->stopInfo.pStopInfo = taosArrayInit(4, sizeof(SExchangeOpStopInfo));
   pTaskInfo->pResultBlockList = taosArrayInit(128, POINTER_BYTES);
 
-//  char* p = taosMemoryMalloc(64);
-//  snprintf(p, 64, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
+  pTaskInfo->id.queryId = queryId;
   pTaskInfo->id.str = buildTaskId(taskId, queryId);
   return pTaskInfo;
 }
