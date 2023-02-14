@@ -329,7 +329,7 @@ int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[],
 
 void udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
   plugin->scriptType = TSDB_FUNC_SCRIPT_PYTHON;
-  sprintf("%s", plugin->libPath, "libtaosudf_py.so");
+  sprintf(plugin->libPath, "%s", "libtaosudf_py.so");
   plugin->libLoaded = false;
   const char *funcName[MAX_NUM_PLUGIN_FUNCS] = {"open",         "close",         "udfInit",
                                                 "udfDestroy",   "udfScalarProc", "udfAggStart",
@@ -347,17 +347,41 @@ void udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
   return;
 }
 
+void udfdDeinitCPlugin(SUdfScriptPlugin *plugin) {
+  return;
+}
+
+void udfdDeinitPythonPlugin(SUdfScriptPlugin *plugin) {
+  if (plugin->libLoaded) {
+    uv_dlclose(&plugin->lib);
+    plugin->libLoaded = false;
+  }
+}
+
 void udfdInitScriptPlugins() {
-  SUdfScriptPlugin *plugins = taosMemoryCalloc(2, sizeof(SUdfScriptPlugin));
-  // Initialize c language plugin
-  udfdInitializeCPlugin(plugins + 0);
+  SUdfScriptPlugin *plugin = NULL;
+
+  // Initialize c plugin
+  plugin = taosMemoryCalloc(1, sizeof(SUdfScriptPlugin));
+  udfdInitializeCPlugin(plugin);
+  global.scriptPlugins[TSDB_FUNC_SCRIPT_BIN_LIB] = plugin;
+
   // Initialize python plugin
-  udfdInitializePythonPlugin(plugins + 1);
+  plugin = taosMemoryCalloc(1, sizeof(SUdfScriptPlugin));
+  udfdInitializePythonPlugin(plugin);
+  global.scriptPlugins[TSDB_FUNC_SCRIPT_PYTHON] = plugin;
   return;
 }
 
 void udfdDeinitScriptPlugins() {
+  SUdfScriptPlugin *plugin = NULL;
+  plugin = global.scriptPlugins[TSDB_FUNC_SCRIPT_PYTHON];
+  udfdDeinitPythonPlugin(plugin);
+  taosMemoryFree(plugin);
 
+  plugin = global.scriptPlugins[TSDB_FUNC_SCRIPT_BIN_LIB];
+  udfdDeinitCPlugin(plugin);
+  taosMemoryFree(plugin);  
   return;
 }
 
