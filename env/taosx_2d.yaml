@@ -79,9 +79,9 @@ settings:
       adapter_config:
         logLevel: info
         port: 6041
-        taosConfigDir: /data/cyjia/data/taosd
+        taosConfigDir: /data/cyjia/data/taosd/cluster1
         log:
-          path: /data/cyjia/data/taosd
+          path: /data/cyjia/data/taosd/cluster1
       taos_config:
         firstEP: u1-41:6030
         logDir: /data/cyjia/data/taosd
@@ -94,9 +94,9 @@ settings:
       adapter_config:
         logLevel: info
         port: 6041
-        taosConfigDir: /data/cyjia/data/taosd_1
+        taosConfigDir: /data/cyjia/data/taosd_1/cluster1
         log:
-          path: /data/cyjia/data/taosd_1
+          path: /data/cyjia/data/taosd_1/cluster1
       taos_config:
         firstEP: u1-41:6030
         logDir: /data/cyjia/data/taosd_1
