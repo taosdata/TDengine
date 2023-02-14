@@ -127,7 +127,7 @@ static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRo
 void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order);
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 
-void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
+int32_t initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SHashObj* pResultHash);
 bool hasRemainResults(SGroupResInfo* pGroupResInfo);
 
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
