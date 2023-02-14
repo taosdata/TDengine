@@ -77,6 +77,7 @@ typedef struct SRSmaSnapWriter    SRSmaSnapWriter;
 typedef struct SSnapDataHdr       SSnapDataHdr;
 typedef struct SCommitInfo        SCommitInfo;
 typedef struct SCompactInfo       SCompactInfo;
+typedef struct SMigrateInfo       SMigrateInfo;
 typedef struct SQueryNode         SQueryNode;
 
 #define VNODE_META_DIR  "meta"
@@ -177,7 +178,7 @@ int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
 int32_t tsdbFinishCommit(STsdb* pTsdb);
 int32_t tsdbRollbackCommit(STsdb* pTsdb);
-int32_t tsdbDoRetention(STsdb* pTsdb, int64_t now, int64_t maxSpeed);
+int32_t tsdbDoRetention(STsdb* pTsdb, SMigrateInfo *pInfo);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
@@ -228,7 +229,7 @@ int32_t smaPrepareAsyncCommit(SSma* pSma);
 int32_t smaCommit(SSma* pSma, SCommitInfo* pInfo);
 int32_t smaFinishCommit(SSma* pSma);
 int32_t smaPostCommit(SSma* pSma);
-int32_t smaDoRetention(SSma* pSma, int64_t now, int64_t maxSpeed);
+int32_t smaDoRetention(SSma* pSma, SMigrateInfo *pInfo);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
@@ -458,6 +459,12 @@ struct SCompactInfo {
   SVnode* pVnode;
   int32_t flag;
   int64_t commitID;
+};
+
+struct SMigrateInfo {
+  SVnode* pVnode;
+  int64_t timestamp;
+  int64_t maxSpeed;
 };
 
 #ifdef __cplusplus

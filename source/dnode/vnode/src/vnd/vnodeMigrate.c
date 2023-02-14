@@ -15,53 +15,42 @@
 
 #include "vnd.h"
 
-static int32_t vnodeCompactTask(void *param) {
+static int32_t vnodeMigrateTask(void *param) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  SCompactInfo *pInfo = (SCompactInfo *)param;
+  SMigrateInfo *pInfo = (SMigrateInfo *)param;
   SVnode       *pVnode = pInfo->pVnode;
 
-  // do compact
-  code = tsdbCompact(pInfo->pVnode->pTsdb, pInfo);
+  // do Migrate
+  code = tsdbDoRetention(pInfo->pVnode->pTsdb, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // end compact
-  char dir[TSDB_FILENAME_LEN] = {0};
-  if (pVnode->pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
-  }
-  vnodeCommitInfo(dir);
+  code = smaDoRetention(pInfo->pVnode->pSma, pInfo);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // end Migrate
+//   char dir[TSDB_FILENAME_LEN] = {0};
+//   if (pVnode->pTfs) {
+//     snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
+//   } else {
+//     snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
+//   }
+//   vnodeCommitInfo(dir);
 
 _exit:
   tsem_post(&pInfo->pVnode->canCommit);
   taosMemoryFree(pInfo);
   return code;
 }
-static int32_t vnodePrepareCompact(SVnode *pVnode, SCompactInfo *pInfo) {
+
+static int32_t vnodePrepareMigrate(SVnode *pVnode, SMigrateInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
 
   tsem_wait(&pVnode->canCommit);
 
   pInfo->pVnode = pVnode;
-  pInfo->flag = 0;
-  pInfo->commitID = ++pVnode->state.commitID;
-
-  char       dir[TSDB_FILENAME_LEN] = {0};
-  SVnodeInfo info = {0};
-
-  if (pVnode->pTfs) {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
-  } else {
-    snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
-  }
-
-  vnodeLoadInfo(dir, &info);
-  info.state.commitID = pInfo->commitID;
-  vnodeSaveInfo(dir, &info);
 
 _exit:
   if (code) {
@@ -72,22 +61,25 @@ _exit:
   }
   return code;
 }
-int32_t vnodeAsyncCompact(SVnode *pVnode) {
+
+int32_t vnodeAsyncMigrate(SVnode *pVnode, void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  SCompactInfo *pInfo = taosMemoryCalloc(1, sizeof(*pInfo));
+  SMigrateInfo *pInfo = taosMemoryCalloc(1, sizeof(*pInfo));
   if (pInfo == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
+  pInfo->timestamp = ((SVTrimDbReq *)arg)->timestamp;
+  pInfo->maxSpeed = ((SVTrimDbReq *)arg)->maxSpeed;
 
-  vnodeAsyncCommit(pVnode);
+  // vnodeAsyncCommit(pVnode);
 
-  code = vnodePrepareCompact(pVnode, pInfo);
+  code = vnodePrepareMigrate(pVnode, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  vnodeScheduleTask(vnodeCompactTask, pInfo);
+  vnodeScheduleTask(vnodeMigrateTask, pInfo);
 
 _exit:
   if (code) {
@@ -99,8 +91,8 @@ _exit:
   return code;
 }
 
-int32_t vnodeSyncCompact(SVnode *pVnode) {
-  vnodeAsyncCompact(pVnode);
+int32_t vnodeSyncMigrate(SVnode *pVnode, void* arg) {
+  vnodeAsyncMigrate(pVnode, arg);
   tsem_wait(&pVnode->canCommit);
   tsem_post(&pVnode->canCommit);
   return 0;
