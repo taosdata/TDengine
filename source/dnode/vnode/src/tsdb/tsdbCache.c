@@ -244,6 +244,11 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
     int16_t nCol = taosArrayGetSize(pLast);
     int16_t iCol = 0;
 
+    if (nCol != pTSchema->numOfCols) {
+      invalidate = true;
+      goto _invalidate;
+    }
+
     SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLast, iCol);
     if (keyTs > tTsVal->ts) {
       STColumn *pTColumn = &pTSchema->columns[0];
@@ -259,6 +264,12 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
 
         SColVal colVal = {0};
         tTSRowGetVal(row, pTSchema, iCol, &colVal);
+
+        if (colVal.cid != tColVal->cid) {
+          invalidate = true;
+          goto _invalidate;
+        }
+
         if (!COL_VAL_IS_NONE(&colVal)) {
           if (keyTs == tTsVal1->ts && !COL_VAL_IS_NONE(tColVal)) {
             invalidate = true;
@@ -268,7 +279,8 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
             SLastCol lastCol = {.ts = keyTs, .colVal = colVal};
             if (IS_VAR_DATA_TYPE(colVal.type) && colVal.value.nData > 0) {
               SLastCol *pLastCol = (SLastCol *)taosArrayGet(pLast, iCol);
-              taosMemoryFree(pLastCol->colVal.value.pData);
+              if (pLastCol->colVal.value.nData > 0 && NULL != pLastCol->colVal.value.pData)
+                taosMemoryFree(pLastCol->colVal.value.pData);
 
               lastCol.colVal.value.pData = taosMemoryMalloc(colVal.value.nData);
               if (lastCol.colVal.value.pData == NULL) {
@@ -315,6 +327,11 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb 
     int16_t nCol = taosArrayGetSize(pLast);
     int16_t iCol = 0;
 
+    if (nCol != pTSchema->numOfCols) {
+      invalidate = true;
+      goto _invalidate;
+    }
+
     SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLast, iCol);
     if (keyTs > tTsVal->ts) {
       STColumn *pTColumn = &pTSchema->columns[0];
@@ -330,6 +347,12 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb 
 
         SColVal colVal = {0};
         tTSRowGetVal(row, pTSchema, iCol, &colVal);
+
+        if (colVal.cid != tColVal->cid) {
+          invalidate = true;
+          goto _invalidate;
+        }
+
         if (COL_VAL_IS_VALUE(&colVal)) {
           if (keyTs == tTsVal1->ts && COL_VAL_IS_VALUE(tColVal)) {
             invalidate = true;
@@ -339,7 +362,8 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb 
             SLastCol lastCol = {.ts = keyTs, .colVal = colVal};
             if (IS_VAR_DATA_TYPE(colVal.type) && colVal.value.nData > 0) {
               SLastCol *pLastCol = (SLastCol *)taosArrayGet(pLast, iCol);
-              taosMemoryFree(pLastCol->colVal.value.pData);
+              if (pLastCol->colVal.value.nData > 0 && NULL != pLastCol->colVal.value.pData)
+                taosMemoryFree(pLastCol->colVal.value.pData);
 
               lastCol.colVal.value.pData = taosMemoryMalloc(colVal.value.nData);
               if (lastCol.colVal.value.pData == NULL) {
