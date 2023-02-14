@@ -516,7 +516,7 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   }
 
   if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
-    if (QW_PHASE_POST_FETCH != phase || qwTaskNotInExec(ctx)) {
+    if (QW_PHASE_POST_FETCH != phase || ((!QW_QUERY_RUNNING(ctx)) && qwTaskNotInExec(ctx))) {
       QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
       QW_ERR_JRET(ctx->rspCode);
     }
@@ -550,7 +550,9 @@ _return:
   if (ctx) {
     QW_UPDATE_RSP_CODE(ctx, code);
 
-    QW_SET_PHASE(ctx, phase);
+    if (QW_PHASE_POST_CQUERY != phase) {
+      QW_SET_PHASE(ctx, phase);
+    }
 
     QW_UNLOCK(QW_WRITE, &ctx->lock);
     qwReleaseTaskCtx(mgmt, ctx);
@@ -757,7 +759,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     QW_LOCK(QW_WRITE, &ctx->lock);
     if (qComplete || (queryStop && (0 == atomic_load_8((int8_t *)&ctx->queryContinue))) || code) {
       // Note: query is not running anymore
-      QW_SET_PHASE(ctx, 0);
+      QW_SET_PHASE(ctx, QW_PHASE_POST_CQUERY);
       QW_UNLOCK(QW_WRITE, &ctx->lock);
       break;
     }
@@ -1185,6 +1187,9 @@ void qWorkerStopAllTasks(void *qWorkerMgmt) {
   uint64_t qId, tId, sId;
   int32_t  eId;
   int64_t  rId = 0;
+  
+  atomic_store_8(&mgmt->nodeStopped, 1);
+
   void    *pIter = taosHashIterate(mgmt->ctxHash, NULL);
   while (pIter) {
     SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;

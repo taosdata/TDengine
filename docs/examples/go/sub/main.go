@@ -1,17 +1,12 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"strconv"
-	"time"
+	"os"
 
 	"github.com/taosdata/driver-go/v3/af"
 	"github.com/taosdata/driver-go/v3/af/tmq"
-	"github.com/taosdata/driver-go/v3/common"
-	"github.com/taosdata/driver-go/v3/errors"
-	"github.com/taosdata/driver-go/v3/wrapper"
+	tmqcommon "github.com/taosdata/driver-go/v3/common/tmq"
 )
 
 func main() {
@@ -28,55 +23,26 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	config := tmq.NewConfig()
-	defer config.Destroy()
-	err = config.SetGroupID("test")
 	if err != nil {
 		panic(err)
 	}
-	err = config.SetAutoOffsetReset("earliest")
-	if err != nil {
-		panic(err)
-	}
-	err = config.SetConnectIP("127.0.0.1")
-	if err != nil {
-		panic(err)
-	}
-	err = config.SetConnectUser("root")
-	if err != nil {
-		panic(err)
-	}
-	err = config.SetConnectPass("taosdata")
-	if err != nil {
-		panic(err)
-	}
-	err = config.SetConnectPort("6030")
-	if err != nil {
-		panic(err)
-	}
-	err = config.SetMsgWithTableName(true)
-	if err != nil {
-		panic(err)
-	}
-	err = config.EnableHeartBeat()
-	if err != nil {
-		panic(err)
-	}
-	err = config.EnableAutoCommit(func(result *wrapper.TMQCommitCallbackResult) {
-		if result.ErrCode != 0 {
-			errStr := wrapper.TMQErr2Str(result.ErrCode)
-			err := errors.NewError(int(result.ErrCode), errStr)
-			panic(err)
-		}
+	consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
+		"group.id":                     "test",
+		"auto.offset.reset":            "earliest",
+		"td.connect.ip":                "127.0.0.1",
+		"td.connect.user":              "root",
+		"td.connect.pass":              "taosdata",
+		"td.connect.port":              "6030",
+		"client.id":                    "test_tmq_client",
+		"enable.auto.commit":           "false",
+		"enable.heartbeat.background":  "true",
+		"experimental.snapshot.enable": "true",
+		"msg.with.table.name":          "true",
 	})
 	if err != nil {
 		panic(err)
 	}
-	consumer, err := tmq.NewConsumer(config)
-	if err != nil {
-		panic(err)
-	}
-	err = consumer.Subscribe([]string{"example_tmq_topic"})
+	err = consumer.Subscribe("example_tmq_topic", nil)
 	if err != nil {
 		panic(err)
 	}
@@ -88,19 +54,25 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	for {
-		result, err := consumer.Poll(time.Second)
-		if err != nil {
-			panic(err)
+	for i := 0; i < 5; i++ {
+		ev := consumer.Poll(0)
+		if ev != nil {
+			switch e := ev.(type) {
+			case *tmqcommon.DataMessage:
+				fmt.Println(e.String())
+			case tmqcommon.Error:
+				fmt.Fprintf(os.Stderr, "%% Error: %v: %v\n", e.Code(), e)
+				panic(e)
+			}
+			consumer.Commit()
 		}
-		if result.Type != common.TMQ_RES_DATA {
-			panic("want message type 1 got " + strconv.Itoa(int(result.Type)))
-		}
-		data, _ := json.Marshal(result.Data)
-		fmt.Println(string(data))
-		consumer.Commit(context.Background(), result.Message)
-		consumer.FreeMessage(result.Message)
-		break
 	}
-	consumer.Close()
+	err = consumer.Unsubscribe()
+	if err != nil {
+		panic(err)
+	}
+	err = consumer.Close()
+	if err != nil {
+		panic(err)
+	}
 }

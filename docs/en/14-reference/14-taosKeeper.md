@@ -1,7 +1,7 @@
 ---
 sidebar_label: taosKeeper
 title: taosKeeper
-description: exports TDengine monitoring metrics.
+description: This document describes how to use taosKeeper, a tool for exporting TDengine monitoring metrics.
 ---
 
 ## Introduction
@@ -24,7 +24,14 @@ You can compile taosKeeper separately and install it. Please refer to the [taosK
 
 taosKeeper needs to be executed on the terminal of the operating system, it supports three configuration methods: [Command-line arguments](#command-line-arguments-in-detail), [environment variable](#environment-variable-in-detail) and [configuration file](#configuration-file-parameters-in-detail). The precedence of those is Command-line, environment variable and configuration file.
 
-**Make sure that the TDengine cluster is running correctly before running taosKeeper. ** Ensure that the monitoring service in TDengine has been started. For more information, see [TDengine Monitoring Configuration](../config/#monitoring).
+**Make sure that the TDengine cluster is running correctly before running taosKeeper.** Ensure that the monitoring service in TDengine has been started. At least the values of `monitor` and `monitorFqdn` need to be set in `taos.cfg`.
+
+```shell
+monitor 1
+monitorFqdn localhost # taoskeeper's FQDN
+```
+
+For more information, see [TDengine Monitoring Configuration](../config/#monitoring).
 
 ### Command-Line Parameters
 

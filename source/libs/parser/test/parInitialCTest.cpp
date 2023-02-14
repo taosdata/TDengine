@@ -22,6 +22,26 @@ namespace ParserTest {
 class ParserInitialCTest : public ParserDdlTest {};
 
 /*
+ * COMPACT DATABASE db_name
+ */
+TEST_F(ParserInitialCTest, compact) {
+  SCompactDbReq expect = {0};
+
+  auto setCompactDbReq = [&](const char* pDb) { snprintf(expect.db, sizeof(expect.db), "0.%s", pDb); };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_COMPACT_DATABASE_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_COMPACT_DB);
+    SCompactDbReq req = {0};
+    ASSERT_EQ(tDeserializeSCompactDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(std::string(req.db), std::string(expect.db));
+  });
+
+  setCompactDbReq("wxy_db");
+  run("COMPACT DATABASE wxy_db");
+}
+
+/*
  * CREATE ACCOUNT account_name PASS value [create_account_options]
  *
  * create_account_options:
@@ -755,13 +775,13 @@ TEST_F(ParserInitialCTest, createStream) {
   };
 
   auto setCreateStreamReq = [&](const char* pStream, const char* pSrcDb, const char* pSql, const char* pDstStb,
-                                int8_t createStb = STREAM_CREATE_STABLE_TRUE, int8_t igExists = 0) {
+                                int8_t igExists = 0) {
     snprintf(expect.name, sizeof(expect.name), "0.%s", pStream);
     snprintf(expect.sourceDB, sizeof(expect.sourceDB), "0.%s", pSrcDb);
     snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
     expect.igExists = igExists;
     expect.sql = strdup(pSql);
-    expect.createStb = createStb;
+    expect.createStb = STREAM_CREATE_STABLE_TRUE;
     expect.triggerType = STREAM_TRIGGER_AT_ONCE;
     expect.maxDelay = 0;
     expect.watermark = 0;
@@ -769,15 +789,18 @@ TEST_F(ParserInitialCTest, createStream) {
     expect.igExpired = STREAM_DEFAULT_IGNORE_EXPIRED;
   };
 
-  auto setStreamOptions = [&](int8_t triggerType = STREAM_TRIGGER_AT_ONCE, int64_t maxDelay = 0, int64_t watermark = 0,
-                              int8_t igExpired = STREAM_DEFAULT_IGNORE_EXPIRED,
-                              int8_t fillHistory = STREAM_DEFAULT_FILL_HISTORY) {
-    expect.triggerType = triggerType;
-    expect.maxDelay = maxDelay;
-    expect.watermark = watermark;
-    expect.fillHistory = fillHistory;
-    expect.igExpired = igExpired;
-  };
+  auto setStreamOptions =
+      [&](int8_t createStb = STREAM_CREATE_STABLE_TRUE, int8_t triggerType = STREAM_TRIGGER_AT_ONCE,
+          int64_t maxDelay = 0, int64_t watermark = 0, int8_t igExpired = STREAM_DEFAULT_IGNORE_EXPIRED,
+          int8_t fillHistory = STREAM_DEFAULT_FILL_HISTORY, int8_t igUpdate = STREAM_DEFAULT_IGNORE_UPDATE) {
+        expect.createStb = createStb;
+        expect.triggerType = triggerType;
+        expect.maxDelay = maxDelay;
+        expect.watermark = watermark;
+        expect.fillHistory = fillHistory;
+        expect.igExpired = igExpired;
+        expect.igUpdate = igUpdate;
+      };
 
   auto addTag = [&](const char* pFieldName, uint8_t type, int32_t bytes = 0) {
     SField field = {0};
@@ -824,6 +847,7 @@ TEST_F(ParserInitialCTest, createStream) {
     }
     ASSERT_EQ(req.checkpointFreq, expect.checkpointFreq);
     ASSERT_EQ(req.createStb, expect.createStb);
+    ASSERT_EQ(req.igUpdate, expect.igUpdate);
     tFreeSCMCreateStreamReq(&req);
   });
 
@@ -833,13 +857,13 @@ TEST_F(ParserInitialCTest, createStream) {
 
   setCreateStreamReq(
       "s1", "test",
-      "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired 0 fill_history 1 into st3 "
-      "as select count(*) from t1 interval(10s)",
-      "st3", 1, 1);
-  setStreamOptions(STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_SECOND, 0, 1);
-  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 FILL_HISTORY 1 INTO st3 AS "
-      "SELECT COUNT(*) "
-      "FROM t1 INTERVAL(10S)");
+      "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired 0 fill_history 1 ignore "
+      "update 1 into st3 as select count(*) from t1 interval(10s)",
+      "st3", 1);
+  setStreamOptions(STREAM_CREATE_STABLE_TRUE, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND,
+                   10 * MILLISECOND_PER_SECOND, 0, 1, 1);
+  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 FILL_HISTORY 1 IGNORE "
+      "UPDATE 1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 
   setCreateStreamReq("s1", "test",
@@ -852,9 +876,13 @@ TEST_F(ParserInitialCTest, createStream) {
       "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 PARTITION BY TBNAME tname, tag1 id INTERVAL(10S)");
   clearCreateStreamReq();
 
-  setCreateStreamReq("s1", "test", "create stream s1 into st1 as select max(c1), c2 from t1 interval(10s)", "st1",
-                     STREAM_CREATE_STABLE_FALSE);
-  run("CREATE STREAM s1 INTO st1 AS SELECT MAX(c1), c2 FROM t1 INTERVAL(10S)");
+  // st1 already exists
+  setCreateStreamReq(
+      "s1", "test",
+      "create stream s1 into st1 tags(tag2) as select max(c1), c2 from t1 partition by tbname tag2 interval(10s)",
+      "st1");
+  setStreamOptions(STREAM_CREATE_STABLE_FALSE);
+  run("CREATE STREAM s1 INTO st1 TAGS(tag2) AS SELECT MAX(c1), c2 FROM t1 PARTITION BY TBNAME tag2 INTERVAL(10S)");
   clearCreateStreamReq();
 }
 

@@ -1,7 +1,8 @@
 ---
-toc_max_heading_level: 4
-sidebar_label: C#
 title: C# Connector
+sidebar_label: C#
+description: This document describes the TDengine C# connector.
+toc_max_heading_level: 4
 ---
 
 import Tabs from '@theme/Tabs';
@@ -17,7 +18,7 @@ import CSAsyncQuery from "../../07-develop/04-query-data/_cs_async.mdx"
 
 `TDengine.Connector` is a C# language connector provided by TDengine that allows C# developers to develop C# applications that access TDengine cluster data.
 
-The `TDengine.Connector` connector supports connect to TDengine instances via the TDengine client driver (taosc), providing data writing, querying, subscription, schemaless writing, bind interface, etc.The `TDengine.Connector` also supports WebSocket and developers can build connection through DSN, which supports data writing, querying, and parameter binding, etc.
+The `TDengine.Connector` connector supports connect to TDengine instances via the TDengine client driver (taosc), providing data writing, querying, subscription, schemaless writing, bind interface, etc.The `TDengine.Connector` also supports WebSocket from v3.0.1 and developers can build connection through DSN, which supports data writing, querying, and parameter binding, etc.
 
 This article describes how to install `TDengine.Connector` in a Linux or Windows environment and connect to TDengine clusters via `TDengine.Connector` to perform basic operations such as data writing and querying.
 
@@ -66,30 +67,42 @@ Please refer to [version support list](/reference/connector#version-support)
 * [Nuget Client](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools) (optional installation)
 * Install TDengine client driver, please refer to [Install client driver](/reference/connector/#install-client-driver) for details
 
-### Install via dotnet CLI
+### Install `TDengine.Connector`
 
 <Tabs defaultValue="CLI">
-<TabItem value="CLI" label="Get C# driver using dotnet CLI">
+<TabItem value="CLI" label="Native Connection">
 
-You can reference the `TDengine.Connector` published in Nuget to the current project via the `dotnet` command under the path of the existing .NET project.
+You can reference the `TDengine.Connector` published in Nuget to the current project via the `dotnet` CLI under the path of the existing .NET project.
 
 ``` bash
 dotnet add package TDengine.Connector
 ```
 
-</TabItem>
-<TabItem value="source" label="Use source code to get C# driver">
+You may also modify the current.NET project file. You can include the following 'ItemGroup' in your project file (.csproj).
 
-You can [download the source code](https://github.com/taosdata/taos-connector-dotnet/tree/3.0) and directly reference the latest version of the TDengine.Connector library.
-
-```bash
-git clone -b 3.0 https://github.com/taosdata/taos-connector-dotnet.git
-cd taos-connector-dotnet
-cp -r src/ myProject
-
-cd myProject
-dotnet add exmaple.csproj reference src/TDengine.csproj
+``` XML
+  <ItemGroup>
+    <PackageReference Include="TDengine.Connector" Version="3.0.*" />
+  </ItemGroup>
 ```
+
+</TabItem>
+<TabItem value="source" label="WebSocket Connection">
+
+In this scenario, modifying your project file is required in order to copy the WebSocket dependency dynamic library from the nuget package into your project.
+```XML
+  <ItemGroup>
+    <PackageReference Include="TDengine.Connector" Version="3.0.*" GeneratePathProperty="true" />
+  </ItemGroup>
+  <Target Name="copyDLLDepency" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <DepDLLFiles Include="$(PkgTDengine_Connector)\runtimes\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DepDLLFiles)" DestinationFolder="$(OutDir)" />
+  </Target>
+```
+
+Notice: `TDengine.Connector` only version>= 3.0.2 includes the dynamic library for WebSocket.
 
 </TabItem>
 </Tabs>
@@ -265,6 +278,7 @@ ws://localhost:6041/test
 
 | TDengine.Connector | Description |
 |--------------------|--------------------------------|
+|        3.0.2       | Support .NET Framework 4.5 and above. Support .Net standard 2.0. Nuget package includes dynamic library for WebSocket.|
 |        3.0.1       | Support WebSocket and Cloud，With function query, insert, and parameter binding|
 |        3.0.0       | Supports TDengine 3.0.0.0. TDengine 2.x is not supported. Added `TDengine.Impl.GetData()` interface to deserialize query results. |
 |        1.0.7       | Fixed TDengine.Query() memory leak. |

@@ -48,92 +48,6 @@
 
 int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
 
-int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapshot) {
-  ASSERT(false && "deprecated");
-  // next index
-  SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
-
-  if (snapshot) {
-    // maybe start snapshot
-    SyncIndex logStartIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
-    SyncIndex logEndIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
-    if (nextIndex < logStartIndex || nextIndex - 1 > logEndIndex) {
-      sNTrace(pSyncNode, "maybe start snapshot for next-index:%" PRId64 ", start:%" PRId64 ", end:%" PRId64, nextIndex,
-              logStartIndex, logEndIndex);
-      // start snapshot
-      int32_t code = syncNodeStartSnapshot(pSyncNode, pDestId);
-    }
-  }
-
-  // pre index, pre term
-  SyncIndex preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
-  SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
-
-  // prepare entry
-  SRpcMsg            rpcMsg = {0};
-  SyncAppendEntries* pMsg = NULL;
-
-  SSyncRaftEntry* pEntry = NULL;
-  SLRUCache*      pCache = pSyncNode->pLogStore->pCache;
-  LRUHandle*      h = taosLRUCacheLookup(pCache, &nextIndex, sizeof(nextIndex));
-  int32_t         code = 0;
-  if (h) {
-    pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
-    code = 0;
-
-    pSyncNode->pLogStore->cacheHit++;
-    sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", nextIndex, pEntry->bytes, pEntry);
-
-  } else {
-    pSyncNode->pLogStore->cacheMiss++;
-    sNTrace(pSyncNode, "miss cache index:%" PRId64, nextIndex);
-
-    code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, nextIndex, &pEntry);
-  }
-
-  if (code == 0) {
-    ASSERT(pEntry != NULL);
-
-    code = syncBuildAppendEntries(&rpcMsg, (int32_t)(pEntry->bytes), pSyncNode->vgId);
-    ASSERT(code == 0);
-
-    pMsg = rpcMsg.pCont;
-    memcpy(pMsg->data, pEntry, pEntry->bytes);
-  } else {
-    if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
-      // no entry in log
-      code = syncBuildAppendEntries(&rpcMsg, 0, pSyncNode->vgId);
-      ASSERT(code == 0);
-
-      pMsg = rpcMsg.pCont;
-    } else {
-      sNError(pSyncNode, "replicate to dnode:%d error, next-index:%" PRId64, DID(pDestId), nextIndex);
-      return -1;
-    }
-  }
-
-  if (h) {
-    taosLRUCacheRelease(pCache, h, false);
-  } else {
-    syncEntryDestroy(pEntry);
-  }
-
-  // prepare msg
-  ASSERT(pMsg != NULL);
-  pMsg->srcId = pSyncNode->myRaftId;
-  pMsg->destId = *pDestId;
-  pMsg->term = pSyncNode->pRaftStore->currentTerm;
-  pMsg->prevLogIndex = preLogIndex;
-  pMsg->prevLogTerm = preLogTerm;
-  pMsg->commitIndex = pSyncNode->commitIndex;
-  pMsg->privateTerm = 0;
-  // pMsg->privateTerm = syncIndexMgrGetTerm(pSyncNode->pNextIndex, pDestId);
-
-  // send msg
-  syncNodeMaybeSendAppendEntries(pSyncNode, pDestId, &rpcMsg);
-  return 0;
-}
-
 int32_t syncNodeReplicate(SSyncNode* pNode) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
   taosThreadMutexLock(&pBuf->mutex);
@@ -156,63 +70,11 @@ int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
   return 0;
 }
 
-int32_t syncNodeReplicateOld(SSyncNode* pSyncNode) {
-  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
-    return -1;
-  }
-
-  sNTrace(pSyncNode, "do replicate");
-
-  int32_t ret = 0;
-  for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    SRaftId* pDestId = &(pSyncNode->peersId[i]);
-    ret = syncNodeReplicateOne(pSyncNode, pDestId, true);
-    if (ret != 0) {
-      sError("vgId:%d, do append entries error for dnode:%d", pSyncNode->vgId, DID(pDestId));
-    }
-  }
-
-  return 0;
-}
-
 int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
   pMsg->destId = *destRaftId;
   syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
   return 0;
-}
-
-int32_t syncNodeSendAppendEntriesOld(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
-  int32_t            ret = 0;
-  SyncAppendEntries* pMsg = pRpcMsg->pCont;
-  if (pMsg == NULL) {
-    sError("vgId:%d, sync-append-entries msg is NULL", pSyncNode->vgId);
-    return 0;
-  }
-
-  SPeerState* pState = syncNodeGetPeerState(pSyncNode, destRaftId);
-  if (pState == NULL) {
-    sError("vgId:%d, replica maybe dropped", pSyncNode->vgId);
-    return 0;
-  }
-
-  // save index, otherwise pMsg will be free by rpc
-  SyncIndex saveLastSendIndex = pState->lastSendIndex;
-  bool      update = false;
-  if (pMsg->dataLen > 0) {
-    saveLastSendIndex = pMsg->prevLogIndex + 1;
-    update = true;
-  }
-
-  syncLogSendAppendEntries(pSyncNode, pMsg, "");
-  syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
-
-  if (update) {
-    pState->lastSendIndex = saveLastSendIndex;
-    pState->lastSendTime = taosGetTimestampMs();
-  }
-
-  return ret;
 }
 
 int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
@@ -245,7 +107,7 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
     pSyncMsg->srcId = pSyncNode->myRaftId;
     pSyncMsg->destId = pSyncNode->peersId[i];
-    pSyncMsg->term = pSyncNode->pRaftStore->currentTerm;
+    pSyncMsg->term = pSyncNode->raftStore.currentTerm;
     pSyncMsg->commitIndex = pSyncNode->commitIndex;
     pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
     pSyncMsg->privateTerm = 0;

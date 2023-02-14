@@ -94,22 +94,21 @@ void close() throws SQLException;
 <TabItem value="Python" label="Python">
 
 ```python
-class TaosConsumer():
-    def __init__(self, *topics, **configs)
+class Consumer:
+    def subscribe(self, topics):
+        pass
 
-    def __iter__(self)
+    def unsubscribe(self):
+        pass
 
-    def __next__(self)
+    def poll(self, timeout: float = 1.0):
+        pass
 
-    def sync_next(self)
-    
-    def subscription(self)
+    def close(self):
+        pass
 
-    def unsubscribe(self)
-
-    def close(self)
-    
-    def __del__(self)
+    def commit(self, message):
+        pass
 ```
 
 </TabItem>
@@ -117,19 +116,22 @@ class TaosConsumer():
 <TabItem label="Go" value="Go">
 
 ```go
-func NewConsumer(conf *Config) (*Consumer, error)
+func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)
 
-func (c *Consumer) Close() error
+// rebalanceCb is reserved for compatibility purpose
+func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error
 
-func (c *Consumer) Commit(ctx context.Context, message unsafe.Pointer) error
+// rebalanceCb is reserved for compatibility purpose
+func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error
 
-func (c *Consumer) FreeMessage(message unsafe.Pointer)
+func (c *Consumer) Poll(timeoutMs int) tmq.Event
 
-func (c *Consumer) Poll(timeout time.Duration) (*Result, error)
-
-func (c *Consumer) Subscribe(topics []string) error
+// tmq.TopicPartition is reserved for compatibility purpose
+func (c *Consumer) Commit() ([]tmq.TopicPartition, error)
 
 func (c *Consumer) Unsubscribe() error
+
+func (c *Consumer) Close() error
 ```
 
 </TabItem>
@@ -357,50 +359,20 @@ public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 <TabItem label="Go" value="Go">
 
 ```go
-config := tmq.NewConfig()
-defer config.Destroy()
-err = config.SetGroupID("test")
-if err != nil {
-  panic(err)
+conf := &tmq.ConfigMap{
+ "group.id":                     "test",
+ "auto.offset.reset":            "earliest",
+ "td.connect.ip":                "127.0.0.1",
+ "td.connect.user":              "root",
+ "td.connect.pass":              "taosdata",
+ "td.connect.port":              "6030",
+ "client.id":                    "test_tmq_c",
+ "enable.auto.commit":           "false",
+ "enable.heartbeat.background":  "true",
+ "experimental.snapshot.enable": "true",
+ "msg.with.table.name":          "true",
 }
-err = config.SetAutoOffsetReset("earliest")
-if err != nil {
-  panic(err)
-}
-err = config.SetConnectIP("127.0.0.1")
-if err != nil {
-  panic(err)
-}
-err = config.SetConnectUser("root")
-if err != nil {
-  panic(err)
-}
-err = config.SetConnectPass("taosdata")
-if err != nil {
-  panic(err)
-}
-err = config.SetConnectPort("6030")
-if err != nil {
-  panic(err)
-}
-err = config.SetMsgWithTableName(true)
-if err != nil {
-  panic(err)
-}
-err = config.EnableHeartBeat()
-if err != nil {
-  panic(err)
-}
-err = config.EnableAutoCommit(func(result *wrapper.TMQCommitCallbackResult) {
-  if result.ErrCode != 0 {
-    errStr := wrapper.TMQErr2Str(result.ErrCode)
-    err := errors.NewError(int(result.ErrCode), errStr)
-    panic(err)
-  }
-})
-if err != nil {
-  panic(err)
-}
+consumer, err := NewConsumer(conf)
 ```
 
 </TabItem>
@@ -422,23 +394,31 @@ let mut consumer = tmq.build()?;
 
 <TabItem value="Python" label="Python">
 
+```python
+from taos.tmq import Consumer
+
+# Syntax: `consumer = Consumer(configs)`
+#
+# Example:
+consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
+```
+
 Python programs use the following parameters:
 
-|            Parameter            |  Type   | Description                                                 | Remarks                                        |
-| :----------------------------: | :----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td_connect_ip`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td_connect_user`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td_connect_pass`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td_connect_port`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|           `group_id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192.                 |
-|          `client_id`           | string  | Client ID                                                | Maximum length: 192.                             |
-|      `auto_offset_reset`       |  string   | Initial offset for the consumer group                                     | Specify `earliest`, `latest`, or `none`(default) |
-|      `enable_auto_commit`      | string | Commit automatically                                             | Specify `true` or `false`.                   |
-|   `auto_commit_interval_ms`    | string | Interval for automatic commits, in milliseconds                           |
-| `enable_heartbeat_background`  | string | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time |  Specify `true` or `false`.                                           |
-| `experimental_snapshot_enable` | string | Specify whether to consume messages from the WAL or from TSBS                    | Specify `true` or `false`.                                            |
-|     `msg_with_table_name`      | string | Specify whether to deserialize table names from messages                                 | Specify `true` or `false`.
-|           `timeout`            |  int   | Consumer pull timeout                                     |                                             |
+| Parameter | Type | Description | Remarks |
+|:---------:|:----:|:-----------:|:-------:|
+| `td.connect.ip` | string | Used in establishing a connection||
+| `td.connect.user` | string | Used in establishing a connection||
+| `td.connect.pass` | string | Used in establishing a connection||
+| `td.connect.port` | string | Used in establishing a connection||
+| `group.id` | string | Consumer group ID; consumers with the same ID are in the same group | **Required**. Maximum length: 192 |
+| `client.id` | string | Client ID | Maximum length: 192 |
+| `msg.with.table.name` | string | Specify whether to deserialize table names from messages | pecify `true` or `false` |
+| `enable.auto.commit` | string | Commit automatically | pecify `true` or `false` |
+| `auto.commit.interval.ms` | string | Interval for automatic commits, in milliseconds | |
+| `auto.offset.reset` | string | Initial offset for the consumer group | Specify `earliest`, `latest`, or `none`(default) |
+| `experimental.snapshot.enable` | string | Specify whether to consume messages from the WAL or from TSDB | Specify `true` or `false` |
+| `enable.heartbeat.background` | string | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time | Specify `true` or `false` |
 
 </TabItem>
 
@@ -523,11 +503,7 @@ consumer.subscribe(topics);
 <TabItem value="Go" label="Go">
 
 ```go
-consumer, err := tmq.NewConsumer(config)
-if err != nil {
- panic(err)
-}
-err = consumer.Subscribe([]string{"example_tmq_topic"})
+err = consumer.Subscribe("example_tmq_topic", nil)
 if err != nil {
  panic(err)
 }
@@ -545,7 +521,7 @@ consumer.subscribe(["tmq_meters"]).await?;
 <TabItem value="Python" label="Python">
 
 ```python
-consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
+consumer.subscribe(['topic1', 'topic2'])
 ```
 
 </TabItem>
@@ -611,13 +587,17 @@ while(running){
 
 ```go
 for {
- result, err := consumer.Poll(time.Second)
- if err != nil {
-  panic(err)
+ ev := consumer.Poll(0)
+ if ev != nil {
+  switch e := ev.(type) {
+  case *tmqcommon.DataMessage:
+   fmt.Println(e.Value())
+  case tmqcommon.Error:
+   fmt.Fprintf(os.Stderr, "%% Error: %v: %v\n", e.Code(), e)
+   panic(e)
+  }
+  consumer.Commit()
  }
- fmt.Println(result)
- consumer.Commit(context.Background(), result.Message)
- consumer.FreeMessage(result.Message)
 }
 ```
 
@@ -660,9 +640,17 @@ for {
 <TabItem value="Python" label="Python">
 
 ```python
-for msg in consumer:
-    for row in msg:
-        print(row)
+while True:
+    res = consumer.poll(100)
+    if not res:
+        continue
+    err = res.error()
+    if err is not None:
+        raise err
+    val = res.value()
+
+    for block in val:
+        print(block.fetchall())
 ```
 
 </TabItem>
@@ -729,7 +717,11 @@ consumer.close();
 <TabItem value="Go" label="Go">
 
 ```go
-consumer.Close()
+/* Unsubscribe */
+_ = consumer.Unsubscribe()
+
+/* Close consumer */
+_ = consumer.Close()
 ```
 
 </TabItem>

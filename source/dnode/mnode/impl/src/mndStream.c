@@ -31,6 +31,8 @@
 #define MND_STREAM_VER_NUMBER   2
 #define MND_STREAM_RESERVE_SIZE 64
 
+#define MND_STREAM_MAX_NUM 10
+
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pStream, SStreamObj *pNewStream);
@@ -295,6 +297,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->triggerParam = pCreate->maxDelay;
   pObj->watermark = pCreate->watermark;
   pObj->fillHistory = pCreate->fillHistory;
+  pObj->igCheckUpdate = pCreate->igUpdate;
 
   memcpy(pObj->sourceDb, pCreate->sourceDB, TSDB_DB_FNAME_LEN);
   SDbObj *pSourceDb = mndAcquireDb(pMnode, pCreate->sourceDB);
@@ -314,7 +317,11 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   }
   tstrncpy(pObj->targetDb, pTargetDb->name, TSDB_DB_FNAME_LEN);
 
-  pObj->targetStbUid = mndGenerateUid(pObj->targetSTbName, TSDB_TABLE_FNAME_LEN);
+  if (pCreate->createStb == STREAM_CREATE_STABLE_TRUE) {
+    pObj->targetStbUid = mndGenerateUid(pObj->targetSTbName, TSDB_TABLE_FNAME_LEN);
+  } else {
+    pObj->targetStbUid = pCreate->targetStbUid;
+  }
   pObj->targetDbUid = pTargetDb->uid;
   mndReleaseDb(pMnode, pTargetDb);
 
@@ -334,6 +341,38 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     goto FAIL;
   }
 
+  int32_t numOfNULL = taosArrayGetSize(pCreate->fillNullCols);
+  if(numOfNULL > 0) {
+    pObj->outputSchema.nCols += numOfNULL;
+    SSchema* pFullSchema = taosMemoryCalloc(pObj->outputSchema.nCols, sizeof(SSchema));
+    if (!pFullSchema) {
+      goto FAIL;
+    }
+
+    int32_t nullIndex = 0;
+    int32_t dataIndex = 0;
+    for (int16_t i = 0; i < pObj->outputSchema.nCols; i++) {
+      SColLocation* pos = taosArrayGet(pCreate->fillNullCols, nullIndex);
+      if (i < pos->slotId) {
+        pFullSchema[i].bytes = pObj->outputSchema.pSchema[dataIndex].bytes;
+        pFullSchema[i].colId = i + 1; // pObj->outputSchema.pSchema[dataIndex].colId;
+        pFullSchema[i].flags = pObj->outputSchema.pSchema[dataIndex].flags;
+        strcpy(pFullSchema[i].name, pObj->outputSchema.pSchema[dataIndex].name);
+        pFullSchema[i].type = pObj->outputSchema.pSchema[dataIndex].type;
+        dataIndex++;
+      } else {
+        pFullSchema[i].bytes = 0;
+        pFullSchema[i].colId = pos->colId;
+        pFullSchema[i].flags = COL_SET_NULL;
+        memset(pFullSchema[i].name, 0, TSDB_COL_NAME_LEN);
+        pFullSchema[i].type = pos->type;
+        nullIndex++;
+      }
+    }
+    taosMemoryFree(pObj->outputSchema.pSchema);
+    pObj->outputSchema.pSchema = pFullSchema;
+  }
+
   SPlanContext cxt = {
       .pAstRoot = pAst,
       .topicQuery = false,
@@ -341,6 +380,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .triggerType = pObj->trigger == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : pObj->trigger,
       .watermark = pObj->watermark,
       .igExpired = pObj->igExpired,
+      .igCheckUpdate = pObj->igCheckUpdate,
   };
 
   // using ast and param to build physical plan
@@ -628,6 +668,35 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
+  }
+
+  {
+    int32_t numOfStream = 0;
+
+    SStreamObj *pStream = NULL;
+    void       *pIter = NULL;
+
+    while (1) {
+      pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void **)&pStream);
+      if (pIter == NULL) {
+        if (numOfStream > MND_STREAM_MAX_NUM) {
+          mError("too many streams, no more than 10 for each database");
+          terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+          goto _OVER;
+        }
+        break;
+      }
+
+      if (pStream->sourceDbUid == streamObj.sourceDbUid) {
+        ++numOfStream;
+      }
+      sdbRelease(pMnode->pSdb, pStream);
+      if (numOfStream > MND_STREAM_MAX_NUM) {
+        mError("too many streams, no more than 10 for each database");
+        terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+        goto _OVER;
+      }
+    }
   }
 
   pDb = mndAcquireDb(pMnode, streamObj.sourceDb);

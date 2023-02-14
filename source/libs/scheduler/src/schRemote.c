@@ -341,6 +341,14 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
+      if (taosArrayGetSize(pTask->parents) == 0 && SCH_IS_EXPLAIN_JOB(pJob) && SCH_IS_INSERT_JOB(pJob)) {
+        SRetrieveTableRsp *pRsp = NULL;
+        SCH_ERR_JRET(qExecExplainEnd(pJob->explainCtx, &pRsp));
+        if (pRsp) {
+          SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
+        }
+      }
+
       SQueryTableRsp rsp = {0};
       if (tDeserializeSQueryTableRsp(msg, msgSize, &rsp) < 0) {
         SCH_TASK_ELOG("tDeserializeSQueryTableRsp failed, msgSize:%d", msgSize);

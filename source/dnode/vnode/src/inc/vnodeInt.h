@@ -76,6 +76,8 @@ typedef struct SRSmaSnapReader    SRSmaSnapReader;
 typedef struct SRSmaSnapWriter    SRSmaSnapWriter;
 typedef struct SSnapDataHdr       SSnapDataHdr;
 typedef struct SCommitInfo        SCommitInfo;
+typedef struct SCompactInfo       SCompactInfo;
+typedef struct SQueryNode         SQueryNode;
 
 #define VNODE_META_DIR  "meta"
 #define VNODE_TSDB_DIR  "tsdb"
@@ -87,16 +89,28 @@ typedef struct SCommitInfo        SCommitInfo;
 #define VNODE_RSMA1_DIR "rsma1"
 #define VNODE_RSMA2_DIR "rsma2"
 
+#define VNODE_BUFPOOL_SEGMENTS 3
+
 #define VND_INFO_FNAME "vnode.json"
 
 // vnd.h
+typedef int32_t (*_query_reseek_func_t)(void* pQHandle);
+struct SQueryNode {
+  SQueryNode*          pNext;
+  SQueryNode**         ppNext;
+  void*                pQHandle;
+  _query_reseek_func_t reseek;
+};
 
 void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
 void* vnodeBufPoolMallocAligned(SVBufPool* pPool, int size);
 void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
 void  vnodeBufPoolRef(SVBufPool* pPool);
-void  vnodeBufPoolUnRef(SVBufPool* pPool);
+void  vnodeBufPoolUnRef(SVBufPool* pPool, bool proactive);
 int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
+
+int32_t vnodeBufPoolRegisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
+void    vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode, bool proactive);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;
@@ -160,6 +174,7 @@ int     tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
 int32_t tsdbPrepareCommit(STsdb* pTsdb);
 int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
+int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
 int32_t tsdbFinishCommit(STsdb* pTsdb);
 int32_t tsdbRollbackCommit(STsdb* pTsdb);
 int32_t tsdbDoRetention(STsdb* pTsdb, int64_t now, int64_t maxSpeed);
@@ -239,7 +254,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader);
 int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData);
 // STsdbSnapWriter ========================================
 int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWriter** ppWriter);
-int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, SSnapDataHdr* pHdr);
 int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter);
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback);
 // STqSnapshotReader ==
@@ -331,16 +346,24 @@ typedef struct SVCommitSched {
 } SVCommitSched;
 
 struct SVnode {
-  char*         path;
-  SVnodeCfg     config;
-  SVState       state;
-  SVStatis      statis;
-  STfs*         pTfs;
-  SMsgCb        msgCb;
+  char*     path;
+  SVnodeCfg config;
+  SVState   state;
+  SVStatis  statis;
+  STfs*     pTfs;
+  SMsgCb    msgCb;
+
+  // Buffer Pool
   TdThreadMutex mutex;
   TdThreadCond  poolNotEmpty;
-  SVBufPool*    pPool;
+  SVBufPool*    aBufPool[VNODE_BUFPOOL_SEGMENTS];
+  SVBufPool*    freeList;
   SVBufPool*    inUse;
+  SVBufPool*    onCommit;
+  SVBufPool*    recycleHead;
+  SVBufPool*    recycleTail;
+  SVBufPool*    onRecycle;
+
   SMeta*        pMeta;
   SSma*         pSma;
   STsdb*        pTsdb;
@@ -429,6 +452,12 @@ struct SCommitInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
   TXN*       txn;
+};
+
+struct SCompactInfo {
+  SVnode* pVnode;
+  int32_t flag;
+  int64_t commitID;
 };
 
 #ifdef __cplusplus

@@ -23,12 +23,12 @@
 #include "scheduler.h"
 #include "tcache.h"
 #include "tglobal.h"
+#include "thttp.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
 #include "tsched.h"
 #include "ttime.h"
-#include "thttp.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -65,7 +65,7 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
 
 static void deregisterRequest(SRequestObj *pRequest) {
   const static int64_t SLOW_QUERY_INTERVAL = 3000000L;  // todo configurable
-  if(pRequest == NULL){
+  if (pRequest == NULL) {
     tscError("pRequest == NULL");
     return;
   }
@@ -365,6 +365,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
+  tsem_destroy(&pRequest->body.rspSem);
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
@@ -379,6 +380,9 @@ void doDestroyRequest(void *p) {
   }
 
   if (pRequest->syncQuery) {
+    if (pRequest->body.param) {
+      tsem_destroy(&((SSyncQueryParam *)pRequest->body.param)->sem);
+    }
     taosMemoryFree(pRequest->body.param);
   }
 
@@ -396,61 +400,26 @@ void destroyRequest(SRequestObj *pRequest) {
   removeRequest(pRequest->self);
 }
 
-void taosClientCrash(int signum, void *sigInfo, void *context) {
-  taosIgnSignal(SIGTERM);
-  taosIgnSignal(SIGHUP);
-  taosIgnSignal(SIGINT);
-  taosIgnSignal(SIGBREAK);
-
-#if !defined(WINDOWS)
-  taosIgnSignal(SIGBUS);
-#endif  
-  taosIgnSignal(SIGABRT);
-  taosIgnSignal(SIGFPE);
-  taosIgnSignal(SIGSEGV);
-
-  char *pMsg = NULL;
-  const char *flags = "UTL FATAL ";
-  ELogLevel   level = DEBUG_FATAL;
-  int32_t     dflag = 255;
-  int64_t     msgLen= -1;
-
-  if (tsEnableCrashReport) {
-    if (taosGenCrashJsonMsg(signum, &pMsg, lastClusterId, appInfo.startTime)) {
-      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
-      goto _return;
-    } else {
-      msgLen = strlen(pMsg);  
-    }
-  }
-  
-_return:
-
-  taosLogCrashInfo("taos", pMsg, msgLen, signum, sigInfo);
-
-  exit(signum);
-}
-
 void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }
 
 static void *tscCrashReportThreadFp(void *param) {
   setThreadName("client-crashReport");
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s%s.taosCrashLog", tsLogDir, TD_DIRSEP);
-  char *pMsg = NULL;
-  int64_t msgLen = 0;
+  char     *pMsg = NULL;
+  int64_t   msgLen = 0;
   TdFilePtr pFile = NULL;
-  bool truncateFile = false;
-  int32_t sleepTime = 200;
-  int32_t reportPeriodNum = 3600 * 1000 / sleepTime;
-  int32_t loopTimes = reportPeriodNum;
+  bool      truncateFile = false;
+  int32_t   sleepTime = 200;
+  int32_t   reportPeriodNum = 3600 * 1000 / sleepTime;
+  int32_t   loopTimes = reportPeriodNum;
 
 #ifdef WINDOWS
   if (taosCheckCurrentInDll()) {
     atexit(crashReportThreadFuncUnexpectedStopped);
   }
 #endif
-  
+
   while (1) {
     if (clientStop) break;
     if (loopTimes++ < reportPeriodNum) {
@@ -480,12 +449,12 @@ static void *tscCrashReportThreadFp(void *param) {
       pMsg = NULL;
       continue;
     }
-    
+
     if (pFile) {
       taosReleaseCrashLogFile(pFile, truncateFile);
       truncateFile = false;
     }
-    
+
     taosMsleep(sleepTime);
     loopTimes = 0;
   }
@@ -498,11 +467,11 @@ int32_t tscCrashReportInit() {
   if (!tsEnableCrashReport) {
     return 0;
   }
-  
+
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
   taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-  TdThread            crashReportThread;
+  TdThread crashReportThread;
   if (taosThreadCreate(&crashReportThread, &thAttr, tscCrashReportThreadFp, NULL) != 0) {
     tscError("failed to create crashReport thread since %s", strerror(errno));
     return -1;
@@ -527,13 +496,22 @@ void tscStopCrashReport() {
   }
 }
 
-static void tscSetSignalHandle() {
-#if !defined(WINDOWS)
-  taosSetSignal(SIGBUS, taosClientCrash);
-#endif
-  taosSetSignal(SIGABRT, taosClientCrash);
-  taosSetSignal(SIGFPE, taosClientCrash);
-  taosSetSignal(SIGSEGV, taosClientCrash);
+void tscWriteCrashInfo(int signum, void *sigInfo, void *context) {
+  char       *pMsg = NULL;
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;
+  int64_t     msgLen = -1;
+
+  if (tsEnableCrashReport) {
+    if (taosGenCrashJsonMsg(signum, &pMsg, lastClusterId, appInfo.startTime)) {
+      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
+    } else {
+      msgLen = strlen(pMsg);
+    }
+  }
+
+  taosLogCrashInfo("taos", pMsg, msgLen, signum, sigInfo);
 }
 
 void taos_init_imp(void) {
@@ -558,8 +536,6 @@ void taos_init_imp(void) {
     tscInitRes = -1;
     return;
   }
-
-  tscSetSignalHandle();
 
   initQueryModuleMsgHandle();
 
@@ -592,7 +568,7 @@ void taos_init_imp(void) {
   taosThreadMutexInit(&appInfo.mutex, NULL);
 
   tscCrashReportInit();
-  
+
   tscDebug("client is initialized successfully");
 }
 
@@ -643,6 +619,9 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     tscError("failed to set cfg:%s to %s since %s", pItem->name, str, terrstr());
   } else {
     tscInfo("set cfg:%s to %s", pItem->name, str);
+    if (TSDB_OPTION_SHELL_ACTIVITY_TIMER == option || TSDB_OPTION_USE_ADAPTER == option) {
+      code = taosSetCfg(pCfg, pItem->name);
+    }
   }
 
   return code;

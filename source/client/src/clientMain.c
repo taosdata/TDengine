@@ -435,6 +435,22 @@ const char *taos_data_type(int type) {
       return "TSDB_DATA_TYPE_NCHAR";
     case TSDB_DATA_TYPE_JSON:
       return "TSDB_DATA_TYPE_JSON";
+    case TSDB_DATA_TYPE_UTINYINT:
+      return "TSDB_DATA_TYPE_UTINYINT";
+    case TSDB_DATA_TYPE_USMALLINT:
+      return "TSDB_DATA_TYPE_USMALLINT";
+    case TSDB_DATA_TYPE_UINT:
+      return "TSDB_DATA_TYPE_UINT";
+    case TSDB_DATA_TYPE_UBIGINT:
+      return "TSDB_DATA_TYPE_UBIGINT";
+    case TSDB_DATA_TYPE_VARBINARY:
+      return "TSDB_DATA_TYPE_VARBINARY";
+    case TSDB_DATA_TYPE_DECIMAL:
+      return "TSDB_DATA_TYPE_DECIMAL";
+    case TSDB_DATA_TYPE_BLOB:
+      return "TSDB_DATA_TYPE_BLOB";
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+      return "TSDB_DATA_TYPE_MEDIUMBLOB";
     default:
       return "UNKNOWN";
   }
@@ -512,9 +528,8 @@ void taos_stop_query(TAOS_RES *res) {
   SRequestObj *pRequest = (SRequestObj *)res;
   pRequest->killed = true;
 
-  int32_t numOfFields = taos_num_fields(pRequest);
   // It is not a query, no need to stop.
-  if (numOfFields == 0) {
+  if (NULL == pRequest->pQuery || QUERY_EXEC_MODE_SCHEDULE != pRequest->pQuery->execMode) {
     tscDebug("request 0x%" PRIx64 " no need to be killed since not query", pRequest->requestId);
     return;
   }
@@ -673,6 +688,32 @@ const char *taos_get_server_info(TAOS *taos) {
   releaseTscObj(*(int64_t *)taos);
 
   return pTscObj->sDetailVer;
+}
+
+int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
+  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
+  if (pTscObj == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return -1;
+  }
+
+  int code = TSDB_CODE_SUCCESS;
+  taosThreadMutexLock(&pTscObj->mutex);
+  if(database == NULL || len <= 0){
+    if(required != NULL) *required = strlen(pTscObj->db) + 1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    code = -1;
+  }else if(len < strlen(pTscObj->db) + 1){
+    tstrncpy(database, pTscObj->db, len);
+    if(required) *required = strlen(pTscObj->db) + 1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    code = -1;
+  }else{
+    strcpy(database, pTscObj->db);
+    code = 0;
+  }
+  taosThreadMutexUnlock(&pTscObj->mutex);
+  return code;
 }
 
 static void destoryTablesReq(void *p) {

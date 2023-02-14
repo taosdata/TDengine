@@ -310,13 +310,37 @@ void metaCloseTbCursor(SMTbCursor *pTbCur) {
   }
 }
 
-int metaTbCursorNext(SMTbCursor *pTbCur) {
+int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
   int    ret;
   void  *pBuf;
   STbCfg tbCfg;
 
   for (;;) {
     ret = tdbTbcNext(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
+    if (ret < 0) {
+      return -1;
+    }
+
+    tDecoderClear(&pTbCur->mr.coder);
+
+    metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
+    if (pTbCur->mr.me.type == jumpTableType) {
+      continue;
+    }
+
+    break;
+  }
+
+  return 0;
+}
+
+int32_t metaTbCursorPrev(SMTbCursor *pTbCur) {
+  int    ret;
+  void  *pBuf;
+  STbCfg tbCfg;
+
+  for (;;) {
+    ret = tdbTbcPrev(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
     if (ret < 0) {
       return -1;
     }
@@ -682,9 +706,8 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     }
   }
 
-  if (sver <= 0) {
-    metaError("meta/query: incorrect sver: %" PRId32 ".", sver);
-    code = TSDB_CODE_FAILED;
+  if (ASSERTS(sver > 0, __FILE__, __LINE__, "failed to get table schema version: %d", sver)) {
+    code = TSDB_CODE_NOT_FOUND;
     goto _exit;
   }
 

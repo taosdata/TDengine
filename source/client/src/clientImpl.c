@@ -138,6 +138,12 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     p->mgmtEp = epSet;
     taosThreadMutexInit(&p->qnodeMutex, NULL);
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores / 2);
+    if (p->pTransporter == NULL) {
+      taosThreadMutexUnlock(&appInfo.mutex);
+      taosMemoryFreeClear(key);
+      taosMemoryFree(p);
+      return NULL;
+    }
     p->pAppHbMgr = appHbMgrInit(p, key);
     if (NULL == p->pAppHbMgr) {
       destroyAppInst(p);
@@ -157,6 +163,12 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
 
   taosMemoryFreeClear(key);
   return taosConnectImpl(user, &secretEncrypt[0], localDb, NULL, NULL, *pInst, connType);
+}
+
+void freeQueryParam(SSyncQueryParam* param) {
+  if (param == NULL) return;
+  tsem_destroy(&param->sem);
+  taosMemoryFree(param);
 }
 
 int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql,
@@ -180,17 +192,18 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   (*pRequest)->sqlLen = sqlLen;
   (*pRequest)->validateOnly = validateSql;
 
+  SSyncQueryParam* newpParam;
   if (param == NULL) {
-    SSyncQueryParam* pParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
-    if (pParam == NULL) {
+    newpParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+    if (newpParam == NULL) {
       destroyRequest(*pRequest);
       *pRequest = NULL;
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    tsem_init(&pParam->sem, 0, 0);
-    pParam->pRequest = (*pRequest);
-    param = pParam;
+    tsem_init(&newpParam->sem, 0, 0);
+    newpParam->pRequest = (*pRequest);
+    param = newpParam;
   }
 
   (*pRequest)->body.param = param;
@@ -201,8 +214,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   if (err) {
     tscError("%" PRId64 " failed to add to request container, reqId:0x%" PRIx64 ", conn:%" PRId64 ", %s",
              (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
-
-    taosMemoryFree(param);
+    freeQueryParam(newpParam);
     destroyRequest(*pRequest);
     *pRequest = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -214,6 +226,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
         nodesCreateAllocator((*pRequest)->requestId, tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
       tscError("%" PRId64 " failed to create node allocator, reqId:0x%" PRIx64 ", conn:%" PRId64 ", %s",
                (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
+      freeQueryParam(newpParam);
       destroyRequest(*pRequest);
       *pRequest = NULL;
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -1232,7 +1245,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
 
   int64_t transporterId = 0;
   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
-  
+
   tsem_wait(&pRequest->body.rspSem);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg =
@@ -1379,8 +1392,6 @@ int32_t doProcessMsgFromServer(void* param) {
         tscError("0x%" PRIx64 " rsp msg:%s, code:%s rspLen:%d, elapsed time:%d ms, reqId:0x%" PRIx64, pRequest->self,
                  TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), pMsg->contLen, elapsed / 1000, pRequest->requestId);
       }
-
-      taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
     }
   }
 
@@ -1400,6 +1411,11 @@ int32_t doProcessMsgFromServer(void* param) {
   }
 
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
+
+  if (pTscObj) {
+    taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
+  }
+
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
 
@@ -1437,6 +1453,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     tscError("failed to sched msg to tsc, tsc ready to quit");
     rpcFreeCont(pMsg->pCont);
     taosMemoryFree(arg->pEpset);
+    destroySendMsgInfo(pMsg->info.ahandle);
     taosMemoryFree(arg);
   }
 }

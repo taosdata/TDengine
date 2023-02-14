@@ -52,6 +52,7 @@ sql insert into t1 values(1648791213000,1,2,3,1.0);
 sql insert into t1 values(1648791223001,1,2,3,1.1);
 sql insert into t1 values(1648791233002,2,2,3,2.1);
 sql insert into t1 values(1648791243003,2,2,3,3.1);
+sleep 300
 sql insert into t1 values(1648791200000,4,2,3,4.1);
 
 $loop_count = 0
@@ -115,6 +116,7 @@ sql create stream stream_t1 trigger at_once IGNORE EXPIRED 1 into streamtST1 as 
 sql create stream stream_t2 trigger at_once IGNORE EXPIRED 1 into streamtST2 as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st session(ts, 10s) ;
 sql insert into ts1 values(1648791211000,1,2,3);
 sql insert into ts1 values(1648791222001,2,2,3);
+sleep 300
 sql insert into ts2 values(1648791211000,1,2,3);
 sql insert into ts2 values(1648791222001,2,2,3);
 

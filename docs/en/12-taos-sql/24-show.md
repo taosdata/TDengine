@@ -1,6 +1,7 @@
 ---
-sidebar_label: SHOW Statement
 title: SHOW Statement for Metadata
+sidebar_label: SHOW Statement
+description: This document describes how to use the SHOW statement in TDengine.
 ---
 
 `SHOW` command can be used to get brief system information. To get details about metatadata, information, and status in the system, please use `select` to query the tables in database `INFORMATION_SCHEMA`. 
@@ -363,7 +364,7 @@ Shows information about all vgroups in the system or about the vgroups for a spe
 ## SHOW VNODES
 
 ```sql
-SHOW VNODES [dnode_name];
+SHOW VNODES {dnode_id | dnode_endpoint};
 ```
 
 Shows information about all vnodes in the system or about the vnodes for a specified dnode.

@@ -2823,8 +2823,8 @@ int32_t tSerializeSDbCfgRsp(void *buf, int32_t bufLen, const SDbCfgRsp *pRsp) {
     if (tEncodeI8(&encoder, pRetension->keepUnit) < 0) return -1;
   }
   if (tEncodeI8(&encoder, pRsp->schemaless) < 0) return -1;
+  if (tEncodeI16(&encoder, pRsp->sstTrigger) < 0) return -1;
   tEndEncode(&encoder);
-
   int32_t tlen = encoder.pos;
   tEncoderClear(&encoder);
   return tlen;
@@ -2875,6 +2875,7 @@ int32_t tDeserializeSDbCfgRsp(void *buf, int32_t bufLen, SDbCfgRsp *pRsp) {
     }
   }
   if (tDecodeI8(&decoder, &pRsp->schemaless) < 0) return -1;
+  if (tDecodeI16(&decoder, &pRsp->sstTrigger) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -3003,7 +3004,7 @@ int32_t tSerializeSTableIndexRsp(void *buf, int32_t bufLen, const STableIndexRsp
 
 void tFreeSerializeSTableIndexRsp(STableIndexRsp *pRsp) {
   if (pRsp->pIndex != NULL) {
-    taosArrayDestroy(pRsp->pIndex);
+    tFreeSTableIndexRsp(pRsp);
     pRsp->pIndex = NULL;
   }
 }
@@ -3193,6 +3194,7 @@ int32_t tSerializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq
   if (tEncodeI64(&encoder, pReq->showId) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->tb) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->filterTb) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
   tEndEncode(&encoder);
 
@@ -3209,6 +3211,7 @@ int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableR
   if (tDecodeI64(&decoder, &pReq->showId) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->tb) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->filterTb) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
 
   tEndDecode(&decoder);
@@ -3991,9 +3994,7 @@ int32_t tSerializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq *
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->dbUid) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
-  for (int32_t i = 0; i < 8; ++i) {
-    if (tEncodeI64(&encoder, pReq->reserved[i]) < 0) return -1;
-  }
+  if (tEncodeI64(&encoder, pReq->compactStartTime) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4008,9 +4009,7 @@ int32_t tDeserializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->dbUid) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
-  for (int32_t i = 0; i < 8; ++i) {
-    if (tDecodeI64(&decoder, &pReq->reserved[i]) < 0) return -1;
-  }
+  if (tDecodeI64(&decoder, &pReq->compactStartTime) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4111,6 +4110,68 @@ int32_t tDeserializeSAlterVnodeReplicaReq(void *buf, int32_t bufLen, SAlterVnode
   for (int32_t i = 0; i < 8; ++i) {
     if (tDecodeI64(&decoder, &pReq->reserved[i]) < 0) return -1;
   }
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSDisableVnodeWriteReq(void *buf, int32_t bufLen, SDisableVnodeWriteReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->vgId) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->disable) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSDisableVnodeWriteReq(void *buf, int32_t bufLen, SDisableVnodeWriteReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->disable) < 0) return -1;
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSAlterVnodeHashRangeReq(void *buf, int32_t bufLen, SAlterVnodeHashRangeReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->srcVgId) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->dstVgId) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->hashBegin) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->hashEnd) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->reserved) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSAlterVnodeHashRangeReq(void *buf, int32_t bufLen, SAlterVnodeHashRangeReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->srcVgId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->dstVgId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->hashBegin) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->hashEnd) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->reserved) < 0) return -1;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
@@ -5426,7 +5487,17 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
   }
+
   if (tEncodeI8(&encoder, pReq->createStb) < 0) return -1;
+  if (tEncodeU64(&encoder, pReq->targetStbUid) < 0) return -1;
+  if (tEncodeI32(&encoder, taosArrayGetSize(pReq->fillNullCols)) < 0) return -1;
+  for (int32_t i = 0; i < taosArrayGetSize(pReq->fillNullCols); ++i) {
+    SColLocation *pCol = taosArrayGet(pReq->fillNullCols, i);
+    if (tEncodeI16(&encoder, pCol->slotId) < 0) return -1;
+    if (tEncodeI16(&encoder, pCol->colId) < 0) return -1;
+    if (tEncodeI8(&encoder, pCol->type) < 0) return -1;
+  }
+  if (tEncodeI8(&encoder, pReq->igUpdate) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -5488,6 +5559,29 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
     }
   }
   if (tDecodeI8(&decoder, &pReq->createStb) < 0) return -1;
+  if (tDecodeU64(&decoder, &pReq->targetStbUid) < 0) return -1;
+  int32_t numOfFillNullCols = 0;
+  if (tDecodeI32(&decoder, &numOfFillNullCols) < 0) return -1;
+  if (numOfFillNullCols > 0) {
+    pReq->fillNullCols = taosArrayInit(numOfFillNullCols, sizeof(SColLocation));
+    if (pReq->fillNullCols == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    for (int32_t i = 0; i < numOfFillNullCols; ++i) {
+      SColLocation col = {0};
+      if (tDecodeI16(&decoder, &col.slotId) < 0) return -1;
+      if (tDecodeI16(&decoder, &col.colId) < 0) return -1;
+      if (tDecodeI8(&decoder, &col.type) < 0) return -1;
+      if (taosArrayPush(pReq->fillNullCols, &col) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+    }
+  }
+
+  if (tDecodeI8(&decoder, &pReq->igUpdate) < 0) return -1;
 
   tEndDecode(&decoder);
 
@@ -5557,6 +5651,7 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosArrayDestroy(pReq->pTags);
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->ast);
+  taosArrayDestroy(pReq->fillNullCols);
 }
 
 int32_t tEncodeSRSmaParam(SEncoder *pCoder, const SRSmaParam *pRSmaParam) {

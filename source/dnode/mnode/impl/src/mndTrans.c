@@ -329,6 +329,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       action.pRaw = NULL;
     } else if (action.actionType == TRANS_ACTION_MSG) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), _OVER);
+      tmsgUpdateDnodeEpSet(&action.epSet);
       SDB_GET_INT16(pRaw, dataPos, &action.msgType, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgSent*/, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgReceived*/, _OVER)
@@ -571,8 +572,20 @@ static void mndTransUpdateActions(SArray *pOldArray, SArray *pNewArray) {
 }
 
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
-  mTrace("trans:%d, perform update action, old row:%p stage:%s, new row:%p stage:%s", pOld->id, pOld,
-         mndTransStr(pOld->stage), pNew, mndTransStr(pNew->stage));
+  mTrace("trans:%d, perform update action, old row:%p stage:%s create:%" PRId64 ", new row:%p stage:%s create:%" PRId64,
+         pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage),
+         pNew->createdTime);
+
+  if (pOld->createdTime != pNew->createdTime) {
+    mError("trans:%d, failed to perform update action since createTime not match, old row:%p stage:%s create:%" PRId64
+           ", new row:%p stage:%s create:%" PRId64,
+           pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage),
+           pNew->createdTime);
+    // only occured while sync timeout
+    terrno = TSDB_CODE_MND_TRNAS_SYNC_TIMEOUT;
+    return -1;
+  }
+
   mndTransUpdateActions(pOld->redoActions, pNew->redoActions);
   mndTransUpdateActions(pOld->undoActions, pNew->undoActions);
   mndTransUpdateActions(pOld->commitActions, pNew->commitActions);
@@ -778,16 +791,18 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   }
   (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mInfo("trans:%d, sync to other mnodes, stage:%s", pTrans->id, mndTransStr(pTrans->stage));
+  mInfo("trans:%d, sync to other mnodes, stage:%s createTime:%" PRId64, pTrans->id, mndTransStr(pTrans->stage),
+        pTrans->createdTime);
   int32_t code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
-    mError("trans:%d, failed to sync, errno:%s code:%s", pTrans->id, terrstr(), tstrerror(code));
+    mError("trans:%d, failed to sync, errno:%s code:%s createTime:%" PRId64 " saved trans:%d", pTrans->id, terrstr(),
+           tstrerror(code), pTrans->createdTime, pMnode->syncMgmt.transId);
     sdbFreeRaw(pRaw);
     return -1;
   }
 
   sdbFreeRaw(pRaw);
-  mInfo("trans:%d, sync finished", pTrans->id);
+  mInfo("trans:%d, sync finished, createTime:%" PRId64, pTrans->id, pTrans->createdTime);
   return 0;
 }
 
@@ -890,7 +905,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   pTrans->rpcRsp = NULL;
   pTrans->rpcRspLen = 0;
 
-  mndTransExecute(pMnode, pNew);
+  mndTransExecute(pMnode, pNew, true);
   mndReleaseTrans(pMnode, pNew);
   return 0;
 }
@@ -1053,7 +1068,7 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
 
   mInfo("trans:%d, %s:%d response is received, code:0x%x, accept:0x%x retry:0x%x", transId, mndTransStr(pAction->stage),
         action, pRsp->code, pAction->acceptableCode, pAction->retryCode);
-  mndTransExecute(pMnode, pTrans);
+  mndTransExecute(pMnode, pTrans, true);
 
 _OVER:
   mndReleaseTrans(pMnode, pTrans);
@@ -1482,15 +1497,17 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
     mError("trans:%d, failed to write sdb since %s", pTrans->id, terrstr());
   }
 
-  mInfo("trans:%d, execute finished, code:0x%x, failedTimes:%d", pTrans->id, pTrans->code, pTrans->failedTimes);
+  mInfo("trans:%d, execute finished, code:0x%x, failedTimes:%d createTime:%" PRId64, pTrans->id, pTrans->code,
+        pTrans->failedTimes, pTrans->createdTime);
   return continueExec;
 }
 
-void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
+void mndTransExecute(SMnode *pMnode, STrans *pTrans, bool isLeader) {
   bool continueExec = true;
 
   while (continueExec) {
-    mInfo("trans:%d, continue to execute, stage:%s", pTrans->id, mndTransStr(pTrans->stage));
+    mInfo("trans:%d, continue to execute, stage:%s createTime:%" PRId64 " leader:%d", pTrans->id,
+          mndTransStr(pTrans->stage), pTrans->createdTime, isLeader);
     pTrans->lastExecTime = taosGetTimestampMs();
     switch (pTrans->stage) {
       case TRN_STAGE_PREPARE:
@@ -1500,13 +1517,23 @@ void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
         continueExec = mndTransPerformRedoActionStage(pMnode, pTrans);
         break;
       case TRN_STAGE_COMMIT:
-        continueExec = mndTransPerformCommitStage(pMnode, pTrans);
+        if (isLeader) {
+          continueExec = mndTransPerformCommitStage(pMnode, pTrans);
+        } else {
+          mInfo("trans:%d, can not commit since not leader", pTrans->id);
+          continueExec = false;
+        }
         break;
       case TRN_STAGE_COMMIT_ACTION:
         continueExec = mndTransPerformCommitActionStage(pMnode, pTrans);
         break;
       case TRN_STAGE_ROLLBACK:
-        continueExec = mndTransPerformRollbackStage(pMnode, pTrans);
+        if (isLeader) {
+          continueExec = mndTransPerformRollbackStage(pMnode, pTrans);
+        } else {
+          mInfo("trans:%d, can not rollback since not leader", pTrans->id);
+          continueExec = false;
+        }
         break;
       case TRN_STAGE_UNDO_ACTION:
         continueExec = mndTransPerformUndoActionStage(pMnode, pTrans);
@@ -1549,7 +1576,7 @@ int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
     pAction->errCode = 0;
   }
 
-  mndTransExecute(pMnode, pTrans);
+  mndTransExecute(pMnode, pTrans, true);
   return 0;
 }
 
@@ -1607,7 +1634,7 @@ void mndTransPullup(SMnode *pMnode) {
     int32_t *pTransId = taosArrayGet(pArray, i);
     STrans  *pTrans = mndAcquireTrans(pMnode, *pTransId);
     if (pTrans != NULL) {
-      mndTransExecute(pMnode, pTrans);
+      mndTransExecute(pMnode, pTrans, true);
     }
     mndReleaseTrans(pMnode, pTrans);
   }

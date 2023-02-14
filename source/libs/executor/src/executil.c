@@ -155,7 +155,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
 
 void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList) {
   if (pGroupResInfo->pRows != NULL) {
-    taosArrayDestroyP(pGroupResInfo->pRows, taosMemoryFree);
+    taosArrayDestroy(pGroupResInfo->pRows);
   }
 
   pGroupResInfo->pRows = pArrayList;
@@ -954,7 +954,7 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
           return -1;
         }
       } else {
-        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
+//        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
         terrno = 0;
       }
     }
@@ -1670,11 +1670,17 @@ int32_t convertFillType(int32_t mode) {
     case FILL_MODE_NULL:
       type = TSDB_FILL_NULL;
       break;
+    case FILL_MODE_NULL_F:
+      type = TSDB_FILL_NULL_F;
+      break;
     case FILL_MODE_NEXT:
       type = TSDB_FILL_NEXT;
       break;
     case FILL_MODE_VALUE:
       type = TSDB_FILL_SET_VALUE;
+      break;
+    case FILL_MODE_VALUE_F:
+      type = TSDB_FILL_SET_VALUE_F;
       break;
     case FILL_MODE_LINEAR:
       type = TSDB_FILL_LINEAR;
@@ -1761,6 +1767,10 @@ bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {
           pLimitInfo->slimit.offset != -1);
 }
 
+bool hasSlimitOffsetInfo(SLimitInfo* pLimitInfo) {
+  return (pLimitInfo->slimit.limit != -1 || pLimitInfo->slimit.offset != -1);
+}
+
 void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo) {
   SLimit limit = {.limit = getLimit(pLimit), .offset = getOffset(pLimit)};
   SLimit slimit = {.limit = getLimit(pSLimit), .offset = getOffset(pSLimit)};
@@ -1769,6 +1779,11 @@ void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimit
   pLimitInfo->slimit = slimit;
   pLimitInfo->remainOffset = limit.offset;
   pLimitInfo->remainGroupOffset = slimit.offset;
+}
+
+void resetLimitInfoForNextGroup(SLimitInfo* pLimitInfo) {
+  pLimitInfo->numOfOutputRows = 0;
+  pLimitInfo->remainOffset = pLimitInfo->limit.offset;
 }
 
 uint64_t tableListGetSize(const STableListInfo* pTableList) {
@@ -1815,28 +1830,30 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
 
 int32_t tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalGroupIndex, STableKeyInfo** pKeyInfo,
                               int32_t* size) {
-  int32_t total = tableListGetOutputGroups(pTableList);
-  if (ordinalGroupIndex < 0 || ordinalGroupIndex >= total) {
+  int32_t totalGroups = tableListGetOutputGroups(pTableList);
+  int32_t numOfTables =  tableListGetSize(pTableList);
+
+  if (ordinalGroupIndex < 0 || ordinalGroupIndex >= totalGroups) {
     return TSDB_CODE_INVALID_PARA;
   }
 
   // here handle two special cases:
   // 1. only one group exists, and 2. one table exists for each group.
-  if (total == 1) {
-    *size = tableListGetSize(pTableList);
+  if (totalGroups == 1) {
+    *size = numOfTables;
     *pKeyInfo = (*size == 0) ? NULL : taosArrayGet(pTableList->pTableList, 0);
     return TSDB_CODE_SUCCESS;
-  } else if (total == tableListGetSize(pTableList)) {
+  } else if (totalGroups == numOfTables) {
     *size = 1;
     *pKeyInfo = taosArrayGet(pTableList->pTableList, ordinalGroupIndex);
     return TSDB_CODE_SUCCESS;
   }
 
   int32_t offset = pTableList->groupOffset[ordinalGroupIndex];
-  if (ordinalGroupIndex < total - 1) {
-    *size = pTableList->groupOffset[offset + 1] - pTableList->groupOffset[offset];
+  if (ordinalGroupIndex < totalGroups - 1) {
+    *size = pTableList->groupOffset[ordinalGroupIndex + 1] - offset;
   } else {
-    *size = total - pTableList->groupOffset[offset] - 1;
+    *size = numOfTables - offset;
   }
 
   *pKeyInfo = taosArrayGet(pTableList->pTableList, offset);
