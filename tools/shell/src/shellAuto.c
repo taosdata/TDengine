@@ -640,7 +640,7 @@ bool shellAutoInit() {
 void shellSetConn(TAOS* conn) { 
   varCon = conn; 
   // init database and stable
-  updateTireValue(WT_VAR_DBNAME, false);
+  //updateTireValue(WT_VAR_DBNAME, false);
 }
 
 // exit shell auto funciton, shell exit call once
@@ -1977,7 +1977,7 @@ void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb) {
 
   if (dealUseDB(sql)) {
     // change to new db
-    updateTireValue(WT_VAR_STABLE, false);
+    //updateTireValue(WT_VAR_STABLE, false);
     return;
   }
 
