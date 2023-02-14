@@ -1233,12 +1233,11 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   entry.version = version;
 
-  metaDeleteNcolIdx(pMeta, &oldEntry);
-  metaUpdateNcolIdx(pMeta, &entry);
-
   // do actual write
   metaWLock(pMeta);
 
+  metaDeleteNcolIdx(pMeta, &oldEntry);
+  metaUpdateNcolIdx(pMeta, &entry);
   // save to table db
   metaSaveToTbDb(pMeta, &entry);
 
