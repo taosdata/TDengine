@@ -6,6 +6,27 @@
   "description": "taosexplorer",
   "glyphs": [
     {
+      "icon_id": "1205913",
+      "name": "file-table",
+      "font_class": "file-table",
+      "unicode": "e682",
+      "unicode_decimal": 59010
+    },
+    {
+      "icon_id": "6802404",
+      "name": "3-Files",
+      "font_class": "-Files",
+      "unicode": "e779",
+      "unicode_decimal": 59257
+    },
+    {
+      "icon_id": "6802405",
+      "name": "2-Files",
+      "font_class": "-Files1",
+      "unicode": "e77a",
+      "unicode_decimal": 59258
+    },
+    {
       "icon_id": "515380",
       "name": "推特_twitter44",
       "font_class": "tuitetwitter44",

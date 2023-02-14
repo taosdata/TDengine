@@ -86,7 +86,6 @@
       },
     },
     created() {
-      console.log('xterm----load')
       this.initWs();
     },
     methods: {
@@ -96,7 +95,6 @@
         this.ws
           .connect()
           .then(() => {
-            console.log("ws connect success",this.currentUseDB);
             this.$BusOnAndAutoOff("console/useDB", dbname => {
               const sql = `use ${dbname};`;
               if (sql == this.currentUseDB) return;

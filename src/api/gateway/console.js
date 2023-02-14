@@ -12,7 +12,6 @@ export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.ap
     // data:type==='s'?{ sql: sqlStr }:''
     // data: { sql: sqlStr },
   }).then(data => {
-
     // return data;
     // let cData = jsonToObj(data);
     let cData=JSON.parse(JSON.stringify(data))
@@ -41,9 +40,9 @@ export function executeDBOperations(sql, appId = store.getters.appId) {
       return Promise.reject(err);
     });
 }
-export async function getPaginationData(countSql, dataSql, currentPage, pageSize, handleDataFn, appId = store.getters.appId,type,normalCount,normalSql) {
+export async function getPaginationData(countSql, dataSql, currentPage, pageSize, handleDataFn, appId = store.getters.appId) {
   // 查询数量
-  const count = await sendSQLReq(type==='union'?countSql+ 'union '+normalCount:countSql, false, appId)
+  const count = await sendSQLReq(countSql, false, appId)
     .then(({ data }) => {
       return data?.[0]?.[0] || 0;
     })
@@ -57,9 +56,9 @@ export async function getPaginationData(countSql, dataSql, currentPage, pageSize
   if (dataSql.endsWith(";")) {
     dataSql = dataSql.slice(0, -1);
   }
-  if(type==='union'){//查询database下所有stable和所有table的
-    dataSql= '( '+dataSql + `limit ${startIndex},${pageSize}`+ ')  union '+normalSql
-  }
+  // if(type==='union'){//查询database下所有stable和所有table的
+  //   dataSql= '( '+dataSql + `limit ${startIndex},${pageSize}`+ ')  union '+normalSql
+  // }
   let data = await sendSQLReq(`${dataSql} limit ${startIndex},${pageSize};`, true, appId).catch(err => {
     Message.error(err.desc);
     return [];

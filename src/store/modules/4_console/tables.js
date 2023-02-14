@@ -32,7 +32,7 @@ const mutations = {
   SET_SELECTED_TB: (state, selected_tb) => {
     state.selected_tb = selected_tb;
   },
-  HANDLE_ADD_TABLE: (state, form) => {
+  HANDLE_ADD_TABLE: (state, form,stbTmpl) => {
     if (form) {
       state.formStatus = "update";
     } else {
@@ -40,9 +40,9 @@ const mutations = {
     }
     state.table_form = form || {
       name: "",
-      stbTmpl: "",
+      stbTmpl: "",//创建普通表默认赋值
       ts_field_name: "",
-      columns: [{ type: "INT", field: "", value: "" }],
+      columns: [{type: "TIMESTAMP", field: "", value: "" },{ type: "INT", field: "", value: "" }],
     };
   },
   SET_TABLE_FORM: (state, table_form) => {
@@ -118,7 +118,7 @@ const actions = {
       table_form: state.table_form,
     })
       .then(() => {
-        dispatch("handleUseStbCreate", state.table_form.stbTmpl);
+        // dispatch("handleUseStbCreate", state.table_form.stbTmpl);
         commit("console/CHANGE_TREE_KEY", null, { root: true });
       })
       .catch(() => {

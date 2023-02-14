@@ -28,7 +28,6 @@ export default {
     },
     methods: {
         del(data) {
-            console.log(data,'shanchu')
             this.$confirm("Are you sure  to delete "+data.endpoint + '?', "Warning", {
               confirmButtonText: "Ok",
               cancelButtonText: "Cancle",
@@ -37,8 +36,6 @@ export default {
           },
         add() {
             this.dialog = true
-
-            console.log(this.dialog,'this.dialogthis.dialog')
         }
     }
 }

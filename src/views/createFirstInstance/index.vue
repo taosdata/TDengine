@@ -94,7 +94,6 @@
     },
     methods: {
       create() {
-        debugger
         if (this.requestIng) return;
         this.$refs.form.validate(valid => {
           if (valid) {

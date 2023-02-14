@@ -161,7 +161,6 @@ export default {
     },
 
     data(newVal) {
-      console.log(newVal,'tree---------data----')
       this.store.setData(newVal);
     },
 

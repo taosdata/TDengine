@@ -251,7 +251,6 @@ export default {
       this.tree.$emit('tree-node-drag-end', event, this);
     },
     load(){
-      console.log('🌲滚动🌲');
       if(!this.node.expanded) return
       if(this.node.loaded){
         this.loadDisabled=true;
