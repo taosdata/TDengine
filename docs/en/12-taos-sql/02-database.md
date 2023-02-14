@@ -126,6 +126,22 @@ alter_database_option: {
 }
 ```
 
+###  ALTER CACHESIZE
+
+The command of changing database configuration parameters is easy to use, but it's hard to determine whether a parameter is proper or not. In this section we will describe how to determine whether cachesize is big enough.
+
+1. How to check cachesize?
+
+You can use  `select * from information_schema.ins_databases;` to get the value of cachesize.
+
+2. How to check cacheload?
+
+You can use `show <db_name>.vgroups;` to check the value of cacheload.
+
+3. Determine whether cachesize is big engough
+
+If the value of `cacheload` is very close to the value of `cachesize`, then it's very probably that `cachesize` is too small. If the value of `cacheload` is much smaller than the value of `cachesize`, then `cachesize` is big enough. You can use this simple principle to determine. Depending on how much memory is available in your system, you can choose to double `cachesize` or incrase it by even 5 or more times.
+
 :::note
 Other parameters cannot be modified after the database has been created.
 

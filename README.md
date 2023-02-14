@@ -111,6 +111,16 @@ If the PowerTools installation fails, you can try to use:
 sudo yum config-manager --set-enabled powertools
 ```
 
+#### For CentOS + devtoolset
+
+Besides above dependencies, please run following commands:
+
+```
+sudo yum install centos-release-scl
+sudo yum install devtoolset-9 devtoolset-9-libatomic-devel
+scl enable devtoolset-9 -- bash
+```
+
 ### macOS
 
 ```
