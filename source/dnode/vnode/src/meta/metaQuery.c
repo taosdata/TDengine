@@ -19,7 +19,7 @@ void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
   pReader->flags = flags;
   pReader->pMeta = pMeta;
-  if (!(flags & META_READER_NOLOCK)) {
+  if (pReader->pMeta && !(flags & META_READER_NOLOCK)) {
     metaRLock(pMeta);
   }
 }
@@ -152,7 +152,7 @@ bool metaIsTableExist(SMeta *pMeta, tb_uid_t uid) {
 }
 
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
-  SMeta *pMeta = pReader->pMeta;
+  SMeta  *pMeta = pReader->pMeta;
   int64_t version1;
 
   // query uid.idx
@@ -239,7 +239,6 @@ int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
   return 0;
 }
 
-
 int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
   int         code = 0;
   SMetaReader mr = {0};
@@ -311,13 +310,37 @@ void metaCloseTbCursor(SMTbCursor *pTbCur) {
   }
 }
 
-int metaTbCursorNext(SMTbCursor *pTbCur) {
+int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
   int    ret;
   void  *pBuf;
   STbCfg tbCfg;
 
   for (;;) {
     ret = tdbTbcNext(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
+    if (ret < 0) {
+      return -1;
+    }
+
+    tDecoderClear(&pTbCur->mr.coder);
+
+    metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
+    if (pTbCur->mr.me.type == jumpTableType) {
+      continue;
+    }
+
+    break;
+  }
+
+  return 0;
+}
+
+int32_t metaTbCursorPrev(SMTbCursor *pTbCur) {
+  int    ret;
+  void  *pBuf;
+  STbCfg tbCfg;
+
+  for (;;) {
+    ret = tdbTbcPrev(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
     if (ret < 0) {
       return -1;
     }
@@ -612,23 +635,14 @@ tb_uid_t metaStbCursorNext(SMStbCursor *pStbCur) {
 }
 
 STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
-  // SMetaReader     mr = {0};
   STSchema       *pTSchema = NULL;
   SSchemaWrapper *pSW = NULL;
-  STSchemaBuilder sb = {0};
-  SSchema        *pSchema;
+  SSchema        *pSchema = NULL;
 
   pSW = metaGetTableSchema(pMeta, uid, sver, lock);
   if (!pSW) return NULL;
 
-  tdInitTSchemaBuilder(&sb, pSW->version);
-  for (int i = 0; i < pSW->nCols; i++) {
-    pSchema = pSW->pSchema + i;
-    tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
-  }
-  pTSchema = tdGetSchemaFromBuilder(&sb);
-
-  tdDestroyTSchemaBuilder(&sb);
+  pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version);
 
   taosMemoryFree(pSW->pSchema);
   taosMemoryFree(pSW);
@@ -662,7 +676,13 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
         goto _exit;
       }
 
-      ASSERT(c);
+      if (c == 0) {
+        metaULock(pMeta);
+        tdbTbcClose(pSkmDbC);
+        code = TSDB_CODE_FAILED;
+        metaError("meta/query: incorrect c: %" PRId32 ".", c);
+        goto _exit;
+      }
 
       if (c < 0) {
         tdbTbcMoveToPrev(pSkmDbC);
@@ -686,7 +706,10 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     }
   }
 
-  ASSERT(sver > 0);
+  if (ASSERTS(sver > 0, __FILE__, __LINE__, "failed to get table schema version: %d", sver)) {
+    code = TSDB_CODE_NOT_FOUND;
+    goto _exit;
+  }
 
   skmDbKey.uid = suid ? suid : uid;
   skmDbKey.sver = sver;
@@ -709,20 +732,10 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   tdbFree(pData);
 
   // convert
-  STSchemaBuilder sb = {0};
-
-  tdInitTSchemaBuilder(&sb, pSchemaWrapper->version);
-  for (int i = 0; i < pSchemaWrapper->nCols; i++) {
-    SSchema *pSchema = pSchemaWrapper->pSchema + i;
-    tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
-  }
-
-  STSchema *pTSchema = tdGetSchemaFromBuilder(&sb);
+  STSchema *pTSchema = tBuildTSchema(pSchemaWrapper->pSchema, pSchemaWrapper->nCols, pSchemaWrapper->version);
   if (pTSchema == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
-
-  tdDestroyTSchemaBuilder(&sb);
 
   *ppTSchema = pTSchema;
   taosMemoryFree(pSchemaWrapper->pSchema);
@@ -756,9 +769,7 @@ int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
   return pMeta->pVnode->config.vndStats.numOfTimeSeries + pMeta->pVnode->config.vndStats.numOfNTimeSeries;
 }
 
-int64_t metaGetNtbNum(SMeta *pMeta) {
-  return pMeta->pVnode->config.vndStats.numOfNTables;
-}
+int64_t metaGetNtbNum(SMeta *pMeta) { return pMeta->pVnode->config.vndStats.numOfNTables; }
 
 typedef struct {
   SMeta   *pMeta;

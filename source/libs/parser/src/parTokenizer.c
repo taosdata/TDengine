@@ -61,6 +61,7 @@ static SKeyword keywordTable[] = {
     {"COLUMN",               TK_COLUMN},
     {"COMMENT",              TK_COMMENT},
     {"COMP",                 TK_COMP},
+    {"COMPACT",              TK_COMPACT},
     {"CONNECTION",           TK_CONNECTION},
     {"CONNECTIONS",          TK_CONNECTIONS},
     {"CONNS",                TK_CONNS},
@@ -90,6 +91,7 @@ static SKeyword keywordTable[] = {
     {"EXISTS",               TK_EXISTS},
     {"EXPIRED",              TK_EXPIRED},
     {"EXPLAIN",              TK_EXPLAIN},
+    {"EVENT_WINDOW",         TK_EVENT_WINDOW},
     {"EVERY",                TK_EVERY},
     {"FILE",                 TK_FILE},
     {"FILL",                 TK_FILL},
@@ -148,6 +150,7 @@ static SKeyword keywordTable[] = {
     {"NOT",                  TK_NOT},
     {"NOW",                  TK_NOW},
     {"NULL",                 TK_NULL},
+    {"NULL_F",               TK_NULL_F},
     {"NULLS",                TK_NULLS},
     {"OFFSET",               TK_OFFSET},
     {"ON",                   TK_ON},
@@ -195,15 +198,16 @@ static SKeyword keywordTable[] = {
     {"SNODES",               TK_SNODES},
     {"SOFFSET",              TK_SOFFSET},
     {"SPLIT",                TK_SPLIT},
-    {"STT_TRIGGER",          TK_STT_TRIGGER},
     {"STABLE",               TK_STABLE},
     {"STABLES",              TK_STABLES},
+    {"START",                TK_START},
     {"STATE",                TK_STATE},
     {"STATE_WINDOW",         TK_STATE_WINDOW},
     {"STORAGE",              TK_STORAGE},
     {"STREAM",               TK_STREAM},
     {"STREAMS",              TK_STREAMS},
     {"STRICT",               TK_STRICT},
+    {"STT_TRIGGER",          TK_STT_TRIGGER},
     {"SUBSCRIBE",            TK_SUBSCRIBE},
     {"SUBSCRIPTIONS",        TK_SUBSCRIPTIONS},
     {"SUBTABLE",             TK_SUBTABLE},
@@ -232,11 +236,13 @@ static SKeyword keywordTable[] = {
     {"TTL",                  TK_TTL},
     {"UNION",                TK_UNION},
     {"UNSIGNED",             TK_UNSIGNED},
+    {"UPDATE",                  TK_UPDATE},
     {"USE",                  TK_USE},
     {"USER",                 TK_USER},
     {"USERS",                TK_USERS},
     {"USING",                TK_USING},
     {"VALUE",                TK_VALUE},
+    {"VALUE_F",              TK_VALUE_F},
     {"VALUES",               TK_VALUES},
     {"VARCHAR",              TK_VARCHAR},
     {"VARIABLES",            TK_VARIABLES},
@@ -258,6 +264,7 @@ static SKeyword keywordTable[] = {
     {"WRITE",                TK_WRITE},
     {"_C0",                  TK_ROWTS},
     {"_IROWTS",              TK_IROWTS},
+    {"_ISFILLED",            TK_ISFILLED},
     {"_QDURATION",           TK_QDURATION},
     {"_QEND",                TK_QEND},
     {"_QSTART",              TK_QSTART},
@@ -266,6 +273,7 @@ static SKeyword keywordTable[] = {
     {"_WDURATION",           TK_WDURATION},
     {"_WEND",                TK_WEND},
     {"_WSTART",              TK_WSTART},
+    {"ALIVE",                TK_ALIVE},
 };
 // clang-format on
 
@@ -620,7 +628,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
   return 0;
 }
 
-SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
+SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreComma) {
   SToken t0 = {0};
 
   // here we reach the end of sql string, null-terminated string
@@ -639,6 +647,10 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
         return t0;
+      }
+
+      if (NULL != pIgnoreComma && t == ',') {
+        *pIgnoreComma = true;
       }
 
       t = str[++(*i)];
@@ -710,15 +722,4 @@ void taosCleanupKeywordsTable() {
   if (m != NULL && atomic_val_compare_exchange_ptr(&keywordHashTable, m, 0) == m) {
     taosHashCleanup(m);
   }
-}
-
-SToken taosTokenDup(SToken* pToken, char* buf, int32_t len) {
-  assert(pToken != NULL && buf != NULL && len > pToken->n);
-
-  strncpy(buf, pToken->z, pToken->n);
-  buf[pToken->n] = 0;
-
-  SToken token = *pToken;
-  token.z = buf;
-  return token;
 }

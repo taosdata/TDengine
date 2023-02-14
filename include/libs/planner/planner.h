@@ -36,6 +36,7 @@ typedef struct SPlanContext {
   int64_t     watermark;
   int64_t     deleteMark;
   int8_t      igExpired;
+  int8_t      igCheckUpdate;
   char*       pMsg;
   int32_t     msgLen;
   const char* pUser;

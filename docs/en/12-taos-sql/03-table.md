@@ -1,5 +1,6 @@
 ---
 title: Table
+description: This document describes how to create and perform operations on standard tables and subtables.
 ---
 
 ## Create Table

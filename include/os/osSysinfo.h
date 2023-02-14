@@ -60,6 +60,13 @@ void    taosSetCoreDump(bool enable);
 
 #endif  // WINDOWS
 
+#if defined(_ALPINE)
+
+#define _UTSNAME_LENGTH         65
+#define _UTSNAME_MACHINE_LENGTH _UTSNAME_LENGTH
+
+#endif
+
 typedef struct {
   char sysname[_UTSNAME_MACHINE_LENGTH];
   char nodename[_UTSNAME_MACHINE_LENGTH];
@@ -70,6 +77,7 @@ typedef struct {
 
 SysNameInfo taosGetSysNameInfo();
 bool        taosCheckCurrentInDll();
+int         taosGetlocalhostname(char *hostname, size_t maxLen);
 
 #ifdef __cplusplus
 }

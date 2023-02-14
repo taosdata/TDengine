@@ -1,6 +1,6 @@
 ---
 title: Configuration Parameters
-description: "Configuration parameters for client and server in TDengine"
+description: This document describes the configuration parameters for the TDengine server and client.
 ---
 
 ## Configuration File on Server Side
@@ -106,7 +106,7 @@ The parameters described in this document by the effect that they have on the sy
 | Applicable | Server only                                           |
 | Meaning       | The switch for monitoring inside server. The main object of monitoring is to collect information about load on physical nodes, including CPU usage, memory usage, disk usage, and network bandwidth. Monitoring information is sent over HTTP to the taosKeeper service specified by `monitorFqdn` and `monitorProt`.
 | Value Range   | 0: monitoring disabled, 1: monitoring enabled                                                                                                                                                                |
-| Default   | 1                                                                                                                                                                                                  |
+| Default   | 0                                                                                                                                                                                                  |
 
 ### monitorFqdn
 
@@ -142,6 +142,15 @@ The parameters described in this document by the effect that they have on the sy
 | Meaning       | Switch for allowing TDengine to collect and report service usage information |
 | Value Range   | 0: Not allowed; 1: Allowed                                                   |
 | Default Value | 1                                                                                                                                                                                   |
+### crashReporting
+
+| Attribute     | Description                                        |
+| -------- | -------------------------------------------- |
+| Applicable | Server Only                                 |
+| Meaning     |Switch for allowing TDengine to collect and report crash related information |
+| Value Range | 0,1   0: Not allowed；1：allowed                                 |
+| Default Value   | 1                                           |
+
 
 ## Query Parameters
 
@@ -153,11 +162,7 @@ The parameters described in this document by the effect that they have on the sy
 | Meaning     | Execution policy for query statements            |
 | Unit     | None                            |
 | Default   | 1                             |
-| Value Range | 1: Run queries on vnodes and not on qnodes 
-
-2: Run subtasks without scan operators on qnodes and subtasks with scan operators on vnodes.
-
-3: Only run scan operators on vnodes; run all other operators on qnodes. |
+| Value Range | 1: Run queries on vnodes and not on qnodes; 2: Run subtasks without scan operators on qnodes and subtasks with scan operators on vnodes; 3: Only run scan operators on vnodes, and run all other operators on qnodes. |
 
 ### querySmaOptimize
 
@@ -167,11 +172,7 @@ The parameters described in this document by the effect that they have on the sy
 | Meaning  | SMA index optimization policy |
 | Unit     | None                            |
 | Default Value | 0                                                 |
-| Notes |
-
-0: Disable SMA indexing and perform all queries on non-indexed data.
-
-1: Enable SMA indexing and perform queries from suitable statements on precomputation results.|
+| Notes |0: Disable SMA indexing and perform all queries on non-indexed data; 1: Enable SMA indexing and perform queries from suitable statements on precomputation results.|
 
 ### countAlwaysReturnValue 
 
@@ -314,6 +315,7 @@ The charset that takes effect is UTF-8.
 | Applicable    | Server Only                                 |
 | Meaning       | All data files are stored in this directory |
 | Default Value | /var/lib/taos                               |
+| Note          | The [Tiered Storage](https://docs.tdengine.com/tdinternal/arch/#tiered-storage) function needs to be used in conjunction with the [KEEP](https://docs.tdengine.com/taos-sql/database/#parameters) parameter |
 
 ### tempDir
 
@@ -594,7 +596,7 @@ The charset that takes effect is UTF-8.
 | Attribute     | Description                          |
 | -------- | ----------------------------- |
 | Applicable | Client only                                           |
-| Meaning     | Whether schemaless columns are consistently ordered |
+| Meaning     | Whether schemaless columns are consistently ordered, depat, discarded since 3.0.3.0|
 | Value Range     | 0: not consistent; 1: consistent.            |
 | Default   | 1                             |
 
@@ -656,7 +658,7 @@ The charset that takes effect is UTF-8.
 | 20  |     minimalTmpDirGB     | Yes              | Yes              |                                                   |
 | 21  |    smlChildTableName    | Yes              | Yes              |                                                   |
 | 22  |       smlTagName        | Yes              | Yes              |                                                   |
-| 23  |      smlDataFormat      | No              | Yes              |                                                   |
+| 23  |      smlDataFormat      | No              | Yes(discarded since 3.0.3.0)              |                                                   |
 | 24  |     statusInterval      | Yes              | Yes              |                                                   |
 | 25  |         logDir          | Yes              | Yes              |                                                   |
 | 26  |     minimalLogDirGB     | Yes              | Yes              |                                                   |

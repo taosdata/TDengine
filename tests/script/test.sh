@@ -10,13 +10,11 @@ set +e
 #set -x
 
 FILE_NAME=
-RELEASE=0
-ASYNC=0
 VALGRIND=0
-UNIQUE=0
+TEST=0
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
-while getopts "f:agvum" arg
+while getopts "f:tgv" arg
 do
   case $arg in
     f)
@@ -25,8 +23,8 @@ do
     v)
       VALGRIND=1
       ;;
-    u)
-      UNIQUE=1
+    t)
+      TEST=1
       ;;
     g)
       VALGRIND=2
@@ -53,11 +51,7 @@ fi
 TOP_DIR=`pwd`
 TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
-if [[ "$OS_TYPE" != "Darwin" ]]; then
-  cut_opt="--field="
-else
-  cut_opt="-f "
-fi
+cut_opt="-f "
 
 if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
   BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
@@ -139,6 +133,11 @@ if [ -n "$FILE_NAME" ]; then
     eval $PROGRAM -c $CFG_DIR -f $FILE_NAME 2> $ASAN_DIR/tsim.asan
     result=$?
     echo "Execute result:" $result
+
+    if [ $TEST -eq 1 ]; then
+      echo "Exit without check asan errors"
+      exit 1
+    fi
 
     if [ $result -eq 0 ]; then
       $CODE_DIR/sh/sigint_stop_dnodes.sh

@@ -127,7 +127,114 @@ if $rows != 13 then
   goto loop3
 endi
 
+sql insert into t2 values(1648791217000,11,11,11,11.0,'eee') (1648791219000,11,11,11,11.0,'eee') t1 values(1648791217000,11,11,11,11.0,'eee') (1648791219000,11,11,11,11.0,'eee');
 
+$loop_count = 0
+
+loop4:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+
+sql select * from streamt1 order by group_id, ts;
+
+if $rows != 20 then
+  print ====streamt1=rows1=$rows
+  goto loop4
+endi
+
+if $data04 == 0 then
+  print ====streamt1=data04=$data04
+  goto loop4
+endi
+
+sql select group_id,count(*) from streamt1 group by group_id;
+
+if $rows != 2 then
+  print ====streamt1=rows2=$rows
+  goto loop4
+endi
+
+sql select * from streamt2 order by group_id, ts;
+
+if $rows != 20 then
+  print ====streamt2=rows2=$rows
+  goto loop4
+endi
+
+if $data04 == 0 then
+  print ====streamt2=data04=$data04
+  goto loop4
+endi
+
+sql select group_id,count(*) from streamt2 group by group_id;
+
+if $rows != 2 then
+  print ====streamt2=rows2=$rows
+  goto loop4
+endi
+
+sql select * from streamt3 order by group_id, ts;
+
+if $rows != 20 then
+  print ====streamt3=rows3=$rows
+  goto loop4
+endi
+
+if $data04 == 0 then
+  print ====streamt3=data04=$data04
+  goto loop4
+endi
+
+sql select group_id,count(*) from streamt3 group by group_id;
+
+if $rows != 2 then
+  print ====streamt3=rows2=$rows
+  goto loop4
+endi
+
+
+sql select * from streamt4 order by group_id, ts;
+
+if $rows != 20 then
+  print ====streamt4=rows4=$rows
+  goto loop4
+endi
+
+if $data04 == 0 then
+  print ====streamt4=data04=$data04
+  goto loop4
+endi
+
+sql select group_id,count(*) from streamt4 group by group_id;
+
+if $rows != 2 then
+  print ====streamt4=rows2=$rows
+  goto loop4
+endi
+
+sql select * from streamt5 order by group_id, ts;
+
+if $rows != 20 then
+  print ====streamt5=rows5=$rows
+  goto loop4
+endi
+
+if $data04 == 0 then
+  print ====streamt5=data04=$data04
+  goto loop4
+endi
+
+sql select group_id,count(*) from streamt5 group by group_id;
+
+if $rows != 2 then
+  print ====streamt5=rows2=$rows
+  goto loop4
+endi
 
 
 

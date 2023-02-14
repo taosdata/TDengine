@@ -24,7 +24,6 @@ static SMsgCb defaultMsgCb;
 void tmsgSetDefault(const SMsgCb* msgcb) { defaultMsgCb = *msgcb; }
 
 int32_t tmsgPutToQueue(const SMsgCb* msgcb, EQueueType qtype, SRpcMsg* pMsg) {
-  ASSERT(msgcb != NULL);
   int32_t code = (*msgcb->putToQueueFp)(msgcb->mgmt, qtype, pMsg);
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
@@ -59,3 +58,17 @@ void tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg) { (*defaultMsgCb.registerBrokenLin
 void tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type) { (*defaultMsgCb.releaseHandleFp)(pHandle, type); }
 
 void tmsgReportStartup(const char* name, const char* desc) { (*defaultMsgCb.reportStartupFp)(name, desc); }
+
+bool tmsgUpdateDnodeInfo(int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port) {
+  if (defaultMsgCb.updateDnodeInfoFp) {
+    return (*defaultMsgCb.updateDnodeInfoFp)(defaultMsgCb.data, dnodeId, clusterId, fqdn, port);
+  } else {
+    return false;
+  }
+}
+
+void tmsgUpdateDnodeEpSet(SEpSet* epset) {
+  for (int32_t i = 0; i < epset->numOfEps; ++i) {
+    tmsgUpdateDnodeInfo(NULL, NULL, epset->eps[i].fqdn, &epset->eps[i].port);
+  }
+}

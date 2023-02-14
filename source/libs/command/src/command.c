@@ -21,6 +21,7 @@
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tgrant.h"
+#include "taosdef.h"
 
 extern SConfig* tsCfg;
 
@@ -40,7 +41,6 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->numOfCols = htonl(numOfCols);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data, numOfCols);
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -154,6 +154,23 @@ static int32_t buildCreateDBResultDataBlock(SSDataBlock** pOutput) {
   return code;
 }
 
+static int32_t buildAliveResultDataBlock(SSDataBlock** pOutput) {
+  SSDataBlock* pBlock = createDataBlock();
+  if (NULL == pBlock) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    blockDataDestroy(pBlock);
+  }
+  return code;
+}
+
 int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   int64_t v = 0;
   switch (unit) {
@@ -231,10 +248,6 @@ static const char* cacheModelStr(int8_t cacheModel) {
   return TSDB_CACHE_MODEL_NONE_STR;
 }
 
-static const char* strictStr(int8_t strict) {
-  return TSDB_DB_STRICT_ON == strict ? TSDB_DB_STRICT_ON_STR : TSDB_DB_STRICT_OFF_STR;
-}
-
 static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, SDbCfgInfo* pCfg) {
   blockDataEnsureCapacity(pBlock, 1);
   pBlock->info.rows = 1;
@@ -268,12 +281,12 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
   len += sprintf(
       buf2 + VARSTR_HEADER_SIZE,
       "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %dm "
-      "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
-      "STRICT '%s' WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d",
+      "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
+      "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d",
       dbFName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile,
-      pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2,
-      pCfg->pages, pCfg->pageSize, prec, pCfg->replications, strictStr(pCfg->strict), pCfg->walLevel,
-      pCfg->numOfVgroups, 1 == pCfg->numOfStables);
+      pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows,  pCfg->sstTrigger, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2,
+      pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups,
+      1 == pCfg->numOfStables);
 
   if (retentions) {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, " RETENTIONS %s", retentions);
@@ -283,6 +296,108 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
   (varDataLen(buf2)) = len;
 
   colDataAppend(pCol2, 0, buf2, false);
+}
+
+#define CHECK_LEADER(n) (row[n] && (fields[n].type == TSDB_DATA_TYPE_VARCHAR && strncasecmp(row[n], "leader", varDataLen((char *)row[n] - VARSTR_HEADER_SIZE)) == 0))
+// on this row, if have leader return true else return false
+bool existLeaderRole(TAOS_ROW row, TAOS_FIELD* fields, int nFields) {
+  // vgroup_id | db_name | tables | v1_dnode | v1_status | v2_dnode | v2_status | v3_dnode | v3_status | v4_dnode |
+  // v4_status |  cacheload  | tsma |
+  if (nFields != 13) {
+    return false;
+  }
+
+  // check have leader on cloumn v*_status on 4 6 8 10
+  if (CHECK_LEADER(4) || CHECK_LEADER(6) || CHECK_LEADER(8) || CHECK_LEADER(10)) {
+    return true;
+  }
+
+  return false;
+}
+
+// get db alive status, return 1 is alive else return 0
+int32_t getAliveStatusFromApi(int64_t* pConnId, char* dbName, int32_t* pStatus) {
+  char    sql[128 + TSDB_DB_NAME_LEN] = "select * from information_schema.ins_vgroups";
+  int32_t code;
+
+  // filter with db name
+  if (dbName && dbName[0] != 0) {
+    char str[64 + TSDB_DB_NAME_LEN] = "";
+    // test db name exist
+    sprintf(str, "show create database %s ;", dbName);
+    TAOS_RES* dbRes = taos_query(pConnId, str);
+    code = taos_errno(dbRes);
+    if (code != TSDB_CODE_SUCCESS) {
+      taos_free_result(dbRes);
+      return code;
+    }
+    taos_free_result(dbRes);
+
+    sprintf(str, " where db_name='%s' ;", dbName);
+    strcat(sql, str);
+  }
+
+  TAOS_RES* res = taos_query(pConnId, sql);
+  code = taos_errno(res);
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_free_result(res);
+    return code;
+  }
+
+  TAOS_ROW    row = NULL;
+  TAOS_FIELD* fields = taos_fetch_fields(res);
+  int32_t     nFields = taos_num_fields(res);
+  int32_t     nAvailble = 0;
+  int32_t     nUnAvailble = 0;
+
+  while ((row = taos_fetch_row(res)) != NULL) {
+    if (existLeaderRole(row, fields, nFields)) {
+      nAvailble++;
+    } else {
+      nUnAvailble++;
+    }
+  }
+  taos_free_result(res);
+
+  int32_t status = 0;
+  if (nAvailble + nUnAvailble == 0 || nUnAvailble == 0) {
+    status = SHOW_STATUS_AVAILABLE;
+  } else if (nAvailble > 0 && nUnAvailble > 0) {
+    status = SHOW_STATUS_HALF_AVAILABLE;
+  } else {
+    status = SHOW_STATUS_NOT_AVAILABLE;
+  }
+
+  if (pStatus) {
+    *pStatus = status;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setAliveResultIntoDataBlock(int64_t* pConnId, SSDataBlock* pBlock, char* dbName) {
+  blockDataEnsureCapacity(pBlock, 1);
+  pBlock->info.rows = 1;
+
+  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+  int32_t          status = 0;
+  int32_t          code = getAliveStatusFromApi(pConnId, dbName, &status);
+  if (code == TSDB_CODE_SUCCESS) {
+    colDataAppend(pCol1, 0, (const char*)&status, false);
+  }
+  return code;
+}
+
+static int32_t execShowAliveStatus(int64_t* pConnId, SShowAliveStmt* pStmt, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildAliveResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setAliveResultIntoDataBlock(pConnId, pBlock, pStmt->dbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_ALIVE_RESULT_COLS, pRsp);
+  }
+  blockDataDestroy(pBlock);
+  return code;
 }
 
 static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveTableRsp** pRsp) {
@@ -740,7 +855,7 @@ static int32_t execSelectWithoutFrom(SSelectStmt* pSelect, SRetrieveTableRsp** p
   return code;
 }
 
-int32_t qExecCommand(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
+int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_DESCRIBE_STMT:
       return execDescribe(sysInfoUser, pStmt, pRsp);
@@ -758,6 +873,9 @@ int32_t qExecCommand(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
       return execShowLocalVariables(pRsp);
     case QUERY_NODE_SELECT_STMT:
       return execSelectWithoutFrom((SSelectStmt*)pStmt, pRsp);
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
+      return execShowAliveStatus(pConnId, (SShowAliveStmt*)pStmt, pRsp);       
     default:
       break;
   }

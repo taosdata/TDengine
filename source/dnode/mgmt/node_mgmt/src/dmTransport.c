@@ -39,7 +39,7 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pMsg->msgType)];
   if (msgFp == NULL) {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-    dGError("msg:%p, not processed since no handler", pMsg);
+    dGError("msg:%p, not processed since no handler, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
     return -1;
   }
 
@@ -53,6 +53,15 @@ static bool dmFailFastFp(tmsg_t msgType) {
   return msgType == TDMT_SYNC_HEARTBEAT || msgType == TDMT_SYNC_APPEND_ENTRIES;
 }
 
+static void dmConvertErrCode(tmsg_t msgType) {
+  if (terrno != TSDB_CODE_APP_IS_STOPPING) {
+    return;
+  }
+  if ((msgType > TDMT_VND_MSG && msgType < TDMT_VND_MAX_MSG) ||
+      (msgType > TDMT_SCH_MSG && msgType < TDMT_SCH_MAX_MSG)) {
+    terrno = TSDB_CODE_VND_STOPPED;
+  }
+}
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -102,6 +111,11 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     dGError("msg:%p, type:%s pCont is NULL", pRpc, TMSG_INFO(pRpc->msgType));
     terrno = TSDB_CODE_INVALID_MSG_LEN;
     goto _OVER;
+  } else if ((pRpc->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRpc->code == TSDB_CODE_RPC_BROKEN_LINK) &&
+             (!IsReq(pRpc)) && (pRpc->pCont == NULL)) {
+    dGError("msg:%p, type:%s pCont is NULL, err: %s", pRpc, TMSG_INFO(pRpc->msgType), tstrerror(pRpc->code));
+    terrno = pRpc->code;
+    goto _OVER;
   }
 
   if (pHandle->defaultNtype == NODE_END) {
@@ -145,12 +159,14 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   if (pMsg == NULL) goto _OVER;
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
-  dGTrace("msg:%p, is created, type:%s handle:%p len:%d", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle, pRpc->contLen);
+  dGTrace("msg:%p, is created, type:%s handle:%p len:%d", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle,
+          pRpc->contLen);
 
   code = dmProcessNodeMsg(pWrapper, pMsg);
 
 _OVER:
   if (code != 0) {
+    dmConvertErrCode(pRpc->msgType);
     if (terrno != 0) code = terrno;
     if (pMsg) {
       dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
@@ -232,8 +248,9 @@ static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) { rpcRe
 
 static bool rpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_MNODE_NOT_FOUND ||
-      code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_VND_STOPPED ||
-      code == TSDB_CODE_APP_IS_STARTING || code == TSDB_CODE_APP_IS_STOPPING) {
+      code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED || code == TSDB_CODE_SYN_NOT_LEADER ||
+      code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_VND_STOPPED || code == TSDB_CODE_APP_IS_STARTING ||
+      code == TSDB_CODE_APP_IS_STOPPING) {
     if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||
         msgType == TDMT_SCH_MERGE_FETCH) {
       return false;
@@ -258,8 +275,6 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.rfp = rpcRfp;
   rpcInit.compressSize = tsCompressMsgSize;
 
-  rpcInit.retryLimit = tsRpcRetryLimit;
-  rpcInit.retryInterval = tsRpcRetryInterval;
   rpcInit.retryMinInterval = tsRedirectPeriod;
   rpcInit.retryStepFactor = tsRedirectFactor;
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
@@ -330,6 +345,8 @@ SMsgCb dmGetMsgcb(SDnode *pDnode) {
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
       .releaseHandleFp = dmReleaseHandle,
       .reportStartupFp = dmReportStartup,
+      .updateDnodeInfoFp = dmUpdateDnodeInfo,
+      .data = &pDnode->data,
   };
   return msgCb;
 }

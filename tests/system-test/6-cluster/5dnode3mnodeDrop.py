@@ -112,7 +112,8 @@ class TDTestCase:
             dnode_first_port = dnode.cfgDict["firstEp"].split(":")[-1]
             cmd = f" taos -h {dnode_first_host} -P {dnode_first_port} -s ' create dnode \"{dnode_id} \" ' ;"
             tdLog.debug(cmd)
-            os.system(cmd)
+            if os.system(cmd) != 0:
+                raise Exception("failed to execute system command. cmd: %s" % cmd)
 
         time.sleep(2)
         tdLog.info(" create cluster with %d dnode  done! " %dnodes_nums)
@@ -120,7 +121,7 @@ class TDTestCase:
     def check3mnode(self):
         count=0
         while count < 10:
-            time.sleep(1)
+            time.sleep(0.1)
             tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(3) :
                 tdLog.debug("mnode is  three nodes")
@@ -157,7 +158,7 @@ class TDTestCase:
     def check3mnode1off(self):
         count=0
         while count < 10:
-            time.sleep(1)
+            time.sleep(0.1)
             tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(3) :
                 tdLog.debug("mnode is  three nodes")
@@ -189,7 +190,7 @@ class TDTestCase:
     def check3mnode2off(self):
         count=0
         while count < 40:
-            time.sleep(1)
+            time.sleep(0.1)
             tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(3) :
                 tdLog.debug("mnode is  three nodes")
@@ -219,7 +220,7 @@ class TDTestCase:
     def check3mnode3off(self):
         count=0
         while count < 10:
-            time.sleep(1)
+            time.sleep(0.1)
             tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(3) :
                 tdLog.debug("mnode is  three nodes")
@@ -279,32 +280,47 @@ class TDTestCase:
 
         #  drop follower of mnode
         dropcount =0
-        while dropcount <= 10:
+        while dropcount <= 5:
             for i in range(1,3):
                 tdLog.debug("drop mnode on dnode %d"%(i+1))
                 tdSql.execute("drop mnode on dnode %d"%(i+1))
                 tdSql.query("select * from information_schema.ins_mnodes;")
                 count=0
                 while count<10:
-                    time.sleep(1)
+                    time.sleep(0.1)
                     tdSql.query("select * from information_schema.ins_mnodes;")
-                    if tdSql.checkRows(2):
+                    if tdSql.queryRows == 2:
                         tdLog.debug("drop mnode %d successfully"%(i+1))
                         break
                     count+=1
+                self.wait_for_transactions(100)
+
                 tdLog.debug("create mnode on dnode %d"%(i+1))
                 tdSql.execute("create mnode on dnode %d"%(i+1))
                 count=0
                 while count<10:
-                    time.sleep(1)
+                    time.sleep(0.1)
                     tdSql.query("select * from information_schema.ins_mnodes;")
-                    if tdSql.checkRows(3):
-                        tdLog.debug("drop mnode %d successfully"%(i+1))
+                    if tdSql.queryRows == 3:
+                        tdLog.debug("create mnode %d successfully"%(i+1))
                         break
                     count+=1
+                self.wait_for_transactions(100)
             dropcount+=1
         self.check3mnode()
 
+    def wait_for_transactions(self, timeout):
+        count=0
+        while count<timeout:
+            time.sleep(1)
+            tdSql.query("show transactions;")
+            # print(tdSql.queryRows)
+            if tdSql.queryRows == 0 :
+                tdLog.debug("transactions completed successfully")
+                break
+            count+=1
+        if count >= timeout:
+            tdLog.debug("transactions not finished before timeout (%d secs)"%timeout)
 
     def getConnection(self, dnode):
         host = dnode.cfgDict["fqdn"]

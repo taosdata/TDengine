@@ -203,6 +203,7 @@ _err:
 
 int metaClose(SMeta *pMeta) {
   if (pMeta) {
+    if (pMeta->pEnv) metaAbort(pMeta);
     if (pMeta->pCache) metaCacheClose(pMeta);
     if (pMeta->pIdx) metaCloseIdx(pMeta);
     if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
@@ -358,7 +359,10 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
     return -1;
   }
 
-  ASSERT(pTagIdxKey1->type == pTagIdxKey2->type);
+  if (pTagIdxKey1->type != pTagIdxKey2->type) {
+    metaError("meta/open: incorrect tag idx type.");
+    return TSDB_CODE_FAILED;
+  }
 
   // check NULL, NULL is always the smallest
   if (pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {

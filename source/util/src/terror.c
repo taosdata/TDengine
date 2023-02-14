@@ -51,6 +51,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               "Unable to resolve FQD
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_PORT_EADDRINUSE,          "Port already in use")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_BROKEN_LINK,              "Conn is broken")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_TIMEOUT,                  "Conn read timeout")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED,   "some vnode/qnode/mnode(s) out of service")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_TIME_UNSYNCED,                "Client and server's time is not synchronized")
@@ -87,6 +88,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NEED_RETRY,                   "Retry needed")
 TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE,      "Out of memory in rpc queue")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TIMESTAMP,            "Invalid timestamp format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_DECODE_ERROR,             "Msg decode error")
+TAOS_DEFINE_ERROR(TSDB_CODE_MSG_ENCODE_ERROR,             "Msg encode error")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_AVAIL_DISK,                "No available disk")
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_FOUND,                    "Not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISKSPACE,                 "Out of disk space")
@@ -136,6 +138,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_CLAUSE_ERROR,        "not supported stmt cl
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_QUERY_KILLED,             "Query killed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_NO_EXEC_NODE,             "No available execution node in current query policy configuration")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_NOT_STABLE_ERROR,         "Table is not a super table")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_CACHE_ERROR,         "Stmt cache error")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INTERNAL_ERROR,           "Internal error")
 
 // mnode-common
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_RIGHTS,                "Insufficient privilege for operation")
@@ -248,16 +252,19 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_SINGLE_STB_MODE_DB,       "Database is single st
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SCHEMA_VER,       "Invalid schema version while alter stb")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STABLE_UID_NOT_MATCH,     "Invalid stable uid while alter stb")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_CONFLICT_WITH_TSMA, "Field used by tsma")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_IN_CREATING,        "Dnode in creating status")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_IN_DROPPING,        "Dnode in dropping status")
 
 // mnode-trans
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_ALREADY_EXIST,      "Transaction already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NOT_EXIST,          "Transaction not exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_INVALID_STAGE,      "Invalid stage to kill")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CONFLICT,           "Conflict transaction not completed")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_UNKNOW_ERROR,       "Unknown transaction error")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CLOG_IS_NULL,       "Transaction commitlog is null")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL,   "Unable to establish connection While execute transaction and will continue in the background")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED,  "Last Transaction not finished")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL,   "Unable to establish connection While execute transaction")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRNAS_SYNC_TIMEOUT,       "Sync timeout While execute transaction and will continue in the background")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_UNKNOW_ERROR,       "Unknown transaction error")
 
 // mnode-mq
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_ALREADY_EXIST,      "Topic already exists")
@@ -272,8 +279,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST,      "Subcribe not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_OFFSET_NOT_EXIST,         "Offset not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CONSUMER_NOT_READY,       "Consumer not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_SUBSCRIBED,         "Topic subscribed cannot be dropped")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_MUST_BE_DELETED,    "Topic must be dropped first")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CGROUP_USED,              "Consumer group being used by some consumer")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_MUST_BE_DELETED,    "Topic must be dropped first")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SUB_OPTION,       "Invalid subscribe option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_IN_REBALANCE,             "Topic being rebalanced")
 
 // mnode-stream
@@ -281,6 +289,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_ALREADY_EXIST,     "Stream already exists
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_EXIST,         "Stream not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STREAM_OPTION,    "Invalid stream option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_MUST_BE_DELETED,   "Stream must be dropped first")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB,  "Stream temporarily does not support source db having replica > 1")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_STREAMS,         "Too many streams")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
@@ -312,6 +322,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_COL_SUBSCRIBED,           "Table column is subsc
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_AVAIL_BUFPOOL,         "No availabe buffer pool")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_STOPPED,                  "Vnode stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_DUP_REQUEST,              "Duplicate write request")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_QUERY_BUSY,               "Query busy")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")
@@ -401,6 +412,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_PROPOSE_NOT_READY,        "Sync not ready for pr
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_STANDBY_NOT_READY,        "Sync not ready for standby")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_BATCH_ERROR,              "Sync batch error")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_RESTORING,                "Sync is restoring")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG,     "Sync invalid snapshot msg")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_BUFFER_FULL,              "Sync buffer is full")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INTERNAL_ERROR,           "Sync internal error")
 
 //tq
@@ -569,6 +582,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PRECISION_TYPE,     "Invalid timestamp p
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_DATA,               "Invalid data format")
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_DB_CONF,            "Invalid schemaless db config")
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_NOT_SAME_TYPE,              "Not the same type like before")
+TAOS_DEFINE_ERROR(TSDB_CODE_SML_INTERNAL_ERROR,             "Internal error")
 
 //tsma
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INIT_FAILED,               "Tsma init failed")
@@ -584,6 +598,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NO_INDEX_IN_CACHE,         "No tsma index in ca
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_ENV,               "Invalid rsma env")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_STAT,              "Invalid rsma state")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_QTASKINFO_CREATE,          "Rsma qtaskinfo creation error")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FS_COMMIT,                 "Rsma fs commit error")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_REMOVE_EXISTS,             "Rsma remove exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FETCH_MSG_MSSED_UP,        "Rsma fetch msg is messed up")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_EMPTY_INFO,                "Rsma info is empty")
@@ -591,6 +606,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_SCHEMA,            "Rsma invalid schema
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_REGEX_MATCH,               "Rsma regex match")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_STREAM_STATE_OPEN,         "Rsma stream state open")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_STREAM_STATE_COMMIT,       "Rsma stream state commit")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FS_REF,                    "Rsma fs ref error")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FS_SYNC,                   "Rsma fs sync error")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FS_UPDATE,                 "Rsma fs update error")
 
 //index
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")
@@ -636,13 +654,10 @@ const char* tstrerror(int32_t err) {
   // this is a system errno
   if ((err & 0x00ff0000) == 0x00ff0000) {
     int32_t code = err & 0x0000ffff;
-    if (code >= 0 && code < 36) {
-      return strerror(code);
-    } else {
-      return "unknown err";
-    }
+    // strerror can handle any invalid code
+    // invalid code return Unknown error 
+    return strerror(code);
   }
-
   int32_t s = 0;
   int32_t e = sizeof(errors) / sizeof(errors[0]);
 

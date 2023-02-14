@@ -234,7 +234,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
     }
 
     SSchTask *pTask = taosArrayGet(pLevel->subTasks, 0);
-    if (SUBPLAN_TYPE_MODIFY != pTask->plan->subplanType) {
+    if (SUBPLAN_TYPE_MODIFY != pTask->plan->subplanType || EXPLAIN_MODE_DISABLE != pJob->attr.explainMode) {
       pJob->attr.needFetch = true;
     }
   }
@@ -484,7 +484,7 @@ int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
   if (TSDB_CODE_SCH_IGNORE_ERROR == errCode) {
     return TSDB_CODE_SCH_IGNORE_ERROR;
   }
-  
+
   schUpdateJobErrCode(pJob, errCode);
 
   int32_t code = atomic_load_32(&pJob->errCode);
@@ -537,7 +537,9 @@ int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRs
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCC);
 
-  schProcessOnDataFetched(pJob);
+  if (!SCH_IS_INSERT_JOB(pJob)) {
+    schProcessOnDataFetched(pJob);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -668,6 +670,7 @@ void schFreeJobImpl(void *job) {
   taosMemoryFreeClear(pJob->userRes.execRes);
   taosMemoryFreeClear(pJob->fetchRes);
   taosMemoryFreeClear(pJob->sql);
+  tsem_destroy(&pJob->rspSem);
   taosMemoryFree(pJob);
 
   int32_t jobNum = atomic_sub_fetch_32(&schMgmt.jobNum, 1);
@@ -681,7 +684,7 @@ void schFreeJobImpl(void *job) {
 int32_t schJobFetchRows(SSchJob *pJob) {
   int32_t code = 0;
 
-  if (!(pJob->attr.explainMode == EXPLAIN_MODE_STATIC)) {
+  if (!(pJob->attr.explainMode == EXPLAIN_MODE_STATIC) && !(SCH_IS_EXPLAIN_JOB(pJob) && SCH_IS_INSERT_JOB(pJob))) {
     SCH_ERR_RET(schLaunchFetchTask(pJob));
 
     if (schChkCurrentOp(pJob, SCH_OP_FETCH, true)) {
@@ -748,7 +751,10 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
     SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  tsem_init(&pJob->rspSem, 0, 0);
+  if (tsem_init(&pJob->rspSem, 0, 0)) {
+    SCH_JOB_ELOG("tsem_init failed, errno:%d", errno);
+    SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
 
   pJob->refId = taosAddRef(schMgmt.jobRef, pJob);
   if (pJob->refId < 0) {

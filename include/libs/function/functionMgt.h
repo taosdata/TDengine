@@ -120,6 +120,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_WEND,
   FUNCTION_TYPE_WDURATION,
   FUNCTION_TYPE_IROWTS,
+  FUNCTION_TYPE_ISFILLED,
   FUNCTION_TYPE_TAGS,
 
   // internal function
@@ -218,6 +219,7 @@ bool fmIsKeepOrderFunc(int32_t funcId);
 bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
+bool fmIsBlockDistFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType);
 

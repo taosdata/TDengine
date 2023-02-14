@@ -1,7 +1,7 @@
 ---
-title: "taosAdapter"
-description: "taosAdapter is a TDengine companion tool that acts as a bridge and adapter between TDengine clusters and applications. It provides an easy-to-use and efficient way to ingest data directly from data collection agent software such as Telegraf, StatsD, collectd, etc. It also provides an InfluxDB/OpenTSDB compatible data ingestion interface, allowing InfluxDB/OpenTSDB applications to be seamlessly ported to TDengine."
-sidebar_label: "taosAdapter"
+title: taosAdapter
+sidebar_label: taosAdapter
+description: This document describes how to use taosAdapter, a TDengine companion tool that acts as a bridge and adapter between TDengine clusters and applications.
 ---
 
 import Prometheus from "./_prometheus.mdx"
@@ -21,6 +21,7 @@ taosAdapter provides the following features.
 - Seamless connection to collectd
 - Seamless connection to StatsD
 - Supports Prometheus remote_read and remote_write
+- Get table's VGroup ID
 
 ## taosAdapter architecture diagram
 
@@ -178,6 +179,7 @@ See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/bl
   node_export is an exporter for machine metrics. Please visit [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) for more information.
 - Support for Prometheus remote_read and remote_write
   remote_read and remote_write are interfaces for Prometheus data read and write from/to other data storage solution. Please visit [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) for more information.
+- Get table's VGroup ID. For more information about VGroup, please refer to [primary-logic-unit](/tdinternal/arch/#primary-logic-unit).
 
 ## Interfaces
 
@@ -199,7 +201,7 @@ Support InfluxDB query parameters as follows.
 - `precision` The time precision used by TDengine
 - `u` TDengine user name
 - `p` TDengine password
-- `ttl` The time to live of automatically created sub-table. This value cannot be updated. TDengine will use the ttl value of the frist data of sub-table to create sub-table. For more information, please refer [Create Table](/taos-sql/table/#create-table)
+- `ttl` The time to live of automatically created sub-table. This value cannot be updated. TDengine will use the ttl value of the first data of sub-table to create sub-table. For more information, please refer [Create Table](/taos-sql/table/#create-table)
 
 Note:      InfluxDB token authorization is not supported at present. Only Basic authorization and query parameter validation are supported.
 Example:   curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
@@ -240,6 +242,10 @@ node_export is an exporter of hardware and OS metrics exposed by the \*NIX kerne
 ### Prometheus
 
 <Prometheus />
+
+### Get table's VGroup ID
+
+You can call `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` to get table's VGroup ID. For more information about VGroup, please refer to [primary-logic-unit](/tdinternal/arch/#primary-logic-unit).
 
 ## Memory usage optimization methods
 

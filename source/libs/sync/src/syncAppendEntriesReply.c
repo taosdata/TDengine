@@ -50,21 +50,21 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   // drop stale response
-  if (pMsg->term < ths->pRaftStore->currentTerm) {
+  if (pMsg->term < ths->raftStore.currentTerm) {
     syncLogRecvAppendEntriesReply(ths, pMsg, "drop stale response");
     return 0;
   }
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
-    if (pMsg->term > ths->pRaftStore->currentTerm) {
+    if (pMsg->term > ths->raftStore.currentTerm) {
       syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
       syncNodeStepDown(ths, pMsg->term);
       return -1;
     }
 
-    ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
+    ASSERT(pMsg->term == ths->raftStore.currentTerm);
 
-    sTrace("vgId:%d received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
+    sTrace("vgId:%d, received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
            pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
 
     if (pMsg->success) {
@@ -87,65 +87,5 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     }
     (void)syncLogReplMgrProcessReply(pMgr, ths, pMsg);
   }
-  return 0;
-}
-
-int32_t syncNodeOnAppendEntriesReplyOld(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
-  int32_t ret = 0;
-
-  // if already drop replica, do not process
-  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
-    syncLogRecvAppendEntriesReply(ths, pMsg, "not in my config");
-    return 0;
-  }
-
-  // drop stale response
-  if (pMsg->term < ths->pRaftStore->currentTerm) {
-    syncLogRecvAppendEntriesReply(ths, pMsg, "drop stale response");
-    return 0;
-  }
-
-  if (ths->state == TAOS_SYNC_STATE_LEADER) {
-    if (pMsg->term > ths->pRaftStore->currentTerm) {
-      syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
-      syncNodeStepDown(ths, pMsg->term);
-      return -1;
-    }
-
-    ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
-
-    if (pMsg->success) {
-      SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
-      if (pMsg->matchIndex > oldMatchIndex) {
-        syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
-        syncMaybeAdvanceCommitIndex(ths);
-
-        // maybe update minMatchIndex
-        ths->minMatchIndex = syncMinMatchIndex(ths);
-      }
-      syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), pMsg->matchIndex + 1);
-
-    } else {
-      SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
-      if (nextIndex > SYNC_INDEX_BEGIN) {
-        --nextIndex;
-      }
-      syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
-    }
-
-    // send next append entries
-    SPeerState* pState = syncNodeGetPeerState(ths, &(pMsg->srcId));
-    ASSERT(pState != NULL);
-
-    if (pMsg->lastSendIndex == pState->lastSendIndex) {
-      int64_t timeNow = taosGetTimestampMs();
-      int64_t elapsed = timeNow - pState->lastSendTime;
-      sNTrace(ths, "sync-append-entries rtt elapsed:%" PRId64 ", index:%" PRId64, elapsed, pState->lastSendIndex);
-
-      syncNodeReplicateOne(ths, &(pMsg->srcId), true);
-    }
-  }
-
-  syncLogRecvAppendEntriesReply(ths, pMsg, "process");
   return 0;
 }

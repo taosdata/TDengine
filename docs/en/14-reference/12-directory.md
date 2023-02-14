@@ -1,6 +1,6 @@
 ---
 title: File directory structure
-description: "TDengine installation directory description"
+description: This document describes the structure of the TDengine directory after installation.
 ---
 
 After TDengine is installed, the following directories or files will be created in the system by default.

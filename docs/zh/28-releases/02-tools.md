@@ -10,6 +10,26 @@ taosTools 各版本安装包下载链接如下：
 
 import Release from "/components/ReleaseV3";
 
+## 2.4.3
+
+<Release type="tools" version="2.4.3" />
+
+## 2.4.2
+
+<Release type="tools" version="2.4.2" />
+
+## 2.4.1
+
+<Release type="tools" version="2.4.1" />
+
+## 2.4.0
+
+<Release type="tools" version="2.4.0" />
+
+## 2.3.3
+
+<Release type="tools" version="2.3.3" />
+
 ## 2.3.2
 
 <Release type="tools" version="2.3.2" />

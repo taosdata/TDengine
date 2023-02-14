@@ -24,9 +24,9 @@ from util.dnodes import tdDnodes
 from util.dnodes import *
 
 class TDTestCase:
-    updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
-    "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
-    "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143}
+    updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 131 ,"cDebugFlag":131,"uDebugFlag":131 ,"rpcDebugFlag":131 , "tmrDebugFlag":131 ,
+    "jniDebugFlag":131 ,"simDebugFlag":131,"dDebugFlag":131, "dDebugFlag":131,"vDebugFlag":131,"mDebugFlag":131,"qDebugFlag":131,
+    "wDebugFlag":131,"sDebugFlag":131,"tsdbDebugFlag":131,"tqDebugFlag":131 ,"fsDebugFlag":131 ,"fnDebugFlag":131}
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -851,6 +851,7 @@ class TDTestCase:
         tdLog.info("========mark==%s==="% mark);
         try:
             tdSql.query(sql,queryTimes=1)
+            self.explain_sql(sql)
         except:
             tdLog.info("sql is not support :=====%s; " %sql)
             tdSql.error(sql)
@@ -4995,9 +4996,7 @@ class TDTestCase:
             sql += "%s ;" % random.choice(self.limit_u_where)
             tdLog.info(sql)
             tdLog.info(len(sql))
-            tdSql.query(sql)
-            self.cur1.execute(sql)
-            self.explain_sql(sql)
+            self.data_check(sql,mark='15-2')
 
         tdSql.query("select 15-2.2 from stable_1;")
         for i in range(self.fornum):
@@ -5013,9 +5012,7 @@ class TDTestCase:
             sql += "%s ;" % random.choice(self.limit_u_where)
             tdLog.info(sql)
             tdLog.info(len(sql))
-            tdSql.query(sql)
-            self.cur1.execute(sql)
-            self.explain_sql(sql)
+            self.data_check(sql,mark='15-2.2')
 
         self.restartDnodes()
         tdSql.query("select 15-3 from stable_1;")
@@ -5033,9 +5030,7 @@ class TDTestCase:
             sql += "%s " % random.choice(self.limit_where)
             tdLog.info(sql)
             tdLog.info(len(sql))
-            tdSql.query(sql)
-            self.cur1.execute(sql)
-            self.explain_sql(sql)
+            self.data_check(sql,mark='15-3')
 
         tdSql.query("select 15-4 from stable_1;")
         for i in range(self.fornum):
@@ -5052,9 +5047,7 @@ class TDTestCase:
             sql += "%s " % random.choice(self.limit_u_where)
             tdLog.info(sql)
             tdLog.info(len(sql))
-            tdSql.query(sql)
-            self.cur1.execute(sql)
-            self.explain_sql(sql)
+            self.data_check(sql,mark='15-4')
 
         tdSql.query("select 15-4.2 from stable_1;")
         for i in range(self.fornum):
@@ -5087,8 +5080,7 @@ class TDTestCase:
             tdLog.info(sql)
             tdLog.info(len(sql))
             tdSql.query(sql)
-            self.cur1.execute(sql)
-            self.explain_sql(sql)
+            self.data_check(sql,mark='15-5')
 
         #16 select * from (select calc_aggregate_regulars as agg from regular_table  where <\>\in\and\or  order by limit offset )
         #self.dropandcreateDB_random("%s" %db, 1)

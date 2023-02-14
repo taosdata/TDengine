@@ -471,17 +471,20 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
 }
 
 int32_t ctgInitTask(SCtgJob* pJob, CTG_TASK_TYPE type, void* param, int32_t* taskId) {
+  int32_t code = 0;
   int32_t tid = atomic_fetch_add_32(&pJob->taskIdx, 1);
 
   CTG_LOCK(CTG_WRITE, &pJob->taskLock);
-  CTG_ERR_RET((*gCtgAsyncFps[type].initFp)(pJob, tid, param));
-  CTG_UNLOCK(CTG_WRITE, &pJob->taskLock);
+  CTG_ERR_JRET((*gCtgAsyncFps[type].initFp)(pJob, tid, param));
 
   if (taskId) {
     *taskId = tid;
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  CTG_UNLOCK(CTG_WRITE, &pJob->taskLock);
+
+  return code;
 }
 
 int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const SCatalogReq* pReq, catalogCallback fp,
@@ -902,6 +905,14 @@ int32_t ctgCallUserCb(void* param) {
   return TSDB_CODE_SUCCESS;
 }
 
+void ctgUpdateJobErrCode(SCtgJob* pJob, int32_t errCode) {
+  if (!NEED_CLIENT_REFRESH_VG_ERROR(errCode) || errCode == TSDB_CODE_SUCCESS) return;
+
+  atomic_store_32(&pJob->jobResCode, errCode);
+  qDebug("QID:0x%" PRIx64 " ctg job errCode updated to %s", pJob->queryId, tstrerror(errCode));
+  return;
+}
+
 int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
   SCtgJob* pJob = pTask->pJob;
   int32_t  code = 0;
@@ -921,6 +932,8 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
   if (taskDone < taosArrayGetSize(pJob->pTasks)) {
     qDebug("QID:0x%" PRIx64 " task done: %d, total: %d", pJob->queryId, taskDone,
            (int32_t)taosArrayGetSize(pJob->pTasks));
+
+    ctgUpdateJobErrCode(pJob, rspCode);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -928,7 +941,8 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
 
 _return:
 
-  pJob->jobResCode = code;
+  ctgUpdateJobErrCode(pJob, rspCode);
+  // pJob->jobResCode = code;
 
   // taosSsleep(2);
   // qDebug("QID:0x%" PRIx64 " ctg after sleep", pJob->queryId);
@@ -985,6 +999,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
             CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
 
             ctgReleaseVgInfoToCache(pCtg, dbCache);
+            dbCache = NULL;
           } else {
             SBuildUseDBInput input = {0};
 
@@ -1095,7 +1110,8 @@ _return:
   }
 
   if (code) {
-    ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname, tstrerror(code));
+    ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname,
+                 tstrerror(code));
   }
   if (pTask->res || code) {
     ctgHandleTaskEnd(pTask, code);
@@ -1153,6 +1169,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
             CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
 
             ctgReleaseVgInfoToCache(pCtg, dbCache);
+            dbCache = NULL;
           } else {
             SBuildUseDBInput input = {0};
 
@@ -1283,7 +1300,8 @@ _return:
       TSWAP(pTask->res, ctx->pResList);
       taskDone = true;
     }
-    ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname, tstrerror(code));
+    ctgTaskError("Get table %d.%s.%s meta failed with error %s", pName->acctId, pName->dbname, pName->tname,
+                 tstrerror(code));
   }
 
   if (pTask->res && taskDone) {
@@ -1549,10 +1567,10 @@ int32_t ctgHandleGetUserRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* 
     goto _return;
   }
 
-  if (ctx->user.type == AUTH_TYPE_READ && pOut->readDbs &&
+  if (CTG_AUTH_READ(ctx->user.type) && pOut->readDbs &&
       taosHashGet(pOut->readDbs, ctx->user.dbFName, strlen(ctx->user.dbFName))) {
     pass = true;
-  } else if (ctx->user.type == AUTH_TYPE_WRITE && pOut->writeDbs &&
+  } else if (CTG_AUTH_WRITE(ctx->user.type) && pOut->writeDbs &&
              taosHashGet(pOut->writeDbs, ctx->user.dbFName, strlen(ctx->user.dbFName))) {
     pass = true;
   }

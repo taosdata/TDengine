@@ -2,7 +2,7 @@
 #
 # Generate tar.gz package for linux client in all os system
 set -e
-#set -x
+# set -x
 
 curr_dir=$(pwd)
 compile_dir=$1
@@ -13,7 +13,13 @@ osType=$5
 verMode=$6
 verType=$7
 pagMode=$8
-dbName=$9
+#comVersion=$9
+dbName=$10
+
+productName2="${11}"
+#serverName2="${12}d"
+clientName2="${12}"
+# cusEmail2=${13}
 
 productName="TDengine"
 clientName="taos"
@@ -38,14 +44,20 @@ release_dir="${top_dir}/release"
 #package_name='linux'
 
 if [ "$verMode" == "cluster" ]; then
-  install_dir="${release_dir}/${productName}-enterprise-client-${version}"
+  install_dir="${release_dir}/${productName2}-enterprise-client-${version}"
 elif [ "$verMode" == "cloud" ]; then
-  install_dir="${release_dir}/${productName}-cloud-client-${version}"
+  install_dir="${release_dir}/${productName2}-cloud-client-${version}"
 else
-  install_dir="${release_dir}/${productName}-client-${version}"
+  install_dir="${release_dir}/${productName2}-client-${version}"
 fi
 
 # Directories and files.
+
+if [ "$verMode" == "cluster" ]; then
+  sed -i 's/verMode=edge/verMode=cluster/g' ${script_dir}/remove_client.sh
+  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" ${script_dir}/remove_client.sh
+  sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" ${script_dir}/remove_client.sh
+fi
 
 if [ "$osType" != "Darwin" ]; then
   if [ "$pagMode" == "lite" ]; then
@@ -131,22 +143,28 @@ fi
 
 cd ${curr_dir}
 cp ${install_files} ${install_dir}
+cp ${install_dir}/install_client.sh install_client_temp.sh
 if [ "$osType" == "Darwin" ]; then
-  sed 's/osType=Linux/osType=Darwin/g' ${install_dir}/install_client.sh >>install_client_temp.sh
+  sed -i 's/osType=Linux/osType=Darwin/g' install_client_temp.sh
   mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
 
 if [ "$verMode" == "cluster" ]; then
-  sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/install_client.sh >>install_client_temp.sh
+  sed -i 's/verMode=edge/verMode=cluster/g' install_client_temp.sh
+  sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" install_client_temp.sh
+  sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" install_client_temp.sh
+  sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" install_client_temp.sh
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmail2}\"/g" install_client_temp.sh
+
   mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
 if [ "$verMode" == "cloud" ]; then
-  sed 's/verMode=edge/verMode=cloud/g' ${install_dir}/install_client.sh >>install_client_temp.sh
+  sed -i 's/verMode=edge/verMode=cloud/g' install_client_temp.sh
   mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
 
 if [ "$pagMode" == "lite" ]; then
-  sed 's/pagMode=full/pagMode=lite/g' ${install_dir}/install_client.sh >>install_client_temp.sh
+  sed -i 's/pagMode=full/pagMode=lite/g' install_client_temp.sh
   mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
 chmod a+x ${install_dir}/install_client.sh
@@ -249,9 +267,9 @@ if [ "$osType" != "Darwin" ]; then
   tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :
 else
   tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) || :
-  mv "$(basename ${pkg_name}).tar.gz" ..
-  rm -rf ./*
-  mv ../"$(basename ${pkg_name}).tar.gz" .
+#  mv "$(basename ${pkg_name}).tar.gz" ..
+  rm -rf ${install_dir} ||:
+#  mv ../"$(basename ${pkg_name}).tar.gz" .
 fi
 
 cd ${curr_dir}

@@ -266,7 +266,10 @@ void *taosMemoryRealloc(void *ptr, int64_t size) {
   if (ptr == NULL) return taosMemoryMalloc(size);
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
-  assert(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
+  ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
+  if (tpTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
++      return NULL;
++ }
 
   TdMemoryInfo tdMemoryInfo;
   memcpy(&tdMemoryInfo, pTdMemoryInfo, sizeof(TdMemoryInfo));
@@ -288,8 +291,10 @@ void *taosMemoryStrDup(const char *ptr) {
   if (ptr == NULL) return NULL;
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
-  assert(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
-
+  ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
+  if (pTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
++   return NULL;
++ }
   void *tmp = tstrdup(pTdMemoryInfo);
   if (tmp == NULL) return NULL;
 
@@ -323,7 +328,10 @@ int64_t taosMemorySize(void *ptr) {
 
 #ifdef USE_TD_MEMORY
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
-  assert(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
+  ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
+  if (pTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
++   return NULL;
++ }
 
   return pTdMemoryInfo->memorySize;
 #else
@@ -338,7 +346,7 @@ int64_t taosMemorySize(void *ptr) {
 }
 
 void taosMemoryTrim(int32_t size) {
-#if defined(WINDOWS) || defined(DARWIN)
+#if defined(WINDOWS) || defined(DARWIN) || defined(_ALPINE)
   // do nothing
   return;
 #else
@@ -348,7 +356,7 @@ void taosMemoryTrim(int32_t size) {
 
 void* taosMemoryMallocAlign(uint32_t alignment, int64_t size) {
 #ifdef USE_TD_MEMORY
-  assert(0);
+  ASSERT(0);
 #else
 #if defined(LINUX)
   void* p = memalign(alignment, size);

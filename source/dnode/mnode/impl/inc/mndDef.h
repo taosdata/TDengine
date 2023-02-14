@@ -174,6 +174,7 @@ typedef struct {
   void*       param;
   char        opername[TSDB_TRANS_OPER_LEN];
   SArray*     pRpcArray;
+  SRWLatch    lockRpcArray;
 } STrans;
 
 typedef struct {
@@ -192,6 +193,7 @@ typedef struct {
   int64_t    lastAccessTime;
   int32_t    accessTimes;
   int32_t    numOfVnodes;
+  int32_t    numOfOtherNodes;
   int32_t    numOfSupportVnodes;
   float      numOfCores;
   int64_t    memTotal;
@@ -326,6 +328,7 @@ typedef struct {
   SDbCfg   cfg;
   SRWLatch lock;
   int64_t  stateTs;
+  int64_t  compactStartTime;
 } SDbObj;
 
 typedef struct {
@@ -442,6 +445,7 @@ typedef struct {
   STableMetaRsp* pMeta;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
+  char           filterTb[TSDB_TABLE_NAME_LEN];
 } SShowObj;
 
 typedef struct {
@@ -646,6 +650,7 @@ typedef struct {
   int64_t checkpointFreq;  // ms
   int64_t currentTick;     // do not serialize
   int64_t deleteMark;
+  int8_t  igCheckUpdate;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);

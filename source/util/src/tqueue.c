@@ -339,7 +339,6 @@ void taosRemoveFromQset(STaosQset *qset, STaosQueue *queue) {
       STaosQueue *prev = qset->head;
       tqueue = qset->head->next;
       while (tqueue) {
-        assert(tqueue->qset);
         if (tqueue == queue) {
           prev->next = tqueue->next;
           break;

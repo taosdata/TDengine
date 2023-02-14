@@ -466,7 +466,7 @@ static int32_t translateStddevMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t
 
 static int32_t translateWduration(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
-  pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -480,14 +480,21 @@ static int32_t translateNowToday(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     return code;
   }
 
-  pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_TIMESTAMP};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateTimePseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
 
-  pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_TIMESTAMP};
+  pFunc->node.resType = (SDataType){.bytes =tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateIsFilledPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // pseudo column do not need to check parameters
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes, .type = TSDB_DATA_TYPE_BOOL};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1009,7 +1016,10 @@ static bool validateHistogramBinDesc(char* binDescStr, int8_t binType, char* err
       intervals[0] = -INFINITY;
       intervals[numOfBins - 1] = INFINITY;
       // in case of desc bin orders, -inf/inf should be swapped
-      ASSERT(numOfBins >= 4);
+      if (numOfBins < 4) {
+        return false;
+      }
+
       if (intervals[1] > intervals[numOfBins - 2]) {
         TSWAP(intervals[0], intervals[numOfBins - 1]);
       }
@@ -1354,7 +1364,7 @@ static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     } else if (IS_FLOAT_TYPE(colType)) {
       resType = TSDB_DATA_TYPE_DOUBLE;
     } else {
-      ASSERT(0);
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
 
@@ -3250,6 +3260,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_isfilled",
+    .type = FUNCTION_TYPE_ISFILLED,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC,
+    .translateFunc = translateIsFilledPseudoColumn,
+    .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL

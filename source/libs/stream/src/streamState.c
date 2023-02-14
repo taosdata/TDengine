@@ -128,7 +128,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     memset(statePath, 0, 1024);
     tstrncpy(statePath, path, 1024);
   }
-  if (tdbOpen(statePath, szPage, pages, &pState->pTdbState->db, 0) < 0) {
+  if (tdbOpen(statePath, szPage, pages, &pState->pTdbState->db, 1) < 0) {
     goto _err;
   }
 
@@ -159,6 +159,11 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     goto _err;
   }
 
+  if (tdbTbOpen("partag.state.db", sizeof(int64_t), -1, NULL, pState->pTdbState->db, &pState->pTdbState->pParTagDb, 0) <
+      0) {
+    goto _err;
+  }
+
   if (streamStateBegin(pState) < 0) {
     goto _err;
   }
@@ -173,6 +178,7 @@ _err:
   tdbTbClose(pState->pTdbState->pFillStateDb);
   tdbTbClose(pState->pTdbState->pSessionStateDb);
   tdbTbClose(pState->pTdbState->pParNameDb);
+  tdbTbClose(pState->pTdbState->pParTagDb);
   tdbClose(pState->pTdbState->db);
   streamStateDestroy(pState);
   return NULL;
@@ -186,13 +192,14 @@ void streamStateClose(SStreamState* pState) {
   tdbTbClose(pState->pTdbState->pFillStateDb);
   tdbTbClose(pState->pTdbState->pSessionStateDb);
   tdbTbClose(pState->pTdbState->pParNameDb);
+  tdbTbClose(pState->pTdbState->pParTagDb);
   tdbClose(pState->pTdbState->db);
 
   streamStateDestroy(pState);
 }
 
 int32_t streamStateBegin(SStreamState* pState) {
-  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, NULL, NULL, NULL,
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     tdbAbort(pState->pTdbState->db, pState->pTdbState->txn);
     return -1;
@@ -208,7 +215,7 @@ int32_t streamStateCommit(SStreamState* pState) {
     return -1;
   }
 
-  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, NULL, NULL, NULL,
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
@@ -220,7 +227,7 @@ int32_t streamStateAbort(SStreamState* pState) {
     return -1;
   }
 
-  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, NULL, NULL, NULL,
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
@@ -656,8 +663,7 @@ int32_t streamStateSessionClear(SStreamState* pState) {
     void*       buf = NULL;
     int32_t     size = 0;
     int32_t     code = streamStateSessionGetKVByCur(pCur, &delKey, &buf, &size);
-    if (code == 0) {
-      ASSERT(size > 0);
+    if (code == 0 && size > 0) {
       memset(buf, 0, size);
       streamStateSessionPut(pState, &delKey, buf, size);
     } else {
@@ -821,10 +827,17 @@ _end:
   return res;
 }
 
+int32_t streamStatePutParTag(SStreamState* pState, int64_t groupId, const void* tag, int32_t tagLen) {
+  return tdbTbUpsert(pState->pTdbState->pParTagDb, &groupId, sizeof(int64_t), tag, tagLen, pState->pTdbState->txn);
+}
+
+int32_t streamStateGetParTag(SStreamState* pState, int64_t groupId, void** tagVal, int32_t* tagLen) {
+  return tdbTbGet(pState->pTdbState->pParTagDb, &groupId, sizeof(int64_t), tagVal, tagLen);
+}
+
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
-  tdbTbUpsert(pState->pTdbState->pParNameDb, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN,
-              pState->pTdbState->txn);
-  return 0;
+  return tdbTbUpsert(pState->pTdbState->pParNameDb, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN,
+                     pState->pTdbState->txn);
 }
 
 int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal) {

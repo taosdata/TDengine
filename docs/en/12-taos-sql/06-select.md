@@ -1,6 +1,7 @@
 ---
-sidebar_label: Select
 title: Select
+sidebar_label: Select
+description: This document describes how to query data in TDengine.
 ---
 
 ## Syntax
@@ -12,6 +13,7 @@ SELECT [DISTINCT] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
+    [interp_clause]
     [window_clause]
     [group_by_clause]
     [order_by_clasue]
@@ -52,8 +54,11 @@ window_clause: {
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
 
+interp_clause:
+    RANGE(ts_val, ts_val), EVERY(every_val), FILL(fill_mod_and_val)
+
 partition_by_clause:
-    PARTITION BY expr [, expr] ... 
+    PARTITION BY expr [, expr] ...
 
 group_by_clause:
     GROUP BY expr [, expr] ... HAVING condition
@@ -350,9 +355,9 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN
 
-TDengine supports natural joins between supertables, between standard tables, and between subqueries. The difference between natural joins and inner joins is that natural joins require that the fields being joined in the supertables or standard tables must have the same name. Data or tag columns must be joined with the equivalent column in another table.
+TDengine supports the `INTER JOIN` based on the timestamp primary key, that is, the `JOIN` condition must contain the timestamp primary key. As long as the requirement of timestamp-based primary key is met, `INTER JOIN` can be made between normal tables, sub-tables, super tables and sub-queries at will, and there is no limit on the number of tables.
 
-For standard tables, only the timestamp (primary key) can be used in join operations. For example:
+For standard tables:
 
 ```sql
 SELECT *
@@ -360,7 +365,7 @@ FROM temp_tb_1 t1, pressure_tb_1 t2
 WHERE t1.ts = t2.ts
 ```
 
-For supertables, tags as well as timestamps can be used in join operations. For example:
+For supertables:
 
 ```sql
 SELECT *
@@ -368,20 +373,15 @@ FROM temp_stable t1, temp_stable t2
 WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
+For sub-table and super table：
+
+```sql
+SELECT *
+FROM temp_ctable t1, temp_stable t2
+WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+```
+
 Similarly, join operations can be performed on the result sets of multiple subqueries.
-
-:::note
-
-The following restriction apply to JOIN statements:
-
-- The number of tables or supertables in a single join operation cannot exceed 10.
-- `FILL` cannot be used in a JOIN statement.
-- Arithmetic operations cannot be performed on the result sets of join operation.
-- `GROUP BY` is not allowed on a segment of the tables that participate in a join operation.
-- `OR` cannot be used in the conditions for join operation
-- Join operation can be performed only on tags or timestamps. You cannot perform a join operation on data columns.
-
-:::
 
 ## Nested Query
 

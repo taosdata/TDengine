@@ -343,6 +343,13 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;
+  if (pCxt->pPlanCxt->streamQuery) {
+    pScan->triggerType = pCxt->pPlanCxt->triggerType;
+    pScan->watermark = pCxt->pPlanCxt->watermark;
+    pScan->deleteMark = pCxt->pPlanCxt->deleteMark;
+    pScan->igExpired = pCxt->pPlanCxt->igExpired;
+    pScan->igCheckUpdate = pCxt->pPlanCxt->igCheckUpdate;
+  }
 
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {
@@ -372,6 +379,20 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   if (TSDB_CODE_SUCCESS == code && needScanDefaultCol(pScan->scanType)) {
     code = addDefaultScanCol(pRealTable->pMeta, &pScan->pScanCols);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pTags && NULL == pSelect->pPartitionByList) {
+    pScan->pTags = nodesCloneList(pSelect->pTags);
+    if (NULL == pScan->pTags) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pSubtable && NULL == pSelect->pPartitionByList) {
+    pScan->pSubtable = nodesCloneNode(pSelect->pSubtable);
+    if (NULL == pScan->pSubtable) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   // set output
@@ -545,6 +566,7 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   pAgg->hasLastRow = pSelect->hasLastRowFunc;
   pAgg->hasLast = pSelect->hasLastFunc;
   pAgg->hasTimeLineFunc = pSelect->hasTimeLineFunc;
+  pAgg->hasGroupKeyOptimized = false;
   pAgg->onlyHasKeepOrderFunc = pSelect->onlyHasKeepOrderFunc;
   pAgg->node.groupAction = getGroupAction(pCxt, pSelect);
   pAgg->node.requireDataOrder = getRequireDataOrder(pAgg->hasTimeLineFunc, pSelect);
@@ -704,6 +726,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     pWindow->watermark = pCxt->pPlanCxt->watermark;
     pWindow->deleteMark = pCxt->pPlanCxt->deleteMark;
     pWindow->igExpired = pCxt->pPlanCxt->igExpired;
+    pWindow->igCheckUpdate = pCxt->pPlanCxt->igCheckUpdate;
   }
   pWindow->inputTsOrder = ORDER_ASC;
   pWindow->outputTsOrder = ORDER_ASC;
@@ -814,6 +837,29 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
 
+static int32_t createWindowLogicNodeByEvent(SLogicPlanContext* pCxt, SEventWindowNode* pEvent, SSelectStmt* pSelect,
+                                            SLogicNode** pLogicNode) {
+  SWindowLogicNode* pWindow = (SWindowLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW);
+  if (NULL == pWindow) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pWindow->winType = WINDOW_TYPE_EVENT;
+  pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
+  pWindow->node.requireDataOrder =
+      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : getRequireDataOrder(true, pSelect);
+  pWindow->node.resultDataOrder =
+      pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_GLOBAL : pWindow->node.requireDataOrder;
+  pWindow->pStartCond = nodesCloneNode(pEvent->pStartCond);
+  pWindow->pEndCond = nodesCloneNode(pEvent->pEndCond);
+  pWindow->pTspk = nodesCloneNode(pEvent->pCol);
+  if (NULL == pWindow->pStartCond || NULL == pWindow->pEndCond || NULL == pWindow->pTspk) {
+    nodesDestroyNode((SNode*)pWindow);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+}
+
 static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
@@ -826,6 +872,8 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
       return createWindowLogicNodeBySession(pCxt, (SSessionWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
     case QUERY_NODE_INTERVAL_WINDOW:
       return createWindowLogicNodeByInterval(pCxt, (SIntervalWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
+    case QUERY_NODE_EVENT_WINDOW:
+      return createWindowLogicNodeByEvent(pCxt, (SEventWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
     default:
       break;
   }
@@ -928,6 +976,10 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if (TSDB_CODE_SUCCESS == code && 0 == LIST_LENGTH(pFill->node.pTargets)) {
+    code = createColumnByRewriteExpr(pFill->pWStartTs, &pFill->node.pTargets);
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pFill;
   } else {
@@ -1011,7 +1063,7 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 
   TSWAP(pProject->node.pLimit, pSelect->pLimit);
   TSWAP(pProject->node.pSlimit, pSelect->pSlimit);
-  pProject->ignoreGroupId = (NULL == pSelect->pPartitionByList);
+  pProject->ignoreGroupId = pSelect->isSubquery ? true : (NULL == pSelect->pPartitionByList);
   pProject->node.groupAction =
       (!pSelect->isSubquery && pCxt->pPlanCxt->streamQuery) ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
   pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
@@ -1329,6 +1381,7 @@ static int32_t createSetOpLogicNode(SLogicPlanContext* pCxt, SSetOperator* pSetO
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    pSetOp->precision = pSetOperator->precision;
     *pLogicNode = (SLogicNode*)pSetOp;
   } else {
     nodesDestroyNode((SNode*)pSetOp);
@@ -1357,7 +1410,7 @@ static int32_t createSetOperatorLogicNode(SLogicPlanContext* pCxt, SSetOperator*
 static int32_t getMsgType(ENodeType sqlType) {
   switch (sqlType) {
     case QUERY_NODE_CREATE_TABLE_STMT:
-    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       return TDMT_VND_CREATE_TABLE;
     case QUERY_NODE_DROP_TABLE_STMT:
       return TDMT_VND_DROP_TABLE;
@@ -1371,7 +1424,7 @@ static int32_t getMsgType(ENodeType sqlType) {
   return TDMT_VND_SUBMIT;
 }
 
-static int32_t createVnodeModifLogicNode(SLogicPlanContext* pCxt, SVnodeModifOpStmt* pStmt, SLogicNode** pLogicNode) {
+static int32_t createVnodeModifLogicNode(SLogicPlanContext* pCxt, SVnodeModifyOpStmt* pStmt, SLogicNode** pLogicNode) {
   SVnodeModifyLogicNode* pModif = (SVnodeModifyLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY);
   if (NULL == pModif) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -1555,8 +1608,8 @@ static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogi
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SELECT_STMT:
       return createSelectLogicNode(pCxt, (SSelectStmt*)pStmt, pLogicNode);
-    case QUERY_NODE_VNODE_MODIF_STMT:
-      return createVnodeModifLogicNode(pCxt, (SVnodeModifOpStmt*)pStmt, pLogicNode);
+    case QUERY_NODE_VNODE_MODIFY_STMT:
+      return createVnodeModifLogicNode(pCxt, (SVnodeModifyOpStmt*)pStmt, pLogicNode);
     case QUERY_NODE_EXPLAIN_STMT:
       return createQueryLogicNode(pCxt, ((SExplainStmt*)pStmt)->pQuery, pLogicNode);
     case QUERY_NODE_SET_OPERATOR:

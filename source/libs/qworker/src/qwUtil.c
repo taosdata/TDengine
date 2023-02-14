@@ -74,6 +74,8 @@ int32_t qwAddSchedulerImpl(SQWorker *mgmt, uint64_t sId, int32_t rwType) {
   SQWSchStatus newSch = {0};
   newSch.tasksHash =
       taosHashInit(mgmt->cfg.maxSchTaskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  newSch.hbBrokenTs = taosGetTimestampMs();
+
   if (NULL == newSch.tasksHash) {
     QW_SCH_ELOG("taosHashInit %d failed", mgmt->cfg.maxSchTaskNum);
     QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
@@ -211,9 +213,15 @@ int32_t qwAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
   QW_SET_QTID(id, qId, tId, eId);
 
   *ctx = taosHashAcquire(mgmt->ctxHash, id, sizeof(id));
+  int8_t nodeStopped = atomic_load_8(&mgmt->nodeStopped);
   if (NULL == (*ctx)) {
-    QW_TASK_DLOG_E("task ctx not exist, may be dropped");
-    QW_ERR_RET(TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
+    if (!nodeStopped) {
+      QW_TASK_DLOG_E("task ctx not exist, may be dropped");
+      QW_ERR_RET(TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
+    } else {
+      QW_TASK_DLOG_E("node stopped");
+      QW_ERR_RET(TSDB_CODE_VND_STOPPED);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -224,9 +232,16 @@ int32_t qwGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
   QW_SET_QTID(id, qId, tId, eId);
 
   *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
+  int8_t nodeStopped = atomic_load_8(&mgmt->nodeStopped);
+
   if (NULL == (*ctx)) {
-    QW_TASK_DLOG_E("task ctx not exist, may be dropped");
-    QW_ERR_RET(TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
+    if (!nodeStopped) {
+      QW_TASK_DLOG_E("task ctx not exist, may be dropped");
+      QW_ERR_RET(TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
+    } else {
+      QW_TASK_DLOG_E("node stopped");
+      QW_ERR_RET(TSDB_CODE_VND_STOPPED);
+    }
   }
 
   return TSDB_CODE_SUCCESS;

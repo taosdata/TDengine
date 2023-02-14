@@ -51,6 +51,7 @@ typedef struct SExprNode {
   char      userAlias[TSDB_COL_NAME_LEN];
   SArray*   pAssociation;
   bool      orderAlias;
+  bool      asAlias;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -127,8 +128,7 @@ typedef struct SLogicConditionNode {
 } SLogicConditionNode;
 
 typedef struct SNodeListNode {
-  ENodeType  type;  // QUERY_NODE_NODE_LIST
-  SDataType  dataType;
+  SExprNode  node;  // QUERY_NODE_NODE_LIST
   SNodeList* pNodeList;
 } SNodeListNode;
 
@@ -223,11 +223,20 @@ typedef struct SIntervalWindowNode {
   SNode*    pFill;
 } SIntervalWindowNode;
 
+typedef struct SEventWindowNode {
+  ENodeType type;  // QUERY_NODE_EVENT_WINDOW
+  SNode*    pCol;  // timestamp primary key
+  SNode*    pStartCond;
+  SNode*    pEndCond;
+} SEventWindowNode;
+
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
   FILL_MODE_VALUE,
+  FILL_MODE_VALUE_F,
   FILL_MODE_PREV,
   FILL_MODE_NULL,
+  FILL_MODE_NULL_F,
   FILL_MODE_LINEAR,
   FILL_MODE_NEXT
 } EFillMode;
@@ -354,34 +363,34 @@ typedef struct SVgDataBlocks {
   void*       pData;  // SSubmitReq + SSubmitBlk + ...
 } SVgDataBlocks;
 
-typedef void (*FFreeDataBlockHash)(SHashObj*);
-typedef void (*FFreeDataBlockArray)(SArray*);
+typedef void (*FFreeTableBlockHash)(SHashObj*);
+typedef void (*FFreeVgourpBlockArray)(SArray*);
 
-typedef struct SVnodeModifOpStmt {
-  ENodeType           nodeType;
-  ENodeType           sqlNodeType;
-  SArray*             pDataBlocks;  // data block for each vgroup, SArray<SVgDataBlocks*>.
-  uint32_t            insertType;   // insert data from [file|sql statement| bound statement]
-  const char*         pSql;         // current sql statement position
-  int32_t             totalRowsNum;
-  int32_t             totalTbNum;
-  SName               targetTableName;
-  SName               usingTableName;
-  const char*         pBoundCols;
-  struct STableMeta*  pTableMeta;
-  SHashObj*           pVgroupsHashObj;
-  SHashObj*           pTableBlockHashObj;
-  SHashObj*           pSubTableHashObj;
-  SHashObj*           pTableNameHashObj;
-  SHashObj*           pDbFNameHashObj;
-  SArray*             pVgDataBlocks;
-  SVCreateTbReq       createTblReq;
-  TdFilePtr           fp;
-  FFreeDataBlockHash  freeHashFunc;
-  FFreeDataBlockArray freeArrayFunc;
-  bool                usingTableProcessing;
-  bool                fileProcessing;
-} SVnodeModifOpStmt;
+typedef struct SVnodeModifyOpStmt {
+  ENodeType             nodeType;
+  ENodeType             sqlNodeType;
+  SArray*               pDataBlocks;  // data block for each vgroup, SArray<SVgDataBlocks*>.
+  uint32_t              insertType;   // insert data from [file|sql statement| bound statement]
+  const char*           pSql;         // current sql statement position
+  int32_t               totalRowsNum;
+  int32_t               totalTbNum;
+  SName                 targetTableName;
+  SName                 usingTableName;
+  const char*           pBoundCols;
+  struct STableMeta*    pTableMeta;
+  SHashObj*             pVgroupsHashObj;
+  SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>
+  SHashObj*             pSubTableHashObj;
+  SHashObj*             pTableNameHashObj;
+  SHashObj*             pDbFNameHashObj;
+  SArray*               pVgDataBlocks;  // SArray<SVgroupDataCxt*>
+  SVCreateTbReq*        pCreateTblReq;
+  TdFilePtr             fp;
+  FFreeTableBlockHash   freeHashFunc;
+  FFreeVgourpBlockArray freeArrayFunc;
+  bool                  usingTableProcessing;
+  bool                  fileProcessing;
+} SVnodeModifyOpStmt;
 
 typedef struct SExplainOptions {
   ENodeType type;

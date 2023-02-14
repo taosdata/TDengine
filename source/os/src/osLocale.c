@@ -71,7 +71,7 @@ char *taosCharsetReplace(char *charsetstr) {
  *  seems does not response as expected.
  *
  * In some Linux systems, setLocale(LC_CTYPE, "") may return NULL, in which case the launch of
- * both the TDengine Server and the Client may be interrupted.
+ * both the Server and the Client may be interrupted.
  *
  * In case that the setLocale failed to be executed, the right charset needs to be set.
  */

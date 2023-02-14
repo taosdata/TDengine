@@ -103,6 +103,7 @@ typedef struct {
   int8_t type;
 } SStreamQueueItem;
 
+#if 0
 typedef struct {
   int8_t      type;
   int64_t     ver;
@@ -116,6 +117,21 @@ typedef struct {
   SArray* dataRefs;  // SArray<int32_t*>
   SArray* reqs;      // SArray<SSubmitReq*>
 } SStreamMergedSubmit;
+#endif
+
+typedef struct {
+  int8_t      type;
+  int64_t     ver;
+  int32_t*    dataRef;
+  SPackedData submit;
+} SStreamDataSubmit2;
+
+typedef struct {
+  int8_t  type;
+  int64_t ver;
+  SArray* dataRefs;  // SArray<int32_t*>
+  SArray* submits;   // SArray<SPackedSubmit>
+} SStreamMergedSubmit2;
 
 typedef struct {
   int8_t type;
@@ -219,11 +235,11 @@ static FORCE_INLINE void* streamQueueNextItem(SStreamQueue* queue) {
   }
 }
 
-SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq);
+SStreamDataSubmit2* streamDataSubmitNew(SPackedData submit);
 
-void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit);
+void streamDataSubmitRefDec(SStreamDataSubmit2* pDataSubmit);
 
-SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit);
+SStreamDataSubmit2* streamSubmitRefClone(SStreamDataSubmit2* pSubmit);
 
 typedef struct {
   char* qmsg;
@@ -354,30 +370,32 @@ int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
 
 static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
-  if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
-    SStreamDataSubmit* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit*)pItem);
+  int8_t type = pItem->type;
+  if (type == STREAM_INPUT__DATA_SUBMIT) {
+    SStreamDataSubmit2* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit2*)pItem);
     if (pSubmitClone == NULL) {
       qDebug("task %d %p submit enqueue failed since out of memory", pTask->taskId, pTask);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
       return -1;
     }
-    qDebug("task %d %p submit enqueue %p %p %p", pTask->taskId, pTask, pItem, pSubmitClone, pSubmitClone->data);
+    qDebug("task %d %p submit enqueue %p %p %p %d %" PRId64, pTask->taskId, pTask, pItem, pSubmitClone,
+           pSubmitClone->submit.msgStr, pSubmitClone->submit.msgLen, pSubmitClone->submit.ver);
     taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
     // qStreamInput(pTask->exec.executor, pSubmitClone);
-  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE ||
-             pItem->type == STREAM_INPUT__REF_DATA_BLOCK) {
+  } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
+             type == STREAM_INPUT__REF_DATA_BLOCK) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
     // qStreamInput(pTask->exec.executor, pItem);
-  } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
+  } else if (type == STREAM_INPUT__CHECKPOINT) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
     // qStreamInput(pTask->exec.executor, pItem);
-  } else if (pItem->type == STREAM_INPUT__GET_RES) {
+  } else if (type == STREAM_INPUT__GET_RES) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
     // qStreamInput(pTask->exec.executor, pItem);
   }
 
-  if (pItem->type != STREAM_INPUT__GET_RES && pItem->type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
+  if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
     atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
   }
 
@@ -390,21 +408,6 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
 
 static FORCE_INLINE void streamTaskInputFail(SStreamTask* pTask) {
   atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
-}
-
-static FORCE_INLINE int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
-  if (pTask->outputType == TASK_OUTPUT__TABLE) {
-    pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
-    taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
-    taosFreeQitem(pBlock);
-  } else if (pTask->outputType == TASK_OUTPUT__SMA) {
-    pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
-    taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
-    taosFreeQitem(pBlock);
-  } else {
-    taosWriteQitem(pTask->outputQueue->queue, pBlock);
-  }
-  return 0;
 }
 
 typedef struct {
@@ -584,6 +587,7 @@ int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
 
 int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
+int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock);
 
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 

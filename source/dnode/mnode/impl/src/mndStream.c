@@ -31,6 +31,8 @@
 #define MND_STREAM_VER_NUMBER   2
 #define MND_STREAM_RESERVE_SIZE 64
 
+#define MND_STREAM_MAX_NUM 10
+
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pStream, SStreamObj *pNewStream);
@@ -164,7 +166,8 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
 STREAM_DECODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("stream:%s, failed to decode from raw:%p since %s", pStream == NULL ? "null" : pStream->name, pRaw, terrstr());
+    mError("stream:%s, failed to decode from raw:%p since %s", pStream == NULL ? "null" : pStream->name, pRaw,
+           terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -294,6 +297,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->triggerParam = pCreate->maxDelay;
   pObj->watermark = pCreate->watermark;
   pObj->fillHistory = pCreate->fillHistory;
+  pObj->igCheckUpdate = pCreate->igUpdate;
 
   memcpy(pObj->sourceDb, pCreate->sourceDB, TSDB_DB_FNAME_LEN);
   SDbObj *pSourceDb = mndAcquireDb(pMnode, pCreate->sourceDB);
@@ -313,7 +317,11 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   }
   tstrncpy(pObj->targetDb, pTargetDb->name, TSDB_DB_FNAME_LEN);
 
-  pObj->targetStbUid = mndGenerateUid(pObj->targetSTbName, TSDB_TABLE_FNAME_LEN);
+  if (pCreate->createStb == STREAM_CREATE_STABLE_TRUE) {
+    pObj->targetStbUid = mndGenerateUid(pObj->targetSTbName, TSDB_TABLE_FNAME_LEN);
+  } else {
+    pObj->targetStbUid = pCreate->targetStbUid;
+  }
   pObj->targetDbUid = pTargetDb->uid;
   mndReleaseDb(pMnode, pTargetDb);
 
@@ -325,14 +333,44 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   // deserialize ast
   if (nodesStringToNode(pObj->ast, &pAst) < 0) {
-    /*ASSERT(0);*/
     goto FAIL;
   }
 
   // extract output schema from ast
   if (qExtractResultSchema(pAst, (int32_t *)&pObj->outputSchema.nCols, &pObj->outputSchema.pSchema) != 0) {
-    /*ASSERT(0);*/
     goto FAIL;
+  }
+
+  int32_t numOfNULL = taosArrayGetSize(pCreate->fillNullCols);
+  if(numOfNULL > 0) {
+    pObj->outputSchema.nCols += numOfNULL;
+    SSchema* pFullSchema = taosMemoryCalloc(pObj->outputSchema.nCols, sizeof(SSchema));
+    if (!pFullSchema) {
+      goto FAIL;
+    }
+
+    int32_t nullIndex = 0;
+    int32_t dataIndex = 0;
+    for (int16_t i = 0; i < pObj->outputSchema.nCols; i++) {
+      SColLocation* pos = taosArrayGet(pCreate->fillNullCols, nullIndex);
+      if (i < pos->slotId) {
+        pFullSchema[i].bytes = pObj->outputSchema.pSchema[dataIndex].bytes;
+        pFullSchema[i].colId = i + 1; // pObj->outputSchema.pSchema[dataIndex].colId;
+        pFullSchema[i].flags = pObj->outputSchema.pSchema[dataIndex].flags;
+        strcpy(pFullSchema[i].name, pObj->outputSchema.pSchema[dataIndex].name);
+        pFullSchema[i].type = pObj->outputSchema.pSchema[dataIndex].type;
+        dataIndex++;
+      } else {
+        pFullSchema[i].bytes = 0;
+        pFullSchema[i].colId = pos->colId;
+        pFullSchema[i].flags = COL_SET_NULL;
+        memset(pFullSchema[i].name, 0, TSDB_COL_NAME_LEN);
+        pFullSchema[i].type = pos->type;
+        nullIndex++;
+      }
+    }
+    taosMemoryFree(pObj->outputSchema.pSchema);
+    pObj->outputSchema.pSchema = pFullSchema;
   }
 
   SPlanContext cxt = {
@@ -342,17 +380,16 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .triggerType = pObj->trigger == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : pObj->trigger,
       .watermark = pObj->watermark,
       .igExpired = pObj->igExpired,
+      .igCheckUpdate = pObj->igCheckUpdate,
   };
 
   // using ast and param to build physical plan
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
-    /*ASSERT(0);*/
     goto FAIL;
   }
 
   // save physcial plan
   if (nodesNodeToString((SNode *)pPlan, false, &pObj->physicalPlan, NULL) != 0) {
-    /*ASSERT(0);*/
     goto FAIL;
   }
 
@@ -360,7 +397,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   if (pCreate->numOfTags) {
     pObj->tagSchema.pSchema = taosMemoryCalloc(pCreate->numOfTags, sizeof(SSchema));
   }
-  ASSERT(pCreate->numOfTags == taosArrayGetSize(pCreate->pTags));
+  /*A(pCreate->numOfTags == taosArrayGetSize(pCreate->pTags));*/
   for (int32_t i = 0; i < pCreate->numOfTags; i++) {
     SField *pField = taosArrayGet(pCreate->pTags, i);
     pObj->tagSchema.pSchema[i].colId = pObj->outputSchema.nCols + i + 1;
@@ -377,9 +414,6 @@ FAIL:
 }
 
 int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
-  if (pTask->taskLevel == TASK_LEVEL__AGG) {
-    ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
-  }
   SEncoder encoder;
   tEncoderInit(&encoder, NULL, 0);
   tEncodeSStreamTask(&encoder, pTask);
@@ -471,7 +505,6 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
   SMCreateStbReq createReq = {0};
   tstrncpy(createReq.name, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
   createReq.numOfColumns = pStream->outputSchema.nCols;
-  createReq.numOfTags = 1;  // group id
   createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
   // build fields
   taosArraySetSize(createReq.pColumns, createReq.numOfColumns);
@@ -482,14 +515,29 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     pField->type = pStream->outputSchema.pSchema[i].type;
     pField->bytes = pStream->outputSchema.pSchema[i].bytes;
   }
-  createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
-  taosArraySetSize(createReq.pTags, 1);
-  // build tags
-  SField *pField = taosArrayGet(createReq.pTags, 0);
-  strcpy(pField->name, "group_id");
-  pField->type = TSDB_DATA_TYPE_UBIGINT;
-  pField->flags = 0;
-  pField->bytes = 8;
+
+  if (pStream->tagSchema.nCols == 0) {
+    createReq.numOfTags = 1;
+    createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
+    taosArraySetSize(createReq.pTags, createReq.numOfTags);
+    // build tags
+    SField *pField = taosArrayGet(createReq.pTags, 0);
+    strcpy(pField->name, "group_id");
+    pField->type = TSDB_DATA_TYPE_UBIGINT;
+    pField->flags = 0;
+    pField->bytes = 8;
+  } else {
+    createReq.numOfTags = pStream->tagSchema.nCols;
+    createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
+    taosArraySetSize(createReq.pTags, createReq.numOfTags);
+    for (int32_t i = 0; i < createReq.numOfTags; i++) {
+      SField *pField = taosArrayGet(createReq.pTags, i);
+      pField->bytes = pStream->tagSchema.pSchema[i].bytes;
+      pField->flags = pStream->tagSchema.pSchema[i].flags;
+      pField->type = pStream->tagSchema.pSchema[i].type;
+      tstrncpy(pField->name, pStream->tagSchema.pSchema[i].name, TSDB_COL_NAME_LEN);
+    }
+  }
 
   if (mndCheckCreateStbReq(&createReq) != 0) {
     goto _OVER;
@@ -544,8 +592,6 @@ _OVER:
 }
 
 static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
-  ASSERT(pTask->nodeId != 0);
-
   // vnode
   /*if (pTask->nodeId > 0) {*/
   SVDropStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVDropStreamTaskReq));
@@ -624,16 +670,57 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  {
+    int32_t numOfStream = 0;
+
+    SStreamObj *pStream = NULL;
+    void       *pIter = NULL;
+
+    while (1) {
+      pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void **)&pStream);
+      if (pIter == NULL) {
+        if (numOfStream > MND_STREAM_MAX_NUM) {
+          mError("too many streams, no more than 10 for each database");
+          terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+          goto _OVER;
+        }
+        break;
+      }
+
+      if (pStream->sourceDbUid == streamObj.sourceDbUid) {
+        ++numOfStream;
+      }
+      sdbRelease(pMnode->pSdb, pStream);
+      if (numOfStream > MND_STREAM_MAX_NUM) {
+        mError("too many streams, no more than 10 for each database");
+        terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+        goto _OVER;
+      }
+    }
+  }
+
+  pDb = mndAcquireDb(pMnode, streamObj.sourceDb);
+  if (pDb->cfg.replications != 1) {
+    mError("stream source db must have only 1 replica, but %s has %d", pDb->name, pDb->cfg.replications);
+    terrno = TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB;
+    mndReleaseDb(pMnode, pDb);
+    pDb = NULL;
+    goto _OVER;
+  }
+  mndReleaseDb(pMnode, pDb);
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");
   if (pTrans == NULL) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
   mInfo("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+
   // create stb for stream
-  if (mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
+  if (createStreamReq.createStb == STREAM_CREATE_STABLE_TRUE && mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
     mError("trans:%d, failed to create stb for stream %s since %s", pTrans->id, createStreamReq.name, terrstr());
     mndTransDrop(pTrans);
     goto _OVER;
@@ -680,7 +767,6 @@ _OVER:
   }
 
   mndReleaseStream(pMnode, pStream);
-  mndReleaseDb(pMnode, pDb);
 
   tFreeSCMCreateStreamReq(&createStreamReq);
   tFreeStreamObj(&streamObj);
@@ -780,6 +866,12 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "stream-checkpoint");
   if (pTrans == NULL) return -1;
   mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    mndReleaseStream(pMnode, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
   taosRLockLatch(&pStream->lock);
   // 1. redo action: broadcast checkpoint source msg for all source vg
   int32_t totLevel = taosArrayGetSize(pStream->tasks);
@@ -790,10 +882,9 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
       int32_t sz = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < sz; j++) {
         SStreamTask *pTask = taosArrayGetP(pLevel, j);
-        ASSERT(pTask->nodeId > 0);
+        /*A(pTask->nodeId > 0);*/
         SVgObj *pVgObj = mndAcquireVgroup(pMnode, pTask->nodeId);
         if (pVgObj == NULL) {
-          ASSERT(0);
           taosRUnLockLatch(&pStream->lock);
           mndReleaseStream(pMnode, pStream);
           mndTransDrop(pTrans);
@@ -853,7 +944,6 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   SMDropStreamReq dropReq = {0};
   if (tDeserializeSMDropStreamReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
-    ASSERT(0);
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -872,17 +962,24 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   }
 
   if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "drop-stream");
-  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
   if (pTrans == NULL) {
     mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
   mInfo("trans:%d, used to drop stream:%s", pTrans->id, dropReq.name);
+
+  mndTransSetDbName(pTrans, pStream->sourceDb, pStream->targetDb);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
 
   // drop all tasks
   if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {

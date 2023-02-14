@@ -1,7 +1,7 @@
 ---
 title: TDengine Command Line Interface (CLI)
 sidebar_label: Command Line Interface
-description: Instructions and tips for using the TDengine CLI
+description: This document describes how to use the TDengine CLI.
 ---
 
 The TDengine command-line interface (hereafter referred to as `TDengine CLI`) is the simplest way for users to manipulate and interact with TDengine instances.

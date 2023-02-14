@@ -47,7 +47,7 @@ int32_t tsNumOfMnodeQueryThreads = 4;
 int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
 int32_t tsNumOfVnodeQueryThreads = 4;
-int32_t tsNumOfVnodeStreamThreads = 2;
+float   tsRatioOfVnodeStreamThreads = 1.0;
 int32_t tsNumOfVnodeFetchThreads = 4;
 int32_t tsNumOfVnodeRsmaThreads = 2;
 int32_t tsNumOfQnodeQueryThreads = 4;
@@ -59,6 +59,9 @@ int32_t tsNumOfSnodeWriteThreads = 1;
 int32_t tsElectInterval = 25 * 1000;
 int32_t tsHeartbeatInterval = 1000;
 int32_t tsHeartbeatTimeout = 20 * 1000;
+
+// vnode
+int64_t tsVndCommitMaxIntervalMs = 60 * 1000;
 
 // monitor
 bool     tsEnableMonitor = true;
@@ -73,14 +76,19 @@ bool     tsEnableTelem = true;
 int32_t  tsTelemInterval = 43200;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.taosdata.com";
 uint16_t tsTelemPort = 80;
+char    *tsTelemUri = "/report";
+
+bool  tsEnableCrashReport = true;
+char *tsClientCrashReportUri = "/ccrashreport";
+char *tsSvrCrashReportUri = "/dcrashreport";
 
 // schemaless
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
                                                      // If set to empty system will generate table name using MD5 hash.
 // true means that the name and order of cols in each line are the same(only for influx protocol)
-bool    tsSmlDataFormat = false;
-int32_t tsSmlBatchSize = 10000;
+// bool    tsSmlDataFormat = false;
+// int32_t tsSmlBatchSize = 10000;
 
 // query
 int32_t tsQueryPolicy = 1;
@@ -96,6 +104,7 @@ int32_t tsRedirectPeriod = 10;
 int32_t tsRedirectFactor = 2;
 int32_t tsRedirectMaxPeriod = 1000;
 int32_t tsMaxRetryWaitTime = 10000;
+bool    tsUseAdapter = false;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -180,8 +189,6 @@ int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
 
-int32_t tsRpcRetryLimit = 100;
-int32_t tsRpcRetryInterval = 15;
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "dataDir");
@@ -310,12 +317,12 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "keepColumnName", tsKeepColumnName, true) != 0) return -1;
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
-  if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "smlBatchSize", tsSmlBatchSize, 1, INT32_MAX, true) != 0) return -1;
+  //  if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
+  //  if (cfgAddInt32(pCfg, "smlBatchSize", tsSmlBatchSize, 1, INT32_MAX, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxMemUsedByInsert", tsMaxMemUsedByInsert, 1, INT32_MAX, true) != 0) return -1;
-  if (cfgAddInt32(pCfg, "rpcRetryLimit", tsRpcRetryLimit, 1, 100000, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "rpcRetryInterval", tsRpcRetryInterval, 1, 100000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, true) != 0) return -1;
+  if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, true) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
@@ -341,10 +348,12 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "AVX", tsAVXEnable, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "AVX2", tsAVX2Enable, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "FMA", tsFMAEnable, 0) != 0) return -1;
-  if (cfgAddBool(pCfg, "SIMD-Supported", tsSIMDEnable, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "SIMD-builtins", tsSIMDBuiltins, 0) != 0) return -1;
 
   if (cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, 1) != 0) return -1;
+#if !defined(_ALPINE)
   if (cfgAddInt64(pCfg, "streamMax", tsStreamMax, 0, INT64_MAX, 1) != 0) return -1;
+#endif
   if (cfgAddInt32(pCfg, "pageSizeKB", tsPageSizeKB, 0, INT64_MAX, 1) != 0) return -1;
   if (cfgAddInt64(pCfg, "totalMemoryKB", tsTotalMemoryKB, 0, INT64_MAX, 1) != 0) return -1;
   if (cfgAddString(pCfg, "os sysname", info.sysname, 1) != 0) return -1;
@@ -379,7 +388,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "queryRspPolicy", tsQueryRspPolicy, 0, 1, 0) != 0) return -1;
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
-  tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, 4);
+  tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, TSDB_MAX_RPC_THREADS);
   if (cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfCommitThreads = tsNumOfCores / 2;
@@ -394,9 +403,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeQueryThreads = TMAX(tsNumOfVnodeQueryThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeQueryThreads", tsNumOfVnodeQueryThreads, 4, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeStreamThreads = tsNumOfCores / 4;
-  tsNumOfVnodeStreamThreads = TMAX(tsNumOfVnodeStreamThreads, 4);
-  if (cfgAddInt32(pCfg, "numOfVnodeStreamThreads", tsNumOfVnodeStreamThreads, 4, 1024, 0) != 0) return -1;
+  if (cfgAddFloat(pCfg, "ratioOfVnodeStreamThreads", tsRatioOfVnodeStreamThreads, 0.01, 100, 0) != 0) return -1;
 
   tsNumOfVnodeFetchThreads = tsNumOfCores / 4;
   tsNumOfVnodeFetchThreads = TMAX(tsNumOfVnodeFetchThreads, 4);
@@ -431,6 +438,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "syncHeartbeatInterval", tsHeartbeatInterval, 10, 1000 * 60 * 24 * 2, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, 0) != 0) return -1;
 
+  if (cfgAddInt64(pCfg, "vndCommitMaxInterval", tsVndCommitMaxIntervalMs, 1000, 1000 * 60 * 60, 0) != 0) return -1;
+
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, 0) != 0) return -1;
   if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, 0) != 0) return -1;
@@ -438,6 +447,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "monitorMaxLogs", tsMonitorMaxLogs, 1, 1000000, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "monitorComp", tsMonitorComp, 0) != 0) return -1;
 
+  if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "telemetryInterval", tsTelemInterval, 1, 200000, 0) != 0) return -1;
   if (cfgAddString(pCfg, "telemetryServer", tsTelemServer, 0) != 0) return -1;
@@ -456,9 +466,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "udf", tsStartUdfd, 0) != 0) return -1;
   if (cfgAddString(pCfg, "udfdResFuncs", tsUdfdResFuncs, 0) != 0) return -1;
   if (cfgAddString(pCfg, "udfdLdLibPath", tsUdfdLdLibPath, 0) != 0) return -1;
-
-  if (cfgAddInt32(pCfg, "rpcRetryLimit", tsRpcRetryLimit, 1, 100000, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "rpcRetryInterval", tsRpcRetryInterval, 1, 100000, 0) != 0) return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -518,11 +525,9 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     pItem->stype = stype;
   }
 
-  pItem = cfgGetItem(tsCfg, "numOfVnodeStreamThreads");
+  pItem = cfgGetItem(tsCfg, "ratioOfVnodeStreamThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfVnodeStreamThreads = numOfCores / 4;
-    tsNumOfVnodeStreamThreads = TMAX(tsNumOfVnodeStreamThreads, 4);
-    pItem->i32 = tsNumOfVnodeStreamThreads;
+    pItem->fval = tsRatioOfVnodeStreamThreads;
     pItem->stype = stype;
   }
 
@@ -657,9 +662,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
   tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
-  tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
+  //  tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
 
-  tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
+  //  tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
   tsMaxMemUsedByInsert = cfgGetItem(pCfg, "maxMemUsedByInsert")->i32;
 
   tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
@@ -673,9 +678,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsQueryNodeChunkSize = cfgGetItem(pCfg, "queryNodeChunkSize")->i32;
   tsQueryUseNodeAllocator = cfgGetItem(pCfg, "queryUseNodeAllocator")->bval;
   tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
+  tsUseAdapter = cfgGetItem(pCfg, "useAdapter")->bval;
+  tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
 
-  tsRpcRetryLimit = cfgGetItem(pCfg, "rpcRetryLimit")->i32;
-  tsRpcRetryInterval = cfgGetItem(pCfg, "rpcRetryInterval")->i32;
   tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
   return 0;
 }
@@ -716,7 +721,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   tsNumOfMnodeReadThreads = cfgGetItem(pCfg, "numOfMnodeReadThreads")->i32;
   tsNumOfVnodeQueryThreads = cfgGetItem(pCfg, "numOfVnodeQueryThreads")->i32;
-  tsNumOfVnodeStreamThreads = cfgGetItem(pCfg, "numOfVnodeStreamThreads")->i32;
+  tsRatioOfVnodeStreamThreads = cfgGetItem(pCfg, "ratioOfVnodeStreamThreads")->fval;
   tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
   tsNumOfVnodeRsmaThreads = cfgGetItem(pCfg, "numOfVnodeRsmaThreads")->i32;
   tsNumOfQnodeQueryThreads = cfgGetItem(pCfg, "numOfQnodeQueryThreads")->i32;
@@ -724,6 +729,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfSnodeStreamThreads = cfgGetItem(pCfg, "numOfSnodeSharedThreads")->i32;
   tsNumOfSnodeWriteThreads = cfgGetItem(pCfg, "numOfSnodeUniqueThreads")->i32;
   tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
+
+  tsSIMDBuiltins = (bool)cfgGetItem(pCfg, "SIMD-builtins")->bval;
 
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
   tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;
@@ -734,13 +741,10 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsQueryRspPolicy = cfgGetItem(pCfg, "queryRspPolicy")->i32;
 
   tsEnableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
+  tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
   tsTelemInterval = cfgGetItem(pCfg, "telemetryInterval")->i32;
   tstrncpy(tsTelemServer, cfgGetItem(pCfg, "telemetryServer")->str, TSDB_FQDN_LEN);
   tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
-
-  tsElectInterval = cfgGetItem(pCfg, "syncElectInterval")->i32;
-  tsHeartbeatInterval = cfgGetItem(pCfg, "syncHeartbeatInterval")->i32;
-  tsHeartbeatTimeout = cfgGetItem(pCfg, "syncHeartbeatTimeout")->i32;
 
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
@@ -755,15 +759,14 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsHeartbeatInterval = cfgGetItem(pCfg, "syncHeartbeatInterval")->i32;
   tsHeartbeatTimeout = cfgGetItem(pCfg, "syncHeartbeatTimeout")->i32;
 
+  tsVndCommitMaxIntervalMs = cfgGetItem(pCfg, "vndCommitMaxInterval")->i64;
+
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));
   tstrncpy(tsUdfdLdLibPath, cfgGetItem(pCfg, "udfdLdLibPath")->str, sizeof(tsUdfdLdLibPath));
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
-
-  tsRpcRetryLimit = cfgGetItem(pCfg, "rpcRetryLimit")->i32;
-  tsRpcRetryInterval = cfgGetItem(pCfg, "rpcRetryInterval")->i32;
   GRANT_CFG_GET;
   return 0;
 }
@@ -810,6 +813,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tsCountAlwaysReturnValue = cfgGetItem(pCfg, "countAlwaysReturnValue")->i32;
       } else if (strcasecmp("cDebugFlag", name) == 0) {
         cDebugFlag = cfgGetItem(pCfg, "cDebugFlag")->i32;
+      } else if (strcasecmp("crashReporting", name) == 0) {
+        tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
       }
       break;
     }
@@ -1043,10 +1048,10 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
       } else if (strcasecmp("smlTagName", name) == 0) {
         tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
-      } else if (strcasecmp("smlDataFormat", name) == 0) {
-        tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
-      } else if (strcasecmp("smlBatchSize", name) == 0) {
-        tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
+        //      } else if (strcasecmp("smlDataFormat", name) == 0) {
+        //        tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
+        //      } else if (strcasecmp("smlBatchSize", name) == 0) {
+        //        tsSmlBatchSize = cfgGetItem(pCfg, "smlBatchSize")->i32;
       } else if (strcasecmp("shellActivityTimer", name) == 0) {
         tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
       } else if (strcasecmp("supportVnodes", name) == 0) {
@@ -1116,6 +1121,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
       } else if (strcasecmp("uDebugFlag", name) == 0) {
         uDebugFlag = cfgGetItem(pCfg, "uDebugFlag")->i32;
+      } else if (strcasecmp("useAdapter", name) == 0) {
+        tsUseAdapter = cfgGetItem(pCfg, "useAdapter")->bval;
       }
       break;
     }
@@ -1329,12 +1336,17 @@ void taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, 
   if (pItem != NULL && (rewrite || pItem->i32 == 0)) {
     pItem->i32 = flagVal;
   }
-  *pFlagPtr = flagVal;
+  if (pFlagPtr != NULL) {
+    *pFlagPtr = flagVal;
+  }
 }
 
 void taosSetAllDebugFlag(int32_t flag, bool rewrite) {
   if (flag <= 0) return;
 
+  taosSetDebugFlag(NULL, "debugFlag", flag, rewrite);
+  taosSetDebugFlag(NULL, "simDebugFlag", flag, rewrite);
+  taosSetDebugFlag(NULL, "tmrDebugFlag", flag, rewrite);
   taosSetDebugFlag(&uDebugFlag, "uDebugFlag", flag, rewrite);
   taosSetDebugFlag(&rpcDebugFlag, "rpcDebugFlag", flag, rewrite);
   taosSetDebugFlag(&jniDebugFlag, "jniDebugFlag", flag, rewrite);
@@ -1353,6 +1365,5 @@ void taosSetAllDebugFlag(int32_t flag, bool rewrite) {
   taosSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag, rewrite);
   taosSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag, rewrite);
   taosSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, rewrite);
-  taosSetDebugFlag(&metaDebugFlag, "tmrDebugFlag", flag, rewrite);
   uInfo("all debug flag are set to %d", flag);
 }

@@ -18,6 +18,7 @@
 #include "taoserror.h"
 
 #define PROCESS_ITEM 12
+#define UUIDLEN37 37
 
 typedef struct {
   uint64_t user;
@@ -98,6 +99,9 @@ LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 #include <errno.h>
 #include <libproc.h>
 #include <sys/sysctl.h>
+#include <SystemConfiguration/SCDynamicStoreCopySpecific.h>
+#include <CoreFoundation/CFString.h>
+#include <stdio.h>
 
 #else
 
@@ -120,7 +124,7 @@ static char  tsProcIOFile[25] = {0};
 static void taosGetProcIOnfos() {
   tsPageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
   tsOpenMax = sysconf(_SC_OPEN_MAX);
-  tsStreamMax = sysconf(_SC_STREAM_MAX);
+  tsStreamMax = TMAX(sysconf(_SC_STREAM_MAX), 0);
   tsProcId = (pid_t)syscall(SYS_gettid);
 
   snprintf(tsProcMemFile, sizeof(tsProcMemFile), "/proc/%d/status", tsProcId);
@@ -246,7 +250,7 @@ void taosGetSystemInfo() {
 
 int32_t taosGetEmail(char *email, int32_t maxLen) {
 #ifdef WINDOWS
-  // assert(0);
+  // ASSERT(0);
 #elif defined(_TD_DARWIN_64)
   const char *filepath = "/usr/local/taos/email";
 
@@ -276,11 +280,46 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 #endif
 }
 
+#ifdef WINDOWS
+bool getWinVersionReleaseName(char *releaseName, int32_t maxLen) {
+  TCHAR          szFileName[MAX_PATH];
+  DWORD             dwHandle;
+  DWORD             dwLen;
+  LPVOID            lpData;
+  UINT              uLen;
+  VS_FIXEDFILEINFO *pFileInfo;
 
+  GetWindowsDirectory(szFileName, MAX_PATH);
+  wsprintf(szFileName, L"%s%s", szFileName, L"\\explorer.exe");
+  dwLen = GetFileVersionInfoSize(szFileName, &dwHandle);
+  if (dwLen == 0) {
+    return false;
+  }
+
+  lpData = malloc(dwLen);
+  if (lpData == NULL) return false;
+  if (!GetFileVersionInfo(szFileName, dwHandle, dwLen, lpData)) {
+    free(lpData);
+    return false;
+  }
+
+  if (!VerQueryValue(lpData, L"\\", (LPVOID *)&pFileInfo, &uLen)) {
+    free(lpData);
+    return false;
+  }
+
+  snprintf(releaseName, maxLen, "Windows %d.%d", HIWORD(pFileInfo->dwProductVersionMS),
+           LOWORD(pFileInfo->dwProductVersionMS));
+  free(lpData);
+  return true;
+}
+#endif
 
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 #ifdef WINDOWS
-  snprintf(releaseName, maxLen, "Windows");
+  if (!getWinVersionReleaseName(releaseName, maxLen)) {
+    snprintf(releaseName, maxLen, "Windows");
+  }
   return 0;
 #elif defined(_TD_DARWIN_64)
   char osversion[32];
@@ -489,11 +528,11 @@ int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma) {
 #ifdef _TD_X86_
   // Since the compiler is not support avx/avx2 instructions, the global variables always need to be
   // set to be false
-#if __AVX__ || __AVX2__
-  tsSIMDEnable = true;
-#else
-  tsSIMDEnable = false;
-#endif
+//#if __AVX__ || __AVX2__
+//  tsSIMDBuiltins = true;
+//#else
+//  tsSIMDBuiltins = false;
+//#endif
 
   uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
 
@@ -831,11 +870,16 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   return 0;
 #elif defined(_TD_DARWIN_64)
   uuid_t uuid = {0};
-  char   buf[37] = {0};
+  char   buf[UUIDLEN37];
+  memset(buf, 0, UUIDLEN37);
   uuid_generate(uuid);
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
   uuid_unparse_lower(uuid, buf);
-  memcpy(uid, buf, uidlen);
+  int n = snprintf(uid, uidlen, "%.*s", (int)sizeof(buf), buf);  // though less performance, much safer
+  if (n >= uidlen) {
+    // target buffer is too small
+    return -1;
+  }
   return 0;
 #else
   int len = 0;
@@ -860,7 +904,7 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
 
 char *taosGetCmdlineByPID(int pid) {
 #ifdef WINDOWS
-  assert(0);
+  ASSERT(0);
   return "";
 #elif defined(_TD_DARWIN_64)
   static char cmdline[1024];
@@ -1007,6 +1051,11 @@ SysNameInfo taosGetSysNameInfo() {
     tstrncpy(info.machine, uts.machine, sizeof(info.machine));
   }
 
+  char     localHostName[512];
+  taosGetlocalhostname(localHostName, 512);
+  TdCmdPtr pCmd = taosOpenCmd("scutil --get LocalHostName");
+  tstrncpy(info.nodename, localHostName, sizeof(info.nodename));
+
   return info;
 #else
   SysNameInfo info = {0};
@@ -1040,5 +1089,48 @@ bool taosCheckCurrentInDll() {
   return false;
 #else
   return false;
+#endif
+}
+
+#ifdef _TD_DARWIN_64
+int taosGetMaclocalhostnameByCommand(char *hostname, size_t maxLen) {
+  TdCmdPtr pCmd = taosOpenCmd("scutil --get LocalHostName");
+  if (pCmd != NULL) {
+    if (taosGetsCmd(pCmd, maxLen - 1, hostname) > 0) {
+      int len = strlen(hostname);
+      if (hostname[len - 1] == '\n') {
+        hostname[len - 1] = '\0';
+      }
+      return 0;
+    }
+    taosCloseCmd(&pCmd);
+  }
+  return -1;
+}
+
+int getMacLocalHostNameBySCD(char *hostname, size_t maxLen) {
+  SCDynamicStoreRef store = SCDynamicStoreCreate(NULL, CFSTR(""), NULL, NULL);
+  CFStringRef       hostname_cfstr = SCDynamicStoreCopyLocalHostName(store);
+  if (hostname_cfstr != NULL) {
+    CFStringGetCString(hostname_cfstr, hostname, maxLen - 1, kCFStringEncodingMacRoman);
+    CFRelease(hostname_cfstr);
+  } else {
+    return -1;
+  }
+  CFRelease(store);
+  return 0;
+}
+#endif
+
+int taosGetlocalhostname(char *hostname, size_t maxLen) {
+#ifdef _TD_DARWIN_64
+  int res = getMacLocalHostNameBySCD(hostname, maxLen);
+  if (res != 0) {
+    return taosGetMaclocalhostnameByCommand(hostname, maxLen);
+  } else {
+    return 0;
+  }
+#else
+  return gethostname(hostname, maxLen);
 #endif
 }

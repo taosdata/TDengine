@@ -23,7 +23,7 @@ python3 bind_param_example.py
 
 # 4
 taos -s "drop database power"
-python3  multi_bind_example.py
+python3 multi_bind_example.py
 
 # 5
 python3 query_example.py
@@ -44,4 +44,44 @@ taos -s "drop database test"
 python3 json_protocol_example.py
 
 # 10
-# python3 subscribe_demo.py
+pip install SQLAlchemy
+pip install pandas
+taosBenchmark -y -d power -t 10 -n 10
+python3 conn_native_pandas.py
+python3 conn_rest_pandas.py
+taos -s "drop database if exists power"
+
+# 11
+taos -s "create database if not exists test"
+python3 connect_native_reference.py
+
+# 12
+python3 connect_rest_examples.py
+
+# 13
+python3 handle_exception.py
+
+# 14
+taosBenchmark -y -d power -t 2 -n 10
+python3 rest_client_example.py
+taos -s "drop database if exists power"
+
+# 15
+python3 result_set_examples.py
+
+# 16
+python3 tmq_example.py
+
+# 17
+python3 sql_writer.py
+
+# 18
+python3 mockdatasource.py
+
+# 19
+python3 fast_write_example.py
+
+# 20
+pip3 install kafka-python
+python3 kafka_example_consumer.py
+

@@ -99,8 +99,8 @@ static void         *taosProcessAlarmSignal(void *tharg) {
   setThreadName("tmr");
 
 #ifdef _ALPINE
-  sevent.sigev_notify = SIGEV_THREAD;
-  sevent.sigev_value.sival_int = syscall(__NR_gettid);
+  sevent.sigev_notify = SIGEV_THREAD_ID;
+  sevent.sigev_notify_thread_id = syscall(__NR_gettid);
 #else
   sevent.sigev_notify = SIGEV_THREAD_ID;
   sevent._sigev_un._tid = syscall(__NR_gettid);

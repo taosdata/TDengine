@@ -58,8 +58,7 @@ typedef enum {
 #define QUERY_RSP_POLICY_QUICK 1
 
 #define QUERY_MSG_MASK_SHOW_REWRITE() (1 << 0)
-#define TEST_SHOW_REWRITE_MASK(m) (((m) & QUERY_MSG_MASK_SHOW_REWRITE()) != 0)
-
+#define TEST_SHOW_REWRITE_MASK(m)     (((m)&QUERY_MSG_MASK_SHOW_REWRITE()) != 0)
 
 typedef struct STableComInfo {
   uint8_t  numOfTags;     // the number of tags in schema
@@ -128,7 +127,7 @@ typedef struct SDBVgInfo {
   int8_t    hashMethod;
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
   int64_t   stateTs;
-  SHashObj* vgHash;      // key:vgId, value:SVgroupInfo
+  SHashObj* vgHash;  // key:vgId, value:SVgroupInfo
   SArray*   vgArray;
 } SDBVgInfo;
 
@@ -163,6 +162,23 @@ typedef struct STargetInfo {
   char*       dbFName;  // used to update db's vgroup epset
   int32_t     vgId;
 } STargetInfo;
+
+typedef struct SBoundColInfo {
+  int16_t* pColIndex;  // bound index => schema index
+  int32_t  numOfCols;
+  int32_t  numOfBound;
+} SBoundColInfo;
+
+typedef struct STableDataCxt {
+  STableMeta*    pMeta;
+  STSchema*      pSchema;
+  SBoundColInfo  boundColsInfo;
+  SArray*        pValues;
+  SSubmitTbData* pData;
+  TSKEY          lastTs;
+  bool           ordered;
+  bool           duplicateTs;
+} STableDataCxt;
 
 typedef int32_t (*__async_send_cb_fn_t)(void* param, SDataBuf* pMsg, int32_t code);
 typedef int32_t (*__async_exec_fn_t)(void* param);
@@ -239,6 +255,7 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
 char*   parseTagDatatoJson(void* p);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
+int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst);
 void    freeVgInfo(SDBVgInfo* vgInfo);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
@@ -262,23 +279,26 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
   (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || \
    NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))
 
-#define SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) ((_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_SYN_INTERNAL_ERROR || (_code) == TSDB_CODE_VND_STOPPED || (_code) == TSDB_CODE_APP_IS_STARTING || (_code) == TSDB_CODE_APP_IS_STOPPING)
-#define SYNC_SELF_LEADER_REDIRECT_ERROR(_code) ((_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_SYN_RESTORING || (_code) == TSDB_CODE_SYN_INTERNAL_ERROR)
-#define SYNC_OTHER_LEADER_REDIRECT_ERROR(_code) ((_code) == TSDB_CODE_MNODE_NOT_FOUND) 
+#define SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code)                                    \
+  ((_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_SYN_INTERNAL_ERROR || \
+   (_code) == TSDB_CODE_VND_STOPPED || (_code) == TSDB_CODE_APP_IS_STARTING || (_code) == TSDB_CODE_APP_IS_STOPPING)
+#define SYNC_SELF_LEADER_REDIRECT_ERROR(_code) \
+  ((_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_SYN_RESTORING || (_code) == TSDB_CODE_SYN_INTERNAL_ERROR)
+#define SYNC_OTHER_LEADER_REDIRECT_ERROR(_code) ((_code) == TSDB_CODE_MNODE_NOT_FOUND)
 
-#define NO_RET_REDIRECT_ERROR(_code) ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL)
+#define NO_RET_REDIRECT_ERROR(_code) ((_code) == TSDB_CODE_RPC_BROKEN_LINK || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || (_code) == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED)
 
-#define NEED_REDIRECT_ERROR(_code)                                                      \
+#define NEED_REDIRECT_ERROR(_code)                                              \
   (NO_RET_REDIRECT_ERROR(_code) || SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || \
    SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || SYNC_OTHER_LEADER_REDIRECT_ERROR(_code))
-   
 
 #define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                  \
   ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE || \
    (_type) == TDMT_MND_DROP_STB)
 
-#define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                            \
-  (SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || SYNC_OTHER_LEADER_REDIRECT_ERROR(_code))
+#define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                              \
+  (SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || \
+   SYNC_OTHER_LEADER_REDIRECT_ERROR(_code))
 
 #define REQUEST_TOTAL_EXEC_TIMES 2
 

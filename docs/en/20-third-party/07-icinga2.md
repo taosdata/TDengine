@@ -1,6 +1,7 @@
 ---
-sidebar_label: icinga2
 title: icinga2 writing
+sidebar_label: icinga2
+description: This document describes how to integrate TDengine with icinga2.
 ---
 
 import Icinga2 from "../14-reference/_icinga2.mdx"

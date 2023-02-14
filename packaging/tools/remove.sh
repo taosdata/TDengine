@@ -36,6 +36,16 @@ clientName="taos"
 uninstallScript="rmtaos"
 productName="TDengine"
 
+serverName2="taosd"
+clientName2="taos"
+productName2="TDengine"
+
+benchmarkName2="${clientName2}Benchmark"
+dumpName2="${clientName2}dump"
+uninstallScript2="rm${clientName2}"
+
+installDir="/usr/local/${clientName}"
+
 #install main path
 install_main_dir=${installDir}
 data_link_dir=${installDir}/data
@@ -107,6 +117,15 @@ function clean_bin() {
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
+  ${csudo}rm -f ${bin_link_dir}/taoskeeper || :
+  ${csudo}rm -f ${bin_link_dir}/taosx || :
+
+  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+    ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
+    ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
+    ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
+    ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
+  fi
 }
 
 function clean_local_bin() {
@@ -147,7 +166,7 @@ function clean_log() {
 function clean_service_on_systemd() {
   taosd_service_config="${service_config_dir}/${taos_service_name}.service"
   if systemctl is-active --quiet ${taos_service_name}; then
-    echo "${productName} ${serverName} is running, stopping it..."
+    echo "${productName2} ${serverName2} is running, stopping it..."
     ${csudo}systemctl stop ${taos_service_name} &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable ${taos_service_name} &>/dev/null || echo &>/dev/null
@@ -155,7 +174,7 @@ function clean_service_on_systemd() {
 
   taosadapter_service_config="${service_config_dir}/taosadapter.service"
   if systemctl is-active --quiet ${taosadapter_service_name}; then
-    echo "${productName} taosAdapter is running, stopping it..."
+    echo "${productName2}  ${clientName2}Adapter is running, stopping it..."
     ${csudo}systemctl stop ${taosadapter_service_name} &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable ${taosadapter_service_name} &>/dev/null || echo &>/dev/null
@@ -163,7 +182,7 @@ function clean_service_on_systemd() {
 
   tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
   if systemctl is-active --quiet ${tarbitrator_service_name}; then
-    echo "${productName} tarbitrator is running, stopping it..."
+    echo "${productName2} tarbitrator is running, stopping it..."
     ${csudo}systemctl stop ${tarbitrator_service_name} &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable ${tarbitrator_service_name} &>/dev/null || echo &>/dev/null
@@ -172,12 +191,12 @@ function clean_service_on_systemd() {
 
 function clean_service_on_sysvinit() {
   if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
-    echo "${productName} ${serverName} is running, stopping it..."
+    echo "${productName2} ${serverName2} is running, stopping it..."
     ${csudo}service ${serverName} stop || :
   fi
 
   if ps aux | grep -v grep | grep tarbitrator &>/dev/null; then
-    echo "${productName} tarbitrator is running, stopping it..."
+    echo "${productName2} tarbitrator is running, stopping it..."
     ${csudo}service tarbitratord stop || :
   fi
 
@@ -272,5 +291,5 @@ if [ "$osType" = "Darwin" ]; then
   ${csudo}rm -rf /Applications/TDengine.app
 fi
 
-echo -e "${GREEN}${productName} is removed successfully!${NC}"
+echo -e "${GREEN}${productName2} is removed successfully!${NC}"
 echo

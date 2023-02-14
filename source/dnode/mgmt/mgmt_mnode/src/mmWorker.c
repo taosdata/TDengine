@@ -49,7 +49,7 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   pMsg->info.node = pMgmt->pMnode;
 
   const STraceId *trace = &pMsg->info.traceId;
-  dGTrace("msg:%p, get from mnode queue", pMsg);
+  dGTrace("msg:%p, get from mnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
   int32_t code = mndProcessRpcMsg(pMsg);
 

@@ -162,6 +162,7 @@ typedef enum EStreamType {
   STREAM_PULL_DATA,
   STREAM_PULL_OVER,
   STREAM_FILL_OVER,
+  STREAM_CREATE_CHILD_TABLE,
 } EStreamType;
 
 #pragma pack(push, 1)
@@ -195,6 +196,7 @@ typedef struct SDataBlockInfo {
   uint32_t    capacity;
   SBlockID    id;
   int16_t     hasVarCol;
+  int16_t     dataLoad;  // denote if the data is loaded or not
 
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
@@ -203,8 +205,7 @@ typedef struct SDataBlockInfo {
   STimeWindow calWin;     // used for stream, do not serialize
   TSKEY       watermark;  // used for stream
 
-  char        parTbName[TSDB_TABLE_NAME_LEN];  // used for stream partition
-  STag*       pTag;                            // used for stream partition
+  char    parTbName[TSDB_TABLE_NAME_LEN];  // used for stream partition
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -238,22 +239,22 @@ typedef struct SVarColAttr {
 // pBlockAgg->numOfNull == info.rows, all data are null
 // pBlockAgg->numOfNull == 0, no data are null.
 typedef struct SColumnInfoData {
-  char*         pData;       // the corresponding block data in memory
+  char* pData;  // the corresponding block data in memory
   union {
     char*       nullbitmap;  // bitmap, one bit for each item in the list
     SVarColAttr varmeta;
   };
-  SColumnInfo   info;        // column info
-  bool          hasNull;     // if current column data has null value.
+  SColumnInfo info;     // column info
+  bool        hasNull;  // if current column data has null value.
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
   uint64_t     suid;
-  int32_t      order;    // desc|asc order to iterate the data block
+  int32_t      order;  // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo* colList;
-  int32_t*     pSlotList; // the column output destation slot, and it may be null
-  int32_t      type;     // data block load type:
+  int32_t*     pSlotList;  // the column output destation slot, and it may be null
+  int32_t      type;       // data block load type:
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;
@@ -290,6 +291,7 @@ typedef struct STableBlockDistInfo {
   uint16_t numOfFiles;
   uint32_t numOfTables;
   uint32_t numOfBlocks;
+  uint32_t numOfVgroups;
   uint64_t totalSize;
   uint64_t totalRows;
   int32_t  maxRows;
@@ -339,7 +341,7 @@ typedef struct SExprInfo {
 
 typedef struct {
   const char* key;
-  int32_t     keyLen;
+  size_t     keyLen;
   uint8_t     type;
   union {
     const char* value;
@@ -348,7 +350,7 @@ typedef struct {
     double      d;
     float       f;
   };
-  int32_t length;
+  size_t length;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
@@ -375,6 +377,11 @@ typedef struct SSortExecInfo {
 #define CALCULATE_START_TS_COLUMN_INDEX 4
 #define CALCULATE_END_TS_COLUMN_INDEX   5
 #define TABLE_NAME_COLUMN_INDEX         6
+
+// stream create table block column
+#define UD_TABLE_NAME_COLUMN_INDEX     0
+#define UD_GROUPID_COLUMN_INDEX        1
+#define UD_TAG_COLUMN_INDEX            2
 
 #ifdef __cplusplus
 }

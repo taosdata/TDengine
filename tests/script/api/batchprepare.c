@@ -232,8 +232,8 @@ CaseCtrl gCaseCtrl = {
   .printCreateTblSql = true,
   .printQuerySql = true,
   .printStmtSql = true,
-  .printVerbose = false,
-  .printRes = false,
+  .printVerbose = true,
+  .printRes = true,
   .autoCreateTbl = false,
   .numericParam = false,
   .rowNum = 0,
@@ -2828,7 +2828,7 @@ void runAll(TAOS *taos) {
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
 
-#if 0
+#if 1
   strcpy(gCaseCtrl.caseCatalog, "Micro DB precision Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.precision = TIME_PRECISION_MICRO;

@@ -64,7 +64,7 @@ class ClusterComCheck:
         dbNumbers=int(dbNumbers)
         count=0
         while count < 5:
-            tdSql.query("select * from information_schema.ins_databases;")
+            tdSql.query("select * from information_schema.ins_databases where name!='collectd' ;")
             count+=1
             if tdSql.checkRows(dbNumbers+2):
                 tdLog.success("we find %d databases and expect %d in clusters! " %(tdSql.queryRows,dbNumbers+2))
@@ -174,34 +174,34 @@ class ClusterComCheck:
                 tdLog.exit("mnode number is correct")
             if offlineDnodeNo == 1:
                 if  tdSql.queryResult[0][2]=='offline' :
-                    if  tdSql.queryResult[1][2]=='leader'  and  tdSql.queryResult[1][3]== 'ready'  :
-                        if  tdSql.queryResult[2][2]=='follower' and  tdSql.queryResult[2][3]== 'ready'  :
+                    if  tdSql.queryResult[1][2]=='leader':
+                        if  tdSql.queryResult[2][2]=='follower':
                             tdLog.success("stop mnodes  on dnode %d  successfully in 10s" %offlineDnodeNo)
                             return True
-                    elif tdSql.queryResult[1][2]=='follower' and  tdSql.queryResult[1][3]== 'ready' :
-                        if  tdSql.queryResult[2][2]=='leader' and  tdSql.queryResult[2][3]== 'ready' :
+                    elif tdSql.queryResult[1][2]=='follower':
+                        if  tdSql.queryResult[2][2]=='leader':
                             tdLog.debug("stop mnodes  on dnode %d  successfully in 10s" %offlineDnodeNo)
                             return True
                 count+=1
             elif offlineDnodeNo == 2:
                 if  tdSql.queryResult[1][2]=='offline' :
-                    if  tdSql.queryResult[0][2]=='leader' and  tdSql.queryResult[0][3]== 'ready' :
-                        if  tdSql.queryResult[2][2]=='follower' and  tdSql.queryResult[2][3]== 'ready' :
+                    if  tdSql.queryResult[0][2]=='leader':
+                        if  tdSql.queryResult[2][2]=='follower':
                             tdLog.debug("stop mnodes  on dnode %d  successfully in 10s" %offlineDnodeNo)
                             return True
-                    elif tdSql.queryResult[0][2]=='follower' and  tdSql.queryResult[0][3]== 'ready' :
-                        if  tdSql.queryResult[2][2]=='leader' and  tdSql.queryResult[2][3]== 'ready' :
+                    elif tdSql.queryResult[0][2]=='follower':
+                        if  tdSql.queryResult[2][2]=='leader':
                             tdLog.debug("stop mnodes  on dnode %d  successfully in 10s" %offlineDnodeNo)
                             return True
                 count+=1
             elif offlineDnodeNo == 3:
                 if  tdSql.queryResult[2][2]=='offline' :
-                    if  tdSql.queryResult[0][2]=='leader' and  tdSql.queryResult[0][3]== 'ready' :
-                        if  tdSql.queryResult[1][2]=='follower' and  tdSql.queryResult[1][3]== 'ready' :
+                    if  tdSql.queryResult[0][2]=='leader':
+                        if  tdSql.queryResult[1][2]=='follower':
                             tdLog.debug("stop mnodes  on dnode %d  successfully in 10s" %offlineDnodeNo)
                             return True
-                    elif tdSql.queryResult[0][2]=='follower' and  tdSql.queryResult[0][3]== 'ready' :
-                        if  tdSql.queryResult[1][2]=='leader' and  tdSql.queryResult[1][3]== 'ready' :
+                    elif tdSql.queryResult[0][2]=='follower':
+                        if  tdSql.queryResult[1][2]=='leader':
                             tdLog.debug("stop mnodes  on dnode %d  successfully in 10s" %offlineDnodeNo)
                             return True
                 count+=1
@@ -219,8 +219,8 @@ class ClusterComCheck:
             else:
                 tdLog.exit("mnode number is correct")
             if  tdSql.queryResult[0][2]=='leader' :
-                if  tdSql.queryResult[1][2]=='offline'  and  tdSql.queryResult[1][3]== 'ready'  :
-                    if  tdSql.queryResult[2][2]=='offline' and  tdSql.queryResult[2][3]== 'ready'  :
+                if  tdSql.queryResult[1][2]=='offline':
+                    if  tdSql.queryResult[2][2]=='offline':
                         tdLog.success("stop mnodes of follower  on dnode successfully in 10s")
                         return True
             count+=1

@@ -40,6 +40,7 @@ extern "C" {
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 
+#define SHOW_ALIVE_RESULT_COLS 1
 #define PRIVILEGE_TYPE_MASK(n) (1 << n)
 
 #define PRIVILEGE_TYPE_ALL       PRIVILEGE_TYPE_MASK(0)
@@ -123,6 +124,11 @@ typedef struct STrimDatabaseStmt {
   int32_t   maxSpeed;
 } STrimDatabaseStmt;
 
+typedef struct SCompactDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+} SCompactDatabaseStmt;
+
 typedef struct STableOptions {
   ENodeType  type;
   bool       commentNull;
@@ -171,10 +177,10 @@ typedef struct SCreateSubTableClause {
   STableOptions* pOptions;
 } SCreateSubTableClause;
 
-typedef struct SCreateMultiTableStmt {
+typedef struct SCreateMultiTablesStmt {
   ENodeType  type;
   SNodeList* pSubTables;
-} SCreateMultiTableStmt;
+} SCreateMultiTablesStmt;
 
 typedef struct SDropTableClause {
   ENodeType type;
@@ -209,14 +215,14 @@ typedef struct SAlterTableStmt {
 
 typedef struct SCreateUserStmt {
   ENodeType type;
-  char      useName[TSDB_USER_LEN];
+  char      userName[TSDB_USER_LEN];
   char      password[TSDB_USET_PASSWORD_LEN];
   int8_t    sysinfo;
 } SCreateUserStmt;
 
 typedef struct SAlterUserStmt {
   ENodeType type;
-  char      useName[TSDB_USER_LEN];
+  char      userName[TSDB_USER_LEN];
   int8_t    alterType;
   char      password[TSDB_USET_PASSWORD_LEN];
   int8_t    enable;
@@ -225,7 +231,7 @@ typedef struct SAlterUserStmt {
 
 typedef struct SDropUserStmt {
   ENodeType type;
-  char      useName[TSDB_USER_LEN];
+  char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
 
 typedef struct SCreateDnodeStmt {
@@ -262,6 +268,11 @@ typedef struct SShowCreateDatabaseStmt {
   void*     pCfg;  // SDbCfgInfo
 } SShowCreateDatabaseStmt;
 
+typedef struct SShowAliveStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+} SShowAliveStmt;
+
 typedef struct SShowCreateTableStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
@@ -295,7 +306,7 @@ typedef struct SShowTableTagsStmt {
   SNodeList* pTags;
 } SShowTableTagsStmt;
 
-typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT } EIndexType;
+typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT, INDEX_TYPE_NORMAL } EIndexType;
 
 typedef struct SIndexOptions {
   ENodeType  type;
@@ -389,6 +400,7 @@ typedef struct SStreamOptions {
   SNode*    pDeleteMark;
   int8_t    fillHistory;
   int8_t    ignoreExpired;
+  int8_t    ignoreUpdate;
 } SStreamOptions;
 
 typedef struct SCreateStreamStmt {
@@ -401,6 +413,7 @@ typedef struct SCreateStreamStmt {
   SNode*          pQuery;
   SNodeList*      pTags;
   SNode*          pSubtable;
+  SNodeList*      pCols;
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {
