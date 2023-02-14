@@ -45,6 +45,7 @@ typedef struct SGroupResInfo {
   int32_t index;
   SArray* pRows;  // SArray<SResKeyPos>
   char*   pBuf;
+  bool    freeItem;
 } SGroupResInfo;
 
 typedef struct SResultRow {
@@ -127,7 +128,7 @@ static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRo
 void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order);
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 
-int32_t initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SHashObj* pResultHash);
+void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 bool hasRemainResults(SGroupResInfo* pGroupResInfo);
 
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);

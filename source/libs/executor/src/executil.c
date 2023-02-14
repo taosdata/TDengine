@@ -89,9 +89,20 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   return rowSize;
 }
 
+static void freeEx(void* p) {
+  taosMemoryFree(*(void**)p);
+}
+
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   taosMemoryFreeClear(pGroupResInfo->pBuf);
-  pGroupResInfo->pRows = taosArrayDestroy(pGroupResInfo->pRows);
+  if (pGroupResInfo->freeItem) {
+    taosArrayDestroy(pGroupResInfo->pRows);
+//    taosArrayDestroyEx(pGroupResInfo->pRows, freeEx);
+//    pGroupResInfo->freeItem = false;
+    pGroupResInfo->pRows = NULL;
+  } else {
+    pGroupResInfo->pRows = taosArrayDestroy(pGroupResInfo->pRows);
+  }
   pGroupResInfo->index = 0;
 }
 
@@ -162,54 +173,15 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
   assert(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }
 
-int32_t initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SHashObj* pResultHash) {
-  int32_t itemSize = sizeof(SResKeyPos) + sizeof(uint64_t);
-  int32_t bufLen = taosHashGetSize(pResultHash) * itemSize;
-  int32_t offset = 0;
-  void*   pIter = NULL;
-
-  int32_t numOfRows = taosHashGetSize(pResultHash);
+void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList) {
   if (pGroupResInfo->pRows != NULL) {
-    taosArrayClear(pGroupResInfo->pRows);
-  } else {
-    pGroupResInfo->pRows = taosArrayInit(numOfRows, sizeof(void*));
+    taosArrayDestroyP(pGroupResInfo->pRows, taosMemoryFree);
   }
 
-  if (numOfRows == 0) {
-    pGroupResInfo->index = 0;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pGroupResInfo->pBuf == NULL) {
-    pGroupResInfo->pBuf = taosMemoryMalloc(bufLen);
-    if (pGroupResInfo->pBuf == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-  } else {
-    char* p = taosMemoryRealloc(pGroupResInfo->pBuf, bufLen);
-    if (p == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-
-    pGroupResInfo->pBuf = p;
-  }
-
-  while ((pIter = taosHashIterate(pResultHash, pIter)) != NULL) {
-    SResKeyPos* p = (SResKeyPos*) (pGroupResInfo->pBuf + offset);
-    SResKeyPos* p1 = pIter;
-
-    qDebug("key:%"PRId64", gid:%"PRId64, *(uint64_t*)p1->key, p1->groupId);
-
-    memcpy(p, p1, itemSize);
-    taosArrayPush(pGroupResInfo->pRows, &p);
-    offset += itemSize;
-  }
-
-  taosSort(pGroupResInfo->pRows->pData, taosArrayGetSize(pGroupResInfo->pRows), sizeof(void*), resultrowComparAsc);
+  pGroupResInfo->freeItem = true;
+  pGroupResInfo->pRows = pArrayList;
   pGroupResInfo->index = 0;
   ASSERT(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
-
-  return TSDB_CODE_SUCCESS;
 }
 
 bool hasRemainResults(SGroupResInfo* pGroupResInfo) {

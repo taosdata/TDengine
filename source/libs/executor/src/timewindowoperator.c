@@ -843,15 +843,19 @@ static int32_t saveResult(SResultWindowInfo winInfo, SSHashObj* pStUpdated) {
 }
 
 static int32_t saveWinResult(int64_t ts, int32_t pageId, int32_t offset, uint64_t groupId, SHashObj* pUpdatedMap) {
-  char buf[sizeof(SResKeyPos) + sizeof(uint64_t)] = {0};
-  SResKeyPos* pResPos = (SResKeyPos*)buf;
+  SResKeyPos* newPos = taosMemoryMalloc(sizeof(SResKeyPos) + sizeof(uint64_t));
+  if (newPos == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
-  *(int64_t*) pResPos->key = ts;
-  pResPos->groupId = groupId;
-  pResPos->pos = (SResultRowPosition){.pageId = pageId, .offset = offset};
-
+  newPos->groupId = groupId;
+  newPos->pos = (SResultRowPosition){.pageId = pageId, .offset = offset};
+  *(int64_t*)newPos->key = ts;
   SWinKey key = {.ts = ts, .groupId = groupId};
-  taosHashPut(pUpdatedMap, &key, sizeof(SWinKey), pResPos, sizeof(SResKeyPos) + sizeof(uint64_t));
+  if (taosHashPut(pUpdatedMap, &key, sizeof(SWinKey), &newPos, sizeof(void*)) != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(newPos);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2564,7 +2568,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     }
   }
 
-//  SArray*    pUpdated = taosArrayInit(4, sizeof(SResKeyPos));
+  SArray*    pUpdated = taosArrayInit(4, POINTER_BYTES);
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   SHashObj*  pUpdatedMap = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
@@ -2607,9 +2611,9 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       continue;
     } else if (pBlock->info.type == STREAM_RETRIEVE && !IS_FINAL_OP(pInfo)) {
       doDeleteWindows(pOperator, &pInfo->interval, pBlock, NULL, pUpdatedMap);
-//      if (taosArrayGetSize(pUpdated) > 0) {
-//        break;
-//      }
+      if (taosArrayGetSize(pUpdated) > 0) {
+        break;
+      }
       continue;
     } else if (pBlock->info.type == STREAM_PULL_OVER && IS_FINAL_OP(pInfo)) {
       processPullOver(pBlock, pInfo->pPullDataMap, &pInfo->interval);
@@ -2656,10 +2660,14 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   }
   pInfo->binfo.pRes->info.watermark = pInfo->twAggSup.maxTs;
 
-  // todo
-  int32_t code = initMultiResInfoFromArrayList(&pInfo->groupResInfo, pUpdatedMap);
-
+  void* pIte = NULL;
+  while ((pIte = taosHashIterate(pUpdatedMap, pIte)) != NULL) {
+    taosArrayPush(pUpdated, pIte);
+  }
   taosHashCleanup(pUpdatedMap);
+  taosArraySort(pUpdated, resultrowComparAsc);
+
+  initMultiResInfoFromArrayList(&pInfo->groupResInfo, pUpdated);
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
 
   doBuildPullDataBlock(pInfo->pPullWins, &pInfo->pullIndex, pInfo->pPullDataRes);
@@ -4748,6 +4756,8 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
+  SArray*    pUpdated = taosArrayInit(4, POINTER_BYTES);  // SResKeyPos
+
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   SHashObj*  pUpdatedMap = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
 
@@ -4800,8 +4810,14 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   closeStreamIntervalWindow(pInfo->aggSup.pResultRowHashTable, &pInfo->twAggSup, &pInfo->interval, NULL, pUpdatedMap,
                             pInfo->pDelWins, pOperator);
 
-  // todo
-  int32_t code = initMultiResInfoFromArrayList(&pInfo->groupResInfo, pUpdatedMap);
+  void* pIte = NULL;
+  while ((pIte = taosHashIterate(pUpdatedMap, pIte)) != NULL) {
+    taosArrayPush(pUpdated, pIte);
+  }
+  taosArraySort(pUpdated, resultrowComparAsc);
+
+  initMultiResInfoFromArrayList(&pInfo->groupResInfo, pUpdated);
+
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   taosHashCleanup(pUpdatedMap);
 
