@@ -414,10 +414,10 @@ void udfdProcessRequest(uv_work_t *req) {
 void convertUdf2UdfInfo(SUdf *udf, SUdfInfo *udfInfo) {
   udfInfo->bufSize = udf->bufSize;
   udfInfo->funcType = udf->funcType;
-  strncpy(udfInfo->name, udf->name, strlen(udf->name));
+  udfInfo->name = udf->name;
   udfInfo->outputLen = udf->outputLen;
   udfInfo->outputType = udf->outputType;
-  strncpy(udfInfo->path, udf->path, strlen(udf->path));
+  udfInfo->path = udf->path;
   udfInfo->scriptType = udf->scriptType;
 }
 

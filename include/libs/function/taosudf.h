@@ -73,6 +73,7 @@ typedef struct SUdfDataBlock {
   SUdfColumn **udfCols;
 } SUdfDataBlock;
 
+// TODO: deprecate SUdfInterBuf.numOfResult or add isInitial to SUdfInterBuf
 typedef struct SUdfInterBuf {
   int32_t bufLen;
   char   *buf;
@@ -260,11 +261,9 @@ typedef int32_t (*TUdfAggMergeFunc)(SUdfInterBuf *inputBuf1, SUdfInterBuf *input
 typedef int32_t (*TUdfAggFinishFunc)(SUdfInterBuf *buf, SUdfInterBuf *resultData);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// TODO: capacity for path and 
-// define macro for name and path len or use dynamic allocation/shared with SUdf.
 
 typedef struct SUdfInfo {
-  char name[65];
+  char *name;
 
   int8_t  funcType;
   int8_t  scriptType;
@@ -272,10 +271,8 @@ typedef struct SUdfInfo {
   int32_t outputLen;
   int32_t bufSize;
 
-  char path[512];
+  char *path;
 } SUdfInfo;
-
-// TODO: deprecate SUdfInterBuf.numOfResult or add isInitial to SUdfInterBuf
 
 typedef int32_t (*TScriptUdfScalarProcFunc)(SUdfDataBlock *block, SUdfColumn *resultCol, void *udfCtx);
 
