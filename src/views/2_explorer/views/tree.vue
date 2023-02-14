@@ -55,14 +55,18 @@
             }}</span>
             <section class="operate-btn">
               <template v-if="!data.dataType">
+                <span>{{ data.dataType }}</span>
                 <i
                   class="el-icon-view operate-icon"
                   @click.stop="view(data)"
+                  v-if="!['sfile', 'nfile'].includes(data.typeName)"
                 ></i>
                 <template v-if="!data.noOperate">
                   <i
                     v-permission
-                    v-if="data.typeName !== 'table'"
+                    v-if="
+                      data.typeName !== 'table' && data.typeName !== 'database'
+                    "
                     class="el-icon-plus operate-icon"
                     @click.stop="add(data, node)"
                   ></i>
@@ -70,11 +74,13 @@
                     v-permission
                     class="el-icon-edit operate-icon"
                     @click.stop="edit(data, node)"
+                    v-if="!['sfile', 'nfile'].includes(data.typeName)"
                   ></i>
                   <i
                     v-permission
                     class="el-icon-delete operate-icon"
                     @click.stop="del(data, node)"
+                    v-if="!['sfile', 'nfile'].includes(data.typeName)"
                   ></i>
                 </template>
               </template>
@@ -85,7 +91,11 @@
               >
                 <i class="el-icon-search"></i>
               </div>
-              <div class="tablebutton" @click.stop="clickAdd(data)">
+              <div
+                class="tablebutton"
+                @click.stop="clickAdd(data)"
+                v-if="!['sfile', 'nfile'].includes(data.typeName)"
+              >
                 <svg
                   viewBox="0 0 24 24"
                   height="16px"
@@ -115,6 +125,7 @@
 import { getDBListReq, getDBStruct } from "@/api/gateway/data/dbs.js";
 import {
   getStableListReq,
+  getAllNormalTables,
   getStableStructReq,
 } from "@/api/gateway/data/stables.js";
 import {
@@ -124,7 +135,7 @@ import {
 import PanelHeader from "./components/panelHeader.vue";
 import VueEasyTree from "@/components/Tree";
 import { deepClone } from "@/utils";
-
+import moment from "moment";
 const clickNoChange = ["sql", "xterm"];
 export default {
   props: {
@@ -139,6 +150,8 @@ export default {
       database: "database_icon",
       stable: "stable",
       table: "table",
+      sfile: "sfile",
+      nfile: "nfile",
       column: "circle_blod",
       tag: "tag",
     };
@@ -238,16 +251,63 @@ export default {
     async loadNode(node, resolve) {
       let data = node.data;
       switch (node.data?.typeName) {
-        case "database":
+        case "sfile": //STables文件夹
           return resolve(
             ...(await getStableListReq(
               {
                 pageSize: this.pageSize,
                 currentPage: node.currentPage + 1,
               },
-              data.name
+              data.parent
             ))
           );
+        case "nfile": //Tables文件夹
+          return resolve(
+            ...(await getAllNormalTables(
+              {
+                pageSize: this.pageSize,
+                currentPage: node.currentPage + 1,
+              },
+              data.parent
+            ))
+          );
+        case "database":
+
+          //databse下需要添加Stables文件夹和Tbales文件夹
+          let result = [1, 2].map((item) => {
+            return {
+              columns: 2,
+              create_time: moment(new Date().getTime()).format(
+                "YYYY-MM-DD HH:mm:ss"
+              ),
+              db_name: node.data.name,
+              last_update: moment(new Date().getTime()).format(
+                "YYYY-MM-DD HH:mm:ss"
+              ),
+              max_delay: "",
+              name: item === 1 ? "STables" : "Tables",
+              "node-key": item === 1 ? "stable" : "ntable" + Math.random(),
+              parent: node.data.name,
+              rollup: "",
+              stable_name: "STables",
+              table_comment: "25",
+              tags: "",
+              typeName: item == 1 ? "sfile" : "nfile",
+              watermark: "0",
+            };
+          });
+          return resolve(result);
+
+        // return resolve(
+        //   ...(await getStableListReq(
+        //     {
+        //       pageSize: this.pageSize,
+        //       currentPage: node.currentPage + 1,
+        //     },
+        //     data.name
+        //   ))
+        // );
+
         case "stable":
           return resolve(
             ...(await getTableListReq({
@@ -271,6 +331,19 @@ export default {
           return resolve(dbList);
       }
     },
+    //只有在database时候处理
+    setTreeFiles(node) {
+      switch (node.typeName) {
+        case "stable":
+          (node["parent"] = "Stables"), (node["typeName"] = "sfile");
+          return node;
+        case "table":
+          (node["parent"] = "Tables"), (node["typeName"] = "tfile");
+          return node;
+        default:
+          return node;
+      }
+    },
     changePartActive() {
       if (clickNoChange.includes(this.$store.state.console.partActive)) {
         return;
@@ -280,14 +353,22 @@ export default {
     // 处理全局db和stb
     async handleVar(data, node) {
       switch (data.typeName) {
-        case "database":
+        //case "database":
+        case "sfile":
           //操作数据库时，获取数据库配置
-          if (!Object.prototype.hasOwnProperty.call(data, "minrows")) {
-            Object.assign(data, await getDBStruct(data.name));
-          }
-          this.$store.commit("dbs/SET_SELECTED_DB", data.name);
-          this.$store.commit("stables/SET_SELECTED_STB", "");
+          // if (!Object.prototype.hasOwnProperty.call(data, "minrows")) {
+          //   console.log(await getDBStruct(data.parent),'为啥assign-----');
+          //   Object.assign(data, await getDBStruct(data.name));
+          // }
+          this.$store.commit("dbs/SET_SELECTED_DB", node.parent.data.name);
+          this.$store.commit("stables/SET_SELECTED_STB", node.parent.data.name);
           this.$store.commit("tables/SET_SELECTED_TB", "");
+          break;
+
+        case "nfile":
+
+          this.$store.commit("dbs/SET_SELECTED_DB", data.parent);
+          this.$store.commit("stables/SET_SELECTED_STB", "");
           break;
         case "stable":
           this.$store.commit("dbs/SET_SELECTED_DB", data.parent);
@@ -322,6 +403,7 @@ export default {
       await this.handleVar(data, node);
       switch (data.typeName) {
         case "database":
+        case "sfile":
           this.$store.commit("dbs/HANDLE_EDIT_DB", deepClone(data));
           this.$store.commit("stables/HANDLE_ADD_STABLE");
           this.$store.state.console.currentComponent = "StableCreate";
@@ -331,6 +413,7 @@ export default {
           this.$store.state.console.currentComponent = "TableCreate";
           break;
         case "table":
+          case "nfile":
           this.$store.commit("tables/HANDLE_ADD_TABLE");
           this.$store.state.console.currentComponent = "TableCreate";
           break;

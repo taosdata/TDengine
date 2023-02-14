@@ -52,7 +52,6 @@ export default {
     },
     async del() {
       if (this.requestIng) return;
-      console.log("删除", this.record);
       this.$confirm(
         this.$t("console.delFavirote") + ": " + this.sql_sketchy + "?",
         this.$t("tips"),
@@ -88,7 +87,6 @@ export default {
     delFavorite() {
       let favorites = JSON.parse(localStorage.getItem("favorite_record"));
       let index = favorites.findIndex((item) => item.id === this.record.id);
-      console.log(index, "del", this.$store);
       favorites.splice(index, 1);
       localStorage.setItem("favorite_record", JSON.stringify(favorites));
 

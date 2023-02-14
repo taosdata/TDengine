@@ -125,8 +125,7 @@ export function checkDBName(dbName) {
 }
 
 export function handleDataKey(data, type, parent = "") {
-  console.log(data, type,'data, type');
-  debugger
+  
   return data.map(item => {
     item.typeName =item.rollup?'table': type;
     if (!item.name) {
@@ -138,6 +137,7 @@ export function handleDataKey(data, type, parent = "") {
       item.noOperate = true;
     }
     item["node-key"] = item.name + type + parent +Math.random();
+
     return item;
   });
 }

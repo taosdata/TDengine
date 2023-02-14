@@ -22,10 +22,11 @@
               <i class="el-icon-arrow-down" v-else></i>
             </div>
           </div>
+          <span>{{isEdit}}isEditisEditisEditisEdit</span>
           <div v-if="!isColumnsFold">
-            <el-input v-if="!isEdit" size="small" v-model="table_form.ts_field_name" :placeholder="$t('data.columnNameTip')" class="input_row">
+            <!-- <el-input v-if="!isEdit" size="small" v-model="table_form.ts_field_name" :placeholder="$t('data.columnNameTip')" class="input_row">
               <div slot="prepend">TIMESTAMP</div>
-            </el-input>
+            </el-input> -->
 
             <div v-for="(column, index) in table_form.columns" class="flexCenter input_row" :key="'column' + index">
               <el-select
@@ -69,7 +70,7 @@
         </template>
         <template v-else>
           <!-- Tag Section -->
-          <div class="section_title" v-if="table_form.stbTmpl">
+          <div class="section_title" v-if="table_form.stbTmpl && table_form.stbTmpl!='nfile'">
             <span class="sectionTitle_text">{{ $t("tags") }}</span>
             <div class="foldIcon" @click="foldTags">
               <i class="el-icon-arrow-right" v-if="isTagsFold"></i>
@@ -269,6 +270,8 @@
         this.table_form.tags.remove(index);
       },
       handleCreateTable() {
+
+        
         this.$refs.table_form.validate(valid => {
           if (valid) {
             this.handleData();
@@ -280,7 +283,10 @@
       },
       handleData() {
         this.table_form.columns = this.table_form.columns.filter(item => item.field);
-        this.table_form.tags = this.table_form.tags.filter(item => item.value);
+        if(this.table_form.tags){
+          this.table_form.tags = this.table_form.tags.filter(item => item.value);
+        }
+        
       },
       handleEditTable() {
         this.handleCreateTable();

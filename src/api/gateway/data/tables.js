@@ -30,20 +30,25 @@ export function deleteTableReq(payload) {
 
 export function createTableReq(payload) {
   let { selected_db, table_form } = payload;
-  let { name, stbTmpl, tags } = table_form;
+  let { name, stbTmpl, tags,columns } = table_form;
   // 以超级表为模版创建表
-  return sendSQLReq(
-    `CREATE TABLE ${selected_db}.${name} USING ${selected_db}.${stbTmpl} (${tags.map(item => `\`${item.field}\``).join(",")}) TAGS (${tags
-      .map(item => handleStringTagValue(item))
-      .join(",")});`
-  ).catch(err => {
-    err.desc && Message.error(err.desc);
-    return Promise.reject(err);
-  });
-  // return sendSQLReq(`CREATE TABLE ${selected_db}.${name} (${columns.map(item => `${item.field} ${item.type}`).join(",")});`).catch(err => {
-  //   err.desc && Message.error(err.desc);
-  //   return Promise.reject(err);
-  // });
+  if (tags && tags.length > 0) { //创建超级表的子表
+    return sendSQLReq(
+      `CREATE TABLE ${selected_db}.${name} USING ${selected_db}.${stbTmpl} (${tags.map(item => `\`${item.field}\``).join(",")}) TAGS (${tags
+        .map(item => handleStringTagValue(item))
+        .join(",")});`
+    ).catch(err => {
+      err.desc && Message.error(err.desc);
+      return Promise.reject(err);
+    });
+  } else {
+    return sendSQLReq(`CREATE TABLE ${selected_db}.${name} (${columns.map(item => `${item.field} ${item.type}`).join(",")});`).catch(err => {
+      err.desc && Message.error(err.desc);
+      return Promise.reject(err);
+    });
+  }
+
+
 }
 
 // 修改表结构

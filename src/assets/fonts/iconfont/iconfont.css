@@ -1,8 +1,8 @@
 @font-face {
   font-family: "element-icons"; /* Project id 3857053 */
-  src: url('iconfont.woff2?t=1676017494434') format('woff2'),
-       url('iconfont.woff?t=1676017494434') format('woff'),
-       url('iconfont.ttf?t=1676017494434') format('truetype');
+  src: url('iconfont.woff2?t=1676276247642') format('woff2'),
+       url('iconfont.woff?t=1676276247642') format('woff'),
+       url('iconfont.ttf?t=1676276247642') format('truetype');
 }
 
 .element-icons {
@@ -11,6 +11,18 @@
   font-style: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.el-icon-file-table:before {
+  content: "\e682";
+}
+
+.el-icon--Files:before {
+  content: "\e779";
+}
+
+.el-icon--Files1:before {
+  content: "\e77a";
 }
 
 .el-icon-tuitetwitter44:before {

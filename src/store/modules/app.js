@@ -226,7 +226,6 @@ const actions = {
             }
             console.log('处理集群列表-----appId');
             let cluster = handleCluster();
-            debugger
             commit("SET_CURRENT_CLUSTER", cluster);
             resolve();
             // 刷新时需要判断集群列表中是否有除了Running、Suspened的状态的集群
