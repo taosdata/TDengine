@@ -81,6 +81,7 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+
   return pHashObj;
 }
 
@@ -92,6 +93,7 @@ int32_t tSimpleHashGetSize(const SSHashObj *pHashObj) {
 }
 
 static void* doInternalAlloc(SSHashObj* pHashObj, int32_t size) {
+#if 0
   void** p = taosArrayGetLast(pHashObj->pHashNodeBuf);
   if (p == NULL || (pHashObj->offset + size) > DEFAULT_BUF_PAGE_SIZE) {
     // let's allocate one new page
@@ -112,6 +114,9 @@ static void* doInternalAlloc(SSHashObj* pHashObj, int32_t size) {
     pHashObj->offset += size;
     return pPos;
   }
+#else
+  return taosMemoryMalloc(size);
+#endif
 }
 
 static SHNode *doCreateHashNode(SSHashObj *pHashObj, const void *key, size_t keyLen, const void *data, size_t dataLen,
@@ -356,7 +361,22 @@ void tSimpleHashClear(SSHashObj *pHashObj) {
     return;
   }
 
-  memset(pHashObj->hashList, 0, pHashObj->capacity * sizeof(void*));
+  SHNode *pNode = NULL, *pNext = NULL;
+  for (int32_t i = 0; i < pHashObj->capacity; ++i) {
+    pNode = pHashObj->hashList[i];
+    if (!pNode) {
+      continue;
+    }
+
+    while (pNode) {
+      pNext = pNode->next;
+      FREE_HASH_NODE(pNode);
+      pNode = pNext;
+    }
+
+    pHashObj->hashList[i] = NULL;
+  }
+
   taosArrayClearEx(pHashObj->pHashNodeBuf, destroyItems);
   pHashObj->offset = 0;
   pHashObj->size = 0;

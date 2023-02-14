@@ -847,6 +847,7 @@ static int32_t saveWinResult(int64_t ts, int32_t pageId, int32_t offset, uint64_
   if (newPos == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
   newPos->groupId = groupId;
   newPos->pos = (SResultRowPosition){.pageId = pageId, .offset = offset};
   *(int64_t*)newPos->key = ts;
@@ -854,6 +855,7 @@ static int32_t saveWinResult(int64_t ts, int32_t pageId, int32_t offset, uint64_
   if (taosHashPut(pUpdatedMap, &key, sizeof(SWinKey), &newPos, sizeof(void*)) != TSDB_CODE_SUCCESS) {
     taosMemoryFree(newPos);
   }
+
   return TSDB_CODE_SUCCESS;
 }
 

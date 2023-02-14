@@ -1026,7 +1026,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
     code = doFilterByTagCond(pListInfo, pUidList, pTagCond, metaHandle);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      goto _end;
     }
   } else {
     T_MD5_CTX context = {0};
@@ -1064,7 +1064,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
     code = doFilterByTagCond(pListInfo, pUidList, pTagCond, metaHandle);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      goto _end;
     }
 
     // let's add the filter results into meta-cache
