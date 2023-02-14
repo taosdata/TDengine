@@ -570,6 +570,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/rtrim.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/schema_limit.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py
