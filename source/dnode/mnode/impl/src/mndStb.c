@@ -809,6 +809,9 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
     SSchema *pSchema = &pDst->pTags[i];
     pSchema->type = pField->type;
     pSchema->bytes = pField->bytes;
+    if (i == 0) {
+      SSCHMEA_SET_IDX_ON(pSchema)
+    }
     memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
     pSchema->colId = pDst->nextColId;
     pDst->nextColId++;
@@ -2227,9 +2230,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
   return 0;
 }
 
-static int32_t mndProcessDropTtltbReq(SRpcMsg *pRsp) {
-  return 0;
-}
+static int32_t mndProcessDropTtltbReq(SRpcMsg *pRsp) { return 0; }
 
 static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;

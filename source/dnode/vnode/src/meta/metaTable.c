@@ -652,7 +652,7 @@ int metaDropIndexFromSTable(SMeta *pMeta, int64_t version, SDropIndexReq *pReq) 
   }
 
   // clear idx flag
-  pCol->flags = 0;
+  SSCHMEA_SET_IDX_OFF(pCol);
 
   nStbEntry.version = version;
   nStbEntry.type = TSDB_SUPER_TABLE;

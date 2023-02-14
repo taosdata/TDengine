@@ -595,12 +595,13 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
       terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
       return -1;
     } else {
-      pTag->flags |= COL_IDX_ON;
+      SSCHMEA_SET_IDX_ON(pTag);
     }
   } else {
     if (!IS_IDX_ON(pTag)) {
       terrno = TSDB_CODE_MND_SMA_NOT_EXIST;
     } else {
+      SSCHMEA_SET_IDX_OFF(pTag);
       pTag->flags = 0;
     }
   }
