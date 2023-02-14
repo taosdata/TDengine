@@ -283,7 +283,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   metaRemoveSmaFromDb(pMeta, indexUid2);
 
   tDestroyTSma(&tSma);
-  metaClose(pMeta);
+  metaClose(&pMeta);
 }
 #endif
 
@@ -577,7 +577,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   tDestroyTSma(&tSma);
   tfsClose(pTsdb->pTfs);
   tsdbClose(pTsdb);
-  metaClose(pMeta);
+  metaClose(&pMeta);
 }
 
 #endif
