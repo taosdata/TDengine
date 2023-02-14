@@ -58,6 +58,8 @@ sql_error alter dnode 1 'monDebugFlag 131'
 sql_error alter dnode 1 'cqDebugFlag 131'
 sql_error alter dnode 1 'httpDebugFlag 131'
 sql_error alter dnode 1 'mqttDebugFlag 131'
+sql_error alter dnode 1 'qDebugFlaga 131'
+sql_error alter all dnodes 'qDebugFlaga 131'
 
 sql_error alter dnode 2 'wDebugFlag' '135'
 sql_error alter dnode 2 'tmrDebugFlag' '135'
@@ -65,6 +67,8 @@ sql_error alter dnode 1 'monDebugFlag' '131'
 sql_error alter dnode 1 'cqDebugFlag' '131'
 sql_error alter dnode 1 'httpDebugFlag' '131'
 sql_error alter dnode 1 'mqttDebugFlag' '131'
+sql_error alter dnode 1 'qDebugFlaga' '131'
+sql_error alter all dnodes 'qDebugFlaga' '131'
 
 print ======== step3
 sql_error alter $hostname1 debugFlag 135
