@@ -47,12 +47,11 @@ extern "C" {
   do {                                                                                       \
     if (cfgAddString(pCfg, "grant", "", false) != 0) return -1;                              \
     SConfigItem *pItemGrant = cfgGetItem(pCfg, "grant");                                     \
-    pItemGrant->array = taosArrayInit(5, sizeof(SConfigGrantItem));                          \
+    pItemGrant->array = taosArrayInit_s(5, sizeof(SConfigGrantItem), 5);                     \
     if (pItemGrant->array == NULL) {                                                         \
         terrno = TSDB_CODE_OUT_OF_MEMORY;                                                    \
         return -1;                                                                           \
     }                                                                                        \
-    taosArraySetSize(pItemGrant->array, 5);                                                  \
     ((SConfigGrantItem*)taosArrayGet(pItemGrant->array, 0))->u64 = GRANT_TIME_SERIES_LIMITS; \
     ((SConfigGrantItem*)taosArrayGet(pItemGrant->array, 1))->u32 = GRANT_DATABASE_LIMITS;    \
     ((SConfigGrantItem*)taosArrayGet(pItemGrant->array, 2))->u32 = GRANT_STABLE_LIMITS;      \
