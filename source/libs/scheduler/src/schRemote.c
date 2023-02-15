@@ -34,12 +34,12 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
       if (lastMsgType != reqMsgType) {
         SCH_TASK_ELOG("rsp msg type mis-match, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
                       TMSG_INFO(msgType));
-        SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+        SCH_ERR_RET(TSDB_CODE_QW_MSG_ERROR);
       }
       if (taskStatus != JOB_TASK_STATUS_PART_SUCC) {
         SCH_TASK_ELOG("rsp msg conflicted with task status, status:%s, rspType:%s", jobTaskStatusStr(taskStatus),
                       TMSG_INFO(msgType));
-        SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+        SCH_ERR_RET(TSDB_CODE_QW_MSG_ERROR);
       }
 
       return TSDB_CODE_SUCCESS;
@@ -60,13 +60,13 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
   if (lastMsgType != reqMsgType) {
     SCH_TASK_ELOG("rsp msg type mis-match, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
                   TMSG_INFO(msgType));
-    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+    SCH_ERR_RET(TSDB_CODE_QW_MSG_ERROR);
   }
 
   if (taskStatus != JOB_TASK_STATUS_EXEC) {
     SCH_TASK_ELOG("rsp msg conflicted with task status, status:%s, rspType:%s", jobTaskStatusStr(taskStatus),
                   TMSG_INFO(msgType));
-    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+    SCH_ERR_RET(TSDB_CODE_QW_MSG_ERROR);
   }
 
   return TSDB_CODE_SUCCESS;

@@ -230,6 +230,7 @@ typedef struct SSchTask {
   SSchRedirectCtx redirectCtx;     // task redirect context
   bool            waitRetry;       // wait for retry
   int32_t         execId;          // task current execute index
+  int32_t         failedExecId;    // last failed task execute index
   SSchLevel      *level;           // level
   SRWLatch        planLock;        // task update plan lock
   SSubplan       *plan;            // subplan

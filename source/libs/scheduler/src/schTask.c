@@ -64,6 +64,7 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
   pTask->plan = pPlan;
   pTask->level = pLevel;
   pTask->execId = -1;
+  pTask->failedExecId = -2;
   pTask->timeoutUsec = SCH_DEFAULT_TASK_TIMEOUT_USEC;
   pTask->taskId = schGenTaskId();
 
@@ -166,7 +167,7 @@ int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, v
 
   schUpdateTaskExecNode(pJob, pTask, handle, execId);
 
-  if ((execId != pTask->execId) || pTask->waitRetry) {  // ignore it
+  if ((execId != pTask->execId || execId <= pTask->failedExecId) || pTask->waitRetry) {  // ignore it
     SCH_TASK_DLOG("handle not updated since execId %d is already not current execId %d, waitRetry %d", execId,
                   pTask->execId, pTask->waitRetry);
     SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
@@ -181,6 +182,8 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
   if (TSDB_CODE_SCH_IGNORE_ERROR == errCode) {
     return TSDB_CODE_SCH_IGNORE_ERROR;
   }
+
+  pTask->failedExecId = pTask->execId;
 
   int8_t jobStatus = 0;
   if (schJobNeedToStop(pJob, &jobStatus)) {
