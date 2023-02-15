@@ -893,14 +893,14 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
 
   SCliMsg* pMsg = transQueueGet(&pConn->cliMsgs, 0);
 
-  if (pMsg) {
-    STraceId* trace = &pMsg->msg.info.traceId;
-    tGError("%s msg %s failed to send, conn %p failed to connect to %s, reason: %s", CONN_GET_INST_LABEL(pConn),
-            TMSG_INFO(pMsg->msg.msgType), pConn, pConn->ip, uv_strerror(status));
-  } else {
-    tError("%s msg %s failed to send, conn %p failed to connect to %s, reason: %s", CONN_GET_INST_LABEL(pConn),
-           TMSG_INFO(0), pConn, pConn->ip, uv_strerror(status));
-  }
+  // if (pMsg) {
+  STraceId* trace = &pMsg->msg.info.traceId;
+  tGError("%s msg %s failed to send, conn %p failed to connect to %s, reason: %s", CONN_GET_INST_LABEL(pConn),
+          TMSG_INFO(pMsg->msg.msgType), pConn, pConn->ip, uv_strerror(status));
+  //} else {
+  //  tError("%s msg %s failed to send, conn %p failed to connect to %s, reason: %s", CONN_GET_INST_LABEL(pConn),
+  //        TMSG_INFO(0), pConn, pConn->ip, uv_strerror(status));
+  //}
 
   uv_timer_stop(pConn->timer);
   pConn->timer->data = NULL;
