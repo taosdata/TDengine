@@ -579,7 +579,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   QUEUE_PUSH(&conn->list->conns, &conn->q);
   conn->list->size += 1;
 
-  if (conn->list->size >= 50) {
+  if (conn->list->size >= 250) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
     arg->param1 = conn;
     arg->param2 = thrd;
@@ -882,47 +882,50 @@ void cliSend(SCliConn* pConn) {
 _RETURN:
   return;
 }
+static void cliHandleFastFail(SCliConn* pConn, int status) {
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pTransInst = pThrd->pTransInst;
 
+  SCliMsg*  pMsg = transQueueGet(&pConn->cliMsgs, 0);
+  STraceId* trace = &pMsg->msg.info.traceId;
+
+  tGError("%s msg %s failed to send, conn %p failed to connect to %s:%d, reason: %s", CONN_GET_INST_LABEL(pConn),
+          pMsg ? TMSG_INFO(pMsg->msg.msgType) : 0, pConn, pConn->ip, pConn->port, uv_strerror(status));
+  uv_timer_stop(pConn->timer);
+  pConn->timer->data = NULL;
+  taosArrayPush(pThrd->timerList, &pConn->timer);
+  pConn->timer = NULL;
+
+  if (pMsg != NULL && REQUEST_NO_RESP(&pMsg->msg) &&
+      (pTransInst->failFastFp != NULL && pTransInst->failFastFp(pMsg->msg.msgType))) {
+    char*    ip = pConn->ip;
+    uint32_t port = pConn->port;
+    char     key[TSDB_FQDN_LEN + 64] = {0};
+    CONN_CONSTRUCT_HASH_KEY(key, ip, port);
+
+    SFailFastItem* item = taosHashGet(pThrd->failFastCache, key, strlen(key));
+    int64_t        cTimestamp = taosGetTimestampMs();
+    if (item != NULL) {
+      int32_t elapse = cTimestamp - item->timestamp;
+      if (elapse >= 0 && elapse <= pTransInst->failFastInterval) {
+        item->count++;
+      } else {
+        item->count = 1;
+        item->timestamp = cTimestamp;
+      }
+    } else {
+      SFailFastItem item = {.count = 1, .timestamp = cTimestamp};
+      taosHashPut(pThrd->failFastCache, key, strlen(key), &item, sizeof(SFailFastItem));
+    }
+  }
+  cliHandleExcept(pConn);
+}
 void cliConnCb(uv_connect_t* req, int status) {
   SCliConn* pConn = req->data;
   SCliThrd* pThrd = pConn->hostThrd;
 
-  if (pConn->timer != NULL) {
-    uv_timer_stop(pConn->timer);
-    pConn->timer->data = NULL;
-    taosArrayPush(pThrd->timerList, &pConn->timer);
-    pConn->timer = NULL;
-  }
-
   if (status != 0) {
-    SCliMsg* pMsg = transQueueGet(&pConn->cliMsgs, 0);
-    STrans*  pTransInst = pThrd->pTransInst;
-
-    tError("%s msg %s failed to send, conn %p failed to connect to %s:%d, reason: %s", CONN_GET_INST_LABEL(pConn),
-           pMsg ? TMSG_INFO(pMsg->msg.msgType) : 0, pConn, pConn->ip, pConn->port, uv_strerror(status));
-    if (pMsg != NULL && REQUEST_NO_RESP(&pMsg->msg) &&
-        (pTransInst->failFastFp != NULL && pTransInst->failFastFp(pMsg->msg.msgType))) {
-      char*    ip = pConn->ip;
-      uint32_t port = pConn->port;
-      char     key[TSDB_FQDN_LEN + 64] = {0};
-      CONN_CONSTRUCT_HASH_KEY(key, ip, port);
-
-      SFailFastItem* item = taosHashGet(pThrd->failFastCache, key, strlen(key));
-      int64_t        cTimestamp = taosGetTimestampMs();
-      if (item != NULL) {
-        int32_t elapse = cTimestamp - item->timestamp;
-        if (elapse >= 0 && elapse <= pTransInst->failFastInterval) {
-          item->count++;
-        } else {
-          item->count = 1;
-          item->timestamp = cTimestamp;
-        }
-      } else {
-        SFailFastItem item = {.count = 1, .timestamp = cTimestamp};
-        taosHashPut(pThrd->failFastCache, key, strlen(key), &item, sizeof(SFailFastItem));
-      }
-    }
-    cliHandleExcept(pConn);
+    cliHandleFastFail(pConn, status);
     return;
   }
   struct sockaddr peername, sockname;
@@ -1163,15 +1166,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
 
     ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
     if (ret != 0) {
-      tGError("%s conn %p failed to connect to %s:%d, reason:%s", pTransInst->label, conn, conn->ip, conn->port,
-              uv_err_name(ret));
-
-      uv_timer_stop(conn->timer);
-      conn->timer->data = NULL;
-      taosArrayPush(pThrd->timerList, &conn->timer);
-      conn->timer = NULL;
-
-      cliHandleExcept(conn);
+      cliHandleFastFail(conn, ret);
       return;
     }
     uv_timer_start(conn->timer, cliConnTimeout, TRANS_CONN_TIMEOUT, 0);
