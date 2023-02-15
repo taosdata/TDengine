@@ -1905,7 +1905,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
     if (val != NULL && *val >= pTransInst->connLimitNum) {
       transFreeMsg(pReq->pCont);
       transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
-      return TSDB_CODE_RPC_BROKEN_LINK;
+      return TSDB_CODE_RPC_MAX_SESSIONS;
     }
   }
 
