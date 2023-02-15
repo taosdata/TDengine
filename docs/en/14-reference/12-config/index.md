@@ -179,9 +179,10 @@ The parameters described in this document by the effect that they have on the sy
 | Attribute     | Description                             |
 | -------- | -------------------------------- |
 | Applicable | Server only                     |
-| Meaning   | count()/hyperloglog() return value or not if the result data is NULL |
+| Meaning   | count()/hyperloglog() return value or not if the input data is empty or NULL |
 | Vlue Range | 0：Return empty line，1：Return 0       |
 | Default   | 1                            |
+| Notes | When this parameter is setting to 1, for queries containing GROUP BY, PARTITION BY and INTERVAL clause, and input data in certain groups or windows is empty or NULL, the corresponding groups or windows have no return values |
 
 ### maxNumOfDistinctRes
 
