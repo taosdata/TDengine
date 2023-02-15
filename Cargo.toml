@@ -53,6 +53,7 @@ palaver = "0.2.8"
 shadow-rs = "0.20.0"
 
 async-backtrace = "0.2.2"
+tracing = "0.1"
 
 [dependencies.taos]
 version = "0.4.18"
