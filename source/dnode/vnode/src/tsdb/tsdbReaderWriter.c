@@ -737,7 +737,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, int64_t maxSpeed) {
+int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, speedFp fp) {
   int32_t   code = 0;
   int64_t   n;
   int64_t   size;
@@ -760,7 +760,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, i
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pHeadF->size, szPage), maxSpeed);
+  n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pHeadF->size, szPage), fp);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -781,7 +781,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, i
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pDataF->size, szPage), maxSpeed);
+  n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pDataF->size, szPage), fp);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -802,7 +802,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, i
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pSmaF->size, szPage), maxSpeed);
+  n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pSmaF->size, szPage), fp);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -824,7 +824,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, i
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
-    n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->aSttF[iStt]->size, szPage), maxSpeed);
+    n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->aSttF[iStt]->size, szPage), fp);
     if (n < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;

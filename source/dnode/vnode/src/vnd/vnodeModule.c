@@ -31,6 +31,7 @@ struct SVnodeGlobal {
   TdThreadMutex mutex;
   TdThreadCond  hasTask;
   SVnodeTask    queue;
+  SHashObj*     pHash;
 };
 
 struct SVnodeGlobal vnodeGlobal;
@@ -75,10 +76,21 @@ int vnodeInit(int nthreads) {
     taosThreadCreate(&(vnodeGlobal.threads[i]), NULL, loop, NULL);
   }
 
+  vnodeGlobal.pHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (!vnodeGlobal.pHash) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    vError("failed to init vnode module since:%s", tstrerror(terrno));
+    return -1;
+  }
+
   if (walInit() < 0) {
     return -1;
   }
   if (tqInit() < 0) {
+    return -1;
+  }
+
+  if(vnodeMigrateInit() < 0) {
     return -1;
   }
 
@@ -106,10 +118,13 @@ void vnodeCleanup() {
   taosMemoryFreeClear(vnodeGlobal.threads);
   taosThreadCondDestroy(&(vnodeGlobal.hasTask));
   taosThreadMutexDestroy(&(vnodeGlobal.mutex));
+  taosHashCleanup(vnodeGlobal.pHash);
+  vnodeGlobal.pHash = NULL;
 
   walCleanUp();
   tqCleanUp();
   smaCleanUp();
+  vnodeMigrateCleanUp();
 }
 
 int vnodeScheduleTask(int (*execute)(void*), void* arg) {

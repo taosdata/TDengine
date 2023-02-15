@@ -323,6 +323,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_AVAIL_BUFPOOL,         "No availabe buffer po
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_STOPPED,                  "Vnode stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_DUP_REQUEST,              "Duplicate write request")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_QUERY_BUSY,               "Query busy")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_TASK_ALREADY_EXIST,       "Vnode task already exist")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")

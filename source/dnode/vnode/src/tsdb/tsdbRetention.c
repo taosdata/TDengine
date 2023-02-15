@@ -93,7 +93,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, SMigrateInfo *pInfo) {
       SDFileSet fSet = *pSet;
       fSet.diskId = did;
 
-      code = tsdbDFileSetCopy(pTsdb, pSet, &fSet, pInfo->maxSpeed);
+      code = tsdbDFileSetCopy(pTsdb, pSet, &fSet, vnodeGetMigrateSpeed);
       if (code) goto _exit;
 
       code = tsdbFSUpsertFSet(&fs, &fSet);

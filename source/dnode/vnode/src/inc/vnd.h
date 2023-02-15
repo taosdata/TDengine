@@ -111,6 +111,8 @@ int32_t vnodeAsyncCompact(SVnode* pVnode);
 int32_t vnodeSyncCompact(SVnode* pVnode);
 
 // vnodeMigrate.c
+int32_t vnodeMigrateInit();
+void    vnodeMigrateCleanUp();
 int32_t vnodeAsyncMigrate(SVnode* pVnode, void* arg);
 int32_t vnodeSyncMigrate(SVnode* pVnode, void* arg);
 
