@@ -77,7 +77,9 @@ int64_t vnodeGetMigrateSpeed(SVnode *pVnode, int32_t cost) {
   } else {
     atomic_fetch_and_32(&pItem->count, 1);
   }
-
+  if (cost > 1000) {
+    return pItem->lastSpeed / 1000;
+  }
   return pItem->lastSpeed;
 }
 

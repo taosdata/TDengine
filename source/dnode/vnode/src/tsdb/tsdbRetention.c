@@ -59,7 +59,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, SMigrateInfo *pInfo) {
   int32_t code = 0;
 
   if (!tsdbShouldDoRetention(pTsdb, pInfo->timestamp)) {
-    tsdbInfo("vgId:%d, tsdb do retention not need", TD_VID(pTsdb->pVnode));
+    tsdbInfo("vgId:%d, tsdb do retention, no need", TD_VID(pTsdb->pVnode));
     return code;
   }
 
