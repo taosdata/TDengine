@@ -59,6 +59,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, SMigrateInfo *pInfo) {
   int32_t code = 0;
 
   if (!tsdbShouldDoRetention(pTsdb, pInfo->timestamp)) {
+    tsdbInfo("vgId:%d, tsdb do retention not need", TD_VID(pTsdb->pVnode));
     return code;
   }
 
@@ -121,6 +122,8 @@ _exit:
   if (code) {
     tsdbError("vgId:%d, tsdb do retention failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
     tsdbAbortRetention(pTsdb);
+  } else {
+    tsdbInfo("vgId:%d, tsdb do retention done", TD_VID(pTsdb->pVnode));
   }
   return code;
 }
