@@ -89,6 +89,16 @@ class TDTestCase:
         
         return
 
+    def queryWithLimit(self, limitExpresion, tablename, dbname):
+        sqlStr = f"select * from information_schema.%s where db_name='%s' %s;"%(tablename, dbname, limitExpresion)
+        print("====sql:%s"%(sqlStr))
+        tdSql.query(sqlStr)
+
+    def queryWithNoLimit(self, tablename, dbname):
+        sqlStr = f"select * from information_schema.%s where db_name='%s';"%(tablename, dbname)
+        print("====sql:%s"%(sqlStr))
+        tdSql.query(sqlStr)
+
     def schemaLimitCase(self):
         tdLog.printNoPrefix("======== test case: ")
         paraDict = {'dbName':     'lm2_db0',
@@ -107,53 +117,32 @@ class TDTestCase:
                     'startTs':    1537146000000,
                     'tsStep':     600000}
         
-        tdLog.printNoPrefix("comfirming table limit is not breaking")
-        sqlStr = f"select * from information_schema.ins_tables where db_name='%s' limit 5 offset 0;"%(paraDict["dbName"])
-        print("====sql:%s"%(sqlStr))
-        tdSql.query(sqlStr)
+        tdLog.printNoPrefix("comfirming table limit is not breaking")        
+        self.queryWithLimit("limit 5 offset 0", "ins_tables", paraDict["dbName"])
         tdSql.checkRows(5)
-        sqlStr = f"select * from information_schema.ins_tables where db_name='%s' limit 10 offset 0;"%(paraDict["dbName"])
-        print("====sql:%s"%(sqlStr))
-        tdSql.query(sqlStr)
+        self.queryWithLimit("limit 10 offset 0",  "ins_tables", paraDict["dbName"])
         tdSql.checkRows(10)
-        sqlStr = f"select * from information_schema.ins_tables where db_name='%s' limit 15 offset 0;"%(paraDict["dbName"])
-        print("====sql:%s"%(sqlStr))
-        tdSql.query(sqlStr)
+        self.queryWithLimit("limit 15 offset 0",  "ins_tables", paraDict["dbName"])
         tdSql.checkRows(15)
-        sqlStr = f"select * from information_schema.ins_tables where db_name='%s';"%(paraDict["dbName"])
-        print("====sql:%s"%(sqlStr))
-        tdSql.query(sqlStr)
+        self.queryWithNoLimit("ins_tables", paraDict["dbName"])
         tdSql.checkRows(18)
 
 
         tdLog.printNoPrefix("checking stable total count")
-        sqlStr = f"select * from information_schema.ins_stables where db_name='%s';"%(paraDict["dbName"])
-        print("====sql:%s"%(sqlStr))
-        tdSql.query(sqlStr)
+        self.queryWithNoLimit("ins_stables", paraDict["dbName"])
         tdSql.checkRows(18)
 
         tdLog.printNoPrefix("checking stable limit 0,10")
-        sqlStr = f"select * from information_schema.ins_stables where db_name='%s' limit 0,10;"%(paraDict["dbName"])
-        print("====sql:%s"%(sqlStr))
-        tdSql.query(sqlStr)
+        self.queryWithLimit("limit 0,10", "ins_stables", paraDict["dbName"])
         tdSql.checkRows(10)
-
-        sqlStr = f"select * from information_schema.ins_stables where db_name='%s' limit 10,10;"%(paraDict["dbName"])
-        print("====sql:%s"%(sqlStr))
-        tdSql.query(sqlStr)
+        self.queryWithLimit("limit 10,10", "ins_stables", paraDict["dbName"])
         tdSql.checkRows(self.stbNum-10)
 
         tdLog.printNoPrefix("checking stable limit 10 offset 0")
-        sqlStr = f"select * from information_schema.ins_stables where db_name='%s' limit 10 offset 0;"%(paraDict["dbName"])
-        print("====sql:%s"%(sqlStr))
-        tdSql.query(sqlStr)
+        self.queryWithLimit("limit 10 offset 0", "ins_stables", paraDict["dbName"])
         tdSql.checkRows(10)
-
-        sqlStr = f"select * from information_schema.ins_stables where db_name='%s' limit 10 offset 10;"%(paraDict["dbName"])
-        print("====sql:%s"%(sqlStr))
-        tdSql.query(sqlStr)
+        self.queryWithLimit("limit 10 offset 10", "ins_stables", paraDict["dbName"])
         tdSql.checkRows(self.stbNum-10)
-             
         tdLog.printNoPrefix("======== test case end ...... ")
 
     def run(self):
