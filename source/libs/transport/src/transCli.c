@@ -896,10 +896,10 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
   if (pMsg) {
     STraceId* trace = &pMsg->msg.info.traceId;
     tGError("%s msg %s failed to send, conn %p failed to connect to %s, reason: %s", CONN_GET_INST_LABEL(pConn),
-            pMsg ? TMSG_INFO(pMsg->msg.msgType) : 0, pConn, pConn->ip, uv_strerror(status));
+            TMSG_INFO(pMsg->msg.msgType), pConn, pConn->ip, uv_strerror(status));
   } else {
-    tError("%s msg %s failed to send, conn %p failed to connect to %s, reason: %s", CONN_GET_INST_LABEL(pConn), 0,
-           pConn, pConn->ip, uv_strerror(status));
+    tError("%s msg %s failed to send, conn %p failed to connect to %s, reason: %s", CONN_GET_INST_LABEL(pConn),
+           TMSG_INFO(0), pConn, pConn->ip, uv_strerror(status));
   }
 
   uv_timer_stop(pConn->timer);
