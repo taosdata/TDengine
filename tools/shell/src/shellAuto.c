@@ -1735,10 +1735,12 @@ _return:
 
 // main key press tab
 void pressTabKey(SShellCmd* cmd) {
-  // check
+  // check empty tab key
   if (cmd->commandSize == 0) {
-    // empty
-    showHelp();
+    // have multi line tab key
+    if(cmd->bufferSize == 0) {
+      showHelp();
+    }
     shellShowOnScreen(cmd);
     return;
   }
