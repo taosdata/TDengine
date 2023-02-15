@@ -5021,6 +5021,18 @@ static const SSchema* getColSchema(const STableMeta* pTableMeta, const char* pCo
   return NULL;
 }
 
+static const SSchema* getNormalColSchema(const STableMeta* pTableMeta, const char* pColName) {
+  int32_t  numOfCols = getNumOfColumns(pTableMeta);
+  SSchema* pColsSchema = getTableColumnSchema(pTableMeta);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    const SSchema* pSchema = pColsSchema + i;
+    if (0 == strcmp(pColName, pSchema->name)) {
+      return pSchema;
+    }
+  }
+  return NULL;
+}
+
 static SSchema* getTagSchema(const STableMeta* pTableMeta, const char* pTagName) {
   int32_t  numOfTags = getNumOfTags(pTableMeta);
   SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
@@ -5906,7 +5918,7 @@ static int32_t adjustOrderOfProjections(STranslateContext* pCxt, SNodeList* pCol
   SNode*  pCol = NULL;
   SNode*  pProj = NULL;
   FORBOTH(pCol, pCols, pProj, *pProjections) {
-    const SSchema* pSchema = getColSchema(pMeta, ((SColumnNode*)pCol)->colName);
+    const SSchema* pSchema = getNormalColSchema(pMeta, ((SColumnNode*)pCol)->colName);
     if (NULL == pSchema) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, ((SColumnNode*)pCol)->colName);
     }

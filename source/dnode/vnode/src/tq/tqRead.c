@@ -1358,7 +1358,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
         }
         taosArrayDestroy(qa);
       } else {
-        // TODO handle delete table from stb
+        tqReaderRemoveTbUidList(pExec->execHandle.pExecReader, tbUidList);
       }
     }
   }

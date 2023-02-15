@@ -286,7 +286,7 @@ sudo make install
 安装成功后，可以在应用程序中双击 TDengine 图标启动服务，或者在终端中启动 TDengine 服务：
 
 ```bash
-launchctl start com.tdengine.taosd
+sudo launchctl start com.tdengine.taosd
 ```
 
 用户可以使用 TDengine CLI 来连接 TDengine 服务，在终端中，输入：
