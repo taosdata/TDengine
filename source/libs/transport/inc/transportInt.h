@@ -64,6 +64,7 @@ typedef struct {
   void (*destroyFp)(void* ahandle);
   bool (*failFastFp)(tmsg_t msgType);
 
+  int32_t       connLimit;
   int           index;
   void*         parent;
   void*         tcphandle;  // returned handle from TCP initialization

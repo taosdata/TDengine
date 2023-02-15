@@ -80,6 +80,7 @@ typedef struct SCliThrd {
   uint64_t      nextTimeout;  // next timeout
   void*         pTransInst;   //
 
+  int connCount;
   void (*destroyAhandleFp)(void* ahandle);
   SHashObj* fqdn2ipCache;
   SCvtAddr  cvtAddr;
@@ -671,7 +672,6 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
   conn->stream = (uv_stream_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
   uv_tcp_init(pThrd->loop, (uv_tcp_t*)(conn->stream));
   conn->stream->data = conn;
-  // transSetConnOption((uv_tcp_t*)conn->stream);
 
   uv_timer_t* timer = taosArrayGetSize(pThrd->timerList) > 0 ? *(uv_timer_t**)taosArrayPop(pThrd->timerList) : NULL;
   if (timer == NULL) {
@@ -694,6 +694,7 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
   conn->broken = 0;
   transRefCliHandle(conn);
 
+  atomic_add_fetch_32(&pThrd->connCount, 1);
   allocConnRef(conn, false);
 
   return conn;
@@ -737,6 +738,8 @@ static void cliDestroy(uv_handle_t* handle) {
     conn->timer->data = NULL;
     conn->timer = NULL;
   }
+
+  atomic_sub_fetch_32(&pThrd->connCount, 1);
 
   transReleaseExHandle(transGetRefMgt(), conn->refId);
   transRemoveExHandle(transGetRefMgt(), conn->refId);
@@ -1861,6 +1864,13 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
     return TSDB_CODE_RPC_BROKEN_LINK;
   }
 
+  // read only
+  if (pTransInst->connLimit != 0 && atomic_load_32(&pThrd->connCount) >= pTransInst->connLimit) {
+    transFreeMsg(pReq->pCont);
+    transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
+    return TSDB_CODE_RPC_MAX_SESSIONS;
+  }
+
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
 
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
@@ -1902,6 +1912,13 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return TSDB_CODE_RPC_BROKEN_LINK;
   }
+  // not limit sync req
+  // read only
+  // if (pTransInst->connLimit != 0 && atomic_load_32(&pThrd->connCount) >= pTransInst->connLimit) {
+  //  transFreeMsg(pReq->pCont);
+  //  transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
+  //    return TSDB_CODE_RPC_MAX_SESSIONS;
+  //}
 
   tsem_t* sem = taosMemoryCalloc(1, sizeof(tsem_t));
   tsem_init(sem, 0, 0);
