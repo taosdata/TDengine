@@ -200,7 +200,7 @@ taos --dump-config
 | 含义     | count/hyperloglog函数在数据为空或者NULL的情况下是否返回值 |
 | 取值范围 | 0：返回空行，1：返回 0       |
 | 缺省值   | 1                            |
-| 补充说明 | 该参数设置为 1 时: 对于查询中含有 group by，partition by 以及 interval 子句的情况下， count/hyperloglog 函数结果仍然返回空行; 查询中 count/hyperloglog 和其他聚合函数一起使用时，其他聚合函数输出结果为NULL |
+| 补充说明 | 该参数设置为 1 时: 对于查询中含有 GROUP BY，PARTITION BY 以及 INTERVAL 子句的情况下， count/hyperloglog 函数结果仍然返回空行; 查询中 count/hyperloglog 和其他聚合函数一起使用时，其他聚合函数输出结果为NULL |
 
 ## 区域相关
 
