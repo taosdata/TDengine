@@ -76,11 +76,11 @@ bool     tsEnableTelem = true;
 int32_t  tsTelemInterval = 43200;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.taosdata.com";
 uint16_t tsTelemPort = 80;
-char*    tsTelemUri = "/report";
+char    *tsTelemUri = "/report";
 
-bool     tsEnableCrashReport = true;
-char*    tsClientCrashReportUri = "/ccrashreport";
-char*    tsSvrCrashReportUri = "/dcrashreport";
+bool  tsEnableCrashReport = true;
+char *tsClientCrashReportUri = "/ccrashreport";
+char *tsSvrCrashReportUri = "/dcrashreport";
 
 // schemaless
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
@@ -211,9 +211,7 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
 int32_t taosSetTfsCfg(SConfig *pCfg);
 #endif
 
-struct SConfig *taosGetCfg() {
-  return tsCfg;
-}
+struct SConfig *taosGetCfg() { return tsCfg; }
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -498,7 +496,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   pItem = cfgGetItem(tsCfg, "numOfRpcThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsNumOfRpcThreads = numOfCores / 2;
-    tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, 4);
+    tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, TSDB_MAX_RPC_THREADS);
     pItem->i32 = tsNumOfRpcThreads;
     pItem->stype = stype;
   }
