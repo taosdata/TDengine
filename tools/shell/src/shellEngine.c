@@ -1117,7 +1117,6 @@ int32_t shellExecute() {
 		ws_close(shell.ws_conn);
 	} else {
 #endif
-    taos_kill_query(shell.conn);
 		taos_close(shell.conn);
 #ifdef WEBSOCKET
 	}
@@ -1162,5 +1161,8 @@ int32_t shellExecute() {
   taosThreadJoin(spid, NULL);
 
   shellCleanupHistory();
+  taos_kill_query(shell.conn);
+  taos_close(shell.conn);
+
   return 0;
 }
