@@ -438,6 +438,15 @@ impl TaskController {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
             }
         }
+
+        if task.clear {
+            let to: Dsn = task.to.parse()?;
+            if to.driver == "taos" {
+                taosx::utils::clear_database(&to)
+                    .await
+                    .with_context(|| format!("Failed to clear target database with {to}"))?;
+            }
+        }
         let res = sqlx::query(
             "INSERT INTO tasks (`from`, `from_cluster`, `oneshot_topic`, `to`, `to_cluster`, `stream_type`, `jobs`, `compression_level`, `force`, \
                  `created_at`, `status`, `after_delete`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -457,15 +466,6 @@ impl TaskController {
         .execute(&self.pool)
         .await
         .unwrap();
-
-        if task.clear {
-            let to: Dsn = task.to.parse()?;
-            if to.driver == "taos" {
-                taosx::utils::clear_database(&to)
-                    .await
-                    .with_context(|| format!("Failed to clear target database with {to}"))?;
-            }
-        }
 
         // let opts = taosx::TaskOpts::try_from(task.clone())?;
         let id = res.last_insert_rowid();
