@@ -1987,7 +1987,7 @@ void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb) {
 
   if (dealUseDB(sql)) {
     // change to new db
-    if (varRunOnce) updateTireValue(WT_VAR_STABLE, false);
+    if (!varRunOnce) updateTireValue(WT_VAR_STABLE, false);
     return;
   }
 
