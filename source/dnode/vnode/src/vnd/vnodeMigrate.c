@@ -35,10 +35,9 @@ typedef struct {
 } SMigrateItem;
 
 int64_t vnodeGetMigrateSpeed(SVnode *pVnode, int32_t cost) {
-  const char   *dbFName = pVnode->config.dbname;
   SMigrateItem *pItem = NULL;
 
-  pItem = taosHashGet(vndMigrateHdl.pHash, dbFName, strlen(dbFName));
+  pItem = taosHashGet(vndMigrateHdl.pHash, pVnode->config.dbId, sizeof(pVnode->config.dbId));
   if (!pItem || !(pItem = *(SMigrateItem **)pItem)) {
     return 0;
   }
@@ -85,9 +84,8 @@ int64_t vnodeGetMigrateSpeed(SVnode *pVnode, int32_t cost) {
 
 static int32_t vnodeMigrateUpsert(SVnode *pVnode, int64_t maxSpeed, bool *isDup) {
   int32_t       code = 0;
-  const char   *dbFName = pVnode->config.dbname;
   SMigrateItem *pItem = NULL;
-  pItem = taosHashGet(vndMigrateHdl.pHash, dbFName, strlen(dbFName));
+  pItem = taosHashGet(vndMigrateHdl.pHash, pVnode->config.dbId, sizeof(pVnode->config.dbId));
   if (!pItem) {
     if (0 == atomic_val_compare_exchange_8(&vndMigrateHdl.lock, 0, 1)) {
       pItem = taosMemoryCalloc(1, sizeof(SMigrateItem));
@@ -97,7 +95,7 @@ static int32_t vnodeMigrateUpsert(SVnode *pVnode, int64_t maxSpeed, bool *isDup)
         pItem->lastCheck = 0;
         pItem->lastSpeed = MIGRATE_DEFAULT_SPEED;
         pItem->maxSpeed = maxSpeed;
-        taosHashPut(vndMigrateHdl.pHash, dbFName, strlen(dbFName), &pItem, POINTER_BYTES);
+        taosHashPut(vndMigrateHdl.pHash, pVnode->config.dbId, sizeof(pVnode->config.dbId), &pItem, POINTER_BYTES);
       }
       atomic_store_8(&vndMigrateHdl.lock, 0);
     }
@@ -134,7 +132,7 @@ int32_t vnodeMigrateInit() {
   }
 
   if (old == 0) {
-    vndMigrateHdl.pHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    vndMigrateHdl.pHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
     if (!vndMigrateHdl.pHash) {
       atomic_store_8(&vndMigrateHdl.inited, 0);
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -191,7 +189,7 @@ static int32_t vnodeMigrateTask(void *param) {
   //   vnodeCommitInfo(dir);
 
 _exit:
-  taosHashRemove(vndMigrateHdl.pHash, pVnode->config.dbname, strlen(pVnode->config.dbname));
+  taosHashRemove(vndMigrateHdl.pHash, pVnode->config.dbId, sizeof(pVnode->config.dbId));
   tsem_post(&pInfo->pVnode->canCommit);
   taosMemoryFree(pInfo);
   return code;
