@@ -112,7 +112,8 @@ typedef struct SRpcInit {
   // fail fast fp
   RpcFFfp ffp;
 
-  int32_t connLimit;
+  int32_t connLimitNum;
+  int32_t connLimitLock;
 
   void *parent;
 } SRpcInit;

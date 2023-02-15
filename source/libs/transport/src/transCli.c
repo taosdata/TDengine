@@ -85,7 +85,7 @@ typedef struct SCliThrd {
   SCvtAddr  cvtAddr;
 
   SHashObj* failFastCache;
-  SHashObj* connLimit;
+  SHashObj* connLimitCache;
 
   SCliMsg* stopMsg;
 
@@ -750,9 +750,9 @@ static void cliDestroy(uv_handle_t* handle) {
   transReqQueueClear(&conn->wreqQueue);
   transDestroyBuffer(&conn->readBuf);
 
-  int32_t* oVal = taosHashGet(pThrd->connLimit, conn->ip, strlen(conn->ip));
+  int32_t* oVal = taosHashGet(pThrd->connLimitCache, conn->ip, strlen(conn->ip));
   int32_t  nVal = oVal == NULL ? 0 : (*oVal) - 1;
-  taosHashPut(pThrd->connLimit, conn->ip, strlen(conn->ip), &nVal, sizeof(nVal));
+  taosHashPut(pThrd->connLimitCache, conn->ip, strlen(conn->ip), &nVal, sizeof(nVal));
 
   taosMemoryFree(conn);
 }
@@ -930,9 +930,9 @@ void cliConnCb(uv_connect_t* req, int status) {
     return;
   }
 
-  int32_t* oVal = taosHashGet(pThrd->connLimit, pConn->ip, strlen(pConn->ip));
+  int32_t* oVal = taosHashGet(pThrd->connLimitCache, pConn->ip, strlen(pConn->ip));
   int32_t  nVal = oVal == NULL ? 0 : (*oVal) + 1;
-  taosHashPut(pThrd->connLimit, pConn->ip, strlen(pConn->ip), &nVal, sizeof(nVal));
+  taosHashPut(pThrd->connLimitCache, pConn->ip, strlen(pConn->ip), &nVal, sizeof(nVal));
 
   struct sockaddr peername, sockname;
   int             addrlen = sizeof(peername);
@@ -1080,10 +1080,10 @@ static int32_t cliPreCheckSessionLimit(SCliThrd* pThrd, SCliMsg* pMsg) {
   char key[TSDB_FQDN_LEN + 64] = {0};
   CONN_CONSTRUCT_HASH_KEY(key, ip, port);
 
-  int32_t* val = taosHashGet(pThrd->connLimit, key, strlen(key));
+  int32_t* val = taosHashGet(pThrd->connLimitCache, key, strlen(key));
   if (val == NULL) return 0;
 
-  if (*val >= pTransInst->connLimit) {
+  if (*val >= pTransInst->connLimitNum) {
     return -1;
   }
   return 0;
@@ -1441,7 +1441,8 @@ static SCliThrd* createThrdObj(void* trans) {
   pThrd->destroyAhandleFp = pTransInst->destroyFp;
   pThrd->fqdn2ipCache = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pThrd->failFastCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  pThrd->connLimit = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  pThrd->connLimitCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+                                       pTransInst->connLimitLock == 0 ? HASH_NO_LOCK : HASH_ENTRY_LOCK);
 
   pThrd->quit = false;
   return pThrd;
@@ -1470,7 +1471,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
   taosMemoryFree(pThrd->loop);
   taosHashCleanup(pThrd->fqdn2ipCache);
   taosHashCleanup(pThrd->failFastCache);
-  taosHashCleanup(pThrd->connLimit);
+  taosHashCleanup(pThrd->connLimitCache);
   taosMemoryFree(pThrd);
 }
 
@@ -1893,6 +1894,19 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
     transFreeMsg(pReq->pCont);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return TSDB_CODE_RPC_BROKEN_LINK;
+  }
+  if (pTransInst->connLimitNum > 0 && REQUEST_NO_RESP(pReq)) {
+    char     key[TSDB_FQDN_LEN + 64] = {0};
+    char*    ip = EPSET_GET_INUSE_IP((SEpSet*)pEpSet);
+    uint16_t port = EPSET_GET_INUSE_PORT((SEpSet*)pEpSet);
+    CONN_CONSTRUCT_HASH_KEY(key, ip, port);
+
+    int32_t* val = taosHashGet(pThrd->connLimitCache, key, strlen(key));
+    if (val != NULL && *val >= pTransInst->connLimitNum) {
+      transFreeMsg(pReq->pCont);
+      transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
+      return TSDB_CODE_RPC_BROKEN_LINK;
+    }
   }
 
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
