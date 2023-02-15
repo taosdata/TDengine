@@ -96,9 +96,9 @@ static void freeEx(void* p) {
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   taosMemoryFreeClear(pGroupResInfo->pBuf);
   if (pGroupResInfo->freeItem) {
-    taosArrayDestroy(pGroupResInfo->pRows);
-//    taosArrayDestroyEx(pGroupResInfo->pRows, freeEx);
-//    pGroupResInfo->freeItem = false;
+//    taosArrayDestroy(pGroupResInfo->pRows);
+    taosArrayDestroyEx(pGroupResInfo->pRows, freeEx);
+    pGroupResInfo->freeItem = false;
     pGroupResInfo->pRows = NULL;
   } else {
     pGroupResInfo->pRows = taosArrayDestroy(pGroupResInfo->pRows);
