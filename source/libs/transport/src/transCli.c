@@ -736,6 +736,9 @@ static void cliDestroy(uv_handle_t* handle) {
     conn->timer->data = NULL;
     conn->timer = NULL;
   }
+  int32_t* oVal = taosHashGet(pThrd->connLimitCache, conn->ip, strlen(conn->ip));
+  int32_t  nVal = oVal == NULL ? 0 : (*oVal) - 1;
+  taosHashPut(pThrd->connLimitCache, conn->ip, strlen(conn->ip), &nVal, sizeof(nVal));
 
   atomic_sub_fetch_32(&pThrd->connCount, 1);
 
@@ -749,10 +752,6 @@ static void cliDestroy(uv_handle_t* handle) {
   tTrace("%s conn %p destroy successfully", CONN_GET_INST_LABEL(conn), conn);
   transReqQueueClear(&conn->wreqQueue);
   transDestroyBuffer(&conn->readBuf);
-
-  int32_t* oVal = taosHashGet(pThrd->connLimitCache, conn->ip, strlen(conn->ip));
-  int32_t  nVal = oVal == NULL ? 0 : (*oVal) - 1;
-  taosHashPut(pThrd->connLimitCache, conn->ip, strlen(conn->ip), &nVal, sizeof(nVal));
 
   taosMemoryFree(conn);
 }
