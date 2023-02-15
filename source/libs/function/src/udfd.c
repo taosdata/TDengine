@@ -352,8 +352,8 @@ void udfdDeinitCPlugin(SUdfScriptPlugin *plugin) {
 }
 
 void udfdDeinitPythonPlugin(SUdfScriptPlugin *plugin) {
+  uv_dlclose(&plugin->lib);
   if (plugin->libLoaded) {
-    uv_dlclose(&plugin->lib);
     plugin->libLoaded = false;
   }
 }
