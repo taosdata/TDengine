@@ -375,7 +375,7 @@ void showHelp() {
   ----- C ----- \n\
     create table <tb_name> using <stb_name> tags ...\n\
     create database <db_name> <db_options>  ...\n\
-    create dnode \"fqdn:port\"n\
+    create dnode \"fqdn:port\" ...\n\
     create index ...\n\
     create mnode on dnode <dnode_id> ;\n\
     create qnode on dnode <dnode_id> ;\n\
