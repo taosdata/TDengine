@@ -647,6 +647,7 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     uv_cond_destroy(&udf->condReady);
     uv_mutex_destroy(&udf->lock);
     udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
+    taosMemoryFree(udf);
   }
   taosMemoryFree(handle);
 
