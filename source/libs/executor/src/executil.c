@@ -1086,8 +1086,8 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       size_t size = numOfTables * sizeof(uint64_t) + sizeof(int32_t);
       char*  pPayload = taosMemoryMalloc(size);
 
+      *(int32_t*)pPayload = numOfTables;
       if (numOfTables > 0) {
-        *(int32_t*)pPayload = numOfTables;
         memcpy(pPayload + sizeof(int32_t), taosArrayGet(pUidList, 0), numOfTables * sizeof(uint64_t));
       }
 
