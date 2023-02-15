@@ -182,6 +182,7 @@ The parameters described in this document by the effect that they have on the sy
 | Meaning   | count()/hyperloglog() return value or not if the result data is NULL |
 | Vlue Range | 0：Return empty line，1：Return 0       |
 | Default   | 1                            |
+| Notes | When this parameter is setting to 1: for queries containing GROUP BY, PARTITION BY and INTERVAL clause, count/hyperloglog functions do not return value; if count/hyperloglog used together with other aggregate functions, other aggregate functions return NULL. |
 
 ### maxNumOfDistinctRes
 
