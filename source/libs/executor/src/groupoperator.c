@@ -1013,7 +1013,7 @@ void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp*
 
     void* pGpIdCol = taosArrayGet(pDestBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
     colDataAppend(pGpIdCol, pDestBlock->info.rows, (const char*)&groupId, false);
-
+    pDestBlock->info.id.groupId = groupId;
     pDestBlock->info.rows++;
     blockDataDestroy(pTmpBlock);
   }
@@ -1030,7 +1030,7 @@ static SSDataBlock* buildStreamCreateTableResult(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pInfo->pCreateTbRes, taosHashGetSize(pInfo->pPartitions));
   SSDataBlock* pSrc = pInfo->pInputDataBlock;
 
-  while (pInfo->pTbNameIte != NULL) {
+  if (pInfo->pTbNameIte != NULL) {
     SPartitionDataInfo* pParInfo = (SPartitionDataInfo*)pInfo->pTbNameIte;
     int32_t             rowId = *(int32_t*)taosArrayGet(pParInfo->rowIds, 0);
     appendCreateTableRow(pOperator->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup, &pInfo->tagCalSup,

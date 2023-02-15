@@ -498,7 +498,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
             taosArrayPush(tagArray, &tagVal);
           }
         }
-        pCreateTbReq->ctb.tagNum = taosArrayGetSize(tagArray);
+        pCreateTbReq->ctb.tagNum = size;
 
         STag* pTag = NULL;
         tTagNew(tagArray, 1, false, &pTag);
