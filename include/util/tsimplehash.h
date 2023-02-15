@@ -116,6 +116,7 @@ typedef struct SHNode {
   struct SHNode *next;
   uint32_t       keyLen : 20;
   uint32_t       dataLen : 12;
+  uint32_t       hashVal;
   char           data[];
 } SHNode;
 #pragma pack(pop)

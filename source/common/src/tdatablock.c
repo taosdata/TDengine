@@ -1546,7 +1546,10 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
 }
 
 void colDataDestroy(SColumnInfoData* pColData) {
-  if (!pColData) return;
+  if (!pColData) {
+    return;
+  }
+
   if (IS_VAR_DATA_TYPE(pColData->info.type)) {
     taosMemoryFreeClear(pColData->varmeta.offset);
   } else {
@@ -2353,8 +2356,7 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
   pStart += sizeof(uint64_t);
 
   if (pBlock->pDataBlock == NULL) {
-    pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
-    taosArraySetSize(pBlock->pDataBlock, numOfCols);
+    pBlock->pDataBlock = taosArrayInit_s(numOfCols, sizeof(SColumnInfoData), numOfCols);
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
