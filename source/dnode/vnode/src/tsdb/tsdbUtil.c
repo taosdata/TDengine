@@ -1814,16 +1814,12 @@ _exit:
  * @param pFileOut
  * @param pFileIn
  * @param size
- * @param fp
+ * @param maxSpeed
 
  * @return int64_t
  */
-int64_t tsdbFSendFile(STsdb *pTsdb, TdFilePtr pOutFD, TdFilePtr pInFD, int64_t size, speedFp fp) {
-  int64_t speed = 0;
-  int64_t cost = 0;
-
-  if (fp) speed = (*fp)(pTsdb->pVnode, cost);
-  if (speed <= 0) {
+int64_t tsdbFSendFile(STsdb *pTsdb, TdFilePtr pOutFD, TdFilePtr pInFD, int64_t size, int64_t maxSpeed) {
+  if (maxSpeed <= 0) {
     return taosFSendFile(pOutFD, pInFD, 0, size);
   }
 
@@ -1831,10 +1827,11 @@ int64_t tsdbFSendFile(STsdb *pTsdb, TdFilePtr pOutFD, TdFilePtr pInFD, int64_t s
   int64_t tBytes = 0;
   int64_t nBytes = 0;
   int64_t startMs = 0;
+  int64_t cost;
 
   while ((offset + nBytes) < size) {
     startMs = taosGetTimestampMs();
-    if ((nBytes = taosFSendFile(pOutFD, pInFD, &offset, speed)) < 0) {
+    if ((nBytes = taosFSendFile(pOutFD, pInFD, &offset, maxSpeed)) < 0) {
       return nBytes;
     }
     cost = taosGetTimestampMs() - startMs;
@@ -1849,9 +1846,8 @@ int64_t tsdbFSendFile(STsdb *pTsdb, TdFilePtr pOutFD, TdFilePtr pInFD, int64_t s
     if (nSleep > 0) {
       taosMsleep(nSleep);
       tsdbDebug("vgId:%d sendFile and msleep:%" PRIi64 ", fSize:%" PRIi64 ", tBytes:%" PRIi64 " maxSpeed:%" PRIi64,
-                TD_VID(pTsdb->pVnode), nSleep, size, tBytes, speed);
+                TD_VID(pTsdb->pVnode), nSleep, size, tBytes, maxSpeed);
     }
-    if (fp) speed = (*fp)(pTsdb->pVnode, cost);
   }
 
 _remain:
@@ -1861,7 +1857,7 @@ _remain:
     }
     tBytes += nBytes;
     tsdbDebug("vgId:%d sendFile remain, fSize:%" PRIi64 ", tBytes:%" PRIi64 " maxSpeed:%" PRIi64, TD_VID(pTsdb->pVnode),
-              size, tBytes, speed);
+              size, tBytes, maxSpeed);
   }
   return tBytes;
 }

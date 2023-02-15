@@ -110,8 +110,6 @@ void  vnodeBufPoolRef(SVBufPool* pPool);
 void  vnodeBufPoolUnRef(SVBufPool* pPool, bool proactive);
 int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
 
-typedef int64_t (*speedFp)(SVnode*, int32_t);
-int64_t vnodeGetMigrateSpeed(SVnode* pVnode, int32_t cost);
 int32_t vnodeBufPoolRegisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
 void    vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode, bool proactive);
 

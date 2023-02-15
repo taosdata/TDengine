@@ -75,10 +75,6 @@ int vnodeInit(int nthreads) {
     taosThreadCreate(&(vnodeGlobal.threads[i]), NULL, loop, NULL);
   }
 
-  if (vnodeMigrateInit() < 0) {
-    return -1;
-  }
-
   if (walInit() < 0) {
     return -1;
   }
@@ -110,8 +106,6 @@ void vnodeCleanup() {
   taosMemoryFreeClear(vnodeGlobal.threads);
   taosThreadCondDestroy(&(vnodeGlobal.hasTask));
   taosThreadMutexDestroy(&(vnodeGlobal.mutex));
-
-  vnodeMigrateCleanUp();
 
   walCleanUp();
   tqCleanUp();

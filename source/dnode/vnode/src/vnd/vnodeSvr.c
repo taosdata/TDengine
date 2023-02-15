@@ -471,21 +471,20 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
 
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t     code = 0;
-  SVTrimDbReq req = {0};
+  SVTrimDbReq trimReq = {0};
 
   // decode
-  if (tDeserializeSVTrimDbReq(pReq, len, &req) != 0) {
+  if (tDeserializeSVTrimDbReq(pReq, len, &trimReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
 
   vInfo("vgId:%d, trim vnode request will be processed, time:%" PRIi64 " maxSpeed:%" PRIi64, TD_VID(pVnode),
-        req.timestamp, req.maxSpeed);
+        trimReq.timestamp, trimReq.maxSpeed);
 
   // process
 
-  vnodeAsyncMigrate(pVnode, &req);
-  // vnodeBegin(pVnode);
+  vnodeAsyncMigrate(pVnode, &trimReq);
 
 _exit:
   return code;
