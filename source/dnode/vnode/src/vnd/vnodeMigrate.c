@@ -34,6 +34,7 @@ typedef struct {
   int8_t  lock;
 } SMigrateItem;
 
+
 int64_t vnodeGetMigrateSpeed(SVnode *pVnode, int32_t cost) {
   SMigrateItem *pItem = NULL;
 
@@ -80,33 +81,6 @@ int64_t vnodeGetMigrateSpeed(SVnode *pVnode, int32_t cost) {
     return pItem->lastSpeed / 1000;
   }
   return pItem->lastSpeed;
-}
-
-static int32_t vnodeMigrateUpsert(SVnode *pVnode, int64_t maxSpeed, bool *isDup) {
-  int32_t       code = 0;
-  SMigrateItem *pItem = NULL;
-  pItem = taosHashGet(vndMigrateHdl.pHash, pVnode->config.dbId, sizeof(pVnode->config.dbId));
-  if (!pItem) {
-    if (0 == atomic_val_compare_exchange_8(&vndMigrateHdl.lock, 0, 1)) {
-      pItem = taosMemoryCalloc(1, sizeof(SMigrateItem));
-      if (pItem) {
-        pItem->lock = 0;
-        pItem->count = 0;
-        pItem->lastCheck = 0;
-        pItem->lastSpeed = MIGRATE_DEFAULT_SPEED;
-        pItem->maxSpeed = maxSpeed;
-        taosHashPut(vndMigrateHdl.pHash, pVnode->config.dbId, sizeof(pVnode->config.dbId), &pItem, POINTER_BYTES);
-      }
-      atomic_store_8(&vndMigrateHdl.lock, 0);
-    }
-    if (isDup) *isDup = false;
-  } else if ((pItem = *(SMigrateItem **)pItem)) {
-    vInfo("vgId:%d, %s update maxSpeed from %" PRIi64 " to %" PRIi64, TD_VID(pVnode), __func__, pItem->maxSpeed,
-          maxSpeed);
-    pItem->maxSpeed = maxSpeed;
-    if (isDup) *isDup = true;
-  }
-  return code;
 }
 
 static void vnodeMigrateHashFreeNode(void *data) {
@@ -163,6 +137,33 @@ void vnodeMigrateCleanUp() {
     vndMigrateHdl.pHash = NULL;
     atomic_store_8(&vndMigrateHdl.inited, 0);
   }
+}
+
+static int32_t vnodeMigrateUpsert(SVnode *pVnode, int64_t maxSpeed, bool *isDup) {
+  int32_t       code = 0;
+  SMigrateItem *pItem = NULL;
+  pItem = taosHashGet(vndMigrateHdl.pHash, pVnode->config.dbId, sizeof(pVnode->config.dbId));
+  if (!pItem) {
+    if (0 == atomic_val_compare_exchange_8(&vndMigrateHdl.lock, 0, 1)) {
+      pItem = taosMemoryCalloc(1, sizeof(SMigrateItem));
+      if (pItem) {
+        pItem->lock = 0;
+        pItem->count = 0;
+        pItem->lastCheck = 0;
+        pItem->lastSpeed = MIGRATE_DEFAULT_SPEED;
+        pItem->maxSpeed = maxSpeed;
+        taosHashPut(vndMigrateHdl.pHash, pVnode->config.dbId, sizeof(pVnode->config.dbId), &pItem, POINTER_BYTES);
+      }
+      atomic_store_8(&vndMigrateHdl.lock, 0);
+    }
+    if (isDup) *isDup = false;
+  } else if ((pItem = *(SMigrateItem **)pItem)) {
+    vInfo("vgId:%d, %s update maxSpeed from %" PRIi64 " to %" PRIi64, TD_VID(pVnode), __func__, pItem->maxSpeed,
+          maxSpeed);
+    pItem->maxSpeed = maxSpeed;
+    if (isDup) *isDup = true;
+  }
+  return code;
 }
 
 static int32_t vnodeMigrateTask(void *param) {
