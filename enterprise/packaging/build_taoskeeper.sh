@@ -35,7 +35,7 @@ prepare_repo_taoskeeper() {
 
 checkout_latest_tag() {
   cd build-taoskeeper
-  latest=$(git tag --sort=-taggerdate|head -n1)
+  latest=$(git tag --sort=-taggerdate|tail -n1)
   if [ "$latest" = "" ]; then
     latest=$(git log --pretty=format:"%h"|head -n1)
   else
