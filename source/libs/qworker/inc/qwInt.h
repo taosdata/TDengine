@@ -76,6 +76,7 @@ typedef struct SQWDebug {
   bool lockEnable;
   bool statusEnable;
   bool dumpEnable;
+  bool forceStop;
   bool sleepSimulate;
   bool deadSimulate;
   bool redirectSimulate;
@@ -246,6 +247,7 @@ typedef struct SQWorkerMgmt {
 
 #define QW_QUERY_RUNNING(ctx) (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
 #define QW_FETCH_RUNNING(ctx) ((ctx)->inFetch)
+#define QW_QUERY_NOT_STARTED(ctx) (QW_GET_PHASE(ctx) == -1)
 
 #define QW_SET_QTID(id, qId, tId, eId)                              \
   do {                                                              \

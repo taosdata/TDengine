@@ -58,7 +58,7 @@ typedef struct STQ                STQ;
 typedef struct SVState            SVState;
 typedef struct SVStatis           SVStatis;
 typedef struct SVBufPool          SVBufPool;
-typedef struct SQWorker           SQHandle;
+typedef struct SQueueWorker       SQHandle;
 typedef struct STsdbKeepCfg       STsdbKeepCfg;
 typedef struct SMetaSnapReader    SMetaSnapReader;
 typedef struct SMetaSnapWriter    SMetaSnapWriter;
