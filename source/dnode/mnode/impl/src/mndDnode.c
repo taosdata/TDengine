@@ -880,6 +880,12 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   if (strcasecmp(cfgReq.config, "resetlog") == 0) {
     strcpy(dcfgReq.config, "resetlog");
   } else if (strncasecmp(cfgReq.config, "monitor", 7) == 0) {
+    if (' ' != cfgReq.config[7] && 0 != cfgReq.config[7]) {
+      mError("dnode:%d, failed to config monitor since invalid conf:%s", cfgReq.dnodeId, cfgReq.config);
+      terrno = TSDB_CODE_INVALID_CFG;
+      return -1;
+    }
+
     const char *value = cfgReq.value;
     int32_t     flag = atoi(value);
     if (flag <= 0) {
@@ -900,12 +906,18 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       int32_t     optLen = strlen(optName);
       if (strncasecmp(cfgReq.config, optName, optLen) != 0) continue;
 
+      if (' ' != cfgReq.config[optLen] && 0 != cfgReq.config[optLen]) {
+        mError("dnode:%d, failed to config since invalid conf:%s", cfgReq.dnodeId, cfgReq.config);
+        terrno = TSDB_CODE_INVALID_CFG;
+        return -1;
+      }
+
       const char *value = cfgReq.value;
       int32_t     flag = atoi(value);
       if (flag <= 0) {
         flag = atoi(cfgReq.config + optLen + 1);
       }
-      if (flag <= 0 || flag > 255) {
+      if (flag < 0 || flag > 255) {
         mError("dnode:%d, failed to config %s since value:%d", cfgReq.dnodeId, optName, flag);
         terrno = TSDB_CODE_INVALID_CFG;
         return -1;

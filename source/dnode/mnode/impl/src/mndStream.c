@@ -479,9 +479,8 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
   tstrncpy(createReq.name, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
   createReq.numOfColumns = pStream->outputSchema.nCols;
   createReq.numOfTags = 1;  // group id
-  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
+  createReq.pColumns = taosArrayInit_s(createReq.numOfColumns, sizeof(SField), createReq.numOfColumns);
   // build fields
-  taosArraySetSize(createReq.pColumns, createReq.numOfColumns);
   for (int32_t i = 0; i < createReq.numOfColumns; i++) {
     SField *pField = taosArrayGet(createReq.pColumns, i);
     tstrncpy(pField->name, pStream->outputSchema.pSchema[i].name, TSDB_COL_NAME_LEN);
@@ -489,8 +488,8 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     pField->type = pStream->outputSchema.pSchema[i].type;
     pField->bytes = pStream->outputSchema.pSchema[i].bytes;
   }
-  createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
-  taosArraySetSize(createReq.pTags, 1);
+  createReq.pTags = taosArrayInit_s(createReq.numOfTags, sizeof(SField), 1);
+
   // build tags
   SField *pField = taosArrayGet(createReq.pTags, 0);
   strcpy(pField->name, "group_id");

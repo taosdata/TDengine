@@ -71,17 +71,14 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
 
 int32_t tqMetaOpen(STQ* pTq) {
   if (tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0) < 0) {
-    ASSERT(0);
     return -1;
   }
 
   if (tdbTbOpen("tq.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pExecStore, 0) < 0) {
-    ASSERT(0);
     return -1;
   }
 
   if (tdbTbOpen("tq.check.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pCheckStore, 0) < 0) {
-    ASSERT(0);
     return -1;
   }
 
@@ -197,40 +194,49 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
   int32_t code;
   int32_t vlen;
   tEncodeSize(tEncodeSTqHandle, pHandle, vlen, code);
-  ASSERT(code == 0);
 
   tqDebug("tq save %s(%d) consumer %" PRId64 " vgId:%d", pHandle->subKey, (int32_t)strlen(pHandle->subKey),
           pHandle->consumerId, TD_VID(pTq->pVnode));
 
   void* buf = taosMemoryCalloc(1, vlen);
   if (buf == NULL) {
-    ASSERT(0);
+    return -1;
   }
 
   SEncoder encoder;
   tEncoderInit(&encoder, buf, vlen);
 
   if (tEncodeSTqHandle(&encoder, pHandle) < 0) {
-    ASSERT(0);
+    tEncoderClear(&encoder);
+    taosMemoryFree(buf);
+    return -1;
   }
 
   TXN* txn;
 
   if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
       0) {
-    ASSERT(0);
+    tEncoderClear(&encoder);
+    taosMemoryFree(buf);
+    return -1;
   }
 
   if (tdbTbUpsert(pTq->pExecStore, key, (int)strlen(key), buf, vlen, txn) < 0) {
-    ASSERT(0);
+    tEncoderClear(&encoder);
+    taosMemoryFree(buf);
+    return -1;
   }
 
   if (tdbCommit(pTq->pMetaDB, txn) < 0) {
-    ASSERT(0);
+    tEncoderClear(&encoder);
+    taosMemoryFree(buf);
+    return -1;
   }
 
   if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
-    ASSERT(0);
+    tEncoderClear(&encoder);
+    taosMemoryFree(buf);
+    return -1;
   }
 
   tEncoderClear(&encoder);

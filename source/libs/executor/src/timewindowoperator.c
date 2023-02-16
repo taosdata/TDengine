@@ -847,6 +847,7 @@ static int32_t saveWinResult(int64_t ts, int32_t pageId, int32_t offset, uint64_
   if (newPos == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
   newPos->groupId = groupId;
   newPos->pos = (SResultRowPosition){.pageId = pageId, .offset = offset};
   *(int64_t*)newPos->key = ts;
@@ -854,6 +855,7 @@ static int32_t saveWinResult(int64_t ts, int32_t pageId, int32_t offset, uint64_
   if (taosHashPut(pUpdatedMap, &key, sizeof(SWinKey), &newPos, sizeof(void*)) != TSDB_CODE_SUCCESS) {
     taosMemoryFree(newPos);
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2567,6 +2569,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   }
 
   SArray*    pUpdated = taosArrayInit(4, POINTER_BYTES);
+
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   SHashObj*  pUpdatedMap = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
   while (1) {
@@ -2877,6 +2880,8 @@ int32_t initBasicInfoEx(SOptrBasicInfo* pBasicInfo, SExprSupp* pSup, SExprInfo* 
 void initDummyFunction(SqlFunctionCtx* pDummy, SqlFunctionCtx* pCtx, int32_t nums) {
   for (int i = 0; i < nums; i++) {
     pDummy[i].functionId = pCtx[i].functionId;
+    pDummy[i].isNotNullFunc = pCtx[i].isNotNullFunc;
+    pDummy[i].isPseudoFunc = pCtx[i].isPseudoFunc;
   }
 }
 
@@ -3404,9 +3409,11 @@ static void copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted) {
   }
 }
 
+// the allocated memory comes from outer function.
 void initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList) {
   pGroupResInfo->pRows = pArrayList;
   pGroupResInfo->index = 0;
+  pGroupResInfo->pBuf = NULL;
 }
 
 void doBuildSessionResult(SOperatorInfo* pOperator, SStreamState* pState, SGroupResInfo* pGroupResInfo,
@@ -3417,8 +3424,7 @@ void doBuildSessionResult(SOperatorInfo* pOperator, SStreamState* pState, SGroup
 
   blockDataCleanup(pBlock);
   if (!hasRemainResults(pGroupResInfo)) {
-    taosArrayDestroy(pGroupResInfo->pRows);
-    pGroupResInfo->pRows = NULL;
+    cleanupGroupResInfo(pGroupResInfo);
     return;
   }
 
@@ -4753,6 +4759,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   SArray*    pUpdated = taosArrayInit(4, POINTER_BYTES);  // SResKeyPos
+
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   SHashObj*  pUpdatedMap = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
 
@@ -4812,6 +4819,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   taosArraySort(pUpdated, resultrowComparAsc);
 
   initMultiResInfoFromArrayList(&pInfo->groupResInfo, pUpdated);
+
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   taosHashCleanup(pUpdatedMap);
 
