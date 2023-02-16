@@ -254,15 +254,18 @@ class TDTestQuery(TDCase):
         self.logger.info(("sql1:'%s' |||||| sql2:'%s' ") %(sql1,sql2))      
         self.tdSql.query(sql1)
         base_data = self.tdSql.getData(0,0)
+        base_rows = self.tdSql.query(sql1).row_count
         self.explain_sql(sql1)
         
         self.tdSql.execute("reset query cache;")
         
         self.tdSql.query(sql2)
         check_data = self.tdSql.getData(0,0)
+        check_rows = self.tdSql.query(sql2).row_count
         self.explain_sql(sql2)
         
         self.value_check(base_data,check_data,sql1,sql2)
+        self.value_check(base_rows,check_rows,sql1,sql2)
             
     def value_check(self,base_value,check_value,sql1,sql2):
         #两个sql及执行数据检查

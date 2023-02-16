@@ -22,7 +22,7 @@ class TestAutoCreateTable(TDCase):
         """
         check tag value
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'insert into {dbname}.t1 using {dbname}.stb(t11, t12) tags(11, 12) (ts, c11, c12) values (now, 11, 21)')
@@ -44,7 +44,7 @@ class TestAutoCreateTable(TDCase):
         """
         check col value
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'insert into {dbname}.t1 using {dbname}.stb(t11, t12) tags(11, 12) values (now, 11, 21)')
@@ -70,7 +70,7 @@ class TestAutoCreateTable(TDCase):
         """
         check multi cols
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname)
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'insert into {dbname}.t1 using {dbname}.stb(t11, t12) tags(11, 12) (ts, c11, c12) values (now-1m, 11, 21)(now-2m, 11, 21)')
@@ -85,11 +85,28 @@ class TestAutoCreateTable(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], 8)
         self.tdSql.execute(f'drop database if exists {dbname}')
 
+    def repeat_hit_cache(self):
+        """AI is creating summary for repeat_hit_cache
+            Add for TS-2328
+        """
+        self.tdCom.drop_all_db()
+        taosd_conf = self.get_component_by_name("taosd")[0]
+        conn1 = self.tdSql.get_connection(taosd_conf)
+        dbname = self.tdCom.get_long_name()
+        self.tdCom.createDb(dbname)
+        ts = self.tdCom.genTs()[0]
+        self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
+        conn1.execute(f'use {dbname}')
+        conn1.execute(f'insert into t1 using {dbname}.stb tags(11, 12) values ({ts}, 11, 21) t1 using {dbname}.stb tags(11, 12) values ({ts}, 11, 21)')
+        conn2 = self.tdSql.get_connection(taosd_conf)
+        conn2.execute(f'use {dbname}')
+        conn2.query(f'select count(*) from {dbname}.stb')
 
     def run(self) -> bool:
         self.check_tag_value_for_auto_create_table()
         self.check_col_value_for_auto_create_table()
         self.check_multi_cols_for_auto_create_table()
+        self.repeat_hit_cache()
 
     def cleanup(self):
         pass
