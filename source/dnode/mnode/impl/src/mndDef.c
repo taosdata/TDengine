@@ -146,7 +146,9 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   // 3.0.20
   if (sver >= 2) {
     if (tDecodeI64(pDecoder, &pObj->checkpointFreq) < 0) return -1;
-    if (tDecodeI8(pDecoder, &pObj->igCheckUpdate) < 0) return -1;
+    if (!tDecodeIsEnd(pDecoder)) {
+      if (tDecodeI8(pDecoder, &pObj->igCheckUpdate) < 0) return -1;
+    }
   }
   tEndDecode(pDecoder);
   return 0;
