@@ -26,7 +26,6 @@ const state = {
 
 const mutations = {
   SET_SQLSTR: (state, sqlStr) => {
-    console.log('sql注入',sqlStr);
     state.sqlStr = sqlStr;
   },
   ADD_SQLSTR: (state, sqlStr) => {
@@ -40,7 +39,6 @@ const mutations = {
     localStorage.setItem("record_history" + appId, JSON.stringify(state.history));
   },
   SET_USE_DB: (state, useDB) => {
-    console.log(useDB,'useDB')
     state.useDB = useDB;
     // Cookies.set('useDB', useDB)
   },
@@ -57,7 +55,6 @@ const mutations = {
     state.activeTab = activeTab;
   },
   CHANGE_TREE_KEY(state) {
-    console.log(state.treeKey,'tree----key');
     state.treeKey += 1;
   },
   CANCEL_DETAIL(state) {
@@ -104,7 +101,6 @@ const actions = {
 };
 function handleSuccess(res, state, commit, rootState, sql, startTime) {
   // 记录执行成功历史
-  console.log("记录执行成功历史", res);
   let data = res.data.map(item => item.map(val => val + ""));
   let head = res.column_meta.map(item => item[0]);
   commit("ADD_RECORD", {
@@ -120,7 +116,6 @@ function handleSuccess(res, state, commit, rootState, sql, startTime) {
   });
   // 切换到output panel显示执行结果
   commit("SET_ACTIVE_TAB", "grid");
-  console.log('切换到output panel显示执行结果')
   state.shellData = [head.map(item => item)].concat(data);
   state.result = Object.freeze(compHeadAndData(res.column_meta, data));
   state.head = Object.freeze(head);
@@ -134,7 +129,6 @@ function handleFail(res, state, commit, rootState, sql, startTime) {
       showClose: true,
     });
   // status != "succ" 记录执行失败历史
-  console.log("记录执行失败历史", res);
   commit("ADD_RECORD", {
     createdAt: Date.now(),
     time: Date.now() - startTime,

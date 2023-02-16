@@ -3,13 +3,13 @@
     <div class="flexEnd">
       <el-button
         plain
-        @click="dialog = true"
+        @click="showDialog"
         size="small"
         icon="el-icon-plus"
         >{{ $t("add") }}</el-button
       >
     </div>
-    <el-table style="margin-top: 20px" :data="topicList" size="mini">
+    <el-table style="margin-top: 20px" :data="usersList" size="mini">
       <el-table-column :label="$t('topic.name')" prop="name"></el-table-column>
       <!-- <el-table-column
         :label="$t('topic.super')"
@@ -71,7 +71,7 @@
           <el-input v-model.trim="ruleForm.user"></el-input>
         </el-form-item>
         <el-form-item label="Password" prop="pwd" required>
-          <el-input v-model.trim="ruleForm.pwd"></el-input>
+          <el-input v-model.trim="ruleForm.pwd" type="password"></el-input>
         </el-form-item>
       </el-form>
 
@@ -85,7 +85,7 @@
           <el-button
             size="small"
             :disabled="confirmStatus"
-            @click="addBack"
+            @click="addData"
             class="w100"
             type="primary"
             >{{ $t("confirm") }}</el-button
@@ -96,31 +96,34 @@
   </div>
 </template>
 <script>
+import { sendSQLReq } from "@/api/gateway/console";
+import { Message } from "element-ui";
 export default {
   filters: {
     filterVal(val) {
-      console.log(val, "filter");
+      let res = "";
       if (val.row.enable === 1) {
-        return "Enable";
+        res += "Enable ";
       }
       if (val.row.super === 1) {
-        return "Super";
+        res += "Super ";
       }
       if (val.row.sysinfo === 1) {
-        return "SysInfo";
+        res += "SysInfo";
       }
+      return res.split(" ").join(",");
     },
   },
-  computed:{
-    confirmStatus(){
-        if(!this.ruleForm.user){
-            return true
-        }
-        if(!this.ruleForm.pwd){
-            return true
-        }
-        return false
-    }
+  computed: {
+    confirmStatus() {
+      if (!this.ruleForm.user) {
+        return true;
+      }
+      if (!this.ruleForm.pwd) {
+        return true;
+      }
+      return false;
+    },
   },
   data() {
     return {
@@ -146,39 +149,69 @@ export default {
           },
         ],
       },
-      topicList: [
-        {
-          name: "root",
-          super: 0,
-          enable: 0,
-          sysinfo: 1,
-          create_time: "2022-12-28 15:06:00.098",
-        },
-        {
-          name: "root1",
-          super: 1,
-          enable: 0,
-          sysinfo: 0,
-          create_time: "2022-12-28 15:06:00.098",
-        },
-        {
-          name: "root2",
-          super: 0,
-          enable: 1,
-          sysinfo: 0,
-          create_time: "2022-12-28 15:06:00.098",
-        },
-      ],
+      usersList: [],
     };
   },
+  created() {
+    this.getUserDatas();
+  },
   methods: {
+    showDialog(){
+      this.dialog=true
+      this.ruleForm.user=''
+      this.ruleForm.pwd=''
+    },
+    addData() {
+      try {
+        return sendSQLReq(
+          `CREATE USER ${this.ruleForm.user}  PASS '${this.ruleForm.pwd}';`
+        )
+          .then((res) => {
+            this.dialog = false;
+            this.getUserDatas();
+          })
+          .catch((err) => {
+            err.desc && Message.error(err.desc);
+            return Promise.reject(err);
+          });
+      } catch (error) {
+        console.log(error);
+      }
+    },
     handlePageChange() {},
     del(data) {
-      this.$confirm("Are you sure  to delete " + data.name + '?', "Warning", {
+      this.$confirm("Are you sure  to delete " + data.name + "?", "Warning", {
         confirmButtonText: "Ok",
         cancelButtonText: "Cancle",
         type: "warning",
+      }).then(() => {
+        sendSQLReq(`drop user ${data.name}`).then(res=>{
+          if(res.code==0){
+            Message.success('Deleted Successfully!')
+            this.getUserDatas()
+          }
+        })
       });
+    },
+    async getUserDatas() {
+      try {
+        return await sendSQLReq(`select * from information_schema.ins_users;`)
+          .then((res) => {
+            this.usersList = res.data.map((data) => {
+              return Object.fromEntries(
+                res.column_meta.map((item, index) => {
+                  return [item[0], data[index]];
+                })
+              );
+            });
+          })
+          .catch((err) => {
+            err.desc && Message.error(err.desc);
+            return Promise.reject(err);
+          });
+      } catch (error) {
+        console.log(error);
+      }
     },
   },
 };

@@ -5,7 +5,7 @@
         $t("add")
       }}</el-button>
     </div>
-    <el-table style="margin-top: 20px" :data="topicList" size="mini">
+    <el-table style="margin-top: 20px" :data="qnodesList" size="mini">
       <el-table-column
         :label="$t('topic.endpoint')"
         prop="endpoint"
@@ -49,8 +49,21 @@
         label-width="auto"
         class="demo-ruleForm"
       >
-        <el-form-item label="End Point" prop="endpoint" required>
+        <!-- <el-form-item label="End Point" prop="endpoint" required>
           <el-input v-model.trim="ruleForm.endpoint"></el-input>
+        </el-form-item> -->
+        <el-form-item label="DNodes" prop="DNodes" required>
+          <el-select
+            v-model="ruleForm.DNodes"
+            placeholder="Please Select DNodes"
+          >
+            <el-option
+              v-for="item in dnodes"
+              :key="item.id"
+              :label="item.endpoint"
+              :value="item.id"
+            ></el-option>
+          </el-select>
         </el-form-item>
       </el-form>
 
@@ -75,28 +88,108 @@
   </div>
 </template>
 <script>
+import { sendSQLReq } from "@/api/gateway/console";
+import { Message } from "element-ui";
 import mix from "./mix";
 export default {
   mixins: [mix],
+  props: {
+    dnodes: {
+      type: Array,
+      default: () => {
+        return [];
+      },
+    },
+  },
   data() {
     return {
-      topicList: [
-        {
-          id: 1,
-          endpoint: "huolinhe:6030",
-          create_time: "2022-12-28 15:06:00.098",
-        },
-      ],
+      qnodesList: [],
     };
+  },
+  computed: {
+    confirmStatus() {
+      if (!this.ruleForm.DNodes) {
+        return true;
+      }
+      return false;
+    },
+  },
+  created() {
+    this.getAllQnodes();
   },
   methods: {
     handlePageChange() {},
     add() {
       this.dialog = true;
     },
-    addQnodes(){}
+    del(data) {
+      this.$confirm(
+        "Are you sure  to delete " + data.endpoint + "?",
+        "Warning",
+        {
+          confirmButtonText: "Ok",
+          cancelButtonText: "Cancle",
+          type: "warning",
+        }
+      ).then(() => {
+        sendSQLReq(`drop qnode on dnode ${data.id};`).then((res) => {
+          if (res.code == 0) {
+            Message.success("Deleted Successfully!");
+            this.getAllQnodes();
+          }
+        });
+      });
+    },
+    async addQnodes() {
+      try {
+        return await sendSQLReq(
+          `create qnode  on dnode ${this.ruleForm.DNodes};`
+        ).then((res) => {
+          if (res.code == 0) {
+            this.getAllQnodes();
+            this.dialog = false;
+          }
+        });
+      } catch (err) {
+        err.desc && Message.error(err.desc);
+        return Promise.reject(err);
+      }
+    },
+    async getAllQnodes() {
+      try {
+        return await sendSQLReq(
+          `select * from information_schema.ins_qnodes;`
+        ).then((res) => {
+          this.qnodesList = res.data.map((data) => {
+            return Object.fromEntries(
+              res.column_meta.map((item, index) => {
+                return [item[0], data[index]];
+              })
+            );
+          });
+        });
+      } catch (error) {
+        console.log(error);
+      }
+    },
+  },
+  watch: {
+    dnodes: {
+      deep: true,
+      handler(val) {
+        this.dnodes = val;
+      },
+    },
   },
 };
 </script>
 <style lang="scss" scoped>
+::v-deep {
+  .el-form-item__content {
+    display: flex;
+  }
+  .el-select {
+    flex: 1;
+  }
+}
 </style>

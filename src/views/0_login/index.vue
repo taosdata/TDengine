@@ -79,18 +79,46 @@
           :model="dynamicValidateForm"
           ref="dynamicValidateForm"
           :rules="formRules"
-          label-width="120px"
+          label-width="0px"
           class="demo-dynamic"
         >
-          <el-form-item prop="username" label="User Name">
-            <el-input v-model="dynamicValidateForm.username"></el-input>
-          </el-form-item>
-          <el-form-item label="Password" prop="password">
-            <el-input
-              v-model="dynamicValidateForm.password"
-              type="password"
-            ></el-input>
-          </el-form-item>
+          <div>
+            <p class="lable-form">
+              <span 
+                >Cluster</span
+              >
+            </p>
+            <el-form-item label="" prop="cluster">
+              <el-input
+                v-model="dynamicValidateForm.cluster"
+                placeholder="192.168.0.201:16041"
+              ></el-input>
+            </el-form-item>
+          </div>
+          <div>
+            <p class="lable-form">
+              <span 
+                >User Name</span
+              >
+            </p>
+            <el-form-item prop="username" label="">
+              <el-input v-model="dynamicValidateForm.username"></el-input>
+            </el-form-item>
+          </div>
+          <div>
+            <p class="lable-form">
+              <span 
+                >Password</span
+              >
+            </p>
+            <el-form-item label="" prop="password">
+              <el-input
+                v-model="dynamicValidateForm.password"
+                type="password"
+              ></el-input>
+            </el-form-item>
+          </div>
+
           <el-form-item>
             <el-button
               type="primary"
@@ -171,7 +199,6 @@ export default {
         callback(new Error("Please enter the Password"));
       } else {
         // setTimeout(() => {
-        console.log("自定义规则", value);
         //   if (this.dynamicValidateForm.password !== "") {
         //     this.$refs.dynamicValidateForm.validateField("password");
         //   }
@@ -183,11 +210,20 @@ export default {
     return {
       earch: require("@/assets/earth.webp"),
       hidden: false,
+      baseUrl:process.env.VUE_APP_BASE_URL,
       dynamicValidateForm: {
+        cluster:"",
         password: "",
         username: "",
       },
       formRules: {
+        cluster:[
+          {
+            required: true,
+            message: "Please enter the Cluster",
+            trigger: "blur",
+          }
+        ],
         password: [
           {
             required: true,
@@ -231,7 +267,7 @@ export default {
             this.dynamicValidateForm.password
         );
       this.$store.commit("app/SET_TOKEN", token);
-      fetch("http://192.168.0.201:16041/rest/sql", {
+      fetch(`${this.baseUrl}/rest/sql`, {
         method: "post",
         headers: {
           Authorization: token,
@@ -252,7 +288,8 @@ export default {
     },
   },
   mounted() {
-    console.log(dataJson, "dataJson");
+    console.log(dataJson,process.env.VUE_APP_BASE_URL
+, "dataJson");
   },
 };
 </script>
@@ -262,6 +299,12 @@ export default {
   flex-direction: column;
   overflow-y: auto;
   height: 100%;
+  .lable-form{
+    font-size: 16px; 
+    color: #4d6992; 
+    font-weight: 600;
+    margin-bottom:10px;
+  }
   .header {
     width: 100%;
     position: relative;

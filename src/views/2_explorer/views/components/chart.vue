@@ -122,7 +122,6 @@ export default {
             series: this.handleSeriesChange()
           };
           this.drawing = true;
-          console.log(this.chartOption);
         }
       });
     },

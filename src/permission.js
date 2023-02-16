@@ -3,9 +3,17 @@ import router, { addRoutes } from "@/router/index.js";
 import { getToken } from "@/utils/token.js";
 import store from "./store";
 import { NoInstanceAccessRoute, InitClusterStatus, BaseRoute, InactiveStatus } from "@/const";
+const whiteList=['Login']
 router.beforeEach(async (to, from, next) => {
   const hasToken = getToken();
-  console.log(hasToken,'hasToken')
+ 
+  if(!hasToken){
+    if(whiteList.includes(to.name)){
+      next()
+    }else{
+      next(`/login`)
+    }
+  }
   // if (hasToken) {
   //   if (!store.state.app.userInfo) {
   //     // 获取用户信息
@@ -51,3 +59,6 @@ function handleReplacePath(to) {
     replace: true,
   };
 }
+// let timer = setInterval(()=>{
+//   console.log(getToken(),'获取cookie');
+// },1000)

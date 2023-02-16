@@ -97,7 +97,6 @@ export default {
     },
     addSharedFavorite() {
       if (this.requestIng) return;
-      console.log(this.sql_sketchy, this.record, "分享----");
       this.$confirm(
         this.$t("console.addSharedFavirote") + ": " + this.sql_sketchy + "?",
         this.$t("tips"),

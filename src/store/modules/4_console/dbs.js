@@ -110,7 +110,6 @@ const actions = {
       });
   },
   editDatabase() {
-    console.log("更新数据库");
   },
 };
 

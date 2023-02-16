@@ -6,7 +6,8 @@ export default {
             total: 10,
             dialog: false,
             ruleForm: {
-                endpoint: ""
+                endpoint: "",
+                DNodes:''
             },
             rules: {
                 endpoint: [
@@ -14,6 +15,11 @@ export default {
                         message: "Please enter the end point",
                         trigger: "blur",
                     },
+                ],
+                DNodes:[
+                    {
+                        required:true,message:"Please select the dnode",trigger:'change'
+                    }
                 ]
             },
         }

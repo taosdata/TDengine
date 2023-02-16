@@ -17,8 +17,9 @@ export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.ap
     let cData=JSON.parse(JSON.stringify(data))
     if (cData.code == 0) return composeData ? compHeadAndData(cData.column_meta, cData.data) : cData;
     return Promise.reject(cData?.desc ? cData : { desc: data || "Service Unavailable, please try again later!" });
-  }).catch(e => {
-    console.log(e, '错误');
+  }).catch(err => {
+    // err.desc && Message.error(err.desc);
+    return Promise.reject(err);
   });
 }
 

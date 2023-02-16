@@ -210,7 +210,6 @@ const actions = {
     });
   },
   getClusterList({ state, commit, dispatch }, isRefresh = true) {
-    console.log('getClusterList')
     commit("CLEAR_TIMEOUT");
     return new Promise(resolve => {
       let fn = () => {
@@ -224,7 +223,6 @@ const actions = {
               resolve();
               return;
             }
-            console.log('处理集群列表-----appId');
             let cluster = handleCluster();
             commit("SET_CURRENT_CLUSTER", cluster);
             resolve();
@@ -257,17 +255,22 @@ const actions = {
     });
   },
   logout({ commit }, request = true) {
-    console.log()
-    const run = () => {
-      // 退出就得置空
-      commit("SET_TOKEN", "");
-      commit("CLEAR_TIMEOUT");
-      removeAppID();
-      commit("LOGIN", request);
-    };
-    if (!request) return run();
-    logout().finally(run);
+    commit("SET_TOKEN", "");
+    commit("CLEAR_TIMEOUT");
+    removeAppID();
+    commit("LOGIN", request);
   },
+  // logout({ commit }, request = true) {
+  //   const run = () => {
+  //     // 退出就得置空
+  //     commit("SET_TOKEN", "");
+  //     commit("CLEAR_TIMEOUT");
+  //     removeAppID();
+  //     commit("LOGIN", request);
+  //   };
+  //   if (!request) return run();
+  //   logout().finally(run).catch(err=>err);
+  // },
   getNewAlert({ state }, autoRefresh = false) {
     let fn = () => {
       return getAlertList(
@@ -367,7 +370,6 @@ function handleCluster() {
    * 2.如果没有就获取当前url的region下的一个集群（先查找running的，没有就取第一个）
    * 3.如果当前url没有找到归属的region，就不设置集群
    */
-  console.log('获取appid--------')
   if (!refreshCount) {
     getCurentRegionCluster();
   }

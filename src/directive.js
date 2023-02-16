@@ -276,7 +276,6 @@ const loadMore = {
       if (typeof target !== "string") return;
       let targetEl = el.querySelector(target);
       if (!targetEl) {
-        console.log("找不到容器");
         return;
       }
       binding.handler = utils.debounce(function () {
