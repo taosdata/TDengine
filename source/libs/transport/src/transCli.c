@@ -879,6 +879,8 @@ void cliSendBatch(SCliConn* pConn) {
 
   uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
   req->data = pConn;
+  tDebug("%p conn %p start to send batch msg, batch size:%d, msgLen:%d", CONN_GET_INST_LABEL(pConn), pConn,
+         pBatch->wLen, pBatch->batchSize);
   uv_write(req, (uv_stream_t*)pConn->stream, wb, wLen, cliSendBatchCb);
   taosMemoryFree(wb);
 }
@@ -1073,6 +1075,9 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
 static void cliSendBatchCb(uv_write_t* req, int status) {
   SCliConn* conn = req->data;
   taosMemoryFree(req);
+
+  tDebug("%p conn %p send batch msg out, batch size:%d, msgLen:%d", CONN_GET_INST_LABEL(conn), conn, conn->pBatch->wLen,
+         conn->pBatch->batchSize);
 
   SCliThrd* thrd = conn->hostThrd;
   cliDestroyBatch(conn->pBatch);
