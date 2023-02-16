@@ -213,15 +213,9 @@ int32_t qwAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
   QW_SET_QTID(id, qId, tId, eId);
 
   *ctx = taosHashAcquire(mgmt->ctxHash, id, sizeof(id));
-  int8_t nodeStopped = atomic_load_8(&mgmt->nodeStopped);
   if (NULL == (*ctx)) {
-    if (!nodeStopped) {
-      QW_TASK_DLOG_E("task ctx not exist, may be dropped");
-      QW_ERR_RET(TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
-    } else {
-      QW_TASK_DLOG_E("node stopped");
-      QW_ERR_RET(TSDB_CODE_VND_STOPPED);
-    }
+    QW_TASK_DLOG_E("acquired task ctx not exist, may be dropped");
+    QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -232,16 +226,9 @@ int32_t qwGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
   QW_SET_QTID(id, qId, tId, eId);
 
   *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
-  int8_t nodeStopped = atomic_load_8(&mgmt->nodeStopped);
-
   if (NULL == (*ctx)) {
-    if (!nodeStopped) {
-      QW_TASK_DLOG_E("task ctx not exist, may be dropped");
-      QW_ERR_RET(TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
-    } else {
-      QW_TASK_DLOG_E("node stopped");
-      QW_ERR_RET(TSDB_CODE_VND_STOPPED);
-    }
+    QW_TASK_DLOG_E("get task ctx not exist, may be dropped");
+    QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -334,7 +321,8 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
 
   SQWTaskCtx *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
   if (NULL == ctx) {
-    QW_ERR_RET(TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
+    QW_TASK_DLOG_E("drop task ctx not exist, may be dropped");
+    QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
   octx = *ctx;
@@ -346,7 +334,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
 
   if (taosHashRemove(mgmt->ctxHash, id, sizeof(id))) {
     QW_TASK_ELOG_E("taosHashRemove from ctx hash failed");
-    QW_ERR_RET(TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
+    QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
   qwFreeTaskCtx(&octx);
