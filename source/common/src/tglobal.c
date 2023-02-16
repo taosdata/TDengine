@@ -189,6 +189,7 @@ int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
+bool    tsDisableStream = false;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -468,6 +469,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "udf", tsStartUdfd, 0) != 0) return -1;
   if (cfgAddString(pCfg, "udfdResFuncs", tsUdfdResFuncs, 0) != 0) return -1;
   if (cfgAddString(pCfg, "udfdLdLibPath", tsUdfdLdLibPath, 0) != 0) return -1;
+
+  if (cfgAddBool(pCfg, "disableStream", tsDisableStream, 0) != 0) return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -770,6 +773,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
+  
+  tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
+
   GRANT_CFG_GET;
   return 0;
 }

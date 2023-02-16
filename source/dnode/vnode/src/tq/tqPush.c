@@ -307,7 +307,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
     taosWUnLockLatch(&pTq->pushLock);
   }
 
-  if (vnodeIsRoleLeader(pTq->pVnode)) {
+  if (!tsDisableStream && vnodeIsRoleLeader(pTq->pVnode)) {
     if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) return 0;
     if (msgType == TDMT_VND_SUBMIT) {
       void* data = taosMemoryMalloc(msgLen);
