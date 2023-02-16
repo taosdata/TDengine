@@ -235,9 +235,12 @@ async fn sync_single_table(
         let sql = format!("INSERT INTO `{table}` VALUES({question_masks})");
 
         let mut stmt = Stmt::init(to).context("initialize stmt")?;
-        stmt.prepare(&sql)
-            .with_context(|| format!("[{table}] prepare statement error"))?;
+        let mut prepare = false;
         while let Some(block) = blocks.try_next().await? {
+            if !prepare {
+                stmt.prepare(&sql)
+                    .with_context(|| format!("[{table}] prepare statement error"))?;
+            }
             let views = block.column_views();
             if let Some(batch_size) = target_opts.batch_size {
                 if batch_size < block.nrows() {
