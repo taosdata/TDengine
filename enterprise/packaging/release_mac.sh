@@ -133,4 +133,5 @@ sed -i '' "s|/opt/.*/release|$topDir/release|g" $communityDir/packaging/tools/TD
 
 sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/udfd}
 sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-$arch\</g" $communityDir/packaging/tools/TDengine.pkgproj
+sed -i '' "s/mac_before_install.txt/mac_before_install_client.txt/g" $communityDir/packaging/tools/TDengine.pkgproj
 /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
