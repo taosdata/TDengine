@@ -189,7 +189,7 @@ int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
-bool    tsDisableStream = true;
+bool    tsDisableStream = false;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
