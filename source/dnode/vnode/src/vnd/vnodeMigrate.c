@@ -15,7 +15,6 @@
 
 #include "vnd.h"
 
-
 static int32_t vnodeMigrateTask(void *param) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -30,17 +29,14 @@ static int32_t vnodeMigrateTask(void *param) {
   code = smaDoRetention(pInfo->pVnode->pSma, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // end Migrate
-  //   char dir[TSDB_FILENAME_LEN] = {0};
-  //   if (pVnode->pTfs) {
-  //     snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
-  //   } else {
-  //     snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
-  //   }
-  //   vnodeCommitInfo(dir);
-
 _exit:
   tsem_post(&pInfo->pVnode->canCommit);
+  if (code) {
+    vError("vgId:%d, %s failed at line %d since %s, timestamp:%" PRIi64, TD_VID(pVnode), __func__, lino,
+           tstrerror(code), pInfo->timestamp);
+  } else {
+    vDebug("vgId:%d, %s done, timestamp:%" PRIi64, TD_VID(pVnode), __func__, pInfo->timestamp);
+  }
   taosMemoryFree(pInfo);
   return code;
 }
@@ -55,10 +51,10 @@ static int32_t vnodePrepareMigrate(SVnode *pVnode, SMigrateInfo *pInfo) {
 
 _exit:
   if (code) {
-    vError("vgId:%d, %s failed at line %d since %s, commit ID:%" PRId64, TD_VID(pVnode), __func__, lino,
-           tstrerror(code), pVnode->state.commitID);
+    vError("vgId:%d, %s failed at line %d since %s, timestamp:%" PRIi64, TD_VID(pVnode), __func__, lino,
+           tstrerror(code), pInfo->timestamp);
   } else {
-    vDebug("vgId:%d, %s done, commit ID:%" PRId64, TD_VID(pVnode), __func__, pVnode->state.commitID);
+    vDebug("vgId:%d, %s done, timestamp:%" PRIi64, TD_VID(pVnode), __func__, pInfo->timestamp);
   }
   return code;
 }
@@ -68,7 +64,7 @@ int32_t vnodeAsyncMigrate(SVnode *pVnode, void *arg) {
   int32_t lino = 0;
 
   SMigrateInfo *pInfo = taosMemoryCalloc(1, sizeof(*pInfo));
-  if (pInfo == NULL) {
+  if (!pInfo) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -84,10 +80,11 @@ int32_t vnodeAsyncMigrate(SVnode *pVnode, void *arg) {
 
 _exit:
   if (code) {
-    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+    vError("vgId:%d, %s failed at line %d since %s, timestamp:%" PRIi64, TD_VID(pVnode), __func__, lino,
+           tstrerror(code), pInfo->timestamp);
     if (pInfo) taosMemoryFree(pInfo);
   } else {
-    vInfo("vgId:%d, %s done", TD_VID(pVnode), __func__);
+    vInfo("vgId:%d, %s done, timestamp:%" PRIi64, TD_VID(pVnode), __func__, pInfo->timestamp);
   }
   return code;
 }
