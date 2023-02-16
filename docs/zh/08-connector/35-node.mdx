@@ -13,6 +13,8 @@ import NodeInfluxLine from "../07-develop/03-insert-data/_js_line.mdx";
 import NodeOpenTSDBTelnet from "../07-develop/03-insert-data/_js_opts_telnet.mdx";
 import NodeOpenTSDBJson from "../07-develop/03-insert-data/_js_opts_json.mdx";
 import NodeQuery from "../07-develop/04-query-data/_js.mdx";
+import RESTQuery from "../07-develop/04-query-data/_js.mdx";
+import RESTSQLInsert from "../07-develop/03-insert-data/_js_sql.mdx";
 
 `@tdengine/client` 和 `@tdengine/rest` 是 TDengine 的官方 Node.js 语言连接器。 Node.js 开发人员可以通过它开发可以存取 TDengine 集群数据的应用软件。注意：从 TDengine 3.0 开始 Node.js 原生连接器的包名由 `td2.0-connector` 改名为 `@tdengine/client` 而 rest 连接器的包名由 `td2.0-rest-connector` 改为 `@tdengine/rest`。并且不与 TDengine 2.x 兼容。
 
@@ -31,7 +33,8 @@ REST 连接器支持所有能运行 Node.js 的平台。
 
 ## 支持的功能特性
 
-### 原生连接器
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接器">
 
 1. 连接管理
 2. 普通查询
@@ -40,11 +43,16 @@ REST 连接器支持所有能运行 Node.js 的平台。
 5. 订阅功能
 6. Schemaless
 
-### REST 连接器
+</TabItem>
+<TabItem value="rest" label="REST 连接器">
 
 1. 连接管理
 2. 普通查询
 3. 连续查询
+
+</TabItem>
+</Tabs>
+
 
 ## 安装步骤
 
@@ -114,6 +122,9 @@ npm install @tdengine/rest
 
 ### 安装验证
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接器">
+
 在安装好 TDengine 客户端后，使用 nodejsChecker.js 程序能够验证当前环境是否支持 Node.js 方式访问 TDengine。
 
 验证方法：
@@ -130,11 +141,35 @@ node nodejsChecker.js host=localhost
 
 - 执行以上步骤后，在命令行会输出 nodejsChecker.js 连接 TDengine 实例，并执行简单插入和查询的结果。
 
+</TabItem>
+<TabItem value="rest" label="REST 连接器">
+
+在安装好 TDengine 客户端后，使用 nodejsChecker.js 程序能够验证当前环境是否支持 Node.js 方式访问 TDengine。
+
+验证方法：
+
+- 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [restChecker.js 源代码](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/node/restexample/restChecker.js)到本地。
+
+- 在命令行中执行以下命令。
+
+```bash
+npm init -y
+npm install @tdengine/rest
+node restChecker.js
+```
+
+- 执行以上步骤后，在命令行会输出 restChecker.js 连接 TDengine 实例，并执行简单插入和查询的结果。
+
+</TabItem>
+</Tabs>
+
+
+
 ## 建立连接
 
 请选择使用一种连接器。
 
-<Tabs defaultValue="rest">
+<Tabs defaultValue="native">
 <TabItem value="native" label="原生连接">
 
 安装并引用 `@tdengine/client` 包。
@@ -181,23 +216,62 @@ let cursor = conn.cursor();
 
 #### SQL 写入
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+
 <NodeInsert />
+
+</TabItem>
+<TabItem value="rest" label="REST 连接">
+
+```js
+{{#include docs/examples/node/restexample/insert_example.js}}
+```
+
+</TabItem>
+</Tabs>
+
+
 
 #### InfluxDB 行协议写入
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+
 <NodeInfluxLine />
+
+</TabItem>
+</Tabs>
 
 #### OpenTSDB Telnet 行协议写入
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+
 <NodeOpenTSDBTelnet />
+
+</TabItem>
+</Tabs>
 
 #### OpenTSDB JSON 行协议写入
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+
 <NodeOpenTSDBJson />
+
+</TabItem>
+</Tabs>
 
 ### 查询数据
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+
 <NodeQuery />
+
+</TabItem>
+</Tabs>
 
 
 ## 更多示例程序
