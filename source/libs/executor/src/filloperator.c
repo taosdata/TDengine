@@ -1259,9 +1259,11 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
           memcpy(pInfo->pSrcBlock->info.parTbName, pBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
           pInfo->srcRowIndex = 0;
         } break;
+        case STREAM_CREATE_CHILD_TABLE: {
+          return pBlock;
+        } break;
         default:
-          ASSERT(0);
-          break;
+          ASSERTS(pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
       }
     }
 
