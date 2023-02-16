@@ -508,11 +508,11 @@ static void freePayload(const void* key, size_t keyLen, void* value) {
 
   const uint64_t* p = key;
   if (keyLen != sizeof(int64_t) * 4) {
-    metaError("key length is invalid, length:%d, expect:%d", (int32_t) keyLen, (int32_t) sizeof(uint64_t)*2);
+    metaError("key length is invalid, length:%d, expect:%d", (int32_t)keyLen, (int32_t)sizeof(uint64_t) * 2);
     return;
   }
 
-  SHashObj* pHashObj = (SHashObj*)p[0];
+  SHashObj*            pHashObj = (SHashObj*)p[0];
   STagFilterResEntry** pEntry = taosHashGet(pHashObj, &p[1], sizeof(uint64_t));
 
   {
@@ -525,12 +525,13 @@ static void freePayload(const void* key, size_t keyLen, void* value) {
     while ((pNode = tdListNext(&iter)) != NULL) {
       uint64_t* digest = (uint64_t*)pNode->data;
       if (digest[0] == p[2] && digest[1] == p[3]) {
-        tdListPopNode(&((*pEntry)->list), pNode);
+        void* tmp = tdListPopNode(&((*pEntry)->list), pNode);
+        taosMemoryFree(tmp);
 
         int64_t et = taosGetTimestampUs();
         metaInfo("clear items in cache, remain cached item:%d, elapsed time:%.2fms", listNEles(&((*pEntry)->list)),
-                 (et - st)/1000.0);
-        return;
+                 (et - st) / 1000.0);
+        break;
       }
     }
   }

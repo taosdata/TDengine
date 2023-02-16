@@ -17,7 +17,7 @@
 
 static int32_t tsdbOpenBICache(STsdb *pTsdb) {
   int32_t    code = 0;
-  SLRUCache *pCache = taosLRUCacheInit(5 * 1024 * 1024, -1, .5);
+  SLRUCache *pCache = taosLRUCacheInit(5 * 1024 * 1024, 1, .5);
   if (pCache == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -48,7 +48,7 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
   SLRUCache *pCache = NULL;
   size_t     cfgCapacity = pTsdb->pVnode->config.cacheLastSize * 1024 * 1024;
 
-  pCache = taosLRUCacheInit(cfgCapacity, -1, .5);
+  pCache = taosLRUCacheInit(cfgCapacity, 1, .5);
   if (pCache == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
