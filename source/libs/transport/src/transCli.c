@@ -893,14 +893,9 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
 
   SCliMsg* pMsg = transQueueGet(&pConn->cliMsgs, 0);
 
-  // if (pMsg) {
   STraceId* trace = &pMsg->msg.info.traceId;
   tGError("%s msg %s failed to send, conn %p failed to connect to %s, reason: %s", CONN_GET_INST_LABEL(pConn),
           TMSG_INFO(pMsg->msg.msgType), pConn, pConn->ip, uv_strerror(status));
-  //} else {
-  //  tError("%s msg %s failed to send, conn %p failed to connect to %s, reason: %s", CONN_GET_INST_LABEL(pConn),
-  //        TMSG_INFO(0), pConn, pConn->ip, uv_strerror(status));
-  //}
 
   uv_timer_stop(pConn->timer);
   pConn->timer->data = NULL;
@@ -1158,13 +1153,13 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     transQueuePush(&conn->cliMsgs, pMsg);
 
     char     key[TSDB_FQDN_LEN + 64] = {0};
-    char*    ip = EPSET_GET_INUSE_IP(&pCtx->epSet);
+    char*    fqdn = EPSET_GET_INUSE_IP(&pCtx->epSet);
     uint16_t port = EPSET_GET_INUSE_PORT(&pCtx->epSet);
-    CONN_CONSTRUCT_HASH_KEY(key, ip, port);
+    CONN_CONSTRUCT_HASH_KEY(key, fqdn, port);
 
     conn->ip = strdup(key);
 
-    uint32_t ipaddr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, EPSET_GET_INUSE_IP(&pCtx->epSet));
+    uint32_t ipaddr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, fqdn);
     if (ipaddr == 0xffffffff) {
       uv_timer_stop(conn->timer);
       conn->timer->data = NULL;
