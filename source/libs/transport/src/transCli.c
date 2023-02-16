@@ -1014,9 +1014,11 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
   if (conn == NULL) {
     conn = cliCreateConn(pThrd);
     conn->pBatch = pNewBatch;
-    conn->ip = strdup(conn->pBatch->ip);
+    conn->ip = strdup(pNewBatch->dst);
 
-    uint32_t ipaddr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ip);
+    char*    ip = pNewBatch->ip;
+    uint16_t port = pNewBatch->port;
+    uint32_t ipaddr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, ip);
     if (ipaddr == 0xffffffff) {
       uv_timer_stop(conn->timer);
       conn->timer->data = NULL;
@@ -1029,7 +1031,7 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = ipaddr;
-    addr.sin_port = (uint16_t)htons(pBatch->port);
+    addr.sin_port = (uint16_t)htons(port);
 
     tTrace("%s conn %p try to connect to %s", pTransInst->label, conn, pBatch->dst);
     int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 4);
