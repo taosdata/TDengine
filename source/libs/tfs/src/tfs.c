@@ -80,7 +80,7 @@ STfs *tfsOpen(SDiskCfg *pCfg, int32_t ndisk) {
 void tfsClose(STfs *pTfs) {
   if (pTfs == NULL) return;
 
-  for (int32_t level = 0; level < TFS_MAX_LEVEL; level++) {
+  for (int32_t level = 0; level <= TFS_MAX_LEVEL; level++) {
     tfsDestroyTier(&pTfs->tiers[level]);
   }
 
