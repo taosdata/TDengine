@@ -50,7 +50,7 @@ if %EXEC_OPTON% == start (
     goto :finish
   )
   echo check taosd online
-  tail -n +0 %TAOS_LOG% | grep -q "TDengine initialized successfully"  || goto :check_online
+  tail -n +0 %TAOS_LOG% | grep -E "TDengine initialized successfully|from offline to online"  || goto :check_online
   echo finish
   goto :finish
 )
