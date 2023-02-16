@@ -137,6 +137,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     *(int64_t *)(pCoder->data + pCoder->pos) = uid;
+    pCoder->pos += sizeof(int64_t);
   } else {
     tDecodeI64(pCoder, &submitTbData.uid);
   }
