@@ -332,6 +332,7 @@ bool varMode = false;  // enter var names list mode
 
 TAOS*      varCon = NULL;
 SShellCmd* varCmd = NULL;
+bool       varRunOnce = false;
 SMatch*    lastMatch = NULL;  // save last match result
 int        cntDel = 0;        // delete byte count after next press tab
 
@@ -375,7 +376,7 @@ void showHelp() {
   ----- C ----- \n\
     create table <tb_name> using <stb_name> tags ...\n\
     create database <db_name> <db_options>  ...\n\
-    create dnode \"fqdn:port\"n\
+    create dnode \"fqdn:port\" ...\n\
     create index ...\n\
     create mnode on dnode <dnode_id> ;\n\
     create qnode on dnode <dnode_id> ;\n\
@@ -637,10 +638,11 @@ bool shellAutoInit() {
 }
 
 // set conn
-void shellSetConn(TAOS* conn) { 
-  varCon = conn; 
+void shellSetConn(TAOS* conn, bool runOnce) {
+  varCon = conn;
+  varRunOnce = runOnce;
   // init database and stable
-  updateTireValue(WT_VAR_DBNAME, false);
+  if (!runOnce) updateTireValue(WT_VAR_DBNAME, false);
 }
 
 // exit shell auto funciton, shell exit call once
@@ -784,6 +786,12 @@ int writeVarNames(int type, TAOS_RES* tres) {
   return numOfRows;
 }
 
+void setThreadNull(int type) {
+  taosThreadMutexLock(&tiresMutex);
+  threads[type] = NULL;
+  taosThreadMutexUnlock(&tiresMutex);
+}
+
 bool firstMatchCommand(TAOS* con, SShellCmd* cmd);
 //
 //  thread obtain var thread from db server
@@ -799,6 +807,7 @@ void* varObtainThread(void* param) {
   TAOS_RES* pSql = taos_query(varCon, varSqls[type]);
   if (taos_errno(pSql)) {
     taos_free_result(pSql);
+    setThreadNull(type);
     return NULL;
   }
 
@@ -814,6 +823,7 @@ void* varObtainThread(void* param) {
     firstMatchCommand(varCon, varCmd);
   }
 
+  setThreadNull(type);
   return NULL;
 }
 
@@ -1725,10 +1735,12 @@ _return:
 
 // main key press tab
 void pressTabKey(SShellCmd* cmd) {
-  // check
+  // check empty tab key
   if (cmd->commandSize == 0) {
-    // empty
-    showHelp();
+    // have multi line tab key
+    if(cmd->bufferSize == 0) {
+      showHelp();
+    }
     shellShowOnScreen(cmd);
     return;
   }
@@ -1977,7 +1989,7 @@ void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb) {
 
   if (dealUseDB(sql)) {
     // change to new db
-    updateTireValue(WT_VAR_STABLE, false);
+    if (!varRunOnce) updateTireValue(WT_VAR_STABLE, false);
     return;
   }
 

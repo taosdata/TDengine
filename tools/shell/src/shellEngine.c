@@ -1097,10 +1097,11 @@ int32_t shellExecute() {
   }
 #endif
 
-  shellSetConn(shell.conn);
+  bool runOnce = pArgs->commands != NULL || pArgs->file[0] != 0;
+  shellSetConn(shell.conn, runOnce);
   shellReadHistory();
 
-  if (pArgs->commands != NULL || pArgs->file[0] != 0) {
+  if (runOnce) {
     if (pArgs->commands != NULL) {
       printf("%s%s\r\n", shell.info.promptHeader, pArgs->commands);
       char *cmd = strdup(pArgs->commands);
@@ -1160,5 +1161,8 @@ int32_t shellExecute() {
   taosThreadJoin(spid, NULL);
 
   shellCleanupHistory();
+  taos_kill_query(shell.conn);
+  taos_close(shell.conn);
+
   return 0;
 }
