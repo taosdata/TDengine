@@ -129,13 +129,8 @@ FAIL:
 }
 #endif
 
-#if 1
-int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
-  void* buf = NULL;
-  if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
-    return -1;
-  }
-
+int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
+  void*   buf = NULL;
   int32_t len;
   int32_t code;
   tEncodeSize(tEncodeSStreamTask, pTask, len, code);
@@ -153,11 +148,23 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
   tEncoderClear(&encoder);
 
   if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), buf, len, pMeta->txn) < 0) {
-    ASSERT(0);
     return -1;
   }
 
   taosMemoryFree(buf);
+  return 0;
+}
+
+#if 1
+int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
+  if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
+    return -1;
+  }
+
+  if (streamMetaSaveTask(pMeta, pTask) < 0) {
+    return -1;
+  }
+
   taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*));
 
   return 0;
@@ -255,7 +262,7 @@ int32_t streamMetaAbort(SStreamMeta* pMeta) {
   return 0;
 }
 
-int32_t streamLoadTasks(SStreamMeta* pMeta) {
+int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
   TBC* pCur = NULL;
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
     return -1;
@@ -294,7 +301,11 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
       tdbTbcClose(pCur);
       return -1;
     }
-    pTask->taskStatus = TASK_STATUS__NORMAL;
+    /*pTask->taskStatus = TASK_STATUS__NORMAL;*/
+    if (pTask->fillHistory) {
+      pTask->taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;
+      streamTaskCheckDownstream(pTask, ver);
+    }
   }
 
   tdbFree(pKey);

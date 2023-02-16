@@ -106,7 +106,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
     return NULL;
   }
 
-  if (streamLoadTasks(pTq->pStreamMeta) < 0) {
+  if (streamLoadTasks(pTq->pStreamMeta, walGetCommittedVer(pVnode->pWal)) < 0) {
     return NULL;
   }
 
@@ -1195,6 +1195,9 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t version, char* msg, int32_t m
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
   }
+
+  atomic_store_8(&pTask->fillHistory, 0);
+  streamMetaSaveTask(pTq->pStreamMeta, pTask);
 
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
 
