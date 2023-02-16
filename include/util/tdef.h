@@ -281,8 +281,8 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_ROLE_MGMT  1
 #define TSDB_DNODE_ROLE_VNODE 2
 
-#define TSDB_MAX_REPLICA          5
-#define TSDB_SYNC_LOG_BUFFER_SIZE 4096
+#define TSDB_MAX_REPLICA               5
+#define TSDB_SYNC_LOG_BUFFER_SIZE      4096
 #define TSDB_SYNC_LOG_BUFFER_RETENTION (TSDB_SYNC_LOG_BUFFER_SIZE >> 4)
 
 #define TSDB_TBNAME_COLUMN_INDEX     (-1)
@@ -413,7 +413,7 @@ typedef enum ELogicConditionType {
 #ifdef WINDOWS
 #define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
 #else
-#define TSDB_MAX_RPC_THREADS 20
+#define TSDB_MAX_RPC_THREADS 10
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE 0x00u  // none type

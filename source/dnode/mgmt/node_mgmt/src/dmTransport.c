@@ -286,7 +286,7 @@ int32_t dmInitClient(SDnode *pDnode) {
 
   int32_t connLimitNum = 30000 / (tsNumOfRpcThreads * 3);
   connLimitNum = TMAX(connLimitNum, 500);
-  connLimitNum = TMIN(connLimitNum, 3000);
+  connLimitNum = TMIN(connLimitNum, 1000);
 
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
