@@ -69,7 +69,7 @@ async function execute(sql, pure = true) {
 
     await execute(dropDB);
     // finish time
-    let end = new Date().getTime(); // 结束时间
+    let end = new Date().getTime(); 
     console.log("total spend time:%d ms",end - start);
 })()
 
