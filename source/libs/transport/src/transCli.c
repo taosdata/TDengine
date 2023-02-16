@@ -1072,6 +1072,8 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
 }
 static void cliSendBatchCb(uv_write_t* req, int status) {
   SCliConn* conn = req->data;
+  taosMemoryFree(req);
+
   SCliThrd* thrd = conn->hostThrd;
   cliDestroyBatch(conn->pBatch);
   conn->pBatch = NULL;
