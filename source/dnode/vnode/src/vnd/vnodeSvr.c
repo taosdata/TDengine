@@ -485,6 +485,7 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
   // process
 
   vnodeAsyncMigrate(pVnode, &trimReq);
+  vnodeBegin(pVnode);
 
 _exit:
   return code;

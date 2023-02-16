@@ -463,7 +463,7 @@ struct SCompactInfo {
 
 struct SMigrateInfo {
   SVnode* pVnode;
-  int64_t timestamp;
+  int64_t timestamp;  // ms
   int64_t maxSpeed;
 };
 
