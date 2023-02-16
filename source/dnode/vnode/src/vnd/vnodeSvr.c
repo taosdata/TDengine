@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <bits/stdint-intn.h>
 #include "tencode.h"
 #include "tmsg.h"
 #include "vnd.h"
@@ -36,7 +35,7 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq
 static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 
-static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, int64_t ctime) {
+static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, int64_t ctime, int64_t *pUid) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -75,6 +74,7 @@ _exit:
     vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   } else {
     vTrace("vgId:%d %s done, table:%s uid generated:%" PRId64, TD_VID(pVnode), __func__, name, uid);
+    if (pUid) *pUid = uid;
   }
   return code;
 }
@@ -97,7 +97,7 @@ static int32_t vnodePreProcessCreateTableMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   for (int32_t iReq = 0; iReq < nReqs; iReq++) {
-    code = vnodePreprocessCreateTableReq(pVnode, &dc, ctime);
+    code = vnodePreprocessCreateTableReq(pVnode, &dc, ctime, NULL);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -123,8 +123,9 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  int64_t uid;
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    code = vnodePreprocessCreateTableReq(pVnode, pCoder, ctime);
+    code = vnodePreprocessCreateTableReq(pVnode, pCoder, ctime, &uid);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -133,10 +134,13 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  if (tDecodeI64(pCoder, &submitTbData.uid) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+    *(int64_t *)(pCoder->data + pCoder->pos) = uid;
+  } else {
+    tDecodeI64(pCoder, &submitTbData.uid);
   }
+
   if (tDecodeI32v(pCoder, &submitTbData.sver) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -188,7 +192,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   tEndDecode(pCoder);
 
 _exit:
-  return 0;
+  return code;
 }
 static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
@@ -989,12 +993,6 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
     goto _exit;
   }
   tDecoderClear(&dc);
-
-  // // check
-  // code = tsdbScanAndConvertSubmitMsg(pVnode->pTsdb, pSubmitReq);
-  // if (code) {
-  //   goto _exit;
-  // }
 
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
