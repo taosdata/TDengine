@@ -347,8 +347,6 @@ void tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t dataT
  * in memory bucket, we only accept data array list
  */
 int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
-  ASSERT(pBucket != NULL && data != NULL && size > 0);
-
   int32_t count = 0;
   int32_t bytes = pBucket->bytes;
   for (int32_t i = 0; i < size; ++i) {

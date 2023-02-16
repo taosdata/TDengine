@@ -176,10 +176,12 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
 
   // set the number of rows in current disk page
   SResultRow* pResultRow = (SResultRow*)((char*)pData + pData->num);
+
+  memset((char*) pResultRow, 0, interBufSize);
   pResultRow->pageId = pageId;
   pResultRow->offset = (int32_t)pData->num;
-  *currentPageId = pageId;
 
+  *currentPageId = pageId;
   pData->num += interBufSize;
   return pResultRow;
 }
@@ -363,7 +365,7 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
       pCtx[k].input.colDataSMAIsSet = false;
     }
 
-    if (fmIsWindowPseudoColumnFunc(pCtx[k].functionId)) {
+    if (pCtx[k].isPseudoFunc) {
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
 
       char* p = GET_ROWCELL_INTERBUF(pEntryInfo);
@@ -817,7 +819,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
       continue;
     }
 
-    if (fmIsWindowPseudoColumnFunc(pCtx[i].functionId)) {
+    if (pCtx[i].isPseudoFunc) {
       continue;
     }
 
@@ -1063,7 +1065,7 @@ static void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t nu
       pRow->numOfRows = pResInfo->numOfRes;
     }
 
-    if (fmIsNotNullOutputFunc(pCtx[j].functionId)) {
+    if (pCtx[j].isNotNullFunc) {
       returnNotNull = true;
     }
   }
@@ -1187,9 +1189,15 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
     }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      ASSERT(pBlock->info.rows > 0);
       releaseBufPage(pBuf, page);
-      break;
+
+      if (pBlock->info.rows <= 0 || pRow->numOfRows > pBlock->info.capacity) {
+        qError("error in copy data to ssdatablock, existed rows in block:%d, rows in pRow:%d, capacity:%d, %s",
+            pBlock->info.rows, pRow->numOfRows, pBlock->info.capacity, GET_TASKID(pTaskInfo));
+        T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
+      } else {
+        break;
+      }
     }
 
     pGroupResInfo->index += 1;
@@ -1730,12 +1738,12 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaul
 int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t numOfOutput, size_t keyBufSize,
                          const char* pKey) {
   int32_t    code = 0;
-  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+//  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
 
   pAggSup->currentPageId = -1;
   pAggSup->resultRowSize = getResultRowSize(pCtx, numOfOutput);
   pAggSup->keyBuf = taosMemoryCalloc(1, keyBufSize + POINTER_BYTES + sizeof(int64_t));
-  pAggSup->pResultRowHashTable = tSimpleHashInit(100, hashFn);
+  pAggSup->pResultRowHashTable = tSimpleHashInit(100, taosFastHash);
 
   if (pAggSup->keyBuf == NULL || pAggSup->pResultRowHashTable == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -1820,6 +1828,10 @@ void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     taosMemoryFreeClear(pCtx[i].subsidiaries.buf);
     taosMemoryFree(pCtx[i].input.pData);
     taosMemoryFree(pCtx[i].input.pColumnDataAgg);
+
+    if (pCtx[i].udfName != NULL) {
+      taosMemoryFree(pCtx[i].udfName);
+    }
   }
 
   taosMemoryFreeClear(pCtx);
@@ -1950,6 +1962,22 @@ void destroyAggOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+static char* buildTaskId(uint64_t taskId, uint64_t queryId) {
+  char* p = taosMemoryMalloc(64);
+
+  int32_t offset = 6;
+  memcpy(p, "TID:0x", offset);
+  offset += tintToHex(taskId, &p[offset]);
+
+  memcpy(&p[offset], " QID:0x", 7);
+  offset += 7;
+  offset += tintToHex(queryId, &p[offset]);
+
+  p[offset] = 0;
+
+  return p;
+}
+
 static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPTR_EXEC_MODEL model, char* dbFName) {
   SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
   if (pTaskInfo == NULL) {
@@ -1960,16 +1988,13 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
   setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
 
   pTaskInfo->schemaInfo.dbname = strdup(dbFName);
-  pTaskInfo->id.queryId = queryId;
   pTaskInfo->execModel = model;
   pTaskInfo->pTableInfoList = tableListCreate();
   pTaskInfo->stopInfo.pStopInfo = taosArrayInit(4, sizeof(SExchangeOpStopInfo));
   pTaskInfo->pResultBlockList = taosArrayInit(128, POINTER_BYTES);
 
-  char* p = taosMemoryCalloc(1, 128);
-  snprintf(p, 128, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
-  pTaskInfo->id.str = p;
-
+  pTaskInfo->id.queryId = queryId;
+  pTaskInfo->id.str = buildTaskId(taskId, queryId);
   return pTaskInfo;
 }
 

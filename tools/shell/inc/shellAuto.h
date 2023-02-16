@@ -28,7 +28,7 @@ void pressOtherKey(char c);
 bool shellAutoInit();
 
 // set conn
-void shellSetConn(TAOS* conn);
+void shellSetConn(TAOS* conn, bool runOnce);
 
 // exit shell auto funciton, shell exit call once
 void shellAutoExit();

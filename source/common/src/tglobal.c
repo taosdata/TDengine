@@ -140,6 +140,7 @@ int32_t tsMaxMemUsedByInsert = 1024;
 
 float   tsSelectivityRatio = 1.0;
 int32_t tsTagFilterResCacheSize = 1024 * 10;
+char    tsTagFilterCache = 0;
 
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
@@ -351,6 +352,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "AVX2", tsAVX2Enable, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "FMA", tsFMAEnable, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "SIMD-builtins", tsSIMDBuiltins, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "tagFilterCache", tsTagFilterCache, 0) != 0) return -1;
 
   if (cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, 1) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamMax", tsStreamMax, 0, INT64_MAX, 1) != 0) return -1;
@@ -731,6 +733,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
 
   tsSIMDBuiltins = (bool)cfgGetItem(pCfg, "SIMD-builtins")->bval;
+  tsTagFilterCache = (bool)cfgGetItem(pCfg, "tagFilterCache")->bval;
 
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
   tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;
