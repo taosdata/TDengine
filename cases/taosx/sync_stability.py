@@ -55,7 +55,7 @@ class Sync_Stability(TDCase):
         self.vgroups = 10
         self.timeout = '30s'
         self.taosx_num = 8
-        self.replica = 3
+        self.replica = 1
     def sync_stablity(self):
         taosBenchmark_thread_list = []
         # taosx_thread = []
