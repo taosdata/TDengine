@@ -32,22 +32,21 @@ typedef struct {
   void    *pRpc;
 } SInfo;
 
-
 void initLogEnv() {
-  const char  *logDir =  "/tmp/trans_cli"; 
-  const char*  defaultLogFileNamePrefix = "taoslog";
+  const char   *logDir = "/tmp/trans_cli";
+  const char   *defaultLogFileNamePrefix = "taoslog";
   const int32_t maxLogFileNum = 10000;
   tsAsyncLog = 0;
-  //idxDebugFlag = 143;
+  // idxDebugFlag = 143;
   strcpy(tsLogDir, (char *)logDir);
   taosRemoveDir(tsLogDir);
-  taosMkDir(tsLogDir); 
-     
+  taosMkDir(tsLogDir);
+
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
-   printf("failed to open log file in directory:%s\n", tsLogDir);  
+    printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
-  
+
 static void processResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SInfo *pInfo = (SInfo *)pMsg->info.ahandle;
   tDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen,
@@ -72,11 +71,12 @@ static void *sendRequest(void *param) {
     rpcMsg.pCont = rpcMallocCont(pInfo->msgSize);
     rpcMsg.contLen = pInfo->msgSize;
     rpcMsg.info.ahandle = pInfo;
+    rpcMsg.info.noResp = 1;
     rpcMsg.msgType = 1;
     tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
     if (pInfo->num % 20000 == 0) tInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
-    tsem_wait(&pInfo->rspSem);
+    // tsem_wait(&pInfo->rspSem);
   }
 
   tDebug("thread:%d, it is over", pInfo->index);
@@ -112,7 +112,11 @@ int main(int argc, char *argv[]) {
   rpcInit.sessions = 100;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = "michael";
+
   rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcInit.connLimitNum = 300;
+  rpcInit.connLimitLock = 1;
+  rpcInit.supportBatch = 0;
 
   rpcDebugFlag = 135;
   for (int i = 1; i < argc; ++i) {
@@ -148,7 +152,6 @@ int main(int argc, char *argv[]) {
       exit(0);
     }
   }
-   
 
   initLogEnv();
 
