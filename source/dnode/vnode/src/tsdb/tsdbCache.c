@@ -17,7 +17,7 @@
 
 static int32_t tsdbOpenBICache(STsdb *pTsdb) {
   int32_t    code = 0;
-  SLRUCache *pCache = taosLRUCacheInit(10 * 1024 * 1024, 1, .5);
+  SLRUCache *pCache = taosLRUCacheInit(10 * 1024 * 1024, 0, .5);
   if (pCache == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
