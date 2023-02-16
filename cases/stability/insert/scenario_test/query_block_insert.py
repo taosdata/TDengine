@@ -21,6 +21,7 @@ from taostest.util.remote import Remote
 import threading
 from datetime import datetime,timedelta
 import traceback
+import random
 class QueryBlockInsertTest(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
@@ -33,12 +34,12 @@ class QueryBlockInsertTest(TDCase):
         self.file_name1 = "insert0.json"
         self.file_name2 = "insert1.json"
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
-        self.replica = 1
+        self.replica = 3
         self.vgroups = 40
         self.create_table_thread_count = 40
         self.thread_count = 40
         self.childtable_count = 10000
-        self.insert_rows = 5000
+        self.insert_rows = 100000
         self.num_of_records_per_req = 2500
         self.dbname = "db_test"
         self.stbname = "stb"
@@ -55,6 +56,12 @@ class QueryBlockInsertTest(TDCase):
           self.exitcode = 1
           # raise Exception('An error occured.')
         
+
+    def kill_a_dnode(self):
+        dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()
+        random_endpoint = random.choice(dnodes_out_mnodes[1])  
+        self.taosd.kill_by_port(random_endpoint)
+
     def desc(self):
         pass
 
@@ -86,7 +93,7 @@ class QueryBlockInsertTest(TDCase):
         ]
         
         self.tdSql.execute(f'drop database if exists {self.dbname}')
-        self.tdSql.execute(f'create database if not exists {self.dbname} vgroups {self.vgroups}')
+        self.tdSql.execute(f'create database if not exists {self.dbname} vgroups {self.vgroups} replica {self.replica}')
         json_data_list = list()
         json_filename_list = list()
         json_filename_list.append(self.file_name1)
@@ -102,7 +109,7 @@ class QueryBlockInsertTest(TDCase):
         self.tdCom.threads_run_taosBenchmark(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, taosBenchmark_env_setting, self.run_log_dir)
 
         thread_list = list()
-        thread_list.append(threading.Thread(target=self.double_query, args=(expected_res, self.childtable_count*self.insert_rows/10)))
+        thread_list.append(threading.Thread(target=self.double_query, args=(expected_res, self.childtable_count*self.insert_rows/5)))
 
         json_data_list = list()
         json_filename_list = list()
@@ -119,6 +126,10 @@ class QueryBlockInsertTest(TDCase):
 
         # self.tdCom.add_back_ground_scheduler(self.tdCom.multi_thread_query, 'interval', seconds=self.query_interval, max_instances=10, args=[f'{self.dbname}.{self.stbname}', None, 10])
         thread_list.append(threading.Thread(target=self.tdCom.threads_run_taosBenchmark, args=(self._remote, taosBenchmark_iplist, json_data_list, json_filename_list, taosBenchmark_env_setting, self.run_log_dir)))
+
+        if self.replica == 3:
+          thread_list.append(threading.Thread(target=self.kill_a_dnode, args=()))
+
         for t in thread_list:
           t.start()
         for t in thread_list:
