@@ -17,7 +17,7 @@
 
 static int32_t tsdbOpenBICache(STsdb *pTsdb) {
   int32_t    code = 0;
-  SLRUCache *pCache = taosLRUCacheInit(5 * 1024 * 1024, -1, .5);
+  SLRUCache *pCache = taosLRUCacheInit(10 * 1024 * 1024, 1, .5);
   if (pCache == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -48,7 +48,7 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
   SLRUCache *pCache = NULL;
   size_t     cfgCapacity = pTsdb->pVnode->config.cacheLastSize * 1024 * 1024;
 
-  pCache = taosLRUCacheInit(cfgCapacity, -1, .5);
+  pCache = taosLRUCacheInit(cfgCapacity, 1, .5);
   if (pCache == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -644,6 +644,7 @@ typedef struct SFSNextRowIter {
   SArray            *aDFileSet;
   SDataFReader     **pDataFReader;
   SArray            *aBlockIdx;
+  LRUHandle         *aBlockIdxHandle;
   SBlockIdx         *pBlockIdx;
   SMapData           blockMap;
   int32_t            nBlock;
@@ -697,6 +698,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       }
 
       // tMapDataReset(&state->blockIdxMap);
+      /*
       if (!state->aBlockIdx) {
         state->aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
       } else {
@@ -704,6 +706,13 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       }
       code = tsdbReadBlockIdx(*state->pDataFReader, state->aBlockIdx);
       if (code) goto _err;
+      */
+      int32_t code =
+          tsdbCacheGetBlockIdx((*state->pDataFReader)->pTsdb->biCache, *state->pDataFReader, &state->aBlockIdxHandle);
+      if (code != TSDB_CODE_SUCCESS || state->aBlockIdxHandle == NULL) {
+        goto _err;
+      }
+      state->aBlockIdx = (SArray *)taosLRUCacheValue((*state->pDataFReader)->pTsdb->biCache, state->aBlockIdxHandle);
 
       /* if (state->pBlockIdx) { */
       /* } */
@@ -772,7 +781,10 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
             // resetLastBlockLoadInfo(state->pLoadInfo);
 
             if (state->aBlockIdx) {
-              taosArrayDestroy(state->aBlockIdx);
+              // taosArrayDestroy(state->aBlockIdx);
+              tsdbBICacheRelease((*state->pDataFReader)->pTsdb->biCache, state->aBlockIdxHandle);
+
+              state->aBlockIdxHandle = NULL;
               state->aBlockIdx = NULL;
             }
 
@@ -795,7 +807,10 @@ _err:
     resetLastBlockLoadInfo(state->pLoadInfo);
     }*/
   if (state->aBlockIdx) {
-    taosArrayDestroy(state->aBlockIdx);
+    // taosArrayDestroy(state->aBlockIdx);
+    tsdbBICacheRelease((*state->pDataFReader)->pTsdb->biCache, state->aBlockIdxHandle);
+
+    state->aBlockIdxHandle = NULL;
     state->aBlockIdx = NULL;
   }
   if (state->pBlockData) {
@@ -821,7 +836,10 @@ int32_t clearNextRowFromFS(void *iter) {
     state->pDataFReader = NULL;
     }*/
   if (state->aBlockIdx) {
-    taosArrayDestroy(state->aBlockIdx);
+    // taosArrayDestroy(state->aBlockIdx);
+    tsdbBICacheRelease((*state->pDataFReader)->pTsdb->biCache, state->aBlockIdxHandle);
+
+    state->aBlockIdxHandle = NULL;
     state->aBlockIdx = NULL;
   }
   if (state->pBlockData) {
