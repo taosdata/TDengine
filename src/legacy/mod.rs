@@ -240,6 +240,7 @@ async fn sync_single_table(
             if !prepare {
                 stmt.prepare(&sql)
                     .with_context(|| format!("[{table}] prepare statement error"))?;
+                prepare = true;
             }
             let views = block.column_views();
             if let Some(batch_size) = target_opts.batch_size {
