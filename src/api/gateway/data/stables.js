@@ -6,7 +6,7 @@ import { VariableTableColumnType } from "@/const";
 export function getAllNormalTables(params,dbName){
   let { currentPage, pageSize } = params;
   const countSql = `select count(*) from information_schema.ins_tables where db_name='${dbName}'  `;
-  const dataSql = `select * from information_schema.ins_tables where db_name='${dbName}' `;
+  const dataSql = `select * from information_schema.ins_tables where db_name='${dbName}'  and stable_name is  null`;
   return getPaginationData(countSql, dataSql, currentPage, pageSize, data => handleDataKey(data, "table", dbName));
 }
 export function getStableListReq(params, dbName) {

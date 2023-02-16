@@ -198,16 +198,13 @@ export default {
       this.dialog = true;
       this.ruleForm.db = data.databasetable;
       this.ruleForm.file = data.backfile;
-      console.log(data, "编辑");
     },
     start(data, index) {
-      console.log(data, "start");
       this.$set(this.topicList[index],'status','Running')
       this.$set(this.topicList[index],'createdat',format(new Date().getTime(), "yyyy-MM-dd HH:mm:ss"))
       this.$set(this.topicList[index],'laststart',format(new Date().getTime(), "yyyy-MM-dd HH:mm:ss"))
     },
     stop(data, index) {
-      console.log(data, "stop");
       this.$set(this.topicList[index],'status','Ready')
       this.$set(this.topicList[index],'laststop',format(new Date().getTime(), "yyyy-MM-dd HH:mm:ss"))
     },

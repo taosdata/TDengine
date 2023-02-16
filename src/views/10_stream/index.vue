@@ -27,7 +27,7 @@
 
           <el-table-column label="Action" width="80">
             <template slot-scope="scope">
-              <el-button type="danger" plain size="small" @click="del(scope.row)" icon="el-icon-delete"></el-button>
+              <el-button  plain size="small" @click="del(scope.row)" icon="el-icon-delete"></el-button>
             </template>
           </el-table-column>
         </el-table>

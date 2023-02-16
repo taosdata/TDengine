@@ -5,7 +5,7 @@
         $t("add")
       }}</el-button>
     </div>
-    <el-table style="margin-top: 20px" :data="topicList" size="mini">
+    <el-table style="margin-top: 20px" :data="dnodesList" size="mini">
       <el-table-column
         width="250"
         :label="$t('topic.endpoint')"
@@ -67,7 +67,7 @@
         class="demo-ruleForm"
       >
         <el-form-item label="End Point" prop="endpoint" required>
-          <el-input v-model.trim="ruleForm.endpoint"></el-input>
+          <el-input v-model.trim="ruleForm.endpoint" ref="endinput"></el-input>
         </el-form-item>
       </el-form>
 
@@ -92,31 +92,81 @@
   </div>
 </template>
 <script>
+import { sendSQLReq } from "@/api/gateway/console";
+import { Message } from "element-ui";
 import mix from "./mix";
 export default {
   mixins: [mix],
   data() {
     return {
-      topicList: [
-        {
-          id: 1,
-          endpoint: "huolinhe:6030",
-          vnodes: 20,
-          support_vnodes: 256,
-          status: "ready",
-          note: "note",
-          create_time: "2022-12-28 15:06:00.098",
-        },
+      dnodesList: [
       ],
     };
   },
+  created() {
+    this.getAllDnodes();
+  },
   methods: {
     handlePageChange() {},
-    
+    del(data) {
+      this.$confirm(
+        "Are you sure  to delete " + data.endpoint + "?",
+        "Warning",
+        {
+          confirmButtonText: "Ok",
+          cancelButtonText: "Cancle",
+          type: "warning",
+        }
+      ).then(() => {
+        sendSQLReq(`drop dnode ${data.id}`).then((res) => {
+          if (res.code == 0) {
+            Message.success("Deleted Successfully!");
+            this.getAllDnodes();
+          }
+        });
+      });
+    },
     add() {
       this.dialog = true;
+      this.ruleForm.endpoint=''
+      this.$nextTick(()=>{
+        this.$refs.endinput.blur()
+      })
+      
     },
-    addDnodes() {},
+    async addDnodes() {
+      try {
+        return await sendSQLReq(`create dnode ${this.ruleForm.endpoint};`).then(
+          (res) => {
+            if (res.code == 0) {
+              this.getAllDnodes();
+              this.dialog = false;
+            }
+          }
+        );
+      } catch (err) {
+        err.desc && Message.error(err.desc);
+        return Promise.reject(err);
+      }
+    },
+    async getAllDnodes() {
+      try {
+        return await sendSQLReq(
+          `select * from information_schema.ins_dnodes;`
+        ).then((res) => {
+          this.dnodesList = res.data.map((data) => {
+            return Object.fromEntries(
+              res.column_meta.map((item, index) => {
+                return [item[0], data[index]];
+              })
+            );
+          });
+          this.$emit('sendData',this.dnodesList)
+        });
+      } catch (error) {
+        console.log(error);
+      }
+    },
   },
 };
 </script>

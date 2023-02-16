@@ -122,6 +122,7 @@
 </template>
 <script>
 import { format } from "date-fns";
+import taosbenchmarkVue from '@/utils/config/mdx/en/taosbenchmark.vue';
 export default {
   data() {
     return {
@@ -193,12 +194,10 @@ export default {
       });
     },
     refresh(data) {
-      console.log(data, "refresh");
     },
     addReplication() {},
     edit(data){
-        this.dialog=true
-        console.log(data,'edit')
+        this.dialog=taosbenchmarkVue
         this.ruleForm.source=data.source
         this.ruleForm.target=data.target
     },
@@ -209,7 +208,6 @@ export default {
         "createdat",
         format(new Date().getTime(), "yyyy-MM-dd HH:mm:ss")
       );
-      console.log(data, "start");
     },
     stop(data, index) {
       this.$set(this.topicList[index], "status", "Ready");

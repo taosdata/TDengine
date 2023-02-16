@@ -14,7 +14,6 @@ const actions = {
           token = tokenType + " " + token;
           // TODO
           commit("app/SET_TOKEN", token, { root: true });
-          console.log('设置token========--------',token)
           // setToken(token)
           if (state == 2) {
             // 判断用户状态，如果是2， 跳转到引导页，完善信息

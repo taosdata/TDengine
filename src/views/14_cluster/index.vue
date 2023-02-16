@@ -4,13 +4,13 @@
     <div class="content">
       <el-tabs value="dnodes">
         <el-tab-pane name="dnodes" :label="$t('topic.dnodes')">
-          <MgDnodes></MgDnodes>
+          <MgDnodes @sendData='getData'></MgDnodes>
         </el-tab-pane>
         <el-tab-pane name="mnodes" :label="$t('topic.mnodes')">
-          <MgMnodes></MgMnodes>
+          <MgMnodes :dnodes='dnodeLists'></MgMnodes>
         </el-tab-pane>
         <el-tab-pane name="qnodes" :label="$t('topic.qnodes')">
-          <MgQnodes></MgQnodes>
+          <MgQnodes :dnodes='dnodeLists'></MgQnodes>
         </el-tab-pane>
       </el-tabs>
     </div>
@@ -29,7 +29,13 @@ export default {
   data() {
     return {
       message: "这是Management页面",
+      dnodeLists:[]
     };
   },
+  methods:{
+    getData(data){
+      this.dnodeLists=data
+    }
+  }
 };
 </script>

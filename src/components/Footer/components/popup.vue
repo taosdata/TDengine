@@ -171,7 +171,6 @@ export default {
             formData.append(key, postData[key]);
           }
           sendEmail(formData).then((res) => {
-            console.log(res)
             this.isShow = !this.isShow;
           });
         }
@@ -181,7 +180,6 @@ export default {
       this.$emit("update:hidden", false);
     },
     validateEmail(email) {
-      console.log(email)
       var reg =
         /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/g;
       return reg.test(email);
