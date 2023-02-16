@@ -158,6 +158,7 @@ static void cliHandleResp(SCliConn* conn);
 // handle except about conn
 static void cliHandleExcept(SCliConn* conn);
 static void cliReleaseUnfinishedMsg(SCliConn* conn);
+static void cliHandleFastFail(SCliConn* pConn, int status);
 
 // handle req from app
 static void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd);
@@ -488,9 +489,9 @@ void cliConnTimeout(uv_timer_t* handle) {
   uv_timer_stop(handle);
   handle->data = NULL;
   taosArrayPush(pThrd->timerList, &conn->timer);
-
   conn->timer = NULL;
-  cliHandleExceptImpl(conn, -1);
+
+  cliHandleFastFail(conn, UV_ECANCELED);
 }
 void cliReadTimeoutCb(uv_timer_t* handle) {
   // set up timeout cb
@@ -897,11 +898,6 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
   tGError("%s msg %s failed to send, conn %p failed to connect to %s, reason: %s", CONN_GET_INST_LABEL(pConn),
           TMSG_INFO(pMsg->msg.msgType), pConn, pConn->ip, uv_strerror(status));
 
-  uv_timer_stop(pConn->timer);
-  pConn->timer->data = NULL;
-  taosArrayPush(pThrd->timerList, &pConn->timer);
-  pConn->timer = NULL;
-
   if (pMsg != NULL && REQUEST_NO_RESP(&pMsg->msg) &&
       (pTransInst->failFastFp != NULL && pTransInst->failFastFp(pMsg->msg.msgType))) {
     SFailFastItem* item = taosHashGet(pThrd->failFastCache, pConn->ip, strlen(pConn->ip));
@@ -921,12 +917,23 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
   }
   cliHandleExcept(pConn);
 }
+
 void cliConnCb(uv_connect_t* req, int status) {
   SCliConn* pConn = req->data;
   SCliThrd* pThrd = pConn->hostThrd;
+  bool      timeout = false;
+
+  if (pConn->timer == NULL) {
+    timeout = true;
+  } else {
+    uv_timer_stop(pConn->timer);
+    pConn->timer->data = NULL;
+    taosArrayPush(pThrd->timerList, &pConn->timer);
+    pConn->timer = NULL;
+  }
 
   if (status != 0) {
-    cliHandleFastFail(pConn, status);
+    if (timeout == false) cliHandleFastFail(pConn, status);
     return;
   }
 
@@ -1199,6 +1206,11 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
 
     ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
     if (ret != 0) {
+      uv_timer_stop(conn->timer);
+      conn->timer->data = NULL;
+      taosArrayPush(pThrd->timerList, &conn->timer);
+      conn->timer = NULL;
+
       cliHandleFastFail(conn, ret);
       return;
     }
