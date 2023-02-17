@@ -178,7 +178,9 @@ int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len);
 
 int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len);
 
-STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key);
+void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
+void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
+STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key);
 /**
  * return the scan info, in the form of tuple of two items, including table uid and current timestamp
  * @param tinfo

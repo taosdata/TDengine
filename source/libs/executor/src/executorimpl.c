@@ -637,15 +637,15 @@ bool isTaskKilled(SExecTaskInfo* pTaskInfo) { return (0 != pTaskInfo->code) ? tr
 void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode) { pTaskInfo->code = rspCode; }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key) {
+STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key) {
   STimeWindow win = {0};
-  win.skey = taosTimeTruncate(key, pInterval, precision);
+  win.skey = taosTimeTruncate(key, pInterval);
 
   /*
    * if the realSkey > INT64_MAX - pInterval->interval, the query duration between
    * realSkey and realEkey must be less than one interval.Therefore, no need to adjust the query ranges.
    */
-  win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
+  win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
   if (win.ekey < win.skey) {
     win.ekey = INT64_MAX;
   }

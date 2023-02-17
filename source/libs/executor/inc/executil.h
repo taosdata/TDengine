@@ -164,4 +164,7 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag);
 
+void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
+void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
+
 #endif  // TDENGINE_QUERYUTIL_H

@@ -1247,8 +1247,8 @@ static bool smaIndexOptEqualInterval(SScanLogicNode* pScan, SWindowLogicNode* pW
                           .sliding = pIndex->sliding,
                           .slidingUnit = pIndex->slidingUnit,
                           .precision = pScan->node.precision};
-    return (pScan->scanRange.skey == taosTimeTruncate(pScan->scanRange.skey, &interval, pScan->node.precision)) &&
-           (pScan->scanRange.ekey + 1 == taosTimeTruncate(pScan->scanRange.ekey + 1, &interval, pScan->node.precision));
+    return (pScan->scanRange.skey == taosTimeTruncate(pScan->scanRange.skey, &interval)) &&
+           (pScan->scanRange.ekey + 1 == taosTimeTruncate(pScan->scanRange.ekey + 1, &interval));
   }
   return true;
 }

@@ -263,43 +263,6 @@ int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimary
   return num;
 }
 
-static void getNextTimeWindow(SInterval* pInterval, int32_t precision, int32_t order, STimeWindow* tw) {
-  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
-  if (pInterval->intervalUnit != 'n' && pInterval->intervalUnit != 'y') {
-    tw->skey += pInterval->sliding * factor;
-    tw->ekey = tw->skey + pInterval->interval - 1;
-    return;
-  }
-
-  int64_t key = tw->skey, interval = pInterval->interval;
-  // convert key to second
-  key = convertTimePrecision(key, precision, TSDB_TIME_PRECISION_MILLI) / 1000;
-
-  if (pInterval->intervalUnit == 'y') {
-    interval *= 12;
-  }
-
-  struct tm tm;
-  time_t    t = (time_t)key;
-  taosLocalTime(&t, &tm);
-
-  int mon = (int)(tm.tm_year * 12 + tm.tm_mon + interval * factor);
-  tm.tm_year = mon / 12;
-  tm.tm_mon = mon % 12;
-  tw->skey = convertTimePrecision((int64_t)taosMktime(&tm) * 1000LL, TSDB_TIME_PRECISION_MILLI, precision);
-
-  mon = (int)(mon + interval);
-  tm.tm_year = mon / 12;
-  tm.tm_mon = mon % 12;
-  tw->ekey = convertTimePrecision((int64_t)taosMktime(&tm) * 1000LL, TSDB_TIME_PRECISION_MILLI, precision);
-
-  tw->ekey -= 1;
-}
-
-void getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order) {
-  getNextTimeWindow(pInterval, pInterval->precision, order, tw);
-}
-
 void doTimeWindowInterpolation(SArray* pPrevValues, SArray* pDataBlock, TSKEY prevTs, int32_t prevRowIndex, TSKEY curTs,
                                int32_t curRowIndex, TSKEY windowKey, int32_t type, SExprSupp* pSup) {
   SqlFunctionCtx* pCtx = pSup->pCtx;
@@ -455,7 +418,7 @@ static int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, 
   bool ascQuery = (order == TSDB_ORDER_ASC);
 
   int32_t precision = pInterval->precision;
-  getNextTimeWindow(pInterval, precision, order, pNext);
+  getNextTimeWindow(pInterval, pNext, order);
 
   // next time window is not in current block
   if ((pNext->skey > pDataBlockInfo->window.ekey && order == TSDB_ORDER_ASC) ||
@@ -500,7 +463,7 @@ static int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, 
     if (ascQuery && primaryKeys[startPos] > pNext->ekey) {
       TSKEY next = primaryKeys[startPos];
       if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
-        pNext->skey = taosTimeTruncate(next, pInterval, precision);
+        pNext->skey = taosTimeTruncate(next, pInterval);
         pNext->ekey = taosTimeAdd(pNext->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
       } else {
         pNext->ekey += ((next - pNext->ekey + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
@@ -509,7 +472,7 @@ static int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, 
     } else if ((!ascQuery) && primaryKeys[startPos] < pNext->skey) {
       TSKEY next = primaryKeys[startPos];
       if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
-        pNext->skey = taosTimeTruncate(next, pInterval, precision);
+        pNext->skey = taosTimeTruncate(next, pInterval);
         pNext->ekey = taosTimeAdd(pNext->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
       } else {
         pNext->skey -= ((pNext->skey - next + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
@@ -1380,7 +1343,7 @@ static void doDeleteWindows(SOperatorInfo* pOperator, SInterval* pInterval, SSDa
 
     do {
       if (!inCalSlidingWindow(pInterval, &win, calStTsCols[i], calEnTsCols[i])) {
-        getNextTimeWindow(pInterval, pInterval->precision, TSDB_ORDER_ASC, &win);
+        getNextTimeWindow(pInterval, &win, TSDB_ORDER_ASC);
         continue;
       }
       uint64_t winGpId = pGpDatas[i];
@@ -1397,7 +1360,7 @@ static void doDeleteWindows(SOperatorInfo* pOperator, SInterval* pInterval, SSDa
           taosHashRemove(pUpdatedMap, &winRes, sizeof(SWinKey));
         }
       }
-      getNextTimeWindow(pInterval, pInterval->precision, TSDB_ORDER_ASC, &win);
+      getNextTimeWindow(pInterval, &win, TSDB_ORDER_ASC);
     } while (win.ekey <= endTsCols[i]);
   }
 }
