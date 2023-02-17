@@ -17,7 +17,7 @@ Here are some brief examples for `INSET` statement. You can execute these statem
 The below SQL statement is used to insert one row into table "d101".
 
 ```sql
-INSERT INTO d101 VALUES (1538548685000, 10.3, 219, 0.31);
+INSERT INTO test.d101 VALUES (1538548685000, 10.3, 219, 0.31);
 ```
 
 ### Insert Multiple Rows
@@ -25,7 +25,7 @@ INSERT INTO d101 VALUES (1538548685000, 10.3, 219, 0.31);
 Multiple rows can be inserted in a single SQL statement. The example below inserts 2 rows into table "d101".
 
 ```sql
-INSERT INTO d101 VALUES (1538548684000, 10.2, 220, 0.23) (1538548696650, 10.3, 218, 0.25);
+INSERT INTO test.d101 VALUES (1538548684000, 10.2, 220, 0.23) (1538548696650, 10.3, 218, 0.25);
 ```
 
 ### Insert into Multiple Tables
@@ -33,7 +33,7 @@ INSERT INTO d101 VALUES (1538548684000, 10.2, 220, 0.23) (1538548696650, 10.3, 2
 Data can be inserted into multiple tables in the same SQL statement. The example below inserts 2 rows into table "d101" and 1 row into table "d1002".
 
 ```sql
-INSERT INTO d101 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 218, 0.33) d1002 VALUES (1538548696800, 12.3, 221, 0.31);
+INSERT INTO test.d101 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 218, 0.33) d1002 VALUES (1538548696800, 12.3, 221, 0.31);
 ```
 
 For more details about `INSERT` please refer to [INSERT](https://docs.tdengine.com/cloud/taos-sql/insert).
