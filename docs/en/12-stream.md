@@ -33,19 +33,17 @@ It is common that smart electrical meter systems for businesses generate million
 
 ### Create a Database for Raw Data
 
-A database including one supertable and four subtables is created as follows:
+Create database `power` using explore in cloud console. 
+
+Then create four subtables as follows:
 
 ```sql
-DROP DATABASE IF EXISTS power;
-CREATE DATABASE power;
-USE power;
+CREATE STABLE power.meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);
 
-CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);
-
-CREATE TABLE d1001 USING meters TAGS ("California.SanFrancisco", 2);
-CREATE TABLE d1002 USING meters TAGS ("California.SanFrancisco", 3);
-CREATE TABLE d1003 USING meters TAGS ("California.LosAngeles", 2);
-CREATE TABLE d1004 USING meters TAGS ("California.LosAngeles", 3);
+CREATE TABLE power.d101 USING meters TAGS ("California.SanFrancisco", 2);
+CREATE TABLE power.d102 USING meters TAGS ("California.SanFrancisco", 3);
+CREATE TABLE power.d103 USING meters TAGS ("California.LosAngeles", 2);
+CREATE TABLE power.d104 USING meters TAGS ("California.LosAngeles", 3);
 ```
 
 ### Create a Stream
@@ -56,26 +54,30 @@ create stream current_stream into current_stream_output_stb as select _wstart as
 
 ### Write Data
 ```sql
-insert into d1001 values("2018-10-03 14:38:05.000", 10.30000, 219, 0.31000);
-insert into d1001 values("2018-10-03 14:38:15.000", 12.60000, 218, 0.33000);
-insert into d1001 values("2018-10-03 14:38:16.800", 12.30000, 221, 0.31000);
-insert into d1002 values("2018-10-03 14:38:16.650", 10.30000, 218, 0.25000);
-insert into d1003 values("2018-10-03 14:38:05.500", 11.80000, 221, 0.28000);
-insert into d1003 values("2018-10-03 14:38:16.600", 13.40000, 223, 0.29000);
-insert into d1004 values("2018-10-03 14:38:05.000", 10.80000, 223, 0.29000);
-insert into d1004 values("2018-10-03 14:38:06.500", 11.50000, 221, 0.35000);
+insert into d101 values("2018-10-03 14:38:05.000", 10.30000, 219, 0.31000);
+insert into d101 values("2018-10-03 14:38:15.000", 12.60000, 218, 0.33000);
+insert into d101 values("2018-10-03 14:38:16.800", 12.30000, 221, 0.31000);
+insert into d102 values("2018-10-03 14:38:16.650", 10.30000, 218, 0.25000);
+insert into d103 values("2018-10-03 14:38:05.500", 11.80000, 221, 0.28000);
+insert into d103 values("2018-10-03 14:38:16.600", 13.40000, 223, 0.29000);
+insert into d104 values("2018-10-03 14:38:05.000", 10.80000, 223, 0.29000);
+insert into d104 values("2018-10-03 14:38:06.500", 11.50000, 221, 0.35000);
 ```
 
 ### Query the Results
 
-```sql
-taos> select start, end, max_current from current_stream_output_stb;
+```sql title="SQL"
+select start, end, max_current from current_stream_output_stb;
+```
+
+```txt title="output"
           start          |           end           |     max_current      |
 ===========================================================================
  2018-10-03 14:38:05.000 | 2018-10-03 14:38:10.000 |             10.30000 |
  2018-10-03 14:38:15.000 | 2018-10-03 14:38:20.000 |             12.60000 |
 Query OK, 2 rows in database (0.018762s)
 ```
+
 
 ## Usage Scenario 2
 
@@ -96,17 +98,19 @@ create stream power_stream into power_stream_output_stb as select ts, concat_ws(
 The procedure from the previous scenario is used to write the data.
 
 ### Query the Results
-```sql
+```sql title="SQL"
 taos> select ts, meter_location, active_power, reactive_power from power_stream_output_stb;
+```
+```txt title="output"
            ts            |         meter_location         |       active_power        |      reactive_power       |
 ===================================================================================================================
- 2018-10-03 14:38:05.000 | California.LosAngeles.d1004    |            2307.834596289 |             688.687331847 |
- 2018-10-03 14:38:06.500 | California.LosAngeles.d1004    |            2387.415754896 |             871.474763418 |
- 2018-10-03 14:38:05.500 | California.LosAngeles.d1003    |            2506.240411679 |             720.680274962 |
- 2018-10-03 14:38:16.600 | California.LosAngeles.d1003    |            2863.424274422 |             854.482390839 |
- 2018-10-03 14:38:05.000 | California.SanFrancisco.d1001  |            2148.178871730 |             688.120784090 |
- 2018-10-03 14:38:15.000 | California.SanFrancisco.d1001  |            2598.589176205 |             890.081451418 |
- 2018-10-03 14:38:16.800 | California.SanFrancisco.d1001  |            2588.728381186 |             829.240910475 |
- 2018-10-03 14:38:16.650 | California.SanFrancisco.d1002  |            2175.595991997 |             555.520860397 |
+ 2018-10-03 14:38:05.000 | California.LosAngeles.d104    |            2307.834596289 |             688.687331847 |
+ 2018-10-03 14:38:06.500 | California.LosAngeles.d104    |            2387.415754896 |             871.474763418 |
+ 2018-10-03 14:38:05.500 | California.LosAngeles.d103    |            2506.240411679 |             720.680274962 |
+ 2018-10-03 14:38:16.600 | California.LosAngeles.d103    |            2863.424274422 |             854.482390839 |
+ 2018-10-03 14:38:05.000 | California.SanFrancisco.d101  |            2148.178871730 |             688.120784090 |
+ 2018-10-03 14:38:15.000 | California.SanFrancisco.d101  |            2598.589176205 |             890.081451418 |
+ 2018-10-03 14:38:16.800 | California.SanFrancisco.d101  |            2588.728381186 |             829.240910475 |
+ 2018-10-03 14:38:16.650 | California.SanFrancisco.d102  |            2175.595991997 |             555.520860397 |
 Query OK, 8 rows in database (0.014753s)
 ```

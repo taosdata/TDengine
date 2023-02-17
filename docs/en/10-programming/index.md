@@ -1,6 +1,6 @@
 ---
-sidebar_label: Developer Guide
-title: Developer Guide
+sidebar_label: Programming
+title: Programming
 description: The most fundamental knowledge about programming with TDengine.
 ---
 
