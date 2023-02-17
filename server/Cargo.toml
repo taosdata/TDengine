@@ -1,0 +1,15 @@
+[package]
+name = "taos-explorer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4"
+actix-files = "0.6.2"
+rust-embed="6.4.2"
+actix-embed = "0.1.0"
+toml = "0.7.2"
+serde = { version = "1.0.32", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
