@@ -5,3 +5,5 @@ Once it's installed, please take the steps below:
 2: if connecting to Cloud Service, follow the instructions on your cloud service account and configure the environment variable
 3: if connecting to another TDengine Service, you can also view help information via "taos --help"
 4: execute command taos
+
+Installation details can be viewed in the log file in/var/log/taos, and the run log can also be found here.
