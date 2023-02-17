@@ -1630,13 +1630,10 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       SFetchRet ret = {0};
       if (tqNextBlock(pInfo->tqReader, &ret) < 0) {
         qError("failed to get next log block since %s", terrstr());
-        return NULL;
       }
       if (ret.fetchType == FETCH_TYPE__DATA) {
         blockDataCleanup(pInfo->pRes);
-        if (setBlockIntoRes(pInfo, &ret.data, true) < 0) {
-          return NULL;
-        }
+        setBlockIntoRes(pInfo, &ret.data, true);
         if (pInfo->pRes->info.rows > 0) {
           pOperator->status = OP_EXEC_RECV;
           qDebug("queue scan log return %d rows", pInfo->pRes->info.rows);
@@ -1644,7 +1641,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         }
       } else if (ret.fetchType == FETCH_TYPE__META) {
         qError("unexpected ret.fetchType:%d", ret.fetchType);
-        return NULL;
+        continue;
         //        pTaskInfo->streamInfo.lastStatus = ret.offset;
         //        pTaskInfo->streamInfo.metaBlk = ret.meta;
         //        return NULL;
