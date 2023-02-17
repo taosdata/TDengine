@@ -864,15 +864,7 @@ void cliSendBatch(SCliConn* pConn) {
       pHead->magicNum = htonl(TRANS_MAGIC_NUM);
     }
     pHead->timestamp = taosHton64(taosGetTimestampUs());
-
-    if (pHead->comp == 0) {
-      if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
-        msgLen = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
-        pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
-      }
-    } else {
-      msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
-    }
+    msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
 
     wb[i++] = uv_buf_init((char*)pHead, msgLen);
   }
@@ -972,11 +964,7 @@ static SCliBatch* cliDumpBatch(SCliBatch* pBatch) {
   SCliBatch* pNewBatch = taosMemoryCalloc(1, sizeof(SCliBatch));
 
   QUEUE_INIT(&pNewBatch->wq);
-  while (!QUEUE_IS_EMPTY(&pBatch->wq)) {
-    queue* h = QUEUE_HEAD(&pBatch->wq);
-    QUEUE_REMOVE(h);
-    QUEUE_PUSH(&pNewBatch->wq, h);
-  }
+  QUEUE_MOVE(&pBatch->wq, &pNewBatch->wq);
 
   pNewBatch->batchSize = pBatch->batchSize;
   pNewBatch->batch = pBatch->batch;
