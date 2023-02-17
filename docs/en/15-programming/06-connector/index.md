@@ -1,5 +1,5 @@
 ---
-sidebar_label: Connector
+sidebar_label: Connector Reference
 title: Connector Reference
 description: 'Reference guide for connectors'
 ---
