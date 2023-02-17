@@ -205,7 +205,7 @@ struct SColData {
   int32_t  numOfNull;   // # of null
   int32_t  numOfValue;  // # of vale
   int32_t  nVal;
-  uint8_t  flag;
+  int8_t   flag;
   uint8_t *pBitMap;
   int32_t *aOffset;
   int32_t  nData;
