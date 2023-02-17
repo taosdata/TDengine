@@ -9,7 +9,7 @@ The data model employed by TDengine is similar to that of a relational database.
 
 The [characteristics of time-series data](https://www.taosdata.com/blog/2019/07/09/86.html) from different data collection points may be different. Characteristics include collection frequency, retention policy and others which determine how you create and configure the database. For e.g. days to keep, number of replicas, data block size, whether data updates are allowed and other configurable parameters would be determined by the characteristics of your data and your business requirements. For TDengine to operate with the best performance, we strongly recommend that you create and configure different databases for data with different characteristics. This allows you, for example, to set up different storage and retention policies. When creating a database, there are a lot of parameters that can be configured such as, the days to keep data, the number of replicas, the number of memory blocks, time precision, the minimum and maximum number of rows in each data block, whether compression is enabled, the time range of the data in single data file and so on.
 
-[TDengine create-database](./create-database.png)
+![TDengine create-database](./create-database.png)
 
 For more details please refer to [Database](/taos-sql/database).
 
