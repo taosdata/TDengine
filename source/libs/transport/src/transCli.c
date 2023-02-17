@@ -1080,7 +1080,9 @@ static void cliSendBatchCb(uv_write_t* req, int status) {
 static void cliHandleFastFail(SCliConn* pConn, int status) {
   SCliThrd* pThrd = pConn->hostThrd;
   STrans*   pTransInst = pThrd->pTransInst;
-  tError("conn %p free twice, reason:%s", pConn, uv_err_name(status));
+
+  if (status == -1) status = ENETUNREACH;
+
   if (pConn->pBatch == NULL) {
     SCliMsg* pMsg = transQueueGet(&pConn->cliMsgs, 0);
 
@@ -1106,6 +1108,8 @@ static void cliHandleFastFail(SCliConn* pConn, int status) {
       }
     }
   } else {
+    tError("%s batch msg failed to send, conn %p failed to connect to %s, reason: %s", CONN_GET_INST_LABEL(pConn),
+           pConn, pConn->ip, uv_strerror(status));
     cliDestroyBatch(pConn->pBatch);
     pConn->pBatch = NULL;
   }
