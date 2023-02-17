@@ -1502,6 +1502,7 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
         pBatchList->connMax = pInst->connLimitNum;
         pBatchList->connCnt = 0;
         pBatchList->batchLenLimit = pInst->batchSize;
+        pBatchList->len += 1;
 
         pBatchList->ip = strdup(ip);
         pBatchList->dst = strdup(key);
