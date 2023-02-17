@@ -53,6 +53,7 @@ async fn index() -> impl Responder {
 struct Asset;
 
 #[derive(Parser, Debug, Clone, Deserialize)]
+#[clap(version)]
 struct Args {
     /// Port
     #[clap(
