@@ -115,8 +115,9 @@ typedef struct SRpcInit {
   int32_t connLimitNum;
   int32_t connLimitLock;
 
-  int8_t supportBatch;  // 0: no batch, 1. batch
-  void  *parent;
+  int8_t  supportBatch;  // 0: no batch, 1. batch
+  int32_t batchSize;
+  void   *parent;
 } SRpcInit;
 
 typedef struct {

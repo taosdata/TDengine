@@ -286,11 +286,12 @@ int32_t dmInitClient(SDnode *pDnode) {
 
   int32_t connLimitNum = 10000 / (tsNumOfRpcThreads * 3);
   connLimitNum = TMAX(connLimitNum, 100);
-  connLimitNum = TMIN(connLimitNum, 600);
+  connLimitNum = TMIN(connLimitNum, 500);
 
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
+  rpcInit.batchSize = 64 * 1024;
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {

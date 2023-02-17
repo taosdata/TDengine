@@ -27,6 +27,7 @@ typedef struct {
   int connMax;
   int connCnt;
   int batchLenLimit;
+  int sending;
 
   char*    dst;
   char*    ip;
@@ -992,6 +993,8 @@ static void cliDestroyBatch(SCliBatch* pBatch) {
     SCliMsg* p = QUEUE_DATA(h, SCliMsg, q);
     destroyCmsg(p);
   }
+  SCliBatchList* p = pBatch->pList;
+  p->sending -= 1;
   taosMemoryFree(pBatch);
 }
 static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
@@ -1461,11 +1464,12 @@ static void cliNoBatchDealReq(queue* wq, SCliThrd* pThrd) {
   }
 }
 SCliBatch* cliGetHeadFromList(SCliBatchList* pList) {
-  if (QUEUE_IS_EMPTY(&pList->wq) || pList->connCnt >= pList->connMax) {
+  if (QUEUE_IS_EMPTY(&pList->wq) || pList->connCnt > pList->connMax || pList->sending > pList->connMax) {
     return NULL;
   }
   queue* hr = QUEUE_HEAD(&pList->wq);
   QUEUE_REMOVE(hr);
+  pList->sending += 1;
 
   pList->len -= 1;
 
@@ -1474,6 +1478,8 @@ SCliBatch* cliGetHeadFromList(SCliBatchList* pList) {
 }
 
 static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
+  STrans* pInst = pThrd->pTransInst;
+
   int count = 0;
   while (!QUEUE_IS_EMPTY(wq)) {
     queue* h = QUEUE_HEAD(wq);
@@ -1493,9 +1499,10 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
       if (ppBatchList == NULL || *ppBatchList == NULL) {
         SCliBatchList* pBatchList = taosMemoryCalloc(1, sizeof(SCliBatchList));
         QUEUE_INIT(&pBatchList->wq);
-        pBatchList->connMax = 200;
+        pBatchList->connMax = pInst->connLimitNum;
         pBatchList->connCnt = 0;
-        pBatchList->batchLenLimit = 16 * 1024;
+        pBatchList->batchLenLimit = pInst->batchSize;
+
         pBatchList->ip = strdup(ip);
         pBatchList->dst = strdup(key);
         pBatchList->port = port;
