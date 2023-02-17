@@ -985,11 +985,13 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
   return pDest;
 }
 
-void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp* pTagSup, int64_t groupId,
+void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp* pTagSup, uint64_t groupId,
                           SSDataBlock* pSrcBlock, int32_t rowId, SSDataBlock* pDestBlock) {
   void* pValue = NULL;
   if (streamStateGetParName(pState, groupId, &pValue) != 0) {
     SSDataBlock* pTmpBlock = blockCopyOneRow(pSrcBlock, rowId);
+    memset(pTmpBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
+    pTmpBlock->info.id.groupId = groupId;
     if (pTableSup->numOfExprs > 0) {
       projectApplyFunctions(pTableSup->pExprInfo, pDestBlock, pTmpBlock, pTableSup->pCtx, pTableSup->numOfExprs, NULL);
       SColumnInfoData* pTbCol = taosArrayGet(pDestBlock->pDataBlock, UD_TABLE_NAME_COLUMN_INDEX);
@@ -999,6 +1001,7 @@ void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp*
       int32_t len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN - 1);
       memcpy(tbName, varDataVal(pData), len);
       streamStatePutParName(pState, groupId, tbName);
+      memcpy(pTmpBlock->info.parTbName, tbName, len);
       pDestBlock->info.rows--;
     } else {
       void* pTbNameCol = taosArrayGet(pDestBlock->pDataBlock, UD_TABLE_NAME_COLUMN_INDEX);
@@ -1013,7 +1016,6 @@ void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp*
 
     void* pGpIdCol = taosArrayGet(pDestBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
     colDataAppend(pGpIdCol, pDestBlock->info.rows, (const char*)&groupId, false);
-
     pDestBlock->info.rows++;
     blockDataDestroy(pTmpBlock);
   }
@@ -1030,7 +1032,7 @@ static SSDataBlock* buildStreamCreateTableResult(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pInfo->pCreateTbRes, taosHashGetSize(pInfo->pPartitions));
   SSDataBlock* pSrc = pInfo->pInputDataBlock;
 
-  while (pInfo->pTbNameIte != NULL) {
+  if (pInfo->pTbNameIte != NULL) {
     SPartitionDataInfo* pParInfo = (SPartitionDataInfo*)pInfo->pTbNameIte;
     int32_t             rowId = *(int32_t*)taosArrayGet(pParInfo->rowIds, 0);
     appendCreateTableRow(pOperator->pTaskInfo->streamInfo.pState, &pInfo->tbnameCalSup, &pInfo->tagCalSup,
