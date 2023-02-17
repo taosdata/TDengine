@@ -12,8 +12,14 @@ const request = axios.create({
 });
 let msg = "";
 let setTokenTimer = null;
+let local_baseurl=''
+
 request.interceptors.request.use(
   config => {
+    local_baseurl=localStorage.getItem('base_url')
+    if(local_baseurl){
+      config.baseURL=local_baseurl
+    }
     if (store.getters.token) {
       // 让每个请求都携带token
       config.headers["Authorization"] = store.getters.token;

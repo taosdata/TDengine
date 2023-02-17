@@ -1,11 +1,11 @@
 {
-  "name": "TDengineCloud",
+  "name": "TaosExplorer",
   "version": "0.1.0",
-  "description": "taosdata cloud hub console",
+  "description": "taosdata  hub console",
   "author": "YaBin <470905797@qq.com>",
   "private": true,
   "scripts": {
-    "dev": "vue-cli-service serve --mode dev ",
+    "prd": "vue-cli-service serve --mode prd ",
     "test": "vue-cli-service build --mode test --deploy deploy",
     "preview": "vue-cli-service build --mode pre --deploy deploy",
     "build": "vue-cli-service build --mode prd --deploy deploy",
