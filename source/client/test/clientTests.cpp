@@ -162,6 +162,11 @@ void *queryThread(void *arg) {
 }
 
 static int32_t numOfThreads = 1;
+
+void tmq_commit_cb_print(tmq_t *pTmq, int32_t code, void *param) {
+  printf("success, code:%d\n", code);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -176,12 +181,12 @@ int main(int argc, char** argv) {
   return RUN_ALL_TESTS();
 }
 
-TEST(testCase, driverInit_Test) {
+TEST(clientCase, driverInit_Test) {
   // taosInitGlobalCfg();
   //  taos_init();
 }
 
-TEST(testCase, connect_Test) {
+TEST(clientCase, connect_Test) {
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
 
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -190,8 +195,8 @@ TEST(testCase, connect_Test) {
   }
   taos_close(pConn);
 }
-#if 0
-TEST(testCase, create_user_Test) {
+
+TEST(clientCase, create_user_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -204,7 +209,7 @@ TEST(testCase, create_user_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, create_account_Test) {
+TEST(clientCase, create_account_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -217,7 +222,7 @@ TEST(testCase, create_account_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, drop_account_Test) {
+TEST(clientCase, drop_account_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -230,7 +235,7 @@ TEST(testCase, drop_account_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, show_user_Test) {
+TEST(clientCase, show_user_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -250,7 +255,7 @@ TEST(testCase, show_user_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, drop_user_Test) {
+TEST(clientCase, drop_user_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -263,7 +268,7 @@ TEST(testCase, drop_user_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, show_db_Test) {
+TEST(clientCase, show_db_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -282,7 +287,7 @@ TEST(testCase, show_db_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, create_db_Test) {
+TEST(clientCase, create_db_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -306,7 +311,7 @@ TEST(testCase, create_db_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, create_dnode_Test) {
+TEST(clientCase, create_dnode_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -325,7 +330,7 @@ TEST(testCase, create_dnode_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, drop_dnode_Test) {
+TEST(clientCase, drop_dnode_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -349,7 +354,7 @@ TEST(testCase, drop_dnode_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, use_db_test) {
+TEST(clientCase, use_db_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -367,7 +372,7 @@ TEST(testCase, use_db_test) {
   taos_close(pConn);
 }
 
-// TEST(testCase, drop_db_test) {
+// TEST(clientCase, drop_db_test) {
 //  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
 //  assert(pConn != NULL);
 //
@@ -389,7 +394,7 @@ TEST(testCase, use_db_test) {
 //  taos_close(pConn);
 //}
 
-TEST(testCase, create_stable_Test) {
+TEST(clientCase, create_stable_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -428,7 +433,7 @@ TEST(testCase, create_stable_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, create_table_Test) {
+TEST(clientCase, create_table_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -447,7 +452,7 @@ TEST(testCase, create_table_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, create_ctable_Test) {
+TEST(clientCase, create_ctable_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -472,7 +477,7 @@ TEST(testCase, create_ctable_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, show_stable_Test) {
+TEST(clientCase, show_stable_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != nullptr);
 
@@ -497,7 +502,7 @@ TEST(testCase, show_stable_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, show_vgroup_Test) {
+TEST(clientCase, show_vgroup_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -529,7 +534,7 @@ TEST(testCase, show_vgroup_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, create_multiple_tables) {
+TEST(clientCase, create_multiple_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
@@ -600,7 +605,7 @@ TEST(testCase, create_multiple_tables) {
   taos_close(pConn);
 }
 
-TEST(testCase, show_table_Test) {
+TEST(clientCase, show_table_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -634,7 +639,7 @@ TEST(testCase, show_table_Test) {
   taos_close(pConn);
 }
 
-//TEST(testCase, drop_stable_Test) {
+//TEST(clientCase, drop_stable_Test) {
 //  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
 //  assert(pConn != nullptr);
 //
@@ -659,7 +664,7 @@ TEST(testCase, show_table_Test) {
 //  taos_close(pConn);
 //}
 
-TEST(testCase, generated_request_id_test) {
+TEST(clientCase, generated_request_id_test) {
   SHashObj* phash = taosHashInit(10000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
 
   for (int32_t i = 0; i < 50000; ++i) {
@@ -675,7 +680,7 @@ TEST(testCase, generated_request_id_test) {
   taosHashCleanup(phash);
 }
 
-TEST(testCase, insert_test) {
+TEST(clientCase, insert_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
@@ -692,9 +697,8 @@ TEST(testCase, insert_test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
 
-TEST(testCase, projection_query_tables) {
+TEST(clientCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
@@ -752,8 +756,7 @@ TEST(testCase, projection_query_tables) {
   taos_close(pConn);
 }
 
-#if 0
-TEST(testCase, tsbs_perf_test) {
+TEST(clientCase, tsbs_perf_test) {
   TdThread qid[20] = {0};
 
   for(int32_t i = 0; i < numOfThreads; ++i) {
@@ -762,7 +765,7 @@ TEST(testCase, tsbs_perf_test) {
   getchar();
 }
 
-TEST(testCase, projection_query_stables) {
+TEST(clientCase, projection_query_stables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
@@ -790,7 +793,7 @@ TEST(testCase, projection_query_stables) {
   taos_close(pConn);
 }
 
-TEST(testCase, agg_query_tables) {
+TEST(clientCase, agg_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
@@ -825,7 +828,7 @@ create table tm1 using m1 tags(2);
 insert into tm0 values('2021-1-1 1:1:1.120', 1) ('2021-1-1 1:1:2.9', 2) tm1 values('2021-1-1 1:1:1.120', 11) ('2021-1-1 1:1:2.99', 22);
 
  */
-TEST(testCase, async_api_test) {
+TEST(clientCase, async_api_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
@@ -859,7 +862,7 @@ TEST(testCase, async_api_test) {
   taos_close(pConn);
 }
 
-TEST(testCase, update_test) {
+TEST(clientCase, update_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
@@ -895,6 +898,76 @@ TEST(testCase, update_test) {
   }
 }
 
-#endif
+TEST(clientCase, subscription_test) {
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(pConn, nullptr);
+
+  //  TAOS_RES* pRes = taos_query(pConn, "create topic topic_t1 as select * from t1");
+  //  if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
+  //    printf("failed to create topic, code:%s", taos_errstr(pRes));
+  //    taos_free_result(pRes);
+  //    return;
+  //  }
+
+  tmq_conf_t* conf = tmq_conf_new();
+  tmq_conf_set(conf, "enable.auto.commit", "true");
+  tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
+  tmq_conf_set(conf, "group.id", "cgrpName");
+  tmq_conf_set(conf, "td.connect.user", "root");
+  tmq_conf_set(conf, "td.connect.pass", "taosdata");
+  tmq_conf_set(conf, "auto.offset.reset", "earliest");
+  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
+  tmq_conf_set(conf, "msg.with.table.name", "true");
+  tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
+
+  tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
+  tmq_conf_destroy(conf);
+
+  // 创建订阅 topics 列表
+  tmq_list_t* topicList = tmq_list_new();
+  tmq_list_append(topicList, "topic_t1");
+
+  // 启动订阅
+  tmq_subscribe(tmq, topicList);
+  tmq_list_destroy(topicList);
+
+  TAOS_FIELD* fields = NULL;
+  int32_t     numOfFields = 0;
+  int32_t     precision = 0;
+  int32_t     totalRows = 0;
+  int32_t     msgCnt = 0;
+  int32_t     timeout = 5000;
+
+  while (1) {
+    TAOS_RES* pRes = tmq_consumer_poll(tmq, timeout);
+    if (pRes) {
+      char    buf[1024];
+      int32_t rows = 0;
+
+      const char* topicName = tmq_get_topic_name(pRes);
+      const char* dbName = tmq_get_db_name(pRes);
+      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
+
+      printf("topic: %s\n", topicName);
+      printf("db: %s\n", dbName);
+      printf("vgroup id: %d\n", vgroupId);
+
+      while (1) {
+        TAOS_ROW row = taos_fetch_row(pRes);
+        if (row == NULL) break;
+
+        fields = taos_fetch_fields(pRes);
+        numOfFields = taos_field_count(pRes);
+        precision = taos_result_precision(pRes);
+        rows++;
+        taos_print_row(buf, row, fields, numOfFields);
+        printf("precision: %d, row content: %s\n", precision, buf);
+      }
+    }
+//      return rows;
+  }
+
+  fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
+}
 
 #pragma GCC diagnostic pop
