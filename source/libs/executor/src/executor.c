@@ -107,7 +107,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     pOperator->status = OP_NOT_OPENED;
 
     SStreamScanInfo* pInfo = pOperator->info;
-
+///// numOfBlocks总和 日志
     ASSERT(pInfo->validBlockIndex == 0);
     ASSERT(taosArrayGetSize(pInfo->pBlockLists) == 0);
 

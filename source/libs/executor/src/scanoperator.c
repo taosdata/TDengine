@@ -1798,7 +1798,7 @@ FETCH_NEXT_BLOCK:
       /*pOperator->status = OP_EXEC_DONE;*/
       return NULL;
     }
-
+//////todo 
     int32_t      current = pInfo->validBlockIndex++;
     SSDataBlock* pBlock = taosArrayGetP(pInfo->pBlockLists, current);
     if (pBlock->info.id.groupId && pBlock->info.parTbName[0]) {
