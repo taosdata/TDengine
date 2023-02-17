@@ -1697,7 +1697,11 @@ static SCliThrd* createThrdObj(void* trans) {
     taosMemoryFree(pThrd);
     return NULL;
   }
-  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 8, pThrd, cliAsyncCb);
+  if (pTransInst->supportBatch) {
+    pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 4, pThrd, cliAsyncCb);
+  } else {
+    pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 8, pThrd, cliAsyncCb);
+  }
   if (pThrd->asyncPool == NULL) {
     tError("failed to init async pool");
     uv_loop_close(pThrd->loop);
