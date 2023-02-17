@@ -70,7 +70,8 @@
         favorites: state => state.console.favorites,
       }),
       favorited() {
-        return this.favorites.find(item => item.sql == this.sqlStr)?.id || "";
+        console.log(this.favorites,'this.favorites');
+        return this.favorites?(this.favorites.find(item => item.sql == this.sqlStr)?.id || ""):"";
       },
     },
     mounted() {
