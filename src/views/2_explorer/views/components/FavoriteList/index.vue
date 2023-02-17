@@ -5,7 +5,7 @@
         <div slot="header">{{ $t("console.persionalFavorites") }}</div>
         <el-empty
           :image-size="imageSize"
-          v-if="favorites.length === 0"
+          v-if="favorites&&favorites.length === 0"
         ></el-empty>
         <template v-else>
           <RecordItem
@@ -21,7 +21,7 @@
         <div slot="header">{{ $t("console.sharedFavorites") }}</div>
         <el-empty
           :image-size="imageSize"
-          v-if="sharedFavorites.length === 0"
+          v-if="sharedFavorites&&sharedFavorites.length === 0"
         ></el-empty>
         <template v-else>
           <RecordItem
