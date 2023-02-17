@@ -10,7 +10,7 @@ import TabItem from '@theme/TabItem';
 
 ## SQL Examples
 
-Here are some brief examples for `INSET` statement. You can execute these statements manually by TDengine CLI or TDengine Cloud Explorer or programmatically by TDengine connectors. 
+Here are some brief examples for `INSERT` statement. You can execute these statements manually by TDengine CLI or TDengine Cloud Explorer or programmatically by TDengine connectors. 
 
 ### Insert Single Row
 
@@ -30,10 +30,10 @@ INSERT INTO test.d101 VALUES (1538548684000, 10.2, 220, 0.23) (1538548696650, 10
 
 ### Insert into Multiple Tables
 
-Data can be inserted into multiple tables in the same SQL statement. The example below inserts 2 rows into table "d101" and 1 row into table "d1002".
+Data can be inserted into multiple tables in the same SQL statement. The example below inserts 2 rows into table "d101" and 1 row into table "d102".
 
 ```sql
-INSERT INTO test.d101 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 218, 0.33) d1002 VALUES (1538548696800, 12.3, 221, 0.31);
+INSERT INTO test.d101 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 218, 0.33) d102 VALUES (1538548696800, 12.3, 221, 0.31);
 ```
 
 For more details about `INSERT` please refer to [INSERT](https://docs.tdengine.com/cloud/taos-sql/insert).

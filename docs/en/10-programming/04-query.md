@@ -49,22 +49,22 @@ In summary, records across subtables can be aggregated by a simple query on thei
 In [TDengine CLI](../tool/cli) `taos`, use the SQL below to get the average voltage of all the meters in California grouped by location.
 
 ```sql title="SQL"
-SELECT AVG(voltage) FROM test.meters GROUP BY location;
+SELECT location, AVG(voltage) FROM test.meters GROUP BY location;
 ```
 
 ```txt title="output"
-       avg(voltage)        |
-============================
-             109.507000000 |
-             109.507000000 |
-             109.507000000 |
-             109.507000000 |
-             109.507000000 |
-             109.507000000 |
-             109.507000000 |
-             109.507000000 |
-             109.507000000 |
-             109.507000000 |
+         location         |       avg(voltage)        |
+=======================================================
+ California.PaloAlto      |             109.507000000 |
+ California.Sunnyvale     |             109.507000000 |
+ California.MountainView  |             109.507000000 |
+ California.SanFrancisco  |             109.507000000 |
+ California.SanJose       |             109.507000000 |
+ California.SanDiego      |             109.507000000 |
+ California.SantaClara    |             109.507000000 |
+ California.Cupertino     |             109.507000000 |
+ California.Campbell      |             109.507000000 |
+ California.LosAngles     |             109.507000000 |
 Query OK, 10 row(s) in set
 ```
 
