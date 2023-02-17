@@ -1,7 +1,7 @@
 {
-  "name": "TDengineCloud",
+  "name": "TaosExplorer",
   "version": "0.1.0",
-  "description": "taosdata cloud hub console",
+  "description": "taosdata  hub console",
   "author": "YaBin <470905797@qq.com>",
   "private": true,
   "scripts": {

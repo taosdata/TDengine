@@ -84,22 +84,18 @@
         >
           <div>
             <p class="lable-form">
-              <span 
-                >Cluster</span
-              >
+              <span>Cluster</span>
             </p>
             <el-form-item label="" prop="cluster">
               <el-input
                 v-model="dynamicValidateForm.cluster"
-                placeholder="192.168.0.201:16041"
+                placeholder="http://192.168.0.201:16041"
               ></el-input>
             </el-form-item>
           </div>
           <div>
             <p class="lable-form">
-              <span 
-                >User Name</span
-              >
+              <span>User Name</span>
             </p>
             <el-form-item prop="username" label="">
               <el-input v-model="dynamicValidateForm.username"></el-input>
@@ -107,9 +103,7 @@
           </div>
           <div>
             <p class="lable-form">
-              <span 
-                >Password</span
-              >
+              <span>Password</span>
             </p>
             <el-form-item label="" prop="password">
               <el-input
@@ -210,19 +204,18 @@ export default {
     return {
       earch: require("@/assets/earth.webp"),
       hidden: false,
-      baseUrl:process.env.VUE_APP_BASE_URL,
       dynamicValidateForm: {
-        cluster:"",
+        cluster: "",
         password: "",
         username: "",
       },
       formRules: {
-        cluster:[
+        cluster: [
           {
             required: true,
             message: "Please enter the Cluster",
             trigger: "blur",
-          }
+          },
         ],
         password: [
           {
@@ -246,7 +239,8 @@ export default {
     submitForm(formName) {
       this.$refs[formName].validate((valid) => {
         if (valid) {
-          // alert("submit!");
+          localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
+
           this.login();
         } else {
           console.log("error submit!!");
@@ -258,7 +252,6 @@ export default {
       this.$refs[formName].resetFields();
     },
     login() {
-      console.log(DbBase64, "---");
       let token =
         "Basic " +
         DbBase64.encode(
@@ -267,7 +260,7 @@ export default {
             this.dynamicValidateForm.password
         );
       this.$store.commit("app/SET_TOKEN", token);
-      fetch(`${this.baseUrl}/rest/sql`, {
+      fetch(`${this.dynamicValidateForm.cluster}/rest/sql`, {
         method: "post",
         headers: {
           Authorization: token,
@@ -280,16 +273,11 @@ export default {
             path: "/explorer",
           });
         }
-        console.log(res, "登陆返回");
       });
     },
     search() {
       this.hidden = true;
     },
-  },
-  mounted() {
-    console.log(dataJson,process.env.VUE_APP_BASE_URL
-, "dataJson");
   },
 };
 </script>
@@ -299,11 +287,11 @@ export default {
   flex-direction: column;
   overflow-y: auto;
   height: 100%;
-  .lable-form{
-    font-size: 16px; 
-    color: #4d6992; 
+  .lable-form {
+    font-size: 16px;
+    color: #4d6992;
     font-weight: 600;
-    margin-bottom:10px;
+    margin-bottom: 10px;
   }
   .header {
     width: 100%;

@@ -69,6 +69,7 @@
     },
     methods: {
       logout() {
+        localStorage.removeItem('base_url')
         this.$store.dispatch("app/logout");
         this.$router.push({
           path:'/login'
