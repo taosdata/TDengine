@@ -52,25 +52,22 @@ fn configure(store: Data<TaskController>) -> impl FnOnce(&mut ServiceConfig) {
             .service(create_task)
             .service(update_task)
             .service(delete_task)
-            .service(replicate)
-            .service(subscribe)
             .service(get_task_by_id)
             .service(start_task)
             .service(stop_task)
             .service(metrics::metrics_exporter)
-            .service(data_in_sources)
-            .service(data_in_sources_validate)
-            .service(data_in_new_task)
-            .service(data_in_task_list)
-            .service(data_in_get_task_by_id)
-            .service(data_in_start_task)
-            .service(data_in_stop_task)
-            .service(data_in_delete_task)
+            .service(data_sources_in)
+            // .service(data_in_sources_validate)
+            // .service(data_in_new_task)
+            // .service(data_in_task_list)
+            // .service(data_in_get_task_by_id)
+            // .service(data_in_start_task)
+            // .service(data_in_stop_task)
+            // .service(data_in_delete_task)
             // .service(update_task)
             ;
     }
 }
-
 impl Cli {
     pub(super) async fn run_with(
         self,
@@ -86,10 +83,18 @@ impl Cli {
                     NewTask,
                     UpdateTask,
                     Cluster,
-                    StreamType,
+                    // StreamType,
+                    Labels,
                     Task,
                     Failed,
                     DataSourceInput,
+                    DataSource,
+                    Param,
+                    GroupedParams,
+                    DataSourceOptions,
+                    OptionDef,
+                    Protocol,
+                    DataSourceType,
                     CloudTarget,
                     Transformer,
                     DataIn,
@@ -109,19 +114,18 @@ impl Cli {
                 // task::replicate,
                 // task::subscribe,
                 metrics::metrics_exporter,
-                data_in_sources,
-                data_in_sources_validate,
-                data_in_new_task,
-                data_in_task_list,
-                data_in_get_task_by_id,
-                data_in_start_task,
-                data_in_stop_task,
-                data_in_delete_task,
+                data_sources_in,
+                // data_in_sources_validate,
+                // data_in_new_task,
+                // data_in_task_list,
+                // data_in_get_task_by_id,
+                // data_in_start_task,
+                // data_in_stop_task,
+                // data_in_delete_task,
             ),
             tags(
                 (name = "tasks", description = "Task management endpoints"),
                 (name = "data sources", description = "Data in/out"),
-
             ),
         )]
         struct ApiDoc;

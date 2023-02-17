@@ -39,8 +39,8 @@ toml = "0.7.2"
 zstd = "0.12.1"
 
 actix-web = "4"
-serde_json = "1.0"
-sqlx = { version = "0.6", features = ["sqlite", "chrono"] }
+serde_json = { version = "1.0", feature = ["raw_value"] }
+sqlx = { version = "0.6", features = ["sqlite", "chrono", "json"] }
 utoipa = { version = "3", features = ["actix_extras", "chrono"] }
 utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }
 
@@ -54,6 +54,7 @@ shadow-rs = "0.20.0"
 
 async-backtrace = "0.2.2"
 tracing = "0.1"
+dotenv = "0.15.0"
 
 [dependencies.taos]
 version = "0.4.18"

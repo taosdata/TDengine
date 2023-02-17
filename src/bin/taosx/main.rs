@@ -94,6 +94,7 @@ struct Args {
 }
 
 fn main() -> Result<()> {
+    dotenv::dotenv().ok();
     let args = Args::parse();
 
     let mut builder = pretty_env_logger::formatted_timed_builder();
@@ -162,9 +163,6 @@ fn main() -> Result<()> {
             Commands::External(_) => bail!("unknown subcommand"),
         }
     } else {
-        //  service mode
-        // dbg!(&args);
-
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .max_blocking_threads(1024)
             .thread_name("taosx")
