@@ -333,58 +333,82 @@ class TDWhere():
         
         # return time_window
         
-    def event_window(self):   
-        t_int_where = ['t_bigint < -9223372036854775807 and ' , 't_bigint > 9223372036854775807 and ',
-        't_smallint < -32767 and ', 't_smallint > 32767 and ',
-        't_tinyint < -127 and ' , 't_tinyint > 127 and ' , 
-        't_int > 2147483647 and ' , 't_int < -2147483647 and ',
-        't_bigint between  9223372036854775807 and -9223372036854775807 and ','t_smallint between 32767 and -32767 and ',
-        't_int between 2147483647 and -2147483647 and ', 't_tinyint between 127 and -127  and ',
-        't_tinyint = 128 and ','t_smallint = 88888 and ','t_int = 8888888888 and ','t_bigint = 9999972036854775807 and ',
-        't_tinyint == 128 and ','t_smallint == 88888 and ','t_int == 8888888888 and ','t_bigint == 9999972036854775807 and ',
-        't_bigint is null and ' , 't_int is null and ' , 't_smallint is null and ' , 't_tinyint is null and ' ,]
-
-        t_fl_do_where = ['t_float < -3.4E38 and ','t_float > 3.4E38 and ', 't_double < -1.7E308 and ','t_double > 1.7E308 and ', 
-        't_float between 3.4E38 and -3.4E38 and ','t_double between 1.7E308 and -1.7E308 and ' ,
-        't_float is null and ' ,'t_double is null and ' ,]
-
-        t_nc_bi_bo_ts_where = [ 't_bool is null and ' ,'t_binary is null and ' ,'t_nchar is null and ' ,
-        't_ts is null and' ,  't_ts >= now +100h and ' , 't_ts < 0 and ',  't_ts between now +100h and 0 and ',]
-
-        t_where_null = random.sample(t_int_where,4) + random.sample(t_fl_do_where,2) + random.sample(t_nc_bi_bo_ts_where,2)
+    def event_window_i(self,i):   
+        trigger_condition = ''
+        fake = Faker('zh_CN')
+        data_bigint = fake.random_int(min=-922337203685477580, max=922337203685477580, step=1);
+        data_int = fake.random_int(min=-214748364, max=214748364, step=1);
+        data_smallint = fake.random_int(min=-3276, max=3276, step=1);
+        data_tinyint = fake.random_int(min=-100, max=100, step=1);
+        data_float = fake.pyfloat()/100;
+        data_str = fake.pystr();
         
-        t_like = ['t_binary like \'binary_\' and','t_binary like \'0%\' and','t_nchar like \'nchar_\' and','t_nchar like \'0%\' and',]
-        t_match = ['t_binary nmatch \'binary\' and','t_binary match \'binarynchar\' and','t_nchar nmatch \'nchar\' and','t_nchar match \'binarynchar\' and',]
-        t_like_match = random.sample(t_like,1) + random.sample(t_match,1)
-        t_match_regular = ['loc match \'(elbats)\' and', 'loc match \'(^qwertyuiopzxcvnmdfghj)\' and',]
-        t_like_match = random.sample(t_like,1) + random.sample(t_match,1) + random.sample(t_match_regular,2)
-        t_like_match_null = random.sample(t_like_match,1)
-
-        t_tinyint_list=[]
-        for i in range(1000,2000):
-            t_tinyint_list.append(i)
-        t_tinyint_list = "t_tinyint in (" + str(t_tinyint_list).replace("[","").replace("]","") + ")"
+        event_window_support_data_all_types = ['q_bigint','q_smallint','q_tinyint','q_int','q_bigint_null','q_smallint_null','q_tinyint_null','q_int_null'] 
+        event_window_support_float_all_types = ['q_double','q_float','q_double_null','q_float_null'] 
         
-        t_in_where = [t_tinyint_list , 't_bool in (0 , 1) ' ,  't_bool in ( true , false) ' ,' (t_bool = true or  t_bool = false)' , '(t_bool = 0 or t_bool = 1)',]
         
-        event_window_support_data_types = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)'] 
-        event_window_support_data_operators = ['>','<','=','!=','>=','<=']
+        event_window_support_data_types = ['q_bigint','q_smallint','q_tinyint','q_int'] 
+        event_window_support_data_bigint = ['q_bigint']
+        event_window_support_data_smallint = ['q_smallint']
+        event_window_support_data_int = ['q_int']
+        event_window_support_data_tinyint = ['q_tinyint']
         
-        data_int = 1;
-        data_float = 2;
-        data_str = 'abc';
+        event_window_support_float_types = ['q_double','q_float'] 
+        event_window_support_str_types = ['q_nchar','q_binary'] 
         
-        state_window = random.sample(func,1)+random.sample(window_support_types,1)
-        single_state_window = str(state_window).replace("[","").replace("]","").replace("'","").replace(", ","")
+        event_window_support_data_operators = ['>','<','!=','>=','<='] #,'='
         
-        start_trigger_condition = random.sample(event_windows,1)
-        end_trigger_condition = random.sample(event_windows,1)
+        event_window_support_is_not_null = [" q_bigint is not null "," q_int is not null "," q_tinyint is not null "," q_smallint is not null "," q_bool is not null ",
+                                            " q_binary is not null "," q_nchar is not null "," q_double is not null "," q_float is not null "," q_ts is not null ",
+                                            " _c0 is not null "," _c0 is not null ",
+                                            " q_bigint_null is null "," q_int_null is null "," q_tinyint_null is null "," q_smallint_null is null "," q_bool_null is null ",
+                                            " q_binary_null is null "," q_nchar_null is null "," q_double_null is null "," q_float_null is null "," q_ts_null is null ",]
         
-        event_window = ' EVENT_WINDOW START WITH ' + '%s' + ' END WITH ' + '%s' %(start_trigger_condition,end_trigger_condition)
+        event_window_support_str_operators = ["q_binary not like STAbinary_END","q_binary like STAbinaryENND","q_nchar not like STAnchar_END","q_nchar like STAncharENND",
+                                              "q_binary match STAbinaryEND","q_binary nmatch STAncharEND","q_nchar match STAncharEND","q_nchar nmatch STAbinaryEND",]
+               
         
-        # EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
-
-        return event_window
+        trigger_condition_data_common = random.sample(event_window_support_data_types,1) + random.sample(event_window_support_data_operators,1)         
+        trigger_condition_data = str(trigger_condition_data_common).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_int)
+        
+        trigger_condition_data_bigint = random.sample(event_window_support_data_bigint,1) + random.sample(event_window_support_data_operators,1)         
+        trigger_condition_data_bigint = str(trigger_condition_data_bigint).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_bigint)
+        trigger_condition_data_smallint = random.sample(event_window_support_data_smallint,1) + random.sample(event_window_support_data_operators,1)         
+        trigger_condition_data_smallint = str(trigger_condition_data_smallint).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_smallint)
+        trigger_condition_data_int = random.sample(event_window_support_data_int,1) + random.sample(event_window_support_data_operators,1)         
+        trigger_condition_data_int = str(trigger_condition_data_int).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_int)
+        trigger_condition_data_tinyint = random.sample(event_window_support_data_types,1) + random.sample(event_window_support_data_operators,1)         
+        trigger_condition_data_tinyint = str(trigger_condition_data_tinyint).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_tinyint)
+        
+        trigger_condition_float_common = random.sample(event_window_support_float_types,1) + random.sample(event_window_support_data_operators,1)
+        trigger_condition_float = str(trigger_condition_float_common).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_float)
+        
+        trigger_condition_str_error_common = random.sample(event_window_support_str_types,1) + random.sample(event_window_support_data_operators,1)
+        trigger_condition_str_error = str(trigger_condition_str_error_common).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_str)
+        
+        trigger_condition_str_right = str(random.sample(event_window_support_str_operators,1)).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","").replace("STA","'").replace("END","'").replace("ENND","%'").replace(",","")
+               
+        trigger_condition_is_not_null = str(random.sample(event_window_support_is_not_null,1)).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","").replace(",","")
+              
+        if i==1:
+            trigger_condition = trigger_condition_data_bigint;
+        elif i==2:
+            trigger_condition = trigger_condition_data_smallint;
+        elif i==3:
+            trigger_condition = trigger_condition_data_int;
+        elif i==4:
+            trigger_condition = trigger_condition_data_tinyint;        
+        elif i==5:
+            trigger_condition = trigger_condition_float;
+            
+        elif i==6:
+            trigger_condition = trigger_condition_str_right;  
+        elif i==61:
+            trigger_condition = trigger_condition_str_error;
+        elif i==7:
+            trigger_condition = trigger_condition_is_not_null; 
+            
+        return trigger_condition   
 
     def time_window_new(self,i):  
         #数字后面的时间单位可以是 u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。 
@@ -416,9 +440,22 @@ class TDWhere():
         sliding_interval_offset = 'interval'+'(' + sliding_interval_no_offset + ',' + sliding_interval_offset + ')'
         
         #单fill,对时间强要求
-        fills = ['NONE','VALUE,100','VALUE_F,100','PREV','NULL','NULL_F','LINEAR','NEXT','VALUE,10000','VALUE_F,10000']
-        fill_base = str(random.sample(fills,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'")
+        fill_random_num = random.randint(-1000000,1000000)
+        fills_all = ['NONE','VALUE,100','VALUE_F,100','PREV','NULL','NULL_F','LINEAR','NEXT','VALUE,10000','VALUE_F,10000','VALUE,fill_random_num','VALUE_F,fill_random_num']
+        fill_base = str(random.sample(fills_all,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'").replace("fill_random_num",str(fill_random_num))
         single_fill = 'Fill' +'(' +fill_base + ')'
+        
+        #强制fill,对时间强要求
+        #fill_random_num = random.randint(-1000000,1000000)
+        fills_f = ['VALUE_F,fill_random_num','NULL_F','VALUE_F,10000'] 
+        fill_f_base = str(random.sample(fills_f,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'").replace("fill_random_num",str(fill_random_num))
+        single_fill_f = 'Fill' +'(' +fill_f_base + ')'
+        
+        #单fill,对时间强要求
+        #fill_random_num = random.randint(-1000000,1000000)
+        fills_not_f = ['NONE','VALUE,100','PREV','NULL','LINEAR','NEXT','VALUE,10000','VALUE,fill_random_num']
+        fill_not_f_base = str(random.sample(fills_not_f,1)).replace("[","").replace("]","").replace("'","").replace(", ","").replace("10000","'10000'").replace("fill_random_num",str(fill_random_num))
+        single_fill_not_f = 'Fill' +'(' +fill_not_f_base + ')'
 
         #超级表，不支持session，state_window
         session_units = ['s','m','h','d','w','a'] #不支持n(自然月) 和 y(自然年)
@@ -431,6 +468,16 @@ class TDWhere():
         window_support_types = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_bool)'] #其余不支持
         state_window = random.sample(func,1)+random.sample(window_support_types,1)
         single_state_window = str(state_window).replace("[","").replace("]","").replace("'","").replace(", ","")
+        
+        #event_window
+        event_num1,event_num2 = random.randint(1,7),random.randint(1,7)
+        start_trigger_condition1,start_trigger_condition2 =  self.event_window_i(event_num1),self.event_window_i(event_num1)
+        end_trigger_condition1,end_trigger_condition2 =  self.event_window_i(event_num2),self.event_window_i(event_num2)      
+        single_event_window_1 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' END WITH ' + ' %s ' %end_trigger_condition1
+        single_event_window_2 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' END WITH ' + ' %s ' %end_trigger_condition1 + ' or %s ' %end_trigger_condition2
+        single_event_window_3 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' or %s ' %start_trigger_condition2 + ' END WITH ' + '%s ' %end_trigger_condition1
+        single_event_window_4 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' or %s ' %start_trigger_condition2 + ' END WITH ' + '%s ' %end_trigger_condition1 + ' or %s ' %end_trigger_condition2
+        single_event_window_5 = ' EVENT_WINDOW START WITH '  + self.event_window_i(random.randint(1,5)) + ' and '  + self.event_window_i(random.randint(6,7)) + ' END WITH ' + self.event_window_i(random.randint(1,5)) + ' and '  + self.event_window_i(random.randint(6,7))
 
         if i == 1:
             time_window = single_interval
@@ -449,7 +496,25 @@ class TDWhere():
             time_window = sliding_interval_offset + ' ' + single_fill 
         elif i == 9:
             time_window = sliding_interval_offset + ' ' + single_sliding + ' ' + single_fill 
-                        
+            
+        elif i == 61:
+            time_window = sliding_interval + ' ' + single_fill_f 
+        elif i == 71:
+            time_window = sliding_interval + ' ' + single_sliding + ' ' + single_fill_f 
+        elif i == 81:
+            time_window = sliding_interval_offset + ' ' + single_fill_f 
+        elif i == 91:
+            time_window = sliding_interval_offset + ' ' + single_sliding + ' ' + single_fill_f 
+            
+        elif i == 62:
+            time_window = sliding_interval + ' ' + single_fill_not_f 
+        elif i == 72:
+            time_window = sliding_interval + ' ' + single_sliding + ' ' + single_fill_not_f 
+        elif i == 82:
+            time_window = sliding_interval_offset + ' ' + single_fill_not_f 
+        elif i == 92:
+            time_window = sliding_interval_offset + ' ' + single_sliding + ' ' + single_fill_not_f 
+                                    
         #下面是错误的
         elif i == 11:
             time_window = single_sliding
@@ -477,6 +542,18 @@ class TDWhere():
             time_window = single_session
         elif i == 22:
             time_window = single_state_window
+            
+        #event_window    
+        elif i == 31:
+            time_window = single_event_window_1
+        elif i == 32:
+            time_window = single_event_window_2
+        elif i == 33:
+            time_window = single_event_window_3
+        elif i == 34:
+            time_window = single_event_window_4
+        elif i == 35:
+            time_window = single_event_window_5
 
                                
         return time_window
