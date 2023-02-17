@@ -3,6 +3,7 @@ import taos
 import sys
 import os
 import time
+import platform
 
 from pathlib import Path
 from util.log import *
@@ -102,6 +103,9 @@ class TDTestCase:
         distro_id = distro.id()
         if distro_id == "alpine":
             tdLog.info(f"alpine skip compatibility test")
+            return True
+        if platform.system().lower() == 'windows':
+            tdLog.info(f"Windows skip compatibility test")
             return True
         bPath = self.getBuildPath()
         cPath = self.getCfgPath()
