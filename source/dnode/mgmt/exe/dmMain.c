@@ -284,6 +284,7 @@ int mainWindows(int argc, char **argv) {
       printf("failed to init memory dbg, error:%s\n", tstrerror(code));
       return code;
     }
+    tsAsyncLog = false;    
     printf("memory dbg enabled\n");
   }
 #endif

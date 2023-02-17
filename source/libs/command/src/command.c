@@ -693,6 +693,7 @@ static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
       qError("failed to init memory dbg, error:%s", tstrerror(code));
       return code;
     }
+    tsAsyncLog = false;
     qInfo("memory dbg enabled");
   } else if (0 == strcasecmp(cmd, COMMAND_DISABLE_MEM_DEBUG)) {
     code = taosMemoryDbgInitRestore();

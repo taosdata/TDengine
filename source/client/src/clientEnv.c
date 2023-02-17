@@ -522,6 +522,7 @@ void taos_init_imp(void) {
     if (code) {
       printf("failed to init memory dbg, error:%s\n", tstrerror(code));
     } else {
+      tsAsyncLog = false;    
       printf("memory dbg enabled\n");
     }
   }
