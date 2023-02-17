@@ -611,6 +611,13 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *p
     tqUpdateTbUidList(pVnode->pTq, tbUids, false);
   }
 
+  // process
+  ret = tsdbDoRetention(pVnode->pTsdb, ttlReq.timestamp);
+  if (ret) goto end;
+
+  ret = smaDoRetention(pVnode->pSma, ttlReq.timestamp);
+  if (ret) goto end;
+
 end:
   taosArrayDestroy(tbUids);
   return ret;

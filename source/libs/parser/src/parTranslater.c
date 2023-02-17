@@ -2984,9 +2984,12 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!pCxt->createStream && (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER) ||
-                              TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_DESC_INITIALIZER))) {
+  if (!pCxt->createStream && TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
+  }
+
+  if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_DESC_INITIALIZER)) {
+    return TSDB_CODE_SUCCESS;
   }
 
   // interp FILL clause
@@ -6126,10 +6129,14 @@ static int32_t translateStreamTargetTable(STranslateContext* pCxt, SCreateStream
     pReq->createStb = STREAM_CREATE_STABLE_TRUE;
     pReq->targetStbUid = 0;
     return TSDB_CODE_SUCCESS;
-  } else {
+  } else if (TSDB_CODE_SUCCESS == code) {
     if (isTagDef(pStmt->pTags)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Table already exist: %s",
                                      pStmt->targetTabName);
+    }
+    if (TSDB_SUPER_TABLE != (*pMeta)->tableType) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Stream can only be written to super table");
     }
     pReq->createStb = STREAM_CREATE_STABLE_FALSE;
     pReq->targetStbUid = (*pMeta)->suid;
