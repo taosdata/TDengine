@@ -28,6 +28,7 @@
 #include "qFilter.h"
 #include "cJSON.h"
 
+
 #define EXTRA_BYTES 2
 #define ASCENDING_TRAVERSE(o)   (o == TSDB_ORDER_ASC)
 #define QH_GET_NUM_OF_COLS(handle) ((size_t)(taosArrayGetSize((handle)->pColumns)))
@@ -2807,6 +2808,10 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist
   tsdbFSIterInit(&pQueryHandle->fileIter, pFileHandle, pQueryHandle->order);
   tsdbFSIterSeek(&pQueryHandle->fileIter, fid);
   tsdbUnLockFS(pFileHandle);
+
+  if(tsMetaSyncOption) {
+    tsdbPrintTables(pQueryHandle->pTsdb);
+  }
 
   pTableBlockInfo->numOfFiles += 1;
 

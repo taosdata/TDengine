@@ -177,6 +177,7 @@ extern char    tsLogDir[];
 extern char    tsScriptDir[];
 extern int64_t tsTickPerDay[3];
 extern int32_t tsTopicBianryLen;
+extern int32_t tsMetaSyncOption;
 
 // system info
 extern char     tsOsName[];

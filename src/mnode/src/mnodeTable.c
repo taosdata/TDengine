@@ -52,7 +52,6 @@
 // informal
 #define META_SYNC_TABLE_NAME "_taos_meta_sync_table_name_taos_"
 #define META_SYNC_TABLE_NAME_LEN 32
-static int32_t tsMetaSyncOption = 0;
 // informal
 
 int64_t          tsCTableRid = -1;

@@ -204,6 +204,20 @@ _err:
   return -1;
 }
 
+int tsdbPrintTables(STsdbRepo *pRepo) {
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+  if (tsdbRLockRepoMeta(pRepo) < 0) return -1;
+  for (int32_t i = 0; i < pMeta->maxTables; ++i) {
+    if (pMeta->tables[i] != NULL) {
+      STable *pTable = pMeta->tables[i];
+      tsdbDebug("vgId:%d tbname:%s tid:%d uid:%" PRIu64, REPO_ID(pRepo), pTable->name->data, pTable->tableId.tid,
+                pTable->tableId.uid);
+    }
+  }
+  if (tsdbUnlockRepoMeta(pRepo) < 0) return -1;
+  return 0;
+}
+
 void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type) {
   // TODO: this function should be changed also
 
@@ -224,7 +238,7 @@ void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type) {
   return val;
 }
 
-char *tsdbGetTableName(void* pTable) {
+char *tsdbGetTableName(void *pTable) {
   // TODO: need to change as thread-safe
 
   if (pTable == NULL) {
