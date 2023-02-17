@@ -111,7 +111,7 @@ int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
     SyncIndex commitIndex = indexLikely;
     syncNodeUpdateCommitIndex(ths, commitIndex);
     sTrace("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index:%" PRId64 "", ths->vgId, ths->state,
-           ths->raftStore.currentTerm, commitIndex);
+           raftStoreGetTerm(ths), commitIndex);
   }
   return ths->commitIndex;
 }

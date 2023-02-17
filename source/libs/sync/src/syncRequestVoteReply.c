@@ -47,27 +47,21 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     syncLogRecvRequestVoteReply(ths, pMsg, "not in my config");
     return -1;
   }
-
+  SyncTerm currentTerm = raftStoreGetTerm(ths);
   // drop stale response
-  if (pMsg->term < ths->raftStore.currentTerm) {
+  if (pMsg->term < currentTerm) {
     syncLogRecvRequestVoteReply(ths, pMsg, "drop stale response");
     return -1;
   }
 
-  // ASSERT(!(pMsg->term > ths->raftStore.currentTerm));
-  //  no need this code, because if I receive reply.term, then I must have sent for that term.
-  //   if (pMsg->term > ths->raftStore.currentTerm) {
-  //     syncNodeUpdateTerm(ths, pMsg->term);
-  //   }
-
-  if (pMsg->term > ths->raftStore.currentTerm) {
+  if (pMsg->term > currentTerm) {
     syncLogRecvRequestVoteReply(ths, pMsg, "error term");
     syncNodeStepDown(ths, pMsg->term);
     return -1;
   }
 
   syncLogRecvRequestVoteReply(ths, pMsg, "");
-  ASSERT(pMsg->term == ths->raftStore.currentTerm);
+  ASSERT(pMsg->term == currentTerm);
 
   // This tallies votes even when the current state is not Candidate,
   // but they won't be looked at, so it doesn't matter.
