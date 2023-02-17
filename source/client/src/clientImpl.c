@@ -2346,6 +2346,8 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
     return NULL;
   }
 
+  tscDebug("taos_query start with sql:%s", sql);
+
   SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   tsem_init(&param->sem, 0, 0);
 
@@ -2359,6 +2361,8 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
   } else {
     taosMemoryFree(param);
   }
+
+  tscDebug("taos_query end with sql:%s", sql);
 
   return pRequest;
 }

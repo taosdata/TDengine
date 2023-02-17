@@ -33,6 +33,7 @@
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
 
+STscDbg  tscDbg = {0};
 SAppInfo appInfo;
 int64_t  lastClusterId = 0;
 int32_t  clientReqRefPool = -1;
@@ -515,6 +516,17 @@ void tscWriteCrashInfo(int signum, void *sigInfo, void *context) {
 }
 
 void taos_init_imp(void) {
+#if defined(LINUX)
+  if (tscDbg.memEnable) {
+    int32_t code = taosMemoryDbgInit();
+    if (code) {
+      printf("failed to init memory dbg, error:%s\n", tstrerror(code));
+    } else {
+      printf("memory dbg enabled\n");
+    }
+  }
+#endif
+
   // In the APIs of other program language, taos_cleanup is not available yet.
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
   atexit(taos_cleanup);
