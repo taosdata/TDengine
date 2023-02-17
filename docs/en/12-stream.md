@@ -49,7 +49,7 @@ CREATE TABLE power.d104 USING power.meters TAGS ("California.LosAngeles", 3);
 ### Create a Stream
 
 ```sql
-create stream current_stream into current_stream_output_stb as select _wstart as start, _wend as end, max(current) as max_current from power.meters where voltage <= 220 interval (5s);
+create stream current_stream into power.current_stream_output_stb as select _wstart as start, _wend as end, max(current) as max_current from power.meters where voltage <= 220 interval (5s);
 ```
 
 ### Write Data
@@ -67,7 +67,7 @@ insert into power.d104 values("2018-10-03 14:38:06.500", 11.50000, 221, 0.35000)
 ### Query the Results
 
 ```sql title="SQL"
-select start, end, max_current from current_stream_output_stb;
+select start, end, max_current from power.current_stream_output_stb;
 ```
 
 ```txt title="output"
@@ -90,7 +90,7 @@ The procedure from the previous scenario is used to create the database.
 ### Create a Stream
 
 ```sql
-create stream power_stream into power_stream_output_stb as select ts, concat_ws(".", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from power.meters partition by tbname;
+create stream power_stream into power.power_stream_output_stb as select ts, concat_ws(".", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from power.meters partition by tbname;
 ```
 
 ### Write data
@@ -99,7 +99,7 @@ The procedure from the previous scenario is used to write the data.
 
 ### Query the Results
 ```sql title="SQL"
-select ts, meter_location, active_power, reactive_power from power_stream_output_stb;
+select ts, meter_location, active_power, reactive_power from power.power_stream_output_stb;
 ```
 ```txt title="output"
            ts            |         meter_location         |       active_power        |      reactive_power       |
