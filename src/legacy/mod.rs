@@ -189,6 +189,7 @@ fn test_time_range() {
 pub struct QueryOpts {
     time_range: TimeRange,
     limit: Limit,
+    select_from_stable: bool,
 }
 
 impl Display for QueryOpts {
@@ -203,6 +204,7 @@ impl QueryOpts {
     }
 }
 
+#[async_backtrace::framed]
 async fn sync_single_table(
     from: &Taos,
     table: &str,
@@ -211,11 +213,29 @@ async fn sync_single_table(
     target_opts: &TargetOpts,
     target_is_v3: bool,
 ) -> anyhow::Result<()> {
-    let sql = if opts.is_none() {
-        format!("SELECT * FROM `{table}`")
+    let (table, sql) = if opts.select_from_stable {
+        let (stable, table) = table.split_once('.').expect("use `stable.table` format");
+        let stable_schema = from.describe(stable).await?;
+        let fields = stable_schema
+            .iter()
+            .filter(|f| !f.is_tag())
+            .map(|f| format!("`{}`", f.field()))
+            .join(",");
+        let sql = if opts.is_none() {
+            format!("SELECT {fields} FROM `{stable}` WHERE tbname = '{table}'")
+        } else {
+            format!("SELECT {fields} FROM `{stable}` WHERE tbname = '{table}' AND {opts}")
+        };
+        (table, sql)
     } else {
-        format!("SELECT * FROM `{table}` WHERE {opts}")
+        let sql = if opts.is_none() {
+            format!("SELECT * FROM `{table}`")
+        } else {
+            format!("SELECT * FROM `{table}` WHERE {opts}")
+        };
+        (table, sql)
     };
+
     let mut res = from
         .query(&sql)
         .await
@@ -252,17 +272,6 @@ async fn sync_single_table(
                             .iter()
                             .map(|view| view.slice(range.clone()).unwrap())
                             .collect();
-                        // for (orig, now) in
-                        //     range.into_iter().map(|orig| (orig, orig - batch_size * i))
-                        // {
-                        //     unsafe {
-                        //         let orig = views[0].as_timestamp_view().get(orig).unwrap();
-                        //         assert!(orig.is_some());
-                        //         let now = params[0].as_timestamp_view().get(now).unwrap();
-                        //         assert!(now.is_some());
-                        //         assert_eq!(orig, now);
-                        //     }
-                        // }
                         log::debug!(
                             "[{table}] write {}..{} rows with max batch size: {batch_size}",
                             range.start,
@@ -342,6 +351,83 @@ async fn sync_single_table(
             }
         }
     }
+    Ok(())
+}
+
+async fn sync_super_table_schema_with_subs(
+    from: &Taos,
+    name: &str,
+    subs: &[impl AsRef<str>],
+    to: &Taos,
+    tables: usize,
+    is_v3: bool,
+) -> anyhow::Result<()> {
+    // let version: String = from.query_one("SELECT server_version()").await?.unwrap();
+    // if version.starts_with('2') {
+    // create stable
+    let (_, sql): ((), String) = from
+        .query_one(format!("show create table `{name}`"))
+        .await?
+        .unwrap();
+    if let Err(err) = to
+        .exec(
+            sql.replace("VARCHAR", "BINARY")
+                .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
+                .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS"),
+        )
+        .await
+    {
+        if err.to_string().contains("0x000B") {
+            from.exec(format!("desc `{name}`")).await?;
+        } else {
+            Err(err)?;
+        }
+    }
+
+    if tables == 0 {
+        return Ok(());
+    }
+
+    let desc = from.describe(name).await?;
+    let tag_names = desc.tag_names().map(|s| format!("`{s}`")).join(",");
+
+    let cond = subs.iter().map(|n| format!("'{}'", n.as_ref())).join(",");
+
+    let sql = if is_v3 {
+        format!("SELECT distinct tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
+    } else {
+        format!("SELECT tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
+    };
+    let mut res = from.query(sql).await?;
+
+    let mut blocks = res.blocks();
+    const MAX_SQL_LEN: usize = 1000 * 1000; // 800kb.
+    let mut tables = 0;
+    let mut batch = 0;
+    let mut sql = format!("CREATE TABLE");
+    while let Some(block) = blocks.try_next().await? {
+        for mut row in block.rows() {
+            let child = row.next().unwrap().1.to_string().unwrap();
+            tables += 1;
+            batch += 0;
+
+            let tags = row.map(|(_, v)| v.to_value().to_sql_value()).join(",");
+            let e = format!("  IF NOT EXISTS `{child}` USING `{name}` TAGS({tags})");
+
+            if sql.len() + e.len() > MAX_SQL_LEN {
+                to.exec(&sql).await?;
+                log::info!("Already created {} tables, {} in batch", tables, batch);
+                sql = format!("CREATE TABLE");
+                batch = 0;
+            }
+            sql.extend(e.chars());
+        }
+        // }
+    }
+
+    log::debug!("create child tables with sql length {}", sql.len());
+    to.exec(&sql).await?;
+    log::info!("Finally created {} tables", tables);
     Ok(())
 }
 
@@ -459,8 +545,19 @@ impl TableRecord {
     }
 }
 
-async fn sync_schema(from: &Taos, to: &Taos) -> anyhow::Result<()> {
+async fn sync_schema(from: &Taos, to: &Taos, opts: SourceOpts) -> anyhow::Result<()> {
     let v1: String = from.query_one("SELECT server_version()").await?.unwrap();
+    let is_v3 = if v1.starts_with("2") { false } else { true };
+    if opts.query.select_from_stable {
+        for table in opts.tables.unwrap() {
+            let (stable, table) = table.split_once('.').expect("use `stable.table` format");
+            sync_super_table_schema_with_subs(from, &stable, &[table], to, 1, is_v3)
+                .await
+                .map_err(Error::Any)?;
+        }
+        return Ok(());
+    }
+
     // let v2: String = to.query_one("SELECT server_version()").await?.unwrap();
     if v1.starts_with('2') {
         // get stable list.
@@ -529,6 +626,7 @@ async fn sync_tables_only(
     if v1.starts_with('2') {
         let mut res = from.query("SHOW TABLES").await?;
         let tables: Vec<TableRecord> = res.deserialize().try_collect().await?;
+        log::info!("There're {} tables to synchronize", tables.len());
         drop(res);
         for row in tables {
             sync_single_table(from, &row.table_name, to, &opts, &target_opts, to_is_v3)
@@ -539,7 +637,7 @@ async fn sync_tables_only(
         //  get normal tables.
         let mut res = from.query("SHOW TABLES").await?;
         let tables: Vec<String> = res.deserialize().try_collect().await?;
-
+        log::info!("There're {} tables to synchronize", tables.len());
         drop(res);
 
         let mut count = 0;
@@ -563,6 +661,7 @@ async fn sync_tables_only_with_workers(
     from: TaosPool,
     to: TaosPool,
     opts: QueryOpts,
+    tables: Option<Vec<String>>,
     target_opts: TargetOpts,
     workers: usize,
 ) -> anyhow::Result<()> {
@@ -580,7 +679,9 @@ async fn sync_tables_only_with_workers(
         .unwrap();
     let v2: String = to_taos.query_one("SELECT server_version()").await?.unwrap();
     let to_is_v3 = v2.starts_with('3');
-    let tables = if v1.starts_with('2') {
+    let tables = if let Some(tables) = tables {
+        tables
+    } else if v1.starts_with('2') {
         let mut res = from_taos.query("SHOW TABLES").await?;
         let tables: Vec<_> = res
             .deserialize::<TableRecord>()
@@ -655,7 +756,7 @@ async fn sync_tables_only_with_workers(
 //     Ok(())
 // }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub enum SyncMode {
     /// Synchronize history data as it currently is (at this query time).
     #[default]
@@ -680,7 +781,7 @@ impl FromStr for SyncMode {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SourceOpts {
     query: QueryOpts,
     assert: bool,
@@ -688,6 +789,7 @@ pub struct SourceOpts {
     mode: SyncMode,
     table: TableOpts,
     forever: bool,
+    tables: Option<Vec<String>>,
 }
 
 impl SourceOpts {
@@ -734,6 +836,26 @@ impl SourceOpts {
             opts.mode = value;
         }
 
+        if let Some(value) = dsn.remove("tables") {
+            let tables: Vec<_> = value
+                .split(",")
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect();
+
+            if let Some(value) = dsn.remove("select-from-stable") {
+                for table in &tables {
+                    if !table.contains('.') {
+                        bail!("when `select-from-stable` is enabled, the `tables` should be formatted at `stable_name.table_name`")
+                    }
+                }
+                opts.query.select_from_stable = value != "false";
+            }
+            if tables.len() > 0 {
+                opts.tables = Some(tables);
+            }
+        }
         opts.table = TableOpts::from_params(dsn)?;
 
         Ok(opts)
@@ -853,19 +975,33 @@ pub async fn legacy_to_taos(
     let metrics = Arc::new(LegacyMetrics::default());
 
     match (source_opts.mode, source_opts.schema) {
-        (_, SchemaMode::Only) => sync_schema(&from, &to).await?,
+        (_, SchemaMode::Only) => sync_schema(&from, &to, source_opts.clone()).await?,
         (SyncMode::AsIs, SchemaMode::None) => {
             // sync_tables_only(&from, &to, source_opts.query).await?;
-            sync_tables_only_with_workers(from_pool, to_pool, source_opts.query, target_opts, jobs)
-                .await?;
+            sync_tables_only_with_workers(
+                from_pool,
+                to_pool,
+                source_opts.query,
+                source_opts.tables,
+                target_opts,
+                jobs,
+            )
+            .await?;
         }
         (SyncMode::AsIs, SchemaMode::Always) => {
             log::info!("synchronize schema");
-            sync_schema(&from, &to).await?;
+            sync_schema(&from, &to, source_opts.clone()).await?;
             log::info!("synchronize all tables");
             // sync_tables_only(&from, &to, source_opts.query).await?;
-            sync_tables_only_with_workers(from_pool, to_pool, source_opts.query, target_opts, jobs)
-                .await?;
+            sync_tables_only_with_workers(
+                from_pool,
+                to_pool,
+                source_opts.query,
+                source_opts.tables.take(),
+                target_opts,
+                jobs,
+            )
+            .await?;
             log::info!("synchronize finished.");
         }
         (SyncMode::Realtime, _) => {
@@ -878,7 +1014,7 @@ pub async fn legacy_to_taos(
             match schema {
                 SchemaMode::None => (),
                 SchemaMode::Only => unreachable!(),
-                SchemaMode::Always => sync_schema(&from, &to).await?,
+                SchemaMode::Always => sync_schema(&from, &to, source_opts.clone()).await?,
             }
             let restro_mark = Instant::now();
             sync_tables_only(&from, &to, source_opts.query, target_opts.clone()).await?;
@@ -952,6 +1088,7 @@ mod tests {
             time_range: TimeRange::new()
                 .start(DateTime::parse_from_rfc3339("2022-12-12T08:00:00Z")?.with_timezone(&Utc)),
             limit: Limit::new((1, Some(1))),
+            ..Default::default()
         };
         legacy_to_taos(v3, vec![], v2, 1).await?;
         Ok(())
