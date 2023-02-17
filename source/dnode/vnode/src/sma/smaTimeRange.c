@@ -257,7 +257,6 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     int32_t rows = pDataBlock->info.rows;
 
     SSubmitTbData tbData = {0};
-    
 
     if (!(tbData.aRowP = taosArrayInit(rows, sizeof(SRow *)))) {
       goto _end;
@@ -313,14 +312,15 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
   tEncodeSize(tEncodeSSubmitReq2, pReq, len, terrno);
   if (TSDB_CODE_SUCCESS == terrno) {
     SEncoder encoder;
-    len += sizeof(SMsgHead);
+    len += sizeof(SSubmitReq2Msg);
     pBuf = rpcMallocCont(len);
     if (NULL == pBuf) {
       goto _end;
     }
-    ((SMsgHead *)pBuf)->vgId = TD_VID(pVnode);
-    ((SMsgHead *)pBuf)->contLen = htonl(len);
-    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len - sizeof(SMsgHead));
+    ((SSubmitReq2Msg *)pBuf)->header.vgId = TD_VID(pVnode);
+    ((SSubmitReq2Msg *)pBuf)->header.contLen = htonl(len);
+    ((SSubmitReq2Msg *)pBuf)->version = htobe64(1);
+    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
     if (tEncodeSSubmitReq2(&encoder, pReq) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       /*vError("failed to encode submit req since %s", terrstr());*/
