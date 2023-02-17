@@ -22,7 +22,6 @@
               <i class="el-icon-arrow-down" v-else></i>
             </div>
           </div>
-          <span>{{isEdit}}isEditisEditisEditisEdit</span>
           <div v-if="!isColumnsFold">
             <!-- <el-input v-if="!isEdit" size="small" v-model="table_form.ts_field_name" :placeholder="$t('data.columnNameTip')" class="input_row">
               <div slot="prepend">TIMESTAMP</div>
