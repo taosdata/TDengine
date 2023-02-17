@@ -6,4 +6,4 @@ Once it's installed, please take the steps below:
 3: if connecting to another TDengine Service, you can also view help information via "taos --help"
 4: execute command taos
 
-If you're experiencing problems installing TDengine, check the file /var/log/taos/taos_install.log to help troubleshoot the installation.
+If you're experiencing problems installing TDengine, check the file /var/log/taos/tdengine_install.log to help troubleshoot the installation.

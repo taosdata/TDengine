@@ -5,5 +5,5 @@ To start service : launchctl start com.tdengine.taosd
 To start Taos Adapter : launchctl start com.tdengine.taosadapter
 To access TDengine : use taos in shell
 
-If you're experiencing problems installing TDengine, check the file /var/log/taos/taos_install.log to help troubleshoot the installation.
+If you're experiencing problems installing TDengine, check the file /var/log/taos/tdengine_install.log to help troubleshoot the installation.
 
