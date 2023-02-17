@@ -1070,22 +1070,24 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
   cliSendBatch(conn);
 }
 static void cliSendBatchCb(uv_write_t* req, int status) {
-  SCliConn* conn = req->data;
-  taosMemoryFree(req);
+  SCliConn*  conn = req->data;
+  SCliThrd*  thrd = conn->hostThrd;
+  SCliBatch* p = conn->pBatch;
 
-  SCliThrd* thrd = conn->hostThrd;
-  cliDestroyBatch(conn->pBatch);
   conn->pBatch = NULL;
 
   if (status != 0) {
     tDebug("%p conn %p failed to send batch msg, batch size:%d, msgLen:%d, reason:%s", CONN_GET_INST_LABEL(conn), conn,
-           conn->pBatch->wLen, conn->pBatch->batchSize, uv_err_name(status));
+           p->wLen, p->batchSize, uv_err_name(status));
     cliHandleExcept(conn);
   } else {
-    tDebug("%p conn %p succ to send batch msg, batch size:%d, msgLen:%d", CONN_GET_INST_LABEL(conn), conn,
-           conn->pBatch->wLen, conn->pBatch->batchSize);
+    tDebug("%p conn %p succ to send batch msg, batch size:%d, msgLen:%d", CONN_GET_INST_LABEL(conn), conn, p->wLen,
+           p->batchSize);
     addConnToPool(thrd->pool, conn);
   }
+
+  cliDestroyBatch(p);
+  taosMemoryFree(req);
 }
 static void cliHandleFastFail(SCliConn* pConn, int status) {
   SCliThrd* pThrd = pConn->hostThrd;
