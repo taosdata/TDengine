@@ -49,7 +49,7 @@ CREATE TABLE power.d104 USING power.meters TAGS ("California.LosAngeles", 3);
 ### Create a Stream
 
 ```sql
-create stream current_stream into power.current_stream_output_stb as select _wstart as start, _wend as end, max(current) as max_current from power.meters where voltage <= 220 interval (5s);
+create stream current_stream into power.current_stream_output_stb as select _wstart as wstart, _wend as wend, max(current) as max_current from power.meters where voltage <= 220 interval (5s);
 ```
 
 ### Write Data
@@ -71,7 +71,7 @@ select start, end, max_current from power.current_stream_output_stb;
 ```
 
 ```txt title="output"
-          start          |           end           |     max_current      |
+          wstart          |           wend           |     max_current      |
 ===========================================================================
  2018-10-03 14:38:05.000 | 2018-10-03 14:38:10.000 |             10.30000 |
  2018-10-03 14:38:15.000 | 2018-10-03 14:38:20.000 |             12.60000 |
