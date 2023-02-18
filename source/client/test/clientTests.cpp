@@ -912,7 +912,7 @@ TEST(clientCase, subscription_test) {
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-  tmq_conf_set(conf, "group.id", "cgrpName");
+  tmq_conf_set(conf, "group.id", "newabcdefgjhijlm__");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
