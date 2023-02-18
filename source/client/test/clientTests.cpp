@@ -671,7 +671,7 @@ TEST(clientCase, generated_request_id_test) {
     uint64_t v = generateRequestId();
     void*    result = taosHashGet(phash, &v, sizeof(v));
     if (result != nullptr) {
-      printf("0x%lx, index:%d\n", v, i);
+//      printf("0x%llx, index:%d\n", v, i);
     }
     assert(result == nullptr);
     taosHashPut(phash, &v, sizeof(v), NULL, 0);
