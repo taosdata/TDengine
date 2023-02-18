@@ -248,7 +248,7 @@ void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type) {
   return val;
 }
 
-char *tsdbGetTableName(void *pTable) {
+char *tsdbGetTableName(void* pTable) {
   // TODO: need to change as thread-safe
 
   if (pTable == NULL) {
@@ -709,9 +709,7 @@ int tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema) {
   if (pTable->lastColSVersion == schemaVersion(pNewSchema)) {
     return 0;
   }
-
   tsdbDebug("tsdbUpdateLastColSchema:%s,%d->%d", pTable->name->data, pTable->lastColSVersion, schemaVersion(pNewSchema));
-
   int16_t numOfCols = pNewSchema->numOfCols;
   SDataCol *lastCols = (SDataCol*)malloc(numOfCols * sizeof(SDataCol));
   if (lastCols == NULL) {
@@ -971,7 +969,7 @@ static void tsdbFreeTable(STable *pTable) {
 
     tSkipListDestroy(pTable->pIndex);
     taosHashCleanup(pTable->jsonKeyMap);
-    taosTZfree(pTable->lastRow);
+    taosTZfree(pTable->lastRow);    
     tfree(pTable->sql);
 
     tsdbFreeLastColumns(pTable);
@@ -1425,7 +1423,7 @@ static int tsdbEncodeTable(void **buf, STable *pTable) {
     tlen += taosEncodeFixedU64(buf, TABLE_SUID(pTable));
     tlen += tdEncodeKVRow(buf, pTable->tagVal);
   } else {
-    uint32_t arraySize = (uint32_t)taosArrayGetSize(pTable->schema);
+    uint32_t arraySize = (uint32_t)taosArrayGetSize(pTable->schema); 
     if(arraySize > UINT8_MAX) {
       tlen += taosEncodeFixedU8(buf, 0);
       tlen += taosEncodeFixedU32(buf, arraySize);
@@ -1487,10 +1485,10 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
           tsdbFreeTable(pTable);
           return NULL;
         }
-        taosHashSetFreeFp(pTable->jsonKeyMap, taosArrayDestroyForHash);
+	taosHashSetFreeFp(pTable->jsonKeyMap, taosArrayDestroyForHash);
       }else{
         pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
-                                         SL_ALLOW_DUP_KEY, getTagIndexKey);
+                                       SL_ALLOW_DUP_KEY, getTagIndexKey);
         if (pTable->pIndex == NULL) {
           terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
           tsdbFreeTable(pTable);
