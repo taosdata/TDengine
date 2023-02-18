@@ -946,7 +946,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     removeMeta(pTscObj, pRequest->targetTableList);
   }
 
-  pRequest->metric.execEnd = taosGetTimestampUs();
+  pRequest->metric.execCostUs = taosGetTimestampUs() - pRequest->metric.execStart;
   int32_t code1 = handleQueryExecRsp(pRequest);
   if (pRequest->code == TSDB_CODE_SUCCESS && pRequest->code != code1) {
     pRequest->code = code1;
@@ -1072,11 +1072,10 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     pRequest->body.subplanNum = pDag->numOfSubplans;
   }
 
-  pRequest->metric.planEnd = taosGetTimestampUs();
-  if (code == TSDB_CODE_SUCCESS) {
-    tscDebug("0x%" PRIx64 " create query plan success, elapsed time:%.2f ms, 0x%" PRIx64, pRequest->self,
-             (pRequest->metric.planEnd - st) / 1000.0, pRequest->requestId);
-  }
+  pRequest->metric.execStart = taosGetTimestampUs();
+
+  pRequest->metric.planCostUs = pRequest->metric.execStart - st;
+
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
     SArray* pNodeList = NULL;
     if (QUERY_NODE_VNODE_MODIF_STMT != nodeType(pQuery->pRoot)) {
@@ -1122,6 +1121,16 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
   pRequest->body.execMode = pQuery->execMode;
   if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
     destorySqlCallbackWrapper(pWrapper);
+  }
+
+  if (pQuery->pRoot && !pRequest->inRetry) {
+    STscObj*            pTscObj = pRequest->pTscObj;
+    SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
+    if (QUERY_NODE_VNODE_MODIF_STMT == pQuery->pRoot->type && (0 == ((SVnodeModifOpStmt*)pQuery->pRoot)->sqlNodeType)) {
+      atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertsReq, 1);
+    } else if (QUERY_NODE_SELECT_STMT == pQuery->pRoot->type) {
+      atomic_add_fetch_64((int64_t*)&pActivity->numOfQueryReq, 1);
+    }
   }
 
   switch (pQuery->execMode) {
@@ -1393,21 +1402,7 @@ int32_t doProcessMsgFromServer(void* param) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);
     if (pRequest) {
       assert(pRequest->self == pSendInfo->requestObjRefId);
-
-      pRequest->metric.rsp = taosGetTimestampUs();
       pTscObj = pRequest->pTscObj;
-      /*
-       * There is not response callback function for submit response.
-       * The actual inserted number of points is the first number.
-       */
-      int32_t elapsed = pRequest->metric.rsp - pRequest->metric.start;
-      if (pMsg->code == TSDB_CODE_SUCCESS) {
-        tscDebug("0x%" PRIx64 " rsp msg:%s, code:%s rspLen:%d, elapsed:%d ms, reqId:0x%" PRIx64, pRequest->self,
-                 TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), pMsg->contLen, elapsed / 1000, pRequest->requestId);
-      } else {
-        tscError("0x%" PRIx64 " rsp msg:%s, code:%s rspLen:%d, elapsed time:%d ms, reqId:0x%" PRIx64, pRequest->self,
-                 TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), pMsg->contLen, elapsed / 1000, pRequest->requestId);
-      }
     }
   }
 
