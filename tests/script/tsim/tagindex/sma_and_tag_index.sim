@@ -1,0 +1,81 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step0
+$dbPrefix = ta_3_db
+$tbPrefix = ta_3_tb
+$mtPrefix = ta_3_mt
+$tbNum = 101 
+$rowNum = 20
+$totalNum = 200
+
+print =============== create database 
+sql create database $dbPrefix 
+sql use $dbPrefix 
+
+print =============== create super table and register tag index 
+sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 int, t2 int, t3 int, t4 int, t5 int)
+
+sql show stables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== create child table
+
+$i = 0 
+while $i < $tbNum 
+    $tb = $tbPrefix . $i 
+    sql create table $tb using $mtPrefix tags( $i , $i , $i , $i , $i );
+    $i = $i + 1
+endw
+
+sql show tables
+if $rows != $tbNum then
+  return -1
+endi
+
+
+
+print =============== insert data into each table 
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql insert into $tb values(now, $i );
+  $i = $i + 1
+endw
+
+
+sql create index ti2 on $mtPrefix (t2)
+
+print ==== test name conflict
+# 
+sql_error create index ti3 on $mtPrefix(t2) 
+
+sql_error create index ti2 on $mtPrefix(t2) 
+sql_error create index ti2 on $mtPrefix(t1) 
+sql_error create index ti2 on $mtPrefix(t3) 
+sql_error create index ti2 on $mtPrefix(txx) 
+
+
+
+
+
+
+
+
+
+
+
+print === show index
+
+sql select * from information_schema.ins_indexes
+if $rows != 1 then 
+  return -1
+endi
+
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

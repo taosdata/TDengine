@@ -50,11 +50,8 @@ static void     mndDestroySmaObj(SSmaObj *pSmaObj);
 
 // retrieve sma index and tag index
 static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  // TODO
   int32_t read = mndRetrieveSma(pReq, pShow, pBlock, rows);
-
   read += mndRetrieveTagIdx(pReq, pShow, pBlock, rows - read);
-
   return read;
 }
 

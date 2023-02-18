@@ -219,8 +219,8 @@ int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
-  bool           reverse = false;
 
+  bool           reverse = false;
   bool           equal = false;
   __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse, &equal);
   if (func == NULL) return -1;
