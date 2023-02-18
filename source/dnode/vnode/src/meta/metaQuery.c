@@ -1110,7 +1110,7 @@ int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) 
   int32_t valid = 0;
   int32_t count = 0;
 
-  static const int8_t TRY_ERROR_LIMIT = 4;
+  static const int8_t TRY_ERROR_LIMIT = 1;
   do {
     void   *entryKey = NULL;
     int32_t nEntryKey = -1;
@@ -1118,15 +1118,14 @@ int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) 
     if (valid < 0) break;
 
     SCtimeIdxKey *p = entryKey;
+    if (count > TRY_ERROR_LIMIT) break;
 
     int32_t cmp = (*param->filterFunc)((void *)&p->ctime, (void *)&pCtimeKey->ctime, param->type);
     if (cmp == 0)
       taosArrayPush(pUids, &p->uid);
     else {
+      if (param->equal == true) break;
       count++;
-      if (count >= TRY_ERROR_LIMIT) {
-        break;
-      }
     }
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) break;
@@ -1168,12 +1167,14 @@ int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   int32_t valid = 0;
   int32_t count = 0;
 
-  int32_t TRY_ERROR_LIMIT = 4;
+  int32_t TRY_ERROR_LIMIT = 1;
   do {
     void   *pEntryKey = NULL, *pEntryVal = NULL;
     int32_t nEntryKey = -1, nEntryVal = 0;
     valid = tdbTbcGet(pCursor->pCur, (const void **)pEntryKey, &nEntryKey, (const void **)&pEntryVal, &nEntryVal);
     if (valid < 0) break;
+
+    if (count > TRY_ERROR_LIMIT) break;
 
     char *pTableKey = (char *)pEntryKey;
     cmp = (*param->filterFunc)(pTableKey, pName, pCursor->type);
@@ -1181,10 +1182,8 @@ int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       tb_uid_t tuid = *(tb_uid_t *)pEntryVal;
       taosArrayPush(pUids, &tuid);
     } else {
+      if (param->equal == true) break;
       count++;
-      if (count >= TRY_ERROR_LIMIT) {
-        break;
-      }
     }
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) {
@@ -1293,7 +1292,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   int     count = 0;
   int32_t valid = 0;
 
-  static const int8_t TRY_ERROR_LIMIT = 4;
+  static const int8_t TRY_ERROR_LIMIT = 1;
   do {
     void   *entryKey = NULL, *entryVal = NULL;
     int32_t nEntryKey, nEntryVal;
@@ -1302,7 +1301,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     if (valid < 0) {
       break;
     }
-    if (count >= TRY_ERROR_LIMIT) {
+    if (count > TRY_ERROR_LIMIT) {
       break;
     }
 
@@ -1330,7 +1329,8 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       }
       taosArrayPush(pUids, &tuid);
     } else {
-      // opt later
+      if (param->equal == true) break;
+      count++;
     }
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) {

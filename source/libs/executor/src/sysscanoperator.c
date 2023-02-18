@@ -134,7 +134,7 @@ static SSDataBlock*   buildInfoSchemaTableMetaBlock(char* tableName);
 static void           destroySysScanOperator(void* param);
 static int32_t        loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code);
 static SSDataBlock*   doFilterResult(SSDataBlock* pDataBlock, SFilterInfo* pFilterInfo);
-static __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse);
+static __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse, bool* equal);
 
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
                                                 SMetaReader* smrChildTable, const char* dbname, const char* tableName,
@@ -164,7 +164,8 @@ int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
 
   bool           reverse = false;
-  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  bool           equal = false;
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse, &equal);
   if (func == NULL) return -1;
 
   int ret = func(dbname, pVal->datum.p, TSDB_DATA_TYPE_VARCHAR);
@@ -182,9 +183,9 @@ int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
 
-  bool reverse = false;
-
-  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  bool           reverse = false;
+  bool           equal = false;
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse, &equal);
   if (func == NULL) return -1;
 
   int ret = func(&vgId, &pVal->datum.i, TSDB_DATA_TYPE_BIGINT);
@@ -199,8 +200,8 @@ int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
   bool           reverse = false;
-
-  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  bool           equal = false;
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse, &equal);
   if (func == NULL) return -1;
 
   SMetaFltParam param = {.suid = 0,
@@ -208,6 +209,7 @@ int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
                          .type = TSDB_DATA_TYPE_VARCHAR,
                          .val = pVal->datum.p,
                          .reverse = reverse,
+                         .equal = equal,
                          .filterFunc = func};
   return -1;
 }
@@ -219,7 +221,8 @@ int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
   bool           reverse = false;
 
-  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  bool           equal = false;
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse, &equal);
   if (func == NULL) return -1;
 
   SMetaFltParam param = {.suid = 0,
@@ -227,6 +230,7 @@ int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
                          .type = TSDB_DATA_TYPE_BIGINT,
                          .val = &pVal->datum.i,
                          .reverse = reverse,
+                         .equal = equal,
                          .filterFunc = func};
 
   int32_t ret = metaFilterCreateTime(pMeta, &param, result);
@@ -239,8 +243,8 @@ int32_t sysFilte__Ncolumn(void* arg, SNode* pNode, SArray* result) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
   bool           reverse = false;
-
-  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  bool           equal = false;
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse, &equal);
   if (func == NULL) return -1;
   return -1;
 }
@@ -251,8 +255,8 @@ int32_t sysFilte__Ttl(void* arg, SNode* pNode, SArray* result) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
   bool           reverse = false;
-
-  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  bool           equal = false;
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse, &equal);
   if (func == NULL) return -1;
   return -1;
 }
@@ -263,8 +267,8 @@ int32_t sysFilte__STableName(void* arg, SNode* pNode, SArray* result) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
   bool           reverse = false;
-
-  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  bool           equal = false;
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse, &equal);
   if (func == NULL) return -1;
   return -1;
 }
@@ -275,8 +279,8 @@ int32_t sysFilte__Uid(void* arg, SNode* pNode, SArray* result) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
   bool           reverse = false;
-
-  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  bool           equal = false;
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse, &equal);
   if (func == NULL) return -1;
   return -1;
 }
@@ -287,8 +291,8 @@ int32_t sysFilte__Type(void* arg, SNode* pNode, SArray* result) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
   bool           reverse = false;
-
-  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  bool           equal = false;
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse, &equal);
   if (func == NULL) return -1;
   return -1;
 }
@@ -359,9 +363,12 @@ void                extractTbnameSlotId(SSysTableScanInfo* pInfo, const SScanPhy
 static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScanInfo* pInfo, const char* name,
                                    SSDataBlock* pBlock);
 
-__optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse) {
+__optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse, bool* equal) {
   if (ctype == OP_TYPE_LOWER_EQUAL || ctype == OP_TYPE_LOWER_THAN) {
     *reverse = true;
+  }
+  if (ctype == OP_TYPE_EQUAL) {
+    *equal = true;
   }
   if (ctype == OP_TYPE_LOWER_THAN)
     return optSysFilterFuncImpl__LowerThan;

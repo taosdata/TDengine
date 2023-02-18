@@ -390,11 +390,6 @@ static FORCE_INLINE FilterFunc sifGetFilterFunc(EIndexQueryType type, bool *reve
     *reverse = false;
   }
 
-  if (type == QUERY_LESS_EQUAL || type == QUERY_GREATER_EQUAL) {
-    *equal = true;
-  } else {
-    *equal = false;
-  }
   if (type == QUERY_LESS_EQUAL)
     return sifLessEqual;
   else if (type == QUERY_LESS_THAN)
@@ -404,6 +399,7 @@ static FORCE_INLINE FilterFunc sifGetFilterFunc(EIndexQueryType type, bool *reve
   else if (type == QUERY_GREATER_THAN)
     return sifGreaterThan;
   else if (type == QUERY_TERM) {
+    *equal = true;
     return sifEqual;
   }
   return NULL;
