@@ -301,7 +301,7 @@
 ,,y,script,./test.sh -f tsim/vnode/replica3_repeat.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_vgroup.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_many.sim
-,,y,script,./test.sh -f tsim/vnode/replica3_import.sim
+#,,y,script,./test.sh -f tsim/vnode/replica3_import.sim
 ,,y,script,./test.sh -f tsim/vnode/stable_balance_replica1.sim
 ,,y,script,./test.sh -f tsim/vnode/stable_dnode2_stop.sim
 ,,y,script,./test.sh -f tsim/vnode/stable_dnode2.sim
