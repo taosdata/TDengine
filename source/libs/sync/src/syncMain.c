@@ -436,55 +436,12 @@ bool syncNodeIsReadyForRead(SSyncNode* pSyncNode) {
     return false;
   }
 
-  if (pSyncNode->restoreFinish) {
-    return true;
-  }
-
-  bool ready = false;
-  if (!pSyncNode->pFsm->FpApplyQueueEmptyCb(pSyncNode->pFsm)) {
-    // apply queue not empty
-    ready = false;
-
-  } else {
-    if (!pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore)) {
-      SyncIndex       lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-      SSyncRaftEntry* pEntry = NULL;
-      SLRUCache*      pCache = pSyncNode->pLogStore->pCache;
-      LRUHandle*      h = taosLRUCacheLookup(pCache, &lastIndex, sizeof(lastIndex));
-      int32_t         code = 0;
-      if (h) {
-        pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
-        code = 0;
-
-        pSyncNode->pLogStore->cacheHit++;
-        sNTrace(pSyncNode, "hit cache index:%" PRId64 ", bytes:%u, %p", lastIndex, pEntry->bytes, pEntry);
-
-      } else {
-        pSyncNode->pLogStore->cacheMiss++;
-        sNTrace(pSyncNode, "miss cache index:%" PRId64, lastIndex);
-
-        code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, lastIndex, &pEntry);
-      }
-
-      if (code == 0 && pEntry != NULL) {
-        if (pEntry->originalRpcType == TDMT_SYNC_NOOP && pEntry->term == raftStoreGetTerm(pSyncNode)) {
-          ready = true;
-        }
-
-        if (h) {
-          taosLRUCacheRelease(pCache, h, false);
-        } else {
-          syncEntryDestroy(pEntry);
-        }
-      }
-    }
-  }
-
-  if (!ready) {
+  if (!pSyncNode->restoreFinish) {
     terrno = TSDB_CODE_SYN_RESTORING;
+    return false;
   }
 
-  return ready;
+  return true;
 }
 
 bool syncIsReadyForRead(int64_t rid) {
