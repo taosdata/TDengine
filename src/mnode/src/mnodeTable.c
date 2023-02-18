@@ -52,6 +52,8 @@
 // informal
 #define META_SYNC_TABLE_NAME "_taos_meta_sync_table_name_taos_"
 #define META_SYNC_TABLE_NAME_LEN 32
+#define META_SYNC_DROP_TABLE "_taos_meta_sync_drop_table_taos_"
+#define META_SYNC_DROP_TABLE_LEN 32
 // informal
 
 int64_t          tsCTableRid = -1;
@@ -86,6 +88,7 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg);
 static void    mnodeProcessDropSuperTableRsp(SRpcMsg *rpcMsg);
 static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg);
 static void    mnodeProcessDropChildTableRsp(SRpcMsg *rpcMsg);
+static int32_t mnodeProcessMetaSyncDropTableMsg(SMnodeMsg *pMsg);
 
 static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg);
@@ -1014,6 +1017,10 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_MONITOR_DB_FORBIDDEN;
   }
 #endif
+
+  if (tsMetaSyncOption && strstr(pDrop->name, META_SYNC_DROP_TABLE)) {
+    return mnodeProcessMetaSyncDropTableMsg(pMsg);
+  }
 
   if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pDrop->name);
   if (pMsg->pTable == NULL) {
@@ -2433,6 +2440,92 @@ static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg) {
     mError("msg:%p, app:%p ctable:%s, failed to drop, reason:%s", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId,
            tstrerror(code));
   }
+
+  return code;
+}
+
+static int32_t mnodeProcessMetaSyncDropTableMsg(SMnodeMsg *pMsg) {
+  int32_t          code = 0;
+  int32_t          vgId = -1;
+  int32_t          tid = -1;
+  uint64_t         uid = 0;
+  int32_t          tableType = 0;
+  char             tbName[TSDB_TABLE_FNAME_LEN] = "";
+  int32_t          fnum = 0;
+  char            *fStr = NULL;
+  char           **fnameList = NULL;
+  SCTableObj       ctableObj = {0};
+  SCMDropTableMsg *pDrop = pMsg->rpcMsg.pCont;
+  pMsg->pTable = (struct STableObj *)&ctableObj;
+  SCTableObj *pTable = (SCTableObj *)pMsg->pTable;
+
+  // META_SYNC_DROP_TABLE: _taos_meta_sync_drop_table_taos_tableType_vgId_uid_tid_tbName;
+  fStr = strndup(pDrop->name, strlen(pDrop->name));
+  if(!fStr) {
+    code = TSDB_CODE_MND_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  fnameList = strsplit(fStr, ".", &fnum);
+  if (fnum > 6 && 0 == strncmp(fnameList[2], META_SYNC_DROP_TABLE, META_SYNC_DROP_TABLE_LEN)) {
+    tableType = atoi(fnameList[3]);
+    if (errno != 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _exit;
+    }
+    vgId = atoi(fnameList[4]);
+    if (errno != 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _exit;
+    }
+    uid = strtoull(fnameList[5], NULL, 10);
+    if (errno != 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _exit;
+    }
+    tid = atoi(fnameList[6]);
+    if (errno != 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _exit;
+    }
+    strncpy(tbName, fnameList[0], TSDB_TABLE_FNAME_LEN);
+    tbName[strlen(tbName)] = '.';
+    strncpy(tbName + strlen(tbName), fnameList[1], TSDB_TABLE_FNAME_LEN - strlen(tbName));
+    tbName[strlen(tbName)] = '.';
+    if (strchr(pDrop->name, ' ')) {
+      strncpy(tbName + strlen(tbName), pDrop->name + 1, TSDB_TABLE_FNAME_LEN - strlen(tbName));
+    }
+  } else {
+    code = TSDB_CODE_TSC_INVALID_TABLE_NAME;
+    goto _exit;
+  }
+
+  if (tableType != TSDB_CHILD_TABLE && tableType != TSDB_NORMAL_TABLE) {
+    code = TSDB_CODE_TSC_INVALID_TABLE_NAME;
+    goto _exit;
+  }
+  pTable->info.type = TSDB_CHILD_TABLE;
+  pTable->info.tableId = tbName;
+  pTable->uid = uid;
+  pTable->tid = tid;
+  pTable->vgId = vgId;
+
+  if (pMsg->pVgroup == NULL) pMsg->pVgroup = mnodeGetVgroup(vgId);
+  if (pMsg->pVgroup == NULL) {
+    mError("%s:%d, msg:%p, app:%p table:%s, failed to drop table, vgroup not exist", __func__, __LINE__, pMsg,
+           pMsg->rpcMsg.ahandle, pTable->info.tableId);
+    code = TSDB_CODE_MND_APP_ERROR;
+    goto _exit;
+  }
+
+  mnodeSendDropChildTableMsg(pMsg, false);
+
+_exit:
+  if (code) {
+    mError("%s:%d, msg:%p, app:%p table:%s, failed to drop table since %s", __func__, __LINE__, pMsg,
+           pMsg->rpcMsg.ahandle, pDrop->name, tstrerror(code));
+  }
+  tfree(fStr);
+  tfree(fnameList);
 
   return code;
 }

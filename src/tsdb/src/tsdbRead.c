@@ -2810,7 +2810,7 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist
   tsdbUnLockFS(pFileHandle);
 
   if(tsMetaSyncOption) {
-    tsdbPrintTables(pQueryHandle->pTsdb);
+    tsdbPrintTables(pQueryHandle->pTsdb, pQueryHandle->qId);
   }
 
   pTableBlockInfo->numOfFiles += 1;

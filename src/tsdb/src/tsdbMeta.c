@@ -73,9 +73,9 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
       return 0;
     } else {
       tsdbInfo("vgId:%d table %s at tid %d uid %" PRIu64
-                " exists, replace it with new table, this can be not reasonable",
-                REPO_ID(pRepo), TABLE_CHAR_NAME(pMeta->tables[tid]), TABLE_TID(pMeta->tables[tid]),
-                TABLE_UID(pMeta->tables[tid]));
+               " exists, replace it with new table, this can be not reasonable",
+               REPO_ID(pRepo), TABLE_CHAR_NAME(pMeta->tables[tid]), TABLE_TID(pMeta->tables[tid]),
+               TABLE_UID(pMeta->tables[tid]));
       tsdbDropTable(pRepo, pMeta->tables[tid]->tableId);
     }
   }
@@ -165,34 +165,43 @@ int tsdbDropTable(STsdbRepo *repo, STableId tableId) {
 
   STable *pTable = tsdbGetTableByUid(pMeta, uid);
   if (pTable == NULL) {
-    tsdbError("vgId:%d failed to drop table since table not exists! tid:%d uid %" PRIu64, REPO_ID(pRepo), tableId.tid,
+    tsdbError("vgId:%d, failed to drop table since table not exists! tid:%d, uid:%" PRIu64, REPO_ID(pRepo), tableId.tid,
               uid);
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     return -1;
   }
 
-  tsdbDebug("vgId:%d try to drop table %s type %d", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TYPE(pTable));
+  tsdbDebug("vgId:%d, try to drop table %s type %d", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TYPE(pTable));
 
   tid = TABLE_TID(pTable);
   tbname = strdup(TABLE_CHAR_NAME(pTable));
   if (tbname == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    tsdbError("vgId:%d, failed to drop table %s since %s! tid:%d, uid:%" PRIu64, REPO_ID(pRepo), tbname,
+              tstrerror(terrno), tableId.tid, uid);
     return -1;
   }
 
   // Write to KV store first
   if (tsdbRemoveTableFromStore(pRepo, pTable) < 0) {
-    tsdbError("vgId:%d failed to drop table %s since %s", REPO_ID(pRepo), tbname, tstrerror(terrno));
+    tsdbError("vgId:%d, failed to drop table %s since %s! tid:%d, uid:%" PRIu64, REPO_ID(pRepo), tbname,
+              tstrerror(terrno), tableId.tid, uid);
     goto _err;
   }
 
   // Remove table from Meta
   if (tsdbRmTableFromMeta(pRepo, pTable) < 0) {
-    tsdbError("vgId:%d failed to drop table %s since %s", REPO_ID(pRepo), tbname, tstrerror(terrno));
+    tsdbError("vgId:%d, failed to drop table %s since %s! tid:%d, uid:%" PRIu64, REPO_ID(pRepo), tbname,
+              tstrerror(terrno), tableId.tid, uid);
     goto _err;
   }
 
-  tsdbDebug("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
+  if (tsMetaSyncOption) {
+    tsdbInfo("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
+  } else {
+    tsdbDebug("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
+  }
+
   free(tbname);
 
   if (tsdbCheckCommit(pRepo) < 0) goto _err;
@@ -204,14 +213,15 @@ _err:
   return -1;
 }
 
-int tsdbPrintTables(STsdbRepo *pRepo) {
+int tsdbPrintTables(STsdbRepo *pRepo, uint64_t qId) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   if (tsdbRLockRepoMeta(pRepo) < 0) return -1;
   for (int32_t i = 0; i < pMeta->maxTables; ++i) {
     if (pMeta->tables[i] != NULL) {
       STable *pTable = pMeta->tables[i];
-      tsdbDebug("vgId:%d tbname:%s tid:%d uid:%" PRIu64, REPO_ID(pRepo), pTable->name->data, pTable->tableId.tid,
-                pTable->tableId.uid);
+      tsdbInfo("vgId:%d QID:%" PRIu64 " stb:%s tbn:%s tid:%d uid:%" PRIu64, REPO_ID(pRepo), qId,
+               pTable->pSuper ? pTable->pSuper->name->data : "-", pTable->name->data, pTable->tableId.tid,
+               pTable->tableId.uid);
     }
   }
   if (tsdbUnlockRepoMeta(pRepo) < 0) return -1;
@@ -699,9 +709,9 @@ int tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema) {
   if (pTable->lastColSVersion == schemaVersion(pNewSchema)) {
     return 0;
   }
-  
+
   tsdbDebug("tsdbUpdateLastColSchema:%s,%d->%d", pTable->name->data, pTable->lastColSVersion, schemaVersion(pNewSchema));
-  
+
   int16_t numOfCols = pNewSchema->numOfCols;
   SDataCol *lastCols = (SDataCol*)malloc(numOfCols * sizeof(SDataCol));
   if (lastCols == NULL) {
@@ -961,7 +971,7 @@ static void tsdbFreeTable(STable *pTable) {
 
     tSkipListDestroy(pTable->pIndex);
     taosHashCleanup(pTable->jsonKeyMap);
-    taosTZfree(pTable->lastRow);    
+    taosTZfree(pTable->lastRow);
     tfree(pTable->sql);
 
     tsdbFreeLastColumns(pTable);
@@ -1415,7 +1425,7 @@ static int tsdbEncodeTable(void **buf, STable *pTable) {
     tlen += taosEncodeFixedU64(buf, TABLE_SUID(pTable));
     tlen += tdEncodeKVRow(buf, pTable->tagVal);
   } else {
-    uint32_t arraySize = (uint32_t)taosArrayGetSize(pTable->schema); 
+    uint32_t arraySize = (uint32_t)taosArrayGetSize(pTable->schema);
     if(arraySize > UINT8_MAX) {
       tlen += taosEncodeFixedU8(buf, 0);
       tlen += taosEncodeFixedU32(buf, arraySize);
@@ -1477,10 +1487,10 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
           tsdbFreeTable(pTable);
           return NULL;
         }
-	taosHashSetFreeFp(pTable->jsonKeyMap, taosArrayDestroyForHash);
+        taosHashSetFreeFp(pTable->jsonKeyMap, taosArrayDestroyForHash);
       }else{
         pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
-                                       SL_ALLOW_DUP_KEY, getTagIndexKey);
+                                         SL_ALLOW_DUP_KEY, getTagIndexKey);
         if (pTable->pIndex == NULL) {
           terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
           tsdbFreeTable(pTable);
