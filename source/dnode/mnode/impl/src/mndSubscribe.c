@@ -1075,6 +1075,9 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
 
 #endif
+
+    pBlock->info.rows = numOfRows;
+
     taosRUnLockLatch(&pSub->lock);
     sdbRelease(pSdb, pSub);
   }
