@@ -46,7 +46,7 @@ In summary, records across subtables can be aggregated by a simple query on thei
 
 ### Example 1
 
-In [TDengine CLI](../../tool/cli) `taos`, use the SQL below to get the average voltage of all the meters in California grouped by location.
+In [TDengine CLI](../../tools/cli) `taos`, use the SQL below to get the average voltage of all the meters in California grouped by location.
 
 ```sql title="SQL"
 SELECT location, AVG(voltage) FROM test.meters GROUP BY location;
