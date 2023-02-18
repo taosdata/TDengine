@@ -73,9 +73,9 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
       return 0;
     } else {
       tsdbInfo("vgId:%d table %s at tid %d uid %" PRIu64
-               " exists, replace it with new table, this can be not reasonable",
-               REPO_ID(pRepo), TABLE_CHAR_NAME(pMeta->tables[tid]), TABLE_TID(pMeta->tables[tid]),
-               TABLE_UID(pMeta->tables[tid]));
+                " exists, replace it with new table, this can be not reasonable",
+                REPO_ID(pRepo), TABLE_CHAR_NAME(pMeta->tables[tid]), TABLE_TID(pMeta->tables[tid]),
+                TABLE_UID(pMeta->tables[tid]));
       tsdbDropTable(pRepo, pMeta->tables[tid]->tableId);
     }
   }
