@@ -69,7 +69,7 @@ Alternatively, you can also set environment variables in your IDE's run configur
 <!-- exclude -->
 :::note
 Replace  <token\> and <url\> with cloud token and URL.
-To obtain the value of cloud token and URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Connector" and then select "Python".
+To obtain the value of cloud token and URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" and then select "Python".
 
 :::
 <!-- exclude-end -->
