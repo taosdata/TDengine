@@ -68,7 +68,7 @@ $env:TDENGINE_CLOUD_DSN='<DSN>'
 
 <!-- exclude -->
 :::note
-Replace  <DSN\> with real TDengine cloud DSN. To obtain the real value, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Connector" and then select "C#".
+Replace  <DSN\> with real TDengine cloud DSN. To obtain the real value, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "C#".
 
 :::
 <!-- exclude-end -->

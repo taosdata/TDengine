@@ -69,14 +69,14 @@ Alternatively, you can also set environment variables in your IDE's run configur
 <!-- exclude -->
 :::note
 Replace  <token\> and <url\> with cloud token and URL.
-To obtain the value of cloud token and URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Connector" and then select "Python".
+To obtain the value of cloud token and URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "Python".
 
 :::
 <!-- exclude-end -->
 
 ## Connect
 
-Copy code bellow to your editor and run it. If you are using jupyter, assuming you have followed the guide about Jupyter in previous sections, you can copy the code into Jupyter editor in your browser.
+Copy code bellow to your editor, then run it. If you are using jupyter, assuming you have followed the guide about Jupyter, you can copy the code into Jupyter editor in your browser.
 
 ```python
 {{#include docs/examples/python/develop_tutorial.py:connect}}

@@ -66,7 +66,7 @@ Alternatively, you can set environment variable in your IDE's run configurations
 :::note
 Replace  <jdbcURL\> with real JDBC URL, it will seems like: `jdbc:TAOS-RS://example.com?usessl=true&token=xxxx`.
 
-To obtain the value of JDBC URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Data Insert" on the left menu.
+To obtain the value of JDBC URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Programming" on the left menu, then select "Java".
 :::
 <!-- exclude-end -->
 ## Connect

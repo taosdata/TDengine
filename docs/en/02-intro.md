@@ -12,11 +12,11 @@ This section introduces the major features, competitive advantages and typical u
 The major features are listed below:
 
 1. Data In
-   - Supports [using SQL to insert](../data-in/insert-data).
+   - Supports [using SQL to insert](../programming/insert/).
    - Supports [Telegraf](../data-in/telegraf/).
    - Supports [Prometheus](../data-in/prometheus/).
 2. Data Out
-   - Supports standard [SQL](../data-out/query-data/), including nested query.
+   - Supports standard [SQL](../programming/query/), including nested query.
    - Supports exporting data via tool [taosDump](../data-out/taosdump/).
    - Supports writing data to [Prometheus](../data-out/prometheus/).
    - Supports exporting data via [data subscription](../data-subscription/).

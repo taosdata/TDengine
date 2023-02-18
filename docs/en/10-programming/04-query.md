@@ -1,10 +1,8 @@
 ---
-sidebar_label: SQL
+sidebar_label: Query
 title: Query Data Using SQL
-description: Read data from TDengine using basic SQL.
+description: Programming Guide for Querying Data using basic SQL.
 ---
-
-# Query Data
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
@@ -24,12 +22,11 @@ SQL is used by TDengine as its query language. Application programs can send SQL
 
 For example, the SQL statement below can be executed in TDengine CLI `taos` to select records with voltage greater than 215 and limit the output to only 2 rows.
 
-```sql
-select * from d1001 where voltage > 215 order by ts desc limit 2;
+```sql title="SQL"
+select * from test.d101 where voltage > 100 order by ts desc limit 2;
 ```
 
-```title=Output
-taos> select * from d1001 where voltage > 215 order by ts desc limit 2;
+```txt title="output"
            ts            |       current        |   voltage   |        phase         |
 ======================================================================================
  2018-10-03 14:38:16.800 |             12.30000 |         221 |              0.31000 |
@@ -49,23 +46,36 @@ In summary, records across subtables can be aggregated by a simple query on thei
 
 ### Example 1
 
-In TDengine CLI `taos`, use the SQL below to get the average voltage of all the meters in California grouped by location.
+In [TDengine CLI](../../tools/cli) `taos`, use the SQL below to get the average voltage of all the meters in California grouped by location.
 
+```sql title="SQL"
+SELECT location, AVG(voltage) FROM test.meters GROUP BY location;
 ```
-taos> SELECT AVG(voltage) FROM meters GROUP BY location;
-       avg(voltage)        |            location            |
-=============================================================
-             222.000000000 | California.LosAngeles                |
-             219.200000000 | California.SanFrancisco               |
-Query OK, 2 row(s) in set (0.002136s)
+
+```txt title="output"
+         location         |       avg(voltage)        |
+=======================================================
+ California.PaloAlto      |             109.507000000 |
+ California.Sunnyvale     |             109.507000000 |
+ California.MountainView  |             109.507000000 |
+ California.SanFrancisco  |             109.507000000 |
+ California.SanJose       |             109.507000000 |
+ California.SanDiego      |             109.507000000 |
+ California.SantaClara    |             109.507000000 |
+ California.Cupertino     |             109.507000000 |
+ California.Campbell      |             109.507000000 |
+ California.LosAngles     |             109.507000000 |
+Query OK, 10 row(s) in set
 ```
 
 ### Example 2
 
 In TDengine CLI `taos`, use the SQL below to get the number of rows and the maximum current in the past 24 hours from meters whose groupId is 2.
 
+```sql title="SQL"
+SELECT count(*), max(current) FROM test.meters where groupId = 2 and ts > now - 24h;
 ```
-taos> SELECT count(*), max(current) FROM meters where groupId = 2 and ts > now - 24h;
+```txt title="output"
      count(*)  |    max(current)  |
 ==================================
             5 |             13.4 |
@@ -78,41 +88,50 @@ Join queries are only allowed between subtables of the same STable. In [Select](
 
 In IoT use cases, down sampling is widely used to aggregate data by time range. The `INTERVAL` keyword in TDengine can be used to simplify the query by time window. For example, the SQL statement below can be used to get the sum of current every 10 seconds from meters table d1001.
 
+```sql title="SQL"
+SELECT _wstart, sum(current) FROM test.d101 INTERVAL(10s) limit 3;
 ```
-taos> SELECT sum(current) FROM d1001 INTERVAL(10s);
-           ts            |       sum(current)        |
+
+```txt title="output"
+         _wstart         |       sum(current)        |
 ======================================================
- 2018-10-03 14:38:00.000 |              10.300000191 |
- 2018-10-03 14:38:10.000 |              24.900000572 |
-Query OK, 2 row(s) in set (0.000883s)
+ 2017-07-14 10:40:00.000 |               9.920000076 |
+ 2017-07-14 10:55:00.000 |               9.840000153 |
+ 2017-07-14 11:10:00.000 |               9.840000153 |
+Query OK, 3 row(s) in set
 ```
 
 Down sampling can also be used for STable. For example, the below SQL statement can be used to get the sum of current from all meters in California.
 
+```sql title="SQL"
+SELECT _wstart, SUM(current) FROM test.meters where location like "California%" INTERVAL(1s) limit 5;
 ```
-taos> SELECT SUM(current) FROM meters where location like "California%" INTERVAL(1s);
-           ts            |       sum(current)        |
+```txt title="output"
+         _wstart         |       sum(current)        |
 ======================================================
- 2018-10-03 14:38:04.000 |              10.199999809 |
- 2018-10-03 14:38:05.000 |              32.900000572 |
- 2018-10-03 14:38:06.000 |              11.500000000 |
- 2018-10-03 14:38:15.000 |              12.600000381 |
- 2018-10-03 14:38:16.000 |              36.000000000 |
-Query OK, 5 row(s) in set (0.001538s)
+ 2017-07-14 10:40:00.000 |            9920.000076294 |
+ 2017-07-14 10:55:00.000 |            9840.000152588 |
+ 2017-07-14 11:10:00.000 |            9840.000152588 |
+ 2017-07-14 11:25:00.000 |           10119.999885559 |
+ 2017-07-14 11:40:00.000 |            9800.000190735 |
+Query OK, 5 row(s) in set
 ```
 
 Down sampling also supports time offset. For example, the below SQL statement can be used to get the sum of current from all meters but each time window must start at the boundary of 500 milliseconds.
 
+```sql title="SQL"
+SELECT _wstart, SUM(current) FROM test.meters INTERVAL(1s, 500a) limit 5;
 ```
-taos> SELECT SUM(current) FROM meters INTERVAL(1s, 500a);
-           ts            |       sum(current)        |
+
+```txt title="output"
+         _wstart         |       sum(current)        |
 ======================================================
- 2018-10-03 14:38:04.500 |              11.189999809 |
- 2018-10-03 14:38:05.500 |              31.900000572 |
- 2018-10-03 14:38:06.500 |              11.600000000 |
- 2018-10-03 14:38:15.500 |              12.300000381 |
- 2018-10-03 14:38:16.500 |              35.000000000 |
-Query OK, 5 row(s) in set (0.001521s)
+ 2017-07-14 10:39:59.500 |            9920.000076294 |
+ 2017-07-14 10:54:59.500 |            9840.000152588 |
+ 2017-07-14 11:09:59.500 |            9840.000152588 |
+ 2017-07-14 11:24:59.500 |           10119.999885559 |
+ 2017-07-14 11:39:59.500 |            9800.000190735 |
+Query OK, 5 row(s) in set
 ```
 
 In many use cases, it's hard to align the timestamp of the data collected by each collection point. However, a lot of algorithms like FFT require the data to be aligned with same time interval and application programs have to handle this by themselves. In TDengine, it's easy to achieve the alignment using down sampling.

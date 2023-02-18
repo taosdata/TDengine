@@ -1,6 +1,6 @@
 ---
-sidebar_label: Developer Guide
-title: Developer Guide
+sidebar_label: Programming
+title: Programming
 description: The most fundamental knowledge about programming with TDengine.
 ---
 
@@ -10,7 +10,7 @@ To develop an application to process time-series data using TDengine, we recomme
 2. Design the data model based on your own use cases. Learn the [concepts](/concept/) of TDengine including "one table for one data collection point" and the "super table" (STable) concept; learn about static labels, collected metrics, and subtables. Depending on the characteristics of your data and your requirements, you may decide to create one or more databases, and you should design the STable schema to fit your data.
 3. Decide how you will insert data. TDengine supports writing using standard SQL, but also supports schemaless writing, so that data can be written directly without creating tables manually.
 4. Based on business requirements, find out what SQL query statements need to be written. You may be able to repurpose any existing SQL.
-5. If you want to run real-time analysis based on time series data, including various dashboards, it is recommended that you use the TDengine continuous query feature instead of deploying complex streaming processing systems such as Spark or Flink.
+5. If you want to run real-time analysis based on time series data, including various dashboards, it is recommended that you use the TDengine stream processing feature instead of deploying complex streaming processing systems such as Spark or Flink.
 6. If your application has modules that need to consume inserted data, and they need to be notified when new data is inserted, it is recommended that you use the data subscription function provided by TDengine without the need to deploy Kafka.
 7. In many use cases (such as fleet management), the application needs to obtain the latest status of each data collection point. It is recommended that you use the cache function of TDengine instead of deploying Redis separately.
 8. If you find that the SQL functions of TDengine cannot meet your requirements, then you can use user-defined functions to solve the problem.
