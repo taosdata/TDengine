@@ -1488,7 +1488,7 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
 	taosHashSetFreeFp(pTable->jsonKeyMap, taosArrayDestroyForHash);
       }else{
         pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
-                                       SL_ALLOW_DUP_KEY, getTagIndexKey);
+                                         SL_ALLOW_DUP_KEY, getTagIndexKey);
         if (pTable->pIndex == NULL) {
           terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
           tsdbFreeTable(pTable);

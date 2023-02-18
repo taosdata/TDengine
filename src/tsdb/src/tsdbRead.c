@@ -28,7 +28,6 @@
 #include "qFilter.h"
 #include "cJSON.h"
 
-
 #define EXTRA_BYTES 2
 #define ASCENDING_TRAVERSE(o)   (o == TSDB_ORDER_ASC)
 #define QH_GET_NUM_OF_COLS(handle) ((size_t)(taosArrayGetSize((handle)->pColumns)))
