@@ -43,9 +43,9 @@ static int32_t  mndProcessCreateIdxReq(SRpcMsg *pReq);
 // static int32_t  mndProcessDropIdxReq(SRpcMsg *pReq);
 static int32_t mndProcessGetIdxReq(SRpcMsg *pReq);
 static int32_t mndProcessGetTbIdxReq(SRpcMsg *pReq);
-static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
-static void    mndCancelGetNextIdx(SMnode *pMnode, void *pIter);
-static void    mndDestroyIdxObj(SIdxObj *pIdxObj);
+// static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+//  static void    mndCancelGetNextIdx(SMnode *pMnode, void *pIter);
+static void mndDestroyIdxObj(SIdxObj *pIdxObj);
 
 static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *req, SDbObj *pDb, SStbObj *pStb);
 
@@ -496,10 +496,11 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
     pDb = mndAcquireDb(pMnode, pShow->db);
     if (pDb == NULL) return 0;
   }
-  int invalid = -1;
+  SSmaAndTagIter *pIter = pShow->pIter;
+  int             invalid = -1;
   while (numOfRows < rows) {
-    pShow->pIter = sdbFetch(pSdb, SDB_IDX, pShow->pIter, (void **)&pIdx);
-    if (pShow->pIter == NULL) break;
+    pIter->pIdxIter = sdbFetch(pSdb, SDB_IDX, pIter->pIdxIter, (void **)&pIdx);
+    if (pIter->pIdxIter == NULL) break;
 
     if (NULL != pDb && pIdx->dbUid != pDb->uid) {
       sdbRelease(pSdb, pIdx);
@@ -559,10 +560,11 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
   return numOfRows;
 }
 
-static void mndCancelGetNextIdx(SMnode *pMnode, void *pIter) {
-  SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
-}
+// static void mndCancelGetNextIdx(SMnode *pMnode, void *pIter) {
+//   SSdb *pSdb = pMnode->pSdb;
+//
+//  sdbCancelFetch(pSdb, pIter);
+//}
 static int32_t mndCheckIndexReq(SCreateTagIndexReq *pReq) {
   // impl
   return TSDB_CODE_SUCCESS;

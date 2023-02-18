@@ -45,27 +45,13 @@ static int32_t  mndProcessDropSmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetSmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetTbSmaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
-static void     mndCancelGetNextSma(SMnode *pMnode, void *pIter);
 static void     mndDestroySmaObj(SSmaObj *pSmaObj);
 
-// retrieve sma index and tag index
-static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  int32_t read = mndRetrieveSma(pReq, pShow, pBlock, rows);
-  read += mndRetrieveTagIdx(pReq, pShow, pBlock, rows - read);
-  return read;
-}
+// sma and tag index comm func
+static int32_t mndProcessDropIdxReq(SRpcMsg *pReq);
+static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void    mndCancelRetrieveIdx(SMnode *pMnode, void *pIter);
 
-static int32_t mndProcessDropIdxReq(SRpcMsg *pReq) {
-  int ret = mndProcessDropSmaReq(pReq);
-  if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST) {
-    terrno = 0;
-    ret = mndProcessDropTagIdxReq(pReq);
-  }
-  return ret;
-}
-static void mndCancelGetNextIdx(SMnode *pMnode, void *pIter) {
-  // TODO
-}
 int32_t mndInitSma(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_SMA,
@@ -85,7 +71,7 @@ int32_t mndInitSma(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_GET_TABLE_INDEX, mndProcessGetTbSmaReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndRetrieveIdx);
-  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndCancelGetNextIdx);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndCancelRetrieveIdx);
   return sdbSetTable(pMnode->pSdb, table);
 }
 
@@ -1244,10 +1230,10 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     pDb = mndAcquireDb(pMnode, pShow->db);
     if (pDb == NULL) return 0;
   }
-
+  SSmaAndTagIter *pIter = pShow->pIter;
   while (numOfRows < rows) {
-    pShow->pIter = sdbFetch(pSdb, SDB_SMA, pShow->pIter, (void **)&pSma);
-    if (pShow->pIter == NULL) break;
+    pIter->pSmaIter = sdbFetch(pSdb, SDB_SMA, pIter->pSmaIter, (void **)&pSma);
+    if (pIter->pSmaIter == NULL) break;
 
     if (NULL != pDb && pSma->dbUid != pDb->uid) {
       sdbRelease(pSdb, pSma);
@@ -1305,7 +1291,30 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   return numOfRows;
 }
 
-static void mndCancelGetNextSma(SMnode *pMnode, void *pIter) {
-  SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+// sma and tag index comm func
+static int32_t mndProcessDropIdxReq(SRpcMsg *pReq) {
+  int ret = mndProcessDropSmaReq(pReq);
+  if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST) {
+    terrno = 0;
+    ret = mndProcessDropTagIdxReq(pReq);
+  }
+  return ret;
+}
+
+static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  if (pShow->pIter == NULL) {
+    pShow->pIter = taosMemoryCalloc(1, sizeof(SSmaAndTagIter));
+  }
+  int32_t read = mndRetrieveSma(pReq, pShow, pBlock, rows);
+  if (read < rows) read += mndRetrieveTagIdx(pReq, pShow, pBlock, rows - read);
+  return read;
+}
+static void mndCancelRetrieveIdx(SMnode *pMnode, void *pIter) {
+  SSmaAndTagIter *p = pIter;
+  if (p != NULL) {
+    SSdb *pSdb = pMnode->pSdb;
+    sdbCancelFetch(pSdb, p->pSmaIter);
+    sdbCancelFetch(pSdb, p->pIdxIter);
+  }
+  taosMemoryFree(p);
 }

@@ -38,7 +38,7 @@ int mndAcquireGlobalIdx(SMnode *pMnode, char *name, int type, SSIdx *idx) {
     if (type == SDB_SMA) {
       idx->type = SDB_SMA;
       idx->pIdx = pSma;
-    } else {  // type ==  SDB_IDX
+    } else {
       mndReleaseSma(pMnode, pSma);
       terrno = TSDB_CODE_MND_SMA_ALREADY_EXIST;
       return -1;

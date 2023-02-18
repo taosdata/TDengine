@@ -28,6 +28,12 @@ typedef struct SSIdx {
   void *pIdx;
 } SSIdx;
 
+// retrieve sma index and tag index
+typedef struct {
+  void *pSmaIter;
+  void *pIdxIter;
+} SSmaAndTagIter;
+
 int32_t mndAcquireGlobalIdx(SMnode *pMnode, char *name, int type, SSIdx *idx);
 
 #ifdef __cplusplus

@@ -48,17 +48,48 @@ while $i < $tbNum
 endw
 
 
-print --> create sma and tag index, global name conflict
+print ==== create sma and tag index, global name conflict
 sql create sma index t2i on $mtPrefix function(max(c1)) interval(6m,10s) sliding(6m);
 sql_error create index t2i on $mtPrefix (t2)
 sql drop index t2i 
 
 
-#print --> create tagindex and sma index, global name conflict
+print ==== create tagindex and sma index, global name conflict
 sql create index t2i on $mtPrefix (t2)
 sql_error create sma index t2i on $mtPrefix function(max(c1)) interval(6m,10s) sliding(6m);
 
 sql drop index t2i 
+
+
+print ===== iter sma and tag index
+
+sql create index tagt2i on $mtPrefix (t2)
+sql create sma index smat2i on $mtPrefix function(max(c1)) interval(6m,10s) sliding(6m);
+
+
+sql select * from information_schema.ins_indexes
+if $rows != 2 then 
+  return -1
+endi
+
+sql drop index smat2i
+
+$i = 0
+$smaPre = sma3
+while $i < 5000 
+  $sma = $smaPre . $i
+  $i = $i + 1
+  sql create sma index $sma on $mtPrefix function(max(c1)) interval(6m,10s) sliding(6m);
+endw
+
+sql select * from information_schema.ins_indexes
+if $rows != 5001 then 
+  return -1
+endi
+
+
+
+
 
 
 print ==== test name conflict
