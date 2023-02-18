@@ -76,7 +76,7 @@ To obtain the value of cloud token and URL, please log in [TDengine Cloud](https
 
 ## Connect
 
-Copy code bellow to your editor and run it. If you are using jupyter, assuming you have followed the guide about Jupyter in previous sections, you can copy the code into Jupyter editor in your browser.
+Copy code bellow to your editor, then run it. If you are using jupyter, assuming you have followed the guide about Jupyter, you can copy the code into Jupyter editor in your browser.
 
 ```python
 {{#include docs/examples/python/develop_tutorial.py:connect}}
