@@ -290,7 +290,7 @@ int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta*
   }
   int32_t code = createTableDataCxt(pTableMeta, pCreateTbReq, pTableCxt, colMode);
   if (TSDB_CODE_SUCCESS == code) {
-    void* pData = *pTableCxt; // deal scan coverity
+    void* pData = *pTableCxt;  // deal scan coverity
     code = taosHashPut(pHash, id, idLen, &pData, POINTER_BYTES);
   }
   return code;
@@ -501,14 +501,15 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
   tEncodeSize(tEncodeSSubmitReq2, pReq, len, code);
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
-    len += sizeof(SMsgHead);
+    len += sizeof(SSubmitReq2Msg);
     pBuf = taosMemoryMalloc(len);
     if (NULL == pBuf) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    ((SMsgHead*)pBuf)->vgId = htonl(vgId);
-    ((SMsgHead*)pBuf)->contLen = htonl(len);
-    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len - sizeof(SMsgHead));
+    ((SSubmitReq2Msg*)pBuf)->header.vgId = htonl(vgId);
+    ((SSubmitReq2Msg*)pBuf)->header.contLen = htonl(len);
+    ((SSubmitReq2Msg*)pBuf)->version = htobe64(1);
+    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
     code = tEncodeSSubmitReq2(&encoder, pReq);
     tEncoderClear(&encoder);
   }
@@ -679,13 +680,12 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
       pStart += BitmapLen(numOfRows);
     }
     char* pData = pStart;
-//    uError("rawBlockBindData col bytes:%d, type:%d, size:%d, htonl size:%d", pColSchema->bytes, pColSchema->type, colLength[c], htonl(colLength[c]));
 
     tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
     fields += sizeof(int8_t) + sizeof(int32_t);
-    if(needChangeLength) {
+    if (needChangeLength) {
       pStart += htonl(colLength[c]);
-    }else{
+    } else {
       pStart += colLength[c];
     }
   }
