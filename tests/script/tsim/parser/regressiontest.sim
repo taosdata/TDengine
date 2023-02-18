@@ -143,9 +143,11 @@ sql delete from t1 where ts<=1537146409500
 
 sql flush database $db
 
+print ======================================>TS-2639
+sql show table distributed t1;
+
 print =====================================>TD-22007
 sql select count(*) from t1 interval(10a)
-
 sql drop table t1
 
 sql create table st1 (ts timestamp, k int) tags(a int);
@@ -165,7 +167,7 @@ if $data00 != 10 then
   return -1
 endi
 
-sql select last_row(*) from st1 group by a
+sql select last_row(*) from st1 group by a order by a desc
 if $rows != 2 then
   return -1
 endi

@@ -41,6 +41,13 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
         int32_t   slotId = slotIds[i];
         SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
 
+        // add check for null value, caused by the modification of table schema (new column added).
+        if (pColVal == NULL) {
+          p->ts = 0;
+          p->isNull = true;
+          continue;
+        }
+
         p->ts = pColVal->ts;
         p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
         allNullRow = p->isNull & allNullRow;
@@ -174,7 +181,8 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
     }
   }
 
-  p->pLoadInfo = tCreateLastBlockLoadInfo(p->pSchema, NULL, 0);
+  int32_t numOfStt = ((SVnode*)pVnode)->config.sttTrigger;
+  p->pLoadInfo = tCreateLastBlockLoadInfo(p->pSchema, NULL, 0, numOfStt);
   if (p->pLoadInfo == NULL) {
     tsdbCacherowsReaderClose(p);
     return TSDB_CODE_OUT_OF_MEMORY;

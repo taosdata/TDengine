@@ -132,14 +132,16 @@ typedef struct SqlFunctionCtx {
   SInputColumnInfoData input;
   SResultDataInfo      resDataInfo;
   uint32_t             order;       // data block scanner order: asc|desc
+  uint8_t              isPseudoFunc;// denote current function is pseudo function or not [added for perf reason]
+  uint8_t              isNotNullFunc;// not return null value.
   uint8_t              scanFlag;    // record current running step, default: 0
   int16_t              functionId;  // function id
   char                *pOutput;     // final result output buffer, point to sdata->data
-  int32_t              numOfParams;
   // input parameter, e.g., top(k, 20), the number of results of top query is kept in param
   SFunctParam *param;
   // corresponding output buffer for timestamp of each result, e.g., diff/csum
   SColumnInfoData     *pTsOutput;
+  int32_t              numOfParams;
   int32_t              offset;
   SResultRowEntryInfo *resultInfo;
   SSubsidiaryResInfo   subsidiaries;
@@ -152,7 +154,7 @@ typedef struct SqlFunctionCtx {
   struct SSDataBlock  *pDstBlock;  // used by indefinite rows function to set selectivity
   SSerializeDataHandle saveHandle;
   int32_t              exprIdx;
-  char                 udfName[TSDB_FUNC_NAME_LEN];
+  char                *udfName;
 } SqlFunctionCtx;
 
 typedef struct tExprNode {

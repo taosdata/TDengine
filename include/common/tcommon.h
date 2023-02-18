@@ -367,6 +367,12 @@ typedef struct SSortExecInfo {
   int32_t readBytes;   // read io bytes
 } SSortExecInfo;
 
+typedef struct STUidTagInfo {
+  char*    name;
+  uint64_t uid;
+  void*    pTagVal;
+} STUidTagInfo;
+
 // stream special block column
 
 #define START_TS_COLUMN_INDEX           0
