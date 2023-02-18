@@ -2403,6 +2403,11 @@ static int32_t mnodeDropChildTableCb(SMnodeMsg *pMsg, int32_t code) {
     return code;
   }
 
+  if (tsMetaSyncOption == 1) {
+    if (strstr((const char*)((SCTableObj *)pMsg->pTable->tableId), META_SYNC_TABLE_NAME)) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
   return mnodeSendDropChildTableMsg(pMsg, true);
 }
 
