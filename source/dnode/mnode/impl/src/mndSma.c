@@ -57,7 +57,7 @@ static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
 static int32_t mndProcessDropIdxReq(SRpcMsg *pReq) {
   int ret = mndProcessDropSmaReq(pReq);
-  if (terrno == TSDB_CODE_MND_SMA_NOT_EXIST) {
+  if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST) {
     terrno = 0;
     ret = mndProcessDropTagIdxReq(pReq);
   }
@@ -735,6 +735,8 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
   SSIdx idx = {0};
   if (mndAcquireGlobalIdx(pMnode, createReq.name, SDB_SMA, &idx) == 0) {
     pSma = idx.pIdx;
+  } else {
+    goto _OVER;
   }
 
   if (pSma != NULL) {
@@ -985,6 +987,8 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
   SSIdx idx = {0};
   if (mndAcquireGlobalIdx(pMnode, dropReq.name, SDB_SMA, &idx) == 0) {
     pSma = idx.pIdx;
+  } else {
+    goto _OVER;
   }
   if (pSma == NULL) {
     if (dropReq.igNotExists) {
@@ -1027,6 +1031,9 @@ static int32_t mndGetSma(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp 
   SSIdx idx = {0};
   if (0 == mndAcquireGlobalIdx(pMnode, indexReq->indexFName, SDB_SMA, &idx)) {
     pSma = idx.pIdx;
+  } else {
+    *exist = false;
+    return 0;
   }
 
   if (pSma == NULL) {

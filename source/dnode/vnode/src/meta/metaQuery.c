@@ -1295,8 +1295,12 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
 
   int     count = 0;
   int32_t valid = 0;
+  bool    found = false;
 
   static const int8_t TRY_ERROR_LIMIT = 1;
+
+  /// src:   [[suid, cid1, type1]....[suid, cid2, type2]....[suid, cid3, type3]...]
+  /// target:                        [suid, cid2, type2]
   do {
     void   *entryKey = NULL, *entryVal = NULL;
     int32_t nEntryKey, nEntryVal;
@@ -1313,6 +1317,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     if (p == NULL) break;
 
     if (p->type != pCursor->type || p->suid != pCursor->suid || p->cid != pCursor->cid) {
+      if (found == true) break;
       count++;
       valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
       if (valid < 0) {
@@ -1332,6 +1337,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
         tuid = *(tb_uid_t *)(p->data + tDataTypes[pCursor->type].bytes);
       }
       taosArrayPush(pUids, &tuid);
+      found = true;
     } else {
       if (param->equal == true) {
         if (count > TRY_ERROR_LIMIT) break;

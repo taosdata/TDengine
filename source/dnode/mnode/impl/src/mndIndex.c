@@ -420,6 +420,8 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
   SSIdx idx = {0};
   if (mndAcquireGlobalIdx(pMnode, createReq.idxName, SDB_IDX, &idx) == 0) {
     pIdx = idx.pIdx;
+  } else {
+    goto _OVER;
   }
   if (pIdx != NULL) {
     terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
@@ -748,6 +750,8 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
   SSIdx idx = {0};
   if (mndAcquireGlobalIdx(pMnode, req.name, SDB_IDX, &idx) == 0) {
     pIdx = idx.pIdx;
+  } else {
+    goto _OVER;
   }
   if (pIdx == NULL) {
     if (req.igNotExists) {

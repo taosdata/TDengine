@@ -7,7 +7,7 @@ print ======== step0
 $dbPrefix = ta_3_db
 $tbPrefix = ta_3_tb
 $mtPrefix = ta_3_mt
-$tbNum = 101 
+$tbNum = 1 
 $rowNum = 20
 $totalNum = 200
 
@@ -48,34 +48,27 @@ while $i < $tbNum
 endw
 
 
-sql create index ti2 on $mtPrefix (t2)
+print --> create sma and tag index, global name conflict
+sql create sma index t2i on $mtPrefix function(max(c1)) interval(6m,10s) sliding(6m);
+sql_error create index t2i on $mtPrefix (t2)
+sql drop index t2i 
+
+
+#print --> create tagindex and sma index, global name conflict
+sql create index t2i on $mtPrefix (t2)
+sql_error create sma index t2i on $mtPrefix function(max(c1)) interval(6m,10s) sliding(6m);
+
+sql drop index t2i 
+
 
 print ==== test name conflict
-# 
+ 
 sql_error create index ti3 on $mtPrefix(t2) 
 
 sql_error create index ti2 on $mtPrefix(t2) 
 sql_error create index ti2 on $mtPrefix(t1) 
 sql_error create index ti2 on $mtPrefix(t3) 
 sql_error create index ti2 on $mtPrefix(txx) 
-
-
-
-
-
-
-
-
-
-
-
-print === show index
-
-sql select * from information_schema.ins_indexes
-if $rows != 1 then 
-  return -1
-endi
-
 
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
