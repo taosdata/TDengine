@@ -220,7 +220,7 @@ int tsdbPrintTables(STsdbRepo *pRepo, uint64_t qId) {
     if (pMeta->tables[i] != NULL) {
       STable *pTable = pMeta->tables[i];
       tsdbInfo("vgId:%d QID:%" PRIu64 " stb:%s tbn:%s tid:%d uid:%" PRIu64, REPO_ID(pRepo), qId,
-               pTable->pSuper ? pTable->pSuper->name->data : "-", pTable->name->data, pTable->tableId.tid,
+               pTable->pSuper ? pTable->pSuper->name->data : "", pTable->name->data, pTable->tableId.tid,
                pTable->tableId.uid);
     }
   }
