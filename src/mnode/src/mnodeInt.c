@@ -17,6 +17,7 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "trpc.h"
 #include "tqueue.h"
 #include "mnode.h"
@@ -68,7 +69,11 @@ void mnodeCleanupMsg(SMnodeMsg *pMsg) {
     if (pMsg->pUser) mnodeDecUserRef(pMsg->pUser);
     if (pMsg->pDb) mnodeDecDbRef(pMsg->pDb);
     if (pMsg->pVgroup) mnodeDecVgroupRef(pMsg->pVgroup);
-    if (pMsg->pTable) mnodeDecTableRef(pMsg->pTable);
+    if (pMsg->pTable) {
+      if (!tsMetaSyncOption || !mnodeFreeMetaSyncDropTables(pMsg->pTable)) {
+        mnodeDecTableRef(pMsg->pTable);
+      }
+    }
     if (pMsg->pSTable) mnodeDecTableRef(pMsg->pSTable);
     if (pMsg->pAcct) mnodeDecAcctRef(pMsg->pAcct);
     if (pMsg->pDnode) mnodeDecDnodeRef(pMsg->pDnode);

@@ -52,7 +52,8 @@
 // informal
 #define META_SYNC_TABLE_NAME "_taos_meta_sync_table_name_taos_"
 #define META_SYNC_TABLE_NAME_LEN 32
-#define META_SYNC_DROP_TABLE "_taos_meta_sync_drop_table_taos_"
+#define META_SYNC_DROP_MNDTB "_taos_meta_sync_drop_mndtb_taos_"
+#define META_SYNC_DROP_VNDTB "_taos_meta_sync_drop_vndtb_taos_"
 #define META_SYNC_DROP_TABLE_LEN 32
 // informal
 
@@ -787,6 +788,7 @@ void mnodeDecTableRef(void *p1) {
   if (pTable->type == TSDB_SUPER_TABLE) {
     sdbDecRef(tsSuperTableSdb, pTable);
   } else {
+    mInfo("%s:%d @@@ pTable:%p tableId:%s", __func__, __LINE__, pTable, pTable->tableId);
     sdbDecRef(tsChildTableSdb, pTable);
   }
 }
@@ -1018,7 +1020,7 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
   }
 #endif
 
-  if (tsMetaSyncOption && strstr(pDrop->name, META_SYNC_DROP_TABLE)) {
+  if (tsMetaSyncOption && strstr(pDrop->name, META_SYNC_DROP_VNDTB)) {
     return mnodeProcessMetaSyncDropTableMsg(pMsg);
   }
 
@@ -2411,7 +2413,7 @@ static int32_t mnodeDropChildTableCb(SMnodeMsg *pMsg, int32_t code) {
   }
 
   if (tsMetaSyncOption) {
-    if (strstr((const char*)((SCTableObj *)pMsg->pTable->tableId), META_SYNC_TABLE_NAME)) {
+    if (strstr((const char *)((SCTableObj *)pMsg->pTable->tableId), META_SYNC_DROP_MNDTB)) {
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -2444,6 +2446,17 @@ static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg) {
   return code;
 }
 
+bool mnodeFreeMetaSyncDropTables(STableObj *pObj) {
+  SCTableObj *pCTableObj = (SCTableObj *)pObj;
+  if (pCTableObj->refCount == INT32_MIN && pCTableObj->reserved0[0] == INT8_MIN &&
+      pCTableObj->reserved0[1] == INT8_MAX) {
+    tfree(pCTableObj->info.tableId);
+    tfree(pCTableObj);
+    return true;
+  }
+  return false;
+}
+
 static int32_t mnodeProcessMetaSyncDropTableMsg(SMnodeMsg *pMsg) {
   int32_t          code = 0;
   int32_t          vgId = -1;
@@ -2454,19 +2467,26 @@ static int32_t mnodeProcessMetaSyncDropTableMsg(SMnodeMsg *pMsg) {
   int32_t          fnum = 0;
   char            *fStr = NULL;
   char           **fnameList = NULL;
-  SCTableObj       ctableObj = {.info={0}};
+  SCTableObj      *pTable = NULL;
   SCMDropTableMsg *pDrop = pMsg->rpcMsg.pCont;
-  pMsg->pTable = (struct STableObj *)&ctableObj;
-  SCTableObj *pTable = (SCTableObj *)pMsg->pTable;
 
-  // META_SYNC_DROP_TABLE: _taos_meta_sync_drop_table_taos_tableType_vgId_uid_tid_tbName;
+  pTable = calloc(1, sizeof(SCTableObj));
+  if (!pTable) {
+    code = TSDB_CODE_MND_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  ASSERT(pMsg->pTable == NULL);
+  pMsg->pTable = (struct STableObj *)pTable;
+
+  // META_SYNC_DROP_VNDTB: _taos_meta_sync_drop_vndtb_taos_tableType_vgId_uid_tid_tbName;
   fStr = strndup(pDrop->name, strlen(pDrop->name));
   if(!fStr) {
     code = TSDB_CODE_MND_OUT_OF_MEMORY;
     goto _exit;
   }
   fnameList = strsplit(fStr, ".", &fnum);
-  if (fnum > 6 && 0 == strncmp(fnameList[2], META_SYNC_DROP_TABLE, META_SYNC_DROP_TABLE_LEN)) {
+  if (fnum > 6 && 0 == strncmp(fnameList[2], META_SYNC_DROP_VNDTB, META_SYNC_DROP_TABLE_LEN)) {
     tableType = atoi(fnameList[3]);
     if (errno != 0) {
       code = TAOS_SYSTEM_ERROR(errno);
@@ -2492,22 +2512,29 @@ static int32_t mnodeProcessMetaSyncDropTableMsg(SMnodeMsg *pMsg) {
     strncpy(tbName + strlen(tbName), fnameList[1], TSDB_TABLE_FNAME_LEN - strlen(tbName));
     tbName[strlen(tbName)] = '.';
     if (strchr(pDrop->name, ' ')) {
-      strncpy(tbName + strlen(tbName), pDrop->name + 1, TSDB_TABLE_FNAME_LEN - strlen(tbName));
+      strncpy(tbName + strlen(tbName), strchr(pDrop->name, ' ') + 1, TSDB_TABLE_FNAME_LEN - strlen(tbName));
     }
   } else {
-    code = TSDB_CODE_TSC_INVALID_TABLE_NAME;
+    code = TSDB_CODE_MND_INVALID_TABLE_NAME;
     goto _exit;
   }
 
   if (tableType != TSDB_CHILD_TABLE && tableType != TSDB_NORMAL_TABLE) {
-    code = TSDB_CODE_TSC_INVALID_TABLE_NAME;
+    code = TSDB_CODE_MND_INVALID_TABLE_NAME;
     goto _exit;
   }
   pTable->info.type = TSDB_CHILD_TABLE;
-  pTable->info.tableId = tbName;
+  pTable->info.tableId = malloc(strlen(tbName) + 1);
+  if (!pTable->info.tableId) {
+    code = TSDB_CODE_MND_OUT_OF_MEMORY;
+  }
+  tstrncpy(pTable->info.tableId, tbName, strlen(tbName) + 1);
   pTable->uid = uid;
   pTable->tid = tid;
   pTable->vgId = vgId;
+  pTable->refCount = INT32_MIN;
+  pTable->reserved0[0] = INT8_MIN;
+  pTable->reserved0[1] = INT8_MAX;
 
   if (pMsg->pVgroup == NULL) pMsg->pVgroup = mnodeGetVgroup(vgId);
   if (pMsg->pVgroup == NULL) {
@@ -2521,9 +2548,14 @@ static int32_t mnodeProcessMetaSyncDropTableMsg(SMnodeMsg *pMsg) {
 
 _exit:
   if (code) {
+    if (pTable) {
+      tfree(pTable->info.tableId);
+      tfree(pTable);
+    }
     mError("%s:%d, msg:%p, app:%p table:%s, failed to drop table since %s", __func__, __LINE__, pMsg,
            pMsg->rpcMsg.ahandle, pDrop->name, tstrerror(code));
   }
+
   tfree(fStr);
   tfree(fnameList);
 
