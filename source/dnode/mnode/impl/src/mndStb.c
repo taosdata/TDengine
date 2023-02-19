@@ -50,6 +50,8 @@ static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessTableCfgReq(SRpcMsg *pReq);
 static int32_t  mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
                                void *alterOriData, int32_t alterOriDataLen);
+static int32_t  mndAlterStbAndUpdateTagIdxImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
+                                              void *alterOriData, int32_t alterOriDataLen, const SMAlterStbReq *pAlter);
 
 static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq);
 static int32_t mndProcessDropIndexReq(SRpcMsg *pReq);
@@ -1941,6 +1943,67 @@ _OVER:
   return code;
 }
 
+static int32_t mndAlterStbAndUpdateTagIdxImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
+                                             void *alterOriData, int32_t alterOriDataLen, const SMAlterStbReq *pAlter) {
+  int32_t code = -1;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "alter-stb");
+  if (pTrans == NULL) goto _OVER;
+
+  mInfo("trans:%d, used to alter stb:%s", pTrans->id, pStb->name);
+  mndTransSetDbName(pTrans, pDb->name, pStb->name);
+
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+
+  if (pAlter->alterType == TSDB_ALTER_TABLE_DROP_TAG) {
+    SIdxObj idxObj = {0};
+    SField *pField0 = taosArrayGet(pAlter->pFields, 0);
+    bool    exist = false;
+    if (mndGetIdxsByTagName(pMnode, pStb, pField0->name, &idxObj) == 0) {
+      exist = true;
+    }
+    if (mndSetAlterStbRedoLogs(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
+    if (mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
+
+    if (exist == true) {
+      if (mndSetDropIdxRedoLogs(pMnode, pTrans, &idxObj) != 0) goto _OVER;
+      if (mndSetDropIdxCommitLogs(pMnode, pTrans, &idxObj) != 0) goto _OVER;
+    }
+
+    if (mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen) != 0) goto _OVER;
+    if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+
+  } else if (pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_TAG_NAME) {
+    SIdxObj     idxObj = {0};
+    SField     *pField0 = taosArrayGet(pAlter->pFields, 0);
+    SField     *pField1 = taosArrayGet(pAlter->pFields, 1);
+    const char *oTagName = pField0->name;
+    const char *nTagName = pField1->name;
+    bool        exist = false;
+
+    if (mndGetIdxsByTagName(pMnode, pStb, pField0->name, &idxObj) == 0) {
+      exist = true;
+    }
+
+    if (mndSetAlterStbRedoLogs(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
+    if (mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
+
+    if (exist == true) {
+      memcpy(idxObj.colName, nTagName, strlen(nTagName));
+      idxObj.colName[strlen(nTagName)] = 0;
+      if (mndSetAlterIdxRedoLogs(pMnode, pTrans, &idxObj) != 0) goto _OVER;
+      if (mndSetAlterIdxCommitLogs(pMnode, pTrans, &idxObj) != 0) goto _OVER;
+    }
+
+    if (mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen) != 0) goto _OVER;
+    if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  }
+  code = 0;
+
+_OVER:
+  mndTransDrop(pTrans);
+  return code;
+}
+
 static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *pAlter, SDbObj *pDb, SStbObj *pOld) {
   bool    needRsp = true;
   int32_t code = -1;
@@ -1954,7 +2017,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
   stbObj.pTags = NULL;
   stbObj.updateTime = taosGetTimestampMs();
   stbObj.lock = 0;
-
+  bool updateTagIndex = false;
   switch (pAlter->alterType) {
     case TSDB_ALTER_TABLE_ADD_TAG:
       code = mndAddSuperTableTag(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
@@ -1962,9 +2025,11 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
     case TSDB_ALTER_TABLE_DROP_TAG:
       pField0 = taosArrayGet(pAlter->pFields, 0);
       code = mndDropSuperTableTag(pMnode, pOld, &stbObj, pField0->name);
+      updateTagIndex = true;
       break;
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
       code = mndAlterStbTagName(pMnode, pOld, &stbObj, pAlter->pFields);
+      updateTagIndex = true;
       break;
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
       pField0 = taosArrayGet(pAlter->pFields, 0);
@@ -1992,7 +2057,11 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
   }
 
   if (code != 0) goto _OVER;
-  code = mndAlterStbImp(pMnode, pReq, pDb, &stbObj, needRsp, pReq->pCont, pReq->contLen);
+  if (updateTagIndex == false) {
+    code = mndAlterStbImp(pMnode, pReq, pDb, &stbObj, needRsp, pReq->pCont, pReq->contLen);
+  } else {
+    code = mndAlterStbAndUpdateTagIdxImp(pMnode, pReq, pDb, &stbObj, needRsp, pReq->pCont, pReq->contLen, pAlter);
+  }
 
 _OVER:
   taosMemoryFreeClear(stbObj.pTags);

@@ -296,6 +296,10 @@ static int32_t mndIdxActionDelete(SSdb *pSdb, SIdxObj *pIdx) {
 }
 
 static int32_t mndIdxActionUpdate(SSdb *pSdb, SIdxObj *pOld, SIdxObj *pNew) {
+  // lock no not
+  if (strncmp(pOld->colName, pNew->colName, TSDB_COL_NAME_LEN) != 0) {
+    memcpy(pOld->colName, pNew->colName, sizeof(pNew->colName));
+  }
   mTrace("idx:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
   return 0;
 }
@@ -324,7 +328,7 @@ SDbObj *mndAcquireDbByIdx(SMnode *pMnode, const char *idxName) {
   return mndAcquireDb(pMnode, db);
 }
 
-static int32_t mndSetCreateIdxRedoLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
+int32_t mndSetCreateIdxRedoLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
   SSdbRaw *pRedoRaw = mndIdxActionEncode(pIdx);
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
@@ -333,10 +337,34 @@ static int32_t mndSetCreateIdxRedoLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *
   return 0;
 }
 
-static int32_t mndSetCreateIdxCommitLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
+int32_t mndSetCreateIdxCommitLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
   SSdbRaw *pCommitRaw = mndIdxActionEncode(pIdx);
   if (pCommitRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) return -1;
+
+  return 0;
+}
+
+int32_t mndSetAlterIdxRedoLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
+  SSdbRaw *pRedoRaw = mndIdxActionEncode(pIdx);
+  if (pRedoRaw == NULL) return -1;
+  if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
+    sdbFreeRaw(pRedoRaw);
+    return -1;
+  }
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY) != 0) return -1;
+
+  return 0;
+}
+
+int32_t mndSetAlterIdxCommitLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
+  SSdbRaw *pCommitRaw = mndIdxActionEncode(pIdx);
+  if (pCommitRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    sdbFreeRaw(pCommitRaw);
+    return -1;
+  }
   if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) return -1;
 
   return 0;
@@ -451,7 +479,7 @@ _OVER:
   return code;
 }
 
-static int32_t mndSetDropIdxRedoLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
+int32_t mndSetDropIdxRedoLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
   SSdbRaw *pRedoRaw = mndIdxActionEncode(pIdx);
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
@@ -460,7 +488,7 @@ static int32_t mndSetDropIdxRedoLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pI
   return 0;
 }
 
-static int32_t mndSetDropIdxCommitLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
+int32_t mndSetDropIdxCommitLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx) {
   SSdbRaw *pCommitRaw = mndIdxActionEncode(pIdx);
   if (pCommitRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
@@ -805,8 +833,7 @@ int32_t mndDropIdxsByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
   return 0;
 }
 
-/*
-int32_t mndDropIdxsByTagName(SMnode *pMnode, SStbObj *pStb, char *tagName) {
+int32_t mndGetIdxsByTagName(SMnode *pMnode, SStbObj *pStb, char *tagName, SIdxObj *idx) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
 
@@ -816,18 +843,16 @@ int32_t mndDropIdxsByTagName(SMnode *pMnode, SStbObj *pStb, char *tagName) {
     if (pIter == NULL) break;
 
     if (pIdx->stbUid == pStb->uid && strcasecmp(pIdx->colName, tagName) == 0) {
-      if (mndSetDropIdxCommitLogs(pMnode, pTrans, pIdx) != 0) {
-        sdbRelease(pSdb, pIdx);
-        sdbCancelFetch(pSdb, pIdx);
-        return -1;
-      }
+      memcpy((char *)idx, (char *)pIdx, sizeof(SIdxObj));
+      sdbRelease(pSdb, pIdx);
+      return 0;
     }
 
     sdbRelease(pSdb, pIdx);
   }
 
-  return 0;
-}*/
+  return -1;
+}
 int32_t mndDropIdxsByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
