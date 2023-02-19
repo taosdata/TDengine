@@ -131,7 +131,7 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg);
 int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg);
 int tsdbDropTable(STsdbRepo *pRepo, STableId tableId);
 int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg);
-int tsdbPrintTables(STsdbRepo *repo, uint64_t qId);
+int tsdbDumpTables(STsdbRepo *repo, uint64_t qId);
 
 uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size);
 

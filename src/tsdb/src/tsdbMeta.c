@@ -213,7 +213,7 @@ _err:
   return -1;
 }
 
-int tsdbPrintTables(STsdbRepo *pRepo, uint64_t qId) {
+int tsdbDumpTables(STsdbRepo *pRepo, uint64_t qId) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   if (tsdbRLockRepoMeta(pRepo) < 0) return -1;
   for (int32_t i = 0; i < pMeta->maxTables; ++i) {
