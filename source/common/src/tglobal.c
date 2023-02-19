@@ -393,7 +393,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
-  if (cfgAddInt32(pCfg, "numOfRpcSessions", tsNumOfRpcSessions, 1, 1024, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "numOfRpcSessions", tsNumOfRpcSessions, 1, 100000, 0) != 0) return -1;
 
   tsNumOfCommitThreads = tsNumOfCores / 2;
   tsNumOfCommitThreads = TRANGE(tsNumOfCommitThreads, 2, 4);
