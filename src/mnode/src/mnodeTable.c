@@ -2454,7 +2454,7 @@ static int32_t mnodeProcessMetaSyncDropTableMsg(SMnodeMsg *pMsg) {
   int32_t          fnum = 0;
   char            *fStr = NULL;
   char           **fnameList = NULL;
-  SCTableObj       ctableObj = {0};
+  SCTableObj       ctableObj = {.info={0}};
   SCMDropTableMsg *pDrop = pMsg->rpcMsg.pCont;
   pMsg->pTable = (struct STableObj *)&ctableObj;
   SCTableObj *pTable = (SCTableObj *)pMsg->pTable;
