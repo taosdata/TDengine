@@ -469,16 +469,6 @@ static int32_t mndSetDropIdxCommitLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *
   return 0;
 }
 
-int32_t mndDropIdxsByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
-  // stb
-  return 0;
-}
-
-int32_t mndDropIdxsByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
-  // by db name
-  return 0;
-}
-
 static int32_t mndProcessGetTbIdxReq(SRpcMsg *pReq) {
   //
   return 0;
@@ -789,5 +779,74 @@ _OVER:
 }
 static int32_t mndProcessGetIdxReq(SRpcMsg *pReq) {
   // do nothing
+  return 0;
+}
+
+int32_t mndDropIdxsByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+
+  while (1) {
+    SIdxObj *pIdx = NULL;
+    pIter = sdbFetch(pSdb, SDB_IDX, pIter, (void **)&pIdx);
+    if (pIter == NULL) break;
+
+    if (pIdx->stbUid == pStb->uid) {
+      if (mndSetDropIdxCommitLogs(pMnode, pTrans, pIdx) != 0) {
+        sdbRelease(pSdb, pIdx);
+        sdbCancelFetch(pSdb, pIdx);
+        return -1;
+      }
+    }
+
+    sdbRelease(pSdb, pIdx);
+  }
+
+  return 0;
+}
+
+/*
+int32_t mndDropIdxsByTagName(SMnode *pMnode, SStbObj *pStb, char *tagName) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+
+  while (1) {
+    SIdxObj *pIdx = NULL;
+    pIter = sdbFetch(pSdb, SDB_IDX, pIter, (void **)&pIdx);
+    if (pIter == NULL) break;
+
+    if (pIdx->stbUid == pStb->uid && strcasecmp(pIdx->colName, tagName) == 0) {
+      if (mndSetDropIdxCommitLogs(pMnode, pTrans, pIdx) != 0) {
+        sdbRelease(pSdb, pIdx);
+        sdbCancelFetch(pSdb, pIdx);
+        return -1;
+      }
+    }
+
+    sdbRelease(pSdb, pIdx);
+  }
+
+  return 0;
+}*/
+int32_t mndDropIdxsByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+
+  while (1) {
+    SIdxObj *pIdx = NULL;
+    pIter = sdbFetch(pSdb, SDB_IDX, pIter, (void **)&pIdx);
+    if (pIter == NULL) break;
+
+    if (pIdx->dbUid == pDb->uid) {
+      if (mndSetDropIdxCommitLogs(pMnode, pTrans, pIdx) != 0) {
+        sdbRelease(pSdb, pIdx);
+        sdbCancelFetch(pSdb, pIdx);
+        return -1;
+      }
+    }
+
+    sdbRelease(pSdb, pIdx);
+  }
+
   return 0;
 }

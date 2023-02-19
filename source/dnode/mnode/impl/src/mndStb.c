@@ -17,6 +17,7 @@
 #include "mndStb.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndIndex.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPerfSchema.h"
@@ -1358,6 +1359,10 @@ static int32_t mndDropSuperTableTag(SMnode *pMnode, const SStbObj *pOld, SStbObj
   pNew->numOfTags--;
 
   pNew->tagVer++;
+
+  // if (mndDropIndexByTag(pMnode, pOld, tagName) != 0) {
+  //   return -1;
+  // }
   mInfo("stb:%s, start to drop tag %s", pNew->name, tagName);
   return 0;
 }
@@ -2120,9 +2125,9 @@ static int32_t mndDropStb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *p
   if (mndSetDropStbRedoLogs(pMnode, pTrans, pStb) != 0) goto _OVER;
   if (mndSetDropStbCommitLogs(pMnode, pTrans, pStb) != 0) goto _OVER;
   if (mndSetDropStbRedoActions(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
+  if (mndDropIdxsByStb(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndDropSmasByStb(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-
   code = 0;
 
 _OVER:

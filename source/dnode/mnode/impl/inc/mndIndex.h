@@ -13,7 +13,8 @@ SIdxObj *mndAcquireIdx(SMnode *pMnode, char *Name);
 void     mndReleaseIdx(SMnode *pMnode, SIdxObj *pSma);
 int32_t  mndDropIdxsByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb);
 int32_t  mndDropIdxsByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
-int32_t  mndGetTableIdx(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool *exist);
+// int32_t  mndDropIdxsByTagName(SMnode *pMnode, SStbObj *pStb, char *tagName);
+int32_t mndGetTableIdx(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool *exist);
 
 int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq);

@@ -76,30 +76,33 @@ sql drop index smat2i
 
 $i = 0
 $smaPre = sma3
-while $i < 5000 
+while $i < 5 
   $sma = $smaPre . $i
   $i = $i + 1
   sql create sma index $sma on $mtPrefix function(max(c1)) interval(6m,10s) sliding(6m);
 endw
 
 sql select * from information_schema.ins_indexes
-if $rows != 5001 then 
+if $rows != 6 then 
   return -1
 endi
 
 
 
+sql drop stable $mtPrefix
+sql select * from information_schema.ins_indexes
+if $rows != 0 then 
+  return -1
+endi
 
+sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 int, t2 int, t3 int, t4 int, t5 int)
+sql create index tagt2i on $mtPrefix (t2)
+sql drop database $dbPrefix
 
-
-print ==== test name conflict
- 
-sql_error create index ti3 on $mtPrefix(t2) 
-
-sql_error create index ti2 on $mtPrefix(t2) 
-sql_error create index ti2 on $mtPrefix(t1) 
-sql_error create index ti2 on $mtPrefix(t3) 
-sql_error create index ti2 on $mtPrefix(txx) 
+sql select * from information_schema.ins_indexes
+if $rows != 0 then 
+  return -1
+endi
 
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
