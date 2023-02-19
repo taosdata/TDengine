@@ -2487,23 +2487,18 @@ static int32_t mnodeProcessMetaSyncDropTableMsg(SMnodeMsg *pMsg) {
   fnameList = strsplit(fStr, ".", &fnum);
   if (fnum > 6 && 0 == strncmp(fnameList[2], META_SYNC_DROP_VNDTB, META_SYNC_DROP_TABLE_LEN)) {
     tableType = atoi(fnameList[3]);
-    if (errno != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+    if (tableType != TSDB_CHILD_TABLE && tableType != TSDB_NORMAL_TABLE) {
+      code = TSDB_CODE_MND_INVALID_TABLE_NAME;
       goto _exit;
     }
     vgId = atoi(fnameList[4]);
-    if (errno != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+    if (vgId < 2) {
+      code = TSDB_CODE_MND_INVALID_TABLE_NAME;
       goto _exit;
     }
     uid = strtoull(fnameList[5], NULL, 10);
-    if (errno != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _exit;
-    }
     tid = atoi(fnameList[6]);
-    if (errno != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+    if (tid < 0) {
       goto _exit;
     }
     strncpy(tbName, fnameList[0], TSDB_TABLE_FNAME_LEN);
