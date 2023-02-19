@@ -399,6 +399,8 @@ void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp) {
   pFillInfo->numOfRows    = 0;
   pFillInfo->numOfCurrent = 0;
   pFillInfo->numOfTotal   = 0;
+  //free prevValues so that the new group has no prevValues then fill(linear) of new group won't use old group values.
+  tfree(pFillInfo->prevValues);
 }
 
 void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
