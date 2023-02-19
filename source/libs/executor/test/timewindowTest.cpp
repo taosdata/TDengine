@@ -56,85 +56,102 @@ void printTimeWindow(STimeWindow* pWindow, int8_t precision, int64_t ts) {
 }  // namespace
 
 TEST(testCase, timewindow_gen) {
-  // time window
+  // set correct time zone
   osSetTimezone("UTC");
-
+  int32_t precision = TSDB_TIME_PRECISION_MILLI;
+  
   SInterval interval =
-      createInterval(10 * 86400 * 1000, 10 * 86400 * 1000, 0, 'd', 'd', 'd', TSDB_TIME_PRECISION_MILLI);
+      createInterval(10 * 86400 * 1000, 10 * 86400 * 1000, 0, 'd', 'd', 'd', precision);
 
   int64_t key = 1659312000L * 1000;  // 2022-8-1 00:00:00 // UTC+8  (ms)
 
   STimeWindow w = {0};
   getInitialStartTimeWindow(&interval, key, &w, true);
-  printTimeWindow(&w, interval.precision, key);
+  printTimeWindow(&w, precision, key);
 
   getNextTimeWindow(&interval, &w, TSDB_ORDER_ASC);
   printf("next\n");
-  printTimeWindow(&w, interval.precision, key);
+  printTimeWindow(&w, precision, key);
 
   printf("---------------------------------------------------\n");
   SInterval monthInterval =
       createInterval(1, 1, 0, 'n', 'n', 'd', TSDB_TIME_PRECISION_MILLI);
   getInitialStartTimeWindow(&monthInterval, key, &w, true);
-  printTimeWindow(&w, monthInterval.precision, key);
+  printTimeWindow(&w, precision, key);
 
   getNextTimeWindow(&monthInterval, &w, TSDB_ORDER_ASC);
   printf("next\n");
-  printTimeWindow(&w, monthInterval.precision, key);
+  printTimeWindow(&w, precision, key);
 
   printf("----------------------------------------------------------\n");
   SInterval slidingInterval = createInterval(1, 10*86400*1000, 0, 'n', 'd', 'd', TSDB_TIME_PRECISION_MILLI);
   getInitialStartTimeWindow(&slidingInterval, key, &w, true);
-  printTimeWindow(&w, slidingInterval.precision, key);
+  printTimeWindow(&w, precision, key);
 
   getNextTimeWindow(&slidingInterval, &w, TSDB_ORDER_ASC);
   printf("next\n");
-  printTimeWindow(&w, slidingInterval.precision, key);
+  printTimeWindow(&w, precision, key);
 
   getNextTimeWindow(&slidingInterval, &w, TSDB_ORDER_ASC);
-  printTimeWindow(&w, slidingInterval.precision, key);
+  printTimeWindow(&w, precision, key);
 
   getNextTimeWindow(&slidingInterval, &w, TSDB_ORDER_ASC);
-  printTimeWindow(&w, slidingInterval.precision, key);
+  printTimeWindow(&w, precision, key);
 
   getNextTimeWindow(&slidingInterval, &w, TSDB_ORDER_ASC);
-  printTimeWindow(&w, slidingInterval.precision, key);
+  printTimeWindow(&w, precision, key);
 
   getNextTimeWindow(&slidingInterval, &w, TSDB_ORDER_ASC);
-  printTimeWindow(&w, slidingInterval.precision, key);
+  printTimeWindow(&w, precision, key);
 
   getNextTimeWindow(&slidingInterval, &w, TSDB_ORDER_ASC);
-  printTimeWindow(&w, slidingInterval.precision, key);
+  printTimeWindow(&w, precision, key);
 
   getNextTimeWindow(&slidingInterval, &w, TSDB_ORDER_ASC);
-  printTimeWindow(&w, slidingInterval.precision, key);
+  printTimeWindow(&w, precision, key);
 
   getNextTimeWindow(&slidingInterval, &w, TSDB_ORDER_ASC);
-  printTimeWindow(&w, slidingInterval.precision, key);
+  printTimeWindow(&w, precision, key);
 
-  printf("----------------------------------------------------------\n");
+  printf("-----------------calendar_interval_1n_sliding_1d-------\n");
   SInterval calendar_interval_1n = createInterval(1, 1*86400*1000, 0, 'n', 'd', 'd', TSDB_TIME_PRECISION_MILLI);
   int64_t k1 = 1664409600 * 1000L;
   getInitialStartTimeWindow(&calendar_interval_1n, k1, &w, true);
-  printTimeWindow(&w, calendar_interval_1n.precision, k1);
+  printTimeWindow(&w, precision, k1);
 
   printf("next\n");
 
   getNextTimeWindow(&calendar_interval_1n, &w, TSDB_ORDER_ASC);
-  printTimeWindow(&w, calendar_interval_1n.precision, key);
+  printTimeWindow(&w, precision, key);
 
   getNextTimeWindow(&calendar_interval_1n, &w, TSDB_ORDER_ASC);
-  printTimeWindow(&w, calendar_interval_1n.precision, key);
+  printTimeWindow(&w, precision, key);
 
   getNextTimeWindow(&calendar_interval_1n, &w, TSDB_ORDER_ASC);
-  printTimeWindow(&w, calendar_interval_1n.precision, key);
+  printTimeWindow(&w, precision, key);
 
   getNextTimeWindow(&calendar_interval_1n, &w, TSDB_ORDER_ASC);
-  printTimeWindow(&w, calendar_interval_1n.precision, key);
+  printTimeWindow(&w, precision, key);
 
+  printf("----------------interval_1d_clendar_sliding_1n---------\n");
+  SInterval interval_1d_calendar_sliding_1n = createInterval(1*86400*1000L, 1, 0, 'd', 'n', 'd', TSDB_TIME_PRECISION_MILLI);
 
-  printf("----------------------------------------------------------\n");
-  SInterval calendar_interval_1d_sliding_1n = createInterval(1*86400*100L, 1, 0, 'd', 'n', 'd', TSDB_TIME_PRECISION_MILLI);
+  k1 = 1664409600 * 1000L;
+  getInitialStartTimeWindow(&interval_1d_calendar_sliding_1n, k1, &w, true);
+  printTimeWindow(&w, precision, k1);
+
+  printf("next time window:\n");
+  getNextTimeWindow(&interval_1d_calendar_sliding_1n, &w, TSDB_ORDER_ASC);
+  printTimeWindow(&w, precision, k1);
+
+  getNextTimeWindow(&interval_1d_calendar_sliding_1n, &w, TSDB_ORDER_ASC);
+  printTimeWindow(&w, precision, k1);
+
+  getNextTimeWindow(&interval_1d_calendar_sliding_1n, &w, TSDB_ORDER_ASC);
+  printTimeWindow(&w, precision, k1);
+
+  printf("----------------interval_1d_sliding_1d_calendar_offset_1n---------\n");
+  SInterval offset_1n = createInterval(1*86400*1000L, 1*86400*1000L, 1, 'd', 'd', 'n', TSDB_TIME_PRECISION_MILLI);
 
 }
 

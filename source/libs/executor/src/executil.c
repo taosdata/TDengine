@@ -1759,7 +1759,7 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
 
 void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order) {
   int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
-  if (pInterval->sliding != 'n' && pInterval->sliding != 'y') {
+  if (pInterval->slidingUnit != 'n' && pInterval->slidingUnit != 'y') {
     tw->skey += pInterval->sliding * factor;
     tw->ekey = taosTimeAdd(tw->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
     return;
