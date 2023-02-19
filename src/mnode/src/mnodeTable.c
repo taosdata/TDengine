@@ -788,7 +788,6 @@ void mnodeDecTableRef(void *p1) {
   if (pTable->type == TSDB_SUPER_TABLE) {
     sdbDecRef(tsSuperTableSdb, pTable);
   } else {
-    mInfo("%s:%d @@@ pTable:%p tableId:%s", __func__, __LINE__, pTable, pTable->tableId);
     sdbDecRef(tsChildTableSdb, pTable);
   }
 }
@@ -2527,6 +2526,7 @@ static int32_t mnodeProcessMetaSyncDropTableMsg(SMnodeMsg *pMsg) {
   pTable->info.tableId = malloc(strlen(tbName) + 1);
   if (!pTable->info.tableId) {
     code = TSDB_CODE_MND_OUT_OF_MEMORY;
+    goto _exit;
   }
   tstrncpy(pTable->info.tableId, tbName, strlen(tbName) + 1);
   pTable->uid = uid;
@@ -2555,7 +2555,6 @@ _exit:
     mError("%s:%d, msg:%p, app:%p table:%s, failed to drop table since %s", __func__, __LINE__, pMsg,
            pMsg->rpcMsg.ahandle, pDrop->name, tstrerror(code));
   }
-
   tfree(fStr);
   tfree(fnameList);
 
