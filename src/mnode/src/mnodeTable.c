@@ -2511,7 +2511,7 @@ static int32_t mnodeProcessMetaSyncDropTableMsg(SMnodeMsg *pMsg) {
 
   if (pMsg->pVgroup == NULL) pMsg->pVgroup = mnodeGetVgroup(vgId);
   if (pMsg->pVgroup == NULL) {
-    mError("%s:%d, msg:%p, app:%p table:%s, failed to drop table, vgroup not exist", __func__, __LINE__, pMsg,
+    mError("%s:%d, msg:%p, app:%p table:%s, failed to drop table vgroup not exist", __func__, __LINE__, pMsg,
            pMsg->rpcMsg.ahandle, pTable->info.tableId);
     code = TSDB_CODE_MND_APP_ERROR;
     goto _exit;

@@ -177,29 +177,29 @@ int tsdbDropTable(STsdbRepo *repo, STableId tableId) {
   tbname = strdup(TABLE_CHAR_NAME(pTable));
   if (tbname == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    tsdbError("vgId:%d, failed to drop table %s since %s! tid:%d, uid:%" PRIu64, REPO_ID(pRepo), tbname,
+    tsdbError("vgId:%d, failed to drop table since %s! tb:%s, tid:%d, uid:%" PRIu64, REPO_ID(pRepo), tbname,
               tstrerror(terrno), tableId.tid, uid);
     return -1;
   }
 
   // Write to KV store first
   if (tsdbRemoveTableFromStore(pRepo, pTable) < 0) {
-    tsdbError("vgId:%d, failed to drop table %s since %s! tid:%d, uid:%" PRIu64, REPO_ID(pRepo), tbname,
+    tsdbError("vgId:%d, failed to drop table since %s! tb:%s, tid:%d, uid:%" PRIu64, REPO_ID(pRepo), tbname,
               tstrerror(terrno), tableId.tid, uid);
     goto _err;
   }
 
   // Remove table from Meta
   if (tsdbRmTableFromMeta(pRepo, pTable) < 0) {
-    tsdbError("vgId:%d, failed to drop table %s since %s! tid:%d, uid:%" PRIu64, REPO_ID(pRepo), tbname,
+    tsdbError("vgId:%d, failed to drop table since %s! tb:%s, tid:%d, uid:%" PRIu64, REPO_ID(pRepo), tbname,
               tstrerror(terrno), tableId.tid, uid);
     goto _err;
   }
 
   if (tsMetaSyncOption) {
-    tsdbInfo("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
+    tsdbInfo("vgId:%d, table is dropped! tb:%s, tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
   } else {
-    tsdbDebug("vgId:%d, table %s is dropped! tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
+    tsdbDebug("vgId:%d, table is dropped! tb:%s, tid:%d, uid:%" PRId64, pRepo->config.tsdbId, tbname, tid, uid);
   }
 
   free(tbname);
