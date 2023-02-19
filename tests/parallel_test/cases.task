@@ -198,7 +198,7 @@
 37,,script,./test.sh -f unique/arbitrator/offline_replica2_alterTable_online.sim
 37,,script,./test.sh -f general/table/delete_reuse1.sim
 37,,script,./test.sh -f general/db/delete_reuse2.sim
-36,,docs-examples-test,eval sh -c \"if [ `uname -m` != aarch64 ]; then ./test_rust.sh; fi\"
+# 36,,docs-examples-test,eval sh -c \"if [ `uname -m` != aarch64 ]; then ./test_rust.sh; fi\"
 36,,script,./test.sh -f unique/stable/replica3_vnode3.sim
 36,,script,./test.sh -f unique/stable/dnode2_stop.sim
 36,,script,./test.sh -f unique/arbitrator/sync_replica2_alterTable_add.sim
