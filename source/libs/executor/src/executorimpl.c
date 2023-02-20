@@ -517,7 +517,9 @@ static int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
         continue;
       }
 
+      int64_t st = taosGetTimestampUs();
       int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
+      pOperator->funcExecTime += taosGetTimestampUs() - st;
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
         return code;
@@ -1035,7 +1037,10 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
     }
   }
 
+
+  int64_t st = taosGetTimestampUs();
   setResultRowInitCtx(pResultRow, pCtx, numOfOutput, rowEntryInfoOffset);
+  pOperator->funcInitTime += taosGetTimestampUs() - st;
 }
 
 static void setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId) {
@@ -1252,7 +1257,9 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
     doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo);
   } else {
     while (hasRemainResults(pGroupResInfo)) {
+      int64_t st = taosGetTimestampUs();
       doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo);
+      pOperator->funcFinTime += taosGetTimestampUs() - st;
       if (pBlock->info.rows >= pOperator->resultInfo.threshold) {
         break;
       }
@@ -1577,6 +1584,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   while (1) {
     st = taosGetTimestampUs();
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
+    pOperator->downstreamTime += taosGetTimestampUs() - st;
     if (pBlock == NULL) {
       if (!hasValidBlock) {
         createDataBlockForEmptyInput(pOperator, &pBlock);
@@ -1692,6 +1700,15 @@ void destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs) {
 void destroyOperatorInfo(SOperatorInfo* pOperator) {
   if (pOperator == NULL) {
     return;
+  }
+
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_HASH_AGG) {
+    double downstream = (double)pOperator->downstreamTime / 1000000;
+    double init = (double)pOperator->funcInitTime / 1000000;
+    double exec = (double)pOperator->funcExecTime / 1000000;
+    double fin  = (double)pOperator->funcFinTime / 1000000;
+    qError("operator: %s, downstream time:%lf, init time:%lf, exec time:%lf, fin time:%lf",
+            pOperator->name, downstream, init, exec, fin);
   }
 
   if (pOperator->fpSet.closeFn != NULL) {
@@ -1910,6 +1927,10 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(doOpenAggregateOptr, getAggregateResult, NULL, destroyAggOperatorInfo,
                                          optrDefaultBufFn, NULL);
+  pOperator->downstreamTime = 0;
+  pOperator->funcInitTime = 0;
+  pOperator->funcExecTime = 0;
+  pOperator->funcFinTime = 0;
 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = downstream->info;
