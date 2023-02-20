@@ -43,7 +43,14 @@ typedef struct tagFilterAssist {
   SArray*   cInfoList;
 } tagFilterAssist;
 
-static int32_t removeInvalidTable(SArray* uids, SHashObj* tags);
+typedef enum {
+  FILTER_NO_LOGIC = 1,
+  FILTER_AND,
+  FILTER_OTHER,
+} FilterCondType;
+
+static FilterCondType checkTagCond(SNode* cond);
+static int32_t        removeInvalidTable(SArray* uids, SHashObj* tags);
 static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond, SHashObj* tags);
 static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond);
 static int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond,
@@ -392,7 +399,8 @@ static int32_t createResultData(SDataType* pType, int32_t numOfRows, SScalarPara
   return TSDB_CODE_SUCCESS;
 }
 
-static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray* uidList, SNode* pTagCond) {
+static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray* uidList, SNode* pTagCond,
+                                         SIdxFltStatus status) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SArray*      pBlockList = NULL;
   SSDataBlock* pResBlock = NULL;
@@ -430,14 +438,22 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
   //  int64_t stt = taosGetTimestampUs();
   tags = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
 
+  FilterCondType condType = checkTagCond(pTagCond);
+
   int32_t filter = optimizeTbnameInCond(metaHandle, suid, uidList, pTagCond, tags);
   if (filter == -1) {
-    code = metaGetTableTags(metaHandle, suid, uidList, tags);
+    if ((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) {
+      code = metaGetTableTagsByUids(metaHandle, suid, uidList, tags);
+    } else {
+      code = metaGetTableTags(metaHandle, suid, uidList, tags);
+    }
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code), suid);
       terrno = code;
       goto end;
     }
+  } else {
+    qDebug("succ to get table tags from meta by tbname in cond, suid:%" PRIu64, suid);
   }
   if (suid != 0) {
     removeInvalidTable(uidList, tags);
@@ -842,6 +858,15 @@ static int tableUidCompare(const void* a, const void* b) {
   return u1 < u2 ? -1 : 1;
 }
 
+static FilterCondType checkTagCond(SNode* cond) {
+  if (nodeType(cond) == QUERY_NODE_OPERATOR) {
+    return FILTER_NO_LOGIC;
+  }
+  if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
+    return FILTER_AND;
+  }
+  return FILTER_OTHER;
+}
 static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* cond, SHashObj* tags) {
   int32_t ret = -1;
   if (nodeType(cond) == QUERY_NODE_OPERATOR) {
@@ -954,7 +979,7 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
           return -1;
         }
       } else {
-//        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
+        //        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
         terrno = 0;
       }
     }
@@ -983,13 +1008,14 @@ static void genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
   taosMemoryFree(payload);
 }
 
-static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* res, SNode* pTagCond, void* metaHandle) {
+static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* res, SNode* pTagCond, void* metaHandle,
+                                 SIdxFltStatus status) {
   if (pTagCond == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
   terrno = TDB_CODE_SUCCESS;
-  SColumnInfoData* pColInfoData = getColInfoResult(metaHandle, pListInfo->suid, res, pTagCond);
+  SColumnInfoData* pColInfoData = getColInfoResult(metaHandle, pListInfo->suid, res, pTagCond, status);
   if (terrno != TDB_CODE_SUCCESS) {
     colDataDestroy(pColInfoData);
     taosMemoryFreeClear(pColInfoData);
@@ -1034,12 +1060,13 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   pListInfo->suid = pScanNode->suid;
   SArray* res = taosArrayInit(8, sizeof(uint64_t));
 
+  SIdxFltStatus status = SFLT_NOT_INDEX;
   if (pScanNode->tableType != TSDB_SUPER_TABLE) {
     if (metaIsTableExist(metaHandle, tableUid)) {
       taosArrayPush(res, &tableUid);
     }
 
-    code = doFilterByTagCond(pListInfo, res, pTagCond, metaHandle);
+    code = doFilterByTagCond(pListInfo, res, pTagCond, metaHandle, status);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -1064,16 +1091,17 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
         SIndexMetaArg metaArg = {
             .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
 
-        SIdxFltStatus status = SFLT_NOT_INDEX;
         code = doFilterTag(pTagIndexCond, &metaArg, res, &status);
         if (code != 0 || status == SFLT_NOT_INDEX) {
           qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
           code = TDB_CODE_SUCCESS;
+        } else {
+          qInfo("succ to get filter result, table num: %d", (int)taosArrayGetSize(res));
         }
       }
     }
 
-    code = doFilterByTagCond(pListInfo, res, pTagCond, metaHandle);
+    code = doFilterByTagCond(pListInfo, res, pTagCond, metaHandle, status);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
