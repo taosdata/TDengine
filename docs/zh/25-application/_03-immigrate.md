@@ -172,7 +172,7 @@ TDengine 支持标准的 JDBC 3.0 接口操纵数据库，你也可以使用其�
 
 为了方便历史数据的迁移工作，我们为数据同步工具 DataX 提供了插件，能够将数据自动写入到 TDengine 中，需要注意的是 DataX 的自动化数据迁移只能够支持单值模型的数据迁移过程。
 
-DataX 具体的使用方式及如何使用 DataX 将数据写入 TDengine 请参见[基于 DataX 的 TDengine 数据迁移工具](https://www.taosdata.com/blog/2021/10/26/3156.html)。
+DataX 具体的使用方式及如何使用 DataX 将数据写入 TDengine 请参见[基于 DataX 的 TDengine 数据迁移工具](https://www.taosdata.com/engineering/16401.html)。
 
 在对 DataX 进行迁移实践后，我们发现通过启动多个进程，同时迁移多个 metric 的方式，可以大幅度的提高迁移历史数据的效率，下面是迁移过程中的部分记录，希望这些能为应用迁移工作带来参考。
 
