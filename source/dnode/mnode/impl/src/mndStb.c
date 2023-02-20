@@ -1954,6 +1954,13 @@ static int32_t mndAlterStbAndUpdateTagIdxImp(SMnode *pMnode, SRpcMsg *pReq, SDbO
 
   if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
+  if (needRsp) {
+    void   *pCont = NULL;
+    int32_t contLen = 0;
+    if (mndBuildSMAlterStbRsp(pDb, pStb, &pCont, &contLen) != 0) goto _OVER;
+    mndTransSetRpcRsp(pTrans, pCont, contLen);
+  }
+
   if (pAlter->alterType == TSDB_ALTER_TABLE_DROP_TAG) {
     SIdxObj idxObj = {0};
     SField *pField0 = taosArrayGet(pAlter->pFields, 0);
