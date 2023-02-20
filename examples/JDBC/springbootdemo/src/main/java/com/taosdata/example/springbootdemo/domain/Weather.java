@@ -2,6 +2,7 @@ package com.taosdata.example.springbootdemo.domain;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 
 public class Weather {
@@ -12,6 +13,7 @@ public class Weather {
     private Float humidity;
     private String location;
     private String note;
+    private byte[] bytes;
     private int groupId;
 
     public Weather() {
@@ -69,5 +71,31 @@ public class Weather {
 
     public void setNote(String note) {
         this.note = note;
+    }
+
+    public byte[] getBytes() {
+        return bytes;
+    }
+
+    public void setBytes(byte[] bytes) {
+        this.bytes = bytes;
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("Weather{");
+        sb.append("ts=").append(ts);
+        sb.append(", temperature=").append(temperature);
+        sb.append(", humidity=").append(humidity);
+        sb.append(", location='").append(location).append('\'');
+        sb.append(", note='").append(note).append('\'');
+        sb.append(", bytes -> string=");
+        if (bytes == null) sb.append("null");
+        else {
+            sb.append(new String(bytes, StandardCharsets.UTF_8));
+        }
+        sb.append(", groupId=").append(groupId);
+        sb.append('}');
+        return sb.toString();
     }
 }
