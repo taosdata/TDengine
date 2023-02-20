@@ -53,7 +53,7 @@ typedef struct SArray {
  * @return
  */
 SArray* taosArrayInit(size_t size, size_t elemSize);
-SArray* taosArrayInit_s(size_t size, size_t elemSize, size_t initialSize);
+SArray* taosArrayInit_s(size_t elemSize, size_t initialSize);
 
 /**
  *
