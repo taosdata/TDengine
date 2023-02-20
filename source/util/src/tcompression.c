@@ -315,8 +315,8 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
             __m256i inc = _mm256_set1_epi64x(bit << 2);
 
             for (int32_t i = 0; i < batch; ++i) {
-              __m256i after = _mm256_srlv_epi64(base, shiftBits);
-              __m256i zigzagVal = _mm256_and_si256(after, maskVal);
+              base = _mm256_srlv_epi64(base, shiftBits);
+              __m256i zigzagVal = _mm256_and_si256(base, maskVal);
 
               // ZIGZAG_DECODE(T, v) (((v) >> 1) ^ -((T)((v)&1)))
               __m256i signmask = _mm256_and_si256(_mm256_set1_epi64x(1), zigzagVal);
@@ -327,8 +327,8 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
               // calculate the cumulative sum (prefix sum) for each number
               // decode[0] = prev_value + final[0]
               // decode[1] = decode[0] + final[1]   -----> prev_value + final[0] + final[1]
-              // decode[2] = decode[1] + final[1]   -----> prev_value + final[0] + final[1] + final[2]
-              // decode[3] = decode[2] + final[1]   -----> prev_value + final[0] + final[1] + final[2] + final[3]
+              // decode[2] = decode[1] + final[2]   -----> prev_value + final[0] + final[1] + final[2]
+              // decode[3] = decode[2] + final[3]   -----> prev_value + final[0] + final[1] + final[2] + final[3]
 
               //  1, 2, 3, 4
               //+ 0, 1, 2, 3
