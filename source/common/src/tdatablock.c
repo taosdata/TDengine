@@ -63,6 +63,10 @@ int32_t getJsonValueLen(const char* data) {
   return dataLen;
 }
 
+int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
+  return colDataSetVal(pColumnInfoData, rowIndex, pData, isNull);
+}
+
 int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
   if (isNull) {
     // There is a placehold for each NULL value of binary or nchar type.
