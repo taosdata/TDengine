@@ -788,6 +788,9 @@ int writeVarNames(int type, TAOS_RES* tres) {
 
 void setThreadNull(int type) {
   taosThreadMutexLock(&tiresMutex);
+  if(threads[type]) {
+    taosMemoryFree(threads[type]);
+  }
   threads[type] = NULL;
   taosThreadMutexUnlock(&tiresMutex);
 }
