@@ -13,6 +13,8 @@ public class Weather {
     private Float humidity;
     private String location;
     private String note;
+    // In rest mode, the byte[] type is not recommended.
+    // UTF-8 is used to encode the byte arrays, that result may affect the SQL correctness
     private byte[] bytes;
     private int groupId;
 
