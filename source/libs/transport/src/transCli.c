@@ -727,7 +727,7 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
   QUEUE_INIT(&conn->q);
   conn->hostThrd = pThrd;
   conn->status = ConnNormal;
-  conn->broken = 0;
+  conn->broken = false;
   transRefCliHandle(conn);
 
   atomic_add_fetch_32(&pThrd->connCount, 1);
@@ -997,6 +997,11 @@ static void cliDestroyBatch(SCliBatch* pBatch) {
   taosMemoryFree(pBatch);
 }
 static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
+  if (pThrd->quit == true) {
+    cliDestroyBatch(pBatch);
+    return;
+  }
+
   if (pBatch == NULL || pBatch->wLen == 0 || QUEUE_IS_EMPTY(&pBatch->wq)) {
     return;
   }
@@ -1087,12 +1092,15 @@ static void cliSendBatchCb(uv_write_t* req, int status) {
   } else {
     tDebug("%s conn %p succ to send batch msg, batch size:%d, msgLen:%d", CONN_GET_INST_LABEL(conn), conn, p->wLen,
            p->batchSize);
-
-    if (nxtBatch != NULL) {
-      conn->pBatch = nxtBatch;
-      cliSendBatch(conn);
+    if (conn->broken != true) {
+      if (nxtBatch != NULL) {
+        conn->pBatch = nxtBatch;
+        cliSendBatch(conn);
+      } else {
+        addConnToPool(thrd->pool, conn);
+      }
     } else {
-      addConnToPool(thrd->pool, conn);
+      // release by other callback
     }
   }
 
