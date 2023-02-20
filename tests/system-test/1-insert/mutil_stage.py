@@ -75,7 +75,7 @@ class TDTestCase:
             tdLog.exit(cmd)
 
     def cfg_str(self, filename, update_str):
-        cmd = f'echo "{update_str}" >> {filename}'
+        cmd = f'echo {update_str} >> {filename}'
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
@@ -94,41 +94,41 @@ class TDTestCase:
     def __err_cfg(self):
         cfg_list = []
         err_case1 = [
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {NON_PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE1}1 {L1} {PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE2}2 {L2} {NON_PRIMARY_DIR}"
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}0 {L0} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE1}1 {L1} {PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE2}2 {L2} {NON_PRIMARY_DIR}"
         ]
         err_case2 = [
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {NON_PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE1}1 {L1} {NON_PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE2}2 {L2} {PRIMARY_DIR}"
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}0 {L0} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE1}1 {L1} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE2}2 {L2} {PRIMARY_DIR}"
         ]
         err_case3 = [
-            f"dataDir {self.taos_data_dir}/data33 3 {NON_PRIMARY_DIR}"
+            f"dataDir {self.taos_data_dir}{os.sep}data33 3 {NON_PRIMARY_DIR}"
         ]
         err_case4 = [
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {NON_PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE1}1 {L1} {NON_PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE2}2 {L2} {NON_PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE2}2 {L1} {NON_PRIMARY_DIR}"
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}0 {L0} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE1}1 {L1} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE2}2 {L2} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE2}2 {L1} {NON_PRIMARY_DIR}"
         ]
-        err_case5 = [f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_DIR}"]
+        err_case5 = [f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}0 {L0} {PRIMARY_DIR}"]
         for i in range(16):
-            err_case5.append(f"dataDir {self.taos_data_dir}/{DATA_PRE0}{i+1} {L0} {NON_PRIMARY_DIR}")
+            err_case5.append(f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}{i+1} {L0} {NON_PRIMARY_DIR}")
 
         err_case6 = [
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}1 {L0} {PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}0 {L0} {PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}1 {L0} {PRIMARY_DIR}",
         ]
         err_case7 = [
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE2}2 {L2} {PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}0 {L0} {PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE2}2 {L2} {PRIMARY_DIR}",
         ]
         err_case8 = [
-            f"dataDir {self.taos_data_dir}/data33 3 {PRIMARY_DIR}"
+            f"dataDir {self.taos_data_dir}{os.sep}data33 3 {PRIMARY_DIR}"
         ]
         err_case9 = [
-            f"dataDir {self.taos_data_dir}/data33 -1 {NON_PRIMARY_DIR}"
+            f"dataDir {self.taos_data_dir}{os.sep}data33 -1 {NON_PRIMARY_DIR}"
         ]
 
         cfg_list.append(err_case1)
@@ -147,23 +147,23 @@ class TDTestCase:
     def __current_cfg(self):
         cfg_list = []
         current_case1 = [
-            #f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}1 {L0} {NON_PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE1}1 {L1} {NON_PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE2}2 {L2} {NON_PRIMARY_DIR}"
+            #f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}0 {L0} {PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}1 {L0} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE1}1 {L1} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE2}2 {L2} {NON_PRIMARY_DIR}"
         ]
 
-        #current_case2 = [f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 {L0} {PRIMARY_DIR}"]
+        #current_case2 = [f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}0 {L0} {PRIMARY_DIR}"]
         current_case2 = []
         for i in range(9):
-            current_case2.append(f"dataDir {self.taos_data_dir}/{DATA_PRE0}{i+1} {L0} {NON_PRIMARY_DIR}")
+            current_case2.append(f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}{i+1} {L0} {NON_PRIMARY_DIR}")
 
         # TD-17773bug
         current_case3 = [
-            #f"dataDir {self.taos_data_dir}/{DATA_PRE0}0 ",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE0}1 {L0} {NON_PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE1}0 {L1} {NON_PRIMARY_DIR}",
-            f"dataDir {self.taos_data_dir}/{DATA_PRE2}0 {L2} {NON_PRIMARY_DIR}",
+            #f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}0 ",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE0}1 {L0} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE1}0 {L1} {NON_PRIMARY_DIR}",
+            f"dataDir {self.taos_data_dir}{os.sep}{DATA_PRE2}0 {L2} {NON_PRIMARY_DIR}",
         ]
         cfg_list.append(current_case1)
         cfg_list.append(current_case3)
