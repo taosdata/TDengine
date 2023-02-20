@@ -1087,7 +1087,9 @@ static void cliSendBatchCb(uv_write_t* req, int status) {
   if (status != 0) {
     tDebug("%s conn %p failed to send batch msg, batch size:%d, msgLen:%d, reason:%s", CONN_GET_INST_LABEL(conn), conn,
            p->wLen, p->batchSize, uv_err_name(status));
-    cliHandleExcept(conn);
+
+    if (!uv_is_closing((uv_handle_t*)&conn->stream)) cliHandleExcept(conn);
+
     cliHandleBatchReq(nxtBatch, thrd);
   } else {
     tDebug("%s conn %p succ to send batch msg, batch size:%d, msgLen:%d", CONN_GET_INST_LABEL(conn), conn, p->wLen,
@@ -1100,7 +1102,8 @@ static void cliSendBatchCb(uv_write_t* req, int status) {
         addConnToPool(thrd->pool, conn);
       }
     } else {
-      // release by other callback
+      cliDestroyBatch(nxtBatch);
+      // conn release by other callback
     }
   }
 
