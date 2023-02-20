@@ -97,16 +97,14 @@ typedef struct {
 
 typedef struct SQueryExecMetric {
   int64_t start;        // start timestamp, us
-  int64_t syntaxStart;  // start to parse, us
-  int64_t syntaxEnd;    // end to parse, us
   int64_t ctgStart;     // start to parse, us
-  int64_t ctgEnd;       // end to parse, us
-  int64_t semanticEnd;
-  int64_t planEnd;
-  int64_t resultReady;
-  int64_t execEnd;
-  int64_t send;  // start to send to server, us
-  int64_t rsp;   // receive response from server, us
+  int64_t execStart;     // start to parse, us
+
+  int64_t parseCostUs;   
+  int64_t ctgCostUs;
+  int64_t analyseCostUs;
+  int64_t planCostUs;
+  int64_t execCostUs;
 } SQueryExecMetric;
 
 struct SAppInstInfo {

@@ -365,7 +365,7 @@ _err:
   if (pVnode->pWal) walClose(pVnode->pWal);
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
   if (pVnode->pSma) smaClose(pVnode->pSma);
-  if (pVnode->pMeta) metaClose(pVnode->pMeta);
+  if (pVnode->pMeta) metaClose(&pVnode->pMeta);
   if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
   tsem_destroy(&(pVnode->canCommit));
@@ -389,7 +389,7 @@ void vnodeClose(SVnode *pVnode) {
     tqClose(pVnode->pTq);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
     smaClose(pVnode->pSma);
-    metaClose(pVnode->pMeta);
+    if (pVnode->pMeta) metaClose(&pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
     tsem_post(&pVnode->canCommit);
 

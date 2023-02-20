@@ -67,6 +67,10 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_RPC_TIMEOUT                   TAOS_DEF_ERROR_CODE(0, 0x0019) //
 #define TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED    TAOS_DEF_ERROR_CODE(0, 0x0020) // "Vgroup could not be connected"
 #define TSDB_CODE_RPC_SOMENODE_BROKEN_LINK      TAOS_DEF_ERROR_CODE(0, 0x0021) // 
+#define TSDB_CODE_RPC_MAX_SESSIONS              TAOS_DEF_ERROR_CODE(0, 0x0022) // 
+
+
+
 
 //common & util
 #define TSDB_CODE_OPS_NOT_SUPPORT               TAOS_DEF_ERROR_CODE(0, 0x0100) //

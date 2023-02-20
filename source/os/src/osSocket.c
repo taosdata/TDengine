@@ -1078,7 +1078,7 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
   //  return -1;
   //}
 #else  // Linux like systems
-  uint32_t conn_timeout_ms = timeout * 1000;
+  uint32_t conn_timeout_ms = timeout;
   if (0 != setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
     taosCloseSocketNoCheck1(fd);
     return -1;

@@ -176,7 +176,7 @@ int32_t syncBuildAppendEntriesFromRaftEntry(SSyncNode* pNode, SSyncRaftEntry* pE
   pMsg->prevLogTerm = prevLogTerm;
   pMsg->vgId = pNode->vgId;
   pMsg->srcId = pNode->myRaftId;
-  pMsg->term = pNode->raftStore.currentTerm;
+  pMsg->term = raftStoreGetTerm(pNode);
   pMsg->commitIndex = pNode->commitIndex;
   pMsg->privateTerm = 0;
   return 0;

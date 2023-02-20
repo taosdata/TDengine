@@ -752,7 +752,8 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
   SRequestObj         *pRequest = pWrapper->pRequest;
   SQuery              *pQuery = pRequest->pQuery;
 
-  pRequest->metric.ctgEnd = taosGetTimestampUs();
+  int64_t analyseStart = taosGetTimestampUs();
+  pRequest->metric.ctgCostUs = analyseStart - pRequest->metric.ctgStart;
   qDebug("0x%" PRIx64 " start to semantic analysis, reqId:0x%" PRIx64, pRequest->self, pRequest->requestId);
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -763,7 +764,7 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
     }
   }
 
-  pRequest->metric.semanticEnd = taosGetTimestampUs();
+  pRequest->metric.analyseCostUs = taosGetTimestampUs() - analyseStart;
 
   if (code == TSDB_CODE_SUCCESS) {
     if (pQuery->haveResultSet) {
@@ -774,10 +775,6 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
     TSWAP(pRequest->dbList, (pQuery)->pDbList);
     TSWAP(pRequest->tableList, (pQuery)->pTableList);
     TSWAP(pRequest->targetTableList, (pQuery)->pTargetTableList);
-
-    double el = (pRequest->metric.semanticEnd - pRequest->metric.ctgEnd) / 1000.0;
-    tscDebug("0x%" PRIx64 " analysis semantics completed, start async query, elapsed time:%.2f ms, reqId:0x%" PRIx64,
-             pRequest->self, el, pRequest->requestId);
 
     launchAsyncQuery(pRequest, pQuery, pResultMeta, pWrapper);
   } else {
@@ -843,7 +840,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
   SRequestObj         *pRequest = pWrapper->pRequest;
   SQuery              *pQuery = pRequest->pQuery;
 
-  pRequest->metric.ctgEnd = taosGetTimestampUs();
+  pRequest->metric.ctgCostUs += taosGetTimestampUs() - pRequest->metric.ctgStart;
   qDebug("0x%" PRIx64 " start to continue parse, reqId:0x%" PRIx64 ", code:%s", pRequest->self, pRequest->requestId,
          tstrerror(code));
 
@@ -954,7 +951,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    pRequest->metric.syntaxStart = taosGetTimestampUs();
+    int64_t syntaxStart = taosGetTimestampUs();
 
     pWrapper->pCatalogReq = taosMemoryCalloc(1, sizeof(SCatalogReq));
     if (pWrapper->pCatalogReq == NULL) {
@@ -965,19 +962,11 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
       code = qParseSqlSyntax(pWrapper->pParseCtx, &pRequest->pQuery, pWrapper->pCatalogReq);
     }
 
-    pRequest->metric.syntaxEnd = taosGetTimestampUs();
-  }
-
-  if (TSDB_CODE_SUCCESS == code && !updateMetaForce) {
-    SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
-    if (QUERY_NODE_INSERT_STMT == nodeType(pRequest->pQuery->pRoot)) {
-      atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
-    } else if (QUERY_NODE_SELECT_STMT == nodeType(pRequest->pQuery->pRoot)) {
-      atomic_add_fetch_64((int64_t *)&pActivity->numOfQueryReq, 1);
-    }
+    pRequest->metric.parseCostUs += taosGetTimestampUs() - syntaxStart;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    pRequest->stmtType = pRequest->pQuery->pRoot->type;
     phaseAsyncQuery(pWrapper);
   } else {
     tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code, tstrerror(code),
@@ -1004,7 +993,6 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
   SRequestObj *pRequest = (SRequestObj *)param;
 
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
-  pRequest->metric.resultReady = taosGetTimestampUs();
 
   tscDebug("0x%" PRIx64 " enter scheduler fetch cb, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code,
            tstrerror(code), pRequest->requestId);

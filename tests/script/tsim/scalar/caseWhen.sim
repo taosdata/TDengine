@@ -519,7 +519,7 @@ if $rows != 0 then
   return -1
 endi
 
-sql select sum(f1),count(f1) from tba1 partition by case when f1 then f1 when 1 then 1 end;
+sql select sum(f1) v,count(f1) from tba1 partition by case when f1 then f1 when 1 then 1 end order by v;
 if $rows != 2 then 
   return -1
 endi

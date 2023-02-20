@@ -325,7 +325,7 @@ _exit:
 }
 
 static int32_t tdRSmaFSScanAndTryFix(SSma *pSma) {
-  int32_t    code = 0;
+  int32_t code = 0;
 #if 0
   int32_t    lino = 0;
   SVnode    *pVnode = pSma->pVnode;
@@ -559,7 +559,7 @@ int32_t tdRSmaFSRef(SSma *pSma, SRSmaFS *pFS) {
   SRSmaFS   *qFS = RSMA_FS(pStat);
   int32_t    size = taosArrayGetSize(qFS->aQTaskInf);
 
-  pFS->aQTaskInf = taosArrayInit(size, sizeof(SQTaskFile));
+  pFS->aQTaskInf = taosArrayInit_s(size, sizeof(SQTaskFile), size);
   if (pFS->aQTaskInf == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -574,7 +574,6 @@ int32_t tdRSmaFSRef(SSma *pSma, SRSmaFS *pFS) {
     }
   }
 
-  taosArraySetSize(pFS->aQTaskInf, size);
   memcpy(pFS->aQTaskInf->pData, qFS->aQTaskInf->pData, size * sizeof(SQTaskFile));
 
 _exit:
@@ -640,9 +639,8 @@ int32_t tdRSmaFSCopy(SSma *pSma, SRSmaFS *pFS) {
 
   code = tdRSmaFSCreate(pFS, size);
   TSDB_CHECK_CODE(code, lino, _exit);
-
-  taosArraySetSize(pFS->aQTaskInf, size);
-  memcpy(pFS->aQTaskInf->pData, qFS->aQTaskInf->pData, size * sizeof(SQTaskFile));
+  taosArrayClear(pFS->aQTaskInf->pData);
+  taosArrayAddBatch(pFS->aQTaskInf->pData, qFS->aQTaskInf->pData, size);
 
 _exit:
   if (code) {

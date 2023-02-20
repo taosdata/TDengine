@@ -16,6 +16,8 @@
 #ifndef __SHELL_AUTO__
 #define __SHELL_AUTO__
 
+#include "shellInt.h"
+
 #define TAB_KEY 0x09
 
 // press tab key
@@ -28,7 +30,7 @@ void pressOtherKey(char c);
 bool shellAutoInit();
 
 // set conn
-void shellSetConn(TAOS* conn);
+void shellSetConn(TAOS* conn, bool runOnce);
 
 // exit shell auto function, shell exit call once
 void shellAutoExit();
@@ -39,7 +41,7 @@ void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb);
 // introduction
 void printfIntroduction();
 
-// show all commands help 
+// show all commands help
 void showHelp();
 
 #endif

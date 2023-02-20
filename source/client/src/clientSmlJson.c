@@ -21,217 +21,218 @@
 
 #define OTD_JSON_SUB_FIELDS_NUM 2
 
-#define JUMP_JSON_SPACE(start) \
-while(*(start)){\
-  if(unlikely(*(start) > 32))\
-    break;\
-  else\
-    (start)++;\
+#define JUMP_JSON_SPACE(start)   \
+  while (*(start)) {             \
+    if (unlikely(*(start) > 32)) \
+      break;                     \
+    else                         \
+      (start)++;                 \
   }
 
-//SArray *smlJsonParseTags(char *start, char *end){
-//  SArray *tags = taosArrayInit(4, sizeof(SSmlKv));
-//  while(start < end){
-//    SSmlKv kv = {0};
-//    kv.type = TSDB_DATA_TYPE_NCHAR;
-//    bool isInQuote = false;
-//    while(start < end){
-//      if(unlikely(!isInQuote && *start == '"')){
-//        start++;
-//        kv.key = start;
-//        isInQuote = true;
-//        continue;
-//      }
-//      if(unlikely(isInQuote && *start == '"')){
-//        kv.keyLen = start - kv.key;
-//        start++;
-//        break;
-//      }
-//      start++;
-//    }
-//    bool hasColon = false;
-//    while(start < end){
-//      if(unlikely(!hasColon && *start == ':')){
-//        start++;
-//        hasColon = true;
-//        continue;
-//      }
-//      if(unlikely(hasColon && kv.value == NULL && (*start > 32 && *start != '"'))){
-//        kv.value = start;
-//        start++;
-//        continue;
-//      }
+// SArray *smlJsonParseTags(char *start, char *end){
+//   SArray *tags = taosArrayInit(4, sizeof(SSmlKv));
+//   while(start < end){
+//     SSmlKv kv = {0};
+//     kv.type = TSDB_DATA_TYPE_NCHAR;
+//     bool isInQuote = false;
+//     while(start < end){
+//       if(unlikely(!isInQuote && *start == '"')){
+//         start++;
+//         kv.key = start;
+//         isInQuote = true;
+//         continue;
+//       }
+//       if(unlikely(isInQuote && *start == '"')){
+//         kv.keyLen = start - kv.key;
+//         start++;
+//         break;
+//       }
+//       start++;
+//     }
+//     bool hasColon = false;
+//     while(start < end){
+//       if(unlikely(!hasColon && *start == ':')){
+//         start++;
+//         hasColon = true;
+//         continue;
+//       }
+//       if(unlikely(hasColon && kv.value == NULL && (*start > 32 && *start != '"'))){
+//         kv.value = start;
+//         start++;
+//         continue;
+//       }
 //
-//      if(unlikely(hasColon && kv.value != NULL && (*start == '"' || *start == ',' || *start == '}'))){
-//        kv.length = start - kv.value;
-//        taosArrayPush(tags, &kv);
-//        start++;
-//        break;
-//      }
-//      start++;
-//    }
-//  }
-//  return tags;
-//}
+//       if(unlikely(hasColon && kv.value != NULL && (*start == '"' || *start == ',' || *start == '}'))){
+//         kv.length = start - kv.value;
+//         taosArrayPush(tags, &kv);
+//         start++;
+//         break;
+//       }
+//       start++;
+//     }
+//   }
+//   return tags;
+// }
 
-//static int32_t smlParseTagsFromJSON(SSmlHandle *info, SSmlLineInfo *elements) {
-//  int32_t ret = TSDB_CODE_SUCCESS;
+// static int32_t smlParseTagsFromJSON(SSmlHandle *info, SSmlLineInfo *elements) {
+//   int32_t ret = TSDB_CODE_SUCCESS;
 //
-//  if(is_same_child_table_telnet(elements, &info->preLine) == 0){
-//    return TSDB_CODE_SUCCESS;
-//  }
+//   if(is_same_child_table_telnet(elements, &info->preLine) == 0){
+//     return TSDB_CODE_SUCCESS;
+//   }
 //
-//  bool isSameMeasure = IS_SAME_SUPER_TABLE;
+//   bool isSameMeasure = IS_SAME_SUPER_TABLE;
 //
-//  int     cnt = 0;
-//  SArray *preLineKV = info->preLineTagKV;
-//  bool    isSuperKVInit = true;
-//  SArray *superKV = NULL;
-//  if(info->dataFormat){
-//    if(unlikely(!isSameMeasure)){
-//      SSmlSTableMeta *sMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, elements->measure, elements->measureLen, NULL);
+//   int     cnt = 0;
+//   SArray *preLineKV = info->preLineTagKV;
+//   bool    isSuperKVInit = true;
+//   SArray *superKV = NULL;
+//   if(info->dataFormat){
+//     if(unlikely(!isSameMeasure)){
+//       SSmlSTableMeta *sMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, elements->measure,
+//       elements->measureLen, NULL);
 //
-//      if(unlikely(sMeta == NULL)){
-//        sMeta = smlBuildSTableMeta(info->dataFormat);
-//        STableMeta * pTableMeta = smlGetMeta(info, elements->measure, elements->measureLen);
-//        sMeta->tableMeta = pTableMeta;
-//        if(pTableMeta == NULL){
-//          info->dataFormat = false;
-//          info->reRun      = true;
-//          return TSDB_CODE_SUCCESS;
-//        }
-//        nodeListSet(&info->superTables, elements->measure, elements->measureLen, sMeta, NULL);
-//      }
-//      info->currSTableMeta = sMeta->tableMeta;
-//      superKV = sMeta->tags;
+//       if(unlikely(sMeta == NULL)){
+//         sMeta = smlBuildSTableMeta(info->dataFormat);
+//         STableMeta * pTableMeta = smlGetMeta(info, elements->measure, elements->measureLen);
+//         sMeta->tableMeta = pTableMeta;
+//         if(pTableMeta == NULL){
+//           info->dataFormat = false;
+//           info->reRun      = true;
+//           return TSDB_CODE_SUCCESS;
+//         }
+//         nodeListSet(&info->superTables, elements->measure, elements->measureLen, sMeta, NULL);
+//       }
+//       info->currSTableMeta = sMeta->tableMeta;
+//       superKV = sMeta->tags;
 //
-//      if(unlikely(taosArrayGetSize(superKV) == 0)){
-//        isSuperKVInit = false;
-//      }
-//      taosArraySetSize(preLineKV, 0);
-//    }
-//  }else{
-//    taosArraySetSize(preLineKV, 0);
-//  }
+//       if(unlikely(taosArrayGetSize(superKV) == 0)){
+//         isSuperKVInit = false;
+//       }
+//       taosArraySetSize(preLineKV, 0);
+//     }
+//   }else{
+//     taosArraySetSize(preLineKV, 0);
+//   }
 //
-//  SArray *tags = smlJsonParseTags(elements->tags, elements->tags + elements->tagsLen);
-//  int32_t tagNum = taosArrayGetSize(tags);
-//  if (tagNum == 0) {
-//    uError("SML:tag is empty:%s", elements->tags)
-//    taosArrayDestroy(tags);
-//    return TSDB_CODE_SML_INVALID_DATA;
-//  }
-//  for (int32_t i = 0; i < tagNum; ++i) {
-//    SSmlKv kv = *(SSmlKv*)taosArrayGet(tags, i);
+//   SArray *tags = smlJsonParseTags(elements->tags, elements->tags + elements->tagsLen);
+//   int32_t tagNum = taosArrayGetSize(tags);
+//   if (tagNum == 0) {
+//     uError("SML:tag is empty:%s", elements->tags)
+//     taosArrayDestroy(tags);
+//     return TSDB_CODE_SML_INVALID_DATA;
+//   }
+//   for (int32_t i = 0; i < tagNum; ++i) {
+//     SSmlKv kv = *(SSmlKv*)taosArrayGet(tags, i);
 //
-//    if(info->dataFormat){
-//      if(unlikely(cnt + 1 > info->currSTableMeta->tableInfo.numOfTags)){
-//        info->dataFormat = false;
-//        info->reRun      = true;
-//        taosArrayDestroy(tags);
-//        return TSDB_CODE_SUCCESS;
-//      }
+//     if(info->dataFormat){
+//       if(unlikely(cnt + 1 > info->currSTableMeta->tableInfo.numOfTags)){
+//         info->dataFormat = false;
+//         info->reRun      = true;
+//         taosArrayDestroy(tags);
+//         return TSDB_CODE_SUCCESS;
+//       }
 //
-//      if(isSameMeasure){
-//        if(unlikely(cnt >= taosArrayGetSize(preLineKV))) {
-//          info->dataFormat = false;
-//          info->reRun      = true;
-//          taosArrayDestroy(tags);
-//          return TSDB_CODE_SUCCESS;
-//        }
-//        SSmlKv *preKV = (SSmlKv *)taosArrayGet(preLineKV, cnt);
-//        if(unlikely(kv.length > preKV->length)){
-//          preKV->length = kv.length;
-//          SSmlSTableMeta *tableMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, elements->measure, elements->measureLen, NULL);
-//           if(unlikely(NULL == tableMeta)){
-//             uError("SML:0x%" PRIx64 " NULL == tableMeta", info->id);
-//             return TSDB_CODE_SML_INTERNAL_ERROR;
+//       if(isSameMeasure){
+//         if(unlikely(cnt >= taosArrayGetSize(preLineKV))) {
+//           info->dataFormat = false;
+//           info->reRun      = true;
+//           taosArrayDestroy(tags);
+//           return TSDB_CODE_SUCCESS;
+//         }
+//         SSmlKv *preKV = (SSmlKv *)taosArrayGet(preLineKV, cnt);
+//         if(unlikely(kv.length > preKV->length)){
+//           preKV->length = kv.length;
+//           SSmlSTableMeta *tableMeta = (SSmlSTableMeta *)nodeListGet(info->superTables, elements->measure,
+//           elements->measureLen, NULL);
+//            if(unlikely(NULL == tableMeta)){
+//              uError("SML:0x%" PRIx64 " NULL == tableMeta", info->id);
+//              return TSDB_CODE_SML_INTERNAL_ERROR;
+//            }
+//
+//           SSmlKv *oldKV = (SSmlKv *)taosArrayGet(tableMeta->tags, cnt);
+//           oldKV->length = kv.length;
+//           info->needModifySchema = true;
+//         }
+//         if(unlikely(!IS_SAME_KEY)){
+//           info->dataFormat = false;
+//           info->reRun      = true;
+//           taosArrayDestroy(tags);
+//           return TSDB_CODE_SUCCESS;
+//         }
+//       }else{
+//         if(isSuperKVInit){
+//           if(unlikely(cnt >= taosArrayGetSize(superKV))) {
+//             info->dataFormat = false;
+//             info->reRun      = true;
+//             taosArrayDestroy(tags);
+//             return TSDB_CODE_SUCCESS;
 //           }
+//           SSmlKv *preKV = (SSmlKv *)taosArrayGet(superKV, cnt);
+//           if(unlikely(kv.length > preKV->length)) {
+//             preKV->length = kv.length;
+//           }else{
+//             kv.length = preKV->length;
+//           }
+//           info->needModifySchema = true;
 //
-//          SSmlKv *oldKV = (SSmlKv *)taosArrayGet(tableMeta->tags, cnt);
-//          oldKV->length = kv.length;
-//          info->needModifySchema = true;
-//        }
-//        if(unlikely(!IS_SAME_KEY)){
-//          info->dataFormat = false;
-//          info->reRun      = true;
-//          taosArrayDestroy(tags);
-//          return TSDB_CODE_SUCCESS;
-//        }
-//      }else{
-//        if(isSuperKVInit){
-//          if(unlikely(cnt >= taosArrayGetSize(superKV))) {
-//            info->dataFormat = false;
-//            info->reRun      = true;
-//            taosArrayDestroy(tags);
-//            return TSDB_CODE_SUCCESS;
-//          }
-//          SSmlKv *preKV = (SSmlKv *)taosArrayGet(superKV, cnt);
-//          if(unlikely(kv.length > preKV->length)) {
-//            preKV->length = kv.length;
-//          }else{
-//            kv.length = preKV->length;
-//          }
-//          info->needModifySchema = true;
+//           if(unlikely(!IS_SAME_KEY)){
+//             info->dataFormat = false;
+//             info->reRun      = true;
+//             taosArrayDestroy(tags);
+//             return TSDB_CODE_SUCCESS;
+//           }
+//         }else{
+//           taosArrayPush(superKV, &kv);
+//         }
+//         taosArrayPush(preLineKV, &kv);
+//       }
+//     }else{
+//       taosArrayPush(preLineKV, &kv);
+//     }
+//     cnt++;
+//   }
+//   taosArrayDestroy(tags);
 //
-//          if(unlikely(!IS_SAME_KEY)){
-//            info->dataFormat = false;
-//            info->reRun      = true;
-//            taosArrayDestroy(tags);
-//            return TSDB_CODE_SUCCESS;
-//          }
-//        }else{
-//          taosArrayPush(superKV, &kv);
-//        }
-//        taosArrayPush(preLineKV, &kv);
-//      }
-//    }else{
-//      taosArrayPush(preLineKV, &kv);
-//    }
-//    cnt++;
-//  }
-//  taosArrayDestroy(tags);
+//   SSmlTableInfo *tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements, POINTER_BYTES,
+//   is_same_child_table_telnet); if (unlikely(tinfo == NULL)) {
+//     tinfo = smlBuildTableInfo(1, elements->measure, elements->measureLen);
+//     if (unlikely(!tinfo)) {
+//       return TSDB_CODE_OUT_OF_MEMORY;
+//     }
+//     tinfo->tags = taosArrayDup(preLineKV, NULL);
 //
-//  SSmlTableInfo *tinfo = (SSmlTableInfo *)nodeListGet(info->childTables, elements, POINTER_BYTES, is_same_child_table_telnet);
-//  if (unlikely(tinfo == NULL)) {
-//    tinfo = smlBuildTableInfo(1, elements->measure, elements->measureLen);
-//    if (unlikely(!tinfo)) {
-//      return TSDB_CODE_OUT_OF_MEMORY;
-//    }
-//    tinfo->tags = taosArrayDup(preLineKV, NULL);
+//     smlSetCTableName(tinfo);
+//     if (info->dataFormat) {
+//       info->currSTableMeta->uid = tinfo->uid;
+//       tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
+//       if (tinfo->tableDataCtx == NULL) {
+//         smlBuildInvalidDataMsg(&info->msgBuf, "smlInitTableDataCtx error", NULL);
+//         return TSDB_CODE_SML_INVALID_DATA;
+//       }
+//     }
 //
-//    smlSetCTableName(tinfo);
-//    if (info->dataFormat) {
-//      info->currSTableMeta->uid = tinfo->uid;
-//      tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
-//      if (tinfo->tableDataCtx == NULL) {
-//        smlBuildInvalidDataMsg(&info->msgBuf, "smlInitTableDataCtx error", NULL);
-//        return TSDB_CODE_SML_INVALID_DATA;
-//      }
-//    }
+//     SSmlLineInfo *key = (SSmlLineInfo *)taosMemoryMalloc(sizeof(SSmlLineInfo));
+//     *key = *elements;
+//     tinfo->key = key;
+//     nodeListSet(&info->childTables, key, POINTER_BYTES, tinfo, is_same_child_table_telnet);
+//   }
+//   if (info->dataFormat) info->currTableDataCtx = tinfo->tableDataCtx;
 //
-//    SSmlLineInfo *key = (SSmlLineInfo *)taosMemoryMalloc(sizeof(SSmlLineInfo));
-//    *key = *elements;
-//    tinfo->key = key;
-//    nodeListSet(&info->childTables, key, POINTER_BYTES, tinfo, is_same_child_table_telnet);
-//  }
-//  if (info->dataFormat) info->currTableDataCtx = tinfo->tableDataCtx;
-//
-//  return ret;
-//}
+//   return ret;
+// }
 
-static char* smlJsonGetObj(char *payload){
+static char *smlJsonGetObj(char *payload) {
   int  leftBracketCnt = 0;
   bool isInQuote = false;
-  while(*payload) {
-    if(*payload == '"' && *(payload - 1) != '\\'){
+  while (*payload) {
+    if (*payload == '"' && *(payload - 1) != '\\') {
       isInQuote = !isInQuote;
-    }else if (!isInQuote && unlikely(*payload == '{')) {
+    } else if (!isInQuote && unlikely(*payload == '{')) {
       leftBracketCnt++;
       payload++;
       continue;
-    }
-    else if (!isInQuote && unlikely(*payload == '}')) {
+    } else if (!isInQuote && unlikely(*payload == '}')) {
       leftBracketCnt--;
       payload++;
       if (leftBracketCnt == 0) {
@@ -246,55 +247,52 @@ static char* smlJsonGetObj(char *payload){
   return NULL;
 }
 
-int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
+int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset) {
   int index = 0;
-  while(*(*start)){
-    if((*start)[0] != '"'){
+  while (*(*start)) {
+    if ((*start)[0] != '"') {
       (*start)++;
       continue;
     }
 
-    if(unlikely(index >= OTD_JSON_FIELDS_NUM)) {
-      uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start)
-      return -1;
+    if (unlikely(index >= OTD_JSON_FIELDS_NUM)) {
+      uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start) return -1;
     }
 
     char *sTmp = *start;
-    if((*start)[1] == 'm' && (*start)[2] == 'e' && (*start)[3] == 't'
-       && (*start)[4] == 'r' &&  (*start)[5] == 'i' && (*start)[6] == 'c' && (*start)[7] == '"'){
-
+    if ((*start)[1] == 'm' && (*start)[2] == 'e' && (*start)[3] == 't' && (*start)[4] == 'r' && (*start)[5] == 'i' &&
+        (*start)[6] == 'c' && (*start)[7] == '"') {
       (*start) += 8;
       bool isInQuote = false;
-      while(*(*start)){
-        if(unlikely(!isInQuote && *(*start) == '"')){
+      while (*(*start)) {
+        if (unlikely(!isInQuote && *(*start) == '"')) {
           (*start)++;
           offset[index++] = *start - sTmp;
           element->measure = (*start);
           isInQuote = true;
           continue;
         }
-        if(unlikely(isInQuote && *(*start) == '"')){
+        if (unlikely(isInQuote && *(*start) == '"')) {
           element->measureLen = (*start) - element->measure;
           (*start)++;
           break;
         }
         (*start)++;
       }
-    }else if((*start)[1] == 't' && (*start)[2] == 'i' && (*start)[3] == 'm'
-             && (*start)[4] == 'e' &&  (*start)[5] == 's' && (*start)[6] == 't'
-             && (*start)[7] == 'a' &&  (*start)[8] == 'm' && (*start)[9] == 'p' && (*start)[10] == '"'){
-
+    } else if ((*start)[1] == 't' && (*start)[2] == 'i' && (*start)[3] == 'm' && (*start)[4] == 'e' &&
+               (*start)[5] == 's' && (*start)[6] == 't' && (*start)[7] == 'a' && (*start)[8] == 'm' &&
+               (*start)[9] == 'p' && (*start)[10] == '"') {
       (*start) += 11;
       bool hasColon = false;
-      while(*(*start)){
-        if(unlikely(!hasColon && *(*start) == ':')){
+      while (*(*start)) {
+        if (unlikely(!hasColon && *(*start) == ':')) {
           (*start)++;
           JUMP_JSON_SPACE((*start))
           offset[index++] = *start - sTmp;
           element->timestamp = (*start);
-          if(*(*start) == '{'){
-            char* tmp = smlJsonGetObj((*start));
-            if(tmp){
+          if (*(*start) == '{') {
+            char *tmp = smlJsonGetObj((*start));
+            if (tmp) {
               element->timestampLen = tmp - (*start);
               *start = tmp;
             }
@@ -303,27 +301,26 @@ int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
           hasColon = true;
           continue;
         }
-        if(unlikely(hasColon && (*(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32))){
+        if (unlikely(hasColon && (*(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32))) {
           element->timestampLen = (*start) - element->timestamp;
           break;
         }
         (*start)++;
       }
-    }else if((*start)[1] == 'v' && (*start)[2] == 'a' && (*start)[3] == 'l'
-             && (*start)[4] == 'u' &&  (*start)[5] == 'e' && (*start)[6] == '"'){
-
+    } else if ((*start)[1] == 'v' && (*start)[2] == 'a' && (*start)[3] == 'l' && (*start)[4] == 'u' &&
+               (*start)[5] == 'e' && (*start)[6] == '"') {
       (*start) += 7;
 
       bool hasColon = false;
-      while(*(*start)){
-        if(unlikely(!hasColon && *(*start) == ':')){
+      while (*(*start)) {
+        if (unlikely(!hasColon && *(*start) == ':')) {
           (*start)++;
           JUMP_JSON_SPACE((*start))
           offset[index++] = *start - sTmp;
           element->cols = (*start);
-          if(*(*start) == '{'){
-            char* tmp = smlJsonGetObj((*start));
-            if(tmp){
+          if (*(*start) == '{') {
+            char *tmp = smlJsonGetObj((*start));
+            if (tmp) {
               element->colsLen = tmp - (*start);
               *start = tmp;
             }
@@ -332,24 +329,24 @@ int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
           hasColon = true;
           continue;
         }
-        if(unlikely(hasColon && (*(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32))){
+        if (unlikely(hasColon && (*(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32))) {
           element->colsLen = (*start) - element->cols;
           break;
         }
         (*start)++;
       }
-    }else if((*start)[1] == 't' && (*start)[2] == 'a' && (*start)[3] == 'g'
-             && (*start)[4] == 's' && (*start)[5] == '"'){
+    } else if ((*start)[1] == 't' && (*start)[2] == 'a' && (*start)[3] == 'g' && (*start)[4] == 's' &&
+               (*start)[5] == '"') {
       (*start) += 6;
 
-      while(*(*start)){
-        if(unlikely(*(*start) == ':')){
+      while (*(*start)) {
+        if (unlikely(*(*start) == ':')) {
           (*start)++;
           JUMP_JSON_SPACE((*start))
           offset[index++] = *start - sTmp;
           element->tags = (*start);
-          char* tmp = smlJsonGetObj((*start));
-          if(tmp){
+          char *tmp = smlJsonGetObj((*start));
+          if (tmp) {
             element->tagsLen = tmp - (*start);
             *start = tmp;
           }
@@ -358,102 +355,100 @@ int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset){
         (*start)++;
       }
     }
-    if(*(*start) == '\0'){
+    if (*(*start) == '\0') {
       break;
     }
-    if(*(*start) == '}'){
+    if (*(*start) == '}') {
       (*start)++;
       break;
     }
     (*start)++;
   }
 
-  if(unlikely(index != OTD_JSON_FIELDS_NUM) || element->tags == NULL || element->cols == NULL || element->measure == NULL || element->timestamp == NULL) {
-    uError("elements != %d or element parse null", OTD_JSON_FIELDS_NUM)
-    return -1;
+  if (unlikely(index != OTD_JSON_FIELDS_NUM) || element->tags == NULL || element->cols == NULL ||
+      element->measure == NULL || element->timestamp == NULL) {
+    uError("elements != %d or element parse null", OTD_JSON_FIELDS_NUM) return -1;
   }
   return 0;
 }
 
-int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset){
+int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset) {
   int index = 0;
-  while(*(*start)){
-    if((*start)[0] != '"'){
+  while (*(*start)) {
+    if ((*start)[0] != '"') {
       (*start)++;
       continue;
     }
 
-    if(unlikely(index >= OTD_JSON_FIELDS_NUM)) {
-      uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start)
-      return -1;
+    if (unlikely(index >= OTD_JSON_FIELDS_NUM)) {
+      uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start) return -1;
     }
 
-    if((*start)[1] == 'm'){
+    if ((*start)[1] == 'm') {
       (*start) += offset[index++];
       element->measure = *start;
-      while(*(*start)){
-        if(unlikely(*(*start) == '"')){
+      while (*(*start)) {
+        if (unlikely(*(*start) == '"')) {
           element->measureLen = (*start) - element->measure;
           (*start)++;
           break;
         }
         (*start)++;
       }
-    }else if((*start)[1] == 't' && (*start)[2] == 'i'){
+    } else if ((*start)[1] == 't' && (*start)[2] == 'i') {
       (*start) += offset[index++];
       element->timestamp = *start;
-      if(*(*start) == '{'){
-        char* tmp = smlJsonGetObj((*start));
-        if(tmp){
+      if (*(*start) == '{') {
+        char *tmp = smlJsonGetObj((*start));
+        if (tmp) {
           element->timestampLen = tmp - (*start);
           *start = tmp;
         }
-      }else{
-        while(*(*start)){
-          if(unlikely(*(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32)){
+      } else {
+        while (*(*start)) {
+          if (unlikely(*(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32)) {
             element->timestampLen = (*start) - element->timestamp;
             break;
           }
           (*start)++;
         }
       }
-    }else if((*start)[1] == 'v'){
+    } else if ((*start)[1] == 'v') {
       (*start) += offset[index++];
       element->cols = *start;
-      if(*(*start) == '{'){
-        char* tmp = smlJsonGetObj((*start));
-        if(tmp){
+      if (*(*start) == '{') {
+        char *tmp = smlJsonGetObj((*start));
+        if (tmp) {
           element->colsLen = tmp - (*start);
           *start = tmp;
         }
-      }else{
-        while(*(*start)){
-          if(unlikely( *(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32)){
+      } else {
+        while (*(*start)) {
+          if (unlikely(*(*start) == ',' || *(*start) == '}' || (*(*start)) <= 32)) {
             element->colsLen = (*start) - element->cols;
             break;
           }
           (*start)++;
         }
       }
-    }else if((*start)[1] == 't' && (*start)[2] == 'a'){
+    } else if ((*start)[1] == 't' && (*start)[2] == 'a') {
       (*start) += offset[index++];
       element->tags = (*start);
-      char* tmp = smlJsonGetObj((*start));
-      if(tmp){
+      char *tmp = smlJsonGetObj((*start));
+      if (tmp) {
         element->tagsLen = tmp - (*start);
         *start = tmp;
       }
     }
-    if(*(*start) == '}'){
+    if (*(*start) == '}') {
       (*start)++;
       break;
     }
     (*start)++;
   }
 
-  if(unlikely(index != 0 && index != OTD_JSON_FIELDS_NUM)) {
-    uError("elements != %d", OTD_JSON_FIELDS_NUM)
-    return -1;
+  if (unlikely(index != 0 && index != OTD_JSON_FIELDS_NUM)) {
+    uError("elements != %d", OTD_JSON_FIELDS_NUM) return -1;
   }
   return 0;
 }
@@ -469,19 +464,18 @@ static inline int32_t smlParseMetricFromJSON(SSmlHandle *info, cJSON *metric, SS
   return TSDB_CODE_SUCCESS;
 }
 
-const char *jsonName[OTD_JSON_FIELDS_NUM] = {"metric", "timestamp", "value", "tags"};
-static int32_t smlGetJsonElements(cJSON *root, cJSON ***marks){
+const char    *jsonName[OTD_JSON_FIELDS_NUM] = {"metric", "timestamp", "value", "tags"};
+static int32_t smlGetJsonElements(cJSON *root, cJSON ***marks) {
   for (int i = 0; i < OTD_JSON_FIELDS_NUM; ++i) {
     cJSON *child = root->child;
-    while(child != NULL)
-    {
-      if(strcasecmp(child->string, jsonName[i]) == 0){
+    while (child != NULL) {
+      if (strcasecmp(child->string, jsonName[i]) == 0) {
         *marks[i] = child;
         break;
       }
       child = child->next;
     }
-    if(*marks[i] == NULL){
+    if (*marks[i] == NULL) {
       uError("smlGetJsonElements error, not find mark:%d:%s", i, jsonName[i]);
       return -1;
     }
@@ -692,15 +686,15 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
   SArray *maxKVs = info->maxTagKVs;
   bool    isSuperKVInit = true;
   SArray *superKV = NULL;
-  if(info->dataFormat){
-    if(unlikely(!isSameMeasure)){
+  if (info->dataFormat) {
+    if (unlikely(!isSameMeasure)) {
       SSmlSTableMeta **tmp = (SSmlSTableMeta **)taosHashGet(info->superTables, elements->measure, elements->measureLen);
-      SSmlSTableMeta *sMeta = NULL;
-      if(unlikely(tmp == NULL)){
-        STableMeta * pTableMeta = smlGetMeta(info, elements->measure, elements->measureLen);
-        if(pTableMeta == NULL){
+      SSmlSTableMeta  *sMeta = NULL;
+      if (unlikely(tmp == NULL)) {
+        STableMeta *pTableMeta = smlGetMeta(info, elements->measure, elements->measureLen);
+        if (pTableMeta == NULL) {
           info->dataFormat = false;
-          info->reRun      = true;
+          info->reRun = true;
           return TSDB_CODE_SUCCESS;
         }
         sMeta = smlBuildSTableMeta(info->dataFormat);
@@ -711,18 +705,18 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
       info->currSTableMeta = (*tmp)->tableMeta;
       superKV = (*tmp)->tags;
 
-      if(unlikely(taosArrayGetSize(superKV) == 0)){
+      if (unlikely(taosArrayGetSize(superKV) == 0)) {
         isSuperKVInit = false;
       }
-      taosArraySetSize(maxKVs, 0);
+      taosArrayClear(maxKVs);
     }
-  }else{
-    taosArraySetSize(maxKVs, 0);
+  } else {
+    taosArrayClear(maxKVs);
   }
-  taosArraySetSize(preLineKV, 0);
+  taosArrayClear(preLineKV);
 
   int32_t tagNum = cJSON_GetArraySize(tags);
-  if(unlikely(tagNum == 0)){
+  if (unlikely(tagNum == 0)) {
     uError("SML:Tag should not be empty");
     return TSDB_CODE_TSC_INVALID_JSON;
   }
@@ -731,7 +725,7 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
     if (unlikely(tag == NULL)) {
       return TSDB_CODE_TSC_INVALID_JSON;
     }
-//    if(unlikely(tag == cMeasure)) continue;
+    //    if(unlikely(tag == cMeasure)) continue;
     size_t keyLen = strlen(tag->string);
     if (unlikely(IS_INVALID_COL_LEN(keyLen))) {
       uError("OTD:Tag key length is 0 or too large than 64");
@@ -739,31 +733,32 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
     }
 
     // add kv to SSmlKv
-    SSmlKv kv ={.key = tag->string, .keyLen = keyLen};
+    SSmlKv kv = {.key = tag->string, .keyLen = keyLen};
     // value
     ret = smlParseValueFromJSON(tag, &kv);
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       return ret;
     }
 
-    if(info->dataFormat){
-      if(unlikely(cnt + 1 > info->currSTableMeta->tableInfo.numOfTags)){
+    if (info->dataFormat) {
+      if (unlikely(cnt + 1 > info->currSTableMeta->tableInfo.numOfTags)) {
         info->dataFormat = false;
-        info->reRun      = true;
+        info->reRun = true;
         return TSDB_CODE_SUCCESS;
       }
 
-      if(isSameMeasure){
-        if(unlikely(cnt >= taosArrayGetSize(maxKVs))) {
+      if (isSameMeasure) {
+        if (unlikely(cnt >= taosArrayGetSize(maxKVs))) {
           info->dataFormat = false;
-          info->reRun      = true;
+          info->reRun = true;
           return TSDB_CODE_SUCCESS;
         }
         SSmlKv *maxKV = (SSmlKv *)taosArrayGet(maxKVs, cnt);
-        if(unlikely(kv.length > maxKV->length)){
+        if (unlikely(kv.length > maxKV->length)) {
           maxKV->length = kv.length;
-          SSmlSTableMeta **tableMeta = (SSmlSTableMeta **)taosHashGet(info->superTables, elements->measure, elements->measureLen);
-          if(unlikely(NULL == tableMeta)){
+          SSmlSTableMeta **tableMeta =
+              (SSmlSTableMeta **)taosHashGet(info->superTables, elements->measure, elements->measureLen);
+          if (unlikely(NULL == tableMeta)) {
             uError("SML:0x%" PRIx64 " NULL == tableMeta", info->id);
             return TSDB_CODE_SML_INTERNAL_ERROR;
           }
@@ -772,49 +767,50 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
           oldKV->length = kv.length;
           info->needModifySchema = true;
         }
-        if(unlikely(!IS_SAME_KEY)){
+        if (unlikely(!IS_SAME_KEY)) {
           info->dataFormat = false;
-          info->reRun      = true;
+          info->reRun = true;
           return TSDB_CODE_SUCCESS;
         }
-      }else{
-        if(isSuperKVInit){
-          if(unlikely(cnt >= taosArrayGetSize(superKV))) {
+      } else {
+        if (isSuperKVInit) {
+          if (unlikely(cnt >= taosArrayGetSize(superKV))) {
             info->dataFormat = false;
-            info->reRun      = true;
+            info->reRun = true;
             return TSDB_CODE_SUCCESS;
           }
           SSmlKv *maxKV = (SSmlKv *)taosArrayGet(superKV, cnt);
-          if(unlikely(kv.length > maxKV->length)) {
+          if (unlikely(kv.length > maxKV->length)) {
             maxKV->length = kv.length;
-          }else{
+          } else {
             kv.length = maxKV->length;
           }
           info->needModifySchema = true;
 
-          if(unlikely(!IS_SAME_KEY)){
+          if (unlikely(!IS_SAME_KEY)) {
             info->dataFormat = false;
-            info->reRun      = true;
+            info->reRun = true;
             return TSDB_CODE_SUCCESS;
           }
-        }else{
+        } else {
           taosArrayPush(superKV, &kv);
         }
         taosArrayPush(maxKVs, &kv);
       }
-    }else{
+    } else {
       taosArrayPush(maxKVs, &kv);
     }
     taosArrayPush(preLineKV, &kv);
     cnt++;
   }
 
-  elements->measureTag = (char*)taosMemoryMalloc(elements->measureLen + elements->tagsLen);
+  elements->measureTag = (char *)taosMemoryMalloc(elements->measureLen + elements->tagsLen);
   memcpy(elements->measureTag, elements->measure, elements->measureLen);
   memcpy(elements->measureTag + elements->measureLen, elements->tags, elements->tagsLen);
   elements->measureTagsLen = elements->measureLen + elements->tagsLen;
 
-  SSmlTableInfo **tmp = (SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen);
+  SSmlTableInfo **tmp =
+      (SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen);
   SSmlTableInfo *tinfo = NULL;
   if (unlikely(tmp == NULL)) {
     tinfo = smlBuildTableInfo(1, elements->measure, elements->measureLen);
@@ -835,15 +831,16 @@ static int32_t smlParseTagsFromJSON(SSmlHandle *info, cJSON *tags, SSmlLineInfo 
       }
     }
 
-//    SSmlLineInfo *key = (SSmlLineInfo *)taosMemoryMalloc(sizeof(SSmlLineInfo));
-//    *key = *elements;
-//    if(info->parseJsonByLib){
-//      key->tags = taosMemoryMalloc(elements->tagsLen + 1);
-//      memcpy(key->tags, elements->tags, elements->tagsLen);
-//      key->tags[elements->tagsLen] = 0;
-//    }
-//    tinfo->key = key;
-    taosHashPut(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen, &tinfo, POINTER_BYTES);
+    //    SSmlLineInfo *key = (SSmlLineInfo *)taosMemoryMalloc(sizeof(SSmlLineInfo));
+    //    *key = *elements;
+    //    if(info->parseJsonByLib){
+    //      key->tags = taosMemoryMalloc(elements->tagsLen + 1);
+    //      memcpy(key->tags, elements->tags, elements->tagsLen);
+    //      key->tags[elements->tagsLen] = 0;
+    //    }
+    //    tinfo->key = key;
+    taosHashPut(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen, &tinfo,
+                POINTER_BYTES);
     tmp = &tinfo;
   }
   if (info->dataFormat) info->currTableDataCtx = (*tmp)->tableDataCtx;
@@ -877,7 +874,7 @@ static int64_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int32_t toPr
   }
 
   if (timeDouble == 0) {
-    return taosGetTimestampNs()/smlFactorNS[toPrecision];
+    return taosGetTimestampNs() / smlFactorNS[toPrecision];
   }
 
   if (timeDouble < 0) {
@@ -885,11 +882,11 @@ static int64_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int32_t toPr
   }
 
   int64_t tsInt64 = timeDouble;
-  size_t typeLen = strlen(type->valuestring);
+  size_t  typeLen = strlen(type->valuestring);
   if (typeLen == 1 && (type->valuestring[0] == 's' || type->valuestring[0] == 'S')) {
     // seconds
     int8_t fromPrecision = TSDB_TIME_PRECISION_SECONDS;
-    if(smlFactorS[toPrecision] < INT64_MAX / tsInt64){
+    if (smlFactorS[toPrecision] < INT64_MAX / tsInt64) {
       return tsInt64 * smlFactorS[toPrecision];
     }
     return -1;
@@ -938,11 +935,10 @@ static int64_t smlParseTSFromJSON(SSmlHandle *info, cJSON *timestamp) {
     }
 
     if (unlikely(timeDouble < 0)) {
-      smlBuildInvalidDataMsg(&info->msgBuf,
-                             "timestamp is negative", NULL);
+      smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is negative", NULL);
       return timeDouble;
-    }else if (unlikely(timeDouble == 0)) {
-      return taosGetTimestampNs()/smlFactorNS[toPrecision];
+    } else if (unlikely(timeDouble == 0)) {
+      return taosGetTimestampNs() / smlFactorNS[toPrecision];
     }
 
     uint8_t tsLen = smlGetTimestampLen((int64_t)timeDouble);
@@ -954,19 +950,18 @@ static int64_t smlParseTSFromJSON(SSmlHandle *info, cJSON *timestamp) {
       return -1;
     }
     int64_t tsInt64 = timeDouble;
-    if(fromPrecision == TSDB_TIME_PRECISION_SECONDS){
-      if(smlFactorS[toPrecision] < INT64_MAX / tsInt64){
+    if (fromPrecision == TSDB_TIME_PRECISION_SECONDS) {
+      if (smlFactorS[toPrecision] < INT64_MAX / tsInt64) {
         return tsInt64 * smlFactorS[toPrecision];
       }
       return -1;
-    }else{
+    } else {
       return convertTimePrecision(timeDouble, fromPrecision, toPrecision);
     }
   } else if (cJSON_IsObject(timestamp)) {
     return smlParseTSFromJSONObj(info, timestamp, toPrecision);
   } else {
-    smlBuildInvalidDataMsg(&info->msgBuf,
-                           "invalidate json", NULL);
+    smlBuildInvalidDataMsg(&info->msgBuf, "invalidate json", NULL);
     return -1;
   }
 }
@@ -1011,7 +1006,7 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
   bool needFree = info->dataFormat;
   elements->tags = cJSON_PrintUnformatted(tagsJson);
   elements->tagsLen = strlen(elements->tags);
-  if(is_same_child_table_telnet(elements, &info->preLine) != 0) {
+  if (is_same_child_table_telnet(elements, &info->preLine) != 0) {
     ret = smlParseTagsFromJSON(info, tagsJson, elements);
     if (unlikely(ret)) {
       uError("OTD:0x%" PRIx64 " Unable to parse tags from JSON payload", info->id);
@@ -1019,16 +1014,16 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
       elements->tags = NULL;
       return ret;
     }
-  }else{
+  } else {
     elements->measureTag = info->preLine.measureTag;
   }
 
-  if(needFree){
+  if (needFree) {
     taosMemoryFree(elements->tags);
     elements->tags = NULL;
   }
 
-  if(unlikely(info->reRun)){
+  if (unlikely(info->reRun)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1039,14 +1034,18 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
     uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload", info->id);
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
-  SSmlKv kvTs = { .key = TS, .keyLen = TS_LEN, .type = TSDB_DATA_TYPE_TIMESTAMP, .i = ts, .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
+  SSmlKv kvTs = {.key = TS,
+                 .keyLen = TS_LEN,
+                 .type = TSDB_DATA_TYPE_TIMESTAMP,
+                 .i = ts,
+                 .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
 
-  if(info->dataFormat){
+  if (info->dataFormat) {
     ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kvTs, 0);
-    if(ret == TSDB_CODE_SUCCESS){
+    if (ret == TSDB_CODE_SUCCESS) {
       ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, 1);
     }
-    if(ret == TSDB_CODE_SUCCESS){
+    if (ret == TSDB_CODE_SUCCESS) {
       ret = smlBuildRow(info->currTableDataCtx);
     }
     clearColValArray(info->currTableDataCtx->pValues);
@@ -1054,8 +1053,8 @@ static int32_t smlParseJSONStringExt(SSmlHandle *info, cJSON *root, SSmlLineInfo
       smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
       return ret;
     }
-  }else{
-    if(elements->colArray == NULL){
+  } else {
+    if (elements->colArray == NULL) {
       elements->colArray = taosArrayInit(16, sizeof(SSmlKv));
     }
     taosArrayPush(elements->colArray, &kvTs);
@@ -1098,20 +1097,20 @@ static int32_t smlParseJSONExt(SSmlHandle *info, char *payload) {
     info->lines = NULL;
   }
   ret = smlClearForRerun(info);
-  if(ret != TSDB_CODE_SUCCESS){
+  if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
 
   info->parseJsonByLib = true;
   cJSON *head = (payloadNum == 1 && cJSON_IsObject(info->root)) ? info->root : info->root->child;
 
-  int cnt = 0;
+  int    cnt = 0;
   cJSON *dataPoint = head;
   while (dataPoint) {
-    if(info->dataFormat) {
+    if (info->dataFormat) {
       SSmlLineInfo element = {0};
       ret = smlParseJSONStringExt(info, dataPoint, &element);
-    }else{
+    } else {
       ret = smlParseJSONStringExt(info, dataPoint, info->lines + cnt);
     }
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
@@ -1119,12 +1118,12 @@ static int32_t smlParseJSONExt(SSmlHandle *info, char *payload) {
       return ret;
     }
 
-    if(unlikely(info->reRun)){
+    if (unlikely(info->reRun)) {
       cnt = 0;
       dataPoint = head;
       info->lineNum = payloadNum;
       ret = smlClearForRerun(info);
-      if(ret != TSDB_CODE_SUCCESS){
+      if (ret != TSDB_CODE_SUCCESS) {
         return ret;
       }
       continue;
@@ -1139,9 +1138,9 @@ static int32_t smlParseJSONExt(SSmlHandle *info, char *payload) {
 static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *elements) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
-  if(info->offset[0] == 0){
+  if (info->offset[0] == 0) {
     ret = smlJsonParseObjFirst(start, elements, info->offset);
-  }else{
+  } else {
     ret = smlJsonParseObj(start, elements, info->offset);
   }
 
@@ -1149,7 +1148,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  if(unlikely(**start == '\0' && elements->measure == NULL)) return TSDB_CODE_SUCCESS;
+  if (unlikely(**start == '\0' && elements->measure == NULL)) return TSDB_CODE_SUCCESS;
 
   if (unlikely(IS_INVALID_TABLE_LEN(elements->measureLen))) {
     smlBuildInvalidDataMsg(&info->msgBuf, "measure is empty or too large than 192", NULL);
@@ -1161,10 +1160,10 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
   if (unlikely(elements->colsLen == 0)) {
     uError("SML:colsLen == 0");
     return TSDB_CODE_TSC_INVALID_VALUE;
-  }else if(unlikely(elements->cols[0] == '{')){
+  } else if (unlikely(elements->cols[0] == '{')) {
     char tmp = elements->cols[elements->colsLen];
     elements->cols[elements->colsLen] = '\0';
-    cJSON* valueJson = cJSON_Parse(elements->cols);
+    cJSON *valueJson = cJSON_Parse(elements->cols);
     if (unlikely(valueJson == NULL)) {
       uError("SML:0x%" PRIx64 " parse json cols failed:%s", info->id, elements->cols);
       return TSDB_CODE_TSC_INVALID_JSON;
@@ -1177,16 +1176,16 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
       return TSDB_CODE_TSC_INVALID_VALUE;
     }
     elements->cols[elements->colsLen] = tmp;
-  }else if(smlParseValue(&kv, &info->msgBuf) != TSDB_CODE_SUCCESS){
+  } else if (smlParseValue(&kv, &info->msgBuf) != TSDB_CODE_SUCCESS) {
     uError("SML:cols invalidate:%s", elements->cols);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
   // Parse tags
-  if(is_same_child_table_telnet(elements, &info->preLine) != 0){
+  if (is_same_child_table_telnet(elements, &info->preLine) != 0) {
     char tmp = *(elements->tags + elements->tagsLen);
     *(elements->tags + elements->tagsLen) = 0;
-    cJSON* tagsJson = cJSON_Parse(elements->tags);
+    cJSON *tagsJson = cJSON_Parse(elements->tags);
     *(elements->tags + elements->tagsLen) = tmp;
     if (unlikely(tagsJson == NULL)) {
       uError("SML:0x%" PRIx64 " parse json tag failed:%s", info->id, elements->tags);
@@ -1199,24 +1198,24 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
       uError("OTD:0x%" PRIx64 " Unable to parse tags from JSON payload", info->id);
       return ret;
     }
-  }else{
+  } else {
     elements->measureTag = info->preLine.measureTag;
   }
 
-  if(unlikely(info->reRun)){
+  if (unlikely(info->reRun)) {
     return TSDB_CODE_SUCCESS;
   }
 
   // Parse timestamp
   // notice!!! put ts back to tag to ensure get meta->precision
   int64_t ts = 0;
-  if(unlikely(elements->timestampLen == 0)){
+  if (unlikely(elements->timestampLen == 0)) {
     uError("OTD:0x%" PRIx64 " elements->timestampLen == 0", info->id);
     return TSDB_CODE_INVALID_TIMESTAMP;
-  }else if(elements->timestamp[0] == '{'){
+  } else if (elements->timestamp[0] == '{') {
     char tmp = elements->timestamp[elements->timestampLen];
     elements->cols[elements->timestampLen] = '\0';
-    cJSON* tsJson = cJSON_Parse(elements->timestamp);
+    cJSON *tsJson = cJSON_Parse(elements->timestamp);
     ts = smlParseTSFromJSON(info, tsJson);
     if (unlikely(ts < 0)) {
       uError("SML:0x%" PRIx64 " Unable to parse timestamp from JSON payload:%s", info->id, elements->timestamp);
@@ -1226,21 +1225,25 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
     }
     elements->timestamp[elements->timestampLen] = tmp;
     cJSON_Delete(tsJson);
-  }else{
+  } else {
     ts = smlParseOpenTsdbTime(info, elements->timestamp, elements->timestampLen);
     if (unlikely(ts < 0)) {
       uError("OTD:0x%" PRIx64 " Unable to parse timestamp from JSON payload", info->id);
       return TSDB_CODE_INVALID_TIMESTAMP;
     }
   }
-  SSmlKv kvTs = { .key = TS, .keyLen = TS_LEN, .type = TSDB_DATA_TYPE_TIMESTAMP, .i = ts, .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
+  SSmlKv kvTs = {.key = TS,
+                 .keyLen = TS_LEN,
+                 .type = TSDB_DATA_TYPE_TIMESTAMP,
+                 .i = ts,
+                 .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
 
-  if(info->dataFormat){
+  if (info->dataFormat) {
     ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kvTs, 0);
-    if(ret == TSDB_CODE_SUCCESS){
+    if (ret == TSDB_CODE_SUCCESS) {
       ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, 1);
     }
-    if(ret == TSDB_CODE_SUCCESS){
+    if (ret == TSDB_CODE_SUCCESS) {
       ret = smlBuildRow(info->currTableDataCtx);
     }
     clearColValArray(info->currTableDataCtx->pValues);
@@ -1248,8 +1251,8 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
       smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
       return ret;
     }
-  }else{
-    if(elements->colArray == NULL){
+  } else {
+    if (elements->colArray == NULL) {
       elements->colArray = taosArrayInit(16, sizeof(SSmlKv));
     }
     taosArrayPush(elements->colArray, &kvTs);
@@ -1265,43 +1268,43 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
   uDebug("SML:0x%" PRIx64 "json:%s", info->id, payload);
-  int cnt = 0;
+  int   cnt = 0;
   char *dataPointStart = payload;
   while (1) {
-    if(info->dataFormat) {
+    if (info->dataFormat) {
       SSmlLineInfo element = {0};
       ret = smlParseJSONString(info, &dataPointStart, &element);
-      if(element.measureTagsLen != 0) taosMemoryFree(element.measureTag);
-    }else{
-      if(cnt >= payloadNum){
+      if (element.measureTagsLen != 0) taosMemoryFree(element.measureTag);
+    } else {
+      if (cnt >= payloadNum) {
         payloadNum = payloadNum << 1;
-        void* tmp = taosMemoryRealloc(info->lines, payloadNum * sizeof(SSmlLineInfo));
-        if(tmp != NULL){
-          info->lines = (SSmlLineInfo*)tmp;
+        void *tmp = taosMemoryRealloc(info->lines, payloadNum * sizeof(SSmlLineInfo));
+        if (tmp != NULL) {
+          info->lines = (SSmlLineInfo *)tmp;
           memset(info->lines + cnt, 0, (payloadNum - cnt) * sizeof(SSmlLineInfo));
         }
       }
       ret = smlParseJSONString(info, &dataPointStart, info->lines + cnt);
-      if((info->lines + cnt)->measure == NULL) break;
+      if ((info->lines + cnt)->measure == NULL) break;
     }
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
       uError("SML:0x%" PRIx64 " Invalid JSON Payload 1:%s", info->id, payload);
       return smlParseJSONExt(info, payload);
     }
 
-    if(unlikely(info->reRun)){
+    if (unlikely(info->reRun)) {
       cnt = 0;
       dataPointStart = payload;
       info->lineNum = payloadNum;
       ret = smlClearForRerun(info);
-      if(ret != TSDB_CODE_SUCCESS){
+      if (ret != TSDB_CODE_SUCCESS) {
         return ret;
       }
       continue;
     }
 
     cnt++;
-    if(*dataPointStart == '\0') break;
+    if (*dataPointStart == '\0') break;
   }
   info->lineNum = cnt;
 

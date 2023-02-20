@@ -18,12 +18,13 @@
 #include "tlog.h"
 #include "tdef.h"
 
+#define DEFAULT_BUF_PAGE_SIZE     1024
 #define SHASH_DEFAULT_LOAD_FACTOR 0.75
 #define HASH_MAX_CAPACITY         (1024 * 1024 * 16L)
 #define SHASH_NEED_RESIZE(_h)     ((_h)->size >= (_h)->capacity * SHASH_DEFAULT_LOAD_FACTOR)
 
-#define GET_SHASH_NODE_KEY(_n, _dl) ((char *)(_n) + sizeof(SHNode) + (_dl))
-#define GET_SHASH_NODE_DATA(_n)     ((char *)(_n) + sizeof(SHNode))
+#define GET_SHASH_NODE_DATA(_n)     (((SHNode*)_n)->data)
+#define GET_SHASH_NODE_KEY(_n, _dl) ((char*)GET_SHASH_NODE_DATA(_n) + (_dl))
 
 #define HASH_INDEX(v, c) ((v) & ((c)-1))
 
@@ -38,6 +39,8 @@ struct SSHashObj {
   int64_t     size;      // number of elements in hash table
   _hash_fn_t  hashFp;    // hash function
   _equal_fn_t equalFp;   // equal function
+  SArray*     pHashNodeBuf;// hash node allocation buffer, 1k size of each page by default
+  int32_t     offset;      // allocation offset in current page
 };
 
 static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
@@ -57,24 +60,28 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn) {
     capacity = 4;
   }
 
-  SSHashObj *pHashObj = (SSHashObj *)taosMemoryCalloc(1, sizeof(SSHashObj));
+  SSHashObj *pHashObj = (SSHashObj *)taosMemoryMalloc(sizeof(SSHashObj));
   if (!pHashObj) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   // the max slots is not defined by user
-  pHashObj->capacity = taosHashCapacity((int32_t)capacity);
-
-  pHashObj->equalFp = memcmp;
   pHashObj->hashFp = fn;
+  pHashObj->capacity = taosHashCapacity((int32_t)capacity);
+  pHashObj->equalFp = memcmp;
 
+  pHashObj->pHashNodeBuf = taosArrayInit(10, sizeof(void*));
+  pHashObj->offset = 0;
+  pHashObj->size = 0;
+  
   pHashObj->hashList = (SHNode **)taosMemoryCalloc(pHashObj->capacity, sizeof(void *));
   if (!pHashObj->hashList) {
     taosMemoryFree(pHashObj);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+
   return pHashObj;
 }
 
@@ -82,19 +89,53 @@ int32_t tSimpleHashGetSize(const SSHashObj *pHashObj) {
   if (!pHashObj) {
     return 0;
   }
-  return (int32_t)atomic_load_64((int64_t *)&pHashObj->size);
+  return (int32_t) pHashObj->size;
 }
 
-static SHNode *doCreateHashNode(const void *key, size_t keyLen, const void *data, size_t dataLen, uint32_t hashVal) {
-  SHNode *pNewNode = taosMemoryMalloc(sizeof(SHNode) + keyLen + dataLen);
+static void* doInternalAlloc(SSHashObj* pHashObj, int32_t size) {
+#if 0
+  void** p = taosArrayGetLast(pHashObj->pHashNodeBuf);
+  if (p == NULL || (pHashObj->offset + size) > DEFAULT_BUF_PAGE_SIZE) {
+    // let's allocate one new page
+    int32_t allocSize = TMAX(size, DEFAULT_BUF_PAGE_SIZE);
+    void* pNewPage = taosMemoryMalloc(allocSize);
+    if (pNewPage == NULL) {
+      return NULL;
+    }
+
+    // if the allocate the buffer page is greater than the DFFAULT_BUF_PAGE_SIZE,
+    // pHashObj->offset will always be greater than DEFAULT_BUF_PAGE_SIZE, which means that
+    // current buffer page is full. And a new buffer page needs to be allocated.
+    pHashObj->offset = size;
+    taosArrayPush(pHashObj->pHashNodeBuf, &pNewPage);
+    return pNewPage;
+  } else {
+    void* pPos = (char*)(*p) + pHashObj->offset;
+    pHashObj->offset += size;
+    return pPos;
+  }
+#else
+  return taosMemoryMalloc(size);
+#endif
+}
+
+static SHNode *doCreateHashNode(SSHashObj *pHashObj, const void *key, size_t keyLen, const void *data, size_t dataLen,
+                                uint32_t hashVal) {
+  SHNode *pNewNode = doInternalAlloc(pHashObj, sizeof(SHNode) + keyLen + dataLen);
   if (!pNewNode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+
   pNewNode->keyLen = keyLen;
   pNewNode->dataLen = dataLen;
   pNewNode->next = NULL;
-  if (data) memcpy(GET_SHASH_NODE_DATA(pNewNode), data, dataLen);
+  pNewNode->hashVal = hashVal;
+
+  if (data) {
+    memcpy(GET_SHASH_NODE_DATA(pNewNode), data, dataLen);
+  }
+
   memcpy(GET_SHASH_NODE_KEY(pNewNode, dataLen), key, keyLen);
   return pNewNode;
 }
@@ -111,7 +152,7 @@ static void tSimpleHashTableResize(SSHashObj *pHashObj) {
     return;
   }
 
-  int64_t st = taosGetTimestampUs();
+//  int64_t st = taosGetTimestampUs();
   void   *pNewEntryList = taosMemoryRealloc(pHashObj->hashList, POINTER_BYTES * newCapacity);
   if (!pNewEntryList) {
     uWarn("hash resize failed due to out of memory, capacity remain:%zu", pHashObj->capacity);
@@ -134,10 +175,7 @@ static void tSimpleHashTableResize(SSHashObj *pHashObj) {
     SHNode *pPrev = NULL;
 
     while (pNode != NULL) {
-      void    *key = GET_SHASH_NODE_KEY(pNode, pNode->dataLen);
-      uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)pNode->keyLen);
-
-      int32_t newIdx = HASH_INDEX(hashVal, pHashObj->capacity);
+      int32_t newIdx = HASH_INDEX(pNode->hashVal, pHashObj->capacity);
       pNext = pNode->next;
       if (newIdx != idx) {
         if (!pPrev) {
@@ -156,8 +194,7 @@ static void tSimpleHashTableResize(SSHashObj *pHashObj) {
     }
   }
 
-  int64_t et = taosGetTimestampUs();
-
+//  int64_t et = taosGetTimestampUs();
   //  uDebug("hash table resize completed, new capacity:%d, load factor:%f, elapsed time:%fms",
   //  (int32_t)pHashObj->capacity,
   //         ((double)pHashObj->size) / pHashObj->capacity, (et - st) / 1000.0);
@@ -179,13 +216,13 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
 
   SHNode *pNode = pHashObj->hashList[slot];
   if (!pNode) {
-    SHNode *pNewNode = doCreateHashNode(key, keyLen, data, dataLen, hashVal);
+    SHNode *pNewNode = doCreateHashNode(pHashObj, key, keyLen, data, dataLen, hashVal);
     if (!pNewNode) {
       return -1;
     }
 
     pHashObj->hashList[slot] = pNewNode;
-    atomic_add_fetch_64(&pHashObj->size, 1);
+    pHashObj->size += 1;
     return 0;
   }
 
@@ -197,13 +234,13 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
   }
 
   if (!pNode) {
-    SHNode *pNewNode = doCreateHashNode(key, keyLen, data, dataLen, hashVal);
+    SHNode *pNewNode = doCreateHashNode(pHashObj, key, keyLen, data, dataLen, hashVal);
     if (!pNewNode) {
       return -1;
     }
     pNewNode->next = pHashObj->hashList[slot];
     pHashObj->hashList[slot] = pNewNode;
-    atomic_add_fetch_64(&pHashObj->size, 1);
+    pHashObj->size += 1;
   } else if (data) {  // update data
     memcpy(GET_SHASH_NODE_DATA(pNode), data, dataLen);
   }
@@ -270,7 +307,7 @@ int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key, size_t keyLen) {
         pPrev->next = pNode->next;
       }
       FREE_HASH_NODE(pNode);
-      atomic_sub_fetch_64(&pHashObj->size, 1);
+      pHashObj->size -= 1;
       code = TSDB_CODE_SUCCESS;
       break;
     }
@@ -305,7 +342,7 @@ int32_t tSimpleHashIterateRemove(SSHashObj *pHashObj, const void *key, size_t ke
       }
 
       FREE_HASH_NODE(pNode);
-      atomic_sub_fetch_64(&pHashObj->size, 1);
+      pHashObj->size -= 1;
       break;
     }
     pPrev = pNode;
@@ -313,6 +350,10 @@ int32_t tSimpleHashIterateRemove(SSHashObj *pHashObj, const void *key, size_t ke
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+static void destroyItems(void* pItem) {
+  taosMemoryFree(*(void**)pItem);
 }
 
 void tSimpleHashClear(SSHashObj *pHashObj) {
@@ -332,9 +373,13 @@ void tSimpleHashClear(SSHashObj *pHashObj) {
       FREE_HASH_NODE(pNode);
       pNode = pNext;
     }
+
     pHashObj->hashList[i] = NULL;
   }
-  atomic_store_64(&pHashObj->size, 0);
+
+  taosArrayClearEx(pHashObj->pHashNodeBuf, destroyItems);
+  pHashObj->offset = 0;
+  pHashObj->size = 0;
 }
 
 void tSimpleHashCleanup(SSHashObj *pHashObj) {
@@ -343,6 +388,7 @@ void tSimpleHashCleanup(SSHashObj *pHashObj) {
   }
 
   tSimpleHashClear(pHashObj);
+  taosArrayDestroy(pHashObj->pHashNodeBuf);
   taosMemoryFreeClear(pHashObj->hashList);
   taosMemoryFree(pHashObj);
 }

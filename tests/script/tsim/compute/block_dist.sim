@@ -81,7 +81,6 @@ $nt = $ntPrefix . $i
 
 #sql select _block_dist() from $nt
 print show table distributed $nt
-sql_error show table distributed $nt
 
 #if $rows == 0 then
 #  return -1

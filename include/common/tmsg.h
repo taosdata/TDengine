@@ -1813,6 +1813,7 @@ typedef struct {
   int8_t   createStb;
   uint64_t targetStbUid;
   SArray*  fillNullCols;  // array of SColLocation
+  int64_t  deleteMark;
   int8_t   igUpdate;
 } SCMCreateStreamReq;
 
