@@ -2306,22 +2306,8 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return TSDB_CODE_RPC_BROKEN_LINK;
   }
-  /*if (pTransInst->connLimitNum > 0 && REQUEST_NO_RESP(pReq)) {
-    char     key[TSDB_FQDN_LEN + 64] = {0};
-    char*    ip = EPSET_GET_INUSE_IP((SEpSet*)pEpSet);
-    uint16_t port = EPSET_GET_INUSE_PORT((SEpSet*)pEpSet);
-    CONN_CONSTRUCT_HASH_KEY(key, ip, port);
-
-    int32_t* val = taosHashGet(pThrd->connLimitCache, key, strlen(key));
-    if (val != NULL && *val >= pTransInst->connLimitNum) {
-      transFreeMsg(pReq->pCont);
-      transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
-      return TSDB_CODE_RPC_MAX_SESSIONS;
-    }
-  }*/
 
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
-
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   pCtx->epSet = *pEpSet;
   pCtx->ahandle = pReq->info.ahandle;
