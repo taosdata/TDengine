@@ -965,9 +965,9 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
     goto end;
   } else {
     if ((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) {
-      code = metaGetTableTagsByUids(metaHandle, pListInfo->suid, pUidList);
+      code = metaGetTableTagsByUids(metaHandle, pListInfo->suid, pUidTagList);
     } else {
-      code = metaGetTableTags(metaHandle, pListInfo->suid, pUidList);
+      code = metaGetTableTags(metaHandle, pListInfo->suid, pUidTagList);
     }
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code), pListInfo->suid);
