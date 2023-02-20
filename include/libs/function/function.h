@@ -153,6 +153,11 @@ typedef struct SqlFunctionCtx {
   SSerializeDataHandle saveHandle;
   int32_t              exprIdx;
   char                 udfName[TSDB_FUNC_NAME_LEN];
+  int64_t smaHits;
+  int64_t smaNoHits;
+  int64_t smaNoHitsRows;
+  int64_t sdHits;
+  int64_t sdHitsRows;
 } SqlFunctionCtx;
 
 typedef struct tExprNode {

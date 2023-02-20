@@ -1543,6 +1543,11 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->numOfParams = pExpr->base.numOfParams;
     pCtx->param = pFunct->pParam;
     pCtx->saveHandle.currentPage = -1;
+    pCtx->smaHits = 0;
+    pCtx->smaNoHits = 0;
+    pCtx->smaNoHitsRows = 0;
+    pCtx->sdHits = 0;
+    pCtx->sdHitsRows = 0;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
