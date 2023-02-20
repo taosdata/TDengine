@@ -33,6 +33,8 @@ extern "C" {
 
 #endif // if !defined(WINDOWS)
 
+int32_t taosMemoryDbgInit();
+int32_t taosMemoryDbgInitRestore();
 void   *taosMemoryMalloc(int64_t size);
 void   *taosMemoryCalloc(int64_t num, int64_t size);
 void   *taosMemoryRealloc(void *ptr, int64_t size);
