@@ -315,8 +315,8 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
             __m256i inc = _mm256_set1_epi64x(bit << 2);
 
             for (int32_t i = 0; i < batch; ++i) {
-              base = _mm256_srlv_epi64(base, shiftBits);
-              __m256i zigzagVal = _mm256_and_si256(base, maskVal);
+              __m256i after = _mm256_srlv_epi64(base, shiftBits);
+              __m256i zigzagVal = _mm256_and_si256(after, maskVal);
 
               // ZIGZAG_DECODE(T, v) (((v) >> 1) ^ -((T)((v)&1)))
               __m256i signmask = _mm256_and_si256(_mm256_set1_epi64x(1), zigzagVal);
@@ -331,19 +331,22 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
               // decode[3] = decode[2] + final[3]   -----> prev_value + final[0] + final[1] + final[2] + final[3]
 
               //  1, 2, 3, 4
-              //+ 0, 1, 2, 3
-              //  1, 3, 5, 7
+              //+ 0, 1, 0, 3
+              //  1, 3, 3, 7
               // shift and add for the first round
               __m128i prev = _mm_set1_epi64x(prev_value);
-              delta = _mm256_add_epi64(delta, _mm256_slli_si256(delta, 8));
+              __m256i x =  _mm256_slli_si256(delta, 8);
+
+              delta = _mm256_add_epi64(delta, x);
               _mm256_storeu_si256((__m256i *)&p[_pos], delta);
 
-              //  1, 3, 5, 7
-              //+ 0, 0, 1, 3
+              //  1, 3, 3, 7
+              //+ 0, 0, 3, 3
               //  1, 3, 6, 10
               // shift and add operation for the second round
               __m128i firstPart = _mm_loadu_si128((__m128i *)&p[_pos]);
-              __m128i secPart = _mm_add_epi64(_mm_loadu_si128((__m128i *)&p[_pos + 2]), firstPart);
+              __m128i secondItem = _mm_set1_epi64x(p[_pos + 1]);
+              __m128i secPart = _mm_add_epi64(_mm_loadu_si128((__m128i *)&p[_pos + 2]), secondItem);
               firstPart = _mm_add_epi64(firstPart, prev);
               secPart = _mm_add_epi64(secPart, prev);
 
