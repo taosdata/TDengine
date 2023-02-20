@@ -1658,36 +1658,36 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pTrans->id, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->id, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pTrans->createdTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->createdTime, false);
 
     char stage[TSDB_TRANS_STAGE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(stage, mndTransStr(pTrans->stage), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)stage, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)stage, false);
 
     char opername[TSDB_TRANS_OPER_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(opername, pTrans->opername, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)opername, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)opername, false);
 
     char dbname[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(dbname, mndGetDbStr(pTrans->dbname), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)dbname, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)dbname, false);
 
     char stbname[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(stbname, mndGetDbStr(pTrans->stbname), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)stbname, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)stbname, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pTrans->failedTimes, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->failedTimes, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pTrans->lastExecTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pTrans->lastExecTime, false);
 
     char    lastInfo[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
     char    detail[TSDB_TRANS_ERROR_LEN + 1] = {0};
@@ -1703,7 +1703,7 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
     STR_WITH_MAXSIZE_TO_VARSTR(lastInfo, detail, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)lastInfo, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)lastInfo, false);
 
     numOfRows++;
     sdbRelease(pSdb, pTrans);

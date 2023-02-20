@@ -820,7 +820,7 @@ static void doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int32_
                          SBlockLoadSuppInfo* pSup) {
   if (IS_VAR_DATA_TYPE(pColVal->type)) {
     if (!COL_VAL_IS_VALUE(pColVal)) {
-      colDataAppendNULL(pColInfoData, rowIndex);
+      colDataSetNULL(pColInfoData, rowIndex);
     } else {
       varDataSetLen(pSup->buildBuf[colIndex], pColVal->value.nData);
       ASSERT(pColVal->value.nData <= pColInfoData->info.bytes);
@@ -828,10 +828,10 @@ static void doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int32_
         memcpy(varDataVal(pSup->buildBuf[colIndex]), pColVal->value.pData, pColVal->value.nData);
       }
 
-      colDataAppend(pColInfoData, rowIndex, pSup->buildBuf[colIndex], false);
+      colDataSetVal(pColInfoData, rowIndex, pSup->buildBuf[colIndex], false);
     }
   } else {
-    colDataAppend(pColInfoData, rowIndex, (const char*)&pColVal->value, !COL_VAL_IS_VALUE(pColVal));
+    colDataSetVal(pColInfoData, rowIndex, (const char*)&pColVal->value, !COL_VAL_IS_VALUE(pColVal));
   }
 }
 
@@ -1106,7 +1106,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader) {
       pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->slotId[i]);
 
       if (pData->flag == HAS_NONE || pData->flag == HAS_NULL || pData->flag == (HAS_NULL | HAS_NONE)) {
-        colDataAppendNNULL(pColData, 0, dumpedRows);
+        colDataSetNNULL(pColData, 0, dumpedRows);
       } else {
         if (IS_MATHABLE_TYPE(pColData->info.type)) {
           copyNumericCols(pData, pDumpInfo, pColData, dumpedRows, asc);
@@ -1122,7 +1122,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader) {
       i += 1;
     } else {  // the specified column does not exist in file block, fill with null data
       pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->slotId[i]);
-      colDataAppendNNULL(pColData, 0, dumpedRows);
+      colDataSetNNULL(pColData, 0, dumpedRows);
       i += 1;
     }
   }
@@ -1130,7 +1130,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader) {
   // fill the mis-matched columns with null value
   while (i < numOfOutputCols) {
     pColData = taosArrayGet(pResBlock->pDataBlock, pSupInfo->slotId[i]);
-    colDataAppendNNULL(pColData, 0, dumpedRows);
+    colDataSetNNULL(pColData, 0, dumpedRows);
     i += 1;
   }
 

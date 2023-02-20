@@ -185,7 +185,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
           colDataAppendNULL(pDst, 0);
         } else {
           char* p = colDataGetData(pSrc, pInfo->indexOfBufferedRes);
-          colDataAppend(pDst, 0, p, false);
+          colDataSetVal(pDst, 0, p, false);
         }
       }
 

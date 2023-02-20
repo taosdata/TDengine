@@ -441,16 +441,16 @@ static int32_t mndRetrieveSnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char ep[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ep, pObj->pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)ep, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)ep, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);

@@ -818,23 +818,23 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     /*tNameGetDbName(&n, varDataVal(topicName));*/
     varDataSetLen(topicName, strlen(varDataVal(topicName)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)topicName, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)topicName, false);
 
     char dbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     tNameFromString(&n, pTopic->db, T_NAME_ACCT | T_NAME_DB);
     tNameGetDbName(&n, varDataVal(dbName));
     varDataSetLen(dbName, strlen(varDataVal(dbName)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)dbName, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)dbName, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pTopic->createTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pTopic->createTime, false);
 
     char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
     tstrncpy(&sql[VARSTR_HEADER_SIZE], pTopic->sql, TSDB_SHOW_SQL_LEN);
     varDataSetLen(sql, strlen(&sql[VARSTR_HEADER_SIZE]));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)sql, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)sql, false);
 
     numOfRows++;
     sdbRelease(pSdb, pTopic);

@@ -322,13 +322,13 @@ void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow
   pColData->info.bytes = sizeof(int64_t);
 
   colInfoDataEnsureCapacity(pColData, 5, false);
-  colDataAppendInt64(pColData, 0, &pQueryWindow->skey);
-  colDataAppendInt64(pColData, 1, &pQueryWindow->ekey);
+  colDataSetInt64(pColData, 0, &pQueryWindow->skey);
+  colDataSetInt64(pColData, 1, &pQueryWindow->ekey);
 
   int64_t interval = 0;
-  colDataAppendInt64(pColData, 2, &interval);  // this value may be variable in case of 'n' and 'y'.
-  colDataAppendInt64(pColData, 3, &pQueryWindow->skey);
-  colDataAppendInt64(pColData, 4, &pQueryWindow->ekey);
+  colDataSetInt64(pColData, 2, &interval);  // this value may be variable in case of 'n' and 'y'.
+  colDataSetInt64(pColData, 3, &pQueryWindow->skey);
+  colDataSetInt64(pColData, 4, &pQueryWindow->ekey);
 }
 
 typedef struct {
@@ -439,18 +439,18 @@ static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunc
   if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_UBIGINT) {
     int64_t v = pFuncParam->param.i;
     for (int32_t i = 0; i < numOfRows; ++i) {
-      colDataAppendInt64(pColInfo, i, &v);
+      colDataSetInt64(pColInfo, i, &v);
     }
   } else if (type == TSDB_DATA_TYPE_DOUBLE) {
     double v = pFuncParam->param.d;
     for (int32_t i = 0; i < numOfRows; ++i) {
-      colDataAppendDouble(pColInfo, i, &v);
+      colDataSetDouble(pColInfo, i, &v);
     }
   } else if (type == TSDB_DATA_TYPE_VARCHAR) {
     char* tmp = taosMemoryMalloc(pFuncParam->param.nLen + VARSTR_HEADER_SIZE);
     STR_WITH_SIZE_TO_VARSTR(tmp, pFuncParam->param.pz, pFuncParam->param.nLen);
     for (int32_t i = 0; i < numOfRows; ++i) {
-      colDataAppend(pColInfo, i, tmp, false);
+      colDataSetVal(pColInfo, i, tmp, false);
     }
     taosMemoryFree(tmp);
   }
@@ -909,7 +909,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoD
             colDataSetNull_var(pDst, numOfRows);
           } else {
             char* p1 = colDataGetVarData(pDst, j);
-            colDataAppend(pDst, numOfRows, p1, false);
+            colDataSetVal(pDst, numOfRows, p1, false);
           }
           numOfRows += 1;
           j += 1;
@@ -1104,7 +1104,7 @@ static void doCopyResultToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SR
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
       char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
       for (int32_t k = 0; k < pRow->numOfRows; ++k) {
-        colDataAppend(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
+        colDataSetVal(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
       }
     }
   }
@@ -2667,7 +2667,7 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
         SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
         char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
         for (int32_t k = 0; k < pRow->numOfRows; ++k) {
-          colDataAppend(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
+          colDataSetVal(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
         }
       }
     }
@@ -2760,7 +2760,7 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
         SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
         char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
         for (int32_t k = 0; k < pRow->numOfRows; ++k) {
-          colDataAppend(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
+          colDataSetVal(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
         }
       }
     }

@@ -855,7 +855,7 @@ static SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTa
           metaGetTableNameByUid(metaHandle, p1->uid, str);
         }
 
-        colDataAppend(pColInfo, i, str, false);
+        colDataSetVal(pColInfo, i, str, false);
 #if TAG_FILTER_DEBUG
         qDebug("tagfilter uid:%ld, tbname:%s", *uid, str + 2);
 #endif
@@ -863,25 +863,25 @@ static SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTa
         STagVal tagVal = {0};
         tagVal.cid = pColInfo->info.colId;
         if (p1->pTagVal == NULL) {
-          colDataAppendNULL(pColInfo, i);
+          colDataSetNULL(pColInfo, i);
         }
 
         const char* p = metaGetTableTagVal(p1->pTagVal, pColInfo->info.type, &tagVal);
 
         if (p == NULL || (pColInfo->info.type == TSDB_DATA_TYPE_JSON && ((STag*)p)->nTag == 0)) {
-          colDataAppendNULL(pColInfo, i);
+          colDataSetNULL(pColInfo, i);
         } else if (pColInfo->info.type == TSDB_DATA_TYPE_JSON) {
-          colDataAppend(pColInfo, i, p, false);
+          colDataSetVal(pColInfo, i, p, false);
         } else if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
           char* tmp = alloca(tagVal.nData + VARSTR_HEADER_SIZE + 1);
           varDataSetLen(tmp, tagVal.nData);
           memcpy(tmp + VARSTR_HEADER_SIZE, tagVal.pData, tagVal.nData);
-          colDataAppend(pColInfo, i, tmp, false);
+          colDataSetVal(pColInfo, i, tmp, false);
 #if TAG_FILTER_DEBUG
           qDebug("tagfilter varch:%s", tmp + 2);
 #endif
         } else {
-          colDataAppend(pColInfo, i, (const char*)&tagVal.i64, false);
+          colDataSetVal(pColInfo, i, (const char*)&tagVal.i64, false);
 #if TAG_FILTER_DEBUG
           if (pColInfo->info.type == TSDB_DATA_TYPE_INT) {
             qDebug("tagfilter int:%d", *(int*)(&tagVal.i64));

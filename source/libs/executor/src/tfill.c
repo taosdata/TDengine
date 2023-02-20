@@ -69,17 +69,17 @@ static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32
   if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
     float v = 0;
     GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
-    colDataAppend(pDst, rowIndex, (char*)&v, false);
+    colDataSetVal(pDst, rowIndex, (char*)&v, false);
   } else if (pDst->info.type == TSDB_DATA_TYPE_DOUBLE) {
     double v = 0;
     GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
-    colDataAppend(pDst, rowIndex, (char*)&v, false);
+    colDataSetVal(pDst, rowIndex, (char*)&v, false);
   } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type)) {
     int64_t v = 0;
     GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
-    colDataAppend(pDst, rowIndex, (char*)&v, false);
+    colDataSetVal(pDst, rowIndex, (char*)&v, false);
   } else if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-    colDataAppend(pDst, rowIndex, (const char*)&currentKey, false);
+    colDataSetVal(pDst, rowIndex, (const char*)&currentKey, false);
   } else {  // varchar/nchar data
     colDataAppendNULL(pDst, rowIndex);
   }
@@ -96,18 +96,18 @@ bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnI
       return false;
     }
     if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_START) {
-      colDataAppend(pDstColInfoData, rowIndex, (const char*)&pFillInfo->currentKey, false);
+      colDataSetVal(pDstColInfoData, rowIndex, (const char*)&pFillInfo->currentKey, false);
       return true;
     } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_END) {
       // TODO: include endpoint
       SInterval* pInterval = &pFillInfo->interval;
       int64_t    windowEnd =
           taosTimeAdd(pFillInfo->currentKey, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-      colDataAppend(pDstColInfoData, rowIndex, (const char*)&windowEnd, false);
+      colDataSetVal(pDstColInfoData, rowIndex, (const char*)&windowEnd, false);
       return true;
     } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_DURATION) {
       // TODO: include endpoint
-      colDataAppend(pDstColInfoData, rowIndex, (const char*)&pFillInfo->interval.sliding, false);
+      colDataSetVal(pDstColInfoData, rowIndex, (const char*)&pFillInfo->interval.sliding, false);
       return true;
     }
   }
@@ -182,7 +182,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
           point = (SPoint){.key = pFillInfo->currentKey, .val = &out};
           taosGetLinearInterpolationVal(&point, type, &point1, &point2, type);
 
-          colDataAppend(pDstCol, index, (const char*)&out, false);
+          colDataSetVal(pDstCol, index, (const char*)&out, false);
         }
       }
     }
@@ -219,7 +219,7 @@ void doSetVal(SColumnInfoData* pDstCol, int32_t rowIndex, const SGroupKeys* pKey
   if (pKey->isNull) {
     colDataAppendNULL(pDstCol, rowIndex);
   } else {
-    colDataAppend(pDstCol, rowIndex, pKey->pData, false);
+    colDataSetVal(pDstCol, rowIndex, pKey->pData, false);
   }
 }
 
@@ -332,14 +332,14 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
 
         char* src = colDataGetData(pSrc, pFillInfo->index);
         if (!colDataIsNull_s(pSrc, pFillInfo->index)) {
-          colDataAppend(pDst, index, src, false);
+          colDataSetVal(pDst, index, src, false);
           saveColData(pFillInfo->prev.pRowVal, i, src, false);
           if (pFillInfo->srcTsSlotId == dstSlotId) {
             pFillInfo->prev.key = *(int64_t*)src;
           }
         } else {  // the value is null
           if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-            colDataAppend(pDst, index, (const char*)&pFillInfo->currentKey, false);
+            colDataSetVal(pDst, index, (const char*)&pFillInfo->currentKey, false);
           } else {  // i > 0 and data is null , do interpolation
             if (pFillInfo->type == TSDB_FILL_PREV) {
               SArray*     p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev.pRowVal : pFillInfo->next.pRowVal;
@@ -347,7 +347,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
               doSetVal(pDst, index, pKey);
             } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
               bool isNull = colDataIsNull_s(pSrc, pFillInfo->index);
-              colDataAppend(pDst, index, src, isNull);
+              colDataSetVal(pDst, index, src, isNull);
               saveColData(pFillInfo->prev.pRowVal, i, src, isNull);  // todo:
             } else if (pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {
               colDataAppendNULL(pDst, index);
