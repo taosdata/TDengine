@@ -780,6 +780,8 @@ class TDCreateData():
         sql_analyze_ratio_verbose_true = sql 
         sql_analyze_ratio_verbose_false = sql 
         
+        insert_into_sql = sql
+        
         i = random.randint(1,5)
         
         if i==1:
@@ -790,6 +792,20 @@ class TDCreateData():
             self.tdSql.query(sql_verbose_true) 
             sql_verbose_false = "explain verbose false " + sql_verbose_false 
             self.tdSql.query(sql_verbose_false)
+            
+            insert_into_sql = "insert into stable_null_data_1 "  + insert_into_sql 
+            try:
+                self.tdSql.query(insert_into_sql,queryTimes=1) 
+                row = self.tdSql.query(insert_into_sql).row_count 
+                self.tdSql.query(sql,queryTimes=1) 
+                row1 = self.tdSql.query(sql).row_count 
+                if (row>=0):
+                    sql_verbose_true = "explain verbose true " + insert_into_sql 
+                    self.tdSql.query(sql_verbose_true) 
+                    sql_verbose_false = "explain verbose false " + insert_into_sql 
+                    self.tdSql.query(sql_verbose_false)
+            except:
+                self.logger.info("sql insert into explain is not support :=====%s; " %(insert_into_sql))
         
         elif i ==2:
             
@@ -799,6 +815,20 @@ class TDCreateData():
             self.tdSql.query(sql_ratio_verbose_true) 
             sql_ratio_verbose_false = "explain ratio 0.05 verbose false " + sql_ratio_verbose_false 
             self.tdSql.query(sql_ratio_verbose_false)
+                       
+            insert_into_sql = "insert into stable_null_data_1 "  + insert_into_sql 
+            try:
+                self.tdSql.query(insert_into_sql,queryTimes=1) 
+                row = self.tdSql.query(insert_into_sql).row_count 
+                self.tdSql.query(sql,queryTimes=1) 
+                row1 = self.tdSql.query(sql).row_count 
+                if (row>=0):
+                    sql_ratio_verbose_true = "explain ratio 0.05 verbose true "  + insert_into_sql 
+                    self.tdSql.query(sql_ratio_verbose_true) 
+                    sql_ratio_verbose_false = "explain ratio 0.05 verbose false " + insert_into_sql 
+                    self.tdSql.query(sql_ratio_verbose_false)
+            except:
+                self.logger.info("sql insert into explain is not support :=====%s; " %(insert_into_sql))
         
         elif i ==3:
             
@@ -808,6 +838,20 @@ class TDCreateData():
             self.tdSql.query(sql_analyze_verbose_true)
             sql_analyze_verbose_false = "explain analyze verbose false " + sql_analyze_verbose_false 
             self.tdSql.query(sql_analyze_verbose_false)
+                       
+            insert_into_sql = "insert into stable_null_data_1 "  + insert_into_sql 
+            try:
+                self.tdSql.query(insert_into_sql,queryTimes=1) 
+                row = self.tdSql.query(insert_into_sql).row_count 
+                self.tdSql.query(sql,queryTimes=1) 
+                row1 = self.tdSql.query(sql).row_count 
+                if (row>=0):
+                    sql_analyze_verbose_true = "explain analyze verbose true " + insert_into_sql 
+                    self.tdSql.query(sql_analyze_verbose_true) 
+                    sql_analyze_verbose_false = "explain analyze verbose false " + insert_into_sql 
+                    self.tdSql.query(sql_analyze_verbose_false)
+            except:
+                self.logger.info("sql insert into explain is not support :=====%s; " %(insert_into_sql))
         
         else:
             
@@ -817,6 +861,20 @@ class TDCreateData():
             self.tdSql.query(sql_analyze_ratio_verbose_true)
             sql_analyze_ratio_verbose_false = "explain analyze ratio {} verbose false ".format(ratio) + sql_analyze_ratio_verbose_false 
             self.tdSql.query(sql_analyze_ratio_verbose_false)
+                       
+            insert_into_sql = "insert into stable_null_data_1 "  + insert_into_sql 
+            try:
+                self.tdSql.query(insert_into_sql,queryTimes=1) 
+                row = self.tdSql.query(insert_into_sql).row_count 
+                self.tdSql.query(sql,queryTimes=1) 
+                row1 = self.tdSql.query(sql).row_count 
+                if (row>=0):
+                    sql_analyze_ratio_verbose_true = "explain analyze ratio {} verbose true ".format(ratio) + insert_into_sql 
+                    self.tdSql.query(sql_analyze_ratio_verbose_true) 
+                    sql_analyze_ratio_verbose_false = "explain analyze ratio {} verbose false ".format(ratio) + insert_into_sql 
+                    self.tdSql.query(sql_analyze_ratio_verbose_false)
+            except:
+                self.logger.info("sql insert into explain is not support :=====%s; " %(insert_into_sql))
         
     def taos_f(self,service_host,testcasePath,testcaseFilename):   
         #执行taos_f 导入解析            
@@ -852,10 +910,22 @@ class TDCreateData():
         self.tdSql.query(sql)
         self.tdSql.checkRow(0)
         
+    def value_check(self,base_value,check_value,sql1,sql2):
+        #两个sql及执行数据检查
+        self.logger.debug(f"sql1={sql1},sql2={sql2}")
+        if (base_value == check_value) :
+            self.logger.info(("sql1:'%s' result '%s' = sql2:'%s' result '%s' ") %(sql1,base_value,sql2,check_value))
+        elif (base_value > check_value) :
+            self.logger.info(("sql1:'%s' result '%s' > sql2:'%s' result '%s' ,only limit query can cause") %(sql1,base_value,sql2,check_value))
+        else:
+            self.logger.info(("sql1:'%s' result '%s' != sql2:'%s' result '%s'") %(sql1,base_value,sql2,check_value))
+            return self.tdSql.checkEqual(base_value,check_value)
+        
     def dataequal(self, sql1,row1,col1, sql2,row2,col2):
         self.sql1 = sql1
         list1 =[]
         self.tdSql.query(sql1)
+        sql1_row = self.tdSql.query(sql1).row_count
         for i1 in range(row1):
             for j1 in range(col1):
                 list1.append(self.tdSql.getData(i1,j1))
@@ -864,9 +934,12 @@ class TDCreateData():
         self.sql2 = sql2  
         list2 =[]
         self.tdSql.query(sql2)
+        sql2_row = self.tdSql.query(sql2).row_count
         for i2 in range(row2):
             for j2 in range(col2):
                 list2.append(self.tdSql.getData(i2,j2))
+                
+        self.value_check(sql1_row,sql2_row,sql1,sql2)
        
         if  (list1 == list2) and len(list2)>0:
             self.logger.info(("===list=_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
