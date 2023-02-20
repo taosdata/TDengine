@@ -6,19 +6,19 @@
         <el-tab-pane name="user" :label="$t('topic.users')">
           <MgUser></MgUser>
         </el-tab-pane>
-        <el-tab-pane name="backup" :label="$t('topic.backup')" :disabled='true'>
+        <el-tab-pane name="backup" :label="$t('topic.backup')">
           <AdBackup></AdBackup>
           <!-- <MgDnodes></MgDnodes> -->
         </el-tab-pane>
-        <el-tab-pane name="replication" :label="$t('topic.replication')" :disabled='true'>
+        <el-tab-pane name="replication" :label="$t('topic.replication')">
           <AdReplication></AdReplication>
         </el-tab-pane>
-        <el-tab-pane name="udf" :label="$t('topic.udf')" :disabled='true'>
+        <!-- <el-tab-pane name="udf" :label="$t('topic.udf')" :disabled='true'>
           <MgUdf></MgUdf>
         </el-tab-pane>
         <el-tab-pane name="activities" :label="$t('topic.activities')" :disabled='true'>
           <Activities></Activities>
-        </el-tab-pane>
+        </el-tab-pane> -->
       </el-tabs>
     </div>
   </div>

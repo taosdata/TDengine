@@ -205,7 +205,7 @@ export default {
       earch: require("@/assets/earth.webp"),
       hidden: false,
       dynamicValidateForm: {
-        cluster: "",
+        cluster: "http://192.168.0.201:16041",
         password: "",
         username: "",
       },

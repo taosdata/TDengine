@@ -55,7 +55,7 @@
     ></el-pagination>
     <el-dialog
       align="center"
-      :title="$t('topic.addsource')"
+      title="Add New User"
       width="600px"
       :visible.sync="dialog"
     >

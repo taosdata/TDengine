@@ -79,7 +79,7 @@
     ></el-pagination>
     <el-dialog
       align="center"
-      :title="$t('topic.addsource')"
+      title="Create New Backup"
       width="600px"
       :visible.sync="dialog"
     >
