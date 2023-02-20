@@ -58,7 +58,6 @@ typedef struct SBlockOrderInfo {
 #define BitmapLen(_n) (((_n) + ((1 << NBIT) - 1)) >> NBIT)
 
 #define colDataGetVarData(p1_, r_) ((p1_)->pData + (p1_)->varmeta.offset[(r_)])
-
 #define colDataGetNumData(p1_, r_) ((p1_)->pData + ((r_) * (p1_)->info.bytes))
 // SColumnInfoData, rowNumber
 #define colDataGetData(p1_, r_) \
