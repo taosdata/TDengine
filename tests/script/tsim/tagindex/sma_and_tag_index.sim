@@ -105,4 +105,47 @@ if $rows != 0 then
 endi
 
 
+print =====  drop tag and del tag index
+
+sql create database $dbPrefix 
+sql use $dbPrefix 
+
+sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 int, t2 int, t3 int, t4 int, t5 int)
+sql create index tagt2i on $mtPrefix (t2)
+sql select * from information_schema.ins_indexes
+if $rows != 1 then 
+  return -1
+endi
+sql alter table $mtPrefix drop tag t2
+
+sql select * from information_schema.ins_indexes
+if $rows != 0 then 
+  return -1
+endi
+
+
+print ==== rename tag name, and update index colName
+sql create index tagt3i on $mtPrefix (t3)
+sql select * from information_schema.ins_indexes
+if $rows != 1 then 
+  return -1
+endi
+
+sql alter table $mtPrefix rename tag t3 txxx 
+sql select * from information_schema.ins_indexes
+if $rows != 1 then 
+  return -1
+endi
+
+print ===== $data05
+if $data05 != txxx then
+  return -1
+endi
+  
+
+
+
+
+
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
