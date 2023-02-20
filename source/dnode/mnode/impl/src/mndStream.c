@@ -31,7 +31,7 @@
 #define MND_STREAM_VER_NUMBER   2
 #define MND_STREAM_RESERVE_SIZE 64
 
-#define MND_STREAM_MAX_NUM 10
+#define MND_STREAM_MAX_NUM 60
 
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
@@ -680,7 +680,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
       pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void **)&pStream);
       if (pIter == NULL) {
         if (numOfStream > MND_STREAM_MAX_NUM) {
-          mError("too many streams, no more than 10 for each database");
+          mError("too many streams, no more than %d for each database", MND_STREAM_MAX_NUM);
           terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
           goto _OVER;
         }
@@ -692,7 +692,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
       }
       sdbRelease(pMnode->pSdb, pStream);
       if (numOfStream > MND_STREAM_MAX_NUM) {
-        mError("too many streams, no more than 10 for each database");
+        mError("too many streams, no more than %d for each database", MND_STREAM_MAX_NUM);
         terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
         goto _OVER;
       }
