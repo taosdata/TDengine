@@ -151,7 +151,10 @@ TEST(testCase, timewindow_gen) {
   printTimeWindow(&w, precision, k1);
 
   printf("----------------interval_1d_sliding_1d_calendar_offset_1n---------\n");
-  SInterval offset_1n = createInterval(1*86400*1000L, 1*86400*1000L, 1, 'd', 'd', 'n', TSDB_TIME_PRECISION_MILLI);
+  SInterval offset_1n = createInterval(10*86400*1000L, 10*86400*1000L, 1, 'd', 'd', 'n', TSDB_TIME_PRECISION_MILLI);
+    getInitialStartTimeWindow(&offset_1n, k1, &w, true);
+    printTimeWindow(&w, precision, k1);
+
 
 }
 
