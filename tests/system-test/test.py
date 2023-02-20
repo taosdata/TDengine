@@ -291,9 +291,9 @@ if __name__ == "__main__":
                 print(r)
         else:
             pass
-        if restful:
-            tAdapter.init(deployPath, masterIp)
-            tAdapter.stop(force_kill=True)
+        # if restful:
+        tAdapter.init(deployPath, masterIp)
+        tAdapter.stop(force_kill=True)
 
         if dnodeNums == 1 :
             tdDnodes.deploy(1,updateCfgDict)

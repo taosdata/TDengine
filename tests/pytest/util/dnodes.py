@@ -565,6 +565,8 @@ class TDDnode:
             while(processID):
                 if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
                     killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                    if platform.system().lower() == 'windows':
+                        killCmd = "kill -INT %s > nul 2>&1" % processID
                     os.system(killCmd)
                     onlyKillOnceWindows = 1
                 time.sleep(1)
@@ -786,15 +788,21 @@ class TDDnodes:
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             while(processID):
                 print(processID)
-                if platform.system().lower() == 'windows':
-                    killCmd = "kill -9 %s > nul 2>&1" % processID
-                else:
-                    killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+                killCmd = "kill -9 %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8").strip()
-
+        elif platform.system().lower() == 'windows':
+            psCmd = "for /f %a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk '{print $2}' ^&^& echo aa') do @(ps | grep %a | awk '{print $1}' | xargs)"
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            while(processID):
+                print(processID)
+                killCmd = "kill -9 %s > nul 2>&1" % processID
+                os.system(killCmd)
+                time.sleep(1)
+                processID = subprocess.check_output(
+                    psCmd, shell=True).decode("utf-8").strip()
         else:
             psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
@@ -806,10 +814,7 @@ class TDDnodes:
             psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             while(processID):
-                if platform.system().lower() == 'windows':
-                    killCmd = "kill -9 %s > nul 2>&1" % processID
-                else:
-                    killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+                killCmd = "kill -9 %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 time.sleep(1)
                 processID = subprocess.check_output(
