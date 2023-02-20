@@ -93,6 +93,8 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
   pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle);
   ASSERT(pTask->exec.executor);
 
+  streamSetupTrigger(pTask);
+
   return 0;
 }
 
@@ -124,6 +126,7 @@ FAIL:
 }
 
 void sndClose(SSnode *pSnode) {
+  streamMetaCommit(pSnode->pMeta);
   streamMetaClose(pSnode->pMeta);
   taosMemoryFree(pSnode->path);
   taosMemoryFree(pSnode);

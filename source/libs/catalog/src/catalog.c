@@ -551,6 +551,37 @@ _return:
   CTG_RET(code);
 }
 
+int32_t ctgGetTbsHashVgId(SCatalog* pCtg, SRequestConnInfo* pConn, int32_t acctId, const char* pDb, const char* pTbs[], int32_t tbNum, int32_t* vgId) {
+  if (IS_SYS_DBNAME(pDb)) {
+    ctgError("no valid vgInfo for db, dbname:%s", pDb);
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SCtgDBCache* dbCache = NULL;
+  int32_t      code = 0;
+  char         dbFName[TSDB_DB_FNAME_LEN] = {0};
+  snprintf(dbFName, TSDB_DB_FNAME_LEN, "%d.%s", acctId, pDb);
+
+  SDBVgInfo* vgInfo = NULL;
+  CTG_ERR_JRET(ctgGetDBVgInfo(pCtg, pConn, dbFName, &dbCache, &vgInfo, NULL));
+  
+  CTG_ERR_JRET(ctgGetVgIdsFromHashValue(pCtg, vgInfo ? vgInfo : dbCache->vgCache.vgInfo, dbFName, pTbs, tbNum, vgId));
+
+_return:
+
+  if (dbCache) {
+    ctgRUnlockVgInfo(dbCache);
+    ctgReleaseDBCache(pCtg, dbCache);
+  }
+
+  if (vgInfo) {
+    freeVgInfo(vgInfo);
+  }
+
+  CTG_RET(code);
+}
+
+
 int32_t ctgGetCachedTbVgMeta(SCatalog* pCtg, const SName* pTableName, SVgroupInfo* pVgroup, STableMeta** pTableMeta) {
   int32_t      code = 0;
   char         db[TSDB_DB_FNAME_LEN] = {0};
@@ -567,10 +598,16 @@ int32_t ctgGetCachedTbVgMeta(SCatalog* pCtg, const SName* pTableName, SVgroupInf
 
   CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgCache.vgInfo, pTableName, pVgroup));
 
+  ctgRUnlockVgInfo(dbCache);
+
   SCtgTbMetaCtx ctx = {0};
   ctx.pName = (SName*)pTableName;
   ctx.flag = CTG_FLAG_UNKNOWN_STB;
-  CTG_ERR_JRET(ctgCopyTbMeta(pCtg, &ctx, &dbCache, &tbCache, pTableMeta, db));
+  code = ctgCopyTbMeta(pCtg, &ctx, &dbCache, &tbCache, pTableMeta, db);
+
+  ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
+
+  CTG_RET(code);
 
 _return:
   
@@ -1139,6 +1176,13 @@ int32_t catalogGetTableHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const
   CTG_API_ENTER();
 
   CTG_API_LEAVE(ctgGetTbHashVgroup(pCtg, pConn, pTableName, pVgroup, NULL));
+}
+
+int32_t catalogGetTablesHashVgId(SCatalog* pCtg, SRequestConnInfo* pConn, int32_t acctId, const char* pDb, const char* pTableName[],
+                                  int32_t tableNum, int32_t *vgId) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgGetTbsHashVgId(pCtg, pConn, acctId, pDb, pTableName, tableNum, vgId));
 }
 
 int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableName,           SVgroupInfo* pVgroup, bool* exists) {

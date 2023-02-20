@@ -24,10 +24,14 @@
 static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
 int32_t             exchangeObjRefPool = -1;
 
-static void initRefPool() { exchangeObjRefPool = taosOpenRef(1024, doDestroyExchangeOperatorInfo); }
 static void cleanupRefPool() {
   int32_t ref = atomic_val_compare_exchange_32(&exchangeObjRefPool, exchangeObjRefPool, 0);
   taosCloseRef(ref);
+}
+
+static void initRefPool() { 
+  exchangeObjRefPool = taosOpenRef(1024, doDestroyExchangeOperatorInfo);   
+  atexit(cleanupRefPool);
 }
 
 static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
@@ -448,7 +452,6 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 
   taosThreadOnce(&initPoolOnce, initRefPool);
-  atexit(cleanupRefPool);
 
   qDebug("start to create subplan task, TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, pSubplan->id.queryId);
 
@@ -710,6 +713,15 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo, int32_t rspCode) {
   return TSDB_CODE_SUCCESS;
 }
 
+bool qTaskIsExecuting(qTaskInfo_t qinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qinfo;
+  if (NULL == pTaskInfo) {
+    return false;
+  }
+
+  return 0 != atomic_load_64(&pTaskInfo->owner);
+}
+
 static void printTaskExecCostInLog(SExecTaskInfo* pTaskInfo) {
   STaskCostInfo* pSummary = &pTaskInfo->cost;
   int64_t        idleTime = pSummary->start - pSummary->created;
@@ -942,7 +954,6 @@ int32_t qStreamRestoreParam(qTaskInfo_t tinfo) {
   }
   return 0;
 }
-
 bool qStreamRecoverScanFinished(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   return pTaskInfo->streamInfo.recoverScanFinished;
@@ -1208,3 +1219,4 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
 }
+

@@ -39,14 +39,10 @@ static void doSetVal(SColumnInfoData* pDstColInfoData, int32_t rowIndex, const S
 
 static void setNotFillColumn(SFillInfo* pFillInfo, SColumnInfoData* pDstColInfo, int32_t rowIndex, int32_t colIdx) {
   SRowVal* p = NULL;
-  if (FILL_IS_ASC_FILL(pFillInfo)) {
-    if (pFillInfo->prev.key != 0) {
-      p = &pFillInfo->prev;  // prev has been set value
-    } else { // otherwise, use the value in the next row
-      p = &pFillInfo->next;
-    }
+  if (pFillInfo->type == TSDB_FILL_NEXT) {
+    p = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->next : &pFillInfo->prev;
   } else {
-    p = &pFillInfo->next;
+    p = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->prev : &pFillInfo->next;
   }
   
   SGroupKeys* pKey = taosArrayGet(p->pRowVal, colIdx);
@@ -190,7 +186,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
         }
       }
     }
-  } else if (pFillInfo->type == TSDB_FILL_NULL) {  // fill with NULL
+  } else if (pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {  // fill with NULL
     setNullRow(pBlock, pFillInfo, index);
   } else {  // fill with user specified value for each column
     for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
@@ -257,8 +253,15 @@ static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SRowVa
 
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     int32_t type = pFillInfo->pFillCol[i].pExpr->pExpr->nodeType;
-    if (type == QUERY_NODE_COLUMN || type == QUERY_NODE_OPERATOR || type == QUERY_NODE_FUNCTION) {
+    if ( type == QUERY_NODE_COLUMN || type == QUERY_NODE_OPERATOR || type == QUERY_NODE_FUNCTION) {
+      if (!pFillInfo->pFillCol[i].notFillCol && pFillInfo->type != TSDB_FILL_NEXT) {
+        continue;
+      }
       int32_t srcSlotId = GET_DEST_SLOT_ID(&pFillInfo->pFillCol[i]);
+
+      if (srcSlotId == pFillInfo->srcTsSlotId && pFillInfo->type == TSDB_FILL_LINEAR) {
+        continue;
+      }
 
       SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
 
@@ -288,8 +291,12 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
     int64_t ts = ((int64_t*)pTsCol->pData)[pFillInfo->index];
 
     // set the next value for interpolation
-    if ((pFillInfo->currentKey < ts && ascFill) || (pFillInfo->currentKey > ts && !ascFill)) {
-      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, &pFillInfo->next);
+    if (pFillInfo->currentKey < ts && ascFill) {
+      SRowVal* pRVal = pFillInfo->type == TSDB_FILL_NEXT ? &pFillInfo->next : &pFillInfo->prev;
+      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pRVal);
+    } else if (pFillInfo->currentKey > ts && !ascFill) {
+      SRowVal* pRVal = pFillInfo->type == TSDB_FILL_NEXT ? &pFillInfo->prev : &pFillInfo->next;
+      copyCurrentRowIntoBuf(pFillInfo, pFillInfo->index, pRVal);
     }
 
     if (((pFillInfo->currentKey < ts && ascFill) || (pFillInfo->currentKey > ts && !ascFill)) &&
@@ -342,7 +349,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
               bool isNull = colDataIsNull_s(pSrc, pFillInfo->index);
               colDataAppend(pDst, index, src, isNull);
               saveColData(pFillInfo->prev.pRowVal, i, src, isNull);  // todo:
-            } else if (pFillInfo->type == TSDB_FILL_NULL) {
+            } else if (pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {
               colDataAppendNULL(pDst, index);
             } else if (pFillInfo->type == TSDB_FILL_NEXT) {
               SArray*     p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->next.pRowVal : pFillInfo->prev.pRowVal;
@@ -439,32 +446,6 @@ struct SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t 
   }
 
   taosResetFillInfo(pFillInfo, skey);
-
-  switch (fillType) {
-    case FILL_MODE_NONE:
-      pFillInfo->type = TSDB_FILL_NONE;
-      break;
-    case FILL_MODE_PREV:
-      pFillInfo->type = TSDB_FILL_PREV;
-      break;
-    case FILL_MODE_NULL:
-      pFillInfo->type = TSDB_FILL_NULL;
-      break;
-    case FILL_MODE_LINEAR:
-      pFillInfo->type = TSDB_FILL_LINEAR;
-      break;
-    case FILL_MODE_NEXT:
-      pFillInfo->type = TSDB_FILL_NEXT;
-      break;
-    case FILL_MODE_VALUE:
-      pFillInfo->type = TSDB_FILL_SET_VALUE;
-      break;
-    default: {
-      taosMemoryFree(pFillInfo);
-      terrno = TSDB_CODE_INVALID_PARA;
-      return NULL;
-    }
-  }
 
   pFillInfo->type = fillType;
   pFillInfo->pFillCol = pCol;
@@ -565,15 +546,14 @@ bool taosFillHasMoreResults(SFillInfo* pFillInfo) {
 }
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t maxNumOfRows) {
-  SColumnInfoData* pCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->srcTsSlotId);
-
-  int64_t* tsList = (int64_t*)pCol->pData;
   int32_t  numOfRows = taosNumOfRemainRows(pFillInfo);
 
   TSKEY ekey1 = ekey;
 
   int64_t numOfRes = -1;
   if (numOfRows > 0) {  // still fill gap within current data block, not generating data after the result set.
+    SColumnInfoData* pCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, pFillInfo->srcTsSlotId);    
+    int64_t* tsList = (int64_t*)pCol->pData;
     TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];
     numOfRes = taosTimeCountInterval(lastKey, pFillInfo->currentKey, pFillInfo->interval.sliding,
                                      pFillInfo->interval.slidingUnit, pFillInfo->interval.precision);

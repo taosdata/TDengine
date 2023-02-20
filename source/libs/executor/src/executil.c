@@ -43,7 +43,14 @@ typedef struct tagFilterAssist {
   SArray*   cInfoList;
 } tagFilterAssist;
 
-static int32_t removeInvalidTable(SArray* uids, SHashObj* tags);
+typedef enum {
+  FILTER_NO_LOGIC = 1,
+  FILTER_AND,
+  FILTER_OTHER,
+} FilterCondType;
+
+static FilterCondType checkTagCond(SNode* cond);
+static int32_t        removeInvalidTable(SArray* uids, SHashObj* tags);
 static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond, SHashObj* tags);
 static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond);
 static int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond,
@@ -155,7 +162,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
 
 void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList) {
   if (pGroupResInfo->pRows != NULL) {
-    taosArrayDestroyP(pGroupResInfo->pRows, taosMemoryFree);
+    taosArrayDestroy(pGroupResInfo->pRows);
   }
 
   pGroupResInfo->pRows = pArrayList;
@@ -392,7 +399,8 @@ static int32_t createResultData(SDataType* pType, int32_t numOfRows, SScalarPara
   return TSDB_CODE_SUCCESS;
 }
 
-static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray* uidList, SNode* pTagCond) {
+static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray* uidList, SNode* pTagCond,
+                                         SIdxFltStatus status) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SArray*      pBlockList = NULL;
   SSDataBlock* pResBlock = NULL;
@@ -430,14 +438,22 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
   //  int64_t stt = taosGetTimestampUs();
   tags = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
 
+  FilterCondType condType = checkTagCond(pTagCond);
+
   int32_t filter = optimizeTbnameInCond(metaHandle, suid, uidList, pTagCond, tags);
   if (filter == -1) {
-    code = metaGetTableTags(metaHandle, suid, uidList, tags);
+    if ((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) {
+      code = metaGetTableTagsByUids(metaHandle, suid, uidList, tags);
+    } else {
+      code = metaGetTableTags(metaHandle, suid, uidList, tags);
+    }
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code), suid);
       terrno = code;
       goto end;
     }
+  } else {
+    qDebug("succ to get table tags from meta by tbname in cond, suid:%" PRIu64, suid);
   }
   if (suid != 0) {
     removeInvalidTable(uidList, tags);
@@ -842,6 +858,15 @@ static int tableUidCompare(const void* a, const void* b) {
   return u1 < u2 ? -1 : 1;
 }
 
+static FilterCondType checkTagCond(SNode* cond) {
+  if (nodeType(cond) == QUERY_NODE_OPERATOR) {
+    return FILTER_NO_LOGIC;
+  }
+  if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
+    return FILTER_AND;
+  }
+  return FILTER_OTHER;
+}
 static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* cond, SHashObj* tags) {
   int32_t ret = -1;
   if (nodeType(cond) == QUERY_NODE_OPERATOR) {
@@ -954,7 +979,7 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
           return -1;
         }
       } else {
-        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
+        //        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
         terrno = 0;
       }
     }
@@ -983,13 +1008,14 @@ static void genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
   taosMemoryFree(payload);
 }
 
-static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* res, SNode* pTagCond, void* metaHandle) {
+static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* res, SNode* pTagCond, void* metaHandle,
+                                 SIdxFltStatus status) {
   if (pTagCond == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
   terrno = TDB_CODE_SUCCESS;
-  SColumnInfoData* pColInfoData = getColInfoResult(metaHandle, pListInfo->suid, res, pTagCond);
+  SColumnInfoData* pColInfoData = getColInfoResult(metaHandle, pListInfo->suid, res, pTagCond, status);
   if (terrno != TDB_CODE_SUCCESS) {
     colDataDestroy(pColInfoData);
     taosMemoryFreeClear(pColInfoData);
@@ -1034,12 +1060,13 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   pListInfo->suid = pScanNode->suid;
   SArray* res = taosArrayInit(8, sizeof(uint64_t));
 
+  SIdxFltStatus status = SFLT_NOT_INDEX;
   if (pScanNode->tableType != TSDB_SUPER_TABLE) {
     if (metaIsTableExist(metaHandle, tableUid)) {
       taosArrayPush(res, &tableUid);
     }
 
-    code = doFilterByTagCond(pListInfo, res, pTagCond, metaHandle);
+    code = doFilterByTagCond(pListInfo, res, pTagCond, metaHandle, status);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -1064,16 +1091,17 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
         SIndexMetaArg metaArg = {
             .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
 
-        SIdxFltStatus status = SFLT_NOT_INDEX;
         code = doFilterTag(pTagIndexCond, &metaArg, res, &status);
         if (code != 0 || status == SFLT_NOT_INDEX) {
           qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
           code = TDB_CODE_SUCCESS;
+        } else {
+          qInfo("succ to get filter result, table num: %d", (int)taosArrayGetSize(res));
         }
       }
     }
 
-    code = doFilterByTagCond(pListInfo, res, pTagCond, metaHandle);
+    code = doFilterByTagCond(pListInfo, res, pTagCond, metaHandle, status);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -1424,6 +1452,18 @@ void createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode) {
   createExprFromOneNode(pExp, pTargetNode->pExpr, pTargetNode->slotId);
 }
 
+SExprInfo* createExpr(SNodeList* pNodeList, int32_t* numOfExprs) {
+  *numOfExprs = LIST_LENGTH(pNodeList);
+  SExprInfo* pExprs = taosMemoryCalloc(*numOfExprs, sizeof(SExprInfo));
+
+  for (int32_t i = 0; i < (*numOfExprs); ++i) {
+    SExprInfo* pExp = &pExprs[i];
+    createExprFromOneNode(pExp, nodesListGetNode(pNodeList, i), i + UD_TAG_COLUMN_INDEX);
+  }
+
+  return pExprs;
+}
+
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs) {
   int32_t numOfFuncs = LIST_LENGTH(pNodeList);
   int32_t numOfGroupKeys = 0;
@@ -1658,11 +1698,17 @@ int32_t convertFillType(int32_t mode) {
     case FILL_MODE_NULL:
       type = TSDB_FILL_NULL;
       break;
+    case FILL_MODE_NULL_F:
+      type = TSDB_FILL_NULL_F;
+      break;
     case FILL_MODE_NEXT:
       type = TSDB_FILL_NEXT;
       break;
     case FILL_MODE_VALUE:
       type = TSDB_FILL_SET_VALUE;
+      break;
+    case FILL_MODE_VALUE_F:
+      type = TSDB_FILL_SET_VALUE_F;
       break;
     case FILL_MODE_LINEAR:
       type = TSDB_FILL_LINEAR;
@@ -1726,8 +1772,10 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
     return w;
   }
 
-  w = getResultRowByPos(pBuf, &pResultRowInfo->cur, false)->win;
-
+  SResultRow* pRow = getResultRowByPos(pBuf, &pResultRowInfo->cur, false);
+  if (pRow) {
+    w = pRow->win;
+  }
   // in case of typical time window, we can calculate time window directly.
   if (w.skey > ts || w.ekey < ts) {
     w = doCalculateTimeWindow(ts, pInterval);
@@ -1747,6 +1795,10 @@ bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {
           pLimitInfo->slimit.offset != -1);
 }
 
+bool hasSlimitOffsetInfo(SLimitInfo* pLimitInfo) {
+  return (pLimitInfo->slimit.limit != -1 || pLimitInfo->slimit.offset != -1);
+}
+
 void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo) {
   SLimit limit = {.limit = getLimit(pLimit), .offset = getOffset(pLimit)};
   SLimit slimit = {.limit = getLimit(pSLimit), .offset = getOffset(pSLimit)};
@@ -1755,6 +1807,11 @@ void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimit
   pLimitInfo->slimit = slimit;
   pLimitInfo->remainOffset = limit.offset;
   pLimitInfo->remainGroupOffset = slimit.offset;
+}
+
+void resetLimitInfoForNextGroup(SLimitInfo* pLimitInfo) {
+  pLimitInfo->numOfOutputRows = 0;
+  pLimitInfo->remainOffset = pLimitInfo->limit.offset;
 }
 
 uint64_t tableListGetSize(const STableListInfo* pTableList) {
@@ -1801,28 +1858,30 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
 
 int32_t tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalGroupIndex, STableKeyInfo** pKeyInfo,
                               int32_t* size) {
-  int32_t total = tableListGetOutputGroups(pTableList);
-  if (ordinalGroupIndex < 0 || ordinalGroupIndex >= total) {
+  int32_t totalGroups = tableListGetOutputGroups(pTableList);
+  int32_t numOfTables =  tableListGetSize(pTableList);
+
+  if (ordinalGroupIndex < 0 || ordinalGroupIndex >= totalGroups) {
     return TSDB_CODE_INVALID_PARA;
   }
 
   // here handle two special cases:
   // 1. only one group exists, and 2. one table exists for each group.
-  if (total == 1) {
-    *size = tableListGetSize(pTableList);
+  if (totalGroups == 1) {
+    *size = numOfTables;
     *pKeyInfo = (*size == 0) ? NULL : taosArrayGet(pTableList->pTableList, 0);
     return TSDB_CODE_SUCCESS;
-  } else if (total == tableListGetSize(pTableList)) {
+  } else if (totalGroups == numOfTables) {
     *size = 1;
     *pKeyInfo = taosArrayGet(pTableList->pTableList, ordinalGroupIndex);
     return TSDB_CODE_SUCCESS;
   }
 
   int32_t offset = pTableList->groupOffset[ordinalGroupIndex];
-  if (ordinalGroupIndex < total - 1) {
-    *size = pTableList->groupOffset[offset + 1] - pTableList->groupOffset[offset];
+  if (ordinalGroupIndex < totalGroups - 1) {
+    *size = pTableList->groupOffset[ordinalGroupIndex + 1] - offset;
   } else {
-    *size = total - pTableList->groupOffset[offset] - 1;
+    *size = numOfTables - offset;
   }
 
   *pKeyInfo = taosArrayGet(pTableList->pTableList, offset);

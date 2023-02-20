@@ -237,8 +237,8 @@ int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData) {
 
 _exit:
   if (code) {
-    rsmaSnapReaderClose(&pReader);
     smaError("vgId:%d, vnode snapshot rsma read failed since %s", SMA_VID(pReader->pSma), tstrerror(code));
+    rsmaSnapReaderClose(&pReader);
   } else {
     smaInfo("vgId:%d, vnode snapshot rsma read succeed", SMA_VID(pReader->pSma));
   }
@@ -432,7 +432,7 @@ _exit:
     if (pInFD) taosCloseFile(&pInFD);
     smaError("vgId:%d, vnode snapshot rsma writer close failed since %s", SMA_VID(pSma), tstrerror(code));
   } else {
-    smaInfo("vgId:%d, vnode snapshot rsma writer close succeed", SMA_VID(pSma));
+    smaInfo("vgId:%d, vnode snapshot rsma writer close succeed", pSma ? SMA_VID(pSma) : 0);
   }
 
   return code;
@@ -446,10 +446,10 @@ int32_t rsmaSnapWrite(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   // rsma1/rsma2
   if (pHdr->type == SNAP_DATA_RSMA1) {
     pHdr->type = SNAP_DATA_TSDB;
-    code = tsdbSnapWrite(pWriter->pDataWriter[0], pData, nData);
+    code = tsdbSnapWrite(pWriter->pDataWriter[0], pHdr);
   } else if (pHdr->type == SNAP_DATA_RSMA2) {
     pHdr->type = SNAP_DATA_TSDB;
-    code = tsdbSnapWrite(pWriter->pDataWriter[1], pData, nData);
+    code = tsdbSnapWrite(pWriter->pDataWriter[1], pHdr);
   } else if (pHdr->type == SNAP_DATA_QTASK) {
     code = rsmaSnapWriteQTaskInfo(pWriter, pData, nData);
   } else {

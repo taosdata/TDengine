@@ -1,0 +1,365 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+
+print ===== step1
+
+system sh/exec.sh -n dnode1 -s start 
+sleep 50
+sql connect
+
+print ===== step2
+
+sql create database result vgroups 1;
+
+sql create database test  vgroups 4;
+sql use test;
+
+
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql create stable result.streamt0(ts timestamp,a int,b int) tags(ta int,tb varchar(100),tc int);
+
+sql create stream streams0 trigger at_once  into result.streamt0 tags(tb) as select  _wstart, count(*) c1, max(a) c2 from st partition by tbname tb interval(10s);
+sql insert into t1 values(1648791213000,1,2,3);
+sql insert into t2 values(1648791213000,2,2,3);
+
+$loop_count = 0
+
+sql select  _wstart, count(*) c1, max(a) c2 from st partition by tbname interval(10s);
+print $data00, $data01, $data02
+print $data10, $data11, $data12
+print $data20, $data21, $data22
+
+loop0:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from result.streamt0 order by ta;
+
+if $rows != 2 then
+  print =====rows=$rows
+  print $data00, $data01, $data02
+  print $data10, $data11, $data12
+  print $data20, $data21, $data22
+  goto loop0
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop0
+endi
+
+if $data02 != 1 then
+  print =====data02=$data02
+  goto loop0
+endi
+
+if $data03 != NULL then
+  print =====data03=$data03
+  goto loop0
+endi
+
+if $data04 != t1 then
+  print =====data04=$data04
+  goto loop0
+endi
+
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop0
+endi
+
+if $data12 != 2 then
+  print =====data12=$data12
+  goto loop0
+endi
+
+if $data13 != NULL then
+  print =====data13=$data13
+  goto loop0
+endi
+
+if $data14 != t2 then
+  print =====data14=$data14
+  goto loop0
+endi
+
+print ===== step3
+
+sql create database result1 vgroups 1;
+
+sql create database test1  vgroups 4;
+sql use test1;
+
+
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql create stable result1.streamt1(ts timestamp,a int,b int,c int) tags(ta varchar(100),tb int,tc int);
+
+sql create stream streams1 trigger at_once  into result1.streamt1(ts,c,a,b) tags(ta) as select  _wstart, count(*) c1, max(a),min(b) c2 from st partition by tbname as ta interval(10s);
+sql insert into t1 values(1648791213000,10,20,30);
+sql insert into t2 values(1648791213000,40,50,60);
+
+$loop_count = 0
+
+sql select  _wstart, count(*) c1, max(a),min(b) c2 from st partition by tbname interval(10s);
+print $data00, $data01, $data02, $data03
+print $data10, $data11, $data12, $data13
+print $data20, $data21, $data22, $data23
+
+loop1:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from result1.streamt1 order by ta;
+
+if $rows != 2 then
+  print =====rows=$rows
+  print $data00, $data01, $data02, $data03
+  print $data10, $data11, $data12, $data13
+  print $data20, $data21, $data22, $data23
+  goto loop1
+endi
+
+if $data01 != 10 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data02 != 20 then
+  print =====data02=$data02
+  goto loop1
+endi
+
+if $data03 != 1 then
+  print =====data03=$data03
+  goto loop1
+endi
+
+if $data11 != 40 then
+  print =====data11=$data11
+  goto loop1
+endi
+
+if $data12 != 50 then
+  print =====data12=$data12
+  goto loop1
+endi
+
+if $data13 != 1 then
+  print =====data13=$data13
+  goto loop1
+endi
+
+
+print ===== step4
+
+sql create database result2 vgroups 1;
+
+sql create database test2  vgroups 4;
+sql use test2;
+
+
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql create stable result2.streamt2(ts timestamp, a int , b int) tags(ta varchar(20));
+
+# tag dest 1, source 2
+sql_error create stream streams2 trigger at_once  into result2.streamt2 TAGS(aa varchar(100), ta int) as select  _wstart, count(*) c1, max(a) from st partition by tbname as aa, ta interval(10s);
+
+# column dest 3, source 4
+sql_error create stream streams2 trigger at_once  into result2.streamt2 as select  _wstart, count(*) c1, max(a), max(b) from st partition by tbname interval(10s);
+
+# column dest 3, source 4
+sql_error create stream streams2 trigger at_once  into result2.streamt2(ts, a, b) as select  _wstart, count(*) c1, max(a), max(b) from st partition by tbname interval(10s);
+
+# column dest 3, source 2
+sql_error create stream streams2 trigger at_once  into result2.streamt2 as select  _wstart, count(*) c1 from st partition by tbname interval(10s);
+
+# column dest 3, source 2
+sql create stream streams2 trigger at_once  into result2.streamt2(ts, a) tags(ta) as select  _wstart, count(*) c1 from st partition by tbname as ta interval(10s);
+
+
+print ===== step5
+
+sql create database result3 vgroups 1;
+
+sql create database test3  vgroups 4;
+sql use test3;
+
+
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,2,3);
+sql create table t2 using st tags(4,5,6);
+
+sql create stable result3.streamt3(ts timestamp,a int,b int,c int, d int) tags(ta int,tb int,tc int);
+
+sql create stream streams3 trigger at_once  into result3.streamt3(ts,c,a,b) as select  _wstart, count(*) c1, max(a),min(b) c2 from st interval(10s);
+
+sql insert into t1 values(1648791213000,10,20,30);
+sql insert into t2 values(1648791213000,40,50,60);
+
+$loop_count = 0
+
+sql select  _wstart, count(*) c1, max(a),min(b) c2 from st interval(10s);
+print $data00, $data01, $data02, $data03, $data04
+print $data10, $data11, $data12, $data13, $data14
+print $data20, $data21, $data22, $data23, $data24
+
+loop2:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from result3.streamt3;
+
+if $rows != 1 then
+  print =====rows=$rows
+  print $data00, $data01, $data02, $data03
+  print $data10, $data11, $data12, $data13
+  print $data20, $data21, $data22, $data23
+  goto loop2
+endi
+
+if $data01 != 40 then
+  print =====data01=$data01
+  goto loop2
+endi
+
+if $data02 != 20 then
+  print =====data02=$data02
+  goto loop2
+endi
+
+if $data03 != 2 then
+  print =====data03=$data03
+  goto loop2
+endi
+
+if $data04 != NULL then
+  print =====data04=$data04
+  goto loop2
+endi
+
+print ===== drop ...
+
+sql drop stream if exists streams0;
+sql drop stream if exists streams1;
+sql drop stream if exists streams2;
+sql drop stream if exists streams3;
+sql drop database if exists test;
+sql drop database if exists test1;
+sql drop database if exists test2;
+sql drop database if exists test3;
+sql drop database if exists result;
+sql drop database if exists result1;
+sql drop database if exists result2;
+sql drop database if exists result3;
+
+print ===== step6
+
+sql create database result4 vgroups 1;
+
+sql create database test4  vgroups 4;
+sql use test4;
+
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,2,3);
+sql create table t2 using st tags(4,5,6);
+
+sql create stable result4.streamt4(ts timestamp,a int,b int,c int, d int) tags(tg1 int,tg2 int,tg3 int);
+
+sql create stream streams4 trigger at_once  into result4.streamt4(ts,c,a,b) tags(tg2, tg3, tg1) subtable( concat("tbl-", cast(tg1 as varchar(10)) ) )  as select  _wstart, count(*) c1, max(a),min(b) c2 from st partition by ta+1 as tg1, cast(tb as bigint) as tg2, tc as tg3 interval(10s);
+
+sql insert into t1 values(1648791213000,10,20,30);
+sql insert into t2 values(1648791213000,40,50,60);
+
+$loop_count = 0
+
+sql select  _wstart, count(*) c1, max(a),min(b) c2 from st partition by ta+1 as tg1, cast(tb as bigint) as tg2, tc as tg3 interval(10s);
+print $data00, $data01, $data02, $data03
+print $data10, $data11, $data12, $data13
+print $data20, $data21, $data22, $data23
+
+loop2:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from result4.streamt4 order by tg1;
+
+if $rows != 2 then
+  print =====rows=$rows
+  print $data00, $data01, $data02, $data03
+  print $data10, $data11, $data12, $data13
+  print $data20, $data21, $data22, $data23
+  goto loop2
+endi
+
+if $data01 != 10 then
+  print =====data01=$data01
+  goto loop2
+endi
+
+if $data02 != 20 then
+  print =====data02=$data02
+  goto loop2
+endi
+
+if $data03 != 1 then
+  print =====data03=$data03
+  goto loop2
+endi
+
+if $data04 != NULL then
+  print =====data04=$data04
+  goto loop2
+endi
+
+if $data11 != 40 then
+  print =====data11=$data11
+  goto loop2
+endi
+
+if $data12 != 50 then
+  print =====data12=$data12
+  goto loop2
+endi
+
+if $data13 != 1 then
+  print =====data13=$data13
+  goto loop2
+endi
+
+if $data14 != NULL then
+  print =====data14=$data14
+  goto loop2
+endi
+
+print ======over
+
+system sh/stop_dnodes.sh

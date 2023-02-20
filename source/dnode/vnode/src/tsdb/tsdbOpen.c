@@ -88,7 +88,7 @@ _err:
 int tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
     taosThreadRwlockWrlock(&(*pTsdb)->rwLock);
-    tsdbMemTableDestroy((*pTsdb)->mem);
+    tsdbMemTableDestroy((*pTsdb)->mem, true);
     (*pTsdb)->mem = NULL;
     taosThreadRwlockUnlock(&(*pTsdb)->rwLock);
 

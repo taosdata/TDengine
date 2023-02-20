@@ -147,7 +147,8 @@ typedef enum {
   SDB_STB = 18,
   SDB_DB = 19,
   SDB_FUNC = 20,
-  SDB_MAX = 21
+  SDB_IDX = 21,
+  SDB_MAX = 22
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -291,6 +292,7 @@ int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw);
  * @return void* The object of the row.
  */
 void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey);
+void *sdbAcquireNotReadyObj(SSdb *pSdb, ESdbType type, const void *pKey);
 
 /**
  * @brief Release a row from sdb.

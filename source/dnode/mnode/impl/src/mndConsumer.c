@@ -745,6 +745,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   if (tDecodeSMqConsumerObj(buf, pConsumer) == NULL) {
     goto CM_DECODE_OVER;
   }
+  tmsgUpdateDnodeEpSet(&pConsumer->ep);
 
   terrno = TSDB_CODE_SUCCESS;
 
@@ -838,10 +839,14 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 
     char *addedTopic = strdup(taosArrayGetP(pNewConsumer->rebNewTopics, 0));
     // not exist in current topic
-#if 0
+
+    bool existing = false;
+#if 1
     for (int32_t i = 0; i < taosArrayGetSize(pOldConsumer->currentTopics); i++) {
       char *topic = taosArrayGetP(pOldConsumer->currentTopics, i);
-      A(strcmp(topic, addedTopic) != 0);
+      if (strcmp(topic, addedTopic) == 0) {
+        existing = true;
+      }
     }
 #endif
 
@@ -856,8 +861,10 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     }
 
     // add to current topic
-    taosArrayPush(pOldConsumer->currentTopics, &addedTopic);
-    taosArraySort(pOldConsumer->currentTopics, taosArrayCompareString);
+    if (!existing) {
+      taosArrayPush(pOldConsumer->currentTopics, &addedTopic);
+      taosArraySort(pOldConsumer->currentTopics, taosArrayCompareString);
+    }
 
     // set status
     if (taosArrayGetSize(pOldConsumer->rebNewTopics) == 0 && taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0) {

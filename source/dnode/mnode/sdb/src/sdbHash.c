@@ -60,6 +60,8 @@ const char *sdbTableName(ESdbType type) {
       return "db";
     case SDB_FUNC:
       return "func";
+    case SDB_IDX:
+      return "idx";
     default:
       return "undefine";
   }
@@ -270,7 +272,7 @@ int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw) {
   return code;
 }
 
-void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) {
+void *sdbAcquireAll(SSdb *pSdb, ESdbType type, const void *pKey, bool onlyReady) {
   terrno = 0;
 
   SHashObj *hash = sdbGetHash(pSdb, type);
@@ -306,8 +308,22 @@ void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) {
       break;
   }
 
+  if (pRet == NULL) {
+    if (!onlyReady) {
+      terrno = 0;
+      atomic_add_fetch_32(&pRow->refCount, 1);
+      pRet = pRow->pObj;
+      sdbPrintOper(pSdb, pRow, "acquire");
+    }
+  }
+
   sdbUnLock(pSdb, type);
   return pRet;
+}
+
+void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) { return sdbAcquireAll(pSdb, type, pKey, true); }
+void *sdbAcquireNotReadyObj(SSdb *pSdb, ESdbType type, const void *pKey) {
+  return sdbAcquireAll(pSdb, type, pKey, false);
 }
 
 static void sdbCheckRow(SSdb *pSdb, SSdbRow *pRow) {

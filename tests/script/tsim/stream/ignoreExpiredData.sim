@@ -52,6 +52,7 @@ sql insert into t1 values(1648791213000,1,2,3,1.0);
 sql insert into t1 values(1648791223001,1,2,3,1.1);
 sql insert into t1 values(1648791233002,2,2,3,2.1);
 sql insert into t1 values(1648791243003,2,2,3,3.1);
+sleep 300
 sql insert into t1 values(1648791200000,4,2,3,4.1);
 
 $loop_count = 0

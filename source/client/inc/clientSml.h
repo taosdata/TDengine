@@ -69,6 +69,7 @@ extern "C" {
 #define VALUE     "_value"
 #define VALUE_LEN 6
 
+#define OTD_JSON_FIELDS_NUM     4
 #define MAX_RETRY_TIMES 5
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
@@ -98,6 +99,7 @@ typedef struct {
   char *tags;
   char *cols;
   char *timestamp;
+  char *measureTag;
 
   int32_t measureLen;
   int32_t measureTagsLen;
@@ -113,7 +115,7 @@ typedef struct {
   int32_t     sTableNameLen;
   char        childTableName[TSDB_TABLE_NAME_LEN];
   uint64_t    uid;
-  void       *key;        // for openTsdb
+//  void       *key;        // for openTsdb
 
   SArray *tags;
 
@@ -163,9 +165,10 @@ typedef struct {
   bool            dataFormat;  // true means that the name and order of keys in each line are the same(only for influx protocol)
   bool            isRawLine;
   int32_t         ttl;
+  int32_t         uid; // used for automatic create child table
 
-  NodeList *childTables;
-  NodeList *superTables;
+  SHashObj *childTables;
+  SHashObj *superTables;
   SHashObj *pVgHash;
 
   STscObj     *taos;
@@ -177,12 +180,16 @@ typedef struct {
   int32_t      lineNum;
   SSmlMsgBuf   msgBuf;
 
-//  cJSON       *root;  // for parse json
-  int8_t             offset[4];
+  cJSON       *root;  // for parse json
+  int8_t             offset[OTD_JSON_FIELDS_NUM];
   SSmlLineInfo      *lines; // element is SSmlLineInfo
+  bool               parseJsonByLib;
+  SArray      *tagJsonArray;
+  SArray      *valueJsonArray;
 
   //
   SArray      *preLineTagKV;
+  SArray      *maxTagKVs;
   SArray      *preLineColKV;
 
   SSmlLineInfo preLine;
@@ -197,7 +204,7 @@ typedef struct {
 #define IS_SAME_SUPER_TABLE (elements->measureLen == info->preLine.measureLen \
 && memcmp(elements->measure, info->preLine.measure, elements->measureLen) == 0)
 
-#define IS_SAME_KEY (preKV->keyLen == kv.keyLen && memcmp(preKV->key, kv.key, kv.keyLen) == 0)
+#define IS_SAME_KEY (maxKV->keyLen == kv.keyLen && memcmp(maxKV->key, kv.key, kv.keyLen) == 0)
 
 extern int64_t smlFactorNS[3];
 extern int64_t smlFactorS[3];
@@ -206,9 +213,9 @@ typedef int32_t (*_equal_fn_sml)(const void *, const void *);
 
 SSmlHandle   *smlBuildSmlInfo(TAOS *taos);
 void          smlDestroyInfo(SSmlHandle *info);
-void          smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset);
-void          smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset);
-SArray       *smlJsonParseTags(char *start, char *end);
+int           smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset);
+int           smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset);
+//SArray       *smlJsonParseTags(char *start, char *end);
 bool          smlParseNumberOld(SSmlKv *kvVal, SSmlMsgBuf *msg);
 void*         nodeListGet(NodeList* list, const void *key, int32_t len, _equal_fn_sml fn);
 int           nodeListSet(NodeList** list, const void *key, int32_t len, void* value, _equal_fn_sml fn);
@@ -226,6 +233,9 @@ int32_t           is_same_child_table_telnet(const void *a, const void *b);
 int64_t           smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t len);
 int32_t           smlClearForRerun(SSmlHandle *info);
 int32_t           smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg);
+uint8_t           smlGetTimestampLen(int64_t num);
+void              clearColValArray(SArray* pCols);
+void              smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag);
 
 int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);

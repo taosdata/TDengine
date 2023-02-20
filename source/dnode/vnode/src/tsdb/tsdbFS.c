@@ -458,9 +458,8 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
       taosMemoryFree(pHeadF);
     }
   } else {
-    nRef = pHeadF->nRef;
-    *pHeadF = *pSetNew->pHeadF;
-    pHeadF->nRef = nRef;
+    ASSERT(pHeadF->offset == pSetNew->pHeadF->offset);
+    ASSERT(pHeadF->size == pSetNew->pHeadF->size);
   }
 
   // data
@@ -481,9 +480,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
       taosMemoryFree(pDataF);
     }
   } else {
-    nRef = pDataF->nRef;
-    *pDataF = *pSetNew->pDataF;
-    pDataF->nRef = nRef;
+    pDataF->size = pSetNew->pDataF->size;
   }
 
   // sma
@@ -504,9 +501,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
       taosMemoryFree(pSmaF);
     }
   } else {
-    nRef = pSmaF->nRef;
-    *pSmaF = *pSetNew->pSmaF;
-    pSmaF->nRef = nRef;
+    pSmaF->size = pSetNew->pSmaF->size;
   }
 
   // stt
@@ -634,7 +629,15 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
       }
     }
   } else {
-    ASSERT(pTsdb->fs.pDelFile == NULL);
+    if (pTsdb->fs.pDelFile) {
+      nRef = atomic_sub_fetch_32(&pTsdb->fs.pDelFile->nRef, 1);
+      if (nRef == 0) {
+        tsdbDelFileName(pTsdb, pTsdb->fs.pDelFile, fname);
+        (void)taosRemoveFile(fname);
+        taosMemoryFree(pTsdb->fs.pDelFile);
+      }
+      pTsdb->fs.pDelFile = NULL;
+    }
   }
 
   // aDFileSet
@@ -911,14 +914,21 @@ _exit:
 int32_t tsdbFSUpsertDelFile(STsdbFS *pFS, SDelFile *pDelFile) {
   int32_t code = 0;
 
-  if (pFS->pDelFile == NULL) {
-    pFS->pDelFile = (SDelFile *)taosMemoryMalloc(sizeof(SDelFile));
+  if (pDelFile) {
     if (pFS->pDelFile == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
+      pFS->pDelFile = (SDelFile *)taosMemoryMalloc(sizeof(SDelFile));
+      if (pFS->pDelFile == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
+    }
+    *pFS->pDelFile = *pDelFile;
+  } else {
+    if (pFS->pDelFile) {
+      taosMemoryFree(pFS->pDelFile);
+      pFS->pDelFile = NULL;
     }
   }
-  *pFS->pDelFile = *pDelFile;
 
 _exit:
   return code;

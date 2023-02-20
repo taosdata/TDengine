@@ -257,8 +257,8 @@ _exit:
     pReader->index++;
     *nData = sizeof(SSnapDataHdr) + pHdr->size;
     pHdr->index = pReader->index;
-    vInfo("vgId:%d, vnode snapshot read data,index:%" PRId64 " type:%d nData:%d ", TD_VID(pReader->pVnode),
-          pReader->index, pHdr->type, *nData);
+    vDebug("vgId:%d, vnode snapshot read data, index:%" PRId64 " type:%d blockLen:%d ", TD_VID(pReader->pVnode),
+           pReader->index, pHdr->type, *nData);
   } else {
     vInfo("vgId:%d, vnode snapshot read data end, index:%" PRId64, TD_VID(pReader->pVnode), pReader->index);
   }
@@ -349,7 +349,7 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
       snprintf(dir, TSDB_FILENAME_LEN, "%s", pWriter->pVnode->path);
     }
 
-    vnodeCommitInfo(dir, &pWriter->info);
+    vnodeCommitInfo(dir);
   } else {
     vnodeRollback(pWriter->pVnode);
   }
@@ -405,6 +405,12 @@ static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_
   } else {
     snprintf(dir, TSDB_FILENAME_LEN, "%s", pWriter->pVnode->path);
   }
+
+  SVnodeStats vndStats = pWriter->info.config.vndStats;
+  SVnode     *pVnode = pWriter->pVnode;
+  pWriter->info.config = pVnode->config;
+  pWriter->info.config.vndStats = vndStats;
+  vDebug("vgId:%d, save config while write snapshot", pWriter->pVnode->config.vgId);
   if (vnodeSaveInfo(dir, &pWriter->info) < 0) {
     code = terrno;
     goto _exit;
@@ -420,11 +426,17 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
   SVnode       *pVnode = pWriter->pVnode;
 
   ASSERT(pHdr->size + sizeof(SSnapDataHdr) == nData);
-  ASSERT(pHdr->index == pWriter->index + 1);
+
+  if (pHdr->index != pWriter->index + 1) {
+    vError("vgId:%d, unexpected vnode snapshot msg. index:%" PRId64 ", expected index:%" PRId64, TD_VID(pVnode),
+           pHdr->index, pWriter->index + 1);
+    return -1;
+  }
+
   pWriter->index = pHdr->index;
 
-  vInfo("vgId:%d, vnode snapshot write data, index:%" PRId64 " type:%d nData:%d", TD_VID(pVnode), pHdr->index,
-        pHdr->type, nData);
+  vDebug("vgId:%d, vnode snapshot write data, index:%" PRId64 " type:%d blockLen:%d", TD_VID(pVnode), pHdr->index,
+         pHdr->type, nData);
 
   switch (pHdr->type) {
     case SNAP_DATA_CFG: {
@@ -449,7 +461,7 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
         if (code) goto _err;
       }
 
-      code = tsdbSnapWrite(pWriter->pTsdbSnapWriter, pData, nData);
+      code = tsdbSnapWrite(pWriter->pTsdbSnapWriter, pHdr);
       if (code) goto _err;
     } break;
     case SNAP_DATA_TQ_HANDLE: {

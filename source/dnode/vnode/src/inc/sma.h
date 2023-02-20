@@ -209,6 +209,8 @@ static FORCE_INLINE void tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
   smaDebug("vgId:%d, unref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
 }
 
+int32_t smaPreClose(SSma *pSma);
+
 // rsma
 void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
 int32_t tdRSmaFSOpen(SSma *pSma, int64_t version, int8_t rollback);

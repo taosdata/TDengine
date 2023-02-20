@@ -21,44 +21,147 @@
 static int vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
 static int vnodeCommitImpl(SCommitInfo *pInfo);
 
-int vnodeBegin(SVnode *pVnode) {
-  // alloc buffer pool
-  taosThreadMutexLock(&pVnode->mutex);
+#define WAIT_TIME_MILI_SEC 10  // miliseconds
 
-  while (pVnode->pPool == NULL) {
-    taosThreadCondWait(&pVnode->poolNotEmpty, &pVnode->mutex);
+static int32_t vnodeTryRecycleBufPool(SVnode *pVnode) {
+  int32_t code = 0;
+
+  if (pVnode->onRecycle == NULL) {
+    if (pVnode->recycleHead == NULL) {
+      vDebug("vgId:%d, no recyclable buffer pool", TD_VID(pVnode));
+      goto _exit;
+    } else {
+      vDebug("vgId:%d, buffer pool %p of id %d on recycle queue, try to recycle", TD_VID(pVnode), pVnode->recycleHead,
+             pVnode->recycleHead->id);
+
+      pVnode->onRecycle = pVnode->recycleHead;
+      if (pVnode->recycleHead == pVnode->recycleTail) {
+        pVnode->recycleHead = pVnode->recycleTail = NULL;
+      } else {
+        pVnode->recycleHead = pVnode->recycleHead->recycleNext;
+        pVnode->recycleHead->recyclePrev = NULL;
+      }
+      pVnode->onRecycle->recycleNext = pVnode->onRecycle->recyclePrev = NULL;
+    }
   }
 
-  pVnode->inUse = pVnode->pPool;
-  pVnode->inUse->nRef = 1;
-  pVnode->pPool = pVnode->inUse->next;
-  pVnode->inUse->next = NULL;
+  code = vnodeBufPoolRecycle(pVnode->onRecycle);
+  if (code) goto _exit;
 
+_exit:
+  if (code) {
+    vError("vgId:%d, %s failed since %s", TD_VID(pVnode), __func__, tstrerror(code));
+  }
+  return code;
+}
+static int32_t vnodeGetBufPoolToUse(SVnode *pVnode) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  taosThreadMutexLock(&pVnode->mutex);
+
+  int32_t nTry = 0;
+  for (;;) {
+    ++nTry;
+
+    if (pVnode->freeList) {
+      vDebug("vgId:%d, allocate free buffer pool on %d try, pPool:%p id:%d", TD_VID(pVnode), nTry, pVnode->freeList,
+             pVnode->freeList->id);
+
+      pVnode->inUse = pVnode->freeList;
+      pVnode->inUse->nRef = 1;
+      pVnode->freeList = pVnode->inUse->freeNext;
+      pVnode->inUse->freeNext = NULL;
+      break;
+    } else {
+      vDebug("vgId:%d, no free buffer pool on %d try, try to recycle...", TD_VID(pVnode), nTry);
+
+      code = vnodeTryRecycleBufPool(pVnode);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      if (pVnode->freeList == NULL) {
+        vDebug("vgId:%d, no free buffer pool on %d try, wait %d ms...", TD_VID(pVnode), nTry, WAIT_TIME_MILI_SEC);
+
+        struct timeval  tv;
+        struct timespec ts;
+        taosGetTimeOfDay(&tv);
+        ts.tv_nsec = tv.tv_usec * 1000 + WAIT_TIME_MILI_SEC * 1000000;
+        if (ts.tv_nsec > 999999999l) {
+          ts.tv_sec = tv.tv_sec + 1;
+          ts.tv_nsec -= 1000000000l;
+        } else {
+          ts.tv_sec = tv.tv_sec;
+        }
+
+        int32_t rc = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
+        if (rc && rc != ETIMEDOUT) {
+          code = TAOS_SYSTEM_ERROR(rc);
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+      }
+    }
+  }
+
+_exit:
   taosThreadMutexUnlock(&pVnode->mutex);
+  if (code) {
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+int vnodeBegin(SVnode *pVnode) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
-  pVnode->state.commitID++;
+  // alloc buffer pool
+  code = vnodeGetBufPoolToUse(pVnode);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   // begin meta
   if (metaBegin(pVnode->pMeta, META_BEGIN_HEAP_BUFFERPOOL) < 0) {
-    vError("vgId:%d, failed to begin meta since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // begin tsdb
   if (tsdbBegin(pVnode->pTsdb) < 0) {
-    vError("vgId:%d, failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // begin sma
   if (VND_IS_RSMA(pVnode) && smaBegin(pVnode->pSma) < 0) {
-    vError("vgId:%d, failed to begin sma since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  return 0;
+_exit:
+  if (code) {
+    terrno = code;
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+void vnodeUpdCommitSched(SVnode *pVnode) {
+  int64_t randNum = taosRand();
+  pVnode->commitSched.commitMs = taosGetMonoTimestampMs();
+  pVnode->commitSched.maxWaitMs = tsVndCommitMaxIntervalMs + (randNum % tsVndCommitMaxIntervalMs);
 }
 
 int vnodeShouldCommit(SVnode *pVnode) {
+  if (!pVnode->inUse || !osDataSpaceAvailable()) {
+    return false;
+  }
+
+  SVCommitSched *pSched = &pVnode->commitSched;
+  int64_t        nowMs = taosGetMonoTimestampMs();
+
+  return (((pVnode->inUse->size > pVnode->inUse->node.size) && (pSched->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs)) ||
+          (pVnode->inUse->size > 0 && pSched->commitMs + pSched->maxWaitMs < nowMs));
+}
+
+int vnodeShouldCommitOld(SVnode *pVnode) {
   if (pVnode->inUse) {
     return osDataSpaceAvailable() && (pVnode->inUse->size > pVnode->inUse->node.size);
   }
@@ -105,8 +208,8 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d", pInfo->config.vgId, fname,
-        pInfo->config.syncCfg.replicaNum);
+  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d", pInfo->config.vgId, fname,
+        pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex);
 
   return 0;
 
@@ -116,7 +219,7 @@ _err:
   return -1;
 }
 
-int vnodeCommitInfo(const char *dir, const SVnodeInfo *pInfo) {
+int vnodeCommitInfo(const char *dir) {
   char fname[TSDB_FILENAME_LEN];
   char tfname[TSDB_FILENAME_LEN];
 
@@ -128,8 +231,7 @@ int vnodeCommitInfo(const char *dir, const SVnodeInfo *pInfo) {
     return -1;
   }
 
-  vInfo("vgId:%d, vnode info is committed", pInfo->config.vgId);
-
+  vInfo("vnode info is committed, dir:%s", dir);
   return 0;
 }
 
@@ -184,66 +286,133 @@ _err:
   return -1;
 }
 
-static int32_t vnodePrepareCommit(SVnode *pVnode) {
+static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   int32_t code = 0;
+  int32_t lino = 0;
+  char    dir[TSDB_FILENAME_LEN] = {0};
+
   tsem_wait(&pVnode->canCommit);
 
+  pVnode->state.commitTerm = pVnode->state.applyTerm;
+
+  pInfo->info.config = pVnode->config;
+  pInfo->info.state.committed = pVnode->state.applied;
+  pInfo->info.state.commitTerm = pVnode->state.applyTerm;
+  pInfo->info.state.commitID = ++pVnode->state.commitID;
+  pInfo->pVnode = pVnode;
+  pInfo->txn = metaGetTxn(pVnode->pMeta);
+
+  // save info
+  if (pVnode->pTfs) {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
+  } else {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
+  }
+
+  vDebug("vgId:%d, save config while prepare commit", TD_VID(pVnode));
+  if (vnodeSaveInfo(dir, &pInfo->info) < 0) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   tsdbPrepareCommit(pVnode->pTsdb);
+
   metaPrepareAsyncCommit(pVnode->pMeta);
+
   code = smaPrepareAsyncCommit(pVnode->pSma);
   if (code) goto _exit;
 
-_exit:
-  vnodeBufPoolUnRef(pVnode->inUse);
+  taosThreadMutexLock(&pVnode->mutex);
+  ASSERT(pVnode->onCommit == NULL);
+  pVnode->onCommit = pVnode->inUse;
   pVnode->inUse = NULL;
+  taosThreadMutexUnlock(&pVnode->mutex);
+
+_exit:
+  if (code) {
+    vError("vgId:%d, %s failed at line %d since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, lino,
+           tstrerror(code), pVnode->state.commitID);
+  } else {
+    vDebug("vgId:%d, %s done, commit id:%" PRId64, TD_VID(pVnode), __func__, pInfo->info.state.commitID);
+  }
+
   return code;
 }
+static void vnodeReturnBufPool(SVnode *pVnode) {
+  taosThreadMutexLock(&pVnode->mutex);
 
+  SVBufPool *pPool = pVnode->onCommit;
+  int32_t    nRef = atomic_sub_fetch_32(&pPool->nRef, 1);
+
+  pVnode->onCommit = NULL;
+  if (nRef == 0) {
+    vnodeBufPoolAddToFreeList(pPool);
+  } else if (nRef > 0) {
+    vDebug("vgId:%d, buffer pool %p of id %d is added to recycle queue", TD_VID(pVnode), pPool, pPool->id);
+
+    if (pVnode->recycleTail == NULL) {
+      pPool->recyclePrev = pPool->recycleNext = NULL;
+      pVnode->recycleHead = pVnode->recycleTail = pPool;
+    } else {
+      pPool->recyclePrev = pVnode->recycleTail;
+      pPool->recycleNext = NULL;
+      pVnode->recycleTail->recycleNext = pPool;
+      pVnode->recycleTail = pPool;
+    }
+  } else {
+    ASSERT(0);
+  }
+
+  taosThreadMutexUnlock(&pVnode->mutex);
+}
 static int32_t vnodeCommitTask(void *arg) {
   int32_t code = 0;
 
   SCommitInfo *pInfo = (SCommitInfo *)arg;
+  SVnode      *pVnode = pInfo->pVnode;
 
   // commit
   code = vnodeCommitImpl(pInfo);
   if (code) goto _exit;
 
+  vnodeReturnBufPool(pVnode);
+
 _exit:
   // end commit
-  tsem_post(&pInfo->pVnode->canCommit);
+  tsem_post(&pVnode->canCommit);
   taosMemoryFree(pInfo);
   return code;
 }
+
 int vnodeAsyncCommit(SVnode *pVnode) {
   int32_t code = 0;
-
-  // prepare to commit
-  code = vnodePrepareCommit(pVnode);
-  if (code) goto _exit;
-
-  // schedule the task
-  pVnode->state.commitTerm = pVnode->state.applyTerm;
 
   SCommitInfo *pInfo = (SCommitInfo *)taosMemoryCalloc(1, sizeof(*pInfo));
   if (NULL == pInfo) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  pInfo->info.config = pVnode->config;
-  pInfo->info.state.committed = pVnode->state.applied;
-  pInfo->info.state.commitTerm = pVnode->state.applyTerm;
-  pInfo->info.state.commitID = pVnode->state.commitID;
-  pInfo->pVnode = pVnode;
-  pInfo->txn = metaGetTxn(pVnode->pMeta);
+
+  // prepare to commit
+  code = vnodePrepareCommit(pVnode, pInfo);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _exit;
+  }
+
+  // schedule the task
   code = vnodeScheduleTask(vnodeCommitTask, pInfo);
 
 _exit:
   if (code) {
+    if (NULL != pInfo) {
+      taosMemoryFree(pInfo);
+    }
     tsem_post(&pVnode->canCommit);
     vError("vgId:%d, %s failed since %s, commit id:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code),
            pVnode->state.commitID);
   } else {
-    vDebug("vgId:%d, %s done", TD_VID(pVnode), __func__);
+    vInfo("vgId:%d, vnode async commit done, commitId:%" PRId64 " term:%" PRId64 " applied:%" PRId64, TD_VID(pVnode),
+          pVnode->state.commitID, pVnode->state.applyTerm, pVnode->state.applied);
   }
   return code;
 }
@@ -262,8 +431,10 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   char    dir[TSDB_FILENAME_LEN] = {0};
   SVnode *pVnode = pInfo->pVnode;
 
-  vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64 " term: %" PRId64, TD_VID(pVnode),
-        pVnode->state.commitID, pVnode->state.applied, pVnode->state.applyTerm);
+  vInfo("vgId:%d, start to commit, commitId:%" PRId64 " version:%" PRId64 " term: %" PRId64, TD_VID(pVnode),
+        pInfo->info.state.commitID, pInfo->info.state.committed, pInfo->info.state.commitTerm);
+
+  vnodeUpdCommitSched(pVnode);
 
   // persist wal before starting
   if (walPersist(pVnode->pWal) < 0) {
@@ -271,19 +442,13 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     return -1;
   }
 
-  // save info
   if (pVnode->pTfs) {
     snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
   } else {
     snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
   }
-  if (vnodeSaveInfo(dir, &pInfo->info) < 0) {
-    code = terrno;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
 
-  // walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
-  syncBeginSnapshot(pVnode->sync, pVnode->state.applied);
+  syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
 
   // commit each sub-system
   code = tsdbCommit(pVnode->pTsdb, pInfo);
@@ -300,7 +465,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   }
 
   // commit info
-  if (vnodeCommitInfo(dir, &pInfo->info) < 0) {
+  if (vnodeCommitInfo(dir) < 0) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -325,7 +490,6 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     return -1;
   }
 
-  // walEndSnapshot(pVnode->pWal);
   syncEndSnapshot(pVnode->sync);
 
 _exit:

@@ -29,6 +29,7 @@
 #define DM_MACHINE_CODE  "Get machine code."
 #define DM_VERSION       "Print program version."
 #define DM_EMAIL         "<support@taosdata.com>"
+#define DM_MEM_DBG       "Enable memory debug"
 // clang-format on
 static struct {
 #ifdef WINDOWS
@@ -37,6 +38,7 @@ static struct {
   bool         dumpConfig;
   bool         dumpSdb;
   bool         generateGrant;
+  bool         memDbg;
   bool         printAuth;
   bool         printVersion;
   bool         printHelp;
@@ -44,6 +46,7 @@ static struct {
   char         apolloUrl[PATH_MAX];
   const char **envCmd;
   SArray      *pArgs;  // SConfigPair
+  int64_t      startTime;
 } global = {0};
 
 static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { taosSetAllDebugFlag(143, true); }
@@ -67,23 +70,71 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
   dmStop();
 }
 
+void dmLogCrash(int signum, void *sigInfo, void *context) {
+  taosIgnSignal(SIGTERM);
+  taosIgnSignal(SIGHUP);
+  taosIgnSignal(SIGINT);
+  taosIgnSignal(SIGBREAK);
+
+#ifndef WINDOWS  
+  taosIgnSignal(SIGBUS);
+#endif
+  taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGFPE);
+  taosIgnSignal(SIGSEGV);
+
+  char *pMsg = NULL;
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;
+  int64_t     msgLen= -1;
+  
+  if (tsEnableCrashReport) {
+    if (taosGenCrashJsonMsg(signum, &pMsg, dmGetClusterId(), global.startTime)) {
+      taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
+      goto _return;
+    } else {
+      msgLen = strlen(pMsg);  
+    }
+  }
+  
+_return:
+
+  taosLogCrashInfo("taosd", pMsg, msgLen, signum, sigInfo);
+
+#ifdef _TD_DARWIN_64
+  exit(signum);
+#elif defined(WINDOWS)
+  exit(signum);
+#endif
+}
+
 static void dmSetSignalHandle() {
   taosSetSignal(SIGUSR1, dmSetDebugFlag);
   taosSetSignal(SIGUSR2, dmSetAssert);
   taosSetSignal(SIGTERM, dmStopDnode);
   taosSetSignal(SIGHUP, dmStopDnode);
   taosSetSignal(SIGINT, dmStopDnode);
-  taosSetSignal(SIGABRT, dmStopDnode);
   taosSetSignal(SIGBREAK, dmStopDnode);
 #ifndef WINDOWS
   taosSetSignal(SIGTSTP, dmStopDnode);
   taosSetSignal(SIGQUIT, dmStopDnode);
 #endif
+
+#ifndef WINDOWS
+  taosSetSignal(SIGBUS, dmLogCrash);
+#endif  
+  taosSetSignal(SIGABRT, dmLogCrash);
+  taosSetSignal(SIGFPE, dmLogCrash);
+  taosSetSignal(SIGSEGV, dmLogCrash);
 }
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
+  global.startTime = taosGetTimestampMs();
+
   int32_t cmdEnvIndex = 0;
   if (argc < 2) return 0;
+  
   global.envCmd = taosMemoryMalloc((argc - 1) * sizeof(char *));
   memset(global.envCmd, 0, (argc - 1) * sizeof(char *));
   for (int32_t i = 1; i < argc; ++i) {
@@ -117,8 +168,10 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     } else if (strcmp(argv[i], "-e") == 0) {
       global.envCmd[cmdEnvIndex] = argv[++i];
       cmdEnvIndex++;
+    } else if (strcmp(argv[i], "-dm") == 0) {
+      global.memDbg = true;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 ||
-               strcmp(argv[i], "-?")) {
+               strcmp(argv[i], "-?") == 0) {
       global.printHelp = true;
     } else {
     }
@@ -163,6 +216,7 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
   printf("%s%s%s%s\n", indent, "-k,", indent, DM_MACHINE_CODE);
+  printf("%s%s%s%s\n", indent, "-dm,", indent, DM_MEM_DBG);
   printf("%s%s%s%s\n", indent, "-V,", indent, DM_VERSION);
 
   printf("\n\nReport bugs to %s.\n", DM_EMAIL);
@@ -178,7 +232,7 @@ static int32_t dmInitLog() {
 }
 
 static void taosCleanupArgs() {
-  if (global.envCmd != NULL) taosMemoryFree(global.envCmd);
+  if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
 }
 
 int main(int argc, char const *argv[]) {
@@ -222,6 +276,18 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     return 0;
   }
+
+#if defined(LINUX)
+  if (global.memDbg) {
+    int32_t code = taosMemoryDbgInit();
+    if (code) {
+      printf("failed to init memory dbg, error:%s\n", tstrerror(code));
+      return code;
+    }
+    tsAsyncLog = false;    
+    printf("memory dbg enabled\n");
+  }
+#endif
 
   if (dmInitLog() != 0) {
     printf("failed to start since init log error\n");
@@ -268,6 +334,10 @@ int mainWindows(int argc, char **argv) {
 
   if (dmInit() != 0) {
     dError("failed to init dnode since %s", terrstr());
+
+    taosCleanupCfg();
+    taosCloseLog();
+    taosConvDestroy();
     return -1;
   }
 

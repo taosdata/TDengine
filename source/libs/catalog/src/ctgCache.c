@@ -2118,7 +2118,7 @@ int32_t ctgOpUpdateEpset(SCtgCacheOperation *operation) {
 
 _return:
 
-  if (dbCache) {
+  if (code == TSDB_CODE_SUCCESS && dbCache) {
     ctgWUnlockVgInfo(dbCache);
   }
 
@@ -2500,6 +2500,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
     CTG_LOCK(CTG_READ, &pCache->metaLock);
     if (NULL == pCache->pMeta) {
+      CTG_UNLOCK(CTG_READ, &pCache->metaLock);
       ctgDebug("tb %s meta not in cache, dbFName:%s", pName->tname, dbFName);
       ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag);
       taosArraySetSize(ctx->pResList, taosArrayGetSize(ctx->pResList) + 1);

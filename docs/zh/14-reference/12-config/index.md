@@ -106,7 +106,7 @@ taos --dump-config
 | 适用范围 | 仅服务端适用                                                                                                                                                                                       |
 | 含义     | 服务器内部的系统监控开关。监控主要负责收集物理节点的负载状况，包括 CPU、内存、硬盘、网络带宽的监控记录，监控信息将通过 HTTP 协议发送给由 `monitorFqdn` 和 `monitorProt` 指定的 TaosKeeper 监控服务 |
 | 取值范围 | 0：关闭监控服务， 1：激活监控服务。                                                                                                                                                                |
-| 缺省值   | 1                                                                                                                                                                                                  |
+| 缺省值   | 0                                                                                                                                                                                                  |
 
 ### monitorFqdn
 
@@ -134,6 +134,24 @@ taos --dump-config
 | 取值范围 | 1-200000                                     |
 | 缺省值   | 30                                           |
 
+### telemetryReporting
+
+| 属性     | 说明                                         |
+| -------- | -------------------------------------------- |
+| 适用范围 | 仅服务端适用                                 |
+| 含义     |是否上传 telemetry |
+| 取值范围 | 0,1   0: 不上传；1：上传                                   |
+| 缺省值   | 1                                           |
+
+### crashReporting
+
+| 属性     | 说明                                         |
+| -------- | -------------------------------------------- |
+| 适用范围 | 仅服务端适用                                 |
+| 含义     |是否上传 crash 信息 |
+| 取值范围 | 0,1   0: 不上传；1：上传                                   |
+| 缺省值   | 1                                           |
+
 ## 查询相关
 
 ### queryPolicy
@@ -144,11 +162,7 @@ taos --dump-config
 | 含义     | 查询语句的执行策略            |
 | 单位     | 无                            |
 | 缺省值   | 1                             |
-| 补充说明 | 1: 只使用 vnode，不使用 qnode |
-
-2: 没有扫描算子的子任务在 qnode 执行，带扫描算子的子任务在 vnode 执行
-
-3: vnode 只运行扫描算子，其余算子均在 qnode 执行 |
+| 补充说明 | 1: 只使用 vnode，不使用 qnode; 2: 没有扫描算子的子任务在 qnode 执行，带扫描算子的子任务在 vnode 执行; 3: vnode 只运行扫描算子，其余算子均在 qnode 执行 |
 
 ### querySmaOptimize
 
@@ -158,11 +172,7 @@ taos --dump-config
 | 含义     | sma index 的优化策略 |
 | 单位     | 无                   |
 | 缺省值   | 0                    |
-| 补充说明 |
-
-0: 表示不使用 sma index，永远从原始数据进行查询
-
-1: 表示使用 sma index，对符合的语句，直接从预计算的结果进行查询 |
+| 补充说明 |0: 表示不使用 sma index，永远从原始数据进行查询; 1: 表示使用 sma index，对符合的语句，直接从预计算的结果进行查询 |
 
 ### maxNumOfDistinctRes
 
@@ -182,14 +192,15 @@ taos --dump-config
 | 取值范围 | 0 表示包含函数名，1 表示不包含函数名。      |
 | 缺省值   | 0                            |
 
-### countAlwaysReturnValue 
+### countAlwaysReturnValue
 
 | 属性     | 说明                             |
 | -------- | -------------------------------- |
 | 适用范围 | 仅服务端适用                     |
-| 含义     | count/hyperloglog函数在数据为空或者NULL的情况下是否返回值 |
+| 含义     | count/hyperloglog函数在输入数据为空或者NULL的情况下是否返回值 |
 | 取值范围 | 0：返回空行，1：返回 0       |
 | 缺省值   | 1                            |
+| 补充说明 | 该参数设置为 1 时，如果查询中含有 GROUP BY，PARTITION BY 以及 INTERVAL 子句且相应的组或窗口内数据为空或者NULL， 对应的组或窗口将不返回查询结果 |
 
 ## 区域相关
 
@@ -305,6 +316,7 @@ charset 的有效值是 UTF-8。
 | 适用范围 | 仅服务端适用                               |
 | 含义     | 数据文件目录，所有的数据文件都将写入该目录 |
 | 缺省值   | /var/lib/taos                              |
+| 补充说明 | [多级存储](https://docs.taosdata.com/tdinternal/arch/#%E5%A4%9A%E7%BA%A7%E5%AD%98%E5%82%A8) 功能需要与 [KEEP](https://docs.taosdata.com/taos-sql/database/#%E5%8F%82%E6%95%B0%E8%AF%B4%E6%98%8E) 参数配合使用 |
 
 ### tempDir
 
@@ -370,7 +382,7 @@ charset 的有效值是 UTF-8。
 | 属性     | 说明                                         |
 | -------- | -------------------------------------------- |
 | 适用范围 | 服务端和客户端均适用                         |
-| 含义     | 当日志文件夹的磁盘大小小于该值时，停止写日志 |
+| 含义     | 当日志文件夹所在磁盘可用空间大小小于该值时，停止写日志 |
 | 单位     | GB                                           |
 | 缺省值   | 1.0                                          |
 
@@ -597,7 +609,7 @@ charset 的有效值是 UTF-8。
 | 属性     | 说明                          |
 | -------- | ----------------------------- |
 | 适用范围 | 仅客户端适用                  |
-| 含义     | schemaless 列数据是否顺序一致 |
+| 含义     | schemaless 列数据是否顺序一致，从3.0.3.0开始，该配置废弃 |
 | 值域     | 0：不一致；1: 一致            |
 | 缺省值   | 1                             |
 
@@ -657,7 +669,7 @@ charset 的有效值是 UTF-8。
 | 20  |     minimalTmpDirGB     | 是              | 是              |                                                   |
 | 21  |    smlChildTableName    | 是              | 是              |                                                   |
 | 22  |       smlTagName        | 是              | 是              |                                                   |
-| 23  |      smlDataFormat      | 否              | 是              |                                                   |
+| 23  |      smlDataFormat      | 否              | 是（从3.0.3.0开始，该配置废弃）              |                                                   |
 | 24  |     statusInterval      | 是              | 是              |                                                   |
 | 25  |         logDir          | 是              | 是              |                                                   |
 | 26  |     minimalLogDirGB     | 是              | 是              |                                                   |
@@ -698,7 +710,7 @@ charset 的有效值是 UTF-8。
 | 2  |   numOfThreadsPerCore   | 是              | 否              | 有其它参数设置多种线程池的大小                    |
 | 3  |       numOfMnodes       | 是              | 否              | 通过 create mnode 命令动态创建 mnode              |
 | 4  |        vnodeBak         | 是              | 否              | 3.0 行为未知                                      |
-| 5  |         balance         | 是              | 否              | 负载均衡功能由 split/merge vgroups 实现           |
+| 5  |         balance         | 是              | 否              | 负载均衡功能由 split/merge vgroups 实现 （暂不支持）           |
 | 6  |     balanceInterval     | 是              | 否              | 随着 balance 参数失效                             |
 | 7  |    offlineThreshold     | 是              | 否              | 3.0 行为未知                                      |
 | 8  |          role           | 是              | 否              | 由 supportVnode 决定是否能够创建                  |

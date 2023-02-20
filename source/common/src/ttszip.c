@@ -17,6 +17,7 @@
 #include "ttszip.h"
 #include "taoserror.h"
 #include "tcompression.h"
+#include "tlog.h"
 
 static int32_t getDataStartOffset();
 static void    TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t index, STSGroupBlockInfo* pBlockInfo);
@@ -202,14 +203,14 @@ void* tsBufDestroy(STSBuf* pTSBuf) {
 static STSGroupBlockInfoEx* tsBufGetLastGroupInfo(STSBuf* pTSBuf) {
   int32_t last = pTSBuf->numOfGroups - 1;
 
-  assert(last >= 0);
+  ASSERT(last >= 0);
   return &pTSBuf->pData[last];
 }
 
 static STSGroupBlockInfoEx* addOneGroupInfo(STSBuf* pTSBuf, int32_t id) {
   if (pTSBuf->numOfAlloc <= pTSBuf->numOfGroups) {
     uint32_t newSize = (uint32_t)(pTSBuf->numOfAlloc * 1.5);
-    assert((int32_t)newSize > pTSBuf->numOfAlloc);
+    ASSERT((int32_t)newSize > pTSBuf->numOfAlloc);
 
     STSGroupBlockInfoEx* tmp =
         (STSGroupBlockInfoEx*)taosMemoryRealloc(pTSBuf->pData, sizeof(STSGroupBlockInfoEx) * newSize);
@@ -233,7 +234,7 @@ static STSGroupBlockInfoEx* addOneGroupInfo(STSBuf* pTSBuf, int32_t id) {
   STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[pTSBuf->numOfGroups].info;
   pBlockInfo->id = id;
   pBlockInfo->offset = pTSBuf->fileSize;
-  assert(pBlockInfo->offset >= getDataStartOffset());
+  ASSERT(pBlockInfo->offset >= getDataStartOffset());
 
   // update vnode info in file
   TSBufUpdateGroupInfo(pTSBuf, pTSBuf->numOfGroups, pBlockInfo);
@@ -282,7 +283,7 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
                                         pTsData->allocSize, TWO_STAGE_COMP, pTSBuf->assistBuf, pTSBuf->bufSize);
 
   int64_t r = taosLSeekFile(pTSBuf->pFile, pTSBuf->fileSize, SEEK_SET);
-  assert(r == 0);
+  ASSERT(r == 0);
 
   /*
    * format for output data:
@@ -316,7 +317,7 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
   taosWriteFile(pTSBuf->pFile, &pBlock->compLen, sizeof(pBlock->compLen));
 
   metaLen += (int32_t)taosWriteFile(pTSBuf->pFile, &trueLen, sizeof(pBlock->tag.nLen));
-  assert(metaLen == getTagAreaLength(&pBlock->tag));
+  ASSERT(metaLen == getTagAreaLength(&pBlock->tag));
 
   int32_t blockSize = metaLen + sizeof(pBlock->numOfElem) + sizeof(pBlock->compLen) * 2 + pBlock->compLen;
   pTSBuf->fileSize += blockSize;
@@ -379,7 +380,7 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   size_t sz = 0;
   if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
     char* tp = taosMemoryRealloc(pBlock->tag.pz, pBlock->tag.nLen + 1);
-    assert(tp != NULL);
+    ASSERT(tp != NULL);
 
     memset(tp, 0, pBlock->tag.nLen + 1);
     pBlock->tag.pz = tp;
@@ -410,14 +411,14 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
 
   // read the comp length at the length of comp block
   sz = taosReadFile(pTSBuf->pFile, &pBlock->padding, sizeof(pBlock->padding));
-  assert(pBlock->padding == pBlock->compLen);
+  ASSERT(pBlock->padding == pBlock->compLen);
 
   int32_t n = 0;
   sz = taosReadFile(pTSBuf->pFile, &n, sizeof(pBlock->tag.nLen));
   if (pBlock->tag.nType == TSDB_DATA_TYPE_NULL) {
-    assert(n == 0);
+    ASSERT(n == 0);
   } else {
-    assert(n == pBlock->tag.nLen);
+    ASSERT(n == pBlock->tag.nLen);
   }
 
   UNUSED(sz);
@@ -477,7 +478,7 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t id, SVariant* tag, const char* pData, i
     pBlockInfo = tsBufGetLastGroupInfo(pTSBuf);
   }
 
-  assert(pBlockInfo->info.id == id);
+  ASSERT(pBlockInfo->info.id == id);
 
   if ((taosVariantCompare(&pTSBuf->block.tag, tag) != 0) && ptsData->len > 0) {
     // new arrived data with different tags value, save current value into disk first
@@ -596,7 +597,7 @@ static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSGroupBlockInfo* pBlockInfo
 static void tsBufGetBlock(STSBuf* pTSBuf, int32_t groupIndex, int32_t blockIndex) {
   STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[groupIndex].info;
   if (pBlockInfo->numOfBlocks <= blockIndex) {
-    assert(false);
+    ASSERT(false);
   }
 
   STSCursor* pCur = &pTSBuf->cur;
@@ -613,7 +614,7 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t groupIndex, int32_t blockIndex
     }
   } else {
     if (tsBufFindBlock(pTSBuf, pBlockInfo, blockIndex) == -1) {
-      assert(false);
+      ASSERT(false);
     }
   }
 
@@ -633,7 +634,7 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t groupIndex, int32_t blockIndex
       tsDecompressTimestamp(pBlock->payload, pBlock->compLen, pBlock->numOfElem, pTSBuf->tsData.rawBuf,
                             pTSBuf->tsData.allocSize, TWO_STAGE_COMP, pTSBuf->assistBuf, pTSBuf->bufSize);
 
-  assert((pTSBuf->tsData.len / TSDB_KEYSIZE == pBlock->numOfElem) && (pTSBuf->tsData.allocSize >= pTSBuf->tsData.len));
+  ASSERT((pTSBuf->tsData.len / TSDB_KEYSIZE == pBlock->numOfElem) && (pTSBuf->tsData.allocSize >= pTSBuf->tsData.len));
 
   pCur->vgroupIndex = groupIndex;
   pCur->blockIndex = blockIndex;
@@ -668,7 +669,9 @@ int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader) {
     return -1;
   }
 
-  assert(pHeader->tsOrder == TSDB_ORDER_ASC || pHeader->tsOrder == TSDB_ORDER_DESC);
+  if (pHeader->tsOrder != TSDB_ORDER_ASC && pHeader->tsOrder != TSDB_ORDER_DESC) {
+    return -1;
+  }
 
   int32_t r = taosLSeekFile(pTSBuf->pFile, 0, SEEK_SET);
   if (r != 0) {
@@ -705,7 +708,7 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
       }
 
     } else {  // get the last timestamp record in the last block of the last vnode
-      assert(pTSBuf->numOfGroups > 0);
+      ASSERT(pTSBuf->numOfGroups > 0);
 
       int32_t groupIndex = pTSBuf->numOfGroups - 1;
       pCur->vgroupIndex = groupIndex;
@@ -729,7 +732,7 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
   int32_t step = pCur->order == TSDB_ORDER_ASC ? 1 : -1;
 
   while (1) {
-    assert(pTSBuf->tsData.len == pTSBuf->block.numOfElem * TSDB_KEYSIZE);
+    ASSERT(pTSBuf->tsData.len == pTSBuf->block.numOfElem * TSDB_KEYSIZE);
 
     if ((pCur->order == TSDB_ORDER_ASC && pCur->tsIndex >= pTSBuf->block.numOfElem - 1) ||
         (pCur->order == TSDB_ORDER_DESC && pCur->tsIndex <= 0)) {
@@ -810,7 +813,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
   }
 
   // src can only have one vnode index
-  assert(pSrcBuf->numOfGroups == 1);
+  ASSERT(pSrcBuf->numOfGroups == 1);
 
   // there are data in buffer, flush to disk first
   tsBufFlush(pDestBuf);
@@ -853,7 +856,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
   }
 
   int32_t r = taosLSeekFile(pDestBuf->pFile, 0, SEEK_END);
-  assert(r == 0);
+  ASSERT(r == 0);
 
   int64_t offset = getDataStartOffset();
   int32_t size = (int32_t)pSrcBuf->fileSize - (int32_t)offset;
@@ -881,7 +884,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
   }
   pDestBuf->fileSize = (uint32_t)file_size;
 
-  assert(pDestBuf->fileSize == oldSize + size);
+  ASSERT(pDestBuf->fileSize == oldSize + size);
 
   return 0;
 }
@@ -913,7 +916,10 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   pTSBuf->fileSize += len;
 
   pTSBuf->tsOrder = order;
-  assert(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
+  if (order != TSDB_ORDER_ASC && order != TSDB_ORDER_DESC) {
+    tsBufDestroy(pTSBuf);
+    return NULL;
+  }
 
   STSBufFileHeader header = {
       .magic = TS_COMP_FILE_MAGIC, .numOfGroup = pTSBuf->numOfGroups, .tsOrder = pTSBuf->tsOrder};
@@ -1095,7 +1101,7 @@ void tsBufGetGroupIdList(STSBuf* pTSBuf, int32_t* num, int32_t** id) {
 }
 
 int32_t dumpFileBlockByGroupId(STSBuf* pTSBuf, int32_t groupIndex, void* buf, int32_t* len, int32_t* numOfBlocks) {
-  assert(groupIndex >= 0 && groupIndex < pTSBuf->numOfGroups);
+  ASSERT(groupIndex >= 0 && groupIndex < pTSBuf->numOfGroups);
   STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[groupIndex].info;
 
   *len = 0;

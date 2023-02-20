@@ -18,6 +18,16 @@
 #include "parToken.h"
 #include "ttime.h"
 
+static void clearColValArray(SArray* pCols) {
+  int32_t num = taosArrayGetSize(pCols);
+  for (int32_t i = 0; i < num; ++i) {
+    SColVal* pCol = taosArrayGet(pCols, i);
+    if (TSDB_DATA_TYPE_NCHAR == pCol->type) {
+      taosMemoryFreeClear(pCol->value.pData);
+    }
+  }
+}
+
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                      int32_t msgBufLen) {
   SMsgBuf msg = {.buf = msgBuf, .len = msgBufLen};
@@ -189,18 +199,29 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
   SSchema* pColSchema = schema + index;
   SColVal* pVal = taosArrayGet(pTableCxt->pValues, index);
   SSmlKv*  kv = (SSmlKv*)data;
+  if(kv->keyLen != strlen(pColSchema->name) || memcmp(kv->key, pColSchema->name, kv->keyLen) != 0 || kv->type != pColSchema->type){
+    ret = TSDB_CODE_SML_INVALID_DATA;
+    goto end;
+  }
   if (kv->type == TSDB_DATA_TYPE_NCHAR) {
     int32_t len = 0;
-    char*   pUcs4 = taosMemoryCalloc(1, pColSchema->bytes - VARSTR_HEADER_SIZE);
+    int64_t size = pColSchema->bytes - VARSTR_HEADER_SIZE;
+    if(size <= 0){
+      ret = TSDB_CODE_SML_INVALID_DATA;
+      goto end;
+    }
+    char*   pUcs4 = taosMemoryCalloc(1, size);
     if (NULL == pUcs4) {
       ret = TSDB_CODE_OUT_OF_MEMORY;
       goto end;
     }
-    if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, pColSchema->bytes - VARSTR_HEADER_SIZE, &len)) {
+    if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, size, &len)) {
       if (errno == E2BIG) {
+        taosMemoryFree(pUcs4);
         ret = TSDB_CODE_PAR_VALUE_TOO_LONG;
         goto end;
       }
+      taosMemoryFree(pUcs4);
       ret = TSDB_CODE_TSC_INVALID_VALUE;
       goto end;
     }
@@ -307,7 +328,10 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
         continue;
       }
       SSmlKv* kv = *(SSmlKv**)p;
-
+      if(kv->type != pColSchema->type){
+        ret = buildInvalidOperationMsg(&pBuf, "kv type not equal to col type");
+        goto end;
+      }
       if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
         kv->i = convertTimePrecision(kv->i, TSDB_TIME_PRECISION_NANO, pTableMeta->tableInfo.precision);
       }
@@ -345,10 +369,12 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
       goto end;
     }
     insCheckTableDataOrder(pTableCxt, TD_ROW_KEY(*pRow));
+    clearColValArray(pTableCxt->pValues);
   }
 
 end:
-  destroyBoundColInfo(&bindTags);
+  insDestroyBoundColInfo(&bindTags);
+  tdDestroySVCreateTbReq(pCreateTblReq);
   taosMemoryFree(pCreateTblReq);
   taosArrayDestroy(tagName);
   return ret;

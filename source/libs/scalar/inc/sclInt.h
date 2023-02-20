@@ -53,9 +53,6 @@ typedef struct SScalarCtx {
 #define SCL_IS_COMPARISON_OPERATOR(_opType) ((_opType) >= OP_TYPE_GREATER_THAN && (_opType) < OP_TYPE_IS_NOT_UNKNOWN)
 #define SCL_DOWNGRADE_DATETYPE(_type) \
   ((_type) == TSDB_DATA_TYPE_BIGINT || TSDB_DATA_TYPE_DOUBLE == (_type) || (_type) == TSDB_DATA_TYPE_UBIGINT)
-#define SCL_NO_NEED_CONVERT_COMPARISION(_ltype, _rtype, _optr) \
-  (IS_NUMERIC_TYPE(_ltype) && IS_NUMERIC_TYPE(_rtype) &&       \
-   ((_optr) >= OP_TYPE_GREATER_THAN && (_optr) <= OP_TYPE_NOT_EQUAL))
 
 #define sclFatal(...) qFatal(__VA_ARGS__)
 #define sclError(...) qError(__VA_ARGS__)

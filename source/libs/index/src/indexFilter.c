@@ -206,7 +206,9 @@ static FORCE_INLINE int32_t sifGetValueFromNode(SNode *node, char **value) {
 
 static FORCE_INLINE int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   SOperatorNode *nd = (SOperatorNode *)node;
-  assert(nodeType(node) == QUERY_NODE_OPERATOR);
+  if (nodeType(node) != QUERY_NODE_OPERATOR) {
+    return -1;
+  }
   SColumnNode *l = (SColumnNode *)nd->pLeft;
   SValueNode  *r = (SValueNode *)nd->pRight;
 
@@ -381,12 +383,13 @@ static FORCE_INLINE int sifEqual(void *a, void *b, int16_t dtype) {
   //__compar_fn_t func = idxGetCompar(dtype);
   return (int)tDoCompare(func, QUERY_TERM, a, b);
 }
-static FORCE_INLINE FilterFunc sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
+static FORCE_INLINE FilterFunc sifGetFilterFunc(EIndexQueryType type, bool *reverse, bool *equal) {
   if (type == QUERY_LESS_EQUAL || type == QUERY_LESS_THAN) {
     *reverse = true;
   } else {
     *reverse = false;
   }
+
   if (type == QUERY_LESS_EQUAL)
     return sifLessEqual;
   else if (type == QUERY_LESS_THAN)
@@ -396,6 +399,7 @@ static FORCE_INLINE FilterFunc sifGetFilterFunc(EIndexQueryType type, bool *reve
   else if (type == QUERY_GREATER_THAN)
     return sifGreaterThan;
   else if (type == QUERY_TERM) {
+    *equal = true;
     return sifEqual;
   }
   return NULL;
@@ -472,14 +476,15 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     ret = indexJsonSearch(arg->ivtIdx, mtm, output->result);
     indexMultiTermQueryDestroy(mtm);
   } else {
-    bool       reverse;
-    FilterFunc filterFunc = sifGetFilterFunc(qtype, &reverse);
+    bool       reverse = false, equal = false;
+    FilterFunc filterFunc = sifGetFilterFunc(qtype, &reverse, &equal);
 
     SMetaFltParam param = {.suid = arg->suid,
                            .cid = left->colId,
                            .type = left->colValType,
                            .val = right->condValue,
                            .reverse = reverse,
+                           .equal = equal,
                            .filterFunc = filterFunc};
 
     char buf[128] = {0};

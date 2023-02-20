@@ -93,6 +93,7 @@ typedef struct SScanLogicNode {
   int64_t       watermark;
   int64_t       deleteMark;
   int8_t        igExpired;
+  int8_t        igCheckUpdate;
   SArray*       pSmaIndexes;
   SNodeList*    pGroupTags;
   bool          groupSort;
@@ -121,6 +122,7 @@ typedef struct SAggLogicNode {
   bool       hasLast;
   bool       hasTimeLineFunc;
   bool       onlyHasKeepOrderFunc;
+  bool       hasGroupKeyOptimized;
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {
@@ -223,6 +225,7 @@ typedef struct SWindowLogicNode {
   int64_t          watermark;
   int64_t          deleteMark;
   int8_t           igExpired;
+  int8_t           igCheckUpdate;
   EWindowAlgorithm windowAlgo;
   EOrder           inputTsOrder;
   EOrder           outputTsOrder;
@@ -363,6 +366,7 @@ typedef struct STableScanPhysiNode {
   int64_t        watermark;
   int8_t         igExpired;
   bool           assignBlockUid;
+  int8_t         igCheckUpdate;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -409,6 +413,7 @@ typedef struct SAggPhysiNode {
   SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
   bool       mergeDataBlock;
+  bool       groupKeyOptimized;
 } SAggPhysiNode;
 
 typedef struct SDownstreamSourceNode {
@@ -560,6 +565,7 @@ typedef struct SQueryInserterNode {
   char          tableName[TSDB_TABLE_NAME_LEN];
   int32_t       vgId;
   SEpSet        epSet;
+  bool          explain;
 } SQueryInserterNode;
 
 typedef struct SDataDeleterNode {

@@ -71,6 +71,8 @@ static void msg_process(TAOS_RES* msg) {
   printf("write raw data type: %d\n", raw.raw_type);
   int32_t ret = tmq_write_raw(pConn, raw);
   printf("write raw data: %s\n", tmq_err2str(ret));
+  ASSERT(ret == 0);
+
   tmq_free_raw(raw);
   taos_close(pConn);
 }
@@ -361,7 +363,7 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes){
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "insert into stt3 using stt tags(23, \"stt3\", true) values(now + 1s, 1, 2, 'stt3') sttb3 using sttb tags(4, \"sttb3\", true) values(now + 2s, 13, 22, 'sttb3') "
+  pRes = taos_query(pConn, "insert into stt1 values(now + 2s, 3, 2, 'stt1') stt3 using stt tags(23, \"stt3\", true) values(now + 1s, 1, 2, 'stt3') sttb3 using sttb tags(4, \"sttb3\", true) values(now + 2s, 13, 22, 'sttb3') "
                            "stt4 using stt tags(433, \"stt4\", false) values(now + 3s, 21, 21, 'stt4') sttb4 using sttb tags(543, \"sttb4\", true) values(now + 4s, 16, 25, 'sttb4')");
   if (taos_errno(pRes) != 0) {
     printf("failed to create child table stt1, reason:%s\n", taos_errstr(pRes));

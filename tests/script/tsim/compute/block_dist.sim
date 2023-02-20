@@ -91,6 +91,10 @@ print ============== TD-5998
 sql_error select _block_dist() from (select * from $nt)
 sql_error select _block_dist() from (select * from $mt)
 
+print ============== TD-22140 & TD-22165
+sql_error show table distributed information_schema.ins_databases
+sql_error show table distributed performance_schema.perf_apps
+
 print =============== clear
 sql drop database $db
 sql select * from information_schema.ins_databases

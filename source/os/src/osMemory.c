@@ -228,6 +228,32 @@ void taosPrintBackTrace() {
 void taosPrintBackTrace() { return; }
 #endif
 
+int32_t taosMemoryDbgInit() {
+#if defined(LINUX) && !defined(_ALPINE)
+  int ret = mallopt(M_MMAP_THRESHOLD, 0);
+  if (0 == ret) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+
+  return 0;
+#else
+  return TSDB_CODE_FAILED;
+#endif
+}
+
+int32_t taosMemoryDbgInitRestore() {
+#if defined(LINUX) && !defined(_ALPINE)
+  int ret = mallopt(M_MMAP_THRESHOLD, 128 * 1024);
+  if (0 == ret) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+
+  return 0;
+#else
+  return TSDB_CODE_FAILED;
+#endif
+}
+
 void *taosMemoryMalloc(int64_t size) {
 #ifdef USE_TD_MEMORY
   void *tmp = malloc(size + sizeof(TdMemoryInfo));
@@ -266,7 +292,10 @@ void *taosMemoryRealloc(void *ptr, int64_t size) {
   if (ptr == NULL) return taosMemoryMalloc(size);
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
-  assert(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
+  ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
+  if (tpTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
++      return NULL;
++ }
 
   TdMemoryInfo tdMemoryInfo;
   memcpy(&tdMemoryInfo, pTdMemoryInfo, sizeof(TdMemoryInfo));
@@ -288,8 +317,10 @@ void *taosMemoryStrDup(const char *ptr) {
   if (ptr == NULL) return NULL;
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
-  assert(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
-
+  ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
+  if (pTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
++   return NULL;
++ }
   void *tmp = tstrdup(pTdMemoryInfo);
   if (tmp == NULL) return NULL;
 
@@ -323,7 +354,10 @@ int64_t taosMemorySize(void *ptr) {
 
 #ifdef USE_TD_MEMORY
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
-  assert(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
+  ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
+  if (pTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
++   return NULL;
++ }
 
   return pTdMemoryInfo->memorySize;
 #else
@@ -348,7 +382,7 @@ void taosMemoryTrim(int32_t size) {
 
 void* taosMemoryMallocAlign(uint32_t alignment, int64_t size) {
 #ifdef USE_TD_MEMORY
-  assert(0);
+  ASSERT(0);
 #else
 #if defined(LINUX)
   void* p = memalign(alignment, size);

@@ -2078,6 +2078,9 @@ static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEnc
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueBool(pEncoder, pNode->assignBlockUid);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI8(pEncoder, pNode->igCheckUpdate);
+  }
 
   return code;
 }
@@ -2153,6 +2156,9 @@ static int32_t msgToPhysiTableScanNodeInline(STlvDecoder* pDecoder, void* pObj) 
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueBool(pDecoder, &pNode->assignBlockUid);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI8(pDecoder, &pNode->igCheckUpdate);
   }
 
   return code;
@@ -2370,7 +2376,8 @@ enum {
   PHY_AGG_CODE_EXPR,
   PHY_AGG_CODE_GROUP_KEYS,
   PHY_AGG_CODE_AGG_FUNCS,
-  PHY_AGG_CODE_MERGE_DATA_BLOCK
+  PHY_AGG_CODE_MERGE_DATA_BLOCK,
+  PHY_AGG_CODE_GROUP_KEY_OPTIMIZE
 };
 
 static int32_t physiAggNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2388,6 +2395,9 @@ static int32_t physiAggNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_AGG_CODE_MERGE_DATA_BLOCK, pNode->mergeDataBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_AGG_CODE_GROUP_KEY_OPTIMIZE, pNode->groupKeyOptimized);
   }
 
   return code;
@@ -2414,6 +2424,9 @@ static int32_t msgToPhysiAggNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_AGG_CODE_MERGE_DATA_BLOCK:
         code = tlvDecodeBool(pTlv, &pNode->mergeDataBlock);
+        break;
+      case PHY_AGG_CODE_GROUP_KEY_OPTIMIZE:
+        code = tlvDecodeBool(pTlv, &pNode->groupKeyOptimized);
         break;
       default:
         break;
@@ -3237,7 +3250,8 @@ enum {
   PHY_QUERY_INSERT_CODE_TABLE_TYPE,
   PHY_QUERY_INSERT_CODE_TABLE_NAME,
   PHY_QUERY_INSERT_CODE_VG_ID,
-  PHY_QUERY_INSERT_CODE_EP_SET
+  PHY_QUERY_INSERT_CODE_EP_SET,
+  PHY_QUERY_INSERT_CODE_EXPLAIN
 };
 
 static int32_t physiQueryInsertNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3264,6 +3278,9 @@ static int32_t physiQueryInsertNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_QUERY_INSERT_CODE_EP_SET, epSetToMsg, &pNode->epSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_QUERY_INSERT_CODE_EXPLAIN, pNode->explain);
   }
 
   return code;
@@ -3299,6 +3316,9 @@ static int32_t msgToPhysiQueryInsertNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_QUERY_INSERT_CODE_EP_SET:
         code = tlvDecodeObjFromTlv(pTlv, msgToEpSet, &pNode->epSet);
+        break;
+      case PHY_QUERY_INSERT_CODE_EXPLAIN:
+        code = tlvDecodeBool(pTlv, &pNode->explain);
         break;
       default:
         break;

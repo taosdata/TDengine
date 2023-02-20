@@ -7,3 +7,4 @@ toml
 distro
 requests
 pexpect
+faker

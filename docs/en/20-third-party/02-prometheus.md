@@ -1,6 +1,7 @@
 ---
-sidebar_label: Prometheus
 title: Prometheus writing and reading
+sidebar_label: Prometheus
+description: This document describes how to integrate TDengine with Prometheus.
 ---
 
 import Prometheus from "../14-reference/_prometheus.mdx"

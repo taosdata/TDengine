@@ -50,12 +50,16 @@ extern const SVnodeCfg vnodeCfgDefault;
 int32_t vnodeInit(int32_t nthreads);
 void    vnodeCleanup();
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
-int32_t vnodeAlter(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs);
+int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs);
+int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnodeHashRangeReq *pReq, STfs *pTfs);
 void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodePreClose(SVnode *pVnode);
-void    vnodeSyncCheckTimeout(SVnode* pVnode);
+void    vnodePostClose(SVnode *pVnode);
+void    vnodeSyncCheckTimeout(SVnode *pVnode);
 void    vnodeClose(SVnode *pVnode);
+int32_t vnodeSyncCommit(SVnode *pVnode);
+int32_t vnodeBegin(SVnode *pVnode);
 
 int32_t vnodeStart(SVnode *pVnode);
 void    vnodeStop(SVnode *pVnode);
@@ -88,6 +92,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
+void    vnodeProposeCommitOnNeed(SVnode *pVnode);
 
 // meta
 typedef struct SMeta       SMeta;  // todo: remove
@@ -132,6 +137,7 @@ typedef struct SMetaFltParam {
   int16_t  type;
   void    *val;
   bool     reverse;
+  bool     equal;
   int (*filterFunc)(void *a, void *b, int16_t type);
 
 } SMetaFltParam;
@@ -150,7 +156,9 @@ typedef struct SMTbCursor SMTbCursor;
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
-int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
+int32_t     metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType);
+int32_t     metaTbCursorPrev(SMTbCursor *pTbCur);
+
 #endif
 
 // tsdb
@@ -174,8 +182,8 @@ int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableL
 
 void         tsdbReaderClose(STsdbReader *pReader);
 bool         tsdbNextDataBlock(STsdbReader *pReader);
-void         tsdbRetrieveDataBlockInfo(const STsdbReader *pReader, int32_t *rows, uint64_t *uid, STimeWindow *pWindow);
-int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock* pDataBlock, bool *allHave);
+int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave);
+void         tsdbReleaseDataBlock(STsdbReader *pReader);
 SSDataBlock *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
 int32_t      tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
 int32_t      tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
@@ -185,7 +193,7 @@ void        *tsdbGetIvtIdx(SMeta *pMeta);
 uint64_t     getReaderMaxVersion(STsdbReader *pReader);
 
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
-                                uint64_t suid, void **pReader, const char* idstr);
+                                uint64_t suid, void **pReader, const char *idstr);
 int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32_t *slotIds, SArray *pTableUids);
 void   *tsdbCacherowsReaderClose(void *pReader);
 int32_t tsdbGetTableSchema(SVnode *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
@@ -263,8 +271,8 @@ int32_t tqReaderSetSubmitReq2(STqReader *pReader, void *msgStr, int32_t msgLen, 
 // int32_t tqReaderSetDataMsg(STqReader *pReader, const SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock2(STqReader *pReader);
 bool    tqNextDataBlockFilterOut2(STqReader *pReader, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock2(SSDataBlock *pBlock, STqReader *pReader);
-int32_t tqRetrieveTaosxBlock2(STqReader *pReader, SArray *blocks, SArray *schemas);
+int32_t tqRetrieveDataBlock2(SSDataBlock *pBlock, STqReader *pReader, SSubmitTbData **pSubmitTbDataRet);
+int32_t tqRetrieveTaosxBlock2(STqReader *pReader, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet);
 // int32_t tqRetrieveDataBlock(SSDataBlock *pBlock, STqReader *pReader);
 // int32_t tqRetrieveTaosxBlock(STqReader *pReader, SArray *blocks, SArray *schemas);
 

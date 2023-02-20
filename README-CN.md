@@ -104,6 +104,16 @@ sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson
 sudo yum config-manager --set-enabled Powertools
 ```
 
+#### CentOS + devtoolset
+
+除上述编译依赖包，需要执行以下命令：
+
+```
+sudo yum install centos-release-scl
+sudo yum install devtoolset-9 devtoolset-9-libatomic-devel
+scl enable devtoolset-9 -- bash
+```
+
 ### macOS
 
 ```
@@ -276,7 +286,7 @@ sudo make install
 安装成功后，可以在应用程序中双击 TDengine 图标启动服务，或者在终端中启动 TDengine 服务：
 
 ```bash
-launchctl start com.tdengine.taosd
+sudo launchctl start com.tdengine.taosd
 ```
 
 用户可以使用 TDengine CLI 来连接 TDengine 服务，在终端中，输入：

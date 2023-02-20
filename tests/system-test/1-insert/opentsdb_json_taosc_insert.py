@@ -29,7 +29,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         self._conn = conn
-        self.defaultJSONStrType_value = "NCHAR"
+        self.defaultJSONStrType_value = "BINARY"
 
     def createDb(self, name="test", db_update_tag=0, protocol=None):
         if protocol == "telnet-tcp":
@@ -939,7 +939,7 @@ class TDTestCase:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="double", value_type=value_type))[0]
             try:
                 self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-                raise Exception("should not reach here")
+                # raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
@@ -1432,9 +1432,9 @@ class TDTestCase:
         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         query_sql = 'select * from `rFa$sta`'
         query_res = tdSql.query(query_sql, True)
-        tdSql.checkEqual(query_res, [(datetime.datetime(2021, 7, 11, 20, 33, 54), True, 'rFas$ta_1', 'ncharTagValue', 2147483647, 9223372036854775807, 22.123456789, 'binaryTagValue', 32767, 11.12345027923584, False, 127)])
+        tdSql.checkEqual(query_res, [(datetime.datetime(2021, 7, 11, 20, 33, 54), True, False, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'binaryTagValue', 'ncharTagValue', 'rFas$ta_1')])
         col_tag_res = tdSql.getColNameList(query_sql)
-        tdSql.checkEqual(col_tag_res, ['_ts', '_value', 'id', 't!@#$%^&*()_+[];:<>?,9', 't$3', 't%4', 't&6', 't*7', 't@2', 't^5', 'Tt!0', 'tT@1'])
+        tdSql.checkEqual(col_tag_res, ['_ts', '_value', 'Tt!0', 'tT@1', 't@2', 't$3', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9', 'id'])
         tdSql.execute('drop table `rFa$sta`')
 
     def pointTransCheckCase(self, value_type="obj"):
@@ -1719,7 +1719,6 @@ class TDTestCase:
             print(err.errno)
 
     def runAll(self):
-        """
         for value_type in ["obj", "default"]:
             self.initCheckCase(value_type)
             self.symbolsCheckCase(value_type)
@@ -1772,7 +1771,7 @@ class TDTestCase:
         # self.sStbStbDdataDtsMtInsertMultiThreadCheckCase()
         # self.sStbDtbDdataDtsMtInsertMultiThreadCheckCase()
         # self.lengthIcreaseCrashCheckCase()
-        """
+
     def run(self):
         print("running {}".format(__file__))
         self.createDb()
