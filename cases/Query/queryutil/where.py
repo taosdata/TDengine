@@ -358,14 +358,41 @@ class TDWhere():
         
         event_window_support_data_operators = ['>','<','!=','>=','<='] #,'='
         
-        event_window_support_is_not_null = [" q_bigint is not null "," q_int is not null "," q_tinyint is not null "," q_smallint is not null "," q_bool is not null ",
+        event_window_support_is_not_null_table = [" q_bigint is not null "," q_int is not null "," q_tinyint is not null "," q_smallint is not null "," q_bool is not null ",
                                             " q_binary is not null "," q_nchar is not null "," q_double is not null "," q_float is not null "," q_ts is not null ",
                                             " _c0 is not null "," _c0 is not null ",
                                             " q_bigint_null is null "," q_int_null is null "," q_tinyint_null is null "," q_smallint_null is null "," q_bool_null is null ",
                                             " q_binary_null is null "," q_nchar_null is null "," q_double_null is null "," q_float_null is null "," q_ts_null is null ",]
         
-        event_window_support_str_operators = ["q_binary not like STAbinary_END","q_binary like STAbinaryENND","q_nchar not like STAnchar_END","q_nchar like STAncharENND",
+        event_window_support_is_not_null_stable = [" q_bigint is not null "," q_int is not null "," q_tinyint is not null "," q_smallint is not null "," q_bool is not null ",
+                                            " q_binary is not null "," q_nchar is not null "," q_double is not null "," q_float is not null "," q_ts is not null ",
+                                            " _c0 is not null "," _c0 is not null ",
+                                            " q_bigint_null is null "," q_int_null is null "," q_tinyint_null is null "," q_smallint_null is null "," q_bool_null is null ",
+                                            " q_binary_null is null "," q_nchar_null is null "," q_double_null is null "," q_float_null is null "," q_ts_null is null ",
+                                            " t_bigint is not null "," t_int is not null "," t_tinyint is not null "," t_smallint is not null "," t_bool is not null ",
+                                            " t_binary is not null "," t_nchar is not null "," t_double is not null "," t_float is not null "," t_ts is not null ",]
+        
+        event_window_support_str_operators_table = ["q_binary not like STAbinary_END","q_binary like STAbinaryENND","q_nchar not like STAnchar_END","q_nchar like STAncharENND",
                                               "q_binary match STAbinaryEND","q_binary nmatch STAncharEND","q_nchar match STAncharEND","q_nchar nmatch STAbinaryEND",]
+        
+        event_window_support_str_operators_stable = ["q_binary not like STAbinary_END","q_binary like STAbinaryENND","q_nchar not like STAnchar_END","q_nchar like STAncharENND",
+                                              "q_binary match STAbinaryEND","q_binary nmatch STAncharEND","q_nchar match STAncharEND","q_nchar nmatch STAbinaryEND",
+                                              "t_binary not like STAbinary_END","t_binary like STAbinaryENND","t_nchar not like STAnchar_END","t_nchar like STAncharENND",
+                                              "t_binary match STAbinaryEND","t_binary nmatch STAncharEND","t_nchar match STAncharEND","t_nchar nmatch STAbinaryEND",
+                                              "loc match STA<table>END","loc match STA<^qwryuiop>END","loc nmatch STA<^>END","loc nmatch STA<qwryuiop>END",
+                                              "t_binary match STA<binary>END","t_binary match STA<^爨龘>END","t_binary nmatch STA<爨龘>END","t_binary nmatch STA<^>END",
+                                              "t_nchar match STA<nchar>END","t_nchar match STA<^爨龘>END","t_nchar nmatch STA<爨龘>END","t_nchar nmatch STA<^>END",
+                                              "loc match STA<a-z>END","t_binary match STA<a-z>END","t_nchar match STA<a-z>END",
+                                              "loc match STA<a-zA-Z>END","t_binary match STA<a-zA-Z>END","t_nchar match STA<a-zA-Z>END",
+                                              "loc match STA.END","t_binary match STA.END","t_nchar match STA.END",
+                                              "loc match STA.*END","t_binary match STA.*END","t_nchar match STA.*END",
+                                              "loc match STAa|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|zEND","loc match STAa|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|ZEND",
+                                              "t_binary match STAa|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|zEND","t_binary match STAa|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|ZEND",
+                                              "t_nchar match STAa|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|zEND","t_nchar match STAa|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|ZEND",
+                                              "( loc match STA\sEND or loc match STA\SEND )","( t_binary match STA\sEND or t_binary match STA\SEND )","( t_nchar match STA\sEND or t_nchar match STA\SEND )",
+                                              "loc nmatch STA\sEND "," t_binary nmatch STA\sEND "," t_nchar nmatch STA\sEND ",
+                                              "( loc match STA\wEND or loc match STA\WEND )","( t_binary match STA\wEND or t_binary match STA\WEND )","( t_nchar match STA\wEND or t_nchar match STA\WEND )",
+                                              "loc match STA\wEND "," t_binary match STA\wEND "," t_nchar match STA\wEND ",]
                
         
         trigger_condition_data_common = random.sample(event_window_support_data_types,1) + random.sample(event_window_support_data_operators,1)         
@@ -386,10 +413,30 @@ class TDWhere():
         trigger_condition_str_error_common = random.sample(event_window_support_str_types,1) + random.sample(event_window_support_data_operators,1)
         trigger_condition_str_error = str(trigger_condition_str_error_common).replace("[","").replace("]","").replace("'","").replace(", ","") + str(data_str)
         
-        trigger_condition_str_right = str(random.sample(event_window_support_str_operators,1)).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","").replace("STA","'").replace("END","'").replace("ENND","%'").replace(",","")
+        trigger_condition_str_right_table = str(random.sample(event_window_support_str_operators_table,1)).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","").replace("STA","'").replace("END","'").replace("ENND","%'").replace(",","")
+        trigger_condition_str_right_stable = str(random.sample(event_window_support_str_operators_stable,1)).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","").replace("STA","'").replace("END","'").replace("ENND","%'").replace(",","").replace("<","[").replace(">","]")#< > repalce [正则 ]
                
-        trigger_condition_is_not_null = str(random.sample(event_window_support_is_not_null,1)).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","").replace(",","")
+        trigger_condition_is_not_null_table = str(random.sample(event_window_support_is_not_null_table,1)).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","").replace(",","")
+        trigger_condition_is_not_null_stable = str(random.sample(event_window_support_is_not_null_stable,1)).replace("[","").replace("]","").replace("(","").replace(")","").replace("'","").replace(",","")
               
+              
+        q_tinyint_list=[]
+        for q_list_i in range(-300,300):
+            q_tinyint_list.append(q_list_i)
+        q_tinyint_list = "q_tinyint in (" + str(q_tinyint_list).replace("[","").replace("]","") + ")"
+        
+        t_tinyint_list=[]
+        for t_list_i in range(-300,300):
+            t_tinyint_list.append(t_list_i)
+        t_tinyint_list = "t_tinyint in (" + str(t_tinyint_list).replace("[","").replace("]","") + ")"
+
+        trigger_condition_in_table = [q_tinyint_list, "q_bool in (0 , 1) " ,  "q_bool in ( true , false) " ," (q_bool = true or  q_bool = false)" , "(q_bool = 0 or q_bool = 1)",]
+        trigger_condition_in_table = str(random.sample(trigger_condition_in_table,1)).replace("[","").replace("]","").replace("'","")
+
+        trigger_condition_in_stable = [t_tinyint_list, "t_bool in (0 , 1) " ,  "t_bool in ( true , false) " ," (t_bool = true or  t_bool = false)" , "(t_bool = 0 or t_bool = 1)",
+                                       q_tinyint_list, "q_bool in (0 , 1) " ,  "q_bool in ( true , false) " ," (q_bool = true or  q_bool = false)" , "(q_bool = 0 or q_bool = 1)",]
+        trigger_condition_in_stable = str(random.sample(trigger_condition_in_stable,1)).replace("[","").replace("]","").replace("'","")
+        
         if i==1:
             trigger_condition = trigger_condition_data_bigint;
         elif i==2:
@@ -402,11 +449,21 @@ class TDWhere():
             trigger_condition = trigger_condition_float;
             
         elif i==6:
-            trigger_condition = trigger_condition_str_right;  
+            trigger_condition = trigger_condition_str_right_stable;  
         elif i==61:
             trigger_condition = trigger_condition_str_error;
         elif i==7:
-            trigger_condition = trigger_condition_is_not_null; 
+            trigger_condition = trigger_condition_is_not_null_stable; 
+        elif i==8:
+            trigger_condition = trigger_condition_in_stable; 
+            
+            
+        elif i==11:
+            trigger_condition = trigger_condition_is_not_null_table; 
+        elif i==12:
+            trigger_condition = trigger_condition_is_not_null_table; 
+        elif i==13:
+            trigger_condition = trigger_condition_in_table; 
             
         return trigger_condition   
 
@@ -470,14 +527,28 @@ class TDWhere():
         single_state_window = str(state_window).replace("[","").replace("]","").replace("'","").replace(", ","")
         
         #event_window
-        event_num1,event_num2 = random.randint(1,7),random.randint(1,7)
+        #stable = 1\2\3\4\5\6\7
+        # table = 1\2\3\4\5\11\12
+        stable_event_list = (1,2,3,4,5,6,7,8,)
+        event_num1,event_num2 = random.choice(stable_event_list),random.choice(stable_event_list)
         start_trigger_condition1,start_trigger_condition2 =  self.event_window_i(event_num1),self.event_window_i(event_num1)
         end_trigger_condition1,end_trigger_condition2 =  self.event_window_i(event_num2),self.event_window_i(event_num2)      
-        single_event_window_1 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' END WITH ' + ' %s ' %end_trigger_condition1
-        single_event_window_2 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' END WITH ' + ' %s ' %end_trigger_condition1 + ' or %s ' %end_trigger_condition2
-        single_event_window_3 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' or %s ' %start_trigger_condition2 + ' END WITH ' + '%s ' %end_trigger_condition1
-        single_event_window_4 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' or %s ' %start_trigger_condition2 + ' END WITH ' + '%s ' %end_trigger_condition1 + ' or %s ' %end_trigger_condition2
-        single_event_window_5 = ' EVENT_WINDOW START WITH '  + self.event_window_i(random.randint(1,5)) + ' and '  + self.event_window_i(random.randint(6,7)) + ' END WITH ' + self.event_window_i(random.randint(1,5)) + ' and '  + self.event_window_i(random.randint(6,7))
+        single_event_window_stable_1 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' END WITH ' + ' %s ' %end_trigger_condition1
+        single_event_window_stable_2 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' END WITH ' + ' %s ' %end_trigger_condition1 + ' or %s ' %end_trigger_condition2
+        single_event_window_stable_3 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' or %s ' %start_trigger_condition2 + ' END WITH ' + '%s ' %end_trigger_condition1
+        single_event_window_stable_4 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' or %s ' %start_trigger_condition2 + ' END WITH ' + '%s ' %end_trigger_condition1 + ' or %s ' %end_trigger_condition2
+        single_event_window_stable_5 = ' EVENT_WINDOW START WITH '  + self.event_window_i(random.randint(1,5)) + ' and '  + self.event_window_i(random.randint(6,8)) + ' END WITH ' + self.event_window_i(random.randint(1,5)) + ' and '  + self.event_window_i(random.randint(6,8))
+
+
+        table_event_list = (1,2,3,4,5,11,12,13,)
+        event_num1,event_num2 = random.choice(table_event_list),random.choice(table_event_list)
+        start_trigger_condition1,start_trigger_condition2 =  self.event_window_i(event_num1),self.event_window_i(event_num1)
+        end_trigger_condition1,end_trigger_condition2 =  self.event_window_i(event_num2),self.event_window_i(event_num2) 
+        single_event_window_table_1 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' END WITH ' + ' %s ' %end_trigger_condition1
+        single_event_window_table_2 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' END WITH ' + ' %s ' %end_trigger_condition1 + ' or %s ' %end_trigger_condition2
+        single_event_window_table_3 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' or %s ' %start_trigger_condition2 + ' END WITH ' + '%s ' %end_trigger_condition1
+        single_event_window_table_4 = ' EVENT_WINDOW START WITH '  + ' %s ' %start_trigger_condition1 + ' or %s ' %start_trigger_condition2 + ' END WITH ' + '%s ' %end_trigger_condition1 + ' or %s ' %end_trigger_condition2
+        single_event_window_table_5 = ' EVENT_WINDOW START WITH '  + self.event_window_i(random.randint(1,5)) + ' and '  + self.event_window_i(random.randint(11,13)) + ' END WITH ' + self.event_window_i(random.randint(1,5)) + ' and '  + self.event_window_i(random.randint(11,13))
 
         if i == 1:
             time_window = single_interval
@@ -543,17 +614,29 @@ class TDWhere():
         elif i == 22:
             time_window = single_state_window
             
-        #event_window    
+        #event_window    #stable
         elif i == 31:
-            time_window = single_event_window_1
+            time_window = single_event_window_stable_1
         elif i == 32:
-            time_window = single_event_window_2
+            time_window = single_event_window_stable_2
         elif i == 33:
-            time_window = single_event_window_3
+            time_window = single_event_window_stable_3
         elif i == 34:
-            time_window = single_event_window_4
+            time_window = single_event_window_stable_4
         elif i == 35:
-            time_window = single_event_window_5
+            time_window = single_event_window_stable_5
+            
+        #event_window    #table
+        elif i == 41:
+            time_window = single_event_window_table_1
+        elif i == 42:
+            time_window = single_event_window_table_2
+        elif i == 43:
+            time_window = single_event_window_table_3
+        elif i == 44:
+            time_window = single_event_window_table_4
+        elif i == 45:
+            time_window = single_event_window_table_5
 
                                
         return time_window
