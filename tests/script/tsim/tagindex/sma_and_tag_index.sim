@@ -5,6 +5,7 @@ sql connect
 
 print ======== step0
 $dbPrefix = ta_3_db
+$dbPrefix1 = ta_3_db1
 $tbPrefix = ta_3_tb
 $mtPrefix = ta_3_mt
 $tbNum = 1 
@@ -137,14 +138,24 @@ if $rows != 1 then
   return -1
 endi
 
-print ===== $data05
 if $data05 != txxx then
   return -1
 endi
-  
 
 
 
+print ====== diff db has same index name
+
+sql create database $dbPrefix1 
+sql use $dbPrefix1 
+
+sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 int, t2 int, t3 int, t4 int, t5 int)
+sql create index tagt3i on $mtPrefix (t3)
+sql select * from information_schema.ins_indexes  
+
+if $rows != 2 then 
+  return -1
+endi
 
 
 
