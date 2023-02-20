@@ -132,21 +132,21 @@ async fn write_data(
                     .await
                 {
                     let errstr = err.to_string();
-                    if errstr.contains("[0x032C]") {
-                        log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
-                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
-                    } else if errstr.contains("[0x03C7]") {
-                        log::warn!("write raw meta error with stable, but we'll continue");
-                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                    if errstr.contains("[0x032C]")
+                        || errstr.contains("[0x0115]")
+                        || errstr.contains("[0x0603]")
+                        || errstr.contains("[0x03C7]")
+                    {
+                        log::warn!("[{id}] {errstr}");
                     } else {
                         bail!("write raw meta error: {err}");
                     }
                 }
             } else {
-                log::warn!("v2 target does not support delete data");
+                log::warn!("[{id}] v2 target does not support delete data");
             }
         } else {
-            log::warn!("there's older version delete message, you must delete data manually");
+            log::warn!("[{id}] there's older version delete message, you must delete data manually");
         }
     }
     Ok(0)
@@ -167,12 +167,12 @@ async fn write_meta(
         if target_is_v3 {
             if let Err(err) = taos.write_raw_meta(&meta.as_raw_meta().await?).await {
                 let errstr = err.to_string();
-                if errstr.contains("[0x032C]") {
-                    log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
-                    // tokio::time::sleep(Duration::from_nanos(1000)).await;
-                } else if errstr.contains("[0x03C7]") {
-                    log::warn!("write raw meta error with stable, but we'll continue");
-                    // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                if errstr.contains("[0x032C]")
+                    || errstr.contains("[0x0115]")
+                    || errstr.contains("[0x0603]")
+                    || errstr.contains("[0x03C7]")
+                {
+                    log::warn!("{errstr}");
                 } else {
                     bail!("write raw meta error: {err}");
                 }
@@ -192,12 +192,12 @@ async fn write_meta(
         let sql = meta.to_string();
         if let Err(err) = taos.exec(&sql).await {
             let errstr = err.to_string();
-            if errstr.contains("[0x032C]") {
-                log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
-                // tokio::time::sleep(Duration::from_nanos(1000)).await;
-            } else if errstr.contains("[0x03C7]") {
-                log::warn!("write raw meta error with stable, but we'll continue");
-                // tokio::time::sleep(Duration::from_nanos(1000)).await;
+            if errstr.contains("[0x032C]")
+                || errstr.contains("[0x0115]")
+                || errstr.contains("[0x0603]")
+                || errstr.contains("[0x03C7]")
+            {
+                log::warn!("{errstr}");
             } else {
                 bail!("write raw meta error: {err}");
             }
