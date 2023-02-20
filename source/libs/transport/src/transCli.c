@@ -1094,7 +1094,7 @@ static void cliSendBatchCb(uv_write_t* req, int status) {
   } else {
     tDebug("%s conn %p succ to send batch msg, batch size:%d, msgLen:%d", CONN_GET_INST_LABEL(conn), conn, p->wLen,
            p->batchSize);
-    if (conn->broken != true) {
+    if (!uv_is_closing((uv_handle_t*)&conn->stream)) {
       if (nxtBatch != NULL) {
         conn->pBatch = nxtBatch;
         cliSendBatch(conn);
