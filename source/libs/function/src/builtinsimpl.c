@@ -1661,26 +1661,63 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
 }
 
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  SVariant* pVal = &pCtx->param[1].param;
-  int32_t code = 0;
-  double    v = 0;
+  if (pCtx->numOfParams > 2) {
 
-  GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+    SPercentileInfo*     ppInfo = (SPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
 
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  SPercentileInfo*     ppInfo = (SPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
+    tMemBucket* pMemBucket = ppInfo->pMemBucket;
+    if (pMemBucket == NULL || pMemBucket->total == 0) {  // check for null
+      return TSDB_CODE_FAILED;
+    }
 
-  tMemBucket* pMemBucket = ppInfo->pMemBucket;
-  if (pMemBucket != NULL && pMemBucket->total > 0) {  // check for null
-    code = getPercentile(pMemBucket, v, &ppInfo->result);
+    char   buf[512] = {0};
+    size_t len = 0;
+
+    for (int32_t i = 1; i < pCtx->numOfParams; ++i) {
+      SVariant* pVal = &pCtx->param[i].param;
+      double    v = 0;
+
+      GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
+
+      int32_t code = getPercentile(pMemBucket, v, &ppInfo->result);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
+      len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf; ", ppInfo->result);
+    }
+    tMemBucketDestroy(pMemBucket);
+
+    int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+    varDataSetLen(buf, len);
+    colDataAppend(pCol, pBlock->info.rows, buf, false);
+
+    return pResInfo->numOfRes;
+  } else {
+    SVariant* pVal = &pCtx->param[1].param;
+    int32_t code = 0;
+    double    v = 0;
+
+    GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
+
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+    SPercentileInfo*     ppInfo = (SPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
+
+    tMemBucket* pMemBucket = ppInfo->pMemBucket;
+    if (pMemBucket != NULL && pMemBucket->total > 0) {  // check for null
+      code = getPercentile(pMemBucket, v, &ppInfo->result);
+    }
+
+    tMemBucketDestroy(pMemBucket);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    return functionFinalize(pCtx, pBlock);
   }
 
-  tMemBucketDestroy(pMemBucket);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  return functionFinalize(pCtx, pBlock);
 }
 
 bool getApercentileFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
