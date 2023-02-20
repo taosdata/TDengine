@@ -32,6 +32,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .route("/", web::get().to(index))
+            .route("/{route}", web::get().to(index))
             .service(Embed::new("/", &Asset))
     })
     .bind(("0.0.0.0", args.port))?
