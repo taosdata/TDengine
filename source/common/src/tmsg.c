@@ -6995,9 +6995,13 @@ void tDestroySSubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
     return;
   }
 
-  if (flag == TSDB_MSG_FLG_ENCODE) {
+  if (flag == TSDB_MSG_FLG_ENCODE || flag == TSDB_MSG_FLG_CMPT) {
     if (pTbData->pCreateTbReq) {
-      tdDestroySVCreateTbReq(pTbData->pCreateTbReq);
+      if (flag == TSDB_MSG_FLG_ENCODE) {
+        tdDestroySVCreateTbReq(pTbData->pCreateTbReq);
+      } else {
+        tDestroySVCreateTbReq(pTbData->pCreateTbReq, TSDB_MSG_FLG_DECODE);
+      }
       taosMemoryFree(pTbData->pCreateTbReq);
     }
 

@@ -3307,6 +3307,12 @@ typedef struct {
   SArray* aSubmitTbData;  // SArray<SSubmitTbData>
 } SSubmitReq2;
 
+typedef struct {
+  SMsgHead header;
+  int64_t  version;
+  char     data[];  // SSubmitReq2
+} SSubmitReq2Msg;
+
 int32_t tEncodeSSubmitReq2(SEncoder* pCoder, const SSubmitReq2* pReq);
 int32_t tDecodeSSubmitReq2(SDecoder* pCoder, SSubmitReq2* pReq);
 void    tDestroySSubmitTbData(SSubmitTbData* pTbData, int32_t flag);
@@ -3323,6 +3329,7 @@ void    tDestroySSubmitRsp2(SSubmitRsp2* pRsp, int32_t flag);
 
 #define TSDB_MSG_FLG_ENCODE 0x1
 #define TSDB_MSG_FLG_DECODE 0x2
+#define TSDB_MSG_FLG_CMPT   0x3
 
 typedef struct {
   union {
