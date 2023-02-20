@@ -146,13 +146,16 @@ async fn write_data(
                 log::warn!("[{id}] v2 target does not support delete data");
             }
         } else {
-            log::warn!("[{id}] there's older version delete message, you must delete data manually");
+            log::warn!(
+                "[{id}] there's older version delete message, you must delete data manually"
+            );
         }
     }
     Ok(0)
 }
 
 async fn write_meta(
+    id: usize,
     taos: &Taos,
     actions: &[Action],
     meta: &Meta,
@@ -172,7 +175,7 @@ async fn write_meta(
                     || errstr.contains("[0x0603]")
                     || errstr.contains("[0x03C7]")
                 {
-                    log::warn!("{errstr}");
+                    log::warn!("[{id}] {errstr}");
                 } else {
                     bail!("write raw meta error: {err}");
                 }
@@ -199,7 +202,7 @@ async fn write_meta(
             {
                 log::warn!("{errstr}");
             } else {
-                bail!("write raw meta error: {err}");
+                bail!("[{id}] write raw meta error: {err}");
             }
         }
     }
@@ -240,13 +243,13 @@ async fn sync(
                     }
                     match message {
                         MessageSet::Meta(meta) => {
-                            write_meta(taos, &actions, &meta, target_is_v3, &metrics).await?;
+                            write_meta(id, taos, &actions, &meta, target_is_v3, &metrics).await?;
                         }
                         MessageSet::Data(data) => {
                             write_data(id, &mut rows, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await?;
                         }
                         MessageSet::MetaData(meta, data) => {
-                            write_meta(taos, &actions, &meta, target_is_v3, &metrics).await?;
+                            write_meta(id, taos, &actions, &meta, target_is_v3, &metrics).await?;
                             write_data(id, &mut rows, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await?;
                         }
                     }
