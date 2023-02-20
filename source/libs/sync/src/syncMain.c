@@ -270,86 +270,38 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
     return -1;
   }
 
+  SyncIndex beginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+  SyncIndex endIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
+  bool      isEmpty = pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore);
+
+  if (isEmpty || !(lastApplyIndex >= beginIndex && lastApplyIndex <= endIndex)) {
+    sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 ", empty:%d, do not delete wal", lastApplyIndex, isEmpty);
+    syncNodeRelease(pSyncNode);
+    return 0;
+  }
+
   int32_t code = 0;
+  int64_t logRetention = 0;
 
   if (syncNodeIsMnode(pSyncNode)) {
     // mnode
-    int64_t logRetention = SYNC_MNODE_LOG_RETENTION;
-
-    SyncIndex beginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
-    SyncIndex endIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
-    int64_t   logNum = endIndex - beginIndex;
-    bool      isEmpty = pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore);
-
-    if (isEmpty || (!isEmpty && logNum < logRetention)) {
-      sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 ", log-num:%" PRId64 ", empty:%d, do not delete wal",
-              lastApplyIndex, logNum, isEmpty);
-      syncNodeRelease(pSyncNode);
-      return 0;
-    }
-
-    goto _DEL_WAL;
-
+    logRetention = SYNC_MNODE_LOG_RETENTION;
   } else {
-    SyncIndex beginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
-    SyncIndex endIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
-    bool      isEmpty = pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore);
-
-    if (isEmpty || !(lastApplyIndex >= beginIndex && lastApplyIndex <= endIndex)) {
-      sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 ", empty:%d, do not delete wal", lastApplyIndex, isEmpty);
-      syncNodeRelease(pSyncNode);
-      return 0;
-    }
-
     // vnode
     if (pSyncNode->replicaNum > 1) {
       // multi replicas
-
-      lastApplyIndex = TMAX(lastApplyIndex - SYNC_VNODE_LOG_RETENTION, beginIndex - 1);
-
-      if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-        pSyncNode->minMatchIndex = syncMinMatchIndex(pSyncNode);
-
-        for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
-          int64_t matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
-          if (lastApplyIndex > matchIndex) {
-            sNTrace(pSyncNode,
-                    "new-snapshot-index:%" PRId64 " is greater than match-index:%" PRId64
-                    " of dnode:%d, do not delete wal",
-                    lastApplyIndex, matchIndex, DID(&pSyncNode->peersId[i]));
-
-            syncNodeRelease(pSyncNode);
-            return 0;
-          }
-        }
-
-      } else if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
-        if (lastApplyIndex > pSyncNode->minMatchIndex) {
-          sNTrace(pSyncNode,
-                  "new-snapshot-index:%" PRId64 " is greater than min-match-index:%" PRId64 ", do not delete wal",
-                  lastApplyIndex, pSyncNode->minMatchIndex);
-          syncNodeRelease(pSyncNode);
-          return 0;
-        }
-
-      } else if (pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE) {
-        sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 " candidate, do not delete wal", lastApplyIndex);
-        syncNodeRelease(pSyncNode);
-        return 0;
-
-      } else {
-        sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 " unknown state, do not delete wal", lastApplyIndex);
-        syncNodeRelease(pSyncNode);
-        return 0;
-      }
-
-      goto _DEL_WAL;
-
-    } else {
-      // one replica
-
-      goto _DEL_WAL;
+      logRetention = SYNC_VNODE_LOG_RETENTION;
     }
+  }
+
+  if (pSyncNode->replicaNum > 1) {
+    if (pSyncNode->state != TAOS_SYNC_STATE_LEADER && pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
+      sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 " candidate or unknown state, do not delete wal",
+              lastApplyIndex);
+      syncNodeRelease(pSyncNode);
+      return 0;
+    }
+    logRetention = TMAX(logRetention, lastApplyIndex - pSyncNode->minMatchIndex);
   }
 
 _DEL_WAL:
@@ -366,7 +318,7 @@ _DEL_WAL:
         atomic_store_64(&pSyncNode->snapshottingIndex, lastApplyIndex);
         pSyncNode->snapshottingTime = taosGetTimestampMs();
 
-        code = walBeginSnapshot(pData->pWal, lastApplyIndex);
+        code = walBeginSnapshot(pData->pWal, lastApplyIndex, logRetention);
         if (code == 0) {
           sNTrace(pSyncNode, "wal snapshot begin, index:%" PRId64 ", last apply index:%" PRId64,
                   pSyncNode->snapshottingIndex, lastApplyIndex);
