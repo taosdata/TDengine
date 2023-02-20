@@ -109,12 +109,12 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
   }
 }
 
-static FORCE_INLINE void colDataSetNULL(SColumnInfoData* pColumnInfoData, uint32_t currentRow) {
+static FORCE_INLINE void colDataSetNULL(SColumnInfoData* pColumnInfoData, uint32_t rowIndex) {
   // There is a placehold for each NULL value of binary or nchar type.
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    colDataSetNull_var(pColumnInfoData, currentRow);  // it is a null value of VAR type.
+    colDataSetNull_var(pColumnInfoData, rowIndex);  // it is a null value of VAR type.
   } else {
-    colDataSetNull_f_s(pColumnInfoData, currentRow);
+    colDataSetNull_f_s(pColumnInfoData, rowIndex);
   }
 
   pColumnInfoData->hasNull = true;
@@ -135,49 +135,49 @@ static FORCE_INLINE void colDataSetNNULL(SColumnInfoData* pColumnInfoData, uint3
   pColumnInfoData->hasNull = true;
 }
 
-static FORCE_INLINE void colDataSetInt8(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int8_t* v) {
+static FORCE_INLINE void colDataSetInt8(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int8_t* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_TINYINT ||
          pColumnInfoData->info.type == TSDB_DATA_TYPE_UTINYINT || pColumnInfoData->info.type == TSDB_DATA_TYPE_BOOL);
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(int8_t*)p = *(int8_t*)v;
 }
 
-static FORCE_INLINE void colDataSetInt16(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int16_t* v) {
+static FORCE_INLINE void colDataSetInt16(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int16_t* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_SMALLINT ||
          pColumnInfoData->info.type == TSDB_DATA_TYPE_USMALLINT);
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(int16_t*)p = *(int16_t*)v;
 }
 
-static FORCE_INLINE void colDataSetInt32(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int32_t* v) {
+static FORCE_INLINE void colDataSetInt32(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int32_t* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_INT || pColumnInfoData->info.type == TSDB_DATA_TYPE_UINT);
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(int32_t*)p = *(int32_t*)v;
 }
 
-static FORCE_INLINE void colDataSetInt64(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int64_t* v) {
+static FORCE_INLINE void colDataSetInt64(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int64_t* v) {
   int32_t type = pColumnInfoData->info.type;
   ASSERT(type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_UBIGINT || type == TSDB_DATA_TYPE_TIMESTAMP);
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(int64_t*)p = *(int64_t*)v;
 }
 
-static FORCE_INLINE void colDataSetFloat(SColumnInfoData* pColumnInfoData, uint32_t currentRow, float* v) {
+static FORCE_INLINE void colDataSetFloat(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, float* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_FLOAT);
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(float*)p = *(float*)v;
 }
 
-static FORCE_INLINE void colDataSetDouble(SColumnInfoData* pColumnInfoData, uint32_t currentRow, double* v) {
+static FORCE_INLINE void colDataSetDouble(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, double* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_DOUBLE);
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(double*)p = *(double*)v;
 }
 
 int32_t getJsonValueLen(const char* data);
 
 int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull);
-int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows);
+int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, uint32_t numOfRows);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int32_t* capacity,
                         const SColumnInfoData* pSource, int32_t numOfRow2);
 int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows,
