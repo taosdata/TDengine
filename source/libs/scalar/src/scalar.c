@@ -337,7 +337,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         SCL_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
       if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
-        colDataAppendNULL(param->columnData, 0);
+        colDataSetNULL(param->columnData, 0);
       } else {
         colDataSetVal(param->columnData, 0, nodesGetValueFromNode(valueNode), false);
       }

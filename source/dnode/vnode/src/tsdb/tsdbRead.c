@@ -3642,7 +3642,7 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, STSRow* 
     } else if (colId < pSchema->columns[j].colId) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pSupInfo->slotId[i]);
 
-      colDataAppendNULL(pColInfoData, outputRowIndex);
+      colDataSetNULL(pColInfoData, outputRowIndex);
       i += 1;
     } else if (colId > pSchema->columns[j].colId) {
       j += 1;
@@ -3652,7 +3652,7 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, STSRow* 
   // set null value since current column does not exist in the "pSchema"
   while (i < pSupInfo->numOfCols) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pSupInfo->slotId[i]);
-    colDataAppendNULL(pColInfoData, outputRowIndex);
+    colDataSetNULL(pColInfoData, outputRowIndex);
     i += 1;
   }
 
@@ -3692,7 +3692,7 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
       j += 1;
     } else if (pData->cid > pCol->info.colId) {
       // the specified column does not exist in file block, fill with null data
-      colDataAppendNULL(pCol, outputRowIndex);
+      colDataSetNULL(pCol, outputRowIndex);
     }
 
     i += 1;
@@ -3700,7 +3700,7 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
 
   while (i < numOfOutputCols) {
     SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, pSupInfo->slotId[i]);
-    colDataAppendNULL(pCol, outputRowIndex);
+    colDataSetNULL(pCol, outputRowIndex);
     i += 1;
   }
 

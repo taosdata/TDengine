@@ -196,7 +196,7 @@ static void mergeJoinJoinLeftRight(struct SOperatorInfo* pOperator, SSDataBlock*
     }
 
     if (colDataIsNull_s(pSrc, rowIndex)) {
-      colDataAppendNULL(pDst, currRow);
+      colDataSetNULL(pDst, currRow);
     } else {
       char* p = colDataGetData(pSrc, rowIndex);
       colDataSetVal(pDst, currRow, p, false);

@@ -60,7 +60,7 @@ static void setNullRow(SSDataBlock* pBlock, SFillInfo* pFillInfo, int32_t rowInd
         setNotFillColumn(pFillInfo, pDstColInfo, rowIndex, i);
       }
     } else {
-      colDataAppendNULL(pDstColInfo, rowIndex);
+      colDataSetNULL(pDstColInfo, rowIndex);
     }
   }
 }
@@ -81,7 +81,7 @@ static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32
   } else if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
     colDataSetVal(pDst, rowIndex, (const char*)&currentKey, false);
   } else {  // varchar/nchar data
-    colDataAppendNULL(pDst, rowIndex);
+    colDataSetNULL(pDst, rowIndex);
   }
 }
 
@@ -163,7 +163,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
         } else {
           SGroupKeys* pKey = taosArrayGet(pFillInfo->prev.pRowVal, i);
           if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || pKey->isNull) {
-            colDataAppendNULL(pDstCol, index);
+            colDataSetNULL(pDstCol, index);
             continue;
           }
 
@@ -217,7 +217,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
 
 void doSetVal(SColumnInfoData* pDstCol, int32_t rowIndex, const SGroupKeys* pKey) {
   if (pKey->isNull) {
-    colDataAppendNULL(pDstCol, rowIndex);
+    colDataSetNULL(pDstCol, rowIndex);
   } else {
     colDataSetVal(pDstCol, rowIndex, pKey->pData, false);
   }
@@ -350,7 +350,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
               colDataSetVal(pDst, index, src, isNull);
               saveColData(pFillInfo->prev.pRowVal, i, src, isNull);  // todo:
             } else if (pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {
-              colDataAppendNULL(pDst, index);
+              colDataSetNULL(pDst, index);
             } else if (pFillInfo->type == TSDB_FILL_NEXT) {
               SArray*     p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->next.pRowVal : pFillInfo->prev.pRowVal;
               SGroupKeys* pKey = taosArrayGet(p, i);

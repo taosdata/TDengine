@@ -1651,7 +1651,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
       } else if (i == 15) {
         colDataSetVal(pColInfo, rows, statusVstr, false);
       } else {
-        colDataAppendNULL(pColInfo, rows);
+        colDataSetNULL(pColInfo, rows);
       }
     }
   } else {
@@ -1721,7 +1721,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     char *rentensionVstr = buildRetension(pDb->cfg.pRetensions);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (rentensionVstr == NULL) {
-      colDataAppendNULL(pColInfo, rows);
+      colDataSetNULL(pColInfo, rows);
     } else {
       colDataSetVal(pColInfo, rows, (const char *)rentensionVstr, false);
       taosMemoryFree(rentensionVstr);

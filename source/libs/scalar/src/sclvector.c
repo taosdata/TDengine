@@ -1247,7 +1247,7 @@ static void vectorMathMultiplyHelper(SColumnInfoData *pLeftCol, SColumnInfoData 
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
       if (IS_HELPER_NULL(pLeftCol, i)) {
-        colDataAppendNULL(pOutputCol, i);
+        colDataSetNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
       *output = getVectorDoubleValueFnLeft(LEFT_COL, i) * getVectorDoubleValueFnRight(RIGHT_COL, 0);
@@ -1273,7 +1273,7 @@ void vectorMathMultiply(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
       if (IS_NULL) {
-        colDataAppendNULL(pOutputCol, i);
+        colDataSetNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
       *output = getVectorDoubleValueFnLeft(LEFT_COL, i) * getVectorDoubleValueFnRight(RIGHT_COL, i);
@@ -1306,7 +1306,7 @@ void vectorMathDivide(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
       if (IS_NULL || (getVectorDoubleValueFnRight(RIGHT_COL, i) == 0)) {  // divide by 0 check
-        colDataAppendNULL(pOutputCol, i);
+        colDataSetNULL(pOutputCol, i);
         continue;
       }
       *output = getVectorDoubleValueFnLeft(LEFT_COL, i) / getVectorDoubleValueFnRight(RIGHT_COL, i);
@@ -1317,7 +1317,7 @@ void vectorMathDivide(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
     } else {
       for (; i >= 0 && i < pRight->numOfRows; i += step, output += 1) {
         if (IS_HELPER_NULL(pRightCol, i) || (getVectorDoubleValueFnRight(RIGHT_COL, i) == 0)) {  // divide by 0 check
-          colDataAppendNULL(pOutputCol, i);
+          colDataSetNULL(pOutputCol, i);
           continue;
         }
         *output = getVectorDoubleValueFnLeft(LEFT_COL, 0) / getVectorDoubleValueFnRight(RIGHT_COL, i);
@@ -1330,7 +1330,7 @@ void vectorMathDivide(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
     } else {
       for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
         if (IS_HELPER_NULL(pLeftCol, i)) {
-          colDataAppendNULL(pOutputCol, i);
+          colDataSetNULL(pOutputCol, i);
           continue;
         }
         *output = getVectorDoubleValueFnLeft(LEFT_COL, i) / getVectorDoubleValueFnRight(RIGHT_COL, 0);
@@ -1361,14 +1361,14 @@ void vectorMathRemainder(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
       if (IS_NULL) {
-        colDataAppendNULL(pOutputCol, i);
+        colDataSetNULL(pOutputCol, i);
         continue;
       }
 
       double lx = getVectorDoubleValueFnLeft(LEFT_COL, i);
       double rx = getVectorDoubleValueFnRight(RIGHT_COL, i);
       if (isnan(lx) || isinf(lx) || isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
-        colDataAppendNULL(pOutputCol, i);
+        colDataSetNULL(pOutputCol, i);
         continue;
       }
 
@@ -1381,13 +1381,13 @@ void vectorMathRemainder(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam
     } else {
       for (; i >= 0 && i < pRight->numOfRows; i += step, output += 1) {
         if (IS_HELPER_NULL(pRightCol, i)) {
-          colDataAppendNULL(pOutputCol, i);
+          colDataSetNULL(pOutputCol, i);
           continue;
         }
 
         double rx = getVectorDoubleValueFnRight(RIGHT_COL, i);
         if (isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
-          colDataAppendNULL(pOutputCol, i);
+          colDataSetNULL(pOutputCol, i);
           continue;
         }
 
@@ -1401,13 +1401,13 @@ void vectorMathRemainder(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam
     } else {
       for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
         if (IS_HELPER_NULL(pLeftCol, i)) {
-          colDataAppendNULL(pOutputCol, i);
+          colDataSetNULL(pOutputCol, i);
           continue;
         }
 
         double lx = getVectorDoubleValueFnLeft(LEFT_COL, i);
         if (isnan(lx) || isinf(lx)) {
-          colDataAppendNULL(pOutputCol, i);
+          colDataSetNULL(pOutputCol, i);
           continue;
         }
 
@@ -1436,7 +1436,7 @@ void vectorMathMinus(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
   double *output = (double *)pOutputCol->pData;
   for (; i < pLeft->numOfRows && i >= 0; i += step, output += 1) {
     if (IS_HELPER_NULL(pLeftCol, i)) {
-      colDataAppendNULL(pOutputCol, i);
+      colDataSetNULL(pOutputCol, i);
       continue;
     }
     double result = getVectorDoubleValueFnLeft(LEFT_COL, i);
@@ -1475,7 +1475,7 @@ static void vectorBitAndHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRigh
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
       if (IS_HELPER_NULL(pLeftCol, i)) {
-        colDataAppendNULL(pOutputCol, i);
+        colDataSetNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
       *output = getVectorBigintValueFnLeft(LEFT_COL, i) & getVectorBigintValueFnRight(RIGHT_COL, 0);
@@ -1501,7 +1501,7 @@ void vectorBitAnd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut,
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
       if (IS_NULL) {
-        colDataAppendNULL(pOutputCol, i);
+        colDataSetNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
       *output = getVectorBigintValueFnLeft(LEFT_COL, i) & getVectorBigintValueFnRight(RIGHT_COL, i);
@@ -1529,7 +1529,7 @@ static void vectorBitOrHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRight
     int64_t rx = getVectorBigintValueFnRight(RIGHT_COL, 0);
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
       if (IS_HELPER_NULL(pLeftCol, i)) {
-        colDataAppendNULL(pOutputCol, i);
+        colDataSetNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
       *output = getVectorBigintValueFnLeft(LEFT_COL, i) | rx;
@@ -1555,7 +1555,7 @@ void vectorBitOr(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, 
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
       if (IS_NULL) {
-        colDataAppendNULL(pOutputCol, i);
+        colDataSetNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
       *output = getVectorBigintValueFnLeft(LEFT_COL, i) | getVectorBigintValueFnRight(RIGHT_COL, i);

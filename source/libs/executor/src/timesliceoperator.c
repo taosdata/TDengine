@@ -183,7 +183,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
     switch (pSliceInfo->fillType) {
       case TSDB_FILL_NULL:
       case TSDB_FILL_NULL_F: {
-        colDataAppendNULL(pDst, rows);
+        colDataSetNULL(pDst, rows);
         break;
       }
 
@@ -225,7 +225,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         }
 
         if (start.key == INT64_MIN || end.key == INT64_MIN) {
-          colDataAppendNULL(pDst, rows);
+          colDataSetNULL(pDst, rows);
           break;
         }
 
@@ -246,7 +246,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         if (pkey->isNull == false) {
           colDataSetVal(pDst, rows, pkey->pData, false);
         } else {
-          colDataAppendNULL(pDst, rows);
+          colDataSetNULL(pDst, rows);
         }
         break;
       }
@@ -261,7 +261,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         if (pkey->isNull == false) {
           colDataSetVal(pDst, rows, pkey->pData, false);
         } else {
-          colDataAppendNULL(pDst, rows);
+          colDataSetNULL(pDst, rows);
         }
         break;
       }
@@ -295,7 +295,7 @@ static void addCurrentRowToResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp*
       SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, srcSlot);
 
       if (colDataIsNull_s(pSrc, index)) {
-        colDataAppendNULL(pDst, pResBlock->info.rows);
+        colDataSetNULL(pDst, pResBlock->info.rows);
         continue;
       }
 

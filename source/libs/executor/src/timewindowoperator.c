@@ -3277,20 +3277,20 @@ void doBuildDeleteDataBlock(SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlo
     SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
     colDataSetVal(pEndTsCol, pBlock->info.rows, (const char*)&res->win.skey, false);
     SColumnInfoData* pUidCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
-    colDataAppendNULL(pUidCol, pBlock->info.rows);
+    colDataSetNULL(pUidCol, pBlock->info.rows);
     SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
     colDataSetVal(pGpCol, pBlock->info.rows, (const char*)&res->groupId, false);
     SColumnInfoData* pCalStCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
-    colDataAppendNULL(pCalStCol, pBlock->info.rows);
+    colDataSetNULL(pCalStCol, pBlock->info.rows);
     SColumnInfoData* pCalEdCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
-    colDataAppendNULL(pCalEdCol, pBlock->info.rows);
+    colDataSetNULL(pCalEdCol, pBlock->info.rows);
 
     SColumnInfoData* pTableCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
 
     void* tbname = NULL;
     streamStateGetParName(pOp->pTaskInfo->streamInfo.pState, res->groupId, &tbname);
     if (tbname == NULL) {
-      colDataAppendNULL(pTableCol, pBlock->info.rows);
+      colDataSetNULL(pTableCol, pBlock->info.rows);
     } else {
       char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
       STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));

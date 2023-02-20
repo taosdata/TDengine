@@ -1235,10 +1235,10 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
     colDataSetVal(pDestStartCol, i, (const char*)&startWin.win.skey, false);
     colDataSetVal(pDestEndCol, i, (const char*)&endWin.win.ekey, false);
 
-    colDataAppendNULL(pDestUidCol, i);
+    colDataSetNULL(pDestUidCol, i);
     colDataSetVal(pDestGpCol, i, (const char*)&groupId, false);
-    colDataAppendNULL(pDestCalStartTsCol, i);
-    colDataAppendNULL(pDestCalEndTsCol, i);
+    colDataSetNULL(pDestCalStartTsCol, i);
+    colDataSetNULL(pDestCalEndTsCol, i);
     pDestBlock->info.rows++;
   }
   return TSDB_CODE_SUCCESS;
@@ -1695,9 +1695,9 @@ static int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, S
       colDataSetVal(pDstEndCol, j, (const char*)&endCol[i], false);
       colDataSetVal(pDstUidCol, j, (const char*)&uidCol[i], false);
 
-      colDataAppendNULL(taosArrayGet(pDst->pDataBlock, GROUPID_COLUMN_INDEX), j);
-      colDataAppendNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), j);
-      colDataAppendNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), j);
+      colDataSetNULL(taosArrayGet(pDst->pDataBlock, GROUPID_COLUMN_INDEX), j);
+      colDataSetNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), j);
+      colDataSetNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), j);
       j++;
     }
   }
@@ -3109,7 +3109,7 @@ void fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, char*
       varDataSetLen(varStbName, strlen(stbName));
       colDataSetVal(colInfoData, 0, varStbName, false);
     } else {
-      colDataAppendNULL(colInfoData, 0);
+      colDataSetNULL(colInfoData, 0);
     }
   }
 

@@ -781,7 +781,7 @@ int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTabl
 
     // create time
     pColInfoData = taosArrayGet(p->pDataBlock, 2);
-    colDataAppendNULL(pColInfoData, numOfRows);
+    colDataSetNULL(pColInfoData, numOfRows);
 
     // number of columns
     pColInfoData = taosArrayGet(p->pDataBlock, 3);
@@ -789,7 +789,7 @@ int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTabl
 
     for (int32_t j = 4; j <= 8; ++j) {
       pColInfoData = taosArrayGet(p->pDataBlock, j);
-      colDataAppendNULL(pColInfoData, numOfRows);
+      colDataSetNULL(pColInfoData, numOfRows);
     }
 
     STR_TO_VARSTR(n, "SYSTEM_TABLE");
@@ -912,7 +912,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
         STR_TO_VARSTR(comment, "");
         colDataSetVal(pColInfoData, numOfRows, comment, false);
       } else {
-        colDataAppendNULL(pColInfoData, numOfRows);
+        colDataSetNULL(pColInfoData, numOfRows);
       }
 
       // uid
@@ -936,7 +936,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
 
       // super table name
       pColInfoData = taosArrayGet(p->pDataBlock, 4);
-      colDataAppendNULL(pColInfoData, numOfRows);
+      colDataSetNULL(pColInfoData, numOfRows);
 
       // table comment
       pColInfoData = taosArrayGet(p->pDataBlock, 8);
@@ -949,7 +949,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
         STR_TO_VARSTR(comment, "");
         colDataSetVal(pColInfoData, numOfRows, comment, false);
       } else {
-        colDataAppendNULL(pColInfoData, numOfRows);
+        colDataSetNULL(pColInfoData, numOfRows);
       }
 
       // uid
@@ -1093,7 +1093,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         STR_TO_VARSTR(comment, "");
         colDataSetVal(pColInfoData, numOfRows, comment, false);
       } else {
-        colDataAppendNULL(pColInfoData, numOfRows);
+        colDataSetNULL(pColInfoData, numOfRows);
       }
 
       // uid
@@ -1116,7 +1116,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       // super table name
       pColInfoData = taosArrayGet(p->pDataBlock, 4);
-      colDataAppendNULL(pColInfoData, numOfRows);
+      colDataSetNULL(pColInfoData, numOfRows);
 
       // table comment
       pColInfoData = taosArrayGet(p->pDataBlock, 8);
@@ -1129,7 +1129,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         STR_TO_VARSTR(comment, "");
         colDataSetVal(pColInfoData, numOfRows, comment, false);
       } else {
-        colDataAppendNULL(pColInfoData, numOfRows);
+        colDataSetNULL(pColInfoData, numOfRows);
       }
 
       // uid

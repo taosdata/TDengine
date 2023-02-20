@@ -2606,7 +2606,7 @@ int32_t stateCountScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalar
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
-      colDataAppendNULL(pOutputData, i);
+      colDataSetNULL(pOutputData, i);
       continue;
     }
 
@@ -2632,7 +2632,7 @@ int32_t stateDurationScalarFunction(SScalarParam *pInput, int32_t inputNum, SSca
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
-      colDataAppendNULL(pOutputData, i);
+      colDataSetNULL(pOutputData, i);
       continue;
     }
 
@@ -2898,7 +2898,7 @@ int32_t selectScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
-      colDataAppendNULL(pOutputData, 0);
+      colDataSetNULL(pOutputData, 0);
       continue;
     }
 

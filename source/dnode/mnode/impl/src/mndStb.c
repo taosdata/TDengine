@@ -2557,7 +2557,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
       STR_TO_VARSTR(comment, "");
       colDataSetVal(pColInfo, numOfRows, comment, false);
     } else {
-      colDataAppendNULL(pColInfo, numOfRows);
+      colDataSetNULL(pColInfo, numOfRows);
     }
 
     char watermark[64 + VARSTR_HEADER_SIZE] = {0};
