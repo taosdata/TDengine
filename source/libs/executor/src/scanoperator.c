@@ -2331,13 +2331,6 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
       pTSInfo->scanMode = TABLE_SCAN__TABLE_ORDER;
       pTSInfo->base.dataReader = NULL;
       pTaskInfo->streamInfo.lastStatus.uid = -1;
-      //      code = tsdbReaderOpen(pHandle->vnode, &pTSInfo->base.cond, pList, num, pTSInfo->pResBlock,
-      //                            &pTSInfo->base.dataReader, NULL);
-      //      if (code != 0) {
-      //        terrno = code;
-      //        destroyTableScanOperatorInfo(pTableScanOp);
-      //        goto _error;
-      //      }
     }
 
     if (pHandle->initTqReader) {

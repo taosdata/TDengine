@@ -29,6 +29,7 @@ extern "C" {
 
 typedef struct SBuffer  SBuffer;
 typedef struct SSchema  SSchema;
+typedef struct SSchema2 SSchema2;
 typedef struct STColumn STColumn;
 typedef struct STSchema STSchema;
 typedef struct SValue   SValue;

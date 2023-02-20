@@ -1,0 +1,162 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step0
+$dbPrefix = ta_3_db
+$dbPrefix1 = ta_3_db1
+$tbPrefix = ta_3_tb
+$mtPrefix = ta_3_mt
+$tbNum = 1 
+$rowNum = 20
+$totalNum = 200
+
+print =============== create database 
+sql create database $dbPrefix 
+sql use $dbPrefix 
+
+print =============== create super table and register tag index 
+sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 int, t2 int, t3 int, t4 int, t5 int)
+
+sql show stables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== create child table
+
+$i = 0 
+while $i < $tbNum 
+    $tb = $tbPrefix . $i 
+    sql create table $tb using $mtPrefix tags( $i , $i , $i , $i , $i );
+    $i = $i + 1
+endw
+
+sql show tables
+if $rows != $tbNum then
+  return -1
+endi
+
+
+
+print =============== insert data into each table 
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql insert into $tb values(now, $i );
+  $i = $i + 1
+endw
+
+
+print ==== create sma and tag index, global name conflict
+sql create sma index t2i on $mtPrefix function(max(c1)) interval(6m,10s) sliding(6m);
+sql_error create index t2i on $mtPrefix (t2)
+sql drop index t2i 
+
+
+print ==== create tagindex and sma index, global name conflict
+sql create index t2i on $mtPrefix (t2)
+sql_error create sma index t2i on $mtPrefix function(max(c1)) interval(6m,10s) sliding(6m);
+
+sql drop index t2i 
+
+
+print ===== iter sma and tag index
+
+sql create index tagt2i on $mtPrefix (t2)
+sql create sma index smat2i on $mtPrefix function(max(c1)) interval(6m,10s) sliding(6m);
+
+
+sql select * from information_schema.ins_indexes
+if $rows != 2 then 
+  return -1
+endi
+
+sql drop index smat2i
+
+$i = 0
+$smaPre = sma3
+while $i < 5 
+  $sma = $smaPre . $i
+  $i = $i + 1
+  sql create sma index $sma on $mtPrefix function(max(c1)) interval(6m,10s) sliding(6m);
+endw
+
+sql select * from information_schema.ins_indexes
+if $rows != 6 then 
+  return -1
+endi
+
+
+
+sql drop stable $mtPrefix
+sql select * from information_schema.ins_indexes
+if $rows != 0 then 
+  return -1
+endi
+
+sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 int, t2 int, t3 int, t4 int, t5 int)
+sql create index tagt2i on $mtPrefix (t2)
+sql drop database $dbPrefix
+
+sql select * from information_schema.ins_indexes
+if $rows != 0 then 
+  return -1
+endi
+
+
+print =====  drop tag and del tag index
+
+sql create database $dbPrefix 
+sql use $dbPrefix 
+
+sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 int, t2 int, t3 int, t4 int, t5 int)
+sql create index tagt2i on $mtPrefix (t2)
+sql select * from information_schema.ins_indexes
+if $rows != 1 then 
+  return -1
+endi
+sql alter table $mtPrefix drop tag t2
+
+sql select * from information_schema.ins_indexes
+if $rows != 0 then 
+  return -1
+endi
+
+
+print ==== rename tag name, and update index colName
+sql create index tagt3i on $mtPrefix (t3)
+sql select * from information_schema.ins_indexes
+if $rows != 1 then 
+  return -1
+endi
+
+sql alter table $mtPrefix rename tag t3 txxx 
+sql select * from information_schema.ins_indexes
+if $rows != 1 then 
+  return -1
+endi
+
+if $data05 != txxx then
+  return -1
+endi
+
+
+
+print ====== diff db has same index name
+
+sql create database $dbPrefix1 
+sql use $dbPrefix1 
+
+sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 int, t2 int, t3 int, t4 int, t5 int)
+sql create index tagt3i on $mtPrefix (t3)
+sql select * from information_schema.ins_indexes  
+
+if $rows != 2 then 
+  return -1
+endi
+
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
