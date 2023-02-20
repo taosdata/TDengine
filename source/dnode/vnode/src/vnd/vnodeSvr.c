@@ -987,7 +987,8 @@ typedef struct SSubmitReqConvertCxt {
 
 static int32_t vnodeResetTableCxt(SMeta *pMeta, SSubmitReqConvertCxt *pCxt) {
   taosMemoryFreeClear(pCxt->pTbSchema);
-  pCxt->pTbSchema = metaGetTbTSchema(pMeta, pCxt->msgIter.suid, pCxt->msgIter.sversion, 1);
+  pCxt->pTbSchema = metaGetTbTSchema(pMeta, pCxt->msgIter.suid > 0 ? pCxt->msgIter.suid : pCxt->msgIter.uid,
+                                     pCxt->msgIter.sversion, 1);
   if (NULL == pCxt->pTbSchema) {
     return TSDB_CODE_INVALID_MSG;
   }
@@ -1166,11 +1167,15 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
   pRsp->code = TSDB_CODE_SUCCESS;
 
+  void           *pAllocMsg = NULL;
   SSubmitReq2Msg *pMsg = (SSubmitReq2Msg *)pReq;
   if (0 == pMsg->version) {
     code = vnodeSubmitReqConvertToSubmitReq2(pVnode, (SSubmitReq *)pMsg, pSubmitReq);
     if (TSDB_CODE_SUCCESS == code) {
       code = vnodeRebuildSubmitReqMsg(pSubmitReq, &pReq);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      pAllocMsg = pReq;
     }
     if (TSDB_CODE_SUCCESS != code) {
       goto _exit;
@@ -1331,9 +1336,7 @@ _exit:
 
   if (code) terrno = code;
 
-  if (0 == pMsg->version) {
-    taosMemoryFree(pReq);
-  }
+  taosMemoryFree(pAllocMsg);
 
   return code;
 }
