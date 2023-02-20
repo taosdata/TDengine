@@ -284,14 +284,14 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.failFastThreshold = 3;    // failed threshold
   rpcInit.ffp = dmFailFastFp;
 
-  int32_t connLimitNum = 10000 / (tsNumOfRpcThreads * 3);
-  connLimitNum = TMAX(connLimitNum, 100);
+  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
+  connLimitNum = TMAX(connLimitNum, 10);
   connLimitNum = TMIN(connLimitNum, 500);
 
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.batchSize = 16 * 1024;
+  rpcInit.batchSize = 8 * 1024;
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {

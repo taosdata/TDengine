@@ -41,6 +41,7 @@ bool    tsPrintAuth = false;
 
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
+int32_t tsNumOfRpcSessions = 2000;
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 4;
 int32_t tsNumOfMnodeQueryThreads = 4;
@@ -54,7 +55,6 @@ int32_t tsNumOfQnodeQueryThreads = 4;
 int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
-
 // sync raft
 int32_t tsElectInterval = 25 * 1000;
 int32_t tsHeartbeatInterval = 1000;
@@ -392,6 +392,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
   if (cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, 0) != 0) return -1;
 
+  tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
+  if (cfgAddInt32(pCfg, "numOfRpcSessions", tsNumOfRpcSessions, 1, 100000, 0) != 0) return -1;
+
   tsNumOfCommitThreads = tsNumOfCores / 2;
   tsNumOfCommitThreads = TRANGE(tsNumOfCommitThreads, 2, 4);
   if (cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, 0) != 0) return -1;
@@ -501,6 +504,14 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     tsNumOfRpcThreads = numOfCores / 2;
     tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
     pItem->i32 = tsNumOfRpcThreads;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(tsCfg, "numOfRpcSessions");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    tsNumOfRpcSessions = 2000;
+    tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
+    pItem->i32 = tsNumOfRpcSessions;
     pItem->stype = stype;
   }
 
@@ -721,6 +732,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
 
   tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;
+  tsNumOfRpcSessions = cfgGetItem(pCfg, "numOfRpcSessions")->i32;
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   tsNumOfMnodeReadThreads = cfgGetItem(pCfg, "numOfMnodeReadThreads")->i32;
   tsNumOfVnodeQueryThreads = cfgGetItem(pCfg, "numOfVnodeQueryThreads")->i32;
@@ -771,7 +783,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
-  
+
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
 
   GRANT_CFG_GET;
@@ -980,6 +992,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tsNumOfTaskQueueThreads = cfgGetItem(pCfg, "numOfTaskQueueThreads")->i32;
       } else if (strcasecmp("numOfRpcThreads", name) == 0) {
         tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;
+      } else if (strcasecmp("numOfRpcSessions", name) == 0) {
+        tsNumOfRpcSessions = cfgGetItem(pCfg, "numOfRpcSessions")->i32;
       } else if (strcasecmp("numOfCommitThreads", name) == 0) {
         tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
       } else if (strcasecmp("numOfMnodeReadThreads", name) == 0) {
