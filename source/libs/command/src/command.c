@@ -687,6 +687,21 @@ static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
     code = schedulerEnableReSchedule(atoi(value));
   } else if (0 == strcasecmp(cmd, COMMAND_CATALOG_DEBUG)) {
     code = ctgdHandleDbgCommand(value);
+  } else if (0 == strcasecmp(cmd, COMMAND_ENABLE_MEM_DEBUG)) {
+    code = taosMemoryDbgInit();
+    if (code) {
+      qError("failed to init memory dbg, error:%s", tstrerror(code));
+      return code;
+    }
+    tsAsyncLog = false;
+    qInfo("memory dbg enabled");
+  } else if (0 == strcasecmp(cmd, COMMAND_DISABLE_MEM_DEBUG)) {
+    code = taosMemoryDbgInitRestore();
+    if (code) {
+      qError("failed to restore from memory dbg, error:%s", tstrerror(code));
+      return code;
+    }
+    qInfo("memory dbg disabled");
   } else {
     goto _return;
   }

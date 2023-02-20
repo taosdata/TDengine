@@ -228,6 +228,32 @@ void taosPrintBackTrace() {
 void taosPrintBackTrace() { return; }
 #endif
 
+int32_t taosMemoryDbgInit() {
+#if defined(LINUX)
+  int ret = mallopt(M_MMAP_THRESHOLD, 0);
+  if (0 == ret) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }  
+
+  return 0;
+#else 
+  return TSDB_CODE_FAILED;
+#endif
+}
+
+int32_t taosMemoryDbgInitRestore() {
+#if defined(LINUX)
+  int ret = mallopt(M_MMAP_THRESHOLD, 128 * 1024);
+  if (0 == ret) {
+    return TAOS_SYSTEM_ERROR(errno);
+  }  
+
+  return 0;
+#else 
+  return TSDB_CODE_FAILED;
+#endif
+}
+
 void *taosMemoryMalloc(int64_t size) {
 #ifdef USE_TD_MEMORY
   void *tmp = malloc(size + sizeof(TdMemoryInfo));

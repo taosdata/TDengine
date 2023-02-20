@@ -33,6 +33,8 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *p
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, int64_t ctime, int64_t *pUid) {
@@ -418,6 +420,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       break;
     case TDMT_VND_COMMIT:
       needCommit = true;
+      break;
+    case TDMT_VND_CREATE_INDEX:
+      vnodeProcessCreateIndexReq(pVnode, version, pReq, len, pRsp);
+      break;
+    case TDMT_VND_DROP_INDEX:
+      vnodeProcessDropIndexReq(pVnode, version, pReq, len, pRsp);
       break;
     case TDMT_VND_COMPACT:
       vnodeProcessCompactVnodeReq(pVnode, version, pReq, len, pRsp);
@@ -994,7 +1002,8 @@ typedef struct SSubmitReqConvertCxt {
 
 static int32_t vnodeResetTableCxt(SMeta *pMeta, SSubmitReqConvertCxt *pCxt) {
   taosMemoryFreeClear(pCxt->pTbSchema);
-  pCxt->pTbSchema = metaGetTbTSchema(pMeta, pCxt->msgIter.suid, pCxt->msgIter.sversion, 1);
+  pCxt->pTbSchema = metaGetTbTSchema(pMeta, pCxt->msgIter.suid > 0 ? pCxt->msgIter.suid : pCxt->msgIter.uid,
+                                     pCxt->msgIter.sversion, 1);
   if (NULL == pCxt->pTbSchema) {
     return TSDB_CODE_INVALID_MSG;
   }
@@ -1173,11 +1182,15 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
   pRsp->code = TSDB_CODE_SUCCESS;
 
+  void           *pAllocMsg = NULL;
   SSubmitReq2Msg *pMsg = (SSubmitReq2Msg *)pReq;
   if (0 == pMsg->version) {
     code = vnodeSubmitReqConvertToSubmitReq2(pVnode, (SSubmitReq *)pMsg, pSubmitReq);
     if (TSDB_CODE_SUCCESS == code) {
       code = vnodeRebuildSubmitReqMsg(pSubmitReq, &pReq);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      pAllocMsg = pReq;
     }
     if (TSDB_CODE_SUCCESS != code) {
       goto _exit;
@@ -1338,9 +1351,7 @@ _exit:
 
   if (code) terrno = code;
 
-  if (0 == pMsg->version) {
-    taosMemoryFree(pReq);
-  }
+  taosMemoryFree(pAllocMsg);
 
   return code;
 }
@@ -1565,6 +1576,49 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq
 
 _err:
   return code;
+}
+static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  SVCreateStbReq req = {0};
+  SDecoder       dc = {0};
+
+  pRsp->msgType = TDMT_VND_CREATE_INDEX_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  tDecoderInit(&dc, pReq, len);
+  // decode req
+  if (tDecodeSVCreateStbReq(&dc, &req) < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    tDecoderClear(&dc);
+    return -1;
+  }
+  if (metaAddIndexToSTable(pVnode->pMeta, version, &req) < 0) {
+    pRsp->code = terrno;
+    goto _err;
+  }
+  tDecoderClear(&dc);
+  return 0;
+_err:
+  tDecoderClear(&dc);
+  return -1;
+}
+static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  SDropIndexReq req = {0};
+  pRsp->msgType = TDMT_VND_CREATE_INDEX_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  if (tDeserializeSDropIdxReq(pReq, len, &req)) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+  if (metaDropIndexFromSTable(pVnode->pMeta, version, &req) < 0) {
+    pRsp->code = terrno;
+    return -1;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {

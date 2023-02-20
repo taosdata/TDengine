@@ -390,6 +390,18 @@ typedef struct {
 } SSmaObj;
 
 typedef struct {
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char    stb[TSDB_TABLE_FNAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
+  char    dstTbName[TSDB_TABLE_FNAME_LEN];
+  char    colName[TSDB_COL_NAME_LEN];
+  int64_t createdTime;
+  int64_t uid;
+  int64_t stbUid;
+  int64_t dbUid;
+} SIdxObj;
+
+typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  createdTime;

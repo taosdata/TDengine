@@ -96,6 +96,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   metaRsp.numOfColumns = schema.nCols;
   metaRsp.precision = pVnode->config.tsdbCfg.precision;
   metaRsp.sversion = schema.version;
+  metaRsp.tversion = schemaTag.version;
   metaRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (metaRsp.numOfColumns + metaRsp.numOfTags));
 
   memcpy(metaRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
@@ -264,26 +265,25 @@ _exit:
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE void vnodeFreeSBatchRspMsg(void* p) {
+static FORCE_INLINE void vnodeFreeSBatchRspMsg(void *p) {
   if (NULL == p) {
     return;
   }
 
-  SBatchRspMsg* pRsp = (SBatchRspMsg*)p;
+  SBatchRspMsg *pRsp = (SBatchRspMsg *)p;
   rpcFreeCont(pRsp->msg);
 }
 
-
 int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
-  int32_t    code = 0;
-  int32_t    rspSize = 0;
-  SBatchReq  batchReq = {0};
-  SBatchMsg *req = NULL;
+  int32_t      code = 0;
+  int32_t      rspSize = 0;
+  SBatchReq    batchReq = {0};
+  SBatchMsg   *req = NULL;
   SBatchRspMsg rsp = {0};
-  SBatchRsp batchRsp = {0};
-  SRpcMsg   reqMsg = *pMsg;
-  SRpcMsg   rspMsg = {0};
-  void     *pRsp = NULL;
+  SBatchRsp    batchRsp = {0};
+  SRpcMsg      reqMsg = *pMsg;
+  SRpcMsg      rspMsg = {0};
+  void        *pRsp = NULL;
 
   if (tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq)) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -291,7 +291,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  int32_t    msgNum = taosArrayGetSize(batchReq.pMsgs);
+  int32_t msgNum = taosArrayGetSize(batchReq.pMsgs);
   if (msgNum >= MAX_META_MSG_IN_BATCH) {
     code = TSDB_CODE_INVALID_MSG;
     qError("too many msgs %d in vnode batch meta req", msgNum);
@@ -405,7 +405,8 @@ void vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsert, pLoad->numOfInsertReqs, 64, "nInsert");
   VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsertSuccess, pLoad->numOfInsertSuccessReqs, 64, "nInsertSuccess");
   VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsert, pLoad->numOfBatchInsertReqs, 64, "nBatchInsert");
-  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsertSuccess, pLoad->numOfBatchInsertSuccessReqs, 64, "nBatchInsertSuccess");
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsertSuccess, pLoad->numOfBatchInsertSuccessReqs, 64,
+                            "nBatchInsertSuccess");
 }
 
 void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {
