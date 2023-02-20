@@ -1465,6 +1465,11 @@ static void cliNoBatchDealReq(queue* wq, SCliThrd* pThrd) {
     QUEUE_REMOVE(h);
 
     SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
+
+    if (pMsg->type == Quit) {
+      pThrd->stopMsg = pMsg;
+      continue;
+    }
     (*cliAsyncHandle[pMsg->type])(pMsg, pThrd);
 
     count++;
@@ -1496,6 +1501,12 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
     QUEUE_REMOVE(h);
 
     SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
+
+    if (pMsg->type == Quit) {
+      pThrd->stopMsg = pMsg;
+      continue;
+    }
+
     if (pMsg->type == Normal && REQUEST_NO_RESP(&pMsg->msg)) {
       STransConnCtx* pCtx = pMsg->ctx;
 
