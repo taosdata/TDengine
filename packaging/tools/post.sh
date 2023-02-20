@@ -628,14 +628,14 @@ function install_app() {
 }
 
 function checkDirectory() {
-    if [ ! -d "/usr/local/bin" ]; then
-      sudo mkdir -p /usr/local/bin
-      log_print "/usr/local/bin directory created"
+    if [ ! -d "${bin_link_dir}" ]; then
+      ${csudo}mkdir -p ${bin_link_dir}
+      log_print "${bin_link_dir} directory created"
     fi
 
-    if [ ! -d "/usr/local/lib" ]; then
-      sudo mkdir -p /usr/local/lib
-      log_print "/usr/local/lib  directory created"
+    if [ ! -d "${lib_link_dir}" ]; then
+      ${csudo}mkdir -p ${lib_link_dir}
+      log_print "${lib_link_dir} directory created"
     fi
 
     #install log and data dir , then ln to /usr/local/taos
