@@ -1991,11 +1991,12 @@ FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
   pResp->pCont = buf;
   pResp->contLen = len;
 
-  *dst = epset;
+  memcpy((char*)dst, &epset, sizeof(SEpSet));
   return true;
 }
 bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
-  bool noDelay = true;
+  SEpSet epSet;
+  bool   noDelay = true;
   if (hasEpSet == false) {
     if (pResp->contLen == 0) {
       if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
@@ -2004,7 +2005,6 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
         EPSET_FORWARD_INUSE(&pCtx->epSet);
       }
     } else if (pResp->contLen != 0) {
-      SEpSet  epSet;
       int32_t valid = tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
       if (valid < 0) {
         tDebug("get invalid epset, epset equal, continue");
@@ -2016,7 +2016,7 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
       } else {
         if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
           tDebug("epset not equal, retry new epset");
-          pCtx->epSet = epSet;
+          memcpy((char*)&pCtx->epSet, (char*)&epSet, sizeof(SEpSet));
           noDelay = false;
         } else {
           if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
@@ -2029,7 +2029,6 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
       }
     }
   } else {
-    SEpSet  epSet;
     int32_t valid = tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
     if (valid < 0) {
       tDebug("get invalid epset, epset equal, continue");
@@ -2041,7 +2040,7 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
     } else {
       if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
         tDebug("epset not equal, retry new epset");
-        pCtx->epSet = epSet;
+        memcpy((char*)&pCtx->epSet, (char*)&epSet, sizeof(SEpSet));
         noDelay = false;
       } else {
         if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
@@ -2311,8 +2310,10 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
 
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
-  pCtx->epSet = *pEpSet;
-  pCtx->origEpSet = *pEpSet;
+  memcpy((char*)&pCtx->epSet, (char*)pEpSet, sizeof(SEpSet));
+  memcpy((char*)&pCtx->origEpSet, (char*)pEpSet, sizeof(SEpSet));
+  // pCtx->epSet = *pEpSet;
+  // pCtx->origEpSet = *pEpSet;
   pCtx->ahandle = pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
 
@@ -2357,8 +2358,9 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
 
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
-  pCtx->epSet = *pEpSet;
-  pCtx->origEpSet = *pEpSet;
+  memcpy((char*)&pCtx->epSet, (char*)pEpSet, sizeof(SEpSet));
+  memcpy((char*)&pCtx->origEpSet, (char*)pEpSet, sizeof(SEpSet));
+
   pCtx->ahandle = pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
   pCtx->pSem = sem;
