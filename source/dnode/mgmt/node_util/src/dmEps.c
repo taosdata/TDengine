@@ -402,7 +402,7 @@ static int32_t dmDecodeEpPairs(SJson *pJson, SDnodeData *pData) {
   int32_t code = 0;
 
   SJson *dnodes = tjsonGetObjectItem(pJson, "dnodes");
-  if (dnodes == NULL) return 0;
+  if (dnodes == NULL) return -1;
   int32_t numOfDnodes = tjsonGetArraySize(dnodes);
 
   for (int32_t i = 0; i < numOfDnodes; ++i) {
