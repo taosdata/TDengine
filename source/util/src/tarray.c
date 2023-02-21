@@ -133,7 +133,7 @@ void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)
       // do nothing
     } else {
       if (pos + 1 != i) {
-        void* p = taosArrayGetp(pArray, pos + 1);
+        void* p = taosArrayGet(pArray, pos + 1);
         if (fp != NULL) {
           fp(p);
         }
@@ -172,13 +172,14 @@ void taosArrayRemoveDuplicateP(SArray* pArray, __compar_fn_t comparFn, void (*fp
       // do nothing
     } else {
       if (pos + 1 != i) {
-        void* p = taosArrayGet(pArray, pos + 1);
+        void* p = taosArrayGetP(pArray, pos + 1);
         if (fp != NULL) {
           fp(p);
         }
 
         taosArraySet(pArray, pos + 1, p2);
-        pos += 1;
+        memset(TARRAY_GET_ELEM(pArray, i), 0, pArray->elemSize);
+	pos += 1;
       } else {
         pos += 1;
       }
