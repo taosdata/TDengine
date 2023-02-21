@@ -110,7 +110,7 @@ TDengine 支持标准的 JDBC 3.0 接口操纵数据库，你也可以使用其�
 
 安装完成后，请根据 [部署指南](../../deployment/deploy) 配置集群。
 
-### 1.0 插件功能介绍
+### 插件功能介绍
 
 1. TDengine30Reader 提供的功能：
    1. 支持通过 SQL 进行数据筛选；
@@ -121,7 +121,7 @@ TDengine 支持标准的 JDBC 3.0 接口操纵数据库，你也可以使用其�
    1. 支持 OpenTSDB 的 json 格式的行协议，使用 TDengine 的 schemaless 方式写入 TDengine。
    2. 支持批量写入，通过 batchSize 参数控制批量写入的数量，提高写入性能。
 
-### 1.1 DataX 安装环境准备
+### DataX 安装环境准备
 
 1. 需要安装 TDengine 客户端
 2. 需要安装 JDK 1.8 环境（运行 DataX）
