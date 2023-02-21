@@ -356,15 +356,19 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
 
               shiftBits = _mm256_add_epi64(shiftBits, inc);
               prev_value = p[_pos + 3];
+
+//              uDebug("_pos:%d %"PRId64", %"PRId64", %"PRId64", %"PRId64, _pos, p[_pos], p[_pos+1], p[_pos+2], p[_pos+3]);
               _pos += 4;
             }
 
             // handle the remain value
             for (int32_t i = 0; i < remain; i++) {
-              zigzag_value = ((w >> (v + (batch * bit))) & mask);
+              zigzag_value = ((w >> (v + (batch * bit * 4))) & mask);
               prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
               p[_pos++] = prev_value;
+//              uDebug("_pos:%d %"PRId64, _pos-1, p[_pos-1]);
+
               v += bit;
             }
           } else {
@@ -373,6 +377,8 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
               prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
               p[_pos++] = prev_value;
+//              uDebug("_pos:%d %"PRId64, _pos-1, p[_pos-1]);
+
               v += bit;
             }
           }
