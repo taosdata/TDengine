@@ -1578,7 +1578,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
   int32_t          type = pCol->info.type;
 
   SPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  if (pCtx->scanFlag == REPEAT_SCAN && pInfo->stage == 0) {
+  if (pCtx->scanFlag == MAIN_SCAN && pInfo->stage == 0) {
     pInfo->stage += 1;
 
     // all data are null, set it completed

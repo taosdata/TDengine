@@ -699,7 +699,8 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
 
     if (pTableScanInfo->scanTimes < pTableScanInfo->scanInfo.numOfAsc) {
       setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
-      pTableScanInfo->base.scanFlag = REPEAT_SCAN;
+      pTableScanInfo->base.scanFlag = MAIN_SCAN;
+      pTableScanInfo->base.dataBlockLoadFlag = FUNC_DATA_REQUIRED_DATA_LOAD;
       qDebug("start to repeat ascending order scan data blocks due to query func required, %s", GET_TASKID(pTaskInfo));
 
       // do prepare for the next round table scan operation
@@ -725,7 +726,7 @@ static SSDataBlock* doGroupedTableScan(SOperatorInfo* pOperator) {
 
       if (pTableScanInfo->scanTimes < total) {
         setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
-        pTableScanInfo->base.scanFlag = REPEAT_SCAN;
+        pTableScanInfo->base.scanFlag = MAIN_SCAN;
 
         qDebug("%s start to repeat descending order scan data blocks", GET_TASKID(pTaskInfo));
         tsdbReaderReset(pTableScanInfo->base.dataReader, &pTableScanInfo->base.cond);
@@ -878,7 +879,11 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
 
-  pInfo->base.scanFlag = MAIN_SCAN;
+  if (pInfo->scanInfo.numOfAsc > 1) {
+    pInfo->base.scanFlag = REPEAT_SCAN;
+  } else {
+    pInfo->base.scanFlag = MAIN_SCAN;
+  }
   pInfo->base.pdInfo.interval = extractIntervalInfo(pTableScanNode);
   pInfo->base.readHandle = *readHandle;
   pInfo->base.dataBlockLoadFlag = pTableScanNode->dataRequired;

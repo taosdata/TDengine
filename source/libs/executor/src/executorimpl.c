@@ -395,19 +395,20 @@ void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pC
   }
 }
 
-static void doSetInputDataBlockInfo(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order) {
+static void doSetInputDataBlockInfo(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag) {
   SqlFunctionCtx* pCtx = pExprSup->pCtx;
   for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
     pCtx[i].order = order;
     pCtx[i].input.numOfRows = pBlock->info.rows;
     setBlockSMAInfo(&pCtx[i], &pExprSup->pExprInfo[i], pBlock);
     pCtx[i].pSrcBlock = pBlock;
+    pCtx[i].scanFlag = scanFlag;
   }
 }
 
 void setInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag, bool createDummyCol) {
   if (pBlock->pBlockAgg != NULL) {
-    doSetInputDataBlockInfo(pExprSup, pBlock, order);
+    doSetInputDataBlockInfo(pExprSup, pBlock, order, scanFlag);
   } else {
     doSetInputDataBlock(pExprSup, pBlock, order, scanFlag, createDummyCol);
   }
