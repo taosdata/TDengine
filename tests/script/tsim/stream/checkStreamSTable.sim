@@ -440,6 +440,61 @@ if $data07 != NULL then
   goto loop4
 endi
 
+sql drop stream if exists streams4;
+sql drop stream if exists streams5;
+sql drop database if exists test4;
+sql drop database if exists test5;
+sql drop database if exists result4;
+sql drop database if exists result5;
+
+print ===== step8
+
+sql drop stream if exists streams8;
+sql drop database if exists test8;
+sql create database test8  vgroups 1;
+sql use test8;
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams8 trigger at_once  into streamt8 as select  _wstart as ts, count(*) c1, count(d) c2, count(c) c3  from t1 partition by tbname interval(10s) ;
+
+sql drop stream streams8;
+sql create stream streams71 trigger at_once  into streamt8(ts, c2) tags(group_id)as select _wstart, count(*) from t1 partition by tbname as group_id interval(10s);
+
+sql insert into t1 values(1648791233000,1,2,3,1.0);
+
+loop8:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt8;
+print $data00, $data01, $data02, $data03
+print $data10, $data11, $data12, $data13
+print $data20, $data21, $data22, $data23
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop8
+endi
+
+if $data01 != NULL then
+  print =====data01=$data01
+  goto loop8
+endi
+
+if $data02 != 1 then
+  print =====data02=$data02
+  goto loop8
+endi
+
+if $data03 != NULL then
+  print =====data03=$data03
+  goto loop8
+endi
+
 print ======over
 
 system sh/stop_dnodes.sh
