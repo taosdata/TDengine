@@ -873,13 +873,14 @@ static SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTa
         } else if (pColInfo->info.type == TSDB_DATA_TYPE_JSON) {
           colDataAppend(pColInfo, i, p, false);
         } else if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
-          char* tmp = alloca(tagVal.nData + VARSTR_HEADER_SIZE + 1);
+          char* tmp = taosMemoryMalloc(tagVal.nData + VARSTR_HEADER_SIZE + 1);
           varDataSetLen(tmp, tagVal.nData);
           memcpy(tmp + VARSTR_HEADER_SIZE, tagVal.pData, tagVal.nData);
           colDataAppend(pColInfo, i, tmp, false);
 #if TAG_FILTER_DEBUG
           qDebug("tagfilter varch:%s", tmp + 2);
 #endif
+          taosMemoryFree(tmp);
         } else {
           colDataAppend(pColInfo, i, (const char*)&tagVal.i64, false);
 #if TAG_FILTER_DEBUG
