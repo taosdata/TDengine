@@ -10,40 +10,36 @@
       >
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column
-        :label="$t('topic.data_source_name')"
-        prop="data_source_name"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.data_source_type')"
-        prop="data_source_type"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.data_source_target')"
-        prop="data_source_target"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.status')"
-        prop="status"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.create_time')"
-        prop="create_time"
-      ></el-table-column>
-
-      <el-table-column label="Action" width="100" class="action">
+      <el-table-column label="Source" prop="from"></el-table-column>
+      <el-table-column label="Target" prop="to"></el-table-column>
+      <el-table-column label="Created At" prop="created_at"></el-table-column>
+      <el-table-column label="Finished At" prop="finished_at"></el-table-column>
+      <el-table-column label="Status" prop="status"></el-table-column>
+      <el-table-column label="Action" width="150" class="action">
         <template slot-scope="scope">
-          <el-button
+          <!-- <el-button
             type="primay"
             size="small"
             @click="checkMore(scope.row)"
             icon="el-icon-more"
-          ></el-button>
+          ></el-button> -->
           <el-button
             plain
             size="small"
             @click="del(scope.row)"
             icon="el-icon-delete"
+          ></el-button>
+          <el-button
+            plain
+            size="small"
+            @click="start(scope.row, scope.$index)"
+            icon="el-icon-qidong"
+          ></el-button>
+          <el-button
+            plain
+            size="small"
+            @click="stop(scope.row, scope.$index)"
+            icon="el-icon-tingzhi"
           ></el-button>
         </template>
       </el-table-column>
@@ -65,11 +61,10 @@
     >
       <el-form
         :model="ruleForm"
-        :rules="rules"
         ref="ruleForm"
         size="mini"
         label-width="auto"
-        :label-position="left"
+        label-position="left"
         class="demo-ruleForm"
       >
         <el-form-item label="Source Type" prop="name" required>
@@ -77,14 +72,19 @@
             v-model="ruleForm.name"
             placeholder="Please Select Source Type"
           >
-            <el-option label="InfluxDB" value="influxdb"></el-option>
-            <el-option label="OpenTSDB" value="opentsdb"></el-option>
+            <el-option
+              :label="item.name"
+              :value="item.id"
+              v-for="item in sourceList"
+              :key="item.id"
+            ></el-option>
+            <!-- <el-option label="OpenTSDB" value="opentsdb"></el-option>
             <el-option label="OPC" value="opc"></el-option>
-            <el-option label="Kafka" value="kafka"></el-option>
+            <el-option label="Kafka" value="kafka"></el-option> -->
           </el-select>
         </el-form-item>
         <el-form-item label="Source Name" prop="status" required>
-         <el-input v-model="ruleForm.status"></el-input>
+          <el-input v-model="ruleForm.status"></el-input>
         </el-form-item>
         <!-- <el-form-item label="Created Time" required>
           <el-form-item prop="time">
@@ -98,7 +98,7 @@
         </el-form-item> -->
       </el-form>
       <el-row style="margin-top: 20px">
-        <el-col :span="5" offset="6">
+        <el-col :span="5" :offset="6">
           <el-button size="small" @click="dialog = false" class="w100">{{
             $t("cancel")
           }}</el-button>
@@ -118,20 +118,32 @@
   </div>
 </template>
 <script>
+import { Message } from 'element-ui';
+import dbsource from "./datasource.json";
 export default {
-  computed:{
-    confirmStatus(){
-        if(!this.ruleForm.name){
-            return true
-        }
-        if(!this.ruleForm.status){
-            return true
-        }
-        return false
-    }
+  name: "DataSource",
+  props: {
+    sourceList: {
+      type: Array,
+      default() {
+        return [];
+      },
+    },
+  },
+  computed: {
+    confirmStatus() {
+      if (!this.ruleForm.name) {
+        return true;
+      }
+      if (!this.ruleForm.status) {
+        return true;
+      }
+      return false;
+    },
   },
   data() {
     return {
+      dbsource: dbsource,
       pageSize: 10,
       currentPage: 1,
       total: 10,
@@ -141,49 +153,74 @@ export default {
         status: "",
         time: "",
       },
+      // rules:{
+      //   name:[
+
+      //       { required: true, message: 'Please select the source type', trigger: 'change' }
+
+      //   ]
+      // },
       topicList: [
-        {
-          id: 1,
-          data_source_name: "InfluxDB",
-          data_source_type:'type123',
-          data_source_target:'target123',
-          status: "Pending",
-          create_time: "2022-10-10 12:02:10",
-        },
-        {
-          id: 2,
-          data_source_name: "OpenTSDB",
-          data_source_type:'type123',
-          data_source_target:'target123',
-          status: "Fullfiled",
-          create_time: "2022-10-20 12:02:10",
-        },
-        {
-          id: 3,
-          data_source_name: "OPC",
-          data_source_type:'type123',
-          data_source_target:'target123',
-          status: "Fullfiled",
-          create_time: "2022-10-20 12:02:10",
-        },
-        {
-          id: 4,
-          data_source_name: "Kafka",
-          data_source_type:'type123',
-          data_source_target:'target123',
-          status: "Fullfiled",
-          create_time: "2022-10-20 12:02:10",
-        },
+        // {
+        //   id: 1,
+        //   data_source_name: "InfluxDB",
+        //   data_source_type:'type123',
+        //   data_source_target:'target123',
+        //   status: "Pending",
+        //   create_time: "2022-10-10 12:02:10",
+        // },
+        // {
+        //   id: 2,
+        //   data_source_name: "OpenTSDB",
+        //   data_source_type:'type123',
+        //   data_source_target:'target123',
+        //   status: "Fullfiled",
+        //   create_time: "2022-10-20 12:02:10",
+        // },
+        // {
+        //   id: 3,
+        //   data_source_name: "OPC",
+        //   data_source_type:'type123',
+        //   data_source_target:'target123',
+        //   status: "Fullfiled",
+        //   create_time: "2022-10-20 12:02:10",
+        // },
+        // {
+        //   id: 4,
+        //   data_source_name: "Kafka",
+        //   data_source_type:'type123',
+        //   data_source_target:'target123',
+        //   status: "Fullfiled",
+        //   create_time: "2022-10-20 12:02:10",
+        // },
       ],
     };
   },
   methods: {
     handlePageChange() {},
     del(data) {
-      this.$confirm("Are you sure  to delete " + data.data_source_name + '?', "Warning", {
-        confirmButtonText: "Ok",
-        cancelButtonText: "Cancle",
-        type: "warning",
+      this.$confirm(
+        "Are you sure  to delete " + data.data_source_name + "?",
+        "Warning",
+        {
+          confirmButtonText: "Ok",
+          cancelButtonText: "Cancle",
+          type: "warning",
+        }
+      ).then((res) => {
+        console.log(res, data, "删除");
+        fetch(`http://192.168.0.201:6050/tasks/${data.id}`, {
+          method: "delete",
+        }).then((res) => {
+          console.log(res, "删除接口");
+          if(res.status==200){
+            Message({
+              type:'success',
+              message:'Deleted Successfully'
+            })
+            this.getList()
+          }
+        });
       });
     },
     checkMore(data) {
@@ -191,7 +228,70 @@ export default {
         path: `/dataIn/source/${data.data_source_name}`,
       });
     },
-    handleAdd(){}
+    handleAdd() {
+      console.log(this.$parent, this.ruleForm.name);
+      this.$parent.toggleComponent("ui", this.ruleForm.name);
+    },
+    async getList() {
+      try {
+        fetch("http://192.168.0.201:6050/tasks", {
+          method: "get",
+        })
+          .then((res) => res.json())
+          .then((result) => {
+            this.topicList = result.map((item) => {
+              if (item.status === "failed") {
+                item["status"] = "(failed) " + " " + item.reason;
+              }
+              return item;
+            });
+            console.log(result, "=====");
+          });
+      } catch (error) {
+        console.log(error);
+      }
+    },
+    start(data,index){
+      console.log(data,index,'start');
+      try {
+        fetch(`http://192.168.0.201:6050/tasks/${data.id}/start`,{
+          method:'post'
+        }).then(res=>{
+          if(res.status==200){
+            this.getList()
+          }else{
+            Message({
+              type:"error",
+              message:""
+            })
+          }
+          console.log(res,'start接口');
+        })
+
+      } catch (error) {
+        console.log(error);
+      }
+    },
+    stop(data,index){
+      try {
+        fetch(`http://192.168.0.201:6050/tasks/${data.id}/stop`,{
+          method:'post'
+        }).then(res=>{
+          if(res.status==200){
+             console.log('stop');
+            this.getList()
+          }
+         
+        })
+
+      } catch (error) {
+        console.log(error);
+      }
+    },
+  },
+  created() {
+    this.getList();
+    console.log(this.dbsource, "json", "data----source");
   },
 };
 </script>

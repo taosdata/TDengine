@@ -7,7 +7,7 @@ const request = axios.create({
   ...RequestCommonConfig,
   baseURL: process.env.VUE_APP_BASE_URL,
   headers: {
-    "Content-Type": "application/json",
+    "Content-Type": "application/json"
   },
 });
 let msg = "";

@@ -1,0 +1,401 @@
+<template>
+  <div class="source-ui">
+    <section class="header">
+      <h1>{{ dbsource[0].name }}</h1>
+      <mavon-editor
+        v-model="dbsource[0].description"
+        :toolbarsFlag="false"
+        :default-open="'preview'"
+        :subfield="false"
+      />
+      <!-- <h3>{{ dbsource[0].description }}</h3> -->
+    </section>
+    <section class="basics">
+      <div class="block-title">
+        <span>{{ dbsource[0].options.display }}</span>
+      </div>
+      <div class="protocol">
+        <span class="label">{{ dbsource[0].protocol.display }}</span>
+        <el-select
+          v-model="dbsource[0].protocol.value"
+          placeholder="Please select protocol"
+        >
+          <el-option
+            v-for="c in dbsource[0].protocol.choices"
+            :key="c.name"
+            :label="c.name"
+            :value="c.name"
+          >
+          </el-option>
+        </el-select>
+      </div>
+      <div class="first">
+        <p>
+          <span
+            :class="[
+              'label',
+              dbsource[0].options.host.required ? 'required' : '',
+            ]"
+            >{{ dbsource[0].options.host.display }}</span
+          >
+          <el-input
+            v-model="dbsource[0].options.host.value"
+            
+            :placeholder="dbsource[0].options.host.placeholder"
+          ></el-input>
+        </p>
+        <p>
+          <span
+            :class="[
+              'label',
+              dbsource[0].options.port.required ? 'required' : '',
+            ]"
+            style="width: 40px"
+            >{{ dbsource[0].options.port.display }}</span
+          >
+          <el-input
+            v-model="dbsource[0].options.port.value"
+            :placeholder="dbsource[0].options.port.placeholder"
+          ></el-input>
+        </p>
+      </div>
+      <div>
+        <span
+          :class="[
+            'label',
+            dbsource[0].options.username.required ? 'required' : '',
+          ]"
+          >{{ dbsource[0].options.username.display }}</span
+        >
+        <el-input
+          :placeholder="dbsource[0].options.username.placeholder"
+          v-model="dbsource[0].options.username.value"
+        ></el-input>
+      </div>
+      <div>
+        <span
+          :class="[
+            'label',
+            dbsource[0].options.password.required ? 'required' : '',
+          ]"
+          >{{ dbsource[0].options.password.display }}</span
+        >
+        <el-input
+          :placeholder="dbsource[0].options.password.placeholder"
+          v-model="dbsource[0].options.password.value"
+        ></el-input>
+      </div>
+      <div>
+        <span
+          :class="[
+            'label',
+            dbsource[0].options.subject.required ? 'required' : '',
+          ]"
+          >{{ dbsource[0].options.subject.display }}</span
+        >
+        <el-input
+          :placeholder="dbsource[0].options.subject.placeholder"
+          v-model="dbsource[0].options.subject.value"
+        ></el-input>
+      </div>
+    </section>
+    <template v-for="item in dbsource[0].groups">
+      <section :class="['groups', item.name]" :key="item.display_order">
+        <div>
+          <p class="block-title">
+            <span>{{ item.name }}</span>
+          </p>
+        </div>
+        <template v-for="p in item.params">
+          <div :key="p.name">
+            <span :class="['label', p.required ? 'required' : '']">{{
+              p.name
+            }}</span>
+            <template v-if="p.hint === 'str' || p.hint === 'timeout'">
+              <el-input v-model="p.value"></el-input>
+            </template>
+            <template v-if="p.hint.type && p.hint.type === 'str'">
+              <el-select
+                v-model="p.value"
+                placeholder="Please select"
+                style="margin-left: -15px"
+              >
+                <el-option
+                  v-for="c in p.hint.choices"
+                  :key="c"
+                  :label="c"
+                  :value="c"
+                >
+                </el-option>
+              </el-select>
+            </template>
+            <template v-if="p.hint === 'bool'">
+              <el-radio-group v-model="p.value">
+                <el-radio v-for="c in p.choices" :key="c" :label="c">{{
+                  c
+                }}</el-radio>
+              </el-radio-group>
+            </template>
+          </div>
+        </template>
+      </section>
+    </template>
+
+    <!--未分组显示根节点下的params，显示方式和groups一样-->
+    <section class="ungrounded" v-if="dbsource[0].params"></section>
+    <section class="choose-db">
+      <span class="label">Target Database</span>
+      <el-select
+        v-model="dbname"
+        placeholder="Please select"
+        style="margin-left: -15px"
+      >
+        <el-option
+          v-for="db in dblist"
+          :key="db['node-key']"
+          :label="db.name"
+          :value="db.name"
+        >
+        </el-option>
+      </el-select>
+    </section>
+    <section class="bottom">
+      <el-button type="primary" @click="submit" :disabled="disable"
+        >Submit</el-button
+      >
+    </section>
+  </div>
+</template>
+<script>
+// import dbsource from "./datasource.json";
+import { getDBListReq } from "@/api/gateway/data/dbs.js";
+import { Message } from "element-ui";
+export default {
+  name: "DbSourceUI",
+  props: {
+    dbsource: {
+      type: Array,
+      default() {
+        return [];
+      },
+    },
+  },
+  data() {
+    return {
+      //   dbsource,
+      disable: false,
+      address: "",
+      port: "",
+      username: "",
+      password: "",
+      subject: "",
+      radio: "",
+      dblist: [],
+      dbname: "",
+    };
+  },
+  created() {
+    console.log(this.dbsource, this.$store.state, "---");
+    this.getDatabases();
+  },
+  methods: {
+    async getDatabases() {
+      try {
+        this.dblist = await getDBListReq();
+
+        console.log(this.dblist, "获取数据库---");
+      } catch (error) {
+        console.log(error);
+      }
+    },
+    getRequiredItem(source) {
+      if (!source && typeof source !== "object") {
+        throw new Error("error arguments", "deepClone");
+      }
+      const targetObj = source.constructor === Array ? [] : {};
+      Object.keys(source).forEach((keys) => {
+        if (source[keys] && typeof source[keys] === "object") {
+          targetObj[keys] = this.getRequiredItem(source[keys]);
+        } else {
+          targetObj[keys] = source[keys];
+          console.log(keys, "简直对");
+        }
+      });
+      return targetObj;
+    },
+    async submit() {
+      let dns = "";
+      let data = this.dbsource[0];
+      try {
+        console.log(data.protocol, "this.dbsource.protocol", this.$store);
+        if (data.protocol.value) {
+          dns += data.protocol.value;
+        }
+        for (let key of Object.keys(data.options)) {
+          if (
+            Object.hasOwnProperty.call(data.options[key], "required") &&
+            data.options[key]["value"] == ""
+          ) {
+            Message({
+              type: "warning",
+              message: `Please enter ${data.options[key].display} `,
+            });
+            return;
+          }
+        }
+        dns += `://${sessionStorage.getItem('username')}:${
+          sessionStorage.getItem('pwd')
+        }@${data.options.host.value ? data.options.host.value : ""}:${
+          data.options.port.value ? data.options.port.value : ""
+        }`;
+        dns += data.options.subject.value
+          ? "/" + data.options.subject.value
+          : "";
+        let querystr = "";
+        console.log(data,'tijiaoshuju--');
+        for (let index = 0; index < data.groups.length; index++) {
+        //   for (let j = 0; j < data.groups[index].params.length; j++) {
+            for (let g of Object.keys(data.groups[index].params)) {
+                console.log(g,data.groups[index].params[g],'ppp',data.groups[index].params[g]["value"]);
+              if (
+                Object.hasOwnProperty.call(
+                  data.groups[index].params[g],
+                  "required"
+                ) &&
+                data.groups[index].params[g]["value"] == ""
+              ) {
+                Message({
+                  type: "warning",
+                  message: `Please enter ${data.groups[index].params[g].name} `,
+                });
+                return;
+              } else {
+                querystr += `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` + "&";
+              }
+              console.log((g.params, data, "----gggg"));
+            }
+        //   }
+        }
+
+        
+        dns+=querystr?'?'+querystr.replace(/&$/g,''):''
+        console.log("继续执行", dns);
+        let apiParams={
+            from:'tmq+'+dns,
+            to:'taos+'+localStorage.getItem('base_url')+(this.dbname?'/'+this.dbname:''),
+            labels:["datain"],
+            stream_type: "auto"
+            }
+        await fetch('http://192.168.0.201:6050/tasks',{
+            method:'post',
+            headers:{
+                "Content-type":"application/json"
+            },
+            body:JSON.stringify(apiParams)
+        }).then(res=>res.json()).then(result=>{
+            console.log(result,'提交的result',this.$parent);
+            this.$parent.toggleComponent('dbsource','')
+        })
+      } catch (error) {
+        console.log(error);
+      }
+    },
+  },
+};
+</script>
+<style lang="scss" scoped>
+.source-ui {
+  padding-left: 300px;
+  padding-right: 300px;
+
+  section:not(:first-child) {
+    border: 1px solid #e3e4e6;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    padding: 15px;
+  }
+  .block-title {
+    span {
+      font-size: 16px;
+      color: #4259ce;
+      font-weight: 600;
+    }
+  }
+  .label {
+    font-size: 14px;
+    color: #4259ce;
+    align-items: center;
+    width: 120px;
+    display: block;
+  }
+  .label.required {
+    position: relative;
+    &::before {
+      content: "*";
+      position: absolute;
+      color: red;
+      font-size: 14px;
+      line-height: 25px;
+      left: -10px;
+    }
+  }
+  .header {
+    margin-bottom: 20px;
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 30px;
+      color: #4259ce;
+      margin-bottom: 10px;
+    }
+    h3 {
+      font-size: 14px;
+      color: #4259ce;
+    }
+  }
+  .basics {
+    display: flex;
+    flex-direction: column;
+
+    :deep {
+      .el-input__inner {
+        flex: auto;
+        // width: 660px;
+      }
+    }
+    div,
+    p {
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      flex: 1;
+    }
+    .first {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 10px;
+    }
+  }
+  .groups {
+    div {
+      display: flex;
+      white-space: nowrap;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+  }
+  .choose-db {
+    display: flex;
+    align-items: center;
+  }
+  .bottom {
+    display: flex;
+    border: none !important;
+    padding: 0px !important;
+    .el-button {
+      flex: 1;
+    }
+  }
+}
+</style>

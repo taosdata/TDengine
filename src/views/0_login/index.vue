@@ -260,6 +260,12 @@ export default {
             this.dynamicValidateForm.password
         );
       this.$store.commit("app/SET_TOKEN", token);
+      sessionStorage.setItem('username',this.dynamicValidateForm.username)
+      sessionStorage.setItem('pwd',this.dynamicValidateForm.password)
+      this.$store.commit('app/SAVE_LOGIN_INFO',{
+        username:this.dynamicValidateForm.username,
+        pwd:this.dynamicValidateForm.password
+      })
       fetch(`${this.dynamicValidateForm.cluster}/rest/sql`, {
         method: "post",
         headers: {

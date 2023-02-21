@@ -10,12 +10,12 @@
 
 <script>
 import DataIn from './views/main.vue'
-import DataSource from './views/dataSource.vue'
+import DbSource from './views/dbSource.vue'
 import DataCSV from './views/dataCSV.vue'
 export default {
   components:{
     DataIn,
-    DataSource,
+    DbSource,
     DataCSV
   },
   data() {

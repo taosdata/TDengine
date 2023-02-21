@@ -35,7 +35,7 @@ module.exports = {
   publicPath: "/",
   outputDir: "dist",
   assetsDir: "static",
-  productionSourceMap: arg?.mode !== "prd",
+  productionSourceMap: true,
   configureWebpack: {
     resolve: {
       alias: {

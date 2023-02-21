@@ -18,6 +18,9 @@ import computed from "@/common/computed";
 import { $bus } from "./const";
 import { BusOnAndAutoOff } from "@/utils";
 import "./permission";
+import mavonEditor from 'mavon-editor'
+import 'mavon-editor/dist/css/index.css'
+Vue.use(mavonEditor)
 Vue.use(directive);
 Vue.use(LazyLoad);
 Vue.component("MainContentHeader", MainContentHeader);

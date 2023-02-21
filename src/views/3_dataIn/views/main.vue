@@ -6,7 +6,7 @@
           <DataIn></DataIn>
         </el-tab-pane>
         <el-tab-pane name="datasource" :label="$t('topic.datasource')">
-          <DataSource></DataSource>
+          <DbSource></DbSource>
         </el-tab-pane>
         <el-tab-pane name="csv" :label="$t('topic.csv')">
           <DataCSV></DataCSV>
@@ -19,13 +19,13 @@
 
 <script>
 import DataIn from "./dataIn.vue";
-import DataSource from "./dataSource.vue";
+import DbSource from "./dbSource.vue";
 import SourceContent from './sourceContent.vue'
 import DataCSV from './dataCSV.vue'
 export default {
   components: {
     DataIn,
-    DataSource,
+    DbSource,
     SourceContent,
     DataCSV
   },
