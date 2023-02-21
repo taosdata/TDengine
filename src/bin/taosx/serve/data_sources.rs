@@ -105,10 +105,10 @@ pub(super) async fn data_sources_in() -> impl Responder {
   "type": "uri",
   "protocol": [
     {
-      "name": "__",
+      "name": "--",
       "display": "None",
       "description": "Use taosc native connection",
-      "default": true,
+      "default": true
     },
     {
         "name": "ws",
@@ -122,7 +122,7 @@ pub(super) async fn data_sources_in() -> impl Responder {
       }
   ],
   "options": {
-    "hostname": {
+    "host": {
         "display": "Host",
         "description": "TDengine fqdn. Leave it empty if use server localhost(relative to taosX server).",
         "placeholder": "localhost"
