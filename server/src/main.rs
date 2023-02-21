@@ -1,9 +1,16 @@
+// #![feature(btree_drain_filter)]
+use awc::error::JsonPayloadError;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
-use log::{LevelFilter};
+use log::LevelFilter;
 use std::{fs::File, io::Read};
 
 use actix_embed::Embed;
-use actix_web::{http::header::ContentType, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{
+    error::{self, PayloadError},
+    http::header::ContentType,
+    web, App, HttpRequest, HttpResponse, HttpServer, Responder,
+};
+use futures_util::StreamExt as _;
 
 use clap::Parser;
 use rust_embed::RustEmbed;
@@ -22,20 +29,27 @@ async fn main() -> std::io::Result<()> {
     } else {
         Args::parse()
     };
+    let log_level = args
+        .log_level
+        .clone()
+        .or(args.verbose.clone().map(|v| v.log_level_filter()))
+        .unwrap_or(log::LevelFilter::Info);
     pretty_env_logger::formatted_timed_builder()
-        .filter_level(
-            args.log_level
-                .or(args.verbose.map(|v| v.log_level_filter()))
-                .unwrap_or(log::LevelFilter::Info),
-        )
+        .filter_level(log_level)
         .init();
-    HttpServer::new(|| {
+
+    let port = args.port;
+    let args = web::Data::new(args);
+    HttpServer::new(move || {
         App::new()
+            .app_data(args.clone())
             .route("/", web::get().to(index))
+            .route("/x/{api:.*}", web::to(x_api))
+            .route("/api-doc/openapi.json", web::to(x_api_doc))
             .route("/{route}", web::get().to(index))
             .service(Embed::new("/", &Asset))
     })
-    .bind(("0.0.0.0", args.port))?
+    .bind(("0.0.0.0", port))?
     .run()
     .await
 }
@@ -49,12 +63,76 @@ async fn index() -> impl Responder {
     )
 }
 
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error(transparent)]
+    XError(#[from] awc::error::SendRequestError),
+    #[error(transparent)]
+    PayloadError(#[from] PayloadError),
+    #[error(transparent)]
+    ApiDocError(#[from] JsonPayloadError),
+    #[error(transparent)]
+    JsonError(#[from] serde_json::Error),
+}
+
+impl error::ResponseError for Error {}
+
+async fn x_api(
+    req: HttpRequest,
+    api: web::Path<String>,
+    args: web::Data<Args>,
+    mut body: web::Payload,
+) -> Result<HttpResponse, Error> {
+    if args.x_api.is_none() {
+        return Ok(HttpResponse::NotFound().finish());
+    }
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item?);
+    }
+    let x = args.x_api.as_deref().unwrap();
+    let url = format!("{x}/{api}?{}", req.query_string());
+    let client = awc::Client::new();
+    let method = req.method();
+    let mut resp = client.request(method.clone(), url).send_body(bytes).await?;
+    Ok(HttpResponse::Ok().body(resp.body().await?))
+}
+async fn x_api_doc(
+    req: HttpRequest,
+    args: web::Data<Args>,
+    mut body: web::Payload,
+) -> Result<HttpResponse, Error> {
+    if args.x_api.is_none() {
+        return Ok(HttpResponse::NotFound().finish());
+    }
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item?);
+    }
+    let x = args.x_api.as_deref().unwrap();
+    let url = format!("{x}/api-doc/openapi.json");
+    let client = awc::Client::new();
+    let method = req.method();
+    let mut resp = client.request(method.clone(), url).send_body(bytes).await?;
+    let mut api: serde_json::Value = resp.json().await?;
+    if let Some(paths) = api.get_mut("paths") {
+        assert!(paths.is_object());
+        if let serde_json::Value::Object(paths) = paths {
+            *paths = paths
+                .into_iter()
+                .map(|(k, v)| (format!("/x{k}"), v.clone()))
+                .collect();
+        }
+    }
+    Ok(HttpResponse::Ok().body(serde_json::to_string(&api)?))
+}
+
 #[derive(RustEmbed)]
 #[folder = "../dist/"]
 struct Asset;
 
 #[derive(Parser, Debug, Clone, Deserialize)]
-#[clap(version)]
+#[clap(author, version, about, long_about = include_str!("../README.md"))]
 struct Args {
     /// Port
     #[clap(
@@ -70,6 +148,11 @@ struct Args {
     #[serde(skip)]
     verbose: Option<Verbosity<InfoLevel>>,
 
-    #[clap(skip)]
+    /// For environment variable wised log level.
+    #[clap(env = "EXPLORER_LOG_LEVEL", hide = true)]
     log_level: Option<LevelFilter>,
+
+    /// API end point for data streaming task management.
+    #[clap(short, long, env = "EXPLORER_X_API")]
+    x_api: Option<String>,
 }

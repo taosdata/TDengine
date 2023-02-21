@@ -1,14 +1,27 @@
-# taos-explorer
+# TDengine Explorer
 
-taos-explorer web server
+## Basics
 
-## 参数说明
+Open the default UI in browser at <http://explorer:6060>.
 
-1. 命令行参数 8082 "info" ，8082 为端口（数字），”info“ 为日志级别
-2. 环境变量 TAOS_EXPLORER_PORT 设置端口，TAOS_EXPLORER_LOG_LEVEL 设置日志级别
-3. 配置文件名称 config.toml 与执行文件在同一目录，内容如下:
+You can view the databases and tables with a tree structure.
+
+## Advance
+
+TDengine Explorer helps you manage the data streaming staff in a unified visual tool.
+
+It use taosX for data replication/backup/subscription.
+
+You can either set it in an TOML file like:
 
 ```toml
-port = 8082
-log_level = "info"
+x_api = "http://localhost:6050"
+```
+
+Or with environment `EXPLORER_X_API=http://localhost:6050`.
+
+Or with CLI option `--x-api`:
+
+```bash
+taos-explorer --x-api http://localhost:6050
 ```
