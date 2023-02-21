@@ -105,6 +105,12 @@ pub(super) async fn data_sources_in() -> impl Responder {
   "type": "uri",
   "protocol": [
     {
+      "name": "__",
+      "display": "None",
+      "description": "Use taosc native connection",
+      "default": true,
+    },
+    {
         "name": "ws",
         "display": "WS",
         "description": "WebSocket with HTTP."

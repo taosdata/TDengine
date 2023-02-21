@@ -1162,9 +1162,9 @@ pub(super) struct TaskFilter {
     start_create_time: Option<String>,
     end_create_time: Option<String>,
     with_deleted: Option<bool>,
-    labels: Option<Vec<String>>,
-    any_labels: Option<Vec<String>>,
-    without_labels: Option<Vec<String>>,
+    labels: Option<String>,
+    any_labels: Option<String>,
+    without_labels: Option<String>,
 }
 
 impl TaskFilter {
@@ -1198,19 +1198,19 @@ impl TaskFilter {
     }
 
     fn has_labels_filter(&self) -> bool {
-        self.labels.is_none() && self.any_labels.is_none() && self.without_labels.is_none()
+        !(self.labels.is_none() && self.any_labels.is_none() && self.without_labels.is_none())
     }
 
     fn filter_task_labels(&self, tasks: &mut Vec<Task>) {
         if let Some(labels) = self.labels.as_deref() {
-            tasks.retain(|task| task.contains_labels(labels));
+            tasks.retain(|task| task.contains_labels(&labels.split(",").collect_vec()));
         }
         if let Some(labels) = self.any_labels.as_deref() {
-            tasks.retain(|task| task.contains_any_labels(labels));
+            tasks.retain(|task| task.contains_any_labels(&labels.split(",").collect_vec()));
         }
         if let Some(labels) = self.without_labels.as_deref() {
             // remove tasks contains any labels in `without_labels`.
-            tasks.retain(|task| !task.contains_any_labels(labels));
+            tasks.retain(|task| !task.contains_any_labels(&labels.split(",").collect_vec()));
         }
     }
 }
