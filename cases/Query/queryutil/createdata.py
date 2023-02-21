@@ -921,11 +921,11 @@ class TDCreateData():
             self.logger.info(("sql1:'%s' result '%s' != sql2:'%s' result '%s'") %(sql1,base_value,sql2,check_value))
             return self.tdSql.checkEqual(base_value,check_value)
         
-    def dataequal(self, sql1,row1,col1, sql2,row2,col2):
+    def dataequal_notcheckrow(self, sql1,row1,col1, sql2,row2,col2):
         self.sql1 = sql1
         list1 =[]
         self.tdSql.query(sql1)
-        sql1_row = self.tdSql.query(sql1).row_count
+        #sql1_row = self.tdSql.query(sql1).row_count
         for i1 in range(row1):
             for j1 in range(col1):
                 list1.append(self.tdSql.getData(i1,j1))
@@ -934,12 +934,12 @@ class TDCreateData():
         self.sql2 = sql2  
         list2 =[]
         self.tdSql.query(sql2)
-        sql2_row = self.tdSql.query(sql2).row_count
+        #sql2_row = self.tdSql.query(sql2).row_count
         for i2 in range(row2):
             for j2 in range(col2):
                 list2.append(self.tdSql.getData(i2,j2))
                 
-        self.value_check(sql1_row,sql2_row,sql1,sql2)
+        #self.value_check(sql1_row,sql2_row,sql1,sql2)
        
         if  (list1 == list2) and len(list2)>0:
             self.logger.info(("===list=_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
@@ -972,6 +972,12 @@ class TDCreateData():
             self.logger.info(("sql1:'%s' result != sql2:'%s' result") %(sql1,sql2))
             #self.logger.info(("=====list_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             return self.tdSql.checkEqual(list1,list2)
+        
+    def dataequal(self, sql1,row1,col1, sql2,row2,col2):
+        self.dataequal_notcheckrow(sql1,row1,col1, sql2,row2,col2)
+        sql1_row = self.tdSql.query(sql1).row_count
+        sql2_row = self.tdSql.query(sql2).row_count
+        self.value_check(sql1_row,sql2_row,sql1,sql2)
 
     def dataequal_hyperloglog(self, sql1,row1,col1, sql2,row2,col2):
         #hyperloglog函数结果允许误差，因此放大误差数值
