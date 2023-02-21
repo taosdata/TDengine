@@ -4303,12 +4303,14 @@ int32_t tsdbReaderResume(STsdbReader* pReader) {
       // we need only one row
       pPrevReader->capacity = 1;
       pPrevReader->status.pTableMap = pReader->status.pTableMap;
+      pPrevReader->status.uidList = pReader->status.uidList;
       pPrevReader->pSchema = pReader->pSchema;
       pPrevReader->pMemSchema = pReader->pMemSchema;
       pPrevReader->pReadSnap = pReader->pReadSnap;
 
       pNextReader->capacity = 1;
       pNextReader->status.pTableMap = pReader->status.pTableMap;
+      pNextReader->status.uidList = pReader->status.uidList;
       pNextReader->pSchema = pReader->pSchema;
       pNextReader->pMemSchema = pReader->pMemSchema;
       pNextReader->pReadSnap = pReader->pReadSnap;
