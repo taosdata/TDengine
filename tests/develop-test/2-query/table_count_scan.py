@@ -14,7 +14,7 @@ class TDTestCase:
     
     def init(self, conn, logSql, replicaVer=1):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
         self._conn = conn
         
     def restartTaosd(self, index=1, dbname="db"):
@@ -93,7 +93,7 @@ class TDTestCase:
         tdSql.checkData(1, 1, 'performance_schema')
         tdSql.checkData(0, 0, 3)
         tdSql.checkData(0, 1, 'tbl_count')
-        tdSql.checkData(2, 0, 23)
+        tdSql.checkData(2, 0, 24)
         tdSql.checkData(2, 1, 'information_schema')
 
         tdSql.query("select count(*) from information_schema.ins_tables where db_name='tbl_count'")
@@ -189,7 +189,7 @@ class TDTestCase:
         tdSql.checkData(2, 0, 5)
         tdSql.checkData(2, 1, 'performance_schema')
         tdSql.checkData(2, 2, None)
-        tdSql.checkData(3, 0, 23)
+        tdSql.checkData(3, 0, 24)
         tdSql.checkData(3, 1, 'information_schema')
         tdSql.checkData(3, 2, None)
 
@@ -204,7 +204,7 @@ class TDTestCase:
         tdSql.checkData(2, 0, 5)
         tdSql.checkData(2, 1, 'performance_schema')
         tdSql.checkData(2, 2, None)
-        tdSql.checkData(3, 0, 23)
+        tdSql.checkData(3, 0, 24)
         tdSql.checkData(3, 1, 'information_schema')
         tdSql.checkData(3, 2, None)
 
@@ -215,7 +215,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 'tbl_count')
         tdSql.checkData(1, 0, 5)
         tdSql.checkData(1, 1, 'performance_schema')
-        tdSql.checkData(2, 0, 23)
+        tdSql.checkData(2, 0, 24)
         tdSql.checkData(2, 1, 'information_schema')
 
         tdSql.query("select count(*) from information_schema.ins_tables where db_name='tbl_count'")
