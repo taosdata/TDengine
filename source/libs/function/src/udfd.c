@@ -331,9 +331,9 @@ void udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
   plugin->scriptType = TSDB_FUNC_SCRIPT_PYTHON;
   sprintf(plugin->libPath, "%s", "libtaosudf_py.so");
   plugin->libLoaded = false;
-  const char *funcName[MAX_NUM_PLUGIN_FUNCS] = {"open",         "close",         "udfInit",
-                                                "udfDestroy",   "udfScalarProc", "udfAggStart",
-                                                "udfAggFinish", "udfAggProc",    "udfAggMerge"};
+  const char *funcName[MAX_NUM_PLUGIN_FUNCS] = {"pyOpen",         "pyClose",         "pyUdfInit",
+                                                "pyUdfDestroy",   "pyUdfScalarProc", "pyUdfAggStart",
+                                                "pyUdfAggFinish", "pyUdfAggProc",    "pyUdfAggMerge"};
   void      **funcs[MAX_NUM_PLUGIN_FUNCS] = {
       (void **)&plugin->openFunc,         (void **)&plugin->closeFunc,         (void **)&plugin->udfInitFunc,
       (void **)&plugin->udfDestroyFunc,   (void **)&plugin->udfScalarProcFunc, (void **)&plugin->udfAggStartFunc,

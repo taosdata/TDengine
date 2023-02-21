@@ -884,7 +884,9 @@ void continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest)
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
   int64_t connId = *(int64_t *)taos;
+  tscDebug("taos_query_a start with sql:%s", sql);
   taosAsyncQueryImpl(connId, sql, fp, param, false);
+  tscDebug("taos_query_a end with sql:%s", sql);
 }
 
 void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, int64_t reqid) {

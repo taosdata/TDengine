@@ -784,7 +784,7 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   pCol->tableType = pTable->pMeta->tableType;
   pCol->colId = pColSchema->colId;
   pCol->colType = (tagFlag >= 0 ? COLUMN_TYPE_TAG : COLUMN_TYPE_COLUMN);
-  pCol->hasIndex = (0 == tagFlag);
+  pCol->hasIndex = ((0 == tagFlag) || (pColSchema != NULL && IS_IDX_ON(pColSchema)));
   pCol->node.resType.type = pColSchema->type;
   pCol->node.resType.bytes = pColSchema->bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == pCol->node.resType.type) {
@@ -2984,9 +2984,12 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!pCxt->createStream && (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER) ||
-                              TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_DESC_INITIALIZER))) {
+  if (!pCxt->createStream && TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
+  }
+
+  if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_DESC_INITIALIZER)) {
+    return TSDB_CODE_SUCCESS;
   }
 
   // interp FILL clause
@@ -5021,6 +5024,18 @@ static const SSchema* getColSchema(const STableMeta* pTableMeta, const char* pCo
   return NULL;
 }
 
+static const SSchema* getNormalColSchema(const STableMeta* pTableMeta, const char* pColName) {
+  int32_t  numOfCols = getNumOfColumns(pTableMeta);
+  SSchema* pColsSchema = getTableColumnSchema(pTableMeta);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    const SSchema* pSchema = pColsSchema + i;
+    if (0 == strcmp(pColName, pSchema->name)) {
+      return pSchema;
+    }
+  }
+  return NULL;
+}
+
 static SSchema* getTagSchema(const STableMeta* pTableMeta, const char* pTagName) {
   int32_t  numOfTags = getNumOfTags(pTableMeta);
   SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
@@ -5364,6 +5379,28 @@ static int32_t buildCreateFullTextReq(STranslateContext* pCxt, SCreateIndexStmt*
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t buildCreateTagIndexReq(STranslateContext* pCxt, SCreateIndexStmt* pStmt, SCreateTagIndexReq* pReq) {
+  SName name;
+  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->indexDbName, pStmt->indexName, &name), pReq->idxName);
+  memset(&name, 0, sizeof(SName));
+
+  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name), pReq->stbName);
+  memset(&name, 0, sizeof(SName));
+
+  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  tNameGetFullDbName(&name, pReq->dbFName);
+
+  SNode* pNode = NULL;
+  ASSERT(LIST_LENGTH(pStmt->pCols) == 1);
+  FOREACH(pNode, pStmt->pCols) {
+    SColumnNode* p = (SColumnNode*)pNode;
+    memcpy(pReq->colName, p->colName, sizeof(p->colName));
+  }
+
+  // impl later
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateCreateFullTextIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
   SMCreateFullTextReq createFTReq = {0};
   int32_t             code = buildCreateFullTextReq(pCxt, pStmt, &createFTReq);
@@ -5374,9 +5411,20 @@ static int32_t translateCreateFullTextIndex(STranslateContext* pCxt, SCreateInde
   return code;
 }
 
+static int32_t translateCreateNormalIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
+  SCreateTagIndexReq createTagIdxReq = {0};
+  int32_t            code = buildCreateTagIndexReq(pCxt, pStmt, &createTagIdxReq);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_INDEX, (FSerializeFunc)tSerializeSCreateTagIdxReq, &createTagIdxReq);
+  }
+  return code;
+}
+
 static int32_t translateCreateIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt) {
   if (INDEX_TYPE_FULLTEXT == pStmt->indexType) {
     return translateCreateFullTextIndex(pCxt, pStmt);
+  } else if (INDEX_TYPE_NORMAL == pStmt->indexType) {
+    return translateCreateNormalIndex(pCxt, pStmt);
   }
   return translateCreateSmaIndex(pCxt, pStmt);
 }
@@ -5906,7 +5954,7 @@ static int32_t adjustOrderOfProjections(STranslateContext* pCxt, SNodeList* pCol
   SNode*  pCol = NULL;
   SNode*  pProj = NULL;
   FORBOTH(pCol, pCols, pProj, *pProjections) {
-    const SSchema* pSchema = getColSchema(pMeta, ((SColumnNode*)pCol)->colName);
+    const SSchema* pSchema = getNormalColSchema(pMeta, ((SColumnNode*)pCol)->colName);
     if (NULL == pSchema) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, ((SColumnNode*)pCol)->colName);
     }
@@ -6114,10 +6162,14 @@ static int32_t translateStreamTargetTable(STranslateContext* pCxt, SCreateStream
     pReq->createStb = STREAM_CREATE_STABLE_TRUE;
     pReq->targetStbUid = 0;
     return TSDB_CODE_SUCCESS;
-  } else {
+  } else if (TSDB_CODE_SUCCESS == code) {
     if (isTagDef(pStmt->pTags)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Table already exist: %s",
                                      pStmt->targetTabName);
+    }
+    if (TSDB_SUPER_TABLE != (*pMeta)->tableType) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                     "Stream can only be written to super table");
     }
     pReq->createStb = STREAM_CREATE_STABLE_FALSE;
     pReq->targetStbUid = (*pMeta)->suid;

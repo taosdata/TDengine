@@ -126,6 +126,22 @@ alter_database_option: {
 }
 ```
 
+###  修改 CACHESIZE
+
+修改数据库参数的命令使用简单，难的是如何确定是否需要修改以及如何修改。本小节描述如何判断数据库的 cachesize 是否够用。
+
+1. 如何查看 cachesize?
+
+通过 select * from information_schema.ins_databases; 可以查看这些 cachesize 的具体值。
+
+2. 如何查看 cacheload?
+
+通过 show <db_name>.vgroups; 可以查看 cacheload
+
+3. 判断 cachesize 是否够用
+
+如果 cacheload 非常接近 cachesize，则 cachesize 可能过小。 如果 cacheload 明显小于 cachesize 则 cachesize 是够用的。可以根据这个原则判断是否需要修改 cachesize 。具体修改值可以根据系统可用内存情况来决定是加倍或者是提高几倍。
+
 :::note
 其它参数在 3.0.0.0 中暂不支持修改
 

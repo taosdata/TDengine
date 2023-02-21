@@ -106,7 +106,7 @@ taos --dump-config
 | 适用范围 | 仅服务端适用                                                                                                                                                                                       |
 | 含义     | 服务器内部的系统监控开关。监控主要负责收集物理节点的负载状况，包括 CPU、内存、硬盘、网络带宽的监控记录，监控信息将通过 HTTP 协议发送给由 `monitorFqdn` 和 `monitorProt` 指定的 TaosKeeper 监控服务 |
 | 取值范围 | 0：关闭监控服务， 1：激活监控服务。                                                                                                                                                                |
-| 缺省值   | 1                                                                                                                                                                                                  |
+| 缺省值   | 0                                                                                                                                                                                                  |
 
 ### monitorFqdn
 
@@ -192,14 +192,15 @@ taos --dump-config
 | 取值范围 | 0 表示包含函数名，1 表示不包含函数名。      |
 | 缺省值   | 0                            |
 
-### countAlwaysReturnValue 
+### countAlwaysReturnValue
 
 | 属性     | 说明                             |
 | -------- | -------------------------------- |
 | 适用范围 | 仅服务端适用                     |
-| 含义     | count/hyperloglog函数在数据为空或者NULL的情况下是否返回值 |
+| 含义     | count/hyperloglog函数在输入数据为空或者NULL的情况下是否返回值 |
 | 取值范围 | 0：返回空行，1：返回 0       |
 | 缺省值   | 1                            |
+| 补充说明 | 该参数设置为 1 时，如果查询中含有 GROUP BY，PARTITION BY 以及 INTERVAL 子句且相应的组或窗口内数据为空或者NULL， 对应的组或窗口将不返回查询结果 |
 
 ## 区域相关
 

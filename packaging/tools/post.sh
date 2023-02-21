@@ -48,7 +48,7 @@ fi
 
 data_link_dir="${install_main_dir}/data"
 log_link_dir="${install_main_dir}/log"
-install_log_path="${log_dir}/taos_install.log"
+install_log_path="${log_dir}/tdengine_install.log"
 
 # static directory
 cfg_dir="${install_main_dir}/cfg"
@@ -573,14 +573,14 @@ function install_service_on_systemd() {
 
 function install_service_on_launchctl() {
   if [ -f ${install_main_dir}/service/com.taosdata.taosd.plist ]; then
-    ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
+    ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
     ${csudo}cp ${install_main_dir}/service/com.taosdata.taosd.plist /Library/LaunchDaemons/com.taosdata.taosd.plist || :
-    ${csudouser}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosd.plist || :
+    ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosd.plist || :
   fi
   if [ -f ${install_main_dir}/service/com.taosdata.taosadapter.plist ]; then
-    ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
+    ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
     ${csudo}cp ${install_main_dir}/service/com.taosdata.taosadapter.plist /Library/LaunchDaemons/com.taosdata.taosadapter.plist || :
-    ${csudouser}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist || :
+    ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist || :
   fi
 }
 

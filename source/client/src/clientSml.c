@@ -1273,7 +1273,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
 }
 
 static void smlPrintStatisticInfo(SSmlHandle *info) {
-  uError(
+  uDebug(
       "SML:0x%" PRIx64
       " smlInsertLines result, code:%d,lineNum:%d,stable num:%d,ctable num:%d,create stable num:%d,alter stable tag num:%d,alter stable col num:%d \
         parse cost:%" PRId64 ",schema cost:%" PRId64 ",bind cost:%" PRId64 ",rpc cost:%" PRId64 ",total cost:%" PRId64

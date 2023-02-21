@@ -144,6 +144,8 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES    8
 #define TSDB_ALTER_TABLE_UPDATE_OPTIONS      9
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME  10
+#define TSDB_ALTER_TABLE_ADD_TAG_INDEX       11
+#define TSDB_ALTER_TABLE_DROP_TAG_INDEX      12
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -294,6 +296,15 @@ struct SSchema {
   char     name[TSDB_COL_NAME_LEN];
 };
 
+struct SSchema2 {
+  int8_t   type;
+  int8_t   flags;
+  col_id_t colId;
+  int32_t  bytes;
+  char     name[TSDB_COL_NAME_LEN];
+  char     alias[TSDB_COL_NAME_LEN];
+};
+
 typedef struct {
   char     tbName[TSDB_TABLE_NAME_LEN];
   char     stbName[TSDB_TABLE_NAME_LEN];
@@ -347,7 +358,18 @@ void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
 
 #define IS_BSMA_ON(s)  (((s)->flags & 0x01) == COL_SMA_ON)
+#define IS_IDX_ON(s)   (((s)->flags & 0x02) == COL_IDX_ON)
 #define IS_SET_NULL(s) (((s)->flags & COL_SET_NULL) == COL_SET_NULL)
+
+#define SSCHMEA_SET_IDX_ON(s) \
+  do {                        \
+    (s)->flags |= COL_IDX_ON; \
+  } while (0)
+
+#define SSCHMEA_SET_IDX_OFF(s)   \
+  do {                           \
+    (s)->flags &= (~COL_IDX_ON); \
+  } while (0)
 
 #define SSCHMEA_TYPE(s)  ((s)->type)
 #define SSCHMEA_FLAGS(s) ((s)->flags)
@@ -1239,6 +1261,17 @@ typedef struct {
 
 int32_t tSerializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq);
 int32_t tDeserializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq);
+
+typedef struct {
+  char    colName[TSDB_COL_NAME_LEN];
+  char    stb[TSDB_TABLE_FNAME_LEN];
+  int64_t stbUid;
+  int64_t dbUid;
+  int64_t reserved[8];
+} SDropIndexReq;
+
+int32_t tSerializeSDropIdxReq(void* buf, int32_t bufLen, SDropIndexReq* pReq);
+int32_t tDeserializeSDropIdxReq(void* buf, int32_t bufLen, SDropIndexReq* pReq);
 
 typedef struct {
   int64_t dbUid;
@@ -2813,6 +2846,22 @@ int32_t tSerializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 
 typedef struct {
+  char   dbFName[TSDB_DB_FNAME_LEN];
+  char   stbName[TSDB_TABLE_NAME_LEN];
+  char   colName[TSDB_COL_NAME_LEN];
+  char   idxName[TSDB_COL_NAME_LEN];
+  int8_t idxType;
+} SCreateTagIndexReq;
+
+int32_t tSerializeSCreateTagIdxReq(void* buf, int32_t bufLen, SCreateTagIndexReq* pReq);
+int32_t tDeserializeSCreateTagIdxReq(void* buf, int32_t bufLen, SCreateTagIndexReq* pReq);
+
+typedef SMDropSmaReq SDropTagIndexReq;
+
+int32_t tSerializeSDropTagIdxReq(void* buf, int32_t bufLen, SDropTagIndexReq* pReq);
+int32_t tDeserializeSDropTagIdxReq(void* buf, int32_t bufLen, SDropTagIndexReq* pReq);
+
+typedef struct {
   int8_t         version;       // for compatibility(default 0)
   int8_t         intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t         slidingUnit;   // MACRO: TIME_UNIT_XXX
@@ -3307,6 +3356,12 @@ typedef struct {
   SArray* aSubmitTbData;  // SArray<SSubmitTbData>
 } SSubmitReq2;
 
+typedef struct {
+  SMsgHead header;
+  int64_t  version;
+  char     data[];  // SSubmitReq2
+} SSubmitReq2Msg;
+
 int32_t tEncodeSSubmitReq2(SEncoder* pCoder, const SSubmitReq2* pReq);
 int32_t tDecodeSSubmitReq2(SDecoder* pCoder, SSubmitReq2* pReq);
 void    tDestroySSubmitTbData(SSubmitTbData* pTbData, int32_t flag);
@@ -3323,6 +3378,7 @@ void    tDestroySSubmitRsp2(SSubmitRsp2* pRsp, int32_t flag);
 
 #define TSDB_MSG_FLG_ENCODE 0x1
 #define TSDB_MSG_FLG_DECODE 0x2
+#define TSDB_MSG_FLG_CMPT   0x3
 
 typedef struct {
   union {
