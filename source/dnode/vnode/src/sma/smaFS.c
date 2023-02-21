@@ -639,8 +639,7 @@ int32_t tdRSmaFSCopy(SSma *pSma, SRSmaFS *pFS) {
 
   code = tdRSmaFSCreate(pFS, size);
   TSDB_CHECK_CODE(code, lino, _exit);
-  taosArrayClear(pFS->aQTaskInf->pData);
-  taosArrayAddBatch(pFS->aQTaskInf->pData, qFS->aQTaskInf->pData, size);
+  taosArrayAddBatch(pFS->aQTaskInf, qFS->aQTaskInf->pData, size);
 
 _exit:
   if (code) {
