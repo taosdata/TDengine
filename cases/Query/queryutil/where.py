@@ -336,11 +336,11 @@ class TDWhere():
     def event_window_i(self,i):   
         trigger_condition = ''
         fake = Faker('zh_CN')
-        data_bigint = fake.random_int(min=-922337203685477580, max=922337203685477580, step=1);
-        data_int = fake.random_int(min=-214748364, max=214748364, step=1);
-        data_smallint = fake.random_int(min=-3276, max=3276, step=1);
-        data_tinyint = fake.random_int(min=-100, max=100, step=1);
-        data_float = fake.pyfloat()/100;
+        data_bigint = fake.random_int(min=-1000000000, max=1000000000, step=1);
+        data_int = fake.random_int(min=-1000000, max=1000000, step=1);
+        data_smallint = fake.random_int(min=-1000, max=1000, step=1);
+        data_tinyint = fake.random_int(min=-10, max=10, step=1);
+        data_float = fake.pyfloat()/1000000;
         data_str = fake.pystr();
         
         event_window_support_data_all_types = ['q_bigint','q_smallint','q_tinyint','q_int','q_bigint_null','q_smallint_null','q_tinyint_null','q_int_null'] 
@@ -614,7 +614,7 @@ class TDWhere():
         elif i == 22:
             time_window = single_state_window
             
-        #event_window    #stable
+        #event_window    #stable-right
         elif i == 31:
             time_window = single_event_window_stable_1
         elif i == 32:
@@ -626,7 +626,7 @@ class TDWhere():
         elif i == 35:
             time_window = single_event_window_stable_5
             
-        #event_window    #table
+        #event_window    #table-right
         elif i == 41:
             time_window = single_event_window_table_1
         elif i == 42:
@@ -637,6 +637,28 @@ class TDWhere():
             time_window = single_event_window_table_4
         elif i == 45:
             time_window = single_event_window_table_5
+         
+        #event_window_error    
+        elif i == 50:
+            time_window = single_event_window_stable_1 + ' ' + single_state_window 
+        elif i == 51:
+            time_window = single_event_window_stable_1 + ' ' + single_interval  
+        elif i == 52:
+            time_window = single_event_window_stable_1 + ' ' + single_interval_offset  
+        elif i == 53:
+            time_window = single_event_window_stable_1 + ' ' + single_sliding  
+        elif i == 54:
+            time_window = single_event_window_stable_1 + ' ' + single_session  
+        elif i == 55:
+            time_window = single_state_window + ' '  +  single_event_window_stable_1  
+        elif i == 56:
+            time_window = single_interval + ' '  +  single_event_window_stable_1  
+        elif i == 57:
+            time_window = single_interval_offset + ' '  +  single_event_window_stable_1     
+        elif i == 58:
+            time_window = single_sliding + ' '  +  single_event_window_stable_1    
+        elif i == 59:
+            time_window = single_session + ' '  +  single_event_window_stable_1  
 
                                
         return time_window
