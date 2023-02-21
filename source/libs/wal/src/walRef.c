@@ -26,7 +26,7 @@ SWalRef *walOpenRef(SWal *pWal) {
   }
   pRef->refId = tGenIdPI64();
   pRef->refVer = -1;
-  pRef->refFile = -1;
+//  pRef->refFile = -1;
   pRef->pWal = pWal;
   taosHashPut(pWal->pRefHash, &pRef->refId, sizeof(int64_t), &pRef, sizeof(void *));
   return pRef;
@@ -58,11 +58,11 @@ int32_t walRefVer(SWalRef *pRef, int64_t ver) {
 
     pRef->refVer = ver;
     // bsearch in fileSet
-    SWalFileInfo tmpInfo;
-    tmpInfo.firstVer = ver;
-    SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
-    ASSERT(pRet != NULL);
-    pRef->refFile = pRet->firstVer;
+//    SWalFileInfo tmpInfo;
+//    tmpInfo.firstVer = ver;
+//    SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
+//    ASSERT(pRet != NULL);
+//    pRef->refFile = pRet->firstVer;
 
     taosThreadMutexUnlock(&pWal->mutex);
   }
@@ -73,7 +73,7 @@ int32_t walRefVer(SWalRef *pRef, int64_t ver) {
 #if 1
 void walUnrefVer(SWalRef *pRef) {
   pRef->refId = -1;
-  pRef->refFile = -1;
+//  pRef->refFile = -1;
 }
 #endif
 
@@ -85,20 +85,18 @@ SWalRef *walRefFirstVer(SWal *pWal, SWalRef *pRef) {
     }
   }
   taosThreadMutexLock(&pWal->mutex);
-
   int64_t ver = walGetFirstVer(pWal);
-
-  wDebug("vgId:%d, wal ref version %" PRId64 " for first", pWal->cfg.vgId, ver);
-
   pRef->refVer = ver;
   // bsearch in fileSet
-  SWalFileInfo tmpInfo;
-  tmpInfo.firstVer = ver;
-  SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
-  ASSERT(pRet != NULL);
-  pRef->refFile = pRet->firstVer;
+//  SWalFileInfo tmpInfo;
+//  tmpInfo.firstVer = ver;
+//  SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
+//  ASSERT(pRet != NULL);
+//  pRef->refFile = pRet->firstVer;
 
   taosThreadMutexUnlock(&pWal->mutex);
+  wDebug("vgId:%d, wal ref version %" PRId64 " for first", pWal->cfg.vgId, ver);
+
   return pRef;
 }
 
@@ -119,7 +117,7 @@ SWalRef *walRefCommittedVer(SWal *pWal) {
   tmpInfo.firstVer = ver;
   SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
   ASSERT(pRet != NULL);
-  pRef->refFile = pRet->firstVer;
+//  pRef->refFile = pRet->firstVer;
 
   taosThreadMutexUnlock(&pWal->mutex);
   return pRef;
