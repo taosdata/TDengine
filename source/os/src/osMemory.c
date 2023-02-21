@@ -229,27 +229,27 @@ void taosPrintBackTrace() { return; }
 #endif
 
 int32_t taosMemoryDbgInit() {
-#if defined(LINUX)
+#if defined(LINUX) && !defined(_ALPINE)
   int ret = mallopt(M_MMAP_THRESHOLD, 0);
   if (0 == ret) {
     return TAOS_SYSTEM_ERROR(errno);
-  }  
+  }
 
   return 0;
-#else 
+#else
   return TSDB_CODE_FAILED;
 #endif
 }
 
 int32_t taosMemoryDbgInitRestore() {
-#if defined(LINUX)
+#if defined(LINUX) && !defined(_ALPINE)
   int ret = mallopt(M_MMAP_THRESHOLD, 128 * 1024);
   if (0 == ret) {
     return TAOS_SYSTEM_ERROR(errno);
-  }  
+  }
 
   return 0;
-#else 
+#else
   return TSDB_CODE_FAILED;
 #endif
 }
