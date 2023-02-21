@@ -261,6 +261,10 @@ typedef int32_t (*TUdfAggMergeFunc)(SUdfInterBuf *inputBuf1, SUdfInterBuf *input
 typedef int32_t (*TUdfAggFinishFunc)(SUdfInterBuf *buf, SUdfInterBuf *resultData);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+typedef struct SScriptUdfEnvItem{
+  char *name;
+  char *value;
+} SScriptUdfEnvItem;
 
 typedef enum EUdfFuncType {
   UDF_FUNC_TYPE_SCALAR = 1, 
@@ -291,8 +295,8 @@ typedef int32_t (*TScriptUdfInitFunc)(SScriptUdfInfo *info, void **pUdfCtx);
 typedef int32_t (*TScriptUdfDestoryFunc)(void *udfCtx);
 
 // the following function is for open/close script plugin.
-typedef int32_t (*TScriptOpenFunc)(void *scriptCtx);
-typedef int32_t (*TScriptCloseFunc)(void *scriptCtx);
+typedef int32_t (*TScriptOpenFunc)(SScriptUdfEnvItem* items, int numItems);
+typedef int32_t (*TScriptCloseFunc)();
 
 #ifdef __cplusplus
 }

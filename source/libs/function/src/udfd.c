@@ -48,9 +48,9 @@ typedef struct SUdfCPluginCtx {
   TUdfDestroyFunc destroyFunc;
 } SUdfCPluginCtx;
 
-int32_t udfdCPluginOpen(void *scriptCtx) { return 0; }
+int32_t udfdCPluginOpen(SScriptUdfEnvItem *items, int numItems) { return 0; }
 
-int32_t udfdCPluginClose(void *scriptCtx) { return 0; }
+int32_t udfdCPluginClose() { return 0; }
 
 int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
   int32_t         err = 0;
@@ -308,6 +308,9 @@ void udfdInitializeCPlugin(SUdfScriptPlugin *plugin) {
   plugin->udfAggProcFunc = udfdCPluginUdfAggProc;
   plugin->udfAggMergeFunc = udfdCPluginUdfAggMerge;
   plugin->udfAggFinishFunc = udfdCPluginUdfAggFinish;
+
+  SScriptUdfEnvItem items[0];
+  plugin->openFunc(items, 0);
   return;
 }
 
@@ -343,19 +346,45 @@ void udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
     fnError("can not load python plugin. lib path %s", plugin->libPath);
     return;
   }
+  if (plugin->openFunc) {
+    SScriptUdfEnvItem items[] ={{"PYTHONPATH", tsUdfdLdLibPath}};
+    plugin->openFunc(items, 1);
+  }
   plugin->libLoaded = true;
   return;
 }
 
 void udfdDeinitCPlugin(SUdfScriptPlugin *plugin) {
+  if (plugin->closeFunc) {
+    plugin->closeFunc();
+  }
+  plugin->openFunc = NULL;
+  plugin->closeFunc = NULL;
+  plugin->udfInitFunc = NULL;
+  plugin->udfDestroyFunc = NULL;
+  plugin->udfScalarProcFunc = NULL;
+  plugin->udfAggStartFunc = NULL;
+  plugin->udfAggProcFunc = NULL;
+  plugin->udfAggMergeFunc = NULL;
+  plugin->udfAggFinishFunc = NULL;  
   return;
 }
 
 void udfdDeinitPythonPlugin(SUdfScriptPlugin *plugin) {
+  plugin->closeFunc();
   uv_dlclose(&plugin->lib);
   if (plugin->libLoaded) {
     plugin->libLoaded = false;
   }
+  plugin->openFunc = NULL;
+  plugin->closeFunc = NULL;
+  plugin->udfInitFunc = NULL;
+  plugin->udfDestroyFunc = NULL;
+  plugin->udfScalarProcFunc = NULL;
+  plugin->udfAggStartFunc = NULL;
+  plugin->udfAggProcFunc = NULL;
+  plugin->udfAggMergeFunc = NULL;
+  plugin->udfAggFinishFunc = NULL;
 }
 
 void udfdInitScriptPlugins() {
