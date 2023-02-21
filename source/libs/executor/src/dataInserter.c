@@ -129,14 +129,15 @@ static int32_t submitReqToMsg(int32_t vgId, SSubmitReq2* pReq, void** pData, int
   tEncodeSize(tEncodeSSubmitReq2, pReq, len, code);
   if (TSDB_CODE_SUCCESS == code) {
     SEncoder encoder;
-    len += sizeof(SMsgHead);
+    len += sizeof(SSubmitReq2Msg);
     pBuf = taosMemoryMalloc(len);
     if (NULL == pBuf) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    ((SMsgHead*)pBuf)->vgId = htonl(vgId);
-    ((SMsgHead*)pBuf)->contLen = htonl(len);
-    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len - sizeof(SMsgHead));
+    ((SSubmitReq2Msg*)pBuf)->header.vgId = htonl(vgId);
+    ((SSubmitReq2Msg*)pBuf)->header.contLen = htonl(len);
+    ((SSubmitReq2Msg*)pBuf)->version = htobe64(1);
+    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SSubmitReq2Msg)), len - sizeof(SSubmitReq2Msg));
     code = tEncodeSSubmitReq2(&encoder, pReq);
     tEncoderClear(&encoder);
   }

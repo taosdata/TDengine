@@ -151,6 +151,10 @@ typedef struct STscObj {
   SHashObj*     pRequests;
 } STscObj;
 
+typedef struct STscDbg {
+  bool memEnable;
+} STscDbg;
+
 typedef struct SResultColumn {
   union {
     char*    nullbitmap;  // bitmap, one bit for each item in the list

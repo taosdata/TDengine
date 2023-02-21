@@ -261,6 +261,21 @@ if $data04 != NULL then
   goto loop2
 endi
 
+print ===== drop ...
+
+sql drop stream if exists streams0;
+sql drop stream if exists streams1;
+sql drop stream if exists streams2;
+sql drop stream if exists streams3;
+sql drop database if exists test;
+sql drop database if exists test1;
+sql drop database if exists test2;
+sql drop database if exists test3;
+sql drop database if exists result;
+sql drop database if exists result1;
+sql drop database if exists result2;
+sql drop database if exists result3;
+
 print ===== step6
 
 sql create database result4 vgroups 1;

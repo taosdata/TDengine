@@ -111,6 +111,16 @@ If the PowerTools installation fails, you can try to use:
 sudo yum config-manager --set-enabled powertools
 ```
 
+#### For CentOS + devtoolset
+
+Besides above dependencies, please run following commands:
+
+```
+sudo yum install centos-release-scl
+sudo yum install devtoolset-9 devtoolset-9-libatomic-devel
+scl enable devtoolset-9 -- bash
+```
+
 ### macOS
 
 ```
@@ -286,7 +296,7 @@ Installing from source code will also configure service management for TDengine.
 To start the service after installation, double-click the /applications/TDengine to start the program, or in a terminal, use:
 
 ```bash
-launchctl start com.tdengine.taosd
+sudo launchctl start com.tdengine.taosd
 ```
 
 Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
