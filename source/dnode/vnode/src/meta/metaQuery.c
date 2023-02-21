@@ -1375,13 +1375,14 @@ static int32_t metaGetTableTagByUid(SMeta *pMeta, int64_t suid, int64_t uid, voi
 
   return ret;
 }
-int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList, SHashObj *tags) {
-  const int32_t LIMIT = 4096;
+
+int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList) {
+  const int32_t LIMIT = 128;
 
   int32_t isLock = false;
   int32_t sz = uidList ? taosArrayGetSize(uidList) : 0;
   for (int i = 0; i < sz; i++) {
-    tb_uid_t *id = taosArrayGet(uidList, i);
+    STUidTagInfo *p = taosArrayGet(uidList, i);
 
     if (i % LIMIT == 0) {
       if (isLock) metaULock(pMeta);
@@ -1390,52 +1391,73 @@ int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList, SHas
       isLock = true;
     }
 
-    if (taosHashGet(tags, id, sizeof(tb_uid_t)) == NULL) {
-      void   *val = NULL;
-      int32_t len = 0;
-      if (metaGetTableTagByUid(pMeta, suid, *id, &val, &len, false) == 0) {
-        taosHashPut(tags, id, sizeof(tb_uid_t), val, len);
-        tdbFree(val);
-      } else {
-        metaError("vgId:%d, failed to table IDs, suid: %" PRId64 ", uid: %" PRId64 "", TD_VID(pMeta->pVnode), suid,
-                  *id);
-      }
+    //    if (taosHashGet(tags, &p->uid, sizeof(tb_uid_t)) == NULL) {
+    void   *val = NULL;
+    int32_t len = 0;
+    if (metaGetTableTagByUid(pMeta, suid, p->uid, &val, &len, false) == 0) {
+      p->pTagVal = taosMemoryMalloc(len);
+      memcpy(p->pTagVal, val, len);
+      tdbFree(val);
+    } else {
+      metaError("vgId:%d, failed to table tags, suid: %" PRId64 ", uid: %" PRId64 "", TD_VID(pMeta->pVnode), suid,
+                p->uid);
     }
   }
+  //  }
   if (isLock) metaULock(pMeta);
-
   return 0;
 }
 
-int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags) {
+int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *pUidTagInfo) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pMeta, suid, 1);
 
-  SHashObj *uHash = NULL;
-  size_t    len = taosArrayGetSize(uidList);  // len > 0 means there already have uids
-  if (len > 0) {
-    uHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-    for (int i = 0; i < len; i++) {
-      int64_t *uid = taosArrayGet(uidList, i);
-      taosHashPut(uHash, uid, sizeof(int64_t), &i, sizeof(i));
+  // If len > 0 means there already have uids, and we only want the
+  // tags of the specified tables, of which uid in the uid list. Otherwise, all table tags are retrieved and kept
+  // in the hash map, that may require a lot of memory
+  SHashObj *pSepecifiedUidMap = NULL;
+  size_t    numOfElems = taosArrayGetSize(pUidTagInfo);
+  if (numOfElems > 0) {
+    pSepecifiedUidMap =
+        taosHashInit(numOfElems / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    for (int i = 0; i < numOfElems; i++) {
+      STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, i);
+      taosHashPut(pSepecifiedUidMap, &pTagInfo->uid, sizeof(uint64_t), &i, sizeof(int32_t));
     }
   }
 
-  while (1) {
-    tb_uid_t id = metaCtbCursorNext(pCur);
-    if (id == 0) {
-      break;
-    }
+  if (numOfElems == 0) {  // all data needs to be added into the pUidTagInfo list
+    while (1) {
+      tb_uid_t uid = metaCtbCursorNext(pCur);
+      if (uid == 0) {
+        break;
+      }
 
-    if (len > 0 && taosHashGet(uHash, &id, sizeof(int64_t)) == NULL) {
-      continue;
-    } else if (len == 0) {
-      taosArrayPush(uidList, &id);
+      STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
+      info.pTagVal = taosMemoryMalloc(pCur->vLen);
+      memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
+      taosArrayPush(pUidTagInfo, &info);
     }
+  } else {  // only the specified tables need to be added
+    while (1) {
+      tb_uid_t uid = metaCtbCursorNext(pCur);
+      if (uid == 0) {
+        break;
+      }
 
-    taosHashPut(tags, &id, sizeof(int64_t), pCur->pVal, pCur->vLen);
+      int32_t *index = taosHashGet(pSepecifiedUidMap, &uid, sizeof(uint64_t));
+      if (index == NULL) {
+        continue;
+      }
+
+      STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, *index);
+      if (pTagInfo->pTagVal == NULL) {
+        pTagInfo->pTagVal = taosMemoryMalloc(pCur->vLen);
+        memcpy(pTagInfo->pTagVal, pCur->pVal, pCur->vLen);
+      }
+    }
   }
 
-  taosHashCleanup(uHash);
+  taosHashCleanup(pSepecifiedUidMap);
   metaCloseCtbCursor(pCur, 1);
   return TSDB_CODE_SUCCESS;
 }

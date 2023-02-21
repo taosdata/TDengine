@@ -112,7 +112,12 @@ typedef struct SRpcInit {
   // fail fast fp
   RpcFFfp ffp;
 
-  void *parent;
+  int32_t connLimitNum;
+  int32_t connLimitLock;
+
+  int8_t  supportBatch;  // 0: no batch, 1. batch
+  int32_t batchSize;
+  void   *parent;
 } SRpcInit;
 
 typedef struct {

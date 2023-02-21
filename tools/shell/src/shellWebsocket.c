@@ -224,8 +224,8 @@ void shellRunSingleCommandWebsocketImp(char *command) {
     res = ws_query_timeout(shell.ws_conn, command, shell.args.timeout);
     int code = ws_errno(res);
     if (code != 0 && !shell.stop_query) {
-      // websocket interface masked off first bit from standard error number.
-      if (TSDB_CODE_PAR_SYNTAX_ERROR == (code|0x80000000)) {
+      // if it's not a ws connection error
+      if (TSDB_CODE_WS_DSN_ERROR != (code&TSDB_CODE_WS_DSN_ERROR)) {
         et = taosGetTimestampUs();
         fprintf(stderr, "\nDB: error: %s (%.6fs)\n", ws_errstr(res), (et - st)/1E6);
         ws_free_result(res);

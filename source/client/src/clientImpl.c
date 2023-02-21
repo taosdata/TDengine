@@ -323,7 +323,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return;
   }
 
-  int32_t code = qExecCommand(&pRequest->pTscObj->id ,pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
+  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
@@ -465,7 +465,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
 }
 
 void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols) {
-  if(pResInfo == NULL || pSchema == NULL || numOfCols <= 0){
+  if (pResInfo == NULL || pSchema == NULL || numOfCols <= 0) {
     tscError("invalid paras, pResInfo == NULL || pSchema == NULL || numOfCols <= 0");
     return;
   }
@@ -479,7 +479,7 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
   }
   pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
   pResInfo->userFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
-  if(numOfCols != pResInfo->numOfCols){
+  if (numOfCols != pResInfo->numOfCols) {
     tscError("numOfCols:%d != pResInfo->numOfCols:%d", numOfCols, pResInfo->numOfCols);
     return;
   }
@@ -925,7 +925,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     removeMeta(pTscObj, pRequest->targetTableList);
   }
 
-  pRequest->metric.execEnd = taosGetTimestampUs();
+  pRequest->metric.execCostUs = taosGetTimestampUs() - pRequest->metric.execStart;
   int32_t code1 = handleQueryExecRsp(pRequest);
   if (pRequest->code == TSDB_CODE_SUCCESS && pRequest->code != code1) {
     pRequest->code = code1;
@@ -1051,11 +1051,10 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     pRequest->body.subplanNum = pDag->numOfSubplans;
   }
 
-  pRequest->metric.planEnd = taosGetTimestampUs();
-  if (code == TSDB_CODE_SUCCESS) {
-    tscDebug("0x%" PRIx64 " create query plan success, elapsed time:%.2f ms, 0x%" PRIx64, pRequest->self,
-             (pRequest->metric.planEnd - st) / 1000.0, pRequest->requestId);
-  }
+  pRequest->metric.execStart = taosGetTimestampUs();
+
+  pRequest->metric.planCostUs = pRequest->metric.execStart - st;
+
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
     SArray* pNodeList = NULL;
     if (QUERY_NODE_VNODE_MODIFY_STMT != nodeType(pQuery->pRoot)) {
@@ -1101,6 +1100,17 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
   pRequest->body.execMode = pQuery->execMode;
   if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
     destorySqlCallbackWrapper(pWrapper);
+  }
+
+  if (pQuery->pRoot && !pRequest->inRetry) {
+    STscObj*            pTscObj = pRequest->pTscObj;
+    SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
+    if (QUERY_NODE_VNODE_MODIFY_STMT == pQuery->pRoot->type &&
+        (0 == ((SVnodeModifyOpStmt*)pQuery->pRoot)->sqlNodeType)) {
+      atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertsReq, 1);
+    } else if (QUERY_NODE_SELECT_STMT == pQuery->pRoot->type) {
+      atomic_add_fetch_64((int64_t*)&pActivity->numOfQueryReq, 1);
+    }
   }
 
   switch (pQuery->execMode) {
@@ -1358,7 +1368,7 @@ int32_t doProcessMsgFromServer(void* param) {
   SEpSet*   pEpSet = arg->pEpset;
 
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
-  if(pMsg->info.ahandle == NULL){
+  if (pMsg->info.ahandle == NULL) {
     tscError("doProcessMsgFromServer pMsg->info.ahandle == NULL");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
@@ -1374,24 +1384,12 @@ int32_t doProcessMsgFromServer(void* param) {
   if (pSendInfo->requestObjRefId != 0) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);
     if (pRequest) {
-      if(pRequest->self != pSendInfo->requestObjRefId){
-        tscError("doProcessMsgFromServer pRequest->self:%"PRId64" != pSendInfo->requestObjRefId:%"PRId64, pRequest->self, pSendInfo->requestObjRefId);
+      if (pRequest->self != pSendInfo->requestObjRefId) {
+        tscError("doProcessMsgFromServer pRequest->self:%" PRId64 " != pSendInfo->requestObjRefId:%" PRId64,
+                 pRequest->self, pSendInfo->requestObjRefId);
         return TSDB_CODE_TSC_INTERNAL_ERROR;
       }
-      pRequest->metric.rsp = taosGetTimestampUs();
       pTscObj = pRequest->pTscObj;
-      /*
-       * There is not response callback function for submit response.
-       * The actual inserted number of points is the first number.
-       */
-      int32_t elapsed = pRequest->metric.rsp - pRequest->metric.start;
-      if (pMsg->code == TSDB_CODE_SUCCESS) {
-        tscDebug("0x%" PRIx64 " rsp msg:%s, code:%s rspLen:%d, elapsed:%d ms, reqId:0x%" PRIx64, pRequest->self,
-                 TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), pMsg->contLen, elapsed / 1000, pRequest->requestId);
-      } else {
-        tscError("0x%" PRIx64 " rsp msg:%s, code:%s rspLen:%d, elapsed time:%d ms, reqId:0x%" PRIx64, pRequest->self,
-                 TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), pMsg->contLen, elapsed / 1000, pRequest->requestId);
-      }
     }
   }
 
@@ -1523,7 +1521,7 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
 }
 
 void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
-  if(pRequest == NULL){
+  if (pRequest == NULL) {
     return NULL;
   }
 
@@ -1579,7 +1577,7 @@ static void syncFetchFn(void* param, TAOS_RES* res, int32_t numOfRows) {
 }
 
 void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
-  if(pRequest == NULL){
+  if (pRequest == NULL) {
     return NULL;
   }
 
@@ -1645,8 +1643,11 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
           char* pStart = pCol->offset[j] + pCol->pData;
 
           int32_t len = taosUcs4ToMbs((TdUcs4*)varDataVal(pStart), varDataLen(pStart), varDataVal(p));
-          if(len > bytes || (p + len) >= (pResultInfo->convertBuf[i] + colLength[i])){
-            tscError("doConvertUCS4 error, invalid data. len:%d, bytes:%d, (p + len):%p, (pResultInfo->convertBuf[i] + colLength[i]):%p", len, bytes, (p + len), (pResultInfo->convertBuf[i] + colLength[i]));
+          if (len > bytes || (p + len) >= (pResultInfo->convertBuf[i] + colLength[i])) {
+            tscError(
+                "doConvertUCS4 error, invalid data. len:%d, bytes:%d, (p + len):%p, (pResultInfo->convertBuf[i] + "
+                "colLength[i]):%p",
+                len, bytes, (p + len), (pResultInfo->convertBuf[i] + colLength[i]));
             return TSDB_CODE_TSC_INTERNAL_ERROR;
           }
 
@@ -1675,7 +1676,7 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
   // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
   // length |
   int32_t cols = *(int32_t*)(p + sizeof(int32_t) * 3);
-  if(ASSERT(numOfCols == cols)){
+  if (ASSERT(numOfCols == cols)) {
     tscError("estimateJsonLen error: numOfCols:%d != cols:%d", numOfCols, cols);
     return -1;
   }
@@ -1748,7 +1749,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
 
   char*   p = (char*)pResultInfo->pData;
   int32_t dataLen = estimateJsonLen(pResultInfo, numOfCols, numOfRows);
-  if(dataLen <= 0){
+  if (dataLen <= 0) {
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
@@ -1758,7 +1759,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
 
   int32_t totalLen = 0;
   int32_t cols = *(int32_t*)(p + sizeof(int32_t) * 3);
-  if(ASSERT(numOfCols == cols)){
+  if (ASSERT(numOfCols == cols)) {
     tscError("doConvertJson error: numOfCols:%d != cols:%d", numOfCols, cols);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
@@ -1783,7 +1784,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   for (int32_t i = 0; i < numOfCols; ++i) {
     int32_t colLen = htonl(colLength[i]);
     int32_t colLen1 = htonl(colLength1[i]);
-    if(ASSERT(colLen < dataLen)){
+    if (ASSERT(colLen < dataLen)) {
       tscError("doConvertJson error: colLen:%d >= dataLen:%d", colLen, dataLen);
       return TSDB_CODE_TSC_INTERNAL_ERROR;
     }
@@ -1870,7 +1871,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
 
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows,
                          bool convertUcs4) {
-  if(ASSERT(numOfCols > 0 && pFields != NULL && pResultInfo != NULL)){
+  if (ASSERT(numOfCols > 0 && pFields != NULL && pResultInfo != NULL)) {
     tscError("setResultDataPtr paras error");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
@@ -1902,8 +1903,9 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   int32_t cols = *(int32_t*)p;
   p += sizeof(int32_t);
 
-  if(ASSERT(rows == numOfRows && cols == numOfCols)){
-    tscError("setResultDataPtr paras error:rows;%d numOfRows:%d cols:%d numOfCols:%d", rows, numOfRows, cols, numOfCols);
+  if (ASSERT(rows == numOfRows && cols == numOfCols)) {
+    tscError("setResultDataPtr paras error:rows;%d numOfRows:%d cols:%d numOfCols:%d", rows, numOfRows, cols,
+             numOfCols);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
@@ -1970,7 +1972,7 @@ char* getDbOfConnection(STscObj* pObj) {
 }
 
 void setConnectionDB(STscObj* pTscObj, const char* db) {
-  if(db == NULL || pTscObj == NULL){
+  if (db == NULL || pTscObj == NULL) {
     tscError("setConnectionDB para is NULL");
     return;
   }
@@ -1992,7 +1994,7 @@ void resetConnectDB(STscObj* pTscObj) {
 
 int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4,
                               bool freeAfterUse) {
-  if(pResultInfo == NULL || pRsp == NULL){
+  if (pResultInfo == NULL || pRsp == NULL) {
     tscError("setQueryResultFromRsp paras is null");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }

@@ -749,28 +749,30 @@ int walMetaDeserialize(SWal* pWal, const char* bytes) {
   // deserialize
   SArray* pArray = pWal->fileInfoSet;
   taosArrayEnsureCap(pArray, sz);
-  SWalFileInfo* pData = pArray->pData;
+
   for (int i = 0; i < sz; i++) {
-    cJSON* pInfoJson = cJSON_GetArrayItem(pFiles, i);
+    pInfoJson = cJSON_GetArrayItem(pFiles, i);
     if (!pInfoJson) goto _err;
-    SWalFileInfo* pInfo = &pData[i];
+
+    SWalFileInfo info = {0};
+
     pField = cJSON_GetObjectItem(pInfoJson, "firstVer");
     if (!pField) goto _err;
-    pInfo->firstVer = atoll(cJSON_GetStringValue(pField));
+    info.firstVer = atoll(cJSON_GetStringValue(pField));
     pField = cJSON_GetObjectItem(pInfoJson, "lastVer");
     if (!pField) goto _err;
-    pInfo->lastVer = atoll(cJSON_GetStringValue(pField));
+    info.lastVer = atoll(cJSON_GetStringValue(pField));
     pField = cJSON_GetObjectItem(pInfoJson, "createTs");
     if (!pField) goto _err;
-    pInfo->createTs = atoll(cJSON_GetStringValue(pField));
+    info.createTs = atoll(cJSON_GetStringValue(pField));
     pField = cJSON_GetObjectItem(pInfoJson, "closeTs");
     if (!pField) goto _err;
-    pInfo->closeTs = atoll(cJSON_GetStringValue(pField));
+    info.closeTs = atoll(cJSON_GetStringValue(pField));
     pField = cJSON_GetObjectItem(pInfoJson, "fileSize");
     if (!pField) goto _err;
-    pInfo->fileSize = atoll(cJSON_GetStringValue(pField));
+    info.fileSize = atoll(cJSON_GetStringValue(pField));
+    taosArrayPush(pArray, &info);
   }
-  taosArraySetSize(pArray, sz);
   pWal->fileInfoSet = pArray;
   pWal->writeCur = sz - 1;
   cJSON_Delete(pRoot);
