@@ -413,7 +413,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 
   int32_t serverEpoch = atomic_load_32(&pConsumer->epoch);
 
-  // 2. check epoch, only send ep info when epoches do not match
+  // 2. check epoch, only send ep info when epochs do not match
   if (epoch != serverEpoch) {
     taosRLockLatch(&pConsumer->lock);
     mInfo("process ask ep, consumer:%" PRId64 "(epoch %d), server epoch %d", consumerId, epoch, serverEpoch);

@@ -58,15 +58,14 @@ struct tmq_list_t {
 };
 
 struct tmq_conf_t {
-  char    clientId[256];
-  char    groupId[TSDB_CGROUP_LEN];
-  int8_t  autoCommit;
-  int8_t  resetOffset;
-  int8_t  withTbName;
-  int8_t  snapEnable;
-  int32_t snapBatchSize;
-  bool    hbBgEnable;
-
+  char           clientId[256];
+  char           groupId[TSDB_CGROUP_LEN];
+  int8_t         autoCommit;
+  int8_t         resetOffset;
+  int8_t         withTbName;
+  int8_t         snapEnable;
+  int32_t        snapBatchSize;
+  bool           hbBgEnable;
   uint16_t       port;
   int32_t        autoCommitInterval;
   char*          ip;
@@ -213,6 +212,7 @@ typedef struct {
 typedef struct {
   SMqCommitCbParamSet* params;
   STqOffset*           pOffset;
+  SMqClientVg*         pMqVg;
   /*char                 topicName[TSDB_TOPIC_FNAME_LEN];*/
   /*int32_t              vgId;*/
 } SMqCommitCbParam;
@@ -440,6 +440,17 @@ int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
   }
 #endif
 
+  // there may be race condition. fix it
+  if (pBuf->pEpSet != NULL && pParam->pMqVg != NULL) {
+    SMqClientVg* pMqVg = pParam->pMqVg;
+
+    SEp* pEp = GET_ACTIVE_EP(pBuf->pEpSet);
+    SEp* pOld = GET_ACTIVE_EP(&(pMqVg->epSet));
+    uDebug("subKey:%s update the epset vgId:%d, ep:%s:%d, old ep:%s:%d", pParam->pOffset->subKey, pMqVg->vgId,
+           pEp->fqdn, pEp->port, pOld->fqdn, pOld->port);
+    pParam->pMqVg->epSet = *pBuf->pEpSet;
+  }
+
   taosMemoryFree(pParam->pOffset);
   taosMemoryFree(pBuf->pData);
   taosMemoryFree(pBuf->pEpSet);
@@ -448,7 +459,6 @@ int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
    * pOffset->version);*/
 
   tmqCommitRspCountDown(pParamSet);
-
   return 0;
 }
 
@@ -498,6 +508,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
 
   pParam->params = pParamSet;
   pParam->pOffset = pOffset;
+  pParam->pMqVg = pVg;  // there may be an race condition
 
   // build send info
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
@@ -518,7 +529,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
   tscDebug("consumer:0x%" PRIx64 " topic:%s on vgId:%d offset:%" PRId64" prev:%"PRId64", ep:%s:%d", tmq->consumerId, pOffset->subKey,
            pVg->vgId, pOffset->val.version, pVg->committedOffset.version, pEp->fqdn, pEp->port);
 
-  // TODO: put into cb
+  // TODO: put into cb, the commit offset should be move to the callback function
   pVg->committedOffset = pVg->currentOffset;
 
   pMsgSendInfo->requestId = generateRequestId();

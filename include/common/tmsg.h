@@ -1830,7 +1830,7 @@ typedef struct {
 } SMqConsumerLostMsg, SMqConsumerRecoverMsg, SMqConsumerClearMsg;
 
 typedef struct {
-  uint64_t consumerId;
+  int64_t  consumerId;
   char     cgroup[TSDB_CGROUP_LEN];
   char     clientId[256];
   SArray*  topicNames;  // SArray<char**>
