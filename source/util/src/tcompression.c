@@ -356,7 +356,6 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
 
               shiftBits = _mm256_add_epi64(shiftBits, inc);
               prev_value = p[_pos + 3];
-
 //              uDebug("_pos:%d %"PRId64", %"PRId64", %"PRId64", %"PRId64, _pos, p[_pos], p[_pos+1], p[_pos+2], p[_pos+3]);
               _pos += 4;
             }
