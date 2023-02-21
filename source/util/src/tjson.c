@@ -325,11 +325,10 @@ int32_t tjsonToTArray(const SJson* pJson, const char* pName, FToObject func, SAr
   const cJSON* jArray = tjsonGetObjectItem(pJson, pName);
   int32_t      size = tjsonGetArraySize(jArray);
   if (size > 0) {
-    *pArray = taosArrayInit(size, itemSize);
+    *pArray = taosArrayInit_s(size, itemSize, size);
     if (NULL == *pArray) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    taosArraySetSize(*pArray, size);
     for (int32_t i = 0; i < size; ++i) {
       int32_t code = func(tjsonGetArrayItem(jArray, i), taosArrayGet(*pArray, i));
       if (TSDB_CODE_SUCCESS != code) {

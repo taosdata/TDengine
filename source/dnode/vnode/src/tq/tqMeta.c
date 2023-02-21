@@ -209,6 +209,8 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
   tEncoderInit(&encoder, buf, vlen);
 
   if (tEncodeSTqHandle(&encoder, pHandle) < 0) {
+    tEncoderClear(&encoder);
+    taosMemoryFree(buf);
     return -1;
   }
 
@@ -216,18 +218,26 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
 
   if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
       0) {
+    tEncoderClear(&encoder);
+    taosMemoryFree(buf);
     return -1;
   }
 
   if (tdbTbUpsert(pTq->pExecStore, key, (int)strlen(key), buf, vlen, txn) < 0) {
+    tEncoderClear(&encoder);
+    taosMemoryFree(buf);
     return -1;
   }
 
   if (tdbCommit(pTq->pMetaDB, txn) < 0) {
+    tEncoderClear(&encoder);
+    taosMemoryFree(buf);
     return -1;
   }
 
   if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
+    tEncoderClear(&encoder);
+    taosMemoryFree(buf);
     return -1;
   }
 

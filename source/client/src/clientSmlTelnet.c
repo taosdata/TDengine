@@ -20,16 +20,17 @@
 
 #include "clientSml.h"
 
-int32_t is_same_child_table_telnet(const void *a, const void *b){
+int32_t is_same_child_table_telnet(const void *a, const void *b) {
   SSmlLineInfo *t1 = (SSmlLineInfo *)a;
   SSmlLineInfo *t2 = (SSmlLineInfo *)b;
-//  uError("is_same_child_table_telnet len:%d,%d %s,%s @@@ len:%d,%d %s,%s", t1->measureLen, t2->measureLen,
-//         t1->measure, t2->measure, t1->tagsLen, t2->tagsLen, t1->tags, t2->tags);
-  if(t1 == NULL || t2 == NULL || t1->measure == NULL || t2->measure == NULL
-      || t1->tags == NULL || t2->tags == NULL)
+  //  uError("is_same_child_table_telnet len:%d,%d %s,%s @@@ len:%d,%d %s,%s", t1->measureLen, t2->measureLen,
+  //         t1->measure, t2->measure, t1->tagsLen, t2->tagsLen, t1->tags, t2->tags);
+  if (t1 == NULL || t2 == NULL || t1->measure == NULL || t2->measure == NULL || t1->tags == NULL || t2->tags == NULL)
     return 1;
-  return (((t1->measureLen == t2->measureLen) && memcmp(t1->measure, t2->measure, t1->measureLen) == 0)
-          && ((t1->tagsLen == t2->tagsLen) && memcmp(t1->tags, t2->tags, t1->tagsLen) == 0)) ? 0 : 1;
+  return (((t1->measureLen == t2->measureLen) && memcmp(t1->measure, t2->measure, t1->measureLen) == 0) &&
+          ((t1->tagsLen == t2->tagsLen) && memcmp(t1->tags, t2->tags, t1->tagsLen) == 0))
+             ? 0
+             : 1;
 }
 
 int64_t smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t len) {
@@ -40,7 +41,7 @@ int64_t smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t len) {
     return -1;
   }
   if (unlikely(len == 1 && data[0] == '0')) {
-    return taosGetTimestampNs()/smlFactorNS[toPrecision];
+    return taosGetTimestampNs() / smlFactorNS[toPrecision];
   }
   int8_t fromPrecision = smlGetTsTypeByLen(len);
   if (unlikely(fromPrecision == -1)) {
@@ -56,7 +57,6 @@ int64_t smlParseOpenTsdbTime(SSmlHandle *info, const char *data, int32_t len) {
   return ts;
 }
 
-
 static void smlParseTelnetElement(char **sql, char *sqlEnd, char **data, int32_t *len) {
   while (*sql < sqlEnd) {
     if (unlikely((**sql != SPACE && !(*data)))) {
@@ -70,7 +70,7 @@ static void smlParseTelnetElement(char **sql, char *sqlEnd, char **data, int32_t
 }
 
 static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SSmlLineInfo *elements, SSmlMsgBuf *msg) {
-  if(is_same_child_table_telnet(elements, &info->preLine) == 0){
+  if (is_same_child_table_telnet(elements, &info->preLine) == 0) {
     elements->measureTag = info->preLine.measureTag;
     return TSDB_CODE_SUCCESS;
   }
@@ -82,15 +82,15 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
   SArray *maxKVs = info->maxTagKVs;
   bool    isSuperKVInit = true;
   SArray *superKV = NULL;
-  if(info->dataFormat){
-    if(!isSameMeasure){
+  if (info->dataFormat) {
+    if (!isSameMeasure) {
       SSmlSTableMeta **tmp = (SSmlSTableMeta **)taosHashGet(info->superTables, elements->measure, elements->measureLen);
-      SSmlSTableMeta *sMeta = NULL;
-      if(unlikely(tmp == NULL)){
-        STableMeta * pTableMeta = smlGetMeta(info, elements->measure, elements->measureLen);
-        if(pTableMeta == NULL){
+      SSmlSTableMeta  *sMeta = NULL;
+      if (unlikely(tmp == NULL)) {
+        STableMeta *pTableMeta = smlGetMeta(info, elements->measure, elements->measureLen);
+        if (pTableMeta == NULL) {
           info->dataFormat = false;
-          info->reRun      = true;
+          info->reRun = true;
           return TSDB_CODE_SUCCESS;
         }
         sMeta = smlBuildSTableMeta(info->dataFormat);
@@ -101,23 +101,23 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
       info->currSTableMeta = (*tmp)->tableMeta;
       superKV = (*tmp)->tags;
 
-      if(unlikely(taosArrayGetSize(superKV) == 0)){
+      if (unlikely(taosArrayGetSize(superKV) == 0)) {
         isSuperKVInit = false;
       }
-      taosArraySetSize(maxKVs, 0);
+      taosArrayClear(maxKVs);
     }
-  }else{
-    taosArraySetSize(maxKVs, 0);
+  } else {
+    taosArrayClear(maxKVs);
   }
 
-  taosArraySetSize(preLineKV, 0);
+  taosArrayClear(preLineKV);
   const char *sql = data;
   while (sql < sqlEnd) {
     JUMP_SPACE(sql, sqlEnd)
     if (unlikely(*sql == '\0')) break;
 
     const char *key = sql;
-    size_t     keyLen = 0;
+    size_t      keyLen = 0;
 
     // parse key
     while (sql < sqlEnd) {
@@ -137,14 +137,14 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
       smlBuildInvalidDataMsg(msg, "invalid key or key is too long than 64", key);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
-//    if (smlCheckDuplicateKey(key, keyLen, dumplicateKey)) {
-//      smlBuildInvalidDataMsg(msg, "dumplicate key", key);
-//      return TSDB_CODE_TSC_DUP_NAMES;
-//    }
+    //    if (smlCheckDuplicateKey(key, keyLen, dumplicateKey)) {
+    //      smlBuildInvalidDataMsg(msg, "dumplicate key", key);
+    //      return TSDB_CODE_TSC_DUP_NAMES;
+    //    }
 
     // parse value
     const char *value = sql;
-    size_t     valueLen = 0;
+    size_t      valueLen = 0;
     while (sql < sqlEnd) {
       // parse value
       if (unlikely(*sql == SPACE)) {
@@ -169,24 +169,25 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
 
     SSmlKv kv = {.key = key, .keyLen = keyLen, .type = TSDB_DATA_TYPE_NCHAR, .value = value, .length = valueLen};
 
-    if(info->dataFormat){
-      if(unlikely(cnt + 1 > info->currSTableMeta->tableInfo.numOfTags)){
+    if (info->dataFormat) {
+      if (unlikely(cnt + 1 > info->currSTableMeta->tableInfo.numOfTags)) {
         info->dataFormat = false;
-        info->reRun      = true;
+        info->reRun = true;
         return TSDB_CODE_SUCCESS;
       }
 
-      if(isSameMeasure){
-        if(unlikely(cnt >= taosArrayGetSize(maxKVs))) {
+      if (isSameMeasure) {
+        if (unlikely(cnt >= taosArrayGetSize(maxKVs))) {
           info->dataFormat = false;
-          info->reRun      = true;
+          info->reRun = true;
           return TSDB_CODE_SUCCESS;
         }
         SSmlKv *maxKV = (SSmlKv *)taosArrayGet(maxKVs, cnt);
-        if(unlikely(kv.length > maxKV->length)){
+        if (unlikely(kv.length > maxKV->length)) {
           maxKV->length = kv.length;
-          SSmlSTableMeta **tableMeta = (SSmlSTableMeta **)taosHashGet(info->superTables, elements->measure, elements->measureLen);
-          if(unlikely(NULL == tableMeta)){
+          SSmlSTableMeta **tableMeta =
+              (SSmlSTableMeta **)taosHashGet(info->superTables, elements->measure, elements->measureLen);
+          if (unlikely(NULL == tableMeta)) {
             uError("SML:0x%" PRIx64 " NULL == tableMeta", info->id);
             return TSDB_CODE_SML_INTERNAL_ERROR;
           }
@@ -195,49 +196,50 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
           oldKV->length = kv.length;
           info->needModifySchema = true;
         }
-        if(unlikely(!IS_SAME_KEY)){
+        if (unlikely(!IS_SAME_KEY)) {
           info->dataFormat = false;
-          info->reRun      = true;
+          info->reRun = true;
           return TSDB_CODE_SUCCESS;
         }
-      }else{
-        if(isSuperKVInit){
-          if(unlikely(cnt >= taosArrayGetSize(superKV))) {
+      } else {
+        if (isSuperKVInit) {
+          if (unlikely(cnt >= taosArrayGetSize(superKV))) {
             info->dataFormat = false;
-            info->reRun      = true;
+            info->reRun = true;
             return TSDB_CODE_SUCCESS;
           }
           SSmlKv *maxKV = (SSmlKv *)taosArrayGet(superKV, cnt);
-          if(unlikely(kv.length > maxKV->length)) {
+          if (unlikely(kv.length > maxKV->length)) {
             maxKV->length = kv.length;
-          }else{
+          } else {
             kv.length = maxKV->length;
           }
           info->needModifySchema = true;
 
-          if(unlikely(!IS_SAME_KEY)){
+          if (unlikely(!IS_SAME_KEY)) {
             info->dataFormat = false;
-            info->reRun      = true;
+            info->reRun = true;
             return TSDB_CODE_SUCCESS;
           }
-        }else{
+        } else {
           taosArrayPush(superKV, &kv);
         }
         taosArrayPush(maxKVs, &kv);
       }
-    }else{
+    } else {
       taosArrayPush(maxKVs, &kv);
     }
     taosArrayPush(preLineKV, &kv);
     cnt++;
   }
 
-  elements->measureTag = (char*)taosMemoryMalloc(elements->measureLen + elements->tagsLen);
+  elements->measureTag = (char *)taosMemoryMalloc(elements->measureLen + elements->tagsLen);
   memcpy(elements->measureTag, elements->measure, elements->measureLen);
   memcpy(elements->measureTag + elements->measureLen, elements->tags, elements->tagsLen);
   elements->measureTagsLen = elements->measureLen + elements->tagsLen;
 
-  SSmlTableInfo **tmp = (SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen);
+  SSmlTableInfo **tmp =
+      (SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen);
   SSmlTableInfo *tinfo = NULL;
   if (unlikely(tmp == NULL)) {
     tinfo = smlBuildTableInfo(1, elements->measure, elements->measureLen);
@@ -258,10 +260,11 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
       }
     }
 
-//    SSmlLineInfo *key = (SSmlLineInfo *)taosMemoryMalloc(sizeof(SSmlLineInfo));
-//    *key = *elements;
-//    tinfo->key = key;
-    taosHashPut(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen, &tinfo, POINTER_BYTES);
+    //    SSmlLineInfo *key = (SSmlLineInfo *)taosMemoryMalloc(sizeof(SSmlLineInfo));
+    //    *key = *elements;
+    //    tinfo->key = key;
+    taosHashPut(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen, &tinfo,
+                POINTER_BYTES);
     tmp = &tinfo;
   }
   if (info->dataFormat) info->currTableDataCtx = (*tmp)->tableDataCtx;
@@ -288,7 +291,7 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   }
 
   bool needConverTime = false;  // get TS before parse tag(get meta), so need conver time
-  if(info->dataFormat && info->currSTableMeta == NULL){
+  if (info->dataFormat && info->currSTableMeta == NULL) {
     needConverTime = true;
   }
   int64_t ts = smlParseOpenTsdbTime(info, elements->timestamp, elements->timestampLen);
@@ -296,7 +299,11 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp", sql);
     return TSDB_CODE_INVALID_TIMESTAMP;
   }
-  SSmlKv kvTs = { .key = TS, .keyLen = TS_LEN, .type = TSDB_DATA_TYPE_TIMESTAMP, .i = ts, .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
+  SSmlKv kvTs = {.key = TS,
+                 .keyLen = TS_LEN,
+                 .type = TSDB_DATA_TYPE_TIMESTAMP,
+                 .i = ts,
+                 .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
 
   // parse value
   smlParseTelnetElement(&sql, sqlEnd, &elements->cols, &elements->colsLen);
@@ -324,19 +331,19 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     return ret;
   }
 
-  if(unlikely(info->reRun)){
+  if (unlikely(info->reRun)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if(info->dataFormat){
-    if(needConverTime) {
+  if (info->dataFormat) {
+    if (needConverTime) {
       kvTs.i = convertTimePrecision(kvTs.i, TSDB_TIME_PRECISION_NANO, info->currSTableMeta->tableInfo.precision);
     }
     ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kvTs, 0);
-    if(ret == TSDB_CODE_SUCCESS){
+    if (ret == TSDB_CODE_SUCCESS) {
       ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, 1);
     }
-    if(ret == TSDB_CODE_SUCCESS){
+    if (ret == TSDB_CODE_SUCCESS) {
       ret = smlBuildRow(info->currTableDataCtx);
     }
     clearColValArray(info->currTableDataCtx->pValues);
@@ -344,8 +351,8 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
       smlBuildInvalidDataMsg(&info->msgBuf, "smlBuildCol error", NULL);
       return ret;
     }
-  }else{
-    if(elements->colArray == NULL){
+  } else {
+    if (elements->colArray == NULL) {
       elements->colArray = taosArrayInit(16, sizeof(SSmlKv));
     }
     taosArrayPush(elements->colArray, &kvTs);

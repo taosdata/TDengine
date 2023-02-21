@@ -5592,6 +5592,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
     if (tEncodeI16(&encoder, pCol->colId) < 0) return -1;
     if (tEncodeI8(&encoder, pCol->type) < 0) return -1;
   }
+  if (tEncodeI64(&encoder, pReq->deleteMark) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igUpdate) < 0) return -1;
 
   tEndEncode(&encoder);
@@ -5676,6 +5677,7 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
     }
   }
 
+  if (tDecodeI64(&decoder, &pReq->deleteMark) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igUpdate) < 0) return -1;
 
   tEndDecode(&decoder);

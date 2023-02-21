@@ -785,6 +785,10 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
+
+      if (pInfo->pResBlock->info.capacity > pOperator->resultInfo.capacity) {
+        pOperator->resultInfo.capacity = pInfo->pResBlock->info.capacity;
+      }
     }
 
     SSDataBlock* result = doGroupedTableScan(pOperator);
@@ -888,7 +892,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
-  blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
+  //  blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
 
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1175,6 +1179,20 @@ static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32
   }
 }
 
+static int32_t getPreSessionWindow(SStreamAggSupporter* pAggSup, TSKEY startTs, TSKEY endTs, uint64_t groupId,
+                                   SSessionKey* pKey) {
+  pKey->win.skey = startTs;
+  pKey->win.ekey = endTs;
+  pKey->groupId = groupId;
+
+  SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentPrev(pAggSup->pState, pKey);
+  int32_t          code = streamStateSessionGetKVByCur(pCur, pKey, NULL, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    SET_SESSION_WIN_KEY_INVALID(pKey);
+  }
+  return code;
+}
+
 static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
   blockDataCleanup(pDestBlock);
   if (pSrcBlock->info.rows == 0) {
@@ -1210,7 +1228,14 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
     }
     SSessionKey endWin = {0};
     getCurSessionWindow(pInfo->windowSup.pStreamAggSup, endData[i], endData[i], groupId, &endWin);
-    ASSERT(!IS_INVALID_SESSION_WIN_KEY(endWin));
+    if (IS_INVALID_SESSION_WIN_KEY(endWin)) {
+      getPreSessionWindow(pInfo->windowSup.pStreamAggSup, endData[i], endData[i], groupId, &endWin);
+    }
+    if (IS_INVALID_SESSION_WIN_KEY(startWin)) {
+      // window has been closed.
+      qError("generate session scan range failed. rang start:%" PRIx64 ", end:%" PRIx64, startData[i], endData[i]);
+      continue;
+    }
     colDataAppend(pDestStartCol, i, (const char*)&startWin.win.skey, false);
     colDataAppend(pDestEndCol, i, (const char*)&endWin.win.ekey, false);
 
@@ -1433,7 +1458,7 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
     dumyInfo.cur.pageId = -1;
     bool        isClosed = false;
     STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
-    bool overDue = isOverdue(tsCol[rowId], &pInfo->twAggSup);
+    bool        overDue = isOverdue(tsCol[rowId], &pInfo->twAggSup);
     if (pInfo->igExpired && overDue) {
       continue;
     }
@@ -1607,19 +1632,20 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__LOG) {
     while (1) {
       SFetchRet ret = {0};
-      tqNextBlock(pInfo->tqReader, &ret);
+      if (tqNextBlock(pInfo->tqReader, &ret) < 0) {
+        qError("failed to get next log block since %s", terrstr());
+      }
       if (ret.fetchType == FETCH_TYPE__DATA) {
         blockDataCleanup(pInfo->pRes);
-        if (setBlockIntoRes(pInfo, &ret.data, true) < 0) {
-          ASSERT(0);
-        }
+        setBlockIntoRes(pInfo, &ret.data, true);
         if (pInfo->pRes->info.rows > 0) {
           pOperator->status = OP_EXEC_RECV;
           qDebug("queue scan log return %d rows", pInfo->pRes->info.rows);
           return pInfo->pRes;
         }
       } else if (ret.fetchType == FETCH_TYPE__META) {
-        ASSERT(0);
+        qError("unexpected ret.fetchType:%d", ret.fetchType);
+        continue;
         //        pTaskInfo->streamInfo.lastStatus = ret.offset;
         //        pTaskInfo->streamInfo.metaBlk = ret.meta;
         //        return NULL;
@@ -1646,7 +1672,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     return NULL;
 #endif
   } else {
-    ASSERT(0);
+    qError("unexpected streamInfo prepare type: %d", pTaskInfo->streamInfo.prepareStatus.type);
     return NULL;
   }
 }
@@ -2305,13 +2331,6 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
       pTSInfo->scanMode = TABLE_SCAN__TABLE_ORDER;
       pTSInfo->base.dataReader = NULL;
       pTaskInfo->streamInfo.lastStatus.uid = -1;
-//      code = tsdbReaderOpen(pHandle->vnode, &pTSInfo->base.cond, pList, num, pTSInfo->pResBlock,
-//                            &pTSInfo->base.dataReader, NULL);
-//      if (code != 0) {
-//        terrno = code;
-//        destroyTableScanOperatorInfo(pTableScanOp);
-//        goto _error;
-//      }
     }
 
     if (pHandle->initTqReader) {
@@ -2786,6 +2805,10 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
 
   SSDataBlock* pBlock = NULL;
   while (pInfo->tableStartIndex < tableListSize) {
+    if (isTaskKilled(pTaskInfo)) {
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    }
+
     pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pInfo->pResBlock, pOperator->resultInfo.capacity,
                                               pOperator);
     if (pBlock != NULL) {

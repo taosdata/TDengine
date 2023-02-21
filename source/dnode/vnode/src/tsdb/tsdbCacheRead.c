@@ -41,6 +41,13 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
         int32_t   slotId = slotIds[i];
         SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
 
+        // add check for null value, caused by the modification of table schema (new column added).
+        if (pColVal == NULL) {
+          p->ts = 0;
+          p->isNull = true;
+          continue;
+        }
+
         p->ts = pColVal->ts;
         p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
         allNullRow = p->isNull & allNullRow;
@@ -99,6 +106,38 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t setTableSchema(SCacheRowsReader* p, uint64_t suid, const char* idstr) {
+  int32_t numOfTables = p->numOfTables;
+
+  if (suid != 0) {
+    p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, suid, -1, 1);
+    if (p->pSchema == NULL) {
+      taosMemoryFree(p);
+      tsdbWarn("stable:%" PRIu64 " has been dropped, failed to retrieve cached rows, %s", suid, idstr);
+      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
+  } else {
+    for (int32_t i = 0; i < numOfTables; ++i) {
+      uint64_t uid = p->pTableList[i].uid;
+      p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, uid, -1, 1);
+      if (p->pSchema != NULL) {
+        break;
+      }
+
+      tsdbWarn("table:%" PRIu64 " has been dropped, failed to retrieve cached rows, %s", uid, idstr);
+    }
+
+    // all queried tables have been dropped already, return immediately.
+    if (p->pSchema == NULL) {
+      taosMemoryFree(p);
+      tsdbWarn("all queried tables has been dropped, try next group, %s", idstr);
+      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 uint64_t suid, void** pReader, const char* idstr) {
   *pReader = NULL;
@@ -119,10 +158,14 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
     return TSDB_CODE_SUCCESS;
   }
 
-  STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pTableIdList)[0];
-  p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, pKeyInfo->uid, -1, 1);
   p->pTableList = pTableIdList;
   p->numOfTables = numOfTables;
+
+  int32_t code = setTableSchema(p, suid, idstr);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbCacherowsReaderClose(p);
+    return code;
+  }
 
   p->transferBuf = taosMemoryCalloc(p->pSchema->numOfCols, POINTER_BYTES);
   if (p->transferBuf == NULL) {
@@ -140,7 +183,8 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
     }
   }
 
-  p->pLoadInfo = tCreateLastBlockLoadInfo(p->pSchema, NULL, 0);
+  int32_t numOfStt = ((SVnode*)pVnode)->config.sttTrigger;
+  p->pLoadInfo = tCreateLastBlockLoadInfo(p->pSchema, NULL, 0, numOfStt);
   if (p->pLoadInfo == NULL) {
     tsdbCacherowsReaderClose(p);
     return TSDB_CODE_OUT_OF_MEMORY;

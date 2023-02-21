@@ -17,11 +17,10 @@
 
 int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock* pData) {
   int32_t blockNum = pReq->blockNum;
-  SArray* pArray = taosArrayInit(blockNum, sizeof(SSDataBlock));
+  SArray* pArray = taosArrayInit_s(blockNum, sizeof(SSDataBlock), blockNum);
   if (pArray == NULL) {
     return -1;
   }
-  taosArraySetSize(pArray, blockNum);
 
   ASSERT(pReq->blockNum == taosArrayGetSize(pReq->data));
   ASSERT(pReq->blockNum == taosArrayGetSize(pReq->dataLen));
@@ -49,7 +48,7 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
   if (pArray == NULL) {
     return -1;
   }
-  taosArraySetSize(pArray, 1);
+  taosArrayPush(pArray, &(SSDataBlock){0});
   SRetrieveTableRsp* pRetrieve = pReq->pRetrieve;
   SSDataBlock*       pDataBlock = taosArrayGet(pArray, 0);
   blockDecode(pDataBlock, pRetrieve->data);

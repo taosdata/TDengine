@@ -119,8 +119,8 @@ static void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsL
   pRowSup->groupId = groupId;
 }
 
-FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey,
-                                                   int32_t pos, int32_t order, int64_t* pData) {
+FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int32_t pos,
+                                            int32_t order, int64_t* pData) {
   int32_t forwardRows = 0;
 
   if (order == TSDB_ORDER_ASC) {
@@ -2853,6 +2853,8 @@ int32_t initBasicInfoEx(SOptrBasicInfo* pBasicInfo, SExprSupp* pSup, SExprInfo* 
 void initDummyFunction(SqlFunctionCtx* pDummy, SqlFunctionCtx* pCtx, int32_t nums) {
   for (int i = 0; i < nums; i++) {
     pDummy[i].functionId = pCtx[i].functionId;
+    pDummy[i].isNotNullFunc = pCtx[i].isNotNullFunc;
+    pDummy[i].isPseudoFunc = pCtx[i].isPseudoFunc;
   }
 }
 
@@ -3377,9 +3379,11 @@ static void copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted) {
   }
 }
 
+// the allocated memory comes from outer function.
 void initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList) {
   pGroupResInfo->pRows = pArrayList;
   pGroupResInfo->index = 0;
+  pGroupResInfo->pBuf = NULL;
 }
 
 void doBuildSessionResult(SOperatorInfo* pOperator, SStreamState* pState, SGroupResInfo* pGroupResInfo,
@@ -3390,8 +3394,7 @@ void doBuildSessionResult(SOperatorInfo* pOperator, SStreamState* pState, SGroup
 
   blockDataCleanup(pBlock);
   if (!hasRemainResults(pGroupResInfo)) {
-    taosArrayDestroy(pGroupResInfo->pRows);
-    pGroupResInfo->pRows = NULL;
+    cleanupGroupResInfo(pGroupResInfo);
     return;
   }
 
@@ -4825,6 +4828,12 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   tSimpleHashCleanup(pInfo->pUpdatedMap);
   pInfo->pUpdatedMap = NULL;
+
+#if 0
+  char* pBuf = streamStateIntervalDump(pInfo->pState);
+  qDebug("===stream===interval state%s", pBuf);
+  taosMemoryFree(pBuf);
+#endif
 
   doBuildDeleteResult(pInfo, pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
   if (pInfo->pDelRes->info.rows > 0) {

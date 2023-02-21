@@ -18,6 +18,9 @@
 #include "syncUtil.h"
 #include "tjson.h"
 
+int32_t raftStoreReadFile(SSyncNode *pNode);
+int32_t raftStoreWriteFile(SSyncNode *pNode);
+
 static int32_t raftStoreDecode(const SJson *pJson, SRaftStore *pStore) {
   int32_t code = 0;
 
@@ -150,27 +153,53 @@ _OVER:
   return code;
 }
 
+int32_t raftStoreOpen(SSyncNode *pNode) {
+  taosThreadMutexInit(&pNode->raftStore.mutex, NULL);
+  return raftStoreReadFile(pNode);
+}
+
+void raftStoreClose(SSyncNode *pNode) { taosThreadMutexDestroy(&pNode->raftStore.mutex); }
+
 bool raftStoreHasVoted(SSyncNode *pNode) {
+  taosThreadMutexLock(&pNode->raftStore.mutex);
   bool b = syncUtilEmptyId(&pNode->raftStore.voteFor);
+  taosThreadMutexUnlock(&pNode->raftStore.mutex);
   return (!b);
 }
 
 void raftStoreVote(SSyncNode *pNode, SRaftId *pRaftId) {
+  taosThreadMutexLock(&pNode->raftStore.mutex);
   pNode->raftStore.voteFor = *pRaftId;
   (void)raftStoreWriteFile(pNode);
+  taosThreadMutexUnlock(&pNode->raftStore.mutex);
 }
 
 void raftStoreClearVote(SSyncNode *pNode) {
+  taosThreadMutexLock(&pNode->raftStore.mutex);
   pNode->raftStore.voteFor = EMPTY_RAFT_ID;
   (void)raftStoreWriteFile(pNode);
+  taosThreadMutexUnlock(&pNode->raftStore.mutex);
 }
 
 void raftStoreNextTerm(SSyncNode *pNode) {
+  taosThreadMutexLock(&pNode->raftStore.mutex);
   pNode->raftStore.currentTerm++;
   (void)raftStoreWriteFile(pNode);
+  taosThreadMutexUnlock(&pNode->raftStore.mutex);
 }
 
 void raftStoreSetTerm(SSyncNode *pNode, SyncTerm term) {
-  pNode->raftStore.currentTerm = term;
-  (void)raftStoreWriteFile(pNode);
+  taosThreadMutexLock(&pNode->raftStore.mutex);
+  if (pNode->raftStore.currentTerm < term) {
+    pNode->raftStore.currentTerm = term;
+    (void)raftStoreWriteFile(pNode);
+  }
+  taosThreadMutexUnlock(&pNode->raftStore.mutex);
+}
+
+SyncTerm raftStoreGetTerm(SSyncNode *pNode) {
+  taosThreadMutexLock(&pNode->raftStore.mutex);
+  SyncTerm term = pNode->raftStore.currentTerm;
+  taosThreadMutexUnlock(&pNode->raftStore.mutex);
+  return term;
 }

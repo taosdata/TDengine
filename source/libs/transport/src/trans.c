@@ -67,6 +67,10 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->startTimer = pInit->tfp;
   pRpc->destroyFp = pInit->dfp;
   pRpc->failFastFp = pInit->ffp;
+  pRpc->connLimitNum = pInit->connLimitNum;
+  pRpc->connLimitLock = pInit->connLimitLock;
+  pRpc->supportBatch = pInit->supportBatch;
+  pRpc->batchSize = pInit->batchSize;
 
   pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
   if (pRpc->numOfThreads <= 0) {
