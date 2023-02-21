@@ -48,7 +48,7 @@ fi
 
 data_link_dir="${install_main_dir}/data"
 log_link_dir="${install_main_dir}/log"
-install_log_path="${log_dir}/taos_install.log"
+install_log_path="${log_dir}/tdengine_install.log"
 
 # static directory
 cfg_dir="${install_main_dir}/cfg"

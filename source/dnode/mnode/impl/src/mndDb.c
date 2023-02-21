@@ -17,6 +17,7 @@
 #include "mndDb.h"
 #include "mndCluster.h"
 #include "mndDnode.h"
+#include "mndIndex.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSma.h"
@@ -1053,6 +1054,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   /*if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
   if (mndDropStreamByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropSmasByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
+  if (mndDropIdxsByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndUserRemoveDb(pMnode, pTrans, pDb->name) != 0) goto _OVER;
 

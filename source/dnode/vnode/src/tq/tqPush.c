@@ -207,8 +207,8 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 #endif
 
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
-  void*   pReq = POINTER_SHIFT(msg, sizeof(SMsgHead));
-  int32_t len = msgLen - sizeof(SMsgHead);
+  void*   pReq = POINTER_SHIFT(msg, sizeof(SSubmitReq2Msg));
+  int32_t len = msgLen - sizeof(SSubmitReq2Msg);
 
   tqDebug("vgId:%d, tq push msg ver %" PRId64 ", type: %s, p head %p, p body %p, len %d", pTq->pVnode->config.vgId, ver,
           TMSG_INFO(msgType), msg, pReq, len);

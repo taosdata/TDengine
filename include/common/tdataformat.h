@@ -29,6 +29,7 @@ extern "C" {
 
 typedef struct SBuffer  SBuffer;
 typedef struct SSchema  SSchema;
+typedef struct SSchema2 SSchema2;
 typedef struct STColumn STColumn;
 typedef struct STSchema STSchema;
 typedef struct SValue   SValue;
@@ -205,7 +206,7 @@ struct SColData {
   int32_t  numOfNull;   // # of null
   int32_t  numOfValue;  // # of vale
   int32_t  nVal;
-  uint8_t  flag;
+  int8_t   flag;
   uint8_t *pBitMap;
   int32_t *aOffset;
   int32_t  nData;
