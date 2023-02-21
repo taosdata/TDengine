@@ -52,7 +52,7 @@ int32_t udfdCPluginOpen(void *scriptCtx) { return 0; }
 
 int32_t udfdCPluginClose(void *scriptCtx) { return 0; }
 
-int32_t udfdCPluginUdfInit(SUdfInfo *udf, void **pUdfCtx) {
+int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
   int32_t         err = 0;
   SUdfCPluginCtx *udfCtx = taosMemoryCalloc(1, sizeof(SUdfCPluginCtx));
   err = uv_dlopen(udf->path, &udfCtx->lib);
@@ -73,11 +73,11 @@ int32_t udfdCPluginUdfInit(SUdfInfo *udf, void **pUdfCtx) {
   strncat(destroyFuncName, destroySuffix, strlen(destroySuffix));
   uv_dlsym(&udfCtx->lib, destroyFuncName, (void **)(&udfCtx->destroyFunc));
 
-  if (udf->funcType == TSDB_FUNC_TYPE_SCALAR) {
+  if (udf->funcType == UDF_FUNC_TYPE_SCALAR) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
     strcpy(processFuncName, udfName);
     uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->scalarProcFunc));
-  } else if (udf->funcType == TSDB_FUNC_TYPE_AGGREGATE) {
+  } else if (udf->funcType == UDF_FUNC_TYPE_AGG) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
     strcpy(processFuncName, udfName);
     uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->aggProcFunc));
@@ -411,9 +411,13 @@ void udfdProcessRequest(uv_work_t *req) {
   }
 }
 
-void convertUdf2UdfInfo(SUdf *udf, SUdfInfo *udfInfo) {
+void convertUdf2UdfInfo(SUdf *udf, SScriptUdfInfo *udfInfo) {
   udfInfo->bufSize = udf->bufSize;
-  udfInfo->funcType = udf->funcType;
+  if (udf->funcType == TSDB_FUNC_TYPE_AGGREGATE) {
+    udfInfo->funcType = UDF_FUNC_TYPE_AGG;
+  } else if (udf->funcType == TSDB_FUNC_TYPE_SCALAR) {
+    udfInfo->funcType = UDF_FUNC_TYPE_SCALAR;
+  }
   udfInfo->name = udf->name;
   udfInfo->outputLen = udf->outputLen;
   udfInfo->outputType = udf->outputType;
@@ -438,7 +442,7 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
   }
   uv_mutex_unlock(&global.scriptPluginsMutex);
   udf->scriptPlugin = scriptPlugin;
-  SUdfInfo info = {0};
+  SScriptUdfInfo info = {0};
   convertUdf2UdfInfo(udf, &info);
   udf->scriptPlugin->udfInitFunc(&info, &udf->scriptUdfCtx);
   return 0;

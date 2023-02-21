@@ -262,17 +262,22 @@ typedef int32_t (*TUdfAggFinishFunc)(SUdfInterBuf *buf, SUdfInterBuf *resultData
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef struct SUdfInfo {
+typedef enum EUdfFuncType {
+  UDF_FUNC_TYPE_SCALAR = 1, 
+  UDF_FUNC_TYPE_AGG = 2
+} EUdfFuncType;
+
+typedef struct SScriptUdfInfo {
   char *name;
 
-  int8_t  funcType;
+  EUdfFuncType  funcType;
   int8_t  scriptType;
   int8_t  outputType;
   int32_t outputLen;
   int32_t bufSize;
 
   char *path;
-} SUdfInfo;
+} SScriptUdfInfo;
 
 typedef int32_t (*TScriptUdfScalarProcFunc)(SUdfDataBlock *block, SUdfColumn *resultCol, void *udfCtx);
 
@@ -282,7 +287,7 @@ typedef int32_t (*TScriptUdfAggProcessFunc)(SUdfDataBlock *block, SUdfInterBuf *
 typedef int32_t (*TScriptUdfAggMergeFunc)(SUdfInterBuf *inputBuf1, SUdfInterBuf *inputBuf2, SUdfInterBuf *outputBuf,
                                           void *udfCtx);
 typedef int32_t (*TScriptUdfAggFinishFunc)(SUdfInterBuf *buf, SUdfInterBuf *resultData, void *udfCtx);
-typedef int32_t (*TScriptUdfInitFunc)(SUdfInfo *info, void **pUdfCtx);
+typedef int32_t (*TScriptUdfInitFunc)(SScriptUdfInfo *info, void **pUdfCtx);
 typedef int32_t (*TScriptUdfDestoryFunc)(void *udfCtx);
 
 // the following function is for open/close script plugin.
