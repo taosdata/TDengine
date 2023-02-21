@@ -2094,24 +2094,19 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
     if (timerLogicClock == msgLogicClock) {
       if (tsNow > pData->execTime) {
-#if 0        
-        sTrace(
-            "vgId:%d, hbDataRid:%ld,  EXECUTE this step-------- heartbeat tsNow:%ld, exec:%ld, tsNow-exec:%ld, "
-            "---------",
-            pSyncNode->vgId, hbDataRid, tsNow, pData->execTime, tsNow - pData->execTime);
-#endif
-
         pData->execTime += pSyncTimer->timerMS;
 
         SRpcMsg rpcMsg = {0};
         (void)syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId);
+
+        pSyncNode->minMatchIndex = syncMinMatchIndex(pSyncNode);
 
         SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
         pSyncMsg->srcId = pSyncNode->myRaftId;
         pSyncMsg->destId = pData->destId;
         pSyncMsg->term = raftStoreGetTerm(pSyncNode);
         pSyncMsg->commitIndex = pSyncNode->commitIndex;
-        pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
+        pSyncMsg->minMatchIndex = pSyncNode->minMatchIndex;
         pSyncMsg->privateTerm = 0;
         pSyncMsg->timeStamp = tsNow;
 
@@ -2123,11 +2118,6 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
         syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
         syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
       } else {
-#if 0        
-        sTrace(
-            "vgId:%d, hbDataRid:%ld,  pass this step-------- heartbeat tsNow:%ld, exec:%ld, tsNow-exec:%ld, ---------",
-            pSyncNode->vgId, hbDataRid, tsNow, pData->execTime, tsNow - pData->execTime);
-#endif
       }
 
       if (syncIsInit()) {
