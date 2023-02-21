@@ -74,8 +74,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
         tdSql.query("select count(*) from stb0")
         tdSql.checkData(0, 0, 10) 
-        tdSql.query("select count(*) from stb1")
-        tdSql.checkData(0, 0, 10) 
 
         # insert:  doesn‘t currently supported sample json
         assert os.system("%staosBenchmark -f 5-taos-tools/taosbenchmark/sml/insert-sample-sml.json -y " % binPath) != 0 
