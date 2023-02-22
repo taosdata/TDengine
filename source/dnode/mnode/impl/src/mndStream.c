@@ -722,8 +722,10 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   mInfo("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
   mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
-
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    mndTransDrop(pTrans);
+    goto _OVER;
+  }
   // create stb for stream
   if (createStreamReq.createStb == STREAM_CREATE_STABLE_TRUE &&
       mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
