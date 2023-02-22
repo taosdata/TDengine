@@ -27,36 +27,36 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         self.setsql = TDSetSql()
         self.column_dict = {
-            '`ts`': 'timestamp',
-            '`col1`': 'tinyint',
-            '`col2`': 'smallint',
-            '`col3`': 'int',
-            '`col4`': 'bigint',
-            '`col5`': 'tinyint unsigned',
-            '`col6`': 'smallint unsigned',
-            '`col7`': 'int unsigned',
-            '`col8`': 'bigint unsigned',
-            '`col9`': 'float',
-            '`col10`': 'double',
-            '`col11`': 'bool',
-            '`col12`': 'varchar(20)',
-            '`col13`': 'nchar(20)'            
+            'ts': 'timestamp',
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': 'varchar(20)',
+            'col13': 'nchar(20)'            
         }
         self.tag_dict = {
-            '`t1`': 'tinyint',
-            '`t2`': 'smallint',
-            '`t3`': 'int',
-            '`t4`': 'bigint',
-            '`t5`': 'tinyint unsigned',
-            '`t6`': 'smallint unsigned',
-            '`t7`': 'int unsigned',
-            '`t8`': 'bigint unsigned',
-            '`t9`': 'float',
-            '`t10`': 'double',
-            '`t11`': 'bool',
-            '`t12`': 'varchar(20)',
-            '`t13`': 'nchar(20)',
-            '`t14`': 'timestamp'            
+            't1': 'tinyint',
+            't2': 'smallint',
+            't3': 'int',
+            't4': 'bigint',
+            't5': 'tinyint unsigned',
+            't6': 'smallint unsigned',
+            't7': 'int unsigned',
+            't8': 'bigint unsigned',
+            't9': 'float',
+            't10': 'double',
+            't11': 'bool',
+            't12': 'varchar(20)',
+            't13': 'nchar(20)',
+            't14': 'timestamp'            
         }
 
     
@@ -85,58 +85,108 @@ class TDTestCase:
             tags = f'{ti},{ti},{i},{i},{ti},{ti},{i},{i},{i}.000{i},{i}.000{i},true,"var{i}","nch{i}",now'
             sql  = f'create table {tbname}{i} using {stbname} tags({tags})'
             tdSql.execute(sql)
+
+        tdLog.info(f" create {count} child tables ok.")    
     
     
     # create stable and child tables
     def create_tagidx(self, stbname):
-        for key in self.tag_dict.keys:
-            sql = f'create idx_{key} on {stbname} ({key})'
+        cnt = -1
+        for key in self.tag_dict.keys():
+            # first tag have default index, so skip
+            if cnt == -1:
+                cnt = 0
+                continue; 
+            sql = f'create index idx_{key} on {stbname} ({key})'
+            tdLog.info(f"  sql={sql}")
+            tdSql.execute(sql)
+            cnt += 1
+        tdLog.info(f' create {cnt} tag indexs ok.')
+
+     # insert to child table d1 data
+    def insert_data(self, tbname):
+        # d1 insert 3 rows
+        for i in range(3):
+            sql = f'insert into {tbname}1(ts,col1) values(now,{i});' 
+            tdSql.execute(sql)
+        # d20 insert 4
+        for i in range(4):
+            sql = f'insert into {tbname}20(ts,col1) values(now,{i});' 
             tdSql.execute(sql)
 
     # check show indexs
     def show_tagidx(self, stbname):
         sql = f'select index_name,column_name from information_schema.ins_indexes where db_name="db"'
-        tdSql.execute(sql)
-        i = 0
-        for key in self.tag_dict.keys:
-            tdSql.checkData(i, 0, f'idx_{key}')
-            tdSql.checkData(i, 1, f'{key}')
-            i += 1
+        tdSql.query(sql)
+        rows = len(self.tag_dict.keys())-1
+        tdSql.checkRows(rows)
+
+        for i in range(rows):
+            col_name = tdSql.getData(i, 1)
+            idx_name = f'idx_{col_name}'
+            tdSql.checkData(i, 0, idx_name)
+
+        tdLog.info(f' show {rows} tag indexs ok.')
 
     # query with tag idx
     def query_tagidx(self, stbname):
-        sql = f'select * from meters where t1=10'
-        tdSql.execute(sql)
+        sql = f'select * from meters where t1=1'
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+
         sql = f'select * from meters where t2<10'
-        tdSql.execute(sql)
-        sql = f'select * from meters where t3>10'
-        tdSql.execute(sql)
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+
+        sql = f'select * from meters where t2>10'
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+
+        sql = f'select * from meters where t3<30'
+        tdSql.query(sql)
+        tdSql.checkRows(7)
+
         sql = f'select * from meters where t12="11"'
-        tdSql.execute(sql)
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+
         sql = f'select * from meters where (t4 < 10 or t5 = 20) and t6= 30'
-        tdSql.execute(sql)
-        sql = f'select * from meters where (t7 < 20 and t8 = 20) or t9= 30'
-        tdSql.execute(sql)
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+
+        sql = f'select * from meters where (t7 < 20 and t8 = 20) or t4 = 20'
+        tdSql.query(sql)
+        tdSql.checkRows(4)
 
     # drop child table
     def drop_tables(self, tbname, count):
-        start = random.randint(1, count/2)
-        end   = random.random(count/2 + 1, count - 1)
+        # table d1 and d20 have verify data , so can not drop
+        start = random.randint(21, count/2)
+        end   = random.randint(count/2 + 1, count - 1)
         for i in range(start, end):
             sql = f'drop table {tbname}{i}'
             tdSql.execute(sql)
+        cnt = end - start + 1    
+        tdLog.info(f' drop table from {start} to {end} count={cnt}')     
 
     # drop tag index
     def drop_tagidx(self, stbname):
         # drop index
-        for key in self.tag_dict.keys:
+        cnt = -1
+        for key in self.tag_dict.keys():
+            # first tag have default index, so skip
+            if cnt == -1:
+                cnt = 0
+                continue; 
             sql = f'drop index idx_{key}'
             tdSql.execute(sql)
+            cnt += 1
         
         # check idx result is 0
         sql = f'select index_name,column_name from information_schema.ins_indexes where db_name="db"'
-        tdSql.execute(sql)
+        tdSql.query(sql)
         tdSql.checkRows(0)
+        tdLog.info(f' drop {cnt} tag indexs ok.')
 
     # run
     def run(self):
@@ -145,6 +195,7 @@ class TDTestCase:
         count = 1000
         self.create_table(stable, tbname, count)
         self.create_tagidx(stable)
+        self.insert_data(tbname)
         self.show_tagidx(stable)
         self.query_tagidx(stable)
         self.drop_tables(tbname, count)
