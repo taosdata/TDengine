@@ -81,7 +81,8 @@ class TDTestCase:
 
         # create child table
         for i in range(count):
-            tags = f'{i},{i},{i},{i},{i},{i},{i},{i},{i}.000{i},{i}.000{i},true,"var{i}","nch{i}",now'
+            ti = i % 128
+            tags = f'{ti},{ti},{i},{i},{ti},{ti},{i},{i},{i}.000{i},{i}.000{i},true,"var{i}","nch{i}",now'
             sql  = f'create table {tbname}{i} using {stbname} tags({tags})'
             tdSql.execute(sql)
     
