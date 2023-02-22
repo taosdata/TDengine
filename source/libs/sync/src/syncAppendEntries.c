@@ -120,17 +120,17 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   // prepare response msg
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
-  pReply->term = ths->raftStore.currentTerm;
+  pReply->term = raftStoreGetTerm(ths);
   pReply->success = false;
   pReply->matchIndex = SYNC_INDEX_INVALID;
   pReply->lastSendIndex = pMsg->prevLogIndex + 1;
   pReply->startTime = ths->startTime;
 
-  if (pMsg->term < ths->raftStore.currentTerm) {
+  if (pMsg->term < raftStoreGetTerm(ths)) {
     goto _SEND_RESPONSE;
   }
 
-  if (pMsg->term > ths->raftStore.currentTerm) {
+  if (pMsg->term > raftStoreGetTerm(ths)) {
     pReply->term = pMsg->term;
   }
 

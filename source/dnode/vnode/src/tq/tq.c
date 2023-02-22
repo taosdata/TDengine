@@ -106,7 +106,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
     return NULL;
   }
 
-  if (streamLoadTasks(pTq->pStreamMeta) < 0) {
+  if (streamLoadTasks(pTq->pStreamMeta, walGetCommittedVer(pVnode->pWal)) < 0) {
     return NULL;
   }
 
@@ -849,12 +849,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
 
       pHandle->execHandle.task =
           qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols, NULL);
-      /*A(pHandle->execHandle.task);*/
       void* scanner = NULL;
       qExtractStreamScanner(pHandle->execHandle.task, &scanner);
-      /*A(scanner);*/
       pHandle->execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
-      /*A(pHandle->execHandle.pExecReader);*/
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
       pHandle->pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
       pHandle->execHandle.pExecReader = tqOpenReader(pTq->pVnode);
@@ -887,6 +884,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
     taosHashPut(pTq->pHandle, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
     tqDebug("try to persist handle %s consumer %" PRId64, req.subKey, pHandle->consumerId);
     if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
+      return -1;
     }
   } else {
     // TODO handle qmsg and exec modification
@@ -898,6 +896,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgL
       qStreamCloseTsdbReader(pHandle->execHandle.task);
     }
     if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
+      return -1;
     }
     // close handle
   }
@@ -1215,6 +1214,9 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t version, char* msg, int32_t m
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;
   }
+
+  atomic_store_8(&pTask->fillHistory, 0);
+  streamMetaSaveTask(pTq->pStreamMeta, pTask);
 
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
 

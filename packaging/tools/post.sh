@@ -627,9 +627,16 @@ function install_app() {
   fi
 }
 
-function install_TDengine() {
-    echo -e "${GREEN}Start to install TDengine...${NC}"
-    log_print "start to install TDengine"
+function checkDirectory() {
+    if [ ! -d "${bin_link_dir}" ]; then
+      ${csudo}mkdir -p ${bin_link_dir}
+      log_print "${bin_link_dir} directory created"
+    fi
+
+    if [ ! -d "${lib_link_dir}" ]; then
+      ${csudo}mkdir -p ${lib_link_dir}
+      log_print "${lib_link_dir} directory created"
+    fi
 
     #install log and data dir , then ln to /usr/local/taos
     ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
@@ -640,6 +647,13 @@ function install_TDengine() {
 
     ${csudo}ln -s ${log_dir} ${log_link_dir}     || :
     ${csudo}ln -s ${data_dir} ${data_link_dir}   || :
+}
+
+function install_TDengine() {
+    echo -e "${GREEN}Start to install TDengine...${NC}"
+    log_print "start to install TDengine"
+
+    checkDirectory
 
     # Install include, lib, binary and service
     install_include &&

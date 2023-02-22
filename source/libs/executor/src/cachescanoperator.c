@@ -149,6 +149,10 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
   // check if it is a group by tbname
   if ((pInfo->retrieveType & CACHESCAN_RETRIEVE_TYPE_ALL) == CACHESCAN_RETRIEVE_TYPE_ALL) {
+    if (isTaskKilled(pTaskInfo)) {
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    }
+
     if (pInfo->indexOfBufferedRes >= pInfo->pBufferredRes->info.rows) {
       blockDataCleanup(pInfo->pBufferredRes);
       taosArrayClear(pInfo->pUidList);
@@ -207,6 +211,10 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
     size_t totalGroups = tableListGetOutputGroups(pTableList);
 
     while (pInfo->currentGroupIndex < totalGroups) {
+      if (isTaskKilled(pTaskInfo)) {
+        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+      }
+
       STableKeyInfo* pList = NULL;
       int32_t num = 0;
 
@@ -215,8 +223,15 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
 
-      tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
-                              taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader, pTaskInfo->id.str);
+      code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
+                                     taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader,
+                                     pTaskInfo->id.str);
+      if (code != TSDB_CODE_SUCCESS) {
+        pInfo->currentGroupIndex += 1;
+        taosArrayClear(pInfo->pUidList);
+        continue;
+      }
+
       taosArrayClear(pInfo->pUidList);
 
       code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pUidList);

@@ -295,3 +295,31 @@ TEST(utilTest, tstrncspn) {
   v = tstrncspn(p2, strlen(p2), reject5, 0);
   ASSERT_EQ(v, 14);
 }
+
+TEST(utilTest, intToHextStr) {
+  char buf[64] = {0};
+
+  int64_t v = 0;
+  tintToHex(0, buf);
+  ASSERT_STREQ(buf, "0");
+
+  v = 100000000;
+  tintToHex(v, buf);
+
+  char destBuf[128];
+  sprintf(destBuf, "%" PRIx64, v);
+  ASSERT_STREQ(buf, destBuf);
+
+  taosSeedRand(taosGetTimestampSec());
+
+  for(int32_t i = 0; i < 100000; ++i) {
+    memset(buf, 0, tListLen(buf));
+    memset(destBuf, 0, tListLen(destBuf));
+
+    v = taosRand();
+    tintToHex(v, buf);
+
+    sprintf(destBuf, "%" PRIx64, v);
+    ASSERT_STREQ(buf, destBuf);
+  }
+}

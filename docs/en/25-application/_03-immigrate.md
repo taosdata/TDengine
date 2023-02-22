@@ -184,7 +184,7 @@ TDengine supports the standard JDBC 3.0 interface for manipulating databases, bu
 
 To facilitate historical data migration, we provide a plug-in for the data synchronization tool DataX, which can automatically write data into TDengine.The automatic data migration of DataX can only support the data migration process of a single value model.
 
-For the specific usage of DataX and how to use DataX to write data to TDengine, please refer to [DataX-based TDengine Data Migration Tool](https://www.taosdata.com/blog/2021/10/26/3156.html).
+For the specific usage of DataX and how to use DataX to write data to TDengine, please refer to [DataX-based TDengine Data Migration Tool](https://www.taosdata.com/engineering/16401.html).
 
 After migrating via DataX, we found that we can significantly improve the efficiency of migrating historical data by starting multiple processes and migrating numerous metrics simultaneously. The following are some records of the migration process. We provide these as a reference for application migration.
 
