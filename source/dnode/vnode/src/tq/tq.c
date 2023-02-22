@@ -1335,12 +1335,8 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
     }
   }
 
-  int32_t ref = atomic_sub_fetch_32(pRef, 1);
-  /*A(ref >= 0);*/
-  if (ref == 0) {
-    blockDataDestroy(pDelBlock);
-    taosMemoryFree(pRef);
-  }
+  blockDataDestroy(pDelBlock);
+  taosMemoryFree(pRef);
 
 #if 0
     SStreamDataBlock* pStreamBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);

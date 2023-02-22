@@ -674,7 +674,7 @@ SUBSCRIBE_OVER:
     taosMemoryFree(pConsumerNew);
   }
   // TODO: replace with destroy subscribe msg
-  if (subscribe.topicNames) taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);
   return code;
 }
 
