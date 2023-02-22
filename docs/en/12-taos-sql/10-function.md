@@ -795,19 +795,23 @@ HISTOGRAM(expr，bin_type, bin_description, normalized)
 ### PERCENTILE
 
 ```sql
-PERCENTILE(expr, p)
+PERCENTILE(expr, p [, p1] ...)
 ```
 
 **Description**: The value whose rank in a specific column matches the specified percentage. If such a value matching the specified percentage doesn't exist in the column, an interpolation value will be returned.
 
-**Return value type**: DOUBLE
+**Return value type**: This function takes 2 minumum and 11 maximum parameters, and it can simultaneously return 10 percentiles at most. If 2 parameters are given, a single percentile is returned and the value type is DOUBLE.
+                       If more than 2 parameters are given, the return value type is a VARCHAR string, the format of which is a JSON ARRAY containing all return values.
 
 **Applicable column types**: Numeric
 
 **Applicable table types**: table only
 
-**More explanations**: _p_ is in range [0,100], when _p_ is 0, the result is same as using function MIN; when _p_ is 100, the result is same as function MAX.
+**More explanations**:
 
+- _p_ is in range [0,100], when _p_ is 0, the result is same as using function MIN; when _p_ is 100, the result is same as function MAX.
+- When calculating multiple percentiles of a specific column, a single PERCENTILE function with multiple parameters is adviced, as this can largely reduce the query response time.
+  For example, using SELECT percentile(col, 90, 95, 99) FROM table will perform better than SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table.
 
 ## Selection Functions
 
