@@ -513,12 +513,20 @@ static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
     pValue->notReserved = true;
 
-    if (pValue->datum.i < 0 || pValue->datum.i > 100) {
-      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
-    }
     uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
     if (!IS_NUMERIC_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    double v = 0;
+    if (IS_INTEGER_TYPE(paraType)) {
+      v = (double)pValue->datum.i;
+    } else {
+      v = pValue->datum.d;
+    }
+
+    if (v < 0 || v > 100) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
 
