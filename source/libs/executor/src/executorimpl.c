@@ -538,7 +538,7 @@ bool functionNeedToExecute(SqlFunctionCtx* pCtx) {
     return false;
   }
 
-  if (pCtx->scanFlag == REPEAT_SCAN) {
+  if (pCtx->scanFlag == PRE_SCAN) {
     return fmIsRepeatScanFunc(pCtx->functionId);
   }
 

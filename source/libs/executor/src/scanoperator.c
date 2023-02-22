@@ -880,10 +880,11 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
 
   if (pInfo->scanInfo.numOfAsc > 1) {
-    pInfo->base.scanFlag = REPEAT_SCAN;
+    pInfo->base.scanFlag = PRE_SCAN;
   } else {
     pInfo->base.scanFlag = MAIN_SCAN;
   }
+
   pInfo->base.pdInfo.interval = extractIntervalInfo(pTableScanNode);
   pInfo->base.readHandle = *readHandle;
   pInfo->base.dataBlockLoadFlag = pTableScanNode->dataRequired;
