@@ -163,7 +163,7 @@ jobs:
           linker = "aarch64-linux-gnu-gcc"
           EOF
       - name: install musl 
-        run: apt-get install musl-tools clang llvm -y
+        run: sudo apt-get install musl-tools clang llvm -y
       - name: Install rust target
         run: rustup target add $TARGET
       - name: Run build
