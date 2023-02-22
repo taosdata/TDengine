@@ -3146,6 +3146,10 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
+    if (((SColumnInfoData *)info->cunits[uidx].colData)->pData == NULL) {
+      continue;
+    }
+
     void    *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
 
     p[i] = ((colData != NULL) && !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
