@@ -121,56 +121,71 @@ jobs:
         with:
           name: taos-explorer-linux
           path: target/release/taos-explorer
-
   linux-aarch64:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - TARGET: aarch64-unknown-linux-musl # tested on aws t4g.nano in alpine container
-          OS: ubuntu-18.04
-    runs-on: ${{ matrix.OS }}
-    env:
-      NAME: rust-cross-compile-example # change with the name of your project
-      TARGET: ${{ matrix.TARGET }}
-      OS: ${{ matrix.OS }}
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v3
-      - name: setup-node
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: '16'
       - run: npm install
       - run: npm run build
-
-      - name: Cargo cache
-        uses: actions/cache@v2
+      - name: Build arm64
+        uses: actions-rs/cargo@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ./target
-          key: build-cargo-registry-${{matrix.TARGET}}
-      - name: Install and configure dependencies
-        run: |
-          # dependencies are only needed on ubuntu as that's the only place where
-          # we make cross-compilation
-          if [[ $OS =~ ^ubuntu.*$ ]]; then
-            sudo apt-get install -qq crossbuild-essential-arm64 crossbuild-essential-armhf
-          fi
-          # some additional configuration for cross-compilation on linux
-          cat >>~/.cargo/config <<EOF
-          [target.aarch64-unknown-linux-musl]
-          linker = "aarch64-linux-gnu-gcc"
-          EOF
-      - name: install musl 
-        run: sudo apt-get install musl-tools clang llvm -y
-      - name: Install rust target
-        run: rustup target add $TARGET
-      - name: Run build
-        run: cargo build --release --verbose --target $TARGET
+          use-cross: true
+          command: build
+          args: --all --release --target=aarch64-unknown-linux-musl
 
-      - name: Upload
-        uses: actions/upload-artifact@v3
-        with:
-          name: taos-explorer-linux-aarch64
-          path: target/release/taos-explorer
+  # linux-aarch64:
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       include:
+  #       - TARGET: aarch64-unknown-linux-musl # tested on aws t4g.nano in alpine container
+  #         OS: ubuntu-18.04
+  #   runs-on: ${{ matrix.OS }}
+  #   env:
+  #     NAME: rust-cross-compile-example # change with the name of your project
+  #     TARGET: ${{ matrix.TARGET }}
+  #     OS: ${{ matrix.OS }}
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: setup-node
+  #       uses: actions/setup-node@v3
+  #       with:
+  #         node-version: '16'
+  #     - run: npm install
+  #     - run: npm run build
+
+  #     - name: Cargo cache
+  #       uses: actions/cache@v2
+  #       with:
+  #         path: |
+  #           ~/.cargo/registry
+  #           ./target
+  #         key: build-cargo-registry-${{matrix.TARGET}}
+  #     - name: Install and configure dependencies
+  #       run: |
+  #         # dependencies are only needed on ubuntu as that's the only place where
+  #         # we make cross-compilation
+  #         if [[ $OS =~ ^ubuntu.*$ ]]; then
+  #           sudo apt-get install -qq crossbuild-essential-arm64 crossbuild-essential-armhf
+  #         fi
+  #         # some additional configuration for cross-compilation on linux
+  #         cat >>~/.cargo/config <<EOF
+  #         [target.aarch64-unknown-linux-musl]
+  #         linker = "aarch64-linux-gnu-gcc"
+  #         EOF
+  #     - name: install musl 
+  #       run: sudo apt-get install musl-tools clang llvm -y
+  #     - name: Install rust target
+  #       run: rustup target add $TARGET
+  #     - name: Run build
+  #       run: cargo build --release --verbose --target $TARGET
+
+  #     - name: Upload
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         name: taos-explorer-linux-aarch64
+  #         path: target/release/taos-explorer
