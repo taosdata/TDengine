@@ -517,14 +517,14 @@ static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t 
       return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
     }
     uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
-    if (!IS_SIGNED_NUMERIC_TYPE(paraType) && !IS_UNSIGNED_NUMERIC_TYPE(paraType)) {
+    if (!IS_NUMERIC_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
 
   // set result type
   if (numOfParams > 2) {
-    pFunc->node.resType = (SDataType){.bytes = 128, .type = TSDB_DATA_TYPE_VARCHAR};
+    pFunc->node.resType = (SDataType){.bytes = 512, .type = TSDB_DATA_TYPE_VARCHAR};
   } else {
     pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   }
