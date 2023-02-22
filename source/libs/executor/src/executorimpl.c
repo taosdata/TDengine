@@ -1566,8 +1566,6 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   int64_t st = taosGetTimestampUs();
-  double  scanCost = 0;
-  double  calcCost = 0;
 
   int32_t order = TSDB_ORDER_ASC;
   int32_t scanFlag = MAIN_SCAN;
@@ -1576,7 +1574,6 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   bool blockAllocated = false;
 
   while (1) {
-    st = taosGetTimestampUs();
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
       if (!hasValidBlock) {
@@ -1590,7 +1587,6 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
       }
     }
     hasValidBlock = true;
-    scanCost += (taosGetTimestampUs() - st) / 1000.0;
 
     int32_t code = getTableScanInfo(pOperator, &order, &scanFlag);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1608,7 +1604,6 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
       }
     }
 
-    st = taosGetTimestampUs();
     // the pDataBlock are always the same one, no need to call this again
     setExecutionContext(pOperator, pOperator->exprSupp.numOfExprs, pBlock->info.id.groupId);
     setInputDataBlock(pSup, pBlock, order, scanFlag, true);
@@ -1618,13 +1613,8 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
-    calcCost += (taosGetTimestampUs() - st) / 1000.0;
-
     destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
   }
-
-  qError("Gavin: %s total dowstream cost: %lf ms", pOperator->pDownstream[0]->name, scanCost);
-  qError("Gavin: %s total calculation cost: %lf ms", pOperator->name, calcCost);
 
   // the downstream operator may return with error code, so let's check the code before generating results.
   if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
