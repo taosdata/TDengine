@@ -814,7 +814,8 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       if (!state->pBlockData) {
         state->pBlockData = &state->blockData;
 
-        tBlockDataCreate(&state->blockData);
+        code = tBlockDataCreate(&state->blockData);
+        if (code) goto _err;
       }
     }
     case SFSNEXTROW_BLOCKDATA:
