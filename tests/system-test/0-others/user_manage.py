@@ -138,44 +138,29 @@ class TDTestCase:
         print(f"commit: {resp}, tmq: {tmq}, param: {param}")
     def subscribe_topic(self):
         print("create topic")
-        tdSql.execute('create topic db_topic as select * from db.stb')
-        tdSql.execute('grant subscribe on db_topic to jiacy1_all')
+        topic_name = "db_topic"
+        tdSql.execute(f'create topic {topic_name} as select * from db.stb')
+        tdSql.execute(f'grant subscribe on {topic_name} to jiacy1_all')
         print("build consumer")
-        conf = TaosTmqConf()
-        conf.set("group.id", "tg2")
-        conf.set("td.connect.user", "jiacy1_all")
-        conf.set("td.connect.pass", "123")
-        conf.set("enable.auto.commit", "true")
-        conf.set_auto_commit_cb(self.tmq_commit_cb_print, None)
-        tmq = conf.new_consumer()
-        print("build topic list")
-        topic_list = TaosTmqList()
-        topic_list.append("db_topic")
-        print("basic consume loop")
-        tmq.subscribe(topic_list)
-        sub_list = tmq.subscription()
-        print("subscribed topics: ", sub_list)
-        c = 0
-        l = 0
-        for i in range(10):
-            if c > 10:
-                break
-            res = tmq.poll(10)
-            print(f"loop {l}")
-            l += 1
-            if res:
-                c += 1
-                topic = res.get_topic_name()
-                vg = res.get_vgroup_id()
-                db = res.get_db_name()
-                print(f"topic: {topic}\nvgroup id: {vg}\ndb: {db}")
-                for row in res:
-                    print(row)
-                print("* committed")
-                tmq.commit(res)
-            else:
-                print(f"received empty message at loop {l} (committed {c})")
-                pass
+        consumer = Consumer(
+        {
+            "group.id": "3",
+            "td.connect.user": "jiacy1_all",
+            "td.connect.pass": "123",
+            "msg.with.table.name": "true",
+            "enable.auto.commit": "true",
+        })
+        consumer.subscribe([f"{topic_name}"])
+        print("subscribe data")
+        res = consumer.poll(100)
+        if not res:
+            tdLog.exit('case failed with no data !')
+        err = res.error()
+        if err is not None:
+            raise err
+        val = res.value()
+        for block in val:
+            print(block.fetchall())
         
     def run(self):
         tdSql.prepare()
