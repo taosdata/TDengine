@@ -901,7 +901,7 @@ int32_t syncLogReplMgrProcessReplyAsNormal(SSyncLogReplMgr* pMgr, SSyncNode* pNo
       int64_t firstSentMs = pMgr->states[pMgr->startIndex % pMgr->size].timeMs;
       int64_t lastSentMs = pMgr->states[(pMgr->endIndex - 1) % pMgr->size].timeMs;
       int64_t timeDiffMs = lastSentMs - firstSentMs;
-      if (timeDiffMs > 0 && timeDiffMs < (SYNC_LOG_REPL_RETRY_WAIT_MS << (pMgr->retryBackoff - 1))) {
+      if (timeDiffMs > 0 && timeDiffMs < ((int64_t)SYNC_LOG_REPL_RETRY_WAIT_MS << (pMgr->retryBackoff - 1))) {
         pMgr->retryBackoff -= 1;
       }
     }
@@ -928,10 +928,6 @@ SSyncLogReplMgr* syncLogReplMgrCreate() {
   ASSERT(pMgr->size == TSDB_SYNC_LOG_BUFFER_SIZE);
 
   return pMgr;
-
-_err:
-  taosMemoryFree(pMgr);
-  return NULL;
 }
 
 void syncLogReplMgrDestroy(SSyncLogReplMgr* pMgr) {
