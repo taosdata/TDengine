@@ -498,7 +498,7 @@ static int32_t translateTimezone(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
 static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-  if (numOfParams > 11) {
+  if (numOfParams < 2 || numOfParams > 11) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
