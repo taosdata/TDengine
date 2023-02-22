@@ -440,7 +440,7 @@ impl TaskController {
         Ok(())
     }
 
-    pub async fn tasks(&self, filter: TaskFilter) -> anyhow::Result<Vec<Task>> {
+    pub async fn tasks(&self, mut filter: TaskFilter) -> anyhow::Result<Vec<Task>> {
         let condition = filter.to_sql_conditions()?;
         let mut tasks = sqlx::query_as::<_, Task>(&format!(
             "select * from task_with_labels where {condition} order by created_at desc"
@@ -457,14 +457,9 @@ impl TaskController {
         Ok(tasks)
     }
 
-    pub async fn tasks_count(&self, filter: TaskFilter) -> anyhow::Result<usize> {
-        let condition = filter.to_sql_conditions()?;
-        let tasks: i64 = sqlx::query_scalar(&format!(
-            "select count(*) from tasks where {condition} order by created_at desc"
-        ))
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(tasks as _)
+    pub async fn tasks_count(&self, mut filter: TaskFilter) -> anyhow::Result<usize> {
+        let tasks = self.tasks(filter).await?;
+        Ok(tasks.len())
     }
 
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<Task> {
@@ -484,9 +479,10 @@ impl TaskController {
         }
         task.patch_labels();
         let res = sqlx::query(
-            "INSERT INTO tasks (`from`, `oneshot_topic`, `to`, `jobs`, `compression_level`, \
-                 `created_at`, `status`, `after_delete`) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (`name`, `from`, `oneshot_topic`, `to`, `jobs`, `compression_level`, \
+                 `created_at`, `status`, `after_delete`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
+        .bind(&task.name)
         .bind(&task.from)
         .bind(&task.oneshot_topic)
         .bind(&task.to)
@@ -797,6 +793,15 @@ pub(super) struct Task {
     /// Unique id for the task item.
     #[schema(read_only, example = 1)]
     id: i64,
+
+    /// A task name.
+    #[serde(default)]
+    #[sqlx(default)]
+    name: Option<String>,
+
+    /// Task trigger events, default will be oneshot.
+    trigger: Option<String>,
+
     /// Task stream data type. **Deprecated**, use labels instead.
     #[serde(default)]
     #[serde(skip_deserializing)]
@@ -1000,6 +1005,17 @@ const fn is_false(b: &bool) -> bool {
 )]
 pub(super) struct NewTask {
     stream_type: Option<String>,
+    /// Task name.
+    #[schema(example = "demo")]
+    name: Option<String>,
+    /// Task trigger events, default will be oneshot.
+    ///
+    /// For schedule trigger:
+    ///
+    /// - Run hourly/daily/weekly/monthly: "schedule:@daily"
+    /// - Run with crontab schedule: "schedule:0 0 * * *", checkout https://crontab.guru/ for human-readable crontab.
+    #[schema(example = "schedule:0 0 * * *")]
+    trigger: Option<String>,
     /// The stream data source.
     #[schema(example = "tmq:///test")]
     from: String,
@@ -1183,6 +1199,7 @@ pub(super) struct Failed {
 #[derive(Serialize, Deserialize, Default, Clone, IntoParams)]
 #[serde(default)]
 pub(super) struct TaskFilter {
+    name: Option<String>,
     stream_type: Option<String>,
     from_cluster: Option<String>,
     to_cluster: Option<String>,
@@ -1196,7 +1213,7 @@ pub(super) struct TaskFilter {
 }
 
 impl TaskFilter {
-    fn to_sql_conditions(&self) -> std::result::Result<String, std::fmt::Error> {
+    fn to_sql_conditions(&mut self) -> std::result::Result<String, std::fmt::Error> {
         use std::fmt::Write;
         let mut sql = String::new();
         if !self.with_deleted.unwrap_or_default() {
@@ -1204,17 +1221,38 @@ impl TaskFilter {
         } else {
             write!(sql, "1 = 1")?;
         }
+        if let Some(val) = self.name.as_deref() {
+            write!(sql, " AND `name` = '{val}'")?;
+        }
         if let Some(val) = self.stream_type.as_deref() {
-            write!(sql, " AND `stream_type` = '{val}'")?;
+            // write!(sql, " AND `stream_type` = '{val}'")?;
+            let val = format!("stream_type::{}", val);
+            if let Some(labels) = self.labels.as_mut() {
+                labels.push_str(&val);
+            } else {
+                self.labels.replace(val);
+            }
         }
         if let Some(val) = self.status.as_ref() {
             write!(sql, " AND `status` = '{val}'")?;
         }
-        if let Some(from_cluster) = self.from_cluster.as_deref() {
-            write!(sql, " AND `from_cluster` = '{from_cluster}'")?;
+        if let Some(val) = self.from_cluster.as_deref() {
+            // write!(sql, " AND `from_cluster` = '{from_cluster}'")?;
+            let val = format!("from_cluster::{}", val);
+            if let Some(labels) = self.labels.as_mut() {
+                labels.push_str(&val);
+            } else {
+                self.labels.replace(val);
+            }
         }
         if let Some(val) = self.to_cluster.as_deref() {
-            write!(sql, " AND `to_cluster` = '{val}'")?;
+            // write!(sql, " AND `to_cluster` = '{val}'")?;
+            let val = format!("to_cluster::{}", val);
+            if let Some(labels) = self.labels.as_mut() {
+                labels.push_str(&val);
+            } else {
+                self.labels.replace(val);
+            }
         }
         if let Some(val) = self.start_create_time.as_deref() {
             write!(sql, " AND `created_at` >= '{val}'")?;

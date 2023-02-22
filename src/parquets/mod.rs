@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::{bail, Result};
 
 use arrow::{
-    array::{Array, ArrayRef},
+    array::ArrayRef,
     datatypes::{Schema, TimeUnit},
     record_batch::RecordBatch,
 };

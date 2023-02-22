@@ -2,10 +2,7 @@ use std::{
     fmt::Display,
     ops::{AddAssign, SubAssign},
     str::FromStr,
-    sync::{
-        atomic::{AtomicU16, AtomicU64},
-        Arc,
-    },
+    sync::atomic::{AtomicU16, AtomicU64},
     time::{Duration, Instant},
 };
 

@@ -1,11 +1,11 @@
 use std::{collections::HashMap, time::Duration};
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use taos::*;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 
 use crate::{TargetOpts, TimeRange};
 
