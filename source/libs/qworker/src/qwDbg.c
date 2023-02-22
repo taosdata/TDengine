@@ -9,11 +9,13 @@
 #include "tmsg.h"
 #include "tname.h"
 
-SQWDebug gQWDebug = {.statusEnable = true,
+SQWDebug gQWDebug = {.lockEnable = false,
+                     .statusEnable = true,
                      .dumpEnable = false,
                      .redirectSimulate = false,
                      .deadSimulate = false,
-                     .sleepSimulate = false};
+                     .sleepSimulate = false,
+                     .forceStop = false};
 
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore) {
   if (!gQWDebug.statusEnable) {
@@ -303,6 +305,12 @@ int32_t qwDbgEnableDebug(char *option) {
   if (0 == strcasecmp(option, "redirect")) {
     gQWDebug.redirectSimulate = true;
     qError("qw redirect debug enabled");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (0 == strcasecmp(option, "forceStop")) {
+    gQWDebug.forceStop = true;
+    qError("qw forceStop debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
