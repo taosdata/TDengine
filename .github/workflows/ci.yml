@@ -9,49 +9,6 @@ on:
       - github-actions
 
 jobs:
-  build-for-macos-m1:
-    runs-on: macos-11
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '16'
-      - run: npm install
-      - run: npm run build
-
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: aarch64-apple-darwin
-      - uses: actions/cache@v3
-        name: Cargo Caches
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo
-
-      - uses: actions/cache@v3
-        name: Target Caches
-        with:
-          path: |
-            target
-          key: ${{ runner.os }}-cargo-target-aarch64
-
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --target aarch64-apple-darwin
-
-      - name: Upload
-        uses: actions/upload-artifact@v3
-        with:
-          name: taos-explorer-macos-m1
-          path: target/aarch64-apple-darwin/release/tao-explorer
-
   macos:
     runs-on: macos-11
     steps:
@@ -191,18 +148,19 @@ jobs:
           path: target/release/taos-explorer
 
   linux-aarch64:
-    runs-on: ubuntu-18.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - TARGET: aarch64-unknown-linux-musl # tested on aws t4g.nano in alpine container
+          OS: ubuntu-18.04
+    runs-on: ${{ matrix.OS }}
+    env:
+      NAME: rust-cross-compile-example # change with the name of your project
+      TARGET: ${{ matrix.TARGET }}
+      OS: ${{ matrix.OS }}
     steps:
       - uses: actions/checkout@v3
-      # - uses: actions-rs/toolchain@v1
-      #   with:
-      #     toolchain: stable
-      #     target: aarch64-apple-darwin
-      - uses: uraimo/run-on-arch-action@v2
-        name: build on linux-aarch64
-        with:
-          arch: aarch64
-          distro: ubuntu18.04
       - name: setup-node
         uses: actions/setup-node@v3
         with:
@@ -210,37 +168,32 @@ jobs:
       - run: npm install
       - run: npm run build
 
-      - uses: dtolnay/rust-toolchain@nightly
-
-      - uses: actions/cache@v3
-        name: Cargo Caches
+      - name: Cargo cache
+        uses: actions/cache@v2
         with:
           path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo
-
-      - uses: actions/cache@v3
-        name: Target Caches
-        with:
-          path: |
-            target
-          key: ${{ runner.os }}-cargo-target
-
-      # - name: Install cargo bundle
-      #   run: |
-      #     cargo install cargo-bundle -f
-
-      # - name: Bundle
-      #   run: |
-      #     cargo bundle --release
-      - name: build package
-        run: cargo build --release
+            ~/.cargo/registry
+            ./target
+          key: build-cargo-registry-${{matrix.TARGET}}
+      - name: Install and configure dependencies
+        run: |
+          # dependencies are only needed on ubuntu as that's the only place where
+          # we make cross-compilation
+          if [[ $OS =~ ^ubuntu.*$ ]]; then
+            sudo apt-get install -qq crossbuild-essential-arm64 crossbuild-essential-armhf
+          fi
+          # some additional configuration for cross-compilation on linux
+          cat >>~/.cargo/config <<EOF
+          [target.aarch64-unknown-linux-musl]
+          linker = "aarch64-linux-gnu-gcc"
+          EOF
+      - name: Install rust target
+        run: rustup target add $TARGET
+      - name: Run build
+        run: cargo build --release --verbose --target $TARGET
 
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
-          name: App
-          path: target/release/bundle/deb/*.deb
+          name: taos-explorer-linux-aarch64
+          path: target/release/taos-explorer
