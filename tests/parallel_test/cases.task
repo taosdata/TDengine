@@ -407,6 +407,9 @@
 ,,y,script,./test.sh -f tsim/tag/tinyint.sim
 ,,y,script,./test.sh -f tsim/tag/drop_tag.sim
 ,,y,script,./test.sh -f tsim/tag/tbNameIn.sim
+
+,,y,script,./test.sh -f tsim/tagindex/add_index.sim
+,,y,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim
 ,,y,script,./test.sh -f tmp/monitor.sim
 
 #system test

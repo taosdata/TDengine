@@ -1606,7 +1606,7 @@ _err:
 }
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SDropIndexReq req = {0};
-  pRsp->msgType = TDMT_VND_CREATE_INDEX_RSP;
+  pRsp->msgType = TDMT_VND_DROP_INDEX_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
