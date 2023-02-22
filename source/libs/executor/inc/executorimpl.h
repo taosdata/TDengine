@@ -231,14 +231,7 @@ typedef struct SOperatorInfo {
   int64_t downstreamTime;
   int64_t funcInitTime;
   int64_t funcExecTime;
-  int64_t funcExecCalled;
-  int64_t totalNumOfRows;
   int64_t funcFinTime;
-  int64_t smaHits;
-  int64_t smaNoHits;
-  int64_t smaNoHitsRows;
-  int64_t sdHits;
-  int64_t sdHitsRows;
 } SOperatorInfo;
 
 typedef enum {

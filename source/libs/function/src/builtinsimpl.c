@@ -1614,7 +1614,6 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
       }
 
       pInfo->numOfElems += (pInput->numOfRows - pAgg->numOfNull);
-      pCtx->smaHits += 1;
     } else {
       // check the valid data one by one
       int32_t start = pInput->startRowIndex;
@@ -1637,8 +1636,6 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
 
         pInfo->numOfElems += 1;
       }
-      pCtx->smaNoHits += 1;
-      pCtx->smaNoHitsRows += pInput->numOfRows;
     }
   } else {
     // the second stage, calculate the true percentile value
@@ -1658,8 +1655,6 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
     }
 
     SET_VAL(pResInfo, numOfElems, 1);
-    pCtx->sdHits += 1;
-    pCtx->sdHitsRows += pInput->numOfRows;
   }
 
   return TSDB_CODE_SUCCESS;

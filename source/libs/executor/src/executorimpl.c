@@ -520,14 +520,7 @@ static int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
 
       int64_t st = taosGetTimestampUs();
       int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
-      pOperator->funcExecCalled += 1;
-      pOperator->totalNumOfRows += pCtx->input.numOfRows;
       pOperator->funcExecTime += taosGetTimestampUs() - st;
-      pOperator->smaHits = pCtx->smaHits;
-      pOperator->smaNoHits = pCtx->smaNoHits;
-      pOperator->smaNoHitsRows = pCtx->smaNoHitsRows;
-      pOperator->sdHits = pCtx->sdHits;
-      pOperator->sdHitsRows = pCtx->sdHitsRows;
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
         return code;
@@ -1715,10 +1708,8 @@ void destroyOperatorInfo(SOperatorInfo* pOperator) {
     double init = (double)pOperator->funcInitTime / 1000000;
     double exec = (double)pOperator->funcExecTime / 1000000;
     double fin  = (double)pOperator->funcFinTime / 1000000;
-    qError("operator: %s, downstream time:%lf, init time:%lf, exec time:%lf, exec called:%ld, fin time:%lf, total rows:%ld",
-            pOperator->name, downstream, init, exec, pOperator->funcExecCalled, fin, pOperator->totalNumOfRows);
-    qError("operator: %s, sma hits:%ld, sma nohits:%ld, sma nohits rows:%ld, second stage hits:%ld, second stage hits rows:%ld",
-            pOperator->name, pOperator->smaHits, pOperator->smaNoHits, pOperator->smaNoHitsRows, pOperator->sdHits, pOperator->sdHitsRows);
+    qError("operator: %s, downstream time:%lf, init time:%lf, exec time:%lf, fin time:%lf",
+            pOperator->name, downstream, init, exec, fin);
   }
 
   if (pOperator->fpSet.closeFn != NULL) {
@@ -1940,14 +1931,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
   pOperator->downstreamTime = 0;
   pOperator->funcInitTime = 0;
   pOperator->funcExecTime = 0;
-  pOperator->funcExecCalled = 0;
   pOperator->funcFinTime = 0;
-  pOperator->totalNumOfRows = 0;
-  pOperator->smaHits = 0;
-  pOperator->smaNoHits = 0;
-  pOperator->smaNoHitsRows = 0;
-  pOperator->sdHits = 0;
-  pOperator->sdHitsRows= 0;
 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = downstream->info;
