@@ -116,12 +116,7 @@ int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItem
   }
 
 _exit:
-  if (code) {
-    *ppArray = NULL;
-    if (pArray) taosArrayDestroy(pArray);
-  } else {
-    *ppArray = pArray;
-  }
+  *ppArray = pArray;
   return code;
 }
 
@@ -1233,14 +1228,22 @@ int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema,
     int32_t   iColumn = 1;
     STColumn *pTColumn = &pTSchema->columns[iColumn];
     for (int32_t iCid = 0; iCid < nCid; iCid++) {
-      ASSERT(pTColumn);
+      if (ASSERTS(pTColumn != NULL, "invalid input param")) {
+        code = TSDB_CODE_INVALID_PARA;
+        goto _exit;
+      }
+
       while (pTColumn->colId < aCid[iCid]) {
         iColumn++;
         ASSERT(iColumn < pTSchema->numOfCols);
         pTColumn = &pTSchema->columns[iColumn];
       }
 
-      ASSERT(pTColumn->colId == aCid[iCid]);
+      if (ASSERTS(pTColumn->colId == aCid[iCid], "invalid input param")) {
+        code = TSDB_CODE_INVALID_PARA;
+        goto _exit;
+      }
+
       tColDataInit(&pBlockData->aColData[iCid], pTColumn->colId, pTColumn->type,
                    (pTColumn->flags & COL_SMA_ON) ? 1 : 0);
 

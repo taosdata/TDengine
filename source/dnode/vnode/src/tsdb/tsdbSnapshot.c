@@ -328,10 +328,6 @@ static int32_t tsdbSnapCmprTombData(STsdbSnapReader* pReader, uint8_t** ppData) 
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pReader->pTsdb->pVnode), __func__, lino, tstrerror(code));
-    if (pData) {
-      taosMemoryFree(pData);
-      pData = NULL;
-    }
   }
   *ppData = pData;
   return code;
@@ -404,7 +400,7 @@ static int32_t tsdbSnapReadTombData(STsdbSnapReader* pReader, uint8_t** ppData) 
   }
 
   while (pDelInfo && pDelInfo->suid == pReader->tbid.suid && pDelInfo->uid == pReader->tbid.uid) {
-    if (taosArrayPush(pReader->aDelData, &pDelInfo->delData) < 0) {
+    if (taosArrayPush(pReader->aDelData, &pDelInfo->delData) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -1252,7 +1248,7 @@ static int32_t tsdbSnapWriteDelTableData(STsdbSnapWriter* pWriter, TABLEID* pId,
     SDelData delData;
     n += tGetDelData(pData + n, &delData);
 
-    if (taosArrayPush(pWriter->aDelData, &delData) < 0) {
+    if (taosArrayPush(pWriter->aDelData, &delData) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -1420,6 +1416,7 @@ _exit:
       tBlockDataDestroy(&pWriter->bData);
       tBlockDataDestroy(&pWriter->inData);
       tsdbFSDestroy(&pWriter->fs);
+      taosMemoryFree(pWriter);
       pWriter = NULL;
     }
   } else {
