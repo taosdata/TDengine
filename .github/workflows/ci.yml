@@ -40,16 +40,6 @@ jobs:
       - name: build package
         run: cargo build --release
 
-      # - name: Install cargo bundle
-        # run: |
-          # command -v cargo-bundle || cargo install cargo-bundle
-
-      # - name: Bundle
-        # run: |
-          # cargo bundle --release
-          # cd target/release/bundle/
-          # tar -cavf osx.tar.gz *
-
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
@@ -88,14 +78,6 @@ jobs:
       - name: build package
         run: cargo build --release
 
-      # - name: Install cargo bundle
-      #   run: |
-      #     cargo install cargo-bundle -f
-
-      # - name: Bundle
-      #   run: |
-      #     cargo build --release
-    
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
@@ -131,13 +113,6 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-target
 
-      # - name: Install cargo bundle
-      #   run: |
-      #     cargo install cargo-bundle -f
-
-      # - name: Bundle
-      #   run: |
-      #     cargo bundle --release
       - name: build package
         run: cargo build --release
 
@@ -187,6 +162,8 @@ jobs:
           [target.aarch64-unknown-linux-musl]
           linker = "aarch64-linux-gnu-gcc"
           EOF
+      - name: install musl 
+        run: apt-get install musl-tools clang llvm -y
       - name: Install rust target
         run: rustup target add $TARGET
       - name: Run build
