@@ -220,6 +220,8 @@ static bool          hasDataInFileBlock(const SBlockData* pBlockData, const SFil
 static void          initBlockDumpInfo(STsdbReader* pReader, SDataBlockIter* pBlockIter);
 static int32_t       getInitialDelIndex(const SArray* pDelSkyline, int32_t order);
 
+static STableBlockScanInfo* getTableBlockScanInfo(SHashObj* pTableMap, uint64_t uid, const char* id);
+
 static FORCE_INLINE STSchema* getLatestTableSchema(STsdbReader* pReader, uint64_t uid);
 
 static bool outOfTimeWindow(int64_t ts, STimeWindow* pWindow) { return (ts > pWindow->ekey) || (ts < pWindow->skey); }
@@ -699,13 +701,11 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
 
     if (pBlockIdx->uid == pList->tableUidList[j]) {
       // this block belongs to a table that is not queried.
-      void* p = taosHashGet(pReader->status.pTableMap, &pBlockIdx->uid, sizeof(uint64_t));
-      if (p == NULL) {
-        tsdbError("failed to locate the tableBlockScan Info in hashmap, uid:%"PRIu64", %s", pBlockIdx->uid, pReader->idStr);
-        return TSDB_CODE_APP_ERROR;
+      STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockIdx->uid, pReader->idStr);
+      if (pScanInfo == NULL) {
+        return terrno;
       }
 
-      STableBlockScanInfo* pScanInfo = *(STableBlockScanInfo**)p;
       if (pScanInfo->pBlockList == NULL) {
         pScanInfo->pBlockList = taosArrayInit(4, sizeof(SBlockIndex));
       }
@@ -753,9 +753,10 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
 
   for (int32_t i = 0; i < numOfTables; ++i) {
     SBlockIdx* pBlockIdx = taosArrayGet(pIndexList, i);
-
-    STableBlockScanInfo* pScanInfo =
-        *(STableBlockScanInfo**)taosHashGet(pReader->status.pTableMap, &pBlockIdx->uid, sizeof(int64_t));
+    STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockIdx->uid, pReader->idStr);
+    if (pScanInfo == NULL) {
+      return terrno;
+    }
 
     tMapDataReset(&pScanInfo->mapData);
     tsdbReadDataBlk(pReader->pFileReader, pBlockIdx, &pScanInfo->mapData);
@@ -1257,14 +1258,13 @@ static int32_t fileDataBlockOrderCompar(const void* pLeft, const void* pRight, v
 static int32_t doSetCurrentBlock(SDataBlockIter* pBlockIter, const char* idStr) {
   SFileDataBlockInfo* pBlockInfo = getCurrentBlockInfo(pBlockIter);
   if (pBlockInfo != NULL) {
-    STableBlockScanInfo** pScanInfo = taosHashGet(pBlockIter->pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
+    STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pBlockIter->pTableMap, pBlockInfo->uid, idStr);
     if (pScanInfo == NULL) {
-      tsdbError("failed to locate the uid:%" PRIu64 " in query table uid list, %s", pBlockInfo->uid, idStr);
-      return TSDB_CODE_INVALID_PARA;
+      return terrno;
     }
 
-    SBlockIndex* pIndex = taosArrayGet((*pScanInfo)->pBlockList, pBlockInfo->tbBlockIdx);
-    tMapDataGetItemByIdx(&(*pScanInfo)->mapData, pIndex->ordinalIndex, &pBlockIter->block, tGetDataBlk);
+    SBlockIndex* pIndex = taosArrayGet(pScanInfo->pBlockList, pBlockInfo->tbBlockIdx);
+    tMapDataGetItemByIdx(&pScanInfo->mapData, pIndex->ordinalIndex, &pBlockIter->block, tGetDataBlk);
   }
 
 #if 0
@@ -2507,15 +2507,10 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
   STableBlockScanInfo* pBlockScanInfo = NULL;
   if (pBlockInfo != NULL) {
-    void* p = taosHashGet(pReader->status.pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
-    if (p == NULL) {
-      code = TSDB_CODE_INVALID_PARA;
-      tsdbError("failed to locate the uid:%" PRIu64 " in query table uid list, total tables:%d, %s", pBlockInfo->uid,
-                taosHashGetSize(pReader->status.pTableMap), pReader->idStr);
+    pBlockScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockInfo->uid, pReader->idStr);
+    if (pBlockScanInfo == NULL) {
       goto _end;
     }
-
-    pBlockScanInfo = *(STableBlockScanInfo**)p;
 
     SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
     TSDBKEY   keyInBuf = getCurrentKeyInBuf(pBlockScanInfo, pReader);
@@ -2856,12 +2851,9 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   SLastBlockReader*    pLastBlockReader = pReader->status.fileIter.pLastBlockReader;
 
   ASSERT(pBlockInfo != NULL);
-
-  pScanInfo = *(STableBlockScanInfo**)taosHashGet(pReader->status.pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
+  pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockInfo->uid, pReader->idStr);
   if (pScanInfo == NULL) {
-    tsdbError("failed to get table scan-info, %s", pReader->idStr);
-    code = TSDB_CODE_INVALID_PARA;
-    return code;
+    return terrno;
   }
 
   pBlock = getCurrentBlock(pBlockIter);
@@ -4202,7 +4194,7 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, 
   SSDataBlock* pResBlock = pReader->pResBlock;
   if (pResBlock->pBlockAgg == NULL) {
     size_t num = taosArrayGetSize(pResBlock->pDataBlock);
-    pResBlock->pBlockAgg = taosMemoryCalloc(num, sizeof(SColumnDataAgg));
+    pResBlock->pBlockAgg = taosMemoryCalloc(num, POINTER_BYTES);
   }
 
   // do fill all null column value SMA info
@@ -4232,6 +4224,18 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, 
   return code;
 }
 
+STableBlockScanInfo* getTableBlockScanInfo(SHashObj* pTableMap, uint64_t uid, const char* id) {
+  STableBlockScanInfo** p = taosHashGet(pTableMap, &uid, sizeof(uid));
+  if (p == NULL || *p == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    int32_t size = taosHashGetSize(pTableMap);
+    tsdbError("failed to locate the uid:%" PRIu64 " in query table uid list, total tables:%d, %s", uid, size, id);
+    return NULL;
+  }
+
+  return *p;
+}
+
 static SSDataBlock* doRetrieveDataBlock(STsdbReader* pReader) {
   SReaderStatus* pStatus = &pReader->status;
 
@@ -4240,12 +4244,8 @@ static SSDataBlock* doRetrieveDataBlock(STsdbReader* pReader) {
   }
 
   SFileDataBlockInfo*  pBlockInfo = getCurrentBlockInfo(&pStatus->blockIter);
-  STableBlockScanInfo* pBlockScanInfo =
-      *(STableBlockScanInfo**)taosHashGet(pStatus->pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
+  STableBlockScanInfo* pBlockScanInfo = getTableBlockScanInfo(pStatus->pTableMap, pBlockInfo->uid, pReader->idStr);
   if (pBlockScanInfo == NULL) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    tsdbError("failed to locate the uid:%" PRIu64 " in query table uid list, total tables:%d, %s", pBlockInfo->uid,
-              taosHashGetSize(pReader->status.pTableMap), pReader->idStr);
     return NULL;
   }
 

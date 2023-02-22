@@ -2022,7 +2022,12 @@ int32_t extractTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, 
     tDecoderClear(&mr.coder);
 
     tb_uid_t suid = mr.me.ctbEntry.suid;
-    metaGetTableEntryByUidCache(&mr, suid);
+    code = metaGetTableEntryByUidCache(&mr, suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      metaReaderClear(&mr);
+      return terrno;
+    }
+
     pSchemaInfo->sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
     pSchemaInfo->tversion = mr.me.stbEntry.schemaTag.version;
   } else {
