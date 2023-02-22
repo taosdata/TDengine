@@ -88,16 +88,17 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
+  pRpc->parent = pInit->parent;
+  if (pInit->user) {
+    tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
+  }
+
   pRpc->tcphandle =
       (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
 
   if (pRpc->tcphandle == NULL) {
     taosMemoryFree(pRpc);
     return NULL;
-  }
-  pRpc->parent = pInit->parent;
-  if (pInit->user) {
-    tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
   }
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
