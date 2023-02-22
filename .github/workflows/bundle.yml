@@ -80,21 +80,24 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-target
 
-      - name: Install cargo bundle
-        run: |
-          command -v cargo-bundle || cargo install cargo-bundle
+      - name: build package
+        run: cargo build --release
 
-      - name: Bundle
-        run: |
-          cargo bundle --release
-          cd target/release/bundle/
-          tar -cavf osx.tar.gz *
+      # - name: Install cargo bundle
+        # run: |
+          # command -v cargo-bundle || cargo install cargo-bundle
+
+      # - name: Bundle
+        # run: |
+          # cargo bundle --release
+          # cd target/release/bundle/
+          # tar -cavf osx.tar.gz *
 
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
-          name: App
-          path: target/release/bundle/osx.tar.gz
+          name: tao-explorer-macos
+          path: target/release/taos-exploer
 
   # windows:
   #   runs-on: windows-latest
