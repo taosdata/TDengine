@@ -23,7 +23,6 @@ use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_util::sync::CancellationToken;
 use utoipa::*;
 
-
 mod definition;
 pub use definition::*;
 
@@ -58,6 +57,20 @@ pub(super) enum Transformer {
     },
 }
 
+// {
+//   "id": "tmq",
+//   "protocol": "ws",
+//   "options": {
+//     "host": "192.168.0.201",
+//     "port": ""
+//     "username": "root",
+//     "password": "password",
+//     "subject": "topic1"
+//   },
+//   "params": {
+//     "group.id": "gid1"
+//   }
+// }
 #[test]
 fn transformer_test() {
     let t = Transformer::Reheader(vec!["A".to_string(); 2]);
@@ -92,7 +105,7 @@ pub(super) struct DataIn {
 #[utoipa::path(
     tag = "data sources",
     responses(
-        (status = 200, description = "Available data sources", body = Vec<DataSource>),
+        (status = 200, description = "Available data sources", body = Vec<DataSourceDefinition>),
     ),
 )]
 #[get("/ds/in")]
@@ -103,14 +116,11 @@ pub(super) async fn data_sources_in() -> impl Responder {
   "name": "TDengine Subscription",
   "description": "TMQ data source is a reader-only data source for TDengine.\n\n## Protocols\n\n- **ws**: websocket protocol with plain HTTP connection.\n- **wss**: websocket protocol with TLS http connection.\n\nWithout protocol settings, TMQ will use native connection.\n\n## Subject\n\nTMQ data source could subscribe data from a database or\na specified table with fully \"database.name\" format.\n",
   "type": "uri",
-  "protocol": [
-    {
-      "name": "--",
-      "display": "None",
-      "description": "Use taosc native connection",
-      "default": true
-    },
-    {
+  "protocol": {
+    "display": "Protocol",
+    "description": "Choose a protocol scheme for websocket connection, leave it empty for native connection",
+    "choices": [
+      {
         "name": "ws",
         "display": "WS",
         "description": "WebSocket with HTTP."
@@ -119,8 +129,8 @@ pub(super) async fn data_sources_in() -> impl Responder {
         "name": "wss",
         "display": "WSS",
         "description": "WebSocket with HTTPS."
-      }
-  ],
+      }]
+  },
   "options": {
     "host": {
         "display": "Host",

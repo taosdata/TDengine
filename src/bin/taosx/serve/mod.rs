@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use actix_cors::Cors;
 use anyhow::Result;
 
 use clap::Parser;
@@ -88,7 +89,8 @@ impl Cli {
                     Task,
                     Failed,
                     DataSourceInput,
-                    DataSource,
+                    DataSourceDefinition,
+                    ProtocolItem,
                     Param,
                     GroupedParams,
                     DataSourceOptions,
@@ -156,8 +158,13 @@ impl Cli {
         let recorder = Data::new(handle);
 
         let server = HttpServer::new(move || {
+            let cors = Cors::default()
+                .allow_any_origin()
+                .allow_any_method()
+                .allow_any_header();
             // This factory closure is called on each worker thread independently.
             App::new()
+                .wrap(cors)
                 .wrap(Logger::default())
                 .app_data(recorder.clone())
                 .configure(configure(store.clone()))

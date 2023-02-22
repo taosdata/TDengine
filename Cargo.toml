@@ -39,7 +39,8 @@ toml = "0.7.2"
 zstd = "0.12.1"
 
 actix-web = "4"
-serde_json = { version = "1.0", feature = ["raw_value"] }
+actix-cors = "0.6.4"
+serde_json = { version = "1.0", features = ["raw_value"] }
 sqlx = { version = "0.6", features = ["sqlite", "chrono", "json"] }
 utoipa = { version = "3", features = ["actix_extras", "chrono"] }
 utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }

@@ -452,6 +452,8 @@ impl TaskController {
             filter.filter_task_labels(&mut tasks);
         }
 
+        tasks.iter_mut().for_each(|task| task.backport_labels());
+
         Ok(tasks)
     }
 
@@ -482,18 +484,14 @@ impl TaskController {
         }
         task.patch_labels();
         let res = sqlx::query(
-            "INSERT INTO tasks (`from`, `from_cluster`, `oneshot_topic`, `to`, `to_cluster`, `stream_type`, `jobs`, `compression_level`, `force`, \
-                 `created_at`, `status`, `after_delete`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (`from`, `oneshot_topic`, `to`, `jobs`, `compression_level`, \
+                 `created_at`, `status`, `after_delete`) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&task.from)
-        .bind(&task.from_cluster)
         .bind(&task.oneshot_topic)
         .bind(&task.to)
-        .bind(&task.to_cluster)
-        .bind(&task.stream_type)
         .bind(&task.jobs)
         .bind(&task.compression_level)
-        .bind(&task.force)
         .bind(&chrono::Utc::now().to_rfc3339())
         .bind(&Status::Created)
         .bind(&task.after_delete)
@@ -515,7 +513,8 @@ impl TaskController {
         }
 
         // let opts = taosx::TaskOpts::try_from(task.clone())?;
-        let task = self.get(id).await?.unwrap();
+        let mut task = self.get(id).await?.unwrap();
+        task.backport_labels();
 
         self.start_task(&task).await?;
         Ok(task)
@@ -598,14 +597,18 @@ impl TaskController {
     }
 
     pub async fn get(&self, id: i64) -> anyhow::Result<Option<Task>> {
-        let task = sqlx::query_as("select * from task_with_labels where id = ?")
+        let task: Option<Task> = sqlx::query_as("select * from task_with_labels where id = ?")
             .bind(id)
             .fetch_optional(&self.pool)
             .await?;
-        Ok(task)
+
+        Ok(task.map(|mut t| {
+            t.backport_labels();
+            t
+        }))
     }
 
-    pub async fn delete(&self, id: i64) -> anyhow::Result<Option<()>> {
+    pub async fn delete(&self, id: i64) -> anyhow::Result<Option<Task>> {
         {
             if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
                 token.cancel();
@@ -629,10 +632,11 @@ impl TaskController {
             log::info!("successfully deleted task by id {id}");
         }
 
-        let task: Task = sqlx::query_as("select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where id = ?")
+        let mut task: Task = sqlx::query_as("select * from task_with_labels where id = ?")
             .bind(id)
             .fetch_one(&self.pool)
             .await?;
+        task.backport_labels();
         if let Some(topic) = task.oneshot_topic.as_deref() {
             let mut dsn: Dsn = task.from.parse()?;
             let _ = dsn.subject.take();
@@ -660,7 +664,7 @@ impl TaskController {
                 tokio::spawn(async move { taosx::utils::clear_local(&dsn).await });
             }
         }
-        Ok(Some(()))
+        Ok(Some(task))
     }
     pub async fn stop(&self, id: i64) -> anyhow::Result<Option<()>> {
         if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
@@ -793,18 +797,20 @@ pub(super) struct Task {
     /// Unique id for the task item.
     #[schema(read_only, example = 1)]
     id: i64,
-    /// Task stream data type.
-    #[schema(read_only, example = "backup")]
+    /// Task stream data type. **Deprecated**, use labels instead.
     #[serde(default)]
+    #[serde(skip_deserializing)]
+    #[sqlx(default)]
     stream_type: Option<String>,
 
     /// The stream data source.
     #[schema(example = "tmq:///test")]
     from: String,
 
-    /// Cluster identifier for stream from.
-    #[schema(example = "null")]
+    /// Cluster identifier for stream from. **Deprecated**, use labels instead.
     #[serde(default)]
+    #[serde(skip_deserializing)]
+    #[sqlx(default)]
     from_cluster: Option<String>,
 
     /// Use oneshot topic for a task, delete the topic after task deleted.
@@ -815,9 +821,11 @@ pub(super) struct Task {
     #[schema(example = "local:/path/to/backup/test")]
     to: String,
 
-    /// Cluster identifier for stream to.
+    /// Cluster identifier for stream to. **Deprecated**, use labels instead.
     #[schema(example = "null")]
     #[serde(default)]
+    #[serde(skip_deserializing)]
+    #[sqlx(default)]
     to_cluster: Option<String>,
 
     /// Number of jobs for task running.
@@ -828,6 +836,8 @@ pub(super) struct Task {
     compression_level: Option<u8>,
 
     /// Force for some risking steps.
+    #[serde(skip_serializing)]
+    #[sqlx(default)]
     force: bool,
 
     /// Created time.
@@ -887,6 +897,27 @@ pub(super) struct Task {
     labels: Labels,
 }
 
+impl Task {
+    fn backport_labels(&mut self) {
+        if let Some(labels) = self.labels.as_deref() {
+            for label in labels {
+                if label.starts_with("from_cluster") {
+                    if let Some(value) = label.split_once("::") {
+                        self.from_cluster = Some(value.1.to_string())
+                    }
+                } else if label.starts_with("to_cluster") {
+                    if let Some(value) = label.split_once("::") {
+                        self.to_cluster = Some(value.1.to_string())
+                    }
+                } else if label.starts_with("stream_type") {
+                    if let Some(value) = label.split_once("::") {
+                        self.stream_type = Some(value.1.to_string())
+                    }
+                }
+            }
+        }
+    }
+}
 #[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq, PartialOrd, ToSchema)]
 pub struct Labels(Option<Vec<String>>);
 
@@ -968,7 +999,6 @@ const fn is_false(b: &bool) -> bool {
     Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode, sqlx::Encode, sqlx::FromRow,
 )]
 pub(super) struct NewTask {
-    #[schema(example = "backup")]
     stream_type: Option<String>,
     /// The stream data source.
     #[schema(example = "tmq:///test")]
@@ -984,11 +1014,9 @@ pub(super) struct NewTask {
     #[schema(example = "local:/tmp/taosx/test")]
     to: String,
     /// The stream data target cluster id.
-    #[schema(example = "")]
     to_cluster: Option<String>,
 
     /// Set if the target database should be cleared before running task.
-    #[schema(example = "false")]
     #[serde(default)]
     clear: bool,
 
@@ -1431,7 +1459,7 @@ pub(super) async fn update_task(
 #[utoipa::path(
     tag = "tasks",
     responses(
-        (status = 200, description = "Task deleted successfully"),
+        (status = 200, description = "Task deleted successfully", body = Task),
         // (status = 401, description = "Unauthorized to delete Task", body = ErrorResponse, example = json!(ErrorResponse::Unauthorized(String::from("missing api key")))),
         (status = 404, description = "Task not found by id", body = Failed)
     ),
@@ -1442,7 +1470,7 @@ pub(super) async fn update_task(
 #[delete("/tasks/{id}")]
 pub(super) async fn delete_task(id: Path<i64>, task_store: Data<TaskController>) -> impl Responder {
     match task_store.delete(id.into_inner()).await {
-        Ok(Some(_)) => HttpResponse::Ok().finish(),
+        Ok(Some(task)) => HttpResponse::Ok().json(task),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::Failed,
@@ -1499,7 +1527,7 @@ pub(super) async fn get_task_by_id(
 pub(super) async fn start_task(id: Path<i64>, task_store: Data<TaskController>) -> impl Responder {
     let id = id.into_inner();
     match task_store.start(id).await {
-        Ok(Some(_)) => HttpResponse::Ok().finish(),
+        Ok(Some(_)) => HttpResponse::Ok().body("{}"),
         Ok(None) => HttpResponse::NotFound().json(Failed {
             code: Code::Failed,
             message: format!("Task {id} not found"),
@@ -1530,7 +1558,7 @@ pub(super) async fn start_task(id: Path<i64>, task_store: Data<TaskController>) 
 pub(super) async fn stop_task(id: Path<i64>, task_store: Data<TaskController>) -> impl Responder {
     let id = id.into_inner();
     match task_store.stop(id).await {
-        Ok(Some(_)) => HttpResponse::Ok().finish(),
+        Ok(Some(_)) => HttpResponse::Ok().body("{}"),
         Ok(None) => HttpResponse::NotFound().json(Failed {
             code: Code::Failed,
             message: format!("Task {id} not found"),

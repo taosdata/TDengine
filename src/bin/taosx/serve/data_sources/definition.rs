@@ -3,10 +3,19 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct Protocol {
+pub struct ProtocolItem {
     name: String,
     display: Option<String>,
     description: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
+pub struct Protocol {
+    display: Option<String>,
+    description: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+		#[serde(default)]
+		choices: Vec<ProtocolItem>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -47,20 +56,31 @@ pub struct GroupedParams {
 
 }
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct DataSource {
+pub struct DataSourceDefinition {
+		/// Data source driver id
     id: String,
+		/// Data source driver name.
     name: String,
+		/// Data source description in markdown format.
     description: Option<String>,
+		/// Type for DSN parser.
 		r#type: DataSourceType,
-		strict: bool,
-		options: DataSourceOptions,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+		/// Allow custom parameters.
 		#[serde(default)]
-    protocol: Vec<Protocol>,
+		strict: bool,
+		/// Options for specified type.
+		options: DataSourceOptions,
+		/// Protocol list.
+    protocol: Option<Protocol>,
+		/// Grouped parameters.
     #[serde(skip_serializing_if = "Vec::is_empty")]
 		#[serde(default)]
 		groups: Vec<GroupedParams>,
+		/// Ungrouped parameters.
     #[serde(skip_serializing_if = "Vec::is_empty")]
 		#[serde(default)]
 		params: Vec<Param>,
+		/// Schema definitions, not used currently.
+		#[serde(skip_serializing_if = "Option::is_none")]
+		definitions: Option<()>,
 }
