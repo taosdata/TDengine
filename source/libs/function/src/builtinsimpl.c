@@ -1675,8 +1675,9 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   if (pCtx->numOfParams > 2) {
     char   buf[512] = {0};
-    size_t len = 0;
+    size_t len = 1;
 
+    varDataVal(buf)[0] = '[';
     for (int32_t i = 1; i < pCtx->numOfParams; ++i) {
       SVariant* pVal = &pCtx->param[i].param;
 
@@ -1687,7 +1688,11 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
         goto _fin_error;
       }
 
-      len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf; ", ppInfo->result);
+      if (i == pCtx->numOfParams - 1) {
+        len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf]", ppInfo->result);
+      } else {
+        len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf, ", ppInfo->result);
+      }
     }
 
     int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
