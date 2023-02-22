@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef USE_UV
-
 #include "transComm.h"
 
 void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int32_t numOfThreads, void* fp, void* shandle) = {
@@ -189,5 +187,3 @@ void rpcCleanup(void) {
 
   return;
 }
-
-#endif
