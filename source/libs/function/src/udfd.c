@@ -347,8 +347,16 @@ void udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
     return;
   }
   if (plugin->openFunc) {
-    SScriptUdfEnvItem items[] ={{"PYTHONPATH", tsUdfdLdLibPath}};
+    int16_t lenPythonPath = strlen(tsUdfdLdLibPath) + strlen(tsTempDir) + 1 + 1; //tsTempDir:tsUdfdLdLibPath
+    char* pythonPath= taosMemoryMalloc(lenPythonPath);
+    #ifdef WINDOWS
+        snprintf(pythonPath, lenPythonPath, "%s;%s", tsTempDir, tsUdfdLdLibPath);
+    #else
+        snprintf(pythonPath, lenPythonPath, "%s:%s", tsTempDir, tsUdfdLdLibPath);
+    #endif    
+    SScriptUdfEnvItem items[] ={{"PYTHONPATH", pythonPath}};
     plugin->openFunc(items, 1);
+    taosMemoryFree(pythonPath);
   }
   plugin->libLoaded = true;
   return;
