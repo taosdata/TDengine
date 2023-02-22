@@ -190,9 +190,11 @@ class TDTestCase:
 
     # run
     def run(self):
+        # var
         stable = "meters"
         tbname = "d"
         count = 1000
+        # do 
         self.create_table(stable, tbname, count)
         self.create_tagidx(stable)
         self.insert_data(tbname)
@@ -210,4 +212,3 @@ class TDTestCase:
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
-
