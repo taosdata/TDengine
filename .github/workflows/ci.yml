@@ -10,175 +10,106 @@ on:
       - github-actions
 
 jobs:
-  macos:
-    runs-on: macos-11
+  build-package:
+    name: build-package
+    runs-on: ${{ matrix.os }}
+    env:
+      # For some builds, we use cross to test on 32-bit and big-endian
+      # systems.
+      CARGO: cargo
+      # When CARGO is set to CROSS, this is set to `--target matrix.target`.
+      TARGET_FLAGS: ""
+      # When CARGO is set to CROSS, TARGET_DIR includes matrix.target.
+      TARGET_DIR: ./target
+      # Emit backtraces on panics.
+      RUST_BACKTRACE: 1
+      # Build static releases with PCRE2.
+      PCRE2_SYS_STATIC: 1
+    strategy:
+      matrix:
+        build: [linux, linux-aarch64, macos, win-msvc]
+        include:
+        - build: linux
+          os: ubuntu-22.04
+          rust: nightly
+          target: x86_64-unknown-linux-musl
+        - build: linux-arm
+          os: ubuntu-22.04
+          rust: nightly
+          target: aarch64-unknown-linux-musl
+        - build: macos
+          os: macos-12
+          rust: nightly
+          target: x86_64-apple-darwin
+        - build: win-msvc
+          os: windows-2022
+          rust: nightly
+          target: x86_64-pc-windows-msvc
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '16'
-      - run: npm install
-      - run: npm run build
-
-      - uses: dtolnay/rust-toolchain@nightly
-
-      - uses: actions/cache@v3
-        name: Cargo Caches
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo
-      - uses: actions/cache@v3
-        name: Target Caches
-        with:
-          path: |
-            target
-          key: ${{ runner.os }}-cargo-target
-
-      - name: build package
-        run: cargo build --release
-
-      - name: build archive
-        run: |
-          cd target/release/
-          tar -cavf taos-explorer-x86_64-apple-darwin.tar.gz taos-explorer
-
-      - name: Upload
-        uses: actions/upload-artifact@v3
-        with:
-          name: taos-explorer-x86_64-apple-darwin.tar.gz
-          path: target/release/*.tar.gz
-
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '16'
-      - run: npm install
-      - run: npm run build
-
-      - uses: dtolnay/rust-toolchain@nightly
-
-      - uses: actions/cache@v3
-        name: Cargo Caches
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo
-
-      - uses: actions/cache@v3
-        name: Target Caches
-        with:
-          path: |
-            target
-          key: ${{ runner.os }}-cargo-target
-
-      - name: build package
-        run: cargo build --release
+      - name: Checkout repository
+        uses: actions/checkout@v3
       
-      - name: build archive
-        run: |
-          cd target/release/
-          7z a taos-explorer-x86_64-windows.zip *.exe
-
-      - name: Upload
-        uses: actions/upload-artifact@v3
-        with:
-          name: taos-explorer-x86_64-windows.zip
-          path: target/release/*.zip
-
-  linux:
-    runs-on: ubuntu-18.04
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - name: Install node
+        uses: actions/setup-node@v3
         with:
           node-version: '16'
       - run: npm install
       - run: npm run build
 
-      - uses: dtolnay/rust-toolchain@nightly
-
-      - uses: actions/cache@v3
-        name: Cargo Caches
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
 
-      - uses: actions/cache@v3
-        name: Target Caches
-        with:
-          path: |
-            target
-          key: ${{ runner.os }}-cargo-target
+      - name: Use Cross
+        shell: bash
+        run: |
+          cargo install cross
+          echo "CARGO=cross" >> $GITHUB_ENV
+          echo "TARGET_FLAGS=--target ${{ matrix.target }}" >> $GITHUB_ENV
+          echo "TARGET_DIR=./target/${{ matrix.target }}" >> $GITHUB_ENV
 
-      - name: build package
-        run: cargo build --release
+      - name: Show command used for Cargo
+        run: |
+          echo "cargo command is: ${{ env.CARGO }}"
+          echo "target flag is: ${{ env.TARGET_FLAGS }}"
+          echo "target dir is: ${{ env.TARGET_DIR }}"
+
+      - name: Build release binary
+        run: ${{ env.CARGO }} build --verbose --release --features pcre2 ${{ env.TARGET_FLAGS }}
       
-      - name: build archive
-        run: |
-          cd target/release/
-          tar -cavf taos-explorer-x86_64-linux.tar.gz taos-explorer
+      - name: Strip release binary (linux and macos)
+        if: matrix.build == 'linux' || matrix.build == 'macos'
+        run: strip "target/${{ matrix.target }}/release/rg"
 
-      - name: Upload
+      - name: Strip release binary (arm)
+        if: matrix.build == 'linux-arm'
+        run: |
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            rustembedded/cross:aarch64-unknown-linux-musl \
+            arm-linux-gnueabihf-strip \
+            /target/aarch64-unknown-linux-musl/release/
+      
+      - name: Build archive
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "windows-2022" ]; then
+            cd target/${{ matrix.target }}/release/
+            7z a taos-explorer-${{ matrix.target }}.zip *.exe
+            archive-file=taos-explorer-${{ matrix.target }}.zip
+            echo "ASSET=archive-file" >> $GITHUB_ENV
+          else
+            # The man page is only generated on Unix systems. ¯\_(ツ)_/¯
+            cd "target/${{ matrix.target }}/release/" 
+            tar czf taos-explorer-${{ matrix.target }}.tar.gz taos-explorer
+            archive-file=taos-explorer-${{ matrix.target }}.tar.gz
+            echo "ASSET=archive-file" >> $GITHUB_ENV
+          fi
+      - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: taos-explorer-x86_64-linux.tar.gz
-          path: target/release/*.tar.gz
-
-  linux-aarch64:
-    runs-on: ubuntu-18.04
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '16'
-      - run: npm install
-      - run: npm run build
-
-      - uses: actions/cache@v3
-        name: Cargo Caches
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo
-
-      - uses: actions/cache@v3
-        name: Target Caches
-        with:
-          path: |
-            target
-          key: ${{ runner.os }}-cargo-target
-
-      - name: Build package
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: build
-          args: --all --release --target=aarch64-unknown-linux-musl
-
-      - name: build archive
-        run: |
-          cd target/aarch64-unknown-linux-musl/release/
-          tar -cavf taos-explorer-aarch64-unknown-linux-musl.tar.gz taos-explorer
-
-      - name: Upload
-        uses: actions/upload-artifact@v3
-        with:
-          name: taos-explorer-aarch64-unknown-linux-musl.tar.gz
-          path: target/aarch64-unknown-linux-musl/release/*.tar.gz
+          name: ${{ env.ASSET }}
+          path: target/${{ matrix.target }}/release/
+          
