@@ -755,6 +755,7 @@ export default {
   },
   users: {
     all: "All",
+    db: "Database",
     createNewUser: "Add New User",
     addNewCluster: "Add New Instance",
     addNewDB: "Add New DB",
