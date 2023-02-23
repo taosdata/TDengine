@@ -73,7 +73,7 @@ typedef struct SUdfDataBlock {
   SUdfColumn **udfCols;
 } SUdfDataBlock;
 
-// TODO: deprecate SUdfInterBuf.numOfResult or add isInitial to SUdfInterBuf
+// TODO: deprecate SUdfInterBuf.numOfResult
 typedef struct SUdfInterBuf {
   int32_t bufLen;
   char   *buf;
