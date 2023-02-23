@@ -12,7 +12,6 @@ on:
 jobs:
   build-package:
     name: build-package
-    runs-on: ${{ matrix.os }}
     env:
       # For some builds, we use cross to test on 32-bit and big-endian
       # systems.
@@ -45,6 +44,7 @@ jobs:
           os: windows-2022
           rust: nightly
           target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
