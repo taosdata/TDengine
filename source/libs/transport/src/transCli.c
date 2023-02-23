@@ -986,7 +986,6 @@ _RETURN:
 
 static void cliDestroyBatch(SCliBatch* pBatch) {
   if (pBatch == NULL) return;
-
   while (!QUEUE_IS_EMPTY(&pBatch->wq)) {
     queue* h = QUEUE_HEAD(&pBatch->wq);
     QUEUE_REMOVE(h);
@@ -2310,11 +2309,10 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
 
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
-  memcpy((char*)&pCtx->epSet, (char*)pEpSet, sizeof(SEpSet));
-  memcpy((char*)&pCtx->origEpSet, (char*)pEpSet, sizeof(SEpSet));
-  // pCtx->epSet = *pEpSet;
-  // pCtx->origEpSet = *pEpSet;
-  pCtx->ahandle = pReq->info.ahandle;
+
+  pCtx->epSet = *pEpSet;
+  pCtx->origEpSet = *pEpSet
+  pCtx->ahandle= pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
 
   if (ctx != NULL) pCtx->appCtx = *ctx;

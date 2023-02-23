@@ -94,6 +94,7 @@ int vnodeOpenBufPool(SVnode *pVnode) {
 int vnodeCloseBufPool(SVnode *pVnode) {
   SVBufPool *pPool;
 
+  taosThreadMutexLock(&pVnode->mutex);
   for (pPool = pVnode->pPool; pPool; pPool = pVnode->pPool) {
     pVnode->pPool = pPool->next;
     vnodeBufPoolDestroy(pPool);
@@ -103,8 +104,9 @@ int vnodeCloseBufPool(SVnode *pVnode) {
     vnodeBufPoolDestroy(pVnode->inUse);
     pVnode->inUse = NULL;
   }
-  vDebug("vgId:%d, vnode buffer pool is closed", TD_VID(pVnode));
+  taosThreadMutexUnlock(&pVnode->mutex);
 
+  vDebug("vgId:%d, vnode buffer pool is closed", TD_VID(pVnode));
   return 0;
 }
 
@@ -244,6 +246,9 @@ void vnodeBufPoolUnRef(SVBufPool *pPool) {
     pVnode->pPool = pPool;
     taosThreadCondSignal(&pVnode->poolNotEmpty);
 
+    if (pVnode->inUse == pPool) {
+      pVnode->inUse = NULL;
+    }
     taosThreadMutexUnlock(&pVnode->mutex);
   }
 }

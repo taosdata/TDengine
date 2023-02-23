@@ -81,10 +81,10 @@ typedef struct MergeIndex {
 } MergeIndex;
 
 typedef struct SBlockDistInfo {
-    SSDataBlock* pResBlock;
-    STsdbReader* pHandle;
-    SReadHandle  readHandle;
-    uint64_t     uid;  // table uid
+  SSDataBlock* pResBlock;
+  STsdbReader* pHandle;
+  SReadHandle  readHandle;
+  uint64_t     uid;  // table uid
 } SBlockDistInfo;
 
 static int32_t sysChkFilter__Comm(SNode* pNode);
@@ -129,10 +129,10 @@ static char* SYSTABLE_IDX_COLUMN[] = {"table_name", "db_name",     "create_time"
 
 static char* SYSTABLE_SPECIAL_COL[] = {"db_name", "vgroup_id"};
 
-static int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity);
-static SSDataBlock* buildInfoSchemaTableMetaBlock(char* tableName);
-static void destroySysScanOperator(void* param);
-static int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code);
+static int32_t        buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity);
+static SSDataBlock*   buildInfoSchemaTableMetaBlock(char* tableName);
+static void           destroySysScanOperator(void* param);
+static int32_t        loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code);
 static __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse);
 
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
@@ -199,11 +199,11 @@ int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
   if (func == NULL) return -1;
 
   SMetaFltParam param = {.suid = 0,
-      .cid = 0,
-      .type = TSDB_DATA_TYPE_VARCHAR,
-      .val = pVal->datum.p,
-      .reverse = reverse,
-      .filterFunc = func};
+                         .cid = 0,
+                         .type = TSDB_DATA_TYPE_VARCHAR,
+                         .val = pVal->datum.p,
+                         .reverse = reverse,
+                         .filterFunc = func};
   return -1;
 }
 
@@ -218,11 +218,11 @@ int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
   if (func == NULL) return -1;
 
   SMetaFltParam param = {.suid = 0,
-      .cid = 0,
-      .type = TSDB_DATA_TYPE_BIGINT,
-      .val = &pVal->datum.i,
-      .reverse = reverse,
-      .filterFunc = func};
+                         .cid = 0,
+                         .type = TSDB_DATA_TYPE_BIGINT,
+                         .val = &pVal->datum.i,
+                         .reverse = reverse,
+                         .filterFunc = func};
 
   int32_t ret = metaFilterCreateTime(pMeta, &param, result);
   return ret;
@@ -350,9 +350,9 @@ static int32_t optSysMergeRslt(SArray* mRslt, SArray* rslt);
 static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableScanInfo* pInfo, const char* name,
                                           SExecTaskInfo* pTaskInfo);
 void                extractTbnameSlotId(SSysTableScanInfo* pInfo, const SScanPhysiNode* pScanNode);
-static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScanInfo* pInfo,
-                                                 const char* name, SSDataBlock* pBlock);
-__optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse) {
+static void         sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScanInfo* pInfo, const char* name,
+                                           SSDataBlock* pBlock);
+__optSysFilter      optSysGetFilterFunc(int32_t ctype, bool* reverse) {
   if (ctype == OP_TYPE_LOWER_EQUAL || ctype == OP_TYPE_LOWER_THAN) {
     *reverse = true;
   }
@@ -516,9 +516,10 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       metaTbCursorPrev(pInfo->pCur);
       blockFull = true;
     } else {
-      sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows, dataBlock);
+      sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
+                                       dataBlock);
     }
-    
+
     metaReaderClear(&smrSuperTable);
 
     if (blockFull || numOfRows >= pOperator->resultInfo.capacity) {
@@ -654,21 +655,21 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
 
     // table name
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
-    colDataAppend(pColInfoData, numOfRows, tableName, false);
+    colDataSetVal(pColInfoData, numOfRows, tableName, false);
 
     // database name
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
-    colDataAppend(pColInfoData, numOfRows, dbname, false);
+    colDataSetVal(pColInfoData, numOfRows, dbname, false);
 
     // super table name
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
-    colDataAppend(pColInfoData, numOfRows, stableName, false);
+    colDataSetVal(pColInfoData, numOfRows, stableName, false);
 
     // tag name
     char tagName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(tagName, (*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].name);
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
-    colDataAppend(pColInfoData, numOfRows, tagName, false);
+    colDataSetVal(pColInfoData, numOfRows, tagName, false);
 
     // tag type
     int8_t tagType = (*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].type;
@@ -684,7 +685,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
           (int32_t)(((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
     varDataSetLen(tagTypeStr, tagTypeLen);
-    colDataAppend(pColInfoData, numOfRows, (char*)tagTypeStr, false);
+    colDataSetVal(pColInfoData, numOfRows, (char*)tagTypeStr, false);
 
     STagVal tagVal = {0};
     tagVal.cid = (*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].colId;
@@ -724,7 +725,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
       }
     }
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
-    colDataAppend(pColInfoData, numOfRows, tagVarChar,
+    colDataSetVal(pColInfoData, numOfRows, tagVarChar,
                   (tagData == NULL) || (tagType == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(tagData)));
     taosMemoryFree(tagVarChar);
     ++numOfRows;
@@ -772,30 +773,30 @@ int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTabl
     SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, 0);
 
     STR_TO_VARSTR(n, pm->name);
-    colDataAppend(pColInfoData, numOfRows, n, false);
+    colDataSetVal(pColInfoData, numOfRows, n, false);
 
     // database name
     STR_TO_VARSTR(n, dbName);
     pColInfoData = taosArrayGet(p->pDataBlock, 1);
-    colDataAppend(pColInfoData, numOfRows, n, false);
+    colDataSetVal(pColInfoData, numOfRows, n, false);
 
     // create time
     pColInfoData = taosArrayGet(p->pDataBlock, 2);
-    colDataAppendNULL(pColInfoData, numOfRows);
+    colDataSetNULL(pColInfoData, numOfRows);
 
     // number of columns
     pColInfoData = taosArrayGet(p->pDataBlock, 3);
-    colDataAppend(pColInfoData, numOfRows, (char*)&pm->colNum, false);
+    colDataSetVal(pColInfoData, numOfRows, (char*)&pm->colNum, false);
 
     for (int32_t j = 4; j <= 8; ++j) {
       pColInfoData = taosArrayGet(p->pDataBlock, j);
-      colDataAppendNULL(pColInfoData, numOfRows);
+      colDataSetNULL(pColInfoData, numOfRows);
     }
 
     STR_TO_VARSTR(n, "SYSTEM_TABLE");
 
     pColInfoData = taosArrayGet(p->pDataBlock, 9);
-    colDataAppend(pColInfoData, numOfRows, n, false);
+    colDataSetVal(pColInfoData, numOfRows, n, false);
 
     numOfRows += 1;
   }
@@ -863,22 +864,22 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
 
     // table name
     SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, 0);
-    colDataAppend(pColInfoData, numOfRows, n, false);
+    colDataSetVal(pColInfoData, numOfRows, n, false);
 
     // database name
     pColInfoData = taosArrayGet(p->pDataBlock, 1);
-    colDataAppend(pColInfoData, numOfRows, dbname, false);
+    colDataSetVal(pColInfoData, numOfRows, dbname, false);
 
     // vgId
     pColInfoData = taosArrayGet(p->pDataBlock, 6);
-    colDataAppend(pColInfoData, numOfRows, (char*)&vgId, false);
+    colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
 
     int32_t tableType = mr.me.type;
     if (tableType == TSDB_CHILD_TABLE) {
       // create time
       int64_t ts = mr.me.ctbEntry.ctime;
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
-      colDataAppend(pColInfoData, numOfRows, (char*)&ts, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&ts, false);
 
       SMetaReader mr1 = {0};
       metaReaderInit(&mr1, pInfo->readHandle.meta, META_READER_NOLOCK);
@@ -893,12 +894,12 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
-      colDataAppend(pColInfoData, numOfRows, (char*)&mr1.me.stbEntry.schemaRow.nCols, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&mr1.me.stbEntry.schemaRow.nCols, false);
 
       // super table name
       STR_TO_VARSTR(n, mr1.me.name);
       pColInfoData = taosArrayGet(p->pDataBlock, 4);
-      colDataAppend(pColInfoData, numOfRows, n, false);
+      colDataSetVal(pColInfoData, numOfRows, n, false);
       metaReaderClear(&mr1);
 
       // table comment
@@ -906,59 +907,59 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
       if (mr.me.ctbEntry.commentLen > 0) {
         char comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
         STR_TO_VARSTR(comment, mr.me.ctbEntry.comment);
-        colDataAppend(pColInfoData, numOfRows, comment, false);
+        colDataSetVal(pColInfoData, numOfRows, comment, false);
       } else if (mr.me.ctbEntry.commentLen == 0) {
         char comment[VARSTR_HEADER_SIZE + VARSTR_HEADER_SIZE] = {0};
         STR_TO_VARSTR(comment, "");
-        colDataAppend(pColInfoData, numOfRows, comment, false);
+        colDataSetVal(pColInfoData, numOfRows, comment, false);
       } else {
-        colDataAppendNULL(pColInfoData, numOfRows);
+        colDataSetNULL(pColInfoData, numOfRows);
       }
 
       // uid
       pColInfoData = taosArrayGet(p->pDataBlock, 5);
-      colDataAppend(pColInfoData, numOfRows, (char*)&mr.me.uid, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&mr.me.uid, false);
 
       // ttl
       pColInfoData = taosArrayGet(p->pDataBlock, 7);
-      colDataAppend(pColInfoData, numOfRows, (char*)&mr.me.ctbEntry.ttlDays, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&mr.me.ctbEntry.ttlDays, false);
 
       STR_TO_VARSTR(n, "CHILD_TABLE");
 
     } else if (tableType == TSDB_NORMAL_TABLE) {
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
-      colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ctime, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ctime, false);
 
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
-      colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.schemaRow.nCols, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.schemaRow.nCols, false);
 
       // super table name
       pColInfoData = taosArrayGet(p->pDataBlock, 4);
-      colDataAppendNULL(pColInfoData, numOfRows);
+      colDataSetNULL(pColInfoData, numOfRows);
 
       // table comment
       pColInfoData = taosArrayGet(p->pDataBlock, 8);
       if (mr.me.ntbEntry.commentLen > 0) {
         char comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
         STR_TO_VARSTR(comment, mr.me.ntbEntry.comment);
-        colDataAppend(pColInfoData, numOfRows, comment, false);
+        colDataSetVal(pColInfoData, numOfRows, comment, false);
       } else if (mr.me.ntbEntry.commentLen == 0) {
         char comment[VARSTR_HEADER_SIZE + VARSTR_HEADER_SIZE] = {0};
         STR_TO_VARSTR(comment, "");
-        colDataAppend(pColInfoData, numOfRows, comment, false);
+        colDataSetVal(pColInfoData, numOfRows, comment, false);
       } else {
-        colDataAppendNULL(pColInfoData, numOfRows);
+        colDataSetNULL(pColInfoData, numOfRows);
       }
 
       // uid
       pColInfoData = taosArrayGet(p->pDataBlock, 5);
-      colDataAppend(pColInfoData, numOfRows, (char*)&mr.me.uid, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&mr.me.uid, false);
 
       // ttl
       pColInfoData = taosArrayGet(p->pDataBlock, 7);
-      colDataAppend(pColInfoData, numOfRows, (char*)&mr.me.ntbEntry.ttlDays, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&mr.me.ntbEntry.ttlDays, false);
 
       STR_TO_VARSTR(n, "NORMAL_TABLE");
       // impl later
@@ -967,7 +968,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
     metaReaderClear(&mr);
 
     pColInfoData = taosArrayGet(p->pDataBlock, 9);
-    colDataAppend(pColInfoData, numOfRows, n, false);
+    colDataSetVal(pColInfoData, numOfRows, n, false);
 
     if (++numOfRows >= pOperator->resultInfo.capacity) {
       p->info.rows = numOfRows;
@@ -1041,22 +1042,22 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
     // table name
     SColumnInfoData* pColInfoData = taosArrayGet(p->pDataBlock, 0);
-    colDataAppend(pColInfoData, numOfRows, n, false);
+    colDataSetVal(pColInfoData, numOfRows, n, false);
 
     // database name
     pColInfoData = taosArrayGet(p->pDataBlock, 1);
-    colDataAppend(pColInfoData, numOfRows, dbname, false);
+    colDataSetVal(pColInfoData, numOfRows, dbname, false);
 
     // vgId
     pColInfoData = taosArrayGet(p->pDataBlock, 6);
-    colDataAppend(pColInfoData, numOfRows, (char*)&vgId, false);
+    colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
 
     int32_t tableType = pInfo->pCur->mr.me.type;
     if (tableType == TSDB_CHILD_TABLE) {
       // create time
       int64_t ts = pInfo->pCur->mr.me.ctbEntry.ctime;
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
-      colDataAppend(pColInfoData, numOfRows, (char*)&ts, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&ts, false);
 
       SMetaReader mr = {0};
       metaReaderInit(&mr, pInfo->readHandle.meta, META_READER_NOLOCK);
@@ -1074,12 +1075,12 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
-      colDataAppend(pColInfoData, numOfRows, (char*)&mr.me.stbEntry.schemaRow.nCols, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&mr.me.stbEntry.schemaRow.nCols, false);
 
       // super table name
       STR_TO_VARSTR(n, mr.me.name);
       pColInfoData = taosArrayGet(p->pDataBlock, 4);
-      colDataAppend(pColInfoData, numOfRows, n, false);
+      colDataSetVal(pColInfoData, numOfRows, n, false);
       metaReaderClear(&mr);
 
       // table comment
@@ -1087,64 +1088,64 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       if (pInfo->pCur->mr.me.ctbEntry.commentLen > 0) {
         char comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
         STR_TO_VARSTR(comment, pInfo->pCur->mr.me.ctbEntry.comment);
-        colDataAppend(pColInfoData, numOfRows, comment, false);
+        colDataSetVal(pColInfoData, numOfRows, comment, false);
       } else if (pInfo->pCur->mr.me.ctbEntry.commentLen == 0) {
         char comment[VARSTR_HEADER_SIZE + VARSTR_HEADER_SIZE] = {0};
         STR_TO_VARSTR(comment, "");
-        colDataAppend(pColInfoData, numOfRows, comment, false);
+        colDataSetVal(pColInfoData, numOfRows, comment, false);
       } else {
-        colDataAppendNULL(pColInfoData, numOfRows);
+        colDataSetNULL(pColInfoData, numOfRows);
       }
 
       // uid
       pColInfoData = taosArrayGet(p->pDataBlock, 5);
-      colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.uid, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.uid, false);
 
       // ttl
       pColInfoData = taosArrayGet(p->pDataBlock, 7);
-      colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ctbEntry.ttlDays, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ctbEntry.ttlDays, false);
 
       STR_TO_VARSTR(n, "CHILD_TABLE");
     } else if (tableType == TSDB_NORMAL_TABLE) {
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
-      colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ctime, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ctime, false);
 
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
-      colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.schemaRow.nCols, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.schemaRow.nCols, false);
 
       // super table name
       pColInfoData = taosArrayGet(p->pDataBlock, 4);
-      colDataAppendNULL(pColInfoData, numOfRows);
+      colDataSetNULL(pColInfoData, numOfRows);
 
       // table comment
       pColInfoData = taosArrayGet(p->pDataBlock, 8);
       if (pInfo->pCur->mr.me.ntbEntry.commentLen > 0) {
         char comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
         STR_TO_VARSTR(comment, pInfo->pCur->mr.me.ntbEntry.comment);
-        colDataAppend(pColInfoData, numOfRows, comment, false);
+        colDataSetVal(pColInfoData, numOfRows, comment, false);
       } else if (pInfo->pCur->mr.me.ntbEntry.commentLen == 0) {
         char comment[VARSTR_HEADER_SIZE + VARSTR_HEADER_SIZE] = {0};
         STR_TO_VARSTR(comment, "");
-        colDataAppend(pColInfoData, numOfRows, comment, false);
+        colDataSetVal(pColInfoData, numOfRows, comment, false);
       } else {
-        colDataAppendNULL(pColInfoData, numOfRows);
+        colDataSetNULL(pColInfoData, numOfRows);
       }
 
       // uid
       pColInfoData = taosArrayGet(p->pDataBlock, 5);
-      colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.uid, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.uid, false);
 
       // ttl
       pColInfoData = taosArrayGet(p->pDataBlock, 7);
-      colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ttlDays, false);
+      colDataSetVal(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ttlDays, false);
 
       STR_TO_VARSTR(n, "NORMAL_TABLE");
     }
 
     pColInfoData = taosArrayGet(p->pDataBlock, 9);
-    colDataAppend(pColInfoData, numOfRows, n, false);
+    colDataSetVal(pColInfoData, numOfRows, n, false);
 
     if (++numOfRows >= pOperator->resultInfo.capacity) {
       p->info.rows = numOfRows;
@@ -1343,7 +1344,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       setOperatorCompleted(pOperator);
     }
 
-    return pBlock->info.rows > 0? pBlock:NULL;
+    return pBlock->info.rows > 0 ? pBlock : NULL;
   } else {
     return NULL;
   }
@@ -1357,11 +1358,11 @@ static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScan
 
   if (pInfo->tbnameSlotId != -1) {
     SColumnInfoData* pColumnInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, pInfo->tbnameSlotId);
-    char varTbName[TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE] = {0};
+    char             varTbName[TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE] = {0};
     memcpy(varDataVal(varTbName), name, strlen(name));
     varDataSetLen(varTbName, strlen(name));
 
-    colDataAppendNItems(pColumnInfoData, 0, varTbName, pBlock->info.rows);
+    colDataSetNItems(pColumnInfoData, 0, varTbName, pBlock->info.rows);
   }
 
   doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
@@ -1489,10 +1490,11 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   setOperatorInfo(pOperator, "SysTableScanOperator", QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator, optrDefaultBufFn, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(optrDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator, optrDefaultBufFn, NULL);
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     destroySysScanOperator(pInfo);
   }
@@ -1921,14 +1923,14 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
   tSerializeBlockDistInfo(varDataVal(p), len, &blockDistInfo);
   varDataSetLen(p, len);
 
-  colDataAppend(pColInfo, 0, p, false);
+  colDataSetVal(pColInfo, 0, p, false);
   taosMemoryFree(p);
 
   // make the valgrind happy that all memory buffer has been initialized already.
   if (slotId != 0) {
     SColumnInfoData* p1 = taosArrayGet(pBlock->pDataBlock, 0);
     int64_t v = 0;
-    colDataAppendInt64(p1, 0, &v);
+    colDataSetInt64(p1, 0, &v);
   }
 
   pBlock->info.rows = 1;
@@ -1937,10 +1939,10 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
 }
 
 static void destroyBlockDistScanOperatorInfo(void* param) {
-    SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
-    blockDataDestroy(pDistInfo->pResBlock);
-    tsdbReaderClose(pDistInfo->pHandle);
-    taosMemoryFreeClear(param);
+  SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
+  blockDataDestroy(pDistInfo->pResBlock);
+  tsdbReaderClose(pDistInfo->pHandle);
+  taosMemoryFreeClear(param);
 }
 
 static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pCond) {
@@ -2001,7 +2003,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
   }
 
   pInfo->readHandle = *readHandle;
-  pInfo->uid = (pBlockScanNode->suid != 0)? pBlockScanNode->suid:pBlockScanNode->uid;
+  pInfo->uid = (pBlockScanNode->suid != 0) ? pBlockScanNode->suid : pBlockScanNode->uid;
 
   int32_t    numOfCols = 0;
   SExprInfo* pExprInfo = createExprInfo(pBlockScanNode->pScanPseudoCols, NULL, &numOfCols);
@@ -2012,8 +2014,8 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
 
   setOperatorInfo(pOperator, "DataBlockDistScanOperator", QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN, false,
                   OP_NOT_OPENED, pInfo, pTaskInfo);
-  pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doBlockInfoScan, NULL, destroyBlockDistScanOperatorInfo, optrDefaultBufFn, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doBlockInfoScan, NULL, destroyBlockDistScanOperatorInfo,
+                                         optrDefaultBufFn, NULL);
   return pOperator;
 
 _error:
