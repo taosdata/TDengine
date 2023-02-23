@@ -59,7 +59,7 @@ typedef struct SSqlExpr {
                             // pQueryAttr->interBytesForGlobal
 
   int16_t   numOfParams;    // argument value of each function
-  tVariant  param[3];       // parameters are not more than 3
+  tVariant  param[10];      // parameters are not more than 10
   int32_t   offset;         // sub result column value of arithmetic expression.
   int16_t   resColId;       // result column id
 

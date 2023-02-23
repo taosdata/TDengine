@@ -9775,7 +9775,13 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
       }
     }
 
-    int32_t param = (int32_t)pExprs[i].base.param[0].i64;
+    int32_t param;
+    if (pExprs[i].base.functionId != TSDB_FUNC_PERCT) {
+      param = (int32_t)pExprs[i].base.param[0].i64;
+    } else {
+      param = pExprs[i].base.numOfParams;
+    }
+
     if (pExprs[i].base.functionId > 0 && pExprs[i].base.functionId != TSDB_FUNC_SCALAR_EXPR &&
         !isTimeWindowFunction(pExprs[i].base.functionId) &&
         (type != pExprs[i].base.colType || bytes != pExprs[i].base.colBytes)) {
