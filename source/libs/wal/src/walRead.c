@@ -96,8 +96,7 @@ int32_t walNextValidMsg(SWalReader *pReader) {
       if (walSkipFetchBodyNew(pReader) < 0) {
         return -1;
       }
-      fetchVer++;
-      ASSERT(fetchVer == pReader->curVersion);
+      fetchVer = pReader->curVersion;
     }
   }
   pReader->curStopped = 1;
@@ -144,7 +143,7 @@ static int64_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int
 }
 
 static int32_t walReadChangeFile(SWalReader *pReader, int64_t fileFirstVer) {
-  char fnameStr[WAL_FILE_LEN];
+  char fnameStr[WAL_FILE_LEN] = {0};
 
   taosCloseFile(&pReader->pIdxFile);
   taosCloseFile(&pReader->pLogFile);
@@ -297,14 +296,6 @@ static int32_t walFetchBodyNew(SWalReader *pRead) {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     }
     pRead->curInvalid = 1;
-    return -1;
-  }
-
-  if (pReadHead->version != ver) {
-    wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64, pRead->pWal->cfg.vgId,
-           pRead->pHead->head.version, ver);
-    pRead->curInvalid = 1;
-    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
 

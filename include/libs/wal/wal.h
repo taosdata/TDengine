@@ -126,7 +126,7 @@ typedef struct SWal {
 typedef struct {
   int64_t refId;
   int64_t refVer;
-  int64_t refFile;
+//  int64_t refFile;
   SWal   *pWal;
 } SWalRef;
 
