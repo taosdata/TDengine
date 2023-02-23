@@ -204,7 +204,6 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
 }
 
 static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
-  ASSERT(pKey != NULL);
   size_t numOfGroupCols = taosArrayGetSize(pGroupColVals);
 
   char* isNull = (char*)pKey;
@@ -570,7 +569,6 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       }
 
       (*columnLen) += contentLen;
-      ASSERT(*columnLen >= 0);
     }
 
     (*rows) += 1;
@@ -681,7 +679,6 @@ static int compareDataGroupInfo(const void* group1, const void* group2) {
   const SDataGroupInfo* pGroupInfo2 = group2;
 
   if (pGroupInfo1->groupId == pGroupInfo2->groupId) {
-    ASSERT(0);
     return 0;
   }
 
