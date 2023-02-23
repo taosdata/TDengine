@@ -265,7 +265,14 @@ pub async fn tmq_to_local(
     force: bool,
     cancel: CancellationToken,
 ) -> Result<()> {
-    let (mut from, _, topics) = check_tmq_dsn(from).await?;
+    let (mut from, builder, topics) = check_tmq_dsn(from).await?;
+
+    #[cfg(not(feature = "disable-enterprise-only-validation"))]
+    if !builder.is_enterprise_edition() {
+        anyhow::bail!(
+            "Only enterprise edition is supported. If it's not your case, please contact us."
+        )
+    }
     let mut from_params = from.drain_params();
 
     let stop_at = if let Some(stop_at) = from_params.remove("stopAt") {

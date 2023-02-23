@@ -13,6 +13,7 @@ use anyhow::Context;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, Code, Dsn, TBuilder, TaosBuilder};
 use taosx::TaskOpts;
@@ -446,7 +447,7 @@ impl TaskController {
             "select * from task_with_labels where {condition} order by created_at desc"
         ))
         .fetch_all(&self.pool)
-        .await?;
+        .await.unwrap();
 
         if filter.has_labels_filter() {
             filter.filter_task_labels(&mut tasks);
@@ -457,7 +458,7 @@ impl TaskController {
         Ok(tasks)
     }
 
-    pub async fn tasks_count(&self, mut filter: TaskFilter) -> anyhow::Result<usize> {
+    pub async fn tasks_count(&self, filter: TaskFilter) -> anyhow::Result<usize> {
         let tasks = self.tasks(filter).await?;
         Ok(tasks.len())
     }
@@ -794,14 +795,6 @@ pub(super) struct Task {
     #[schema(read_only, example = 1)]
     id: i64,
 
-    /// A task name.
-    #[serde(default)]
-    #[sqlx(default)]
-    name: Option<String>,
-
-    /// Task trigger events, default will be oneshot.
-    trigger: Option<String>,
-
     /// Task stream data type. **Deprecated**, use labels instead.
     #[serde(default)]
     #[serde(skip_deserializing)]
@@ -889,6 +882,15 @@ pub(super) struct Task {
     /// It will do nothing if the action is not supported by a specific task case.
     #[serde(skip_serializing_if = "Option::is_none")]
     after_delete: Option<String>,
+    /// A task name.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(read_only, example = "null")]
+    name: Option<String>,
+
+    /// Task trigger events, default will be oneshot.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    trigger: Option<String>,
 
     /// Labels for a task.
     ///
@@ -897,7 +899,7 @@ pub(super) struct Task {
     /// You can filter tasks by some labels.
     #[serde(skip_serializing_if = "Labels::is_empty")]
     #[serde(default)]
-    #[sqlx(try_from = "String")]
+    #[sqlx(try_from = "String", default)]
     // #[serde(deserialize_with = "labels_serde::deserialize")]
     labels: Labels,
 }
@@ -1077,7 +1079,7 @@ impl NewTask {
             labels.push(format!("from_cluster::{value}"))
         }
         if let Some(value) = self.to_cluster.as_deref() {
-            labels.push(format!("from_cluster::{value}"))
+            labels.push(format!("to_cluster::{value}"))
         }
         if labels.len() > 0 {
             self.labels = Some(labels)
