@@ -253,7 +253,7 @@ int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn) {
 }
 
 int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, int nData, TXN *pTxn) {
-  SBTC btc;
+  SBTC btc = {0};
   int  c;
   int  ret;
 
@@ -272,6 +272,10 @@ int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, i
     return -1;
   }
 
+  if (TDB_CELLDECODER_FREE_KEY(&btc.coder)) {
+    tdbFree(btc.coder.pKey);
+  }
+
   if (btc.idx == -1) {
     btc.idx = 0;
     c = 1;
@@ -283,17 +287,11 @@ int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, i
 
   ret = tdbBtcUpsert(&btc, pKey, nKey, pData, nData, c);
   if (ret < 0) {
-    if (TDB_CELLDECODER_FREE_KEY(&btc.coder)) {
-      tdbFree(btc.coder.pKey);
-    }
     tdbBtcClose(&btc);
     tdbError("tdb/btree-upsert: btc upsert failed with ret: %d.", ret);
     return -1;
   }
 
-  if (TDB_CELLDECODER_FREE_KEY(&btc.coder)) {
-    tdbFree(btc.coder.pKey);
-  }
   tdbBtcClose(&btc);
   return 0;
 }
@@ -1437,15 +1435,19 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
   // Clear the state of decoder
   if (TDB_CELLDECODER_FREE_VAL(pDecoder)) {
     tdbFree(pDecoder->pVal);
+    TDB_CELLDECODER_CLZ_FREE_VAL(pDecoder);
+    // tdbTrace("tdb btc decoder val set nil: %p/0x%x ", pDecoder, pDecoder->freeKV);
+  }
+  if (TDB_CELLDECODER_FREE_KEY(pDecoder)) {
+    tdbFree(pDecoder->pKey);
+    TDB_CELLDECODER_CLZ_FREE_KEY(pDecoder);
+    // tdbTrace("tdb btc decoder key set nil: %p/0x%x ", pDecoder, pDecoder->freeKV);
   }
   pDecoder->kLen = -1;
   pDecoder->pKey = NULL;
   pDecoder->vLen = -1;
   pDecoder->pVal = NULL;
   pDecoder->pgno = 0;
-  TDB_CELLDECODER_SET_FREE_NIL(pDecoder);
-
-  // tdbTrace("tdb btc decoder set nil: %p/0x%x ", pDecoder, pDecoder->freeKV);
 
   // 1. Decode header part
   if (!leaf) {
