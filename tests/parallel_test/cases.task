@@ -179,6 +179,7 @@
 ,,y,script,./test.sh -f tsim/query/sys_tbname.sim
 ,,y,script,./test.sh -f tsim/query/groupby.sim
 ,,y,script,./test.sh -f tsim/query/forceFill.sim
+,,n,script,./test.sh -f tsim/query/join.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
