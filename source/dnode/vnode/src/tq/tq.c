@@ -1060,6 +1060,9 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msg
   code = streamMetaAddSerializedTask(pTq->pStreamMeta, version, msg, msgLen);
   if (code < 0) return code;
 #endif
+  if (tsDisableStream) {
+    return 0;
+  }
 
   // 1.deserialize msg and build task
   SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
