@@ -456,12 +456,13 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data, SHOW_VARIABLES_RESULT_COLS);
+  blockDataDestroy(pBlock);
+
   if(len != rspSize - sizeof(SRetrieveTableRsp)){
     uError("buildShowVariablesRsp error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len, (uint64_t) (rspSize - sizeof(SRetrieveTableRsp)));
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
-  blockDataDestroy(pBlock);
   return TSDB_CODE_SUCCESS;
 }
 

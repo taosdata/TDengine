@@ -119,6 +119,7 @@ int32_t* taosGetErrno();
 
 #define TSDB_CODE_APP_IS_STARTING               TAOS_DEF_ERROR_CODE(0, 0x0130) //
 #define TSDB_CODE_APP_IS_STOPPING               TAOS_DEF_ERROR_CODE(0, 0x0131) //
+#define TSDB_CODE_IVLD_DATA_FMT                 TAOS_DEF_ERROR_CODE(0, 0x0132) //
 
 //client
 #define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)

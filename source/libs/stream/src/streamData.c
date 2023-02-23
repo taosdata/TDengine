@@ -26,7 +26,7 @@ int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock
   ASSERT(pReq->blockNum == taosArrayGetSize(pReq->dataLen));
 
   for (int32_t i = 0; i < blockNum; i++) {
-    SRetrieveTableRsp* pRetrieve = taosArrayGetP(pReq->data, i);
+    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*) taosArrayGetP(pReq->data, i);
     SSDataBlock*       pDataBlock = taosArrayGet(pArray, i);
     blockDecode(pDataBlock, pRetrieve->data);
     // TODO: refactor

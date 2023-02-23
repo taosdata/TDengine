@@ -488,13 +488,15 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet, STsdb
   return TSDB_CODE_SUCCESS;
 }
 
-static bool filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader) {
+static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bool *hasNext) {
   bool    asc = ASCENDING_TRAVERSE(pIter->order);
   int32_t step = asc ? 1 : -1;
   pIter->index += step;
+  int32_t code = 0;
 
   if ((asc && pIter->index >= pIter->numOfFiles) || ((!asc) && pIter->index < 0)) {
-    return false;
+    *hasNext = false;
+    return TSDB_CODE_SUCCESS;
   }
 
   SIOCostSummary* pSum = &pReader->cost;
@@ -514,7 +516,7 @@ static bool filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader) {
 
     pReader->status.pCurrentFileset = (SDFileSet*)taosArrayGet(pIter->pFileList, pIter->index);
 
-    int32_t code = tsdbDataFReaderOpen(&pReader->pFileReader, pReader->pTsdb, pReader->status.pCurrentFileset);
+    code = tsdbDataFReaderOpen(&pReader->pFileReader, pReader->pTsdb, pReader->status.pCurrentFileset);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
     }
@@ -528,24 +530,28 @@ static bool filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader) {
     if ((asc && win.skey > pReader->window.ekey) || (!asc && win.ekey < pReader->window.skey)) {
       tsdbDebug("%p remain files are not qualified for qrange:%" PRId64 "-%" PRId64 ", ignore, %s", pReader,
                 pReader->window.skey, pReader->window.ekey, pReader->idStr);
-      return false;
+      *hasNext = false;
+      return TSDB_CODE_SUCCESS;
     }
 
     if ((asc && (win.ekey < pReader->window.skey)) || ((!asc) && (win.skey > pReader->window.ekey))) {
       pIter->index += step;
       if ((asc && pIter->index >= pIter->numOfFiles) || ((!asc) && pIter->index < 0)) {
-        return false;
+        *hasNext = false;
+        return TSDB_CODE_SUCCESS;
       }
       continue;
     }
 
     tsdbDebug("%p file found fid:%d for qrange:%" PRId64 "-%" PRId64 ", %s", pReader, fid, pReader->window.skey,
               pReader->window.ekey, pReader->idStr);
-    return true;
+    *hasNext = true;
+    return TSDB_CODE_SUCCESS;
   }
 
 _err:
-  return false;
+  *hasNext = false;
+  return code;
 }
 
 static void resetDataBlockIterator(SDataBlockIter* pIter, int32_t order) {
@@ -2796,13 +2802,19 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
   SArray* pIndexList = taosArrayInit(numOfTables, sizeof(SBlockIdx));
 
   while (1) {
-    bool hasNext = filesetIteratorNext(&pStatus->fileIter, pReader);
+    bool hasNext = false;
+    int32_t code = filesetIteratorNext(&pStatus->fileIter, pReader, &hasNext);
+    if (code) {
+      taosArrayDestroy(pIndexList);
+      return code;
+    }
+    
     if (!hasNext) {  // no data files on disk
       break;
     }
 
     taosArrayClear(pIndexList);
-    int32_t code = doLoadBlockIndex(pReader, pReader->pFileReader, pIndexList);
+    code = doLoadBlockIndex(pReader, pReader->pFileReader, pIndexList);
     if (code != TSDB_CODE_SUCCESS) {
       taosArrayDestroy(pIndexList);
       return code;

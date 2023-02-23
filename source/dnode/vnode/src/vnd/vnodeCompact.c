@@ -36,8 +36,8 @@ static int32_t vnodeCompactTask(void *param) {
   vnodeCommitInfo(dir);
 
 _exit:
-  taosMemoryFree(pInfo);
   tsem_post(&pInfo->pVnode->canCommit);
+  taosMemoryFree(pInfo);
   return code;
 }
 static int32_t vnodePrepareCompact(SVnode *pVnode, SCompactInfo *pInfo) {
@@ -59,9 +59,17 @@ static int32_t vnodePrepareCompact(SVnode *pVnode, SCompactInfo *pInfo) {
     snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
   }
 
-  vnodeLoadInfo(dir, &info);
+  if (vnodeLoadInfo(dir, &info) < 0) {
+    code = terrno;
+    goto _exit;
+  }
+
   info.state.commitID = pInfo->commitID;
-  vnodeSaveInfo(dir, &info);
+
+  if (vnodeSaveInfo(dir, &info) < 0) {
+    code = terrno;
+    goto _exit;
+  }
 
 _exit:
   if (code) {
