@@ -2188,6 +2188,9 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
     } else {
       lidx = lidx + 1;
     }
+    if (TDB_CELLDECODER_FREE_KEY(&pBtc->coder)) {
+      tdbFree((void*)pTKey);
+    }
 
     // compare last cell
     if (lidx <= ridx) {
@@ -2199,6 +2202,9 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
       } else {
         ridx = ridx - 1;
       }
+      if (TDB_CELLDECODER_FREE_KEY(&pBtc->coder)) {
+        tdbFree((void*)pTKey);
+      }
     }
 
     // binary search
@@ -2209,6 +2215,9 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
       pBtc->idx = (lidx + ridx) >> 1;
       tdbBtcGet(pBtc, &pTKey, &tkLen, NULL, NULL);
       c = pBt->kcmpr(pKey, kLen, pTKey, tkLen);
+      if (TDB_CELLDECODER_FREE_KEY(&pBtc->coder)) {
+        tdbFree((void*)pTKey);
+      }
       if (c < 0) {
         // pKey < cd.pKey
         ridx = pBtc->idx - 1;
