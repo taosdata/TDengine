@@ -122,7 +122,7 @@ typedef struct STbUidStore STbUidStore;
 #define META_BEGIN_HEAP_NIL        2
 
 int             metaOpen(SVnode* pVnode, SMeta** ppMeta, int8_t rollback);
-int             metaClose(SMeta* pMeta);
+int             metaClose(SMeta** pMeta);
 int             metaBegin(SMeta* pMeta, int8_t fromSys);
 TXN*            metaGetTxn(SMeta* pMeta);
 int             metaCommit(SMeta* pMeta, TXN* txn);

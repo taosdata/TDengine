@@ -300,7 +300,7 @@ typedef struct SCtgSubRes {
   ctgSubTaskCbFp fp;
 } SCtgSubRes;
 
-typedef struct SCtgTask {
+struct SCtgTask {
   CTG_TASK_TYPE   type;
   int32_t         taskId;
   SCtgJob*        pJob;
@@ -313,7 +313,7 @@ typedef struct SCtgTask {
   SRWLatch        lock;
   SArray*         pParents;
   SCtgSubRes      subRes;
-} SCtgTask;
+};
 
 typedef struct SCtgTaskReq {
   SCtgTask* pTask;

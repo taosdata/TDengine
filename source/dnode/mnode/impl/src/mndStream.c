@@ -31,7 +31,7 @@
 #define MND_STREAM_VER_NUMBER   2
 #define MND_STREAM_RESERVE_SIZE 64
 
-#define MND_STREAM_MAX_NUM 10
+#define MND_STREAM_MAX_NUM 60
 
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
@@ -39,7 +39,7 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pStream, SStreamObj
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq);
-static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq);
+// static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq);
 /*static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq);*/
 static int32_t mndProcessStreamMetaReq(SRpcMsg *pReq);
 static int32_t mndGetStreamMeta(SRpcMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
@@ -66,8 +66,8 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DEPLOY_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DROP_RSP, mndTransProcessRsp);
 
-  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
-  mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
+  // mndSetMsgHandle(pMnode, TDMT_MND_STREAM_CHECKPOINT_TIMER, mndProcessStreamCheckpointTmr);
+  // mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamDoCheckpoint);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_REPORT_CHECKPOINT, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);
@@ -297,6 +297,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->triggerParam = pCreate->maxDelay;
   pObj->watermark = pCreate->watermark;
   pObj->fillHistory = pCreate->fillHistory;
+  pObj->deleteMark = pCreate->deleteMark;
   pObj->igCheckUpdate = pCreate->igUpdate;
 
   memcpy(pObj->sourceDb, pCreate->sourceDB, TSDB_DB_FNAME_LEN);
@@ -342,9 +343,9 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   }
 
   int32_t numOfNULL = taosArrayGetSize(pCreate->fillNullCols);
-  if(numOfNULL > 0) {
+  if (numOfNULL > 0) {
     pObj->outputSchema.nCols += numOfNULL;
-    SSchema* pFullSchema = taosMemoryCalloc(pObj->outputSchema.nCols, sizeof(SSchema));
+    SSchema *pFullSchema = taosMemoryCalloc(pObj->outputSchema.nCols, sizeof(SSchema));
     if (!pFullSchema) {
       goto FAIL;
     }
@@ -352,10 +353,10 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     int32_t nullIndex = 0;
     int32_t dataIndex = 0;
     for (int16_t i = 0; i < pObj->outputSchema.nCols; i++) {
-      SColLocation* pos = taosArrayGet(pCreate->fillNullCols, nullIndex);
+      SColLocation *pos = taosArrayGet(pCreate->fillNullCols, nullIndex);
       if (i < pos->slotId) {
         pFullSchema[i].bytes = pObj->outputSchema.pSchema[dataIndex].bytes;
-        pFullSchema[i].colId = i + 1; // pObj->outputSchema.pSchema[dataIndex].colId;
+        pFullSchema[i].colId = i + 1;  // pObj->outputSchema.pSchema[dataIndex].colId;
         pFullSchema[i].flags = pObj->outputSchema.pSchema[dataIndex].flags;
         strcpy(pFullSchema[i].name, pObj->outputSchema.pSchema[dataIndex].name);
         pFullSchema[i].type = pObj->outputSchema.pSchema[dataIndex].type;
@@ -380,6 +381,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .triggerType = pObj->trigger == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : pObj->trigger,
       .watermark = pObj->watermark,
       .igExpired = pObj->igExpired,
+      .deleteMark = pObj->deleteMark,
       .igCheckUpdate = pObj->igCheckUpdate,
   };
 
@@ -505,9 +507,8 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
   SMCreateStbReq createReq = {0};
   tstrncpy(createReq.name, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
   createReq.numOfColumns = pStream->outputSchema.nCols;
-  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
+  createReq.pColumns = taosArrayInit_s(createReq.numOfColumns, sizeof(SField), createReq.numOfColumns);
   // build fields
-  taosArraySetSize(createReq.pColumns, createReq.numOfColumns);
   for (int32_t i = 0; i < createReq.numOfColumns; i++) {
     SField *pField = taosArrayGet(createReq.pColumns, i);
     tstrncpy(pField->name, pStream->outputSchema.pSchema[i].name, TSDB_COL_NAME_LEN);
@@ -518,8 +519,7 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
 
   if (pStream->tagSchema.nCols == 0) {
     createReq.numOfTags = 1;
-    createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
-    taosArraySetSize(createReq.pTags, createReq.numOfTags);
+    createReq.pTags = taosArrayInit_s(createReq.numOfTags, sizeof(SField), 1);
     // build tags
     SField *pField = taosArrayGet(createReq.pTags, 0);
     strcpy(pField->name, "group_id");
@@ -528,8 +528,7 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     pField->bytes = 8;
   } else {
     createReq.numOfTags = pStream->tagSchema.nCols;
-    createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
-    taosArraySetSize(createReq.pTags, createReq.numOfTags);
+    createReq.pTags = taosArrayInit_s(createReq.numOfTags, sizeof(SField), createReq.numOfTags);
     for (int32_t i = 0; i < createReq.numOfTags; i++) {
       SField *pField = taosArrayGet(createReq.pTags, i);
       pField->bytes = pStream->tagSchema.pSchema[i].bytes;
@@ -680,7 +679,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
       pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void **)&pStream);
       if (pIter == NULL) {
         if (numOfStream > MND_STREAM_MAX_NUM) {
-          mError("too many streams, no more than 10 for each database");
+          mError("too many streams, no more than %d for each database", MND_STREAM_MAX_NUM);
           terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
           goto _OVER;
         }
@@ -692,7 +691,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
       }
       sdbRelease(pMnode->pSdb, pStream);
       if (numOfStream > MND_STREAM_MAX_NUM) {
-        mError("too many streams, no more than 10 for each database");
+        mError("too many streams, no more than %d for each database", MND_STREAM_MAX_NUM);
         terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
         goto _OVER;
       }
@@ -726,7 +725,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
 
   // create stb for stream
-  if (createStreamReq.createStb == STREAM_CREATE_STABLE_TRUE && mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
+  if (createStreamReq.createStb == STREAM_CREATE_STABLE_TRUE &&
+      mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
     mError("trans:%d, failed to create stb for stream %s since %s", pTrans->id, createStreamReq.name, terrstr());
     mndTransDrop(pTrans);
     goto _OVER;
@@ -778,6 +778,9 @@ _OVER:
   tFreeStreamObj(&streamObj);
   return code;
 }
+
+#if 0
+
 static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
@@ -941,6 +944,8 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
 
   return 0;
 }
+
+#endif
 
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;

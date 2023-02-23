@@ -273,49 +273,48 @@ password:             taosdata
 
 ## Start the TDengine cluster with docker-compose
 
-1. The following docker-compose file starts a TDengine cluster with two replicas, two management nodes, two data nodes, and one arbitrator.
+1. The following docker-compose file starts a TDengine cluster with three nodes.
 
-   ```docker
-   version: "3"
-   services:
-     arbitrator:
-       image: tdengine/tdengine:$VERSION
-       command: tarbitrator
-     td-1:
-       image: tdengine/tdengine:$VERSION
-       environment:
-         TAOS_FQDN: "td-1"
-         TAOS_FIRST_EP: "td-1"
-         TAOS_NUM_OF_MNODES: "2"
-         TAOS_REPLICA: "2"
-         TAOS_ARBITRATOR: arbitrator:6042
-       volumes:
-         - taosdata-td1:/var/lib/taos/
-         - taoslog-td1:/var/log/taos/
-     td-2:
-       image: tdengine/tdengine:$VERSION
-       environment:
-         TAOS_FQDN: "td-2"
-         TAOS_FIRST_EP: "td-1"
-         TAOS_NUM_OF_MNODES: "2"
-         TAOS_REPLICA: "2"
-         TAOS_ARBITRATOR: arbitrator:6042
-       volumes:
-         - taosdata-td2:/var/lib/taos/
-         - taoslog-td2:/var/log/taos/
-   volumes:
-     taosdata-td1:
-     taoslog-td1:
-     taosdata-td2:
-     taoslog-td2:
-   ```
+```yml
+version: "3"
+services:
+  td-1:
+    image: tdengine/tdengine:$VERSION
+    environment:
+      TAOS_FQDN: "td-1"
+      TAOS_FIRST_EP: "td-1"
+    volumes:
+      - taosdata-td1:/var/lib/taos/
+      - taoslog-td1:/var/log/taos/
+  td-2:
+    image: tdengine/tdengine:$VERSION
+    environment:
+      TAOS_FQDN: "td-2"
+      TAOS_FIRST_EP: "td-1"
+    volumes:
+      - taosdata-td2:/var/lib/taos/
+      - taoslog-td2:/var/log/taos/
+  td-3:
+    image: tdengine/tdengine:$VERSION
+    environment:
+      TAOS_FQDN: "td-3"
+      TAOS_FIRST_EP: "td-1"
+    volumes:
+      - taosdata-td3:/var/lib/taos/
+      - taoslog-td3:/var/log/taos/
+volumes:
+  taosdata-td1:
+  taoslog-td1:
+  taosdata-td2:
+  taoslog-td2:
+  taosdata-td3:
+  taoslog-td3:
+```
 
 :::note
 
 - The `VERSION` environment variable is used to set the tdengine image tag
 - `TAOS_FIRST_EP` must be set on the newly created instance so that it can join the TDengine cluster; if there is a high availability requirement, `TAOS_SECOND_EP` needs to be used at the same time
-- `TAOS_REPLICA` is used to set the default number of database replicas. Its value range is [1,3]
-  We recommend setting it with `TAOS_ARBITRATOR` to use arbitrator in a two-nodes environment.
   :::
 
 2. Start the cluster
@@ -345,17 +344,18 @@ password:             taosdata
 
 4. Show dnodes via TDengine CLI
 
-   ```shell
-   $ docker-compose exec td-1 taos -s "show dnodes"
+```shell
+$ docker-compose exec td-1 taos -s "show dnodes"
 
-   taos> show dnodes
-      id   |           end_point            | vnodes | cores  |   status   | role  |       create_time       |      offline reason      |
-   ======================================================================================================================================
-         1 | td-1:6030                      |      1 |      8 | ready      | any   | 2022-01-18 02:47:42.871 |                          |
-         2 | td-2:6030                      |      0 |      8 | ready      | any   | 2022-01-18 02:47:43.518 |                          |
-         0 | arbitrator:6042                |      0 |      0 | ready      | arb   | 2022-01-18 02:47:43.633 | -                        |
-   Query OK, 3 row(s) in set (0.000811s)
-   ```
+taos> show dnodes
+     id      |            endpoint            | vnodes | support_vnodes |   status   |       create_time       |              note              |
+======================================================================================================================================
+           1 | td-1:6030                      |      0 |             32 | ready      | 2022-08-19 07:57:29.971 |                                |
+           2 | td-2:6030                      |      0 |             32 | ready      | 2022-08-19 07:57:31.415 |                                |
+           3 | td-3:6030                      |      0 |             32 | ready      | 2022-08-19 07:57:31.417 |                                |
+Query OK, 3 rows in database (0.021262s)
+
+```
 
 ## taosAdapter
 
@@ -373,83 +373,70 @@ password:             taosdata
 
    Suppose you want to deploy multiple taosAdapters to improve throughput and provide high availability. In that case, the recommended configuration method uses a reverse proxy such as Nginx to offer a unified access entry. For specific configuration methods, please refer to the official documentation of Nginx. Here is an example:
 
-   ```docker
-   version: "3"
+```yml
+version: "3"
 
-   networks:
-     inter:
-     api:
+networks:
+  inter:
 
-   services:
-     arbitrator:
-       image: tdengine/tdengine:$VERSION
-       command: tarbitrator
-       networks:
-         - inter
-     td-1:
-       image: tdengine/tdengine:$VERSION
-       networks:
-         - inter
-       environment:
-         TAOS_FQDN: "td-1"
-         TAOS_FIRST_EP: "td-1"
-         TAOS_NUM_OF_MNODES: "2"
-         TAOS_REPLICA: "2"
-         TAOS_ARBITRATOR: arbitrator:6042
-       volumes:
-         - taosdata-td1:/var/lib/taos/
-         - taoslog-td1:/var/log/taos/
-     td-2:
-       image: tdengine/tdengine:$VERSION
-       networks:
-         - inter
-       environment:
-         TAOS_FQDN: "td-2"
-         TAOS_FIRST_EP: "td-1"
-         TAOS_NUM_OF_MNODES: "2"
-         TAOS_REPLICA: "2"
-         TAOS_ARBITRATOR: arbitrator:6042
-       volumes:
-         - taosdata-td2:/var/lib/taos/
-         - taoslog-td2:/var/log/taos/
-     adapter:
-       image: tdengine/tdengine:$VERSION
-       command: taosadapter
-       networks:
-         - inter
-       environment:
-         TAOS_FIRST_EP: "td-1"
-         TAOS_SECOND_EP: "td-2"
-       deploy:
-         replicas: 4
-     nginx:
-       image: nginx
-       depends_on:
-         - adapter
-       networks:
-         - inter
-         - api
-       ports:
-         - 6041:6041
-         - 6044:6044/udp
-       command: [
-           "sh",
-           "-c",
-           "while true;
-           do curl -s http://adapter:6041/-/ping >/dev/null && break;
-           done;
-           printf 'server{listen 6041;location /{proxy_pass http://adapter:6041;}}'
-           > /etc/nginx/conf.d/rest.conf;
-           printf 'stream{server{listen 6044 udp;proxy_pass adapter:6044;}}'
-           >> /etc/nginx/nginx.conf;cat /etc/nginx/nginx.conf;
-           nginx -g 'daemon off;'",
-         ]
-   volumes:
-     taosdata-td1:
-     taoslog-td1:
-     taosdata-td2:
-     taoslog-td2:
-   ```
+services:
+  td-1:
+    image: tdengine/tdengine:$VERSION
+    networks:
+      - inter
+    environment:
+      TAOS_FQDN: "td-1"
+      TAOS_FIRST_EP: "td-1"
+    volumes:
+      - taosdata-td1:/var/lib/taos/
+      - taoslog-td1:/var/log/taos/
+  td-2:
+    image: tdengine/tdengine:$VERSION
+    networks:
+      - inter
+    environment:
+      TAOS_FQDN: "td-2"
+      TAOS_FIRST_EP: "td-1"
+    volumes:
+      - taosdata-td2:/var/lib/taos/
+      - taoslog-td2:/var/log/taos/
+  adapter:
+    image: tdengine/tdengine:$VERSION
+    entrypoint: "taosadapter"
+    networks:
+      - inter
+    environment:
+      TAOS_FIRST_EP: "td-1"
+      TAOS_SECOND_EP: "td-2"
+    deploy:
+      replicas: 4
+  nginx:
+    image: nginx
+    depends_on:
+      - adapter
+    networks:
+      - inter
+    ports:
+      - 6041:6041
+      - 6044:6044/udp
+    command: [
+        "sh",
+        "-c",
+        "while true;
+        do curl -s http://adapter:6041/-/ping >/dev/null && break;
+        done;
+        printf 'server{listen 6041;location /{proxy_pass http://adapter:6041;}}'
+        > /etc/nginx/conf.d/rest.conf;
+        printf 'stream{server{listen 6044 udp;proxy_pass adapter:6044;}}'
+        >> /etc/nginx/nginx.conf;cat /etc/nginx/nginx.conf;
+        nginx -g 'daemon off;'",
+      ]
+volumes:
+  taosdata-td1:
+  taoslog-td1:
+  taosdata-td2:
+  taoslog-td2:
+```
 
 ## Deploy with docker swarm
 
