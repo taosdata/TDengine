@@ -279,11 +279,15 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers) {
 
 static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList, const char* idstr) {
   SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
+  int32_t numOfUids = taosArrayGetSize(tableIdList);
+  if (numOfUids == 0) {
+    return qa;
+  }
 
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
   metaReaderInit(&mr, pScanInfo->readHandle.meta, 0);
-  for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
+  for (int32_t i = 0; i < numOfUids; ++i) {
     uint64_t* id = (uint64_t*)taosArrayGet(tableIdList, i);
 
     int32_t code = metaGetTableEntryByUid(&mr, *id);
