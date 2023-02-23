@@ -171,6 +171,7 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
 }
 #endif
 
+#if 0
 SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
@@ -180,6 +181,7 @@ SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId) {
     return NULL;
   }
 }
+#endif
 
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
   taosRLockLatch(&pMeta->lock);

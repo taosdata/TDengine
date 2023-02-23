@@ -48,7 +48,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   info.state.applied = -1;
   info.state.commitID = 0;
 
-  vInfo("vgId:%d, save config while create", pCfg->vgId);
+  vInfo("vgId:%d, save config while create", info.config.vgId);
   if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir) < 0) {
     vError("vgId:%d, failed to save vnode config since %s", pCfg ? pCfg->vgId : 0, tstrerror(terrno));
     return -1;
@@ -124,7 +124,7 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
   while (1) {
     const STfsFile *tsdbFile = tfsReaddir(tsdbDir);
     if (tsdbFile == NULL) break;
-    if (tsdbFile->rname == NULL) continue;
+    if (tsdbFile->rname[0] == '\0') continue;
     tstrncpy(oldRname, tsdbFile->rname, TSDB_FILENAME_LEN);
 
     char *tsdbFilePrefixPos = strstr(oldRname, tsdbFilePrefix);

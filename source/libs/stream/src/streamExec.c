@@ -114,12 +114,14 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
     int32_t batchCnt = 0;
     while (1) {
       if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+        taosArrayDestroy(pRes);
         return 0;
       }
 
       SSDataBlock* output = NULL;
       uint64_t     ts = 0;
       if (qExecTask(exec, &output, &ts) < 0) {
+        taosArrayDestroy(pRes);
         return -1;
       }
       if (output == NULL) {

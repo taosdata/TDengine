@@ -175,20 +175,24 @@ typedef struct {
 
 void streamFreeQitem(SStreamQueueItem* data);
 
+#if 0
 bool              streamQueueResEmpty(const SStreamQueueRes* pRes);
 int64_t           streamQueueResSize(const SStreamQueueRes* pRes);
 SStreamQueueNode* streamQueueResFront(SStreamQueueRes* pRes);
 SStreamQueueNode* streamQueueResPop(SStreamQueueRes* pRes);
 void              streamQueueResClear(SStreamQueueRes* pRes);
 SStreamQueueRes   streamQueueBuildRes(SStreamQueueNode* pNode);
+#endif
 
 typedef struct {
   SStreamQueueNode* pHead;
 } SStreamQueue1;
 
+#if 0
 bool            streamQueueHasTask(const SStreamQueue1* pQueue);
 int32_t         streamQueuePush(SStreamQueue1* pQueue, SStreamQueueItem* pItem);
 SStreamQueueRes streamQueueGetRes(SStreamQueue1* pQueue);
+#endif
 
 typedef struct {
   STaosQueue* queue;
@@ -636,7 +640,7 @@ void         streamMetaClose(SStreamMeta* streamMeta);
 int32_t      streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t      streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask);
 int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* msg, int32_t msgLen);
-SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
+// SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);

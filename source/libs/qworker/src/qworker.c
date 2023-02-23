@@ -847,6 +847,9 @@ _return:
       qwBuildAndSendFetchRsp(qwMsg->msgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
       QW_TASK_DLOG("%s send, handle:%p, code:%x - %s, dataLen:%d", TMSG_INFO(qwMsg->msgType + 1),
                    qwMsg->connInfo.handle, code, tstrerror(code), dataLen);
+    } else {
+      qwFreeFetchRsp(rsp);
+      rsp = NULL;
     }
   }
 
@@ -1217,7 +1220,7 @@ void qWorkerStopAllTasks(void *qWorkerMgmt) {
       QW_UPDATE_RSP_CODE(ctx, TSDB_CODE_VND_STOPPED);
       QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);    
     } else {
-      qwDropTask(QW_FPARAMS());
+      (void)qwDropTask(QW_FPARAMS());
     }
 
     QW_UNLOCK(QW_WRITE, &ctx->lock);

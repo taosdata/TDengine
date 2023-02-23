@@ -1470,8 +1470,8 @@ static int32_t translateInterpFunc(STranslateContext* pCxt, SFunctionNode* pFunc
   SNode*       pTable = pSelect->pFromTable;
 
   if ((NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
-                         (TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
-                          TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType)))) {
+                          (TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+                           TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType)))) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
                                    "%s is only supported in single table query", pFunc->functionName);
   }
@@ -5953,6 +5953,7 @@ static int32_t adjustOrderOfProjections(STranslateContext* pCxt, SNodeList* pCol
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
+  bool    hasPrimaryKey = false;
   SNode*  pCol = NULL;
   SNode*  pProj = NULL;
   FORBOTH(pCol, pCols, pProj, *pProjections) {
@@ -5966,6 +5967,14 @@ static int32_t adjustOrderOfProjections(STranslateContext* pCxt, SNodeList* pCol
     if (TSDB_CODE_SUCCESS != code) {
       break;
     }
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
+      hasPrimaryKey = true;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && !hasPrimaryKey) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                   "primary timestamp column can not be null");
   }
 
   SNodeList* pNewProjections = NULL;
@@ -6008,7 +6017,15 @@ static int32_t adjustProjectionsForExistTable(STranslateContext* pCxt, SCreateSt
   return adjustOrderOfProjections(pCxt, pStmt->pCols, pMeta, &pSelect->pProjectionList, pReq);
 }
 
+static bool isGroupIdTagStream(const STableMeta* pMeta, SNodeList* pTags) {
+  return (NULL == pTags && 1 == pMeta->tableInfo.numOfTags && TSDB_DATA_TYPE_UBIGINT == getTableTagSchema(pMeta)->type);
+}
+
 static int32_t adjustDataTypeOfTags(STranslateContext* pCxt, const STableMeta* pMeta, SNodeList* pTags) {
+  if (isGroupIdTagStream(pMeta, pTags)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (getNumOfTags(pMeta) != LIST_LENGTH(pTags)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM, "Illegal number of tags");
   }

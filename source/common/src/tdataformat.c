@@ -139,7 +139,10 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
           nkv += tPutI16v(NULL, -pTColumn->colId);
           nIdx++;
         } else {
-          ASSERT(0);
+          if (ASSERTS(0, "invalid input")) {
+            code = TSDB_CODE_INVALID_PARA;
+            goto _exit;
+          }
         }
 
         pTColumn = (++iTColumn < pTSchema->numOfCols) ? pTSchema->columns + iTColumn : NULL;
@@ -176,8 +179,10 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
       ntp = sizeof(SRow) + BIT2_SIZE(pTSchema->numOfCols - 1) + pTSchema->flen + ntp;
       break;
     default:
-      ASSERT(0);
-      break;
+      if (ASSERTS(0, "impossible")) {
+        code = TSDB_CODE_INVALID_PARA;
+        goto _exit;
+      }
   }
   if (maxIdx <= UINT8_MAX) {
     nkv = sizeof(SRow) + sizeof(SKVIdx) + nIdx + nkv;
@@ -306,8 +311,10 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
         pv = pf + pTSchema->flen;
         break;
       default:
-        ASSERT(0);
-        break;
+        if (ASSERTS(0, "impossible")) {
+          code = TSDB_CODE_INVALID_PARA;
+          goto _exit;
+        }
     }
 
     if (pb) {
@@ -370,7 +377,7 @@ _exit:
   return code;
 }
 
-void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
+int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
   ASSERT(iCol < pTSchema->numOfCols);
   ASSERT(pRow->sver == pTSchema->version);
 
@@ -381,17 +388,17 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
     pColVal->type = pTColumn->type;
     pColVal->flag = CV_FLAG_VALUE;
     memcpy(&pColVal->value.val, &pRow->ts, sizeof(TSKEY));
-    return;
+    return 0;
   }
 
   if (pRow->flag == HAS_NONE) {
     *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
-    return;
+    return 0;
   }
 
   if (pRow->flag == HAS_NULL) {
     *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
-    return;
+    return 0;
   }
 
   if (pRow->flag >> 4) {  // KV Row
@@ -440,7 +447,7 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
             memcpy(&pColVal->value.val, pData, pTColumn->bytes);
           }
         }
-        return;
+        return 0;
       } else if (TABS(cid) < pTColumn->colId) {
         lidx = mid + 1;
       } else {
@@ -492,16 +499,16 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
           pv = pf + pTSchema->flen;
           break;
         default:
-          ASSERT(0);
-          break;
+          ASSERTS(0, "invalid row format");
+          return TSDB_CODE_IVLD_DATA_FMT;
       }
 
       if (bv == BIT_FLG_NONE) {
         *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
-        return;
+        return 0;
       } else if (bv == BIT_FLG_NULL) {
         *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
-        return;
+        return 0;
       }
 
       pColVal->cid = pTColumn->colId;
@@ -520,6 +527,8 @@ void tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
       }
     }
   }
+
+  return 0;
 }
 
 void tRowDestroy(SRow *pRow) {
@@ -710,7 +719,6 @@ int32_t tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter) {
 _exit:
   if (code) {
     *ppIter = NULL;
-    if (pIter) taosMemoryFree(pIter);
   } else {
     *ppIter = pIter;
   }
@@ -929,8 +937,8 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
       pv = pf + pTSchema->flen;
       break;
     default:
-      ASSERT(0);
-      break;
+      ASSERTS(0, "Invalid row flag");
+      return TSDB_CODE_IVLD_DATA_FMT;
   }
 
   while (pColData) {
@@ -954,8 +962,8 @@ static int32_t tRowTupleUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *
               bv = GET_BIT2(pb, iTColumn - 1);
               break;
             default:
-              ASSERT(0);
-              break;
+              ASSERTS(0, "Invalid row flag");
+              return TSDB_CODE_IVLD_DATA_FMT;
           }
 
           if (bv == BIT_FLG_NONE) {
@@ -1045,7 +1053,8 @@ static int32_t tRowKVUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aCo
           } else if (pRow->flag & KV_FLG_BIG) {
             pData = pv + ((uint32_t *)pKVIdx->idx)[iCol];
           } else {
-            ASSERT(0);
+            ASSERTS(0, "Invalid KV row format");
+            return TSDB_CODE_IVLD_DATA_FMT;
           }
 
           int16_t cid;
@@ -1579,7 +1588,7 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData,
   int32_t code = 0;
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {
-    code = tRealloc((uint8_t **)(&pColData->aOffset), (pColData->nVal + 1) << 2);
+    code = tRealloc((uint8_t **)(&pColData->aOffset), ((int64_t)(pColData->nVal + 1)) << 2);
     if (code) goto _exit;
     pColData->aOffset[pColData->nVal] = pColData->nData;
 
@@ -2347,35 +2356,25 @@ void tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
 }
 
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal) {
-  uint8_t v;
   switch (pColData->flag) {
     case HAS_NONE:
-      v = 0;
-      break;
+      return 0;
     case HAS_NULL:
-      v = 1;
-      break;
+      return 1;
     case (HAS_NULL | HAS_NONE):
-      v = GET_BIT1(pColData->pBitMap, iVal);
-      break;
+      return GET_BIT1(pColData->pBitMap, iVal);
     case HAS_VALUE:
-      v = 2;
-      break;
+      return 2;
     case (HAS_VALUE | HAS_NONE):
-      v = GET_BIT1(pColData->pBitMap, iVal);
-      if (v) v = 2;
-      break;
+      return (GET_BIT1(pColData->pBitMap, iVal)) ? 2 : 0;
     case (HAS_VALUE | HAS_NULL):
-      v = GET_BIT1(pColData->pBitMap, iVal) + 1;
-      break;
+      return GET_BIT1(pColData->pBitMap, iVal) + 1;
     case (HAS_VALUE | HAS_NULL | HAS_NONE):
-      v = GET_BIT2(pColData->pBitMap, iVal);
-      break;
+      return GET_BIT2(pColData->pBitMap, iVal);
     default:
-      ASSERT(0);
-      break;
+      ASSERTS(0, "not possible");
+      return 0;
   }
-  return v;
 }
 
 int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg) {

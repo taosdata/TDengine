@@ -133,6 +133,7 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   }
 }
 
+#if 0
 static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
   int32_t contLen = 0;
   void   *pReq = mndBuildCheckpointTickMsg(&contLen, sec);
@@ -145,6 +146,7 @@ static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
+#endif
 
 static void mndPullupTelem(SMnode *pMnode) {
   mTrace("pullup telem msg");
