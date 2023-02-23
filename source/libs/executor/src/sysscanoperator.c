@@ -81,10 +81,10 @@ typedef struct MergeIndex {
 } MergeIndex;
 
 typedef struct SBlockDistInfo {
-    SSDataBlock* pResBlock;
-    STsdbReader* pHandle;
-    SReadHandle  readHandle;
-    uint64_t     uid;  // table uid
+  SSDataBlock* pResBlock;
+  STsdbReader* pHandle;
+  SReadHandle  readHandle;
+  uint64_t     uid;  // table uid
 } SBlockDistInfo;
 
 static int32_t sysChkFilter__Comm(SNode* pNode);
@@ -129,10 +129,10 @@ static char* SYSTABLE_IDX_COLUMN[] = {"table_name", "db_name",     "create_time"
 
 static char* SYSTABLE_SPECIAL_COL[] = {"db_name", "vgroup_id"};
 
-static int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity);
-static SSDataBlock* buildInfoSchemaTableMetaBlock(char* tableName);
-static void destroySysScanOperator(void* param);
-static int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code);
+static int32_t        buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity);
+static SSDataBlock*   buildInfoSchemaTableMetaBlock(char* tableName);
+static void           destroySysScanOperator(void* param);
+static int32_t        loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code);
 static __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse);
 
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
@@ -199,11 +199,11 @@ int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
   if (func == NULL) return -1;
 
   SMetaFltParam param = {.suid = 0,
-      .cid = 0,
-      .type = TSDB_DATA_TYPE_VARCHAR,
-      .val = pVal->datum.p,
-      .reverse = reverse,
-      .filterFunc = func};
+                         .cid = 0,
+                         .type = TSDB_DATA_TYPE_VARCHAR,
+                         .val = pVal->datum.p,
+                         .reverse = reverse,
+                         .filterFunc = func};
   return -1;
 }
 
@@ -218,11 +218,11 @@ int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
   if (func == NULL) return -1;
 
   SMetaFltParam param = {.suid = 0,
-      .cid = 0,
-      .type = TSDB_DATA_TYPE_BIGINT,
-      .val = &pVal->datum.i,
-      .reverse = reverse,
-      .filterFunc = func};
+                         .cid = 0,
+                         .type = TSDB_DATA_TYPE_BIGINT,
+                         .val = &pVal->datum.i,
+                         .reverse = reverse,
+                         .filterFunc = func};
 
   int32_t ret = metaFilterCreateTime(pMeta, &param, result);
   return ret;
@@ -350,9 +350,9 @@ static int32_t optSysMergeRslt(SArray* mRslt, SArray* rslt);
 static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableScanInfo* pInfo, const char* name,
                                           SExecTaskInfo* pTaskInfo);
 void                extractTbnameSlotId(SSysTableScanInfo* pInfo, const SScanPhysiNode* pScanNode);
-static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScanInfo* pInfo,
-                                                 const char* name, SSDataBlock* pBlock);
-__optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse) {
+static void         sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScanInfo* pInfo, const char* name,
+                                           SSDataBlock* pBlock);
+__optSysFilter      optSysGetFilterFunc(int32_t ctype, bool* reverse) {
   if (ctype == OP_TYPE_LOWER_EQUAL || ctype == OP_TYPE_LOWER_THAN) {
     *reverse = true;
   }
@@ -516,9 +516,10 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       metaTbCursorPrev(pInfo->pCur);
       blockFull = true;
     } else {
-      sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows, dataBlock);
+      sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
+                                       dataBlock);
     }
-    
+
     metaReaderClear(&smrSuperTable);
 
     if (blockFull || numOfRows >= pOperator->resultInfo.capacity) {
@@ -1343,7 +1344,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       setOperatorCompleted(pOperator);
     }
 
-    return pBlock->info.rows > 0? pBlock:NULL;
+    return pBlock->info.rows > 0 ? pBlock : NULL;
   } else {
     return NULL;
   }
@@ -1357,7 +1358,7 @@ static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScan
 
   if (pInfo->tbnameSlotId != -1) {
     SColumnInfoData* pColumnInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, pInfo->tbnameSlotId);
-    char varTbName[TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE] = {0};
+    char             varTbName[TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE] = {0};
     memcpy(varDataVal(varTbName), name, strlen(name));
     varDataSetLen(varTbName, strlen(name));
 
@@ -1489,10 +1490,11 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   setOperatorInfo(pOperator, "SysTableScanOperator", QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator, optrDefaultBufFn, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(optrDummyOpenFn, doSysTableScan, NULL, destroySysScanOperator, optrDefaultBufFn, NULL);
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     destroySysScanOperator(pInfo);
   }
@@ -1937,10 +1939,10 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
 }
 
 static void destroyBlockDistScanOperatorInfo(void* param) {
-    SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
-    blockDataDestroy(pDistInfo->pResBlock);
-    tsdbReaderClose(pDistInfo->pHandle);
-    taosMemoryFreeClear(param);
+  SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
+  blockDataDestroy(pDistInfo->pResBlock);
+  tsdbReaderClose(pDistInfo->pHandle);
+  taosMemoryFreeClear(param);
 }
 
 static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pCond) {
@@ -2001,7 +2003,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
   }
 
   pInfo->readHandle = *readHandle;
-  pInfo->uid = (pBlockScanNode->suid != 0)? pBlockScanNode->suid:pBlockScanNode->uid;
+  pInfo->uid = (pBlockScanNode->suid != 0) ? pBlockScanNode->suid : pBlockScanNode->uid;
 
   int32_t    numOfCols = 0;
   SExprInfo* pExprInfo = createExprInfo(pBlockScanNode->pScanPseudoCols, NULL, &numOfCols);
@@ -2012,8 +2014,8 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
 
   setOperatorInfo(pOperator, "DataBlockDistScanOperator", QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN, false,
                   OP_NOT_OPENED, pInfo, pTaskInfo);
-  pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doBlockInfoScan, NULL, destroyBlockDistScanOperatorInfo, optrDefaultBufFn, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doBlockInfoScan, NULL, destroyBlockDistScanOperatorInfo,
+                                         optrDefaultBufFn, NULL);
   return pOperator;
 
 _error:

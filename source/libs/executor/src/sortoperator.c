@@ -768,8 +768,6 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
 
   int32_t rowSize = pInfo->binfo.pRes->info.rowSize;
-  ASSERT(rowSize < 100 * 1024 * 1024);
-
   int32_t numOfOutputCols = 0;
   code = extractColMatchInfo(pMergePhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID,
                              &pInfo->matchInfo);

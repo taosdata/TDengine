@@ -193,8 +193,6 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
         return pResBlock;
       }
     } else if (pInfo->existNewGroupBlock) {  // try next group
-      assert(pBlock != NULL);
-
       blockDataCleanup(pResBlock);
 
       doHandleRemainBlockForNewGroupImpl(pOperator, pInfo, pResultInfo, pTaskInfo);

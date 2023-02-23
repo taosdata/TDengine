@@ -1830,10 +1830,10 @@ typedef struct {
 } SMqConsumerLostMsg, SMqConsumerRecoverMsg, SMqConsumerClearMsg;
 
 typedef struct {
-  int64_t consumerId;
-  char    cgroup[TSDB_CGROUP_LEN];
-  char    clientId[256];
-  SArray* topicNames;  // SArray<char**>
+  int64_t  consumerId;
+  char     cgroup[TSDB_CGROUP_LEN];
+  char     clientId[256];
+  SArray*  topicNames;  // SArray<char**>
 } SCMSubscribeReq;
 
 static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
