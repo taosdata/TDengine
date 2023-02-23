@@ -250,6 +250,13 @@ int32_t tjsonGetUIntValue(const SJson* pJson, const char* pName, uint32_t* pVal)
   return code;
 }
 
+int32_t tjsonGetUSmallIntValue(const SJson* pJson, const char* pName, uint16_t* pVal) {
+  uint64_t val = 0;
+  int32_t  code = tjsonGetUBigIntValue(pJson, pName, &val);
+  *pVal = val;
+  return code;
+}
+
 int32_t tjsonGetUTinyIntValue(const SJson* pJson, const char* pName, uint8_t* pVal) {
   uint64_t val = 0;
   int32_t  code = tjsonGetUBigIntValue(pJson, pName, &val);
