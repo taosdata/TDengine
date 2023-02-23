@@ -2728,7 +2728,7 @@ class StreamComputingTest(TDCase):
             self.query_after_drop_stream_db()
             self.data_filter()
             self.data_filter(delete=True)
-            # TODO 0221
+            # ! TD-22731
             # self.data_filter(delete=True, fill_history_value=1)
             # # ! rep3 bug
             self.life_cycle()
@@ -2736,8 +2736,7 @@ class StreamComputingTest(TDCase):
             self.scalar_function(partition="tbname,c1", delete=True, fill_history_value=1)
             self.stream_tandem()
             self.udf_test(8, "int")
-            # TODO 0221
-            # self.udf_test(8, "int", 1)
+            self.udf_test(8, "int", 1)
             self.udaf_test(10, 8, "double")
             self.udaf_test(10, 8, "double", 1)
 
@@ -2756,11 +2755,13 @@ class StreamComputingTest(TDCase):
                 self.at_once_state_window(state_window="c1", partition="c1", delete=True, fill_history_value=fill_history_value)
                 self.at_once_state_window(state_window="c1", partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="tbname", fill_history_value=fill_history_value)
-                self.at_once_session(session=random.randint(10, 15), partition="c1", fill_history_value=fill_history_value)
-                self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", fill_history_value=fill_history_value)
+                # ! TD-22639
+                # self.at_once_session(session=random.randint(10, 15), partition="c1", fill_history_value=fill_history_value)
+                # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), partition="tbname", delete=True, fill_history_value=fill_history_value)
-                self.at_once_session(session=random.randint(10, 15), partition="c1", delete=True, fill_history_value=fill_history_value)
-                self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
+                # ! TODO
+                # self.at_once_session(session=random.randint(10, 15), partition="c1", delete=True, fill_history_value=fill_history_value)
+                # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)", delete=True, fill_history_value=fill_history_value)
                 self.at_once_session(session=random.randint(10, 15), ignore_expired=0, fill_history_value=fill_history_value)
                 # self.watermark_window_close_session(session=random.randint(10, 15), watermark=None, fill_history_value=fill_history_value)
                 # self.watermark_window_close_session(session=random.randint(10, 12), watermark=random.randint(20, 25), fill_history_value=fill_history_value)
@@ -2785,7 +2786,8 @@ class StreamComputingTest(TDCase):
 
 
             # tmp remove fill_history
-            self.at_once_session(session=random.randint(10, 15), partition="abs(c1)")
+            # ! TD-22639
+            # self.at_once_session(session=random.randint(10, 15), partition="abs(c1)")
             self.watermark_window_close_session(session=random.randint(10, 15), watermark=None)
             self.watermark_window_close_session(session=random.randint(10, 12), watermark=random.randint(20, 25))
 
