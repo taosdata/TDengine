@@ -26,6 +26,8 @@
 
 #define HTTP_RECV_BUF_SIZE 1024
 
+static int32_t httpRefMgt = 0;
+static int64_t httpRef = -1;
 typedef struct SHttpModule {
   uv_loop_t*  loop;
   SAsyncPool* asyncPool;
@@ -41,7 +43,6 @@ typedef struct SHttpMsg {
   int32_t       len;
   EHttpCompFlag flag;
   int8_t        quit;
-  SHttpModule*  http;
 
 } SHttpMsg;
 
@@ -57,7 +58,6 @@ typedef struct SHttpClient {
 } SHttpClient;
 
 static TdThreadOnce transHttpInit = PTHREAD_ONCE_INIT;
-static SHttpModule* thttp = NULL;
 static void         transHttpEnvInit();
 
 static void    httpHandleReq(SHttpMsg* msg);
@@ -280,26 +280,28 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
 }
 
 int32_t httpSendQuit() {
+  SHttpModule* http = taosAcquireRef(httpRefMgt, httpRef);
+  if (http == NULL) return 0;
+
   SHttpMsg* msg = taosMemoryCalloc(1, sizeof(SHttpMsg));
   msg->quit = 1;
 
-  SHttpModule* load = atomic_load_ptr(&thttp);
-  if (load == NULL) {
-    httpDestroyMsg(msg);
-    tError("http-report already released");
-    return -1;
-  } else {
-    msg->http = load;
-  }
-  transAsyncSend(load->asyncPool, &(msg->q));
+  transAsyncSend(http->asyncPool, &(msg->q));
+  taosReleaseRef(httpRefMgt, httpRef);
   return 0;
 }
 
 static int32_t taosSendHttpReportImpl(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
                                       EHttpCompFlag flag) {
+  SHttpModule* load = taosAcquireRef(httpRefMgt, httpRef);
+  if (load == NULL) {
+    tError("http-report already released");
+    return -1;
+  }
+
   SHttpMsg* msg = taosMemoryMalloc(sizeof(SHttpMsg));
   msg->server = strdup(server);
-  msg->uri  = strdup(uri);
+  msg->uri = strdup(uri);
   msg->port = port;
   msg->cont = taosMemoryMalloc(contLen);
   memcpy(msg->cont, pCont, contLen);
@@ -307,15 +309,9 @@ static int32_t taosSendHttpReportImpl(const char* server, const char* uri, uint1
   msg->flag = flag;
   msg->quit = 0;
 
-  SHttpModule* load = atomic_load_ptr(&thttp);
-  if (load == NULL) {
-    httpDestroyMsg(msg);
-    tError("http-report already released");
-    return -1;
-  }
-  
-  msg->http = load;
-  return transAsyncSend(load->asyncPool, &(msg->q));
+  int ret = transAsyncSend(load->asyncPool, &(msg->q));
+  taosReleaseRef(httpRefMgt, httpRef);
+  return ret;
 }
 
 static void httpDestroyClientCb(uv_handle_t* handle) {
@@ -335,13 +331,19 @@ static void httpWalkCb(uv_handle_t* handle, void* arg) {
   return;
 }
 static void httpHandleQuit(SHttpMsg* msg) {
-  SHttpModule* http = msg->http;
   taosMemoryFree(msg);
 
+  SHttpModule* http = taosAcquireRef(httpRefMgt, httpRef);
+  if (http == NULL) return;
+
   uv_walk(http->loop, httpWalkCb, NULL);
+  taosReleaseRef(httpRefMgt, httpRef);
 }
 static void httpHandleReq(SHttpMsg* msg) {
-  SHttpModule* http = msg->http;
+  SHttpModule* http = taosAcquireRef(httpRefMgt, httpRef);
+  if (http == NULL) {
+    goto END;
+  }
 
   struct sockaddr_in dest = {0};
   if (taosBuildDstAddr(msg->server, msg->port, &dest) < 0) {
@@ -391,6 +393,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   int     ret = uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
   if (ret != 0) {
     tError("http-report failed to open socket, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr, cli->port);
+    taosReleaseRef(httpRefMgt, httpRef);
     destroyHttpClient(cli);
     return;
   }
@@ -401,21 +404,26 @@ static void httpHandleReq(SHttpMsg* msg) {
            cli->port);
     destroyHttpClient(cli);
   }
+  taosReleaseRef(httpRefMgt, httpRef);
   return;
 
 END:
   tError("http-report failed to report, reason: %s, addr: %s:%d", terrstr(), msg->server, msg->port);
   httpDestroyMsg(msg);
+  taosReleaseRef(httpRefMgt, httpRef);
 }
 
-int32_t taosSendHttpReport(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
+int32_t taosSendHttpReport(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                           EHttpCompFlag flag) {
   taosThreadOnce(&transHttpInit, transHttpEnvInit);
   return taosSendHttpReportImpl(server, uri, port, pCont, contLen, flag);
 }
 
+static void transHttpDestroyHandle(void* handle) { taosMemoryFree(handle); }
 static void transHttpEnvInit() {
-  SHttpModule* http = taosMemoryMalloc(sizeof(SHttpModule));
+  httpRefMgt = taosOpenRef(1, transHttpDestroyHandle);
 
+  SHttpModule* http = taosMemoryMalloc(sizeof(SHttpModule));
   http->loop = taosMemoryMalloc(sizeof(uv_loop_t));
   uv_loop_init(http->loop);
 
@@ -426,21 +434,22 @@ static void transHttpEnvInit() {
     http = NULL;
     return;
   }
-  
+
   int err = taosThreadCreate(&http->thread, NULL, httpThread, (void*)http);
   if (err != 0) {
     taosMemoryFree(http->loop);
     taosMemoryFree(http);
     http = NULL;
   }
-  atomic_store_ptr(&thttp, http);
+  httpRef = taosAddRef(httpRefMgt, http);
 }
 
 void transHttpEnvDestroy() {
-  SHttpModule* load = atomic_load_ptr(&thttp);
-  if (load == NULL) {
+  // remove http
+  if (httpRef == -1 || transHttpInit == PTHREAD_ONCE_INIT) {
     return;
   }
+  SHttpModule* load = taosAcquireRef(httpRefMgt, httpRef);
   httpSendQuit();
   taosThreadJoin(load->thread, NULL);
 
@@ -448,7 +457,7 @@ void transHttpEnvDestroy() {
   transAsyncPoolDestroy(load->asyncPool);
   uv_loop_close(load->loop);
   taosMemoryFree(load->loop);
-  taosMemoryFree(load);
 
-  atomic_store_ptr(&thttp, NULL);
+  taosReleaseRef(httpRefMgt, httpRef);
+  taosRemoveRef(httpRefMgt, httpRef);
 }

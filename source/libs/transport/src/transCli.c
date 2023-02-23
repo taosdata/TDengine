@@ -67,15 +67,13 @@ typedef struct SCliConn {
 
   SCliBatch* pBatch;
 
-  int64_t refId;
-  char*   ip;
-
   SDelayTask* task;
 
-  // debug and log info
-  char src[32];
-  char dst[32];
+  char* ip;
+  char  src[32];
+  char  dst[32];
 
+  int64_t refId;
 } SCliConn;
 
 typedef struct SCliMsg {
@@ -134,6 +132,7 @@ typedef struct {
   int32_t threshold;
   int64_t interval;
 } SFailFastItem;
+
 // conn pool
 // add expire timeout and capacity limit
 static void*     createConnPool(int size);
