@@ -49,7 +49,7 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
-          name: taos-explorer-x86_64-apple-darwin.tar.gz
+          name: taos-explorer
           path: target/release/*.tar.gz
 
   windows:
@@ -92,7 +92,7 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
-          name: taos-explorer-x86_64-windows.zip
+          name: taos-explorer
           path: target/release/*.zip
 
   linux:
@@ -135,7 +135,7 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
-          name: taos-explorer-x86_64-linux.tar.gz
+          name: taos-explorer
           path: target/release/*.tar.gz
 
   linux-aarch64:
@@ -180,5 +180,5 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
-          name: taos-explorer-aarch64-unknown-linux-musl.tar.gz
+          name: taos-explorer
           path: target/aarch64-unknown-linux-musl/release/*.tar.gz
