@@ -1689,53 +1689,50 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   double     v = 0;
 
   tMemBucket* pMemBucket = ppInfo->pMemBucket;
-  if (pMemBucket == NULL || pMemBucket->total == 0) {  // check for null
-    code = TSDB_CODE_FAILED;
-    goto _fin_error;
-  }
+  if (pMemBucket != NULL && pMemBucket->total > 0) {  // check for null
+    if (pCtx->numOfParams > 2) {
+      char   buf[512] = {0};
+      size_t len = 1;
 
-  if (pCtx->numOfParams > 2) {
-    char   buf[512] = {0};
-    size_t len = 1;
+      varDataVal(buf)[0] = '[';
+      for (int32_t i = 1; i < pCtx->numOfParams; ++i) {
+        SVariant* pVal = &pCtx->param[i].param;
 
-    varDataVal(buf)[0] = '[';
-    for (int32_t i = 1; i < pCtx->numOfParams; ++i) {
-      SVariant* pVal = &pCtx->param[i].param;
+        GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
+
+        int32_t code = getPercentile(pMemBucket, v, &ppInfo->result);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _fin_error;
+        }
+
+        if (i == pCtx->numOfParams - 1) {
+          len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf]", ppInfo->result);
+        } else {
+          len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf, ", ppInfo->result);
+        }
+      }
+
+      int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+      SColumnInfoData* pCol   = taosArrayGet(pBlock->pDataBlock, slotId);
+
+      varDataSetLen(buf, len);
+      colDataAppend(pCol, pBlock->info.rows, buf, false);
+
+      tMemBucketDestroy(pMemBucket);
+      return pResInfo->numOfRes;
+    } else {
+      SVariant* pVal = &pCtx->param[1].param;
 
       GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
 
-      int32_t code = getPercentile(pMemBucket, v, &ppInfo->result);
+      code = getPercentile(pMemBucket, v, &ppInfo->result);
       if (code != TSDB_CODE_SUCCESS) {
         goto _fin_error;
       }
 
-      if (i == pCtx->numOfParams - 1) {
-        len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf]", ppInfo->result);
-      } else {
-        len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf, ", ppInfo->result);
-      }
+      tMemBucketDestroy(pMemBucket);
+      return functionFinalize(pCtx, pBlock);
     }
-
-    int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
-    SColumnInfoData* pCol   = taosArrayGet(pBlock->pDataBlock, slotId);
-
-    varDataSetLen(buf, len);
-    colDataAppend(pCol, pBlock->info.rows, buf, false);
-
-    tMemBucketDestroy(pMemBucket);
-    return pResInfo->numOfRes;
-  } else {
-    SVariant* pVal = &pCtx->param[1].param;
-
-    GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
-
-    code = getPercentile(pMemBucket, v, &ppInfo->result);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _fin_error;
-    }
-
-    tMemBucketDestroy(pMemBucket);
-    return functionFinalize(pCtx, pBlock);
   }
 
 _fin_error:
