@@ -1949,11 +1949,13 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   STrans*        pTransInst = pThrd->pTransInst;
   STransConnCtx* pCtx = pMsg->ctx;
 
-  STraceId* trace = &pMsg->msg.info.traceId;
-  char      tbuf[256] = {0};
-  EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
-  tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", transLabel(pThrd->pTransInst), tbuf,
-          pCtx->retryStep, pCtx->retryNextInterval);
+  if (rpcDebugFlag & DEBUG_DEBUG) {
+    STraceId* trace = &pMsg->msg.info.traceId;
+    char      tbuf[256] = {0};
+    EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
+    tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", transLabel(pThrd->pTransInst), tbuf,
+            pCtx->retryStep, pCtx->retryNextInterval);
+  }
 
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
   arg->param1 = pMsg;
@@ -2181,9 +2183,11 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   STraceId* trace = &pResp->info.traceId;
   bool      hasEpSet = cliTryExtractEpSet(pResp, &pCtx->epSet);
   if (hasEpSet) {
-    char tbuf[256] = {0};
-    EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
-    tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
+    if (rpcDebugFlag & DEBUG_TRACE) {
+      char tbuf[256] = {0};
+      EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
+      tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
+    }
   }
 
   if (pCtx->pSem != NULL) {
