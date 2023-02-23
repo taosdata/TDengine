@@ -1,26 +1,7 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    fmt::Display,
-    time::{Duration, Instant},
-};
+use std::collections::BTreeMap;
 
-use actix_web::{
-    delete, get,
-    http::header::ContentType,
-    patch, post,
-    web::{Data, Json, Path, Query, ServiceConfig},
-    HttpResponse, Responder,
-};
-use anyhow::Context;
-use chrono::{DateTime, Utc};
+use actix_web::{get, http::header::ContentType, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
-use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode};
-use std::str::FromStr;
-use taos::{AsyncQueryable, Code, Dsn, TBuilder, TaosBuilder};
-use taosx::TaskOpts;
-use tokio::{runtime::Runtime, sync::RwLock};
-use tokio_util::sync::CancellationToken;
 use utoipa::*;
 
 mod definition;

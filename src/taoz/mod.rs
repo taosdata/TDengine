@@ -308,7 +308,7 @@ mod tests {
                 Ok(message) => match message {
                     MessageSet::Meta(meta) => {
                         dbg!(&meta);
-                        taos.write_raw_meta(meta).await?
+                        taos.write_raw_meta(&meta).await?
                     }
                     MessageSet::Data(data) => {
                         // dbg!(&data);
