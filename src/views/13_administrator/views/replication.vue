@@ -1,48 +1,31 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="refresh" size="small" icon="el-icon-refresh">{{
+      <el-button plain @click="refresh" size="small" icon="el-icon-refresh">
+        {{
         $t("refresh")
-      }}</el-button>
+        }}
+      </el-button>
       <el-button plain @click="add" size="small" icon="el-icon-plus">Add New Replication</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column
-        :label="$t('topic.no')"
-        width="100"
-        prop="no"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.source')"
-        prop="source"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.target')"
-        prop="target"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.createdat')"
-        prop="createdat"
-      ></el-table-column>
+      <el-table-column label="ID" width="100" prop="id"></el-table-column>
+      <el-table-column label="From Database" prop="fromdb"></el-table-column>
+      <el-table-column label="Host:Port" prop="hostport"></el-table-column>
+      <el-table-column label="Database" prop="db"></el-table-column>
 
-      <el-table-column
-        :label="$t('topic.stoppedat')"
-        prop="stoppedat"
-      ></el-table-column>
-      <el-table-column
-        :label="$t('topic.status')"
-        prop="status"
-      ></el-table-column>
-
-      <el-table-column label="Operation" width="190">
+      <el-table-column label="Status" prop="status"></el-table-column>
+      <el-table-column label="Reason" prop="reason"></el-table-column>
+      <el-table-column label="Finished At" prop="finished_at"></el-table-column>
+      <el-table-column label="Create At" prop="created_at"></el-table-column>
+      <el-table-column label="Operation" width="110">
         <template slot-scope="scope">
           <el-switch
             :value="scope.row.status.toLowerCase() == 'running'"
             active-color="rgb(66, 89, 206)"
             inactive-color="#dcdfe6"
             @change="switchOperation($event, scope.row)"
-          >
-          </el-switch>
+          ></el-switch>
           <!-- <el-button
             plain
             size="small"
@@ -60,13 +43,8 @@
             size="small"
             @click="stop(scope.row, scope.$index)"
             icon="el-icon-tingzhi"
-          ></el-button> -->
-          <el-button
-            plain
-            size="small"
-            @click="del(scope.row, scope.$index)"
-            icon="el-icon-delete"
-          ></el-button>
+          ></el-button>-->
+          <el-button plain size="small" @click="del(scope.row, scope.$index)" icon="el-icon-delete"></el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -79,12 +57,7 @@
       :total="total"
       @current-change="handlePageChange"
     ></el-pagination>
-    <el-dialog
-      align="center"
-      :title="$t('topic.addsource')"
-      width="600px"
-      :visible.sync="dialog"
-    >
+    <el-dialog align="center" title="Add New Replication" width="600px" :visible.sync="dialog">
       <el-form
         :model="ruleForm"
         :rules="rules"
@@ -94,18 +67,23 @@
         class="demo-ruleForm"
       >
         <el-form-item label="From Source" prop="source" required>
-          <el-input v-model.trim="ruleForm.source"></el-input>
+          <!-- <el-input v-model.trim="ruleForm.source"></el-input> -->
+          <el-select v-model="ruleForm.source" placeholder="Please select">
+            <el-option v-for="db in dblist" :key="db['node-key']" :label="db.name" :value="db.name"></el-option>
+          </el-select>
         </el-form-item>
         <el-form-item label="Target DSN" prop="target" required>
-          <el-input v-model.trim="ruleForm.target"></el-input>
+          <el-input v-model.trim="ruleForm.target" placeholder="Please enter dsn"></el-input>
         </el-form-item>
       </el-form>
 
       <el-row style="margin-top: 20px">
         <el-col :span="5" :offset="6">
-          <el-button size="small" @click="dialog = false" class="w100">{{
+          <el-button size="small" @click="dialog = false" class="w100">
+            {{
             $t("cancel")
-          }}</el-button>
+            }}
+          </el-button>
         </el-col>
         <el-col :span="5" :push="4">
           <el-button
@@ -114,8 +92,7 @@
             @click="addReplication"
             class="w100"
             type="primary"
-            >{{ $t("confirm") }}</el-button
-          >
+          >{{ $t("confirm") }}</el-button>
         </el-col>
       </el-row>
     </el-dialog>
@@ -123,7 +100,8 @@
 </template>
 <script>
 import { format } from "date-fns";
-import {Message} from 'element-ui'
+import { Message } from "element-ui";
+import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import taosbenchmarkVue from "@/utils/config/mdx/en/taosbenchmark.vue";
 export default {
   data() {
@@ -132,42 +110,26 @@ export default {
       currentPage: 1,
       total: 10,
       dialog: false,
+      dblist: [],
       ruleForm: {
         source: "",
-        target: "",
+        target: ""
       },
       rules: {
         source: [
           {
-            message: "Please enter the source",
-            trigger: "blur",
-          },
+            message: "Please select the source",
+            trigger: "change"
+          }
         ],
         target: [
           {
-            message: "Please enter the target",
-            trigger: "blur",
-          },
-        ],
+            message: "Please enter the target dsn",
+            trigger: "blur"
+          }
+        ]
       },
-      topicList: [
-        {
-          no: 1,
-          source: "test1",
-          target: "target1",
-          createdat: "---",
-          stoppedat: "2022-12-29 15:06:00.098",
-          status: "ready",
-        },
-        {
-          no: 2,
-          source: "test1",
-          target: "target1",
-          createdat: "---",
-          stoppedat: "2022-12-29 15:06:00.098",
-          status: "ready",
-        },
-      ],
+      topicList: []
     };
   },
   computed: {
@@ -179,7 +141,7 @@ export default {
         return true;
       }
       return false;
-    },
+    }
   },
   methods: {
     handlePageChange() {},
@@ -192,49 +154,142 @@ export default {
       this.$confirm("Are you sure  to delete " + data.source + "?", "Warning", {
         confirmButtonText: "Ok",
         cancelButtonText: "Cancle",
-        type: "warning",
+        type: "warning"
+      }).then(() => {
+        fetch(`http://192.168.0.201:6050/tasks/${data.id}`, {
+          method: "delete",
+        }).then((res) => {
+          if (res.status == 200) {
+            Message({
+              type: "success",
+              message: "Deleted Successfully",
+            });
+            this.getReplication();
+          }
+        });
       });
     },
-    refresh(data) {},
-    addReplication() {},
-    edit(data) {
-      this.dialog = taosbenchmarkVue;
-      this.ruleForm.source = data.source;
-      this.ruleForm.target = data.target;
+    refresh(data) {
+      this.getReplication()
     },
-    start(data, index) {
-      this.$set(this.topicList[index], "status", "Running");
-      this.$set(
-        this.topicList[index],
-        "createdat",
-        format(new Date().getTime(), "yyyy-MM-dd HH:mm:ss")
-      );
-    },
-    stop(data, index) {
-      this.$set(this.topicList[index], "status", "Ready");
-      this.$set(
-        this.topicList[index],
-        "stoppedat",
-        format(new Date().getTime(), "yyyy-MM-dd HH:mm:ss")
-      );
-    },
-    switchOperation(val,data){
-
-    },
-    async getReplication() {
+    async addReplication() {
       try {
-        await fetch(`http://192.168.0.201:6050/tasks?labels=replication`, {
-          method: "get",
-        }).then((res) => {
-          console.log(res, "replication列表--");
+        await fetch("http://192.168.0.201:6050/tasks", {
+          method: "post",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            name: "replication",
+            labels: [
+              "type::replication",
+              `cluster-id::${localStorage.getItem("local_clusterID")}`
+            ],
+            to: `local:${this.ruleForm.target}`,
+            from: `tmq+${localStorage.getItem("base_url")}/${
+              this.ruleForm.source
+            }`
+          })
+        }).then(res => {
+          console.log(res, "replication----addd");
+
+          if (res.ok || res.status == 201) {
+            Message.success("Created Successfully!");
+            this.getReplication();
+            this.dialog = false;
+          }
         });
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
+    edit(data) {
+      this.dialog = taosbenchmarkVue;
+      this.ruleForm.source = data.source;
+      this.ruleForm.target = data.target;
+    },
+    async start(val, data) {
+      try {
+        await fetch(`http://192.168.0.201:6050/tasks/${data.id}/start`, {
+          method: "post"
+        }).then(res => {
+          if (res.status == 200) {
+            Message.success("Operation Successfully Completed!");
+            this.getReplication();
+          }
+        });
+      } catch (err) {
+        err.desc && Message.error(err.desc);
+        return Promise.reject(err);
+      }
+    },
+    async stop(val, data) {
+      try {
+        await fetch(`http://192.168.0.201:6050/tasks/${data.id}/stop`, {
+          method: "post"
+        }).then(res => {
+          if (res.status == 200) {
+            Message.success("Operation Successfully Completed!");
+            this.getReplication();
+          }
+        });
+      } catch (err) {
+        err.desc && Message.error(err.desc);
+        return Promise.reject(err);
+      }
+    },
+    switchOperation(val, data) {
+      if (val) {
+        this.start(val, data);
+      } else {
+        this.stop(val, data);
+      }
+    },
+    async getReplication() {
+      try {
+        let id = localStorage.getItem("local_clusterID");
+        await fetch(
+          `http://192.168.0.201:6050/tasks?labels=type::replication,cluster-id::${id}`,
+          {
+            method: "get"
+          }
+        )
+          .then(res => res.json())
+          .then(result => {
+            this.topicList = result.map(item => {
+              item["fromdb"] = item.from.split("/").at(-1);
+              item["hostport"] = "新数据结构";
+              item["db"] = "新数据结构";
+              return item;
+            });
+          });
+      } catch (err) {
+        err.desc && Message.error(err.desc);
+        return Promise.reject(err);
+      }
+    },
+    async getDatabases() {
+      try {
+        this.dblist = await getDBListReq();
+
+        console.log(this.dblist, "获取数据库---");
+      } catch (error) {
+        console.log(error);
+      }
+    }
   },
+  created() {
+    this.getDatabases();
+    this.getReplication();
+  }
 };
 </script>
 <style lang="scss" scoped>
+.el-select {
+  width: 100%;
+}
+.el-switch {
+  margin-right: 10px;
+}
 </style>

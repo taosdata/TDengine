@@ -9,8 +9,8 @@
       >
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column label="ID" width="100" prop="id"></el-table-column>
-      <el-table-column label="Databse" prop="database"></el-table-column>
+      <el-table-column label="ID" width="150" prop="id"></el-table-column>
+      <el-table-column label="Database" prop="database"></el-table-column>
       <el-table-column label="Create Time" prop="created_at"></el-table-column>
       <el-table-column
         label="Last Backup Status"
@@ -260,9 +260,9 @@ export default {
         return Promise.reject(err);
       }
     },
-    stop(val, data) {
+    async stop(val, data) {
       try {
-        fetch(`http://192.168.0.201:6050/tasks/${data.id}/stop`, {
+       await fetch(`http://192.168.0.201:6050/tasks/${data.id}/stop`, {
           method: "post",
         }).then((res) => {
           if (res.status == 200) {

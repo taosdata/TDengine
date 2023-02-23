@@ -65,7 +65,6 @@ export default {
           targetObj[keys] = this.deepClone(source[keys]);
         } else {
           targetObj[keys] = source[keys];
-          console.log(this.hasProp(targetObj, "required"), "判断有误required");
           targetObj["value"] = "";
         }
       });
