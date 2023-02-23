@@ -96,10 +96,10 @@ async fn write_data(
                         };
                         taos.write_raw_block(&raw).await?;
                     } else {
-                        bail!("write table failed: {err}",);
+                        bail!("write table failed: {err}, with block: {}", raw.pretty_format());
                     }
                 } else {
-                    bail!("write table failed: {err}",);
+                    bail!("write table failed: {err}, with block: {}", raw.pretty_format());
                 }
             };
         } else {

@@ -1,20 +1,19 @@
+use std::str::FromStr;
 use std::{
     collections::HashMap,
-    fmt::Display,
     time::{Duration, Instant},
 };
 
 use actix_web::{
     delete, get, patch, post,
-    web::{Data, Json, Path, Query, ServiceConfig},
+    web::{Data, Path, Query},
     HttpResponse, Responder,
 };
 use anyhow::Context;
 use chrono::{DateTime, Utc};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
-use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode};
-use std::str::FromStr;
+use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, Code, Dsn, TBuilder, TaosBuilder};
 use taosx::TaskOpts;
 use tokio::{runtime::Runtime, sync::RwLock};
@@ -89,6 +88,23 @@ mod option_datetime_format {
     }
 }
 
+mod labels_serde {
+    use serde::{self, Deserialize, Deserializer, Serializer};
+    type Target = Option<Vec<String>>;
+
+    // The signature of a deserialize_with function must follow the pattern:
+    //
+    //    fn deserialize<D>(D) -> Result<T, D::Error> where D: Deserializer
+    //
+    // although it may also be generic over the output types T.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Target, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Target::deserialize(deserializer)
+    }
+}
+
 use super::metrics::metrics_exporter;
 
 static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
@@ -134,35 +150,48 @@ pub(super) enum Schedule {
     Repeated(String),
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Copy)]
-#[serde(rename_all = "snake_case")]
-#[derive(sqlx::Type)]
-pub(super) enum StreamType {
-    Auto,
-    Replicate,
-    Backup,
-    Restore,
-    Subscribe,
-    Export,
-}
+// #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Copy)]
+// #[serde(rename_all = "snake_case")]
+// #[derive(sqlx::Type)]
+// pub(super) enum StreamType {
+//     Auto,
+//     Replicate,
+//     Backup,
+//     Restore,
+//     Subscribe,
+//     Export,
+// }
 
-impl Default for StreamType {
-    fn default() -> Self {
-        StreamType::Auto
-    }
-}
-impl Display for StreamType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            StreamType::Auto => f.write_str("Auto"),
-            StreamType::Replicate => f.write_str("Replicate"),
-            StreamType::Backup => f.write_str("Backup"),
-            StreamType::Restore => f.write_str("Restore"),
-            StreamType::Subscribe => f.write_str("Subscribe"),
-            StreamType::Export => f.write_str("Export"),
-        }
-    }
-}
+// impl StreamType {
+//     fn lowercase(&self) -> &'static str {
+//         match self {
+//             StreamType::Auto => "auto",
+//             StreamType::Replicate => "replicate",
+//             StreamType::Backup => "backup",
+//             StreamType::Restore => "restore",
+//             StreamType::Subscribe => "subscribe",
+//             StreamType::Export => "export",
+//         }
+//     }
+// }
+
+// impl Default for StreamType {
+//     fn default() -> Self {
+//         StreamType::Auto
+//     }
+// }
+// impl Display for StreamType {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             StreamType::Auto => f.write_str("Auto"),
+//             StreamType::Replicate => f.write_str("Replicate"),
+//             StreamType::Backup => f.write_str("Backup"),
+//             StreamType::Restore => f.write_str("Restore"),
+//             StreamType::Subscribe => f.write_str("Subscribe"),
+//             StreamType::Export => f.write_str("Export"),
+//         }
+//     }
+// }
 
 impl TaskController {
     pub async fn from_sqlite(sqlite: &str) -> anyhow::Result<Self> {
@@ -411,28 +440,29 @@ impl TaskController {
         Ok(())
     }
 
-    pub async fn tasks(&self, filter: TaskFilter) -> anyhow::Result<Vec<Task>> {
+    pub async fn tasks(&self, mut filter: TaskFilter) -> anyhow::Result<Vec<Task>> {
         let condition = filter.to_sql_conditions()?;
-        let tasks = sqlx::query_as::<_, Task>(
-            &format!("select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where {condition} order by created_at desc"),
-        )
+        let mut tasks = sqlx::query_as::<_, Task>(&format!(
+            "select * from task_with_labels where {condition} order by created_at desc"
+        ))
         .fetch_all(&self.pool)
         .await?;
+
+        if filter.has_labels_filter() {
+            filter.filter_task_labels(&mut tasks);
+        }
+
+        tasks.iter_mut().for_each(|task| task.backport_labels());
 
         Ok(tasks)
     }
 
-    pub async fn tasks_count(&self, filter: TaskFilter) -> anyhow::Result<usize> {
-        let condition = filter.to_sql_conditions()?;
-        let tasks: i64 = sqlx::query_scalar(&format!(
-            "select count(*) from tasks where {condition} order by created_at desc"
-        ))
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(tasks as _)
+    pub async fn tasks_count(&self, mut filter: TaskFilter) -> anyhow::Result<usize> {
+        let tasks = self.tasks(filter).await?;
+        Ok(tasks.len())
     }
 
-    pub async fn create(&self, task: NewTask) -> anyhow::Result<Task> {
+    pub async fn create(&self, mut task: NewTask) -> anyhow::Result<Task> {
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
@@ -447,32 +477,40 @@ impl TaskController {
                     .with_context(|| format!("Failed to clear target database with {to}"))?;
             }
         }
+        task.patch_labels();
         let res = sqlx::query(
-            "INSERT INTO tasks (`from`, `from_cluster`, `oneshot_topic`, `to`, `to_cluster`, `stream_type`, `jobs`, `compression_level`, `force`, \
-                 `created_at`, `status`, `after_delete`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (`name`, `from`, `oneshot_topic`, `to`, `jobs`, `compression_level`, \
+                 `created_at`, `status`, `after_delete`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
+        .bind(&task.name)
         .bind(&task.from)
-        .bind(&task.from_cluster)
         .bind(&task.oneshot_topic)
         .bind(&task.to)
-        .bind(&task.to_cluster)
-        .bind(&task.stream_type)
         .bind(&task.jobs)
         .bind(&task.compression_level)
-        .bind(&task.force)
         .bind(&chrono::Utc::now().to_rfc3339())
         .bind(&Status::Created)
         .bind(&task.after_delete)
         .execute(&self.pool)
-        .await
-        .unwrap();
+        .await?;
+        let id = res.last_insert_rowid();
+
+        if let Some(labels) = task.labels {
+            let values = labels
+                .iter()
+                .map(|label| match label.split_once("::") {
+                    Some((key, value)) => format!("({id}, '{key}', '{value}')"),
+                    None => format!("({id}, '{label}', NULL)"),
+                })
+                .join(",");
+            sqlx::query(&format!("INSERT INTO labels VALUES {values}"))
+                .execute(&self.pool)
+                .await?;
+        }
 
         // let opts = taosx::TaskOpts::try_from(task.clone())?;
-        let id = res.last_insert_rowid();
-        let task = sqlx::query_as_unchecked!(Task, "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where id = ?", id)
-            .fetch_one(&self.pool)
-            .await
-            .unwrap();
+        let mut task = self.get(id).await?.unwrap();
+        task.backport_labels();
 
         self.start_task(&task).await?;
         Ok(task)
@@ -496,11 +534,7 @@ impl TaskController {
         add_bind_sql!(stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force);
 
         if sql.len() == 0 {
-            let task = sqlx::query_as_unchecked!(Task, "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where id = ?", id)
-            .fetch_one(&self.pool)
-            .await
-            .unwrap();
-
+            let task = self.get(id).await?.unwrap();
             self.start_task(&task).await?;
             return Ok(Some(task));
         }
@@ -520,10 +554,7 @@ impl TaskController {
         let res = query.execute(&self.pool).await?;
 
         if res.rows_affected() == 1 {
-            let task = sqlx::query_as_unchecked!(Task, "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where id = ?", id)
-                .fetch_one(&self.pool)
-                .await
-                .unwrap();
+            let task = self.get(id).await?.unwrap();
 
             self.start_task(&task).await?;
             Ok(Some(task))
@@ -533,27 +564,24 @@ impl TaskController {
     }
 
     pub async fn start_all(&self) -> anyhow::Result<usize> {
-        let tasks = sqlx::query_as_unchecked!(
-            Task,
-            "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where status not in (?, ?, ?) and `deleted` != TRUE order by created_at desc",
-            Status::Completed,
-            Status::Failed,
-            Status::Stopped,
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
+            "select * from task_with_labels where status not in (?, ?, ?) and `deleted` != TRUE order by created_at desc")
+            .bind(      Status::Completed)
+            .bind(            Status::Failed)
+            .bind(            Status::Stopped)
+
+                    .fetch_all(&self.pool)
+        .   await?;
         // Ok(tasks)
         let len = tasks.len();
-        for task in tasks {
-            self.start_task(&task).await?;
+        for task in &tasks {
+            self.start_task(task).await?;
         }
         Ok(len)
     }
 
     pub async fn start(&self, id: i64) -> anyhow::Result<Option<()>> {
-        let task = sqlx::query_as_unchecked!(Task, "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where id = ?", id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let task = self.get(id).await?;
 
         if task.is_none() {
             return Ok(None);
@@ -565,13 +593,18 @@ impl TaskController {
     }
 
     pub async fn get(&self, id: i64) -> anyhow::Result<Option<Task>> {
-        let task = sqlx::query_as_unchecked!(Task, "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where id = ?", id)
-        .fetch_optional(&self.pool)
-        .await?;
-        Ok(task)
+        let task: Option<Task> = sqlx::query_as("select * from task_with_labels where id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        Ok(task.map(|mut t| {
+            t.backport_labels();
+            t
+        }))
     }
 
-    pub async fn delete(&self, id: i64) -> anyhow::Result<Option<()>> {
+    pub async fn delete(&self, id: i64) -> anyhow::Result<Option<Task>> {
         {
             if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
                 token.cancel();
@@ -595,9 +628,11 @@ impl TaskController {
             log::info!("successfully deleted task by id {id}");
         }
 
-        let task = sqlx::query_as_unchecked!(Task, "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where id = ?", id)
-        .fetch_one(&self.pool)
-        .await?;
+        let mut task: Task = sqlx::query_as("select * from task_with_labels where id = ?")
+            .bind(id)
+            .fetch_one(&self.pool)
+            .await?;
+        task.backport_labels();
         if let Some(topic) = task.oneshot_topic.as_deref() {
             let mut dsn: Dsn = task.from.parse()?;
             let _ = dsn.subject.take();
@@ -625,7 +660,7 @@ impl TaskController {
                 tokio::spawn(async move { taosx::utils::clear_local(&dsn).await });
             }
         }
-        Ok(Some(()))
+        Ok(Some(task))
     }
     pub async fn stop(&self, id: i64) -> anyhow::Result<Option<()>> {
         if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
@@ -682,6 +717,7 @@ impl TaskController {
         }
         Ok(())
     }
+
     pub async fn _clear(&self) -> anyhow::Result<()> {
         for (id, (handle, token)) in self.tasks.write().await.drain() {
             token.cancel();
@@ -704,27 +740,6 @@ impl TaskController {
             }
         }
         Ok(())
-    }
-}
-
-pub(super) fn configure(store: Data<TaskController>) -> impl FnOnce(&mut ServiceConfig) {
-    |config: &mut ServiceConfig| {
-        config
-            .app_data(store)
-            // .service(search_tasks)
-            .service(get_tasks)
-            .service(get_tasks_count)
-            .service(create_task)
-            .service(update_task)
-            .service(delete_task)
-            .service(replicate)
-            .service(subscribe)
-            .service(get_task_by_id)
-            .service(start_task)
-            .service(stop_task)
-            .service(metrics_exporter)
-            // .service(update_task)
-            ;
     }
 }
 
@@ -778,15 +793,29 @@ pub(super) struct Task {
     /// Unique id for the task item.
     #[schema(read_only, example = 1)]
     id: i64,
-    /// Task stream data type.
-    #[schema(read_only, example = "backup")]
-    stream_type: StreamType,
+
+    /// A task name.
+    #[serde(default)]
+    #[sqlx(default)]
+    name: Option<String>,
+
+    /// Task trigger events, default will be oneshot.
+    trigger: Option<String>,
+
+    /// Task stream data type. **Deprecated**, use labels instead.
+    #[serde(default)]
+    #[serde(skip_deserializing)]
+    #[sqlx(default)]
+    stream_type: Option<String>,
+
     /// The stream data source.
     #[schema(example = "tmq:///test")]
     from: String,
 
-    /// Cluster identifier for stream from.
-    #[schema(example = "null")]
+    /// Cluster identifier for stream from. **Deprecated**, use labels instead.
+    #[serde(default)]
+    #[serde(skip_deserializing)]
+    #[sqlx(default)]
     from_cluster: Option<String>,
 
     /// Use oneshot topic for a task, delete the topic after task deleted.
@@ -797,8 +826,11 @@ pub(super) struct Task {
     #[schema(example = "local:/path/to/backup/test")]
     to: String,
 
-    /// Cluster identifier for stream to.
+    /// Cluster identifier for stream to. **Deprecated**, use labels instead.
     #[schema(example = "null")]
+    #[serde(default)]
+    #[serde(skip_deserializing)]
+    #[sqlx(default)]
     to_cluster: Option<String>,
 
     /// Number of jobs for task running.
@@ -809,6 +841,8 @@ pub(super) struct Task {
     compression_level: Option<u8>,
 
     /// Force for some risking steps.
+    #[serde(skip_serializing)]
+    #[sqlx(default)]
     force: bool,
 
     /// Created time.
@@ -855,9 +889,114 @@ pub(super) struct Task {
     /// It will do nothing if the action is not supported by a specific task case.
     #[serde(skip_serializing_if = "Option::is_none")]
     after_delete: Option<String>,
+
+    /// Labels for a task.
+    ///
+    /// You can use k-v style label such as `key::value` or key-only label `key`.
+    ///
+    /// You can filter tasks by some labels.
+    #[serde(skip_serializing_if = "Labels::is_empty")]
+    #[serde(default)]
+    #[sqlx(try_from = "String")]
+    // #[serde(deserialize_with = "labels_serde::deserialize")]
+    labels: Labels,
 }
 
-fn is_false(b: &bool) -> bool {
+impl Task {
+    fn backport_labels(&mut self) {
+        if let Some(labels) = self.labels.as_deref() {
+            for label in labels {
+                if label.starts_with("from_cluster") {
+                    if let Some(value) = label.split_once("::") {
+                        self.from_cluster = Some(value.1.to_string())
+                    }
+                } else if label.starts_with("to_cluster") {
+                    if let Some(value) = label.split_once("::") {
+                        self.to_cluster = Some(value.1.to_string())
+                    }
+                } else if label.starts_with("stream_type") {
+                    if let Some(value) = label.split_once("::") {
+                        self.stream_type = Some(value.1.to_string())
+                    }
+                }
+            }
+        }
+    }
+}
+#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq, PartialOrd, ToSchema)]
+pub struct Labels(Option<Vec<String>>);
+
+impl Labels {
+    /// Check if labels is empty.
+    fn is_empty(&self) -> bool {
+        self.0.as_ref().map(|v| v.is_empty()).unwrap_or(true)
+    }
+}
+
+#[tokio::test]
+async fn test_labels() {
+    let db = sqlx::SqlitePool::connect("sqlite:./target/taosx.dev.db")
+        .await
+        .unwrap();
+
+    #[derive(
+        Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode, sqlx::Encode, sqlx::FromRow,
+    )]
+    struct JsonTest {
+        #[sqlx(try_from = "String")]
+        labels: Labels,
+    }
+
+    let json: JsonTest = sqlx::query_as("select labels from task_with_labels")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    dbg!(json);
+}
+
+impl TryFrom<String> for Labels {
+    type Error = serde_json::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        serde_json::from_str(&value)
+    }
+}
+
+impl std::ops::Deref for Labels {
+    type Target = Option<Vec<String>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for Labels {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Task {
+    fn contains_label(&self, label: &str) -> bool {
+        self.labels
+            .as_deref()
+            .map(|labels| labels.iter().any(|e| e == label))
+            .unwrap_or(false)
+    }
+
+    fn contains_labels(&self, labels: &[impl AsRef<str>]) -> bool {
+        labels
+            .iter()
+            .all(|label| self.contains_label(label.as_ref()))
+    }
+
+    fn contains_any_labels(&self, labels: &[impl AsRef<str>]) -> bool {
+        labels
+            .iter()
+            .any(|label| self.contains_label(label.as_ref()))
+    }
+}
+
+const fn is_false(b: &bool) -> bool {
     !*b
 }
 
@@ -865,14 +1004,22 @@ fn is_false(b: &bool) -> bool {
     Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode, sqlx::Encode, sqlx::FromRow,
 )]
 pub(super) struct NewTask {
-    #[schema(example = "backup")]
-    #[serde(default)]
-    stream_type: StreamType,
+    stream_type: Option<String>,
+    /// Task name.
+    #[schema(example = "demo")]
+    name: Option<String>,
+    /// Task trigger events, default will be oneshot.
+    ///
+    /// For schedule trigger:
+    ///
+    /// - Run hourly/daily/weekly/monthly: "schedule:@daily"
+    /// - Run with crontab schedule: "schedule:0 0 * * *", checkout https://crontab.guru/ for human-readable crontab.
+    #[schema(example = "schedule:0 0 * * *")]
+    trigger: Option<String>,
     /// The stream data source.
     #[schema(example = "tmq:///test")]
     from: String,
     /// The stream data source cluster id.
-    #[schema(example = "")]
     from_cluster: Option<String>,
 
     /// Use oneshot topic for a task, delete the topic after task deleted.
@@ -880,19 +1027,16 @@ pub(super) struct NewTask {
     oneshot_topic: Option<String>,
 
     /// The target of the stream.
-    #[schema(example = "local:/path/to/backup/test")]
+    #[schema(example = "local:/tmp/taosx/test")]
     to: String,
     /// The stream data target cluster id.
-    #[schema(example = "")]
     to_cluster: Option<String>,
 
     /// Set if the target database should be cleared before running task.
-    #[schema(example = "false")]
     #[serde(default)]
     clear: bool,
 
     /// Jobs number
-    #[schema(example = 0)]
     #[serde(default)]
     jobs: u16,
 
@@ -908,8 +1052,108 @@ pub(super) struct NewTask {
     ///
     /// It will do nothing if the action is not supported by a specific task case.
     after_delete: Option<String>,
+
+    /// Labels for a task.
+    ///
+    /// You can use k-v style label such as `key::value` or key-only label `key`.
+    ///
+    /// You can filter tasks by some labels.
+    labels: Option<Vec<String>>,
 }
 
+impl NewTask {
+    fn patch_labels(&mut self) {
+        let mut labels = match self.labels.take() {
+            Some(labels) => labels,
+            None => {
+                vec![]
+            }
+        };
+        if let Some(value) = self.stream_type.as_ref() {
+            labels.push(format!("stream_type::{}", value));
+        }
+
+        if let Some(value) = self.from_cluster.as_deref() {
+            labels.push(format!("from_cluster::{value}"))
+        }
+        if let Some(value) = self.to_cluster.as_deref() {
+            labels.push(format!("from_cluster::{value}"))
+        }
+        if labels.len() > 0 {
+            self.labels = Some(labels)
+        } else {
+            self.labels = None
+        }
+    }
+}
+
+#[derive(
+    Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode, sqlx::Encode, sqlx::FromRow,
+)]
+struct NewTaskV1 {
+    /// The stream data source.
+    #[schema(example = "tmq:///test")]
+    from: String,
+
+    /// Use oneshot topic for a task, delete the topic after task deleted.
+    // #[serde(default)]
+    oneshot_topic: Option<String>,
+
+    /// The target of the stream.
+    #[schema(example = "local:/path/to/backup/test")]
+    to: String,
+
+    /// Set if the target database should be cleared before running task.
+    #[schema(example = "false")]
+    #[serde(default)]
+    clear: bool,
+
+    /// Jobs number
+    #[schema(example = 0)]
+    #[serde(default)]
+    jobs: u16,
+
+    /// Add after_delete hook action, the string would be action name, with or without some configuration.
+    ///
+    /// It will do nothing if the action is not supported by a specific task case.
+    after_delete: Option<String>,
+
+    /// Labels for a task.
+    ///
+    /// You can use k-v style label such as `key::value` or key-only label `key`.
+    ///
+    /// You can filter tasks by some labels.
+    labels: Option<Vec<String>>,
+}
+
+impl From<NewTask> for NewTaskV1 {
+    fn from(value: NewTask) -> Self {
+        let mut labels = match value.labels {
+            Some(labels) => labels,
+            None => {
+                vec![]
+            }
+        };
+        if let Some(value) = value.stream_type {
+            labels.push(format!("stream_type::{}", value));
+        }
+        if let Some(value) = value.from_cluster {
+            labels.push(format!("from_cluster::{value}"))
+        }
+        if let Some(value) = value.to_cluster {
+            labels.push(format!("from_cluster::{value}"))
+        }
+        Self {
+            from: value.from,
+            oneshot_topic: value.oneshot_topic,
+            to: value.to,
+            clear: value.clear,
+            jobs: value.jobs,
+            after_delete: value.after_delete,
+            labels: Some(labels),
+        }
+    }
+}
 #[derive(
     Serialize,
     Deserialize,
@@ -923,7 +1167,7 @@ pub(super) struct NewTask {
 )]
 #[serde(default)]
 pub(super) struct UpdateTask {
-    stream_type: Option<StreamType>,
+    stream_type: Option<String>,
     /// The stream data source.
     from: Option<String>,
     /// The stream data source cluster id.
@@ -938,6 +1182,8 @@ pub(super) struct UpdateTask {
     jobs: Option<u16>,
     compression_level: Option<u8>,
     force: Option<bool>,
+    /// Labels for a task.
+    labels: Option<Vec<String>>,
 }
 
 /// Task endpoint error responses
@@ -953,17 +1199,21 @@ pub(super) struct Failed {
 #[derive(Serialize, Deserialize, Default, Clone, IntoParams)]
 #[serde(default)]
 pub(super) struct TaskFilter {
-    stream_type: Option<StreamType>,
+    name: Option<String>,
+    stream_type: Option<String>,
     from_cluster: Option<String>,
     to_cluster: Option<String>,
     status: Option<String>,
     start_create_time: Option<String>,
     end_create_time: Option<String>,
     with_deleted: Option<bool>,
+    labels: Option<String>,
+    any_labels: Option<String>,
+    without_labels: Option<String>,
 }
 
 impl TaskFilter {
-    fn to_sql_conditions(&self) -> std::result::Result<String, std::fmt::Error> {
+    fn to_sql_conditions(&mut self) -> std::result::Result<String, std::fmt::Error> {
         use std::fmt::Write;
         let mut sql = String::new();
         if !self.with_deleted.unwrap_or_default() {
@@ -971,17 +1221,38 @@ impl TaskFilter {
         } else {
             write!(sql, "1 = 1")?;
         }
-        if let Some(val) = self.stream_type {
-            write!(sql, " AND `stream_type` = '{val}'")?;
+        if let Some(val) = self.name.as_deref() {
+            write!(sql, " AND `name` = '{val}'")?;
+        }
+        if let Some(val) = self.stream_type.as_deref() {
+            // write!(sql, " AND `stream_type` = '{val}'")?;
+            let val = format!("stream_type::{}", val);
+            if let Some(labels) = self.labels.as_mut() {
+                labels.push_str(&val);
+            } else {
+                self.labels.replace(val);
+            }
         }
         if let Some(val) = self.status.as_ref() {
             write!(sql, " AND `status` = '{val}'")?;
         }
-        if let Some(from_cluster) = self.from_cluster.as_deref() {
-            write!(sql, " AND `from_cluster` = '{from_cluster}'")?;
+        if let Some(val) = self.from_cluster.as_deref() {
+            // write!(sql, " AND `from_cluster` = '{from_cluster}'")?;
+            let val = format!("from_cluster::{}", val);
+            if let Some(labels) = self.labels.as_mut() {
+                labels.push_str(&val);
+            } else {
+                self.labels.replace(val);
+            }
         }
         if let Some(val) = self.to_cluster.as_deref() {
-            write!(sql, " AND `to_cluster` = '{val}'")?;
+            // write!(sql, " AND `to_cluster` = '{val}'")?;
+            let val = format!("to_cluster::{}", val);
+            if let Some(labels) = self.labels.as_mut() {
+                labels.push_str(&val);
+            } else {
+                self.labels.replace(val);
+            }
         }
         if let Some(val) = self.start_create_time.as_deref() {
             write!(sql, " AND `created_at` >= '{val}'")?;
@@ -990,6 +1261,23 @@ impl TaskFilter {
             write!(sql, " AND `created_at` <= '{val}'")?;
         }
         Ok(sql)
+    }
+
+    fn has_labels_filter(&self) -> bool {
+        !(self.labels.is_none() && self.any_labels.is_none() && self.without_labels.is_none())
+    }
+
+    fn filter_task_labels(&self, tasks: &mut Vec<Task>) {
+        if let Some(labels) = self.labels.as_deref() {
+            tasks.retain(|task| task.contains_labels(&labels.split(",").collect_vec()));
+        }
+        if let Some(labels) = self.any_labels.as_deref() {
+            tasks.retain(|task| task.contains_any_labels(&labels.split(",").collect_vec()));
+        }
+        if let Some(labels) = self.without_labels.as_deref() {
+            // remove tasks contains any labels in `without_labels`.
+            tasks.retain(|task| !task.contains_any_labels(&labels.split(",").collect_vec()));
+        }
     }
 }
 /// List tasks in current.
@@ -1000,6 +1288,7 @@ impl TaskFilter {
 /// curl localhost:6040/tasks
 /// ```
 #[utoipa::path(
+    tag = "tasks",
     responses(
         (status = 200, description = "List current task items", body = [Task])
     ),
@@ -1031,6 +1320,7 @@ pub(super) async fn get_tasks(
 /// curl localhost:6040/tasks
 /// ```
 #[utoipa::path(
+    tag = "tasks",
     responses(
         (status = 200, description = "Tasks count (deleted tasks will not be included by default)", body = [usize])
     ),
@@ -1063,6 +1353,7 @@ pub(super) async fn get_tasks_count(
 /// curl localhost:8080/task -d '{"from": "tmq:///test", "to": "local:test"}'
 /// ```
 #[utoipa::path(
+    tag = "tasks",
     request_body = NewTask,
     responses(
         (status = 201, description = "Task created successfully", body = Task),
@@ -1071,7 +1362,7 @@ pub(super) async fn get_tasks_count(
 )]
 #[post("/tasks")]
 pub(super) async fn create_task(
-    task: Json<NewTask>,
+    task: actix_web::web::Json<NewTask>,
     task_store: Data<TaskController>,
 ) -> impl Responder {
     let task = task.into_inner();
@@ -1115,83 +1406,6 @@ pub(super) struct NewReplicate {
     /// Override if database if not matched.
     #[serde(default)]
     force: bool,
-}
-
-impl NewReplicate {
-    pub(super) fn into_task(self) -> Result<NewTask, anyhow::Error> {
-        let Self {
-            database,
-            from,
-            to,
-            force,
-            clear,
-            username,
-            password,
-        } = self;
-        let (from, to) = match (from, to) {
-            (Some(f), None) => (f, format!("taos://{username}:{password}@/{database}")),
-            (None, Some(t)) => (format!("tmq:///{username}:{password}@/{database}"), t),
-            (None, None) => anyhow::bail!("from or to field should be exist"),
-            (Some(_), Some(_)) => anyhow::bail!("from is conflict with to"),
-        };
-        Ok(NewTask {
-            stream_type: StreamType::Replicate,
-            from,
-            oneshot_topic: None,
-            to,
-            force,
-            jobs: 0,
-            compression_level: None,
-            from_cluster: None,
-            to_cluster: None,
-            clear,
-            after_delete: None,
-        })
-    }
-}
-
-/// Create new replication task.
-///
-/// Post a new `Task` in request body as json to store it. Api will return
-/// created `Task` on success.
-///
-/// One could call the api with.
-///
-/// ```shell
-/// curl localhost:8080/task -d '{"from": "tmq:///test", "to": "local:test"}'
-/// ```
-#[utoipa::path(
-    request_body = NewReplicate,
-    responses(
-        (status = 201, description = "Task created successfully", body = Task),
-        // (status = 409, description = "Task with id already exists", body = ErrorResponse, example = json!(ErrorResponse::Conflict(String::from("id = 1"))))
-    )
-)]
-#[deprecated]
-#[post("/tasks/replicate")]
-pub(super) async fn replicate(
-    task: Json<NewReplicate>,
-    task_store: Data<TaskController>,
-) -> actix_web::Result<impl Responder> {
-    // let mut conn = task_store.pool.acquire().await.unwrap();
-    // conn.lock_handle().await.unwrap();
-    let task = task.into_inner();
-    match task.into_task() {
-        Ok(task) => {
-            let task = task_store.create(task).await;
-            match task {
-                Ok(task) => Ok(HttpResponse::Created().json(task)),
-                Err(err) => Ok(HttpResponse::BadRequest().json(Failed {
-                    code: Code::Failed,
-                    message: err.to_string(),
-                })),
-            }
-        }
-        Err(err) => Ok(HttpResponse::BadRequest().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
-        })),
-    }
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -1240,92 +1454,6 @@ impl Cluster {
     }
 }
 
-// pub(super) struct SubscriptionSource {
-//     dsn: String,
-//     group_id: String,
-//     client_id: Option<String>,
-//     is_stable: bool,
-//     auto_created: bool,
-// }
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub(super) struct NewSubscribe {
-    /// Data source DSN
-    #[schema(example = "tmq://root:taosdata@localhost:6030/demo_meters?group.id=taosx")]
-    from: String,
-    #[schema(example = r#"{"database":"test2"}"#)]
-    /// Target cluster information.
-    to: Cluster,
-    /// Set if the target database should be cleared before running task.
-    #[schema(example = "false")]
-    #[serde(default)]
-    clear: bool,
-}
-impl NewSubscribe {
-    pub(super) fn into_task(self) -> Result<NewTask, anyhow::Error> {
-        let Self {
-            from,
-            to: cluster,
-            clear,
-        } = self;
-        let to = format!("{}", cluster.into_dsn());
-        Ok(NewTask {
-            stream_type: StreamType::Subscribe,
-            from,
-            to,
-            force: true,
-            jobs: 0,
-            compression_level: None,
-            from_cluster: None,
-            to_cluster: None,
-            clear,
-            oneshot_topic: None,
-            after_delete: None,
-        })
-    }
-}
-
-/// Create new replication task.
-///
-/// Post a new `Task` in request body as json to store it. Api will return
-/// created `Task` on success.
-///
-/// One could call the api with.
-///
-/// ```shell
-/// curl localhost:8080/tasks/subscribe -d '{"username": "tmq:///test", "to": "local:test"}'
-/// ```
-#[utoipa::path(
-    request_body = NewSubscribe,
-    responses(
-        (status = 201, description = "Task created successfully", body = Task),
-        // (status = 409, description = "Task with id already exists", body = ErrorResponse, example = json!(ErrorResponse::Conflict(String::from("id = 1"))))
-    )
-)]
-#[post("/tasks/subscribe")]
-pub(super) async fn subscribe(
-    task: Json<NewSubscribe>,
-    task_store: Data<TaskController>,
-) -> impl Responder {
-    // let mut conn = task_store.pool.acquire().await.unwrap();
-    // conn.lock_handle().await.unwrap();
-    let task = task.into_inner();
-    match task.into_task() {
-        Ok(task) => {
-            let task = task_store.create(task).await;
-            match task {
-                Ok(task) => HttpResponse::Created().json(task),
-                Err(err) => HttpResponse::BadRequest().json(Failed {
-                    code: Code::Failed,
-                    message: err.to_string(),
-                }),
-            }
-        }
-        Err(err) => HttpResponse::BadRequest().json(Failed {
-            code: Code::Failed,
-            message: err.to_string(),
-        }),
-    }
-}
 /// Update Task by given path variable id.
 ///
 /// This endpoint needs `api_key` authentication in order to call. Api key can be found from README.md.
@@ -1333,6 +1461,7 @@ pub(super) async fn subscribe(
 /// Api will delete task from shared in-memory storage by the provided id and return success 200.
 /// If storage does not contain `Task` with given id 404 not found will be returned.
 #[utoipa::path(
+    tag = "tasks",
     request_body = UpdateTask,
     responses(
         (status = 200, description = "Task deleted successfully"),
@@ -1346,7 +1475,7 @@ pub(super) async fn subscribe(
 #[patch("/tasks/{id}")]
 pub(super) async fn update_task(
     id: Path<i64>,
-    task: Json<UpdateTask>,
+    task: actix_web::web::Json<UpdateTask>,
     task_store: Data<TaskController>,
 ) -> impl Responder {
     match task_store.update(id.into_inner(), task.into_inner()).await {
@@ -1366,8 +1495,9 @@ pub(super) async fn update_task(
 /// Api will delete task from shared in-memory storage by the provided id and return success 200.
 /// If storage does not contain `Task` with given id 404 not found will be returned.
 #[utoipa::path(
+    tag = "tasks",
     responses(
-        (status = 200, description = "Task deleted successfully"),
+        (status = 200, description = "Task deleted successfully", body = Task),
         // (status = 401, description = "Unauthorized to delete Task", body = ErrorResponse, example = json!(ErrorResponse::Unauthorized(String::from("missing api key")))),
         (status = 404, description = "Task not found by id", body = Failed)
     ),
@@ -1378,7 +1508,7 @@ pub(super) async fn update_task(
 #[delete("/tasks/{id}")]
 pub(super) async fn delete_task(id: Path<i64>, task_store: Data<TaskController>) -> impl Responder {
     match task_store.delete(id.into_inner()).await {
-        Ok(Some(_)) => HttpResponse::Ok().finish(),
+        Ok(Some(task)) => HttpResponse::Ok().json(task),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::Failed,
@@ -1391,6 +1521,7 @@ pub(super) async fn delete_task(id: Path<i64>, task_store: Data<TaskController>)
 ///
 /// Return found `Task` with status 200 or 404 not found if `Task` is not found from shared in-memory storage.
 #[utoipa::path(
+    tag = "tasks",
     responses(
         (status = 200, description = "Task found from storage", body = Task),
         (status = 404, description = "Task not found by id", body = Failed)
@@ -1419,6 +1550,7 @@ pub(super) async fn get_task_by_id(
 ///
 /// If storage does not contain `Task` with given id 404 not found will be returned.
 #[utoipa::path(
+    tag = "tasks",
     responses(
         (status = 200, description = "Task started successfully"),
         (status = 404, description = "Task not found by id", body = Failed),
@@ -1433,7 +1565,7 @@ pub(super) async fn get_task_by_id(
 pub(super) async fn start_task(id: Path<i64>, task_store: Data<TaskController>) -> impl Responder {
     let id = id.into_inner();
     match task_store.start(id).await {
-        Ok(Some(_)) => HttpResponse::Ok().finish(),
+        Ok(Some(_)) => HttpResponse::Ok().body("{}"),
         Ok(None) => HttpResponse::NotFound().json(Failed {
             code: Code::Failed,
             message: format!("Task {id} not found"),
@@ -1449,6 +1581,7 @@ pub(super) async fn start_task(id: Path<i64>, task_store: Data<TaskController>) 
 ///
 /// If storage does not contain `Task` with given id 404 not found will be returned.
 #[utoipa::path(
+    tag = "tasks",
     responses(
         (status = 200, description = "Task stopped successfully"),
         (status = 404, description = "Task not found by id", body = Failed),
@@ -1463,7 +1596,7 @@ pub(super) async fn start_task(id: Path<i64>, task_store: Data<TaskController>) 
 pub(super) async fn stop_task(id: Path<i64>, task_store: Data<TaskController>) -> impl Responder {
     let id = id.into_inner();
     match task_store.stop(id).await {
-        Ok(Some(_)) => HttpResponse::Ok().finish(),
+        Ok(Some(_)) => HttpResponse::Ok().body("{}"),
         Ok(None) => HttpResponse::NotFound().json(Failed {
             code: Code::Failed,
             message: format!("Task {id} not found"),

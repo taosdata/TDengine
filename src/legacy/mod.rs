@@ -1,12 +1,11 @@
 use std::{
     fmt::{Debug, Display},
-    num::{NonZeroU32, NonZeroUsize},
     str::FromStr,
     sync::{
         atomic::{AtomicU16, AtomicU32, AtomicU64, AtomicUsize, Ordering},
         Arc,
     },
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use anyhow::{bail, Context};
