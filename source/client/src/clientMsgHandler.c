@@ -417,12 +417,12 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pInfo->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, name, false);
+    colDataSetVal(pColInfo, i, name, false);
 
     char value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(value, pInfo->value, TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, value, false);
+    colDataSetVal(pColInfo, i, value, false);
   }
 
   pBlock->info.rows = numOfCfg;

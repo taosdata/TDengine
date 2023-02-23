@@ -608,13 +608,13 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char b1[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b1, pObj->pDnode->ep, TSDB_EP_LEN + VARSTR_HEADER_SIZE);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, b1, false);
+    colDataSetVal(pColInfo, numOfRows, b1, false);
 
     char role[20] = "offline";
     if (pObj->id == pMnode->selfDnodeId) {
@@ -630,7 +630,7 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char b2[12 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b2, role, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
 
     const char *status = "ready";
     if (objStatus == SDB_STATUS_CREATING) status = "creating";
@@ -639,10 +639,10 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char b3[9 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, status, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)b3, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);

@@ -101,11 +101,11 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
     bool             isNull = tsortIsNullVal(pTupleHandle, i);
     if (isNull) {
-      colDataAppendNULL(pColInfo, pBlock->info.rows);
+      colDataSetNULL(pColInfo, pBlock->info.rows);
     } else {
       char* pData = tsortGetValue(pTupleHandle, i);
       if (pData != NULL) {
-        colDataAppend(pColInfo, pBlock->info.rows, pData, false);
+        colDataSetVal(pColInfo, pBlock->info.rows, pData, false);
       }
     }
   }

@@ -17,7 +17,7 @@
 
 int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock* pData) {
   int32_t blockNum = pReq->blockNum;
-  SArray* pArray = taosArrayInit_s(blockNum, sizeof(SSDataBlock), blockNum);
+  SArray* pArray = taosArrayInit_s(sizeof(SSDataBlock), blockNum);
   if (pArray == NULL) {
     return -1;
   }

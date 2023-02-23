@@ -1707,7 +1707,7 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pTask->msgCtxs = taosArrayInit_s(pCtx->fetchNum, sizeof(SCtgMsgCtx), pCtx->fetchNum);
+  pTask->msgCtxs = taosArrayInit_s(sizeof(SCtgMsgCtx), pCtx->fetchNum);
   for (int32_t i = 0; i < pCtx->fetchNum; ++i) {
     SCtgFetch*  pFetch = taosArrayGet(pCtx->pFetchs, i);
     SName*      pName = ctgGetFetchName(pCtx->pNames, pFetch);
@@ -1857,7 +1857,7 @@ int32_t ctgLaunchGetTbHashsTask(SCtgTask* pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pTask->msgCtxs = taosArrayInit_s(pCtx->fetchNum, sizeof(SCtgMsgCtx), pCtx->fetchNum);
+  pTask->msgCtxs = taosArrayInit_s(sizeof(SCtgMsgCtx), pCtx->fetchNum);
 
   for (int32_t i = 0; i < pCtx->fetchNum; ++i) {
     SCtgFetch*  pFetch = taosArrayGet(pCtx->pFetchs, i);

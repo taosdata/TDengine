@@ -623,9 +623,9 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
 
     int32_t type = pExpr[k].base.pParam[0].param.nType;
     if (TSDB_DATA_TYPE_NULL == type) {
-      colDataAppendNNULL(pColInfoData, 0, 1);
+      colDataSetNNULL(pColInfoData, 0, 1);
     } else {
-      colDataAppend(pColInfoData, 0, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false);
+      colDataSetVal(pColInfoData, 0, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false);
     }
   }
 
@@ -665,9 +665,9 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
 
       int32_t type = pExpr[k].base.pParam[0].param.nType;
       if (TSDB_DATA_TYPE_NULL == type) {
-        colDataAppendNNULL(pColInfoData, 0, 1);
+        colDataSetNNULL(pColInfoData, 0, 1);
       } else {
-        colDataAppend(pColInfoData, 0, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false);
+        colDataSetVal(pColInfoData, 0, taosVariantGet(&pExpr[k].base.pParam[0].param, type), false);
       }
     }
 
@@ -728,11 +728,11 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
 
       int32_t type = pExpr[k].base.pParam[0].param.nType;
       if (TSDB_DATA_TYPE_NULL == type) {
-        colDataAppendNNULL(pColInfoData, offset, pSrcBlock->info.rows);
+        colDataSetNNULL(pColInfoData, offset, pSrcBlock->info.rows);
       } else {
         char* p = taosVariantGet(&pExpr[k].base.pParam[0].param, type);
         for (int32_t i = 0; i < pSrcBlock->info.rows; ++i) {
-          colDataAppend(pColInfoData, i + offset, p, false);
+          colDataSetVal(pColInfoData, i + offset, p, false);
         }
       }
 
@@ -800,10 +800,10 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         for (int32_t f = 0; f < pSrcBlock->info.rows; ++f) {
           bool isNull = colDataIsNull_s(pInput, f);
           if (isNull) {
-            colDataAppendNULL(pOutput, pResult->info.rows + f);
+            colDataSetNULL(pOutput, pResult->info.rows + f);
           } else {
             char* data = colDataGetData(pInput, f);
-            colDataAppend(pOutput, pResult->info.rows + f, data, isNull);
+            colDataSetVal(pOutput, pResult->info.rows + f, data, isNull);
           }
         }
 
