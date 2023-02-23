@@ -104,13 +104,13 @@ static void setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, in
       continue;
     }
     STR_TO_VARSTR(buf, pMeta->schema[i].name);
-    colDataAppend(pCol1, pBlock->info.rows, buf, false);
+    colDataSetVal(pCol1, pBlock->info.rows, buf, false);
     STR_TO_VARSTR(buf, tDataTypes[pMeta->schema[i].type].name);
-    colDataAppend(pCol2, pBlock->info.rows, buf, false);
+    colDataSetVal(pCol2, pBlock->info.rows, buf, false);
     int32_t bytes = getSchemaBytes(pMeta->schema + i);
-    colDataAppend(pCol3, pBlock->info.rows, (const char*)&bytes, false);
+    colDataSetVal(pCol3, pBlock->info.rows, (const char*)&bytes, false);
     STR_TO_VARSTR(buf, i >= pMeta->tableInfo.numOfColumns ? "TAG" : "");
-    colDataAppend(pCol4, pBlock->info.rows, buf, false);
+    colDataSetVal(pCol4, pBlock->info.rows, buf, false);
     ++(pBlock->info.rows);
   }
 }
@@ -255,7 +255,7 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
   SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
   char             buf1[SHOW_CREATE_DB_RESULT_FIELD1_LEN] = {0};
   STR_TO_VARSTR(buf1, dbFName);
-  colDataAppend(pCol1, 0, buf1, false);
+  colDataSetVal(pCol1, 0, buf1, false);
 
   SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
   char             buf2[SHOW_CREATE_DB_RESULT_FIELD2_LEN] = {0};
@@ -295,7 +295,7 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
 
   (varDataLen(buf2)) = len;
 
-  colDataAppend(pCol2, 0, buf2, false);
+  colDataSetVal(pCol2, 0, buf2, false);
 }
 
 #define CHECK_LEADER(n) (row[n] && (fields[n].type == TSDB_DATA_TYPE_VARCHAR && strncasecmp(row[n], "leader", varDataLen((char *)row[n] - VARSTR_HEADER_SIZE)) == 0))
@@ -607,7 +607,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
   SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
   char             buf1[SHOW_CREATE_TB_RESULT_FIELD1_LEN] = {0};
   STR_TO_VARSTR(buf1, tbName);
-  colDataAppend(pCol1, 0, buf1, false);
+  colDataSetVal(pCol1, 0, buf1, false);
 
   SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
   char*            buf2 = taosMemoryMalloc(SHOW_CREATE_TB_RESULT_FIELD2_LEN);
@@ -645,7 +645,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
 
   varDataLen(buf2) = (len > 65535) ? 65535 : len;
 
-  colDataAppend(pCol2, 0, buf2, false);
+  colDataSetVal(pCol2, 0, buf2, false);
 
   taosMemoryFree(buf2);
 
@@ -783,14 +783,14 @@ int32_t setLocalVariablesResultIntoDataBlock(SSDataBlock* pBlock) {
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, name, false);
+    colDataSetVal(pColInfo, i, name, false);
 
     char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t valueLen = 0;
     cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
     varDataSetLen(value, valueLen);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, value, false);
+    colDataSetVal(pColInfo, i, value, false);
 
     numOfRows++;
   }
@@ -846,9 +846,9 @@ int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBlock) {
       return TSDB_CODE_PAR_INVALID_SELECTED_EXPR;
     } else {
       if (((SValueNode*)pProj)->isNull) {
-        colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, NULL, true);
+        colDataSetVal(taosArrayGet(pBlock->pDataBlock, index++), 0, NULL, true);
       } else {
-        colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, nodesGetValueFromNode((SValueNode*)pProj), false);
+        colDataSetVal(taosArrayGet(pBlock->pDataBlock, index++), 0, nodesGetValueFromNode((SValueNode*)pProj), false);
       }
     }
   }

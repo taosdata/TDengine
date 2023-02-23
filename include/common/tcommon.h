@@ -205,7 +205,8 @@ typedef struct SDataBlockInfo {
   STimeWindow calWin;     // used for stream, do not serialize
   TSKEY       watermark;  // used for stream
 
-  char    parTbName[TSDB_TABLE_NAME_LEN];  // used for stream partition
+  char  parTbName[TSDB_TABLE_NAME_LEN];  // used for stream partition
+  STag* pTag;                            // used for stream partition
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -341,7 +342,7 @@ typedef struct SExprInfo {
 
 typedef struct {
   const char* key;
-  size_t     keyLen;
+  size_t      keyLen;
   uint8_t     type;
   union {
     const char* value;
@@ -385,9 +386,9 @@ typedef struct STUidTagInfo {
 #define TABLE_NAME_COLUMN_INDEX         6
 
 // stream create table block column
-#define UD_TABLE_NAME_COLUMN_INDEX     0
-#define UD_GROUPID_COLUMN_INDEX        1
-#define UD_TAG_COLUMN_INDEX            2
+#define UD_TABLE_NAME_COLUMN_INDEX 0
+#define UD_GROUPID_COLUMN_INDEX    1
+#define UD_TAG_COLUMN_INDEX        2
 
 #ifdef __cplusplus
 }

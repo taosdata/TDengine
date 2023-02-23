@@ -864,13 +864,13 @@ int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SS
       int expandRows = numOfRows - startRow;
       bool isNull = colDataIsNull_s(pColInfoData, (input+i)->numOfRows - 1);
       if (isNull) {
-        colDataAppendNNULL(pDest, startRow, expandRows);
+        colDataSetNNULL(pDest, startRow, expandRows);
       } else {
         char* src = colDataGetData(pColInfoData, (input + i)->numOfRows - 1);
         for (int j = 0; j < expandRows; ++j) {
-          colDataAppend(pDest, startRow+j, src, false);
+          colDataSetVal(pDest, startRow+j, src, false);
         }
-        //colDataAppendNItems(pColInfoData, startRow, data, expandRows);
+        //colDataSetNItems(pColInfoData, startRow, data, expandRows);
       }
     }
   }

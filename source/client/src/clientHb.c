@@ -347,7 +347,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
       continue;
     }
 
-    if (pRequest->killed) {
+    if (pRequest->killed || 0 == pRequest->body.queryJob) {
       releaseRequest(*rid);
       pIter = taosHashIterate(pObj->pRequests, pIter);
       continue;

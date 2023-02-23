@@ -48,7 +48,7 @@ SArray* taosArrayInit(size_t size, size_t elemSize) {
   return pArray;
 }
 
-SArray* taosArrayInit_s(size_t size, size_t elemSize, size_t initialSize) {
+SArray* taosArrayInit_s(size_t elemSize, size_t initialSize) {
   SArray* pArray = taosMemoryMalloc(sizeof(SArray));
   if (pArray == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

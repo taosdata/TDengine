@@ -58,7 +58,7 @@ typedef int32_t (*MndInitFp)(SMnode *pMnode);
 typedef void (*MndCleanupFp)(SMnode *pMnode);
 typedef int32_t (*ShowRetrieveFp)(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 typedef void (*ShowFreeIterFp)(SMnode *pMnode, void *pIter);
-typedef struct SQWorker SQHandle;
+typedef struct SQueueWorker SQHandle;
 
 typedef struct {
   const char  *name;

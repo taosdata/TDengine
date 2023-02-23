@@ -60,6 +60,19 @@ bool isEpsetEqual(const SEpSet* s1, const SEpSet* s2) {
   return true;
 }
 
+void epsetAssign(SEpSet* pDst, const SEpSet* pSrc) {
+  if (pSrc == NULL || pDst == NULL) {
+      return;
+  }
+
+  pDst->inUse = pSrc->inUse;
+  pDst->numOfEps = pSrc->numOfEps;
+  for (int32_t i = 0; i < pSrc->numOfEps; ++i) {
+    pDst->eps[i].port = pSrc->eps[i].port;
+    tstrncpy(pDst->eps[i].fqdn, pSrc->eps[i].fqdn, tListLen(pSrc->eps[i].fqdn));
+  }
+}
+
 void updateEpSet_s(SCorEpSet* pEpSet, SEpSet* pNewEpSet) {
   taosCorBeginWrite(&pEpSet->version);
   pEpSet->epSet = *pNewEpSet;

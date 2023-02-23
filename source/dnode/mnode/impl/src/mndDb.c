@@ -1703,46 +1703,46 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
       if (i == 0) {
-        colDataAppend(pColInfo, rows, buf, false);
+        colDataSetVal(pColInfo, rows, buf, false);
       } else if (i == 1) {
-        colDataAppend(pColInfo, rows, (const char *)&pDb->createdTime, false);
+        colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
       } else if (i == 3) {
-        colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
+        colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
       } else if (i == 14) {
-        colDataAppend(pColInfo, rows, precVstr, false);
+        colDataSetVal(pColInfo, rows, precVstr, false);
       } else if (i == 15) {
-        colDataAppend(pColInfo, rows, statusVstr, false);
+        colDataSetVal(pColInfo, rows, statusVstr, false);
       } else {
-        colDataAppendNULL(pColInfo, rows);
+        colDataSetNULL(pColInfo, rows);
       }
     }
   } else {
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, buf, false);
+    colDataSetVal(pColInfo, rows, buf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->createdTime, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
+    colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
 
     const char *strictStr = pDb->cfg.strict ? "on" : "off";
     char        strictVstr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(strictVstr, strictStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)strictVstr, false);
+    colDataSetVal(pColInfo, rows, (const char *)strictVstr, false);
 
     char    durationVstr[128] = {0};
     int32_t len = sprintf(&durationVstr[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.daysPerFile);
     varDataSetLen(durationVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)durationVstr, false);
+    colDataSetVal(pColInfo, rows, (const char *)durationVstr, false);
 
     char keepVstr[128] = {0};
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
@@ -1754,86 +1754,86 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)keepVstr, false);
+    colDataSetVal(pColInfo, rows, (const char *)keepVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.buffer, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.buffer, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.pageSize, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pageSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.pages, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pages, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.minRows, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.minRows, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)precVstr, false);
+    colDataSetVal(pColInfo, rows, (const char *)precVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)statusVstr, false);
+    colDataSetVal(pColInfo, rows, (const char *)statusVstr, false);
 
     char *rentensionVstr = buildRetension(pDb->cfg.pRetensions);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (rentensionVstr == NULL) {
-      colDataAppendNULL(pColInfo, rows);
+      colDataSetNULL(pColInfo, rows);
     } else {
-      colDataAppend(pColInfo, rows, (const char *)rentensionVstr, false);
+      colDataSetVal(pColInfo, rows, (const char *)rentensionVstr, false);
       taosMemoryFree(rentensionVstr);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
 
     const char *cacheModelStr = getCacheModelStr(pDb->cfg.cacheLast);
     char        cacheModelVstr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(cacheModelVstr, cacheModelStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)cacheModelVstr, false);
+    colDataSetVal(pColInfo, rows, (const char *)cacheModelVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walFsyncPeriod, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walFsyncPeriod, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walRetentionPeriod, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionPeriod, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walRollPeriod, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRollPeriod, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walSegmentSize, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walSegmentSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int16_t hashPrefix = pDb->cfg.hashPrefix;
     if (hashPrefix > 0) {
       hashPrefix = pDb->cfg.hashPrefix - strlen(pDb->name) - 1;
     }
-    colDataAppend(pColInfo, rows, (const char *)&hashPrefix, false);
+    colDataSetVal(pColInfo, rows, (const char *)&hashPrefix, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.hashSuffix, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.hashSuffix, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.tsdbPageSize, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.tsdbPageSize, false);
   }
 
   taosMemoryFree(buf);
