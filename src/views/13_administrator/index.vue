@@ -10,7 +10,7 @@
           <AdBackup></AdBackup>
           <!-- <MgDnodes></MgDnodes> -->
         </el-tab-pane>
-        <el-tab-pane name="replication" :label="$t('topic.replication')">
+        <el-tab-pane name="replication" label="Data Replication">
           <AdReplication></AdReplication>
         </el-tab-pane>
         <!-- <el-tab-pane name="udf" :label="$t('topic.udf')" :disabled='true'>

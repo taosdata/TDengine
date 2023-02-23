@@ -55,7 +55,7 @@
     ></el-pagination>
     <el-dialog
       align="center"
-      :title="$t('topic.addsource')"
+      title="Add New Data Source"
       width="400px"
       :visible.sync="dialog"
     >
@@ -118,7 +118,7 @@
   </div>
 </template>
 <script>
-import { Message } from 'element-ui';
+import { Message } from "element-ui";
 import dbsource from "./datasource.json";
 export default {
   name: "DataSource",
@@ -208,19 +208,22 @@ export default {
           type: "warning",
         }
       ).then((res) => {
-        console.log(res, data, "删除");
         fetch(`http://192.168.0.201:6050/tasks/${data.id}`, {
           method: "delete",
-        }).then((res) => {
-          console.log(res, "删除接口");
-          if(res.status==200){
-            Message({
-              type:'success',
-              message:'Deleted Successfully'
-            })
-            this.getList()
-          }
-        });
+        })
+          .then((res) => {
+            if (res.status == 200) {
+              Message({
+                type: "success",
+                message: "Deleted Successfully",
+              });
+              this.getList();
+            }
+          })
+          .catch((err) => {
+            err.desc && Message.error(err.desc);
+            return Promise.reject(err);
+          });
       });
     },
     checkMore(data) {
@@ -229,7 +232,6 @@ export default {
       });
     },
     handleAdd() {
-      console.log(this.$parent, this.ruleForm.name);
       this.$parent.toggleComponent("ui", this.ruleForm.name);
     },
     async getList() {
@@ -245,53 +247,48 @@ export default {
               }
               return item;
             });
-            console.log(result, "=====");
           });
-      } catch (error) {
-        console.log(error);
+      } catch (err) {
+        err.desc && Message.error(err.desc);
+        return Promise.reject(err);
       }
     },
-    start(data,index){
-      console.log(data,index,'start');
+    start(data, index) {
       try {
-        fetch(`http://192.168.0.201:6050/tasks/${data.id}/start`,{
-          method:'post'
-        }).then(res=>{
-          if(res.status==200){
-            this.getList()
-          }else{
+        fetch(`http://192.168.0.201:6050/tasks/${data.id}/start`, {
+          method: "post",
+        }).then((res) => {
+          if (res.status == 200) {
+            this.getList();
+          } else {
             Message({
-              type:"error",
-              message:""
-            })
+              type: "error",
+              message: "",
+            });
           }
-          console.log(res,'start接口');
-        })
-
-      } catch (error) {
-        console.log(error);
+        });
+      } catch (err) {
+        err.desc && Message.error(err.desc);
+        return Promise.reject(err);
       }
     },
-    stop(data,index){
+    stop(data, index) {
       try {
-        fetch(`http://192.168.0.201:6050/tasks/${data.id}/stop`,{
-          method:'post'
-        }).then(res=>{
-          if(res.status==200){
-             console.log('stop');
-            this.getList()
+        fetch(`http://192.168.0.201:6050/tasks/${data.id}/stop`, {
+          method: "post",
+        }).then((res) => {
+          if (res.status == 200) {
+            this.getList();
           }
-         
-        })
-
-      } catch (error) {
-        console.log(error);
+        });
+      } catch (err) {
+        err.desc && Message.error(err.desc);
+        return Promise.reject(err);
       }
     },
   },
   created() {
     this.getList();
-    console.log(this.dbsource, "json", "data----source");
   },
 };
 </script>

@@ -1,16 +1,10 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button
-        plain
-        @click="add"
-        size="small"
-        icon="el-icon-plus"
-        >{{ $t("add") }}</el-button
-      >
       <el-button plain @click="refresh" size="small" icon="el-icon-refresh">{{
         $t("refresh")
       }}</el-button>
+      <el-button plain @click="add" size="small" icon="el-icon-plus">Add New Replication</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column
@@ -40,9 +34,16 @@
         prop="status"
       ></el-table-column>
 
-      <el-table-column label="Action" width="190">
+      <el-table-column label="Operation" width="190">
         <template slot-scope="scope">
-          <el-button
+          <el-switch
+            :value="scope.row.status.toLowerCase() == 'running'"
+            active-color="rgb(66, 89, 206)"
+            inactive-color="#dcdfe6"
+            @change="switchOperation($event, scope.row)"
+          >
+          </el-switch>
+          <!-- <el-button
             plain
             size="small"
             @click="edit(scope.row)"
@@ -59,7 +60,7 @@
             size="small"
             @click="stop(scope.row, scope.$index)"
             icon="el-icon-tingzhi"
-          ></el-button>
+          ></el-button> -->
           <el-button
             plain
             size="small"
@@ -92,10 +93,10 @@
         label-width="auto"
         class="demo-ruleForm"
       >
-        <el-form-item label="Source" prop="source" required>
+        <el-form-item label="From Source" prop="source" required>
           <el-input v-model.trim="ruleForm.source"></el-input>
         </el-form-item>
-        <el-form-item label="Target" prop="target" required>
+        <el-form-item label="Target DSN" prop="target" required>
           <el-input v-model.trim="ruleForm.target"></el-input>
         </el-form-item>
       </el-form>
@@ -122,7 +123,8 @@
 </template>
 <script>
 import { format } from "date-fns";
-import taosbenchmarkVue from '@/utils/config/mdx/en/taosbenchmark.vue';
+import {Message} from 'element-ui'
+import taosbenchmarkVue from "@/utils/config/mdx/en/taosbenchmark.vue";
 export default {
   data() {
     return {
@@ -181,25 +183,24 @@ export default {
   },
   methods: {
     handlePageChange() {},
-    add(){
-        this.dialog=true
-        this.ruleForm.source=''
-        this.ruleForm.target=''
+    add() {
+      this.dialog = true;
+      this.ruleForm.source = "";
+      this.ruleForm.target = "";
     },
     del(data) {
-      this.$confirm("Are you sure  to delete " + data.source + '?', "Warning", {
+      this.$confirm("Are you sure  to delete " + data.source + "?", "Warning", {
         confirmButtonText: "Ok",
         cancelButtonText: "Cancle",
         type: "warning",
       });
     },
-    refresh(data) {
-    },
+    refresh(data) {},
     addReplication() {},
-    edit(data){
-        this.dialog=taosbenchmarkVue
-        this.ruleForm.source=data.source
-        this.ruleForm.target=data.target
+    edit(data) {
+      this.dialog = taosbenchmarkVue;
+      this.ruleForm.source = data.source;
+      this.ruleForm.target = data.target;
     },
     start(data, index) {
       this.$set(this.topicList[index], "status", "Running");
@@ -216,6 +217,21 @@ export default {
         "stoppedat",
         format(new Date().getTime(), "yyyy-MM-dd HH:mm:ss")
       );
+    },
+    switchOperation(val,data){
+
+    },
+    async getReplication() {
+      try {
+        await fetch(`http://192.168.0.201:6050/tasks?labels=replication`, {
+          method: "get",
+        }).then((res) => {
+          console.log(res, "replication列表--");
+        });
+      } catch (err) {
+        err.desc && Message.error(err.desc);
+        return Promise.reject(err);
+      }
     },
   },
 };

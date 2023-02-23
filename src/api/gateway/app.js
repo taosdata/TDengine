@@ -103,7 +103,7 @@ export function uploadCsv(data) {
   let csvData = new FormData();
   csvData.append("data", data.data);
   return request({
-    url: `/data/import/${appId}/${dbName}/${tbName}`,
+    url: `/rest/upload?db=${dbName}&table=${tbName}`,
     method: "post",
     data: csvData,
     headers: {

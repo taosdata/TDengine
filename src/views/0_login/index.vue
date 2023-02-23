@@ -180,6 +180,8 @@
 </template>
 <script>
 import { DbBase64 } from "../../utils/dbBase64";
+import { sendSQLReq } from "@/api/gateway/console";
+import { Message } from "element-ui";
 import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
 export default {
@@ -240,7 +242,6 @@ export default {
       this.$refs[formName].validate((valid) => {
         if (valid) {
           localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
-
           this.login();
         } else {
           console.log("error submit!!");
@@ -251,6 +252,22 @@ export default {
     resetForm(formName) {
       this.$refs[formName].resetFields();
     },
+    async getClusterID() {
+      try {
+        return sendSQLReq(` select id from information_schema.ins_cluster;`)
+          .then((res) => {
+            console.log(res, "获取cluster");
+            let id = res.data.flat(Infinity).toString()
+            localStorage.setItem('local_clusterID',id)
+          })
+          .catch((err) => {
+            err.desc && Message.error(err.desc);
+            return Promise.reject(err);
+          });
+      } catch (error) {
+        console.log(error);
+      }
+    },
     login() {
       let token =
         "Basic " +
@@ -260,12 +277,12 @@ export default {
             this.dynamicValidateForm.password
         );
       this.$store.commit("app/SET_TOKEN", token);
-      sessionStorage.setItem('username',this.dynamicValidateForm.username)
-      sessionStorage.setItem('pwd',this.dynamicValidateForm.password)
-      this.$store.commit('app/SAVE_LOGIN_INFO',{
-        username:this.dynamicValidateForm.username,
-        pwd:this.dynamicValidateForm.password
-      })
+      sessionStorage.setItem("username", this.dynamicValidateForm.username);
+      sessionStorage.setItem("pwd", this.dynamicValidateForm.password);
+      this.$store.commit("app/SAVE_LOGIN_INFO", {
+        username: this.dynamicValidateForm.username,
+        pwd: this.dynamicValidateForm.password,
+      });
       fetch(`${this.dynamicValidateForm.cluster}/rest/sql`, {
         method: "post",
         headers: {
@@ -275,6 +292,8 @@ export default {
       }).then((res) => {
         if (res.status === 200) {
           localStorage.setItem("TDengine-Token", token);
+
+          this.getClusterID();
           this.$router.push({
             path: "/explorer",
           });

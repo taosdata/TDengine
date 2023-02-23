@@ -6,8 +6,15 @@
       "type": "uri",
       "protocol": {
         "display": "Protocol",
+        "value": "ws",
         "description": "Choose a protocol scheme for websocket connection, leave it empty for native connection",
         "choices": [
+            {
+                "name": "--",
+                "display": "Native",
+                "description": "",
+                "default": true
+            },
           {
             "name": "ws",
             "display": "WS",
