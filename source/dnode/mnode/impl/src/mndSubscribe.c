@@ -122,6 +122,7 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscri
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   SMsgHead *pMsgHead = (SMsgHead *)buf;
 
   pMsgHead->contLen = htonl(tlen);

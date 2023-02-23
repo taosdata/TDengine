@@ -256,8 +256,9 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
     int32_t hbStatus = atomic_add_fetch_32(&pConsumer->hbStatus, 1);
     int32_t status = atomic_load_32(&pConsumer->status);
 
-    mDebug("check for consumer:0x%"PRIx64" status:%d(%s), sub-time:%"PRId64", uptime:%"PRId64,
-        pConsumer->consumerId, status, mndConsumerStatusName(status), pConsumer->subscribeTime, pConsumer->upTime);
+    mDebug("check for consumer:0x%"PRIx64" status:%d(%s), sub-time:%"PRId64", uptime:%"PRId64", hbstatus:%d",
+        pConsumer->consumerId, status, mndConsumerStatusName(status), pConsumer->subscribeTime, pConsumer->upTime,
+        hbStatus);
 
     if (status == MQ_CONSUMER_STATUS__READY) {
       if (hbStatus > MND_CONSUMER_LOST_HB_CNT) {
@@ -269,6 +270,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
             .pCont = pLostMsg,
             .contLen = sizeof(SMqConsumerLostMsg),
         };
+
         tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
       }
     } else if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
@@ -282,6 +284,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
             .pCont = pClearMsg,
             .contLen = sizeof(SMqConsumerClearMsg),
         };
+
         tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
       }
     } else if (status == MQ_CONSUMER_STATUS__LOST) {

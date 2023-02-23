@@ -1062,10 +1062,14 @@ int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
-    if (pIter == NULL) break;
+    if (pIter == NULL) {
+      break;
+    }
 
     code = -1;
-    if (mndUserDupObj(pUser, &newUser) != 0) break;
+    if (mndUserDupObj(pUser, &newUser) != 0) {
+      break;
+    }
 
     bool inTopic = (taosHashGet(newUser.topics, topic, len) != NULL);
     if (inTopic) {
