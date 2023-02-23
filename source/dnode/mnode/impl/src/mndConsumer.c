@@ -658,7 +658,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
       } else {
         char *oldTopic = taosArrayGetP(pConsumerOld->currentTopics, i);
         char *newTopic = taosArrayGetP(newSub, j);
-        int   comp = compareLenPrefixedStr(oldTopic, newTopic);
+        int   comp = strcmp(oldTopic, newTopic);
         if (comp == 0) {
           i++;
           j++;
