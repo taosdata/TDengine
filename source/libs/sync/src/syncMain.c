@@ -2468,6 +2468,10 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     syncNodeStepDown(ths, pMsg->currentTerm);
 
   } else if (pMsg->cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT) {
+    if (syncLogBufferIsEmpty(ths->pLogBuf)) {
+      sError("vgId:%d, sync log buffer is empty.", ths->vgId);
+      return 0;
+    }
     SyncTerm matchTerm = syncLogBufferGetLastMatchTerm(ths->pLogBuf);
     if (pMsg->currentTerm == matchTerm) {
       (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);
