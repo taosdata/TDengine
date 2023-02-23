@@ -217,13 +217,13 @@ Average_Rows： BLOCK 中的平均行数，为4000 行
 
 *************************** 3.row ***************************
 
-_block_dist: Total_Tables=[1] Total_Files=[2]
+_block_dist: Total_Tables=[1] Total_Files=[2] Total_Vgroups=[1]
 
 Total_Tables:  表示子表的个数，这里为1
 
 Total_Files：   表数据保存在几个文件中，这里保存在 2 个文件中
 
-
+Total_Vgroups： 表数据分布在几个虚拟节点（vnode）
 *************************** 5.row ***************************
 
 _block_dist: 0100 |
