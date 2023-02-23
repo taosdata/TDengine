@@ -1057,7 +1057,7 @@ static FORCE_INLINE int32_t filterAddColFieldFromField(SFilterInfo *info, SFilte
 
 int32_t filterAddFieldFromNode(SFilterInfo *info, SNode *node, SFilterFieldId *fid) {
   if (node == NULL) {
-    fltError("empty node");
+    fltDebug("empty node");
     FLT_ERR_RET(TSDB_CODE_APP_ERROR);
   }
 

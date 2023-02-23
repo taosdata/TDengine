@@ -114,6 +114,7 @@ int32_t streamStateGetParTag(SStreamState* pState, int64_t groupId, void** tagVa
 
 #if 0
 char* streamStateSessionDump(SStreamState* pState);
+char* streamStateIntervalDump(SStreamState* pState);
 #endif
 
 #ifdef __cplusplus

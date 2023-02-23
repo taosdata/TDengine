@@ -143,7 +143,7 @@ static void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
           .state = pNode->state,
           .seqNum = *pSeqNum,
           .term = SYNC_TERM_INVALID,
-          .currentTerm = pNode->raftStore.currentTerm,
+          .currentTerm = SYNC_TERM_INVALID,
           .flag = 0,
       };
 

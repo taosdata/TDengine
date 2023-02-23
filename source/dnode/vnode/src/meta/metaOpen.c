@@ -201,7 +201,8 @@ _err:
   return -1;
 }
 
-int metaClose(SMeta *pMeta) {
+int metaClose(SMeta **ppMeta) {
+  SMeta *pMeta = *ppMeta;
   if (pMeta) {
     if (pMeta->pEnv) metaAbort(pMeta);
     if (pMeta->pCache) metaCacheClose(pMeta);
@@ -221,7 +222,8 @@ int metaClose(SMeta *pMeta) {
     if (pMeta->pTbDb) tdbTbClose(pMeta->pTbDb);
     if (pMeta->pEnv) tdbClose(pMeta->pEnv);
     metaDestroyLock(pMeta);
-    taosMemoryFree(pMeta);
+
+    taosMemoryFreeClear(*ppMeta);
   }
 
   return 0;

@@ -61,6 +61,7 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   SSyncRaftEntry* pMatch = pBuf->entries[(index - 1 + pBuf->size) % pBuf->size].pItem;
   ASSERTS(pMatch != NULL, "no matched log entry");
   ASSERT(pMatch->index + 1 == index);
+  ASSERT(pMatch->term <= pEntry->term);
 
   SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = pMatch->index, .prevLogTerm = pMatch->term};
   pBuf->entries[index % pBuf->size] = tmp;
@@ -514,7 +515,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   SSyncLogStore*  pLogStore = pNode->pLogStore;
   SSyncFSM*       pFsm = pNode->pFsm;
   ESyncState      role = pNode->state;
-  SyncTerm        term = pNode->raftStore.currentTerm;
+  SyncTerm        currentTerm = raftStoreGetTerm(pNode);
   SyncGroupId     vgId = pNode->vgId;
   int32_t         ret = -1;
   int64_t         upperIndex = TMIN(commitIndex, pBuf->matchIndex);
@@ -529,7 +530,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   }
 
   sTrace("vgId:%d, commit. log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 "), role:%d, term:%" PRId64,
-         pNode->vgId, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex, role, term);
+         pNode->vgId, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex, role, currentTerm);
 
   // execute in fsm
   for (int64_t index = pBuf->commitIndex + 1; index <= upperIndex; index++) {
@@ -545,16 +546,16 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
             pEntry->term, TMSG_INFO(pEntry->originalRpcType));
     }
 
-    if (syncLogFsmExecute(pNode, pFsm, role, term, pEntry, 0) != 0) {
+    if (syncLogFsmExecute(pNode, pFsm, role, currentTerm, pEntry, 0) != 0) {
       sError("vgId:%d, failed to execute sync log entry. index:%" PRId64 ", term:%" PRId64
              ", role:%d, current term:%" PRId64,
-             vgId, pEntry->index, pEntry->term, role, term);
+             vgId, pEntry->index, pEntry->term, role, currentTerm);
       goto _out;
     }
     pBuf->commitIndex = index;
 
     sTrace("vgId:%d, committed index:%" PRId64 ", term:%" PRId64 ", role:%d, current term:%" PRId64 "", pNode->vgId,
-           pEntry->index, pEntry->term, role, term);
+           pEntry->index, pEntry->term, role, currentTerm);
 
     if (!inBuf) {
       syncEntryDestroy(pEntry);
@@ -563,7 +564,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   }
 
   // recycle
-  SyncIndex until = pBuf->commitIndex - (pBuf->size >> 4);
+  SyncIndex until = pBuf->commitIndex - TSDB_SYNC_LOG_BUFFER_RETENTION;
   for (SyncIndex index = pBuf->startIndex; index < until; index++) {
     SSyncRaftEntry* pEntry = pBuf->entries[(index + pBuf->size) % pBuf->size].pItem;
     ASSERT(pEntry != NULL);
@@ -576,7 +577,7 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
 _out:
   // mark as restored if needed
   if (!pNode->restoreFinish && pBuf->commitIndex >= pNode->commitIndex && pEntry != NULL &&
-      pNode->raftStore.currentTerm <= pEntry->term) {
+      currentTerm <= pEntry->term) {
     pNode->pFsm->FpRestoreFinishCb(pNode->pFsm);
     pNode->restoreFinish = true;
     sInfo("vgId:%d, restore finished. log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pNode->vgId,

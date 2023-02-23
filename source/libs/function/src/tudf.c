@@ -812,7 +812,7 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
   block->info.hasVarCol = IS_VAR_DATA_TYPE(udfCol->colMeta.type);
 
   block->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
-  taosArraySetSize(block->pDataBlock, 1);
+  taosArrayPush(block->pDataBlock, &(SColumnInfoData){0});
   SColumnInfoData *col = taosArrayGet(block->pDataBlock, 0);
   SUdfColumnMeta  *meta = &udfCol->colMeta;
   col->info.precision = meta->precision;

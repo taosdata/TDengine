@@ -15,6 +15,8 @@
 
 #include "streamInc.h"
 
+#define STREAM_EXEC_MAX_BATCH_NUM 100
+
 static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* pRes) {
   int32_t code;
   void*   exec = pTask->exec.executor;
@@ -112,12 +114,14 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
     int32_t batchCnt = 0;
     while (1) {
       if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+        taosArrayDestroy(pRes);
         return 0;
       }
 
       SSDataBlock* output = NULL;
       uint64_t     ts = 0;
       if (qExecTask(exec, &output, &ts) < 0) {
+        taosArrayDestroy(pRes);
         return -1;
       }
       if (output == NULL) {
@@ -227,6 +231,9 @@ int32_t streamExecForAll(SStreamTask* pTask) {
           batchCnt++;
           input = newRet;
           streamQueueProcessSuccess(pTask->inputQueue);
+          if (batchCnt > STREAM_EXEC_MAX_BATCH_NUM) {
+            break;
+          }
         }
       }
     }

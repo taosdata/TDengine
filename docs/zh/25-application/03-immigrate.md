@@ -18,82 +18,15 @@ title: OpenTSDB 应用迁移到 TDengine 的最佳实践
 
 如果我们将原本运行在 OpenTSDB 上的应用迁移到 TDengine 上，不仅可以有效地降低计算和存储资源的占用、减少部署服务器的规模，还能够极大减少运行维护的成本的输出，让运维管理工作更简单、更轻松，大幅降低总拥有成本。与 OpenTSDB 一样，TDengine 也已经进行了开源，不同的是，除了单机版，后者还实现了集群版开源，被厂商绑定的顾虑一扫而空。
 
-在下文中我们将就“使用最典型并广泛应用的运维监控（DevOps）场景”来说明，如何在不编码的情况下将 OpenTSDB 的应用快速、安全、可靠地迁移到 TDengine 之上。后续的章节会做更深度的介绍，以便于进行非 DevOps 场景的迁移。
+在下文中我们将说明如何在不编码的情况下将 OpenTSDB 的应用快速、安全、可靠地迁移到 TDengine 之上。
 
-## DevOps 应用快速迁移
+## TDengine 与 OpenTSDB 的差异
 
-### 1、典型应用场景
-
-一个典型的 DevOps 应用场景的系统整体的架构如下图（图 1） 所示。
-
-**图 1. DevOps 场景中典型架构**
-![TDengine Database IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch](./IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch.webp "图1. DevOps 场景中典型架构")
-
-在该应用场景中，包含了部署在应用环境中负责收集机器度量（Metrics）、网络度量（Metrics）以及应用度量（Metrics）的 Agent 工具、汇聚 Agent 收集信息的数据收集器，数据持久化存储和管理的系统以及监控数据可视化工具（例如：Grafana 等）。
-
-其中，部署在应用节点的 Agents 负责向 collectd/Statsd 提供不同来源的运行指标，collectd/StatsD 则负责将汇聚的数据推送到 OpenTSDB 集群系统，然后使用可视化看板 Grafana 将数据可视化呈现出来。
-
-### 2、迁移服务
-
-- **TDengine 安装部署**
-
-首先是 TDengine 的安装，从官网上下载 TDengine 最新稳定版进行安装。各种安装包的使用帮助请参见博客[《TDengine 多种安装包的安装和卸载》](https://www.taosdata.com/blog/2019/08/09/566.html)。
-
-注意，安装完成以后，不要立即启动 `taosd` 服务，在正确配置完成参数以后再启动。
-
-- **调整数据收集器配置**
-
-在 TDengine 2.4 版本中，包含一个组件 taosAdapter。taosAdapter 是一个无状态、可快速弹性伸缩的组件，它可以兼容 Influxdb 的 Line Protocol 和 OpenTSDB 的 telnet/JSON 写入协议规范，提供了丰富的数据接入能力，有效的节省用户迁移成本，降低用户应用迁移的难度。
-
-用户可以根据需求弹性部署 taosAdapter 实例，结合场景的需要，快速提升数据写入的吞吐量，为不同应用场景下的数据写入提供保障。
-
-通过 taosAdapter，用户可以将 collectd 或 StatsD 收集的数据直接推送到 TDengine ，实现应用场景的无缝迁移，非常的轻松便捷。taosAdapter 还支持 Telegraf、Icinga、TCollector 、node_exporter 的数据接入，使用详情参考[taosAdapter](/reference/taosadapter/)。
-
-如果使用 collectd，修改其默认位置 `/etc/collectd/collectd.conf` 的配置文件为指向 taosAdapter 部署的节点 IP 地址和端口。假设 taosAdapter 的 IP 地址为 192.168.1.130，端口为 6046，配置如下：
-
-```html
-LoadPlugin write_tsdb
-<Plugin write_tsdb>
-  <Node>
-    Host "192.168.1.130" Port "6046" HostTags "status=production" StoreRates
-    false AlwaysAppendDS false
-  </Node>
-</Plugin>
-```
-
-即可让 collectd 将数据使用推送到 OpenTSDB 的插件方式推送到 taosAdapter， taosAdapter 将调用 API 将数据写入到 TDengine 中，从而完成数据的写入工作。如果你使用的是 StatsD 相应地调整配置文件信息。
-
-- **调整看板（Dashboard）系统**
-
-在数据能够正常写入 TDengine 后，可以调整适配 Grafana 将写入 TDengine 的数据可视化呈现出来。获取和使用 TDengine 提供的 Grafana 插件请参考[与其他工具的连接](/third-party/grafana)。
-
-TDengine 提供了默认的两套 Dashboard 模板，用户只需要将 Grafana 目录下的模板导入到 Grafana 中即可激活使用。
-
-**图 2. 导入 Grafana 模板**
-![TDengine Database IT-DevOps-Solutions-Immigrate-OpenTSDB-Dashboard](./IT-DevOps-Solutions-Immigrate-OpenTSDB-Dashboard.webp "图2. 导入 Grafana 模板")
-
-操作完以上步骤后，就完成了将 OpenTSDB 替换成为 TDengine 的迁移工作。可以看到整个流程非常简单，不需要写代码，只需要对某些配置文件进行调整即可完成全部的迁移工作。
-
-### 3、迁移后架构
-
-完成迁移以后，此时的系统整体的架构如下图（图 3）所示，而整个过程中采集端、数据写入端、以及监控呈现端均保持了稳定，除了极少的配置调整外，不涉及任何重要的更改和变动。OpenTSDB 大量的应用场景均为 DevOps ，这种场景下，简单的参数设置即可完成 OpenTSDB 到 TDengine 迁移动作，使用上 TDengine 更加强大的处理能力和查询性能。
-
-在绝大多数的 DevOps 场景中，如果你拥有一个小规模的 OpenTSDB 集群（3 台及以下的节点）作为 DevOps 的存储端，依赖于 OpenTSDB 为系统持久化层提供数据存储和查询功能，那么你可以安全地将其替换为 TDengine，并节约更多的计算和存储资源。在同等计算资源配置情况下，单台 TDengine 即可满足 3 ~ 5 台 OpenTSDB 节点提供的服务能力。如果规模比较大，那便需要采用 TDengine 集群。
-
-如果你的应用特别复杂，或者应用领域并不是 DevOps 场景，你可以继续阅读后续的章节，更加全面深入地了解将 OpenTSDB 的应用迁移到 TDengine 的高级话题。
-
-**图 3. 迁移完成后的系统架构**
-![TDengine Database IT-DevOps-Solutions-Immigrate-TDengine-Arch](./IT-DevOps-Solutions-Immigrate-TDengine-Arch.webp "图 3. 迁移完成后的系统架构")
-
-## 其他场景的迁移评估与策略
-
-### 1、TDengine 与 OpenTSDB 的差异
-
-本章将详细介绍 OpenTSDB 与 TDengine 在系统功能层面上存在的差异。阅读完本章的内容，你可以全面地评估是否能够将某些基于 OpenTSDB 的复杂应用迁移到 TDengine 上，以及迁移之后应该注意的问题。
+本节将详细介绍 OpenTSDB 与 TDengine 在系统功能层面上存在的差异。阅读完本节的内容，你可以全面地评估是否能够将某些基于 OpenTSDB 的复杂应用迁移到 TDengine 上，以及迁移之后应该注意的问题。
 
 TDengine 当前只支持 Grafana 的可视化看板呈现，所以如果你的应用中使用了 Grafana 以外的前端看板（例如[TSDash](https://github.com/facebook/tsdash)、[Status Wolf](https://github.com/box/StatusWolf)等），那么前端看板将无法直接迁移到 TDengine，需要将前端看板重新适配到 Grafana 才可以正常运行。
 
-在 2.3.0.x 版本中，TDengine 只能够支持 collectd 和 StatsD 作为数据收集汇聚软件，当然后面会陆续提供更多的数据收集聚合软件的接入支持。如果您的收集端使用了其他类型的数据汇聚器，您的应用需要适配到这两个数据汇聚端系统，才能够将数据正常写入。除了上述两个数据汇聚端软件协议以外，TDengine 还支持通过 InfluxDB 的行协议和 OpenTSDB 的数据写入协议、JSON 格式将数据直接写入，您可以重写数据推送端的逻辑，使用 TDengine 支持的行协议来写入数据。
+如果您的收集端使用了像 collectd 和 StatsD 这样的数据采集工具，要重新配置这些数据采集工具将数据写入到 TDengine。TDengine 还支持通过 InfluxDB 的行协议和 OpenTSDB 的数据写入协议、JSON 格式将数据直接写入，您可以重写数据推送端的逻辑，使用 TDengine 支持的行协议来写入数据。
 
 此外，如果你的应用中使用了 OpenTSDB 以下特性，在将应用迁移到 TDengine 之前你还需要了解以下注意事项：
 
@@ -104,11 +37,11 @@ TDengine 当前只支持 Grafana 的可视化看板呈现，所以如果你的�
 
 通过上面的介绍，相信你应该能够了解 OpenTSDB 迁移到 TDengine 带来的变化，这些信息也有助于你正确地判断是否可以接受将应用 迁移到 TDengine 之上，体验 TDengine 提供的强大的时序数据处理能力和便捷的使用体验。
 
-### 2、迁移策略
+## 迁移策略
 
 首先将基于 OpenTSDB 的系统进行迁移涉及到的数据模式设计、系统规模估算、数据写入端改造，进行数据分流、应用适配工作；之后将两个系统并行运行一段时间，再将历史数据迁移到 TDengine 中。当然如果你的应用中有部分功能强依赖于上述 OpenTSDB 特性，同时又不希望停止使用，可以考虑保持原有的 OpenTSDB 系统运行，同时启动 TDengine 来提供主要的服务。
 
-## 数据模型设计
+### 数据模型设计
 
 一方面，TDengine 要求其入库的数据具有严格的模式定义。另一方面，TDengine 的数据模型相对于 OpenTSDB 来说又更加丰富，多值模型能够兼容全部的单值模型的建立需求。
 
@@ -150,7 +83,7 @@ insert into memory_vm130_memory_buffered_collectd  using memory tags(‘vm130’
 
 如果你想要利用 TDengine 的多值模型能力，需要首先满足以下要求：不同的采集量具有相同的采集频率，且能够通过消息队列**同时到达**数据写入端，从而确保使用 SQL 语句将多个指标一次性写入。将度量的名称作为超级表的名称，建立具有相同采集频率且能够同时到达的数据多列模型。子表的表名采用具有固定规则的方式进行命名。上述每个度量均只包含一个测量值，因此无法将其转化为多值模型。
 
-## 数据分流与应用适配
+### 数据分流与应用适配
 
 从消息队列中订阅数据，并启动调整后的写入程序写入数据。
 
@@ -166,15 +99,128 @@ TDengine 不支持采用 OpenTSDB 的查询语法进行查询或数据获取处�
 
 TDengine 支持标准的 JDBC 3.0 接口操纵数据库，你也可以使用其他类型的高级语言的连接器来查询读取数据，以适配你的应用。具体的操作和使用帮助也请参阅用户手册。
 
-## 历史数据迁移
 
-### 1、使用工具自动迁移数据
+## 使用 DataX 迁移数据
 
-为了方便历史数据的迁移工作，我们为数据同步工具 DataX 提供了插件，能够将数据自动写入到 TDengine 中，需要注意的是 DataX 的自动化数据迁移只能够支持单值模型的数据迁移过程。
+为了方便历史数据的迁移工作，我们为数据同步工具 DataX 提供了适配 TDengine 3.0 的插件，能够将数据自动写入到 TDengine 中，需要注意的是 DataX 的自动化数据迁移只能够支持单值模型的数据迁移过程。
 
-DataX 具体的使用方式及如何使用 DataX 将数据写入 TDengine 请参见[基于 DataX 的 TDengine 数据迁移工具](https://www.taosdata.com/blog/2021/10/26/3156.html)。
+### 安装和部署 TDengine 
 
-在对 DataX 进行迁移实践后，我们发现通过启动多个进程，同时迁移多个 metric 的方式，可以大幅度的提高迁移历史数据的效率，下面是迁移过程中的部分记录，希望这些能为应用迁移工作带来参考。
+在进行数据迁移之前，要有一个正确运行的 TDengine 集群。首先是 TDengine 的安装，从官网上下载 TDengine 最新稳定版进行安装。各种安装包的使用帮助请参考 [安装指南](../../get-started/package)
+
+安装完成后，请根据 [部署指南](../../deployment/deploy) 配置集群。
+
+### 插件功能介绍
+
+1. TDengine30Reader 提供的功能：
+   1. 支持通过 SQL 进行数据筛选；
+   2. 根据时间间隔进行任务切分；
+   3. 支持 TDengine 的全部数据类型；
+   4. 支持批量读取，通过 batchSize 参数控制批量拉取结果集的大小，提高读取性能。
+2. TDengine30Writer 支持的功能：
+   1. 支持 OpenTSDB 的 json 格式的行协议，使用 TDengine 的 schemaless 方式写入 TDengine。
+   2. 支持批量写入，通过 batchSize 参数控制批量写入的数量，提高写入性能。
+
+### DataX 安装环境准备
+
+1. 需要安装 TDengine 客户端
+2. 需要安装 JDK 1.8 环境（运行 DataX）
+3. 需要安装 Python 环境（运行 DataX）
+4. 需要 maven 编译环境（如果不编译 DataX 则可以不安装 maven）
+
+### 安装
+
+1. 下载源码
+~~~
+git clone https://github.com/taosdata/DataX.git
+~~~
+2. 编译打包
+~~~
+cd DataX
+mvn -U clean package assembly:assembly -Dmaven.test.skip=true
+~~~
+3. 安装
+~~~
+cp target/datax.tar.gz your_install_dir
+cd your_install_dir
+tar -zxvf dataX.tar.gz
+~~~
+
+### 数据迁移 Job 的配置
+
+以一个从 OpenTSDB 到 TDengine 3.0 版本的数据迁移任务为例，配置文件 opentsdb2tdengine.json 如下：
+~~~
+{
+   "job":{
+     "content":[{
+       "reader": {
+         "name": "opentsdbreader",
+         "parameter": {
+           "endpoint": "http://192.168.1.180:4242",
+           "column": ["weather_temperature"],
+           "beginDateTime": "2021-01-01 00:00:00",
+           "endDateTime": "2021-01-01 01:00:00"
+         }
+       },
+     "writer": {
+       "name": "tdengine30writer",
+       "parameter": {
+            "username": "root",
+            "password": "taosdata",
+            "connection": [
+              {
+                "table": [
+                  "matric1"
+                ],
+                "jdbcUrl": "jdbc:TAOS://192.168.1.101:6030/test?timestampFormat=TIMESTAMP"
+              }
+            ],
+            "batchSize": 1000,
+            "ignoreTagsUnmatched": true
+          }
+       }
+     }],
+     "setting": {
+       "speed": {
+         "channel": 1
+       }
+     }
+   }
+ } 
+~~~
+配置说明：
+1. 上面的配置表示，从 192.168.1.180 的 OpenTSDB，到 192.168.1.101 的 TDengine 的迁移。迁移 metric 为 weather_temperature，时间从 2021-01-01 00:00:00 开始，到 2021-01-01 01:00:00 结束的数据。
+2. reader 使用 datax 的 opentsdbreader，parameter 的配置请参考：[opentsdbreader.md#配置参数](https://github.com/taosdata/DataX/blob/master/opentsdbreader/doc/opentsdbreader.md)
+3. tdengine30writer 的 parameter 中，user，password 为必须项，没有默认值。batchSize 不是必须项，默认值为 1。详细参考：[tdengine30writer.md#配置参数](https://github.com/taosdata/DataX/blob/master/tdengine30writer/doc/tdengine30writer-CN.md)
+4. TDengine 中，如果 dbname 指定的 database 不存在，则需要在迁移前创建数据库。
+
+### 执行迁移任务
+
+~~~
+python bin/datax.py job/opentsdb2tdengine.json
+~~~
+
+### 限制条件
+
+1. 目前，DataX 自带的 opentsdbreader 仅支持 OpenTSDB-2.3.X 版本。详细参考：[opentsdbreader#约束限制](https://github.com/alibaba/DataX/blob/master/opentsdbreader/doc/opentsdbreader.md#5-%E7%BA%A6%E6%9D%9F%E9%99%90%E5%88%B6)
+2. 数据迁移工具依赖 TDengine 客户端中的 `libtaos.so/taos.dll/libtaos.dylib`，需要与服务端对应版本的 TDengine-client。
+
+### FAQ
+
+1. 如何估算一个数据迁移任务所需要的资源
+   DataX 的每个 reader 按照自己的 task 切分策略进行任务划分，具体请参考 DataX 的任务调度规则。在估算资源是，需要按照数据迁移的数据量，任务切分规则和网络带宽限制等综合考虑，最好以实际数据迁移测试结果为准。
+2. TDengine30Writer 的 batchSize 设置多大效率最高？
+   batchSize 是控制批量写入的参数，在获取 batchSize 行纪录后，TDengineWriter 会向 TDengine 发送一次写入请求，这减少了与 TDengine 交互次数，从而提高了性能。从测试结果来看，batchSize 在 500-1000 范围内效率最高。
+3. job 的配置中 channel 数为多少合适？
+   job 中的 channel 数为流量控制的参数，每个 channel 都需要开辟一块内存，用来缓存数据。如果 channel 设置过大，会引起 OOM，所以 channel 数并不是越大越好。增加 channel 数后，需要提高 JVM 内存大小。从测试结果来看，channel 在 1～6 的范围内都是合适，能够保证 DataX 的流量最大化即可。
+4. java.sql.SQLException: TDengine ERROR (8000060b): Invalid client value
+   配置文件中 column 中没有配置 tbname，此时会触发行协议数据写入（行协议写入只会自动创建子表名，但需要提前创建好超级表），行协议写入的情况下不支持 TAG 数据类型为非 NCHAR，所以此种情况有两种解决方案：1.将 TAG 全部修改为 NCHAR 类型；2.在 Column 中配置好表名称这样不会触发行协议写入。
+5. java.sql.SQLException: TDengine ERROR (8000060b): Timestamp data out of range
+   配置文件中 column 中没有配置 tbname，此时会触发行协议数据写入，且 TAG 全部为 NCHAR 类型，此时需要保证时间戳的一列名称为 _ts，而不能是其他名称（行协议写入下，默认将最后的时间戳写入到 _ts 一列，且不能随意命名）。若想避免请使用 tbname 指定表名以避免触发行协议写入。
+
+### 提升性能
+
+ 在对 DataX 进行迁移实践后，我们发现通过启动多个进程，同时迁移多个 metric 的方式，可以大幅度的提高迁移历史数据的效率，下面是迁移过程中的部分记录，希望这些能为应用迁移工作带来参考。
 
 | DataX 实例个数 (并发进程个数) | 迁移记录速度 （条/秒) |
 | ----------------------------- | --------------------- |
@@ -184,9 +230,9 @@ DataX 具体的使用方式及如何使用 DataX 将数据写入 TDengine 请参
 | 5                             | 约 29.5 万            |
 | 10                            | 约 33 万              |
 
-<br/>（注：测试数据源自 单节点 Intel(R) Core(TM) i7-10700 CPU@2.90GHz 16 核 64G 硬件设备，channel 和 batchSize 分别为 8 和 1000，每条记录包含 10 个 tag)
+（注：测试数据源自 单节点 Intel(R) Core(TM) i7-10700 CPU@2.90GHz 16 核 64G 硬件设备，channel 和 batchSize 分别为 8 和 1000，每条记录包含 10 个 tag)
 
-### 2、手动迁移数据
+## 手动迁移数据
 
 如果你需要使用多值模型进行数据写入，就需要自行开发一个将数据从 OpenTSDB 导出的工具，然后确认哪些时间线能够合并导入到同一个时间线，再将可以同时导入的时间通过 SQL 语句的写入到数据库中。
 
@@ -393,31 +439,11 @@ WHERE ts>=1510560000 AND ts<=1515000009
 
 综上所述，可使用单台 16 核 32GB 的机器，或者使用 2 台 8 核 16GB 机器构成的集群。
 
-## 附录 3: 集群部署及启动
-
-TDengine 提供了丰富的帮助文档说明集群安装、部署的诸多方面的内容，这里提供相应的文档列表，供你参考。
-
-### 集群部署
-
-首先是安装 TDengine，从官网上下载 TDengine 最新稳定版，解压缩后运行 install.sh 进行安装。各种安装包的使用帮助请参见博客[《TDengine 多种安装包的安装和卸载》](https://www.taosdata.com/blog/2019/08/09/566.html)。
-
-注意安装完成以后，不要立即启动 `taosd` 服务，在正确配置完成参数以后才启动 `taosd` 服务。
-
-### 设置运行参数并启动服务
-
-为确保系统能够正常获取运行的必要信息。请在服务端正确设置以下关键参数：
-
-FQDN、firstEp、secondEP、dataDir、logDir、tmpDir、serverPort。各参数的具体含义及设置的要求，可参见文档《[TDengine 集群安装、管理](/cluster/)》
-
-按照相同的步骤，在需要运行的节点上设置参数，并启动 `taosd` 服务，然后添加 Dnode 到集群中。
-
-最后启动 `taos` 命令行程序，执行命令 `show dnodes`，如果能看到所有的加入集群的节点，那么集群顺利搭建完成。具体的操作流程及注意事项，请参阅文档《[TDengine 集群安装、管理](/cluster/)》
-
-## 附录 4: 超级表名称
+## 附录 3: 超级表名称
 
 由于 OpenTSDB 的 metric 名称中带有点号（“.”），例如“cpu.usage_user”这种名称的 metric。但是点号在 TDengine 中具有特殊含义，是用来分隔数据库和表名称的分隔符。TDengine 也提供转义符，以允许用户在（超级）表名称中使用关键词或特殊分隔符（如：点号）。为了使用特殊字符，需要采用转义字符将表的名称括起来，例如：`cpu.usage_user`这样就是合法的（超级）表名称。
 
-## 附录 5：参考文章
+## 附录 4：参考文章
 
-1. [使用 TDengine + collectd/StatsD + Grafana 快速搭建 IT 运维监控系统](/application/collectd/)
-2. [通过 collectd 将采集数据直接写入 TDengine](/third-party/collectd/)
+1. [使用 TDengine + collectd/StatsD + Grafana 快速搭建 IT 运维监控系统](../collectd/)
+2. [通过 collectd 将采集数据直接写入 TDengine](../../third-party/collectd/)

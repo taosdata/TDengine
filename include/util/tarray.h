@@ -43,6 +43,7 @@ typedef struct SArray {
  * @return
  */
 SArray* taosArrayInit(size_t size, size_t elemSize);
+SArray* taosArrayInit_s(size_t size, size_t elemSize, size_t initialSize);
 
 /**
  *
@@ -138,14 +139,6 @@ void* taosArrayGetLast(const SArray* pArray);
  * @return
  */
 size_t taosArrayGetSize(const SArray* pArray);
-
-/**
- * set the size of array
- * @param pArray
- * @param size size of the array
- * @return
- */
-void taosArraySetSize(SArray* pArray, size_t size);
 
 /**
  * insert data into array

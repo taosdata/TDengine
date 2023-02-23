@@ -64,6 +64,11 @@ typedef struct {
   void (*destroyFp)(void* ahandle);
   bool (*failFastFp)(tmsg_t msgType);
 
+  int32_t connLimitNum;
+  int8_t  connLimitLock;  // 0: no lock. 1. lock
+  int8_t  supportBatch;   // 0: no batch, 1: support batch
+  int32_t batchSize;
+
   int           index;
   void*         parent;
   void*         tcphandle;  // returned handle from TCP initialization

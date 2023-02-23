@@ -97,15 +97,14 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);
-
   // maybe update term
-  if (pMsg->term > ths->raftStore.currentTerm) {
+  if (pMsg->term > raftStoreGetTerm(ths)) {
     syncNodeStepDown(ths, pMsg->term);
-    // syncNodeUpdateTerm(ths, pMsg->term);
   }
-  ASSERT(pMsg->term <= ths->raftStore.currentTerm);
+  SyncTerm currentTerm = raftStoreGetTerm(ths);
+  ASSERT(pMsg->term <= currentTerm);
 
-  bool grant = (pMsg->term == ths->raftStore.currentTerm) && logOK &&
+  bool grant = (pMsg->term == currentTerm) && logOK &&
                ((!raftStoreHasVoted(ths)) || (syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId)));
   if (grant) {
     // maybe has already voted for pMsg->srcId
@@ -113,7 +112,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     raftStoreVote(ths, &(pMsg->srcId));
 
     // candidate ?
-    syncNodeStepDown(ths, ths->raftStore.currentTerm);
+    syncNodeStepDown(ths, currentTerm);
 
     // forbid elect for this round
     syncNodeResetElectTimer(ths);
@@ -127,8 +126,9 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncRequestVoteReply* pReply = rpcMsg.pCont;
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
-  pReply->term = ths->raftStore.currentTerm;
+  pReply->term = currentTerm;
   pReply->voteGranted = grant;
+  ASSERT(!grant || pMsg->term == pReply->term);
 
   // trace log
   syncLogRecvRequestVote(ths, pMsg, pReply->voteGranted, "");

@@ -420,7 +420,13 @@ static void transHttpEnvInit() {
   uv_loop_init(http->loop);
 
   http->asyncPool = transAsyncPoolCreate(http->loop, 1, http, httpAsyncCb);
-
+  if (NULL == http->asyncPool) {
+    taosMemoryFree(http->loop);
+    taosMemoryFree(http);
+    http = NULL;
+    return;
+  }
+  
   int err = taosThreadCreate(&http->thread, NULL, httpThread, (void*)http);
   if (err != 0) {
     taosMemoryFree(http->loop);
