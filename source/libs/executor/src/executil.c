@@ -1696,7 +1696,7 @@ static void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindo
     int64_t key = w->skey;
     while (key < ts) {  // moving towards end
       key = taosTimeAdd(key, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
-      if (key >= ts) {
+      if (key > ts) {
         break;
       }
 
