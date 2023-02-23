@@ -11,7 +11,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 #include "transComm.h"
 
 typedef struct SConnList {
@@ -1992,7 +1991,7 @@ FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
   pResp->pCont = buf;
   pResp->contLen = len;
 
-  *dst = epset;
+  epsetAssign(dst, &epset);
   return true;
 }
 bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
@@ -2017,7 +2016,7 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
       } else {
         if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
           tDebug("epset not equal, retry new epset");
-          pCtx->epSet = epSet;
+          epsetAssign(&pCtx->epSet, &epSet);
           noDelay = false;
         } else {
           if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
@@ -2042,7 +2041,7 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
     } else {
       if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
         tDebug("epset not equal, retry new epset");
-        pCtx->epSet = epSet;
+        epsetAssign(&pCtx->epSet, &epSet);
         noDelay = false;
       } else {
         if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
@@ -2132,10 +2131,6 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     if (pCtx->retryNextInterval >= pCtx->retryMaxInterval) {
       pCtx->retryNextInterval = pCtx->retryMaxInterval;
     }
-
-    // if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
-    //   return false;
-    // }
   } else {
     pCtx->retryNextInterval = 0;
     pCtx->epsetRetryCnt++;
@@ -2314,8 +2309,9 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
 
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
-  pCtx->epSet = *pEpSet;
-  pCtx->origEpSet = *pEpSet;
+  epsetAssign(&pCtx->epSet, pEpSet);
+  epsetAssign(&pCtx->origEpSet, pEpSet);
+
   pCtx->ahandle = pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
 
@@ -2360,8 +2356,8 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
 
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
-  pCtx->epSet = *pEpSet;
-  pCtx->origEpSet = *pEpSet;
+  epsetAssign(&pCtx->epSet, pEpSet);
+  epsetAssign(&pCtx->origEpSet, pEpSet);
   pCtx->ahandle = pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
   pCtx->pSem = sem;
