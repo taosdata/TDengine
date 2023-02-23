@@ -746,7 +746,10 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   void* pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pTq->pHandle, pIter);
-    if (pIter == NULL) break;
+    if (pIter == NULL) {
+      break;
+    }
+
     STqHandle* pExec = (STqHandle*)pIter;
     if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       int32_t code = qUpdateQualifiedTableId(pExec->execHandle.task, tbUidList, isAdd);

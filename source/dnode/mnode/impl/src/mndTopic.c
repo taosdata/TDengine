@@ -561,17 +561,17 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("topic:%s, start to create, sql:%s", createTopicReq.name, createTopicReq.sql);
+  mInfo("topic:%s start to create, sql:%s", createTopicReq.name, createTopicReq.sql);
 
   if (mndCheckCreateTopicReq(&createTopicReq) != 0) {
-    mError("topic:%s, failed to create since %s", createTopicReq.name, terrstr());
+    mError("topic:%s failed to create since %s", createTopicReq.name, terrstr());
     goto _OVER;
   }
 
   pTopic = mndAcquireTopic(pMnode, createTopicReq.name);
   if (pTopic != NULL) {
     if (createTopicReq.igExists) {
-      mInfo("topic:%s, already exist, ignore exist is set", createTopicReq.name);
+      mInfo("topic:%s already exist, ignore exist is set", createTopicReq.name);
       code = 0;
       goto _OVER;
     } else {
@@ -731,8 +731,9 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   if (pTopic->ntbUid != 0) {
     // broadcast to all vnode
-    void   *pIter = NULL;
+    pIter = NULL;
     SVgObj *pVgroup = NULL;
+
     while (1) {
       pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
       if (pIter == NULL) break;
