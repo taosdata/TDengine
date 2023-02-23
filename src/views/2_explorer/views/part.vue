@@ -70,7 +70,6 @@
         favorites: state => state.console.favorites,
       }),
       favorited() {
-        console.log(this.favorites,'this.favorites');
         return this.favorites?(this.favorites.find(item => item.sql == this.sqlStr)?.id || ""):"";
       },
     },
