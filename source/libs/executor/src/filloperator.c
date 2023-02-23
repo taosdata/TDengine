@@ -409,7 +409,7 @@ TSKEY getPrevWindowTs(TSKEY ts, SInterval* pInterval) {
 }
 
 void setRowCell(SColumnInfoData* pCol, int32_t rowId, const SResultCellData* pCell) {
-  colDataAppend(pCol, rowId, pCell->pData, pCell->isNull);
+  colDataSetVal(pCol, rowId, pCell->pData, pCell->isNull);
 }
 
 SResultCellData* getResultCell(SResultRowData* pRaw, int32_t index) {
@@ -903,7 +903,7 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
         }
       } else {
         if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || pCell->isNull) {
-          colDataAppendNULL(pColData, index);
+          colDataSetNULL(pColData, index);
           continue;
         }
         double* pDelta = taosArrayGet(pFillInfo->pLinearInfo->pDeltaVal, slotId);
@@ -912,7 +912,7 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
         vCell += (*pDelta) * pFillInfo->pLinearInfo->winIndex;
         int64_t result = 0;
         SET_TYPED_DATA(&result, pCell->type, vCell);
-        colDataAppend(pColData, index, (const char*)&result, false);
+        colDataSetVal(pColData, index, (const char*)&result, false);
       }
     }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
@@ -1031,23 +1031,23 @@ static void buildDeleteRange(SOperatorInfo* pOp, TSKEY start, TSKEY end, uint64_
   SColumnInfoData* pCalStartCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pCalEndCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
   SColumnInfoData* pTbNameCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
-  colDataAppend(pStartCol, pBlock->info.rows, (const char*)&start, false);
-  colDataAppend(pEndCol, pBlock->info.rows, (const char*)&end, false);
-  colDataAppendNULL(pUidCol, pBlock->info.rows);
-  colDataAppend(pGroupCol, pBlock->info.rows, (const char*)&groupId, false);
-  colDataAppendNULL(pCalStartCol, pBlock->info.rows);
-  colDataAppendNULL(pCalEndCol, pBlock->info.rows);
+  colDataSetVal(pStartCol, pBlock->info.rows, (const char*)&start, false);
+  colDataSetVal(pEndCol, pBlock->info.rows, (const char*)&end, false);
+  colDataSetNULL(pUidCol, pBlock->info.rows);
+  colDataSetVal(pGroupCol, pBlock->info.rows, (const char*)&groupId, false);
+  colDataSetNULL(pCalStartCol, pBlock->info.rows);
+  colDataSetNULL(pCalEndCol, pBlock->info.rows);
 
   SColumnInfoData* pTableCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
 
   void* tbname = NULL;
   streamStateGetParName(pOp->pTaskInfo->streamInfo.pState, groupId, &tbname);
   if (tbname == NULL) {
-    colDataAppendNULL(pTableCol, pBlock->info.rows);
+    colDataSetNULL(pTableCol, pBlock->info.rows);
   } else {
     char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
     STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
-    colDataAppend(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
+    colDataSetVal(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
     tdbFree(tbname);
   }
 

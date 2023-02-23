@@ -175,7 +175,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
     SColumnInfoData* pDst = taosArrayGet(pResBlock->pDataBlock, dstSlot);
 
     if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
-      colDataAppend(pDst, rows, (char*)&pSliceInfo->current, false);
+      colDataSetVal(pDst, rows, (char*)&pSliceInfo->current, false);
       continue;
     }
 
@@ -183,7 +183,7 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
     switch (pSliceInfo->fillType) {
       case TSDB_FILL_NULL:
       case TSDB_FILL_NULL_F: {
-        colDataAppendNULL(pDst, rows);
+        colDataSetNULL(pDst, rows);
         break;
       }
 
@@ -194,15 +194,15 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
           float v = 0;
           GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
-          colDataAppend(pDst, rows, (char*)&v, false);
+          colDataSetVal(pDst, rows, (char*)&v, false);
         } else if (pDst->info.type == TSDB_DATA_TYPE_DOUBLE) {
           double v = 0;
           GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
-          colDataAppend(pDst, rows, (char*)&v, false);
+          colDataSetVal(pDst, rows, (char*)&v, false);
         } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type)) {
           int64_t v = 0;
           GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
-          colDataAppend(pDst, rows, (char*)&v, false);
+          colDataSetVal(pDst, rows, (char*)&v, false);
         }
         break;
       }
@@ -225,13 +225,13 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
         }
 
         if (start.key == INT64_MIN || end.key == INT64_MIN) {
-          colDataAppendNULL(pDst, rows);
+          colDataSetNULL(pDst, rows);
           break;
         }
 
         current.val = taosMemoryCalloc(pLinearInfo->bytes, 1);
         taosGetLinearInterpolationVal(&current, pLinearInfo->type, &start, &end, pLinearInfo->type);
-        colDataAppend(pDst, rows, (char*)current.val, false);
+        colDataSetVal(pDst, rows, (char*)current.val, false);
 
         taosMemoryFree(current.val);
         break;
@@ -244,9 +244,9 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
         SGroupKeys* pkey = taosArrayGet(pSliceInfo->pPrevRow, srcSlot);
         if (pkey->isNull == false) {
-          colDataAppend(pDst, rows, pkey->pData, false);
+          colDataSetVal(pDst, rows, pkey->pData, false);
         } else {
-          colDataAppendNULL(pDst, rows);
+          colDataSetNULL(pDst, rows);
         }
         break;
       }
@@ -259,9 +259,9 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
         SGroupKeys* pkey = taosArrayGet(pSliceInfo->pNextRow, srcSlot);
         if (pkey->isNull == false) {
-          colDataAppend(pDst, rows, pkey->pData, false);
+          colDataSetVal(pDst, rows, pkey->pData, false);
         } else {
-          colDataAppendNULL(pDst, rows);
+          colDataSetNULL(pDst, rows);
         }
         break;
       }
@@ -289,18 +289,18 @@ static void addCurrentRowToResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp*
     SColumnInfoData* pDst = taosArrayGet(pResBlock->pDataBlock, dstSlot);
 
     if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
-      colDataAppend(pDst, pResBlock->info.rows, (char*)&pSliceInfo->current, false);
+      colDataSetVal(pDst, pResBlock->info.rows, (char*)&pSliceInfo->current, false);
     } else {
       int32_t          srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
       SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, srcSlot);
 
       if (colDataIsNull_s(pSrc, index)) {
-        colDataAppendNULL(pDst, pResBlock->info.rows);
+        colDataSetNULL(pDst, pResBlock->info.rows);
         continue;
       }
 
       char* v = colDataGetData(pSrc, index);
-      colDataAppend(pDst, pResBlock->info.rows, v, false);
+      colDataSetVal(pDst, pResBlock->info.rows, v, false);
     }
   }
 
