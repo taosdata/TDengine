@@ -298,6 +298,7 @@ export default {
         console.log("继续执行", dns);
         let apiParams = {
           from: "tmq+" + dns,
+          name:localStorage.getItem('datainName'),
           to:
             "taos+" +
             localStorage.getItem("base_url") +

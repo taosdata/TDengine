@@ -346,7 +346,7 @@ export default {
       try {
         let id = localStorage.getItem("local_clusterID");
         fetch(
-          `http://192.168.0.201:6050/tasks?labels=type::backup,cluster-id::${id}`,
+          `http://192.168.0.201:6050/tasks?detail=true&labels=type::backup,cluster-id::${id}`,
           {
             method: "get",
           }

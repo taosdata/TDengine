@@ -9,8 +9,8 @@
       >{{ $t("topic.addsource") }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column label="Source" prop="from"></el-table-column>
-      <el-table-column label="Target" prop="to"></el-table-column>
+      <el-table-column label="Name" prop="localname"></el-table-column>
+      <el-table-column label="Target" prop="target"></el-table-column>
       <el-table-column label="Created At" prop="created_at"></el-table-column>
       <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
 
@@ -189,20 +189,26 @@ export default {
       // });
     },
     handleAdd() {
+      localStorage.setItem('datainName',this.ruleForm.status)
       this.$parent.toggleComponent("ui", this.ruleForm.name);
     },
     async getList() {
       try {
         let id = localStorage.getItem("local_clusterID");
         fetch(
-          `http://192.168.0.201:6050/tasks?type::datain,cluster-id::${id}`,
+          `http://192.168.0.201:6050/tasks?detail=true&type::datain,cluster-id::${id}`,
           {
             method: "get"
           }
         )
           .then(res => res.json())
           .then(result => {
-            this.topicList = result
+            this.topicList = result.map(item=>{
+              item['localname']=item.name?item.name:'tmq+'+item.id
+              item['target']=item.to_expand?item.to_expand.subject:''
+              return item
+
+            })
           });
       } catch (err) {
         err.desc && Message.error(err.desc);
