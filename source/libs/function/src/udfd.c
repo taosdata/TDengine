@@ -33,7 +33,6 @@
 #define MAX_NUM_SCRIPT_PLUGINS 64
 #define MAX_NUM_PLUGIN_FUNCS   9
 
-
 typedef struct SUdfCPluginCtx {
   uv_lib_t lib;
 
@@ -347,14 +346,14 @@ void udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
     return;
   }
   if (plugin->openFunc) {
-    int16_t lenPythonPath = strlen(tsUdfdLdLibPath) + strlen(tsTempDir) + 1 + 1; //tsTempDir:tsUdfdLdLibPath
-    char* pythonPath= taosMemoryMalloc(lenPythonPath);
-    #ifdef WINDOWS
-        snprintf(pythonPath, lenPythonPath, "%s;%s", tsTempDir, tsUdfdLdLibPath);
-    #else
-        snprintf(pythonPath, lenPythonPath, "%s:%s", tsTempDir, tsUdfdLdLibPath);
-    #endif    
-    SScriptUdfEnvItem items[] ={{"PYTHONPATH", pythonPath}};
+    int16_t lenPythonPath = strlen(tsUdfdLdLibPath) + strlen(tsTempDir) + 1 + 1;  // tsTempDir:tsUdfdLdLibPath
+    char   *pythonPath = taosMemoryMalloc(lenPythonPath);
+#ifdef WINDOWS
+    snprintf(pythonPath, lenPythonPath, "%s;%s", tsTempDir, tsUdfdLdLibPath);
+#else
+    snprintf(pythonPath, lenPythonPath, "%s:%s", tsTempDir, tsUdfdLdLibPath);
+#endif
+    SScriptUdfEnvItem items[] = {{"PYTHONPATH", pythonPath}};
     plugin->openFunc(items, 1);
     taosMemoryFree(pythonPath);
   }
@@ -374,12 +373,14 @@ void udfdDeinitCPlugin(SUdfScriptPlugin *plugin) {
   plugin->udfAggStartFunc = NULL;
   plugin->udfAggProcFunc = NULL;
   plugin->udfAggMergeFunc = NULL;
-  plugin->udfAggFinishFunc = NULL;  
+  plugin->udfAggFinishFunc = NULL;
   return;
 }
 
 void udfdDeinitPythonPlugin(SUdfScriptPlugin *plugin) {
-  plugin->closeFunc();
+  if (plugin->closeFunc) {
+    plugin->closeFunc();
+  }
   uv_dlclose(&plugin->lib);
   if (plugin->libLoaded) {
     plugin->libLoaded = false;
@@ -418,10 +419,9 @@ void udfdDeinitScriptPlugins() {
 
   plugin = global.scriptPlugins[TSDB_FUNC_SCRIPT_BIN_LIB];
   udfdDeinitCPlugin(plugin);
-  taosMemoryFree(plugin);  
+  taosMemoryFree(plugin);
   return;
 }
-
 
 void udfdProcessRequest(uv_work_t *req) {
   SUvUdfWork *uvUdf = (SUvUdfWork *)(req->data);
@@ -469,7 +469,7 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
     fnError("can not retrieve udf from mnode. udf name %s", udfName);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
-  //TODO: remove script plugins mutex
+  // TODO: remove script plugins mutex
   uv_mutex_lock(&global.scriptPluginsMutex);
   SUdfScriptPlugin *scriptPlugin = global.scriptPlugins[udf->scriptType];
   if (scriptPlugin == NULL) {
@@ -516,7 +516,7 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
   SUdfSetupRequest *setup = &request->setup;
   int32_t           code = TSDB_CODE_SUCCESS;
-  SUdf            *udf = NULL;
+  SUdf             *udf = NULL;
 
   udf = udfdGetOrCreateUdf(setup->udfName);
 
@@ -766,11 +766,11 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     }
 
     char path[PATH_MAX] = {0};
-    #ifdef WINDOWS
-        snprintf(path, sizeof(path), "%s%s", tsTempDir, pFuncInfo->name);
-    #else
-        snprintf(path, sizeof(path), "%s/%s", tsTempDir, pFuncInfo->name);
-    #endif
+#ifdef WINDOWS
+    snprintf(path, sizeof(path), "%s%s", tsTempDir, pFuncInfo->name);
+#else
+    snprintf(path, sizeof(path), "%s/%s", tsTempDir, pFuncInfo->name);
+#endif
     TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
     if (file == NULL) {
       fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(errno));
