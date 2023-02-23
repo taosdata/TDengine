@@ -3027,6 +3027,11 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   }
 
   SSqlObj *pParentSql = trsupport->pParentSql;
+  if (pParentSql->signature != pParentSql) {
+    tscError("query 0x%"PRIx64" parent sql obj %p not valid. parent id: 0x%"PRIx64, pSql->self, pParentSql, pParentSql->self);
+    return;
+  }
+
   int32_t  subqueryIndex = trsupport->subqueryIndex;
   
   assert(pSql != NULL);
@@ -3133,6 +3138,11 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   int32_t           idx = trsupport->subqueryIndex;
   SSqlObj *         pParentSql = trsupport->pParentSql;
   tOrderDescriptor *pDesc = trsupport->pOrderDescriptor;
+
+  if (pParentSql->signature != pParentSql) {
+    tscError("query 0x%"PRIx64" parent sql obj %p not valid. parent id: 0x%"PRIx64, pSql->self, pParentSql, pParentSql->self);
+    return;
+  }
   
   SSubqueryState* pState = &pParentSql->subState;
   SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
