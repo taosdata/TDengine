@@ -27,6 +27,10 @@ pub(super) struct Cli {
     #[clap(short = 'D', long)]
     database_url: Option<String>,
 
+    /// Do not resume a
+    #[clap(long)]
+    do_not_resume: bool,
+
     // #[clap(short = 'D', long)]
     // data_dir: Option<PathBuf>,
     #[clap(short = 'L', long)]
@@ -39,6 +43,7 @@ impl Default for Cli {
             listen: "0.0.0.0:6050".parse().unwrap(),
             database_url: None,
             log_dir: None,
+            do_not_resume: false,
         }
     }
 }
@@ -47,7 +52,6 @@ fn configure(store: Data<TaskController>) -> impl FnOnce(&mut ServiceConfig) {
     |config: &mut ServiceConfig| {
         config
             .app_data(store)
-            // .service(search_tasks)
             .service(get_tasks)
             .service(get_tasks_count)
             .service(create_task)
@@ -57,16 +61,7 @@ fn configure(store: Data<TaskController>) -> impl FnOnce(&mut ServiceConfig) {
             .service(start_task)
             .service(stop_task)
             .service(metrics::metrics_exporter)
-            .service(data_sources_in)
-            // .service(data_in_sources_validate)
-            // .service(data_in_new_task)
-            // .service(data_in_task_list)
-            // .service(data_in_get_task_by_id)
-            // .service(data_in_start_task)
-            // .service(data_in_stop_task)
-            // .service(data_in_delete_task)
-            // .service(update_task)
-            ;
+            .service(data_sources_in);
     }
 }
 impl Cli {
@@ -79,12 +74,9 @@ impl Cli {
         #[openapi(
             components(
                 schemas(
-                    // NewReplicate,
-                    // NewSubscribe,
                     NewTask,
                     UpdateTask,
                     Cluster,
-                    // StreamType,
                     Labels,
                     Task,
                     Failed,
@@ -113,17 +105,8 @@ impl Cli {
                 task::start_task,
                 task::stop_task,
                 task::get_task_by_id,
-                // task::replicate,
-                // task::subscribe,
                 metrics::metrics_exporter,
                 data_sources_in,
-                // data_in_sources_validate,
-                // data_in_new_task,
-                // data_in_task_list,
-                // data_in_get_task_by_id,
-                // data_in_start_task,
-                // data_in_stop_task,
-                // data_in_delete_task,
             ),
             tags(
                 (name = "tasks", description = "Task management endpoints"),
@@ -147,7 +130,9 @@ impl Cli {
         let store = Data::new(controller);
         let store_cloned = store.clone();
         let tasks_mgr = store.clone();
-        tokio::spawn(async move { tasks_mgr.start_all().await });
+        if !self.do_not_resume {
+            tokio::spawn(async move { tasks_mgr.start_all().await });
+        }
         // // Make instance variable of ApiDoc so all worker threads gets the same instance.
         let openapi = ApiDoc::openapi();
 

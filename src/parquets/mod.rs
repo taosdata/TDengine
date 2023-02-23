@@ -99,9 +99,10 @@ fn column_to_arrow(column: &ColumnView) -> ArrayRef {
 
 pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()> {
     let sql = from.params.remove("query").unwrap();
-    let taos = TaosBuilder::from_dsn(from)?.build()?;
+    let builder = TaosBuilder::from_dsn(from)?;
+    let taos = builder.build()?;
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !is_available_enterprise_edition(&taos).await {
+    if !is_available_enterprise_edition(&builder).await {
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }
 

@@ -310,9 +310,8 @@ pub async fn tmq_to_td(
 
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
     {
-        let from_taos = builder.build()?;
-        if !is_available_enterprise_edition(&from_taos).await
-            && !is_available_enterprise_edition(&global_taos).await
+        if !is_available_enterprise_edition(&builder).await
+            && !is_available_enterprise_edition(&TaosBuilder::from_dsn(&to)?).await
         {
             bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
         }

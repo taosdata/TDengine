@@ -941,7 +941,7 @@ pub async fn legacy_to_taos(
     let target_opts = TargetOpts::from_params(&mut to)?;
 
     let from_builder = TaosBuilder::from_dsn(&from)?;
-    let from_pool = from_builder.pool()?;
+    let from_pool = TaosBuilder::from_dsn(&from)?.pool()?;
     let from = from_pool.get()?;
 
     if target_opts.assert {
@@ -961,12 +961,12 @@ pub async fn legacy_to_taos(
         }
     }
     let to_builder = TaosBuilder::from_dsn(&to)?;
-    let to_pool = to_builder.pool()?;
+    let to_pool = TaosBuilder::from_dsn(&to)?.pool()?;
     // let to = to_builder.build()?;
     let to = to_pool.get()?;
 
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !is_available_enterprise_edition(&from).await && !is_available_enterprise_edition(&to).await
+    if !is_available_enterprise_edition(&from_builder).await && !is_available_enterprise_edition(&to_builder).await
     {
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }
