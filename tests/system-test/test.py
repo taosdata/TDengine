@@ -306,7 +306,7 @@ if __name__ == "__main__":
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
                 if restful:
-                    conn = taosrest.connect(url=f"http://{host}:6041")
+                    conn = taosrest.connect(url=f"http://{host}:6041",timezone="None")
                 else:
                     conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
 
@@ -343,7 +343,7 @@ if __name__ == "__main__":
             if not restful:
                 conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
             else:
-                conn = taosrest.connect(url=f"http://{host}:6041")
+                conn = taosrest.connect(url=f"http://{host}:6041",timezone="None")
             # tdLog.info(tdDnodes.getSimCfgPath(),host)
             if createDnodeNums == 1:
                 createDnodeNums=dnodeNums
@@ -359,7 +359,7 @@ if __name__ == "__main__":
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
                 if restful:
-                    conn = taosrest.connect(url=f"http://{host}:6041")
+                    conn = taosrest.connect(url=f"http://{host}:6041",timezone="None")
                 else:
                     conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
 
@@ -382,11 +382,44 @@ if __name__ == "__main__":
             if not restful:
                 conn = taos.connect(host="%s"%(host), config=tdDnodes.sim.getCfgDir())
             else:
-                conn = taosrest.connect(url=f"http://{host}:6041")
-        if is_test_framework:
-            tdCases.runOneWindows(conn, fileName)
+                conn = taosrest.connect(url=f"http://{host}:6041",timezone="None")
+
+        if testCluster:
+            tdLog.info("Procedures for testing cluster")
+            if fileName == "all":
+                tdCases.runAllCluster()
+            else:
+                tdCases.runOneCluster(fileName)
         else:
-            tdCases.runAllWindows(conn)
+            tdLog.info("Procedures for testing self-deployment")
+            if not restful:
+                conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+            else:
+                conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
+
+            if fileName == "all":
+                tdCases.runAllWindows(conn)
+            else:
+                tdCases.runOneWindows(conn, fileName, replicaVar)
+
+        if restart:
+            if fileName == "all":
+                tdLog.info("not need to query ")
+            else:
+                sp = fileName.rsplit(".", 1)
+                if len(sp) == 2 and sp[1] == "py":
+                    tdDnodes.stopAll()
+                    tdDnodes.start(1)
+                    time.sleep(1)
+                    if not restful:
+                        conn = taos.connect( host, config=tdDnodes.getSimCfgPath())
+                    else:
+                        conn = taosrest.connect(url=f"http://{host}:6041",timezone="utc")
+                    tdLog.info("Procedures for tdengine deployed in %s" % (host))
+                    tdLog.info("query test after taosd restart")
+                    tdCases.runOneWindows(conn, sp[0] + "_" + "restart.py", replicaVar)
+                else:
+                    tdLog.info("not need to query")
     else:
         tdDnodes.setKillValgrind(killValgrind)
         tdDnodes.init(deployPath, masterIp)
@@ -431,7 +464,7 @@ if __name__ == "__main__":
                 if not restful:
                     conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
                 else:
-                    conn = taosrest.connect(url=f"http://{host}:6041")
+                    conn = taosrest.connect(url=f"http://{host}:6041",timezone="None")
                 # tdSql.init(conn.cursor())
                 # tdSql.execute("create qnode on dnode 1")
                 # tdSql.execute('alter local "queryPolicy" "%d"'%queryPolicy)
@@ -479,7 +512,7 @@ if __name__ == "__main__":
             if not restful:
                 conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
             else:
-                conn = taosrest.connect(url=f"http://{host}:6041")
+                conn = taosrest.connect(url=f"http://{host}:6041",timezone="None")
             print(tdDnodes.getSimCfgPath(),host)
             if createDnodeNums == 1:
                 createDnodeNums=dnodeNums
@@ -497,7 +530,7 @@ if __name__ == "__main__":
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
                 if restful:
-                    conn = taosrest.connect(url=f"http://{host}:6041")
+                    conn = taosrest.connect(url=f"http://{host}:6041",timezone="None")
                 else:
                     conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
 
@@ -526,7 +559,7 @@ if __name__ == "__main__":
             if not restful:
                 conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
             else:
-                conn = taosrest.connect(url=f"http://{host}:6041")
+                conn = taosrest.connect(url=f"http://{host}:6041",timezone="None")
 
             if fileName == "all":
                 tdCases.runAllLinux(conn)
@@ -545,7 +578,7 @@ if __name__ == "__main__":
                     if not restful:
                         conn = taos.connect( host, config=tdDnodes.getSimCfgPath())
                     else:
-                        conn = taosrest.connect(url=f"http://{host}:6041")
+                        conn = taosrest.connect(url=f"http://{host}:6041",timezone="None")
                     tdLog.info("Procedures for tdengine deployed in %s" % (host))
                     tdLog.info("query test after taosd restart")
                     tdCases.runOneLinux(conn, sp[0] + "_" + "restart.py", replicaVar)

@@ -18,6 +18,9 @@ class GetTime:
 
     def get_ms_timestamp(self,ts_str):
         _ts_str = ts_str
+        if "+" in _ts_str:
+            timestamp = datetime.fromisoformat(_ts_str)
+            return int((timestamp-datetime.fromtimestamp(0,timestamp.timetz().tzinfo)).total_seconds())*1000+int(timestamp.microsecond / 1000)
         if " " in ts_str:
             p = ts_str.split(" ")[1]
             if len(p) > 15 :

@@ -94,14 +94,14 @@ class TDCases:
 
         tdLog.notice("total %d Windows test case(s) executed" % (runNum))
 
-    def runOneWindows(self, conn, fileName):
+    def runOneWindows(self, conn, fileName, replicaVar=1):
         testModule = self.__dynamicLoadModule(fileName)
 
         runNum = 0
         for tmp in self.windowsCases:
             if tmp.name.find(fileName) != -1:
                 case = testModule.TDTestCase()
-                case.init(conn, self._logSql)
+                case.init(conn, self._logSql,replicaVar)
                 try:
                     case.run()
                 except Exception as e:
