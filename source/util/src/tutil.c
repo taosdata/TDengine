@@ -118,7 +118,7 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
     if ((*num) >= size) {
       size = (size << 1);
       split = taosMemoryRealloc(split, POINTER_BYTES * size);
-      ASSERTS(NULL != split, "realloc memory failed. size=%d", POINTER_BYTES * size);
+      ASSERTS(NULL != split, "realloc memory failed. size=%d", (int32_t) POINTER_BYTES * size);
     }
   }
 
@@ -159,10 +159,6 @@ char *strtolower(char *dst, const char *src) {
   int32_t esc = 0;
   char    quote = 0, *p = dst, c;
 
-  if (ASSERTS(dst != NULL, "dst is NULL")) {
-    return NULL;
-  }
-
   for (c = *src++; c; c = *src++) {
     if (esc) {
       esc = 0;
@@ -188,10 +184,6 @@ char *strntolower(char *dst, const char *src, int32_t n) {
   int32_t esc = 0;
   char    quote = 0, *p = dst, c;
 
-  if (ASSERTS(dst != NULL, "dst is NULL")) {
-    return NULL;
-  }
-  
   if (n == 0) {
     *p = 0;
     return dst;
@@ -219,11 +211,6 @@ char *strntolower(char *dst, const char *src, int32_t n) {
 
 char *strntolower_s(char *dst, const char *src, int32_t n) {
   char *p = dst, c;
-
-  if (ASSERTS(dst != NULL, "dst is NULL")) {
-    return NULL;
-  }
-
   if (n == 0) {
     return NULL;
   }
@@ -331,6 +318,50 @@ char *strbetween(char *string, char *begin, char *end) {
     }
   }
   return result;
+}
+
+int32_t tintToHex(uint64_t val, char hex[]) {
+  const char hexstr[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
+  int32_t j = 0, k = 0;
+  if (val == 0)  {
+    hex[j++] = hexstr[0];
+    return j;
+  }
+
+  // ignore the initial 0
+  while((val & (((uint64_t)0xfL) << ((15 - k) * 4))) == 0) {
+    k += 1;
+  }
+
+  for (j = 0; k < 16; ++k, ++j) {
+    hex[j] = hexstr[(val & (((uint64_t)0xfL) << ((15 - k) * 4))) >> (15 - k) * 4];
+  }
+
+  return j;
+}
+
+int32_t titoa(uint64_t val, size_t radix, char str[]) {
+  if (radix < 2 || radix > 16) {
+    return 0;
+  }
+
+  const char* s = "0123456789abcdef";
+  char buf[65] = {0};
+
+  int32_t i = 0;
+  uint64_t v = val;
+  while(v > 0) {
+    buf[i++] = s[v % radix];
+    v /= radix;
+  }
+
+  // reverse order
+  for(int32_t j = 0; j < i; ++j) {
+    str[j] = buf[i - j - 1];
+  }
+
+  return i;
 }
 
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]) {

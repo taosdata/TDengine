@@ -15,6 +15,7 @@
 #define ALLOW_FORBID_FUNC
 #include "os.h"
 #include "osSemaphore.h"
+#include "zlib.h"
 
 #ifdef WINDOWS
 #include <io.h>
@@ -830,3 +831,48 @@ bool taosCheckAccessFile(const char *pathname, int32_t tdFileAccessOptions) {
 }
 
 bool taosCheckExistFile(const char *pathname) { return taosCheckAccessFile(pathname, TD_FILE_ACCESS_EXIST_OK); };
+
+int32_t taosCompressFile(char *srcFileName, char *destFileName) {
+  int32_t compressSize = 163840;
+  int32_t ret = 0;
+  int32_t len = 0;
+  char   *data = taosMemoryMalloc(compressSize);
+  gzFile  dstFp = NULL;
+
+  TdFilePtr pSrcFile = taosOpenFile(srcFileName, TD_FILE_READ | TD_FILE_STREAM);
+  if (pSrcFile == NULL) {
+    ret = -1;
+    goto cmp_end;
+  }
+
+  TdFilePtr pFile = taosOpenFile(destFileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
+    ret = -2;
+    goto cmp_end;
+  }
+
+   dstFp = gzdopen(pFile->fd, "wb6f");
+   if (dstFp == NULL) {
+     ret = -3;
+     taosCloseFile(&pFile);
+     goto cmp_end;
+   }
+
+   while (!feof(pSrcFile->fp)) {
+     len = (int32_t)fread(data, 1, compressSize, pSrcFile->fp);
+     (void)gzwrite(dstFp, data, len);
+   }
+
+cmp_end:
+  if (pSrcFile) {
+    taosCloseFile(&pSrcFile);
+  }
+
+  if (dstFp) {
+    gzclose(dstFp);
+  }
+
+  taosMemoryFree(data);
+
+  return ret;
+}

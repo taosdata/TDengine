@@ -41,6 +41,7 @@ extern char            tsSSE42Enable;
 extern char            tsAVXEnable;
 extern char            tsAVX2Enable;
 extern char            tsFMAEnable;
+extern char            tsTagFilterCache;
 
 extern char configDir[];
 extern char tsDataDir[];

@@ -51,7 +51,7 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
     SyncRequestVote* pMsg = rpcMsg.pCont;
     pMsg->srcId = pNode->myRaftId;
     pMsg->destId = pNode->peersId[i];
-    pMsg->term = pNode->raftStore.currentTerm;
+    pMsg->term = raftStoreGetTerm(pNode);
 
     ret = syncNodeGetLastIndexTerm(pNode, &pMsg->lastLogIndex, &pMsg->lastLogTerm);
     if (ret < 0) {
@@ -85,10 +85,12 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   // start election
   raftStoreNextTerm(pSyncNode);
   raftStoreClearVote(pSyncNode);
-  voteGrantedReset(pSyncNode->pVotesGranted, pSyncNode->raftStore.currentTerm);
-  votesRespondReset(pSyncNode->pVotesRespond, pSyncNode->raftStore.currentTerm);
 
-  syncNodeVoteForSelf(pSyncNode);
+  SyncTerm currentTerm = raftStoreGetTerm(pSyncNode);
+  voteGrantedReset(pSyncNode->pVotesGranted, currentTerm);
+  votesRespondReset(pSyncNode->pVotesRespond, currentTerm);
+  syncNodeVoteForSelf(pSyncNode, currentTerm);
+
   if (voteGrantedMajority(pSyncNode->pVotesGranted)) {
     // only myself, to leader
     ASSERT(!pSyncNode->pVotesGranted->toLeader);

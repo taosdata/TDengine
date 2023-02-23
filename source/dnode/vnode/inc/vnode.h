@@ -104,8 +104,8 @@ void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
 int         metaGetTableEntryByName(SMetaReader *pReader, const char *name);
-int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags);
-int32_t     metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList, SHashObj *tags);
+int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList);
+int32_t     metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(void *tag, int16_t type, STagVal *tagVal);
 int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
@@ -178,7 +178,6 @@ int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableL
 
 void         tsdbReaderClose(STsdbReader *pReader);
 bool         tsdbNextDataBlock(STsdbReader *pReader);
-void         tsdbRetrieveDataBlockInfo(const STsdbReader *pReader, int32_t *rows, uint64_t *uid, STimeWindow *pWindow);
 int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave);
 SSDataBlock *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
 int32_t      tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);

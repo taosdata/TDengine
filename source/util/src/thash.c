@@ -421,7 +421,11 @@ int32_t taosHashGetDup_m(SHashObj *pHashObj, const void *key, size_t keyLen, voi
 }
 
 void *taosHashGetImpl(SHashObj *pHashObj, const void *key, size_t keyLen, void **d, int32_t *size, bool addRef) {
-  if (pHashObj == NULL || taosHashTableEmpty(pHashObj) || keyLen == 0 || key == NULL) {
+  if (pHashObj == NULL || keyLen == 0 || key == NULL) {
+    return NULL;
+  }
+
+  if ((atomic_load_64((int64_t *)&pHashObj->size) == 0)) {
     return NULL;
   }
 

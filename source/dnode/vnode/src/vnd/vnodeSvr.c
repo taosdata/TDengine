@@ -312,10 +312,13 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 
   walApplyVer(pVnode->pWal, version);
 
+  /*vInfo("vgId:%d, push msg begin", pVnode->config.vgId);*/
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
+    /*vInfo("vgId:%d, push msg end", pVnode->config.vgId);*/
     vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
+  /*vInfo("vgId:%d, push msg end", pVnode->config.vgId);*/
 
   // commit if need
   if (needCommit) {
@@ -348,7 +351,6 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
-  // if ((pMsg->msgType == TDMT_SCH_QUERY) && !vnodeIsLeader(pVnode)) {
   if ((pMsg->msgType == TDMT_SCH_QUERY) && !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
@@ -372,7 +374,6 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META) &&
       !syncIsReadyForRead(pVnode->sync)) {
-    //      !vnodeIsLeader(pVnode)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
@@ -1019,7 +1020,7 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, statis.nBatchInsert);
   atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, statis.nBatchInsertSuccess);
 
-  vDebug("vgId:%d, submit success, index:%" PRId64, pVnode->config.vgId, version);
+  vDebug("vgId:%d %s done, index:%" PRId64, TD_VID(pVnode), __func__, version);
   return 0;
 }
 
@@ -1185,7 +1186,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void 
   tDecodeSBatchDeleteReq(&decoder, &deleteReq);
 
   SMetaReader mr = {0};
-  metaReaderInit(&mr, pVnode->pMeta, 0);
+  metaReaderInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
 
   int32_t sz = taosArrayGetSize(deleteReq.deleteReqs);
   for (int32_t i = 0; i < sz; i++) {

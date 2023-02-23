@@ -78,6 +78,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 
   // 3.0.20
   if (tEncodeI64(pEncoder, pObj->checkpointFreq) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->igCheckUpdate) < 0) return -1;
 
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -145,6 +146,9 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   // 3.0.20
   if (sver >= 2) {
     if (tDecodeI64(pDecoder, &pObj->checkpointFreq) < 0) return -1;
+    if (!tDecodeIsEnd(pDecoder)) {
+      if (tDecodeI8(pDecoder, &pObj->igCheckUpdate) < 0) return -1;
+    }
   }
   tEndDecode(pDecoder);
   return 0;
@@ -409,19 +413,21 @@ void *tDecodeSMqConsumerEp(const void *buf, SMqConsumerEp *pConsumerEp) {
   return (void *)buf;
 }
 
-SMqSubscribeObj *tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]) {
-  SMqSubscribeObj *pSubNew = taosMemoryCalloc(1, sizeof(SMqSubscribeObj));
-  if (pSubNew == NULL) return NULL;
-  memcpy(pSubNew->key, key, TSDB_SUBSCRIBE_KEY_LEN);
-  taosInitRWLatch(&pSubNew->lock);
-  pSubNew->vgNum = 0;
-  pSubNew->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+SMqSubscribeObj *tNewSubscribeObj(const char* key) {
+  SMqSubscribeObj *pSubObj = taosMemoryCalloc(1, sizeof(SMqSubscribeObj));
+  if (pSubObj == NULL) {
+    return NULL;
+  }
+
+  memcpy(pSubObj->key, key, TSDB_SUBSCRIBE_KEY_LEN);
+  taosInitRWLatch(&pSubObj->lock);
+  pSubObj->vgNum = 0;
+  pSubObj->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+
   // TODO set hash free fp
-  /*taosHashSetFreeFp(pSubNew->consumerHash, tDeleteSMqConsumerEp);*/
-
-  pSubNew->unassignedVgs = taosArrayInit(0, sizeof(void *));
-
-  return pSubNew;
+  /*taosHashSetFreeFp(pSubObj->consumerHash, tDeleteSMqConsumerEp);*/
+  pSubObj->unassignedVgs = taosArrayInit(0, POINTER_BYTES);
+  return pSubObj;
 }
 
 SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
@@ -489,7 +495,7 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
     tlen += tEncodeSMqConsumerEp(buf, pConsumerEp);
     cnt++;
   }
-  if(cnt != sz) return -1;
+  if (cnt != sz) return -1;
   tlen += taosEncodeArray(buf, pSub->unassignedVgs, (FEncode)tEncodeSMqVgEp);
   tlen += taosEncodeString(buf, pSub->dbName);
   return tlen;

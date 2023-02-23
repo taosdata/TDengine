@@ -236,6 +236,7 @@ void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF,
 void tsdbDataFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SDataFile *pDataF, char fname[]);
 void tsdbSttFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSttFile *pSttF, char fname[]);
 void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, char fname[]);
+
 // SDelFile
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]);
 // tsdbFS.c ==============================================================================================
@@ -321,6 +322,8 @@ struct STsdb {
   STsdbFS        fs;
   SLRUCache     *lruCache;
   TdThreadMutex  lruMutex;
+  SLRUCache     *biCache;
+  TdThreadMutex  biMutex;
 };
 
 struct TSDBKEY {
@@ -644,6 +647,7 @@ typedef struct SSttBlockLoadInfo {
   int16_t   *colIds;
   int32_t    numOfCols;
   bool       sttBlockLoaded;
+  int32_t    numOfStt;
 
   // keep the last access position, this position may be used to reduce the binary times for
   // starting last block data for a new table
@@ -709,7 +713,7 @@ bool    tMergeTreeNext(SMergeTree *pMTree);
 TSDBROW tMergeTreeGetRow(SMergeTree *pMTree);
 void    tMergeTreeClose(SMergeTree *pMTree);
 
-SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols);
+SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, int32_t numOfStt);
 void               resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void               getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double *el);
 void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
@@ -745,6 +749,9 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
 int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);
 int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);
 int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
+
+int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHandle **handle);
+int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h);
 
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);

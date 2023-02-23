@@ -315,6 +315,11 @@ static int32_t tlvDecodeImpl(STlv* pTlv, void* pValue, int32_t len) {
 }
 
 static int32_t tlvDecodeValueImpl(STlvDecoder* pDecoder, void* pValue, int32_t len) {
+  // compatible with lower version messages
+  if (pDecoder->bufSize == pDecoder->offset) {
+    memset(pValue, 0, len);
+    return TSDB_CODE_SUCCESS;
+  }
   if (len > pDecoder->bufSize - pDecoder->offset) {
     return TSDB_CODE_FAILED;
   }
@@ -2078,6 +2083,9 @@ static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEnc
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueBool(pEncoder, pNode->assignBlockUid);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI8(pEncoder, pNode->igCheckUpdate);
+  }
 
   return code;
 }
@@ -2153,6 +2161,9 @@ static int32_t msgToPhysiTableScanNodeInline(STlvDecoder* pDecoder, void* pObj) 
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueBool(pDecoder, &pNode->assignBlockUid);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI8(pDecoder, &pNode->igCheckUpdate);
   }
 
   return code;

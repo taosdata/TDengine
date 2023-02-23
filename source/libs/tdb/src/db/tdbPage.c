@@ -404,62 +404,50 @@ static int tdbPageFree(SPage *pPage, int idx, SCell *pCell, int szCell) {
   return 0;
 }
 
-static int tdbPageDefragment(SPage *pPage) {
-  int    nFree;
-  int    nCells;
-  SCell *pCell;
-  SCell *pNextCell;
-  SCell *pTCell;
-  int    szCell;
-  int    idx;
-  int    iCell;
-
-  nFree = TDB_PAGE_NFREE(pPage);
-  nCells = TDB_PAGE_NCELLS(pPage);
-
-  ASSERT(pPage->pFreeEnd - pPage->pFreeStart < nFree);
-
-  // Loop to compact the page content
-  // Here we use an O(n^2) algorithm to do the job since
-  // this is a low frequency job.
-  pNextCell = (u8 *)pPage->pPageFtr;
-  pCell = NULL;
-  for (iCell = 0;; iCell++) {
-    // compact over
-    if (iCell == nCells) {
-      pPage->pFreeEnd = pNextCell;
-      break;
-    }
-
-    for (int i = 0; i < nCells; i++) {
-      if (TDB_PAGE_CELL_OFFSET_AT(pPage, i) < pNextCell - pPage->pData) {
-        pTCell = TDB_PAGE_CELL_AT(pPage, i);
-        if (pCell == NULL || pCell < pTCell) {
-          pCell = pTCell;
-          idx = i;
-        }
-      } else {
-        continue;
-      }
-    }
-
-    ASSERT(pCell != NULL);
-
-    szCell = (*pPage->xCellSize)(pPage, pCell, 0, NULL, NULL);
-
-    ASSERT(pCell + szCell <= pNextCell);
-    if (pCell + szCell < pNextCell) {
-      memmove(pNextCell - szCell, pCell, szCell);
-    }
-
-    pCell = NULL;
-    pNextCell = pNextCell - szCell;
-    TDB_PAGE_CELL_OFFSET_AT_SET(pPage, idx, pNextCell - pPage->pData);
+typedef struct {
+  int32_t iCell;
+  int32_t offset;
+} SCellIdx;
+static int32_t tCellIdxCmprFn(const void *p1, const void *p2) {
+  if (((SCellIdx *)p1)->offset < ((SCellIdx *)p2)->offset) {
+    return -1;
+  } else if (((SCellIdx *)p1)->offset > ((SCellIdx *)p2)->offset) {
+    return 1;
+  } else {
+    return 0;
   }
+}
+static int tdbPageDefragment(SPage *pPage) {
+  int32_t nFree = TDB_PAGE_NFREE(pPage);
+  int32_t nCell = TDB_PAGE_NCELLS(pPage);
 
-  ASSERT(pPage->pFreeEnd - pPage->pFreeStart == nFree);
+  SCellIdx *aCellIdx = (SCellIdx *)tdbOsMalloc(sizeof(SCellIdx) * nCell);
+  if (aCellIdx == NULL) return -1;
+  for (int32_t iCell = 0; iCell < nCell; iCell++) {
+    aCellIdx[iCell].iCell = iCell;
+    aCellIdx[iCell].offset = TDB_PAGE_CELL_OFFSET_AT(pPage, iCell);
+  }
+  taosSort(aCellIdx, nCell, sizeof(SCellIdx), tCellIdxCmprFn);
+
+  SCell *pNextCell = (u8 *)pPage->pPageFtr;
+  for (int32_t iCell = nCell - 1; iCell >= 0; iCell--) {
+    SCell  *pCell = TDB_PAGE_CELL_AT(pPage, aCellIdx[iCell].iCell);
+    int32_t szCell = pPage->xCellSize(pPage, pCell, 0, NULL, NULL);
+
+    ASSERT(pNextCell - szCell >= pCell);
+
+    pNextCell -= szCell;
+    if (pNextCell > pCell) {
+      memmove(pNextCell, pCell, szCell);
+      TDB_PAGE_CELL_OFFSET_AT_SET(pPage, aCellIdx[iCell].iCell, pNextCell - pPage->pData);
+    }
+  }
+  pPage->pFreeEnd = pNextCell;
   TDB_PAGE_CCELLS_SET(pPage, pPage->pFreeEnd - pPage->pData);
   TDB_PAGE_FCELL_SET(pPage, 0);
+  tdbOsFree(aCellIdx);
+
+  ASSERT(pPage->pFreeEnd - pPage->pFreeStart == nFree);
 
   return 0;
 }

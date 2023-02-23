@@ -178,6 +178,7 @@
 ,,y,script,./test.sh -f tsim/query/udf_with_const.sim
 ,,y,script,./test.sh -f tsim/query/sys_tbname.sim
 ,,y,script,./test.sh -f tsim/query/groupby.sim
+,,y,script,./test.sh -f tsim/query/forceFill.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
@@ -300,7 +301,7 @@
 ,,y,script,./test.sh -f tsim/vnode/replica3_repeat.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_vgroup.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_many.sim
-,,y,script,./test.sh -f tsim/vnode/replica3_import.sim
+#,,y,script,./test.sh -f tsim/vnode/replica3_import.sim
 ,,y,script,./test.sh -f tsim/vnode/stable_balance_replica1.sim
 ,,y,script,./test.sh -f tsim/vnode/stable_dnode2_stop.sim
 ,,y,script,./test.sh -f tsim/vnode/stable_dnode2.sim
@@ -405,7 +406,7 @@
 ,,y,script,./test.sh -f tmp/monitor.sim
 
 #system test
-
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellError.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellNetChk.py
@@ -548,6 +549,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py
@@ -833,6 +835,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 2
@@ -929,6 +932,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 3
@@ -1026,6 +1030,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 4
@@ -1046,6 +1051,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py

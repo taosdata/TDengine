@@ -31,14 +31,16 @@ struct SLDataIter {
   SSttBlockLoadInfo *pBlockLoadInfo;
 };
 
-SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols) {
-  SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(TSDB_MAX_STT_TRIGGER, sizeof(SSttBlockLoadInfo));
+SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, int32_t numOfSttTrigger) {
+  SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(numOfSttTrigger, sizeof(SSttBlockLoadInfo));
   if (pLoadInfo == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  for (int32_t i = 0; i < TSDB_MAX_STT_TRIGGER; ++i) {
+  pLoadInfo->numOfStt = numOfSttTrigger;
+
+  for (int32_t i = 0; i < numOfSttTrigger; ++i) {
     pLoadInfo[i].blockIndex[0] = -1;
     pLoadInfo[i].blockIndex[1] = -1;
     pLoadInfo[i].currentLoadBlockIndex = 1;
@@ -63,7 +65,7 @@ SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList,
 }
 
 void resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
-  for (int32_t i = 0; i < TSDB_MAX_STT_TRIGGER; ++i) {
+  for (int32_t i = 0; i < pLoadInfo->numOfStt; ++i) {
     pLoadInfo[i].currentLoadBlockIndex = 1;
     pLoadInfo[i].blockIndex[0] = -1;
     pLoadInfo[i].blockIndex[1] = -1;
@@ -77,14 +79,14 @@ void resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
 }
 
 void getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double *el) {
-  for (int32_t i = 0; i < TSDB_MAX_STT_TRIGGER; ++i) {
+  for (int32_t i = 0; i < pLoadInfo->numOfStt; ++i) {
     *el += pLoadInfo[i].elapsedTime;
     *blocks += pLoadInfo[i].loadBlocks;
   }
 }
 
 void *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
-  for (int32_t i = 0; i < TSDB_MAX_STT_TRIGGER; ++i) {
+  for (int32_t i = 0; i < pLoadInfo->numOfStt; ++i) {
     pLoadInfo[i].currentLoadBlockIndex = 1;
     pLoadInfo[i].blockIndex[0] = -1;
     pLoadInfo[i].blockIndex[1] = -1;
@@ -515,7 +517,7 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
   pIter->rInfo.row = tsdbRowFromBlockData(pBlockData, pIter->iRow);
 
 _exit:
-  return (terrno == TSDB_CODE_SUCCESS) && (pIter->pSttBlk != NULL);
+  return (terrno == TSDB_CODE_SUCCESS) && (pIter->pSttBlk != NULL) && (pBlockData != NULL);
 }
 
 SRowInfo *tLDataIterGet(SLDataIter *pIter) { return &pIter->rInfo; }

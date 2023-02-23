@@ -1343,6 +1343,9 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   int32_t        ret = 0;
   // get super table
   if (tdbTbGet(pMeta->pUidIdx, &pCtbEntry->ctbEntry.suid, sizeof(tb_uid_t), &pData, &nData) != 0) {
+    metaError("vgId:%d, failed to get stable suid for update. version:%" PRId64, TD_VID(pMeta->pVnode),
+              pCtbEntry->version);
+    terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     ret = -1;
     goto end;
   }

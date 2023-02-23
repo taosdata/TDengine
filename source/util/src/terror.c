@@ -52,6 +52,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_PORT_EADDRINUSE,          "Port already in use")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_BROKEN_LINK,              "Conn is broken")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_TIMEOUT,                  "Conn read timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED,   "some vnode/qnode/mnode(s) out of service")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MAX_SESSIONS,             "rpc open too many session")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_TIME_UNSYNCED,                "Client and server's time is not synchronized")
@@ -88,6 +89,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NEED_RETRY,                   "Retry needed")
 TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE,      "Out of memory in rpc queue")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TIMESTAMP,            "Invalid timestamp format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_DECODE_ERROR,             "Msg decode error")
+TAOS_DEFINE_ERROR(TSDB_CODE_MSG_ENCODE_ERROR,             "Msg encode error")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_AVAIL_DISK,                "No available disk")
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_FOUND,                    "Not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISKSPACE,                 "Out of disk space")
@@ -287,6 +289,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_EXIST,         "Stream not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STREAM_OPTION,    "Invalid stream option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_MUST_BE_DELETED,   "Stream must be dropped first")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB,  "Stream temporarily does not support source db having replica > 1")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_STREAMS,         "Too many streams")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")

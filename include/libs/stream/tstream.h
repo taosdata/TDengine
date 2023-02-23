@@ -616,6 +616,7 @@ typedef struct SStreamMeta {
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId);
 void         streamMetaClose(SStreamMeta* streamMeta);
 
+int32_t      streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t      streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask);
 int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* msg, int32_t msgLen);
 SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
@@ -627,7 +628,7 @@ void         streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);
 int32_t streamMetaRollBack(SStreamMeta* pMeta);
-int32_t streamLoadTasks(SStreamMeta* pMeta);
+int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);

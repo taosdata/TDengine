@@ -2,14 +2,14 @@
 #include "tpagedbuf.h"
 #include "taoserror.h"
 #include "tcompression.h"
-#include "thash.h"
+#include "tsimplehash.h"
 #include "tlog.h"
 
-#define GET_PAYLOAD_DATA(_p)          ((char*)(_p)->pData + POINTER_BYTES)
-#define BUF_PAGE_IN_MEM(_p)           ((_p)->pData != NULL)
+#define GET_PAYLOAD_DATA(_p)           ((char*)(_p)->pData + POINTER_BYTES)
+#define BUF_PAGE_IN_MEM(_p)            ((_p)->pData != NULL)
 #define CLEAR_BUF_PAGE_IN_MEM_FLAG(_p) ((_p)->pData = NULL)
-#define HAS_DATA_IN_DISK(_p)          ((_p)->offset >= 0)
-#define NO_IN_MEM_AVAILABLE_PAGES(_b) (listNEles((_b)->lruList) >= (_b)->inMemPages)
+#define HAS_DATA_IN_DISK(_p)           ((_p)->offset >= 0)
+#define NO_IN_MEM_AVAILABLE_PAGES(_b)  (listNEles((_b)->lruList) >= (_b)->inMemPages)
 
 typedef struct SPageDiskInfo {
   int64_t offset;
@@ -17,7 +17,7 @@ typedef struct SPageDiskInfo {
 } SPageDiskInfo, SFreeListItem;
 
 struct SPageInfo {
-  SListNode* pn;         // point to list node struct. it is NULL when the page is evicted from the in-memory buffer
+  SListNode* pn;  // point to list node struct. it is NULL when the page is evicted from the in-memory buffer
   void*      pData;
   int64_t    offset;
   int32_t    pageId;
@@ -38,7 +38,7 @@ struct SDiskbasedBuf {
   int32_t   inMemPages;  // numOfPages that are allocated in memory
   SList*    freePgList;  // free page list
   SArray*   pIdList;     // page id list
-  SHashObj* all;
+  SSHashObj*all;
   SList*    lruList;
   void*     emptyDummyIdList;  // dummy id list
   void*     assistBuf;         // assistant buffer for compress/decompress data
@@ -52,10 +52,13 @@ struct SDiskbasedBuf {
 };
 
 static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
-  if (pBuf->path == NULL) { // prepare the file name when needed it
+  if (pBuf->path == NULL) {  // prepare the file name when needed it
     char path[PATH_MAX] = {0};
     taosGetTmpfilePath(pBuf->prefix, "paged-buf", path);
     pBuf->path = taosMemoryStrDup(path);
+    if (pBuf->path == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   pBuf->pFile =
@@ -126,6 +129,30 @@ static uint64_t allocateNewPositionInFile(SDiskbasedBuf* pBuf, size_t size) {
 
 static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) { return pageSize + POINTER_BYTES + sizeof(SFilePage); }
 
+static int32_t doFlushBufPageImpl(SDiskbasedBuf* pBuf, int64_t offset, const char* pData, int32_t size) {
+  int32_t ret = taosLSeekFile(pBuf->pFile, offset, SEEK_SET);
+  if (ret == -1) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+
+  ret = (int32_t)taosWriteFile(pBuf->pFile, pData, size);
+  if (ret != size) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+
+  // extend the file
+  if (pBuf->fileSize < offset + size) {
+    pBuf->fileSize = offset + size;
+  }
+
+  pBuf->statis.flushBytes += size;
+  pBuf->statis.flushPages += 1;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   if (pg->pData == NULL || pg->used) {
     uError("invalid params in paged buffer process when flushing buf to disk, %s", pBuf->id);
@@ -134,12 +161,15 @@ static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   }
 
   int32_t size = pBuf->pageSize;
-  char*   t = NULL;
+  int64_t offset = pg->offset;
+
+  char* t = NULL;
   if ((!HAS_DATA_IN_DISK(pg)) || pg->dirty) {
     void* payload = GET_PAYLOAD_DATA(pg);
     t = doCompressData(payload, pBuf->pageSize, &size, pBuf);
     if (size < 0) {
       uError("failed to compress data when flushing data to disk, %s", pBuf->id);
+      terrno = TSDB_CODE_INVALID_PARA;
       return NULL;
     }
   }
@@ -147,59 +177,29 @@ static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   // this page is flushed to disk for the first time
   if (pg->dirty) {
     if (!HAS_DATA_IN_DISK(pg)) {
-      pg->offset = allocateNewPositionInFile(pBuf, size);
+      offset = allocateNewPositionInFile(pBuf, size);
       pBuf->nextPos += size;
 
-      int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
-      if (ret == -1) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
+      int32_t code = doFlushBufPageImpl(pBuf, offset, t, size);
+      if (code != TSDB_CODE_SUCCESS) {
         return NULL;
       }
-
-      ret = (int32_t)taosWriteFile(pBuf->pFile, t, size);
-      if (ret != size) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return NULL;
-      }
-
-      // extend the file size
-      if (pBuf->fileSize < pg->offset + size) {
-        pBuf->fileSize = pg->offset + size;
-      }
-
-      pBuf->statis.flushBytes += size;
-      pBuf->statis.flushPages += 1;
     } else {
       // length becomes greater, current space is not enough, allocate new place, otherwise, do nothing
       if (pg->length < size) {
         // 1. add current space to free list
-        SPageDiskInfo dinfo = {.length = pg->length, .offset = pg->offset};
+        SPageDiskInfo dinfo = {.length = pg->length, .offset = offset};
         taosArrayPush(pBuf->pFree, &dinfo);
 
         // 2. allocate new position, and update the info
-        pg->offset = allocateNewPositionInFile(pBuf, size);
+        offset = allocateNewPositionInFile(pBuf, size);
         pBuf->nextPos += size;
       }
 
-      // 3. write to disk.
-      int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
-      if (ret == -1) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
+      int32_t code = doFlushBufPageImpl(pBuf, offset, t, size);
+      if (code != TSDB_CODE_SUCCESS) {
         return NULL;
       }
-
-      ret = (int32_t)taosWriteFile(pBuf->pFile, t, size);
-      if (ret != size) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return NULL;
-      }
-
-      if (pBuf->fileSize < pg->offset + size) {
-        pBuf->fileSize = pg->offset + size;
-      }
-
-      pBuf->statis.flushBytes += size;
-      pBuf->statis.flushPages += 1;
     }
   } else {  // NOTE: the size may be -1, the this recycle page has not been flushed to disk yet.
     size = pg->length;
@@ -209,9 +209,10 @@ static char* doFlushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   memset(pDataBuf, 0, getAllocPageSize(pBuf->pageSize));
 
 #ifdef BUF_PAGE_DEBUG
-  uDebug("page_flush %p, pageId:%d, offset:%d", pDataBuf, pg->pageId, pg->offset);
+  uDebug("page_flush %p, pageId:%d, offset:%d", pDataBuf, pg->pageId, offset);
 #endif
 
+  pg->offset = offset;
   pg->length = size;  // on disk size
   return pDataBuf;
 }
@@ -236,7 +237,7 @@ static char* flushBufPage(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 // load file block data in disk
 static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   if (pg->offset < 0 || pg->length <= 0) {
-    uError("failed to load buf page from disk, offset:%"PRId64", length:%d, %s", pg->offset, pg->length, pBuf->id);
+    uError("failed to load buf page from disk, offset:%" PRId64 ", length:%d, %s", pg->offset, pg->length, pBuf->id);
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -303,6 +304,7 @@ static SListNode* getEldestUnrefedPage(SDiskbasedBuf* pBuf) {
 static char* evictBufPage(SDiskbasedBuf* pBuf) {
   SListNode* pn = getEldestUnrefedPage(pBuf);
   if (pn == NULL) {  // no available buffer pages now, return.
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -372,24 +374,19 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
     goto _error;
   }
 
-  pPBuf->assistBuf = taosMemoryMalloc(pPBuf->pageSize + 2);  // EXTRA BYTES
-  if (pPBuf->assistBuf == NULL) {
-    goto _error;
-  }
-
-  pPBuf->all = taosHashInit(10, fn, true, false);
+  pPBuf->all = tSimpleHashInit(64, fn);
   if (pPBuf->all == NULL) {
     goto _error;
   }
 
-  pPBuf->prefix = (char*) dir;
+  pPBuf->prefix = (char*)dir;
   pPBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));
 
   //  qDebug("QInfo:0x%"PRIx64" create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId,
   //  pPBuf->pageSize, pPBuf->inMemPages, pPBuf->path);
 
   return TSDB_CODE_SUCCESS;
-  _error:
+_error:
   destroyDiskbasedBuf(pPBuf);
   return TSDB_CODE_OUT_OF_MEMORY;
 }
@@ -399,11 +396,12 @@ static char* doExtractPage(SDiskbasedBuf* pBuf) {
   if (NO_IN_MEM_AVAILABLE_PAGES(pBuf)) {
     availablePage = evictBufPage(pBuf);
     if (availablePage == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      uWarn("no available buf pages, current:%d, max:%d", listNEles(pBuf->lruList), pBuf->inMemPages)
+      uWarn("no available buf pages, current:%d, max:%d, reason: %s, %s", listNEles(pBuf->lruList), pBuf->inMemPages,
+            terrstr(), pBuf->id)
     }
   } else {
-    availablePage = taosMemoryCalloc(1, getAllocPageSize(pBuf->pageSize));  // add extract bytes in case of zipped buffer increased.
+    availablePage =
+        taosMemoryCalloc(1, getAllocPageSize(pBuf->pageSize));  // add extract bytes in case of zipped buffer increased.
     if (availablePage == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -438,7 +436,7 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
     }
 
     // add to hash map
-    taosHashPut(pBuf->all, pageId, sizeof(int32_t), &pi, POINTER_BYTES);
+    tSimpleHashPut(pBuf->all, pageId, sizeof(int32_t), &pi, POINTER_BYTES);
     pBuf->totalBufSize += pBuf->pageSize;
   }
 
@@ -463,7 +461,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
 
   pBuf->statis.getPages += 1;
 
-  SPageInfo** pi = taosHashGet(pBuf->all, &id, sizeof(int32_t));
+  SPageInfo** pi = tSimpleHashGet(pBuf->all, &id, sizeof(int32_t));
   if (pi == NULL || *pi == NULL) {
     uError("failed to locate the buffer page:%d, %s", id, pBuf->id);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -551,9 +549,7 @@ void releaseBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* pi) {
 
 size_t getTotalBufSize(const SDiskbasedBuf* pBuf) { return (size_t)pBuf->totalBufSize; }
 
-SArray* getDataBufPagesIdList(SDiskbasedBuf* pBuf) {
-  return pBuf->pIdList;
-}
+SArray* getDataBufPagesIdList(SDiskbasedBuf* pBuf) { return pBuf->pIdList; }
 
 void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   if (pBuf == NULL) {
@@ -567,7 +563,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
     needRemoveFile = true;
     uDebug(
         "Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page "
-        "size:%.2f Kb, %s\n",
+        "size:%.2f Kb, %s",
         pBuf->totalBufSize / 1024.0, pBuf->numOfPages, listNEles(pBuf->lruList) * pBuf->pageSize / 1024.0,
         listNEles(pBuf->lruList), pBuf->fileSize / 1024.0, pBuf->pageSize / 1024.0f, pBuf->id);
 
@@ -584,8 +580,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
              ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f, ps->loadPages);
     } else {
       uDebug(
-          "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages), avgPageSize:%.2f "
-          "Kb",
+          "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages), avgPgSize:%.2f Kb",
           ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f,
           ps->loadPages, ps->loadBytes / (1024.0 * ps->loadPages));
     }
@@ -615,7 +610,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   taosArrayDestroy(pBuf->emptyDummyIdList);
   taosArrayDestroy(pBuf->pFree);
 
-  taosHashCleanup(pBuf->all);
+  tSimpleHashCleanup(pBuf->all);
 
   taosMemoryFreeClear(pBuf->id);
   taosMemoryFreeClear(pBuf->assistBuf);
@@ -628,9 +623,7 @@ SPageInfo* getLastPageInfo(SArray* pList) {
   return pPgInfo;
 }
 
-int32_t getPageId(const SPageInfo* pPgInfo) {
-  return pPgInfo->pageId;
-}
+int32_t getPageId(const SPageInfo* pPgInfo) { return pPgInfo->pageId; }
 
 int32_t getBufPageSize(const SDiskbasedBuf* pBuf) { return pBuf->pageSize; }
 
@@ -643,7 +636,12 @@ void setBufPageDirty(void* pPage, bool dirty) {
   ppi->dirty = dirty;
 }
 
-void setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp) { pBuf->comp = comp; }
+void setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp) {
+  pBuf->comp = comp;
+  if (comp  && (pBuf->assistBuf == NULL)) {
+    pBuf->assistBuf = taosMemoryMalloc(pBuf->pageSize + 2);  // EXTRA BYTES
+  }
+}
 
 void dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage) {
   SPageInfo* ppi = getPageInfoFromPayload(pPage);
@@ -686,7 +684,7 @@ void dBufPrintStatis(const SDiskbasedBuf* pBuf) {
         ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f,
         ps->loadPages, ps->loadBytes / (1024.0 * ps->loadPages));
   } else {
-    //printf("no page loaded\n");
+    // printf("no page loaded\n");
   }
 }
 
@@ -706,7 +704,7 @@ void clearDiskbasedBuf(SDiskbasedBuf* pBuf) {
   taosArrayClear(pBuf->emptyDummyIdList);
   taosArrayClear(pBuf->pFree);
 
-  taosHashClear(pBuf->all);
+  tSimpleHashClear(pBuf->all);
 
   pBuf->numOfPages = 0;  // all pages are in buffer in the first place
   pBuf->totalBufSize = 0;

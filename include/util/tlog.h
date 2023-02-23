@@ -89,7 +89,7 @@ bool taosAssertRelease(bool condition);
 // Disable all asserts that may compromise the performance.
 #if defined DISABLE_ASSERT
 #define ASSERT(condition)
-#define ASSERTS(condition, ...)
+#define ASSERTS(condition, ...)    (0)
 #else
 #define ASSERTS(condition, ...) taosAssertDebug(condition, __FILE__, __LINE__, __VA_ARGS__)
 #ifdef NDEBUG

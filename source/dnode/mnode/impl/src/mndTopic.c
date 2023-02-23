@@ -33,7 +33,7 @@
 
 static int32_t mndTopicActionInsert(SSdb *pSdb, SMqTopicObj *pTopic);
 static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic);
-static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pTopic, SMqTopicObj *pNewTopic);
+static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pOldTopic, SMqTopicObj *pNewTopic);
 static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq);
 static int32_t mndProcessDropTopicReq(SRpcMsg *pReq);
 

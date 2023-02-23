@@ -21,12 +21,34 @@
 static int vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
 static int vnodeCommitImpl(SCommitInfo *pInfo);
 
+#define WAIT_TIME_MILI_SEC 50
+
 int vnodeBegin(SVnode *pVnode) {
   // alloc buffer pool
+  int32_t nTry = 0;
+
   taosThreadMutexLock(&pVnode->mutex);
 
   while (pVnode->pPool == NULL) {
-    taosThreadCondWait(&pVnode->poolNotEmpty, &pVnode->mutex);
+    vInfo("vgId:%d no free buffer pool on %d try, wait %d ms...", TD_VID(pVnode), ++nTry, WAIT_TIME_MILI_SEC);
+
+    struct timeval  tv;
+    struct timespec ts;
+    taosGetTimeOfDay(&tv);
+    ts.tv_nsec = tv.tv_usec * 1000 + WAIT_TIME_MILI_SEC * 1000000;
+    if (ts.tv_nsec > 999999999l) {
+      ts.tv_sec = tv.tv_sec + 1;
+      ts.tv_nsec -= 1000000000l;
+    } else {
+      ts.tv_sec = tv.tv_sec;
+    }
+
+    int32_t rc = taosThreadCondTimedWait(&pVnode->poolNotEmpty, &pVnode->mutex, &ts);
+    if (rc && rc != ETIMEDOUT) {
+      terrno = TAOS_SYSTEM_ERROR(rc);
+      taosThreadMutexUnlock(&pVnode->mutex);
+      return -1;
+    }
   }
 
   pVnode->inUse = pVnode->pPool;
@@ -70,7 +92,7 @@ int vnodeShouldCommit(SVnode *pVnode) {
   }
 
   SVCommitSched *pSched = &pVnode->commitSched;
-  int64_t nowMs = taosGetMonoTimestampMs();
+  int64_t        nowMs = taosGetMonoTimestampMs();
 
   return (((pVnode->inUse->size > pVnode->inUse->node.size) && (pSched->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs)) ||
           (pVnode->inUse->size > 0 && pSched->commitMs + pSched->maxWaitMs < nowMs));

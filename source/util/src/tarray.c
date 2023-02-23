@@ -48,6 +48,26 @@ SArray* taosArrayInit(size_t size, size_t elemSize) {
   return pArray;
 }
 
+SArray* taosArrayInit_s(size_t size, size_t elemSize, size_t initialSize) {
+  SArray* pArray = taosMemoryMalloc(sizeof(SArray));
+  if (pArray == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pArray->size = initialSize;
+  pArray->pData = taosMemoryCalloc(initialSize, elemSize);
+  if (pArray->pData == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(pArray);
+    return NULL;
+  }
+
+  pArray->capacity = initialSize;
+  pArray->elemSize = elemSize;
+  return pArray;
+}
+
 static int32_t taosArrayResize(SArray* pArray) {
   assert(pArray->size >= pArray->capacity);
 
@@ -223,18 +243,19 @@ void* taosArrayGetP(const SArray* pArray, size_t index) {
   return *p;
 }
 
-void* taosArrayGetLast(const SArray* pArray) { return TARRAY_GET_ELEM(pArray, pArray->size - 1); }
+void* taosArrayGetLast(const SArray* pArray) {
+  if (pArray->size == 0) {
+    return NULL;
+  }
+
+  return TARRAY_GET_ELEM(pArray, pArray->size - 1);
+}
 
 size_t taosArrayGetSize(const SArray* pArray) {
   if (pArray == NULL) {
     return 0;
   }
   return pArray->size;
-}
-
-void taosArraySetSize(SArray* pArray, size_t size) {
-  assert(size <= pArray->capacity);
-  pArray->size = size;
 }
 
 void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {

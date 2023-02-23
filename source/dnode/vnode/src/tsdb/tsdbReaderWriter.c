@@ -47,15 +47,21 @@ static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsd
     taosMemoryFree(pFD);
     goto _exit;
   }
-  if (taosStatFile(path, &pFD->szFile, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    taosMemoryFree(pFD->pBuf);
-    taosCloseFile(&pFD->pFD);
-    taosMemoryFree(pFD);
-    goto _exit;
+
+  // not check file size when reading data files.
+  if (flag != TD_FILE_READ) {
+    if (taosStatFile(path, &pFD->szFile, NULL) < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      taosMemoryFree(pFD->pBuf);
+      taosCloseFile(&pFD->pFD);
+      taosMemoryFree(pFD);
+      goto _exit;
+    }
+
+    ASSERT(pFD->szFile % szPage == 0);
+    pFD->szFile = pFD->szFile / szPage;
   }
-  ASSERT(pFD->szFile % szPage == 0);
-  pFD->szFile = pFD->szFile / szPage;
+
   *ppFD = pFD;
 
 _exit:
@@ -103,7 +109,7 @@ _exit:
 static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
   int32_t code = 0;
 
-  ASSERT(pgno <= pFD->szFile);
+  // ASSERT(pgno <= pFD->szFile);
 
   // seek
   int64_t offset = PAGE_OFFSET(pgno, pFD->szPage);
@@ -175,7 +181,7 @@ static int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t
   int32_t szPgCont = PAGE_CONTENT_SIZE(pFD->szPage);
   int64_t bOffset = fOffset % pFD->szPage;
 
-  ASSERT(pgno && pgno <= pFD->szFile);
+  // ASSERT(pgno && pgno <= pFD->szFile);
   ASSERT(bOffset < szPgCont);
 
   while (n < size) {

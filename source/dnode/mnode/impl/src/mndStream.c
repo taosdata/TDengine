@@ -31,6 +31,8 @@
 #define MND_STREAM_VER_NUMBER   2
 #define MND_STREAM_RESERVE_SIZE 64
 
+#define MND_STREAM_MAX_NUM 10
+
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pStream, SStreamObj *pNewStream);
@@ -295,6 +297,8 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->triggerParam = pCreate->maxDelay;
   pObj->watermark = pCreate->watermark;
   pObj->fillHistory = pCreate->fillHistory;
+  pObj->deleteMark = pCreate->deleteMark;
+  pObj->igCheckUpdate = pCreate->igUpdate;
 
   memcpy(pObj->sourceDb, pCreate->sourceDB, TSDB_DB_FNAME_LEN);
   SDbObj *pSourceDb = mndAcquireDb(pMnode, pCreate->sourceDB);
@@ -343,6 +347,8 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .triggerType = pObj->trigger == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : pObj->trigger,
       .watermark = pObj->watermark,
       .igExpired = pObj->igExpired,
+      .deleteMark = pObj->deleteMark,
+      .igCheckUpdate = pObj->igCheckUpdate,
   };
 
   // using ast and param to build physical plan
@@ -473,9 +479,8 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
   tstrncpy(createReq.name, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
   createReq.numOfColumns = pStream->outputSchema.nCols;
   createReq.numOfTags = 1;  // group id
-  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
+  createReq.pColumns = taosArrayInit_s(createReq.numOfColumns, sizeof(SField), createReq.numOfColumns);
   // build fields
-  taosArraySetSize(createReq.pColumns, createReq.numOfColumns);
   for (int32_t i = 0; i < createReq.numOfColumns; i++) {
     SField *pField = taosArrayGet(createReq.pColumns, i);
     tstrncpy(pField->name, pStream->outputSchema.pSchema[i].name, TSDB_COL_NAME_LEN);
@@ -483,8 +488,8 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     pField->type = pStream->outputSchema.pSchema[i].type;
     pField->bytes = pStream->outputSchema.pSchema[i].bytes;
   }
-  createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
-  taosArraySetSize(createReq.pTags, 1);
+  createReq.pTags = taosArrayInit_s(createReq.numOfTags, sizeof(SField), 1);
+
   // build tags
   SField *pField = taosArrayGet(createReq.pTags, 0);
   strcpy(pField->name, "group_id");
@@ -623,6 +628,35 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
+  }
+
+  {
+    int32_t numOfStream = 0;
+
+    SStreamObj *pStream = NULL;
+    void       *pIter = NULL;
+
+    while (1) {
+      pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void **)&pStream);
+      if (pIter == NULL) {
+        if (numOfStream > MND_STREAM_MAX_NUM) {
+          mError("too many streams, no more than 10 for each database");
+          terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+          goto _OVER;
+        }
+        break;
+      }
+
+      if (pStream->sourceDbUid == streamObj.sourceDbUid) {
+        ++numOfStream;
+      }
+      sdbRelease(pMnode->pSdb, pStream);
+      if (numOfStream > MND_STREAM_MAX_NUM) {
+        mError("too many streams, no more than 10 for each database");
+        terrno = TSDB_CODE_MND_TOO_MANY_STREAMS;
+        goto _OVER;
+      }
+    }
   }
 
   pDb = mndAcquireDb(pMnode, streamObj.sourceDb);

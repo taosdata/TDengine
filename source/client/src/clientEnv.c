@@ -79,22 +79,21 @@ static void deregisterRequest(SRequestObj *pRequest) {
            "current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
-  if (QUERY_NODE_VNODE_MODIF_STMT == pRequest->stmtType) {
-    //    tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
-    //            "us, exec:%" PRId64 "us",
-    //            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
-    //            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd -
-    //            pRequest->metric.ctgEnd, pRequest->metric.execEnd - pRequest->metric.semanticEnd);
-    atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
-  } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-    //    tscPerf("select duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
-    //            "us, planner:%" PRId64 "us, exec:%" PRId64 "us, reqId:0x%" PRIx64,
-    //            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
-    //            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd -
-    //            pRequest->metric.ctgEnd, pRequest->metric.planEnd - pRequest->metric.semanticEnd,
-    //            pRequest->metric.resultReady - pRequest->metric.planEnd, pRequest->requestId);
+  if (pRequest->pQuery && pRequest->pQuery->pRoot) {
+    if (QUERY_NODE_VNODE_MODIF_STMT == pRequest->pQuery->pRoot->type && (0 == ((SVnodeModifOpStmt*)pRequest->pQuery->pRoot)->sqlNodeType)) {
+      tscDebug("insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
+              "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+              duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs, 
+              pRequest->metric.planCostUs, pRequest->metric.execCostUs);
+      atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
+    } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
+      tscDebug("query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
+              "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+              duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs, 
+              pRequest->metric.planCostUs, pRequest->metric.execCostUs);
 
-    atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
+      atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
+    }
   }
 
   if (duration >= SLOW_QUERY_INTERVAL) {
@@ -362,8 +361,6 @@ void doDestroyRequest(void *p) {
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
   taosArrayDestroy(pRequest->targetTableList);
-  qDestroyQuery(pRequest->pQuery);
-  nodesDestroyAllocator(pRequest->allocatorRefId);
 
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
 
@@ -377,6 +374,9 @@ void doDestroyRequest(void *p) {
       }
     taosMemoryFree(pRequest->body.param);
   }
+
+  qDestroyQuery(pRequest->pQuery);
+  nodesDestroyAllocator(pRequest->allocatorRefId);
 
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);

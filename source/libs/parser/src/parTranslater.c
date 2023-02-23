@@ -666,6 +666,9 @@ static uint8_t getPrecisionFromCurrStmt(SNode* pCurrStmt, uint8_t defaultVal) {
   if (isSetOperator(pCurrStmt)) {
     return ((SSetOperator*)pCurrStmt)->precision;
   }
+  if (NULL != pCurrStmt && QUERY_NODE_CREATE_STREAM_STMT == nodeType(pCurrStmt)) {
+    return getPrecisionFromCurrStmt(((SCreateStreamStmt*)pCurrStmt)->pQuery, defaultVal);
+  }
   return defaultVal;
 }
 
@@ -1464,6 +1467,15 @@ static int32_t translateInterpFunc(STranslateContext* pCxt, SFunctionNode* pFunc
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  SNode*       pTable = pSelect->pFromTable;
+
+  if ((NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
+                         (TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+                          TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType)))) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
+                                   "%s is only supported in single table query", pFunc->functionName);
+  }
+
   if (pSelect->hasAggFuncs || pSelect->hasMultiRowsFunc || pSelect->hasIndefiniteRowsFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
@@ -1561,6 +1573,27 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateBlockDistFunc(STranslateContext* pCtx, SFunctionNode* pFunc) {
+  if (!fmIsBlockDistFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!isSelectStmt(pCtx->pCurrStmt)) {
+    return generateSyntaxErrMsgExt(&pCtx->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
+                                   "%s is only supported in single table query", pFunc->functionName);
+  }
+  SSelectStmt* pSelect = (SSelectStmt*)pCtx->pCurrStmt;
+  SNode*       pTable = pSelect->pFromTable;
+  if (NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
+                         (TSDB_SUPER_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+                          TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+                          TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType))) {
+    return generateSyntaxErrMsgExt(&pCtx->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "%s is only supported on super table, child table or normal table",
+                                   pFunc->functionName);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool isStar(SNode* pNode) {
   return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]) &&
          (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
@@ -1584,6 +1617,7 @@ static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFu
   }
   if (tsKeepColumnName && 1 == LIST_LENGTH(pFunc->pParameterList) && !pFunc->node.asAlias) {
     strcpy(pFunc->node.userAlias, ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->userAlias);
+    strcpy(pFunc->node.aliasName, pFunc->node.userAlias);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1720,7 +1754,7 @@ static int32_t rewriteSystemInfoFunc(STranslateContext* pCxt, SNode** pNode) {
   return TSDB_CODE_PAR_INTERNAL_ERROR;
 }
 
-static int32_t translateNoramlFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
+static int32_t translateNormalFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
   int32_t code = translateAggFunc(pCxt, pFunc);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateScanPseudoColumnFunc(pCxt, pFunc);
@@ -1751,6 +1785,9 @@ static int32_t translateNoramlFunction(STranslateContext* pCxt, SFunctionNode* p
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateTimelineFunc(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateBlockDistFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     setFuncClassification(pCxt->pCurrStmt, pFunc);
@@ -1812,7 +1849,7 @@ static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pF
   if (fmIsClientPseudoColumnFunc((*pFunc)->funcId)) {
     return rewriteClientPseudoColumnFunc(pCxt, (SNode**)pFunc);
   }
-  return translateNoramlFunction(pCxt, *pFunc);
+  return translateNormalFunction(pCxt, *pFunc);
 }
 
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
@@ -2523,11 +2560,12 @@ static SNode* createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr) {
   int32_t len = 0;
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     SColumnNode* pCol = (SColumnNode*)pExpr;
-    len = snprintf(buf, sizeof(buf), "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
-    strncpy(pFunc->node.aliasName, buf, TMIN(len, sizeof(pFunc->node.aliasName) - 1));
     if (tsKeepColumnName) {
       strcpy(pFunc->node.userAlias, pCol->colName);
+      strcpy(pFunc->node.aliasName, pCol->colName);
     } else {
+      len = snprintf(buf, sizeof(buf), "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
+      strncpy(pFunc->node.aliasName, buf, TMIN(len, sizeof(pFunc->node.aliasName) - 1));
       len = snprintf(buf, sizeof(buf), "%s(%s)", pSrcFunc->functionName, pCol->colName);
       strncpy(pFunc->node.userAlias, buf, TMIN(len, sizeof(pFunc->node.userAlias) - 1));
     }
@@ -2794,7 +2832,7 @@ static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList
 }
 
 static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList) {
-  if (FILL_MODE_VALUE != pFill->mode) {
+  if (FILL_MODE_VALUE != pFill->mode && FILL_MODE_VALUE_F != pFill->mode) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -5486,16 +5524,6 @@ static bool crossTableWithUdaf(SSelectStmt* pSelect) {
 }
 
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
-  if (NULL != pStmt->pOptions->pWatermark &&
-      (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pWatermark))) {
-    return pCxt->errCode;
-  }
-
-  if (NULL != pStmt->pOptions->pDelay &&
-      (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pDelay))) {
-    return pCxt->errCode;
-  }
-
   if (NULL == pStmt->pQuery) {
     return TSDB_CODE_SUCCESS;
   }
@@ -5688,6 +5716,17 @@ static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt
   return code;
 }
 
+static int32_t translateStreamOptions(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
+  pCxt->pCurrStmt = (SNode*)pStmt;
+  SStreamOptions* pOptions = pStmt->pOptions;
+  if ((NULL != pOptions->pWatermark && (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pOptions->pWatermark))) ||
+      (NULL != pOptions->pDeleteMark && (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pOptions->pDeleteMark))) ||
+      (NULL != pOptions->pDelay && (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pOptions->pDelay)))) {
+    return pCxt->errCode;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
   pReq->igExists = pStmt->ignoreExists;
 
@@ -5710,11 +5749,18 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    code = translateStreamOptions(pCxt, pStmt);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     pReq->triggerType = pStmt->pOptions->triggerType;
     pReq->maxDelay = (NULL != pStmt->pOptions->pDelay ? ((SValueNode*)pStmt->pOptions->pDelay)->datum.i : 0);
     pReq->watermark = (NULL != pStmt->pOptions->pWatermark ? ((SValueNode*)pStmt->pOptions->pWatermark)->datum.i : 0);
+    pReq->deleteMark =
+        (NULL != pStmt->pOptions->pDeleteMark ? ((SValueNode*)pStmt->pOptions->pDeleteMark)->datum.i : 0);
     pReq->fillHistory = pStmt->pOptions->fillHistory;
     pReq->igExpired = pStmt->pOptions->ignoreExpired;
+    pReq->igUpdate = pStmt->pOptions->ignoreUpdate;
     columnDefNodeToField(pStmt->pTags, &pReq->pTags);
     pReq->numOfTags = LIST_LENGTH(pStmt->pTags);
   }

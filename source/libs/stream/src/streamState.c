@@ -107,8 +107,6 @@ static inline int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, 
 }
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {
-  szPage = szPage < 0 ? 4096 : szPage;
-  pages = pages < 0 ? 256 : pages;
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   if (pState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -128,7 +126,29 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     memset(statePath, 0, 1024);
     tstrncpy(statePath, path, 1024);
   }
-  if (tdbOpen(statePath, szPage, pages, &pState->pTdbState->db, 0) < 0) {
+
+  char cfgPath[1030];
+  sprintf(cfgPath, "%s/cfg", statePath);
+
+  char cfg[1024];
+  memset(cfg, 0, 1024);
+  TdFilePtr pCfgFile = taosOpenFile(cfgPath, TD_FILE_READ);
+  if (pCfgFile != NULL) {
+    int64_t size;
+    taosFStatFile(pCfgFile, &size, NULL);
+    taosReadFile(pCfgFile, cfg, size);
+    sscanf(cfg, "%d\n%d\n", &szPage, &pages);
+  } else {
+    taosMulModeMkDir(statePath, 0755);
+    pCfgFile = taosOpenFile(cfgPath, TD_FILE_WRITE | TD_FILE_CREATE);
+    szPage = szPage < 0 ? 4096 : szPage;
+    pages = pages < 0 ? 256 : pages;
+    sprintf(cfg, "%d\n%d\n", szPage, pages);
+    taosWriteFile(pCfgFile, cfg, strlen(cfg));
+  }
+  taosCloseFile(&pCfgFile);
+
+  if (tdbOpen(statePath, szPage, pages, &pState->pTdbState->db, 1) < 0) {
     goto _err;
   }
 
@@ -874,6 +894,49 @@ char* streamStateSessionDump(SStreamState* pState) {
     }
     len += snprintf(dumpBuf + len, size - len, "||s:%15" PRId64 ",", key.win.skey);
     len += snprintf(dumpBuf + len, size - len, "e:%15" PRId64 ",", key.win.ekey);
+    len += snprintf(dumpBuf + len, size - len, "g:%15" PRId64 "||", key.groupId);
+  }
+  streamStateFreeCur(pCur);
+  return dumpBuf;
+}
+
+char* streamStateIntervalDump(SStreamState* pState) {
+  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
+  if (pCur == NULL) {
+    return NULL;
+  }
+  pCur->number = pState->number;
+  if (tdbTbcOpen(pState->pTdbState->pStateDb, &pCur->pCur, NULL) < 0) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+  tdbTbcMoveToFirst(pCur->pCur);
+
+  SWinKey key = {0};
+  void*       buf = NULL;
+  int32_t     bufSize = 0;
+  int32_t     code = streamStateGetKVByCur(pCur, &key, (const void **)&buf, &bufSize);
+  if (code != 0) {
+    streamStateFreeCur(pCur);
+    return NULL;
+  }
+
+  int32_t size = 2048;
+  char*   dumpBuf = taosMemoryCalloc(size, 1);
+  int64_t len = 0;
+  len += snprintf(dumpBuf + len, size - len, "||s:%15" PRId64 ",", key.ts);
+  // len += snprintf(dumpBuf + len, size - len, "e:%15" PRId64 ",", key.win.ekey);
+  len += snprintf(dumpBuf + len, size - len, "g:%15" PRId64 "||", key.groupId);
+  while (1) {
+    tdbTbcMoveToNext(pCur->pCur);
+    key = (SWinKey){0};
+    code = streamStateGetKVByCur(pCur, &key, NULL, 0);
+    if (code != 0) {
+      streamStateFreeCur(pCur);
+      return dumpBuf;
+    }
+    len += snprintf(dumpBuf + len, size - len, "||s:%15" PRId64 ",", key.ts);
+    // len += snprintf(dumpBuf + len, size - len, "e:%15" PRId64 ",", key.win.ekey);
     len += snprintf(dumpBuf + len, size - len, "g:%15" PRId64 "||", key.groupId);
   }
   streamStateFreeCur(pCur);
