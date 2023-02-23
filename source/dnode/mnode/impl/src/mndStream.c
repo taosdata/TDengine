@@ -479,7 +479,7 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
   tstrncpy(createReq.name, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
   createReq.numOfColumns = pStream->outputSchema.nCols;
   createReq.numOfTags = 1;  // group id
-  createReq.pColumns = taosArrayInit_s(createReq.numOfColumns, sizeof(SField), createReq.numOfColumns);
+  createReq.pColumns = taosArrayInit_s(sizeof(SField), createReq.numOfColumns);
   // build fields
   for (int32_t i = 0; i < createReq.numOfColumns; i++) {
     SField *pField = taosArrayGet(createReq.pColumns, i);
@@ -488,7 +488,7 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     pField->type = pStream->outputSchema.pSchema[i].type;
     pField->bytes = pStream->outputSchema.pSchema[i].bytes;
   }
-  createReq.pTags = taosArrayInit_s(createReq.numOfTags, sizeof(SField), 1);
+  createReq.pTags = taosArrayInit_s(sizeof(SField), 1);
 
   // build tags
   SField *pField = taosArrayGet(createReq.pTags, 0);
@@ -1055,52 +1055,52 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetDbStr(pStream->name), sizeof(streamName));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)streamName, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)streamName, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->createTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pStream->createTime, false);
 
     char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(sql, pStream->sql, sizeof(sql));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)sql, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)sql, false);
 
     char status[20 + VARSTR_HEADER_SIZE] = {0};
     char status2[20] = {0};
     mndShowStreamStatus(status2, pStream);
     STR_WITH_MAXSIZE_TO_VARSTR(status, status2, sizeof(status));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&status, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&status, false);
 
     char sourceDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(sourceDB, mndGetDbStr(pStream->sourceDb), sizeof(sourceDB));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&sourceDB, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&sourceDB, false);
 
     char targetDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(targetDB, mndGetDbStr(pStream->targetDb), sizeof(targetDB));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&targetDB, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&targetDB, false);
 
     if (pStream->targetSTbName[0] == 0) {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, NULL, true);
+      colDataSetVal(pColInfo, numOfRows, NULL, true);
     } else {
       char targetSTB[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(targetSTB, mndGetStbStr(pStream->targetSTbName), sizeof(targetSTB));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&targetSTB, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&targetSTB, false);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->watermark, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pStream->watermark, false);
 
     char trigger[20 + VARSTR_HEADER_SIZE] = {0};
     char trigger2[20] = {0};
     mndShowStreamTrigger(trigger2, pStream);
     STR_WITH_MAXSIZE_TO_VARSTR(trigger, trigger2, sizeof(trigger));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&trigger, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&trigger, false);
 
     numOfRows++;
     sdbRelease(pSdb, pStream);
@@ -1152,11 +1152,11 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
         STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetDbStr(pStream->name), sizeof(streamName));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataAppend(pColInfo, numOfRows, (const char *)streamName, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)streamName, false);
 
         // task id
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataAppend(pColInfo, numOfRows, (const char *)&pTask->taskId, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)&pTask->taskId, false);
 
         // node type
         char nodeType[20 + VARSTR_HEADER_SIZE] = {0};
@@ -1167,12 +1167,12 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         } else {
           memcpy(varDataVal(nodeType), "snode", 5);
         }
-        colDataAppend(pColInfo, numOfRows, nodeType, false);
+        colDataSetVal(pColInfo, numOfRows, nodeType, false);
 
         // node id
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         int32_t nodeId = TMAX(pTask->nodeId, 0);
-        colDataAppend(pColInfo, numOfRows, (const char *)&nodeId, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)&nodeId, false);
 
         // level
         char level[20 + VARSTR_HEADER_SIZE] = {0};
@@ -1188,7 +1188,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         } else if (pTask->taskLevel == TASK_LEVEL__SINK) {
         }
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataAppend(pColInfo, numOfRows, (const char *)&level, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)&level, false);
 
         // status
         char status[20 + VARSTR_HEADER_SIZE] = {0};
@@ -1196,7 +1196,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         strcpy(status, "normal");
         STR_WITH_MAXSIZE_TO_VARSTR(status, status2, sizeof(status));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataAppend(pColInfo, numOfRows, (const char *)&status, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)&status, false);
 
         numOfRows++;
       }

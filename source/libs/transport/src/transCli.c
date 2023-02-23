@@ -985,6 +985,7 @@ _RETURN:
 }
 
 static void cliDestroyBatch(SCliBatch* pBatch) {
+  if (pBatch == NULL) return;
   while (!QUEUE_IS_EMPTY(&pBatch->wq)) {
     queue* h = QUEUE_HEAD(&pBatch->wq);
     QUEUE_REMOVE(h);

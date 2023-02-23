@@ -91,7 +91,7 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
         return NULL;
       }
       varDataSetLen(str, len);
-      colDataAppend(pColInfo, i, reinterpret_cast<const char*>(str), false);
+      colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(str), false);
       pBlock->info.hasVarCol = true;
       printf("nchar: %s\n", strOri);
     } else if (pInfo->type == TSDB_DATA_TYPE_BINARY) {
@@ -99,12 +99,12 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
       char    str[64] = {0};
       taosRandStr(varDataVal(str), size);
       varDataSetLen(str, size);
-      colDataAppend(pColInfo, i, reinterpret_cast<const char*>(str), false);
+      colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(str), false);
       pBlock->info.hasVarCol = true;
       printf("binary: %s\n", varDataVal(str));
     } else if (pInfo->type == TSDB_DATA_TYPE_DOUBLE || pInfo->type == TSDB_DATA_TYPE_FLOAT) {
       double v = rand_f2();
-      colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&v), false);
+      colDataSetVal(pColInfo, i, reinterpret_cast<const char*>(&v), false);
       printf("float: %f\n", v);
     } else {
       int64_t v = ++pInfo->startVal;
@@ -115,7 +115,7 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
         memcpy(result, (char*)(&v) + sizeof(int64_t) - tDataTypes[pInfo->type].bytes, tDataTypes[pInfo->type].bytes);
       }
 
-      colDataAppend(pColInfo, i, result, false);
+      colDataSetVal(pColInfo, i, result, false);
       printf("int: %" PRId64 "\n", v);
       taosMemoryFree(result);
     }

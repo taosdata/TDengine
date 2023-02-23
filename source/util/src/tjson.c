@@ -325,7 +325,7 @@ int32_t tjsonToTArray(const SJson* pJson, const char* pName, FToObject func, SAr
   const cJSON* jArray = tjsonGetObjectItem(pJson, pName);
   int32_t      size = tjsonGetArraySize(jArray);
   if (size > 0) {
-    *pArray = taosArrayInit_s(size, itemSize, size);
+    *pArray = taosArrayInit_s(itemSize, size);
     if (NULL == *pArray) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }

@@ -1648,7 +1648,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
 
   for (int32_t i = 0; i < rowNum; ++i) {
     SQueryExplainRowInfo *row = taosArrayGet(pCtx->rows, i);
-    colDataAppend(pInfoData, i, row->buf, false);
+    colDataSetVal(pInfoData, i, row->buf, false);
   }
 
   pBlock->info.rows = rowNum;

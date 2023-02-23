@@ -954,7 +954,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       SColumnInfoData* pDestCol = taosArrayGet(pDest->pDataBlock, j);
       bool             isNull = colDataIsNull(pSrcCol, pSrc->info.rows, rowIndex, NULL);
       char*            pSrcData = colDataGetData(pSrcCol, rowIndex);
-      colDataAppend(pDestCol, pDest->info.rows, pSrcData, isNull);
+      colDataSetVal(pDestCol, pDest->info.rows, pSrcData, isNull);
     }
     pDest->info.rows++;
     if (pInfo->tbnameCalSup.numOfExprs > 0 && i == 0) {
