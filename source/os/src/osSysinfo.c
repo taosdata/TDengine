@@ -439,11 +439,14 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 
   if (code != 0 && (done & 1) == 0) {
     TdFilePtr pFile1 = taosOpenFile("/proc/device-tree/model", TD_FILE_READ | TD_FILE_STREAM);
-    if (pFile1 == NULL) return code;
-    taosGetsFile(pFile1, maxLen, cpuModel);
-    taosCloseFile(&pFile1);
-    code = 0;
-    done |= 1;
+    if (pFile1 != NULL) {
+      ssize_t bytes taosGetsFile(pFile1, maxLen, cpuModel);
+      taosCloseFile(&pFile);
+      if (bytes > 0) {
+        code = 0;
+        done |= 1;
+      }
+    }
   }
 
   if (code != 0 && (done & 1) == 0) {
@@ -498,7 +501,7 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
     curSysTotal = curSysUsed + sysCpu.idle;
     curProcTotal = procCpu.utime + procCpu.stime + procCpu.cutime + procCpu.cstime;
 
-    if (curSysTotal > lastSysTotal && curSysUsed >= lastSysUsed && curProcTotal >= lastProcTotal) {
+    if (curSysTotal - lastSysTotal > 0 && curSysUsed >= lastSysUsed && curProcTotal >= lastProcTotal) {
       if (cpu_system != NULL) {
         *cpu_system = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
       }
@@ -608,12 +611,6 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
     if (strstr(line, "VmRSS:") != NULL) {
       break;
     }
-  }
-
-  if (strlen(line) < 0) {
-    // printf("read file:%s failed", tsProcMemFile);
-    taosCloseFile(&pFile);
-    return -1;
   }
 
   char tmp[10];
