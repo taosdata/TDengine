@@ -3121,9 +3121,9 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
         v = pCtx->param[i].nType == TSDB_DATA_TYPE_INT ? pCtx->param[i].i64 : pCtx->param[i].dKey;
 
         if (i == pCtx->numOfParams - 1) {
-          len += snprintf(varDataVal(pCtx->pOutput) + len, maxBufLen - len, "%lf]", getPercentile(pMemBucket, v));
+          len += snprintf((char *)varDataVal(pCtx->pOutput) + len, maxBufLen - len, "%lf]", getPercentile(pMemBucket, v));
         } else {
-          len += snprintf(varDataVal(pCtx->pOutput) + len, maxBufLen - len, "%lf, ", getPercentile(pMemBucket, v));
+          len += snprintf((char *)varDataVal(pCtx->pOutput) + len, maxBufLen - len, "%lf, ", getPercentile(pMemBucket, v));
         }
       }
       varDataSetLen(pCtx->pOutput, len);
