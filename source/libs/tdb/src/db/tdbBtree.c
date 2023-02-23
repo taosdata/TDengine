@@ -264,7 +264,10 @@ int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, i
   // move the cursor
   ret = tdbBtcMoveTo(&btc, pKey, nKey, &c);
   if (ret < 0) {
-    ASSERT(0);
+    tdbError("tdb/btree-upsert: btc move to failed with ret: %d.", ret);
+    if (TDB_CELLDECODER_FREE_KEY(&btc.coder)) {
+      tdbFree(btc.coder.pKey);
+    }
     tdbBtcClose(&btc);
     return -1;
   }
@@ -280,11 +283,17 @@ int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, i
 
   ret = tdbBtcUpsert(&btc, pKey, nKey, pData, nData, c);
   if (ret < 0) {
-    ASSERT(0);
+    if (TDB_CELLDECODER_FREE_KEY(&btc.coder)) {
+      tdbFree(btc.coder.pKey);
+    }
     tdbBtcClose(&btc);
+    tdbError("tdb/btree-upsert: btc upsert failed with ret: %d.", ret);
     return -1;
   }
 
+  if (TDB_CELLDECODER_FREE_KEY(&btc.coder)) {
+    tdbFree(btc.coder.pKey);
+  }
   tdbBtcClose(&btc);
   return 0;
 }
@@ -2188,10 +2197,6 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
     } else {
       lidx = lidx + 1;
     }
-    if (TDB_CELLDECODER_FREE_KEY(&pBtc->coder)) {
-      tdbFree((void*)pTKey);
-    }
-
     // compare last cell
     if (lidx <= ridx) {
       pBtc->idx = ridx;
@@ -2201,9 +2206,6 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
         lidx = ridx + 1;
       } else {
         ridx = ridx - 1;
-      }
-      if (TDB_CELLDECODER_FREE_KEY(&pBtc->coder)) {
-        tdbFree((void*)pTKey);
       }
     }
 
@@ -2215,9 +2217,6 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
       pBtc->idx = (lidx + ridx) >> 1;
       tdbBtcGet(pBtc, &pTKey, &tkLen, NULL, NULL);
       c = pBt->kcmpr(pKey, kLen, pTKey, tkLen);
-      if (TDB_CELLDECODER_FREE_KEY(&pBtc->coder)) {
-        tdbFree((void*)pTKey);
-      }
       if (c < 0) {
         // pKey < cd.pKey
         ridx = pBtc->idx - 1;
