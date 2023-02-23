@@ -24,6 +24,7 @@ jobs:
       RUST_BACKTRACE: 1
       # Build static releases with PCRE2.
       PCRE2_SYS_STATIC: 1
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         build: [linux, linux-aarch64, macos, win-msvc]
@@ -44,7 +45,6 @@ jobs:
           os: windows-2022
           rust: nightly
           target: x86_64-pc-windows-msvc
-    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -77,14 +77,14 @@ jobs:
           echo "target dir is: ${{ env.TARGET_DIR }}"
 
       - name: Build release binary
-        run: ${{ env.CARGO }} build --verbose --release --features pcre2 ${{ env.TARGET_FLAGS }}
+        run: ${{ env.CARGO }} build --verbose --release ${{ env.TARGET_FLAGS }}
       
       - name: Strip release binary (linux and macos)
         if: matrix.build == 'linux' || matrix.build == 'macos'
-        run: strip "target/${{ matrix.target }}/release/rg"
+        run: strip "target/${{ matrix.target }}/release/"
 
-      - name: Strip release binary (arm)
-        if: matrix.build == 'linux-arm'
+      - name: Strip release binary (aarch64)
+        if: matrix.build == 'linux-aarch64'
         run: |
           docker run --rm -v \
             "$PWD/target:/target:Z" \
