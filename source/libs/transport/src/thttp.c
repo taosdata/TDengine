@@ -302,7 +302,7 @@ static int32_t taosSendHttpReportImpl(const char* server, const char* uri, uint1
   SHttpMsg* msg = taosMemoryMalloc(sizeof(SHttpMsg));
 
   msg->server = taosStrdup(server);
-  msg->uri  = taosStrdup(uri);
+  msg->uri = taosStrdup(uri);
   msg->port = port;
   msg->cont = taosMemoryMalloc(contLen);
   memcpy(msg->cont, pCont, contLen);
@@ -447,7 +447,7 @@ static void transHttpEnvInit() {
 
 void transHttpEnvDestroy() {
   // remove http
-  if (httpRef == -1 || transHttpInit == PTHREAD_ONCE_INIT) {
+  if (httpRef == -1) {
     return;
   }
   SHttpModule* load = taosAcquireRef(httpRefMgt, httpRef);
