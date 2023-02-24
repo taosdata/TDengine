@@ -730,6 +730,9 @@ consumer.close()
 
 ### 使用示例如下：
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
+
 ```java
 public abstract class ConsumerLoop {
     private final TaosConsumer<ResultBean> consumer;
@@ -800,6 +803,89 @@ public abstract class ConsumerLoop {
     }
 }
 ```
+
+</TabItem>
+<TabItem value="ws" label="WebSocket 连接">
+
+除了原生的连接方式，Java 连接器还支持通过 websocket 订阅 TMQ 数据。
+
+```java
+public abstract class ConsumerLoop {
+    private final TaosConsumer<ResultBean> consumer;
+    private final List<String> topics;
+    private final AtomicBoolean shutdown;
+    private final CountDownLatch shutdownLatch;
+
+    public ConsumerLoop() throws SQLException {
+        Properties config = new Properties();
+        config.setProperty("bootstrap.servers", "localhost:6041");
+        config.setProperty("td.connect.type", "ws");
+        config.setProperty("msg.with.table.name", "true");
+        config.setProperty("enable.auto.commit", "true");
+        config.setProperty("group.id", "group2");
+        config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ConsumerLoop$ResultDeserializer");
+
+        this.consumer = new TaosConsumer<>(config);
+        this.topics = Collections.singletonList("topic_speed");
+        this.shutdown = new AtomicBoolean(false);
+        this.shutdownLatch = new CountDownLatch(1);
+    }
+
+    public abstract void process(ResultBean result);
+
+    public void pollData() throws SQLException {
+        try {
+            consumer.subscribe(topics);
+
+            while (!shutdown.get()) {
+                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
+                for (ResultBean record : records) {
+                    process(record);
+                }
+            }
+            consumer.unsubscribe();
+        } finally {
+            consumer.close();
+            shutdownLatch.countDown();
+        }
+    }
+
+    public void shutdown() throws InterruptedException {
+        shutdown.set(true);
+        shutdownLatch.await();
+    }
+
+    public static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
+
+    }
+
+    public static class ResultBean {
+        private Timestamp ts;
+        private int speed;
+
+        public Timestamp getTs() {
+            return ts;
+        }
+
+        public void setTs(Timestamp ts) {
+            this.ts = ts;
+        }
+
+        public int getSpeed() {
+            return speed;
+        }
+
+        public void setSpeed(int speed) {
+            this.speed = speed;
+        }
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+> **注意**：这里的 value.deserializer 配置参数值应该根据测试环境的包路径做相应的调整。
 
 ### 与连接池使用
 
@@ -884,7 +970,7 @@ public static void main(String[] args) throws Exception {
 
 | taos-jdbcdriver 版本 |            主要变化            |
 | :------------------: | :----------------------------: |
-|       3.1.0           |   REST 连接支持 TMQ 功能      |
+|       3.1.0           |   WebSocket 连接支持 TMQ 功能      |
 |       3.0.1 - 3.0.4        |  修复一些情况下结果集数据解析错误的问题。3.0.1 在 JDK 11 环境编译，JDK 8 环境下建议使用其他版本    |
 |       3.0.0        |   支持 TDengine 3.0    |
 |       2.0.42        |   修在 WebSocket 连接中 wasNull 接口返回值  |

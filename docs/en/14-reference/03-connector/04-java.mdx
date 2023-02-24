@@ -727,6 +727,11 @@ For more information, see [Data Subscription](../../../develop/tmq).
 
 ### Usage examples
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
+In addition to the native connection, the Java Connector also supports subscribing via websocket.
+
 ```java
 public abstract class ConsumerLoop {
     private final TaosConsumer<ResultBean> consumer;
@@ -797,6 +802,87 @@ public abstract class ConsumerLoop {
     }
 }
 ```
+
+</TabItem>
+<TabItem value="ws" label="WebSocket connection">
+
+```java
+public abstract class ConsumerLoop {
+    private final TaosConsumer<ResultBean> consumer;
+    private final List<String> topics;
+    private final AtomicBoolean shutdown;
+    private final CountDownLatch shutdownLatch;
+
+    public ConsumerLoop() throws SQLException {
+        Properties config = new Properties();
+        config.setProperty("bootstrap.servers", "localhost:6041");
+        config.setProperty("td.connect.type", "ws");
+        config.setProperty("msg.with.table.name", "true");
+        config.setProperty("enable.auto.commit", "true");
+        config.setProperty("group.id", "group2");
+        config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ConsumerLoop$ResultDeserializer");
+
+        this.consumer = new TaosConsumer<>(config);
+        this.topics = Collections.singletonList("topic_speed");
+        this.shutdown = new AtomicBoolean(false);
+        this.shutdownLatch = new CountDownLatch(1);
+    }
+
+    public abstract void process(ResultBean result);
+
+    public void pollData() throws SQLException {
+        try {
+            consumer.subscribe(topics);
+
+            while (!shutdown.get()) {
+                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
+                for (ResultBean record : records) {
+                    process(record);
+                }
+            }
+            consumer.unsubscribe();
+        } finally {
+            consumer.close();
+            shutdownLatch.countDown();
+        }
+    }
+
+    public void shutdown() throws InterruptedException {
+        shutdown.set(true);
+        shutdownLatch.await();
+    }
+
+    public static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
+
+    }
+
+    public static class ResultBean {
+        private Timestamp ts;
+        private int speed;
+
+        public Timestamp getTs() {
+            return ts;
+        }
+
+        public void setTs(Timestamp ts) {
+            this.ts = ts;
+        }
+
+        public int getSpeed() {
+            return speed;
+        }
+
+        public void setSpeed(int speed) {
+            this.speed = speed;
+        }
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+> **Note**: The value of value.deserializer should be adjusted based on the package path of the test environment.
 
 ### Use with connection pool
 
