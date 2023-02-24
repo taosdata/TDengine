@@ -14,7 +14,6 @@ use anyhow::Context;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, Code, Dsn, TBuilder, TaosBuilder};
 use taosx::TaskOpts;

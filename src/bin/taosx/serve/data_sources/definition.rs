@@ -124,14 +124,29 @@ pub struct GroupedParams {
     pub params: Vec<Param>,
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct Authentication {
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
+#[serde(default)]
+pub struct AuthItem {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<OptionDef>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<OptionDef>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub params: Vec<Param>,
+}
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
+pub struct Authentication {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Authentication item name.
     pub value: Option<String>,
+    /// Authentication items.
+    pub alternatives: Vec<AuthItem>,
 }
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct HintDefinition {
@@ -181,9 +196,8 @@ pub struct DataSourceDefinition {
     pub protocol: Option<Protocol>,
 
     /// Authentication settings.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     #[serde(default)]
-    pub authentication: Vec<Authentication>,
+    pub authentication: Authentication,
 
     /// Grouped parameters.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -237,10 +251,12 @@ impl DataSourceDefinition {
                     self.options.replace(DataSourceOptions::Path {
                         path: OptionDef::default().value(value.to_string()),
                         username: username_value
-                            .map(|v| OptionDef::default().value(v))
+                            .as_ref()
+                            .map(|v| OptionDef::default().value(v.to_string()))
                             .unwrap_or_default(),
                         password: password_value
-                            .map(|v| OptionDef::default().value(v))
+                            .as_ref()
+                            .map(|v| OptionDef::default().value(v.to_string()))
                             .unwrap_or_default(),
                     });
                 }
@@ -270,11 +286,11 @@ impl DataSourceDefinition {
                                 port.value.replace(value.to_string());
                             }
                         }
-                        if let Some(value) = username_value {
-                            username.value.replace(value);
+                        if let Some(value) = &username_value {
+                            username.value.replace(value.to_string());
                         }
-                        if let Some(value) = password_value {
-                            password.value.replace(value);
+                        if let Some(value) = &password_value {
+                            password.value.replace(value.to_string());
                         }
                         if let Some(value) = dsn.subject.as_ref() {
                             subject.value.replace(value.to_string());
@@ -284,11 +300,37 @@ impl DataSourceDefinition {
                 None => (),
             }
         }
-        for auth in self.authentication.as_mut_slice() {
-            if auth.name == "plain" {
-                continue;
+        if password_value.is_some() || username_value.is_some() {
+            if let Some(auth) = self
+                .authentication
+                .alternatives
+                .iter_mut()
+                .find(|auth| auth.name == "plain")
+            {
+                self.authentication.value.replace("plain".to_string());
+                if let Some(value) = username_value.as_deref() {
+                    auth.username
+                        .get_or_insert(Default::default())
+                        .value
+                        .replace(value.to_string());
+                }
+                if let Some(value) = password_value {
+                    auth.password
+                        .get_or_insert(Default::default())
+                        .value
+                        .replace(value);
+                }
             }
+        }
+        for (name, auth) in self
+            .authentication
+            .alternatives
+            .iter_mut()
+            .filter(|item| item.name != "plain")
+            .flat_map(|auth| auth.params.iter_mut().map(|param| (&auth.name, param)))
+        {
             if let Some(value) = dsn.remove(&auth.name) {
+                self.authentication.value.replace(name.to_string());
                 if !value.is_empty() {
                     auth.value.replace(value);
                 }

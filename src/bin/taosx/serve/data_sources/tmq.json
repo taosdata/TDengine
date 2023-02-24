@@ -53,18 +53,40 @@
         "placeholder": "Example: db1,db1.stb1,topic1"
       }
     },
-    "authentication": [
-      {
-        "name": "plain",
-        "display": "Plain",
-        "description": "Use username and password."
-      },
-      {
-        "name": "token",
-        "display": "Token",
-        "description": "Use token in parameters."
-      }
-    ],
+    "authentication": {
+      "display": "Authentication",
+      "description": "Use username/password plain authentication or with **token**.",
+      "value": "plain",
+      "alternatives": [
+        {
+          "name": "plain",
+          "display": "Plain",
+          "description": "Use username and password.",
+          "username": {
+            "display": "Username",
+            "description": "TDengine username. The default is root.",
+            "placeholder": "root"
+          },
+          "password": {
+            "display": "Password",
+            "description": "TDengine password. The default is taosdata.",
+            "placeholder": "taosdata"
+          }
+        },
+        {
+          "name": "token",
+          "display": "Token",
+          "description": "Use token in parameters.",
+          "params": [
+            {
+              "name": "token",
+              "display": "Token",
+              "description": "Cloud token or custom token."
+            }
+          ]
+        }
+      ]
+    },
     "strict": false,
     "groups": [
       {
