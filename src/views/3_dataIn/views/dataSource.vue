@@ -227,8 +227,11 @@ export default {
       });
     },
     edit(data) {
-      console.log("打开编辑页面", data);
+      let editDdata=[].concat(data.from_detail)
 
+      console.log("打开编辑页面", editDdata,this.$parent);
+      this.$parent.uidata=editDdata
+      this.$parent.toggleComponent("ui", this.ruleForm.name,'',editDdata);
       // this.$router.push({
       //   path: `/dataIn/source/${data.data_source_name}`
       // });

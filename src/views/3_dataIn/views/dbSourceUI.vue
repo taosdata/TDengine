@@ -72,7 +72,7 @@
             </div>
           </div>
         </div>
-        <div style="width: 100%">
+        <!-- <div style="width: 100%">
           <span
             :class="[
               'label',
@@ -90,8 +90,8 @@
               class="description"
             ></div>
           </div>
-        </div>
-        <div style="width: 100%">
+        </div> -->
+        <!-- <div style="width: 100%">
           <span
             :class="[
               'label',
@@ -110,7 +110,7 @@
               class="description"
             ></div>
           </div>
-        </div>
+        </div> -->
         <div style="width: 100%">
           <span
             :class="[
@@ -144,34 +144,78 @@
         <div class="authen-content">
           <el-radio-group v-model="dbsource[0].authentication.value">
             <template v-for="at in dbsource[0].authentication.alternatives">
-              <el-radio :key="at.name" :label="at.name">{{
-                at.display
-              }}</el-radio>
+              <el-radio :key="at.name" :label="at.name"
+                >{{ at.display }}
+                <span class="des" style="color: #acaab2" v-if="at.description"
+                  >({{ at.description }})</span
+                >
+              </el-radio>
             </template>
           </el-radio-group>
           <div class="authen-details">
             <template v-if="dbsource[0].authentication.value == 'plain'">
               <div class="plain">
-                <p class="plain-user">
+                <div class="plain-item">
                   <span class="label">{{
                     dbsource[0].authentication.alternatives[0].username.display
                   }}</span>
-                  <el-input
-                    v-model="
-                      dbsource[0].authentication.alternatives[0].username.value
-                    "
-                  ></el-input>
-                </p>
-                <p class="plain-pwd">
+                  <div style="width: 100%">
+                    <el-input
+                      v-model="
+                        dbsource[0].authentication.alternatives[0].username
+                          .value
+                      "
+                    ></el-input>
+                    <p
+                      class="description"
+                      v-html="
+                        transforHtml(
+                          dbsource[0].authentication.alternatives[0].username
+                            .description
+                        )
+                      "
+                    ></p>
+                  </div>
+                </div>
+
+                <div class="plain-item">
                   <span class="label">{{
                     dbsource[0].authentication.alternatives[0].password.display
                   }}</span>
-                  <el-input
-                    v-model="
-                      dbsource[0].authentication.alternatives[0].password.value
-                    "
-                  ></el-input>
-                </p>
+                  <div style="width: 100%">
+                    <el-input
+                      v-model="
+                        dbsource[0].authentication.alternatives[0].password
+                          .value
+                      "
+                    ></el-input>
+                    <p
+                      class="description"
+                      v-html="
+                        transforHtml(
+                          dbsource[0].authentication.alternatives[0].password
+                            .description
+                        )
+                      "
+                    ></p>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <div
+                v-for="al in dbsource[0].authentication.alternatives.slice(1)"
+                :key="al.name"
+                style="display:flex;align-items:baseline;"
+              >
+                <span class="label">{{ al.display }}</span>
+                <div v-for="(p, index) in al.params" :key="index" style="width:100%;">
+                  <el-input v-model="p.value"></el-input>
+                  <div
+                    class="description"
+                    v-html="transforHtml(p.description)"
+                  ></div>
+                </div>
               </div>
             </template>
           </div>
@@ -195,7 +239,7 @@
               </span>
               <div class="label-value">
                 <template v-if="p.hint === 'str' || p.hint === 'timeout'">
-                  <el-input v-model="p.value"></el-input>
+                  <el-input v-model="p.value" placeholder="Please enter timeout"></el-input>
                 </template>
                 <template v-if="p.hint.type && p.hint.type === 'str'">
                   <el-select
@@ -325,7 +369,6 @@ export default {
       let dns = "";
       let data = this.dbsource[0];
       try {
-        console.log(data.protocol, "this.dbsource.protocol", this.$store);
         if (data.protocol.value) {
           dns += data.protocol.value;
         }
@@ -345,21 +388,17 @@ export default {
           "username"
         )}:${sessionStorage.getItem("pwd")}@${
           data.options.host.value ? data.options.host.value : ""
-        }:${data.options.port.value ? data.options.port.value : ""}`;
+        }
+        `
+        dns+=(Object.is(data.options.port.value,null)?'':':')+`${data.options.port.value ? data.options.port.value : ""}`;
         dns += data.options.subject.value
           ? "/" + data.options.subject.value
           : "";
         let querystr = "";
-        console.log(data, "tijiaoshuju--");
         for (let index = 0; index < data.groups.length; index++) {
           //   for (let j = 0; j < data.groups[index].params.length; j++) {
           for (let g of Object.keys(data.groups[index].params)) {
-            console.log(
-              g,
-              data.groups[index].params[g],
-              "ppp",
-              data.groups[index].params[g]["value"]
-            );
+            
             if (
               Object.hasOwnProperty.call(
                 data.groups[index].params[g],
@@ -377,15 +416,13 @@ export default {
                 `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                 "&";
             }
-            console.log((g.params, data, "----gggg"));
           }
           //   }
         }
 
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-        console.log("继续执行", dns);
         let apiParams = {
-          from: "tmq+" + dns,
+          from: "tmq" +(Object.is(data.protocol.value,null)?'':'+')+ dns,
           name: localStorage.getItem("datainName"),
           to:
             "taos+" +
@@ -489,7 +526,7 @@ export default {
         white-space: pre-wrap;
         display: flex;
         align-items: baseline;
-        margin-bottom: 8px;
+        // margin-bottom: 8px;
         flex: 1;
       }
       .first {
@@ -534,6 +571,21 @@ export default {
       }
       .el-select {
         margin-left: 0px !important;
+      }
+    }
+    .authentication {
+      .authen-content {
+        margin-top: 15px;
+      }
+      .authen-details {
+        margin-top: 15px;
+      }
+      .plain {
+        .plain-item {
+          display: flex;
+          margin-bottom: 10px;
+          align-items: baseline;
+        }
       }
     }
   }
