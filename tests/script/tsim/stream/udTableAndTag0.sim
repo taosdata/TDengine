@@ -39,7 +39,10 @@ sql select table_name from information_schema.ins_tables where db_name="result" 
 
 if $rows != 2 then
   print =====rows=$rows
-  print $data00 $data10
+  print $data00
+  print $data10
+  print $data20
+  print $data30
   goto loop0
 endi
 

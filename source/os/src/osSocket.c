@@ -745,8 +745,10 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
 #endif
   serverAdd.sin_port = (uint16_t)htons(port);
 
-  if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
-    // printf("failed to open TCP socket: %d (%s)", errno, strerror(errno));
+  fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (fd < 0) { // exception
+    return false;
+  } else if (fd <= 2) { // in, out, err
     taosCloseSocketNoCheck1(fd);
     return false;
   }

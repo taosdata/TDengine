@@ -473,7 +473,7 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
                            int8_t forward) {
   int32_t           code = 0;
   int8_t            level;
-  SMemSkipListNode *pNode;
+  SMemSkipListNode *pNode = NULL;
   SVBufPool        *pPool = pMemTable->pTsdb->pVnode->inUse;
   int64_t           nSize;
 
@@ -591,7 +591,9 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   pBlockData->aColData = vnodeBufPoolMalloc(pPool, sizeof(SColData) * pBlockData->nColData);
   if (pBlockData->aColData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
   }
+
   for (int32_t iColData = 0; iColData < pBlockData->nColData; ++iColData) {
     code = tColDataCopy(&aColData[iColData + 1], &pBlockData->aColData[iColData], (xMallocFn)vnodeBufPoolMalloc, pPool);
     if (code) goto _exit;

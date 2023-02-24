@@ -391,7 +391,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
     return NULL;
   }
 
-  pCacheObj->name = strdup(cacheName);
+  pCacheObj->name = taosStrdup(cacheName);
   doRegisterCacheObj(pCacheObj);
   return pCacheObj;
 }

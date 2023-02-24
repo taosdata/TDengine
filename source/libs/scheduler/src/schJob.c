@@ -716,7 +716,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->attr.localExec = pReq->localReq;
   pJob->conn = *pReq->pConn;
   if (pReq->sql) {
-    pJob->sql = strdup(pReq->sql);
+    pJob->sql = taosStrdup(pReq->sql);
   }
   pJob->pDag = pReq->pDag;
   pJob->allocatorRefId = nodesMakeAllocatorWeakRef(pReq->allocatorRefId);

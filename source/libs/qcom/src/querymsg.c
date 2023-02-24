@@ -527,7 +527,7 @@ int32_t queryProcessGetSerVerRsp(void *output, char *msg, int32_t msgSize) {
     return code;
   }
 
-  *(char **)output = strdup(out.ver);
+  *(char **)output = taosStrdup(out.ver);
 
   return code;
 }
