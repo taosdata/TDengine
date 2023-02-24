@@ -4684,6 +4684,11 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   pTableBlockInfo->numOfVgroups = 1;
 
   // find the start data block in file
+
+  tsdbAcquireReader(pReader);
+  if (pReader->suspended) {
+    tsdbReaderResume(pReader);
+  }
   SReaderStatus* pStatus = &pReader->status;
 
   STsdbCfg* pc = &pReader->pTsdb->pVnode->config.tsdbCfg;
@@ -4745,7 +4750,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
     //    tsdbDebug("%p %d blocks found in file for %d table(s), fid:%d, %s", pReader, numOfBlocks, numOfTables,
     //              pReader->pFileGroup->fid, pReader->idStr);
   }
-
+  tsdbReleaseReader(pReader);
   return code;
 }
 

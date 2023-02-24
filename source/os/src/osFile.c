@@ -132,15 +132,20 @@ int64_t taosCopyFile(const char *from, const char *to) {
     if (bytes < sizeof(buffer)) break;
   }
 
-  taosFsyncFile(pFileTo);
+  int code = taosFsyncFile(pFileTo);
 
   taosCloseFile(&pFileFrom);
   taosCloseFile(&pFileTo);
+
+  if (code != 0) {
+    return -1;
+  }
   return size;
 
 _err:
   if (pFileFrom != NULL) taosCloseFile(&pFileFrom);
   if (pFileTo != NULL) taosCloseFile(&pFileTo);
+  /* coverity[+retval] */
   taosRemoveFile(to);
   return -1;
 #endif
@@ -506,13 +511,13 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
 }
 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
+  if (pFile == NULL || pFile->fd < 0) {
+    return -1;
+  }
 #if FILE_WITH_LOCK
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
   ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
-  if (pFile->fd < 0) {
-    return -1;
-  }
 #ifdef WINDOWS
   int64_t ret = _lseeki64(pFile->fd, offset, whence);
 #else

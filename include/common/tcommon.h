@@ -205,8 +205,7 @@ typedef struct SDataBlockInfo {
   STimeWindow calWin;     // used for stream, do not serialize
   TSKEY       watermark;  // used for stream
 
-  char  parTbName[TSDB_TABLE_NAME_LEN];  // used for stream partition
-  STag* pTag;                            // used for stream partition
+  char parTbName[TSDB_TABLE_NAME_LEN];  // used for stream partition
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -292,7 +291,6 @@ typedef struct STableBlockDistInfo {
   uint16_t numOfFiles;
   uint32_t numOfTables;
   uint32_t numOfBlocks;
-  uint32_t numOfVgroups;
   uint64_t totalSize;
   uint64_t totalRows;
   int32_t  maxRows;
@@ -302,6 +300,7 @@ typedef struct STableBlockDistInfo {
   int32_t  firstSeekTimeUs;
   uint32_t numOfInmemRows;
   uint32_t numOfSmallBlocks;
+  uint32_t numOfVgroups;
   int32_t  blockRowsHisto[20];
 } STableBlockDistInfo;
 

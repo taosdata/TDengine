@@ -2850,7 +2850,7 @@ typedef struct {
   char   dbFName[TSDB_DB_FNAME_LEN];
   char   stbName[TSDB_TABLE_NAME_LEN];
   char   colName[TSDB_COL_NAME_LEN];
-  char   idxName[TSDB_COL_NAME_LEN];
+  char   idxName[TSDB_INDEX_FNAME_LEN];
   int8_t idxType;
 } SCreateTagIndexReq;
 
