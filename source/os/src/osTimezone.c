@@ -909,7 +909,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
   char  buf[4096] = {0};
   char *tz = NULL;
   {
-    int n = readlink("/etc/localtime", buf, sizeof(buf));
+    int n = readlink("/etc/localtime", buf, sizeof(buf)-1);
     if (n < 0) {
       printf("read /etc/localtime error, reason:%s", strerror(errno));
 
