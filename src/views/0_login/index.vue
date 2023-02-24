@@ -238,14 +238,13 @@ export default {
   },
   methods: {
     submitForm(formName) {
-      let reg =
-        /^(http:\/\/|https:\/\/)([0-9a-zA-Z]+\.)+[0-9a-zA-Z]+(:[0-9]+)?$/;
+      let reg =/^(http|https):\/\/([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*/;
       if (
         this.dynamicValidateForm.cluster &&
         !reg.test(this.dynamicValidateForm.cluster)
       ) {
         Message.error(
-          "Please enter the correct cluster format [hostname]:[port]."
+          "Please enter the correct cluster url ."
         );
         return;
       }
@@ -291,7 +290,7 @@ export default {
             });
           }
         }).catch(err=>{
-          Message.error('Faild to fetch!')
+          Message.error('Faild to fetch,wrong cluster url!')
           console.log(err,'fetch---');
         });
       } catch (error) {
