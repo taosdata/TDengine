@@ -36,16 +36,6 @@
         "description": "TDengine connection port, leave it empty if use default port.",
         "placeholder": "auto"
       },
-      "username": {
-        "display": "Username",
-        "description": "TDengine username. The default is root.",
-        "placeholder": "root"
-      },
-      "password": {
-        "display": "Password",
-        "description": "TDengine password. The default is taosdata.",
-        "placeholder": "taosdata"
-      },
       "subject": {
         "required": true,
         "display": "Topics",
