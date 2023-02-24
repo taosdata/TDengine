@@ -22,8 +22,10 @@ mod task;
 use data_sources::*;
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
+    /// Listen to ip:port address.
     #[clap(short = 'l', long, default_value = "0.0.0.0:6050")]
     listen: String,
+
     #[clap(short = 'D', long)]
     database_url: Option<String>,
 
@@ -74,6 +76,7 @@ impl Cli {
         #[openapi(
             components(
                 schemas(
+                    TaskDetail,
                     NewTask,
                     UpdateTask,
                     Cluster,

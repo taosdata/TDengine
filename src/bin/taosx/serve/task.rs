@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::{
     collections::HashMap,
@@ -13,7 +14,6 @@ use anyhow::Context;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, Code, Dsn, TBuilder, TaosBuilder};
 use taosx::TaskOpts;
@@ -106,6 +106,7 @@ mod labels_serde {
     }
 }
 
+use super::data_sources::DataSourceDefinition;
 use super::metrics::metrics_exporter;
 
 static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
@@ -441,21 +442,21 @@ impl TaskController {
         Ok(())
     }
 
-    pub async fn tasks(&self, mut filter: TaskFilter) -> anyhow::Result<Vec<Task>> {
+    pub async fn tasks(&self, mut filter: TaskFilter) -> anyhow::Result<Vec<TaskDetail>> {
         let condition = filter.to_sql_conditions()?;
         let mut tasks = sqlx::query_as::<_, Task>(&format!(
             "select * from task_with_labels where {condition} order by created_at desc"
         ))
         .fetch_all(&self.pool)
-        .await.unwrap();
+        .await
+        .unwrap();
 
         if filter.has_labels_filter() {
             filter.filter_task_labels(&mut tasks);
         }
 
         tasks.iter_mut().for_each(|task| task.backport_labels());
-
-        Ok(tasks)
+        Ok(tasks.into_iter().map(TaskDetail::new).collect())
     }
 
     pub async fn tasks_count(&self, filter: TaskFilter) -> anyhow::Result<usize> {
@@ -463,7 +464,7 @@ impl TaskController {
         Ok(tasks.len())
     }
 
-    pub async fn create(&self, mut task: NewTask) -> anyhow::Result<Task> {
+    pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
@@ -514,10 +515,10 @@ impl TaskController {
         task.backport_labels();
 
         self.start_task(&task).await?;
-        Ok(task)
+        Ok(task.into())
     }
 
-    pub async fn update(&self, id: i64, task: UpdateTask) -> anyhow::Result<Option<Task>> {
+    pub async fn update(&self, id: i64, task: UpdateTask) -> anyhow::Result<Option<TaskDetail>> {
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
@@ -557,8 +558,8 @@ impl TaskController {
         if res.rows_affected() == 1 {
             let task = self.get(id).await?.unwrap();
 
-            self.start_task(&task).await?;
-            Ok(Some(task))
+            self.start_task(&task.task).await?;
+            Ok(Some(task.into()))
         } else {
             Ok(None)
         }
@@ -590,22 +591,24 @@ impl TaskController {
 
         let task = task.unwrap();
 
-        self.start_task(&task).await.map(Some)
+        self.start_task(&task.task).await.map(Some)
     }
 
-    pub async fn get(&self, id: i64) -> anyhow::Result<Option<Task>> {
+    pub async fn get(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
         let task: Option<Task> = sqlx::query_as("select * from task_with_labels where id = ?")
             .bind(id)
             .fetch_optional(&self.pool)
             .await?;
 
-        Ok(task.map(|mut t| {
-            t.backport_labels();
-            t
-        }))
+        Ok(task
+            .map(|mut t| {
+                t.backport_labels();
+                t
+            })
+            .map(Into::into))
     }
 
-    pub async fn delete(&self, id: i64) -> anyhow::Result<Option<Task>> {
+    pub async fn delete(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
         {
             if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
                 token.cancel();
@@ -661,7 +664,7 @@ impl TaskController {
                 tokio::spawn(async move { taosx::utils::clear_local(&dsn).await });
             }
         }
-        Ok(Some(task))
+        Ok(Some(task.into()))
     }
     pub async fn stop(&self, id: i64) -> anyhow::Result<Option<()>> {
         if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
@@ -790,7 +793,7 @@ pub(super) enum Status {
 #[derive(
     Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode, sqlx::Encode, sqlx::FromRow,
 )]
-pub(super) struct Task {
+pub struct Task {
     /// Unique id for the task item.
     #[schema(read_only, example = 1)]
     id: i64,
@@ -798,6 +801,7 @@ pub(super) struct Task {
     /// Task stream data type. **Deprecated**, use labels instead.
     #[serde(default)]
     #[serde(skip_deserializing)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[sqlx(default)]
     stream_type: Option<String>,
 
@@ -808,6 +812,7 @@ pub(super) struct Task {
     /// Cluster identifier for stream from. **Deprecated**, use labels instead.
     #[serde(default)]
     #[serde(skip_deserializing)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[sqlx(default)]
     from_cluster: Option<String>,
 
@@ -902,6 +907,162 @@ pub(super) struct Task {
     #[sqlx(try_from = "String", default)]
     // #[serde(deserialize_with = "labels_serde::deserialize")]
     labels: Labels,
+}
+
+lazy_static::lazy_static! {
+    /// This is an example for using doc comment attributes
+    static ref DATA_SOURCE_DEFINITIONS: BTreeMap<String, DataSourceDefinition> = {
+        let json = include_str!("data_sources/tmq.json");
+        let def: Vec<DataSourceDefinition> = serde_json::from_str(json).unwrap();
+        def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
+    };
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct ExpandedDsn {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub protocol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub params: BTreeMap<String, Option<String>>,
+}
+
+impl From<Dsn> for ExpandedDsn {
+    fn from(value: Dsn) -> Self {
+        let (host, port) = match value.addresses.into_iter().next() {
+            Some(addr) => (addr.host, addr.port),
+            None => (None, None),
+        };
+        Self {
+            id: value.driver,
+            protocol: value.protocol,
+            path: value.path,
+            host,
+            port,
+            username: value.username,
+            password: value.password,
+            subject: value.subject,
+            params: value
+                .params
+                .into_iter()
+                .map(|(k, v)| (k, if v.is_empty() { None } else { Some(v) }))
+                .collect(),
+        }
+    }
+}
+/// A streaming workflow task description.
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct TaskDetail {
+    #[serde(flatten)]
+    task: Task,
+
+    /// Expanded DSN for source.
+    from_expand: Option<ExpandedDsn>,
+    /// Expanded DSN definition with values.
+    #[serde(default)]
+    #[serde(skip_deserializing)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    from_detail: Option<DataSourceDefinition>,
+
+    /// Expanded DSN for sink.
+    to_expand: Option<ExpandedDsn>,
+    /// Expanded DSN definition with values.
+    #[serde(default)]
+    #[serde(skip_deserializing)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    to_detail: Option<DataSourceDefinition>,
+}
+
+impl From<Task> for TaskDetail {
+    fn from(value: Task) -> Self {
+        Self::new(value)
+    }
+}
+
+impl std::ops::Deref for TaskDetail {
+    type Target = Task;
+
+    fn deref(&self) -> &Self::Target {
+        &self.task
+    }
+}
+
+impl std::ops::DerefMut for TaskDetail {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.task
+    }
+}
+impl TaskDetail {
+    pub fn new(task: Task) -> Self {
+        TaskDetail {
+            task,
+            from_expand: None,
+            from_detail: None,
+            to_expand: None,
+            to_detail: None,
+        }
+    }
+
+    pub fn expand_detail(self) -> Self {
+        let value = self.task;
+        let from_dsn: Dsn = value.from.as_str().parse().unwrap();
+        let to_dsn: Dsn = value.to.as_str().parse().unwrap();
+        TaskDetail {
+            from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+            from_detail: DATA_SOURCE_DEFINITIONS
+                .get(&from_dsn.driver)
+                .map(|d| d.clone().values_from(from_dsn)),
+            to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+            to_detail: DATA_SOURCE_DEFINITIONS
+                .get(&to_dsn.driver)
+                .map(|d| d.clone().values_from(to_dsn)),
+            task: value,
+        }
+    }
+
+    pub fn expand(mut self) -> Self {
+        let value = &self.task;
+        let from_dsn: Dsn = value.from.as_str().parse().unwrap();
+        let to_dsn: Dsn = value.to.as_str().parse().unwrap();
+        self.from_expand = Some(from_dsn.into());
+        self.to_expand = Some(to_dsn.into());
+        self
+    }
+
+    pub fn detail(mut self) -> Self {
+        let value = &self.task;
+        let from_dsn: Dsn = value.from.as_str().parse().unwrap();
+        let to_dsn: Dsn = value.to.as_str().parse().unwrap();
+        self.from_detail = DATA_SOURCE_DEFINITIONS
+            .get(&from_dsn.driver)
+            .map(|d| d.clone().values_from(from_dsn));
+        self.to_detail = DATA_SOURCE_DEFINITIONS
+            .get(&to_dsn.driver)
+            .map(|d| d.clone().values_from(to_dsn));
+        self
+    }
+
+    pub fn decorate(mut self, decorator: &TaskDecorator) -> Self {
+        if decorator.detail.is_some() {
+            self.expand_detail()
+        } else if decorator.expand.unwrap_or_default() {
+            self.expand()
+        } else {
+            self
+        }
+    }
 }
 
 impl Task {
@@ -1169,6 +1330,8 @@ impl From<NewTask> for NewTaskV1 {
 )]
 #[serde(default)]
 pub(super) struct UpdateTask {
+    /// Update trigger,
+    trigger: Option<String>,
     stream_type: Option<String>,
     /// The stream data source.
     from: Option<String>,
@@ -1212,6 +1375,13 @@ pub(super) struct TaskFilter {
     labels: Option<String>,
     any_labels: Option<String>,
     without_labels: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, IntoParams)]
+#[serde(default)]
+pub struct TaskDecorator {
+    expand: Option<bool>,
+    detail: Option<bool>,
 }
 
 impl TaskFilter {
@@ -1296,17 +1466,24 @@ impl TaskFilter {
     ),
     params(
         TaskFilter,
+        TaskDecorator,
     )
 )]
 #[get("/tasks")]
 pub(super) async fn get_tasks(
     task_store: Data<TaskController>,
     filter: Query<TaskFilter>,
+    decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     match task_store.tasks(filter.into_inner()).await {
         Ok(tasks) => HttpResponse::Ok()
             .append_header(("Count", tasks.len()))
-            .json(tasks),
+            .json(
+                tasks
+                    .into_iter()
+                    .map(|t| t.decorate(&decorator))
+                    .collect_vec(),
+            ),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::Failed,
             message: err.to_string(),
@@ -1357,6 +1534,9 @@ pub(super) async fn get_tasks_count(
 #[utoipa::path(
     tag = "tasks",
     request_body = NewTask,
+    params(
+        TaskDecorator,
+    ),
     responses(
         (status = 201, description = "Task created successfully", body = Task),
         // (status = 409, description = "Task with id already exists", body = ErrorResponse, example = json!(ErrorResponse::Conflict(String::from("id = 1"))))
@@ -1366,10 +1546,11 @@ pub(super) async fn get_tasks_count(
 pub(super) async fn create_task(
     task: actix_web::web::Json<NewTask>,
     task_store: Data<TaskController>,
+    decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     let task = task.into_inner();
     match task_store.create(task).await {
-        Ok(task) => HttpResponse::Created().json(task),
+        Ok(task) => HttpResponse::Created().json(task.decorate(&decorator)),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::Failed,
             message: err.to_string(),
@@ -1473,15 +1654,19 @@ impl Cluster {
     params(
         ("id", description = "Unique storage id of Task")
     ),
+    params(
+        TaskDecorator,
+    ),
 )]
 #[patch("/tasks/{id}")]
 pub(super) async fn update_task(
     id: Path<i64>,
     task: actix_web::web::Json<UpdateTask>,
     task_store: Data<TaskController>,
+    decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     match task_store.update(id.into_inner(), task.into_inner()).await {
-        Ok(Some(_)) => HttpResponse::Ok().finish(),
+        Ok(Some(task)) => HttpResponse::Ok().json(task.decorate(&decorator)),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::Failed,
@@ -1506,11 +1691,18 @@ pub(super) async fn update_task(
     params(
         ("id", description = "Unique storage id of Task")
     ),
+    params(
+        TaskDecorator,
+    ),
 )]
 #[delete("/tasks/{id}")]
-pub(super) async fn delete_task(id: Path<i64>, task_store: Data<TaskController>) -> impl Responder {
+pub(super) async fn delete_task(
+    id: Path<i64>,
+    task_store: Data<TaskController>,
+    decorator: Query<TaskDecorator>,
+) -> impl Responder {
     match task_store.delete(id.into_inner()).await {
-        Ok(Some(task)) => HttpResponse::Ok().json(task),
+        Ok(Some(task)) => HttpResponse::Ok().json(task.decorate(&decorator)),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::Failed,
@@ -1529,17 +1721,21 @@ pub(super) async fn delete_task(id: Path<i64>, task_store: Data<TaskController>)
         (status = 404, description = "Task not found by id", body = Failed)
     ),
     params(
+        TaskDecorator,
+    ),
+    params(
         ("id", description = "Unique storage id of Task")
-    )
+    ),
 )]
 #[get("/tasks/{id}")]
 pub(super) async fn get_task_by_id(
     id: Path<i64>,
     task_store: Data<TaskController>,
+    decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     let id = id.into_inner();
     match task_store.get(id).await {
-        Ok(Some(task)) => HttpResponse::Ok().json(task),
+        Ok(Some(task)) => HttpResponse::Ok().json(task.decorate(&decorator)),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::Failed,
