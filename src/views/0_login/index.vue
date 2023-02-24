@@ -89,6 +89,7 @@
             <el-form-item label="" prop="cluster">
               <el-input
                 v-model="dynamicValidateForm.cluster"
+                oninput="value=value.replace(/^(http:\/\/|https:\/\/)([0-9a-zA-Z]+\.)+[0-9a-zA-Z]+(:[0-9]+)?$/,'')"
                 placeholder="http://192.168.0.201:16041"
               ></el-input>
             </el-form-item>
@@ -182,6 +183,7 @@
 import { DbBase64 } from "../../utils/dbBase64";
 import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
+import { Message } from 'element-ui';
 export default {
   name: "Login",
   components: {
@@ -237,13 +239,17 @@ export default {
   },
   methods: {
     submitForm(formName) {
+      let reg=/^(http:\/\/|https:\/\/)([0-9a-zA-Z]+\.)+[0-9a-zA-Z]+(:[0-9]+)?$/
+      if(this.dynamicValidateForm.cluster&&!reg.test(this.dynamicValidateForm.cluster)){
+        Message.error('Please enter the correct cluster format [hostname]:[port].')
+        return
+      }
       this.$refs[formName].validate((valid) => {
         if (valid) {
           localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
 
           this.login();
         } else {
-          console.log("error submit!!");
           return false;
         }
       });
@@ -272,6 +278,11 @@ export default {
           this.$router.push({
             path: "/explorer",
           });
+        }else{
+          Message({
+            type:'error',
+            message:res.statusText
+          })
         }
       });
     },
