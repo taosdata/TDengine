@@ -497,7 +497,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
             taosArrayPush(tagArray, &tagVal);
           }
         }
-        pCreateTbReq->ctb.tagNum = size;
+        pCreateTbReq->ctb.tagNum = TMAX(size - UD_TAG_COLUMN_INDEX, 1);
 
         STag* pTag = NULL;
         tTagNew(tagArray, 1, false, &pTag);
@@ -510,15 +510,12 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         pCreateTbReq->ctb.pTag = (uint8_t*)pTag;
 
         // set table name
-        SColumnInfoData* pTbColInfo = taosArrayGet(pDataBlock->pDataBlock, UD_TABLE_NAME_COLUMN_INDEX);
-        if (colDataIsNull_s(pTbColInfo, rowId)) {
+        if (!pDataBlock->info.parTbName[0]) {
           SColumnInfoData* pGpIdColInfo = taosArrayGet(pDataBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
           void*            pGpIdData = colDataGetData(pGpIdColInfo, rowId);
           pCreateTbReq->name = buildCtbNameByGroupId(stbFullName, *(uint64_t*)pGpIdData);
         } else {
-          void* pTbData = colDataGetData(pTbColInfo, rowId);
-          pCreateTbReq->name = taosMemoryCalloc(1, varDataLen(pTbData) + 1);
-          memcpy(pCreateTbReq->name, varDataVal(pTbData), varDataLen(pTbData));
+          pCreateTbReq->name = strdup(pDataBlock->info.parTbName);
         }
         taosArrayPush(reqs.pArray, pCreateTbReq);
       }

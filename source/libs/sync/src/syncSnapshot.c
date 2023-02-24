@@ -168,17 +168,19 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
 
   if (pSender->blockLen > 0) {
     // has read data
-    sSDebug(pSender, "snapshot sender continue to read, blockLen:%d seq:%d", pSender->blockLen, pSender->seq);
+    sSDebug(pSender, "vgId:%d, snapshot sender continue to read, blockLen:%d seq:%d", pSender->pSyncNode->vgId,
+            pSender->blockLen, pSender->seq);
   } else {
     // read finish, update seq to end
     pSender->seq = SYNC_SNAPSHOT_SEQ_END;
-    sSInfo(pSender, "snapshot sender read to the end, blockLen:%d seq:%d", pSender->blockLen, pSender->seq);
+    sSInfo(pSender, "vgId:%d, snapshot sender read to the end, blockLen:%d seq:%d", pSender->pSyncNode->vgId,
+           pSender->blockLen, pSender->seq);
   }
 
   // build msg
   SRpcMsg rpcMsg = {0};
   if (syncBuildSnapshotSend(&rpcMsg, pSender->blockLen, pSender->pSyncNode->vgId) != 0) {
-    sSError(pSender, "snapshot sender build msg failed since %s", pSender->pSyncNode->vgId, terrstr());
+    sSError(pSender, "vgId:%d, snapshot sender build msg failed since %s", pSender->pSyncNode->vgId, terrstr());
     return -1;
   }
 
@@ -340,11 +342,13 @@ void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {
   taosMemoryFree(pReceiver);
 }
 
-bool snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver) { return pReceiver->start; }
+bool snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver) {
+  return (pReceiver != NULL ? pReceiver->start : false);
+}
 
 static int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg) {
   if (pReceiver->pWriter != NULL) {
-    sRError(pReceiver, "vgId:%d, snapshot receiver writer is not null");
+    sRError(pReceiver, "vgId:%d, snapshot receiver writer is not null", pReceiver->pSyncNode->vgId);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
@@ -851,8 +855,8 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
          pMsg->snapBeginIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm);
 
   if (pMsg->snapBeginIndex > snapshot.lastApplyIndex) {
-    sSError(pSender, "prepare snapshot failed since beginIndex:%d larger than applyIndex:%d", pMsg->snapBeginIndex,
-            snapshot.lastApplyIndex);
+    sSError(pSender, "prepare snapshot failed since beginIndex:%" PRId64 " larger than applyIndex:%" PRId64,
+            pMsg->snapBeginIndex, snapshot.lastApplyIndex);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
@@ -966,7 +970,8 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
 
   if (pSender->pReader == NULL || pSender->finish) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "snapshot sender invalid");
-    sSError(pSender, "snapshot sender invalid, pReader:%p finish:%d", pMsg->code, pSender->pReader, pSender->finish);
+    sSError(pSender, "snapshot sender invalid error:%s 0x%x, pReader:%p finish:%d", tstrerror(pMsg->code), pMsg->code,
+            pSender->pReader, pSender->finish);
     terrno = pMsg->code;
     goto _ERROR;
   }
