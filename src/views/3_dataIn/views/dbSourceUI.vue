@@ -20,7 +20,7 @@
               <el-option
                 v-for="c in dbsource[0].protocol.choices"
                 :key="c.name"
-                :label="c.name"
+                :label="c.display"
                 :value="c.name"
               ></el-option>
             </el-select>
@@ -141,12 +141,41 @@
             v-html="transforHtml(dbsource[0].authentication.description)"
           ></div>
         </div>
-
-        <el-radio-group v-model="dbsource[0].authentication.value">
-          <template v-for="at in dbsource[0].authentication.alternatives">
-              <el-radio :key="at.name" v-model="at.value">{{ at.display }}</el-radio>
-          </template>
-        </el-radio-group>
+        <div class="authen-content">
+          <el-radio-group v-model="dbsource[0].authentication.value">
+            <template v-for="at in dbsource[0].authentication.alternatives">
+              <el-radio :key="at.name" :label="at.name">{{
+                at.display
+              }}</el-radio>
+            </template>
+          </el-radio-group>
+          <div class="authen-details">
+            <template v-if="dbsource[0].authentication.value == 'plain'">
+              <div class="plain">
+                <p class="plain-user">
+                  <span class="label">{{
+                    dbsource[0].authentication.alternatives[0].username.display
+                  }}</span>
+                  <el-input
+                    v-model="
+                      dbsource[0].authentication.alternatives[0].username.value
+                    "
+                  ></el-input>
+                </p>
+                <p class="plain-pwd">
+                  <span class="label">{{
+                    dbsource[0].authentication.alternatives[0].password.display
+                  }}</span>
+                  <el-input
+                    v-model="
+                      dbsource[0].authentication.alternatives[0].password.value
+                    "
+                  ></el-input>
+                </p>
+              </div>
+            </template>
+          </div>
+        </div>
       </section>
       <template v-for="item in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
@@ -265,7 +294,6 @@ export default {
   },
   methods: {
     transforHtml(val) {
-      console.log(val, "ppppppp");
       if (val) {
         return marked.parse(val);
       } else {
@@ -521,6 +549,7 @@ export default {
   .description {
     display: initial !important;
     color: #acaab2;
+    margin-bottom: 0px !important;
   }
 }
 </style>

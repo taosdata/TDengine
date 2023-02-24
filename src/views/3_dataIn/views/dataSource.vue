@@ -29,10 +29,8 @@
               effect="light"
               popper-class="datain"
             >
-              <div
-                v-html="scope.row.last_modified_at + '\n' + scope.row.reason"
-                slot="content"
-              ></div>
+              <div v-html="scope.row.last_modified_at" slot="content"></div>
+              <div slot="content" v-html="scope.row.reason"></div>
               <span style="width: 80px; display: inline-block">{{
                 scope.row.status
               }}</span>
@@ -40,20 +38,28 @@
             <span style="width: 80px; display: inline-block" v-else>{{
               scope.row.status
             }}</span>
-            <el-button
-              v-if="scope.row.status.toLowerCase() !== 'running'"
-              plain
-              size="small"
-              @click="start(scope.row, scope.$index)"
-              icon="el-icon-qidong"
-            ></el-button>
-            <el-button
-              v-else
-              plain
-              size="small"
-              @click="stop(scope.row, scope.$index)"
-              icon="el-icon-tingzhi"
-            ></el-button>
+            <template v-if="scope.row.status.toLowerCase() !== 'running'">
+              <el-tooltip placement="bottom"
+              effect="light" content='Excute Start'>
+                <el-button
+                  plain
+                  size="small"
+                  @click="start(scope.row, scope.$index)"
+                  icon="el-icon-qidong"
+                ></el-button>
+              </el-tooltip>
+            </template>
+            <template v-else>
+              <el-tooltip placement="bottom"
+              effect="light" content='Excute Stop'>
+              <el-button
+                plain
+                size="small"
+                @click="stop(scope.row, scope.$index)"
+                icon="el-icon-tingzhi"
+              ></el-button></el-tooltip>
+              
+            </template>
           </div>
           <!-- <template v-if="['stopped','finished','failed'].includes(scope.row.status.toLowerCase())">
             <div class="finished-time">{{scope.row.last_modified_at}}</div>
@@ -67,7 +73,7 @@
             type="primay"
             size="small"
             @click="edit(scope.row)"
-            icon="el-icon-more"
+            icon="el-icon-edit"
           ></el-button>
           <el-button
             plain
@@ -294,10 +300,8 @@ export default {
 };
 </script>
 <style lang='scss'>
-:deep {
-  .el-tooltip__popper.is-light.datain {
-    max-width: 450px !important;
-  }
+.el-tooltip__popper {
+  max-width: 450px !important;
 }
 </style>
 <style lang="scss" scoped>

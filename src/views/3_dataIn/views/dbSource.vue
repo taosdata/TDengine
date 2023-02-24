@@ -35,7 +35,6 @@ export default {
           .then((res) => res.json())
           .then((result) => {
             this.sourceList = result;
-            console.log(result, "jieguo-----");
           });
       } catch (error) {
         console.log(error);
@@ -63,9 +62,18 @@ export default {
       Object.keys(source).forEach((keys) => {
         if (source[keys] && typeof source[keys] === "object") {
           targetObj[keys] = this.deepClone(source[keys]);
+        if(keys==='alternatives'){
+            targetObj['value']=targetObj.alternatives[0].name
+        }
+        if(keys==='protocol'){
+            targetObj.protocol['value']=targetObj.protocol.choices.filter(o=>o.name=='--')[0].name
+        }
         } else {
           targetObj[keys] = source[keys];
-          targetObj["value"] = "";
+          if(!targetObj.hasOwnProperty.call('value')){
+            targetObj["value"] = "";
+          }
+          
         }
       });
       return targetObj;

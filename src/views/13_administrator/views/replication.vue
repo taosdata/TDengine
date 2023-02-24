@@ -250,7 +250,7 @@ export default {
       try {
         let id = localStorage.getItem("local_clusterID");
         await fetch(
-          `http://192.168.0.201:6050/tasks?labels=type::replication,cluster-id::${id}`,
+          `http://192.168.0.201:6050/tasks?detail=true&labels=type::replication,cluster-id::${id}`,
           {
             method: "get"
           }
@@ -259,8 +259,8 @@ export default {
           .then(result => {
             this.topicList = result.map(item => {
               item["fromdb"] = item.from.split("/").at(-1);
-              item["hostport"] = "新数据结构";
-              item["db"] = "新数据结构";
+              item["hostport"] = item.from_expand?(item.from_expand.host+':'+item.from_expand.port):'';
+              item["db"] = item.from_expand?item.from_expand.subject:'';
               return item;
             });
           });
