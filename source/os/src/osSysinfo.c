@@ -440,7 +440,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   if (code != 0 && (done & 1) == 0) {
     TdFilePtr pFile1 = taosOpenFile("/proc/device-tree/model", TD_FILE_READ | TD_FILE_STREAM);
     if (pFile1 != NULL) {
-      ssize_t bytes taosGetsFile(pFile1, maxLen, cpuModel);
+      ssize_t bytes = taosGetsFile(pFile1, maxLen, cpuModel);
       taosCloseFile(&pFile);
       if (bytes > 0) {
         code = 0;
