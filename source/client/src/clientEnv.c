@@ -140,7 +140,7 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 0;
   rpcInit.label = "TSC";
-  rpcInit.numOfThreads = numOfThread;
+  rpcInit.numOfThreads = tsNumOfRpcThreads;
   rpcInit.cfp = processMsgFromServer;
   rpcInit.rfp = clientRpcRfp;
   rpcInit.sessions = 1024;
