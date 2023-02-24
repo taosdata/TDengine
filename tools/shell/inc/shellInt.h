@@ -86,7 +86,7 @@ typedef struct {
   const char* promptContinue;
   const char* osname;
   int32_t     promptSize;
-  char        programVersion[32];
+  char        programVersion[256];
 } SShellOsDetails;
 
 typedef struct {
