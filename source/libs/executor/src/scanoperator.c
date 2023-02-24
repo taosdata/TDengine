@@ -1647,8 +1647,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       } else if (ret.fetchType == FETCH_TYPE__NONE ||
                  (ret.fetchType == FETCH_TYPE__SEP && pOperator->status == OP_EXEC_RECV)) {
         pTaskInfo->streamInfo.lastStatus = ret.offset;
-        ASSERT(pTaskInfo->streamInfo.lastStatus.version >= pTaskInfo->streamInfo.prepareStatus.version);
-        ASSERT(pTaskInfo->streamInfo.lastStatus.version + 1 == pInfo->tqReader->pWalReader->curVersion);
         char formatBuf[80];
         tFormatOffset(formatBuf, 80, &ret.offset);
         qDebug("queue scan log return null, offset %s", formatBuf);
@@ -1656,16 +1654,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         return NULL;
       }
     }
-#if 0
-    } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
-    SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
-    if (pResult && pResult->info.rows > 0) {
-      qDebug("stream scan tsdb return %d rows", pResult->info.rows);
-      return pResult;
-    }
-    qDebug("stream scan tsdb return null");
-    return NULL;
-#endif
   } else {
     qError("unexpected streamInfo prepare type: %d", pTaskInfo->streamInfo.prepareStatus.type);
     return NULL;

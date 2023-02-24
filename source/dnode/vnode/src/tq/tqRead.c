@@ -309,7 +309,8 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
     if (!fromProcessedMsg) {
       if (walNextValidMsg(pReader->pWalReader) < 0) {
         pReader->ver =
-            pReader->pWalReader->curVersion - (pReader->pWalReader->curInvalid | pReader->pWalReader->curStopped);
+            pReader->pWalReader->curVersion - pReader->pWalReader->curStopped;
+//            pReader->pWalReader->curVersion - (pReader->pWalReader->curInvalid | pReader->pWalReader->curStopped);
         ret->offset.type = TMQ_OFFSET__LOG;
         ret->offset.version = pReader->ver;
         ret->fetchType = FETCH_TYPE__NONE;
@@ -318,18 +319,7 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
         return -1;
       }
       void* body = pReader->pWalReader->pHead->head.body;
-#if 0
-      if (pReader->pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
-        // TODO do filter
-        ret->fetchType = FETCH_TYPE__META;
-        ret->meta = pReader->pWalReader->pHead->head.body;
-        return 0;
-      } else {
-#endif
       tqReaderSetDataMsg(pReader, body, pReader->pWalReader->pHead->head.version);
-#if 0
-      }
-#endif
     }
 
     while (tqNextDataBlock(pReader)) {

@@ -568,7 +568,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     taosWLockLatch(&pTq->pushLock);
     tqScanData(pTq, pHandle, &dataRsp, &fetchOffsetNew);
 
-#if 1
     if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
         dataRsp.reqOffset.version == dataRsp.rspOffset.version) {
       STqPushEntry* pPushEntry = taosMemoryCalloc(1, sizeof(STqPushEntry));
@@ -588,7 +587,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         return 0;
       }
     }
-#endif
     taosWUnLockLatch(&pTq->pushLock);
 
     if (tqSendDataRsp(pTq, pMsg, &req, &dataRsp) < 0) {
@@ -605,10 +603,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // for taosx
-  ASSERT(pHandle->execHandle.subType != TOPIC_SUB_TYPE__COLUMN);
-
   SMqMetaRsp metaRsp = {0};
-
   STaosxRsp taosxRsp = {0};
   tqInitTaosxRsp(&taosxRsp, &req);
 

@@ -67,7 +67,7 @@ typedef struct {
 // tqExec
 
 typedef struct {
-  char* qmsg;
+  char* qmsg;   // SubPlanToString
 } STqExecCol;
 
 typedef struct {
