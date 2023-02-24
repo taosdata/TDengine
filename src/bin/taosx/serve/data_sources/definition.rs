@@ -71,20 +71,12 @@ impl OptionDef {
 pub enum DataSourceOptions {
     Path {
         path: OptionDef,
-        #[serde(default)]
-        username: OptionDef,
-        #[serde(default)]
-        password: OptionDef,
     },
     Uri {
         #[serde(default)]
         host: OptionDef,
         #[serde(default)]
         port: OptionDef,
-        #[serde(default)]
-        username: OptionDef,
-        #[serde(default)]
-        password: OptionDef,
         #[serde(default)]
         subject: OptionDef,
     },
@@ -229,53 +221,15 @@ impl DataSourceDefinition {
             }
         }
 
-        if let Some(value) = dsn.path.as_ref() {
-            match self.options.as_mut() {
+        match self.r#type {
+            DataSourceType::Uri => match self.options.as_mut() {
                 Some(options) => match options {
-                    DataSourceOptions::Path {
-                        path,
-                        username,
-                        password,
-                    } => {
-                        path.value.replace(value.to_string());
-                    }
-                    DataSourceOptions::Uri {
-                        host,
-                        port,
-                        username,
-                        password,
-                        subject,
-                    } => panic!("mixed path and uri type of DSN"),
-                },
-                None => {
-                    self.options.replace(DataSourceOptions::Path {
-                        path: OptionDef::default().value(value.to_string()),
-                        username: username_value
-                            .as_ref()
-                            .map(|v| OptionDef::default().value(v.to_string()))
-                            .unwrap_or_default(),
-                        password: password_value
-                            .as_ref()
-                            .map(|v| OptionDef::default().value(v.to_string()))
-                            .unwrap_or_default(),
-                    });
-                }
-            }
-        } else {
-            match self.options.as_mut() {
-                Some(options) => match options {
-                    DataSourceOptions::Path {
-                        path,
-                        username,
-                        password,
-                    } => {
+                    DataSourceOptions::Path { path } => {
                         panic!("mixed path and uri type of DSN");
                     }
                     DataSourceOptions::Uri {
                         host,
                         port,
-                        username,
-                        password,
                         subject,
                     } => {
                         if let Some(addr) = dsn.addresses.first() {
@@ -286,18 +240,33 @@ impl DataSourceDefinition {
                                 port.value.replace(value.to_string());
                             }
                         }
-                        if let Some(value) = &username_value {
-                            username.value.replace(value.to_string());
-                        }
-                        if let Some(value) = &password_value {
-                            password.value.replace(value.to_string());
-                        }
                         if let Some(value) = dsn.subject.as_ref() {
                             subject.value.replace(value.to_string());
                         }
                     }
                 },
                 None => (),
+            },
+            DataSourceType::Path => {
+                if let Some(value) = dsn.path.as_ref() {
+                    match self.options.as_mut() {
+                        Some(options) => match options {
+                            DataSourceOptions::Path { path } => {
+                                path.value.replace(value.to_string());
+                            }
+                            DataSourceOptions::Uri {
+                                host,
+                                port,
+                                subject,
+                            } => panic!("mixed path and uri type of DSN"),
+                        },
+                        None => {
+                            self.options.replace(DataSourceOptions::Path {
+                                path: OptionDef::default().value(value.to_string()),
+                            });
+                        }
+                    }
+                }
             }
         }
         if password_value.is_some() || username_value.is_some() {
