@@ -1096,6 +1096,8 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
       nList->numOfConn++;
       QUEUE_INIT(&nList->msgQ);
       taosHashPut(pThrd->connLimitCache, conn->ip, strlen(conn->ip), &nList, sizeof(void*));
+    } else {
+      (*list)->numOfConn++;
     }
     uv_timer_start(conn->timer, cliConnTimeout, TRANS_CONN_TIMEOUT, 0);
     return;
@@ -1400,7 +1402,6 @@ static void doFreeTimeoutMsg(void* param) {
   STrans*   pTransInst = pThrd->pTransInst;
 
   QUEUE_REMOVE(&pMsg->q);
-
   STraceId* trace = &pMsg->msg.info.traceId;
   tGTrace("%s msg %s cannot get available conn after timeout", pTransInst->label, TMSG_INFO(pMsg->msg.msgType));
   doNotifyApp(pMsg, pThrd);
@@ -1531,6 +1532,8 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
       nList->numOfConn++;
       QUEUE_INIT(&nList->msgQ);
       taosHashPut(pThrd->connLimitCache, conn->ip, strlen(conn->ip), &nList, sizeof(void*));
+    } else {
+      (*list)->numOfConn++;
     }
 
     uv_timer_start(conn->timer, cliConnTimeout, TRANS_CONN_TIMEOUT, 0);
