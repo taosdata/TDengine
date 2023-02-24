@@ -312,15 +312,15 @@ void *taosMemoryRealloc(void *ptr, int64_t size) {
 #endif
 }
 
-void *taosMemoryStrDup(const char *ptr) {
+char *taosStrdup(const char *ptr) {
 #ifdef USE_TD_MEMORY
   if (ptr == NULL) return NULL;
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
   ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
   if (pTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
-+   return NULL;
-+ }
+   return NULL;
+ }
   void *tmp = tstrdup(pTdMemoryInfo);
   if (tmp == NULL) return NULL;
 

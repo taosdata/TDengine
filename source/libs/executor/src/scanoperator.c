@@ -434,7 +434,7 @@ static void freeTableCachedVal(void* param) {
 
 static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
   STableCachedVal* pVal = taosMemoryMalloc(sizeof(STableCachedVal));
-  pVal->pName = strdup(pMetaReader->me.name);
+  pVal->pName = taosStrdup(pMetaReader->me.name);
   pVal->pTags = NULL;
 
   // only child table has tag value
@@ -3050,8 +3050,8 @@ int32_t tblCountScanGetInputs(SNodeList* groupTags, SName* tableName, STableCoun
       }
     }
   } else {
-    strncpy(supp->dbNameFilter, tNameGetDbNameP(tableName), TSDB_DB_NAME_LEN);
-    strncpy(supp->stbNameFilter, tNameGetTableName(tableName), TSDB_TABLE_NAME_LEN);
+    tstrncpy(supp->dbNameFilter, tNameGetDbNameP(tableName), TSDB_DB_NAME_LEN);
+    tstrncpy(supp->stbNameFilter, tNameGetTableName(tableName), TSDB_TABLE_NAME_LEN);
   }
   return TSDB_CODE_SUCCESS;
 }

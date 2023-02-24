@@ -156,7 +156,7 @@ class TMQCom:
                     if tdSql.getData(i, 1) == 0:
                         loopFlag = 0
                         break
-            time.sleep(0.1)
+            time.sleep(0.02)
         return
 
     def getStartCommitNotifyFromTmqsim(self,cdbName='cdb',rows=2):
@@ -170,7 +170,7 @@ class TMQCom:
                     if tdSql.getData(i, 1) == 1:
                         loopFlag = 0
                         break
-            time.sleep(0.1)
+            time.sleep(0.02)
         return
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):

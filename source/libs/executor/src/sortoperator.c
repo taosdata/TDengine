@@ -46,8 +46,9 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   pOperator->pTaskInfo = pTaskInfo;
   SDataBlockDescNode* pDescNode = pSortNode->node.pOutputDataBlockDesc;
 
-  int32_t    numOfCols = 0;
-  SExprInfo* pExprInfo = createExprInfo(pSortNode->pExprs, NULL, &numOfCols);
+  int32_t numOfCols = 0;
+  pOperator->exprSupp.pExprInfo = createExprInfo(pSortNode->pExprs, NULL, &numOfCols);
+  pOperator->exprSupp.numOfExprs = numOfCols;
 
   int32_t numOfOutputCols = 0;
   int32_t code =
@@ -56,7 +57,8 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
     goto _error;
   }
 
-  pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
+  pOperator->exprSupp.pCtx =
+      createSqlFunctionCtx(pOperator->exprSupp.pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
   initResultSizeInfo(&pOperator->resultInfo, 1024);
   code = filterInitFromNode((SNode*)pSortNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   if (code != TSDB_CODE_SUCCESS) {
@@ -68,8 +70,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   initLimitInfo(pSortNode->node.pLimit, pSortNode->node.pSlimit, &pInfo->limitInfo);
 
   setOperatorInfo(pOperator, "SortOperator", QUERY_NODE_PHYSICAL_PLAN_SORT, true, OP_NOT_OPENED, pInfo, pTaskInfo);
-  pOperator->exprSupp.pExprInfo = pExprInfo;
-  pOperator->exprSupp.numOfExprs = numOfCols;
+
 
   // lazy evaluation for the following parameter since the input datablock is not known till now.
   //  pInfo->bufPageSize  = rowSize < 1024 ? 1024 * 2 : rowSize * 2;

@@ -552,14 +552,14 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.sourceDbUid = pDb->uid;
   streamObj.targetDbUid = pDb->uid;
   streamObj.version = 1;
-  streamObj.sql = strdup(pCreate->sql);
+  streamObj.sql = taosStrdup(pCreate->sql);
   streamObj.smaId = smaObj.uid;
   streamObj.watermark = pCreate->watermark;
   streamObj.deleteMark = pCreate->deleteMark;
   streamObj.fillHistory = STREAM_FILL_HISTORY_ON;
   streamObj.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
   streamObj.triggerParam = pCreate->maxDelay;
-  streamObj.ast = strdup(smaObj.ast);
+  streamObj.ast = taosStrdup(smaObj.ast);
 
   // check the maxDelay
   if (streamObj.triggerParam < TSDB_MIN_ROLLUP_MAX_DELAY) {

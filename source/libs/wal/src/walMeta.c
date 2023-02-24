@@ -913,7 +913,7 @@ int walLoadMeta(SWal* pWal) {
   int64_t fileSize = 0;
   taosStatFile(fnameStr, &fileSize, NULL);
   if (fileSize == 0) {
-    taosRemoveFile(fnameStr);
+    (void)taosRemoveFile(fnameStr);
     wDebug("vgId:%d, wal find empty meta ver %d", pWal->cfg.vgId, metaVer);
     return -1;
   }
