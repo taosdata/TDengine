@@ -152,7 +152,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
     }
     tqDebug("tmqsnap task execute end, get %p", pDataBlock);
 
-    if (pDataBlock != NULL) {
+    if (pDataBlock != NULL && pDataBlock->info.rows > 0) {
       if (pRsp->withTbName) {
         int64_t uid = 0;
         if (pOffset->type == TMQ_OFFSET__LOG) {
