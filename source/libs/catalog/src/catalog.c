@@ -721,9 +721,12 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
 
     if (ctg && (*ctg)) {
       *catalogHandle = *ctg;
+      CTG_CACHE_HIT_INC(CTG_CI_CLUSTER, 1);
       qDebug("got catalog handle from cache, clusterId:0x%" PRIx64 ", CTG:%p", clusterId, *ctg);
       CTG_API_LEAVE(TSDB_CODE_SUCCESS);
     }
+
+    CTG_CACHE_NHIT_INC(CTG_CI_CLUSTER, 1);
 
     clusterCtg = taosMemoryCalloc(1, sizeof(SCatalog));
     if (NULL == clusterCtg) {
@@ -768,7 +771,7 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
 
   *catalogHandle = clusterCtg;
 
-  CTG_CACHE_STAT_INC(numOfCluster, 1);
+  CTG_CACHE_NUM_INC(CTG_CI_CLUSTER, 1);
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 
@@ -1301,6 +1304,7 @@ int32_t catalogGetQnodeList(SCatalog* pCtg, SRequestConnInfo* pConn, SArray* pQn
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
+  CTG_CACHE_NHIT_INC(CTG_CI_QNODE, 1);
   CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pConn, pQnodeList, NULL));
 
 _return:
@@ -1316,6 +1320,7 @@ int32_t catalogGetDnodeList(SCatalog* pCtg, SRequestConnInfo* pConn, SArray** pD
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
+  CTG_CACHE_NHIT_INC(CTG_CI_DNODE, 1);
   CTG_ERR_JRET(ctgGetDnodeListFromMnode(pCtg, pConn, pDnodeList, NULL));
 
 _return:

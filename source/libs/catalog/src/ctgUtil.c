@@ -203,7 +203,6 @@ void ctgFreeStbMetaCache(SCtgDBCache* dbCache) {
   int32_t stbNum = taosHashGetSize(dbCache->stbCache);
   taosHashCleanup(dbCache->stbCache);
   dbCache->stbCache = NULL;
-  CTG_CACHE_STAT_DEC(numOfStb, stbNum);
 }
 
 void ctgFreeTbCacheImpl(SCtgTbCache* pCache) {
@@ -223,12 +222,14 @@ void ctgFreeTbCache(SCtgDBCache* dbCache) {
   int32_t      tblNum = taosHashGetSize(dbCache->tbCache);
   SCtgTbCache* pCache = taosHashIterate(dbCache->tbCache, NULL);
   while (NULL != pCache) {
+    if (pCache->pMeta) {
+      CTG_META_NUM_DEC(pCache->pMeta->tableType, 1);
+    }
     ctgFreeTbCacheImpl(pCache);
     pCache = taosHashIterate(dbCache->tbCache, pCache);
   }
   taosHashCleanup(dbCache->tbCache);
   dbCache->tbCache = NULL;
-  CTG_CACHE_STAT_DEC(numOfTbl, tblNum);
 }
 
 void ctgFreeVgInfoCache(SCtgDBCache* dbCache) { freeVgInfo(dbCache->vgCache.vgInfo); }
@@ -261,7 +262,7 @@ void ctgFreeInstDbCache(SHashObj* pDbCache) {
 
   taosHashCleanup(pDbCache);
 
-  CTG_CACHE_STAT_DEC(numOfDb, dbNum);
+  CTG_CACHE_NUM_DEC(CTG_CI_DB, dbNum);
 }
 
 void ctgFreeInstUserCache(SHashObj* pUserCache) {
@@ -281,7 +282,7 @@ void ctgFreeInstUserCache(SHashObj* pUserCache) {
 
   taosHashCleanup(pUserCache);
 
-  CTG_CACHE_STAT_DEC(numOfUser, userNum);
+  CTG_CACHE_NUM_DEC(CTG_CI_USER, userNum);
 }
 
 void ctgFreeHandleImpl(SCatalog* pCtg) {
@@ -307,7 +308,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
 
-  CTG_CACHE_STAT_DEC(numOfCluster, 1);
+  CTG_CACHE_NUM_DEC(CTG_CI_CLUSTER, 1);
 
   taosMemoryFree(pCtg);
 
@@ -342,7 +343,7 @@ void ctgClearHandle(SCatalog* pCtg) {
     ctgError("taosHashInit %d user cache failed", gCtgMgmt.cfg.maxUserCacheNum);
   }
 
-  CTG_CACHE_STAT_INC(numOfClear, 1);
+  CTG_RT_STAT_INC(numOfOpClearCache, 1);
 
   ctgInfo("handle cleared, clusterId:0x%" PRIx64, clusterId);
 }

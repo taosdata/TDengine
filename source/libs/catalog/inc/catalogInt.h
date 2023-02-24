@@ -43,6 +43,29 @@ extern "C" {
 
 #define CTG_BATCH_FETCH 1
 
+typedef enum {
+  CTG_CI_CLUSTER,
+  CTG_CI_DNODE,
+  CTG_CI_QNODE,
+  CTG_CI_DB,
+  CTG_CI_DB_VGROUP,
+  CTG_CI_DB_CFG,
+  CTG_CI_DB_INFO,
+  CTG_CI_STABLE_META,
+  CTG_CI_NTABLE_META,
+  CTG_CI_CTABLE_META,
+  CTG_CI_SYSTABLE_META,
+  CTG_CI_OTHERTABLE_META,
+  CTG_CI_TBL_INDEX,
+  CTG_CI_TBL_HASH_VGROUP,
+  CTG_CI_TBL_CFG,
+  CTG_CI_SMA,
+  CTG_CI_USER,
+  CTG_CI_UDF,
+  CTG_CI_SVR_VER,
+  CTG_CI_MAX_VALUE,
+} CTG_CACHE_ITEM;
+
 enum {
   CTG_READ = 1,
   CTG_WRITE,
@@ -347,23 +370,13 @@ typedef struct SCtgRuntimeStat {
   uint64_t numOfOpAbort;
   uint64_t numOfOpEnqueue;
   uint64_t numOfOpDequeue;
+  uint64_t numOfOpClearCache;
 } SCtgRuntimeStat;
 
 typedef struct SCtgCacheStat {
-  uint64_t numOfCluster;
-  uint64_t numOfDb;
-  uint64_t numOfTbl;
-  uint64_t numOfStb;
-  uint64_t numOfUser;
-  uint64_t numOfVgHit;
-  uint64_t numOfVgMiss;
-  uint64_t numOfMetaHit;
-  uint64_t numOfMetaMiss;
-  uint64_t numOfIndexHit;
-  uint64_t numOfIndexMiss;
-  uint64_t numOfUserHit;
-  uint64_t numOfUserMiss;
-  uint64_t numOfClear;
+  uint64_t cacheNum[CTG_CI_MAX_VALUE];
+  uint64_t cacheHit[CTG_CI_MAX_VALUE];
+  uint64_t cacheNHit[CTG_CI_MAX_VALUE];
 } SCtgCacheStat;
 
 typedef struct SCatalogStat {
@@ -498,6 +511,116 @@ typedef struct SCtgOperation {
 #define CTG_RT_STAT_INC(item, n)    (CTG_STAT_INC(gCtgMgmt.stat.runtime.item, n))
 #define CTG_CACHE_STAT_INC(item, n) (CTG_STAT_INC(gCtgMgmt.stat.cache.item, n))
 #define CTG_CACHE_STAT_DEC(item, n) (CTG_STAT_DEC(gCtgMgmt.stat.cache.item, n))
+
+#define CTG_CACHE_NUM_INC(item, n) (CTG_STAT_INC(gCtgMgmt.stat.cache.cacheNum[item], n))
+#define CTG_CACHE_NUM_DEC(item, n) (CTG_STAT_DEC(gCtgMgmt.stat.cache.cacheNum[item], n))
+#define CTG_CACHE_HIT_INC(item, n) (CTG_STAT_INC(gCtgMgmt.stat.cache.cacheHit[item], n))
+#define CTG_CACHE_HIT_DEC(item, n) (CTG_STAT_DEC(gCtgMgmt.stat.cache.cacheHit[item], n))
+#define CTG_CACHE_NHIT_INC(item, n) (CTG_STAT_INC(gCtgMgmt.stat.cache.cacheNHit[item], n))
+#define CTG_CACHE_NHIT_DEC(item, n) (CTG_STAT_DEC(gCtgMgmt.stat.cache.cacheNHit[item], n))
+
+#define CTG_META_NUM_INC(type, n) do {                \
+  switch (type) {                                     \
+    case TSDB_SUPER_TABLE:                            \
+      CTG_CACHE_NUM_INC(CTG_CI_STABLE_META, n);       \
+      break;                                          \
+    case TSDB_CHILD_TABLE:                            \
+      CTG_CACHE_NUM_INC(CTG_CI_CTABLE_META, n);       \
+      break;                                          \
+    case TSDB_NORMAL_TABLE:                           \
+      CTG_CACHE_NUM_INC(CTG_CI_NTABLE_META, n);       \
+      break;                                          \
+    case TSDB_SYSTEM_TABLE:                           \
+      CTG_CACHE_NUM_INC(CTG_CI_SYSTABLE_META, n);     \
+      break;                                          \
+    default:                                          \
+      CTG_CACHE_NUM_INC(CTG_CI_OTHERTABLE_META, n);   \
+      break;                                          \
+  }                                                   \
+} while (0)  
+
+#define CTG_META_NUM_DEC(type, n) do {                \
+  switch (type) {                                     \
+    case TSDB_SUPER_TABLE:                            \
+      CTG_CACHE_NUM_DEC(CTG_CI_STABLE_META, n);       \
+      break;                                          \
+    case TSDB_CHILD_TABLE:                            \
+      CTG_CACHE_NUM_DEC(CTG_CI_CTABLE_META, n);       \
+      break;                                          \
+    case TSDB_NORMAL_TABLE:                           \
+      CTG_CACHE_NUM_DEC(CTG_CI_NTABLE_META, n);       \
+      break;                                          \
+    case TSDB_SYSTEM_TABLE:                           \
+      CTG_CACHE_NUM_DEC(CTG_CI_SYSTABLE_META, n);     \
+      break;                                          \
+    default:                                          \
+      CTG_CACHE_NUM_DEC(CTG_CI_OTHERTABLE_META, n);   \
+      break;                                          \
+  }                                                   \
+} while (0)  
+
+#define CTG_META_HIT_INC(type, n) do {                \
+  switch (type) {                                     \
+    case TSDB_SUPER_TABLE:                            \
+      CTG_CACHE_HIT_INC(CTG_CI_STABLE_META, n);       \
+      break;                                          \
+    case TSDB_CHILD_TABLE:                            \
+      CTG_CACHE_HIT_INC(CTG_CI_CTABLE_META, n);       \
+      break;                                          \
+    case TSDB_NORMAL_TABLE:                           \
+      CTG_CACHE_HIT_INC(CTG_CI_NTABLE_META, n);       \
+      break;                                          \
+    case TSDB_SYSTEM_TABLE:                           \
+      CTG_CACHE_HIT_INC(CTG_CI_SYSTABLE_META, n);     \
+      break;                                          \
+    default:                                          \
+      CTG_CACHE_HIT_INC(CTG_CI_OTHERTABLE_META, n);   \
+      break;                                          \
+  }                                                   \
+} while (0)  
+    
+#define CTG_META_HIT_DEC(type, n) do {                \
+  switch (type) {                                     \
+    case TSDB_SUPER_TABLE:                            \
+      CTG_CACHE_HIT_DEC(CTG_CI_STABLE_META, n);       \
+      break;                                          \
+    case TSDB_CHILD_TABLE:                            \
+      CTG_CACHE_HIT_DEC(CTG_CI_CTABLE_META, n);       \
+      break;                                          \
+    case TSDB_NORMAL_TABLE:                           \
+      CTG_CACHE_HIT_DEC(CTG_CI_NTABLE_META, n);       \
+      break;                                          \
+    case TSDB_SYSTEM_TABLE:                           \
+      CTG_CACHE_HIT_DEC(CTG_CI_SYSTABLE_META, n);     \
+      break;                                          \
+    default:                                          \
+      CTG_CACHE_HIT_DEC(CTG_CI_OTHERTABLE_META, n);   \
+      break;                                          \
+  }                                                   \
+} while (0)  
+
+#define CTG_META_NHIT_INC(n) CTG_CACHE_NHIT_INC(CTG_CI_OTHERTABLE_META, n)
+        
+#define CTG_META_NHIT_DEC(type, n) do {               \
+  switch (type) {                                     \
+    case TSDB_SUPER_TABLE:                            \
+      CTG_CACHE_NHIT_DEC(CTG_CI_STABLE_META, n);      \
+      break;                                          \
+    case TSDB_CHILD_TABLE:                            \
+      CTG_CACHE_NHIT_DEC(CTG_CI_CTABLE_META, n);      \
+      break;                                          \
+    case TSDB_NORMAL_TABLE:                           \
+      CTG_CACHE_NHIT_DEC(CTG_CI_NTABLE_META, n);      \
+      break;                                          \
+    case TSDB_SYSTEM_TABLE:                           \
+      CTG_CACHE_NHIT_DEC(CTG_CI_SYSTABLE_META, n);    \
+      break;                                          \
+    default:                                          \
+      CTG_CACHE_NHIT_DEC(CTG_CI_OTHERTABLE_META, n);  \
+      break;                                          \
+  }                                                   \
+} while (0)  
+
 
 #define CTG_IS_META_NULL(type)   ((type) == META_TYPE_NULL_TABLE)
 #define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)

@@ -1967,6 +1967,7 @@ int32_t ctgLaunchGetQnodeTask(SCtgTask* pTask) {
     pMsgCtx->pBatchs = pJob->pBatchs;
   }
 
+  CTG_CACHE_NHIT_INC(CTG_CI_QNODE, 1);
   CTG_ERR_RET(ctgGetQnodeListFromMnode(pCtg, pConn, NULL, pTask));
   return TSDB_CODE_SUCCESS;
 }
@@ -1980,6 +1981,7 @@ int32_t ctgLaunchGetDnodeTask(SCtgTask* pTask) {
     pMsgCtx->pBatchs = pJob->pBatchs;
   }
 
+  CTG_CACHE_NHIT_INC(CTG_CI_DNODE, 1);
   CTG_ERR_RET(ctgGetDnodeListFromMnode(pCtg, pConn, NULL, pTask));
   return TSDB_CODE_SUCCESS;
 }
