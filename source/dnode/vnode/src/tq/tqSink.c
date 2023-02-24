@@ -516,7 +516,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
           void*            pGpIdData = colDataGetData(pGpIdColInfo, rowId);
           pCreateTbReq->name = buildCtbNameByGroupId(stbFullName, *(uint64_t*)pGpIdData);
         } else {
-          pCreateTbReq->name = strdup(pDataBlock->info.parTbName);
+          pCreateTbReq->name = taosStrdup(pDataBlock->info.parTbName);
         }
         taosArrayPush(reqs.pArray, pCreateTbReq);
       }
