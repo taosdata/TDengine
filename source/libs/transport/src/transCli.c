@@ -105,6 +105,7 @@ typedef struct SCliThrd {
   TdThreadMutex msgMtx;
   SDelayQueue*  delayQueue;
   SDelayQueue*  timeoutQueue;
+  SDelayQueue*  waitConnQueue;
   uint64_t      nextTimeout;  // next timeout
   void*         pTransInst;   //
 
@@ -614,8 +615,9 @@ static void addConnToPool(void* pool, SCliConn* conn) {
     if (!QUEUE_IS_EMPTY(&(*msglist)->msgQ)) {
       queue* h = QUEUE_HEAD(&(*msglist)->msgQ);
       QUEUE_REMOVE(h);
-
       SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
+
+      transDQCancel(thrd->waitConnQueue, pMsg->ctx->task);
       transCtxMerge(&conn->ctx, &pMsg->ctx->appCtx);
       transQueuePush(&conn->cliMsgs, pMsg);
       cliSend(conn);
@@ -1218,15 +1220,53 @@ void cliConnCb(uv_connect_t* req, int status) {
   }
 }
 
+static void doNotifyApp(SCliMsg* pMsg, SCliThrd* pThrd) {
+  STransConnCtx* pCtx = pMsg->ctx;
+  STrans*        pTransInst = pThrd->pTransInst;
+
+  STransMsg transMsg = {0};
+  transMsg.contLen = 0;
+  transMsg.pCont = NULL;
+  transMsg.code = TSDB_CODE_RPC_MAX_SESSIONS;
+  transMsg.msgType = pMsg->msg.msgType + 1;
+  transMsg.info.ahandle = pMsg->ctx->ahandle;
+  transMsg.info.traceId = pMsg->msg.info.traceId;
+  transMsg.info.hasEpSet = false;
+  if (pCtx->pSem != NULL) {
+    if (pCtx->pRsp == NULL) {
+    } else {
+      memcpy((char*)pCtx->pRsp, (char*)&transMsg, sizeof(transMsg));
+    }
+  } else {
+    pTransInst->cfp(pTransInst->parent, &transMsg, NULL);
+  }
+
+  destroyCmsg(pMsg);
+}
 static void cliHandleQuit(SCliMsg* pMsg, SCliThrd* pThrd) {
   if (!transAsyncPoolIsEmpty(pThrd->asyncPool)) {
     pThrd->stopMsg = pMsg;
     return;
   }
+  void** pIter = taosHashIterate(pThrd->connLimitCache, NULL);
+  while (pIter != NULL) {
+    SMsgList* list = (SMsgList*)(*pIter);
+    while (!QUEUE_IS_EMPTY(&list->msgQ)) {
+      queue* h = QUEUE_HEAD(&list->msgQ);
+      QUEUE_REMOVE(h);
+
+      SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
+      transDQCancel(pThrd->waitConnQueue, pMsg->ctx->task);
+
+      doNotifyApp(pMsg, pThrd);
+    }
+    pIter = (void**)taosHashIterate(pThrd->connLimitCache, pIter);
+  }
   pThrd->stopMsg = NULL;
   pThrd->quit = true;
   tDebug("cli work thread %p start to quit", pThrd);
   destroyCmsg(pMsg);
+
   destroyConnPool(pThrd->pool);
   uv_walk(pThrd->loop, cliWalkCb, NULL);
 }
@@ -1353,7 +1393,19 @@ static int32_t cliPreCheckSessionLimit(SCliThrd* pThrd, char* addr) {
   }
   return 0;
 }
+static void doFreeTimeoutMsg(void* param) {
+  STaskArg* arg = param;
+  SCliMsg*  pMsg = arg->param1;
+  SCliThrd* pThrd = arg->param2;
+  STrans*   pTransInst = pThrd->pTransInst;
 
+  QUEUE_REMOVE(&pMsg->q);
+
+  STraceId* trace = &pMsg->msg.info.traceId;
+  tGTrace("%s msg %s cannot get available conn after timeout", pTransInst->label, TMSG_INFO(pMsg->msg.msgType));
+  doNotifyApp(pMsg, pThrd);
+  taosMemoryFree(arg);
+}
 static int32_t cliPreCheckSessionLimitForMsg(SCliThrd* pThrd, char* addr, SCliMsg* pMsg) {
   STrans* pTransInst = pThrd->pTransInst;
 
@@ -1363,6 +1415,15 @@ static int32_t cliPreCheckSessionLimitForMsg(SCliThrd* pThrd, char* addr, SCliMs
   }
 
   if ((*list)->numOfConn >= pTransInst->connLimitNum) {
+    STraceId* trace = &pMsg->msg.info.traceId;
+
+    STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
+
+    arg->param1 = pMsg;
+    arg->param2 = pThrd;
+
+    pMsg->ctx->task = transDQSched(pThrd->waitConnQueue, doFreeTimeoutMsg, arg, 200);
+    tGTrace("%s msg %s delay to send, wait for avaiable connect", pTransInst->label, TMSG_INFO(pMsg->msg.msgType));
     QUEUE_PUSH(&(*list)->msgQ, &pMsg->q);
     return -1;
   }
@@ -1846,6 +1907,8 @@ static SCliThrd* createThrdObj(void* trans) {
 
   transDQCreate(pThrd->loop, &pThrd->timeoutQueue);
 
+  transDQCreate(pThrd->loop, &pThrd->waitConnQueue);
+
   pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
   pThrd->pTransInst = trans;
 
@@ -1872,6 +1935,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
 
   transDQDestroy(pThrd->delayQueue, destroyCmsgAndAhandle);
   transDQDestroy(pThrd->timeoutQueue, NULL);
+  transDQDestroy(pThrd->waitConnQueue, NULL);
 
   tDebug("thread destroy %" PRId64, pThrd->pid);
   for (int i = 0; i < taosArrayGetSize(pThrd->timerList); i++) {
@@ -1910,6 +1974,10 @@ static void destroyThrdObj(SCliThrd* pThrd) {
       QUEUE_REMOVE(h);
 
       SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
+
+      if (pThrd != NULL && pThrd->destroyAhandleFp != NULL) {
+        pThrd->destroyAhandleFp(pMsg->ctx->ahandle);
+      }
       destroyCmsg(pMsg);
     }
     taosMemoryFree(list);

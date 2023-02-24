@@ -2008,6 +2008,11 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.user = "_dnd";
 
+  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
+  connLimitNum = TMAX(connLimitNum, 10);
+  connLimitNum = TMIN(connLimitNum, 500);
+  rpcInit.connLimitNum = connLimitNum;
+
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {
     tscError("failed to init server status client");
