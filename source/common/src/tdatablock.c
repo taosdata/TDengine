@@ -1033,6 +1033,7 @@ SHelper* createTupleIndex_rv(int32_t numOfRows, SArray* pOrderInfo, SSDataBlock*
     offset += pInfo->pColData->info.bytes;
   }
 
+  taosMemoryFree(buf);
   return phelper;
 }
 
@@ -2370,7 +2371,11 @@ _end:
   taosArrayDestroy(pVals);
   if (terrno != 0) {
     *ppReq = NULL;
-    if (pReq) tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+    if (pReq) {
+      tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
+      taosMemoryFreeClear(pReq);
+    }
+
     return TSDB_CODE_FAILED;
   }
   *ppReq = pReq;

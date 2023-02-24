@@ -1148,7 +1148,6 @@ int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, 
     if (TSDB_CODE_SUCCESS == code) {
       REPLACE_NODE(pNew);
     } else {
-      taosMemoryFree(keyBuf);
       nodesDestroyList(groupNew);
       metaReaderClear(&mr);
       return code;
@@ -1166,7 +1165,6 @@ int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, 
       if (pValue->node.resType.type == TSDB_DATA_TYPE_JSON) {
         if (tTagIsJson(data)) {
           terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
-          taosMemoryFree(keyBuf);
           nodesDestroyList(groupNew);
           metaReaderClear(&mr);
           return terrno;

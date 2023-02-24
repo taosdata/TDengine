@@ -1381,7 +1381,7 @@ void startOmbConsume() {
     printf("SQL: %s\n", sql);
     queryDbExec(taos, sql, NO_INSERT_TYPE);
 
-    int32_t producerRate = ceil(g_stConfInfo.producerRate / g_stConfInfo.producers);
+    int32_t producerRate = ceil(((double)g_stConfInfo.producerRate) / g_stConfInfo.producers);
 
     printf("==== create %d produce thread ====\n", g_stConfInfo.producers);
     for (int32_t i = 0; i < g_stConfInfo.producers; ++i) {
