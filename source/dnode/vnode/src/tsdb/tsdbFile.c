@@ -148,10 +148,10 @@ bool tsdbDelFileIsSame(SDelFile *pDelFile1, SDelFile *pDelFile2) { return pDelFi
 
 int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype) {
   int32_t   code = 0;
-  int64_t   size;
+  int64_t   size = 0;
   int64_t   n;
   TdFilePtr pFD;
-  char      fname[TSDB_FILENAME_LEN];
+  char      fname[TSDB_FILENAME_LEN] = {0};
   char      hdr[TSDB_FHDR_SIZE] = {0};
 
   // truncate

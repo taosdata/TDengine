@@ -874,7 +874,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       pBlockNum->numOfBlocks += 1;
     }
 
-    if (pScanInfo->pBlockList != NULL && taosArrayGetSize(pScanInfo->pBlockList) > 0) {
+    if ((pScanInfo->pBlockList != NULL )&& (taosArrayGetSize(pScanInfo->pBlockList) > 0)) {
       numOfQTable += 1;
     }
   }
@@ -4532,7 +4532,7 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, 
   SSDataBlock* pResBlock = pReader->pResBlock;
   if (pResBlock->pBlockAgg == NULL) {
     size_t num = taosArrayGetSize(pResBlock->pDataBlock);
-    pResBlock->pBlockAgg = taosMemoryCalloc(num, sizeof(SColumnDataAgg));
+    pResBlock->pBlockAgg = taosMemoryCalloc(num, POINTER_BYTES);
   }
 
   // do fill all null column value SMA info

@@ -391,7 +391,7 @@ _error:
   return TSDB_CODE_OUT_OF_MEMORY;
 }
 
-static char* doExtractPage(SDiskbasedBuf* pBuf) {
+static char* doExtractPage(SDiskbasedBuf* pBuf, bool* newPage) {
   char* availablePage = NULL;
   if (NO_IN_MEM_AVAILABLE_PAGES(pBuf)) {
     availablePage = evictBufPage(pBuf);
@@ -405,6 +405,7 @@ static char* doExtractPage(SDiskbasedBuf* pBuf) {
     if (availablePage == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
     }
+    *newPage = true;
   }
 
   return availablePage;
@@ -413,7 +414,8 @@ static char* doExtractPage(SDiskbasedBuf* pBuf) {
 void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
   pBuf->statis.getPages += 1;
 
-  char* availablePage = doExtractPage(pBuf);
+  bool newPage = false;
+  char* availablePage = doExtractPage(pBuf, &newPage);
   if (availablePage == NULL) {
     return NULL;
   }
@@ -432,6 +434,9 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
     // register page id info
     pi = registerNewPageInfo(pBuf, *pageId);
     if (pi == NULL) {
+      if (newPage) {
+        taosMemoryFree(availablePage);
+      }
       return NULL;
     }
 
@@ -492,7 +497,8 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
     ASSERT((!BUF_PAGE_IN_MEM(*pi)) && (*pi)->pn == NULL &&
            (((*pi)->length >= 0 && (*pi)->offset >= 0) || ((*pi)->length == -1 && (*pi)->offset == -1)));
 
-    (*pi)->pData = doExtractPage(pBuf);
+    bool newPage = false;
+    (*pi)->pData = doExtractPage(pBuf, &newPage);
 
     // failed to evict buffer page, return with error code.
     if ((*pi)->pData == NULL) {
@@ -509,6 +515,10 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
     if (HAS_DATA_IN_DISK(*pi)) {
       int32_t code = loadPageFromDisk(pBuf, *pi);
       if (code != 0) {
+        if (newPage) {
+          taosMemoryFree((*pi)->pData);
+        }
+
         terrno = code;
         return NULL;
       }
