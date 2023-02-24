@@ -104,6 +104,8 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
   SRpcMsg            rpcRsp = {0};
   bool               accepted = false;
+  SSyncRaftEntry*    pEntry = NULL;
+
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
     syncLogRecvAppendEntries(ths, pMsg, "not in my config");
@@ -137,14 +139,13 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   syncNodeStepDown(ths, pMsg->term);
   syncNodeResetElectTimer(ths);
 
-  if (pMsg->dataLen < (int32_t)sizeof(SSyncRaftEntry)) {
+  if (pMsg->dataLen < sizeof(SSyncRaftEntry)) {
     sError("vgId:%d, incomplete append entries received. prev index:%" PRId64 ", term:%" PRId64 ", datalen:%d",
            ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
     goto _IGNORE;
   }
 
-  SSyncRaftEntry* pEntry = syncBuildRaftEntryFromAppendEntries(pMsg);
-
+  pEntry = syncBuildRaftEntryFromAppendEntries(pMsg);
   if (pEntry == NULL) {
     sError("vgId:%d, failed to get raft entry from append entries since %s", ths->vgId, terrstr());
     goto _IGNORE;
@@ -191,5 +192,6 @@ _out:
 
 _IGNORE:
   rpcFreeCont(rpcRsp.pCont);
+  syncEntryDestroy(pEntry);
   return 0;
 }
