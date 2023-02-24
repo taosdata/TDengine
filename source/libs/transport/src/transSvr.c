@@ -14,8 +14,6 @@
 
 #include "transComm.h"
 
-static int32_t httpRefMgt = 0;
-
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
 static char* notify = "a";
