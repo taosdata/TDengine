@@ -191,21 +191,45 @@ tmq_t* build_consumer() {
   tmq_conf_res_t code;
   tmq_conf_t*    conf = tmq_conf_new();
   code = tmq_conf_set(conf, "enable.auto.commit", "true");
-  if (TMQ_CONF_OK != code) return NULL;
+  if (TMQ_CONF_OK != code) {
+    tmq_conf_destroy(conf);
+    return NULL;
+  }
   code = tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-  if (TMQ_CONF_OK != code) return NULL;
+  if (TMQ_CONF_OK != code) {
+    tmq_conf_destroy(conf);
+    return NULL;
+  }
   code = tmq_conf_set(conf, "group.id", "cgrpName");
-  if (TMQ_CONF_OK != code) return NULL;
+  if (TMQ_CONF_OK != code) {
+    tmq_conf_destroy(conf);
+    return NULL;
+  }
   code = tmq_conf_set(conf, "client.id", "user defined name");
-  if (TMQ_CONF_OK != code) return NULL;
+  if (TMQ_CONF_OK != code) {
+    tmq_conf_destroy(conf);
+    return NULL;
+  }
   code = tmq_conf_set(conf, "td.connect.user", "root");
-  if (TMQ_CONF_OK != code) return NULL;
+  if (TMQ_CONF_OK != code) {
+    tmq_conf_destroy(conf);
+    return NULL;
+  }
   code = tmq_conf_set(conf, "td.connect.pass", "taosdata");
-  if (TMQ_CONF_OK != code) return NULL;
+  if (TMQ_CONF_OK != code) {
+    tmq_conf_destroy(conf);
+    return NULL;
+  }
   code = tmq_conf_set(conf, "auto.offset.reset", "earliest");
-  if (TMQ_CONF_OK != code) return NULL;
+  if (TMQ_CONF_OK != code) {
+    tmq_conf_destroy(conf);
+    return NULL;
+  }
   code = tmq_conf_set(conf, "experimental.snapshot.enable", "false");
-  if (TMQ_CONF_OK != code) return NULL;
+  if (TMQ_CONF_OK != code) {
+    tmq_conf_destroy(conf);
+    return NULL;
+  }
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 

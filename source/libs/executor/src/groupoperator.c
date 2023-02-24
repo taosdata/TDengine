@@ -992,32 +992,42 @@ void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp*
     SSDataBlock* pTmpBlock = blockCopyOneRow(pSrcBlock, rowId);
     memset(pTmpBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
     pTmpBlock->info.id.groupId = groupId;
+    char* tbName = pSrcBlock->info.parTbName;
     if (pTableSup->numOfExprs > 0) {
       projectApplyFunctions(pTableSup->pExprInfo, pDestBlock, pTmpBlock, pTableSup->pCtx, pTableSup->numOfExprs, NULL);
       SColumnInfoData* pTbCol = taosArrayGet(pDestBlock->pDataBlock, UD_TABLE_NAME_COLUMN_INDEX);
-      void*            pData = colDataGetVarData(pTbCol, pDestBlock->info.rows - 1);
-      char*            tbName = pSrcBlock->info.parTbName;
       memset(tbName, 0, TSDB_TABLE_NAME_LEN);
-      int32_t len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN - 1);
-      memcpy(tbName, varDataVal(pData), len);
+      int32_t len = 0;
+      if (colDataIsNull_s(pTbCol, pDestBlock->info.rows - 1)) {
+        len = TMIN(sizeof(TSDB_DATA_NULL_STR), TSDB_TABLE_NAME_LEN - 1);
+        memcpy(tbName, TSDB_DATA_NULL_STR, len);
+      } else {
+        void* pData = colDataGetData(pTbCol, pDestBlock->info.rows - 1);
+        len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN - 1);
+        memcpy(tbName, varDataVal(pData), len);
+      }
       streamStatePutParName(pState, groupId, tbName);
       memcpy(pTmpBlock->info.parTbName, tbName, len);
       pDestBlock->info.rows--;
     } else {
       void* pTbNameCol = taosArrayGet(pDestBlock->pDataBlock, UD_TABLE_NAME_COLUMN_INDEX);
       colDataAppendNULL(pTbNameCol, pDestBlock->info.rows);
-      pSrcBlock->info.parTbName[0] = 0;
+      tbName[0] = 0;
     }
 
     if (pTagSup->numOfExprs > 0) {
       projectApplyFunctions(pTagSup->pExprInfo, pDestBlock, pTmpBlock, pTagSup->pCtx, pTagSup->numOfExprs, NULL);
       pDestBlock->info.rows--;
+    } else {
+      memcpy(pDestBlock->info.parTbName, pTmpBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
     }
 
     void* pGpIdCol = taosArrayGet(pDestBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
     colDataAppend(pGpIdCol, pDestBlock->info.rows, (const char*)&groupId, false);
     pDestBlock->info.rows++;
     blockDataDestroy(pTmpBlock);
+  } else {
+    memcpy(pSrcBlock->info.parTbName, pValue, TSDB_TABLE_NAME_LEN);
   }
   streamStateReleaseBuf(pState, NULL, pValue);
 }
