@@ -1035,13 +1035,23 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
 
 static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-db");
-  if (pTrans == NULL) goto _OVER;
 
-  mInfo("trans:%d, used to drop db:%s", pTrans->id, pDb->name);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-db");
+  if (pTrans == NULL) {
+    goto _OVER;
+  }
+
+  mInfo("trans:%d start to drop db:%s", pTrans->id, pDb->name);
+
   mndTransSetDbName(pTrans, pDb->name, NULL);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
-  if (mndCheckTopicExist(pMnode, pDb) < 0) goto _OVER;
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    goto _OVER;
+  }
+
+  if (mndTopicExistsForDb(pMnode, pDb)) {
+    terrno = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
+    goto _OVER;
+  }
 
   if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
@@ -1092,10 +1102,12 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   }
 
   code = mndDropDb(pMnode, pReq, pDb);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (code == TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_ACTION_IN_PROGRESS;
+  }
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to drop since %s", dropReq.db, terrstr());
   }
 

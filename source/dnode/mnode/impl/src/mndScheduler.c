@@ -551,8 +551,6 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     pSubplan = (SSubplan*)nodesListGetNode(pNodeListNode->pNodeList, 0);
   }
 
-  ASSERT(pSub->unassignedVgs);
-
   void* pIter = NULL;
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
