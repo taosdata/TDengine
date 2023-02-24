@@ -893,7 +893,7 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
 
 static int32_t mndFindSuperTableTagIndex(const SStbObj *pStb, const char *tagName) {
   for (int32_t tag = 0; tag < pStb->numOfTags; tag++) {
-    if (strcasecmp(pStb->pTags[tag].name, tagName) == 0) {
+    if (strcmp(pStb->pTags[tag].name, tagName) == 0) {
       return tag;
     }
   }
@@ -903,7 +903,7 @@ static int32_t mndFindSuperTableTagIndex(const SStbObj *pStb, const char *tagNam
 
 static int32_t mndFindSuperTableColumnIndex(const SStbObj *pStb, const char *colName) {
   for (int32_t col = 0; col < pStb->numOfColumns; col++) {
-    if (strcasecmp(pStb->pColumns[col].name, colName) == 0) {
+    if (strcmp(pStb->pColumns[col].name, colName) == 0) {
       return col;
     }
   }
