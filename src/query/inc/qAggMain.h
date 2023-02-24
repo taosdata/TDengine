@@ -210,7 +210,7 @@ typedef struct SQLFunctionCtx {
   int64_t      startTs;       // timestamp range of current query when function is executed on a specific data block
   int64_t      endTs;
   int32_t      numOfParams;
-  tVariant     param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
+  tVariant     param[10];     // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
   int64_t     *ptsList;       // corresponding timestamp array list
   void        *ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   SQLPreAggVal preAggVals;
