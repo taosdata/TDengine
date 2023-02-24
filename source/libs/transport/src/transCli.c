@@ -229,7 +229,7 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
   do {                                         \
     char*   t = key;                           \
     int16_t len = strlen(ip);                  \
-    if (ip ! = NULL) memcpy(t, ip, len);       \
+    if (ip != NULL) memcpy(t, ip, len);        \
     t[len] = ':';                              \
     titoa(port, 10, &t[len + 1]);              \
   } while (0)
