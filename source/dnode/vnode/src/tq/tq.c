@@ -538,7 +538,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
           tqInitDataRsp(&dataRsp, &req, pHandle->execHandle.subType);
 
           tqOffsetResetToLog(&dataRsp.rspOffset, walGetLastVer(pTq->pVnode->pWal));
-          tqDebug("tmq poll: consumer %" PRId64 ", subkey %s, vg %d, offset reset to %" PRId64, consumerId,
+          tqDebug("tmq poll: consumer:0x %" PRIx64 ", subkey %s, vg %d, offset reset to %" PRId64, consumerId,
                   pHandle->subKey, TD_VID(pTq->pVnode), dataRsp.rspOffset.version);
           if (tqSendDataRsp(pTq, pMsg, &req, &dataRsp) < 0) {
             code = -1;
@@ -556,7 +556,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
           return code;
         }
       } else if (reqOffset.type == TMQ_OFFSET__RESET_NONE) {
-        tqError("tmq poll: subkey %s, no offset committed for consumer %" PRId64
+        tqError("tmq poll: subkey %s, no offset committed for consumer:0x%" PRIx64
                 " in vg %d, subkey %s, reset none failed",
                 pHandle->subKey, consumerId, TD_VID(pTq->pVnode), req.subKey);
         terrno = TSDB_CODE_TQ_NO_COMMITTED_OFFSET;
@@ -585,7 +585,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         pPushEntry->dataRsp.head.epoch = reqEpoch;
         pPushEntry->dataRsp.head.mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
         taosHashPut(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey) + 1, &pPushEntry, sizeof(void*));
-        tqDebug("tmq poll: consumer %" PRId64 ", subkey %s, vg %d save handle to push mgr", consumerId, pHandle->subKey,
+        tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vg %d save handle to push mgr", consumerId, pHandle->subKey,
                 TD_VID(pTq->pVnode));
         // unlock
         taosWUnLockLatch(&pTq->pushLock);
@@ -660,7 +660,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     while (1) {
       consumerEpoch = atomic_load_32(&pHandle->epoch);
       if (consumerEpoch > reqEpoch) {
-        tqWarn("tmq poll: consumer %" PRId64 " (epoch %d), subkey %s, vg %d offset %" PRId64
+        tqWarn("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, vg %d offset %" PRId64
                ", found new consumer epoch %d, discard req epoch %d",
                consumerId, req.epoch, pHandle->subKey, TD_VID(pTq->pVnode), fetchVer, consumerEpoch, reqEpoch);
         break;
@@ -798,7 +798,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
   if (pHandle == NULL) {
     if (req.oldConsumerId != -1) {
-      tqError("vgId:%d, build new consumer handle %s for consumer %" PRId64 ", but old consumerId is %" PRId64 "",
+      tqError("vgId:%d, build new consumer handle %s for consumer:0x%" PRIx64 ", but old consumerId is %" PRId64 "",
               req.vgId, req.subKey, req.newConsumerId, req.oldConsumerId);
     }
     if (req.newConsumerId == -1) {
@@ -873,7 +873,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       pHandle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &handle, NULL, NULL);
     }
     taosHashPut(pTq->pHandle, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
-    tqDebug("try to persist handle %s consumer %" PRId64, req.subKey, pHandle->consumerId);
+    tqDebug("try to persist handle %s consumer:0x%" PRIx64, req.subKey, pHandle->consumerId);
     if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
       return -1;
     }
