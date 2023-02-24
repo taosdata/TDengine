@@ -18,22 +18,31 @@
         prop="sysinfo"
       ></el-table-column> -->
       <el-table-column :label="$t('users.db')">
-        <template slot-scope="scope">
-
-          <ul v-if="scope.row.super !== 1">
-            <li v-for="(item, index) in filterPrivileges(scope)" :key="index">
-              <span>{{ item.name }}: {{ item.privileges }}</span>
-            </li>
-          </ul>
+        <template slot-scope="scope" v-if="scope.row.super !== 1">
+          <el-tooltip placement="right" effect="light" v-if="filterPrivileges(scope).length > 1">
+            <ul slot="content">
+              <li v-for="(item, index) in filterPrivileges(scope)" :key="index">
+                <span>{{ item.name }}: {{ item.privileges }}</span>
+              </li>
+            </ul>
+            <span>{{ filterPrivileges(scope)[0]['name'] }}: {{ filterPrivileges(scope)[0]['privileges'] }}
+              <i class="el-icon-more-outline" :style="{'vertical-align': 'bottom'}"></i></span>
+          </el-tooltip>
+          <span v-if="filterPrivileges(scope).length == 1">{{ filterPrivileges(scope)[0]['name'] }}: {{ filterPrivileges(scope)[0]['privileges'] }}</span>
         </template>
       </el-table-column>
       <el-table-column :label="$t('topic.title')">
-        <template slot-scope="scope">
-          <ul>
+        <template slot-scope="scope" v-if="scope.row.super !== 1">
+          <el-tooltip placement="right" effect="light" v-if="filterTopic(scope).length > 1">
+            <ul slot="content">
             <li v-for="(item, index) in filterTopic(scope)" :key="index">
               <span>{{ item.name }}: {{ item.privileges }}</span>
             </li>
           </ul>
+            <span>{{ filterTopic(scope)[0]['name'] }}: {{ filterTopic(scope)[0]['privileges'] }}
+              <i class="el-icon-more-outline" :style="{'vertical-align': 'bottom'}"></i></span>
+          </el-tooltip>
+          <span v-if="filterTopic(scope).length == 1">{{ filterTopic(scope)[0]['name'] }}: {{ filterTopic(scope)[0]['privileges'] }}</span>
         </template>
       </el-table-column>
 
@@ -155,6 +164,7 @@ export default {
         }
         res.push({ name: k, privileges: val.row.privilege[k].join(", ") });
       }
+      console.log(res)
       return res;
     },
     filterTopic(val) {

@@ -9,7 +9,7 @@
       </el-form-item>
       <div class="line"></div>
 
-      <el-form-item label="Privilege" v-if="this.databaseList.length > 0">
+      <el-form-item label="Database" v-if="this.databaseList.length > 0">
         <ul>
           <li v-for="(item, index) in this.databaseList" :key="index">
             <label class="db-label">{{ item }}</label>
@@ -22,7 +22,7 @@
         </ul>
       </el-form-item>
 
-      <el-form-item label="Topic" v-if="this.topicList.length > 0">
+      <el-form-item label="Subscription" v-if="this.topicList.length > 0">
         <ul>
           <li v-for="(item, index) in this.topicList" :key="index">
             <label class="db-label">{{ item }}</label>
@@ -59,9 +59,9 @@ export default {
       default: () => { },
     },
   },
-  created() {
-    this.getDatabaseList();
-    this.getTopicList();
+  async created() {
+    await this.getDatabaseList();
+    await this.getTopicList();
   },
   data() {
     return {
@@ -231,10 +231,13 @@ export default {
   display: inline-block;
   margin-right: 30px;
   width: 100px;
+  text-align: right;
 }
 
 .db-pri {
   display: inline-block;
+  width: 215px;
+  text-align: left;
 }
 .topic-pri {
   display: inline-block;
