@@ -354,7 +354,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     int32_t dataIndex = 0;
     for (int16_t i = 0; i < pObj->outputSchema.nCols; i++) {
       SColLocation *pos = taosArrayGet(pCreate->fillNullCols, nullIndex);
-      if (i < pos->slotId) {
+      if (nullIndex >= numOfNULL || i < pos->slotId) {
         pFullSchema[i].bytes = pObj->outputSchema.pSchema[dataIndex].bytes;
         pFullSchema[i].colId = i + 1;  // pObj->outputSchema.pSchema[dataIndex].colId;
         pFullSchema[i].flags = pObj->outputSchema.pSchema[dataIndex].flags;
