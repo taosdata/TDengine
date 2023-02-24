@@ -9,14 +9,24 @@
       </el-form-item>
       <div class="line"></div>
 
-      <el-form-item label="Privilege">
+      <el-form-item label="Privilege" v-if="this.databaseList.length > 0">
         <ul>
           <li v-for="(item, index) in this.databaseList" :key="index">
             <label class="db-label">{{ item }}</label>
             <el-checkbox-group v-model="selectedDatabasePrivileges[item]" class="db-pri" @change="changePri($event)">
               <el-checkbox label="Read"></el-checkbox>
               <el-checkbox label="Write"></el-checkbox>
-              <el-checkbox label="All"></el-checkbox>
+              <!-- <el-checkbox label="All"></el-checkbox> -->
+            </el-checkbox-group>
+          </li>
+        </ul>
+      </el-form-item>
+      <el-form-item label="Topic" v-if="this.topicList.length > 0">
+        <ul>
+          <li v-for="(item, index) in this.topicList" :key="index">
+            <label class="db-label">{{ item }}</label>
+            <el-checkbox-group v-model="selectedTopicPrivileges[item]" class="topic-pri">
+              <el-checkbox label="Subscribe"></el-checkbox>
             </el-checkbox-group>
           </li>
         </ul>
@@ -53,12 +63,24 @@ export default {
       default: () => { },
     },
   },
+  watch: {
+    user() {
+      this.ruleForm.user = this.user;
+      this.databaseList = [];
+      this.selectedDatabasePrivileges = {};
+      this.selectedTopicPrivileges = {};
+      this.topicList = [];
+      this.getDatabaseList();
+      this.getTopicList();
+      this.getUserPrivileges();
+      this.getUserTopics();
+    }
+  },
   created() {
-    console.log("aaa");
-    console.log(this.user);
     this.getDatabaseList();
+    this.getTopicList();
     this.getUserPrivileges();
-    console.log(this.selectedDatabasePrivileges)
+    this.getUserTopics();
   },
   data() {
     return {
@@ -75,7 +97,9 @@ export default {
         ]
       },
       databaseList: [],
+      topicList: [],
       selectedDatabasePrivileges: {},
+      selectedTopicPrivileges: {},
       confirmStatus: false
     };
   },
@@ -112,9 +136,39 @@ export default {
         Message.error(error.desc);
       }
     },
+    getTopicList() {
+      try {
+        sendSQLReq(
+          `show topics;`
+        )
+          .then((res) => {
+            console.log(res)
+            let topicList = res.data.map((data) => {
+              return Object.fromEntries(
+                res.column_meta.map((item, index) => {
+                  return [item[0], data[index]];
+                })
+              );
+            });
+            topicList.forEach((item) => {
+              this.topicList.push(item.topic_name);
+              this.$set(this.selectedTopicPrivileges, item.topic_name, []);
+            });
+            console.log(this.topicList);
+          })
+          .catch((err) => {
+            this.$emit("close")
+            err.desc && Message.error(err.desc);
+            return Promise.reject(err);
+          });
+      } catch (error) {
+        console.log(error);
+        Message.error(error.desc);
+      }
+    },
     getUserPrivileges() {
       sendSQLReq(
-        `select * from information_schema.ins_user_privileges where user_name = '${this.ruleForm.user}';`
+        `select * from information_schema.ins_user_privileges where user_name = '${this.ruleForm.user}' and privilege<>'subscribe';`
       ).then((res) => {
         res.data.map((data) => {
           if (this.selectedDatabasePrivileges[data[2]] === undefined) {
@@ -137,6 +191,22 @@ export default {
           return Promise.reject(err);
         });
     },
+    getUserTopics() {
+      sendSQLReq(
+        `select * from information_schema.ins_user_privileges where user_name = '${this.ruleForm.user}' and privilege = 'subscribe';`
+      ).then((res) => {
+        res.data.map((data) => {
+          this.$set(this.selectedTopicPrivileges, data[2], ['Subscribe']);
+
+          console.log(this.selectedTopicPrivileges);
+        });
+      })
+        .catch((err) => {
+          this.$emit("close")
+          err.desc && Message.error(err.desc);
+          return Promise.reject(err);
+        });
+    },
     cancel() {
       this.$emit("close");
       return;
@@ -144,6 +214,19 @@ export default {
     async grantPrivilege(privileges, dbName) {
       return await sendSQLReq(
         `GRANT ${privileges} ON ${dbName}.*  to ${this.user}`
+      ).then((res) => {
+        console.log(res)
+        return Promise.resolve(res);
+      })
+        .catch((err) => {
+          this.$emit("close")
+          err.desc && Message.error(err.desc);
+          return Promise.reject(err);
+        });
+    },
+    async grantTopic(topicName, userName) {
+      return await sendSQLReq(
+        `GRANT subscribe ON ${topicName} to ${userName}`
       ).then((res) => {
         console.log(res)
         return Promise.resolve(res);
@@ -182,20 +265,47 @@ export default {
           return Promise.reject(err);
         });
     },
+    async cancelTopic(topicName) {
+      return await sendSQLReq(
+        `REVOKE subscribe ON ${topicName} FROM ${this.user};`
+      )
+        .then((res) => {
+          console.log(res)
+          return Promise.resolve(res);
+        })
+        .catch((err) => {
+          this.$emit("close")
+          err.desc && Message.error(err.desc);
+          return Promise.reject(err);
+        });
+    },
     editUser() {
-      this.$refs["ruleForm"].validate((valid) => {
+      this.$refs["ruleForm"].validate(async (valid) => {
         if (valid) {
           try {
             if (this.ruleForm.pwd) {
-              this.alterUser();
+              await this.alterUser();
             }
-            this.cancelPrivilege();
+            await this.cancelPrivilege();
 
             for (let key in this.selectedDatabasePrivileges) {
               if (this.selectedDatabasePrivileges[key].length > 0) {
                 let privileges = this.selectedDatabasePrivileges[key];
-                privileges.forEach((item, index) => {
-                  this.grantPrivilege(item, key, this.ruleForm.user);
+                privileges.forEach(async (item, index) => {
+                  await this.grantPrivilege(item, key, this.ruleForm.user);
+                });
+              }
+            }
+            console.log("topicList: " + this.topicList)
+            for (let key in this.topicList) {
+              console.log("key: " + key)
+              await this.cancelTopic(this.topicList[key]);
+            }
+            for (let key in this.selectedTopicPrivileges) {
+              if (this.selectedTopicPrivileges[key].length > 0) {
+                let privileges = this.selectedTopicPrivileges[key];
+                privileges.forEach(async (item, index) => {
+                  await this.grantTopic(key, this.ruleForm.user);
                 });
               }
             }
@@ -224,5 +334,11 @@ export default {
 
 .db-pri {
   display: inline-block;
+}
+
+.topic-pri {
+  display: inline-block;
+  width: 215px;
+  text-align: left;
 }
 </style>

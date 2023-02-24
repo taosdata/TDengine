@@ -19,8 +19,18 @@
       ></el-table-column> -->
       <el-table-column :label="$t('users.db')">
         <template slot-scope="scope">
-          <ul>
+
+          <ul v-if="scope.row.super !== 1">
             <li v-for="(item, index) in filterPrivileges(scope)" :key="index">
+              <span>{{ item.name }}: {{ item.privileges }}</span>
+            </li>
+          </ul>
+        </template>
+      </el-table-column>
+      <el-table-column :label="$t('topic.title')">
+        <template slot-scope="scope">
+          <ul>
+            <li v-for="(item, index) in filterTopic(scope)" :key="index">
               <span>{{ item.name }}: {{ item.privileges }}</span>
             </li>
           </ul>
@@ -36,11 +46,13 @@
 
       <el-table-column label="Action" width="150">
         <template slot-scope="scope">
-          <el-switch :value="scope.row.enable == 1" @change="changeState(scope.row)" active-color="#13ce66"
-            inactive-color="#6D7074">
+          <el-switch :value="scope.row.enable == 1" :disabled="scope.row.super === 1" @change="changeState(scope.row)"
+            active-color="#13ce66" inactive-color="#6D7074">
           </el-switch>&nbsp;&nbsp;
-          <el-button plain size="small" @click="edit(scope.row)" icon="el-icon-edit"></el-button>
-          <el-button plain size="small" @click="del(scope.row)" icon="el-icon-delete"></el-button>
+          <el-button plain size="small" @click="edit(scope.row)" :disabled="scope.row.super === 1"
+            icon="el-icon-edit"></el-button>
+          <el-button plain size="small" @click="del(scope.row)" :disabled="scope.row.super === 1"
+            icon="el-icon-delete"></el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -50,7 +62,7 @@
     <el-dialog align="center" :title="$t('topic.addsource')" width="550px" :visible.sync="dialog">
       <AddUser @close="closeDialog"></AddUser>
     </el-dialog>
-    
+
     <el-dialog align="center" title="Edit User" width="550px" :visible.sync="editDialog">
       <EditUser :user="this.editUser" @close="closeEditDialog"></EditUser>
     </el-dialog>
@@ -138,7 +150,19 @@ export default {
     filterPrivileges(val) {
       let res = [];
       for (let k in val.row.privilege) {
+        if (val.row.privilege[k].indexOf("subscribe") > -1) {
+          continue;
+        }
         res.push({ name: k, privileges: val.row.privilege[k].join(", ") });
+      }
+      return res;
+    },
+    filterTopic(val) {
+      let res = [];
+      for (let k in val.row.privilege) {
+        if (val.row.privilege[k].indexOf("subscribe") > -1) {
+          res.push({ name: k, privileges: val.row.privilege[k].join(", ") });
+        }
       }
       return res;
     },
@@ -164,7 +188,9 @@ export default {
       });
     },
     edit(data) {
-      this.editUser = data.name,
+      this.$set(this, 'editUser', data.name);
+      console.log(this.editUser)
+      // this.editUser = data.name,
       this.editDialog = true
     },
     changeState(data) {
@@ -212,6 +238,7 @@ export default {
                 })
               );
             });
+
             privilegeMap.forEach((data) => {
               let user = permissionMap.find((item) => item.name === data.user_name);
 
@@ -226,7 +253,13 @@ export default {
                 }
               }
             });
+            let rootUserIndex = permissionMap.findIndex((item, k) => item.name === 'root');
+            let rooUser = permissionMap[rootUserIndex];
+            rooUser.name = "*" + rooUser.name;
+            permissionMap.unshift(rooUser);
+            permissionMap.splice(++rootUserIndex, 1);
             this.usersList = permissionMap;
+            console.log(permissionMap);
           })
           .catch((err) => {
             err.desc && Message.error(err.desc);

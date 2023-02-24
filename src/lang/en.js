@@ -784,6 +784,7 @@ export default {
     activities:'Activities',
     cvs:'CVS',
     //admin-user
+    title: 'Topic',
     name:'Name',
     super:'Super',
     enable:'Enable',
