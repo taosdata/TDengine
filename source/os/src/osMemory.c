@@ -87,7 +87,7 @@ void taosPrintBackTrace() {
 }
 #endif
 #else
-#define tstrdup(str) taosStrdup(str)
+#define tstrdup(str) strdup(str)
 
 #include <execinfo.h>
 
