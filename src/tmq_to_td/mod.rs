@@ -96,10 +96,16 @@ async fn write_data(
                         };
                         taos.write_raw_block(&raw).await?;
                     } else {
-                        bail!("write table failed: {err}, with block: {}", raw.pretty_format());
+                        bail!(
+                            "write table failed: {err}, with block: {}",
+                            raw.pretty_format()
+                        );
                     }
                 } else {
-                    bail!("write table failed: {err}, with block: {}", raw.pretty_format());
+                    bail!(
+                        "write table failed: {err}, with block: {}",
+                        raw.pretty_format()
+                    );
                 }
             };
         } else {
@@ -168,6 +174,8 @@ async fn write_meta(
     // log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
     if actions.is_empty() {
         if target_is_v3 {
+            let jm = meta.as_json_meta().await?;
+            log::debug!("meta: {}", jm);
             if let Err(err) = taos.write_raw_meta(&meta.as_raw_meta().await?).await {
                 let errstr = err.to_string();
                 if errstr.contains("[0x032C]")
@@ -306,7 +314,7 @@ pub async fn tmq_to_td(
     let target_database = to.subject.take();
     let target = TaosBuilder::from_dsn(&to)?.pool()?;
 
-    let global_taos = target.get()?;
+    let target_taos = target.get()?;
 
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
     {
@@ -321,31 +329,44 @@ pub async fn tmq_to_td(
 
     for topic in topics {
         let target_database = if let Some(target) = target_database.as_ref() {
-            if !global_taos.database_exists(&target).await? {
-                if let Some(sql) = topic.database_sql.as_deref() {
-                    log::info!(
-                        "target database not exist, try create database `{target}` with the same parameter from the source"
-                    );
-                    let mut sql = sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS");
-                    if &topic.database != target {
-                        sql = sql.replace(&format!("`{}`", topic.database), &format!("`{target}`"));
-                    }
-                    global_taos.exec(sql).await?;
-                } else {
-                    anyhow::bail!("can not get database params to create a same one");
+            if let Some(sql) = topic.database_sql.as_deref() {
+                let mut sql = sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS");
+                if &topic.database != target {
+                    sql = sql.replace(&format!("`{}`", topic.database), &format!("`{target}`"));
                 }
+                target_taos.exec(sql).await?;
             }
+            // target_taos.database_exists(&target);
+            // if !target_taos.database_exists(&target).await? {
+            //     if let Some(sql) = topic.database_sql.as_deref() {
+            //         log::info!(
+            //             "target database not exist, try create database `{target}` with the same parameter from the source"
+            //         );
+            //         let mut sql = sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS");
+            //         if &topic.database != target {
+            //             sql = sql.replace(&format!("`{}`", topic.database), &format!("`{target}`"));
+            //         }
+            //         target_taos.exec(sql).await?;
+            //     } else {
+            //         anyhow::bail!("can not get database params to create a same one");
+            //     }
+            // }
             target
         } else {
-            if !global_taos.database_exists(&topic.database).await? {
-                if let Some(sql) = topic.database_sql.as_deref() {
-                    global_taos
-                        .exec(sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"))
-                        .await?;
-                } else {
-                    anyhow::bail!("can not get database params to create a same one");
-                }
+            if let Some(sql) = topic.database_sql.as_deref() {
+                target_taos
+                    .exec(sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"))
+                    .await?;
             }
+            // if !target_taos.database_exists(&topic.database).await? {
+            //     if let Some(sql) = topic.database_sql.as_deref() {
+            //         target_taos
+            //             .exec(sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"))
+            //             .await?;
+            //     } else {
+            //         anyhow::bail!("can not get database params to create a same one");
+            //     }
+            // }
             &topic.database
         };
 
@@ -476,7 +497,7 @@ pub async fn tmq_to_td(
     }
     // for consumers in consumers_receiver.
 
-    drop(global_taos);
+    drop(target_taos);
     drop(target);
     drop(builder);
     tokio::time::sleep(Duration::from_millis(1000)).await;
