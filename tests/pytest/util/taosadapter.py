@@ -184,14 +184,14 @@ class TAdapter:
                 if self.remoteIP != "":
                     ip = self.remoteIP
                 url = f'http://{ip}:{taosadapter_port}/-/ping'
-                r = requests.get(url)
-                print(r.content)
-                if r.status_code == 200:
-                    tdLog.info(f"the taosadapter has been started, using port:{taosadapter_port}")
-                    break
-                else:
-                    tdLog.info(f"the taosadapter do not started!!!")
-                    time.sleep(1)
+                try:
+                    r = requests.get(url)
+                    if r.status_code == 200:
+                        tdLog.info(f"the taosadapter has been started, using port:{taosadapter_port}")
+                        break
+                except Exception:
+                        tdLog.info(f"the taosadapter do not started!!!")
+                        time.sleep(1)
 
     def start_taosadapter(self):
         """
