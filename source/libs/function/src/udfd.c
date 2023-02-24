@@ -308,8 +308,8 @@ void udfdInitializeCPlugin(SUdfScriptPlugin *plugin) {
   plugin->udfAggMergeFunc = udfdCPluginUdfAggMerge;
   plugin->udfAggFinishFunc = udfdCPluginUdfAggFinish;
 
-  SScriptUdfEnvItem items[0];
-  plugin->openFunc(items, 0);
+  SScriptUdfEnvItem items[1] = {{"LD_LIBRARY_PATH", tsUdfdLdLibPath}};
+  plugin->openFunc(items, 1);
   return;
 }
 
