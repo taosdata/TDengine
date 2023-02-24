@@ -76,7 +76,7 @@ done
 
 # expect -c "spawn sudo ls; expect \"Password:\"; send -- \"$password\r\"; interact"
 
-echo "generate commnunity package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+echo "generate community package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 if [ ! -d $communityDir ]; then
   cd $topDir
   mkdir -p debug

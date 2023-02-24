@@ -14,8 +14,8 @@ cusEmail=$8
 
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
-archiveDir=/nas/TDengine/v$version/enterprise  # version’package directory
 enterpriseDir=$topDir/enterprise
+archiveDir=/nas/TDengine/v$version/enterprise  # version’package directory
 
 ostype=$(uname)
 

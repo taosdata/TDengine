@@ -1,0 +1,11 @@
+apiVersion: v2
+appVersion: 3.0.2.5
+description: TDengine Cluster Chart for Kubenetes for Focke
+icon: https://www.taosdata.com/images/taosdata-logo.png
+maintainers:
+- email: sdsang@taosdata.com
+  name: Shuduo Sang
+  url: https://github.com/taosdata
+name: focke-tdengine
+type: application
+version: 0.1.0

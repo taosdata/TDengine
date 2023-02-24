@@ -28,7 +28,6 @@ asynctest/
 demo/
 odbcDriver/
 odbcTest/
-bin/
 asynctest.exe
 demo.exe
 odbcTest.exe

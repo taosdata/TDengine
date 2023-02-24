@@ -24,7 +24,7 @@ if %1 == -b ( shift && shift && goto :param )
 if %1 == -V ( shift && shift && goto :param )
 if %1 == -c ( shift && shift && goto :param )
 if %1 == -l ( shift && shift && goto :param )
-echo unkown argument %1
+echo unknown argument %1
 goto :eof
 :readfinish
 
