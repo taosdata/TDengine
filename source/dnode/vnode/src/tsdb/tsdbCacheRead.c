@@ -190,7 +190,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  p->idstr = taosMemoryStrDup(idstr);
+  p->idstr = taosStrdup(idstr);
   taosThreadMutexInit(&p->readerMutex, NULL);
 
   *pReader = p;

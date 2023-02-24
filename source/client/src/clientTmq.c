@@ -330,15 +330,15 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcmp(key, "td.connect.ip") == 0) {
-    conf->ip = strdup(value);
+    conf->ip = taosStrdup(value);
     return TMQ_CONF_OK;
   }
   if (strcmp(key, "td.connect.user") == 0) {
-    conf->user = strdup(value);
+    conf->user = taosStrdup(value);
     return TMQ_CONF_OK;
   }
   if (strcmp(key, "td.connect.pass") == 0) {
-    conf->pass = strdup(value);
+    conf->pass = taosStrdup(value);
     return TMQ_CONF_OK;
   }
   if (strcmp(key, "td.connect.port") == 0) {
@@ -346,7 +346,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
   if (strcmp(key, "td.connect.db") == 0) {
-    /*conf->db = strdup(value);*/
+    /*conf->db = taosStrdup(value);*/
     return TMQ_CONF_OK;
   }
 
@@ -361,7 +361,7 @@ tmq_list_t* tmq_list_new() {
 int32_t tmq_list_append(tmq_list_t* list, const char* src) {
   SArray* container = &list->container;
   if (src == NULL || src[0] == 0) return -1;
-  char* topic = strdup(src);
+  char* topic = taosStrdup(src);
   if (topic[0] != '`') {
     strtolower(topic, src);
   }

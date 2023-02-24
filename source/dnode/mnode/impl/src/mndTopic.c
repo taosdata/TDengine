@@ -379,7 +379,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
-  topicObj.sql = strdup(pCreate->sql);
+  topicObj.sql = taosStrdup(pCreate->sql);
   topicObj.sqlLen = strlen(pCreate->sql) + 1;
   topicObj.subType = pCreate->subType;
   topicObj.withMeta = pCreate->withMeta;
@@ -392,7 +392,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   }
 
   if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
-    topicObj.ast = strdup(pCreate->ast);
+    topicObj.ast = taosStrdup(pCreate->ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
 
     qDebugL("ast %s", topicObj.ast);

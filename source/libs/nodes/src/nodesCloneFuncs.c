@@ -40,7 +40,7 @@
     if (NULL == (pSrc)->fldname) {             \
       break;                                   \
     }                                          \
-    (pDst)->fldname = strdup((pSrc)->fldname); \
+    (pDst)->fldname = taosStrdup((pSrc)->fldname); \
     if (NULL == (pDst)->fldname) {             \
       return TSDB_CODE_OUT_OF_MEMORY;          \
     }                                          \

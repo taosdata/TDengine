@@ -109,7 +109,7 @@ int32_t cfgGetSize(SConfig *pCfg) { return taosArrayGetSize(pCfg->array); }
 
 static int32_t cfgCheckAndSetTimezone(SConfigItem *pItem, const char *timezone) {
   cfgFreeItem(pItem);
-  pItem->str = strdup(timezone);
+  pItem->str = taosStrdup(timezone);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -120,7 +120,7 @@ static int32_t cfgCheckAndSetTimezone(SConfigItem *pItem, const char *timezone) 
 
 static int32_t cfgCheckAndSetCharset(SConfigItem *pItem, const char *charset) {
   cfgFreeItem(pItem);
-  pItem->str = strdup(charset);
+  pItem->str = taosStrdup(charset);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -131,7 +131,7 @@ static int32_t cfgCheckAndSetCharset(SConfigItem *pItem, const char *charset) {
 
 static int32_t cfgCheckAndSetLocale(SConfigItem *pItem, const char *locale) {
   cfgFreeItem(pItem);
-  pItem->str = strdup(locale);
+  pItem->str = taosStrdup(locale);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -149,7 +149,7 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
   }
 
   taosMemoryFreeClear(pItem->str);
-  pItem->str = strdup(fullDir);
+  pItem->str = taosStrdup(fullDir);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -215,7 +215,7 @@ static int32_t cfgSetFloat(SConfigItem *pItem, const char *value, ECfgSrcType st
 }
 
 static int32_t cfgSetString(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  char *tmp = strdup(value);
+  char *tmp = taosStrdup(value);
   if (tmp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s", pItem->name, cfgDtypeStr(pItem->dtype),
@@ -358,7 +358,7 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *name) {
 
 static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
   pItem->stype = CFG_STYPE_DEFAULT;
-  pItem->name = strdup(name);
+  pItem->name = taosStrdup(name);
   if (pItem->name == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -417,7 +417,7 @@ int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double mi
 
 int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, bool tsc) {
   SConfigItem item = {.dtype = CFG_DTYPE_STRING, .tsc = tsc};
-  item.str = strdup(defaultVal);
+  item.str = taosStrdup(defaultVal);
   if (item.str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;

@@ -55,7 +55,7 @@ static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
   if (pBuf->path == NULL) {  // prepare the file name when needed it
     char path[PATH_MAX] = {0};
     taosGetTmpfilePath(pBuf->prefix, "paged-buf", path);
-    pBuf->path = taosMemoryStrDup(path);
+    pBuf->path = taosStrdup(path);
     if (pBuf->path == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -351,7 +351,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   pPBuf->totalBufSize = 0;
   pPBuf->allocateId = -1;
   pPBuf->pFile = NULL;
-  pPBuf->id = strdup(id);
+  pPBuf->id = taosStrdup(id);
   pPBuf->fileSize = 0;
   pPBuf->pFree = taosArrayInit(4, sizeof(SFreeListItem));
   pPBuf->freePgList = tdListNew(POINTER_BYTES);

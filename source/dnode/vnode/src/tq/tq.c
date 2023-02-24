@@ -78,7 +78,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  pTq->path = strdup(path);
+  pTq->path = taosStrdup(path);
   pTq->pVnode = pVnode;
   pTq->walLogLastVer = pVnode->pWal->vers.lastVer;
 

@@ -130,7 +130,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       char* ctbName = NULL;
       // set child table name
       if (pDataBlock->info.parTbName[0]) {
-        ctbName = strdup(pDataBlock->info.parTbName);
+        ctbName = taosStrdup(pDataBlock->info.parTbName);
       } else {
         ctbName = buildCtbNameByGroupId(stbFullName, pDataBlock->info.id.groupId);
       }
@@ -155,7 +155,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
         // set super table name
         SName name = {0};
         tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-        createTbReq.ctb.stbName = strdup((char*)tNameGetTableName(&name));  // strdup(stbFullName);
+        createTbReq.ctb.stbName = taosStrdup((char*)tNameGetTableName(&name));  // taosStrdup(stbFullName);
         createTbReq.name = ctbName;
         ctbName = NULL;
 
@@ -453,7 +453,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         // set super table name
         SName name = {0};
         tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-        pCreateTbReq->ctb.stbName = strdup((char*)tNameGetTableName(&name));  // strdup(stbFullName);
+        pCreateTbReq->ctb.stbName = taosStrdup((char*)tNameGetTableName(&name));  // taosStrdup(stbFullName);
 
         // set tag content
         int32_t size = taosArrayGetSize(pDataBlock->pDataBlock);
@@ -544,7 +544,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
       char* ctbName = NULL;
       tqDebug("vgId:%d, stream write into %s, table auto created", TD_VID(pVnode), pDataBlock->info.parTbName);
       if (pDataBlock->info.parTbName[0]) {
-        ctbName = strdup(pDataBlock->info.parTbName);
+        ctbName = taosStrdup(pDataBlock->info.parTbName);
       } else {
         ctbName = buildCtbNameByGroupId(stbFullName, pDataBlock->info.id.groupId);
       }
@@ -569,7 +569,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         // set super table name
         SName name = {0};
         tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-        pCreateTbReq->ctb.stbName = strdup((char*)tNameGetTableName(&name));  // strdup(stbFullName);
+        pCreateTbReq->ctb.stbName = taosStrdup((char*)tNameGetTableName(&name));  // taosStrdup(stbFullName);
 
         // set tag content
         tagArray = taosArrayInit(1, sizeof(STagVal));
