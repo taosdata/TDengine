@@ -68,19 +68,41 @@ class TDTestCase:
         return buildPath
 
     def get_process_pid(self,processname):
-        pids = psutil.process_iter()
-        for pid in pids:
-            if(pid.name() == processname):
-                return pid.pid
-        return 0
+        if platform.system().lower() == 'windows':
+            pids = psutil.process_iter()
+            for pid in pids:
+                if(pid.name() == processname):
+                    return pid.pid
+            return 0
+        else:
+            process_info_list = []
+            process = os.popen('ps -A | grep %s'% processname)
+            process_info = process.read()
+            for i in process_info.split(' '):
+                if i != "":
+                    process_info_list.append(i)
+            print(process_info_list)
+            if len(process_info_list) != 0 :
+                pid = int(process_info_list[0])
+            else :
+                pid = 0
+            return pid
 
     def checkAndstopPro(self,processName,startAction):
-        taosdPid=self.get_process_pid(processName)
-        if taosdPid == 0:
-            tdLog.exit("taosd %s is not running "%startAction)
+        i = 1
+        count = 10
+        for i in range(count):
+            taosdPid=self.get_process_pid(processName)
+            if taosdPid != 0  and   taosdPid != ""  :
+                tdLog.info("stop taosd %s ,kill pid :%s "%(startAction,taosdPid))
+                os.system("kill -9 %d"%taosdPid)
+                break
+            else:
+                tdLog.info( "wait start taosd ,times: %d "%i)
+            time.sleep(1)
+            i+= 1
         else :
-            tdLog.info("stop taosd %s ,kill pid :%s "%(startAction,taosdPid))
-            os.system("kill -9 %d"%taosdPid)
+            tdLog.exit("taosd %s is not running "%startAction)
 
     def taosdCommandStop(self,startAction,taosdCmdRun):
         processName="taosd"
@@ -177,7 +199,11 @@ class TDTestCase:
 
         startAction=" -a  jsonFile:./taosdCaseTmp.json"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        os.system("echo {\"queryPolicy\":\"3\"} > taosdCaseTmp.json")
+
+        if platform.system().lower() == 'windows':
+            os.system("echo {\"queryPolicy\":\"3\"} > taosdCaseTmp.json")
+        else:
+            os.system("echo \'{\"queryPolicy\":\"3\"}\' > taosdCaseTmp.json")
         self.taosdCommandStop(startAction,taosdCmdRun)
 
         startAction = " -a  jsonFile:./taosdCaseTmp.json -C "
