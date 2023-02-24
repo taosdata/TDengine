@@ -38,10 +38,10 @@ typedef struct SRawExprNode {
 } SRawExprNode;
 
 typedef struct SDataType {
-  uint16_t type;
-  uint8_t  precision;
-  uint8_t  scale;
-  int32_t  bytes;
+  uint8_t type;
+  uint8_t precision;
+  uint8_t scale;
+  int32_t bytes;
 } SDataType;
 
 typedef struct SExprNode {

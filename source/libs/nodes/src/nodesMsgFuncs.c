@@ -619,7 +619,7 @@ static int32_t dataTypeToMsg(const void* pObj, STlvEncoder* pEncoder) {
 static int32_t msgToDataTypeInline(STlvDecoder* pDecoder, void* pObj) {
   SDataType* pNode = (SDataType*)pObj;
 
-  int32_t code = tlvDecodeValueU16(pDecoder, &pNode->type);
+  int32_t code = tlvDecodeValueI8(pDecoder, &pNode->type);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueU8(pDecoder, &pNode->precision);
   }
@@ -641,7 +641,7 @@ static int32_t msgToDataType(STlvDecoder* pDecoder, void* pObj) {
   tlvForEach(pDecoder, pTlv, code) {
     switch (pTlv->type) {
       case DATA_TYPE_CODE_TYPE:
-        code = tlvDecodeU16(pTlv, &pNode->type);
+        code = tlvDecodeI8(pTlv, &pNode->type);
         break;
       case DATA_TYPE_CODE_PRECISION:
         code = tlvDecodeU8(pTlv, &pNode->precision);

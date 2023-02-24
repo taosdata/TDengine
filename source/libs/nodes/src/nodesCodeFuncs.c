@@ -2972,7 +2972,7 @@ static int32_t dataTypeToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToDataType(const SJson* pJson, void* pObj) {
   SDataType* pNode = (SDataType*)pObj;
 
-  int32_t code = tjsonGetUSmallIntValue(pJson, jkDataTypeType, &pNode->type);
+  int32_t code = tjsonGetUTinyIntValue(pJson, jkDataTypeType, &pNode->type);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetUTinyIntValue(pJson, jkDataTypePrecision, &pNode->precision);
   }
