@@ -229,8 +229,7 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
   do {                                         \
     char*   t = key;                           \
     int16_t len = strlen(ip);                  \
-    memcpy(t, ip, len);                        \
-    t += len;                                  \
+    if (ip ! = NULL) memcpy(t, ip, len);       \
     t[len] = ':';                              \
     titoa(port, 10, &t[len + 1]);              \
   } while (0)
@@ -2312,6 +2311,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
 
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   pCtx->epSet = *pEpSet;
+  pCtx->origEpSet = *pEpSet;
   pCtx->ahandle = pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
 
