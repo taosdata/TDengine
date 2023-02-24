@@ -9,10 +9,10 @@
       <el-button plain @click="add" size="small" icon="el-icon-plus">Add New Replication</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column label="ID" width="100" prop="id"></el-table-column>
+      <el-table-column label="ID" width="80" prop="id"></el-table-column>
       <el-table-column label="From Database" prop="fromdb"></el-table-column>
-      <el-table-column label="Host:Port" prop="hostport"></el-table-column>
-      <el-table-column label="Database" prop="db"></el-table-column>
+      <el-table-column label="To Instance" prop="hostport"></el-table-column>
+      <el-table-column label="To Database" prop="db"></el-table-column>
 
       <el-table-column label="Status" prop="status"></el-table-column>
       <el-table-column label="Reason" prop="reason"></el-table-column>
@@ -73,7 +73,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="Target DSN" prop="target" required>
-          <el-input v-model.trim="ruleForm.target" placeholder="Please enter dsn"></el-input>
+          <el-input v-model.trim="ruleForm.target" placeholder="taos://192.168.0.1:6030/db2"></el-input>
         </el-form-item>
       </el-form>
 

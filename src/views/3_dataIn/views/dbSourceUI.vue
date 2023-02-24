@@ -13,7 +13,10 @@
         <div class="protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
           <div class="label-value">
-            <el-select v-model="dbsource[0].protocol.value" placeholder="Please select protocol">
+            <el-select
+              v-model="dbsource[0].protocol.value"
+              placeholder="Please select protocol"
+            >
               <el-option
                 v-for="c in dbsource[0].protocol.choices"
                 :key="c.name"
@@ -21,50 +24,62 @@
                 :value="c.name"
               ></el-option>
             </el-select>
-            <div v-html="transforHtml(dbsource[0].protocol.description)" class="description"></div>
+            <div
+              v-html="transforHtml(dbsource[0].protocol.description)"
+              class="description"
+            ></div>
           </div>
         </div>
         <div class="first">
-          <div style="width:100%;">
+          <div style="width: 100%">
             <span
               :class="[
                 'label',
                 dbsource[0].options.host.required ? 'required' : '',
               ]"
-            >{{ dbsource[0].options.host.display }}</span>
+              >{{ dbsource[0].options.host.display }}</span
+            >
             <div class="label-value">
               <el-input
                 v-model="dbsource[0].options.host.value"
                 oninput="value=>value.replace()"
                 :placeholder="dbsource[0].options.host.placeholder"
               ></el-input>
-              <div v-html="transforHtml(dbsource[0].options.host.description)" class="description"></div>
+              <div
+                v-html="transforHtml(dbsource[0].options.host.description)"
+                class="description"
+              ></div>
             </div>
           </div>
-          <div style="width:100%;">
+          <div style="width: 100%">
             <span
               :class="[
                 'label',
                 dbsource[0].options.port.required ? 'required' : '',
               ]"
-            >{{ dbsource[0].options.port.display }}</span>
+              >{{ dbsource[0].options.port.display }}</span
+            >
 
             <div class="label-value">
               <el-input
                 v-model="dbsource[0].options.port.value"
                 :placeholder="dbsource[0].options.port.placeholder"
               ></el-input>
-              <div v-html="transforHtml(dbsource[0].options.port.description)" class="description"></div>
+              <div
+                v-html="transforHtml(dbsource[0].options.port.description)"
+                class="description"
+              ></div>
             </div>
           </div>
         </div>
-        <div style="width:100%;">
+        <div style="width: 100%">
           <span
             :class="[
               'label',
               dbsource[0].options.username.required ? 'required' : '',
             ]"
-          >{{ dbsource[0].options.username.display }}</span>
+            >{{ dbsource[0].options.username.display }}</span
+          >
           <div class="label-value">
             <el-input
               :placeholder="dbsource[0].options.username.placeholder"
@@ -76,13 +91,14 @@
             ></div>
           </div>
         </div>
-        <div style="width:100%;">
+        <div style="width: 100%">
           <span
             :class="[
               'label',
               dbsource[0].options.password.required ? 'required' : '',
             ]"
-          >{{ dbsource[0].options.password.display }}</span>
+            >{{ dbsource[0].options.password.display }}</span
+          >
           <div class="label-value">
             <el-input
               :placeholder="dbsource[0].options.password.placeholder"
@@ -95,36 +111,58 @@
             ></div>
           </div>
         </div>
-        <div style="width:100%;">
+        <div style="width: 100%">
           <span
             :class="[
               'label',
               dbsource[0].options.subject.required ? 'required' : '',
             ]"
-          >{{ dbsource[0].options.subject.display }}</span>
+            >{{ dbsource[0].options.subject.display }}</span
+          >
           <div class="label-value">
             <el-input
               :placeholder="dbsource[0].options.subject.placeholder"
               v-model="dbsource[0].options.subject.value"
             ></el-input>
-            <div v-html="transforHtml(dbsource[0].options.subject.description)" class="description"></div>
+            <div
+              v-html="transforHtml(dbsource[0].options.subject.description)"
+              class="description"
+            ></div>
           </div>
         </div>
       </section>
+      <section class="authentication">
+        <div>
+          <div class="block-title">
+            <span>{{ dbsource[0].authentication.display }}</span>
+          </div>
+          <div
+            class="description"
+            v-html="transforHtml(dbsource[0].authentication.description)"
+          ></div>
+        </div>
+
+        <el-radio-group v-model="dbsource[0].authentication.value">
+          <template v-for="at in dbsource[0].authentication.alternatives">
+              <el-radio :key="at.name" v-model="at.value">{{ at.display }}</el-radio>
+          </template>
+        </el-radio-group>
+      </section>
       <template v-for="item in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
-          <div style="flex-direction:column;align-items:baseline;">
+          <div style="flex-direction: column; align-items: baseline">
             <div class="block-title">
               <span>{{ item.name }}</span>
             </div>
-            <div class="description" v-html="transforHtml(item.description)"></div>
+            <div
+              class="description"
+              v-html="transforHtml(item.description)"
+            ></div>
           </div>
           <template v-for="p in item.params">
             <div :key="p.name">
               <span :class="['label', p.required ? 'required' : '']">
-                {{
-                p.name
-                }}
+                {{ p.display ? p.display : p.name }}
               </span>
               <div class="label-value">
                 <template v-if="p.hint === 'str' || p.hint === 'timeout'">
@@ -136,19 +174,25 @@
                     placeholder="Please select"
                     style="margin-left: -15px"
                   >
-                    <el-option v-for="c in p.hint.choices" :key="c" :label="c" :value="c"></el-option>
+                    <el-option
+                      v-for="c in p.hint.choices"
+                      :key="c"
+                      :label="c"
+                      :value="c"
+                    ></el-option>
                   </el-select>
                 </template>
                 <template v-if="p.hint === 'bool'">
                   <el-radio-group v-model="p.value">
                     <el-radio v-for="c in p.choices" :key="c" :label="c">
-                      {{
-                      c
-                      }}
+                      {{ c }}
                     </el-radio>
                   </el-radio-group>
                 </template>
-                <div v-html="transforHtml(p.description)" class="description"></div>
+                <div
+                  v-html="transforHtml(p.description)"
+                  class="description"
+                ></div>
               </div>
             </div>
           </template>
@@ -159,12 +203,23 @@
       <section class="ungrounded" v-if="dbsource[0].params"></section>
       <section class="choose-db">
         <span class="label">Target Database</span>
-        <el-select v-model="dbname" placeholder="Please select" style="margin-left: -15px">
-          <el-option v-for="db in dblist" :key="db['node-key']" :label="db.name" :value="db.name"></el-option>
+        <el-select
+          v-model="dbname"
+          placeholder="Please select"
+          style="margin-left: -15px"
+        >
+          <el-option
+            v-for="db in dblist"
+            :key="db['node-key']"
+            :label="db.name"
+            :value="db.name"
+          ></el-option>
         </el-select>
       </section>
       <section class="bottom">
-        <el-button type="primary" @click="submit" :disabled="disable">Submit</el-button>
+        <el-button type="primary" @click="submit" :disabled="disable"
+          >Submit</el-button
+        >
       </section>
     </div>
     <div class="right-ui">
@@ -188,8 +243,8 @@ export default {
       type: Array,
       default() {
         return [];
-      }
-    }
+      },
+    },
   },
   data() {
     return {
@@ -202,7 +257,7 @@ export default {
       subject: "",
       radio: "",
       dblist: [],
-      dbname: ""
+      dbname: "",
     };
   },
   created() {
@@ -210,7 +265,12 @@ export default {
   },
   methods: {
     transforHtml(val) {
-      return marked.parse(val);
+      console.log(val, "ppppppp");
+      if (val) {
+        return marked.parse(val);
+      } else {
+        return val;
+      }
     },
     async getDatabases() {
       try {
@@ -224,7 +284,7 @@ export default {
         throw new Error("error arguments", "deepClone");
       }
       const targetObj = source.constructor === Array ? [] : {};
-      Object.keys(source).forEach(keys => {
+      Object.keys(source).forEach((keys) => {
         if (source[keys] && typeof source[keys] === "object") {
           targetObj[keys] = this.getRequiredItem(source[keys]);
         } else {
@@ -248,7 +308,7 @@ export default {
           ) {
             Message({
               type: "warning",
-              message: `Please enter ${data.options[key].display} `
+              message: `Please enter ${data.options[key].display} `,
             });
             return;
           }
@@ -281,7 +341,7 @@ export default {
             ) {
               Message({
                 type: "warning",
-                message: `Please enter ${data.groups[index].params[g].name} `
+                message: `Please enter ${data.groups[index].params[g].name} `,
               });
               return;
             } else {
@@ -298,30 +358,30 @@ export default {
         console.log("继续执行", dns);
         let apiParams = {
           from: "tmq+" + dns,
-          name:localStorage.getItem('datainName'),
+          name: localStorage.getItem("datainName"),
           to:
             "taos+" +
             localStorage.getItem("base_url") +
             (this.dbname ? "/" + this.dbname : ""),
           labels: ["datain"],
-          stream_type: "auto"
+          stream_type: "auto",
         };
         await fetch("http://192.168.0.201:6050/tasks", {
           method: "post",
           headers: {
-            "Content-type": "application/json"
+            "Content-type": "application/json",
           },
-          body: JSON.stringify(apiParams)
+          body: JSON.stringify(apiParams),
         })
-          .then(res => res.json())
-          .then(result => {
+          .then((res) => res.json())
+          .then((result) => {
             this.$parent.toggleComponent("dbsource", "");
           });
       } catch (error) {
         console.log(error);
       }
-    }
-  }
+    },
+  },
 };
 </script>
 <style lang="scss" scoped>
@@ -418,8 +478,8 @@ export default {
         align-items: baseline;
         margin-bottom: 8px;
       }
-      .label-value{
-        flex:auto;
+      .label-value {
+        flex: auto;
       }
       .el-input {
         flex: 1;
@@ -427,13 +487,14 @@ export default {
       }
       .el-select {
         margin-left: 0px !important;
+        width: 100%;
       }
     }
     .choose-db {
       display: flex;
       align-items: center;
-      .el-select{
-        flex:auto;
+      .el-select {
+        flex: auto;
       }
     }
     .bottom {
@@ -456,6 +517,10 @@ export default {
         border-radius: 12px;
       }
     }
+  }
+  .description {
+    display: initial !important;
+    color: #acaab2;
   }
 }
 </style>

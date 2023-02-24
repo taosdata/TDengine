@@ -6,10 +6,12 @@
         @click="dialog = true"
         size="small"
         icon="el-icon-plus"
-      >{{ $t("topic.addsource") }}</el-button>
+        >{{ $t("topic.addsource") }}</el-button
+      >
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column label="Name" prop="localname"></el-table-column>
+      <el-table-column label="Type" prop="localtype"></el-table-column>
       <el-table-column label="Target" prop="target"></el-table-column>
       <el-table-column label="Created At" prop="created_at"></el-table-column>
       <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
@@ -17,7 +19,27 @@
       <el-table-column label="Status" prop="status">
         <template slot-scope="scope">
           <div class="status-operation">
-            <span style="width:80px;display:inline-block;">{{scope.row.status}}</span>
+            <el-tooltip
+              v-if="
+                ['stopped', 'finished', 'failed'].includes(
+                  scope.row.status.toLowerCase()
+                )
+              "
+              placement="bottom"
+              effect="light"
+              popper-class="datain"
+            >
+              <div
+                v-html="scope.row.last_modified_at + '\n' + scope.row.reason"
+                slot="content"
+              ></div>
+              <span style="width: 80px; display: inline-block">{{
+                scope.row.status
+              }}</span>
+            </el-tooltip>
+            <span style="width: 80px; display: inline-block" v-else>{{
+              scope.row.status
+            }}</span>
             <el-button
               v-if="scope.row.status.toLowerCase() !== 'running'"
               plain
@@ -33,16 +55,26 @@
               icon="el-icon-tingzhi"
             ></el-button>
           </div>
-          <template v-if="['stopped','finished','failed'].includes(scope.row.status.toLowerCase())">
+          <!-- <template v-if="['stopped','finished','failed'].includes(scope.row.status.toLowerCase())">
             <div class="finished-time">{{scope.row.last_modified_at}}</div>
             <div class="reason">{{scope.row.reason}}</div>
-          </template>
+          </template> -->
         </template>
       </el-table-column>
       <el-table-column label="Operation" width="100" class="action">
         <template slot-scope="scope">
-          <el-button type="primay" size="small" @click="edit(scope.row)" icon="el-icon-more"></el-button>
-          <el-button plain size="small" @click="del(scope.row)" icon="el-icon-delete"></el-button>
+          <el-button
+            type="primay"
+            size="small"
+            @click="edit(scope.row)"
+            icon="el-icon-more"
+          ></el-button>
+          <el-button
+            plain
+            size="small"
+            @click="del(scope.row)"
+            icon="el-icon-delete"
+          ></el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -55,7 +87,12 @@
       :total="total"
       @current-change="handlePageChange"
     ></el-pagination>
-    <el-dialog align="center" title="Add New Data Source" width="400px" :visible.sync="dialog">
+    <el-dialog
+      align="center"
+      title="Add New Data Source"
+      width="400px"
+      :visible.sync="dialog"
+    >
       <el-form
         :model="ruleForm"
         ref="ruleForm"
@@ -65,7 +102,10 @@
         class="demo-ruleForm"
       >
         <el-form-item label="Source Type" prop="name" required>
-          <el-select v-model="ruleForm.name" placeholder="Please Select Source Type">
+          <el-select
+            v-model="ruleForm.name"
+            placeholder="Please Select Source Type"
+          >
             <el-option
               :label="item.name"
               :value="item.id"
@@ -94,9 +134,7 @@
       <el-row style="margin-top: 20px">
         <el-col :span="5" :offset="6">
           <el-button size="small" @click="dialog = false" class="w100">
-            {{
-            $t("cancel")
-            }}
+            {{ $t("cancel") }}
           </el-button>
         </el-col>
         <el-col :span="5" :push="4">
@@ -106,7 +144,8 @@
             @click="handleAdd"
             class="w100"
             type="primary"
-          >{{ $t("confirm") }}</el-button>
+            >{{ $t("confirm") }}</el-button
+          >
         </el-col>
       </el-row>
     </el-dialog>
@@ -122,8 +161,8 @@ export default {
       type: Array,
       default() {
         return [];
-      }
-    }
+      },
+    },
   },
   computed: {
     confirmStatus() {
@@ -134,7 +173,7 @@ export default {
         return true;
       }
       return false;
-    }
+    },
   },
   data() {
     return {
@@ -146,9 +185,9 @@ export default {
       ruleForm: {
         name: "",
         status: "",
-        time: ""
+        time: "",
       },
-      topicList: []
+      topicList: [],
     };
   },
   methods: {
@@ -160,36 +199,36 @@ export default {
         {
           confirmButtonText: "Ok",
           cancelButtonText: "Cancle",
-          type: "warning"
+          type: "warning",
         }
-      ).then(res => {
+      ).then((res) => {
         fetch(`http://192.168.0.201:6050/tasks/${data.id}`, {
-          method: "delete"
+          method: "delete",
         })
-          .then(res => {
+          .then((res) => {
             if (res.status == 200) {
               Message({
                 type: "success",
-                message: "Deleted Successfully"
+                message: "Deleted Successfully",
               });
               this.getList();
             }
           })
-          .catch(err => {
+          .catch((err) => {
             err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
       });
     },
     edit(data) {
-      console.log('打开编辑页面',data);
-      
+      console.log("打开编辑页面", data);
+
       // this.$router.push({
       //   path: `/dataIn/source/${data.data_source_name}`
       // });
     },
     handleAdd() {
-      localStorage.setItem('datainName',this.ruleForm.status)
+      localStorage.setItem("datainName", this.ruleForm.status);
       this.$parent.toggleComponent("ui", this.ruleForm.name);
     },
     async getList() {
@@ -198,17 +237,17 @@ export default {
         fetch(
           `http://192.168.0.201:6050/tasks?detail=true&type::datain,cluster-id::${id}`,
           {
-            method: "get"
+            method: "get",
           }
         )
-          .then(res => res.json())
-          .then(result => {
-            this.topicList = result.map(item=>{
-              item['localname']=item.name?item.name:'tmq+'+item.id
-              item['target']=item.to_expand?item.to_expand.subject:''
-              return item
-
-            })
+          .then((res) => res.json())
+          .then((result) => {
+            this.topicList = result.map((item) => {
+              item["localname"] = item.name ? item.name : "tmq+" + item.id;
+              item["localtype"] = item.from_detail ? item.from_detail.name : "";
+              item["target"] = item.to_expand ? item.to_expand.subject : "";
+              return item;
+            });
           });
       } catch (err) {
         err.desc && Message.error(err.desc);
@@ -218,14 +257,14 @@ export default {
     start(data, index) {
       try {
         fetch(`http://192.168.0.201:6050/tasks/${data.id}/start`, {
-          method: "post"
-        }).then(res => {
+          method: "post",
+        }).then((res) => {
           if (res.status == 200) {
             this.getList();
           } else {
             Message({
               type: "error",
-              message: ""
+              message: "",
             });
           }
         });
@@ -237,8 +276,8 @@ export default {
     stop(data, index) {
       try {
         fetch(`http://192.168.0.201:6050/tasks/${data.id}/stop`, {
-          method: "post"
-        }).then(res => {
+          method: "post",
+        }).then((res) => {
           if (res.status == 200) {
             this.getList();
           }
@@ -247,13 +286,20 @@ export default {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
-    }
+    },
   },
   created() {
     this.getList();
-  }
+  },
 };
 </script>
+<style lang='scss'>
+:deep {
+  .el-tooltip__popper.is-light.datain {
+    max-width: 450px !important;
+  }
+}
+</style>
 <style lang="scss" scoped>
 ::v-deep.el-form-item__label {
   white-space: nowrap !important;
