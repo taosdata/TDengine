@@ -292,6 +292,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
   rpcInit.batchSize = 8 * 1024;
+  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {

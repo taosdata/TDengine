@@ -41,8 +41,8 @@ bool    tsPrintAuth = false;
 
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
-int32_t tsNumOfRpcSessions = 2000;
-int32_t tsTimeToGetAvailableConn = 1000;
+int32_t tsNumOfRpcSessions = 10000;
+int32_t tsTimeToGetAvailableConn = 10000;
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 4;
 int32_t tsNumOfMnodeQueryThreads = 4;
