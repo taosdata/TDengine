@@ -90,7 +90,7 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t page
   tsortSetComparFp(pSortHandle, msortComparFn);
 
   if (idstr != NULL) {
-    pSortHandle->idStr = strdup(idstr);
+    pSortHandle->idStr = taosStrdup(idstr);
   }
 
   return pSortHandle;
@@ -212,6 +212,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     int32_t pageId = -1;
     void*   pPage = getNewBufPage(pHandle->pBuf, &pageId);
     if (pPage == NULL) {
+      taosArrayDestroy(pPageIdList);
       blockDataDestroy(p);
       return terrno;
     }

@@ -587,7 +587,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
         return -1;
       }
     } else {
-      pVgEp->qmsg = strdup("");
+      pVgEp->qmsg = taosStrdup("");
     }
 
     sdbRelease(pSdb, pVgroup);

@@ -245,6 +245,7 @@ TEST_F(ParserInitialDTest, dropTable) {
   useDb("root", "test");
 
   run("DROP TABLE t1");
+  run("DROP TABLE t1, st1s1, st1s2");
 }
 
 TEST_F(ParserInitialDTest, dropTopic) {

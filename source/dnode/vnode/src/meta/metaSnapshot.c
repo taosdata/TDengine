@@ -252,7 +252,7 @@ static void saveSuperTableInfoForChildTable(SMetaEntry* me, SHashObj* suidInfo) 
     return;
   }
   STableInfoForChildTable dataTmp = {0};
-  dataTmp.tableName = strdup(me->name);
+  dataTmp.tableName = taosStrdup(me->name);
 
   dataTmp.schemaRow = tCloneSSchemaWrapper(&me->stbEntry.schemaRow);
   dataTmp.tagRow = tCloneSSchemaWrapper(&me->stbEntry.schemaTag);

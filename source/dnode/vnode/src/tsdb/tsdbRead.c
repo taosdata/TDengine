@@ -488,7 +488,7 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet, STsdb
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bool *hasNext) {
+static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bool* hasNext) {
   bool    asc = ASCENDING_TRAVERSE(pIter->order);
   int32_t step = asc ? 1 : -1;
   pIter->index += step;
@@ -677,7 +677,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   pReader->order = pCond->order;
   pReader->capacity = capacity;
   pReader->pResBlock = pResBlock;
-  pReader->idStr = (idstr != NULL) ? strdup(idstr) : NULL;
+  pReader->idStr = (idstr != NULL) ? taosStrdup(idstr) : NULL;
   pReader->verRange = getQueryVerRange(pVnode, pCond, level);
   pReader->type = pCond->type;
   pReader->window = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows);
@@ -874,7 +874,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       pBlockNum->numOfBlocks += 1;
     }
 
-    if (pScanInfo->pBlockList != NULL && taosArrayGetSize(pScanInfo->pBlockList) > 0) {
+    if ((pScanInfo->pBlockList != NULL )&& (taosArrayGetSize(pScanInfo->pBlockList) > 0)) {
       numOfQTable += 1;
     }
   }
@@ -2802,13 +2802,13 @@ static int32_t moveToNextFile(STsdbReader* pReader, SBlockNumber* pBlockNum) {
   SArray* pIndexList = taosArrayInit(numOfTables, sizeof(SBlockIdx));
 
   while (1) {
-    bool hasNext = false;
+    bool    hasNext = false;
     int32_t code = filesetIteratorNext(&pStatus->fileIter, pReader, &hasNext);
     if (code) {
       taosArrayDestroy(pIndexList);
       return code;
     }
-    
+
     if (!hasNext) {  // no data files on disk
       break;
     }
@@ -4532,7 +4532,7 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, 
   SSDataBlock* pResBlock = pReader->pResBlock;
   if (pResBlock->pBlockAgg == NULL) {
     size_t num = taosArrayGetSize(pResBlock->pDataBlock);
-    pResBlock->pBlockAgg = taosMemoryCalloc(num, sizeof(SColumnDataAgg));
+    pResBlock->pBlockAgg = taosMemoryCalloc(num, POINTER_BYTES);
   }
 
   // do fill all null column value SMA info
@@ -4688,6 +4688,11 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   pTableBlockInfo->numOfVgroups = 1;
 
   // find the start data block in file
+
+  tsdbAcquireReader(pReader);
+  if (pReader->suspended) {
+    tsdbReaderResume(pReader);
+  }
   SReaderStatus* pStatus = &pReader->status;
 
   STsdbCfg* pc = &pReader->pTsdb->pVnode->config.tsdbCfg;
@@ -4749,7 +4754,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
     //    tsdbDebug("%p %d blocks found in file for %d table(s), fid:%d, %s", pReader, numOfBlocks, numOfTables,
     //              pReader->pFileGroup->fid, pReader->idStr);
   }
-
+  tsdbReleaseReader(pReader);
   return code;
 }
 

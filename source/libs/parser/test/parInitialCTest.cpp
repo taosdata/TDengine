@@ -603,7 +603,7 @@ TEST_F(ParserInitialCTest, createStable) {
         expect.deleteMark2 = deleteMark2;
         // expect.ttl = ttl;
         if (nullptr != pComment) {
-          expect.pComment = strdup(pComment);
+          expect.pComment = taosStrdup(pComment);
           expect.commentLen = strlen(pComment);
         }
       };
@@ -780,7 +780,7 @@ TEST_F(ParserInitialCTest, createStream) {
     snprintf(expect.sourceDB, sizeof(expect.sourceDB), "0.%s", pSrcDb);
     snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
     expect.igExists = igExists;
-    expect.sql = strdup(pSql);
+    expect.sql = taosStrdup(pSql);
     expect.createStb = STREAM_CREATE_STABLE_TRUE;
     expect.triggerType = STREAM_TRIGGER_AT_ONCE;
     expect.maxDelay = 0;
@@ -934,13 +934,13 @@ TEST_F(ParserInitialCTest, createTable) {
   auto addCreateTbReq = [&](const char* pName, bool ignoreExists = false, int32_t ttl = TSDB_DEFAULT_TABLE_TTL,
                             const char* pComment = nullptr) {
     SVCreateTbReq req = {0};
-    req.name = strdup(pName);
+    req.name = taosStrdup(pName);
     if (ignoreExists) {
       req.flags |= TD_CREATE_IF_NOT_EXISTS;
     }
     req.ttl = ttl;
     if (nullptr != pComment) {
-      req.comment = strdup(pComment);
+      req.comment = taosStrdup(pComment);
       req.commentLen = strlen(pComment);
     }
     ++expect.nReqs;

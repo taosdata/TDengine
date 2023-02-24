@@ -340,7 +340,7 @@ IndexCache* idxCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8
 
   cache->mem = idxInternalCacheCreate(type);
   cache->mem->pCache = cache;
-  cache->colName = IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? tstrdup(JSON_COLUMN) : tstrdup(colName);
+  cache->colName = IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? taosStrdup(JSON_COLUMN) : taosStrdup(colName);
   cache->type = type;
   cache->index = idx;
   cache->version = 0;
@@ -767,7 +767,7 @@ static bool idxCacheIteratorNext(Iterate* itera) {
 
     iv->type = ct->operaType;
     iv->ver = ct->version;
-    iv->colVal = tstrdup(ct->colVal);
+    iv->colVal = taosStrdup(ct->colVal);
     taosArrayPush(iv->val, &ct->uid);
   }
   return next;

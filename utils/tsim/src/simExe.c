@@ -31,7 +31,7 @@ void simLogSql(char *sql, bool useSharp) {
       taosFprintfFile(pFile, "%s;\n", sql);
     }
 
-    taosFsyncFile(pFile);
+    UNUSED(taosFsyncFile(pFile));
   }
 }
 

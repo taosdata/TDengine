@@ -742,7 +742,7 @@ int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* targ
   pCtx->reqType = reqType;
   pCtx->out = out;
   if (target) {
-    pCtx->target = strdup(target);
+    pCtx->target = taosStrdup(target);
     if (NULL == pCtx->target) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
@@ -759,7 +759,7 @@ int32_t ctgAddMsgCtx(SArray* pCtxs, int32_t reqType, void* out, char* target) {
   ctx.reqType = reqType;
   ctx.out = out;
   if (target) {
-    ctx.target = strdup(target);
+    ctx.target = taosStrdup(target);
     if (NULL == ctx.target) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
@@ -1169,7 +1169,7 @@ int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
   for (int32_t i = 0; i < num; ++i) {
     STableIndexInfo* pInfo = taosArrayGet(pIndex, i);
     pInfo = taosArrayPush(*pRes, pInfo);
-    pInfo->expr = strdup(pInfo->expr);
+    pInfo->expr = taosStrdup(pInfo->expr);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1179,7 +1179,7 @@ int32_t ctgUpdateSendTargetInfo(SMsgSendInfo* pMsgSendInfo, int32_t msgType, cha
   if (msgType == TDMT_VND_TABLE_META || msgType == TDMT_VND_TABLE_CFG || msgType == TDMT_VND_BATCH_META) {
     pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
     pMsgSendInfo->target.vgId = vgId;
-    pMsgSendInfo->target.dbFName = strdup(dbFName);
+    pMsgSendInfo->target.dbFName = taosStrdup(dbFName);
   } else {
     pMsgSendInfo->target.type = TARGET_TYPE_MNODE;
   }

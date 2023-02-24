@@ -706,7 +706,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     }
   }
 
-  if (ASSERTS(sver > 0, __FILE__, __LINE__, "failed to get table schema version: %d", sver)) {
+  if (ASSERTS(sver > 0, "failed to get table schema version: %d", sver)) {
     code = TSDB_CODE_NOT_FOUND;
     goto _exit;
   }

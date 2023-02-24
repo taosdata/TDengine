@@ -1608,9 +1608,7 @@ static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScan
   if (pInfo->tbnameSlotId != -1) {
     SColumnInfoData* pColumnInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, pInfo->tbnameSlotId);
     char             varTbName[TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE] = {0};
-    memcpy(varDataVal(varTbName), name, strlen(name));
-    varDataSetLen(varTbName, strlen(name));
-
+    STR_TO_VARSTR(varTbName, name);
     colDataAppendNItems(pColumnInfoData, 0, varTbName, pBlock->info.rows);
   }
 
@@ -1711,7 +1709,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   extractTbnameSlotId(pInfo, pScanNode);
 
   pInfo->accountId = pScanPhyNode->accountId;
-  pInfo->pUser = taosMemoryStrDup((void*)pUser);
+  pInfo->pUser = taosStrdup((void*)pUser);
   pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
