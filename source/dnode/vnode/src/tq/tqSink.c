@@ -507,6 +507,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
           goto _end;
         }
 
+
         pCreateTbReq->ctb.pTag = (uint8_t*)pTag;
 
         // set table name
