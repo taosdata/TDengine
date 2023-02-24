@@ -1,4 +1,4 @@
-import socket
+import requests
 from fabric2 import Connection
 from util.log import *
 from util.common import *
@@ -179,21 +179,18 @@ class TAdapter:
             time.sleep(0.1)
 
             taosadapter_port = self.taosadapter_cfg_dict["port"]
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(3)
-            try:
-                res = s.connect_ex(("localhost", taosadapter_port))
-                s.shutdown(2)
-                if res == 0:
+            for i in range(5):
+                ip = 'localhost'
+                if self.remoteIP != "":
+                    ip = self.remoteIP
+                url = f'http://{ip}:{taosadapter_port}/-/ping'
+                r = requests.get(url)
+                print(r.content)
+                if r.status_code == 200 == 0:
                     tdLog.info(f"the taosadapter has been started, using port:{taosadapter_port}")
+                    break
                 else:
                     tdLog.info(f"the taosadapter do not started!!!")
-            except socket.error as  e:
-                tdLog.notice("socket connect error!")
-            finally:
-                if s:
-                    s.close()
-            # tdLog.debug("the taosadapter has been started.")
             time.sleep(1)
 
     def start_taosadapter(self):

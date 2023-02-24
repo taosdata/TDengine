@@ -129,11 +129,16 @@ class TMQCom:
 
     def stopTmqSimProcess(self, processorName):
         psCmd = "unset LD_PRELOAD; ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
+        if platform.system().lower() == 'windows':
+            psCmd = "ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         onlyKillOnceWindows = 0
         while(processID):
             if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
-                killCmd = "unset LD_PRELOAD; kill -INT %s > /dev/null 2>&1" % processID
+                if platform.system().lower() == 'windows':
+                    killCmd = "kill -INT %s > /dev/nul 2>&1" % processID
+                else:
+                    killCmd = "unset LD_PRELOAD; kill -INT %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 onlyKillOnceWindows = 1
             time.sleep(0.2)
