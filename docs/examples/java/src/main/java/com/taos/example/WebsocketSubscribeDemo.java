@@ -32,7 +32,7 @@ public class WebsocketSubscribeDemo {
             Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
             String jdbcUrl = "jdbc:TAOS-RS://127.0.0.1:6041/?user=root&password=taosdata&batchfetch=true";
             try (Connection connection = DriverManager.getConnection(jdbcUrl);
-                 Statement statement = connection.createStatement()) {
+                    Statement statement = connection.createStatement()) {
                 statement.executeUpdate("drop topic if exists " + TOPIC);
                 statement.executeUpdate("drop database if exists " + DB_NAME);
                 statement.executeUpdate("create database " + DB_NAME);
@@ -58,7 +58,7 @@ public class WebsocketSubscribeDemo {
             properties.setProperty(TMQConstants.ENABLE_AUTO_COMMIT, "true");
             properties.setProperty(TMQConstants.GROUP_ID, "test");
             properties.setProperty(TMQConstants.VALUE_DESERIALIZER,
-                    "com.taosdata.jdbc.MetersDeserializer");
+                    "com.taos.example.MetersDeserializer");
 
             // poll data
             try (TaosConsumer<Meters> consumer = new TaosConsumer<>(properties)) {
