@@ -336,12 +336,8 @@ bool cliMaySendCachedMsg(SCliConn* conn) {
   if (!transQueueEmpty(&conn->cliMsgs)) {
     SCliMsg* pCliMsg = NULL;
     CONN_GET_NEXT_SENDMSG(conn);
-    if (pCliMsg == NULL)
-      return false;
-    else {
-      cliSend(conn);
-      return true;
-    }
+    cliSend(conn);
+    return true;
   }
   return false;
 _RETURN:
@@ -616,7 +612,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
       queue* h = QUEUE_HEAD(&(*msglist)->msgQ);
       QUEUE_REMOVE(h);
       SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
-
+      conn->status = ConnNormal;
       transDQCancel(thrd->waitConnQueue, pMsg->ctx->task);
       transCtxMerge(&conn->ctx, &pMsg->ctx->appCtx);
       transQueuePush(&conn->cliMsgs, pMsg);
