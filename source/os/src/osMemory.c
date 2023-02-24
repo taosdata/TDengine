@@ -312,7 +312,7 @@ void *taosMemoryRealloc(void *ptr, int64_t size) {
 #endif
 }
 
-void *taosStrdup(const char *ptr) {
+char *taosStrdup(const char *ptr) {
 #ifdef USE_TD_MEMORY
   if (ptr == NULL) return NULL;
 
