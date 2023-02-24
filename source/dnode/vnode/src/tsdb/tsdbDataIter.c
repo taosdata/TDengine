@@ -219,7 +219,7 @@ static int32_t tsdbDataFileDataIterNext(STsdbDataIter2* pIter, STsdbFilterInfo* 
       }
 
       ASSERT(pIter->rowInfo.suid == pIter->dIter.bData.suid);
-      ASSERT(pIter->rowInfo.uid = pIter->dIter.bData.uid);
+      ASSERT(pIter->rowInfo.uid == pIter->dIter.bData.uid);
       pIter->rowInfo.row = tsdbRowFromBlockData(&pIter->dIter.bData, pIter->dIter.iRow);
       pIter->dIter.iRow++;
       goto _exit;

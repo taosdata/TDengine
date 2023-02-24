@@ -916,6 +916,8 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     if (!existing) {
       taosArrayPush(pOldConsumer->currentTopics, &addedTopic);
       taosArraySort(pOldConsumer->currentTopics, taosArrayCompareString);
+    } else {
+      taosMemoryFree(addedTopic);
     }
 
     // set status

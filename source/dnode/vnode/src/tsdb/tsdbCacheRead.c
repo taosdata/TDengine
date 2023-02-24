@@ -433,8 +433,10 @@ _end:
   tsdbUntakeReadSnap((STsdbReader*)pr, pr->pReadSnap, true);
   taosThreadMutexUnlock(&pr->readerMutex);
 
-  for (int32_t j = 0; j < pr->numOfCols; ++j) {
-    taosMemoryFree(pRes[j]);
+  if (pRes != NULL) {
+    for (int32_t j = 0; j < pr->numOfCols; ++j) {
+      taosMemoryFree(pRes[j]);
+    }
   }
 
   taosMemoryFree(pRes);

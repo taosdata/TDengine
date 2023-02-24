@@ -1989,8 +1989,7 @@ static FORCE_INLINE int32_t tColDataUpdateValue20(SColData *pColData, uint8_t *p
   return 0;
 }
 static FORCE_INLINE int32_t tColDataUpdateValue30(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward) {
-  uint8_t bv = GET_BIT1(pColData->pBitMap, pColData->nVal - 1);
-  if (bv == 0) {  // NONE == > VALUE
+  if (GET_BIT1(pColData->pBitMap, pColData->nVal - 1) == 0) {  // NONE ==> VALUE
     pColData->numOfNone--;
     pColData->nVal--;
     if (pColData->numOfNone) {
@@ -1999,7 +1998,7 @@ static FORCE_INLINE int32_t tColDataUpdateValue30(SColData *pColData, uint8_t *p
       pColData->flag = HAS_NULL;
       return tColDataAppendValue20(pColData, pData, nData);
     }
-  } else if (forward) {  // NULL == > VALUE
+  } else if (forward) {  // NULL ==> VALUE
     pColData->numOfNull--;
     pColData->nVal--;
     if (pColData->numOfNull) {
@@ -2024,36 +2023,43 @@ static FORCE_INLINE int32_t tColDataUpdateValue32(SColData *pColData, uint8_t *p
   return 0;
 }
 static FORCE_INLINE int32_t tColDataUpdateValue40(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward) {
-  if (forward) {
-    pColData->numOfValue--;
+  if (forward) {  // VALUE ==> VALUE
     pColData->nVal--;
-    if (pColData->numOfValue) {
-      return tColDataAppendValue40(pColData, pData, nData);
+    if (IS_VAR_DATA_TYPE(pColData->type)) {
+      pColData->nData = pColData->aOffset[pColData->nVal];
     } else {
-      pColData->flag = 0;
-      return tColDataAppendValue00(pColData, pData, nData);
+      pColData->nData -= TYPE_BYTES[pColData->type];
     }
+    return tColDataPutValue(pColData, pData, nData);
   }
   return 0;
 }
 static FORCE_INLINE int32_t tColDataUpdateValue42(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward) {
-  if (forward) {
+  if (forward) {  // VALUE ==> NULL
     pColData->numOfValue--;
     pColData->nVal--;
     if (pColData->numOfValue) {
+      if (IS_VAR_DATA_TYPE(pColData->type)) {
+        pColData->nData = pColData->aOffset[pColData->nVal];
+      } else {
+        pColData->nData -= TYPE_BYTES[pColData->type];
+      }
       return tColDataAppendValue42(pColData, pData, nData);
     } else {
       pColData->flag = 0;
+      pColData->nData = 0;
       return tColDataAppendValue02(pColData, pData, nData);
     }
   }
   return 0;
 }
 static FORCE_INLINE int32_t tColDataUpdateValue50(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward) {
-  uint8_t bv = GET_BIT1(pColData->pBitMap, pColData->nVal - 1);
-  if (bv == 0) {  // NONE ==> VALUE
+  if (GET_BIT1(pColData->pBitMap, pColData->nVal - 1) == 0) {  // NONE ==> VALUE
     pColData->numOfNone--;
     pColData->nVal--;
+    if (!IS_VAR_DATA_TYPE(pColData->type)) {
+      pColData->nData -= TYPE_BYTES[pColData->type];
+    }
     if (pColData->numOfNone) {
       return tColDataAppendValue50(pColData, pData, nData);
     } else {
@@ -2061,35 +2067,42 @@ static FORCE_INLINE int32_t tColDataUpdateValue50(SColData *pColData, uint8_t *p
       return tColDataAppendValue40(pColData, pData, nData);
     }
   } else if (forward) {  // VALUE ==> VALUE
-    pColData->numOfValue--;
     pColData->nVal--;
-    if (pColData->numOfValue) {
-      return tColDataAppendValue50(pColData, pData, nData);
+    if (IS_VAR_DATA_TYPE(pColData->type)) {
+      pColData->nData = pColData->aOffset[pColData->nVal];
     } else {
-      pColData->flag = HAS_NONE;
-      return tColDataAppendValue10(pColData, pData, nData);
+      pColData->nData -= TYPE_BYTES[pColData->type];
     }
+    return tColDataPutValue(pColData, pData, nData);
   }
   return 0;
 }
 static FORCE_INLINE int32_t tColDataUpdateValue52(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward) {
-  uint8_t bv = GET_BIT1(pColData->pBitMap, pColData->nVal - 1);
-  if (bv == 0) {  // NONE ==> NULL
+  if (GET_BIT1(pColData->pBitMap, pColData->nVal - 1) == 0) {  // NONE ==> NULL
     pColData->numOfNone--;
     pColData->nVal--;
+    if (!IS_VAR_DATA_TYPE(pColData->type)) {
+      pColData->nData -= TYPE_BYTES[pColData->type];
+    }
     if (pColData->numOfNone) {
       return tColDataAppendValue52(pColData, pData, nData);
     } else {
-      pColData->flag &= ~HAS_NONE;
+      pColData->flag = HAS_VALUE;
       return tColDataAppendValue42(pColData, pData, nData);
     }
   } else if (forward) {  // VALUE ==> NULL
     pColData->numOfValue--;
     pColData->nVal--;
     if (pColData->numOfValue) {
+      if (IS_VAR_DATA_TYPE(pColData->type)) {
+        pColData->nData = pColData->aOffset[pColData->nVal];
+      } else {
+        pColData->nData -= TYPE_BYTES[pColData->type];
+      }
       return tColDataAppendValue52(pColData, pData, nData);
     } else {
-      pColData->flag &= ~HAS_VALUE;
+      pColData->flag = HAS_NONE;
+      pColData->nData = 0;
       return tColDataAppendValue12(pColData, pData, nData);
     }
   }
@@ -2100,6 +2113,9 @@ static FORCE_INLINE int32_t tColDataUpdateValue60(SColData *pColData, uint8_t *p
     if (GET_BIT1(pColData->pBitMap, pColData->nVal - 1) == 0) {  // NULL ==> VALUE
       pColData->numOfNull--;
       pColData->nVal--;
+      if (!IS_VAR_DATA_TYPE(pColData->type)) {
+        pColData->nData -= TYPE_BYTES[pColData->type];
+      }
       if (pColData->numOfNull) {
         return tColDataAppendValue60(pColData, pData, nData);
       } else {
@@ -2107,14 +2123,13 @@ static FORCE_INLINE int32_t tColDataUpdateValue60(SColData *pColData, uint8_t *p
         return tColDataAppendValue40(pColData, pData, nData);
       }
     } else {  // VALUE ==> VALUE
-      pColData->numOfValue--;
       pColData->nVal--;
-      if (pColData->numOfValue) {
-        return tColDataAppendValue60(pColData, pData, nData);
+      if (IS_VAR_DATA_TYPE(pColData->type)) {
+        pColData->nData = pColData->aOffset[pColData->nVal];
       } else {
-        pColData->flag = HAS_NULL;
-        return tColDataAppendValue20(pColData, pData, nData);
+        pColData->nData -= TYPE_BYTES[pColData->type];
       }
+      return tColDataPutValue(pColData, pData, nData);
     }
   }
   return 0;
@@ -2124,9 +2139,15 @@ static FORCE_INLINE int32_t tColDataUpdateValue62(SColData *pColData, uint8_t *p
     pColData->numOfValue--;
     pColData->nVal--;
     if (pColData->numOfValue) {
+      if (IS_VAR_DATA_TYPE(pColData->type)) {
+        pColData->nData = pColData->aOffset[pColData->nVal];
+      } else {
+        pColData->nData -= TYPE_BYTES[pColData->type];
+      }
       return tColDataAppendValue62(pColData, pData, nData);
     } else {
       pColData->flag = HAS_NULL;
+      pColData->nData = 0;
       return tColDataAppendValue20(pColData, pData, nData);
     }
   }
@@ -2139,38 +2160,44 @@ static FORCE_INLINE int32_t tColDataUpdateValue70(SColData *pColData, uint8_t *p
   if (bv == 0) {  // NONE ==> VALUE
     pColData->numOfNone--;
     pColData->nVal--;
+    if (!IS_VAR_DATA_TYPE(pColData->type)) {
+      pColData->nData -= TYPE_BYTES[pColData->type];
+    }
     if (pColData->numOfNone) {
       return tColDataAppendValue70(pColData, pData, nData);
     } else {
       for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
         SET_BIT1(pColData->pBitMap, iVal, GET_BIT2(pColData->pBitMap, iVal) - 1);
       }
-      pColData->flag &= ~HAS_NONE;
+      pColData->flag = (HAS_VALUE | HAS_NULL);
       return tColDataAppendValue60(pColData, pData, nData);
     }
   } else if (bv == 1) {  // NULL ==> VALUE
     if (forward) {
       pColData->numOfNull--;
       pColData->nVal--;
+      if (!IS_VAR_DATA_TYPE(pColData->type)) {
+        pColData->nData -= TYPE_BYTES[pColData->type];
+      }
       if (pColData->numOfNull) {
         return tColDataAppendValue70(pColData, pData, nData);
       } else {
         for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
           SET_BIT1(pColData->pBitMap, iVal, GET_BIT2(pColData->pBitMap, iVal) ? 1 : 0);
         }
-        pColData->flag &= ~HAS_NULL;
+        pColData->flag = (HAS_VALUE | HAS_NONE);
         return tColDataAppendValue50(pColData, pData, nData);
       }
     }
   } else if (bv == 2) {  // VALUE ==> VALUE
     if (forward) {
-      pColData->numOfValue--;
       pColData->nVal--;
-      if (pColData->numOfValue) {
-        return tColDataAppendValue70(pColData, pData, nData);
+      if (IS_VAR_DATA_TYPE(pColData->type)) {
+        pColData->nData = pColData->aOffset[pColData->nVal];
       } else {
-        return tColDataPutValue(pColData, pData, nData);
+        pColData->nData -= TYPE_BYTES[pColData->type];
       }
+      return tColDataPutValue(pColData, pData, nData);
     }
   } else {
     ASSERT(0);
@@ -2179,29 +2206,37 @@ static FORCE_INLINE int32_t tColDataUpdateValue70(SColData *pColData, uint8_t *p
 }
 static int32_t tColDataUpdateValue72(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward) {
   uint8_t bv = GET_BIT2(pColData->pBitMap, pColData->nVal - 1);
-  ASSERT(bv < 3);
   if (bv == 0) {  // NONE ==> NULL
     pColData->numOfNone--;
     pColData->nVal--;
+    if (!IS_VAR_DATA_TYPE(pColData->type)) {
+      pColData->nData -= TYPE_BYTES[pColData->type];
+    }
     if (pColData->numOfNone) {
       return tColDataAppendValue72(pColData, pData, nData);
     } else {
       for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
         SET_BIT1(pColData->pBitMap, iVal, GET_BIT2(pColData->pBitMap, iVal) - 1);
       }
-      pColData->flag &= ~HAS_NONE;
+      pColData->flag = (HAS_VALUE | HAS_NULL);
       return tColDataAppendValue62(pColData, pData, nData);
     }
   } else if (bv == 2 && forward) {  // VALUE ==> NULL
     pColData->numOfValue--;
     pColData->nVal--;
     if (pColData->numOfValue) {
+      if (IS_STR_DATA_TYPE(pColData->type)) {
+        pColData->nData = pColData->aOffset[pColData->nVal];
+      } else {
+        pColData->nData -= TYPE_BYTES[pColData->type];
+      }
       return tColDataAppendValue72(pColData, pData, nData);
     } else {
       for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
         SET_BIT1(pColData->pBitMap, iVal, GET_BIT2(pColData->pBitMap, iVal));
       }
-      pColData->flag &= ~HAS_VALUE;
+      pColData->flag = (HAS_NULL | HAS_NONE);
+      pColData->nData = 0;
       return tColDataAppendValue32(pColData, pData, nData);
     }
   }
