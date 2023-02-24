@@ -319,8 +319,8 @@ void *taosStrdup(const char *ptr) {
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
   ASSERT(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
   if (pTdMemoryInfo->symbol != TD_MEMORY_SYMBOL) {
-+   return NULL;
-+ }
+   return NULL;
+ }
   void *tmp = tstrdup(pTdMemoryInfo);
   if (tmp == NULL) return NULL;
 
