@@ -382,7 +382,7 @@ TEST_F(ParserInitialATest, alterSTable) {
     expect.name[len] = '\0';
     expect.alterType = alterType;
     if (nullptr != pComment) {
-      expect.comment = strdup(pComment);
+      expect.comment = taosStrdup(pComment);
       expect.commentLen = strlen(pComment);
     }
 

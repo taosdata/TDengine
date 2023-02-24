@@ -1529,7 +1529,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
           fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
         } else {
           char* udfName = pExpr->pExpr->_function.pFunctNode->functionName;
-          pCtx->udfName = strdup(udfName);
+          pCtx->udfName = taosStrdup(udfName);
           fmGetUdafExecFuncs(pCtx->functionId, &pCtx->fpSet);
         }
         pCtx->fpSet.getEnv(pExpr->pExpr->_function.pFunctNode, &env);

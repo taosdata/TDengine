@@ -1734,7 +1734,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   pRsp->ttl = pStb->ttl;
   pRsp->commentLen = pStb->commentLen;
   if (pStb->commentLen > 0) {
-    pRsp->pComment = strdup(pStb->comment);
+    pRsp->pComment = taosStrdup(pStb->comment);
   }
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {

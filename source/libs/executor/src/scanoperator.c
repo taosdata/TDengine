@@ -434,7 +434,7 @@ static void freeTableCachedVal(void* param) {
 
 static STableCachedVal* createTableCacheVal(const SMetaReader* pMetaReader) {
   STableCachedVal* pVal = taosMemoryMalloc(sizeof(STableCachedVal));
-  pVal->pName = strdup(pMetaReader->me.name);
+  pVal->pName = taosStrdup(pMetaReader->me.name);
   pVal->pTags = NULL;
 
   // only child table has tag value

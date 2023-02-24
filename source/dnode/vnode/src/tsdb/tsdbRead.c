@@ -677,7 +677,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   pReader->order = pCond->order;
   pReader->capacity = capacity;
   pReader->pResBlock = pResBlock;
-  pReader->idStr = (idstr != NULL) ? strdup(idstr) : NULL;
+  pReader->idStr = (idstr != NULL) ? taosStrdup(idstr) : NULL;
   pReader->verRange = getQueryVerRange(pVnode, pCond, level);
   pReader->type = pCond->type;
   pReader->window = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows);

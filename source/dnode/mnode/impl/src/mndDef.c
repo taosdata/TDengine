@@ -181,7 +181,7 @@ SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
   SMqVgEp *pVgEpNew = taosMemoryMalloc(sizeof(SMqVgEp));
   if (pVgEpNew == NULL) return NULL;
   pVgEpNew->vgId = pVgEp->vgId;
-  pVgEpNew->qmsg = strdup(pVgEp->qmsg);
+  pVgEpNew->qmsg = taosStrdup(pVgEp->qmsg);
   pVgEpNew->epSet = pVgEp->epSet;
   return pVgEpNew;
 }

@@ -124,7 +124,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
     taosThreadRwlockInit(&pWrapper->lock, NULL);
 
     snprintf(path, sizeof(path), "%s%s%s", tsDataDir, TD_DIRSEP, pWrapper->name);
-    pWrapper->path = strdup(path);
+    pWrapper->path = taosStrdup(path);
     if (pWrapper->path == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;

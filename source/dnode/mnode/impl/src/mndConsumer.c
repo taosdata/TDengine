@@ -577,7 +577,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     subscribe.topicNames = NULL;
 
     for (int32_t i = 0; i < newTopicNum; i++) {
-      char *newTopicCopy = strdup(taosArrayGetP(newSub, i));
+      char *newTopicCopy = taosStrdup(taosArrayGetP(newSub, i));
       taosArrayPush(pConsumerNew->assignedTopics, &newTopicCopy);
     }
 
@@ -605,7 +605,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     pConsumerNew->updateType = CONSUMER_UPDATE__MODIFY;
 
     for (int32_t i = 0; i < newTopicNum; i++) {
-      char *newTopicCopy = strdup(taosArrayGetP(newSub, i));
+      char *newTopicCopy = taosStrdup(taosArrayGetP(newSub, i));
       taosArrayPush(pConsumerNew->assignedTopics, &newTopicCopy);
     }
 
@@ -617,12 +617,12 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     int32_t i = 0, j = 0;
     while (i < oldTopicNum || j < newTopicNum) {
       if (i >= oldTopicNum) {
-        char *newTopicCopy = strdup(taosArrayGetP(newSub, j));
+        char *newTopicCopy = taosStrdup(taosArrayGetP(newSub, j));
         taosArrayPush(pConsumerNew->rebNewTopics, &newTopicCopy);
         j++;
         continue;
       } else if (j >= newTopicNum) {
-        char *oldTopicCopy = strdup(taosArrayGetP(pConsumerOld->currentTopics, i));
+        char *oldTopicCopy = taosStrdup(taosArrayGetP(pConsumerOld->currentTopics, i));
         taosArrayPush(pConsumerNew->rebRemovedTopics, &oldTopicCopy);
         i++;
         continue;
@@ -635,12 +635,12 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
           j++;
           continue;
         } else if (comp < 0) {
-          char *oldTopicCopy = strdup(oldTopic);
+          char *oldTopicCopy = taosStrdup(oldTopic);
           taosArrayPush(pConsumerNew->rebRemovedTopics, &oldTopicCopy);
           i++;
           continue;
         } else {
-          char *newTopicCopy = strdup(newTopic);
+          char *newTopicCopy = taosStrdup(newTopic);
           taosArrayPush(pConsumerNew->rebNewTopics, &newTopicCopy);
           j++;
           continue;
@@ -808,7 +808,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     int32_t sz = taosArrayGetSize(pOldConsumer->currentTopics);
     /*pOldConsumer->rebRemovedTopics = taosArrayInit(sz, sizeof(void *));*/
     for (int32_t i = 0; i < sz; i++) {
-      char *topic = strdup(taosArrayGetP(pOldConsumer->currentTopics, i));
+      char *topic = taosStrdup(taosArrayGetP(pOldConsumer->currentTopics, i));
       taosArrayPush(pOldConsumer->rebRemovedTopics, &topic);
     }
 
@@ -821,7 +821,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 
     int32_t sz = taosArrayGetSize(pOldConsumer->assignedTopics);
     for (int32_t i = 0; i < sz; i++) {
-      char *topic = strdup(taosArrayGetP(pOldConsumer->assignedTopics, i));
+      char *topic = taosStrdup(taosArrayGetP(pOldConsumer->assignedTopics, i));
       taosArrayPush(pOldConsumer->rebNewTopics, &topic);
     }
 
@@ -837,7 +837,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     /*A(taosArrayGetSize(pNewConsumer->rebNewTopics) == 1);*/
     /*A(taosArrayGetSize(pNewConsumer->rebRemovedTopics) == 0);*/
 
-    char *addedTopic = strdup(taosArrayGetP(pNewConsumer->rebNewTopics, 0));
+    char *addedTopic = taosStrdup(taosArrayGetP(pNewConsumer->rebNewTopics, 0));
     // not exist in current topic
 
     bool existing = false;

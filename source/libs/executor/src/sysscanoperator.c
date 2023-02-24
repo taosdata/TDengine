@@ -1709,7 +1709,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   extractTbnameSlotId(pInfo, pScanNode);
 
   pInfo->accountId = pScanPhyNode->accountId;
-  pInfo->pUser = taosMemoryStrDup((void*)pUser);
+  pInfo->pUser = taosStrdup((void*)pUser);
   pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);

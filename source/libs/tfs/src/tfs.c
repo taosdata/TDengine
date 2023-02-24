@@ -240,7 +240,7 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   if (tfsMkdirAt(pTfs, rname, diskId) < 0) {
     if (errno == ENOENT) {
       // Try to create upper
-      char *s = strdup(rname);
+      char *s = taosStrdup(rname);
 
       // Make a copy of dirname(s) because the implementation of 'dirname' differs on different platforms.
       // Some platform may modify the contents of the string passed into dirname(). Others may return a pointer to
@@ -248,7 +248,7 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
       // the pointer directly in this recursion.
       // See
       // https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/dirname.3.html
-      char *dir = strdup(taosDirName(s));
+      char *dir = taosStrdup(taosDirName(s));
 
       if (tfsMkdirRecurAt(pTfs, dir, diskId) < 0) {
         taosMemoryFree(s);
