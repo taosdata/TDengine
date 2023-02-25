@@ -189,7 +189,9 @@ void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
 
 tmq_t* build_consumer() {
   tmq_conf_res_t code;
-  tmq_conf_t*    conf = tmq_conf_new();
+  tmq_t*         tmq = NULL;
+
+  tmq_conf_t* conf = tmq_conf_new();
   code = tmq_conf_set(conf, "enable.auto.commit", "true");
   if (TMQ_CONF_OK != code) {
     tmq_conf_destroy(conf);
@@ -232,8 +234,9 @@ tmq_t* build_consumer() {
   }
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
+  tmq = tmq_consumer_new(conf, NULL, 0);
 
-  tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
+_end:
   tmq_conf_destroy(conf);
   return tmq;
 }

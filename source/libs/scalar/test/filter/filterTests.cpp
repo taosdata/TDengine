@@ -111,7 +111,7 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
 
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
     for (int32_t i = 0; i < rowNum; ++i) {
-      colDataAppend(pColumn, i, (const char *)value, false);
+      colDataSetVal(pColumn, i, (const char *)value, false);
       if (IS_VAR_DATA_TYPE(dataType)) {
         value = (char *)value + varDataTLen(value);
       } else {
@@ -135,7 +135,7 @@ void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
 
     for (int32_t i = 0; i < rowNum; ++i) {
-      colDataAppend(pColumn, i, (const char *)value, false);
+      colDataSetVal(pColumn, i, (const char *)value, false);
       if (IS_VAR_DATA_TYPE(dataType)) {
         value = (char *)value + varDataTLen(value);
       } else {
@@ -634,8 +634,8 @@ TEST(columnTest, binary_column_is_null) {
   flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);
 
   SColumnInfoData *pcolumn = (SColumnInfoData *)taosArrayGetLast(src->pDataBlock);
-  colDataAppend(pcolumn, 2, NULL, true);
-  colDataAppend(pcolumn, 4, NULL, true);
+  colDataSetVal(pcolumn, 2, NULL, true);
+  colDataSetVal(pcolumn, 4, NULL, true);
   flttMakeOpNode(&opNode, OP_TYPE_IS_NULL, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
 
   SFilterInfo *filter = NULL;
@@ -682,7 +682,7 @@ TEST(columnTest, binary_column_is_not_null) {
   flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);
 
   SColumnInfoData *pcolumn = (SColumnInfoData *)taosArrayGetLast(src->pDataBlock);
-  colDataAppend(pcolumn, 4, NULL, true);
+  colDataSetVal(pcolumn, 4, NULL, true);
 
   flttMakeOpNode(&opNode, OP_TYPE_IS_NOT_NULL, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
 

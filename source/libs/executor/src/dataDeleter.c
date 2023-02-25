@@ -62,9 +62,6 @@ static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInp
   pEntry->numOfCols = taosArrayGetSize(pInput->pData->pDataBlock);
   pEntry->dataLen = sizeof(SDeleterRes);
 
-  //  ASSERT(1 == pEntry->numOfRows);
-  //  ASSERT(3 == pEntry->numOfCols);
-
   pBuf->useSize = sizeof(SDataCacheEntry);
 
   SColumnInfoData* pColRes = (SColumnInfoData*)taosArrayGet(pInput->pData->pDataBlock, 0);

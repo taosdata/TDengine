@@ -529,7 +529,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
   SSdb*       pSdb = pMnode->pSdb;
   SVgObj*     pVgroup = NULL;
   SQueryPlan* pPlan = NULL;
-  SSubplan*   plan = NULL;
+  SSubplan*   pSubplan = NULL;
 
   if (pTopic->subType == TOPIC_SUB_TYPE__COLUMN) {
     pPlan = qStringToQueryPlan(pTopic->physicalPlan);
@@ -545,21 +545,25 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
       return -1;
     }
 
-    SNodeListNode* inner = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
+    SNodeListNode* pNodeListNode = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
 
-    int32_t opNum = LIST_LENGTH(inner->pNodeList);
+    int32_t opNum = LIST_LENGTH(pNodeListNode->pNodeList);
     if (opNum != 1) {
       qDestroyQueryPlan(pPlan);
       terrno = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
       return -1;
     }
-    plan = (SSubplan*)nodesListGetNode(inner->pNodeList, 0);
+
+    pSubplan = (SSubplan*)nodesListGetNode(pNodeListNode->pNodeList, 0);
   }
 
   void* pIter = NULL;
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
-    if (pIter == NULL) break;
+    if (pIter == NULL) {
+      break;
+    }
+
     if (!mndVgroupInDb(pVgroup, pTopic->dbUid)) {
       sdbRelease(pSdb, pVgroup);
       continue;
@@ -572,15 +576,15 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     pVgEp->vgId = pVgroup->vgId;
     taosArrayPush(pSub->unassignedVgs, &pVgEp);
 
-    mDebug("init subscription %s, assign vg: %d", pSub->key, pVgEp->vgId);
+    mDebug("init subscription %s for topic:%s assign vgId:%d", pSub->key, pTopic->name, pVgEp->vgId);
 
     if (pTopic->subType == TOPIC_SUB_TYPE__COLUMN) {
       int32_t msgLen;
 
-      plan->execNode.epSet = pVgEp->epSet;
-      plan->execNode.nodeId = pVgEp->vgId;
+      pSubplan->execNode.epSet = pVgEp->epSet;
+      pSubplan->execNode.nodeId = pVgEp->vgId;
 
-      if (qSubPlanToString(plan, &pVgEp->qmsg, &msgLen) < 0) {
+      if (qSubPlanToString(pSubplan, &pVgEp->qmsg, &msgLen) < 0) {
         sdbRelease(pSdb, pVgroup);
         qDestroyQueryPlan(pPlan);
         terrno = TSDB_CODE_QRY_INVALID_INPUT;
@@ -594,6 +598,5 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
   }
 
   qDestroyQueryPlan(pPlan);
-
   return 0;
 }

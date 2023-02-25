@@ -204,7 +204,6 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
 }
 
 static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
-  ASSERT(pKey != NULL);
   size_t numOfGroupCols = taosArrayGetSize(pGroupColVals);
 
   char* isNull = (char*)pKey;
@@ -572,7 +571,6 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       }
 
       (*columnLen) += contentLen;
-      ASSERT(*columnLen >= 0);
     }
 
     (*rows) += 1;
@@ -683,7 +681,6 @@ static int compareDataGroupInfo(const void* group1, const void* group2) {
   const SDataGroupInfo* pGroupInfo2 = group2;
 
   if (pGroupInfo1->groupId == pGroupInfo2->groupId) {
-    ASSERT(0);
     return 0;
   }
 
@@ -960,7 +957,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       SColumnInfoData* pDestCol = taosArrayGet(pDest->pDataBlock, j);
       bool             isNull = colDataIsNull(pSrcCol, pSrc->info.rows, rowIndex, NULL);
       char*            pSrcData = colDataGetData(pSrcCol, rowIndex);
-      colDataAppend(pDestCol, pDest->info.rows, pSrcData, isNull);
+      colDataSetVal(pDestCol, pDest->info.rows, pSrcData, isNull);
     }
     pDest->info.rows++;
   }
@@ -1011,7 +1008,7 @@ void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp*
       pDestBlock->info.rows--;
     } else {
       void* pTbNameCol = taosArrayGet(pDestBlock->pDataBlock, UD_TABLE_NAME_COLUMN_INDEX);
-      colDataAppendNULL(pTbNameCol, pDestBlock->info.rows);
+      colDataSetNULL(pTbNameCol, pDestBlock->info.rows);
       tbName[0] = 0;
     }
 
