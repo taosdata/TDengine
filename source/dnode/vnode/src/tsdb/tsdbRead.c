@@ -155,6 +155,7 @@ typedef struct SBlockInfoBuf {
   int32_t currentIndex;
   SArray* pData;
   int32_t numPerBucket;
+  int32_t numOfTables;
 } SBlockInfoBuf;
 
 struct STsdbReader {
@@ -299,6 +300,47 @@ static int32_t initBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
     }
     taosArrayPush(pBuf->pData, &p);
   }
+
+  pBuf->numOfTables = numOfTables;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
+  if (numOfTables <= pBuf->numOfTables) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pBuf->numOfTables > 0) {
+    STableBlockScanInfo *p = (STableBlockScanInfo*)taosArrayPop(pBuf->pData);
+    taosMemoryFree(p);
+    pBuf->numOfTables /= pBuf->numPerBucket;
+  }
+  
+  int32_t num = (numOfTables - pBuf->numOfTables) / pBuf->numPerBucket;
+  int32_t remainder = (numOfTables - pBuf->numOfTables) % pBuf->numPerBucket;
+  if (pBuf->pData == NULL) {
+    pBuf->pData = taosArrayInit(num + 1, POINTER_BYTES);
+  }
+
+  for (int32_t i = 0; i < num; ++i) {
+    char* p = taosMemoryCalloc(pBuf->numPerBucket, sizeof(STableBlockScanInfo));
+    if (p == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    taosArrayPush(pBuf->pData, &p);
+  }
+
+  if (remainder > 0) {
+    char* p = taosMemoryCalloc(remainder, sizeof(STableBlockScanInfo));
+    if (p == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    taosArrayPush(pBuf->pData, &p);
+  }
+
+  pBuf->numOfTables = numOfTables;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3738,8 +3780,12 @@ int32_t tsdbSetTableList(STsdbReader* pReader, const void* pTableList, int32_t n
     clearBlockScanInfo(*p);
   }
 
-  // todo handle the case where size is less than the value of num
-  ASSERT(size >= num);
+  if (size < num) {
+    int32_t code = ensureBlockScanInfoBuf(&pReader->blockInfoBuf, num);
+    if (code) {
+      return code;
+    }
+  }
 
   taosHashClear(pReader->status.pTableMap);
   STableUidList* pUidList = &pReader->status.uidList;
