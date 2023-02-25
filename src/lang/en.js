@@ -755,6 +755,7 @@ export default {
   },
   users: {
     all: "All",
+    db: "Database",
     createNewUser: "Add New User",
     addNewCluster: "Add New Instance",
     addNewDB: "Add New DB",
@@ -783,6 +784,7 @@ export default {
     activities:'Activities',
     cvs:'CVS',
     //admin-user
+    title: 'Topic',
     name:'Name',
     super:'Super',
     enable:'Enable',

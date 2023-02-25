@@ -1,9 +1,20 @@
-{ 
+{
   "compilerOptions": {
     "baseUrl": "./",
     "paths": {
-        "@/*": ["src/*"]
-    }
+      "@/*": [
+        "src/*"
+      ]
+    },
   },
-  "exclude": ["node_modules", "dist"]
+  "vueCompilerOptions": {
+    "target": 2.7,
+    "extensions": [
+      ".vue"
+    ]
+  },
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

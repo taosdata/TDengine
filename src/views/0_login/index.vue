@@ -207,7 +207,7 @@ export default {
       earch: require("@/assets/earth.webp"),
       hidden: false,
       dynamicValidateForm: {
-        cluster: "http://192.168.0.201:16041",
+        cluster: "",
         password: "",
         username: "",
       },
@@ -239,12 +239,21 @@ export default {
   },
   methods: {
     submitForm(formName) {
+      let reg =/^(http|https):\/\/([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*/;
+      if (
+        this.dynamicValidateForm.cluster &&
+        !reg.test(this.dynamicValidateForm.cluster)
+      ) {
+        Message.error(
+          "Please enter the correct cluster url ."
+        );
+        return;
+      }
       this.$refs[formName].validate((valid) => {
         if (valid) {
           localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
           this.login();
         } else {
-          console.log("error submit!!");
           return false;
         }
       });
@@ -277,28 +286,32 @@ export default {
             this.dynamicValidateForm.password
         );
       this.$store.commit("app/SET_TOKEN", token);
-      sessionStorage.setItem("username", this.dynamicValidateForm.username);
-      sessionStorage.setItem("pwd", this.dynamicValidateForm.password);
-      this.$store.commit("app/SAVE_LOGIN_INFO", {
-        username: this.dynamicValidateForm.username,
-        pwd: this.dynamicValidateForm.password,
-      });
-      fetch(`${this.dynamicValidateForm.cluster}/rest/sql`, {
-        method: "post",
-        headers: {
-          Authorization: token,
-        },
-        body: "select server_version()",
-      }).then((res) => {
-        if (res.status === 200) {
-          localStorage.setItem("TDengine-Token", token);
-
-          this.getClusterID();
-          this.$router.push({
-            path: "/explorer",
-          });
-        }
-      });
+      try {
+        fetch(`${this.dynamicValidateForm.cluster}/rest/sql`, {
+          method: "post",
+          headers: {
+            Authorization: token,
+          },
+          body: "select server_version()",
+        }).then((res) => {
+          if (res.status === 200) {
+            localStorage.setItem("TDengine-Token", token);
+            this.$router.push({
+              path: "/explorer",
+            });
+          } else {
+            Message({
+              type: "error",
+              message: res.statusText,
+            });
+          }
+        }).catch(err=>{
+          Message.error('Faild to fetch,wrong cluster url!')
+          console.log(err,'fetch---');
+        });
+      } catch (error) {
+        console.log(error,'login');
+      }
     },
     search() {
       this.hidden = true;

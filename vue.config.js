@@ -1,6 +1,4 @@
 const path = require("path");
-const deployPlugin = require("@yabinshi/deploy-plugin").WebpackDeploy;
-const DeployConfig = require("./deploy.config.js");
 const CompressionPlugin = require("compression-webpack-plugin");
 let arg = {};
 const argArr = process.argv.splice(2);
@@ -23,14 +21,7 @@ if (arg.mode != "dev") {
     })
   );
 }
-if (arg.deploy) {
-  const currentModeDeployConfig = DeployConfig[arg.mode];
-  if (!currentModeDeployConfig) {
-    console.error("no deploy config");
-    process.exit(0);
-  }
-  plugins.push(new deployPlugin(currentModeDeployConfig));
-}
+
 module.exports = {
   publicPath: "/",
   outputDir: "dist",

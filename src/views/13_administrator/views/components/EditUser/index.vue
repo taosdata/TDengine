@@ -1,0 +1,344 @@
+<template>
+  <div>
+    <el-form :model="ruleForm" :rules="rules" ref="ruleForm" size="mini" label-width="auto" class="demo-ruleForm">
+      <el-form-item label="User Name" prop="user" required>
+        <el-input v-model.trim="ruleForm.user" disabled></el-input>
+      </el-form-item>
+      <el-form-item label="Password" prop="pwd">
+        <el-input v-model.trim="ruleForm.pwd" type="password"></el-input>
+      </el-form-item>
+      <div class="line"></div>
+
+      <el-form-item label="Privilege" v-if="this.databaseList.length > 0">
+        <ul>
+          <li v-for="(item, index) in this.databaseList" :key="index">
+            <label class="db-label">{{ item }}</label>
+            <el-checkbox-group v-model="selectedDatabasePrivileges[item]" class="db-pri" @change="changePri($event)">
+              <el-checkbox label="Read"></el-checkbox>
+              <el-checkbox label="Write"></el-checkbox>
+              <!-- <el-checkbox label="All"></el-checkbox> -->
+            </el-checkbox-group>
+          </li>
+        </ul>
+      </el-form-item>
+      <el-form-item label="Topic" v-if="this.topicList.length > 0">
+        <ul>
+          <li v-for="(item, index) in this.topicList" :key="index">
+            <label class="db-label">{{ item }}</label>
+            <el-checkbox-group v-model="selectedTopicPrivileges[item]" class="topic-pri">
+              <el-checkbox label="Subscribe"></el-checkbox>
+            </el-checkbox-group>
+          </li>
+        </ul>
+      </el-form-item>
+    </el-form>
+
+    <el-row style="margin-top: 20px">
+      <el-col :span="5" :offset="6">
+        <el-button size="small" @click="cancel" class="w100">{{
+          $t("cancel")
+        }}</el-button>
+      </el-col>
+      <el-col :span="5" :push="4">
+        <el-button size="small" :disabled="confirmStatus" @click="editUser" class="w100" type="primary">{{ $t("confirm")
+        }}</el-button>
+      </el-col>
+    </el-row>
+  </div>
+</template>
+
+<script>
+import { sendSQLReq } from "@/api/gateway/console";
+import { Message } from "element-ui";
+import { async } from "q";
+
+export default {
+  props: {
+    user: {
+      type: String,
+      default: ""
+    },
+    close: {
+      type: Function,
+      default: () => { },
+    },
+  },
+  watch: {
+    user() {
+      this.ruleForm.user = this.user;
+      this.databaseList = [];
+      this.selectedDatabasePrivileges = {};
+      this.selectedTopicPrivileges = {};
+      this.topicList = [];
+      this.getDatabaseList();
+      this.getTopicList();
+      this.getUserPrivileges();
+      this.getUserTopics();
+    }
+  },
+  created() {
+    this.getDatabaseList();
+    this.getTopicList();
+    this.getUserPrivileges();
+    this.getUserTopics();
+  },
+  data() {
+    return {
+      ruleForm: {
+        user: this.user,
+        pwd: ""
+      },
+      rules: {
+        user: [
+          { required: true, message: "Please input user name", trigger: "blur" }
+        ],
+        pwd: [
+          { required: false, message: "Please input password", trigger: "blur" }
+        ]
+      },
+      databaseList: [],
+      topicList: [],
+      selectedDatabasePrivileges: {},
+      selectedTopicPrivileges: {},
+      confirmStatus: false
+    };
+  },
+  methods: {
+    changePri() {
+    },
+    getDatabaseList() {
+      try {
+        sendSQLReq(
+          `show databases;`
+        )
+          .then((res) => {
+            let databaseList = res.data.map((data) => {
+              return Object.fromEntries(
+                res.column_meta.map((item, index) => {
+                  return [item[0], data[index]];
+                })
+              );
+            });
+            databaseList.forEach((item) => {
+              if (["performance_schema", "information_schema"].indexOf(item.name) < 0) {
+                this.databaseList.push(item.name);
+                this.$set(this.selectedDatabasePrivileges, item.name, []);
+              }
+            });
+          })
+          .catch((err) => {
+            this.$emit("close")
+            err.desc && Message.error(err.desc);
+            return Promise.reject(err);
+          });
+      } catch (error) {
+        console.log(error);
+        Message.error(error.desc);
+      }
+    },
+    getTopicList() {
+      try {
+        sendSQLReq(
+          `show topics;`
+        )
+          .then((res) => {
+            console.log(res)
+            let topicList = res.data.map((data) => {
+              return Object.fromEntries(
+                res.column_meta.map((item, index) => {
+                  return [item[0], data[index]];
+                })
+              );
+            });
+            topicList.forEach((item) => {
+              this.topicList.push(item.topic_name);
+              this.$set(this.selectedTopicPrivileges, item.topic_name, []);
+            });
+            console.log(this.topicList);
+          })
+          .catch((err) => {
+            this.$emit("close")
+            err.desc && Message.error(err.desc);
+            return Promise.reject(err);
+          });
+      } catch (error) {
+        console.log(error);
+        Message.error(error.desc);
+      }
+    },
+    getUserPrivileges() {
+      sendSQLReq(
+        `select * from information_schema.ins_user_privileges where user_name = '${this.ruleForm.user}' and privilege<>'subscribe';`
+      ).then((res) => {
+        res.data.map((data) => {
+          if (this.selectedDatabasePrivileges[data[2]] === undefined) {
+            let name = data[2];
+            let pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
+
+            this.$set(this.selectedDatabasePrivileges, name, [pri]);
+          } else {
+            let name = data[2];
+            let pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
+            this.selectedDatabasePrivileges[name].push(pri);
+            this.$set(this.selectedDatabasePrivileges, data[2], this.selectedDatabasePrivileges[name]);
+          }
+          console.log(this.selectedDatabasePrivileges);
+        });
+      })
+        .catch((err) => {
+          this.$emit("close")
+          err.desc && Message.error(err.desc);
+          return Promise.reject(err);
+        });
+    },
+    getUserTopics() {
+      sendSQLReq(
+        `select * from information_schema.ins_user_privileges where user_name = '${this.ruleForm.user}' and privilege = 'subscribe';`
+      ).then((res) => {
+        res.data.map((data) => {
+          this.$set(this.selectedTopicPrivileges, data[2], ['Subscribe']);
+
+          console.log(this.selectedTopicPrivileges);
+        });
+      })
+        .catch((err) => {
+          this.$emit("close")
+          err.desc && Message.error(err.desc);
+          return Promise.reject(err);
+        });
+    },
+    cancel() {
+      this.$emit("close");
+      return;
+    },
+    async grantPrivilege(privileges, dbName) {
+      return await sendSQLReq(
+        `GRANT ${privileges} ON ${dbName}.*  to ${this.user}`
+      ).then((res) => {
+        console.log(res)
+        return Promise.resolve(res);
+      })
+        .catch((err) => {
+          this.$emit("close")
+          err.desc && Message.error(err.desc);
+          return Promise.reject(err);
+        });
+    },
+    async grantTopic(topicName, userName) {
+      return await sendSQLReq(
+        `GRANT subscribe ON ${topicName} to ${userName}`
+      ).then((res) => {
+        console.log(res)
+        return Promise.resolve(res);
+      })
+        .catch((err) => {
+          this.$emit("close")
+          err.desc && Message.error(err.desc);
+          return Promise.reject(err);
+        });
+    },
+    async alterUser() {
+      return await sendSQLReq(
+        `alter USER ${this.user} PASS '${this.ruleForm.pwd}';`
+      )
+        .then((res) => {
+          console.log(res)
+          return Promise.resolve(res);
+        })
+        .catch((err) => {
+          this.$emit("close")
+          err.desc && Message.error(err.desc);
+          return Promise.reject(err);
+        });
+    },
+    async cancelPrivilege() {
+      return await sendSQLReq(
+        `REVOKE all ON *.* FROM ${this.user};`
+      )
+        .then((res) => {
+          console.log(res)
+          return Promise.resolve(res);
+        })
+        .catch((err) => {
+          this.$emit("close")
+          err.desc && Message.error(err.desc);
+          return Promise.reject(err);
+        });
+    },
+    async cancelTopic(topicName) {
+      return await sendSQLReq(
+        `REVOKE subscribe ON ${topicName} FROM ${this.user};`
+      )
+        .then((res) => {
+          console.log(res)
+          return Promise.resolve(res);
+        })
+        .catch((err) => {
+          this.$emit("close")
+          err.desc && Message.error(err.desc);
+          return Promise.reject(err);
+        });
+    },
+    editUser() {
+      this.$refs["ruleForm"].validate(async (valid) => {
+        if (valid) {
+          try {
+            if (this.ruleForm.pwd) {
+              await this.alterUser();
+            }
+            await this.cancelPrivilege();
+
+            for (let key in this.selectedDatabasePrivileges) {
+              if (this.selectedDatabasePrivileges[key].length > 0) {
+                let privileges = this.selectedDatabasePrivileges[key];
+                privileges.forEach(async (item, index) => {
+                  await this.grantPrivilege(item, key, this.ruleForm.user);
+                });
+              }
+            }
+            console.log("topicList: " + this.topicList)
+            for (let key in this.topicList) {
+              console.log("key: " + key)
+              await this.cancelTopic(this.topicList[key]);
+            }
+            for (let key in this.selectedTopicPrivileges) {
+              if (this.selectedTopicPrivileges[key].length > 0) {
+                let privileges = this.selectedTopicPrivileges[key];
+                privileges.forEach(async (item, index) => {
+                  await this.grantTopic(key, this.ruleForm.user);
+                });
+              }
+            }
+            Message.success("Create user successfully");
+            this.$emit("close")
+          } catch (error) {
+            console.log(error);
+            Message.error(error.desc)
+          }
+        } else {
+          console.log('error submit!!');
+          return false;
+        }
+      });
+    },
+  }
+};
+</script>
+
+<style lang="scss" scoped>
+.db-label {
+  display: inline-block;
+  margin-right: 30px;
+  width: 100px;
+}
+
+.db-pri {
+  display: inline-block;
+}
+
+.topic-pri {
+  display: inline-block;
+  width: 215px;
+  text-align: left;
+}
+</style>

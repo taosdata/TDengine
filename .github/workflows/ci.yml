@@ -1,0 +1,184 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # TODO use matrix instead
+  macos:
+    runs-on: macos-11
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+      - run: npm install
+      - run: npm run build
+
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - uses: actions/cache@v3
+        name: Cargo Caches
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo
+      - uses: actions/cache@v3
+        name: Target Caches
+        with:
+          path: |
+            target
+          key: ${{ runner.os }}-cargo-target
+
+      - name: build package
+        run: cargo build --release
+
+      - name: build archive
+        run: |
+          cd target/release/
+          tar -cavf taos-explorer-x86_64-apple-darwin.tar.gz taos-explorer
+
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: taos-explorer
+          path: target/release/*.tar.gz
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+      - run: npm install
+      - run: npm run build
+
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - uses: actions/cache@v3
+        name: Cargo Caches
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo
+
+      - uses: actions/cache@v3
+        name: Target Caches
+        with:
+          path: |
+            target
+          key: ${{ runner.os }}-cargo-target
+
+      - name: build package
+        run: cargo build --release
+      
+      - name: build archive
+        run: |
+          cd target/release/
+          7z a taos-explorer-x86_64-windows.zip *.exe
+
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: taos-explorer
+          path: target/release/*.zip
+
+  linux:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+      - run: npm install
+      - run: npm run build
+
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - uses: actions/cache@v3
+        name: Cargo Caches
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo
+
+      - uses: actions/cache@v3
+        name: Target Caches
+        with:
+          path: |
+            target
+          key: ${{ runner.os }}-cargo-target
+
+      - name: build package
+        run: cargo build --release
+      
+      - name: build archive
+        run: |
+          cd target/release/
+          tar -cavf taos-explorer-x86_64-linux.tar.gz taos-explorer
+
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: taos-explorer
+          path: target/release/*.tar.gz
+
+  linux-aarch64:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+      - run: npm install
+      - run: npm run build
+
+      - uses: actions/cache@v3
+        name: Cargo Caches
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo
+
+      - uses: actions/cache@v3
+        name: Target Caches
+        with:
+          path: |
+            target
+          key: ${{ runner.os }}-cargo-target
+
+      - name: Build package
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --all --release --target=aarch64-unknown-linux-musl
+
+      - name: build archive
+        run: |
+          cd target/aarch64-unknown-linux-musl/release/
+          tar -cavf taos-explorer-aarch64-unknown-linux-musl.tar.gz taos-explorer
+
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: taos-explorer
+          path: target/aarch64-unknown-linux-musl/release/*.tar.gz
