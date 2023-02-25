@@ -122,6 +122,7 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscri
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   SMsgHead *pMsgHead = (SMsgHead *)buf;
 
   pMsgHead->contLen = htonl(tlen);
@@ -1008,18 +1009,18 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
         varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataAppend(pColInfo, numOfRows, (const char *)topic, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)topic, false);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataAppend(pColInfo, numOfRows, (const char *)cgroup, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)cgroup, false);
 
         // vg id
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataAppend(pColInfo, numOfRows, (const char *)&pVgEp->vgId, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)&pVgEp->vgId, false);
 
         // consumer id
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataAppend(pColInfo, numOfRows, (const char *)&pConsumerEp->consumerId, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumerEp->consumerId, false);
 
         mDebug("mnd show subscriptions: topic %s, consumer %" PRId64 " cgroup %s vgid %d", varDataVal(topic),
                pConsumerEp->consumerId, varDataVal(cgroup), pVgEp->vgId);
@@ -1028,11 +1029,11 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
 #if 0
       // subscribe time
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pSub->subscribeTime, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pSub->subscribeTime, false);
 
       // rebalance time
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pSub->rebalanceTime, pConsumer->rebalanceTime == 0);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pSub->rebalanceTime, pConsumer->rebalanceTime == 0);
 #endif
 
         numOfRows++;
@@ -1056,18 +1057,18 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
       varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)topic, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)topic, false);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)cgroup, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)cgroup, false);
 
       // vg id
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pVgEp->vgId, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pVgEp->vgId, false);
 
       // consumer id
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, NULL, true);
+      colDataSetVal(pColInfo, numOfRows, NULL, true);
 
       mDebug("mnd show subscriptions(unassigned): topic %s, cgroup %s vgid %d", varDataVal(topic), varDataVal(cgroup),
              pVgEp->vgId);
@@ -1076,11 +1077,11 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
 #if 0
       // subscribe time
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pSub->subscribeTime, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pSub->subscribeTime, false);
 
       // rebalance time
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pSub->rebalanceTime, pConsumer->rebalanceTime == 0);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pSub->rebalanceTime, pConsumer->rebalanceTime == 0);
 #endif
 
       numOfRows++;

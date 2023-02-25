@@ -1,5 +1,6 @@
 ---
 title: Fault Tolerance and Disaster Recovery
+description: This document describes how TDengine provides fault tolerance and disaster recovery.
 ---
 
 ## Fault Tolerance

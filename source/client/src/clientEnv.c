@@ -33,6 +33,7 @@
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
 
+STscDbg  tscDbg = {0};
 SAppInfo appInfo;
 int64_t  lastClusterId = 0;
 int32_t  clientReqRefPool = -1;
@@ -65,7 +66,10 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
 
 static void deregisterRequest(SRequestObj *pRequest) {
   const static int64_t SLOW_QUERY_INTERVAL = 3000000L;  // todo configurable
-  assert(pRequest != NULL);
+  if (pRequest == NULL) {
+    tscError("pRequest == NULL");
+    return;
+  }
 
   STscObj            *pTscObj = pRequest->pTscObj;
   SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
@@ -80,8 +84,9 @@ static void deregisterRequest(SRequestObj *pRequest) {
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
   if (pRequest->pQuery && pRequest->pQuery->pRoot) {
-    if (QUERY_NODE_VNODE_MODIF_STMT == pRequest->pQuery->pRoot->type &&
-        (0 == ((SVnodeModifOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) {
+
+    if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
+        (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) {
       tscDebug("insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
                "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
                duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
@@ -273,7 +278,6 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
 
   taosThreadMutexInit(&pObj->mutex, NULL);
   pObj->id = taosAddRef(clientConnRefPool, pObj);
-  pObj->schemalessType = 1;
 
   atomic_add_fetch_64(&pObj->pAppInfo->numOfConns, 1);
 
@@ -514,6 +518,18 @@ void tscWriteCrashInfo(int signum, void *sigInfo, void *context) {
 }
 
 void taos_init_imp(void) {
+#if defined(LINUX)
+  if (tscDbg.memEnable) {
+    int32_t code = taosMemoryDbgInit();
+    if (code) {
+      printf("failed to init memory dbg, error:%s\n", tstrerror(code));
+    } else {
+      tsAsyncLog = false;    
+      printf("memory dbg enabled\n");
+    }
+  }
+#endif
+
   // In the APIs of other program language, taos_cleanup is not available yet.
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
   atexit(taos_cleanup);
@@ -539,7 +555,8 @@ void taos_init_imp(void) {
   initQueryModuleMsgHandle();
 
   if (taosConvInit() != 0) {
-    ASSERTS(0, "failed to init conv");
+    tscError("failed to init conv");
+    return;
   }
 
   rpcInit();
@@ -617,6 +634,9 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     tscError("failed to set cfg:%s to %s since %s", pItem->name, str, terrstr());
   } else {
     tscInfo("set cfg:%s to %s", pItem->name, str);
+    if (TSDB_OPTION_SHELL_ACTIVITY_TIMER == option || TSDB_OPTION_USE_ADAPTER == option) {
+      code = taosSetCfg(pCfg, pItem->name);
+    }
   }
 
   return code;

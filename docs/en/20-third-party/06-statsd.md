@@ -1,6 +1,7 @@
 ---
-sidebar_label: StatsD
 title: StatsD Writing
+sidebar_label: StatsD
+description: This document describes how to integrate TDengine with StatsD.
 ---
 
 import StatsD from "../14-reference/_statsd.mdx"

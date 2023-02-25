@@ -240,7 +240,7 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   if (tfsMkdirAt(pTfs, rname, diskId) < 0) {
     if (errno == ENOENT) {
       // Try to create upper
-      char *s = strdup(rname);
+      char *s = taosStrdup(rname);
 
       // Make a copy of dirname(s) because the implementation of 'dirname' differs on different platforms.
       // Some platform may modify the contents of the string passed into dirname(). Others may return a pointer to
@@ -248,7 +248,7 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
       // the pointer directly in this recursion.
       // See
       // https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/dirname.3.html
-      char *dir = strdup(taosDirName(s));
+      char *dir = taosStrdup(taosDirName(s));
 
       if (tfsMkdirRecurAt(pTfs, dir, diskId) < 0) {
         taosMemoryFree(s);
@@ -284,7 +284,9 @@ int32_t tfsMkdir(STfs *pTfs, const char *rname) {
 }
 
 int32_t tfsRmdir(STfs *pTfs, const char *rname) {
-  ASSERT(rname[0] != 0);
+  if (rname[0] == 0) {
+    return 0;
+  }
 
   char aname[TMPNAME_LEN] = "\0";
 
@@ -293,7 +295,7 @@ int32_t tfsRmdir(STfs *pTfs, const char *rname) {
     for (int32_t id = 0; id < pTier->ndisk; id++) {
       STfsDisk *pDisk = pTier->disks[id];
       snprintf(aname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
-      uInfo("tfs remove dir : path:%s aname:%s rname:[%s]", pDisk->path, aname, rname);
+      uInfo("tfs remove dir:%s aname:%s rname:[%s]", pDisk->path, aname, rname);
       taosRemoveDir(aname);
     }
   }
@@ -301,7 +303,7 @@ int32_t tfsRmdir(STfs *pTfs, const char *rname) {
   return 0;
 }
 
-int32_t tfsRename(STfs *pTfs, char *orname, char *nrname) {
+int32_t tfsRename(STfs *pTfs, const char *orname, const char *nrname) {
   char oaname[TMPNAME_LEN] = "\0";
   char naname[TMPNAME_LEN] = "\0";
 

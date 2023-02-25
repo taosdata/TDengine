@@ -11,7 +11,6 @@ system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 sql connect
-sql create user u1 pass 'taosdata'
 
 print =============== step1 create dnode2
 sql create dnode $hostname port 7200
@@ -73,14 +72,55 @@ print =============== step3: create database
 sql use d1
 sql create table d1.st (ts timestamp, i int) tags (j int)
 sql create table d1.c1 using st tags(1)
+sql create table d1.c2 using st tags(2)
+sql create table d1.c3 using st tags(3)
+sql create table d1.c4 using st tags(4)
+sql create table d1.c5 using st tags(5)
+sql insert into d1.c1 values (now, 1);
+sql insert into d1.c2 values (now, 2);
+sql insert into d1.c3 values (now, 3);
+sql insert into d1.c4 values (now, 4);
+sql insert into d1.c5 values (now, 5);
 sql show d1.tables
-if $rows != 1 then
+if $rows != 5 then
+  return -1
+endi
+sql select * from d1.st
+if $rows != 5 then
   return -1
 endi
 
 print =============== step4: split 
 print split vgroup 2
 sql split vgroup 2
+
+print =============== step5: check split result 
+sql show d1.tables
+#if $rows != 5 then
+#  return -1
+#endi
+#sql select * from d1.st
+#if $rows != 5 then
+#  return -1
+#endi
+
+print =============== step6: create tables
+sql create table d1.c6 using st tags(6)
+sql create table d1.c7 using st tags(7)
+sql create table d1.c8 using st tags(8)
+sql create table d1.c9 using st tags(9)
+sql insert into d1.c6 values (now, 6);
+sql insert into d1.c7 values (now, 7);
+sql insert into d1.c8 values (now, 8);
+sql insert into d1.c9 values (now, 9);
+sql show d1.tables
+#if $rows != 9 then
+#  return -1
+#endi
+#sql select * from d1.st
+#if $rows != 9 then
+#  return -1
+#endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT

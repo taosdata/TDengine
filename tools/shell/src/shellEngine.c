@@ -127,7 +127,7 @@ void shellRecordCommandToHistory(char *command) {
     if (pHistory->hist[pHistory->hend] != NULL) {
       taosMemoryFreeClear(pHistory->hist[pHistory->hend]);
     }
-    pHistory->hist[pHistory->hend] = strdup(command);
+    pHistory->hist[pHistory->hend] = taosStrdup(command);
 
     pHistory->hend = (pHistory->hend + 1) % SHELL_MAX_HISTORY_SIZE;
     if (pHistory->hend == pHistory->hstart) {
@@ -713,7 +713,7 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
       }
 
     default:
-      assert(false);
+      ASSERT(false);
   }
 
   return 0;
@@ -821,7 +821,7 @@ void shellReadHistory() {
   while ((read_size = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) != -1) {
     line[read_size - 1] = '\0';
     taosMemoryFree(pHistory->hist[pHistory->hend]);
-    pHistory->hist[pHistory->hend] = strdup(line);
+    pHistory->hist[pHistory->hend] = taosStrdup(line);
 
     pHistory->hend = (pHistory->hend + 1) % SHELL_MAX_HISTORY_SIZE;
 
@@ -845,6 +845,8 @@ void shellReadHistory() {
       i = (i + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE;
     }
     taosFprintfFile(pFile, "%s\n", pHistory->hist[endIndex]);
+
+    /* coverity[+retval] */
     taosFsyncFile(pFile);
     taosCloseFile(&pFile);
   }
@@ -1072,7 +1074,8 @@ void *shellThreadLoop(void *arg) {
 }
 
 int32_t shellExecute() {
-  printf(shell.info.clientVersion, taos_get_client_info());
+  printf(shell.info.clientVersion, shell.info.cusName,
+         taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;
@@ -1104,7 +1107,7 @@ int32_t shellExecute() {
   if (runOnce) {
     if (pArgs->commands != NULL) {
       printf("%s%s\r\n", shell.info.promptHeader, pArgs->commands);
-      char *cmd = strdup(pArgs->commands);
+      char *cmd = taosStrdup(pArgs->commands);
       shellRunCommand(cmd, true);
       taosMemoryFree(cmd);
     }
@@ -1128,7 +1131,7 @@ int32_t shellExecute() {
   }
 
   if (tsem_init(&shell.cancelSem, 0, 0) != 0) {
-    printf("failed to create cancel semphore\r\n");
+    printf("failed to create cancel semaphore\r\n");
     return -1;
   }
 

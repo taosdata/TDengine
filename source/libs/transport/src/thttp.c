@@ -298,8 +298,8 @@ int32_t httpSendQuit() {
 static int32_t taosSendHttpReportImpl(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
                                       EHttpCompFlag flag) {
   SHttpMsg* msg = taosMemoryMalloc(sizeof(SHttpMsg));
-  msg->server = strdup(server);
-  msg->uri  = strdup(uri);
+  msg->server = taosStrdup(server);
+  msg->uri  = taosStrdup(uri);
   msg->port = port;
   msg->cont = taosMemoryMalloc(contLen);
   memcpy(msg->cont, pCont, contLen);

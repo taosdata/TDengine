@@ -22,7 +22,6 @@ extern SCatalogMgmt gCtgMgmt;
 SCtgDebug           gCTGDebug = {0};
 
 void ctgdUserCallback(SMetaData *pResult, void *param, int32_t code) {
-  ASSERT(*(int32_t *)param == 1);
   taosMemoryFree(param);
 
   qDebug("async call result: %s", tstrerror(code));
@@ -282,7 +281,7 @@ int32_t ctgdHandleDbgCommand(char *command) {
     CTG_RET(TSDB_CODE_INVALID_PARA);
   }
 
-  char *dup = strdup(command);
+  char *dup = taosStrdup(command);
   char *option = NULL;
   char *param = NULL;
   

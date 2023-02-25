@@ -32,7 +32,7 @@ typedef struct SMetaStbStatsEntry {
 } SMetaStbStatsEntry;
 
 typedef struct STagFilterResEntry {
-  SList    list;    // the linked list of md5 digest, extracted from the serialized tag query condition
+  SList    list;      // the linked list of md5 digest, extracted from the serialized tag query condition
   uint32_t hitTimes;  // queried times for current super table
   uint32_t accTime;
 } STagFilterResEntry;
@@ -55,9 +55,9 @@ struct SMetaCache {
   // query cache
   struct STagFilterResCache {
     TdThreadMutex lock;
-    uint32_t   accTimes;
-    SHashObj*  pTableEntry;
-    SLRUCache* pUidResCache;
+    uint32_t      accTimes;
+    SHashObj*     pTableEntry;
+    SLRUCache*    pUidResCache;
   } sTagFilterResCache;
 };
 
@@ -212,7 +212,7 @@ _exit:
 int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
   int32_t code = 0;
 
-  // ASSERT(metaIsWLocked(pMeta));
+  // meta is wlocked for calling this func.
 
   // search
   SMetaCache*       pCache = pMeta->pCache;
@@ -223,7 +223,10 @@ int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo) {
   }
 
   if (*ppEntry) {  // update
-    ASSERT(pInfo->suid == (*ppEntry)->info.suid);
+    if (pInfo->suid != (*ppEntry)->info.suid) {
+      metaError("meta/cache: suid should be same as the one in cache.");
+      return TSDB_CODE_FAILED;
+    }
     if (pInfo->version > (*ppEntry)->info.version) {
       (*ppEntry)->info.version = pInfo->version;
       (*ppEntry)->info.skmVer = pInfo->skmVer;
@@ -342,7 +345,7 @@ _exit:
 int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo) {
   int32_t code = 0;
 
-  // ASSERT(metaIsWLocked(pMeta));
+  // meta is wlocked for calling this func.
 
   // search
   SMetaCache*          pCache = pMeta->pCache;
@@ -426,12 +429,13 @@ int32_t metaStatsCacheGet(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo) {
   return code;
 }
 
-static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInvalidRes, int32_t keyLen, SLRUCache* pCache, uint64_t suid) {
+static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInvalidRes, int32_t keyLen,
+                                  SLRUCache* pCache, uint64_t suid) {
   SListIter iter = {0};
   tdListInitIter((SList*)&(pEntry->list), &iter, TD_LIST_FORWARD);
 
   SListNode* pNode = NULL;
-  uint64_t buf[3];
+  uint64_t   buf[3];
   buf[0] = suid;
 
   int32_t len = sizeof(uint64_t) * tListLen(buf);
@@ -462,7 +466,7 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
 
   *acquireRes = 0;
 
-  buf[0] = (uint64_t) pTableMap;
+  buf[0] = (uint64_t)pTableMap;
   buf[1] = suid;
   memcpy(&buf[2], pKey, keyLen);
 
@@ -478,7 +482,11 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
 
   // do some book mark work after acquiring the filter result from cache
   STagFilterResEntry** pEntry = taosHashGet(pTableMap, &suid, sizeof(uint64_t));
-  ASSERT(pEntry != NULL);
+  if (NULL == pEntry) {
+    metaError("meta/cache: pEntry should not be NULL.");
+    return TSDB_CODE_FAILED;
+  }
+
   *acquireRes = 1;
 
   const char* p = taosLRUCacheValue(pCache, pHandle);
@@ -579,7 +587,7 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
   // hash table address(8bytes) + suid(8bytes) + MD5 digest(16bytes)
 
   uint64_t buf[4] = {0};
-  buf[0] = (uint64_t) pTableEntry;
+  buf[0] = (uint64_t)pTableEntry;
   buf[1] = suid;
   memcpy(&buf[2], pKey, keyLen);
   ASSERT(keyLen == 16);
@@ -612,9 +620,9 @@ int32_t metaUidFilterCachePut(SMeta* pMeta, uint64_t suid, const void* pKey, int
   }
 
   // add to cache.
-  taosLRUCacheInsert(pCache, buf, sizeof(uint64_t)*2 + keyLen, pPayload, payloadLen, freePayload, NULL,
+  taosLRUCacheInsert(pCache, buf, sizeof(uint64_t) * 2 + keyLen, pPayload, payloadLen, freePayload, NULL,
                      TAOS_LRU_PRIORITY_LOW);
-  _end:
+_end:
   taosThreadMutexUnlock(pLock);
 
   metaDebug("vgId:%d, suid:%" PRIu64 " list cache added into cache, total:%d, tables:%d", TD_VID(pMeta->pVnode), suid,
@@ -628,7 +636,7 @@ int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid) {
   int32_t  keyLen = sizeof(uint64_t) * 3;
   uint64_t p[4] = {0};
 
-  p[0] = (uint64_t) pMeta->pCache->sTagFilterResCache.pTableEntry;
+  p[0] = (uint64_t)pMeta->pCache->sTagFilterResCache.pTableEntry;
   p[1] = suid;
 
   TdThreadMutex* pLock = &pMeta->pCache->sTagFilterResCache.lock;

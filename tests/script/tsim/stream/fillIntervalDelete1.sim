@@ -325,19 +325,19 @@ if $rows != 12 then
 endi
 if $data21 != 3 then
   print ====streamt10=data21=$data21
-  return -1
+  goto loop6
 endi
 if $data31 != 4 then
   print ====streamt10=data31=$data31
-  return -1
+  goto loop6
 endi
 if $data71 != 8 then
   print ====streamt10=data71=$data71
-  return -1
+  goto loop6
 endi
 if $data91 != 10 then
   print ====streamt10=data91=$data91
-  return -1
+  goto loop6
 endi
 
 

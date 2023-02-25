@@ -53,7 +53,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   pVnode->vgVersion = pCfg->vgVersion;
   pVnode->refCount = 0;
   pVnode->dropped = 0;
-  pVnode->path = tstrdup(pCfg->path);
+  pVnode->path = taosStrdup(pCfg->path);
   pVnode->pImpl = pImpl;
 
   if (pVnode->path == NULL) {
@@ -76,7 +76,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   return code;
 }
 
-void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
+void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal) {
   char path[TSDB_FILENAME_LEN] = {0};
 
   taosThreadRwlockWrlock(&pMgmt->lock);
@@ -122,9 +122,25 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   vnodePostClose(pVnode->pImpl);
 
   vmFreeQueue(pMgmt, pVnode);
+
+  if (commitAndRemoveWal) {
+    dInfo("vgId:%d, commit data", pVnode->vgId);
+    vnodeSyncCommit(pVnode->pImpl);
+    vnodeBegin(pVnode->pImpl);
+    dInfo("vgId:%d, commit data finished", pVnode->vgId);
+  }
+
   vnodeClose(pVnode->pImpl);
   pVnode->pImpl = NULL;
   dInfo("vgId:%d, vnode is closed", pVnode->vgId);
+
+  if (commitAndRemoveWal) {
+    char path[TSDB_FILENAME_LEN] = {0};
+    snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d%swal", TD_DIRSEP, pVnode->vgId, TD_DIRSEP);
+    dInfo("vgId:%d, remove all wals, path:%s", pVnode->vgId, path);
+    tfsRmdir(pMgmt->pTfs, path);
+    tfsMkdir(pMgmt->pTfs, path);
+  }
 
   if (pVnode->dropped) {
     dInfo("vgId:%d, vnode is destroyed, dropped:%d", pVnode->vgId, pVnode->dropped);
@@ -255,7 +271,7 @@ static void *vmCloseVnodeInThread(void *param) {
              pMgmt->state.openVnodes, pMgmt->state.totalVnodes);
     tmsgReportStartup("vnode-close", stepDesc);
 
-    vmCloseVnode(pMgmt, pVnode);
+    vmCloseVnode(pMgmt, pVnode, false);
   }
 
   dInfo("thread:%d, numOfVnodes:%d is closed", pThread->threadIndex, pThread->vnodeNum);

@@ -104,6 +104,16 @@ sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson
 sudo yum config-manager --set-enabled Powertools
 ```
 
+#### CentOS + devtoolset
+
+除上述编译依赖包，需要执行以下命令：
+
+```
+sudo yum install centos-release-scl
+sudo yum install devtoolset-9 devtoolset-9-libatomic-devel
+scl enable devtoolset-9 -- bash
+```
+
 ### macOS
 
 ```

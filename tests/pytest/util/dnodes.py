@@ -15,6 +15,7 @@ import sys
 import os
 import os.path
 import platform
+import distro
 import subprocess
 from time import sleep
 import base64
@@ -22,6 +23,7 @@ import json
 import copy
 from fabric2 import Connection
 from util.log import *
+from shutil import which
 
 
 class TDSimClient:
@@ -166,9 +168,9 @@ class TDDnode:
         if value:
             selfPath = os.path.dirname(os.path.realpath(__file__))
             if ("community" in selfPath):
-                self.execPath = os.path.abspath(self.path + "/community/tests/script/sh/exec.sh")        
+                self.execPath = os.path.abspath(self.path + "/community/tests/script/sh/exec.sh")
             else:
-                self.execPath = os.path.abspath(self.path + "/tests/script/sh/exec.sh")        
+                self.execPath = os.path.abspath(self.path + "/tests/script/sh/exec.sh")
 
     def getDataSize(self):
         totalSize = 0
@@ -686,7 +688,7 @@ class TDDnodes:
             if ("community" in selfPath):
                 self.stopDnodesPath = os.path.abspath(self.path + "/community/tests/script/sh/stop_dnodes.sh")
                 self.stopDnodesSigintPath = os.path.abspath(self.path + "/community/tests/script/sh/sigint_stop_dnodes.sh")
-            else:    
+            else:
                 self.stopDnodesPath = os.path.abspath(self.path + "/tests/script/sh/stop_dnodes.sh")
                 self.stopDnodesSigintPath = os.path.abspath(self.path + "/tests/script/sh/sigint_stop_dnodes.sh")
             tdLog.info("run in address sanitizer mode")
@@ -765,7 +767,8 @@ class TDDnodes:
 
     def stopAll(self):
         tdLog.info("stop all dnodes, asan:%d" % self.asan)
-        if self.asan:
+        distro_id = distro.id()
+        if self.asan and distro_id != "alpine":
             tdLog.info("execute script: %s" % self.stopDnodesPath)
             os.system(self.stopDnodesPath)
             tdLog.info("execute finished")
@@ -777,24 +780,41 @@ class TDDnodes:
         for i in range(len(self.dnodes)):
             self.dnodes[i].stop()
 
-        psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-        if processID:
-            cmd = "sudo systemctl stop taosd"
-            os.system(cmd)
-        # if os.system(cmd) != 0 :
-        # tdLog.exit(cmd)
-        psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-        while(processID):
-            if platform.system().lower() == 'windows':
-                killCmd = "kill -9 %s > nul 2>&1" % processID
-            else:
-                killCmd = "kill -9 %s > /dev/null 2>&1" % processID
-            os.system(killCmd)
-            time.sleep(1)
-            processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8").strip()
+
+        if (distro_id == "alpine"):
+            print(distro_id)
+            psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            while(processID):
+                print(processID)
+                if platform.system().lower() == 'windows':
+                    killCmd = "kill -9 %s > nul 2>&1" % processID
+                else:
+                    killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+                os.system(killCmd)
+                time.sleep(1)
+                processID = subprocess.check_output(
+                    psCmd, shell=True).decode("utf-8").strip()
+
+        else:
+            psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            if processID:
+                cmd = "sudo systemctl stop taosd"
+                os.system(cmd)
+            # if os.system(cmd) != 0 :
+            # tdLog.exit(cmd)
+            psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            while(processID):
+                if platform.system().lower() == 'windows':
+                    killCmd = "kill -9 %s > nul 2>&1" % processID
+                else:
+                    killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+                os.system(killCmd)
+                time.sleep(1)
+                processID = subprocess.check_output(
+                    psCmd, shell=True).decode("utf-8").strip()
 
         if self.killValgrind == 1:
             psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs"

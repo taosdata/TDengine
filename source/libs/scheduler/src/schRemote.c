@@ -261,46 +261,51 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
 
       if (msg) {
         SDecoder    coder = {0};
-        SSubmitRsp *rsp = taosMemoryMalloc(sizeof(*rsp));
+        SSubmitRsp2 *rsp = taosMemoryMalloc(sizeof(*rsp));
         tDecoderInit(&coder, msg, msgSize);
-        code = tDecodeSSubmitRsp(&coder, rsp);
+        code = tDecodeSSubmitRsp2(&coder, rsp);
+        tDecoderClear(&coder);
         if (code) {
-          SCH_TASK_ELOG("decode submitRsp failed, code:%d", code);
-          tFreeSSubmitRsp(rsp);
+          SCH_TASK_ELOG("tDecodeSSubmitRsp2 failed, code:%d", code);
+          tDestroySSubmitRsp2(rsp, TSDB_MSG_FLG_DECODE);
+          taosMemoryFree(rsp);
           SCH_ERR_JRET(code);
         }
 
-        if (rsp->nBlocks > 0) {
-          for (int32_t i = 0; i < rsp->nBlocks; ++i) {
-            SSubmitBlkRsp *blk = rsp->pBlocks + i;
-            if (TSDB_CODE_SUCCESS != blk->code) {
-              code = blk->code;
-              tFreeSSubmitRsp(rsp);
-              SCH_ERR_JRET(code);
-            }
-          }
-        }
-
         atomic_add_fetch_64(&pJob->resNumOfRows, rsp->affectedRows);
-        SCH_TASK_DLOG("submit succeed, affectedRows:%d, blocks:%d", rsp->affectedRows, rsp->nBlocks);
 
-        SCH_LOCK(SCH_WRITE, &pJob->resLock);
-        if (pJob->execRes.res) {
-          SSubmitRsp *sum = pJob->execRes.res;
-          sum->affectedRows += rsp->affectedRows;
-          sum->nBlocks += rsp->nBlocks;          
-          if (rsp->nBlocks > 0 && rsp->pBlocks) {
-            sum->pBlocks = taosMemoryRealloc(sum->pBlocks, sum->nBlocks * sizeof(*sum->pBlocks));
-            memcpy(sum->pBlocks + sum->nBlocks - rsp->nBlocks, rsp->pBlocks, rsp->nBlocks * sizeof(*sum->pBlocks));
+        int32_t createTbRspNum = taosArrayGetSize(rsp->aCreateTbRsp);
+        SCH_TASK_DLOG("submit succeed, affectedRows:%d, createTbRspNum:%d", rsp->affectedRows, createTbRspNum);
+
+        if (rsp->aCreateTbRsp && taosArrayGetSize(rsp->aCreateTbRsp) > 0) {
+          SCH_LOCK(SCH_WRITE, &pJob->resLock);
+          if (pJob->execRes.res) {
+            SSubmitRsp2 *sum = pJob->execRes.res;
+            sum->affectedRows += rsp->affectedRows;
+            if (sum->aCreateTbRsp) {
+              taosArrayAddAll(sum->aCreateTbRsp, rsp->aCreateTbRsp);
+              taosArrayDestroy(rsp->aCreateTbRsp);
+            } else {
+              TSWAP(sum->aCreateTbRsp, rsp->aCreateTbRsp);
+            }
+            taosMemoryFree(rsp);
+          } else {
+            pJob->execRes.res = rsp;
+            pJob->execRes.msgType = TDMT_VND_SUBMIT;
           }
-          taosMemoryFree(rsp->pBlocks);
-          taosMemoryFree(rsp);
+          pJob->execRes.numOfBytes += pTask->msgLen;
+          SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
         } else {
-          pJob->execRes.res = rsp;
-          pJob->execRes.msgType = TDMT_VND_SUBMIT;
+          SCH_LOCK(SCH_WRITE, &pJob->resLock);
+          pJob->execRes.numOfBytes += pTask->msgLen;
+          if (NULL == pJob->execRes.res) {
+            TSWAP(pJob->execRes.res, rsp);
+            pJob->execRes.msgType = TDMT_VND_SUBMIT;
+          }
+          SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
+          tDestroySSubmitRsp2(rsp, TSDB_MSG_FLG_DECODE);
+          taosMemoryFree(rsp);
         }
-        pJob->execRes.numOfBytes += pTask->msgLen;
-        SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
       }
 
       taosMemoryFreeClear(msg);
@@ -334,6 +339,14 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
       SCH_ERR_JRET(rspCode);
       if (NULL == msg) {
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
+
+      if (taosArrayGetSize(pTask->parents) == 0 && SCH_IS_EXPLAIN_JOB(pJob) && SCH_IS_INSERT_JOB(pJob)) {
+        SRetrieveTableRsp *pRsp = NULL;
+        SCH_ERR_JRET(qExecExplainEnd(pJob->explainCtx, &pRsp));
+        if (pRsp) {
+          SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
+        }
       }
 
       SQueryTableRsp rsp = {0};
@@ -874,7 +887,7 @@ int32_t schUpdateSendTargetInfo(SMsgSendInfo *pMsgSendInfo, SQueryNodeAddr *addr
   } else {
     pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
     pMsgSendInfo->target.vgId = addr->nodeId;
-    pMsgSendInfo->target.dbFName = strdup(pTask->plan->dbFName);
+    pMsgSendInfo->target.dbFName = taosStrdup(pTask->plan->dbFName);
   }
 
   return TSDB_CODE_SUCCESS;

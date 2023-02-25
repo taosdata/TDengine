@@ -293,7 +293,6 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     tscError("invalid result passed to taos_fetch_row");
     return NULL;
   }
-  return NULL;
 }
 
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
@@ -357,9 +356,13 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
       case TSDB_DATA_TYPE_NCHAR: {
         int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
         if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
-          assert(charLen <= fields[i].bytes && charLen >= 0);
+          if(ASSERT(charLen <= fields[i].bytes && charLen >= 0)){
+            tscError("taos_print_row error binary. charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
+          }
         } else {
-          assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
+          if(ASSERT(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0)){
+            tscError("taos_print_row error. charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
+          }
         }
 
         memcpy(str + len, row[i], charLen);
@@ -432,6 +435,22 @@ const char *taos_data_type(int type) {
       return "TSDB_DATA_TYPE_NCHAR";
     case TSDB_DATA_TYPE_JSON:
       return "TSDB_DATA_TYPE_JSON";
+    case TSDB_DATA_TYPE_UTINYINT:
+      return "TSDB_DATA_TYPE_UTINYINT";
+    case TSDB_DATA_TYPE_USMALLINT:
+      return "TSDB_DATA_TYPE_USMALLINT";
+    case TSDB_DATA_TYPE_UINT:
+      return "TSDB_DATA_TYPE_UINT";
+    case TSDB_DATA_TYPE_UBIGINT:
+      return "TSDB_DATA_TYPE_UBIGINT";
+    case TSDB_DATA_TYPE_VARBINARY:
+      return "TSDB_DATA_TYPE_VARBINARY";
+    case TSDB_DATA_TYPE_DECIMAL:
+      return "TSDB_DATA_TYPE_DECIMAL";
+    case TSDB_DATA_TYPE_BLOB:
+      return "TSDB_DATA_TYPE_BLOB";
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+      return "TSDB_DATA_TYPE_MEDIUMBLOB";
     default:
       return "UNKNOWN";
   }
@@ -578,7 +597,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
     (*numOfRows) = pResultInfo->numOfRows;
     return 0;
   } else {
-    ASSERT(0);
+    tscError("taos_fetch_block_s invalid res type");
     return -1;
   }
 }
@@ -669,6 +688,32 @@ const char *taos_get_server_info(TAOS *taos) {
   releaseTscObj(*(int64_t *)taos);
 
   return pTscObj->sDetailVer;
+}
+
+int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
+  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
+  if (pTscObj == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return -1;
+  }
+
+  int code = TSDB_CODE_SUCCESS;
+  taosThreadMutexLock(&pTscObj->mutex);
+  if(database == NULL || len <= 0){
+    if(required != NULL) *required = strlen(pTscObj->db) + 1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    code = -1;
+  }else if(len < strlen(pTscObj->db) + 1){
+    tstrncpy(database, pTscObj->db, len);
+    if(required) *required = strlen(pTscObj->db) + 1;
+    terrno = TSDB_CODE_INVALID_PARA;
+    code = -1;
+  }else{
+    strcpy(database, pTscObj->db);
+    code = 0;
+  }
+  taosThreadMutexUnlock(&pTscObj->mutex);
+  return code;
 }
 
 static void destoryTablesReq(void *p) {
@@ -800,7 +845,7 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
          tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
-    //pWrapper->pCatalogReq->forceUpdate = false;
+    // pWrapper->pCatalogReq->forceUpdate = false;
     code = qContinueParseSql(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
 
@@ -829,14 +874,16 @@ void continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest)
              tstrerror(code), pWrapper->pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
     terrno = code;
-    pWrapper->pRequest->code = code;
-    pWrapper->pRequest->body.queryFp(pWrapper->pRequest->body.param, pWrapper->pRequest, code);
+    pRequest->code = code;
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   }
 }
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
   int64_t connId = *(int64_t *)taos;
+  tscDebug("taos_query_a start with sql:%s", sql);
   taosAsyncQueryImpl(connId, sql, fp, param, false);
+  tscDebug("taos_query_a end with sql:%s", sql);
 }
 
 void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, int64_t reqid) {
@@ -864,7 +911,6 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
                            .pTransporter = pTscObj->pAppInfo->pTransporter,
                            .pStmtCb = NULL,
                            .pUser = pTscObj->user,
-                           .schemalessType = pTscObj->schemalessType,
                            .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
                            .enableSysInfo = pTscObj->sysInfo,
                            .async = true,
@@ -990,8 +1036,14 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
 }
 
 void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
-  ASSERT(res != NULL && fp != NULL);
-  ASSERT(TD_RES_QUERY(res));
+  if(ASSERT(res != NULL && fp != NULL)){
+    tscError("taos_fetch_rows_a invalid paras");
+    return;
+  }
+  if(ASSERT(TD_RES_QUERY(res))){
+    tscError("taos_fetch_rows_a res is NULL");
+    return;
+  }
 
   SRequestObj *pRequest = res;
   pRequest->body.fetchFp = fp;
@@ -1034,9 +1086,14 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 }
 
 void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
-  ASSERT(res != NULL && fp != NULL);
-  ASSERT(TD_RES_QUERY(res));
-
+  if(ASSERT(res != NULL && fp != NULL)){
+    tscError("taos_fetch_rows_a invalid paras");
+    return;
+  }
+  if(ASSERT(TD_RES_QUERY(res))){
+    tscError("taos_fetch_rows_a res is NULL");
+    return;
+  }
   SRequestObj    *pRequest = res;
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 
@@ -1048,8 +1105,14 @@ void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 }
 
 const void *taos_get_raw_block(TAOS_RES *res) {
-  ASSERT(res != NULL);
-  ASSERT(TD_RES_QUERY(res));
+  if(ASSERT(res != NULL)){
+    tscError("taos_fetch_rows_a invalid paras");
+    return NULL;
+  }
+  if(ASSERT(TD_RES_QUERY(res))){
+    tscError("taos_fetch_rows_a res is NULL");
+    return NULL;
+  }
   SRequestObj *pRequest = res;
 
   return pRequest->body.resInfo.pData;
@@ -1369,8 +1432,7 @@ int taos_stmt_get_col_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fiel
 }
 
 // let stmt to reclaim TAOS_FIELD_E that was allocated by `taos_stmt_get_tag_fields`/`taos_stmt_get_col_fields`
-void taos_stmt_reclaim_fields(TAOS_STMT *stmt, TAOS_FIELD_E *fields)
-{
+void taos_stmt_reclaim_fields(TAOS_STMT *stmt, TAOS_FIELD_E *fields) {
   (void)stmt;
   if (!fields) return;
   taosMemoryFree(fields);

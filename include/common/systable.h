@@ -12,15 +12,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+ 
+#ifndef TDENGINE_SYSTABLE_H
+#define TDENGINE_SYSTABLE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "os.h"
-
-#ifndef TDENGINE_SYSTABLE_H
-#define TDENGINE_SYSTABLE_H
 
 #define TSDB_INFORMATION_SCHEMA_DB       "information_schema"
 #define TSDB_INS_TABLE_DNODES            "ins_dnodes"
@@ -36,6 +36,7 @@ extern "C" {
 #define TSDB_INS_TABLE_STABLES           "ins_stables"
 #define TSDB_INS_TABLE_TABLES            "ins_tables"
 #define TSDB_INS_TABLE_TAGS              "ins_tags"
+#define TSDB_INS_TABLE_COLS              "ins_columns"
 #define TSDB_INS_TABLE_TABLE_DISTRIBUTED "ins_table_distributed"
 #define TSDB_INS_TABLE_USERS             "ins_users"
 #define TSDB_INS_TABLE_LICENCES          "ins_grants"

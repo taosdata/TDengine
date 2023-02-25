@@ -40,7 +40,7 @@
 //
 
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
-  SyncAppendEntriesReply* pMsg = pRpcMsg->pCont;
+  SyncAppendEntriesReply* pMsg = (SyncAppendEntriesReply*)pRpcMsg->pCont;
   int32_t ret = 0;
 
   // if already drop replica, do not process

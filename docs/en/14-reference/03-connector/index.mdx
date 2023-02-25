@@ -1,5 +1,6 @@
 ---
 title: Connector
+description: This document describes the connectors that TDengine provides to interface with various programming languages.
 ---
 
 TDengine provides a rich set of APIs (application development interface). To facilitate users to develop their applications quickly, TDengine supports connectors for multiple programming languages, including official connectors for C/C++, Java, Python, Go, Node.js, C#, and Rust. These connectors support connecting to TDengine clusters using both native interfaces (taosc) and REST interfaces (not supported in a few languages yet). Community developers have also contributed several unofficial connectors, such as the ADO.NET connector, the Lua connector, and the PHP connector.
@@ -59,11 +60,11 @@ The different database framework specifications for various programming language
 | -------------------------------------- | ------------- | --------------- | ------------- | ------------- | ------------- | ------------- |
 | **Connection Management**              | Support       | Support         | Support       | Support       | Support       | Support       |
 | **Regular Query**                      | Support       | Support         | Support       | Support       | Support       | Support       |
-| **Parameter Binding**                  | Not supported | Not supported   | support       | Support       | Not supported | Support       |
-| **Subscription (TMQ) **                | Not supported | Not supported   | support       | Not supported | Not supported | Support       |
-| **Schemaless**                         | Not supported | Not supported   | Not supported | Not supported | Not supported | Not supported |
-| **Bulk Pulling (based on WebSocket) ** | Support       | Support         | Support       | support       | Support       | Support       |
-| **DataFrame**                          | Not supported | Support         | Not supported | Not supported | Not supported | Not supported |
+| **Parameter Binding**                  | Not Supported | Not Supported   | Support       | Support       | Not Supported | Support       |
+| **Subscription (TMQ) **                | Not Supported | Support         | Support       | Not Supported | Not Supported | Support       |
+| **Schemaless**                         | Not Supported | Not Supported   | Not Supported | Not Supported | Not Supported | Not Supported |
+| **Bulk Pulling (based on WebSocket) ** | Support       | Support         | Support       | Support       | Support       | Support       |
+| **DataFrame**                          | Not Supported | Support         | Not Supported | Not Supported | Not Supported | Not Supported |
 
 :::warning
 

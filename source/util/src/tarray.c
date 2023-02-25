@@ -48,7 +48,7 @@ SArray* taosArrayInit(size_t size, size_t elemSize) {
   return pArray;
 }
 
-SArray* taosArrayInit_s(size_t size, size_t elemSize, size_t initialSize) {
+SArray* taosArrayInit_s(size_t elemSize, size_t initialSize) {
   SArray* pArray = taosMemoryMalloc(sizeof(SArray));
   if (pArray == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -139,7 +139,8 @@ void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)
         }
 
         taosArraySet(pArray, pos + 1, p2);
-        pos += 1;
+        memset(TARRAY_GET_ELEM(pArray, i), 0, pArray->elemSize);
+	pos += 1;
       } else {
         pos += 1;
       }
@@ -171,13 +172,14 @@ void taosArrayRemoveDuplicateP(SArray* pArray, __compar_fn_t comparFn, void (*fp
       // do nothing
     } else {
       if (pos + 1 != i) {
-        void* p = taosArrayGet(pArray, pos + 1);
+        void* p = taosArrayGetP(pArray, pos + 1);
         if (fp != NULL) {
           fp(p);
         }
 
         taosArraySet(pArray, pos + 1, p2);
-        pos += 1;
+        memset(TARRAY_GET_ELEM(pArray, i), 0, pArray->elemSize);
+	pos += 1;
       } else {
         pos += 1;
       }
@@ -209,6 +211,8 @@ void* taosArrayReserve(SArray* pArray, int32_t num) {
 
   void* dst = TARRAY_GET_ELEM(pArray, pArray->size);
   pArray->size += num;
+
+  memset(dst, 0, num * pArray->elemSize);
 
   return dst;
 }
@@ -255,7 +259,7 @@ size_t taosArrayGetSize(const SArray* pArray) {
   if (pArray == NULL) {
     return 0;
   }
-  return pArray->size;
+  return TARRAY_SIZE(pArray);
 }
 
 void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
@@ -317,6 +321,20 @@ void taosArrayRemove(SArray* pArray, size_t index) {
   memmove((char*)pArray->pData + index * pArray->elemSize, (char*)pArray->pData + (index + 1) * pArray->elemSize,
           remain * pArray->elemSize);
   pArray->size -= 1;
+}
+
+void taosArrayRemoveBatch(SArray* pArray, size_t index, size_t num, FDelete fp) {
+  ASSERT(index + num <= pArray->size);
+
+  if (fp) {
+    for (int32_t i = 0; i < num; i++) {
+      fp(taosArrayGet(pArray, index + i));
+    }
+  }
+
+  memmove((char*)pArray->pData + index * pArray->elemSize, (char*)pArray->pData + (index + num) * pArray->elemSize,
+          (pArray->size - index - num) * pArray->elemSize);
+  pArray->size -= num;
 }
 
 SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize) {

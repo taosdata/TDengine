@@ -1,6 +1,7 @@
 ---
-sidebar_label: Name and Size Limits
 title: Name and Size Limits
+sidebar_label: Name and Size Limits
+description: This document describes the name and size limits in TDengine.
 ---
 
 ## Naming Rules

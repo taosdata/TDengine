@@ -58,7 +58,6 @@ typedef struct SBlockOrderInfo {
 #define BitmapLen(_n) (((_n) + ((1 << NBIT) - 1)) >> NBIT)
 
 #define colDataGetVarData(p1_, r_) ((p1_)->pData + (p1_)->varmeta.offset[(r_)])
-
 #define colDataGetNumData(p1_, r_) ((p1_)->pData + ((r_) * (p1_)->info.bytes))
 // SColumnInfoData, rowNumber
 #define colDataGetData(p1_, r_) \
@@ -81,33 +80,6 @@ static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData,
 
     return colDataIsNull_f(pColumnInfoData->nullbitmap, row);
   }
-}
-
-static FORCE_INLINE bool colDataIsNNull_s(const SColumnInfoData* pColumnInfoData, int32_t startIndex,
-                                          uint32_t nRows) {
-  if (!pColumnInfoData->hasNull) {
-    return false;
-  }
-
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    for (int32_t i = startIndex; i < nRows; ++i) {
-      if (!colDataIsNull_var(pColumnInfoData, i)) {
-        return false;
-      }
-    }
-  } else {
-    if (pColumnInfoData->nullbitmap == NULL) {
-      return false;
-    }
-
-    for (int32_t i = startIndex; i < nRows; ++i) {
-      if (!colDataIsNull_f(pColumnInfoData->nullbitmap, i)) {
-        return false;
-      }
-    }
-  }
-
-  return true;
 }
 
 static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, uint32_t totalRows, uint32_t row,
@@ -137,18 +109,18 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
   }
 }
 
-static FORCE_INLINE void colDataAppendNULL(SColumnInfoData* pColumnInfoData, uint32_t currentRow) {
+static FORCE_INLINE void colDataSetNULL(SColumnInfoData* pColumnInfoData, uint32_t rowIndex) {
   // There is a placehold for each NULL value of binary or nchar type.
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    colDataSetNull_var(pColumnInfoData, currentRow);  // it is a null value of VAR type.
+    colDataSetNull_var(pColumnInfoData, rowIndex);  // it is a null value of VAR type.
   } else {
-    colDataSetNull_f_s(pColumnInfoData, currentRow);
+    colDataSetNull_f_s(pColumnInfoData, rowIndex);
   }
 
   pColumnInfoData->hasNull = true;
 }
 
-static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, uint32_t start, size_t nRows) {
+static FORCE_INLINE void colDataSetNNULL(SColumnInfoData* pColumnInfoData, uint32_t start, size_t nRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     for (int32_t i = start; i < start + nRows; ++i) {
       colDataSetNull_var(pColumnInfoData, i);  // it is a null value of VAR type.
@@ -163,50 +135,50 @@ static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, ui
   pColumnInfoData->hasNull = true;
 }
 
-static FORCE_INLINE void colDataAppendInt8(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int8_t* v) {
+static FORCE_INLINE void colDataSetInt8(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int8_t* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_TINYINT ||
          pColumnInfoData->info.type == TSDB_DATA_TYPE_UTINYINT || pColumnInfoData->info.type == TSDB_DATA_TYPE_BOOL);
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(int8_t*)p = *(int8_t*)v;
 }
 
-static FORCE_INLINE void colDataAppendInt16(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int16_t* v) {
+static FORCE_INLINE void colDataSetInt16(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int16_t* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_SMALLINT ||
          pColumnInfoData->info.type == TSDB_DATA_TYPE_USMALLINT);
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(int16_t*)p = *(int16_t*)v;
 }
 
-static FORCE_INLINE void colDataAppendInt32(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int32_t* v) {
+static FORCE_INLINE void colDataSetInt32(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int32_t* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_INT || pColumnInfoData->info.type == TSDB_DATA_TYPE_UINT);
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(int32_t*)p = *(int32_t*)v;
 }
 
-static FORCE_INLINE void colDataAppendInt64(SColumnInfoData* pColumnInfoData, uint32_t currentRow, int64_t* v) {
+static FORCE_INLINE void colDataSetInt64(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int64_t* v) {
   int32_t type = pColumnInfoData->info.type;
   ASSERT(type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_UBIGINT || type == TSDB_DATA_TYPE_TIMESTAMP);
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(int64_t*)p = *(int64_t*)v;
 }
 
-static FORCE_INLINE void colDataAppendFloat(SColumnInfoData* pColumnInfoData, uint32_t currentRow, float* v) {
+static FORCE_INLINE void colDataSetFloat(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, float* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_FLOAT);
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(float*)p = *(float*)v;
 }
 
-static FORCE_INLINE void colDataAppendDouble(SColumnInfoData* pColumnInfoData, uint32_t currentRow, double* v) {
+static FORCE_INLINE void colDataSetDouble(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, double* v) {
   ASSERT(pColumnInfoData->info.type == TSDB_DATA_TYPE_DOUBLE);
-  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
+  char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
   *(double*)p = *(double*)v;
 }
 
 int32_t getJsonValueLen(const char* data);
 
-int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
-int32_t colDataAppendNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData,
-                            uint32_t numOfRows);
+int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull);
+int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull);
+int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, uint32_t numOfRows);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int32_t* capacity,
                         const SColumnInfoData* pSource, int32_t numOfRow2);
 int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows,
@@ -245,7 +217,7 @@ void blockDataEmpty(SSDataBlock* pDataBlock);
 
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 
-int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n);
+int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n);
 int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
@@ -271,20 +243,13 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag);
 // for debug
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf);
 
-int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataBlocks, STSchema* pTSchema, int32_t vgId,
+int32_t buildSubmitReqFromDataBlock(SSubmitReq2** pReq, const SSDataBlock* pDataBlocks, const STSchema* pTSchema, int64_t uid, int32_t vgId,
                                     tb_uid_t suid);
 
 char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 
 static FORCE_INLINE int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
   return blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock)) + blockDataGetSize(pBlock);
-}
-
-static FORCE_INLINE int32_t blockCompressColData(SColumnInfoData* pColRes, int32_t numOfRows, char* data,
-                                                 int8_t compressed) {
-  int32_t colSize = colDataGetLength(pColRes, numOfRows);
-  return (*(tDataTypes[pColRes->info.type].compFunc))(pColRes->pData, colSize, numOfRows, data,
-                                                      colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
 }
 
 #ifdef __cplusplus

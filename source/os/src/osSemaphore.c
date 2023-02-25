@@ -86,8 +86,8 @@ int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
   while ((rc = sem_timedwait(sem, &ts)) == -1 && errno == EINTR) continue;
   return rc;
   /* This should have timed out */
-  // assert(errno == ETIMEDOUT);
-  // assert(rc != 0);
+  // ASSERT(errno == ETIMEDOUT);
+  // ASSERT(rc != 0);
   // GetSystemTimeAsFileTime(&ft_after);
   // // We specified a non-zero wait. Time must advance.
   // if (ft_before.dwLowDateTime == ft_after.dwLowDateTime && ft_before.dwHighDateTime == ft_after.dwHighDateTime)
@@ -132,7 +132,8 @@ int tsem_wait(tsem_t *psem) {
 
 int tsem_timewait(tsem_t *psem, int64_t milis) {
   if (psem == NULL || *psem == NULL) return -1;
-  dispatch_semaphore_wait(*psem, milis * 1000 * 1000);
+  dispatch_time_t time = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(milis * USEC_PER_SEC));
+  dispatch_semaphore_wait(*psem, time);
   return 0;
 }
 
