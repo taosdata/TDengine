@@ -66,6 +66,10 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->destroyFp = pInit->dfp;
   pRpc->failFastFp = pInit->ffp;
   pRpc->connLimitNum = pInit->connLimitNum;
+  if (pRpc->connLimitNum == 0) {
+    pRpc->connLimitNum = 20;
+  }
+
   pRpc->connLimitLock = pInit->connLimitLock;
   pRpc->supportBatch = pInit->supportBatch;
   pRpc->batchSize = pInit->batchSize;
@@ -91,6 +95,9 @@ void* rpcOpen(const SRpcInit* pInit) {
     tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
   }
   pRpc->timeToGetConn = pInit->timeToGetConn;
+  if (pRpc->timeToGetConn == 0) {
+    pRpc->timeToGetConn = 10 * 1000;
+  }
   pRpc->tcphandle =
       (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
 
