@@ -45,7 +45,7 @@ export default {
       } catch (err) {
         result = require(`@/assets/logo.svg`);
       }
-      return encodeURIComponent(result);
+      return result;
     },
   },
 };

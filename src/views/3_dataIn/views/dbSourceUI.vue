@@ -338,6 +338,7 @@ export default {
   },
   methods: {
     transforHtml(val) {
+      console.log("transfor html", val);
       if (val) {
         return marked.parse(val);
       } else {
@@ -398,7 +399,7 @@ export default {
         for (let index = 0; index < data.groups.length; index++) {
           //   for (let j = 0; j < data.groups[index].params.length; j++) {
           for (let g of Object.keys(data.groups[index].params)) {
-            
+
             if (
               Object.hasOwnProperty.call(
                 data.groups[index].params[g],
@@ -428,10 +429,9 @@ export default {
             "taos+" +
             localStorage.getItem("base_url") +
             (this.dbname ? "/" + this.dbname : ""),
-          labels: ["datain"],
-          stream_type: "auto",
+          labels: ["type::datain"]
         };
-        await fetch("http://192.168.0.201:6050/tasks", {
+        await fetch(`${process.env.VUE_APP_X_API}/tasks`, {
           method: "post",
           headers: {
             "Content-type": "application/json",

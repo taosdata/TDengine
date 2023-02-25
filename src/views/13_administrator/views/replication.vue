@@ -101,6 +101,7 @@
 <script>
 import { format } from "date-fns";
 import { Message } from "element-ui";
+import _ from 'lodash';
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import taosbenchmarkVue from "@/utils/config/mdx/en/taosbenchmark.vue";
 export default {
@@ -156,7 +157,7 @@ export default {
         cancelButtonText: "Cancle",
         type: "warning"
       }).then(() => {
-        fetch(`http://192.168.0.201:6050/tasks/${data.id}`, {
+        fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}`, {
           method: "delete",
         }).then((res) => {
           if (res.status == 200) {
@@ -174,7 +175,7 @@ export default {
     },
     async addReplication() {
       try {
-        await fetch("http://192.168.0.201:6050/tasks", {
+        await fetch(`${process.env.VUE_APP_X_API}/tasks?type::replication,cluster-id::${localStorage.getItem("local_clusterID")}`, {
           method: "post",
           headers: {
             "Content-Type": "application/json"
@@ -185,7 +186,7 @@ export default {
               "type::replication",
               `cluster-id::${localStorage.getItem("local_clusterID")}`
             ],
-            to: `local:${this.ruleForm.target}`,
+            to: `${this.ruleForm.target}`,
             from: `tmq+${localStorage.getItem("base_url")}/${
               this.ruleForm.source
             }`
@@ -211,7 +212,7 @@ export default {
     },
     async start(val, data) {
       try {
-        await fetch(`http://192.168.0.201:6050/tasks/${data.id}/start`, {
+        await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/start`, {
           method: "post"
         }).then(res => {
           if (res.status == 200) {
@@ -226,7 +227,7 @@ export default {
     },
     async stop(val, data) {
       try {
-        await fetch(`http://192.168.0.201:6050/tasks/${data.id}/stop`, {
+        await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
           method: "post"
         }).then(res => {
           if (res.status == 200) {
@@ -250,7 +251,7 @@ export default {
       try {
         let id = localStorage.getItem("local_clusterID");
         await fetch(
-          `http://192.168.0.201:6050/tasks?detail=true&labels=type::replication,cluster-id::${id}`,
+          `${process.env.VUE_APP_X_API}/tasks?detail=true&labels=type::replication,cluster-id::${id}`,
           {
             method: "get"
           }
@@ -258,9 +259,10 @@ export default {
           .then(res => res.json())
           .then(result => {
             this.topicList = result.map(item => {
+              let to_port = _.get(item, "to_expand.port");
               item["fromdb"] = item.from.split("/").at(-1);
-              item["hostport"] = item.from_expand?(item.from_expand.host+':'+item.from_expand.port):'';
-              item["db"] = item.from_expand?item.from_expand.subject:'';
+              item["hostport"] = _.get(item, "to_expand.host") || "localhost"  + (to_port ? `:${to_port}` : "") ;
+              item["db"] = item.to_expand?item.to_expand.subject:item['fromdb'];
               return item;
             });
           });

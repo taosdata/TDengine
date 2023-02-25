@@ -44,7 +44,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(args.clone())
             .route("/", web::get().to(index))
-            .route("/x/{api:.*}", web::to(x_api))
+            .route("/api/x/{api:.*}", web::to(x_api))
             .route("/api-doc/openapi.json", web::to(x_api_doc))
             .route("/{route}", web::get().to(index))
             .service(Embed::new("/", &Asset))

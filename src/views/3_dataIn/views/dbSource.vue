@@ -29,7 +29,7 @@ export default {
   methods: {
     async getData() {
       try {
-        await fetch("http://192.168.0.201:6050/ds/in", {
+        await fetch(`${process.env.VUE_APP_X_API}/ds/in`, {
           method: "get",
         })
           .then((res) => res.json())
