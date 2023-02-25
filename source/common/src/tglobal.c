@@ -756,7 +756,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
 
   tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;
-  tsNumOfRpcSessions = cfgGetItem(pCfg, "numofrpcsessions")->i32;
+  tsNumOfRpcSessions = cfgGetItem(pCfg, "numOfRpcSessions")->i32;
   tsTimeToGetAvailableConn = cfgGetItem(pCfg, "timeToGetAvailableConn")->i32;
 
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;

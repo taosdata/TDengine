@@ -93,15 +93,15 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       break;
   }
 
-/*
-pDnode is null, TD-22618
-at trans.c line 91
-before this line, dmProcessRpcMsg callback is set
-after this line, parent is set
-so when dmProcessRpcMsg is called, pDonde is still null.
-*/
-  if (pDnode != NULL){
-    if(pDnode->status != DND_STAT_RUNNING) {
+  /*
+  pDnode is null, TD-22618
+  at trans.c line 91
+  before this line, dmProcessRpcMsg callback is set
+  after this line, parent is set
+  so when dmProcessRpcMsg is called, pDonde is still null.
+  */
+  if (pDnode != NULL) {
+    if (pDnode->status != DND_STAT_RUNNING) {
       if (pRpc->msgType == TDMT_DND_SERVER_STATUS) {
         dmProcessServerStartupStatus(pDnode, pRpc);
         return;
@@ -113,7 +113,7 @@ so when dmProcessRpcMsg is called, pDonde is still null.
         }
         goto _OVER;
       }
-    }   
+    }
   } else {
     terrno = TSDB_CODE_APP_IS_STARTING;
     goto _OVER;
