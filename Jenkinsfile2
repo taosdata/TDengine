@@ -387,7 +387,7 @@ pipeline {
                     }
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 75, unit: 'MINUTES'){
+                            timeout(time: 86, unit: 'MINUTES'){
                                 pre_test_win()
                                 pre_test_build_win()
                                 run_win_ctest()
@@ -423,7 +423,7 @@ pipeline {
                             echo "${WKDIR}/restore.sh -p ${BRANCH_NAME} -n ${BUILD_ID} -c {container name}"
                         }
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 120, unit: 'MINUTES'){
+                            timeout(time: 130, unit: 'MINUTES'){
                                 pre_test()
                                 script {
                                     sh '''
