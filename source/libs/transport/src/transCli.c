@@ -603,7 +603,7 @@ static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key, bool* exceed) {
     return NULL;
   }
 
-  queue* h = QUEUE_HEAD(&plist->conns);
+  queue* h = QUEUE_TAIL(&plist->conns);
   QUEUE_REMOVE(h);
   plist->size -= 1;
 
