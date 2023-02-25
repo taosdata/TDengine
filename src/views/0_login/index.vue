@@ -182,6 +182,7 @@
 import { DbBase64 } from "../../utils/dbBase64";
 import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
+import { Message } from "element-ui";
 export default {
   name: "Login",
   components: {
@@ -237,13 +238,22 @@ export default {
   },
   methods: {
     submitForm(formName) {
+      let reg =/^(http|https):\/\/([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*/;
+      if (
+        this.dynamicValidateForm.cluster &&
+        !reg.test(this.dynamicValidateForm.cluster)
+      ) {
+        Message.error(
+          "Please enter the correct cluster url ."
+        );
+        return;
+      }
       this.$refs[formName].validate((valid) => {
         if (valid) {
           localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
 
           this.login();
         } else {
-          console.log("error submit!!");
           return false;
         }
       });
@@ -260,20 +270,32 @@ export default {
             this.dynamicValidateForm.password
         );
       this.$store.commit("app/SET_TOKEN", token);
-      fetch(`${this.dynamicValidateForm.cluster}/rest/sql`, {
-        method: "post",
-        headers: {
-          Authorization: token,
-        },
-        body: "select server_version()",
-      }).then((res) => {
-        if (res.status === 200) {
-          localStorage.setItem("TDengine-Token", token);
-          this.$router.push({
-            path: "/explorer",
-          });
-        }
-      });
+      try {
+        fetch(`${this.dynamicValidateForm.cluster}/rest/sql`, {
+          method: "post",
+          headers: {
+            Authorization: token,
+          },
+          body: "select server_version()",
+        }).then((res) => {
+          if (res.status === 200) {
+            localStorage.setItem("TDengine-Token", token);
+            this.$router.push({
+              path: "/explorer",
+            });
+          } else {
+            Message({
+              type: "error",
+              message: res.statusText,
+            });
+          }
+        }).catch(err=>{
+          Message.error('Faild to fetch,wrong cluster url!')
+          console.log(err,'fetch---');
+        });
+      } catch (error) {
+        console.log(error,'login');
+      }
     },
     search() {
       this.hidden = true;
