@@ -12,11 +12,10 @@ export async function getDBListReq(appId) {
   /**
    * 先使用show databses获取列表
    */
-  
   return sendSQLReq(`show databases;`, true, appId)
     .then(data => {
       return (dbCache = handleDataKey(
-        data.filter(item =>!HIDEDB.includes(item.name) ),
+        data.filter(item => !HIDEDB.includes(item.name)),
         "database"
       ));
     })
@@ -59,14 +58,14 @@ export function deleteDBReq(payload, appId = store.getters.appId) {
   let { dbName } = payload;
   return request({
     // url: `/private/data/sql/dropdb/${appId}/${dbName}`,
-    url:'/rest/sql',
+    url: '/rest/sql',
     data: `DROP DATABASE ${dbName};`,
-    
+
     method: "post",
   })
     .then(data => {
       // data = jsonToObj(data);
-      data=JSON.parse(JSON.stringify(data))
+      data = JSON.parse(JSON.stringify(data))
       if (data.code == 0) return data;
       return Promise.reject(data);
     })
@@ -79,8 +78,8 @@ export function deleteDBReq(payload, appId = store.getters.appId) {
 export function createDB(data, name, appId = store.getters.appId) {
   return request({
     // url: `/private/data/sql/createdb/${appId}/${name}`,
-    url:'/rest/sql',
-    data: 
+    url: '/rest/sql',
+    data:
       `CREATE DATABASE ${name} ${Object.keys(DBFILED)
         .map(item => {
           let value = data[item];
@@ -92,12 +91,12 @@ export function createDB(data, name, appId = store.getters.appId) {
           return item + " " + value;
         })
         .join(" ")};`,
-    
+
     method: "post",
   })
     .then(data => {
       // data = jsonToObj(data);
-      data=JSON.parse(JSON.stringify(data))
+      data = JSON.parse(JSON.stringify(data))
       if (data.code == 0) return data;
       return Promise.reject(data);
     })
@@ -125,9 +124,9 @@ export function checkDBName(dbName) {
 }
 
 export function handleDataKey(data, type, parent = "") {
-  
+
   return data.map(item => {
-    item.typeName =item.rollup?'table': type;
+    item.typeName = item.rollup ? 'table' : type;
     if (!item.name) {
       item.name = item[type + "_name"];
       // item.name=item.databaseName
@@ -136,7 +135,7 @@ export function handleDataKey(data, type, parent = "") {
     if ((type == "database" && item.name == "log") || parent.startsWith("log.") || parent == "log") {
       item.noOperate = true;
     }
-    item["node-key"] = item.name + type + parent +Math.random();
+    item["node-key"] = item.name + type + parent + Math.random();
 
     return item;
   });

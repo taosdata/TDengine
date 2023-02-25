@@ -13,6 +13,7 @@ import { Message } from "element-ui";
 import moment from "moment";
 const state = {
   token: getToken(),
+  loginInfo:{},
   language: process.env.VUE_APP_LANGUAGE || "en",
   userInfo: null,
   clusters: [],
@@ -56,6 +57,9 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SAVE_LOGIN_INFO(state,info){
+    state.loginInfo=info
+  },
   SET_TIME_ZONE(state, timeZone) {
     state.timeZone = timeZone;
   },

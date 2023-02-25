@@ -27,7 +27,7 @@
     "highlight.js": "^11.4.0",
     "js-cookie": "^2.2.1",
     "json2csv": "^5.0.7",
-    "marked": "^4.0.16",
+    "marked": "^4.2.12",
     "mavon-editor": "^2.10.4",
     "mitt": "^3.0.0",
     "moment": "^2.29.4",
@@ -80,9 +80,9 @@
       "no-debugger": "off",
       "no-unused-vars": "off",
       "vue/no-unused-components": "off",
-      "no-useless-escape":"off",
-      "no-unreachable":"off",
-      "no-case-declarations":"off"
+      "no-useless-escape": "off",
+      "no-unreachable": "off",
+      "no-case-declarations": "off"
     },
     "ignorePatterns": [
       "/WebSocket/**"

@@ -103,7 +103,7 @@ export function uploadCsv(data) {
   let csvData = new FormData();
   csvData.append("data", data.data);
   return request({
-    url: `/data/import/${appId}/${dbName}/${tbName}`,
+    url: `/rest/upload?db=${dbName}&table=${tbName}`,
     method: "post",
     data: csvData,
     headers: {
@@ -111,7 +111,12 @@ export function uploadCsv(data) {
     },
   })
     .then(data => {
-      const currentData = jsonToObj(data);
+      console.log(data,'data---csv');
+      
+      // const currentData = jsonToObj(data);
+      const currentData=data
+      console.log(currentData,'currentData---csv');
+      
       if (currentData.code != 0) return Promise.reject(currentData);
     })
     .catch(err => {

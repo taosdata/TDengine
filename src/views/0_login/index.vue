@@ -180,9 +180,10 @@
 </template>
 <script>
 import { DbBase64 } from "../../utils/dbBase64";
+import { sendSQLReq } from "@/api/gateway/console";
+import { Message } from "element-ui";
 import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
-import { Message } from "element-ui";
 export default {
   name: "Login",
   components: {
@@ -251,7 +252,6 @@ export default {
       this.$refs[formName].validate((valid) => {
         if (valid) {
           localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
-
           this.login();
         } else {
           return false;
@@ -260,6 +260,22 @@ export default {
     },
     resetForm(formName) {
       this.$refs[formName].resetFields();
+    },
+    async getClusterID() {
+      try {
+        return sendSQLReq(` select id from information_schema.ins_cluster;`)
+          .then((res) => {
+            console.log(res, "获取cluster");
+            let id = res.data.flat(Infinity).toString()
+            localStorage.setItem('local_clusterID',id)
+          })
+          .catch((err) => {
+            err.desc && Message.error(err.desc);
+            return Promise.reject(err);
+          });
+      } catch (error) {
+        console.log(error);
+      }
     },
     login() {
       let token =

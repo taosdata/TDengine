@@ -53,7 +53,7 @@
     display: flex;
     flex-direction: row;
     align-items: center;
-    &::v-deep .el-input--mini {
+    :v-deep .el-input--mini {
       font-size: 18px;
     }
   }
