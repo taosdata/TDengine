@@ -52,7 +52,7 @@ static bool validateDbName(const char* db) { return stringLengthCheck(db, TSDB_D
 static char* getClusterKey(const char* user, const char* auth, const char* ip, int32_t port) {
   char key[512] = {0};
   snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
-  return strdup(key);
+  return taosStrdup(key);
 }
 
 bool chkRequestKilled(void* param) {

@@ -59,11 +59,11 @@ char *taosCharsetReplace(char *charsetstr) {
 
   for (int32_t i = 0; i < tListLen(charsetRep); ++i) {
     if (strcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
-      return strdup(charsetRep[i].newCharset);
+      return taosStrdup(charsetRep[i].newCharset);
     }
   }
 
-  return strdup(charsetstr);
+  return taosStrdup(charsetstr);
 }
 
 /**

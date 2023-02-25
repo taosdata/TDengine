@@ -222,7 +222,7 @@ A database including one supertable and two subtables is created as follows:
 ```sql
 DROP DATABASE IF EXISTS tmqdb;
 CREATE DATABASE tmqdb;
-CREATE TABLE tmqdb.stb (ts TIMESTAMP, c1 INT, c2 FLOAT, c3 VARCHAR(16) TAGS(t1 INT, t3 VARCHAR(16));
+CREATE TABLE tmqdb.stb (ts TIMESTAMP, c1 INT, c2 FLOAT, c3 VARCHAR(16)) TAGS(t1 INT, t3 VARCHAR(16));
 CREATE TABLE tmqdb.ctb0 USING tmqdb.stb TAGS(0, "subtable0");
 CREATE TABLE tmqdb.ctb1 USING tmqdb.stb TAGS(1, "subtable1");       
 INSERT INTO tmqdb.ctb0 VALUES(now, 0, 0, 'a0')(now+1s, 0, 0, 'a00');

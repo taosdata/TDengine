@@ -413,7 +413,9 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   sprintf(shell.info.promptHeader, "%s> ", cusPrompt);
   shell.info.promptContinue = TAOS_CONSOLE_PROMPT_CONTINUE;
   shell.info.promptSize = strlen(shell.info.promptHeader);
-  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion), "version: %s", version);
+  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
+           "version: %s compatible_version: %s\ngitinfo: %s\nbuildInfo: %s", version, compatible_version, gitinfo,
+           buildinfo);
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   shell.info.osname = "Windows";

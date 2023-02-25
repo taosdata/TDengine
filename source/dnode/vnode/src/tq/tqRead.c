@@ -693,7 +693,7 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
                   goto FAIL;
                 }
               } else {
-                colDataAppendNULL(pColData, i);
+                colDataSetNULL(pColData, i);
               }
             } else {
               if (colDataAppend(pColData, i, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
@@ -734,7 +734,7 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
                     goto FAIL;
                   }
                 } else {
-                  colDataAppendNULL(pColData, i);
+                  colDataSetNULL(pColData, i);
                 }
                 /*val = colVal.value.pData;*/
               } else {
@@ -861,7 +861,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
       if (!tdSTSRowIterFetch(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
         break;
       }
-      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType != TD_VTYPE_NORM) < 0) {
+      if (colDataSetVal(pColData, curRow, sVal.val, sVal.valType != TD_VTYPE_NORM) < 0) {
         goto FAIL;
       }
     }
@@ -986,7 +986,9 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
         break;
       }
 
-      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL) < 0) {
+      ASSERT(sVal.valType != TD_VTYPE_NONE);
+
+      if (colDataSetVal(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL) < 0) {
         goto FAIL;
       }
       tqDebug("vgId:%d, row %d col %d append %d", pReader->pWalReader->pWal->cfg.vgId, curRow, i,
@@ -1141,7 +1143,7 @@ int32_t tqRetrieveTaosxBlock2(STqReader* pReader, SArray* blocks, SArray* schema
                 goto FAIL;
               }
             } else {
-              colDataAppendNULL(pColData, curRow - lastRow);
+              colDataSetNULL(pColData, curRow - lastRow);
             }
           } else {
             if (colDataAppend(pColData, curRow - lastRow, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
@@ -1235,7 +1237,7 @@ int32_t tqRetrieveTaosxBlock2(STqReader* pReader, SArray* blocks, SArray* schema
                 goto FAIL;
               }
             } else {
-              colDataAppendNULL(pColData, curRow - lastRow);
+              colDataSetNULL(pColData, curRow - lastRow);
             }
           } else {
             if (colDataAppend(pColData, curRow - lastRow, (void*)&colVal.value.val, !COL_VAL_IS_VALUE(&colVal)) < 0) {
@@ -1313,7 +1315,10 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   void* pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pTq->pHandle, pIter);
-    if (pIter == NULL) break;
+    if (pIter == NULL) {
+      break;
+    }
+
     STqHandle* pExec = (STqHandle*)pIter;
     if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       int32_t code = qUpdateQualifiedTableId(pExec->execHandle.task, tbUidList, isAdd);

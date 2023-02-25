@@ -167,7 +167,7 @@ int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype) {
       tPutSmaFile(hdr, pSet->pSmaF);
       break;
     default:
-      ASSERT(0);
+      goto _err;  // make the coverity scan happy
   }
 
   taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);

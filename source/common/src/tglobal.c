@@ -61,7 +61,7 @@ int32_t tsHeartbeatInterval = 1000;
 int32_t tsHeartbeatTimeout = 20 * 1000;
 
 // vnode
-int64_t tsVndCommitMaxIntervalMs = 60 * 1000;
+int64_t tsVndCommitMaxIntervalMs = 600 * 1000;
 
 // monitor
 bool     tsEnableMonitor = true;

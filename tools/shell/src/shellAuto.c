@@ -911,7 +911,7 @@ char* matchNextPrefix(STire* tire, char* pre) {
   if (cursorVar == -1) {
     // first
     cursorVar = 0;
-    return strdup(match->head->word);
+    return taosStrdup(match->head->word);
   }
 
   // according to cursorVar , calculate next one
@@ -927,7 +927,7 @@ char* matchNextPrefix(STire* tire, char* pre) {
         cursorVar = i;
       }
 
-      return strdup(item->word);
+      return taosStrdup(item->word);
     }
 
     // check end item
@@ -935,7 +935,7 @@ char* matchNextPrefix(STire* tire, char* pre) {
       // if cursorVar > var list count, return last and reset cursorVar
       cursorVar = -1;
 
-      return strdup(item->word);
+      return taosStrdup(item->word);
     }
 
     // move next
@@ -1536,7 +1536,7 @@ bool matchSelectQuery(TAOS* con, SShellCmd* cmd) {
 // if is input create fields or tags area, return true
 bool isCreateFieldsArea(char* p) {
   // put to while, support like create table st(ts timestamp, bin1 binary(16), bin2 + blank + TAB
-  char* p1 = strdup(p);
+  char* p1 = taosStrdup(p);
   bool  ret = false;
   while (1) {
     char* left = strrchr(p1, '(');

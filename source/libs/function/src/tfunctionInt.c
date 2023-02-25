@@ -47,11 +47,11 @@ int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock
     SResultRowEntryInfo* pResInfo = GET_RES_INFO(&pCtx[i]);
     if (pResInfo->numOfRes == 0) {
       for (int32_t j = 0; j < pResInfo->numOfRes; ++j) {
-        colDataAppend(pCol, j, NULL, true);  // TODO add set null data api
+        colDataSetVal(pCol, j, NULL, true);  // TODO add set null data api
       }
     } else {
       for (int32_t j = 0; j < pResInfo->numOfRes; ++j) {
-        colDataAppend(pCol, j, GET_ROWCELL_INTERBUF(pResInfo), false);
+        colDataSetVal(pCol, j, GET_ROWCELL_INTERBUF(pResInfo), false);
       }
     }
   }

@@ -400,7 +400,7 @@ TAOS* createNewTaosConnect() {
   int32_t retryCnt = 10;
 
   while (retryCnt--) {
-    TAOS* taos = taos_connect(NULL, "root", "taosdata", NULL, 0);
+    taos = taos_connect(NULL, "root", "taosdata", NULL, 0);
     if (NULL != taos) {
       return taos;
     }
@@ -780,7 +780,8 @@ void loop_consume(SThreadInfo* pInfo) {
 
   if (pInfo->ifCheckData) {
     char filename[256] = {0};
-    char tmpString[128];
+    memset(tmpString, 0, tListLen(tmpString));
+
     // sprintf(filename, "%s/../log/consumerid_%d_%s.txt", configDir, pInfo->consumerId,
     // getCurrentTimeString(tmpString));
     sprintf(filename, "%s/../log/consumerid_%d.txt", configDir, pInfo->consumerId);
@@ -834,12 +835,12 @@ void loop_consume(SThreadInfo* pInfo) {
       }
 
       if ((totalRows >= pInfo->expectMsgCnt) || (totalMsgs >= pInfo->expectMsgCnt)) {
-        char tmpString[128];
+        memset(tmpString, 0, tListLen(tmpString));
         taosFprintfFile(g_fp, "%s over than expect rows, so break consume\n", getCurrentTimeString(tmpString));
         break;
       }
     } else {
-      char tmpString[128];
+      memset(tmpString, 0, tListLen(tmpString));
       taosFprintfFile(g_fp, "%s no poll more msg when time over, break consume\n", getCurrentTimeString(tmpString));
       break;
     }
@@ -1113,7 +1114,7 @@ void omb_loop_consume(SThreadInfo* pInfo) {
         lastTotalLenOfMsg = totalLenOfMsg;
       }
     } else {
-      char tmpString[128];
+      memset(tmpString, 0, tListLen(tmpString));
       taosFprintfFile(g_fp, "%s no poll more msg when time over, break consume\n", getCurrentTimeString(tmpString));
       printf("%s no poll more msg when time over, break consume\n", getCurrentTimeString(tmpString));
       int64_t currentPrintTime = taosGetTimestampMs();

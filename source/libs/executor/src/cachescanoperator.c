@@ -182,10 +182,10 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, slotId);
 
         if (colDataIsNull_s(pSrc, pInfo->indexOfBufferedRes)) {
-          colDataAppendNULL(pDst, 0);
+          colDataSetNULL(pDst, 0);
         } else {
           char* p = colDataGetData(pSrc, pInfo->indexOfBufferedRes);
-          colDataAppend(pDst, 0, p, false);
+          colDataSetVal(pDst, 0, p, false);
         }
       }
 

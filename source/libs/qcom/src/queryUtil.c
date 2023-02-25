@@ -420,7 +420,7 @@ end:
   cJSON_Delete(json);
   taosArrayDestroy(pTagVals);
   if (string == NULL) {
-    string = strdup(TSDB_DATA_NULL_STR_L);
+    string = taosStrdup(TSDB_DATA_NULL_STR_L);
   }
   return string;
 }
@@ -510,20 +510,20 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
 
   (*pDst)->flags = pSrc->flags;
   if (pSrc->name) {
-    (*pDst)->name = strdup(pSrc->name);
+    (*pDst)->name = taosStrdup(pSrc->name);
   }
   (*pDst)->uid = pSrc->uid;
   (*pDst)->ctime = pSrc->ctime;
   (*pDst)->ttl = pSrc->ttl;
   (*pDst)->commentLen = pSrc->commentLen;
   if (pSrc->comment) {
-    (*pDst)->comment = strdup(pSrc->comment);
+    (*pDst)->comment = taosStrdup(pSrc->comment);
   }
   (*pDst)->type = pSrc->type;
 
   if (pSrc->type == TSDB_CHILD_TABLE) {
     if (pSrc->ctb.stbName) {
-      (*pDst)->ctb.stbName = strdup(pSrc->ctb.stbName);
+      (*pDst)->ctb.stbName = taosStrdup(pSrc->ctb.stbName);
     }
     (*pDst)->ctb.tagNum = pSrc->ctb.tagNum;
     (*pDst)->ctb.suid = pSrc->ctb.suid;

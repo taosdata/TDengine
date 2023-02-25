@@ -208,7 +208,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
       // set super table name
       SName name = {0};
       tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-      pCreateTbReq->ctb.stbName = strdup((char *)tNameGetTableName(&name));  // strdup(stbFullName);
+      pCreateTbReq->ctb.stbName = taosStrdup((char *)tNameGetTableName(&name));  // taosStrdup(stbFullName);
 
       // set tag content
       taosArrayClear(tagArray);
@@ -237,7 +237,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
 
       // set table name
       if (pDataBlock->info.parTbName[0]) {
-        pCreateTbReq->name = strdup(pDataBlock->info.parTbName);
+        pCreateTbReq->name = taosStrdup(pDataBlock->info.parTbName);
       } else {
         pCreateTbReq->name = buildCtbNameByGroupId(stbFullName, pDataBlock->info.id.groupId);
       }
