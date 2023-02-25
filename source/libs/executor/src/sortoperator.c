@@ -102,11 +102,11 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
     bool             isNull = tsortIsNullVal(pTupleHandle, i);
     if (isNull) {
-      colDataAppendNULL(pColInfo, pBlock->info.rows);
+      colDataSetNULL(pColInfo, pBlock->info.rows);
     } else {
       char* pData = tsortGetValue(pTupleHandle, i);
       if (pData != NULL) {
-        colDataAppend(pColInfo, pBlock->info.rows, pData, false);
+        colDataSetVal(pColInfo, pBlock->info.rows, pData, false);
       }
     }
   }
@@ -769,8 +769,6 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
 
   int32_t rowSize = pInfo->binfo.pRes->info.rowSize;
-  ASSERT(rowSize < 100 * 1024 * 1024);
-
   int32_t numOfOutputCols = 0;
   code = extractColMatchInfo(pMergePhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID,
                              &pInfo->matchInfo);
