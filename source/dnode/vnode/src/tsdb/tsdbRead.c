@@ -312,8 +312,8 @@ static int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) 
   }
 
   if (pBuf->numOfTables > 0) {
-    STableBlockScanInfo *p = (STableBlockScanInfo*)taosArrayPop(pBuf->pData);
-    taosMemoryFree(p);
+    STableBlockScanInfo **p = (STableBlockScanInfo**)taosArrayPop(pBuf->pData);
+    taosMemoryFree(*p);
     pBuf->numOfTables /= pBuf->numPerBucket;
   }
   
