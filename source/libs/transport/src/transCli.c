@@ -1520,7 +1520,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     transCtxMerge(&conn->ctx, &pMsg->ctx->appCtx);
     transQueuePush(&conn->cliMsgs, pMsg);
 
-    conn->ip = strdup(addr);
+    conn->ip = taosStrdup(addr);
 
     uint32_t ipaddr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, fqdn);
     if (ipaddr == 0xffffffff) {
