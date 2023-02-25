@@ -624,6 +624,7 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
 
     plist = taosHashGet((SHashObj*)pool, key, strlen(key));
     QUEUE_INIT(&plist->conns);
+    return NULL;
   }
 
   SMsgList* list = plist->list;
