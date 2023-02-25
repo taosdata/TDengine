@@ -99,6 +99,7 @@ int32_t         syncLogBufferReInit(SSyncLogBuffer* pBuf, SSyncNode* pNode);
 // access
 int64_t syncLogBufferGetEndIndex(SSyncLogBuffer* pBuf);
 SyncTerm syncLogBufferGetLastMatchTerm(SSyncLogBuffer* pBuf);
+bool     syncLogBufferIsEmpty(SSyncLogBuffer* pBuf);
 int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry);
 int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevTerm);
 int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm);

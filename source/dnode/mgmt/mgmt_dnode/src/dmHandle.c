@@ -242,19 +242,19 @@ int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
     GRANT_CFG_SKIP;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, (const char *)&dnodeId, false);
+    colDataSetVal(pColInfo, i, (const char *)&dnodeId, false);
 
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, name, false);
+    colDataSetVal(pColInfo, i, name, false);
 
     char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t valueLen = 0;
     cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
     varDataSetLen(value, valueLen);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, value, false);
+    colDataSetVal(pColInfo, i, value, false);
 
     numOfRows++;
   }

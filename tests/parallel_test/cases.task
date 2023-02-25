@@ -182,6 +182,7 @@
 ,,y,script,./test.sh -f tsim/query/event.sim
 ,,y,script,./test.sh -f tsim/query/forceFill.sim
 ,,y,script,./test.sh -f tsim/query/emptyTsRange.sim
+,,y,script,./test.sh -f tsim/query/join.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
@@ -652,6 +653,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tagFilter.py
 ,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode2mnode.py -N 5

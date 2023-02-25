@@ -1,11 +1,31 @@
-```java
-{{#include docs/examples/java/src/main/java/com/taos/example/SubscribeDemo.java}}
-{{#include docs/examples/java/src/main/java/com/taos/example/MetersDeserializer.java}}
-{{#include docs/examples/java/src/main/java/com/taos/example/Meters.java}}
-```
-```java
-{{#include docs/examples/java/src/main/java/com/taos/example/MetersDeserializer.java}}
-```
-```java
-{{#include docs/examples/java/src/main/java/com/taos/example/Meters.java}}
-```
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<Tabs defaultValue="native">
+  <TabItem value="native" label="native connection">
+
+    ```java
+    {{#include docs/examples/java/src/main/java/com/taos/example/SubscribeDemo.java}}
+    ```
+    ```java
+    {{#include docs/examples/java/src/main/java/com/taos/example/MetersDeserializer.java}}
+    ```
+    ```java
+    {{#include docs/examples/java/src/main/java/com/taos/example/Meters.java}}
+    ```
+
+  </TabItem>
+  <TabItem value="ws" label="WebSocket connection">
+
+    ```java
+    {{#include docs/examples/java/src/main/java/com/taos/example/WebsocketSubscribeDemo.java}}
+    ```
+    ```java
+    {{#include docs/examples/java/src/main/java/com/taos/example/MetersDeserializer.java}}
+    ```
+    ```java
+    {{#include docs/examples/java/src/main/java/com/taos/example/Meters.java}}
+    ```
+
+  </TabItem>
+</Tabs>

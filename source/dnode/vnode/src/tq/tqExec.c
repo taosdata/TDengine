@@ -52,7 +52,7 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, in
     return -1;
   }
   for (int32_t i = 0; i < n; i++) {
-    char* tbName = strdup(mr.me.name);
+    char* tbName = taosStrdup(mr.me.name);
     taosArrayPush(pRsp->blockTbName, &tbName);
   }
   metaReaderClear(&mr);
@@ -157,7 +157,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
             continue;
           }
         } else {
-          char* tbName = strdup(qExtractTbnameFromTask(task));
+          char* tbName = taosStrdup(qExtractTbnameFromTask(task));
           taosArrayPush(pRsp->blockTbName, &tbName);
         }
       }

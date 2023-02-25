@@ -90,7 +90,7 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t page
   tsortSetComparFp(pSortHandle, msortComparFn);
 
   if (idstr != NULL) {
-    pSortHandle->idStr = strdup(idstr);
+    pSortHandle->idStr = taosStrdup(idstr);
   }
 
   return pSortHandle;
@@ -214,6 +214,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     if (pPage == NULL) {
       taosArrayDestroy(pPageIdList);
       blockDataDestroy(p);
+      taosArrayDestroy(pPageIdList);
       return terrno;
     }
 
@@ -321,10 +322,10 @@ static void appendOneRowToDataBlock(SSDataBlock* pBlock, const SSDataBlock* pSou
     bool             isNull = colDataIsNull(pSrcColInfo, pSource->info.rows, *rowIndex, NULL);
 
     if (isNull) {
-      colDataAppend(pColInfo, pBlock->info.rows, NULL, true);
+      colDataSetVal(pColInfo, pBlock->info.rows, NULL, true);
     } else {
       char* pData = colDataGetData(pSrcColInfo, *rowIndex);
-      colDataAppend(pColInfo, pBlock->info.rows, pData, false);
+      colDataSetVal(pColInfo, pBlock->info.rows, pData, false);
     }
   }
 

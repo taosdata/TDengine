@@ -511,39 +511,39 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     STR_WITH_MAXSIZE_TO_VARSTR(b1, pFunc->name, pShow->pMeta->pSchemas[cols].bytes);
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)b1, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)b1, false);
 
     if (pFunc->pComment) {
       char *b2 = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
       STR_WITH_MAXSIZE_TO_VARSTR(b2, pFunc->pComment, pShow->pMeta->pSchemas[cols].bytes);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
     } else {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, NULL, true);
+      colDataSetVal(pColInfo, numOfRows, NULL, true);
     }
 
     int32_t isAgg = (pFunc->funcType == TSDB_FUNC_TYPE_AGGREGATE) ? 1 : 0;
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&isAgg, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&isAgg, false);
 
     char b3[TSDB_TYPE_STR_MAX_LEN + 1] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, mnodeGenTypeStr(buf, TSDB_TYPE_STR_MAX_LEN, pFunc->outputType, pFunc->outputLen),
                                pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)b3, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pFunc->createdTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->createdTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pFunc->codeSize, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->codeSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pFunc->bufSize, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->bufSize, false);
 
     numOfRows++;
     sdbRelease(pSdb, pFunc);

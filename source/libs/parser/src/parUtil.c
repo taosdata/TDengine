@@ -971,7 +971,7 @@ static SArray* smaIndexesDup(SArray* pSrc) {
   }
   for (int32_t i = 0; i < size; ++i) {
     STableIndexInfo* pIndex = taosArrayGet(pDst, i);
-    pIndex->expr = taosMemoryStrDup(((STableIndexInfo*)taosArrayGet(pSrc, i))->expr);
+    pIndex->expr = taosStrdup(((STableIndexInfo*)taosArrayGet(pSrc, i))->expr);
     if (NULL == pIndex->expr) {
       taosArrayDestroyEx(pDst, destroySmaIndex);
       return NULL;

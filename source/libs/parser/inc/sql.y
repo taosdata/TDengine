@@ -301,7 +301,7 @@ create_subtable_clause(A) ::=
 %type multi_drop_clause                                                           { SNodeList* }
 %destructor multi_drop_clause                                                     { nodesDestroyList($$); }
 multi_drop_clause(A) ::= drop_table_clause(B).                                    { A = createNodeList(pCxt, B); }
-multi_drop_clause(A) ::= multi_drop_clause(B) drop_table_clause(C).               { A = addNodeToList(pCxt, B, C); }
+multi_drop_clause(A) ::= multi_drop_clause(B) NK_COMMA drop_table_clause(C).      { A = addNodeToList(pCxt, B, C); }
 
 drop_table_clause(A) ::= exists_opt(B) full_table_name(C).                        { A = createDropTableClause(pCxt, B, C); }
 

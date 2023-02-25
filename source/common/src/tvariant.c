@@ -185,7 +185,7 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
     pDst->arr = taosArrayInit(num, sizeof(char *));
     for (size_t i = 0; i < num; i++) {
       char *p = (char *)taosArrayGetP(pSrc->arr, i);
-      char *n = strdup(p);
+      char *n = taosStrdup(p);
       taosArrayPush(pDst->arr, &n);
     }
   } else if (pSrc->nType == TSDB_DATA_TYPE_VALUE_ARRAY) {

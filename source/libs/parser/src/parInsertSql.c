@@ -449,7 +449,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
-      val->pData = strdup(pToken->z);
+      val->pData = taosStrdup(pToken->z);
       val->nData = pToken->n;
       break;
     }
