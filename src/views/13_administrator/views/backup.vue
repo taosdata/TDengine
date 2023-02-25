@@ -214,7 +214,7 @@ export default {
           type: "warning",
         }
       ).then(() => {
-        fetch(`http://192.168.0.201:6050/tasks/${data.id}`, {
+        fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}`, {
           method: "delete",
         }).then((res) => {
           if (res.status == 200) {
@@ -247,7 +247,7 @@ export default {
     },
     async start(val, data) {
       try {
-        await fetch(`http://192.168.0.201:6050/tasks/${data.id}/start`, {
+        await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/start`, {
           method: "post",
         }).then((res) => {
           if (res.status == 200) {
@@ -262,7 +262,7 @@ export default {
     },
     async stop(val, data) {
       try {
-       await fetch(`http://192.168.0.201:6050/tasks/${data.id}/stop`, {
+       await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
           method: "post",
         }).then((res) => {
           if (res.status == 200) {
@@ -294,7 +294,7 @@ export default {
     async editBakcup(id) {
       //哪一项修改传参只传哪一项
       try {
-        await fetch(`http://192.168.0.201:6050/tasks/${id}`, {
+        await fetch(`${process.env.VUE_APP_X_API}/tasks/${id}`, {
           method: "put",
           body: JSON.stringify({
             trigger: this.ruleForm.cycle,
@@ -315,7 +315,7 @@ export default {
     },
     async addBackup() {
       try {
-        await fetch("http://192.168.0.201:6050/tasks", {
+        await fetch(`${process.env.VUE_APP_X_API}/tasks?labels=type::backup,cluster-id::${localStorage.getItem("local_clusterID")}`, {
           method: "post",
           headers: {
             "Content-Type": "application/json",
@@ -346,13 +346,14 @@ export default {
       try {
         let id = localStorage.getItem("local_clusterID");
         fetch(
-          `http://192.168.0.201:6050/tasks?detail=true&labels=type::backup,cluster-id::${id}`,
+          `${process.env.VUE_APP_X_API}/tasks?detail=true&labels=type::backup,cluster-id::${id}`,
           {
             method: "get",
           }
         )
           .then((res) => res.json())
           .then((result) => {
+            console.log(result);
             this.topicList = result.map((item) => {
               item["database"] = item.from.split("/").at(-1);
 

@@ -286,6 +286,12 @@ export default {
             this.dynamicValidateForm.password
         );
       this.$store.commit("app/SET_TOKEN", token);
+      sessionStorage.setItem("username", this.dynamicValidateForm.username);
+      sessionStorage.setItem("pwd", this.dynamicValidateForm.password);
+      this.$store.commit("app/SAVE_LOGIN_INFO", {
+        username: this.dynamicValidateForm.username,
+        pwd: this.dynamicValidateForm.password,
+      });
       try {
         fetch(`${this.dynamicValidateForm.cluster}/rest/sql`, {
           method: "post",
@@ -296,6 +302,7 @@ export default {
         }).then((res) => {
           if (res.status === 200) {
             localStorage.setItem("TDengine-Token", token);
+            this.getClusterID();
             this.$router.push({
               path: "/explorer",
             });

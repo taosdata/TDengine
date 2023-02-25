@@ -27,6 +27,7 @@
     "highlight.js": "^11.4.0",
     "js-cookie": "^2.2.1",
     "json2csv": "^5.0.7",
+    "lodash": "^4.17.21",
     "marked": "^4.2.12",
     "mavon-editor": "^2.10.4",
     "mitt": "^3.0.0",

@@ -208,7 +208,7 @@ export default {
           type: "warning",
         }
       ).then((res) => {
-        fetch(`http://192.168.0.201:6050/tasks/${data.id}`, {
+        fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}`, {
           method: "delete",
         })
           .then((res) => {
@@ -244,7 +244,7 @@ export default {
       try {
         let id = localStorage.getItem("local_clusterID");
         fetch(
-          `http://192.168.0.201:6050/tasks?detail=true&type::datain,cluster-id::${id}`,
+          `${process.env.VUE_APP_X_API}/tasks?detail=true&labels=type::datain,cluster-id::${id}`,
           {
             method: "get",
           }
@@ -265,7 +265,7 @@ export default {
     },
     start(data, index) {
       try {
-        fetch(`http://192.168.0.201:6050/tasks/${data.id}/start`, {
+        fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/start`, {
           method: "post",
         }).then((res) => {
           if (res.status == 200) {
@@ -284,7 +284,7 @@ export default {
     },
     stop(data, index) {
       try {
-        fetch(`http://192.168.0.201:6050/tasks/${data.id}/stop`, {
+        fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
           method: "post",
         }).then((res) => {
           if (res.status == 200) {

@@ -60,6 +60,7 @@ const common = [
   },
   {
     name: "C#",
+    icon: "csharp.svg",
     type: "client",
     desc: "Connect using the TDengine.Connector to encapsulate SQL as a REST request.",
     docs: {
