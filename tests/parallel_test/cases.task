@@ -168,6 +168,7 @@
 ,,y,script,./test.sh -f tsim/parser/union.sim
 ,,y,script,./test.sh -f tsim/parser/union_sysinfo.sim
 ,,y,script,./test.sh -f tsim/parser/where.sim
+,,y,script,./test.sh -f tsim/query/tagLikeFilter.sim
 ,,y,script,./test.sh -f tsim/query/charScalarFunction.sim
 ,,y,script,./test.sh -f tsim/query/explain.sim
 ,,y,script,./test.sh -f tsim/query/interval-offset.sim
