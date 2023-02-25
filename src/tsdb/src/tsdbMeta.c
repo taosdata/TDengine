@@ -219,10 +219,10 @@ int tsdbDumpTables(STsdbRepo *pRepo, uint64_t qId) {
   for (int32_t i = 0; i < pMeta->maxTables; ++i) {
     if (pMeta->tables[i] != NULL) {
       STable *pTable = pMeta->tables[i];
-      // keep the output format 
-      tsdbInfo("vgId:%d QID:%" PRIu64 " stb:%s %s:%s tid:%d uid:%" PRIu64, REPO_ID(pRepo), qId,
-               pTable->pSuper ? pTable->pSuper->name->data : "", "msynctbn", pTable->name->data, pTable->tableId.tid,
-               pTable->tableId.uid);
+      // keep the output format
+      tsdbInfo("vgId:%d, type:%d stb:%s suid:%" PRIu64 " %s:%s tid:%d uid:%" PRIu64, REPO_ID(pRepo), pTable->type,
+               pTable->pSuper ? pTable->pSuper->name->data : "", pTable->suid, "msynctbn", pTable->name->data,
+               pTable->tableId.tid, pTable->tableId.uid);
     }
   }
   if (tsdbUnlockRepoMeta(pRepo) < 0) return -1;
@@ -1486,7 +1486,7 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
           tsdbFreeTable(pTable);
           return NULL;
         }
-	taosHashSetFreeFp(pTable->jsonKeyMap, taosArrayDestroyForHash);
+        taosHashSetFreeFp(pTable->jsonKeyMap, taosArrayDestroyForHash);
       }else{
         pTable->pIndex = tSkipListCreate(TSDB_SUPER_TABLE_SL_LEVEL, colType(pCol), (uint8_t)(colBytes(pCol)), NULL,
                                        SL_ALLOW_DUP_KEY, getTagIndexKey);

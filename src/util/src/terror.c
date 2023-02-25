@@ -229,6 +229,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_OPTION,     "Invalid topic option"
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_PARTITONS,  "Invalid topic partitons num, valid range: [1, 1000]")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_ALREADY_EXIST,      "Topic already exists")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FORMAT,           "Invalid format")
+
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_MSG_NOT_PROCESSED,        "Message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_OUT_OF_MEMORY,            "Dnode out of memory")
