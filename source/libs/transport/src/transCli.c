@@ -582,11 +582,16 @@ static SCliConn* getConnFromPool(SCliThrd* pThrd, char* key) {
   SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
   STrans*    pTranInst = pThrd->pTransInst;
   if (plist == NULL) {
+    SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
+    QUEUE_INIT(&nList->msgQ);
+    nList->numOfConn++;
+
     SConnList list = {0};
+    QUEUE_INIT(&list.conns);
+    list.list = nList;
+
     taosHashPut((SHashObj*)pool, key, strlen(key), (void*)&list, sizeof(list));
     plist = taosHashGet((SHashObj*)pool, key, strlen(key));
-    if (plist == NULL) return NULL;
-    QUEUE_INIT(&plist->conns);
   }
 
   SMsgList* msglist = plist->list;
@@ -613,17 +618,17 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
   STrans*    pTransInst = pThrd->pTransInst;
   SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
   if (plist == NULL) {
-    SConnList list = {0};
-
     SMsgList* nList = taosMemoryCalloc(1, sizeof(SMsgList));
-    nList->numOfConn++;
     QUEUE_INIT(&nList->msgQ);
+    nList->numOfConn++;
+
+    SConnList list = {0};
+    QUEUE_INIT(&list.conns);
     list.list = nList;
 
     taosHashPut((SHashObj*)pool, key, strlen(key), (void*)&list, sizeof(list));
-
     plist = taosHashGet((SHashObj*)pool, key, strlen(key));
-    QUEUE_INIT(&plist->conns);
+
     return NULL;
   }
 
