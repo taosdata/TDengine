@@ -21,8 +21,6 @@ extern "C" {
 #endif
 #include "catalog.h"
 
-typedef void STableDataBlocks;
-
 typedef enum {
   STMT_TYPE_INSERT = 1,
   STMT_TYPE_MULTI_INSERT,
@@ -43,8 +41,8 @@ typedef enum {
 } STMT_STATUS;
 
 typedef struct SStmtTableCache {
-  STableDataBlocks *pDataBlock;
-  void             *boundTags;
+  STableDataCxt *pDataCtx;
+  void          *boundTags;
 } SStmtTableCache;
 
 typedef struct SStmtQueryResInfo {
@@ -71,10 +69,11 @@ typedef struct SStmtBindInfo {
 } SStmtBindInfo;
 
 typedef struct SStmtExecInfo {
-  int32_t      affectedRows;
-  SRequestObj *pRequest;
-  SHashObj    *pBlockHash;
-  bool         autoCreateTbl;
+  int32_t        affectedRows;
+  SRequestObj   *pRequest;
+  SHashObj      *pBlockHash;
+  STableDataCxt *pCurrBlock;
+  SSubmitTbData *pCurrTbData;
 } SStmtExecInfo;
 
 typedef struct SStmtSQLInfo {

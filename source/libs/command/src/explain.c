@@ -114,129 +114,7 @@ _return:
 
 int32_t qExplainGenerateResChildren(SPhysiNode *pNode, SExplainGroup *group, SNodeList **pChildren) {
   int32_t    tlen = 0;
-  SNodeList *pPhysiChildren = NULL;
-
-  switch (pNode->type) {
-    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN: {
-      STagScanPhysiNode *pTagScanNode = (STagScanPhysiNode *)pNode;
-      pPhysiChildren = pTagScanNode->node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
-      STableScanPhysiNode *pTblScanNode = (STableScanPhysiNode *)pNode;
-      pPhysiChildren = pTblScanNode->scan.node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN: {
-      SSystemTableScanPhysiNode *pSTblScanNode = (SSystemTableScanPhysiNode *)pNode;
-      pPhysiChildren = pSTblScanNode->scan.node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
-      SProjectPhysiNode *pPrjNode = (SProjectPhysiNode *)pNode;
-      pPhysiChildren = pPrjNode->node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
-      SSortMergeJoinPhysiNode *pJoinNode = (SSortMergeJoinPhysiNode *)pNode;
-      pPhysiChildren = pJoinNode->node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
-      SAggPhysiNode *pAggNode = (SAggPhysiNode *)pNode;
-      pPhysiChildren = pAggNode->node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
-      SExchangePhysiNode *pExchNode = (SExchangePhysiNode *)pNode;
-      pPhysiChildren = pExchNode->node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_SORT: {
-      SSortPhysiNode *pSortNode = (SSortPhysiNode *)pNode;
-      pPhysiChildren = pSortNode->node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL: {
-      SIntervalPhysiNode *pIntNode = (SIntervalPhysiNode *)pNode;
-      pPhysiChildren = pIntNode->window.node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION: {
-      SSessionWinodwPhysiNode *pSessNode = (SSessionWinodwPhysiNode *)pNode;
-      pPhysiChildren = pSessNode->window.node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE: {
-      SStateWinodwPhysiNode *pStateNode = (SStateWinodwPhysiNode *)pNode;
-      pPhysiChildren = pStateNode->window.node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
-      SPartitionPhysiNode *partitionPhysiNode = (SPartitionPhysiNode *)pNode;
-      pPhysiChildren = partitionPhysiNode->node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE: {
-      SMergePhysiNode *mergePhysiNode = (SMergePhysiNode *)pNode;
-      pPhysiChildren = mergePhysiNode->node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC: {
-      SIndefRowsFuncPhysiNode *indefPhysiNode = (SIndefRowsFuncPhysiNode *)pNode;
-      pPhysiChildren = indefPhysiNode->node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL: {
-      SMergeAlignedIntervalPhysiNode *intPhysiNode = (SMergeAlignedIntervalPhysiNode *)pNode;
-      pPhysiChildren = intPhysiNode->window.node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_FILL: {
-      SFillPhysiNode *fillPhysiNode = (SFillPhysiNode *)pNode;
-      pPhysiChildren = fillPhysiNode->node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN: {
-      STableMergeScanPhysiNode *mergePhysiNode = (STableMergeScanPhysiNode *)pNode;
-      pPhysiChildren = mergePhysiNode->scan.node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN: {
-      SBlockDistScanPhysiNode *distPhysiNode = (SBlockDistScanPhysiNode *)pNode;
-      pPhysiChildren = distPhysiNode->node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN: {
-      SLastRowScanPhysiNode *lastRowPhysiNode = (SLastRowScanPhysiNode *)pNode;
-      pPhysiChildren = lastRowPhysiNode->scan.node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN: {
-      STableCountScanPhysiNode *tableCountPhysiNode = (STableCountScanPhysiNode *)pNode;
-      pPhysiChildren = tableCountPhysiNode->scan.node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT: {
-      SGroupSortPhysiNode *groupSortPhysiNode = (SGroupSortPhysiNode *)pNode;
-      pPhysiChildren = groupSortPhysiNode->node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL: {
-      SMergeIntervalPhysiNode *mergeIntPhysiNode = (SMergeIntervalPhysiNode *)pNode;
-      pPhysiChildren = mergeIntPhysiNode->window.node.pChildren;
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC: {
-      SInterpFuncPhysiNode *interpPhysiNode = (SInterpFuncPhysiNode *)pNode;
-      pPhysiChildren = interpPhysiNode->node.pChildren;
-      break;
-    }
-    default:
-      qError("not supported physical node type %d", pNode->type);
-      QRY_ERR_RET(TSDB_CODE_APP_ERROR);
-  }
+  SNodeList *pPhysiChildren = pNode->pChildren;
 
   if (pPhysiChildren) {
     *pChildren = nodesMakeList();
@@ -1583,6 +1461,36 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       }
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT: {
+      SEventWinodwPhysiNode *pEventNode = (SEventWinodwPhysiNode *)pNode;
+      EXPLAIN_ROW_NEW(level, EXPLAIN_EVENT_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+      if (pResNode->pExecInfo) {
+        QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pEventNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pEventNode->window.node.pOutputDataBlockDesc->totalRowSize);
+      EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+      EXPLAIN_ROW_END();
+      QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+
+      if (verbose) {
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_EVENT_START_FORMAT);
+        QRY_ERR_RET(nodesNodeToSQL(pEventNode->pStartCond, tbuf + VARSTR_HEADER_SIZE,
+                                    TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_EVENT_END_FORMAT);
+        QRY_ERR_RET(nodesNodeToSQL(pEventNode->pEndCond, tbuf + VARSTR_HEADER_SIZE,
+                                    TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+      }
+      break;
+    }
     default:
       qError("not supported physical node type %d", pNode->type);
       return TSDB_CODE_APP_ERROR;
@@ -1666,7 +1574,6 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   rsp->numOfRows = htobe64((int64_t)rowNum);
 
   int32_t len = blockEncode(pBlock, rsp->data, taosArrayGetSize(pBlock->pDataBlock));
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
 
   rsp->compLen = htonl(len);
 

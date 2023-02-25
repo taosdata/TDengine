@@ -1023,7 +1023,7 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
   if (conn == NULL) {
     conn = cliCreateConn(pThrd);
     conn->pBatch = pBatch;
-    conn->ip = strdup(pList->dst);
+    conn->ip = taosStrdup(pList->dst);
 
     uint32_t ipaddr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, pList->ip);
     if (ipaddr == 0xffffffff) {
@@ -1406,7 +1406,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     uint16_t port = EPSET_GET_INUSE_PORT(&pCtx->epSet);
     CONN_CONSTRUCT_HASH_KEY(key, fqdn, port);
 
-    conn->ip = strdup(key);
+    conn->ip = taosStrdup(key);
 
     uint32_t ipaddr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, fqdn);
     if (ipaddr == 0xffffffff) {
@@ -1529,8 +1529,8 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
         pBatchList->batchLenLimit = pInst->batchSize;
         pBatchList->len += 1;
 
-        pBatchList->ip = strdup(ip);
-        pBatchList->dst = strdup(key);
+        pBatchList->ip = taosStrdup(ip);
+        pBatchList->dst = taosStrdup(key);
         pBatchList->port = port;
 
         SCliBatch* pBatch = taosMemoryCalloc(1, sizeof(SCliBatch));

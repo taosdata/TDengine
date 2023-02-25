@@ -183,6 +183,7 @@ class TDTestCase:
 
         tdLog.info("restart taosd to ensure that the data falls into the disk")
         tdSql.query("flush database %s"%(paraDict['dbName']))
+        time.sleep(10)
 
         # update to half tables
         paraDict['startTs'] = paraDict['startTs'] + int(self.rowsPerTbl / 2)

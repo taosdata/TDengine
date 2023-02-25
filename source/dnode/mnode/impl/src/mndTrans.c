@@ -1008,6 +1008,12 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen) != 0) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
+      } else if (pTrans->originRpcType == TDMT_MND_CREATE_INDEX) {
+        void   *pCont = NULL;
+        int32_t contLen = 0;
+        if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen) != 0) {
+          mndTransSetRpcRsp(pTrans, pCont, contLen);
+        }
       }
 
       if (pTrans->rpcRspLen != 0) {

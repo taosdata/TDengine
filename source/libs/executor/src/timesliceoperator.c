@@ -91,7 +91,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->tsCol.slotId);
     SFillLinearInfo* pLinearInfo = taosArrayGet(pSliceInfo->pLinearInfo, i);
 
-
     if (!IS_MATHABLE_TYPE(pColInfoData->info.type)) {
       continue;
     }
@@ -100,7 +99,6 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
     // TODO: optimize to ignore null values for linear interpolation.
     if (!pLinearInfo->isStartSet) {
       if (!colDataIsNull_s(pColInfoData, rowIndex)) {
-
         pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
         char* p = colDataGetData(pColInfoData, rowIndex);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
@@ -144,9 +142,7 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
       }
     }
   }
-
 }
-
 
 static FORCE_INLINE int32_t timeSliceEnsureBlockCapacity(STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBlock) {
   if (pBlock->info.rows < pBlock->info.capacity) {
@@ -160,8 +156,8 @@ static FORCE_INLINE int32_t timeSliceEnsureBlockCapacity(STimeSliceOperatorInfo*
   return TSDB_CODE_SUCCESS;
 }
 
-
-static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock, bool beforeTs) {
+static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock,
+                                   bool beforeTs) {
   int32_t rows = pResBlock->info.rows;
   timeSliceEnsureBlockCapacity(pSliceInfo, pResBlock);
   // todo set the correct primary timestamp column
@@ -176,6 +172,10 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
 
     if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
       colDataSetVal(pDst, rows, (char*)&pSliceInfo->current, false);
+      continue;
+    } else if (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type)) {
+      bool isFilled = true;
+      colDataAppend(pDst, pResBlock->info.rows, (char*)&isFilled, false);
       continue;
     }
 
@@ -290,6 +290,9 @@ static void addCurrentRowToResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp*
 
     if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
       colDataSetVal(pDst, pResBlock->info.rows, (char*)&pSliceInfo->current, false);
+    } else if (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type)) {
+      bool isFilled = false;
+      colDataSetVal(pDst, pResBlock->info.rows, (char*)&isFilled, false);
     } else {
       int32_t          srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
       SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, srcSlot);
@@ -307,7 +310,6 @@ static void addCurrentRowToResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp*
   pResBlock->info.rows += 1;
   return;
 }
-
 
 static int32_t initPrevRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pBlock) {
   if (pInfo->pPrevRow != NULL) {
@@ -480,11 +482,12 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           int64_t nextTs = *(int64_t*)colDataGetData(pTsCol, i + 1);
           if (nextTs > pSliceInfo->current) {
             while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
-              if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, false) && pSliceInfo->fillType == TSDB_FILL_LINEAR) {
+              if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, false) &&
+                  pSliceInfo->fillType == TSDB_FILL_LINEAR) {
                 break;
               } else {
-                pSliceInfo->current =
-                    taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+                pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
+                                                  pInterval->precision);
               }
             }
 
@@ -504,7 +507,8 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         doKeepLinearInfo(pSliceInfo, pBlock, i);
 
         while (pSliceInfo->current < ts && pSliceInfo->current <= pSliceInfo->win.ekey) {
-          if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, true) && pSliceInfo->fillType == TSDB_FILL_LINEAR) {
+          if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, true) &&
+              pSliceInfo->fillType == TSDB_FILL_LINEAR) {
             break;
           } else {
             pSliceInfo->current =
@@ -599,14 +603,15 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
 
   setOperatorInfo(pOperator, "TimeSliceOperator", QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimeslice, NULL, destroyTimeSliceOperatorInfo, optrDefaultBufFn, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(optrDummyOpenFn, doTimeslice, NULL, destroyTimeSliceOperatorInfo, optrDefaultBufFn, NULL);
 
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 
-  _error:
+_error:
   taosMemoryFree(pInfo);
   taosMemoryFree(pOperator);
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;

@@ -1,5 +1,6 @@
 ---
 title: Problem Diagnostics
+description: This document describes how to diagnose issues with your TDengine cluster.
 ---
 
 ## Network Connection Diagnostics

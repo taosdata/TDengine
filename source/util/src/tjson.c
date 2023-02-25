@@ -192,7 +192,7 @@ int32_t tjsonDupStringValue(const SJson* pJson, const char* pName, char** pVal) 
   if (NULL == p) {
     return TSDB_CODE_SUCCESS;
   }
-  *pVal = strdup(p);
+  *pVal = taosStrdup(p);
   return TSDB_CODE_SUCCESS;
 }
 

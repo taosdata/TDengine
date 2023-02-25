@@ -1,8 +1,8 @@
 ---
-toc_max_heading_level: 4
-sidebar_label: Java
 title: TDengine Java Connector
-description: The TDengine Java Connector is implemented on the standard JDBC API and provides native and REST connectors.
+sidebar_label: Java
+description: This document describes the TDengine Java Connector.
+toc_max_heading_level: 4
 ---
 
 import Tabs from '@theme/Tabs';
@@ -696,6 +696,9 @@ TaosConsumer consumer = new TaosConsumer<>(config);
 - enable.auto.commit: Specifies whether to commit automatically.
 - group.id: consumer: Specifies the group that the consumer is in.
 - value.deserializer: To deserialize the results, you can inherit `com.taosdata.jdbc.tmq.ReferenceDeserializer` and specify the result set bean. You can also inherit `com.taosdata.jdbc.tmq.Deserializer` and perform custom deserialization based on the SQL result set.
+- td.connect.type: Specifies the type connect with TDengine, `jni` or `WebSocket`. default is `jni`
+- httpConnectTimeout：WebSocket connection timeout in milliseconds, the default value is 5000 ms. It only takes effect when using WebSocket type.
+- messageWaitTimeout：socket timeout in milliseconds, the default value is 10000 ms. It only takes effect when using WebSocket type.
 - For more information, see [Consumer Parameters](../../../develop/tmq).
 
 #### Subscribe to consume data
@@ -723,6 +726,11 @@ consumer.close()
 For more information, see [Data Subscription](../../../develop/tmq).
 
 ### Usage examples
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
+In addition to the native connection, the Java Connector also supports subscribing via websocket.
 
 ```java
 public abstract class ConsumerLoop {
@@ -794,6 +802,87 @@ public abstract class ConsumerLoop {
     }
 }
 ```
+
+</TabItem>
+<TabItem value="ws" label="WebSocket connection">
+
+```java
+public abstract class ConsumerLoop {
+    private final TaosConsumer<ResultBean> consumer;
+    private final List<String> topics;
+    private final AtomicBoolean shutdown;
+    private final CountDownLatch shutdownLatch;
+
+    public ConsumerLoop() throws SQLException {
+        Properties config = new Properties();
+        config.setProperty("bootstrap.servers", "localhost:6041");
+        config.setProperty("td.connect.type", "ws");
+        config.setProperty("msg.with.table.name", "true");
+        config.setProperty("enable.auto.commit", "true");
+        config.setProperty("group.id", "group2");
+        config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ConsumerLoop$ResultDeserializer");
+
+        this.consumer = new TaosConsumer<>(config);
+        this.topics = Collections.singletonList("topic_speed");
+        this.shutdown = new AtomicBoolean(false);
+        this.shutdownLatch = new CountDownLatch(1);
+    }
+
+    public abstract void process(ResultBean result);
+
+    public void pollData() throws SQLException {
+        try {
+            consumer.subscribe(topics);
+
+            while (!shutdown.get()) {
+                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
+                for (ResultBean record : records) {
+                    process(record);
+                }
+            }
+            consumer.unsubscribe();
+        } finally {
+            consumer.close();
+            shutdownLatch.countDown();
+        }
+    }
+
+    public void shutdown() throws InterruptedException {
+        shutdown.set(true);
+        shutdownLatch.await();
+    }
+
+    public static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
+
+    }
+
+    public static class ResultBean {
+        private Timestamp ts;
+        private int speed;
+
+        public Timestamp getTs() {
+            return ts;
+        }
+
+        public void setTs(Timestamp ts) {
+            this.ts = ts;
+        }
+
+        public int getSpeed() {
+            return speed;
+        }
+
+        public void setSpeed(int speed) {
+            this.speed = speed;
+        }
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+> **Note**: The value of value.deserializer should be adjusted based on the package path of the test environment.
 
 ### Use with connection pool
 
@@ -878,8 +967,10 @@ The source code of the sample application is under `TDengine/examples/JDBC`:
 
 | taos-jdbcdriver version |                 major changes                  |
 | :---------------------: | :--------------------------------------------: |
-|       3.0.1 - 3.0.2        |  fix the resultSet data is parsed incorrectly sometimes. 3.0.1 is compiled on JDK 11, you are advised to use 3.0.2 in the JDK 8 environment    |
+|       3.1.0       |       JDBC REST connection supports subscription over WebSocket |
+|       3.0.1 - 3.0.4        |  fix the resultSet data is parsed incorrectly sometimes. 3.0.1 is compiled on JDK 11, you are advised to use other version in the JDK 8 environment    |
 |       3.0.0        |   Support for TDengine 3.0    |
+|       2.0.42        |   fix wasNull interface return value in WebSocket connection  |
 |       2.0.41        |   fix decode method of username and password in REST connection |
 |     2.0.39 - 2.0.40     | Add REST connection/request timeout parameters |
 |         2.0.38          |  JDBC REST connections add bulk pull function  |

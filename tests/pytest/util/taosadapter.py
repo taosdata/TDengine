@@ -238,14 +238,13 @@ class TAdapter:
         
         if self.running != 0:
             psCmd = f"ps -ef|grep -w {toBeKilled}| grep -v grep | awk '{{print $2}}'"
+            # psCmd = f"pgrep {toBeKilled}"            
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-            # psCmd = f"pgrep {toBeKilled}"
-            
-            while(processID):
-                killCmd = "kill %s %s > /dev/null 2>&1" % (signal, processID)
+            while(processID):                
+                killCmd = "kill %s %s > /dev/null 2>&1" % (signal, processID)                
                 os.system(killCmd)
                 time.sleep(1)
-                processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+                processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()                
             if not platform.system().lower() == 'windows':
                 port = 6041
                 fuserCmd = f"fuser -k -n tcp {port} > /dev/null"

@@ -233,7 +233,8 @@ int32_t taosThreadSpinDestroy(TdThreadSpinlock *lock) {
 
 int32_t taosThreadSpinInit(TdThreadSpinlock *lock, int32_t pshared) {
 #ifdef TD_USE_SPINLOCK_AS_MUTEX
-  assert(pshared == 0);
+  ASSERT(pshared == 0);
+  if (pshared != 0) return -1;
   return pthread_mutex_init((pthread_mutex_t *)lock, NULL);
 #else
   return pthread_spin_init((pthread_spinlock_t *)lock, pshared);

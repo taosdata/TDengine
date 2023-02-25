@@ -298,7 +298,7 @@ int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
     return -1;
   }
 #ifdef WINDOWS
-  assert(0);
+  ASSERT(0);
   return 0;
 #else
   return getsockopt(pSocket->fd, level, optname, optval, (int *)optlen);
@@ -662,7 +662,7 @@ int32_t taosKeepTcpAlive(TdSocketPtr pSocket) {
 int taosGetLocalIp(const char *eth, char *ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
-  assert(0);
+  ASSERT(0);
   return 0;
 #else
   int                fd;
@@ -689,7 +689,7 @@ int taosGetLocalIp(const char *eth, char *ip) {
 int taosValidIp(uint32_t ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
-  assert(0);
+  ASSERT(0);
   return 0;
 #else
   int ret = -1;
@@ -745,8 +745,10 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
 #endif
   serverAdd.sin_port = (uint16_t)htons(port);
 
-  if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
-    // printf("failed to open TCP socket: %d (%s)", errno, strerror(errno));
+  fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (fd < 0) { // exception
+    return false;
+  } else if (fd <= 2) { // in, out, err
     taosCloseSocketNoCheck1(fd);
     return false;
   }
@@ -924,7 +926,7 @@ uint32_t ip2uint(const char *const ip_addr) {
 
 void taosBlockSIGPIPE() {
 #ifdef WINDOWS
-  // assert(0);
+  // ASSERT(0);
 #else
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
@@ -994,7 +996,7 @@ int32_t taosGetFqdn(char *fqdn) {
 #else
     printf("failed to get hostname, reason:%s\n", strerror(errno));
 #endif
-    assert(0);
+    ASSERT(0);
     return -1;
   }
 
@@ -1031,7 +1033,7 @@ void taosIgnSIGPIPE() { signal(SIGPIPE, SIG_IGN); }
 
 void taosSetMaskSIGPIPE() {
 #ifdef WINDOWS
-  // assert(0);
+  // ASSERT(0);
 #else
   sigset_t signal_mask;
   sigemptyset(&signal_mask);

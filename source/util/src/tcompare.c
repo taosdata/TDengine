@@ -17,11 +17,11 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 #include "tcompare.h"
-#include "tutil.h"
 #include "regex.h"
 #include "tdef.h"
 #include "thash.h"
 #include "tlog.h"
+#include "tutil.h"
 #include "types.h"
 #include "osString.h"
 
@@ -1010,7 +1010,8 @@ int32_t compareJsonValDesc(const void *pLeft, const void *pRight) { return compa
  *      '_': Matches one character
  *
  */
-int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize, const SPatternCompareInfo *pInfo) {
+int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize,
+                     const SPatternCompareInfo *pInfo) {
   char c, c1;
 
   int32_t i = 0;
@@ -1020,9 +1021,9 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
   while ((i < psize) && ((c = pattern[i++]) != 0)) {
     if (c == pInfo->matchAll) { /* Match "*" */
 
-      while ((i <  psize) && ((c = pattern[i++]) == pInfo->matchAll || c == pInfo->matchOne)) {
+      while ((i < psize) && ((c = pattern[i++]) == pInfo->matchAll || c == pInfo->matchOne)) {
         if (c == pInfo->matchOne) {
-          if (j >= ssize || str[j++] == 0) { // empty string, return not match
+          if (j >= ssize || str[j++] == 0) {  // empty string, return not match
             return TSDB_PATTERN_NOWILDCARDMATCH;
           } else {
             ++nMatchChar;
@@ -1077,7 +1078,8 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
   return (j >= ssize || str[j] == 0) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
-int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize, const SPatternCompareInfo *pInfo) {
+int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize,
+                        const SPatternCompareInfo *pInfo) {
   TdUcs4 c, c1;
 
   int32_t i = 0;
@@ -1189,10 +1191,11 @@ int32_t comparestrRegexMatch(const void *pLeft, const void *pRight) {
   taosMemoryFree(str);
   taosMemoryFree(pattern);
 
-  return (ret == 0) ? 0 : 1;;
+  return (ret == 0) ? 0 : 1;
+  ;
 }
 
-int32_t comparewcsRegexMatch(const void* pString, const void* pPattern) {
+int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
   size_t len = varDataLen(pPattern);
   char  *pattern = taosMemoryMalloc(len + 1);
 

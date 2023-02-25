@@ -187,7 +187,12 @@ typedef struct SMergeLogicNode {
   bool       groupSort;
 } SMergeLogicNode;
 
-typedef enum EWindowType { WINDOW_TYPE_INTERVAL = 1, WINDOW_TYPE_SESSION, WINDOW_TYPE_STATE } EWindowType;
+typedef enum EWindowType {
+  WINDOW_TYPE_INTERVAL = 1,
+  WINDOW_TYPE_SESSION,
+  WINDOW_TYPE_STATE,
+  WINDOW_TYPE_EVENT
+} EWindowType;
 
 typedef enum EWindowAlgorithm {
   INTERVAL_ALGO_HASH = 1,
@@ -214,6 +219,8 @@ typedef struct SWindowLogicNode {
   SNode*           pTspk;
   SNode*           pTsEnd;
   SNode*           pStateExpr;
+  SNode*           pStartCond;
+  SNode*           pEndCond;
   int8_t           triggerType;
   int64_t          watermark;
   int64_t          deleteMark;
@@ -503,6 +510,14 @@ typedef struct SStateWinodwPhysiNode {
 
 typedef SStateWinodwPhysiNode SStreamStateWinodwPhysiNode;
 
+typedef struct SEventWinodwPhysiNode {
+  SWinodwPhysiNode window;
+  SNode*           pStartCond;
+  SNode*           pEndCond;
+} SEventWinodwPhysiNode;
+
+typedef SEventWinodwPhysiNode SStreamEventWinodwPhysiNode;
+
 typedef struct SSortPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;     // these are expression list of order_by_clause and parameter expression of aggregate function
@@ -550,6 +565,7 @@ typedef struct SQueryInserterNode {
   char          tableName[TSDB_TABLE_NAME_LEN];
   int32_t       vgId;
   SEpSet        epSet;
+  bool          explain;
 } SQueryInserterNode;
 
 typedef struct SDataDeleterNode {
