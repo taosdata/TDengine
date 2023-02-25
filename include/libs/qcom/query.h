@@ -26,6 +26,7 @@ extern "C" {
 #include "tlog.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
+#include "systable.h"
 
 typedef enum {
   JOB_TASK_STATUS_NULL = 0,
@@ -284,9 +285,10 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 
 #define REQUEST_TOTAL_EXEC_TIMES 2
 
-#define IS_SYS_DBNAME(_dbname)                                                    \
-  (((*(_dbname) == 'i') && (0 == strcmp(_dbname, TSDB_INFORMATION_SCHEMA_DB))) || \
-   ((*(_dbname) == 'p') && (0 == strcmp(_dbname, TSDB_PERFORMANCE_SCHEMA_DB))))
+#define IS_INFORMATION_SCHEMA_DB(_name) ((*(_name) == 'i') && (0 == strcmp(_name, TSDB_INFORMATION_SCHEMA_DB)))
+#define IS_PERFORMANCE_SCHEMA_DB(_name) ((*(_name) == 'p') && (0 == strcmp(_name, TSDB_PERFORMANCE_SCHEMA_DB)))
+
+#define IS_SYS_DBNAME(_dbname) (IS_INFORMATION_SCHEMA_DB(_dbname) || IS_PERFORMANCE_SCHEMA_DB(_dbname))
 
 #define qFatal(...)                                                     \
   do {                                                                  \

@@ -107,7 +107,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     pOperator->status = OP_NOT_OPENED;
 
     SStreamScanInfo* pInfo = pOperator->info;
-
+    qDebug("stream set total blocks:%d, task id:%s" PRIx64, (int32_t)numOfBlocks, id);
     ASSERT(pInfo->validBlockIndex == 0);
     ASSERT(taosArrayGetSize(pInfo->pBlockLists) == 0);
 
@@ -1047,18 +1047,9 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
       tsdbReaderClose(pTSInfo->base.dataReader);
       pTSInfo->base.dataReader = NULL;
-#if 0
-      if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus) &&
-          pInfo->tqReader->pWalReader->curVersion != pOffset->version) {
-        qError("prepare scan ver %" PRId64 " actual ver %" PRId64 ", last %" PRId64, pOffset->version,
-               pInfo->tqReader->pWalReader->curVersion, pTaskInfo->streamInfo.lastStatus.version);
-        ASSERT(0);
-      }
-#endif
       if (tqSeekVer(pInfo->tqReader, pOffset->version + 1) < 0) {
         return -1;
       }
-      ASSERT(pInfo->tqReader->pWalReader->curVersion == pOffset->version + 1);
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
       /*pInfo->blockType = STREAM_INPUT__TABLE_SCAN;*/
       int64_t uid = pOffset->uid;

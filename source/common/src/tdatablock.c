@@ -98,6 +98,9 @@ int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const
 
       while (newSize < pAttr->length + dataLen) {
         newSize = newSize * 1.5;
+        if (newSize > UINT32_MAX) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
       }
 
       char* buf = taosMemoryRealloc(pColumnInfoData->pData, newSize);

@@ -61,7 +61,7 @@ static int32_t init_env() {
   printf("create database\n");
   pRes = taos_query(pConn, "drop topic topicname");
   if (taos_errno(pRes) != 0) {
-    printf("error in drop tmqdb, reason:%s\n", taos_errstr(pRes));
+    printf("error in drop topicname, reason:%s\n", taos_errstr(pRes));
   }
   taos_free_result(pRes);
 

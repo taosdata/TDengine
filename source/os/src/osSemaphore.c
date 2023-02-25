@@ -132,7 +132,8 @@ int tsem_wait(tsem_t *psem) {
 
 int tsem_timewait(tsem_t *psem, int64_t milis) {
   if (psem == NULL || *psem == NULL) return -1;
-  dispatch_semaphore_wait(*psem, milis * 1000 * 1000);
+  dispatch_time_t time = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(milis * USEC_PER_SEC));
+  dispatch_semaphore_wait(*psem, time);
   return 0;
 }
 
