@@ -64,6 +64,9 @@ extern "C" {
 #define EXPLAIN_IGNORE_GROUPID_FORMAT "Ignore Group Id: %s"
 #define EXPLAIN_PARTITION_KETS_FORMAT "Partition Key: "
 #define EXPLAIN_INTERP_FORMAT "Interp"
+#define EXPLAIN_EVENT_FORMAT "Event"
+#define EXPLAIN_EVENT_START_FORMAT "Start Cond: "
+#define EXPLAIN_EVENT_END_FORMAT "End Cond: "
 
 #define EXPLAIN_PLANNING_TIME_FORMAT "Planning Time: %.3f ms"
 #define EXPLAIN_EXEC_TIME_FORMAT "Execution Time: %.3f ms"
@@ -98,6 +101,8 @@ extern "C" {
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"
 #define COMMAND_ENABLE_RESCHEDULE "enableReSchedule"
 #define COMMAND_CATALOG_DEBUG "catalogDebug"
+#define COMMAND_ENABLE_MEM_DEBUG "enableMemDebug"
+#define COMMAND_DISABLE_MEM_DEBUG "disableMemDebug"
 
 typedef struct SExplainGroup {
   int32_t   nodeNum;

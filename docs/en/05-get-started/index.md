@@ -1,6 +1,6 @@
 ---
 title: Get Started
-description: This article describes how to install TDengine and test its performance.
+description: This document describes how to install TDengine on various platforms.
 ---
 
 import GitHubSVG from './github.svg'

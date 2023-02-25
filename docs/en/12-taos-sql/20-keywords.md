@@ -1,6 +1,7 @@
 ---
-sidebar_label: Reserved Keywords
 title: Reserved Keywords
+sidebar_label: Reserved Keywords
+description: This document describes the reserved keywords in TDengine that cannot be used in object names.
 ---
 
 ## Keyword List
@@ -17,6 +18,7 @@ The following list shows all reserved keywords:
 - ADD
 - AFTER
 - AGGREGATE
+- ALIVE
 - ALL
 - ALTER
 - ANALYZE

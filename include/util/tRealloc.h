@@ -52,11 +52,13 @@ _exit:
   return code;
 }
 
-static FORCE_INLINE void tFree(uint8_t *pBuf) {
-  if (pBuf) {
-    taosMemoryFree(pBuf - sizeof(int64_t));
-  }
-}
+#define tFree(BUF)                                        \
+  do {                                                    \
+    if (BUF) {                                            \
+      taosMemoryFree((uint8_t *)(BUF) - sizeof(int64_t)); \
+      (BUF) = NULL;                                       \
+    }                                                     \
+  } while (0)
 
 #ifdef __cplusplus
 }

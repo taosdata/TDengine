@@ -63,7 +63,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
       wInfo("vgId:%d, restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
     }
   }
-  walRemoveMeta(pWal);
+  (void)walRemoveMeta(pWal);
 
   pWal->writeCur = -1;
   pWal->totSize = 0;
@@ -90,7 +90,7 @@ int32_t walCommit(SWal *pWal, int64_t ver) {
   if (ver < pWal->vers.commitVer) {
     return 0;
   }
-  if (ver > pWal->vers.lastVer) {
+  if (ver > pWal->vers.lastVer || pWal->vers.commitVer < pWal->vers.snapshotVer) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }
@@ -121,7 +121,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     // delete files in descending order
     int fileSetSize = taosArrayGetSize(pWal->fileInfoSet);
     for (int i = pWal->writeCur + 1; i < fileSetSize; i++) {
-      SWalFileInfo* pInfo = taosArrayPop(pWal->fileInfoSet);
+      SWalFileInfo *pInfo = taosArrayPop(pWal->fileInfoSet);
 
       walBuildLogName(pWal, pInfo->firstVer, fnameStr);
       wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
@@ -374,6 +374,7 @@ int32_t walEndSnapshot(SWal *pWal) {
     walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
     wDebug("vgId:%d, wal remove file %s", pWal->cfg.vgId, fnameStr);
     if (taosRemoveFile(fnameStr) < 0 && errno != ENOENT) {
+      wError("vgId:%d, failed to remove idx file %s due to %s", pWal->cfg.vgId, fnameStr, strerror(errno));
       goto END;
     }
   }
@@ -445,7 +446,8 @@ END:
 static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   SWalIdxEntry  entry = {.ver = ver, .offset = offset};
   SWalFileInfo *pFileInfo = walGetCurFileInfo(pWal);
-  int64_t       idxOffset = (entry.ver - pFileInfo->firstVer) * sizeof(SWalIdxEntry);
+
+  int64_t idxOffset = (entry.ver - pFileInfo->firstVer) * sizeof(SWalIdxEntry);
   wDebug("vgId:%d, write index, index:%" PRId64 ", offset:%" PRId64 ", at %" PRId64, pWal->cfg.vgId, ver, offset,
          idxOffset);
 

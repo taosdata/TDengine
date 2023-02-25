@@ -1280,18 +1280,14 @@ static int32_t smaIndexOptFindSmaFunc(SNode* pQueryFunc, SNodeList* pSmaFuncs) {
   return -1;
 }
 
-static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNodeList* pSmaFuncs, SNodeList** pOutput,
-                                        int32_t* pWStrartIndex) {
+static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNodeList* pSmaFuncs,
+                                        SNodeList** pOutput) {
   SNodeList* pCols = NULL;
   SNode*     pFunc = NULL;
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    index = 0;
   int32_t    smaFuncIndex = -1;
-  *pWStrartIndex = -1;
   FOREACH(pFunc, pFuncs) {
-    if (FUNCTION_TYPE_WSTART == ((SFunctionNode*)pFunc)->funcType) {
-      *pWStrartIndex = index;
-    }
     smaFuncIndex = smaIndexOptFindSmaFunc(pFunc, pSmaFuncs);
     if (smaFuncIndex < 0) {
       break;
@@ -1313,8 +1309,7 @@ static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNo
   return code;
 }
 
-static int32_t smaIndexOptCouldApplyIndex(SScanLogicNode* pScan, STableIndexInfo* pIndex, SNodeList** pCols,
-                                          int32_t* pWStrartIndex) {
+static int32_t smaIndexOptCouldApplyIndex(SScanLogicNode* pScan, STableIndexInfo* pIndex, SNodeList** pCols) {
   SWindowLogicNode* pWindow = (SWindowLogicNode*)pScan->node.pParent;
   if (!smaIndexOptEqualInterval(pScan, pWindow, pIndex)) {
     return TSDB_CODE_SUCCESS;
@@ -1322,23 +1317,24 @@ static int32_t smaIndexOptCouldApplyIndex(SScanLogicNode* pScan, STableIndexInfo
   SNodeList* pSmaFuncs = NULL;
   int32_t    code = nodesStringToList(pIndex->expr, &pSmaFuncs);
   if (TSDB_CODE_SUCCESS == code) {
-    code = smaIndexOptCreateSmaCols(pWindow->pFuncs, pIndex->dstTbUid, pSmaFuncs, pCols, pWStrartIndex);
+    code = smaIndexOptCreateSmaCols(pWindow->pFuncs, pIndex->dstTbUid, pSmaFuncs, pCols);
   }
   nodesDestroyList(pSmaFuncs);
   return code;
 }
 
 static int32_t smaIndexOptApplyIndex(SLogicSubplan* pLogicSubplan, SScanLogicNode* pScan, STableIndexInfo* pIndex,
-                                     SNodeList* pSmaCols, int32_t wstrartIndex) {
+                                     SNodeList* pSmaCols) {
   SLogicNode* pSmaScan = NULL;
   int32_t     code = smaIndexOptCreateSmaScan(pScan, pIndex, pSmaCols, &pSmaScan);
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceLogicNode(pLogicSubplan, pScan->node.pParent, pSmaScan);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    nodesDestroyNode((SNode*)pScan->node.pParent);
+  }
   return code;
 }
-
-static void smaIndexOptDestroySmaIndex(void* p) { taosMemoryFree(((STableIndexInfo*)p)->expr); }
 
 static int32_t smaIndexOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SScanLogicNode* pScan) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1346,12 +1342,9 @@ static int32_t smaIndexOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   for (int32_t i = 0; i < nindexes; ++i) {
     STableIndexInfo* pIndex = taosArrayGet(pScan->pSmaIndexes, i);
     SNodeList*       pSmaCols = NULL;
-    int32_t          wstrartIndex = -1;
-    code = smaIndexOptCouldApplyIndex(pScan, pIndex, &pSmaCols, &wstrartIndex);
+    code = smaIndexOptCouldApplyIndex(pScan, pIndex, &pSmaCols);
     if (TSDB_CODE_SUCCESS == code && NULL != pSmaCols) {
-      code = smaIndexOptApplyIndex(pLogicSubplan, pScan, pIndex, pSmaCols, wstrartIndex);
-      taosArrayDestroyEx(pScan->pSmaIndexes, smaIndexOptDestroySmaIndex);
-      pScan->pSmaIndexes = NULL;
+      code = smaIndexOptApplyIndex(pLogicSubplan, pScan, pIndex, pSmaCols);
       pCxt->optimized = true;
       break;
     }

@@ -208,6 +208,7 @@ DLL_EXPORT TAOS_ROW *taos_result_block(TAOS_RES *res);
 
 DLL_EXPORT const char *taos_get_server_info(TAOS *taos);
 DLL_EXPORT const char *taos_get_client_info();
+DLL_EXPORT int         taos_get_current_db(TAOS *taos, char *database, int len, int *required);
 
 DLL_EXPORT const char *taos_errstr(TAOS_RES *res);
 DLL_EXPORT int         taos_errno(TAOS_RES *res);

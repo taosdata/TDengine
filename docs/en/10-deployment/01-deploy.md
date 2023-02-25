@@ -1,6 +1,7 @@
 ---
-sidebar_label: Manual Deployment
 title: Manual Deployment and Management
+sidebar_label: Manual Deployment
+description: This document describes how to deploy TDengine on a server.
 ---
 
 ## Prerequisites

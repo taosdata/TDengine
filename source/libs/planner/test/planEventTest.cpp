@@ -13,15 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_CACHE_H_
-#define _TD_CACHE_H_
+#include "planTestUtil.h"
+#include "planner.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+using namespace std;
 
-#ifdef __cplusplus
+class PlanEventTest : public PlannerTestBase {};
+
+TEST_F(PlanEventTest, basic) {
+  useDb("root", "test");
+
+  run("SELECT COUNT(*) FROM t1 EVENT_WINDOW START WITH c1 > 10 END WITH c2 = 'abc'");
 }
-#endif
 
-#endif /*_TD_CACHE_H_*/
+TEST_F(PlanEventTest, stable) {
+  useDb("root", "test");
+
+  run("SELECT COUNT(*) FROM st1 EVENT_WINDOW START WITH c1 > 10 END WITH c2 = 'abc'");
+}

@@ -403,7 +403,6 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
         desc.subPlanNum = 0;
       }
       desc.subPlanNum = taosArrayGetSize(desc.subDesc);
-      ASSERT(desc.subPlanNum == taosArrayGetSize(desc.subDesc));
     } else {
       desc.subDesc = NULL;
     }
@@ -789,7 +788,7 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgInfo.pData = buf;
       pInfo->msgInfo.len = tlen;
       pInfo->msgType = TDMT_MND_HEARTBEAT;
-      pInfo->param = strdup(pAppHbMgr->key);
+      pInfo->param = taosStrdup(pAppHbMgr->key);
       pInfo->paramFreeFp = taosMemoryFree;
       pInfo->requestId = generateRequestId();
       pInfo->requestObjRefId = 0;
@@ -843,7 +842,10 @@ static void hbStopThread() {
 }
 
 SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
-  hbMgrInit();
+  if(hbMgrInit() != 0){
+    terrno = TSDB_CODE_TSC_INTERNAL_ERROR;
+    return NULL;
+  }
   SAppHbMgr *pAppHbMgr = taosMemoryMalloc(sizeof(SAppHbMgr));
   if (pAppHbMgr == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -854,7 +856,7 @@ SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
   pAppHbMgr->connKeyCnt = 0;
   pAppHbMgr->reportCnt = 0;
   pAppHbMgr->reportBytes = 0;
-  pAppHbMgr->key = strdup(key);
+  pAppHbMgr->key = taosStrdup(key);
 
   // init app info
   pAppHbMgr->pAppInstInfo = pAppInstInfo;
@@ -929,16 +931,28 @@ int hbMgrInit() {
   TdThreadMutexAttr attr = {0};
 
   int ret = taosThreadMutexAttrInit(&attr);
-  assert(ret == 0);
+  if(ret != 0){
+    uError("hbMgrInit:taosThreadMutexAttrInit error")
+    return ret;
+  }
 
   ret = taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE);
-  assert(ret == 0);
+  if(ret != 0){
+    uError("hbMgrInit:taosThreadMutexAttrSetType error")
+    return ret;
+  }
 
   ret = taosThreadMutexInit(&clientHbMgr.lock, &attr);
-  assert(ret == 0);
+  if(ret != 0){
+    uError("hbMgrInit:taosThreadMutexInit error")
+    return ret;
+  }
 
   ret = taosThreadMutexAttrDestroy(&attr);
-  assert(ret == 0);
+  if(ret != 0){
+    uError("hbMgrInit:taosThreadMutexAttrDestroy error")
+    return ret;
+  }
 
   // init handle funcs
   hbMgrInitHandle();

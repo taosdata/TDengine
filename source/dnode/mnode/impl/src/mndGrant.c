@@ -129,7 +129,7 @@ void    grantParseParameter() { mError("can't parsed parameter k"); }
 void    grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {}
 void    grantAdd(EGrantType grant, uint64_t value) {}
 void    grantRestore(EGrantType grant, uint64_t value) {}
-int32_t dmProcessGrantReq(SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
+int32_t dmProcessGrantReq(void* pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 
 #endif
 
