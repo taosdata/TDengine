@@ -66,6 +66,7 @@ typedef struct {
   int64_t commitVer;
   int64_t appliedVer;
   int64_t lastVer;
+  int64_t logRetention;
 } SWalVer;
 
 #pragma pack(push, 1)
@@ -126,7 +127,7 @@ typedef struct SWal {
 typedef struct {
   int64_t refId;
   int64_t refVer;
-  int64_t refFile;
+//  int64_t refFile;
   SWal   *pWal;
 } SWalRef;
 
@@ -180,7 +181,7 @@ void walFsync(SWal *, bool force);
 int32_t walCommit(SWal *, int64_t ver);
 int32_t walRollback(SWal *, int64_t ver);
 // notify that previous logs can be pruned safely
-int32_t walBeginSnapshot(SWal *, int64_t ver);
+int32_t walBeginSnapshot(SWal *, int64_t ver, int64_t logRetention);
 int32_t walEndSnapshot(SWal *);
 int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
 // for tq
