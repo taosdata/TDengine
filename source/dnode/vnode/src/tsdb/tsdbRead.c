@@ -3785,6 +3785,7 @@ int32_t tsdbSetTableList(STsdbReader* pReader, const void* pTableList, int32_t n
     if (code) {
       return code;
     }
+    pReader->status.uidList.tableUidList = (uint64_t*)taosMemoryRealloc(pReader->status.uidList.tableUidList, sizeof(uint64_t) * num);
   }
 
   taosHashClear(pReader->status.pTableMap);
