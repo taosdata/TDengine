@@ -689,7 +689,6 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   if (conn->status == ConnInPool) {
     return;
   }
-  tError("add conn to pool");
   allocConnRef(conn, true);
 
   SCliThrd* thrd = conn->hostThrd;
