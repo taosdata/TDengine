@@ -110,7 +110,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf);
 
 STSBuf* tsBufClone(STSBuf* pTSBuf);
 
-STSGroupBlockInfo* tsBufGetGroupBlockInfo(STSBuf* pTSBuf, int32_t id);
+SArray* tsBufGetGroupBlockInfo(STSBuf* pTSBuf, int32_t id);
 
 void    tsBufFlush(STSBuf* pTSBuf);
 void    tsBufResetPos(STSBuf* pTSBuf);
