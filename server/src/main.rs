@@ -14,7 +14,7 @@ use futures_util::StreamExt as _;
 
 use clap::Parser;
 use rust_embed::RustEmbed;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -45,6 +45,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(args.clone())
             .route("/", web::get().to(index))
             .route("/api/x/{api:.*}", web::to(x_api))
+            .route("/api/-/profile", web::to(profile))
             .route("/api-doc/openapi.json", web::to(x_api_doc))
             .route("/{route}", web::get().to(index))
             .service(Embed::new("/", &Asset))
@@ -61,6 +62,11 @@ async fn index() -> impl Responder {
             .unwrap()
             .to_string(),
     )
+}
+
+async fn profile(args: web::Data<Args>) -> impl Responder {
+    HttpResponse::Ok()
+        .json(&args.profile)
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -131,6 +137,17 @@ async fn x_api_doc(
 #[folder = "../dist/"]
 struct Asset;
 
+#[derive(Parser, Debug, Clone, Deserialize, Serialize)]
+struct Profile {
+    /// Persist cluster url, rg.: http://192.168.0.201:16041
+    #[clap(short, long, env = "EXPLORER_CLUSTER")]
+    cluster: Option<String>,
+
+    /// External link for Grafana TDinsight dashboard, use direct ip or hostname like: http://grafana:3000/d/tdinsight-3x/tdinsight-for-3-x?orgId=1&refresh=30s
+    #[clap(short, long, env = "EXPLORER_DASHBOARD")]
+    dashboard: Option<String>,
+}
+
 #[derive(Parser, Debug, Clone, Deserialize)]
 #[clap(author, version, about, long_about = include_str!("../README.md"))]
 struct Args {
@@ -155,4 +172,8 @@ struct Args {
     /// API end point for data streaming task management.
     #[clap(short, long, env = "EXPLORER_X_API")]
     x_api: Option<String>,
+
+    #[clap(flatten)]
+    #[serde(flatten)]
+    profile: Profile,
 }
