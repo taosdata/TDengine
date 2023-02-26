@@ -888,13 +888,6 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
   return TSDB_CODE_SUCCESS;
 }
 
-void releaseSource(STuplePos* pPos) {
-  if (pPos->pageId == -1) {
-    return;
-  }
-  // Todo(liuyao) relase row
-}
-
 // This function append the selectivity to subsidiaries function context directly, without fetching data
 // from intermediate disk based buf page
 void appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t pos) {
@@ -926,10 +919,7 @@ void appendSelectivityValue(SqlFunctionCtx* pCtx, int32_t rowIndex, int32_t pos)
   }
 }
 
-void replaceTupleData(STuplePos* pDestPos, STuplePos* pSourcePos) {
-  releaseSource(pDestPos);
-  *pDestPos = *pSourcePos;
-}
+void replaceTupleData(STuplePos* pDestPos, STuplePos* pSourcePos) { *pDestPos = *pSourcePos; }
 
 int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int32_t isMinFunc) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
@@ -1606,7 +1596,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
   int32_t          type = pCol->info.type;
 
   SPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  if (pCtx->scanFlag == REPEAT_SCAN && pInfo->stage == 0) {
+  if (pCtx->scanFlag == MAIN_SCAN && pInfo->stage == 0) {
     pInfo->stage += 1;
 
     // all data are null, set it completed
@@ -1689,26 +1679,63 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
 }
 
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  SVariant* pVal = &pCtx->param[1].param;
-  int32_t   code = 0;
-  double    v = 0;
-
-  GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
-
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo*     ppInfo = (SPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
 
+  int32_t code = 0;
+  double  v = 0;
+
   tMemBucket* pMemBucket = ppInfo->pMemBucket;
   if (pMemBucket != NULL && pMemBucket->total > 0) {  // check for null
-    code = getPercentile(pMemBucket, v, &ppInfo->result);
+    if (pCtx->numOfParams > 2) {
+      char   buf[512] = {0};
+      size_t len = 1;
+
+      varDataVal(buf)[0] = '[';
+      for (int32_t i = 1; i < pCtx->numOfParams; ++i) {
+        SVariant* pVal = &pCtx->param[i].param;
+
+        GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
+
+        int32_t code = getPercentile(pMemBucket, v, &ppInfo->result);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _fin_error;
+        }
+
+        if (i == pCtx->numOfParams - 1) {
+          len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf]", ppInfo->result);
+        } else {
+          len += snprintf(varDataVal(buf) + len, sizeof(buf) - VARSTR_HEADER_SIZE - len, "%.6lf, ", ppInfo->result);
+        }
+      }
+
+      int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+      SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+      varDataSetLen(buf, len);
+      colDataAppend(pCol, pBlock->info.rows, buf, false);
+
+      tMemBucketDestroy(pMemBucket);
+      return pResInfo->numOfRes;
+    } else {
+      SVariant* pVal = &pCtx->param[1].param;
+
+      GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
+
+      code = getPercentile(pMemBucket, v, &ppInfo->result);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _fin_error;
+      }
+
+      tMemBucketDestroy(pMemBucket);
+      return functionFinalize(pCtx, pBlock);
+    }
   }
+
+_fin_error:
 
   tMemBucketDestroy(pMemBucket);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  return functionFinalize(pCtx, pBlock);
+  return code;
 }
 
 bool getApercentileFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
@@ -5413,6 +5440,7 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
   }
   pDistInfo->numOfVgroups += (p1.numOfTables != 0 ? 1 : 0);
 
+  pDistInfo->numOfVgroups += (p1.numOfTables != 0 ? 1 : 0);
   for (int32_t i = 0; i < tListLen(pDistInfo->blockRowsHisto); ++i) {
     pDistInfo->blockRowsHisto[i] += p1.blockRowsHisto[i];
   }

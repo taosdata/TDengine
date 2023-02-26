@@ -163,7 +163,7 @@ endi
 
 if $data01 != 4 then
   print =====data01=$data01
-  return -1
+  goto loop3
 endi
 
 
@@ -239,7 +239,7 @@ endi
 
 if $data01 != 6 then
   print =====data01=$data01
-  return -1
+  goto loop5
 endi
 
 

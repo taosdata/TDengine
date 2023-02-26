@@ -124,7 +124,7 @@ static char  tsProcIOFile[25] = {0};
 static void taosGetProcIOnfos() {
   tsPageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
   tsOpenMax = sysconf(_SC_OPEN_MAX);
-  tsStreamMax = sysconf(_SC_STREAM_MAX);
+  tsStreamMax = TMAX(sysconf(_SC_STREAM_MAX), 0);
   tsProcId = (pid_t)syscall(SYS_gettid);
 
   snprintf(tsProcMemFile, sizeof(tsProcMemFile), "/proc/%d/status", tsProcId);
@@ -250,7 +250,7 @@ void taosGetSystemInfo() {
 
 int32_t taosGetEmail(char *email, int32_t maxLen) {
 #ifdef WINDOWS
-  // assert(0);
+  // ASSERT(0);
 #elif defined(_TD_DARWIN_64)
   const char *filepath = "/usr/local/taos/email";
 
@@ -280,11 +280,46 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 #endif
 }
 
+#ifdef WINDOWS
+bool getWinVersionReleaseName(char *releaseName, int32_t maxLen) {
+  TCHAR          szFileName[MAX_PATH];
+  DWORD             dwHandle;
+  DWORD             dwLen;
+  LPVOID            lpData;
+  UINT              uLen;
+  VS_FIXEDFILEINFO *pFileInfo;
 
+  GetWindowsDirectory(szFileName, MAX_PATH);
+  wsprintf(szFileName, L"%s%s", szFileName, L"\\explorer.exe");
+  dwLen = GetFileVersionInfoSize(szFileName, &dwHandle);
+  if (dwLen == 0) {
+    return false;
+  }
+
+  lpData = malloc(dwLen);
+  if (lpData == NULL) return false;
+  if (!GetFileVersionInfo(szFileName, dwHandle, dwLen, lpData)) {
+    free(lpData);
+    return false;
+  }
+
+  if (!VerQueryValue(lpData, L"\\", (LPVOID *)&pFileInfo, &uLen)) {
+    free(lpData);
+    return false;
+  }
+
+  snprintf(releaseName, maxLen, "Windows %d.%d", HIWORD(pFileInfo->dwProductVersionMS),
+           LOWORD(pFileInfo->dwProductVersionMS));
+  free(lpData);
+  return true;
+}
+#endif
 
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 #ifdef WINDOWS
-  snprintf(releaseName, maxLen, "Windows");
+  if (!getWinVersionReleaseName(releaseName, maxLen)) {
+    snprintf(releaseName, maxLen, "Windows");
+  }
   return 0;
 #elif defined(_TD_DARWIN_64)
   char osversion[32];
@@ -358,6 +393,10 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
     code = 0;
     done |= 1;
   }
+  int endPos = strlen(cpuModel)-1;
+  if (cpuModel[endPos] == '\n') {
+    cpuModel[endPos] = '\0';
+  }
   taosCloseCmd(&pCmd);
 
   pCmd = taosOpenCmd("sysctl -n machdep.cpu.core_count");
@@ -400,11 +439,14 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 
   if (code != 0 && (done & 1) == 0) {
     TdFilePtr pFile1 = taosOpenFile("/proc/device-tree/model", TD_FILE_READ | TD_FILE_STREAM);
-    if (pFile1 == NULL) return code;
-    taosGetsFile(pFile1, maxLen, cpuModel);
-    taosCloseFile(&pFile1);
-    code = 0;
-    done |= 1;
+    if (pFile1 != NULL) {
+      ssize_t bytes = taosGetsFile(pFile1, maxLen, cpuModel);
+      taosCloseFile(&pFile);
+      if (bytes > 0) {
+        code = 0;
+        done |= 1;
+      }
+    }
   }
 
   if (code != 0 && (done & 1) == 0) {
@@ -459,7 +501,7 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
     curSysTotal = curSysUsed + sysCpu.idle;
     curProcTotal = procCpu.utime + procCpu.stime + procCpu.cutime + procCpu.cstime;
 
-    if (curSysTotal > lastSysTotal && curSysUsed >= lastSysUsed && curProcTotal >= lastProcTotal) {
+    if (curSysTotal - lastSysTotal > 0 && curSysUsed >= lastSysUsed && curProcTotal >= lastProcTotal) {
       if (cpu_system != NULL) {
         *cpu_system = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
       }
@@ -569,12 +611,6 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
     if (strstr(line, "VmRSS:") != NULL) {
       break;
     }
-  }
-
-  if (strlen(line) < 0) {
-    // printf("read file:%s failed", tsProcMemFile);
-    taosCloseFile(&pFile);
-    return -1;
   }
 
   char tmp[10];
@@ -865,7 +901,7 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
 
 char *taosGetCmdlineByPID(int pid) {
 #ifdef WINDOWS
-  assert(0);
+  ASSERT(0);
   return "";
 #elif defined(_TD_DARWIN_64)
   static char cmdline[1024];

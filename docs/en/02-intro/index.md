@@ -1,5 +1,6 @@
 ---
 title: Introduction
+description: This document introduces the major features, competitive advantages, typical use cases, and benchmarks of TDengine.
 toc_max_heading_level: 2
 ---
 

@@ -22,19 +22,6 @@
 extern "C" {
 #endif
 
-#if 0
-#define TARRAY(TYPE)             \
-  struct {                       \
-    int32_t      tarray_size_;   \
-    int32_t      tarray_neles_;  \
-    struct TYPE* td_array_data_; \
-  }
-
-#define TARRAY_SIZE(ARRAY)        (ARRAY)->tarray_size_
-#define TARRAY_NELES(ARRAY)       (ARRAY)->tarray_neles_
-#define TARRAY_ELE_AT(ARRAY, IDX) ((ARRAY)->td_array_data_ + idx)
-#endif
-
 #define TARRAY_MIN_SIZE               8
 #define TARRAY_GET_ELEM(array, index) ((void*)((char*)((array)->pData) + (index) * (array)->elemSize))
 #define TARRAY_ELEM_IDX(array, ele)   (POINTER_DISTANCE(ele, (array)->pData) / (array)->elemSize)
@@ -45,6 +32,9 @@ typedef struct SArray {
   uint32_t elemSize;
   void*    pData;
 } SArray;
+
+#define TARRAY_SIZE(array) ((array)->size)
+#define TARRAY_DATA(array) ((array)->pData)
 
 /**
  *
@@ -186,6 +176,13 @@ void taosArrayPopTailBatch(SArray* pArray, size_t cnt);
  * @param index
  */
 void taosArrayRemove(SArray* pArray, size_t index);
+
+/**
+ * remove batch entry from the given index
+ * @param pArray
+ * @param index
+ */
+void taosArrayRemoveBatch(SArray* pArray, size_t index, size_t num, FDelete fp);
 
 /**
  * copy the whole array from source to destination

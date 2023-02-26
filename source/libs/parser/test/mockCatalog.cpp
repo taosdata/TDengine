@@ -102,6 +102,10 @@ void generateInformationSchema(MockCatalogService* mcs) {
       .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
       .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
       .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_COLS, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+      .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+      .done();
   mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USER_PRIVILEGES, TSDB_SYSTEM_TABLE, 2)
       .addColumn("user_name", TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN)
       .addColumn("privilege", TSDB_DATA_TYPE_BINARY, 10)
