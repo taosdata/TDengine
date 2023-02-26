@@ -1035,8 +1035,9 @@ int32_t qStreamScanMemData(qTaskInfo_t tinfo, const SSubmitReq* pReq, int64_t sc
 
 int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
-  ASSERT(pTaskInfo->streamInfo.submit.msgStr == NULL);
+  ASSERT((pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE )&& (pTaskInfo->streamInfo.submit.msgStr == NULL));
+  qDebug("set the submit block for future scan");
+
   pTaskInfo->streamInfo.submit = submit;
   return 0;
 }
@@ -1050,6 +1051,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus)) {
     return 0;
   }
+
   if (subType == TOPIC_SUB_TYPE__COLUMN) {
     uint16_t type = pOperator->operatorType;
     pOperator->status = OP_OPENED;

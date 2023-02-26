@@ -1264,8 +1264,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
         goto _exit;
       }
 
-      for (int32_t i = 1; i < nColData; i++) {
-        if (aColData[i].nVal != aColData[0].nVal) {
+      for (int32_t j = 1; j < nColData; j++) {
+        if (aColData[j].nVal != aColData[0].nVal) {
           code = TSDB_CODE_INVALID_MSG;
           goto _exit;
         }
@@ -1299,8 +1299,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       SVCreateTbRsp *pCreateTbRsp = taosArrayReserve(pSubmitRsp->aCreateTbRsp, 1);
 
       // create table
-      if (metaCreateTable(pVnode->pMeta, version, pSubmitTbData->pCreateTbReq, &pCreateTbRsp->pMeta) ==
-          0) {  // create table success
+      if (metaCreateTable(pVnode->pMeta, version, pSubmitTbData->pCreateTbReq, &pCreateTbRsp->pMeta) == 0) {
+        // create table success
 
         if (newTbUids == NULL &&
             (newTbUids = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(int64_t))) == NULL) {
@@ -1330,7 +1330,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
     pSubmitRsp->affectedRows += affectedRows;
   }
 
-  // update table uid list
+  // update the affected table uid list
   if (taosArrayGetSize(newTbUids) > 0) {
     vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode),
            (int32_t)taosArrayGetSize(newTbUids));

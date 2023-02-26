@@ -197,7 +197,7 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
     return -1;
   }
 
-  tqDebug("tq save %s(%d) handle consumer:0x%" PRIx64 "epoch:%d  vgId:%d", pHandle->subKey,
+  tqDebug("tq save %s(%d) handle consumer:0x%" PRIx64 " epoch:%d vgId:%d", pHandle->subKey,
           (int32_t)strlen(pHandle->subKey), pHandle->consumerId, pHandle->epoch, TD_VID(pTq->pVnode));
 
   void* buf = taosMemoryCalloc(1, vlen);
