@@ -223,6 +223,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_TOPIC_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x0395)  //"Topic already exists)
 
 #define TSDB_CODE_MND_INVALID_FORMAT            TAOS_DEF_ERROR_CODE(0, 0x0396)  //"Invalid format)
+#define TSDB_CODE_MND_DUP_TID                   TAOS_DEF_ERROR_CODE(0, 0x0397)  //"Duplicated tid)
+#define TSDB_CODE_MND_ID_POOL_IS_FULL           TAOS_DEF_ERROR_CODE(0, 0x0398)  //"Id pool is full)
 
 // dnode
 #define TSDB_CODE_DND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0400)  //"Message not processed"

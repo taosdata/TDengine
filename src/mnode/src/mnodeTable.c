@@ -64,6 +64,13 @@ static SHashObj *tsSTableUidHash;
 static int32_t   tsChildTableUpdateSize;
 static int32_t   tsSuperTableUpdateSize;
 
+typedef struct {
+  int32_t  vgId;
+  int32_t  tid;
+  uint64_t uid;
+  uint64_t suid;
+} SMetaInfo;
+
 static void *mnodeGetChildTable(char *tableId);
 static void *mnodeGetSuperTable(char *tableId);
 static void *mnodeGetSuperTableByUid(uint64_t uid);
@@ -82,7 +89,7 @@ static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg);
 static void    mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg);
-static int32_t mnodeProcessMetaSyncCreateChildTableMsg(SMnodeMsg *pMsg);
+static int32_t mnodeProcessMetaSyncCreateChildTableMsg(SMnodeMsg *pMsg, SMetaInfo *pInf);
 
 static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg);
@@ -2164,7 +2171,7 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
   }
 }
 
-static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
+static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, SMetaInfo *pInf) {
   SVgObj *pVgroup = pMsg->pVgroup;
 
   SCMCreateTableMsg *p1 = pMsg->rpcMsg.pCont;
@@ -2179,7 +2186,7 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
   pTable->info.type = (pCreate->numOfColumns == 0) ? TSDB_CHILD_TABLE : TSDB_NORMAL_TABLE;
   pTable->info.tableId = strdup(pCreate->tableName);
   pTable->createdTime = taosGetTimestampMs();
-  pTable->tid = tid;
+  pTable->tid = pInf->tid;
   pTable->vgId = pVgroup->vgId;
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
@@ -2207,13 +2214,21 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
     }
 
     pTable->suid = pMsg->pSTable->uid;
-    pTable->uid = mnodeCreateTableUid(pTable->vgId, pTable->tid);
+    if (tsMetaSyncOption && pInf->uid != (uint64_t)-1) {
+      pTable->uid = pInf->uid;
+    } else {
+      pTable->uid = mnodeCreateTableUid(pTable->vgId, pTable->tid);
+    }
     pTable->superTable = pMsg->pSTable;
   } else {
     if (pTable->info.type == TSDB_SUPER_TABLE) {
       pTable->uid = mnodeCreateSuperTableUid();
     } else {
-      pTable->uid = mnodeCreateTableUid(pTable->vgId, pTable->tid);
+      if (tsMetaSyncOption && pInf->uid != (uint64_t)-1) {
+        pTable->uid = pInf->uid;
+      } else {
+        pTable->uid = mnodeCreateTableUid(pTable->vgId, pTable->tid);
+      }
     }
 
     pTable->sversion = 0;
@@ -2266,57 +2281,69 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
     mError("msg:%p, app:%p table:%s, failed to create, reason:%s", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName,
            tstrerror(code));
   } else {
-    mDebug("msg:%p, app:%p table:%s, allocated in vgroup, vgId:%d sid:%d uid:%" PRIu64, pMsg, pMsg->rpcMsg.ahandle,
+    mInfo("msg:%p, app:%p table:%s, allocated in vgroup, vgId:%d sid:%d uid:%" PRIu64, pMsg, pMsg->rpcMsg.ahandle,
            pTable->info.tableId, pVgroup->vgId, pTable->tid, pTable->uid);
   }
 
   return code;
 }
 
-static int32_t mnodeProcessMetaSyncCreateChildTableMsg(SMnodeMsg *pMsg, int32_t *tid, int32_t *vgId, uint64_t *uid,
-                                                       uint64_t *suid) {
+static int32_t mnodeProcessMetaSyncCreateChildTableMsg(SMnodeMsg *pMsg, SMetaInfo *pInf) {
   SCreateTableMsg *pCreate = (SCreateTableMsg *)((char *)pMsg->rpcMsg.pCont + sizeof(SCMCreateTableMsg));
   int32_t          code = 0;
 
-  // 0.db0._taos_meta_sync_cret_mndtb_taos_vgId.suid.uid.tid
+  // 0.db0._taos_meta_sync_cret_mndtb_taos_vgId.suid.uid.tid.tbName
   if (strstr(pCreate->tableName, META_SYNC_CRET_MNDTB)) {
+    code = TSDB_CODE_MND_INVALID_FORMAT;
+    char  realName[TSDB_TABLE_FNAME_LEN] = {0};
     char *pTbName = strchr(pCreate->tableName, '.');
     if (pTbName && (pTbName = strchr(pTbName + 1, '.'))) {
       if (0 == strncmp(META_SYNC_CRET_MNDTB, ++pTbName, META_SYNC_TABLE_NAME_LEN)) {
+        strncpy(realName, pCreate->tableName, POINTER_DISTANCE(pTbName, pCreate->tableName));
         pTbName += META_SYNC_TABLE_NAME_LEN;
-        *vgId = atoi(pTbName);
+        pInf->vgId = atoi(pTbName);
         if ((pTbName = strchr(pTbName, '.'))) {
-          *suid = strtoull(++pTbName, NULL, 10);
+          pInf->suid = strtoull(++pTbName, NULL, 10);
           if ((pTbName = strchr(pTbName, '.'))) {
-            *uid = strtoull(++pTbName, NULL, 10);
+            pInf->uid = strtoull(++pTbName, NULL, 10);
             if ((pTbName = strchr(pTbName, '.'))) {
-              *tid = atoi(++pTbName);
+              pInf->tid = atoi(++pTbName);
+              if ((pTbName = strchr(pTbName, '.'))) {
+                int32_t len = strlen(realName);
+                strncpy(realName + len, pTbName + 1, TSDB_TABLE_FNAME_LEN - len - 1);
+                code = 0;
+              }
             }
           }
         }
       }
     }
-    if (*tid <= 0 || *uid == (uint64_t)-1 || *vgId <= 0) {
+    if (code != 0 || pInf->tid < 1 || pInf->uid == (uint64_t)-1 || pInf->vgId < 2) {
       code = TSDB_CODE_MND_INVALID_FORMAT;
-      mError("msg:%p, app:%p table:%s, failed to create table, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
-             pCreate->tableName, tstrerror(code));
+      mError("%s:%d msg:%p, app:%p table:%s, failed to create table, reason:%s", __func__, __LINE__, pMsg,
+             pMsg->rpcMsg.ahandle, pCreate->tableName, tstrerror(code));
       return code;
     }
-    mInfo("msg:%p, app:%p table:%s, start to create table, vgId:%d suid:%" PRIu64 " uid:%" PRIu64 " tid:%d", pMsg,
-          pMsg->rpcMsg.ahandle, pCreate->tableName, *vgId, *suid, *uid, *tid);
+    mInfo("%s:%d msg:%p, app:%p table:%s, start to create table, vgId:%d suid:%" PRIu64 " uid:%" PRIu64
+          " tid:%d realName:%s",
+          __func__, __LINE__, pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName, pInf->vgId, pInf->suid, pInf->uid,
+          pInf->tid, realName);
+    strncpy(pCreate->tableName, realName, TSDB_TABLE_FNAME_LEN);
   } else if (strstr(pCreate->tableName, META_SYNC_TABLE_NAME)) {
     char *pTbName = strchr(pCreate->tableName, '.');
     if (pTbName && (pTbName = strchr(pTbName + 1, '.'))) {
       if (0 == strncmp(META_SYNC_TABLE_NAME, ++pTbName, META_SYNC_TABLE_NAME_LEN)) {
-        *vgId = atoi(pTbName + META_SYNC_TABLE_NAME_LEN);
+        pInf->vgId = atoi(pTbName + META_SYNC_TABLE_NAME_LEN);
       }
     }
-    if (*vgId <= 0) {
+    if (pInf->vgId < 2) {
       code = TSDB_CODE_MND_INVALID_FORMAT;
-      mError("msg:%p, app:%p table:%s, failed to create table, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
-             pCreate->tableName, tstrerror(code));
+      mError("%s:%d msg:%p, app:%p table:%s, failed to create table, reason:%s", __func__, __LINE__, pMsg,
+             pMsg->rpcMsg.ahandle, pCreate->tableName, tstrerror(code));
       return code;
     }
+    mInfo("%s:%d msg:%p, app:%p table:%s, start to create table, vgId:%d", __func__, __LINE__, pMsg,
+          pMsg->rpcMsg.ahandle, pCreate->tableName, pInf->vgId);
   }
 
   return code;
@@ -2335,17 +2362,14 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
 
   if (pMsg->retry == 0) {
     if (pMsg->pTable == NULL) {
-      SVgObj *pVgroup = NULL;
-      int32_t tid = 0;
-      int32_t vgId = 0;
-      uint64_t uid = -1;
-      uint64_t suid = -1;
+      SVgObj   *pVgroup = NULL;
+      SMetaInfo metaInfo = {.tid = 0, .vgId = 0, .uid = -1, .suid = -1};
 
       if (tsMetaSyncOption) {
-        code = mnodeProcessMetaSyncCreateChildTableMsg(pMsg, &tid, &vgId, &uid, &suid);
+        code = mnodeProcessMetaSyncCreateChildTableMsg(pMsg, &metaInfo);
         if (code != TSDB_CODE_SUCCESS) return code;
       }
-      code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &tid, vgId);      
+      code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &metaInfo.tid, metaInfo.vgId);      
       if (code != TSDB_CODE_SUCCESS) {
         mInfo("msg:%p, app:%p table:%s, failed to get available vgroup, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
               pCreate->tableName, tstrerror(code));
@@ -2359,7 +2383,7 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
       pMsg->pVgroup = pVgroup;
       mnodeIncVgroupRef(pVgroup);
 
-      return mnodeDoCreateChildTable(pMsg, tid);
+      return mnodeDoCreateChildTable(pMsg, &metaInfo);
     }
   } else {
     if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pCreate->tableName);

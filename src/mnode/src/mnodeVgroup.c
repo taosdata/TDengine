@@ -459,9 +459,8 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
         continue;
       }
 
-      int32_t sid = 0;
       if (*pSid <= 0) {
-        sid = taosAllocateId(pVgroup->idPool);
+        int32_t sid = taosAllocateId(pVgroup->idPool);
         if (sid <= 0) {
           int curMaxId = taosIdPoolMaxSize(pVgroup->idPool);
           if ((taosUpdateIdPool(pVgroup->idPool, curMaxId + 1) < 0) || ((sid = taosAllocateId(pVgroup->idPool)) <= 0)) {
@@ -471,14 +470,19 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
             return TSDB_CODE_MND_APP_ERROR;
           }
         }
+        *pSid = sid; // assignment
       } else {
-        
-
+        int32_t code = taosAssignId(pVgroup->idPool, *pSid);
+        if (code != TSDB_CODE_SUCCESS) {
+          mError("msg:%p, app:%p db:%s, failed to assign tid:%d in vgId:%d since %s", pMsg, pMsg->rpcMsg.ahandle,
+                 pDb->name, *pSid, pVgroup->vgId, tstrerror(code));
+          pthread_mutex_unlock(&pDb->mutex);
+          return code;
+        }
       }
 
-      mDebug("vgId:%d, alloc tid:%d", pVgroup->vgId, sid);
+      mDebug("vgId:%d, alloc tid:%d", pVgroup->vgId, *pSid);
 
-      *pSid = sid;
       *ppVgroup = pVgroup;
       pDb->vgListIndex = v;
 

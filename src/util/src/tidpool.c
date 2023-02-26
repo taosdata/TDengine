@@ -14,7 +14,9 @@
  */
 
 #include "os.h"
+#include "taoserror.h"
 #include "tulog.h"
+
 
 typedef struct {
   int             maxId;
@@ -68,6 +70,34 @@ int taosAllocateId(void *handle) {
 
   pthread_mutex_unlock(&pIdPool->mutex);
   return slot + 1;
+}
+
+int taosAssignId(void *handle, int id) {
+  id_pool_t *pIdPool = handle;
+  if (handle == NULL) {
+    return TSDB_CODE_MND_APP_ERROR;
+  }
+
+  int32_t code = 0;
+  pthread_mutex_lock(&pIdPool->mutex);
+
+  if (pIdPool->numOfFree > 0) {
+    if (id > 0 && id < pIdPool->maxId) {
+      if (false == pIdPool->freeList[id - 1]) {
+        pIdPool->freeList[id - 1] = true;
+        pIdPool->numOfFree--;
+      } else {
+        code = TSDB_CODE_MND_DUP_TID;
+      }
+    } else {
+      code = TSDB_CODE_MND_INVALID_FORMAT;
+    }
+  } else {
+    code = TSDB_CODE_MND_ID_POOL_IS_FULL;
+  }
+
+  pthread_mutex_unlock(&pIdPool->mutex);
+  return code;
 }
 
 void taosFreeId(void *handle, int id) {

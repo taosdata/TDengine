@@ -232,7 +232,7 @@ int32_t tsKeepTimeOffset = 0;
 
 int32_t tsDiskCfgNum = 0;
 int32_t tsTopicBianryLen = 16000;
-int32_t tsMetaSyncOption = 1;
+int32_t tsMetaSyncOption = 0;
 
 #ifndef _STORAGE
 SDiskCfg tsDiskCfg[1];

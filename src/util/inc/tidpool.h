@@ -28,6 +28,8 @@ int taosIdPoolMaxSize(void *handle);
 
 int taosAllocateId(void *handle);
 
+int taosAssignId(void *handle, int id);
+
 void taosFreeId(void *handle, int id);
 
 void taosIdPoolCleanUp(void *handle);
