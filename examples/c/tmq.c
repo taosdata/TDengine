@@ -227,7 +227,7 @@ tmq_t* build_consumer() {
     tmq_conf_destroy(conf);
     return NULL;
   }
-  code = tmq_conf_set(conf, "experimental.snapshot.enable", "false");
+  code = tmq_conf_set(conf, "experimental.snapshot.enable", "true");
   if (TMQ_CONF_OK != code) {
     tmq_conf_destroy(conf);
     return NULL;
