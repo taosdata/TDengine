@@ -328,6 +328,7 @@ typedef struct {
   SDbCfg   cfg;
   SRWLatch lock;
   int64_t  stateTs;
+  int64_t  compactStartTime;
 } SDbObj;
 
 typedef struct {
@@ -389,6 +390,18 @@ typedef struct {
 } SSmaObj;
 
 typedef struct {
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char    stb[TSDB_TABLE_FNAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
+  char    dstTbName[TSDB_TABLE_FNAME_LEN];
+  char    colName[TSDB_COL_NAME_LEN];
+  int64_t createdTime;
+  int64_t uid;
+  int64_t stbUid;
+  int64_t dbUid;
+} SIdxObj;
+
+typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  createdTime;
@@ -444,6 +457,7 @@ typedef struct {
   STableMetaRsp* pMeta;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
+  char           filterTb[TSDB_TABLE_NAME_LEN];
 } SShowObj;
 
 typedef struct {

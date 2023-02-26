@@ -80,12 +80,13 @@ typedef struct {
 } SShellArgs;
 
 typedef struct {
-  const char* clientVersion;
-  const char* promptHeader;
+  const char *clientVersion;
+  char cusName[32];
+  char promptHeader[32];
   const char* promptContinue;
   const char* osname;
   int32_t     promptSize;
-  char        programVersion[32];
+  char        programVersion[256];
 } SShellOsDetails;
 
 typedef struct {

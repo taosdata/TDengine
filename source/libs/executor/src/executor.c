@@ -35,7 +35,6 @@ static void initRefPool() {
 }
 
 static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
-  ASSERT(pOperator != NULL);
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
       qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
@@ -55,8 +54,8 @@ static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOf
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
       for (int32_t i = 0; i < numOfBlocks; i++) {
-        SSubmitReq* pReq = *(void**)POINTER_SHIFT(input, i * sizeof(void*));
-        taosArrayPush(pInfo->pBlockLists, &pReq);
+        SPackedData* pReq = POINTER_SHIFT(input, i * sizeof(SPackedData));
+        taosArrayPush(pInfo->pBlockLists, pReq);
       }
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_SUBMIT) {
@@ -65,7 +64,10 @@ static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOf
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
-        taosArrayPush(pInfo->pBlockLists, &pDataBlock);
+        SPackedData  tmp = {
+             .pDataBlock = pDataBlock,
+        };
+        taosArrayPush(pInfo->pBlockLists, &tmp);
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     }
@@ -75,27 +77,23 @@ static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOf
 }
 
 static int32_t doSetStreamOpOpen(SOperatorInfo* pOperator, char* id) {
-  {
-    ASSERT(pOperator != NULL);
-    if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-      if (pOperator->numOfDownstream == 0) {
-        qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
-        return TSDB_CODE_APP_ERROR;
-      }
-
-      if (pOperator->numOfDownstream > 1) {  // not handle this in join query
-        qError("join not supported for stream block scan, %s" PRIx64, id);
-        return TSDB_CODE_APP_ERROR;
-      }
-      pOperator->status = OP_NOT_OPENED;
-      return doSetStreamOpOpen(pOperator->pDownstream[0], id);
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    if (pOperator->numOfDownstream == 0) {
+      qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
+      return TSDB_CODE_APP_ERROR;
     }
+
+    if (pOperator->numOfDownstream > 1) {  // not handle this in join query
+      qError("join not supported for stream block scan, %s" PRIx64, id);
+      return TSDB_CODE_APP_ERROR;
+    }
+    pOperator->status = OP_NOT_OPENED;
+    return doSetStreamOpOpen(pOperator->pDownstream[0], id);
   }
   return 0;
 }
 
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
-  ASSERT(pOperator != NULL);
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
       qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
@@ -112,25 +110,28 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     pOperator->status = OP_NOT_OPENED;
 
     SStreamScanInfo* pInfo = pOperator->info;
-
+    qDebug("stream set total blocks:%d, task id:%s" PRIx64, (int32_t)numOfBlocks, id);
     ASSERT(pInfo->validBlockIndex == 0);
     ASSERT(taosArrayGetSize(pInfo->pBlockLists) == 0);
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
       // ASSERT(numOfBlocks > 1);
       for (int32_t i = 0; i < numOfBlocks; i++) {
-        SSubmitReq* pReq = *(void**)POINTER_SHIFT(input, i * sizeof(void*));
-        taosArrayPush(pInfo->pBlockLists, &pReq);
+        SPackedData* pReq = POINTER_SHIFT(input, i * sizeof(SPackedData));
+        taosArrayPush(pInfo->pBlockLists, pReq);
       }
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_SUBMIT) {
       ASSERT(numOfBlocks == 1);
-      taosArrayPush(pInfo->pBlockLists, &input);
+      taosArrayPush(pInfo->pBlockLists, input);
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
-        taosArrayPush(pInfo->pBlockLists, &pDataBlock);
+        SPackedData  tmp = {
+             .pDataBlock = pDataBlock,
+        };
+        taosArrayPush(pInfo->pBlockLists, &tmp);
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     } else {
@@ -284,11 +285,15 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers) {
 
 static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList, const char* idstr) {
   SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
+  int32_t numOfUids = taosArrayGetSize(tableIdList);
+  if (numOfUids == 0) {
+    return qa;
+  }
 
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
   metaReaderInit(&mr, pScanInfo->readHandle.meta, 0);
-  for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
+  for (int32_t i = 0; i < numOfUids; ++i) {
     uint64_t* id = (uint64_t*)taosArrayGet(tableIdList, i);
 
     int32_t code = metaGetTableEntryByUid(&mr, *id);
@@ -353,7 +358,6 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       return code;
     }
 
-    // todo refactor STableList
     bool   assignUid = false;
     size_t bufLen = (pScanInfo->pGroupTags != NULL) ? getTableTagsBufLen(pScanInfo->pGroupTags) : 0;
     char*  keyBuf = NULL;
@@ -1018,11 +1022,22 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qStreamScanMemData(qTaskInfo_t tinfo, const SSubmitReq* pReq) {
+#if 0
+int32_t qStreamScanMemData(qTaskInfo_t tinfo, const SSubmitReq* pReq, int64_t scanVer) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
   ASSERT(pTaskInfo->streamInfo.pReq == NULL);
   pTaskInfo->streamInfo.pReq = pReq;
+  pTaskInfo->streamInfo.scanVer = scanVer;
+  return 0;
+}
+#endif
+
+int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
+  ASSERT(pTaskInfo->streamInfo.submit.msgStr == NULL);
+  pTaskInfo->streamInfo.submit = submit;
   return 0;
 }
 
@@ -1193,3 +1208,4 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
 }
+

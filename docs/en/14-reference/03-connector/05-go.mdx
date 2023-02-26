@@ -1,7 +1,8 @@
 ---
-toc_max_heading_level: 4
-sidebar_label: Go
 title: TDengine Go Connector
+sidebar_label: Go
+description: This document describes the TDengine Go connector.
+toc_max_heading_level: 4
 ---
 
 import Tabs from '@theme/Tabs';
@@ -355,25 +356,28 @@ The `af` package encapsulates TDengine advanced functions such as connection man
 
 #### Subscribe
 
-* `func NewConsumer(conf *Config) (*Consumer, error)`
+* `func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)`
 
 Creates consumer group.
 
-* `func (c *Consumer) Subscribe(topics []string) error`
+* `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
+Note: `rebalanceCb` is reserved for compatibility purpose
+
+Subscribes a topic.
+
+* `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
+Note: `rebalanceCb` is reserved for compatibility purpose
 
 Subscribes to topics.
 
-* `func (c *Consumer) Poll(timeout time.Duration) (*Result, error)`
+* `func (c *Consumer) Poll(timeoutMs int) tmq.Event`
 
 Polling information.
 
-* `func (c *Consumer) Commit(ctx context.Context, message unsafe.Pointer) error`
+* `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
+Note: `tmq.TopicPartition` is reserved for compatibility purpose
 
 Commit information.
-
-* `func (c *Consumer) FreeMessage(message unsafe.Pointer)`
-
-Free information.
 
 * `func (c *Consumer) Unsubscribe() error`
 
@@ -441,25 +445,36 @@ Close consumer.
 
 ### Subscribe via WebSocket
 
-* `func NewConsumer(config *Config) (*Consumer, error)`
+* `func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)`
 
-   Creates consumer group.
+Creates consumer group.
 
-* `func (c *Consumer) Subscribe(topic []string) error`
+* `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
+Note: `rebalanceCb` is reserved for compatibility purpose
 
-   Subscribes to topics.
+Subscribes a topic.
 
-* `func (c *Consumer) Poll(timeout time.Duration) (*Result, error)`
+* `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
+Note: `rebalanceCb` is reserved for compatibility purpose
 
-   Polling information.
+Subscribes to topics.
 
-* `func (c *Consumer) Commit(messageID uint64) error`
+* `func (c *Consumer) Poll(timeoutMs int) tmq.Event`
 
-   Commit information.
+Polling information.
+
+* `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
+Note: `tmq.TopicPartition` is reserved for compatibility purpose
+
+Commit information.
+
+* `func (c *Consumer) Unsubscribe() error`
+
+Unsubscribe.
 
 * `func (c *Consumer) Close() error`
 
-   Close consumer.
+Close consumer.
 
 For a complete example see [GitHub sample file](https://github.com/taosdata/driver-go/blob/3.0/examples/tmqoverws/main.go)
 

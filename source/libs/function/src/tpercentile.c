@@ -33,7 +33,14 @@ static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
       (SFilePage *)taosMemoryCalloc(1, pMemBucket->bytes * pMemBucket->pSlots[slotIdx].info.size + sizeof(SFilePage));
 
   int32_t groupId = getGroupId(pMemBucket->numOfSlots, slotIdx, pMemBucket->times);
-  SArray *pIdList = *(SArray **)taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
+
+  SArray *pIdList;
+  void *p = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
+  if (p != NULL) {
+    pIdList = *(SArray **)p;
+  } else {
+    return NULL;
+  }
 
   int32_t offset = 0;
   for (int32_t i = 0; i < taosArrayGetSize(pIdList); ++i) {
@@ -512,8 +519,17 @@ int32_t getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction
         resetSlotInfo(pMemBucket);
 
         int32_t groupId = getGroupId(pMemBucket->numOfSlots, i, pMemBucket->times - 1);
-        SArray* list = *(SArray **)taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
-        ASSERT(list != NULL && list->size > 0);
+
+        SArray* list;
+        void *p = taosHashGet(pMemBucket->groupPagesMap, &groupId, sizeof(groupId));
+        if (p != NULL) {
+          list = *(SArray **)p;
+          if (list == NULL || list->size <= 0) {
+            return -1;
+          }
+        } else {
+          return -1;
+        }
 
         for (int32_t f = 0; f < list->size; ++f) {
           int32_t *pageId = taosArrayGet(list, f);

@@ -26,6 +26,7 @@ extern "C" {
 #include "tlog.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
+#include "systable.h"
 
 typedef enum {
   JOB_TASK_STATUS_NULL = 0,
@@ -163,6 +164,23 @@ typedef struct STargetInfo {
   int32_t     vgId;
 } STargetInfo;
 
+typedef struct SBoundColInfo {
+  int16_t* pColIndex;  // bound index => schema index
+  int32_t  numOfCols;
+  int32_t  numOfBound;
+} SBoundColInfo;
+
+typedef struct STableDataCxt {
+  STableMeta*    pMeta;
+  STSchema*      pSchema;
+  SBoundColInfo  boundColsInfo;
+  SArray*        pValues;
+  SSubmitTbData* pData;
+  TSKEY          lastTs;
+  bool           ordered;
+  bool           duplicateTs;
+} STableDataCxt;
+
 typedef int32_t (*__async_send_cb_fn_t)(void* param, SDataBuf* pMsg, int32_t code);
 typedef int32_t (*__async_exec_fn_t)(void* param);
 
@@ -238,6 +256,7 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
 char*   parseTagDatatoJson(void* p);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
+int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst);
 void    freeVgInfo(SDBVgInfo* vgInfo);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
@@ -284,9 +303,10 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 
 #define REQUEST_TOTAL_EXEC_TIMES 2
 
-#define IS_SYS_DBNAME(_dbname)                                                    \
-  (((*(_dbname) == 'i') && (0 == strcmp(_dbname, TSDB_INFORMATION_SCHEMA_DB))) || \
-   ((*(_dbname) == 'p') && (0 == strcmp(_dbname, TSDB_PERFORMANCE_SCHEMA_DB))))
+#define IS_INFORMATION_SCHEMA_DB(_name) ((*(_name) == 'i') && (0 == strcmp(_name, TSDB_INFORMATION_SCHEMA_DB)))
+#define IS_PERFORMANCE_SCHEMA_DB(_name) ((*(_name) == 'p') && (0 == strcmp(_name, TSDB_PERFORMANCE_SCHEMA_DB)))
+
+#define IS_SYS_DBNAME(_dbname) (IS_INFORMATION_SCHEMA_DB(_dbname) || IS_PERFORMANCE_SCHEMA_DB(_dbname))
 
 #define qFatal(...)                                                     \
   do {                                                                  \

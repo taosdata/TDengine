@@ -104,6 +104,7 @@ extern const int32_t TYPE_BYTES[16];
 
 #define TSDB_INDEX_TYPE_SMA      "SMA"
 #define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"
+#define TSDB_INDEX_TYPE_NORMAL   "NORMAL"
 
 #define TSDB_INS_USER_STABLES_DBNAME_COLID 2
 
@@ -190,10 +191,11 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN   64
-#define TSDB_TABLE_NAME_LEN  193  // it is a null-terminated string
-#define TSDB_TOPIC_NAME_LEN  193  // it is a null-terminated string
-#define TSDB_CGROUP_LEN      193  // it is a null-terminated string
-#define TSDB_STREAM_NAME_LEN 193  // it is a null-terminated string
+#define TSDB_TABLE_NAME_LEN  193                                // it is a null-terminated string
+#define TSDB_TOPIC_NAME_LEN  193                                // it is a null-terminated string
+#define TSDB_CGROUP_LEN      193                                // it is a null-terminated string
+#define TSDB_USER_CGROUP_LEN (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
+#define TSDB_STREAM_NAME_LEN 193                                // it is a null-terminated string
 #define TSDB_DB_NAME_LEN     65
 #define TSDB_DB_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 

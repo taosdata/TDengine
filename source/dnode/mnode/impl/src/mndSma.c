@@ -17,6 +17,8 @@
 #include "mndSma.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndIndex.h"
+#include "mndIndexComm.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
@@ -43,8 +45,12 @@ static int32_t  mndProcessDropSmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetSmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetTbSmaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
-static void     mndCancelGetNextSma(SMnode *pMnode, void *pIter);
 static void     mndDestroySmaObj(SSmaObj *pSmaObj);
+
+// sma and tag index comm func
+static int32_t mndProcessDropIdxReq(SRpcMsg *pReq);
+static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void    mndCancelRetrieveIdx(SMnode *pMnode, void *pIter);
 
 int32_t mndInitSma(SMnode *pMnode) {
   SSdbTable table = {
@@ -58,14 +64,14 @@ int32_t mndInitSma(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SMA, mndProcessCreateSmaReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessDropSmaReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessDropIdxReq);
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_SMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_SMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_INDEX, mndProcessGetSmaReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_TABLE_INDEX, mndProcessGetTbSmaReq);
 
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndRetrieveSma);
-  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndCancelGetNextSma);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndRetrieveIdx);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndCancelRetrieveIdx);
   return sdbSetTable(pMnode->pSdb, table);
 }
 
@@ -459,8 +465,10 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
 
   int32_t contLen = 0;
   void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
-  taosMemoryFreeClear(pSmaReq);
-  if (pReq == NULL) return -1;
+  if (pReq == NULL) {
+    taosMemoryFreeClear(pSmaReq);
+    return -1;
+  }
 
   action.pCont = pReq;
   action.contLen = contLen;
@@ -468,7 +476,18 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   action.acceptableCode = TSDB_CODE_VND_ALREADY_EXIST;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFreeClear(pSmaReq);
     taosMemoryFree(pReq);
+    return -1;
+  }
+
+  action.pCont = pSmaReq;
+  action.contLen = smaContLen;
+  action.msgType = TDMT_VND_CREATE_SMA;
+  action.acceptableCode = TSDB_CODE_TSMA_ALREADY_EXIST;
+
+  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFreeClear(pSmaReq);
     return -1;
   }
 
@@ -533,14 +552,14 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.sourceDbUid = pDb->uid;
   streamObj.targetDbUid = pDb->uid;
   streamObj.version = 1;
-  streamObj.sql = strdup(pCreate->sql);
+  streamObj.sql = taosStrdup(pCreate->sql);
   streamObj.smaId = smaObj.uid;
   streamObj.watermark = pCreate->watermark;
   streamObj.deleteMark = pCreate->deleteMark;
   streamObj.fillHistory = STREAM_FILL_HISTORY_ON;
   streamObj.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
   streamObj.triggerParam = pCreate->maxDelay;
-  streamObj.ast = strdup(smaObj.ast);
+  streamObj.ast = taosStrdup(smaObj.ast);
 
   // check the maxDelay
   if (streamObj.triggerParam < TSDB_MIN_ROLLUP_MAX_DELAY) {
@@ -699,8 +718,13 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
     goto _OVER;
   }
+  SSIdx idx = {0};
+  if (mndAcquireGlobalIdx(pMnode, createReq.name, SDB_SMA, &idx) == 0) {
+    pSma = idx.pIdx;
+  } else {
+    goto _OVER;
+  }
 
-  pSma = mndAcquireSma(pMnode, createReq.name);
   if (pSma != NULL) {
     if (createReq.igExists) {
       mInfo("sma:%s, already exist in sma:%s, ignore exist is set", createReq.name, pSma->name);
@@ -946,7 +970,12 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
 
   mInfo("sma:%s, start to drop", dropReq.name);
 
-  pSma = mndAcquireSma(pMnode, dropReq.name);
+  SSIdx idx = {0};
+  if (mndAcquireGlobalIdx(pMnode, dropReq.name, SDB_SMA, &idx) == 0) {
+    pSma = idx.pIdx;
+  } else {
+    goto _OVER;
+  }
   if (pSma == NULL) {
     if (dropReq.igNotExists) {
       mInfo("sma:%s, not exist, ignore not exist is set", dropReq.name);
@@ -985,7 +1014,14 @@ static int32_t mndGetSma(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp 
   int32_t  code = -1;
   SSmaObj *pSma = NULL;
 
-  pSma = mndAcquireSma(pMnode, indexReq->indexFName);
+  SSIdx idx = {0};
+  if (0 == mndAcquireGlobalIdx(pMnode, indexReq->indexFName, SDB_SMA, &idx)) {
+    pSma = idx.pIdx;
+  } else {
+    *exist = false;
+    return 0;
+  }
+
   if (pSma == NULL) {
     *exist = false;
     return 0;
@@ -1194,10 +1230,10 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     pDb = mndAcquireDb(pMnode, pShow->db);
     if (pDb == NULL) return 0;
   }
-
+  SSmaAndTagIter *pIter = pShow->pIter;
   while (numOfRows < rows) {
-    pShow->pIter = sdbFetch(pSdb, SDB_SMA, pShow->pIter, (void **)&pSma);
-    if (pShow->pIter == NULL) break;
+    pIter->pSmaIter = sdbFetch(pSdb, SDB_SMA, pIter->pSmaIter, (void **)&pSma);
+    if (pIter->pSmaIter == NULL) break;
 
     if (NULL != pDb && pSma->dbUid != pDb->uid) {
       sdbRelease(pSdb, pSma);
@@ -1220,19 +1256,31 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     STR_TO_VARSTR(n3, (char *)tNameGetTableName(&stbName));
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)n1, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)n1, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)n2, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)n2, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)n3, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)n3, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pSma->dstVgId, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pSma->dstVgId, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pSma->createdTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pSma->createdTime, false);
+
+    char col[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(col, (char *)"");
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)col, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+
+    char tag[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(tag, (char *)"sma_index");
+    colDataAppend(pColInfo, numOfRows, (const char *)tag, false);
 
     numOfRows++;
     sdbRelease(pSdb, pSma);
@@ -1243,7 +1291,30 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   return numOfRows;
 }
 
-static void mndCancelGetNextSma(SMnode *pMnode, void *pIter) {
-  SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+// sma and tag index comm func
+static int32_t mndProcessDropIdxReq(SRpcMsg *pReq) {
+  int ret = mndProcessDropSmaReq(pReq);
+  if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST) {
+    terrno = 0;
+    ret = mndProcessDropTagIdxReq(pReq);
+  }
+  return ret;
+}
+
+static int32_t mndRetrieveIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  if (pShow->pIter == NULL) {
+    pShow->pIter = taosMemoryCalloc(1, sizeof(SSmaAndTagIter));
+  }
+  int32_t read = mndRetrieveSma(pReq, pShow, pBlock, rows);
+  if (read < rows) read += mndRetrieveTagIdx(pReq, pShow, pBlock, rows - read);
+  return read;
+}
+static void mndCancelRetrieveIdx(SMnode *pMnode, void *pIter) {
+  SSmaAndTagIter *p = pIter;
+  if (p != NULL) {
+    SSdb *pSdb = pMnode->pSdb;
+    sdbCancelFetch(pSdb, p->pSmaIter);
+    sdbCancelFetch(pSdb, p->pIdxIter);
+  }
+  taosMemoryFree(p);
 }

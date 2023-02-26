@@ -86,8 +86,8 @@ int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
   while ((rc = sem_timedwait(sem, &ts)) == -1 && errno == EINTR) continue;
   return rc;
   /* This should have timed out */
-  // assert(errno == ETIMEDOUT);
-  // assert(rc != 0);
+  // ASSERT(errno == ETIMEDOUT);
+  // ASSERT(rc != 0);
   // GetSystemTimeAsFileTime(&ft_after);
   // // We specified a non-zero wait. Time must advance.
   // if (ft_before.dwLowDateTime == ft_after.dwLowDateTime && ft_before.dwHighDateTime == ft_after.dwHighDateTime)

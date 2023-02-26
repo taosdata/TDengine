@@ -49,6 +49,7 @@ extern int32_t tsTagFilterResCacheSize;
 
 // queue & threads
 extern int32_t tsNumOfRpcThreads;
+extern int32_t tsNumOfRpcSessions;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
 extern int32_t tsNumOfMnodeQueryThreads;
@@ -86,9 +87,9 @@ extern int32_t  tsTelemInterval;
 extern char     tsTelemServer[];
 extern uint16_t tsTelemPort;
 extern bool     tsEnableCrashReport;
-extern char*    tsTelemUri;
-extern char*    tsClientCrashReportUri;
-extern char*    tsSvrCrashReportUri;
+extern char    *tsTelemUri;
+extern char    *tsClientCrashReportUri;
+extern char    *tsSvrCrashReportUri;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
@@ -141,8 +142,8 @@ extern char tsUdfdLdLibPath[];
 // schemaless
 extern char    tsSmlChildTableName[];
 extern char    tsSmlTagName[];
-extern bool    tsSmlDataFormat;
-extern int32_t tsSmlBatchSize;
+//extern bool    tsSmlDataFormat;
+//extern int32_t tsSmlBatchSize;
 
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
@@ -159,7 +160,7 @@ extern int32_t tsUptimeInterval;
 extern int32_t tsRpcRetryLimit;
 extern int32_t tsRpcRetryInterval;
 
-extern bool    tsDisableStream;
+extern bool tsDisableStream;
 
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

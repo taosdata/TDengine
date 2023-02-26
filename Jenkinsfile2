@@ -173,7 +173,7 @@ def pre_test_build_mac() {
     '''
     sh '''
         cd ${WK}/debug
-        cmake .. -DBUILD_TEST=true -DBUILD_HTTPS=false
+        cmake .. -DBUILD_TEST=true -DBUILD_HTTPS=false  -DCMAKE_BUILD_TYPE=Release
         make -j10
         ctest -j10 || exit 7
     '''
@@ -423,7 +423,7 @@ pipeline {
                             echo "${WKDIR}/restore.sh -p ${BRANCH_NAME} -n ${BUILD_ID} -c {container name}"
                         }
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 120, unit: 'MINUTES'){
+                            timeout(time: 130, unit: 'MINUTES'){
                                 pre_test()
                                 script {
                                     sh '''

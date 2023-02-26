@@ -39,7 +39,7 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pMsg->msgType)];
   if (msgFp == NULL) {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-    dGError("msg:%p, not processed since no handler", pMsg);
+    dGError("msg:%p, not processed since no handler, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
     return -1;
   }
 
@@ -93,18 +93,30 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       break;
   }
 
-  if (pDnode->status != DND_STAT_RUNNING) {
-    if (pRpc->msgType == TDMT_DND_SERVER_STATUS) {
-      dmProcessServerStartupStatus(pDnode, pRpc);
-      return;
-    } else {
-      if (pDnode->status == DND_STAT_INIT) {
-        terrno = TSDB_CODE_APP_IS_STARTING;
+/*
+pDnode is null, TD-22618
+at trans.c line 91
+before this line, dmProcessRpcMsg callback is set
+after this line, parent is set
+so when dmProcessRpcMsg is called, pDonde is still null.
+*/
+  if (pDnode != NULL){
+    if(pDnode->status != DND_STAT_RUNNING) {
+      if (pRpc->msgType == TDMT_DND_SERVER_STATUS) {
+        dmProcessServerStartupStatus(pDnode, pRpc);
+        return;
       } else {
-        terrno = TSDB_CODE_APP_IS_STOPPING;
+        if (pDnode->status == DND_STAT_INIT) {
+          terrno = TSDB_CODE_APP_IS_STARTING;
+        } else {
+          terrno = TSDB_CODE_APP_IS_STOPPING;
+        }
+        goto _OVER;
       }
-      goto _OVER;
-    }
+    }   
+  } else {
+    terrno = TSDB_CODE_APP_IS_STARTING;
+    goto _OVER;
   }
 
   if (pRpc->pCont == NULL && (IsReq(pRpc) || pRpc->contLen != 0)) {
@@ -284,14 +296,14 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.failFastThreshold = 3;    // failed threshold
   rpcInit.ffp = dmFailFastFp;
 
-  int32_t connLimitNum = 10000 / (tsNumOfRpcThreads * 3);
-  connLimitNum = TMAX(connLimitNum, 100);
+  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
+  connLimitNum = TMAX(connLimitNum, 10);
   connLimitNum = TMIN(connLimitNum, 500);
 
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.batchSize = 16 * 1024;
+  rpcInit.batchSize = 8 * 1024;
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {

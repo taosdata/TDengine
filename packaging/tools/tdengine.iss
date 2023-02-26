@@ -18,7 +18,6 @@
 #define MyAppDLLName "\driver\*.dll"
 ;#define MyAppVersion "3.0"
 ;#define MyAppInstallName "TDengine"
-;#define MyAppInstallName "TDengine"
 [Setup]
 VersionInfoVersion={#MyAppVersion}
 AppId={{A0F7A93C-79C4-485D-B2B8-F0D03DF42FAB}
@@ -59,11 +58,14 @@ Source: {#MyAppSourceDir}{#MyAppDriverName}; DestDir: "{app}\driver"; Flags: igN
 Source: {#MyAppSourceDir}{#MyAppIncludeName}; DestDir: "{app}\include"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppExeName}; DestDir: "{app}"; Excludes: {#MyAppExcludeSource} ; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppTaosdemoExeName}; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\taos.exe; DestDir: "{app}"; DestName: "{#CusPrompt}.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\taosBenchmark.exe; DestDir: "{app}"; DestName: "{#CusPrompt}Benchmark.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; DestName: "{#CusPrompt}dump.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
 
 
 [run]
-Filename: {sys}\sc.exe; Parameters: "create taosd start= DEMAND binPath= ""C:\\TDengine\\taosd.exe --win_service""" ; Flags: runhidden
-Filename: {sys}\sc.exe; Parameters: "create taosadapter start= DEMAND binPath= ""C:\\TDengine\\taosadapter.exe""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taosd start= DEMAND binPath= ""C:\\{#CusName}\\taosd.exe --win_service""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taosadapter start= DEMAND binPath= ""C:\\{#CusName}\\taosadapter.exe""" ; Flags: runhidden
 
 [UninstallRun]
 RunOnceId: "stoptaosd"; Filename: {sys}\sc.exe; Parameters: "stop taosd" ; Flags: runhidden
@@ -73,8 +75,8 @@ RunOnceId: "deltaosadapter"; Filename: {sys}\sc.exe; Parameters: "delete taosada
 
 [Registry]
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
-    ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};C:\TDengine"; \
-    Check: NeedsAddPath('C:\TDengine')
+    ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};C:\{#CusName}"; \
+    Check: NeedsAddPath('C:\{#CusName}')
 
 [Code]
 function NeedsAddPath(Param: string): boolean;
@@ -104,11 +106,11 @@ Name: "desktopicon";Description: "{cm:CreateDesktopIcon}"; GroupDescription:"{cm
 
 [Icons]
 Name:"{group}\Taos Shell"; Filename: "{app}\include\{#MyAppTaosExeName}" ; Parameters: "taos.exe" ; IconFilename: "{app}\include\{#MyAppIco}" 
-Name:"{group}\Open TDengine Directory"; Filename: "{app}\" 
+Name:"{group}\Open {#CusName} Directory"; Filename: "{app}\" 
 Name:"{group}\Taosdemo"; Filename: "{app}\include\{#MyAppTaosExeName}" ; Parameters: "taosdemo.exe" ; IconFilename: "{app}\include\{#MyAppIco}" 
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}" ; IconFilename: "{app}\include\{#MyAppIco}" 
 Name:"{commondesktop}\Taos Shell"; Filename: "{app}\include\{#MyAppTaosExeName}" ; Parameters: "taos.exe" ; Tasks: desktopicon; WorkingDir: "{app}" ; IconFilename: "{app}\include\{#MyAppIco}" 
 
 
 [Messages]
-ConfirmUninstall=Do you really want to uninstall TDengine from your computer?%n%nPress [Y] to completely delete %1 and all its components;%nPress [N] to keep the software on your computer.
+ConfirmUninstall=Do you really want to uninstall {#CusName} from your computer?%n%nPress [Y] to completely delete %1 and all its components;%nPress [N] to keep the software on your computer.

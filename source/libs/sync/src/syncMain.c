@@ -270,86 +270,38 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
     return -1;
   }
 
+  SyncIndex beginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+  SyncIndex endIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
+  bool      isEmpty = pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore);
+
+  if (isEmpty || !(lastApplyIndex >= beginIndex && lastApplyIndex <= endIndex)) {
+    sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 ", empty:%d, do not delete wal", lastApplyIndex, isEmpty);
+    syncNodeRelease(pSyncNode);
+    return 0;
+  }
+
   int32_t code = 0;
+  int64_t logRetention = 0;
 
   if (syncNodeIsMnode(pSyncNode)) {
     // mnode
-    int64_t logRetention = SYNC_MNODE_LOG_RETENTION;
-
-    SyncIndex beginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
-    SyncIndex endIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
-    int64_t   logNum = endIndex - beginIndex;
-    bool      isEmpty = pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore);
-
-    if (isEmpty || (!isEmpty && logNum < logRetention)) {
-      sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 ", log-num:%" PRId64 ", empty:%d, do not delete wal",
-              lastApplyIndex, logNum, isEmpty);
-      syncNodeRelease(pSyncNode);
-      return 0;
-    }
-
-    goto _DEL_WAL;
-
+    logRetention = SYNC_MNODE_LOG_RETENTION;
   } else {
-    SyncIndex beginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
-    SyncIndex endIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
-    bool      isEmpty = pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore);
-
-    if (isEmpty || !(lastApplyIndex >= beginIndex && lastApplyIndex <= endIndex)) {
-      sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 ", empty:%d, do not delete wal", lastApplyIndex, isEmpty);
-      syncNodeRelease(pSyncNode);
-      return 0;
-    }
-
     // vnode
     if (pSyncNode->replicaNum > 1) {
       // multi replicas
-
-      lastApplyIndex = TMAX(lastApplyIndex - SYNC_VNODE_LOG_RETENTION, beginIndex - 1);
-
-      if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-        pSyncNode->minMatchIndex = syncMinMatchIndex(pSyncNode);
-
-        for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
-          int64_t matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
-          if (lastApplyIndex > matchIndex) {
-            sNTrace(pSyncNode,
-                    "new-snapshot-index:%" PRId64 " is greater than match-index:%" PRId64
-                    " of dnode:%d, do not delete wal",
-                    lastApplyIndex, matchIndex, DID(&pSyncNode->peersId[i]));
-
-            syncNodeRelease(pSyncNode);
-            return 0;
-          }
-        }
-
-      } else if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
-        if (lastApplyIndex > pSyncNode->minMatchIndex) {
-          sNTrace(pSyncNode,
-                  "new-snapshot-index:%" PRId64 " is greater than min-match-index:%" PRId64 ", do not delete wal",
-                  lastApplyIndex, pSyncNode->minMatchIndex);
-          syncNodeRelease(pSyncNode);
-          return 0;
-        }
-
-      } else if (pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE) {
-        sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 " candidate, do not delete wal", lastApplyIndex);
-        syncNodeRelease(pSyncNode);
-        return 0;
-
-      } else {
-        sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 " unknown state, do not delete wal", lastApplyIndex);
-        syncNodeRelease(pSyncNode);
-        return 0;
-      }
-
-      goto _DEL_WAL;
-
-    } else {
-      // one replica
-
-      goto _DEL_WAL;
+      logRetention = SYNC_VNODE_LOG_RETENTION;
     }
+  }
+
+  if (pSyncNode->replicaNum > 1) {
+    if (pSyncNode->state != TAOS_SYNC_STATE_LEADER && pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
+      sNTrace(pSyncNode, "new-snapshot-index:%" PRId64 " candidate or unknown state, do not delete wal",
+              lastApplyIndex);
+      syncNodeRelease(pSyncNode);
+      return 0;
+    }
+    logRetention = TMAX(logRetention, lastApplyIndex - pSyncNode->minMatchIndex);
   }
 
 _DEL_WAL:
@@ -366,7 +318,7 @@ _DEL_WAL:
         atomic_store_64(&pSyncNode->snapshottingIndex, lastApplyIndex);
         pSyncNode->snapshottingTime = taosGetTimestampMs();
 
-        code = walBeginSnapshot(pData->pWal, lastApplyIndex);
+        code = walBeginSnapshot(pData->pWal, lastApplyIndex, logRetention);
         if (code == 0) {
           sNTrace(pSyncNode, "wal snapshot begin, index:%" PRId64 ", last apply index:%" PRId64,
                   pSyncNode->snapshottingIndex, lastApplyIndex);
@@ -779,12 +731,23 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   // init by SSyncInfo
   pSyncNode->vgId = pSyncInfo->vgId;
   SSyncCfg* pCfg = &pSyncNode->raftCfg.cfg;
+  bool      updated = false;
   sInfo("vgId:%d, start to open sync node, replica:%d selfIndex:%d", pSyncNode->vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
     SNodeInfo* pNode = &pCfg->nodeInfo[i];
-    tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    if (tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort)) {
+      updated = true;
+    }
     sInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pSyncNode->vgId, i, pNode->nodeFqdn, pNode->nodePort,
           pNode->nodeId, pNode->clusterId);
+  }
+
+  if (updated) {
+    sInfo("vgId:%d, save config info since dnode info changed", pSyncNode->vgId);
+    if (syncWriteCfgFile(pSyncNode) != 0) {
+      sError("vgId:%d, failed to write sync cfg file on dnode info updated", pSyncNode->vgId);
+      goto _error;
+    }
   }
 
   pSyncNode->pWal = pSyncInfo->pWal;
@@ -1115,29 +1078,18 @@ int32_t syncNodeStartStandBy(SSyncNode* pSyncNode) {
 }
 
 void syncNodePreClose(SSyncNode* pSyncNode) {
-  if (pSyncNode != NULL && pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpApplyQueueItems != NULL) {
-    while (1) {
-      int32_t aqItems = pSyncNode->pFsm->FpApplyQueueItems(pSyncNode->pFsm);
-      sTrace("vgId:%d, pre close, %d items in apply queue", pSyncNode->vgId, aqItems);
-      if (aqItems == 0 || aqItems == -1) {
-        break;
-      }
-      taosMsleep(20);
-    }
-  }
+  ASSERT(pSyncNode != NULL);
+  ASSERT(pSyncNode->pFsm != NULL);
+  ASSERT(pSyncNode->pFsm->FpApplyQueueItems != NULL);
 
-#if 0
-  if (pSyncNode->pNewNodeReceiver != NULL) {
-    if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
-      snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
+  while (1) {
+    int32_t aqItems = pSyncNode->pFsm->FpApplyQueueItems(pSyncNode->pFsm);
+    sTrace("vgId:%d, pre close, %d items in apply queue", pSyncNode->vgId, aqItems);
+    if (aqItems == 0 || aqItems == -1) {
+      break;
     }
-
-    sDebug("vgId:%d, snapshot receiver destroy while preclose sync node, data:%p", pSyncNode->vgId,
-           pSyncNode->pNewNodeReceiver);
-    snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
-    pSyncNode->pNewNodeReceiver = NULL;
+    taosMsleep(20);
   }
-#endif
 
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
@@ -1450,7 +1402,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
   }
 
   // log begin config change
-  sNInfo(pSyncNode, "begin do config change, from %d to %d", pSyncNode->vgId, oldConfig.replicaNum,
+  sNInfo(pSyncNode, "begin do config change, from %d to %d, replicas:%d", pSyncNode->vgId, oldConfig.replicaNum,
          pNewConfig->replicaNum);
 
   if (IamInNew) {
@@ -1731,8 +1683,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 #endif
 
   // close receiver
-  if (pSyncNode != NULL && pSyncNode->pNewNodeReceiver != NULL &&
-      snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+  if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
     snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
   }
 
@@ -2142,24 +2093,19 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
     if (timerLogicClock == msgLogicClock) {
       if (tsNow > pData->execTime) {
-#if 0        
-        sTrace(
-            "vgId:%d, hbDataRid:%ld,  EXECUTE this step-------- heartbeat tsNow:%ld, exec:%ld, tsNow-exec:%ld, "
-            "---------",
-            pSyncNode->vgId, hbDataRid, tsNow, pData->execTime, tsNow - pData->execTime);
-#endif
-
         pData->execTime += pSyncTimer->timerMS;
 
         SRpcMsg rpcMsg = {0};
         (void)syncBuildHeartbeat(&rpcMsg, pSyncNode->vgId);
+
+        pSyncNode->minMatchIndex = syncMinMatchIndex(pSyncNode);
 
         SyncHeartbeat* pSyncMsg = rpcMsg.pCont;
         pSyncMsg->srcId = pSyncNode->myRaftId;
         pSyncMsg->destId = pData->destId;
         pSyncMsg->term = raftStoreGetTerm(pSyncNode);
         pSyncMsg->commitIndex = pSyncNode->commitIndex;
-        pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
+        pSyncMsg->minMatchIndex = pSyncNode->minMatchIndex;
         pSyncMsg->privateTerm = 0;
         pSyncMsg->timeStamp = tsNow;
 
@@ -2171,11 +2117,6 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
         syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
         syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
       } else {
-#if 0        
-        sTrace(
-            "vgId:%d, hbDataRid:%ld,  pass this step-------- heartbeat tsNow:%ld, exec:%ld, tsNow-exec:%ld, ---------",
-            pSyncNode->vgId, hbDataRid, tsNow, pData->execTime, tsNow - pData->execTime);
-#endif
       }
 
       if (syncIsInit()) {
@@ -2468,6 +2409,10 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     syncNodeStepDown(ths, pMsg->currentTerm);
 
   } else if (pMsg->cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT) {
+    if (syncLogBufferIsEmpty(ths->pLogBuf)) {
+      sError("vgId:%d, sync log buffer is empty.", ths->vgId);
+      return 0;
+    }
     SyncTerm matchTerm = syncLogBufferGetLastMatchTerm(ths->pLogBuf);
     if (pMsg->currentTerm == matchTerm) {
       (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);

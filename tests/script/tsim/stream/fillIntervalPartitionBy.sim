@@ -149,7 +149,7 @@ endi
 
 if $data04 == 0 then
   print ====streamt1=data04=$data04
-  return -1
+  goto loop4
 endi
 
 sql select group_id,count(*) from streamt1 group by group_id;
@@ -168,7 +168,7 @@ endi
 
 if $data04 == 0 then
   print ====streamt2=data04=$data04
-  return -1
+  goto loop4
 endi
 
 sql select group_id,count(*) from streamt2 group by group_id;
@@ -187,7 +187,7 @@ endi
 
 if $data04 == 0 then
   print ====streamt3=data04=$data04
-  return -1
+  goto loop4
 endi
 
 sql select group_id,count(*) from streamt3 group by group_id;
@@ -207,7 +207,7 @@ endi
 
 if $data04 == 0 then
   print ====streamt4=data04=$data04
-  return -1
+  goto loop4
 endi
 
 sql select group_id,count(*) from streamt4 group by group_id;
@@ -226,7 +226,7 @@ endi
 
 if $data04 == 0 then
   print ====streamt5=data04=$data04
-  return -1
+  goto loop4
 endi
 
 sql select group_id,count(*) from streamt5 group by group_id;

@@ -18,6 +18,50 @@ SQWorkerMgmt gQwMgmt = {
     .qwNum = 0,
 };
 
+int32_t qwStopAllTasks(SQWorker *mgmt) {
+  uint64_t qId, tId, sId;
+  int32_t  eId;
+  int64_t  rId = 0;
+
+  void *pIter = taosHashIterate(mgmt->ctxHash, NULL);
+  while (pIter) {
+    SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
+    void       *key = taosHashGetKey(pIter, NULL);
+    QW_GET_QTID(key, qId, tId, eId);
+
+    QW_LOCK(QW_WRITE, &ctx->lock);
+
+    sId = ctx->sId;
+
+    QW_TASK_DLOG_E("start to force stop task");
+
+    if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP) || QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
+      QW_TASK_WLOG_E("task already dropping");
+      QW_UNLOCK(QW_WRITE, &ctx->lock);
+
+      pIter = taosHashIterate(mgmt->ctxHash, pIter);
+      continue;
+    }
+
+    if (QW_QUERY_RUNNING(ctx)) {
+      qwKillTaskHandle(ctx, TSDB_CODE_VND_STOPPED);
+      QW_TASK_DLOG_E("task running, async killed");
+    } else if (QW_FETCH_RUNNING(ctx)) {
+      QW_UPDATE_RSP_CODE(ctx, TSDB_CODE_VND_STOPPED);
+      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
+      QW_TASK_DLOG_E("task fetching, update drop received");
+    } else {
+      qwDropTask(QW_FPARAMS());
+    }
+
+    QW_UNLOCK(QW_WRITE, &ctx->lock);
+
+    pIter = taosHashIterate(mgmt->ctxHash, pIter);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   int32_t         code = 0;
   SSchedulerHbRsp rsp = {0};
@@ -147,7 +191,6 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     size_t numOfResBlock = taosArrayGetSize(pResList);
     for (int32_t j = 0; j < numOfResBlock; ++j) {
       SSDataBlock *pRes = taosArrayGetP(pResList, j);
-      ASSERT(pRes->info.rows > 0);
 
       SInputData inputData = {.pData = pRes};
       code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
@@ -203,7 +246,7 @@ _return:
 }
 
 bool qwTaskNotInExec(SQWTaskCtx *ctx) {
-  qTaskInfo_t    taskHandle = ctx->taskHandle;
+  qTaskInfo_t taskHandle = ctx->taskHandle;
   if (NULL == taskHandle || !qTaskIsExecuting(taskHandle)) {
     return true;
   }
@@ -759,7 +802,8 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     }
 
     QW_LOCK(QW_WRITE, &ctx->lock);
-    if (atomic_load_8((int8_t*)&ctx->queryEnd) || (queryStop && (0 == atomic_load_8((int8_t *)&ctx->queryContinue))) || code) {
+    if (atomic_load_8((int8_t *)&ctx->queryEnd) || (queryStop && (0 == atomic_load_8((int8_t *)&ctx->queryContinue))) ||
+        code) {
       // Note: query is not running anymore
       QW_SET_PHASE(ctx, QW_PHASE_POST_CQUERY);
       QW_UNLOCK(QW_WRITE, &ctx->lock);
@@ -848,6 +892,9 @@ _return:
       qwBuildAndSendFetchRsp(qwMsg->msgType + 1, &qwMsg->connInfo, rsp, dataLen, code);
       QW_TASK_DLOG("%s send, handle:%p, code:%x - %s, dataLen:%d", TMSG_INFO(qwMsg->msgType + 1),
                    qwMsg->connInfo.handle, code, tstrerror(code), dataLen);
+    } else {
+      qwFreeFetchRsp(rsp);
+      rsp = NULL;
     }
   }
 
@@ -972,6 +1019,10 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   int32_t       code = 0;
 
   qwDbgDumpMgmtInfo(mgmt);
+
+  if (gQWDebug.forceStop) {
+    (void)qwStopAllTasks(mgmt);
+  }
 
   QW_LOCK(QW_READ, &mgmt->schLock);
 
@@ -1186,45 +1237,9 @@ void qWorkerStopAllTasks(void *qWorkerMgmt) {
 
   QW_DLOG("start to stop all tasks, taskNum:%d", taosHashGetSize(mgmt->ctxHash));
 
-  uint64_t qId, tId, sId;
-  int32_t  eId;
-  int64_t  rId = 0;
-  
   atomic_store_8(&mgmt->nodeStopped, 1);
 
-  void    *pIter = taosHashIterate(mgmt->ctxHash, NULL);
-  while (pIter) {
-    SQWTaskCtx *ctx = (SQWTaskCtx *)pIter;
-    void       *key = taosHashGetKey(pIter, NULL);
-    QW_GET_QTID(key, qId, tId, eId);
-
-    QW_LOCK(QW_WRITE, &ctx->lock);
-
-    sId = ctx->sId;
-
-    QW_TASK_DLOG_E("start to force stop task");
-
-    if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP) || QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
-      QW_TASK_WLOG_E("task already dropping");
-      QW_UNLOCK(QW_WRITE, &ctx->lock);
-
-      pIter = taosHashIterate(mgmt->ctxHash, pIter);
-      continue;
-    }
-
-    if (QW_QUERY_RUNNING(ctx)) {
-      qwKillTaskHandle(ctx, TSDB_CODE_VND_STOPPED);
-    } else if (QW_FETCH_RUNNING(ctx)) {
-      QW_UPDATE_RSP_CODE(ctx, TSDB_CODE_VND_STOPPED);
-      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);    
-    } else {
-      qwDropTask(QW_FPARAMS());
-    }
-
-    QW_UNLOCK(QW_WRITE, &ctx->lock);
-
-    pIter = taosHashIterate(mgmt->ctxHash, pIter);
-  }
+  (void)qwStopAllTasks(mgmt);
 }
 
 void qWorkerDestroy(void **qWorkerMgmt) {

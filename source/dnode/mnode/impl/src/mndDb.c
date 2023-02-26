@@ -17,6 +17,7 @@
 #include "mndDb.h"
 #include "mndCluster.h"
 #include "mndDnode.h"
+#include "mndIndex.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSma.h"
@@ -30,9 +31,8 @@
 #include "systable.h"
 
 #define DB_VER_NUMBER   1
-#define DB_RESERVE_SIZE 54
+#define DB_RESERVE_SIZE 46
 
-static SSdbRaw *mndDbActionEncode(SDbObj *pDb);
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionDelete(SSdb *pSdb, SDbObj *pDb);
@@ -74,7 +74,7 @@ int32_t mndInitDb(SMnode *pMnode) {
 
 void mndCleanupDb(SMnode *pMnode) {}
 
-static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
+SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t  size = sizeof(SDbObj) + pDb->cfg.numOfRetensions * sizeof(SRetention) + DB_RESERVE_SIZE;
@@ -127,6 +127,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashPrefix, _OVER)
   SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashSuffix, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.tsdbPageSize, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pDb->compactStartTime, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -216,6 +217,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashPrefix, _OVER)
   SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashSuffix, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.tsdbPageSize, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->compactStartTime, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -259,6 +261,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->updateTime = pNew->updateTime;
   pOld->cfgVersion = pNew->cfgVersion;
   pOld->vgVersion = pNew->vgVersion;
+  pOld->cfg.numOfVgroups = pNew->cfg.numOfVgroups;
   pOld->cfg.buffer = pNew->cfg.buffer;
   pOld->cfg.pageSize = pNew->cfg.pageSize;
   pOld->cfg.pages = pNew->cfg.pages;
@@ -274,6 +277,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.replications = pNew->cfg.replications;
   pOld->cfg.sstTrigger = pNew->cfg.sstTrigger;
   pOld->cfg.tsdbPageSize = pNew->cfg.tsdbPageSize;
+  pOld->compactStartTime = pNew->compactStartTime;
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -1035,13 +1039,23 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
 
 static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-db");
-  if (pTrans == NULL) goto _OVER;
 
-  mInfo("trans:%d, used to drop db:%s", pTrans->id, pDb->name);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-db");
+  if (pTrans == NULL) {
+    goto _OVER;
+  }
+
+  mInfo("trans:%d start to drop db:%s", pTrans->id, pDb->name);
+
   mndTransSetDbName(pTrans, pDb->name, NULL);
-  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
-  if (mndCheckTopicExist(pMnode, pDb) < 0) goto _OVER;
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
+    goto _OVER;
+  }
+
+  if (mndTopicExistsForDb(pMnode, pDb)) {
+    terrno = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
+    goto _OVER;
+  }
 
   if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
@@ -1050,6 +1064,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   /*if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
   if (mndDropStreamByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropSmasByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
+  if (mndDropIdxsByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndUserRemoveDb(pMnode, pTrans, pDb->name) != 0) goto _OVER;
 
@@ -1092,10 +1107,12 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   }
 
   code = mndDropDb(pMnode, pReq, pDb);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (code == TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_ACTION_IN_PROGRESS;
+  }
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to drop since %s", dropReq.db, terrstr());
   }
 
@@ -1378,7 +1395,63 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
   return 0;
 }
 
-static int32_t mndCompactDb(SMnode *pMnode, SDbObj *pDb) { return 0; }
+static int32_t mndSetCompactDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs) {
+  SDbObj dbObj = {0};
+  memcpy(&dbObj, pDb, sizeof(SDbObj));
+  dbObj.compactStartTime = compactTs;
+
+  SSdbRaw *pCommitRaw = mndDbActionEncode(&dbObj);
+  if (pCommitRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    sdbFreeRaw(pCommitRaw);
+    return -1;
+  }
+
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  return 0;
+}
+
+static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    if (mndVgroupInDb(pVgroup, pDb->uid)) {
+      if (mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pVgroup);
+        return -1;
+      }
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return 0;
+}
+
+static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
+  int64_t compactTs = taosGetTimestampMs();
+  int32_t code = -1;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "compact-db");
+  if (pTrans == NULL) goto _OVER;
+
+  mInfo("trans:%d, used to compact db:%s", pTrans->id, pDb->name);
+  mndTransSetDbName(pTrans, pDb->name, NULL);
+  if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
+  if (mndSetCompactDbCommitLogs(pMnode, pTrans, pDb, compactTs) != 0) goto _OVER;
+  if (mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs) != 0) goto _OVER;
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  code = 0;
+
+_OVER:
+  mndTransDrop(pTrans);
+  return code;
+}
 
 static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
@@ -1402,10 +1475,11 @@ static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndCompactDb(pMnode, pDb);
+  code = mndCompactDb(pMnode, pReq, pDb);
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to process compact db req since %s", compactReq.db, terrstr());
   }
 
@@ -1641,46 +1715,46 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
       if (i == 0) {
-        colDataAppend(pColInfo, rows, buf, false);
+        colDataSetVal(pColInfo, rows, buf, false);
       } else if (i == 1) {
-        colDataAppend(pColInfo, rows, (const char *)&pDb->createdTime, false);
+        colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
       } else if (i == 3) {
-        colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
+        colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
       } else if (i == 14) {
-        colDataAppend(pColInfo, rows, precVstr, false);
+        colDataSetVal(pColInfo, rows, precVstr, false);
       } else if (i == 15) {
-        colDataAppend(pColInfo, rows, statusVstr, false);
+        colDataSetVal(pColInfo, rows, statusVstr, false);
       } else {
-        colDataAppendNULL(pColInfo, rows);
+        colDataSetNULL(pColInfo, rows);
       }
     }
   } else {
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, buf, false);
+    colDataSetVal(pColInfo, rows, buf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->createdTime, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->createdTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfVgroups, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
+    colDataSetVal(pColInfo, rows, (const char *)&numOfTables, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
 
     const char *strictStr = pDb->cfg.strict ? "on" : "off";
     char        strictVstr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(strictVstr, strictStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)strictVstr, false);
+    colDataSetVal(pColInfo, rows, (const char *)strictVstr, false);
 
     char    durationVstr[128] = {0};
     int32_t len = sprintf(&durationVstr[VARSTR_HEADER_SIZE], "%dm", pDb->cfg.daysPerFile);
     varDataSetLen(durationVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)durationVstr, false);
+    colDataSetVal(pColInfo, rows, (const char *)durationVstr, false);
 
     char keepVstr[128] = {0};
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
@@ -1692,86 +1766,86 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)keepVstr, false);
+    colDataSetVal(pColInfo, rows, (const char *)keepVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.buffer, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.buffer, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.pageSize, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pageSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.pages, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.pages, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.minRows, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.minRows, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.maxRows, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)precVstr, false);
+    colDataSetVal(pColInfo, rows, (const char *)precVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)statusVstr, false);
+    colDataSetVal(pColInfo, rows, (const char *)statusVstr, false);
 
     char *rentensionVstr = buildRetension(pDb->cfg.pRetensions);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (rentensionVstr == NULL) {
-      colDataAppendNULL(pColInfo, rows);
+      colDataSetNULL(pColInfo, rows);
     } else {
-      colDataAppend(pColInfo, rows, (const char *)rentensionVstr, false);
+      colDataSetVal(pColInfo, rows, (const char *)rentensionVstr, false);
       taosMemoryFree(rentensionVstr);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
 
     const char *cacheModelStr = getCacheModelStr(pDb->cfg.cacheLast);
     char        cacheModelVstr[24] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(cacheModelVstr, cacheModelStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)cacheModelVstr, false);
+    colDataSetVal(pColInfo, rows, (const char *)cacheModelVstr, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.cacheLastSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walLevel, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walFsyncPeriod, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walFsyncPeriod, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walRetentionPeriod, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionPeriod, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRetentionSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walRollPeriod, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walRollPeriod, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walSegmentSize, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.walSegmentSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int16_t hashPrefix = pDb->cfg.hashPrefix;
     if (hashPrefix > 0) {
       hashPrefix = pDb->cfg.hashPrefix - strlen(pDb->name) - 1;
     }
-    colDataAppend(pColInfo, rows, (const char *)&hashPrefix, false);
+    colDataSetVal(pColInfo, rows, (const char *)&hashPrefix, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.hashSuffix, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.hashSuffix, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.tsdbPageSize, false);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.tsdbPageSize, false);
   }
 
   taosMemoryFree(buf);
