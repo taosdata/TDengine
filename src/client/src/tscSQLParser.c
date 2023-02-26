@@ -2684,7 +2684,7 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
     pExpr->base.param[0].i64 = TSDB_ORDER_DESC;
     pExpr->base.param[0].nType = TSDB_DATA_TYPE_INT;
   }
-  
+
   // for all queries, the timestamp column needs to be loaded
   SSchema s = {.colId = PRIMARYKEY_TIMESTAMP_COL_INDEX, .bytes = TSDB_KEYSIZE, .type = TSDB_DATA_TYPE_TIMESTAMP,};
   tscColumnListInsert(pQueryInfo->colList, PRIMARYKEY_TIMESTAMP_COL_INDEX, pExpr->base.uid, &s);
@@ -3289,9 +3289,12 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       } else if (functionId == TSDB_FUNC_APERCT || functionId == TSDB_FUNC_TAIL) {
         size_t cnt = taosArrayGetSize(pItem->pNode->Expr.paramList);
         if (cnt != 2 && cnt != 3) valid = false;
+      } else if (functionId == TSDB_FUNC_PERCT) {
+        size_t cnt = taosArrayGetSize(pItem->pNode->Expr.paramList);
+        if (cnt < 2 || cnt > 11) valid = false;
       } else if (functionId == TSDB_FUNC_UNIQUE) {
         if (taosArrayGetSize(pItem->pNode->Expr.paramList) != 1) valid = false;
-      }else {
+      } else {
         if (taosArrayGetSize(pItem->pNode->Expr.paramList) != 2) valid = false;
       }
       if (!valid) {
@@ -3332,7 +3335,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       tVariant* pVariant = NULL;
-      if (functionId != TSDB_FUNC_UNIQUE) {
+      if (functionId != TSDB_FUNC_UNIQUE && functionId != TSDB_FUNC_PERCT) {
         // 3. valid the parameters
         if (pParamElem[1].pNode->tokenId == TK_ID) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -3348,7 +3351,31 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       char val[8] = {0};
 
       SExprInfo* pExpr = NULL;
-      if (functionId == TSDB_FUNC_PERCT || functionId == TSDB_FUNC_APERCT) {
+      if (functionId == TSDB_FUNC_PERCT) {
+        int32_t numOfParams = (int32_t)taosArrayGetSize(pItem->pNode->Expr.paramList);
+        getResultDataInfo(pSchema->type, pSchema->bytes, functionId, numOfParams - 1, &resultType, &resultSize, &interResult, 0,
+                          false, pUdfInfo);
+        pExpr = tscExprAppend(pQueryInfo, functionId, &idx, resultType, resultSize, getNewResColId(pCmd),
+                              interResult, false);
+
+        for (int32_t i = 1; i < numOfParams; ++i) {
+          pVariant = &pParamElem[i].pNode->value;
+          if (pVariant->nType != TSDB_DATA_TYPE_DOUBLE && pVariant->nType != TSDB_DATA_TYPE_BIGINT) {
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
+          }
+          tVariantDump(pVariant, val, TSDB_DATA_TYPE_DOUBLE, true);
+
+          double dp = GET_DOUBLE_VAL(val);
+          if (dp < 0 || dp > TOP_BOTTOM_QUERY_LIMIT) {
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
+          }
+
+          tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
+        }
+
+        tscInsertPrimaryTsSourceColumn(pQueryInfo, pTableMetaInfo->pTableMeta->id.uid);
+        colIndex += 1;  // the first column is ts
+      } else if (functionId == TSDB_FUNC_APERCT) {
         // param1 double
         if (pVariant->nType != TSDB_DATA_TYPE_DOUBLE && pVariant->nType != TSDB_DATA_TYPE_BIGINT) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);

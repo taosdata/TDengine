@@ -700,8 +700,13 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *bytes = sizeof(double);
     *interBytes = sizeof(SSpreadInfo);
   } else if (functionId == TSDB_FUNC_PERCT) {
-    *type = (int16_t)TSDB_DATA_TYPE_DOUBLE;
-    *bytes = sizeof(double);
+    if (param > 1) {
+      *type = (int16_t)TSDB_DATA_TYPE_BINARY;
+      *bytes = 512;
+    } else {
+      *type = (int16_t)TSDB_DATA_TYPE_DOUBLE;
+      *bytes = sizeof(double);
+    }
     *interBytes = sizeof(SPercentileInfo);
   } else if (functionId == TSDB_FUNC_LEASTSQR) {
     *type = TSDB_DATA_TYPE_BINARY;
@@ -3096,7 +3101,7 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
 }
 
 static void percentile_finalizer(SQLFunctionCtx *pCtx) {
-  double v = pCtx->param[0].nType == TSDB_DATA_TYPE_INT ? pCtx->param[0].i64 : pCtx->param[0].dKey;
+  double v = 0;
 
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo* ppInfo = (SPercentileInfo *) GET_ROWCELL_INTERBUF(pResInfo);
@@ -3107,7 +3112,25 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
       assert(ppInfo->numOfElems == 0);
     setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
   } else {
-    SET_DOUBLE_VAL((double *)pCtx->pOutput, getPercentile(pMemBucket, v));
+    if (pCtx->numOfParams > 1) {
+      ((char *)varDataVal(pCtx->pOutput))[0] = '[';
+      size_t len = 1;
+      size_t maxBufLen = 512;
+
+      for (int32_t i = 0; i < pCtx->numOfParams; ++i) {
+        v = pCtx->param[i].nType == TSDB_DATA_TYPE_INT ? pCtx->param[i].i64 : pCtx->param[i].dKey;
+
+        if (i == pCtx->numOfParams - 1) {
+          len += snprintf((char *)varDataVal(pCtx->pOutput) + len, maxBufLen - len, "%lf]", getPercentile(pMemBucket, v));
+        } else {
+          len += snprintf((char *)varDataVal(pCtx->pOutput) + len, maxBufLen - len, "%lf, ", getPercentile(pMemBucket, v));
+        }
+      }
+      varDataSetLen(pCtx->pOutput, len);
+    } else {
+      v = pCtx->param[0].nType == TSDB_DATA_TYPE_INT ? pCtx->param[0].i64 : pCtx->param[0].dKey;
+      SET_DOUBLE_VAL((double *)pCtx->pOutput, getPercentile(pMemBucket, v));
+    }
   }
 
   tMemBucketDestroy(pMemBucket);

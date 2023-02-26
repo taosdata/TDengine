@@ -2780,7 +2780,7 @@ void tscExprAddParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t byt
   tVariantCreateFromBinary(&pExpr->param[pExpr->numOfParams], argument, bytes, type);
   pExpr->numOfParams += 1;
 
-  assert(pExpr->numOfParams <= 3);
+  assert(pExpr->numOfParams <= 10);
 }
 
 SExprInfo* tscExprGet(SQueryInfo* pQueryInfo, int32_t idx) {
