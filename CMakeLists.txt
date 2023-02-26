@@ -74,6 +74,8 @@ if(${BUILD_TEST})
     enable_testing()
 endif(${BUILD_TEST})
 
+ADD_DEFINITIONS(-DTD_ENTERPRISE)
+
 add_subdirectory(community/source)
 add_subdirectory(community/tools)
 add_subdirectory(community/utils)
