@@ -618,6 +618,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
     // set the update type
     pConsumerNew->updateType = CONSUMER_UPDATE__MODIFY;
+    taosArrayDestroy(pConsumerNew->assignedTopics);
     pConsumerNew->assignedTopics = taosArrayDup(pTopicList, topicNameDup);
 
     // all subscribed topics should re-balance.
@@ -647,6 +648,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
     // set the update type
     pConsumerNew->updateType = CONSUMER_UPDATE__MODIFY;
+    taosArrayDestroy(pConsumerNew->assignedTopics);
     pConsumerNew->assignedTopics = taosArrayDup(pTopicList, topicNameDup);
 
     int32_t oldTopicNum = (pExistedConsumer->currentTopics)? taosArrayGetSize(pExistedConsumer->currentTopics):0;
