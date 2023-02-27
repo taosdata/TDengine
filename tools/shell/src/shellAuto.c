@@ -98,7 +98,7 @@ SWords shellCommands[] = {
     {"describe <all_table>", 0, 0, NULL},
     {"delete from <all_table> where ", 0, 0, NULL},
     {"drop database <db_name>", 0, 0, NULL},
-    {"drop index ", 0, 0, NULL},
+    {"drop index <anyword>", 0, 0, NULL},
     {"drop table <all_table>", 0, 0, NULL},
     {"drop dnode <dnode_id>", 0, 0, NULL},
     {"drop mnode on dnode <dnode_id> ;", 0, 0, NULL},
@@ -577,8 +577,11 @@ void parseCommand(SWords* command, bool pattern) {
         while (word->next) {
           word = word->next;
         }
-        word->next = addWord(p + start, i - start, pattern);
-        command->count++;
+        int len = i - start;
+        if (len > 0) {
+          word->next = addWord(p + start, len, pattern);
+          command->count++;
+        }
       }
       start = i + 1;
     } else {
