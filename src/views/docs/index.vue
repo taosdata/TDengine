@@ -52,10 +52,12 @@
       },
       url() {
         // return this.$store.state.app.current_cluster.urlPath;
-        return this.$store.state.app.current_cluster.gateway_url;
+        // return this.$store.state.app.current_cluster.gateway_url;
+        return localStorage.getItem('base_url')
       },
       token() {
-        return this.$store.state.app.current_cluster?.token?.token || "";
+        // return this.$store.state.app.current_cluster?.token?.token || "";
+        return localStorage.getItem('TDengine-Token')?localStorage.getItem('TDengine-Token'):''
       },
     },
     data() {

@@ -14,8 +14,12 @@ export async function getTableListReq(params) {
 }
 
 export function searchTable(prefix, dbname) {
+  // return sendSQLReq(
+  //   `select * from information_schema.ins_tables where db_name='${dbname}' and stable_name is NOT NULL and table_name LIKE '${prefix}%' limit 100`,
+  //   true
+  // );
   return sendSQLReq(
-    `select * from information_schema.ins_tables where db_name='${dbname}' and stable_name is NOT NULL and table_name LIKE '${prefix}%' limit 100`,
+    `select * from information_schema.ins_tables where db_name='${dbname}'  and table_name LIKE '${prefix}%' limit 100`,
     true
   );
 }

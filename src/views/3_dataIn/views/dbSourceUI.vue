@@ -338,7 +338,6 @@ export default {
   },
   methods: {
     transforHtml(val) {
-      console.log("transfor html", val);
       if (val) {
         return marked.parse(val);
       } else {

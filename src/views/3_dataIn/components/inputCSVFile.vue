@@ -78,8 +78,6 @@
       submitForm() {
         if (this.requestIng) return;
         this.$refs.inputCsvForm.validate(valid => {
-
-        console.log(this.requestIng,valid,this.inputCsvForm,'上传csv');
           if (valid) {
             this.requestIng = true;
             const loading = this.$loading({
@@ -90,8 +88,6 @@
             });
             uploadCsv(this.inputCsvForm)
               .then((res) => {
-                
-                console.log(res,'ccccc');
                 
                 this.$refs.inputCsvForm.resetFields();
                 this.fileList = [];

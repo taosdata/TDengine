@@ -111,11 +111,9 @@ export function uploadCsv(data) {
     },
   })
     .then(data => {
-      console.log(data,'data---csv');
       
       // const currentData = jsonToObj(data);
       const currentData=data
-      console.log(currentData,'currentData---csv');
       
       if (currentData.code != 0) return Promise.reject(currentData);
     })

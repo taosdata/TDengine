@@ -4,7 +4,12 @@
       <span class="title">Theme：</span>
       <ul class="theme-list">
         <li v-for="(item, index) in themes" :key="index">
-          <img :src="item.src" alt="" @click="chooseTheme(index)" :class="[item.isActive?'active':'']"/>
+          <img
+            :src="item.src"
+            alt=""
+            @click="chooseTheme(index)"
+            :class="[item.isActive ? 'active' : '']"
+          />
           <p>
             <span>{{ item.name }}</span>
           </p>
@@ -38,13 +43,22 @@
       >
       </el-input>
     </section>
+    <section class="grafana">
+      <span class="title" style="white-space: nowrap">Grafana Url：</span>
+      <el-input placeholder="Please enter the url" v-model="grafanaUrl"></el-input>
+    </section>
+    <section class="bottom">
+      <el-button type="primary" @click="saveGrafana">Save</el-button>
+    </section>
   </div>
 </template>
 <script>
+import { Message } from 'element-ui';
 export default {
   data() {
     return {
       textarea: "",
+      grafanaUrl:'',
       themes: [
         {
           name: "Default",
@@ -66,16 +80,23 @@ export default {
   },
   methods: {
     chooseTheme(index) {
-        this.themes=this.themes.map((item,ind)=>{
-            if(ind===index){
-                item.isActive=true
-            }else{
-                item.isActive=false
-            }
-            return item
-        })
-        
+      this.themes = this.themes.map((item, ind) => {
+        if (ind === index) {
+          item.isActive = true;
+        } else {
+          item.isActive = false;
+        }
+        return item;
+      });
     },
+    saveGrafana(){
+      let reg =/^(http|https):\/\/([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*/;
+      if(reg.test(this.grafanaUrl)){
+        localStorage.setItem('local_grafana',this.grafanaUrl)
+      }else{
+        Message.error('Please enter the correct  url.')
+      }
+    }
   },
 };
 </script>
@@ -83,7 +104,7 @@ export default {
 .setting-content {
   display: flex;
   flex-direction: column;
-//   border: 1px solid #f0f0f0;
+  //   border: 1px solid #f0f0f0;
   padding: 20px;
   section {
     display: flex;
@@ -111,13 +132,14 @@ export default {
         img {
           border-radius: 20px;
           cursor: pointer;
-          box-shadow: 0 3px 6px -4px rgb(0 0 0 / 12%), 0 6px 16px 0 rgb(0 0 0 / 8%), 0 9px 28px 8px rgb(0 0 0 / 5%);
+          box-shadow: 0 3px 6px -4px rgb(0 0 0 / 12%),
+            0 6px 16px 0 rgb(0 0 0 / 8%), 0 9px 28px 8px rgb(0 0 0 / 5%);
           &:hover {
             scale: (1.1);
           }
         }
-        .active{
-            box-shadow: 0 0 0 1px #ffffff, 0 0 0 5px #1677ff;
+        .active {
+          box-shadow: 0 0 0 1px #ffffff, 0 0 0 5px #1677ff;
         }
         p {
           margin-top: 15px;
@@ -145,6 +167,19 @@ export default {
     }
     .el-textarea__inner {
       width: 50%;
+    }
+  }
+  .grafana {
+    .title {
+      display: inline-block;
+      width: 150px;
+      flex-shrink: 0;
+    }
+  }
+  .bottom{
+    justify-content: center;
+    .el-button{
+      flex:0.5;
     }
   }
 }

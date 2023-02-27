@@ -87,3 +87,11 @@ export function changeStableStruct(data, stableName) {
     return Promise.reject(err);
   });
 }
+
+//根据云服务添加的topic-wizard
+export function searchStable(prefix, dbname) {
+  return sendSQLReq(
+    `select * from information_schema.ins_stables where db_name='${dbname.toLowerCase()}' and  stable_name LIKE '%${prefix}%' limit 100`,
+    true
+  );
+}

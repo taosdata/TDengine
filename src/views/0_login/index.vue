@@ -89,7 +89,7 @@
             <el-form-item label="" prop="cluster">
               <el-input
                 v-model="dynamicValidateForm.cluster"
-                placeholder="http://192.168.0.201:16041"
+                placeholder="http://192.168.0.201:6050"
               ></el-input>
             </el-form-item>
           </div>
@@ -184,6 +184,7 @@ import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
+import {getUrls} from '@/api/explorer/login'
 export default {
   name: "Login",
   components: {
@@ -265,7 +266,6 @@ export default {
       try {
         return sendSQLReq(` select id from information_schema.ins_cluster;`)
           .then((res) => {
-            console.log(res, "获取cluster");
             let id = res.data.flat(Infinity).toString()
             localStorage.setItem('local_clusterID',id)
           })
@@ -314,7 +314,6 @@ export default {
           }
         }).catch(err=>{
           Message.error('Faild to fetch,wrong cluster url!')
-          console.log(err,'fetch---');
         });
       } catch (error) {
         console.log(error,'login');
@@ -323,7 +322,25 @@ export default {
     search() {
       this.hidden = true;
     },
+   async getClusterAndDashboardUrl(){
+    try {
+      await getUrls().then(res=>{
+        console.log(res,'login---url');
+        if(res&&res.cluster){
+          this.dynamicValidateForm.cluster=res.cluster
+        }
+        if(res&&res.dashboard){
+          localStorage.setItem('local_grafana',res.dashboard)
+        }
+      })
+    } catch (error) {
+      Message.error(error)
+    }
+    }
   },
+  created(){
+    this.getClusterAndDashboardUrl()
+  }
 };
 </script>
 <style lang="scss" scoped>

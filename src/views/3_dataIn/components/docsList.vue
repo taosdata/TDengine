@@ -4,6 +4,7 @@
       <li v-for="(item, index) in docsList" :title="item.name" :key="index">
         <router-link class="client-item" :to="getUrl(item.name, item.icon)">
           <h2 class="title">
+            
             <img class="image" :src="getImg(item.name, item.icon)" alt="" />
             <span>{{ item.name }}</span>
           </h2>
