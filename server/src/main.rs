@@ -1,3 +1,4 @@
+use actix_cors::Cors;
 // #![feature(btree_drain_filter)]
 use awc::error::JsonPayloadError;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
@@ -42,7 +43,12 @@ async fn main() -> std::io::Result<()> {
     let port = args.port.unwrap_or(EXPLORER_PORT);
     let args = web::Data::new(args);
     HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header();
         App::new()
+            .wrap(cors)
             .app_data(args.clone())
             .route("/", web::get().to(index))
             .route("/api/x/{api:.*}", web::to(x_api))
