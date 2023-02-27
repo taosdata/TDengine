@@ -144,7 +144,7 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 0;
   rpcInit.label = "TSC";
-  rpcInit.numOfThreads = numOfThread;
+  rpcInit.numOfThreads = tsNumOfRpcThreads;
   rpcInit.cfp = processMsgFromServer;
   rpcInit.rfp = clientRpcRfp;
   rpcInit.sessions = 1024;
@@ -158,6 +158,12 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.retryStepFactor = tsRedirectFactor;
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
   rpcInit.retryMaxTimouet = tsMaxRetryWaitTime;
+
+  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 5);
+  connLimitNum = TMAX(connLimitNum, 10);
+  connLimitNum = TMIN(connLimitNum, 500);
+  rpcInit.connLimitNum = connLimitNum;
+  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
 
   void *pDnodeConn = rpcOpen(&rpcInit);
   if (pDnodeConn == NULL) {
@@ -517,7 +523,7 @@ void taos_init_imp(void) {
     if (code) {
       printf("failed to init memory dbg, error:%s\n", tstrerror(code));
     } else {
-      tsAsyncLog = false;    
+      tsAsyncLog = false;
       printf("memory dbg enabled\n");
     }
   }
