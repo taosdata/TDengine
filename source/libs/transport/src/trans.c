@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef USE_UV
-
 #include "transComm.h"
 
 void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int32_t numOfThreads, void* fp, void* shandle) = {
@@ -88,16 +86,17 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
+  pRpc->parent = pInit->parent;
+  if (pInit->user) {
+    tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
+  }
+
   pRpc->tcphandle =
       (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
 
   if (pRpc->tcphandle == NULL) {
     taosMemoryFree(pRpc);
     return NULL;
-  }
-  pRpc->parent = pInit->parent;
-  if (pInit->user) {
-    tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
   }
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
@@ -188,5 +187,3 @@ void rpcCleanup(void) {
 
   return;
 }
-
-#endif

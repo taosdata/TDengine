@@ -104,7 +104,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  pSnode->path = strdup(path);
+  pSnode->path = taosStrdup(path);
   if (pSnode->path == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;

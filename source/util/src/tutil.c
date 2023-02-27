@@ -118,7 +118,7 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
     if ((*num) >= size) {
       size = (size << 1);
       split = taosMemoryRealloc(split, POINTER_BYTES * size);
-      ASSERTS(NULL != split, "realloc memory failed. size=%d", POINTER_BYTES * size);
+      ASSERTS(NULL != split, "realloc memory failed. size=%d", (int32_t) POINTER_BYTES * size);
     }
   }
 

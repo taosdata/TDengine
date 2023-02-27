@@ -30,9 +30,9 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 
   char path[PATH_MAX + 100] = {0};
   snprintf(path, sizeof(path), "%s%sdata", pOption->path, TD_DIRSEP);
-  pSdb->currDir = strdup(path);
+  pSdb->currDir = taosStrdup(path);
   snprintf(path, sizeof(path), "%s%stmp", pOption->path, TD_DIRSEP);
-  pSdb->tmpDir = strdup(path);
+  pSdb->tmpDir = taosStrdup(path);
   if (pSdb->currDir == NULL || pSdb->tmpDir == NULL) {
     sdbCleanup(pSdb);
     terrno = TSDB_CODE_OUT_OF_MEMORY;

@@ -197,7 +197,7 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     cfgRsp.ttl = mer1.me.ctbEntry.ttlDays;
     cfgRsp.commentLen = mer1.me.ctbEntry.commentLen;
     if (mer1.me.ctbEntry.commentLen > 0) {
-      cfgRsp.pComment = strdup(mer1.me.ctbEntry.comment);
+      cfgRsp.pComment = taosStrdup(mer1.me.ctbEntry.comment);
     }
     STag *pTag = (STag *)mer1.me.ctbEntry.pTags;
     cfgRsp.tagsLen = pTag->len;
@@ -208,7 +208,7 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     cfgRsp.ttl = mer1.me.ntbEntry.ttlDays;
     cfgRsp.commentLen = mer1.me.ntbEntry.commentLen;
     if (mer1.me.ntbEntry.commentLen > 0) {
-      cfgRsp.pComment = strdup(mer1.me.ntbEntry.comment);
+      cfgRsp.pComment = taosStrdup(mer1.me.ntbEntry.comment);
     }
   } else {
     ASSERT(0);

@@ -496,11 +496,9 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
 
   //ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
 
-  if (tbCache) {
-    CTG_UNLOCK(CTG_READ, &tbCache->metaLock);
-    taosHashRelease(dbCache->tbCache, tbCache);
-    *pTb = NULL;
-  }
+  CTG_UNLOCK(CTG_READ, &tbCache->metaLock);
+  taosHashRelease(dbCache->tbCache, tbCache);
+  *pTb = NULL;
   
   ctgDebug("Got ctb %s meta from cache, will continue to get its stb meta, type:%d, dbFName:%s", ctx->pName->tname,
            ctx->tbInfo.tbType, dbFName);
@@ -1557,8 +1555,8 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
     SCtgTbCache cache = {0};
     cache.pMeta = meta;
     if (taosHashPut(dbCache->tbCache, tbName, strlen(tbName), &cache, sizeof(SCtgTbCache)) != 0) {
-      taosMemoryFree(meta);
       ctgError("taosHashPut new tbCache failed, dbFName:%s, tbName:%s, tbType:%d", dbFName, tbName, meta->tableType);
+      taosMemoryFree(meta);
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 

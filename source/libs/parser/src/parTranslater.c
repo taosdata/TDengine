@@ -1470,8 +1470,8 @@ static int32_t translateInterpFunc(STranslateContext* pCxt, SFunctionNode* pFunc
   SNode*       pTable = pSelect->pFromTable;
 
   if ((NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
-                         (TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
-                          TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType)))) {
+                          (TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+                           TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType)))) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
                                    "%s is only supported in single table query", pFunc->functionName);
   }
@@ -1692,7 +1692,7 @@ static int32_t rewriteFuncToValue(STranslateContext* pCxt, char* pLiteral, SNode
 static int32_t rewriteDatabaseFunc(STranslateContext* pCxt, SNode** pNode) {
   char* pCurrDb = NULL;
   if (NULL != pCxt->pParseCxt->db) {
-    pCurrDb = taosMemoryStrDup((void*)pCxt->pParseCxt->db);
+    pCurrDb = taosStrdup((void*)pCxt->pParseCxt->db);
     if (NULL == pCurrDb) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -1701,7 +1701,7 @@ static int32_t rewriteDatabaseFunc(STranslateContext* pCxt, SNode** pNode) {
 }
 
 static int32_t rewriteClentVersionFunc(STranslateContext* pCxt, SNode** pNode) {
-  char* pVer = taosMemoryStrDup((void*)version);
+  char* pVer = taosStrdup((void*)version);
   if (NULL == pVer) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -1709,7 +1709,7 @@ static int32_t rewriteClentVersionFunc(STranslateContext* pCxt, SNode** pNode) {
 }
 
 static int32_t rewriteServerVersionFunc(STranslateContext* pCxt, SNode** pNode) {
-  char* pVer = taosMemoryStrDup((void*)pCxt->pParseCxt->svrVer);
+  char* pVer = taosStrdup((void*)pCxt->pParseCxt->svrVer);
   if (NULL == pVer) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -1720,7 +1720,7 @@ static int32_t rewriteServerStatusFunc(STranslateContext* pCxt, SNode** pNode) {
   if (pCxt->pParseCxt->nodeOffline) {
     return TSDB_CODE_RPC_NETWORK_UNAVAIL;
   }
-  char* pStatus = taosMemoryStrDup((void*)"1");
+  char* pStatus = taosStrdup((void*)"1");
   return rewriteFuncToValue(pCxt, pStatus, pNode);
 }
 
@@ -1728,7 +1728,7 @@ static int32_t rewriteUserFunc(STranslateContext* pCxt, SNode** pNode) {
   char    userConn[TSDB_USER_LEN + 1 + TSDB_FQDN_LEN] = {0};  // format 'user@host'
   int32_t len = snprintf(userConn, sizeof(userConn), "%s@", pCxt->pParseCxt->pUser);
   taosGetFqdn(userConn + len);
-  char* pUserConn = taosMemoryStrDup((void*)userConn);
+  char* pUserConn = taosStrdup((void*)userConn);
   if (NULL == pUserConn) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -4910,7 +4910,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   pReq->numOfColumns = LIST_LENGTH(pStmt->pCols);
   pReq->numOfTags = LIST_LENGTH(pStmt->pTags);
   if (pStmt->pOptions->commentNull == false) {
-    pReq->pComment = strdup(pStmt->pOptions->comment);
+    pReq->pComment = taosStrdup(pStmt->pOptions->comment);
     if (NULL == pReq->pComment) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -4978,7 +4978,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
   if (TSDB_ALTER_TABLE_UPDATE_OPTIONS == pStmt->alterType) {
     //    pAlterReq->ttl = pStmt->pOptions->ttl;
     if (pStmt->pOptions->commentNull == false) {
-      pAlterReq->comment = strdup(pStmt->pOptions->comment);
+      pAlterReq->comment = taosStrdup(pStmt->pOptions->comment);
       if (NULL == pAlterReq->comment) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
@@ -5092,14 +5092,24 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_MODIFY_COL);
     }
 
-    if (TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType &&
-        pTableMeta->tableInfo.rowSize + calcTypeBytes(pStmt->dataType) - pSchema->bytes > TSDB_MAX_BYTES_PER_ROW) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
+    if (TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType) {
+      if (calcTypeBytes(pStmt->dataType) > TSDB_MAX_FIELD_LEN) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
+      }
+
+      if (pTableMeta->tableInfo.rowSize + calcTypeBytes(pStmt->dataType) - pSchema->bytes > TSDB_MAX_BYTES_PER_ROW) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
+      }
     }
 
-    if (TSDB_ALTER_TABLE_UPDATE_TAG_BYTES == pStmt->alterType &&
-        tagsLen + calcTypeBytes(pStmt->dataType) - pSchema->bytes > TSDB_MAX_TAGS_LEN) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN);
+    if (TSDB_ALTER_TABLE_UPDATE_TAG_BYTES == pStmt->alterType) {
+      if (calcTypeBytes(pStmt->dataType) > TSDB_MAX_FIELD_LEN) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
+      }
+
+      if (tagsLen + calcTypeBytes(pStmt->dataType) - pSchema->bytes > TSDB_MAX_TAGS_LEN) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN);
+      }
     }
   }
 
@@ -5267,7 +5277,7 @@ static int32_t getSmaIndexDstVgId(STranslateContext* pCxt, const char* pDbName, 
 }
 
 static int32_t getSmaIndexSql(STranslateContext* pCxt, char** pSql, int32_t* pLen) {
-  *pSql = strdup(pCxt->pParseCxt->pSql);
+  *pSql = taosStrdup(pCxt->pParseCxt->pSql);
   if (NULL == *pSql) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -5505,7 +5515,7 @@ static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pS
   pReq->igExists = pStmt->ignoreExists;
   pReq->withMeta = pStmt->withMeta;
 
-  pReq->sql = strdup(pCxt->pParseCxt->pSql);
+  pReq->sql = taosStrdup(pCxt->pParseCxt->pSql);
   if (NULL == pReq->sql) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -5953,6 +5963,7 @@ static int32_t adjustOrderOfProjections(STranslateContext* pCxt, SNodeList* pCol
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
+  bool    hasPrimaryKey = false;
   SNode*  pCol = NULL;
   SNode*  pProj = NULL;
   FORBOTH(pCol, pCols, pProj, *pProjections) {
@@ -5966,6 +5977,14 @@ static int32_t adjustOrderOfProjections(STranslateContext* pCxt, SNodeList* pCol
     if (TSDB_CODE_SUCCESS != code) {
       break;
     }
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
+      hasPrimaryKey = true;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && !hasPrimaryKey) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                   "primary timestamp column can not be null");
   }
 
   SNodeList* pNewProjections = NULL;
@@ -6008,7 +6027,15 @@ static int32_t adjustProjectionsForExistTable(STranslateContext* pCxt, SCreateSt
   return adjustOrderOfProjections(pCxt, pStmt->pCols, pMeta, &pSelect->pProjectionList, pReq);
 }
 
+static bool isGroupIdTagStream(const STableMeta* pMeta, SNodeList* pTags) {
+  return (NULL == pTags && 1 == pMeta->tableInfo.numOfTags && TSDB_DATA_TYPE_UBIGINT == getTableTagSchema(pMeta)->type);
+}
+
 static int32_t adjustDataTypeOfTags(STranslateContext* pCxt, const STableMeta* pMeta, SNodeList* pTags) {
+  if (isGroupIdTagStream(pMeta, pTags)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (getNumOfTags(pMeta) != LIST_LENGTH(pTags)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM, "Illegal number of tags");
   }
@@ -6235,7 +6262,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
 
   int32_t code = buildCreateStreamQuery(pCxt, pStmt, pReq);
   if (TSDB_CODE_SUCCESS == code) {
-    pReq->sql = strdup(pCxt->pParseCxt->pSql);
+    pReq->sql = taosStrdup(pCxt->pParseCxt->pSql);
     if (NULL == pReq->sql) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -7127,10 +7154,10 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
 
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
-  req.name = strdup(pStmt->tableName);
+  req.name = taosStrdup(pStmt->tableName);
   req.ttl = pStmt->pOptions->ttl;
   if (pStmt->pOptions->commentNull == false) {
-    req.comment = strdup(pStmt->pOptions->comment);
+    req.comment = taosStrdup(pStmt->pOptions->comment);
     if (NULL == req.comment) {
       tdDestroySVCreateTbReq(&req);
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -7289,17 +7316,17 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, S
 
   struct SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
-  req.name = strdup(pStmt->tableName);
+  req.name = taosStrdup(pStmt->tableName);
   req.ttl = pStmt->pOptions->ttl;
   if (pStmt->pOptions->commentNull == false) {
-    req.comment = strdup(pStmt->pOptions->comment);
+    req.comment = taosStrdup(pStmt->pOptions->comment);
     req.commentLen = strlen(pStmt->pOptions->comment);
   } else {
     req.commentLen = -1;
   }
   req.ctb.suid = suid;
   req.ctb.tagNum = tagNum;
-  req.ctb.stbName = strdup(sTableNmae);
+  req.ctb.stbName = taosStrdup(sTableNmae);
   req.ctb.pTag = (uint8_t*)pTag;
   req.ctb.tagName = taosArrayDup(tagName, NULL);
   if (pStmt->ignoreExists) {
@@ -7781,7 +7808,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
                                    pStmt->colName);
   }
 
-  pReq->tagName = strdup(pStmt->colName);
+  pReq->tagName = taosStrdup(pStmt->colName);
   if (NULL == pReq->tagName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -7854,7 +7881,7 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
   }
 
-  pReq->colName = strdup(pStmt->colName);
+  pReq->colName = taosStrdup(pStmt->colName);
   if (NULL == pReq->colName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -7877,7 +7904,7 @@ static int32_t buildDropColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_CANNOT_DROP_PRIMARY_KEY);
   }
 
-  pReq->colName = strdup(pStmt->colName);
+  pReq->colName = taosStrdup(pStmt->colName);
   if (NULL == pReq->colName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -7902,7 +7929,7 @@ static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
   }
 
-  pReq->colName = strdup(pStmt->colName);
+  pReq->colName = taosStrdup(pStmt->colName);
   if (NULL == pReq->colName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -7920,8 +7947,8 @@ static int32_t buildRenameColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
   }
 
-  pReq->colName = strdup(pStmt->colName);
-  pReq->colNewName = strdup(pStmt->newColName);
+  pReq->colName = taosStrdup(pStmt->colName);
+  pReq->colNewName = taosStrdup(pStmt->newColName);
   if (NULL == pReq->colName || NULL == pReq->colNewName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -7938,7 +7965,7 @@ static int32_t buildUpdateOptionsReq(STranslateContext* pCxt, SAlterTableStmt* p
 
   if (TSDB_CODE_SUCCESS == code) {
     if (pStmt->pOptions->commentNull == false) {
-      pReq->newComment = strdup(pStmt->pOptions->comment);
+      pReq->newComment = taosStrdup(pStmt->pOptions->comment);
       if (NULL == pReq->newComment) {
         code = TSDB_CODE_OUT_OF_MEMORY;
       } else {
@@ -7954,7 +7981,7 @@ static int32_t buildUpdateOptionsReq(STranslateContext* pCxt, SAlterTableStmt* p
 
 static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                SVAlterTbReq* pReq) {
-  pReq->tbName = strdup(pStmt->tableName);
+  pReq->tbName = taosStrdup(pStmt->tableName);
   if (NULL == pReq->tbName) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }

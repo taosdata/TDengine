@@ -144,10 +144,10 @@ int16_t insFindCol(SToken* pColname, int16_t start, int16_t end, SSchema* pSchem
 void insBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, int64_t suid, const char* sname,
                          SArray* tagName, uint8_t tagNum, int32_t ttl) {
   pTbReq->type = TD_CHILD_TABLE;
-  pTbReq->name = strdup(tname);
+  pTbReq->name = taosStrdup(tname);
   pTbReq->ctb.suid = suid;
   pTbReq->ctb.tagNum = tagNum;
-  if (sname) pTbReq->ctb.stbName = strdup(sname);
+  if (sname) pTbReq->ctb.stbName = taosStrdup(sname);
   pTbReq->ctb.pTag = (uint8_t*)pTag;
   pTbReq->ctb.tagName = taosArrayDup(tagName, NULL);
   pTbReq->ttl = ttl;

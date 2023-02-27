@@ -638,7 +638,7 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
 }
 int32_t mndAddIndexImpl(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, SIdxObj *pIdx) {
   // impl later
-  int32_t code = 0;
+  int32_t code = -1;
   SStbObj newStb = {0};
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "create-stb-index");
   if (pTrans == NULL) goto _OVER;
@@ -670,6 +670,7 @@ _OVER:
 }
 
 static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *req, SDbObj *pDb, SStbObj *pStb) {
+  int32_t code = -1;
   SIdxObj idxObj = {0};
   memcpy(idxObj.name, req->idxName, TSDB_TABLE_FNAME_LEN);
   memcpy(idxObj.stb, pStb->name, TSDB_TABLE_FNAME_LEN);
@@ -680,21 +681,6 @@ static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *re
   idxObj.uid = mndGenerateUid(req->idxName, strlen(req->idxName));
   idxObj.stbUid = pStb->uid;
   idxObj.dbUid = pStb->dbUid;
-
-  int32_t code = -1;
-  // SField *pField0 = NULL;
-
-  // SStbObj  stbObj = {0};
-  // SStbObj *pNew = &stbObj;
-
-  // taosRLockLatch(&pOld->lock);
-  // memcpy(&stbObj, pOld, sizeof(SStbObj));
-  // taosRUnLockLatch(&pOld->lock);
-
-  // stbObj.pColumns = NULL;
-  // stbObj.pTags = NULL;
-  // stbObj.updateTime = taosGetTimestampMs();
-  // stbObj.lock = 0;
 
   int32_t tag = mndFindSuperTableTagId(pStb, req->colName);
   if (tag < 0) {

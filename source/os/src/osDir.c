@@ -89,6 +89,8 @@ typedef struct dirent TdDirEntry;
 
 #endif
 
+#define TDDIRMAXLEN 1024
+
 void taosRemoveDir(const char *dirname) {
   TdDirPtr pDir = taosOpenDir(dirname);
   if (pDir == NULL) return;
@@ -133,8 +135,8 @@ int32_t taosMkDir(const char *dirname) {
 }
 
 int32_t taosMulMkDir(const char *dirname) {
-  if (dirname == NULL) return -1;
-  char    temp[1024];
+  if (dirname == NULL || strlen(dirname) >= TDDIRMAXLEN) return -1;
+  char    temp[TDDIRMAXLEN];
   char   *pos = temp;
   int32_t code = 0;
 #ifdef WINDOWS
@@ -192,8 +194,8 @@ int32_t taosMulMkDir(const char *dirname) {
 }
 
 int32_t taosMulModeMkDir(const char *dirname, int mode) {
-  if (dirname == NULL) return -1;
-  char    temp[1024];
+  if (dirname == NULL || strlen(dirname) >= TDDIRMAXLEN) return -1;
+  char    temp[TDDIRMAXLEN];
   char   *pos = temp;
   int32_t code = 0;
 #ifdef WINDOWS
@@ -204,8 +206,7 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
 #endif
 
   if (taosDirExist(temp)) {
-    chmod(temp, mode);
-    return code;
+    return chmod(temp, mode);
   }
 
   if (strncmp(temp, TD_DIRSEP, 1) == 0) {
@@ -247,12 +248,10 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
   }
 
   if (code < 0 && errno == EEXIST) {
-    chmod(temp, mode);
-    return 0;
+    return chmod(temp, mode);
   }
 
-  chmod(temp, mode);
-  return code;
+  return chmod(temp, mode);
 }
 
 void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {

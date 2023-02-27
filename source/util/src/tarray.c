@@ -48,7 +48,7 @@ SArray* taosArrayInit(size_t size, size_t elemSize) {
   return pArray;
 }
 
-SArray* taosArrayInit_s(size_t size, size_t elemSize, size_t initialSize) {
+SArray* taosArrayInit_s(size_t elemSize, size_t initialSize) {
   SArray* pArray = taosMemoryMalloc(sizeof(SArray));
   if (pArray == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -139,7 +139,8 @@ void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)
         }
 
         taosArraySet(pArray, pos + 1, p2);
-        pos += 1;
+        memset(TARRAY_GET_ELEM(pArray, i), 0, pArray->elemSize);
+	pos += 1;
       } else {
         pos += 1;
       }
@@ -171,13 +172,14 @@ void taosArrayRemoveDuplicateP(SArray* pArray, __compar_fn_t comparFn, void (*fp
       // do nothing
     } else {
       if (pos + 1 != i) {
-        void* p = taosArrayGet(pArray, pos + 1);
+        void* p = taosArrayGetP(pArray, pos + 1);
         if (fp != NULL) {
           fp(p);
         }
 
         taosArraySet(pArray, pos + 1, p2);
-        pos += 1;
+        memset(TARRAY_GET_ELEM(pArray, i), 0, pArray->elemSize);
+	pos += 1;
       } else {
         pos += 1;
       }

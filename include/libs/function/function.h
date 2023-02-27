@@ -76,7 +76,7 @@ enum {
 enum {
   MAIN_SCAN = 0x0u,
   REVERSE_SCAN = 0x1u,  // todo remove it
-  REPEAT_SCAN = 0x2u,   // repeat scan belongs to the master scan
+  PRE_SCAN = 0x2u,   // pre-scan belongs to the main scan and occurs before main scan
 };
 
 typedef struct SPoint1 {

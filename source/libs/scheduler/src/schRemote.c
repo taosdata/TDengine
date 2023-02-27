@@ -887,7 +887,7 @@ int32_t schUpdateSendTargetInfo(SMsgSendInfo *pMsgSendInfo, SQueryNodeAddr *addr
   } else {
     pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
     pMsgSendInfo->target.vgId = addr->nodeId;
-    pMsgSendInfo->target.dbFName = strdup(pTask->plan->dbFName);
+    pMsgSendInfo->target.dbFName = taosStrdup(pTask->plan->dbFName);
   }
 
   return TSDB_CODE_SUCCESS;

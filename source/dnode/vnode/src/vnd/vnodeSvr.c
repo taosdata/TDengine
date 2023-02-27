@@ -141,7 +141,10 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     *(int64_t *)(pCoder->data + pCoder->pos) = uid;
     pCoder->pos += sizeof(int64_t);
   } else {
-    tDecodeI64(pCoder, &submitTbData.uid);
+    if (tDecodeI64(pCoder, &submitTbData.uid) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
   }
 
   if (tDecodeI32v(pCoder, &submitTbData.sver) < 0) {
@@ -167,6 +170,11 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 
     SColData colData = {0};
     pCoder->pos += tGetColData(pCoder->data + pCoder->pos, &colData);
+
+    if (colData.flag != HAS_VALUE) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
 
     for (int32_t iRow = 0; iRow < colData.nVal; iRow++) {
       if (((TSKEY *)colData.pData)[iRow] < minKey || ((TSKEY *)colData.pData)[iRow] > maxKey) {
@@ -620,12 +628,14 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *p
     tqUpdateTbUidList(pVnode->pTq, tbUids, false);
   }
 
+#if 0
   // process
   ret = tsdbDoRetention(pVnode->pTsdb, ttlReq.timestamp);
   if (ret) goto end;
 
   ret = smaDoRetention(pVnode->pSma, ttlReq.timestamp);
   if (ret) goto end;
+#endif
 
 end:
   taosArrayDestroy(tbUids);

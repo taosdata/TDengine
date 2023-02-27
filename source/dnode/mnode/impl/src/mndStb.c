@@ -893,7 +893,7 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
 
 static int32_t mndFindSuperTableTagIndex(const SStbObj *pStb, const char *tagName) {
   for (int32_t tag = 0; tag < pStb->numOfTags; tag++) {
-    if (strcasecmp(pStb->pTags[tag].name, tagName) == 0) {
+    if (strcmp(pStb->pTags[tag].name, tagName) == 0) {
       return tag;
     }
   }
@@ -903,7 +903,7 @@ static int32_t mndFindSuperTableTagIndex(const SStbObj *pStb, const char *tagNam
 
 static int32_t mndFindSuperTableColumnIndex(const SStbObj *pStb, const char *colName) {
   for (int32_t col = 0; col < pStb->numOfColumns; col++) {
-    if (strcasecmp(pStb->pColumns[col].name, colName) == 0) {
+    if (strcmp(pStb->pColumns[col].name, colName) == 0) {
       return col;
     }
   }
@@ -1734,7 +1734,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   pRsp->ttl = pStb->ttl;
   pRsp->commentLen = pStb->commentLen;
   if (pStb->commentLen > 0) {
-    pRsp->pComment = strdup(pStb->comment);
+    pRsp->pComment = taosStrdup(pStb->comment);
   }
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
@@ -2743,7 +2743,7 @@ void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t
 //        STR_TO_VARSTR(comment, "");
 //        colDataAppend(pColInfo, numOfRows, comment, false);
 //      } else {
-//        colDataAppendNULL(pColInfo, numOfRows);
+//        colDataSetNULL(pColInfo, numOfRows);
 //      }
 //
 //      char watermark[64 + VARSTR_HEADER_SIZE] = {0};
@@ -2932,7 +2932,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     varDataSetLen(stbName, strlen(&stbName[VARSTR_HEADER_SIZE]));
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)stbName, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)stbName, false);
 
     char db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     tNameFromString(&name, pStb->db, T_NAME_ACCT | T_NAME_DB);
@@ -2940,31 +2940,31 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     varDataSetLen(db, strlen(varDataVal(db)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)db, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)db, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStb->createdTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->createdTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStb->numOfColumns, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->numOfColumns, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStb->numOfTags, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->numOfTags, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStb->updateTime, false);  // number of tables
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->updateTime, false);  // number of tables
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pStb->commentLen > 0) {
       char comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_TO_VARSTR(comment, pStb->comment);
-      colDataAppend(pColInfo, numOfRows, comment, false);
+      colDataSetVal(pColInfo, numOfRows, comment, false);
     } else if (pStb->commentLen == 0) {
       char comment[VARSTR_HEADER_SIZE + VARSTR_HEADER_SIZE] = {0};
       STR_TO_VARSTR(comment, "");
-      colDataAppend(pColInfo, numOfRows, comment, false);
+      colDataSetVal(pColInfo, numOfRows, comment, false);
     } else {
-      colDataAppendNULL(pColInfo, numOfRows);
+      colDataSetNULL(pColInfo, numOfRows);
     }
 
     char watermark[64 + VARSTR_HEADER_SIZE] = {0};
@@ -2972,14 +2972,14 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     varDataSetLen(watermark, strlen(varDataVal(watermark)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)watermark, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)watermark, false);
 
     char maxDelay[64 + VARSTR_HEADER_SIZE] = {0};
     sprintf(varDataVal(maxDelay), "%" PRId64 "a,%" PRId64 "a", pStb->maxdelay[0], pStb->maxdelay[1]);
     varDataSetLen(maxDelay, strlen(varDataVal(maxDelay)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)maxDelay, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)maxDelay, false);
 
     char    rollup[160 + VARSTR_HEADER_SIZE] = {0};
     int32_t rollupNum = (int32_t)taosArrayGetSize(pStb->pFuncs);
@@ -2998,7 +2998,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     varDataSetLen(rollup, strlen(varDataVal(rollup)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)rollup, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)rollup, false);
 
     numOfRows++;
     sdbRelease(pSdb, pStb);
@@ -3070,7 +3070,7 @@ static int32_t buildDbColsInfoBlock(const SSDataBlock *p, const SSysTableMeta *p
       colDataAppend(pColInfoData, numOfRows, (const char *)&pm->schema[j].bytes, false);
       for (int32_t k = 6; k <= 8; ++k) {
         pColInfoData = taosArrayGet(p->pDataBlock, k);
-        colDataAppendNULL(pColInfoData, numOfRows);
+        colDataSetNULL(pColInfoData, numOfRows);
       }
 
       numOfRows += 1;
@@ -3174,7 +3174,7 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       colDataAppend(pColInfo, numOfRows, (const char *)&pStb->pColumns[i].bytes, false);
       while (cols < pShow->numOfColumns) {
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataAppendNULL(pColInfo, numOfRows);
+        colDataSetNULL(pColInfo, numOfRows);
       }
       numOfRows++;
     }

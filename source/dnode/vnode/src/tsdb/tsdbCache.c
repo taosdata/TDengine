@@ -779,12 +779,11 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       code = tsdbReadBlockIdx(*state->pDataFReader, state->aBlockIdx);
       if (code) goto _err;
       */
-      int32_t code =
-          tsdbCacheGetBlockIdx((*state->pDataFReader)->pTsdb->biCache, *state->pDataFReader, &state->aBlockIdxHandle);
+      int32_t code = tsdbCacheGetBlockIdx(state->pTsdb->biCache, *state->pDataFReader, &state->aBlockIdxHandle);
       if (code != TSDB_CODE_SUCCESS || state->aBlockIdxHandle == NULL) {
         goto _err;
       }
-      state->aBlockIdx = (SArray *)taosLRUCacheValue((*state->pDataFReader)->pTsdb->biCache, state->aBlockIdxHandle);
+      state->aBlockIdx = (SArray *)taosLRUCacheValue(state->pTsdb->biCache, state->aBlockIdxHandle);
 
       /* if (state->pBlockIdx) { */
       /* } */
@@ -814,7 +813,8 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       if (!state->pBlockData) {
         state->pBlockData = &state->blockData;
 
-        tBlockDataCreate(&state->blockData);
+        code = tBlockDataCreate(&state->blockData);
+        if (code) goto _err;
       }
     }
     case SFSNEXTROW_BLOCKDATA:
@@ -855,7 +855,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
 
             if (state->aBlockIdx) {
               // taosArrayDestroy(state->aBlockIdx);
-              tsdbBICacheRelease((*state->pDataFReader)->pTsdb->biCache, state->aBlockIdxHandle);
+              tsdbBICacheRelease(state->pTsdb->biCache, state->aBlockIdxHandle);
 
               state->aBlockIdxHandle = NULL;
               state->aBlockIdx = NULL;
@@ -881,7 +881,7 @@ _err:
     }*/
   if (state->aBlockIdx) {
     // taosArrayDestroy(state->aBlockIdx);
-    tsdbBICacheRelease((*state->pDataFReader)->pTsdb->biCache, state->aBlockIdxHandle);
+    tsdbBICacheRelease(state->pTsdb->biCache, state->aBlockIdxHandle);
 
     state->aBlockIdxHandle = NULL;
     state->aBlockIdx = NULL;
@@ -910,7 +910,7 @@ int32_t clearNextRowFromFS(void *iter) {
     }*/
   if (state->aBlockIdx) {
     // taosArrayDestroy(state->aBlockIdx);
-    tsdbBICacheRelease((*state->pDataFReader)->pTsdb->biCache, state->aBlockIdxHandle);
+    tsdbBICacheRelease(state->pTsdb->biCache, state->aBlockIdxHandle);
 
     state->aBlockIdxHandle = NULL;
     state->aBlockIdx = NULL;

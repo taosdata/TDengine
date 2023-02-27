@@ -26,7 +26,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   int32_t len = strlen(path) + 20;
   char*   streamPath = taosMemoryCalloc(1, len);
   sprintf(streamPath, "%s/%s", path, "stream");
-  pMeta->path = strdup(streamPath);
+  pMeta->path = taosStrdup(streamPath);
   if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db, 0) < 0) {
     taosMemoryFree(streamPath);
     goto _err;
@@ -171,6 +171,7 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
 }
 #endif
 
+#if 0
 SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
   if (ppTask) {
@@ -180,6 +181,7 @@ SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId) {
     return NULL;
   }
 }
+#endif
 
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
   taosRLockLatch(&pMeta->lock);
