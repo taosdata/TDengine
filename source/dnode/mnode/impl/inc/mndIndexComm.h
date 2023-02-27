@@ -1,3 +1,4 @@
+
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
@@ -13,15 +14,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_CACHE_DEF_H_
-#define _TD_CACHE_DEF_H_
+#ifndef _TD_MND_IDX_COMM_H_
+#define _TD_MND_IDX_COMM_H_
+
+#include "mndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct SSIdx {
+  int   type;  // sma or idx
+  void *pIdx;
+} SSIdx;
+
+// retrieve sma index and tag index
+typedef struct {
+  void *pSmaIter;
+  void *pIdxIter;
+} SSmaAndTagIter;
+
+int32_t mndAcquireGlobalIdx(SMnode *pMnode, char *name, int type, SSIdx *idx);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_CACHE_DEF_H_*/
+#endif /*_TD_MND_IDX_COMM_H_*/

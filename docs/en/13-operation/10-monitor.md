@@ -1,5 +1,6 @@
 ---
 title: TDengine Monitoring
+description: This document describes how to monitor your TDengine cluster.
 ---
 
 After TDengine is started, it automatically writes monitoring data including CPU, memory and disk usage, bandwidth, number of requests, disk I/O speed, slow queries, into a designated database at a predefined interval through taosKeeper. Additionally, some important system operations, like logon, create user, drop database, and alerts and warnings generated in TDengine are written into the `log` database too. A system operator can view the data in `log` database from TDengine CLI or from a web console.

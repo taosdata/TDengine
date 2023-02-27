@@ -49,6 +49,48 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {
+  int32_t code = 0;
+  SDBVgInfo *vgInfo = taosMemoryCalloc(1, sizeof(SDBVgInfo));
+  if (NULL == vgInfo) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    return code;
+  }
+  
+  vgInfo->vgVersion = rsp->vgVersion;
+  vgInfo->stateTs = rsp->stateTs;
+  vgInfo->hashMethod = rsp->hashMethod;
+  vgInfo->hashPrefix = rsp->hashPrefix;
+  vgInfo->hashSuffix = rsp->hashSuffix;
+  vgInfo->vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  if (NULL == vgInfo->vgHash) {
+    taosMemoryFree(vgInfo);
+    tscError("hash init[%d] failed", rsp->vgNum);
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _return;
+  }
+  
+  for (int32_t j = 0; j < rsp->vgNum; ++j) {
+    SVgroupInfo *pInfo = taosArrayGet(rsp->pVgroupInfos, j);
+    if (taosHashPut(vgInfo->vgHash, &pInfo->vgId, sizeof(int32_t), pInfo, sizeof(SVgroupInfo)) != 0) {
+      tscError("hash push failed, errno:%d", errno);
+      taosHashCleanup(vgInfo->vgHash);
+      taosMemoryFree(vgInfo);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _return;
+    }
+  }
+
+_return:
+  if (code) {
+    taosHashCleanup(vgInfo->vgHash);
+    taosMemoryFreeClear(vgInfo);
+  }
+
+  *pInfo = vgInfo;
+  return code;
+}
+
 static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
   int32_t code = 0;
 
@@ -67,37 +109,22 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
     if (rsp->vgVersion < 0) {
       code = catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
     } else {
-      SDBVgInfo *vgInfo = taosMemoryCalloc(1, sizeof(SDBVgInfo));
-      if (NULL == vgInfo) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
+      SDBVgInfo *vgInfo = NULL;
+      code = hbGenerateVgInfoFromRsp(&vgInfo, rsp);
+      if (TSDB_CODE_SUCCESS != code) {
         goto _return;
-      }
-
-      vgInfo->vgVersion = rsp->vgVersion;
-      vgInfo->stateTs = rsp->stateTs;
-      vgInfo->hashMethod = rsp->hashMethod;
-      vgInfo->hashPrefix = rsp->hashPrefix;
-      vgInfo->hashSuffix = rsp->hashSuffix;
-      vgInfo->vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-      if (NULL == vgInfo->vgHash) {
-        taosMemoryFree(vgInfo);
-        tscError("hash init[%d] failed", rsp->vgNum);
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _return;
-      }
-
-      for (int32_t j = 0; j < rsp->vgNum; ++j) {
-        SVgroupInfo *pInfo = taosArrayGet(rsp->pVgroupInfos, j);
-        if (taosHashPut(vgInfo->vgHash, &pInfo->vgId, sizeof(int32_t), pInfo, sizeof(SVgroupInfo)) != 0) {
-          tscError("hash push failed, errno:%d", errno);
-          taosHashCleanup(vgInfo->vgHash);
-          taosMemoryFree(vgInfo);
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _return;
-        }
       }
 
       catalogUpdateDBVgInfo(pCatalog, rsp->db, rsp->uid, vgInfo);
+
+      if (IS_SYS_DBNAME(rsp->db)) {
+        code = hbGenerateVgInfoFromRsp(&vgInfo, rsp);
+        if (TSDB_CODE_SUCCESS != code) {
+          goto _return;
+        }
+
+        catalogUpdateDBVgInfo(pCatalog, (rsp->db[0] == 'i') ? TSDB_PERFORMANCE_SCHEMA_DB : TSDB_INFORMATION_SCHEMA_DB, rsp->uid, vgInfo);
+      }
     }
 
     if (code) {
@@ -376,7 +403,6 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
         desc.subPlanNum = 0;
       }
       desc.subPlanNum = taosArrayGetSize(desc.subDesc);
-      ASSERT(desc.subPlanNum == taosArrayGetSize(desc.subDesc));
     } else {
       desc.subDesc = NULL;
     }
@@ -492,6 +518,9 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
 
   for (int32_t i = 0; i < dbNum; ++i) {
     SDbVgVersion *db = &dbs[i];
+    tscDebug("the %dth expired dbFName:%s, dbId:%" PRId64 ", vgVersion:%d, numOfTable:%d, startTs:%" PRId64, 
+      i, db->dbFName, db->dbId, db->vgVersion, db->numOfTable, db->stateTs);
+
     db->dbId = htobe64(db->dbId);
     db->vgVersion = htonl(db->vgVersion);
     db->numOfTable = htonl(db->numOfTable);
@@ -759,7 +788,7 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgInfo.pData = buf;
       pInfo->msgInfo.len = tlen;
       pInfo->msgType = TDMT_MND_HEARTBEAT;
-      pInfo->param = strdup(pAppHbMgr->key);
+      pInfo->param = taosStrdup(pAppHbMgr->key);
       pInfo->paramFreeFp = taosMemoryFree;
       pInfo->requestId = generateRequestId();
       pInfo->requestObjRefId = 0;
@@ -813,7 +842,10 @@ static void hbStopThread() {
 }
 
 SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
-  hbMgrInit();
+  if(hbMgrInit() != 0){
+    terrno = TSDB_CODE_TSC_INTERNAL_ERROR;
+    return NULL;
+  }
   SAppHbMgr *pAppHbMgr = taosMemoryMalloc(sizeof(SAppHbMgr));
   if (pAppHbMgr == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -824,7 +856,7 @@ SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
   pAppHbMgr->connKeyCnt = 0;
   pAppHbMgr->reportCnt = 0;
   pAppHbMgr->reportBytes = 0;
-  pAppHbMgr->key = strdup(key);
+  pAppHbMgr->key = taosStrdup(key);
 
   // init app info
   pAppHbMgr->pAppInstInfo = pAppInstInfo;
@@ -899,16 +931,28 @@ int hbMgrInit() {
   TdThreadMutexAttr attr = {0};
 
   int ret = taosThreadMutexAttrInit(&attr);
-  assert(ret == 0);
+  if(ret != 0){
+    uError("hbMgrInit:taosThreadMutexAttrInit error")
+    return ret;
+  }
 
   ret = taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE);
-  assert(ret == 0);
+  if(ret != 0){
+    uError("hbMgrInit:taosThreadMutexAttrSetType error")
+    return ret;
+  }
 
   ret = taosThreadMutexInit(&clientHbMgr.lock, &attr);
-  assert(ret == 0);
+  if(ret != 0){
+    uError("hbMgrInit:taosThreadMutexInit error")
+    return ret;
+  }
 
   ret = taosThreadMutexAttrDestroy(&attr);
-  assert(ret == 0);
+  if(ret != 0){
+    uError("hbMgrInit:taosThreadMutexAttrDestroy error")
+    return ret;
+  }
 
   // init handle funcs
   hbMgrInitHandle();

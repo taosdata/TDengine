@@ -1,7 +1,7 @@
 ---
-sidebar_label: TDengine
 title: TDengine Release History and Download Links
-description: TDengine release history, Release Notes and download links.
+sidebar_label: TDengine
+description: This document provides download links for all released versions of TDengine 3.0.
 ---
 
 TDengine 3.x installation packages can be downloaded at the following links:
@@ -9,6 +9,34 @@ TDengine 3.x installation packages can be downloaded at the following links:
 For TDengine 2.x installation packages by version, please visit [here](https://www.taosdata.com/all-downloads).
 
 import Release from "/components/ReleaseV3";
+
+## 3.0.2.6
+
+<Release type="tdengine" version="3.0.2.6" />
+
+## 3.0.2.5
+
+<Release type="tdengine" version="3.0.2.5" />
+
+## 3.0.2.4
+
+<Release type="tdengine" version="3.0.2.4" />
+
+## 3.0.2.3
+
+<Release type="tdengine" version="3.0.2.3" />
+
+## 3.0.2.2
+
+<Release type="tdengine" version="3.0.2.2" />
+
+## 3.0.2.1
+
+<Release type="tdengine" version="3.0.2.1" />
+
+## 3.0.2.0
+
+<Release type="tdengine" version="3.0.2.0" />
 
 ## 3.0.1.8
 

@@ -29,6 +29,7 @@
 #define DM_MACHINE_CODE  "Get machine code."
 #define DM_VERSION       "Print program version."
 #define DM_EMAIL         "<support@taosdata.com>"
+#define DM_MEM_DBG       "Enable memory debug"
 // clang-format on
 static struct {
 #ifdef WINDOWS
@@ -37,6 +38,7 @@ static struct {
   bool         dumpConfig;
   bool         dumpSdb;
   bool         generateGrant;
+  bool         memDbg;
   bool         printAuth;
   bool         printVersion;
   bool         printHelp;
@@ -166,8 +168,10 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     } else if (strcmp(argv[i], "-e") == 0) {
       global.envCmd[cmdEnvIndex] = argv[++i];
       cmdEnvIndex++;
+    } else if (strcmp(argv[i], "-dm") == 0) {
+      global.memDbg = true;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 ||
-               strcmp(argv[i], "-?")) {
+               strcmp(argv[i], "-?") == 0) {
       global.printHelp = true;
     } else {
     }
@@ -212,6 +216,7 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
   printf("%s%s%s%s\n", indent, "-k,", indent, DM_MACHINE_CODE);
+  printf("%s%s%s%s\n", indent, "-dm,", indent, DM_MEM_DBG);
   printf("%s%s%s%s\n", indent, "-V,", indent, DM_VERSION);
 
   printf("\n\nReport bugs to %s.\n", DM_EMAIL);
@@ -271,6 +276,18 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     return 0;
   }
+
+#if defined(LINUX)
+  if (global.memDbg) {
+    int32_t code = taosMemoryDbgInit();
+    if (code) {
+      printf("failed to init memory dbg, error:%s\n", tstrerror(code));
+      return code;
+    }
+    tsAsyncLog = false;    
+    printf("memory dbg enabled\n");
+  }
+#endif
 
   if (dmInitLog() != 0) {
     printf("failed to start since init log error\n");

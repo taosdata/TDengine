@@ -731,12 +731,23 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   // init by SSyncInfo
   pSyncNode->vgId = pSyncInfo->vgId;
   SSyncCfg* pCfg = &pSyncNode->raftCfg.cfg;
+  bool      updated = false;
   sInfo("vgId:%d, start to open sync node, replica:%d selfIndex:%d", pSyncNode->vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
     SNodeInfo* pNode = &pCfg->nodeInfo[i];
-    tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    if (tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort)) {
+      updated = true;
+    }
     sInfo("vgId:%d, index:%d ep:%s:%u dnode:%d cluster:%" PRId64, pSyncNode->vgId, i, pNode->nodeFqdn, pNode->nodePort,
           pNode->nodeId, pNode->clusterId);
+  }
+
+  if (updated) {
+    sInfo("vgId:%d, save config info since dnode info changed", pSyncNode->vgId);
+    if (syncWriteCfgFile(pSyncNode) != 0) {
+      sError("vgId:%d, failed to write sync cfg file on dnode info updated", pSyncNode->vgId);
+      goto _error;
+    }
   }
 
   pSyncNode->pWal = pSyncInfo->pWal;
@@ -1067,29 +1078,18 @@ int32_t syncNodeStartStandBy(SSyncNode* pSyncNode) {
 }
 
 void syncNodePreClose(SSyncNode* pSyncNode) {
-  if (pSyncNode != NULL && pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpApplyQueueItems != NULL) {
-    while (1) {
-      int32_t aqItems = pSyncNode->pFsm->FpApplyQueueItems(pSyncNode->pFsm);
-      sTrace("vgId:%d, pre close, %d items in apply queue", pSyncNode->vgId, aqItems);
-      if (aqItems == 0 || aqItems == -1) {
-        break;
-      }
-      taosMsleep(20);
-    }
-  }
+  ASSERT(pSyncNode != NULL);
+  ASSERT(pSyncNode->pFsm != NULL);
+  ASSERT(pSyncNode->pFsm->FpApplyQueueItems != NULL);
 
-#if 0
-  if (pSyncNode->pNewNodeReceiver != NULL) {
-    if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
-      snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
+  while (1) {
+    int32_t aqItems = pSyncNode->pFsm->FpApplyQueueItems(pSyncNode->pFsm);
+    sTrace("vgId:%d, pre close, %d items in apply queue", pSyncNode->vgId, aqItems);
+    if (aqItems == 0 || aqItems == -1) {
+      break;
     }
-
-    sDebug("vgId:%d, snapshot receiver destroy while preclose sync node, data:%p", pSyncNode->vgId,
-           pSyncNode->pNewNodeReceiver);
-    snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
-    pSyncNode->pNewNodeReceiver = NULL;
+    taosMsleep(20);
   }
-#endif
 
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
@@ -1402,7 +1402,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
   }
 
   // log begin config change
-  sNInfo(pSyncNode, "begin do config change, from %d to %d", pSyncNode->vgId, oldConfig.replicaNum,
+  sNInfo(pSyncNode, "begin do config change, from %d to %d, replicas:%d", pSyncNode->vgId, oldConfig.replicaNum,
          pNewConfig->replicaNum);
 
   if (IamInNew) {
@@ -1683,8 +1683,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 #endif
 
   // close receiver
-  if (pSyncNode != NULL && pSyncNode->pNewNodeReceiver != NULL &&
-      snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+  if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
     snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
   }
 

@@ -1,5 +1,6 @@
 ---
 title: Data Export
+description: This document describes how to export data from TDengine.
 ---
 
 There are two ways of exporting data from a TDengine cluster:

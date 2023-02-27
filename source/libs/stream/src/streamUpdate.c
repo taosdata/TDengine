@@ -85,9 +85,7 @@ static int64_t adjustWatermark(int64_t adjInterval, int64_t originInt, int64_t w
     watermark = TMAX(originInt / adjInterval, 1) * adjInterval;
   } else if (watermark > MAX_NUM_SCALABLE_BF * adjInterval) {
     watermark = MAX_NUM_SCALABLE_BF * adjInterval;
-  }/* else if (watermark < MIN_NUM_SCALABLE_BF * adjInterval) {
-    watermark = MIN_NUM_SCALABLE_BF * adjInterval;
-  }*/ // Todo(liuyao) save window info to tdb
+  }
   return watermark;
 }
 

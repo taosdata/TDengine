@@ -53,7 +53,7 @@ endi
 
 sql select tbname from information_schema.ins_tables;
 print $rows $data00
-if $rows != 32 then
+if $rows != 33 then
 	return -1
 endi
 if $data00 != @ins_tables@ then

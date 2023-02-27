@@ -655,6 +655,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
     taosArrayPush(pTrans->pRpcArray, &pReq->info);
     pTrans->originRpcType = pReq->msgType;
   }
+
   mTrace("trans:%d, local object is created, data:%p", pTrans->id, pTrans);
   return pTrans;
 }
@@ -1003,6 +1004,12 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         }
         mndReleaseDb(pMnode, pDb);
       } else if (pTrans->originRpcType == TDMT_MND_CREATE_STB) {
+        void   *pCont = NULL;
+        int32_t contLen = 0;
+        if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen) != 0) {
+          mndTransSetRpcRsp(pTrans, pCont, contLen);
+        }
+      } else if (pTrans->originRpcType == TDMT_MND_CREATE_INDEX) {
         void   *pCont = NULL;
         int32_t contLen = 0;
         if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen) != 0) {

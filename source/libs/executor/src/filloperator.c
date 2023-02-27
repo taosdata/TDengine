@@ -924,6 +924,7 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
 static void keepResultInDiscBuf(SOperatorInfo* pOperator, uint64_t groupId, SResultRowData* pRow, int32_t len) {
   SWinKey key = {.groupId = groupId, .ts = pRow->key};
   int32_t code = streamStateFillPut(pOperator->pTaskInfo->streamInfo.pState, &key, pRow->pRowVal, len);
+  qDebug("===stream===fill operator save key ts:%" PRId64 " group id:%" PRIu64 "  code:%d", key.ts, key.groupId, code);
   ASSERT(code == TSDB_CODE_SUCCESS);
 }
 
@@ -1264,9 +1265,11 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
           memcpy(pInfo->pSrcBlock->info.parTbName, pBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
           pInfo->srcRowIndex = 0;
         } break;
+        case STREAM_CREATE_CHILD_TABLE: {
+          return pBlock;
+        } break;
         default:
-          ASSERT(0);
-          break;
+          ASSERTS(pBlock->info.type == STREAM_INVALID, "invalid SSDataBlock type");
       }
     }
 

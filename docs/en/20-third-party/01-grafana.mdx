@@ -1,6 +1,7 @@
 ---
-sidebar_label: Grafana
 title: Grafana
+sidebar_label: Grafana
+description: This document describes how to integrate TDengine with Grafana.
 ---
 
 import Tabs from "@theme/Tabs";
@@ -155,13 +156,13 @@ You can setup a zero-configuration stack for TDengine + Grafana by [docker-compo
 
     services:
       tdengine:
-        image: tdengine/tdengine:2.6.0.2
+        image: tdengine/tdengine:3.0.2.4
         environment:
           TAOS_FQDN: tdengine
         volumes:
           - tdengine-data:/var/lib/taos/
       grafana:
-        image: grafana/grafana:8.5.6
+        image: grafana/grafana:9.3.6
         volumes:
           - ./tdengine.yml/:/etc/grafana/provisioning/tdengine.yml
           - grafana-data:/var/lib/grafana
@@ -196,10 +197,17 @@ As shown above, select the `TDengine` data source in the `Query` and enter the c
 - INPUT SQL: Enter the desired query (the results being two columns and multiple rows), such as `select _wstart, avg(mem_system) from log.dnodes_info where ts >= $from and ts < $to interval($interval)`. In this statement, $from, $to, and $interval are variables that Grafana replaces with the query time range and interval. In addition to the built-in variables, custom template variables are also supported.
 - ALIAS BY: This allows you to set the current query alias.
 - GENERATE SQL: Clicking this button will automatically replace the corresponding variables and generate the final executed statement.
+- Group by column name(s): `group by` or `partition by` columns name split by comma. By setting `Group by column name(s)`, it can show multi-dimension data if Sql is `group by` or `partition by`. Such as, it can show data by `dnode_ep` if sql is  `select _wstart as ts, avg(mem_system), dnode_ep from log.dnodes_info where ts>=$from and ts<=$to partition by dnode_ep interval($interval)` and `Group by column name(s)` is `dnode_ep`.
+- Format to: format legend for `group by` or `partition by`. Such as it can display series data by `dnode_ep` if sql is `select _wstart as ts, avg(mem_system), dnode_ep from log.dnodes_info where ts>=$from and ts<=$to partition by dnode_ep interval($interval)` and `Group by column name(s)` is `dnode_ep` and `Format to` is `mem_system_{{dnode_ep}}`.
 
 Follow the default prompt to query the average system memory usage for the specified interval on the server where the current TDengine deployment is located as follows.
 
 ![TDengine Database TDinsight plugin create dashboard 2](./grafana/create_dashboard2.webp)
+
+查询每台 TDengine 服务器指定间隔系统内存平均使用量如下.
+The example to query the average system memory usage for the specified interval on each server as follows.
+
+![TDengine Database TDinsight plugin create dashboard 2](./grafana/create_dashboard3.webp)
 
 > For more information on how to use Grafana to create the appropriate monitoring interface and for more details on using Grafana, refer to the official Grafana [documentation](https://grafana.com/docs/).
 

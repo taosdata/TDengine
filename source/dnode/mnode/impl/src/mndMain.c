@@ -21,6 +21,7 @@
 #include "mndDnode.h"
 #include "mndFunc.h"
 #include "mndGrant.h"
+#include "mndIndex.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPerfSchema.h"
@@ -132,6 +133,7 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   }
 }
 
+#if 0
 static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
   int32_t contLen = 0;
   void   *pReq = mndBuildCheckpointTickMsg(&contLen, sec);
@@ -144,6 +146,7 @@ static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
+#endif
 
 static void mndPullupTelem(SMnode *pMnode) {
   mTrace("pullup telem msg");
@@ -319,7 +322,7 @@ static void mndCleanupTimer(SMnode *pMnode) {
 }
 
 static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
-  pMnode->path = strdup(path);
+  pMnode->path = taosStrdup(path);
   if (pMnode->path == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -425,6 +428,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-sma", mndInitSma, mndCleanupSma) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-idx", mndInitIdx, mndCleanupIdx) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-infos", mndInitInfos, mndCleanupInfos) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-perfs", mndInitPerfs, mndCleanupPerfs) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
@@ -669,9 +673,9 @@ _OVER:
 
   mGDebug(
       "msg:%p, type:%s failed to process since %s, mnode restored:%d stopped:%d, sync restored:%d "
-      "role:%s, redirect numOfEps:%d inUse:%d",
+      "role:%s, redirect numOfEps:%d inUse:%d, type:%s",
       pMsg, TMSG_INFO(pMsg->msgType), terrstr(), pMnode->restored, pMnode->stopped, state.restored,
-      syncStr(state.restored), epSet.numOfEps, epSet.inUse);
+      syncStr(state.restored), epSet.numOfEps, epSet.inUse, TMSG_INFO(pMsg->msgType));
 
   if (epSet.numOfEps <= 0) return -1;
 
@@ -712,7 +716,7 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
   } else if (code == 0) {
     mGTrace("msg:%p, successfully processed", pMsg);
   } else {
-    mGError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
+    mGError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, tstrerror(code), pMsg->info.ahandle,
             TMSG_INFO(pMsg->msgType));
   }
 

@@ -120,7 +120,7 @@ class TDTestCase:
 
 
     def stop(self):
-        tdSql.close()
+        tdSql.close()        
         tdLog.success("%s successfully executed" % __file__)
 
 

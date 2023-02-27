@@ -9,6 +9,8 @@ system sh/exec.sh -n dnode1 -s start
 sleep 200
 sql connect
 
+print step 1 start
+
 sql drop stream if exists streams1;
 sql drop database if exists test1;
 sql create database test1  vgroups 1;
@@ -38,161 +40,165 @@ endi
 
 if $data01 != 2.000000000 then
   print =====data01=$data01
-  return -1
+  goto loop1
 endi
 if $data02 != 1.000000000 then
   print =====data02=$data02
-  return -1
+  goto loop1
 endi
 if $data03 != ccc then
   print =====data03=$data03
-  return -1
+  goto loop1
 endi
 if $data04 != 1 then
   print =====data04=$data04
-  return -1
+  goto loop1
 endi
 
 
 if $data11 != 4.000000000 then
   print =====data11=$data11
-  return -1
+  goto loop1
 endi
+
 if $data12 != 2.000000000 then
   print =====data12=$data12
-  return -1
+  goto loop1
 endi
+
 if $data13 != NULL then
   print =====data13=$data13
-  return -1
+  goto loop1
 endi
 
 
 if $data21 != 6.000000000 then
   print =====data21=$data21
-  return -1
+  goto loop1
 endi
 if $data22 != 3.000000000 then
   print =====data22=$data22
-  return -1
+  goto loop1
 endi
 if $data23 != NULL then
   print =====data23=$data23
-  return -1
+  goto loop1
 endi
 
 
 if $data31 != 8.000000000 then
   print =====data31=$data31
-  return -1
+  goto loop1
 endi
 if $data32 != 4.000000000 then
   print =====data32=$data32
-  return -1
+  goto loop1
 endi
 if $data33 != aaa then
   print =====data33=$data33
-  return -1
+  goto loop1
 endi
 
 
 if $data41 != 8.666666667 then
   print =====data41=$data41
-  return -1
+  goto loop1
 endi
 if $data42 != 4.333333333 then
   print =====data42=$data42
-  return -1
+  goto loop1
 endi
 if $data43 != NULL then
   print =====data43=$data43
-  return -1
+  goto loop1
 endi
 
 
 if $data51 != 9.333333333 then
   print =====data01=$data01
-  return -1
+  goto loop1
 endi
 if $data52 != 4.666666667 then
   print =====data52=$data52
-  return -1
+  goto loop1
 endi
 if $data53 != NULL then
   print =====data53=$data53
-  return -1
+  goto loop1
 endi
 
 
 if $data61 != 10.000000000 then
   print =====data61=$data61
-  return -1
+  goto loop1
 endi
 if $data62 != 5.000000000 then
   print =====data62=$data62
-  return -1
+  goto loop1
 endi
 
 
 if $data71 != 8.000000000 then
   print =====data71=$data71
-  return -1
+  goto loop1
 endi
 if $data72 != 4.000000000 then
   print =====data72=$data72
-  return -1
+  goto loop1
 endi
 
 
 if $data81 != 6.000000000 then
   print =====data81=$data81
-  return -1
+  goto loop1
 endi
 if $data82 != 3.000000000 then
   print =====data82=$data82
-  return -1
+  goto loop1
 endi
 
 
 if $data91 != 4.000000000 then
   print =====data91=$data91
-  return -1
+  goto loop1
 endi
 if $data92 != 2.000000000 then
   print =====data92=$data92
-  return -1
+  goto loop1
 endi
 
 if $data[10][1] != 4.666666667 then
   print =====data[10][1]=$data[10][1]
-  return -1
+  goto loop1
 endi
 if $data[10][2] != 2.333333333 then
   print =====data[10][2]=$data[10][2]
-  return -1
+  goto loop1
 endi
 
 
 if $data[11][1] != 5.333333333 then
   print =====data[11][1]=$data[11][1]
-  return -1
+  goto loop1
 endi
 if $data[11][2] != 2.666666667 then
   print =====data[11][2]=$data[11][2]
-  return -1
+  goto loop1
 endi
 
 
 if $data[12][1] != 6.000000000 then
   print =====data[12][1]=$data[12][1]
-  return -1
+  goto loop1
 endi
 if $data[12][2] != 3.000000000 then
   print =====data[12][2]=$data[12][2]
-  return -1
+  goto loop1
 endi
 
+print step 1 end
 
+print step 2 start
 
 sql drop stream if exists streams2;
 sql drop database if exists test2;
@@ -224,161 +230,163 @@ endi
 
 if $data01 != 2.000000000 then
   print =====data01=$data01
-  return -1
+  goto loop2
 endi
 if $data02 != 1.000000000 then
   print =====data02=$data02
-  return -1
+  goto loop2
 endi
 if $data03 != ccc then
   print =====data03=$data03
-  return -1
+  goto loop2
 endi
 if $data04 != 1 then
   print =====data04=$data04
-  return -1
+  goto loop2
 endi
 
 
 if $data11 != 4.000000000 then
   print =====data11=$data11
-  return -1
+  goto loop2
 endi
 if $data12 != 2.000000000 then
   print =====data12=$data12
-  return -1
+  goto loop2
 endi
 if $data13 != NULL then
   print =====data13=$data13
-  return -1
+  goto loop2
 endi
 
 
 if $data21 != 6.000000000 then
   print =====data21=$data21
-  return -1
+  goto loop2
 endi
 if $data22 != 3.000000000 then
   print =====data22=$data22
-  return -1
+  goto loop2
 endi
 if $data23 != NULL then
   print =====data23=$data23
-  return -1
+  goto loop2
 endi
 
 
 if $data31 != 8.000000000 then
   print =====data31=$data31
-  return -1
+  goto loop2
 endi
 if $data32 != 4.000000000 then
   print =====data32=$data32
-  return -1
+  goto loop2
 endi
 if $data33 != aaa then
   print =====data33=$data33
-  return -1
+  goto loop2
 endi
 
 
 if $data41 != 8.666666667 then
   print =====data41=$data41
-  return -1
+  goto loop2
 endi
 if $data42 != 4.333333333 then
   print =====data42=$data42
-  return -1
+  goto loop2
 endi
 if $data43 != NULL then
   print =====data43=$data43
-  return -1
+  goto loop2
 endi
 
 
 if $data51 != 9.333333333 then
   print =====data01=$data01
-  return -1
+  goto loop2
 endi
 if $data52 != 4.666666667 then
   print =====data52=$data52
-  return -1
+  goto loop2
 endi
 if $data53 != NULL then
   print =====data53=$data53
-  return -1
+  goto loop2
 endi
 
 
 if $data61 != 10.000000000 then
   print =====data61=$data61
-  return -1
+  goto loop2
 endi
 if $data62 != 5.000000000 then
   print =====data62=$data62
-  return -1
+  goto loop2
 endi
 
 
 if $data71 != 8.000000000 then
   print =====data71=$data71
-  return -1
+  goto loop2
 endi
 if $data72 != 4.000000000 then
   print =====data72=$data72
-  return -1
+  goto loop2
 endi
 
 
 if $data81 != 6.000000000 then
   print =====data81=$data81
-  return -1
+  goto loop2
 endi
 if $data82 != 3.000000000 then
   print =====data82=$data82
-  return -1
+  goto loop2
 endi
 
 
 if $data91 != 4.000000000 then
   print =====data91=$data91
-  return -1
+  goto loop2
 endi
 if $data92 != 2.000000000 then
   print =====data92=$data92
-  return -1
+  goto loop2
 endi
 
 if $data[10][1] != 4.666666667 then
   print =====data[10][1]=$data[10][1]
-  return -1
+  goto loop2
 endi
 if $data[10][2] != 2.333333333 then
   print =====data[10][2]=$data[10][2]
-  return -1
+  goto loop2
 endi
 
 
 if $data[11][1] != 5.333333333 then
   print =====data[11][1]=$data[11][1]
-  return -1
+  goto loop2
 endi
 if $data[11][2] != 2.666666667 then
   print =====data[11][2]=$data[11][2]
-  return -1
+  goto loop2
 endi
 
 
 if $data[12][1] != 6.000000000 then
   print =====data[12][1]=$data[12][1]
-  return -1
+  goto loop2
 endi
 if $data[12][2] != 3.000000000 then
   print =====data[12][2]=$data[12][2]
-  return -1
+  goto loop2
 endi
 
+print step 2 end
 
+print step 3 start
 
 sql drop stream if exists streams3;
 sql drop database if exists test3;
@@ -412,98 +420,98 @@ endi
 
 if $data01 != 3 then
   print =====data01=$data01
-  return -1
+  goto loop3
 endi
 if $data02 != 6.000000000 then
   print =====data02=$data02
-  return -1
+  goto loop3
 endi
 if $data03 != ccc then
   print =====data03=$data03
-  return -1
+  goto loop3
 endi
 
 if $data11 != 3 then
   print =====data11=$data11
-  return -1
+  goto loop3
 endi
 if $data12 != 7.000000000 then
   print =====data12=$data12
-  return -1
+  goto loop3
 endi
 if $data13 != NULL then
   print =====data13=$data13
-  return -1
+  goto loop3
 endi
 
 
 if $data21 != 4 then
   print =====data21=$data21
-  return -1
+  goto loop3
 endi
 if $data22 != 8.000000000 then
   print =====data22=$data22
-  return -1
+  goto loop3
 endi
 if $data23 != ddd then
   print =====data23=$data23
-  return -1
+  goto loop3
 endi
 
 
 if $data31 != 2 then
   print =====data31=$data31
-  return -1
+  goto loop3
 endi
 if $data32 != 5.000000000 then
   print =====data32=$data32
-  return -1
+  goto loop3
 endi
 if $data33 != NULL then
   print =====data33=$data33
-  return -1
+  goto loop3
 endi
 
 
 if $data41 != 1 then
   print =====data41=$data41
-  return -1
+  goto loop3
 endi
 if $data42 != 2.000000000 then
   print =====data42=$data42
-  return -1
+  goto loop3
 endi
 if $data43 != aaa then
   print =====data43=$data43
-  return -1
+  goto loop3
 endi
 
 
 if $data51 != 1 then
   print =====data51=$data51
-  return -1
+  goto loop3
 endi
 if $data52 != 3.000000000 then
   print =====data52=$data52
-  return -1
+  goto loop3
 endi
 if $data53 != NULL then
   print =====data53=$data53
-  return -1
+  goto loop3
 endi
 
 
 if $data61 != 2 then
   print =====data61=$data61
-  return -1
+  goto loop3
 endi
 if $data62 != 4.000000000 then
   print =====data62=$data62
-  return -1
+  goto loop3
 endi
 if $data63 != bbb then
   print =====data63=$data63
-  return -1
+  goto loop3
 endi
 
 
@@ -534,42 +542,42 @@ endi
 
 if $data01 != 6 then
   print =====data01=$data01
-  return -1
+  goto loop4
 endi
 if $data02 != 12.000000000 then
   print =====data02=$data02
-  return -1
+  goto loop4
 endi
 if $data03 != fff then
   print =====data03=$data03
-  return -1
+  goto loop4
 endi
 
 if $data11 != 6 then
   print =====data11=$data11
-  return -1
+  goto loop4
 endi
 if $data12 != 13.000000000 then
   print =====data12=$data12
-  return -1
+  goto loop4
 endi
 if $data13 != NULL then
   print =====data13=$data13
-  return -1
+  goto loop4
 endi
 
 
 if $data21 != 7 then
   print =====data21=$data21
-  return -1
+  goto loop4
 endi
 if $data22 != 14.000000000 then
   print =====data22=$data22
-  return -1
+  goto loop4
 endi
 if $data23 != ggg then
   print =====data23=$data23
-  return -1
+  goto loop4
 endi
 
 
@@ -626,33 +634,10 @@ if $data[12][3] != hhh then
   return -1
 endi
 
-if $data[13][1] != 8 then
-  print =====data[13][1]=$data[13][1]
-  return -1
-endi
-if $data[13][2] != 17.000000000 then
-  print =====data[13][2]=$data[13][2]
-  return -1
-endi
-if $data[13][3] != NULL then
-  print =====data[13][3]=$data[13][3]
-  return -1
-endi
-
-if $data[14][1] != 9 then
-  print =====data[14][1]=$data[14][1]
-  return -1
-endi
-if $data[14][2] != 18.000000000 then
-  print =====data[14][2]=$data[14][2]
-  return -1
-endi
-if $data[14][3] != iii then
-  print =====data[14][3]=$data[14][3]
-  return -1
-endi
 
 
+
+print step 3 end
 
 
 

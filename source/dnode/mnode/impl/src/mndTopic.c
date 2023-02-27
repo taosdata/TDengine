@@ -388,7 +388,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
-  topicObj.sql = strdup(pCreate->sql);
+  topicObj.sql = taosStrdup(pCreate->sql);
   topicObj.sqlLen = strlen(pCreate->sql) + 1;
   topicObj.subType = pCreate->subType;
   topicObj.withMeta = pCreate->withMeta;
@@ -400,7 +400,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       return -1;
     }
 
-    topicObj.ast = strdup(pCreate->ast);
+    topicObj.ast = taosStrdup(pCreate->ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
 
     qDebugL("topic:%s ast %s", topicObj.name, topicObj.ast);
@@ -687,8 +687,8 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
         mndReleaseConsumer(pMnode, pConsumer);
         mndReleaseTopic(pMnode, pTopic);
         terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-        mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s", dropReq.name,
-               pConsumer->consumerId, pConsumer->cgroup);
+        mError("topic:%s, failed to drop since subscribed by consumer:0x%" PRIx64 ", in consumer group %s",
+               dropReq.name, pConsumer->consumerId, pConsumer->cgroup);
         return -1;
       }
     }
@@ -722,14 +722,9 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     sdbRelease(pSdb, pConsumer);
   }
 
-#if 0
-  if (pTopic->refConsumerCnt != 0) {
-    mndReleaseTopic(pMnode, pTopic);
-    terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-    mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db) != 0) {
     return -1;
   }
-#endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "drop-topic");
   if (pTrans == NULL) {
@@ -843,8 +838,8 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     SName            n;
     int32_t          cols = 0;
 
-    char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE + 5] = {0};
-    const char* pName = mndGetDbStr(pTopic->name);
+    char        topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE + 5] = {0};
+    const char *pName = mndGetDbStr(pTopic->name);
     STR_TO_VARSTR(topicName, pName);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
