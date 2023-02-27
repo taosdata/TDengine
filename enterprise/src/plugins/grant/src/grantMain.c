@@ -233,12 +233,12 @@ static FORCE_INLINE void grantSetClusterId(SMnode *pMnode) {
 }
 /**
  * @brief process grant status msg in dnode and respond with grant msg
- * 
+ *
  * @param pInfo
  * @param pMsg
  * @return int32_t
  */
-int32_t dmProcessGrantReq(void* pInfo, SRpcMsg *pMsg) {
+int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   terrno = 0;
   if (!pMsg->pCont || (pMsg->contLen <= 0)) {
     terrno = TSDB_CODE_INVALID_MSG;
