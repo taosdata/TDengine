@@ -35,6 +35,7 @@ extern "C" {
 #endif
 #endif // ifndef ALLOW_FORBID_FUNC
 
+#endif // ifndef ALLOW_FORBID_FUNC
 #endif // if !defined(WINDOWS)
 
 int32_t taosMemoryDbgInit();
