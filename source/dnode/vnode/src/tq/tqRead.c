@@ -291,6 +291,8 @@ void tqCloseReader(STqReader* pReader) {
 }
 
 int32_t tqSeekVer(STqReader* pReader, int64_t ver) {
+  // todo set the correct vgId
+  tqDebug("tmq poll: vgId:%d wal seek to version:%"PRId64, 0, ver);
   if (walReadSeekVer(pReader->pWalReader, ver) < 0) {
     tqError("tmq poll: wal reader failed to seek to ver:%"PRId64, ver);
     return -1;

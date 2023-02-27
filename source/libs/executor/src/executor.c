@@ -1067,6 +1067,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
       tsdbReaderClose(pTSInfo->base.dataReader);
       pTSInfo->base.dataReader = NULL;
+      // let's seek to the next version in wal file
       if (tqSeekVer(pInfo->tqReader, pOffset->version + 1) < 0) {
         return -1;
       }
