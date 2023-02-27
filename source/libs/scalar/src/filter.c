@@ -1651,12 +1651,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
           SValueNode *var = (SValueNode *)field->desc;
           SDataType  *dType = &var->node.resType;
-          // if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {
-          //   qDebug("VAL%d => [type:TS][val:[%" PRIi64 "] - [%" PRId64 "]]", i, *(int64_t *)field->data,
-          //          *(((int64_t *)field->data) + 1));
-          // } else {
           qDebug("VAL%d => [type:%d][val:%" PRIx64 "]", i, dType->type, var->datum.i);  // TODO
-          //}
         } else if (field->data) {
           qDebug("VAL%d => [type:NIL][val:NIL]", i);  // TODO
         }
@@ -1976,18 +1971,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
 
       fi->data = taosMemoryCalloc(1, bytes);
     } else {
-      if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {  // TIME RANGE
-        /*
-                fi->data = taosMemoryCalloc(dType->bytes, tDataTypes[type].bytes);
-                for (int32_t a = 0; a < dType->bytes; ++a) {
-                  int64_t *v = taosArrayGet(var->arr, a);
-                  assignVal((char *)fi->data + a * tDataTypes[type].bytes, (char *)v, 0, type);
-                }
-        */
-        continue;
-      } else {
-        fi->data = taosMemoryCalloc(1, sizeof(int64_t));
-      }
+      fi->data = taosMemoryCalloc(1, sizeof(int64_t));
     }
 
     if (dType->type == type) {
@@ -3120,9 +3104,8 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
-    void    *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
-    p[i] = ((colData == NULL) || colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
 
+    p[i] = colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL);
     if (p[i] == 0) {
       all = false;
     } else {
@@ -3146,9 +3129,8 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
-    void    *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
 
-    p[i] = ((colData != NULL) && !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
+    p[i] = !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL);
     if (p[i] == 0) {
       all = false;
     } else {
@@ -3178,13 +3160,13 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, SColumnInfoData *pRe
   for (int32_t i = 0; i < numOfRows; ++i) {
     SColumnInfoData *pData = info->cunits[0].colData;
 
-    void *colData = colDataGetData(pData, i);
-    if (colData == NULL || colDataIsNull_s(pData, i)) {
+    if (colDataIsNull_s(pData, i)) {
       all = false;
       p[i] = 0;
       continue;
     }
 
+    void *colData = colDataGetData(pData, i);
     p[i] = (*rfunc)(colData, colData, valData, valData2, func);
 
     if (p[i] == 0) {
@@ -3210,13 +3192,13 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
-    void    *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
-    if (colData == NULL || colDataIsNull_s((SColumnInfoData *)info->cunits[uidx].colData, i)) {
+    if (colDataIsNull_s((SColumnInfoData *)info->cunits[uidx].colData, i)) {
       p[i] = 0;
       all = false;
       continue;
     }
 
+    void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
     // match/nmatch for nchar type need convert from ucs4 to mbs
     if (info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR &&
         (info->cunits[uidx].optr == OP_TYPE_MATCH || info->cunits[uidx].optr == OP_TYPE_NMATCH)) {
@@ -3274,7 +3256,7 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes, SC
         if (!isNull) {
           colData = colDataGetData((SColumnInfoData *)(cunit->colData), i);
         }
-        
+
         if (colData == NULL || isNull) {
           p[i] = optr == OP_TYPE_IS_NULL ? true : false;
         } else {

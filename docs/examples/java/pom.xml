@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
@@ -17,13 +18,13 @@
   </properties>
 
   <dependencies>
-<!--    ANCHOR: dep-->
+    <!--    ANCHOR: dep-->
     <dependency>
       <groupId>com.taosdata.jdbc</groupId>
       <artifactId>taos-jdbcdriver</artifactId>
-      <version>3.0.0</version>
+      <version>3.1.0</version>
     </dependency>
-<!--    ANCHOR_END: dep-->
+    <!--    ANCHOR_END: dep-->
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>

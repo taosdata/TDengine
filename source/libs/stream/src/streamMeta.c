@@ -26,7 +26,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   int32_t len = strlen(path) + 20;
   char*   streamPath = taosMemoryCalloc(1, len);
   sprintf(streamPath, "%s/%s", path, "stream");
-  pMeta->path = strdup(streamPath);
+  pMeta->path = taosStrdup(streamPath);
   if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db, 0) < 0) {
     taosMemoryFree(streamPath);
     goto _err;

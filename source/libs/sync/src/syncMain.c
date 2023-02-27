@@ -1126,29 +1126,18 @@ int32_t syncNodeStartStandBy(SSyncNode* pSyncNode) {
 }
 
 void syncNodePreClose(SSyncNode* pSyncNode) {
-  if (pSyncNode != NULL && pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpApplyQueueItems != NULL) {
-    while (1) {
-      int32_t aqItems = pSyncNode->pFsm->FpApplyQueueItems(pSyncNode->pFsm);
-      sTrace("vgId:%d, pre close, %d items in apply queue", pSyncNode->vgId, aqItems);
-      if (aqItems == 0 || aqItems == -1) {
-        break;
-      }
-      taosMsleep(20);
-    }
-  }
+  ASSERT(pSyncNode != NULL);
+  ASSERT(pSyncNode->pFsm != NULL);
+  ASSERT(pSyncNode->pFsm->FpApplyQueueItems != NULL);
 
-#if 0
-  if (pSyncNode->pNewNodeReceiver != NULL) {
-    if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
-      snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
+  while (1) {
+    int32_t aqItems = pSyncNode->pFsm->FpApplyQueueItems(pSyncNode->pFsm);
+    sTrace("vgId:%d, pre close, %d items in apply queue", pSyncNode->vgId, aqItems);
+    if (aqItems == 0 || aqItems == -1) {
+      break;
     }
-
-    sDebug("vgId:%d, snapshot receiver destroy while preclose sync node, data:%p", pSyncNode->vgId,
-           pSyncNode->pNewNodeReceiver);
-    snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
-    pSyncNode->pNewNodeReceiver = NULL;
+    taosMsleep(20);
   }
-#endif
 
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
@@ -1461,7 +1450,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
   }
 
   // log begin config change
-  sNInfo(pSyncNode, "begin do config change, from %d to %d", pSyncNode->vgId, oldConfig.replicaNum,
+  sNInfo(pSyncNode, "begin do config change, from %d to %d, replicas:%d", pSyncNode->vgId, oldConfig.replicaNum,
          pNewConfig->replicaNum);
 
   if (IamInNew) {
@@ -1742,8 +1731,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 #endif
 
   // close receiver
-  if (pSyncNode != NULL && pSyncNode->pNewNodeReceiver != NULL &&
-      snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
+  if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
     snapshotReceiverStop(pSyncNode->pNewNodeReceiver);
   }
 
@@ -2479,6 +2467,10 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     syncNodeStepDown(ths, pMsg->currentTerm);
 
   } else if (pMsg->cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT) {
+    if (syncLogBufferIsEmpty(ths->pLogBuf)) {
+      sError("vgId:%d, sync log buffer is empty.", ths->vgId);
+      return 0;
+    }
     SyncTerm matchTerm = syncLogBufferGetLastMatchTerm(ths->pLogBuf);
     if (pMsg->currentTerm == matchTerm) {
       (void)syncNodeUpdateCommitIndex(ths, pMsg->commitIndex);

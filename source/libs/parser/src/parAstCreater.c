@@ -355,7 +355,7 @@ SNode* createDefaultDatabaseCondValue(SAstCreateContext* pCxt) {
 
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  val->literal = strdup(pCxt->pQueryCxt->db);
+  val->literal = taosStrdup(pCxt->pQueryCxt->db);
   CHECK_OUT_OF_MEM(val->literal);
   val->isDuration = false;
   val->translate = false;

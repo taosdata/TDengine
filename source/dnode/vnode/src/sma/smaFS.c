@@ -559,7 +559,7 @@ int32_t tdRSmaFSRef(SSma *pSma, SRSmaFS *pFS) {
   SRSmaFS   *qFS = RSMA_FS(pStat);
   int32_t    size = taosArrayGetSize(qFS->aQTaskInf);
 
-  pFS->aQTaskInf = taosArrayInit_s(size, sizeof(SQTaskFile), size);
+  pFS->aQTaskInf = taosArrayInit_s(sizeof(SQTaskFile), size);
   if (pFS->aQTaskInf == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TSDB_CHECK_CODE(code, lino, _exit);

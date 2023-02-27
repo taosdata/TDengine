@@ -529,10 +529,10 @@ SArray *mndBuildDnodesArray(SMnode *pMnode, int32_t exceptDnodeId) {
 }
 
 static int32_t mndCompareDnodeId(int32_t *dnode1Id, int32_t *dnode2Id) {
-    if (*dnode1Id == *dnode2Id) {
-        return 0;
-    }
-    return *dnode1Id > *dnode2Id ? 1 : -1;
+  if (*dnode1Id == *dnode2Id) {
+    return 0;
+  }
+  return *dnode1Id > *dnode2Id ? 1 : -1;
 }
 
 static float mndGetDnodeScore(SDnodeObj *pDnode, int32_t additionDnodes, float ratio) {
@@ -541,12 +541,12 @@ static float mndGetDnodeScore(SDnodeObj *pDnode, int32_t additionDnodes, float r
 }
 
 static int32_t mndCompareDnodeVnodes(SDnodeObj *pDnode1, SDnodeObj *pDnode2) {
-    float d1Score = mndGetDnodeScore(pDnode1, 0, 0.9);
-    float d2Score = mndGetDnodeScore(pDnode2, 0, 0.9);
-    if (d1Score == d2Score) {
-        return 0;
-    }
-    return d1Score > d2Score ? 1 : -1;
+  float d1Score = mndGetDnodeScore(pDnode1, 0, 0.9);
+  float d2Score = mndGetDnodeScore(pDnode2, 0, 0.9);
+  if (d1Score == d2Score) {
+    return 0;
+  }
+  return d1Score > d2Score ? 1 : -1;
 }
 
 void mndSortVnodeGid(SVgObj *pVgroup) {
@@ -739,7 +739,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
 
     SName name = {0};
     char  db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -748,17 +748,17 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     varDataSetLen(db, strlen(varDataVal(db)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)db, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)db, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->numOfTables, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->numOfTables, false);
 
     // default 3 replica, add 1 replica if move vnode
     for (int32_t i = 0; i < 4; ++i) {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       if (i < pVgroup->replica) {
         int16_t dnodeId = (int16_t)pVgroup->vnodeGid[i].dnodeId;
-        colDataAppend(pColInfo, numOfRows, (const char *)&dnodeId, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)&dnodeId, false);
 
         bool       exist = false;
         bool       online = false;
@@ -789,24 +789,24 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->pMeta->pSchemas[cols].bytes);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataAppend(pColInfo, numOfRows, (const char *)buf1, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)buf1, false);
       } else {
-        colDataAppendNULL(pColInfo, numOfRows);
+        colDataSetNULL(pColInfo, numOfRows);
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataAppendNULL(pColInfo, numOfRows);
+        colDataSetNULL(pColInfo, numOfRows);
       }
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int32_t cacheUsage = (int32_t)pVgroup->cacheUsage;
-    colDataAppend(pColInfo, numOfRows, (const char *)&cacheUsage, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&cacheUsage, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->isTsma, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->isTsma, false);
 
     // pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     // if (pDb == NULL || pDb->compactStartTime <= 0) {
-    //   colDataAppendNULL(pColInfo, numOfRows);
+    //   colDataSetNULL(pColInfo, numOfRows);
     // } else {
     //   colDataAppend(pColInfo, numOfRows, (const char *)&pDb->compactStartTime, false);
     // }
@@ -905,15 +905,15 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       cols = 0;
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->replica, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->replica, false);
 
       char buf[20] = {0};
       STR_TO_VARSTR(buf, syncStr(pVgid->syncState));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)buf, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
 
       const char *dbname = mndGetDbStr(pVgroup->dbName);
       char        b1[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -923,10 +923,10 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         STR_WITH_MAXSIZE_TO_VARSTR(b1, "NULL", TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE);
       }
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)b1, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)b1, false);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pVgid->dnodeId, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pVgid->dnodeId, false);
 
       SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
       char       b2[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -936,7 +936,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         STR_WITH_MAXSIZE_TO_VARSTR(b2, "NULL", TSDB_EP_LEN + VARSTR_HEADER_SIZE);
       }
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
 
       numOfRows++;
     }

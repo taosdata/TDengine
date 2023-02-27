@@ -1096,6 +1096,7 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
   SArray   *aTmpSkyline = taosArrayInit(dataNum * 2, sizeof(TSDBKEY));
   SArray   *pSkyline = taosArrayInit(dataNum * 2, POINTER_BYTES);
 
+  taosArrayClear(aSkyline);
   for (int32_t i = sidx; i <= eidx; ++i) {
     pDelData = (SDelData *)taosArrayGet(aDelData, i);
     taosArrayPush(aTmpSkyline, &(TSDBKEY){.ts = pDelData->sKey, .version = pDelData->version});

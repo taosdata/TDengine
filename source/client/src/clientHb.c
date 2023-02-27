@@ -347,7 +347,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
       continue;
     }
 
-    if (pRequest->killed) {
+    if (pRequest->killed || 0 == pRequest->body.queryJob) {
       releaseRequest(*rid);
       pIter = taosHashIterate(pObj->pRequests, pIter);
       continue;
@@ -758,7 +758,7 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgInfo.pData = buf;
       pInfo->msgInfo.len = tlen;
       pInfo->msgType = TDMT_MND_HEARTBEAT;
-      pInfo->param = strdup(pAppHbMgr->key);
+      pInfo->param = taosStrdup(pAppHbMgr->key);
       pInfo->paramFreeFp = taosMemoryFree;
       pInfo->requestId = generateRequestId();
       pInfo->requestObjRefId = 0;
@@ -826,7 +826,7 @@ SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
   pAppHbMgr->connKeyCnt = 0;
   pAppHbMgr->reportCnt = 0;
   pAppHbMgr->reportBytes = 0;
-  pAppHbMgr->key = strdup(key);
+  pAppHbMgr->key = taosStrdup(key);
 
   // init app info
   pAppHbMgr->pAppInstInfo = pAppInstInfo;

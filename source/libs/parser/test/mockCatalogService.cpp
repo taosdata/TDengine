@@ -331,7 +331,7 @@ class MockCatalogServiceImpl {
     info.dstTbUid = getNextId();
     info.dstVgId = pReq->dstVgId;
     genEpSet(&info.epSet);
-    info.expr = strdup(pReq->expr);
+    info.expr = taosStrdup(pReq->expr);
     auto it = index_.find(pReq->stb);
     if (index_.end() == it) {
       index_.insert(std::make_pair(string(pReq->stb), std::vector<STableIndexInfo>{info}));
@@ -374,7 +374,7 @@ class MockCatalogServiceImpl {
 
   STableIndexInfo* copyTableIndexInfo(STableIndexInfo* pDst, const STableIndexInfo* pSrc) const {
     memcpy(pDst, pSrc, sizeof(STableIndexInfo));
-    pDst->expr = strdup(pSrc->expr);
+    pDst->expr = taosStrdup(pSrc->expr);
     return pDst;
   }
 
