@@ -27,9 +27,9 @@ struct ZFileMan {
 
 impl Drop for ZFileMan {
     fn drop(&mut self) {
-        self.writers.iter().for_each(|entry| {
-            let _ = block_in_place(async { entry.value().lock().await.shutdown().await });
-        });
+        //self.writers.iter().for_each(|entry| {
+        //    let _ = block_in_place(async { entry.value().lock().await.shutdown().await });
+        //});
         self.writers.clear();
     }
 }

@@ -870,7 +870,6 @@ pub struct Task {
 
     /// Mark the task done as expected.
     #[schema(read_only)]
-    #[serde(skip_serializing_if = "is_false")]
     completed: bool,
     /// Mark the task is cancelled or not.
     #[schema(read_only)]
@@ -1400,6 +1399,7 @@ impl TaskFilter {
             // write!(sql, " AND `stream_type` = '{val}'")?;
             let val = format!("stream_type::{}", val);
             if let Some(labels) = self.labels.as_mut() {
+                labels.push(',');
                 labels.push_str(&val);
             } else {
                 self.labels.replace(val);
@@ -1412,6 +1412,7 @@ impl TaskFilter {
             // write!(sql, " AND `from_cluster` = '{from_cluster}'")?;
             let val = format!("from_cluster::{}", val);
             if let Some(labels) = self.labels.as_mut() {
+                labels.push(',');
                 labels.push_str(&val);
             } else {
                 self.labels.replace(val);
@@ -1421,6 +1422,7 @@ impl TaskFilter {
             // write!(sql, " AND `to_cluster` = '{val}'")?;
             let val = format!("to_cluster::{}", val);
             if let Some(labels) = self.labels.as_mut() {
+                labels.push(',');
                 labels.push_str(&val);
             } else {
                 self.labels.replace(val);

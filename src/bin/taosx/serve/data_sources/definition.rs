@@ -1,9 +1,6 @@
-use std::str::FromStr;
-
 use serde::{Deserialize, Serialize};
 
-use sqlx::sqlite::SqliteTypeInfo;
-use taos::{Dsn, IntoDsn};
+use taos::Dsn;
 use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -85,6 +82,8 @@ pub enum DataSourceOptions {
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct Param {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hint: Option<Hint>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -329,6 +328,7 @@ impl DataSourceDefinition {
                 hint: None,
                 description: None,
                 value: Some(value),
+                display: None,
             })
         }
         self

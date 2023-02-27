@@ -334,7 +334,7 @@ pub async fn tmq_to_td(
                 if &topic.database != target {
                     sql = sql.replace(&format!("`{}`", topic.database), &format!("`{target}`"));
                 }
-                target_taos.exec(sql).await?;
+                let _ = target_taos.exec(sql).await;
             }
             // target_taos.database_exists(&target);
             // if !target_taos.database_exists(&target).await? {
@@ -354,9 +354,9 @@ pub async fn tmq_to_td(
             target
         } else {
             if let Some(sql) = topic.database_sql.as_deref() {
-                target_taos
+                let _ = target_taos
                     .exec(sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"))
-                    .await?;
+                    .await;
             }
             // if !target_taos.database_exists(&topic.database).await? {
             //     if let Some(sql) = topic.database_sql.as_deref() {

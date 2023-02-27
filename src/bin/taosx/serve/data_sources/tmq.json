@@ -29,7 +29,7 @@
       "host": {
         "display": "Host",
         "description": "TDengine fqdn. Leave it empty if use server localhost(relative to taosX server).",
-        "placeholder": "localhost"
+        "placeholder": "server"
       },
       "port": {
         "display": "Port",
@@ -95,6 +95,7 @@
           },
           {
             "name": "timeout",
+            "display": "Timeout",
             "hint": "timeout",
             "description": "A timeout for polling data from the topic.\n\nThe input value should be one of:\n\n- `never`: means waiting for valid message without timeout.\n- A duration string like `5s`, `1m` etc.\n",
             "placeholder": "5s"

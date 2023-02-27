@@ -95,6 +95,11 @@ impl Cli {
                     CloudTarget,
                     Transformer,
                     DataIn,
+                    Authentication,
+                    Hint,
+                    HintDefinition,
+                    Definitions,
+                    AuthItem
                 ),
                 responses(
                 )
