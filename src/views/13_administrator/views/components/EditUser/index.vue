@@ -297,9 +297,9 @@ export default {
               }
             }
             console.log("topicList: " + this.topicList)
-            for (let key in this.topicList) {
-              console.log("key: " + key)
-              await this.cancelTopic(this.topicList[key]);
+            for (let k = 0; k < this.topicList.length; k++) {
+              console.log("key: " + k)
+              await this.cancelTopic(this.topicList[k]);
             }
             for (let key in this.selectedTopicPrivileges) {
               if (this.selectedTopicPrivileges[key].length > 0) {
