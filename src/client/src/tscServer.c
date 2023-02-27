@@ -1254,9 +1254,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   if (pQueryInfo->tsBuf != NULL) {
     // note: here used the idx instead of actual vnode id.
     int32_t vgId = 0;
-    if (pTableMetaInfo->vgroupList != NULL) {
+    if (pTableMetaInfo->pVgroupTables != NULL) {
       int32_t vnodeIndex = pTableMetaInfo->vgroupIndex;
-      vgId = pTableMetaInfo->vgroupList->vgroups[vnodeIndex].vgId;
+      SVgroupTableInfo* pTableInfo = taosArrayGet(pTableMetaInfo->pVgroupTables, vnodeIndex);
+      vgId = pTableInfo->vgInfo.vgId;
     } else {
       vgId = query.vgId;
     }
