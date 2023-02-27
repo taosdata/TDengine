@@ -536,7 +536,7 @@ SWord* addWord(const char* p, int32_t len, bool pattern) {
   word->len = len;
 
   // check format
-  if (pattern) {
+  if (pattern && len > 0) {
     word->type = wordType(p, len);
   } else {
     word->type = WT_TEXT;
@@ -577,11 +577,8 @@ void parseCommand(SWords* command, bool pattern) {
         while (word->next) {
           word = word->next;
         }
-        int len = i - start;
-        if (len > 0) {
-          word->next = addWord(p + start, len, pattern);
-          command->count++;
-        }
+        word->next = addWord(p + start, i - start, pattern);
+        command->count++;
       }
       start = i + 1;
     } else {
