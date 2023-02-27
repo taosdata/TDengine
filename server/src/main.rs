@@ -38,7 +38,8 @@ async fn main() -> std::io::Result<()> {
         .filter_level(log_level)
         .init();
 
-    let port = args.port;
+    const EXPLORER_PORT: u16 = 6060;
+    let port = args.port.unwrap_or(EXPLORER_PORT);
     let args = web::Data::new(args);
     HttpServer::new(move || {
         App::new()
@@ -65,8 +66,7 @@ async fn index() -> impl Responder {
 }
 
 async fn profile(args: web::Data<Args>) -> impl Responder {
-    HttpResponse::Ok()
-        .json(&args.profile)
+    HttpResponse::Ok().json(&args.profile)
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -159,7 +159,8 @@ struct Args {
         global = true,
         env = "EXPLORER_PORT"
     )]
-    port: u16,
+    #[serde(default)]
+    port: Option<u16>,
     /// For verbosity logging.
     #[clap(flatten)]
     #[serde(skip)]
