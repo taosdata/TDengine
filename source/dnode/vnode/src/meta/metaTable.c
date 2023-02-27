@@ -1921,10 +1921,10 @@ int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_
   // refactor
   if (IS_VAR_DATA_TYPE(type)) {
     memcpy((*ppTagIdxKey)->data, (uint16_t *)&nTagData, VARSTR_HEADER_SIZE);
-    memcpy((*ppTagIdxKey)->data + VARSTR_HEADER_SIZE, pTagData, nTagData);
+    if (pTagData != NULL) memcpy((*ppTagIdxKey)->data + VARSTR_HEADER_SIZE, pTagData, nTagData);
     *(tb_uid_t *)((*ppTagIdxKey)->data + VARSTR_HEADER_SIZE + nTagData) = uid;
   } else {
-    memcpy((*ppTagIdxKey)->data, pTagData, nTagData);
+    if (pTagData != NULL) memcpy((*ppTagIdxKey)->data, pTagData, nTagData);
     *(tb_uid_t *)((*ppTagIdxKey)->data + nTagData) = uid;
   }
 
