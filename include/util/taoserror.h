@@ -27,6 +27,8 @@ extern "C" {
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
 
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
+// libuv errno is minus
+#define TAOS_LIBUV_ERROR(code)              (0x80fe0000 | (-code))
 #define TAOS_SUCCEEDED(err)                 ((err) >= 0)
 #define TAOS_FAILED(err)                    ((err) < 0)
 

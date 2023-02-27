@@ -1923,6 +1923,7 @@ static SCliThrd* createThrdObj(void* trans) {
     taosMemoryFree(pThrd->loop);
     taosThreadMutexDestroy(&pThrd->msgMtx);
     taosMemoryFree(pThrd);
+    terrno = TAOS_LIBUV_ERROR(err);
     return NULL;
   }
   if (pTransInst->supportBatch) {

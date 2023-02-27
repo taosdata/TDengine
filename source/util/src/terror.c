@@ -19,6 +19,11 @@
 #include "os.h"
 #include "taoserror.h"
 
+// FIXME: better with `include` directive, and some modifictions in CMakeLists.txt
+//        rather than hard-copied here
+extern char* uv_err_name_r(int err, char* buf, size_t buflen);
+
+
 #define TAOS_ERROR_C
 
 typedef struct {
@@ -27,6 +32,7 @@ typedef struct {
 } STaosError;
 
 static threadlocal int32_t tsErrno;
+static threadlocal char err_str_buf[64];
 
 int32_t* taosGetErrno() { return &tsErrno; }
 
@@ -664,6 +670,12 @@ const char* tstrerror(int32_t err) {
     // strerror can handle any invalid code
     // invalid code return Unknown error 
     return strerror(code);
+  }
+  // this is a libuv errno
+  if ((err & 0x00ff0000) == 0x00fe0000) {
+    // libuv errno is negative integer
+    int32_t code = -(err & 0x0000ffff);
+    return uv_err_name_r(code, err_str_buf, sizeof(err_str_buf));
   }
   int32_t s = 0;
   int32_t e = sizeof(errors) / sizeof(errors[0]);
