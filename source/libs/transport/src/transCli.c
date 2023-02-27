@@ -11,7 +11,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "transComm.h"
+#include "tutil.h"
 
 typedef struct {
   int32_t numOfConn;
@@ -70,15 +72,13 @@ typedef struct SCliConn {
 
   SCliBatch* pBatch;
 
-  int64_t refId;
-  char*   ip;
-
   SDelayTask* task;
 
-  // debug and log info
-  char src[32];
-  char dst[32];
+  char* ip;
+  char  src[32];
+  char  dst[32];
 
+  int64_t refId;
 } SCliConn;
 
 typedef struct SCliMsg {
@@ -137,6 +137,7 @@ typedef struct {
   int32_t threshold;
   int64_t interval;
 } SFailFastItem;
+
 // conn pool
 // add expire timeout and capacity limit
 static void*     createConnPool(int size);
@@ -233,11 +234,11 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
 // snprintf may cause performance problem
 #define CONN_CONSTRUCT_HASH_KEY(key, ip, port) \
   do {                                         \
-    char*   p = key;                           \
-    int32_t len = strlen(ip);                  \
-    if (p != NULL) memcpy(p, ip, len);         \
-    p[len] = ':';                              \
-    titoa(port, 10, &p[len + 1]);              \
+    char*   t = key;                           \
+    int16_t len = strlen(ip);                  \
+    if (ip != NULL) memcpy(t, ip, len);        \
+    t[len] = ':';                              \
+    titoa(port, 10, &t[len + 1]);              \
   } while (0)
 
 #define CONN_PERSIST_TIME(para)   ((para) <= 90000 ? 90000 : (para))
@@ -366,6 +367,7 @@ void cliHandleResp(SCliConn* conn) {
 
   int32_t msgLen = transDumpFromBuffer(&conn->readBuf, (char**)&pHead);
   if (msgLen <= 0) {
+    taosMemoryFree(pHead);
     tDebug("%s conn %p recv invalid packet ", CONN_GET_INST_LABEL(conn), conn);
     return;
   }
@@ -1849,17 +1851,23 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   for (int i = 0; i < cli->numOfThreads; i++) {
     SCliThrd* pThrd = createThrdObj(shandle);
     if (pThrd == NULL) {
-      return NULL;
+      goto _err;
     }
 
     int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
-    if (err == 0) {
+    if (err != 0) {
+      goto _err;
+    } else {
       tDebug("success to create tranport-cli thread:%d", i);
     }
     cli->pThreadObj[i] = pThrd;
   }
-
   return cli;
+
+_err:
+  taosMemoryFree(cli->pThreadObj);
+  taosMemoryFree(cli);
+  return NULL;
 }
 
 static FORCE_INLINE void destroyUserdata(STransMsg* userdata) {

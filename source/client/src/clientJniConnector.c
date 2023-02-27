@@ -56,6 +56,7 @@ jmethodID g_createConsumerErrorCallback;
 jmethodID g_topicListCallback;
 
 jclass    g_consumerClass;
+// deprecated
 jmethodID g_commitCallback;
 
 void jniGetGlobalMethod(JNIEnv *env) {
