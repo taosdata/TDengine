@@ -1253,8 +1253,15 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   if (pQueryInfo->tsBuf != NULL) {
     // note: here used the idx instead of actual vnode id.
-    int32_t vnodeIndex = pTableMetaInfo->vgroupIndex;
-    code = dumpFileBlockByGroupId(pQueryInfo->tsBuf, vnodeIndex, pMsg, &pQueryMsg->tsBuf.tsLen, &pQueryMsg->tsBuf.tsNumOfBlocks);
+    int32_t vgId = 0;
+    if (pTableMetaInfo->vgroupList != NULL) {
+      int32_t vnodeIndex = pTableMetaInfo->vgroupIndex;
+      vgId = pTableMetaInfo->vgroupList->vgroups[vnodeIndex].vgId;
+    } else {
+      vgId = query.vgId;
+    }
+
+    code = dumpFileBlockByGroupId(pQueryInfo->tsBuf, vgId, pMsg, &pQueryMsg->tsBuf.tsLen, &pQueryMsg->tsBuf.tsNumOfBlocks);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
     }
@@ -1316,8 +1323,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   memcpy(pMsg, pSql->sqlstr, sqlLen);
   pMsg += sqlLen;
-
-
 
   pQueryMsg->extend = 1;
   
