@@ -619,7 +619,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   QUEUE_PUSH(&conn->list->conns, &conn->q);
   conn->list->size += 1;
 
-  if (conn->list->size >= 250) {
+  if (conn->list->size >= 20) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
     arg->param1 = conn;
     arg->param2 = thrd;
