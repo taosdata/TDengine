@@ -107,11 +107,11 @@ class TDTestCase:
     def insert_data(self, tbname):
         # d1 insert 3 rows
         for i in range(3):
-            sql = f'insert into {tbname}1(ts,col1) values(now,{i});' 
+            sql = f'insert into {tbname}1(ts,col1) values(now+{i}s,{i});' 
             tdSql.execute(sql)
         # d20 insert 4
         for i in range(4):
-            sql = f'insert into {tbname}20(ts,col1) values(now,{i});' 
+            sql = f'insert into {tbname}20(ts,col1) values(now+{i}s,{i});' 
             tdSql.execute(sql)
 
     # check show indexs
@@ -149,6 +149,22 @@ class TDTestCase:
         sql = f'select * from meters where t12="11"'
         tdSql.query(sql)
         tdSql.checkRows(0)
+
+        sql = f'select t12 ,t13,tbname from meters where t13="nch20"'
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+
+        sql = f'select * from meters where t12 like "%ab%" '
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+
+        sql = f'select * from meters where t13 = "d20" '
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+
+        sql = f'select * from meters where tbname = "d20" '
+        tdSql.query(sql)
+        tdSql.checkRows(4)
 
         sql = f'select * from meters where (t4 < 10 or t5 = 20) and t6= 30'
         tdSql.query(sql)
@@ -188,6 +204,22 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdLog.info(f' drop {cnt} tag indexs ok.')
 
+    # create long name idx 
+    def longname_idx(self, stbname):
+        long_name = "aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffgggggggggghhhhhhhhhhiiiiiiiiiijjjjjjjjjjkkkkkkkkkkllllllllllmmmmmmmmmm"
+        key = "t3"
+        sql = f'create index {long_name} on {stbname} ({key})'
+        tdSql.error(sql)
+
+        long_name = "aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffff"
+        key = "t3"
+        sql = f'create index {long_name} on {stbname} ({key})'
+        tdLog.info(f"{sql}")
+        tdSql.execute(sql)
+        sql = f'drop index {long_name}'
+        tdLog.info(f"{sql}")
+        tdSql.execute(sql)
+
     # run
     def run(self):
         # var
@@ -204,6 +236,7 @@ class TDTestCase:
         self.drop_tagidx(stable)
         # query after delete , expect no crash
         self.query_tagidx(stable)
+        self.longname_idx(stable)
 
 
     def stop(self):
