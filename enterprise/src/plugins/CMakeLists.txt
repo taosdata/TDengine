@@ -186,13 +186,6 @@ ELSE()
 ENDIF()
 
 IF(TD_BULID_EXPLORER)
-    IF ("${CUS_PROMPT}" STREQUAL "")
-    ELSE()
-        file(READ explorer/server/README.md FILE_CONTENTS)
-        string(REPLACE "TDengine" "${CUS_NAME}" FILE_CONTENTS "${FILE_CONTENTS}")
-        string(REPLACE "taos" "${CUS_PROMPT}" FILE_CONTENTS "${FILE_CONTENTS}")
-        file(WRITE explorer/server/README.md "${FILE_CONTENTS}")
-    ENDIF()
     include(ExternalProject)
     set(ENV{TAOS_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib)
     set(ENV{LD_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LD_LIBRARY_PATH})
@@ -204,9 +197,13 @@ IF(TD_BULID_EXPLORER)
             BUILD_ALWAYS        off
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND
+            COMMAND git checkout main
             COMMAND git pull || true
             BUILD_COMMAND
-            COMMAND LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} npm install && npm run build && cargo build --release
+            COMMAND git checkout main
+            COMMAND git pull || true
+            COMMAND CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} npm install && npm run build && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} cargo build --release
+            COMMAND git checkout .
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taos-explorer ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer
         )
@@ -217,10 +214,13 @@ IF(TD_BULID_EXPLORER)
             BUILD_ALWAYS        off
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND
-            COMMAND git pull origin main || true
+            COMMAND git checkout main
+            COMMAND git pull || true
             # COMMAND cargo update
             BUILD_COMMAND
-            COMMAND set LIBRARY_PATH=$ENV{LIBRARY_PATH} && set LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} && npm install && npm run build && cargo build --release
+            COMMAND git pull || true
+            COMMAND set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} set LIBRARY_PATH=$ENV{LIBRARY_PATH} && set LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} && npm install && npm run build && cargo build --release
+            COMMAND git checkout .
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taos-explorer.exe ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer.exe
         )

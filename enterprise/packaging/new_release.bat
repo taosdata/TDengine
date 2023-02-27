@@ -61,8 +61,8 @@ if not exist %work_dir%\debug\ver-%version%-x86 (
 
 cd %work_dir%\debug\ver-%version%-x64
 call vcvarsall.bat x64
-echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%"
-cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%
+echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%"
+cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%
 cmake --build .
 rd /s /Q C:\TDengine
 cmake --install .

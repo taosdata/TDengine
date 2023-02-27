@@ -228,8 +228,10 @@ fi
 
 if [[ "$pagMode" == "full" ]]; then
   BUILD_TOOLS=true
+  BUILD_EXPLORER=true
 else
   BUILD_TOOLS=false
+  BUILD_EXPLORER=false
 fi
 
 [ -z "${cusName}" ] && cusName="TDengine"
@@ -240,14 +242,14 @@ fi
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "arm64" ]] || [[ "$cpuType" == "arm32" ]] || [[ "$cpuType" == "mips64" ]] || [[ "$cpuType" == "loongarch64" ]] ; then
   if [ "$verMode" == "edge" ]; then
     # community-version compile
-    cmake ../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
+    cmake ../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=${BUILD_EXPLORER} ${allocator_macro}
   elif [ "$verMode" == "cloud" ]; then
-    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DBUILD_CLOUD=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
+    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DBUILD_CLOUD=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=${BUILD_EXPLORER} ${allocator_macro}
   elif [ "$verMode" == "cluster" ]; then
 #    if [[ "$dbName" != "taos" ]]; then
 #      replace_enterprise_$dbName
 #    fi
-    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail}
+    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=${BUILD_EXPLORER} ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"
