@@ -200,16 +200,17 @@ Active: inactive (dead)
 
 如下 `launchctl` 命令可以帮助你管理 TDengine 服务：
 
-- 启动服务进程：`launchctl start com.tdengine.taosd`
+- 启动服务进程：`sudo launchctl start com.tdengine.taosd`
 
-- 停止服务进程：`launchctl stop com.tdengine.taosd`
+- 停止服务进程：`sudo launchctl stop com.tdengine.taosd`
 
-- 查看服务状态：`launchctl list | grep taosd`
+- 查看服务状态：`sudo launchctl list | grep taosd`
 
 :::info
 
-- `launchctl` 命令不需要管理员权限，请不要在前面加 `sudo`。
-- `launchctl list | grep taosd` 指令返回的第一个内容是程序的 PID，若为 `-` 则说明 TDengine 服务未运行。
+- 为了增强安全性，我们增加了服务管理的权限要求
+- `launchctl` 命令管理“com.tdengine.taosd”需要管理员权限，务必在前面加 `sudo`。
+- `sudo launchctl list | grep taosd` 指令返回的第一个内容是程序的 PID，若为 `-` 则说明 TDengine 服务未运行。
 
 :::
 
