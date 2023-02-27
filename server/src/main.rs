@@ -27,7 +27,6 @@ async fn main() -> std::io::Result<()> {
     let mut file_path = std::path::Path::new("/etc")
         .join(env!("CUS_PROMPT"))
         .join("explorer.toml");
-    dbg!(&file_path);
 
     if let Ok(config) = ConfigPath::try_parse() {
         if let Some(value) = config.config_file {
