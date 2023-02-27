@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+# set -x
 
 # new_ver_release.sh  -b [develop | master] 
 #                     -c [aarch32 | aarch64 | x64 ...]  
@@ -20,8 +21,9 @@ verMode=all         # -v [cluster, edge ,all ] cluster is enterprise, edge is co
 verType=stable      # -V [stable, beta]
 versionComp=3.0.0.0
 dockerMode="no"
+dockerProject="tdengine"
 
-while getopts "hb:c:n:l:v:d:V:" arg
+while getopts "hb:c:n:l:v:d:V:N:P:M:D:" arg
 do
   case $arg in
     c)
@@ -52,6 +54,22 @@ do
       #echo "dockerMode=$OPTARG"
       dockerMode=$(echo $OPTARG)
       ;;
+    N)
+      #echo "cusName=$OPTARG"
+      cusName=$(echo $OPTARG)
+      ;;
+    P)
+      #echo "cusPrompt=$OPTARG"
+      cusPrompt=$(echo $OPTARG)
+      ;;
+    M)
+      #echo "cusEmail=$OPTARG"
+      cusEmail=$(echo $OPTARG)
+      ;;
+    D)
+      #echo "cusEmail=$OPTARG"
+      dockerProject=$(echo $OPTARG)
+      ;;
     h)
       echo "Usage: `basename $0` -b [develop | master] "
       echo "                     -c [aarch32 | aarch64 | x64 ...] "
@@ -60,6 +78,10 @@ do
       echo "                     -v [cluster, edge ,all] cluster is enterprise, edge is community  "
       echo "                     -V [stable | beta] "
       echo "                     -d [no | build | push | latest]   "
+      echo "                     -N <custom name>"
+      echo "                     -P <custom prompt>"
+      echo "                     -M <custom email>"
+      echo "                     -D <harbor docker project>"
       exit 0
       ;;
     ?) #unknow option
@@ -69,17 +91,26 @@ do
   esac
 done
 
+scriptDir=$(dirname $(realpath $0 || readlink -f $0))
+topDir=$scriptDir/../..         # TDinternal
+communityDir=$topDir/community
+enterpriseDir=$topDir/enterprise
+
 if [ "$dockerMode" == "latest" ];then
-  bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode
+  if [ "$verMode" == "cluster" ];then
+    bash generate_docker_enterprise.sh     $version $branchName $verType $cpuType $verMode $dockerMode $dockerProject
+  else
+    bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode
+  fi
 fi
 
 if [ "$verMode" == "all" ];then
   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
-  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
+  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $cusName $cusPrompt $cusEmail
 elif [ "$verMode" == "edge" ];then
   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
 elif [ "$verMode" == "cluster" ];then
-  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
+  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $cusName $cusPrompt $cusEmail
 elif [ "$verMode" == "cloud" ];then
   bash generate_cloud.sh $version $versionComp $branchName $verType $cpuType
 else
@@ -87,5 +118,10 @@ else
 fi
 
 if [ "$dockerMode" == "build" ] || [ "$dockerMode" == "push" ];then
-  bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode
+  if [ "$verMode" == "cluster" ];then
+    cp -f $communityDir/release/TDengine-enterprise-server-*-Linux-x64.tar.gz $enterpriseDir/packaging/docker
+    bash generate_docker_enterprise.sh     $version $branchName $verType $cpuType $verMode $dockerMode $dockerProject
+  else
+    bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode
+  fi
 fi

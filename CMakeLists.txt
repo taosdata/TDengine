@@ -11,6 +11,21 @@ SET(TD_ENTERPRISE_DIR ${PROJECT_SOURCE_DIR}/enterprise)
 MESSAGE(STATUS "Community source directory: " ${TD_COMMUNITY_DIR})
 MESSAGE(STATUS "Enterprise source directory: " ${TD_ENTERPRISE_DIR})
 
+IF (CUS_NAME)
+    MESSAGE(STATUS "Customized brand name: " ${CUS_NAME})
+    ADD_DEFINITIONS(-DCUS_NAME="${CUS_NAME}")
+ENDIF ()
+
+IF (CUS_PROMPT)
+    MESSAGE(STATUS "Customized prompt: " ${CUS_PROMPT})
+    ADD_DEFINITIONS(-DCUS_PROMPT="${CUS_PROMPT}")
+ENDIF ()
+
+IF (CUS_EMAIL)
+    MESSAGE(STATUS "Customized email: " ${CUS_EMAIL})
+    ADD_DEFINITIONS(-DCUS_EMAIL="${CUS_EMAIL}")
+ENDIF ()
+
 set( TD_SOURCE_DIR ${PROJECT_SOURCE_DIR} )
 include(${TD_SOURCE_DIR}/enterprise/cmake/cmake.options)
 add_subdirectory(enterprise/contrib)

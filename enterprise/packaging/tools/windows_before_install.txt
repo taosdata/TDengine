@@ -1,0 +1,6 @@
+TDengine is a high-efficient, scalable, high-available distributed time-series database, which makes a lot of optimizations on inserting and querying data, which is far more efficient than normal regular databases. So TDengine can meet the high requirements of IOT and other areas on storing and querying a large amount of data. 
+
+TDengine will be installed under C:\TDengine, users can modify configuration file C:\TDengine\cfg\taos.cfg, set the log file path or other parameters.
+To start/stop TDengine with administrator privileges:  sc start/stop taosd
+To start/stop taosAdapter with administrator privileges: sc start/stop taosadapter
+Please manually remove C:\TDengine from your system PATH environment after you remove TDengine software.

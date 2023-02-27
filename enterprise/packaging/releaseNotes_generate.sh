@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 fromBranch=$1
 toBranch=$2

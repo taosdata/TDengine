@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 # set -x
 scriptDir=$(dirname $(realpath $0 || readlink -f $0))
 #
@@ -7,11 +8,14 @@ versionComp=$2
 branchName=$3
 verType=$4
 cpuType=$5
+cusName=$6
+cusPrompt=$7
+cusEmail=$8
 
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
-archiveDir=/nas/TDengine/v$version/enterprise  # version’package directory
 enterpriseDir=$topDir/enterprise
+archiveDir=/nas/TDengine/v$version/enterprise  # version’package directory
 
 ostype=$(uname)
 
@@ -30,7 +34,20 @@ if [ ! -d $communityDir ]; then
   cd $topDir
   mkdir -p debug
   cd debug
-  cmake .. -DBUILD_TAOSX=true
+
+  if [ -z "$cusName" ] && [ -z "$cusPrompt" ] && [ -z "$cusEmail" ]; then
+    cmake .. -DBUILD_TAOSX=true
+  else
+    if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
+      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail}
+    elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
+      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt}
+    elif [ ! -z "${cusName}" ]; then
+      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName}
+    else
+      cmake .. -DBUILD_TAOSX=true -DCUS_PROMPT=${cusPrompt}
+    fi
+  fi
 fi
 
 # cd $communityDir
@@ -45,11 +62,21 @@ fi
 # # git checkout -- .
 # # git pull
 
-cd $communityDir
+cd $topDir
 rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
-./packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+
+
+if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail}
+elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt}
+elif [ ! -z "${cusName}" ]; then
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName}
+else
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+fi
 
 # if [ ! -d  "$archiveDir/v$version" ]; then
 #   mkdir -p "$archiveDir/v$version"
@@ -112,7 +139,7 @@ if [ -d $archiveDir ]; then
     cd $archiveDir
     cp -f $communityDir/release/* ./
 else
-    echo "Cannont found $archiveDir on this machine"
+    echo "Cannot found $archiveDir on this machine"
 fi
 
 echo " packaging release done! "

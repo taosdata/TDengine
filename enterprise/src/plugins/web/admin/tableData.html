@@ -59,12 +59,16 @@
 			<div class="panel-heading dbhead">
 				<label class="control-label" id="dbTableName" style="font-weight:bold;padding-top:4px;height:1px">Data</label>
 				<div class="nav navbar-nav navbar-right dbtop" style="padding-left:16px;padding-right:14px">
-					<form class="form-inline">
+					<form class="form-inline" style="display:flex;">
 						<div class="form-group">
 							<input type="text" class="form-control" id="dbBeginTime" style="font-size:12px;width:155px;height:28px;" placeholder="1970-01-01 00:00:00">
 						</div>
 						<div class="form-group">
 							<input type="text" class="form-control" id="dbEndTime" style="font-size:12px;width:155px;height:28px;" placeholder="2050-01-01 12:34:56">
+						</div>
+						<div class="limit">
+							<span style="display:inline-block;margin-right:4px;margin-left:4px;">limit</span>
+              <input placeholder="1000" id="dbLimit" disabled type="number" min="1000" max="1000" style="width:100px;border:none;border: 1px solid #ccc;height:28px;border-radius:4px;font-size: 12px;">
 						</div>
 						<a id="download" style="display:none" download="tableData.csv" href="#">download</a>
 
@@ -215,7 +219,7 @@
 		} else {
 			sql += dbTableName;
 		}
-		
+		var limit=$.trim($('#dbLimit').val())
 		if (dbTableFirstCol != "") {
 			var begin = $.trim($('#dbBeginTime').val());
 			var end = $.trim($('#dbEndTime').val());
@@ -232,7 +236,7 @@
 			else {}
 			sql=sql +' ' + 'limit '+ (limit?limit:1000);
 		}
-		
+		sql=sql +' ' + 'limit '+ (limit?limit>1000?1000:limit:1000);
 		if (path == "sql") {
 			DbCache.Clear();
 		}
