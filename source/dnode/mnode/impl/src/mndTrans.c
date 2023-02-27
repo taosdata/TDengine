@@ -655,6 +655,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
     taosArrayPush(pTrans->pRpcArray, &pReq->info);
     pTrans->originRpcType = pReq->msgType;
   }
+
   mTrace("trans:%d, local object is created, data:%p", pTrans->id, pTrans);
   return pTrans;
 }

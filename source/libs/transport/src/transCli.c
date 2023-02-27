@@ -12,7 +12,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// #include "osMemory.h"
 #include "transComm.h"
 #include "tutil.h"
 
@@ -666,7 +665,7 @@ static int32_t specifyConnRef(SCliConn* conn, bool update, int64_t handle) {
 static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SCliConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
-  tDebug("%s conn %p alloc read buf", CONN_GET_INST_LABEL(conn), conn);
+  tTrace("%s conn %p alloc read buf", CONN_GET_INST_LABEL(conn), conn);
   transAllocBuffer(pBuf, buf);
 }
 static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
@@ -679,7 +678,7 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   if (nread > 0) {
     pBuf->len += nread;
     while (transReadComplete(pBuf)) {
-      tDebug("%s conn %p read complete", CONN_GET_INST_LABEL(conn), conn);
+      tTrace("%s conn %p read complete", CONN_GET_INST_LABEL(conn), conn);
       if (pBuf->invalid) {
         cliHandleExcept(conn);
         break;
@@ -1957,11 +1956,13 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   STrans*        pTransInst = pThrd->pTransInst;
   STransConnCtx* pCtx = pMsg->ctx;
 
-  STraceId* trace = &pMsg->msg.info.traceId;
-  char      tbuf[256] = {0};
-  EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
-  tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", transLabel(pThrd->pTransInst), tbuf,
-          pCtx->retryStep, pCtx->retryNextInterval);
+  if (rpcDebugFlag & DEBUG_DEBUG) {
+    STraceId* trace = &pMsg->msg.info.traceId;
+    char      tbuf[256] = {0};
+    EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
+    tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", transLabel(pThrd->pTransInst), tbuf,
+            pCtx->retryStep, pCtx->retryNextInterval);
+  }
 
   STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
   arg->param1 = pMsg;
@@ -1998,7 +1999,7 @@ FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
   pResp->pCont = buf;
   pResp->contLen = len;
 
-  *dst = epset;
+  epsetAssign(dst, &epset);
   return true;
 }
 bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
@@ -2023,7 +2024,7 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
       } else {
         if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
           tDebug("epset not equal, retry new epset");
-          pCtx->epSet = epSet;
+          epsetAssign(&pCtx->epSet, &epSet);
           noDelay = false;
         } else {
           if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
@@ -2048,7 +2049,7 @@ bool cliResetEpset(STransConnCtx* pCtx, STransMsg* pResp, bool hasEpSet) {
     } else {
       if (!transEpSetIsEqual(&pCtx->epSet, &epSet)) {
         tDebug("epset not equal, retry new epset");
-        pCtx->epSet = epSet;
+        epsetAssign(&pCtx->epSet, &epSet);
         noDelay = false;
       } else {
         if (pCtx->epsetRetryCnt >= pCtx->epSet.numOfEps) {
@@ -2138,10 +2139,6 @@ bool cliGenRetryRule(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     if (pCtx->retryNextInterval >= pCtx->retryMaxInterval) {
       pCtx->retryNextInterval = pCtx->retryMaxInterval;
     }
-
-    // if (-1 != pCtx->retryMaxTimeout && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
-    //   return false;
-    // }
   } else {
     pCtx->retryNextInterval = 0;
     pCtx->epsetRetryCnt++;
@@ -2189,9 +2186,11 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   STraceId* trace = &pResp->info.traceId;
   bool      hasEpSet = cliTryExtractEpSet(pResp, &pCtx->epSet);
   if (hasEpSet) {
-    char tbuf[256] = {0};
-    EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
-    tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
+    if (rpcDebugFlag & DEBUG_TRACE) {
+      char tbuf[256] = {0};
+      EPSET_DEBUG_STR(&pCtx->epSet, tbuf);
+      tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
+    }
   }
 
   if (pCtx->pSem != NULL) {
@@ -2318,8 +2317,9 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
 
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
-  pCtx->epSet = *pEpSet;
-  pCtx->origEpSet = *pEpSet;
+  epsetAssign(&pCtx->epSet, pEpSet);
+  epsetAssign(&pCtx->origEpSet, pEpSet);
+
   pCtx->ahandle = pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
 
@@ -2364,8 +2364,8 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
 
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
-  pCtx->epSet = *pEpSet;
-  pCtx->origEpSet = *pEpSet;
+  epsetAssign(&pCtx->epSet, pEpSet);
+  epsetAssign(&pCtx->origEpSet, pEpSet);
   pCtx->ahandle = pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
   pCtx->pSem = sem;
