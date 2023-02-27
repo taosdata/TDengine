@@ -275,7 +275,7 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   char buf2[80] = {0};
   tFormatOffset(buf1, 80, &pRsp->reqOffset);
   tFormatOffset(buf2, 80, &pRsp->rspOffset);
-  tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) send rsp, block num: %d, reqOffset:%s, rspOffset:%s",
+  tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d), block num:%d, reqOffset:%s, rspOffset:%s",
           TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
 
   return 0;
@@ -336,8 +336,7 @@ int32_t tqSendTaosxRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, co
   char buf2[80] = {0};
   tFormatOffset(buf1, 80, &pRsp->reqOffset);
   tFormatOffset(buf2, 80, &pRsp->rspOffset);
-  tqDebug("taosx rsp, vgId:%d, from consumer:0x%" PRIx64
-          " (epoch %d) send rsp, block num: %d, reqOffset:%s, rspOffset:%s",
+  tqDebug("taosx rsp, vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) send rsp, numOfBlks:%d, req:%s, rsp:%s",
           TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
 
   return 0;
@@ -496,14 +495,15 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // update epoch if need
-  int32_t consumerEpoch = atomic_load_32(&pHandle->epoch);
-  while (consumerEpoch < reqEpoch) {
-    consumerEpoch = atomic_val_compare_exchange_32(&pHandle->epoch, consumerEpoch, reqEpoch);
+  int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
+  while (savedEpoch < reqEpoch) {
+    tqDebug("tmq poll: consumer:0x%"PRIx64 " epoch update from %d to %d by poll req", consumerId, savedEpoch, reqEpoch);
+    savedEpoch = atomic_val_compare_exchange_32(&pHandle->epoch, savedEpoch, reqEpoch);
   }
 
   char buf[80];
   tFormatOffset(buf, 80, &reqOffset);
-  tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req in vg %d, req offset %s", consumerId,
+  tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s", consumerId,
           req.epoch, pHandle->subKey, TD_VID(pTq->pVnode), buf);
 
   // 2.reset offset if needed
@@ -539,7 +539,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
           tqInitDataRsp(&dataRsp, &req, pHandle->execHandle.subType);
 
           tqOffsetResetToLog(&dataRsp.rspOffset, walGetLastVer(pTq->pVnode->pWal));
-          tqDebug("tmq poll: consumer:0x %" PRIx64 ", subkey %s, vg %d, offset reset to %" PRId64, consumerId,
+          tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, offset reset to %" PRId64, consumerId,
                   pHandle->subKey, TD_VID(pTq->pVnode), dataRsp.rspOffset.version);
           if (tqSendDataRsp(pTq, pMsg, &req, &dataRsp) < 0) {
             code = -1;
@@ -576,6 +576,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     }
 
 #if 1
+    // till now, all data has been rsp to consumer, new data needs to push client once arrived.
     if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
         dataRsp.reqOffset.version == dataRsp.rspOffset.version) {
       STqPushEntry* pPushEntry = taosMemoryCalloc(1, sizeof(STqPushEntry));
@@ -588,8 +589,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         pPushEntry->dataRsp.head.epoch = reqEpoch;
         pPushEntry->dataRsp.head.mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
         taosHashPut(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey) + 1, &pPushEntry, sizeof(void*));
-        tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vg %d save handle to push mgr", consumerId,
-                pHandle->subKey, TD_VID(pTq->pVnode));
+
+        tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s offset:%" PRId64 ", vgId:%d save handle to push mgr",
+                consumerId, pHandle->subKey, dataRsp.reqOffset.version, TD_VID(pTq->pVnode));
         // unlock
         taosWUnLockLatch(&pTq->pushLock);
         return 0;
@@ -602,8 +604,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       code = -1;
     }
 
-    tqDebug("tmq poll: consumer:0x%" PRIx64
-            ", subkey %s, vg %d, send data blockNum:%d, offset type:%d, uid/version:%" PRId64 ", ts:%" PRId64 "",
+    tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp data block:%d, offset type:%d, uid/version:%" PRId64 ", ts:%" PRId64 "",
             consumerId, pHandle->subKey, TD_VID(pTq->pVnode), dataRsp.blockNum, dataRsp.rspOffset.type,
             dataRsp.rspOffset.uid, dataRsp.rspOffset.ts);
 
@@ -664,11 +665,11 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     walSetReaderCapacity(pHandle->pWalReader, 2048);
 
     while (1) {
-      consumerEpoch = atomic_load_32(&pHandle->epoch);
-      if (consumerEpoch > reqEpoch) {
+      savedEpoch = atomic_load_32(&pHandle->epoch);
+      if (savedEpoch > reqEpoch) {
         tqWarn("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, vg %d offset %" PRId64
                ", found new consumer epoch %d, discard req epoch %d",
-               consumerId, req.epoch, pHandle->subKey, TD_VID(pTq->pVnode), fetchVer, consumerEpoch, reqEpoch);
+               consumerId, req.epoch, pHandle->subKey, TD_VID(pTq->pVnode), fetchVer, savedEpoch, reqEpoch);
         break;
       }
 
