@@ -261,8 +261,8 @@ typedef int32_t (*TUdfAggFinishFunc)(SUdfInterBuf *buf, SUdfInterBuf *resultData
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 typedef struct SScriptUdfEnvItem{
-  char *name;
-  char *value;
+  const char *name;
+  const char *value;
 } SScriptUdfEnvItem;
 
 typedef enum EUdfFuncType {
