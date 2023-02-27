@@ -593,22 +593,22 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t groupIndex, int32_t blockIndex
   }
   
   STSCursor* pCur = &pTSBuf->cur;
-  if (pCur->vgroupIndex == groupIndex && ((pCur->blockIndex <= blockIndex && pCur->order == TSDB_ORDER_ASC) ||
-      (pCur->blockIndex >= blockIndex && pCur->order == TSDB_ORDER_DESC))) {
-    int32_t i = 0;
-    bool    decomp = false;
-    int32_t step = abs(blockIndex - pCur->blockIndex);
-    
-    while ((++i) <= step) {
-      if (readDataFromDisk(pTSBuf, pCur->order, decomp) == NULL) {
-        return;
-      }
-    }
-  } else {
+//  if (pCur->vgroupIndex == groupIndex && ((pCur->blockIndex <= blockIndex && pCur->order == TSDB_ORDER_ASC) ||
+//      (pCur->blockIndex >= blockIndex && pCur->order == TSDB_ORDER_DESC))) {
+//    int32_t i = 0;
+//    bool    decomp = false;
+//    int32_t step = abs(blockIndex - pCur->blockIndex);
+//
+//    while ((++i) <= step) {
+//      if (readDataFromDisk(pTSBuf, pCur->order, decomp) == NULL) {
+//        return;
+//      }
+//    }
+//  } else {
     if (tsBufFindBlock(pTSBuf, pBlockInfo, blockIndex) == -1) {
       assert(false);
     }
-  }
+//  }
   
   STSBlock* pBlock = &pTSBuf->block;
   
