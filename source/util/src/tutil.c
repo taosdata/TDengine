@@ -468,7 +468,7 @@ size_t tstrncspn(const char *str, size_t size, const char *reject, size_t rsize)
     c3 = p[s[j + 3]];
 
     if ((c0 | c1 | c2 | c3) != 0) {
-      size_t count = ((i + 1) >> 2);
+      size_t count = i * 4;
       return (c0 | c1) != 0 ? count - c0 + 1 : count - c2 + 3;
     }
   }

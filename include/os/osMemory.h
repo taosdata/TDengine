@@ -29,9 +29,12 @@ extern "C" {
 #define calloc  CALLOC_FUNC_TAOS_FORBID
 #define realloc REALLOC_FUNC_TAOS_FORBID
 #define free    FREE_FUNC_TAOS_FORBID
+#ifdef  strdup
+#undef  strdup
 #define strdup  STRDUP_FUNC_TAOS_FORBID
-#endif // ifndef ALLOW_FORBID_FUNC
+#endif
 
+#endif // ifndef ALLOW_FORBID_FUNC
 #endif // if !defined(WINDOWS)
 
 int32_t taosMemoryDbgInit();

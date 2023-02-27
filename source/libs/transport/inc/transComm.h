@@ -148,7 +148,8 @@ typedef struct {
   int8_t  epsetRetryCnt;
   int32_t retryCode;
 
-  int hThrdIdx;
+  void* task;
+  int   hThrdIdx;
 } STransConnCtx;
 
 #pragma pack(push, 1)

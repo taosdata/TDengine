@@ -606,9 +606,8 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
 }
 static bool udfdRpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_SYN_NOT_LEADER ||
-      code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED ||
-      code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_MNODE_NOT_FOUND || code == TSDB_CODE_APP_IS_STARTING ||
-      code == TSDB_CODE_APP_IS_STOPPING) {
+      code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED || code == TSDB_CODE_SYN_RESTORING ||
+      code == TSDB_CODE_MNODE_NOT_FOUND || code == TSDB_CODE_APP_IS_STARTING || code == TSDB_CODE_APP_IS_STOPPING) {
     if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||
         msgType == TDMT_SCH_MERGE_FETCH) {
       return false;
@@ -672,6 +671,12 @@ int32_t udfdOpenClientRpc() {
   rpcInit.parent = &global;
   rpcInit.rfp = udfdRpcRfp;
   rpcInit.compressSize = tsCompressMsgSize;
+
+  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
+  connLimitNum = TMAX(connLimitNum, 10);
+  connLimitNum = TMIN(connLimitNum, 500);
+  rpcInit.connLimitNum = connLimitNum;
+  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
 
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
@@ -765,7 +770,7 @@ bool isUdfdUvMsgComplete(SUdfdUvConn *pipe) {
 }
 
 void udfdHandleRequest(SUdfdUvConn *conn) {
-  char *inputBuf = conn->inputBuf;
+  char   *inputBuf = conn->inputBuf;
   int32_t inputLen = conn->inputLen;
 
   uv_work_t  *work = taosMemoryMalloc(sizeof(uv_work_t));
@@ -784,7 +789,7 @@ void udfdHandleRequest(SUdfdUvConn *conn) {
 
 void udfdPipeCloseCb(uv_handle_t *pipe) {
   SUdfdUvConn *conn = pipe->data;
-  SUvUdfWork* pWork = conn->pWorkList;
+  SUvUdfWork  *pWork = conn->pWorkList;
   while (pWork != NULL) {
     pWork->conn = NULL;
     pWork = pWork->pWorkNext;
