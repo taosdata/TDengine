@@ -232,7 +232,7 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
     titoa(port, 10, &p[len + 1]);              \
   } while (0)
 
-#define CONN_PERSIST_TIME(para)   ((para) <= 90000 ? 90000 : (para))
+#define CONN_PERSIST_TIME(para)   ((para) <= 60000 ? 60000 : (para))
 #define CONN_GET_INST_LABEL(conn) (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
 
 #define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                         \
@@ -577,7 +577,7 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   }
 
   plist->size -= 1;
-  queue*    h = QUEUE_HEAD(&plist->conns);
+  queue*    h = QUEUE_TAIL(&plist->conns);
   SCliConn* conn = QUEUE_DATA(h, SCliConn, q);
   conn->status = ConnNormal;
   QUEUE_REMOVE(&conn->q);
