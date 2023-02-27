@@ -5439,8 +5439,6 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
     pDistInfo->maxRows = p1.maxRows;
   }
   pDistInfo->numOfVgroups += (p1.numOfTables != 0 ? 1 : 0);
-
-  pDistInfo->numOfVgroups += (p1.numOfTables != 0 ? 1 : 0);
   for (int32_t i = 0; i < tListLen(pDistInfo->blockRowsHisto); ++i) {
     pDistInfo->blockRowsHisto[i] += p1.blockRowsHisto[i];
   }
