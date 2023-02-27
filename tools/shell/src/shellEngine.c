@@ -127,7 +127,7 @@ void shellRecordCommandToHistory(char *command) {
     if (pHistory->hist[pHistory->hend] != NULL) {
       taosMemoryFreeClear(pHistory->hist[pHistory->hend]);
     }
-    pHistory->hist[pHistory->hend] = strdup(command);
+    pHistory->hist[pHistory->hend] = taosStrdup(command);
 
     pHistory->hend = (pHistory->hend + 1) % SHELL_MAX_HISTORY_SIZE;
     if (pHistory->hend == pHistory->hstart) {
@@ -821,7 +821,7 @@ void shellReadHistory() {
   while ((read_size = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) != -1) {
     line[read_size - 1] = '\0';
     taosMemoryFree(pHistory->hist[pHistory->hend]);
-    pHistory->hist[pHistory->hend] = strdup(line);
+    pHistory->hist[pHistory->hend] = taosStrdup(line);
 
     pHistory->hend = (pHistory->hend + 1) % SHELL_MAX_HISTORY_SIZE;
 
@@ -1107,7 +1107,7 @@ int32_t shellExecute() {
   if (runOnce) {
     if (pArgs->commands != NULL) {
       printf("%s%s\r\n", shell.info.promptHeader, pArgs->commands);
-      char *cmd = strdup(pArgs->commands);
+      char *cmd = taosStrdup(pArgs->commands);
       shellRunCommand(cmd, true);
       taosMemoryFree(cmd);
     }

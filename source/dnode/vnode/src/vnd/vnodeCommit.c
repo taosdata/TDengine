@@ -150,22 +150,21 @@ void vnodeUpdCommitSched(SVnode *pVnode) {
 }
 
 int vnodeShouldCommit(SVnode *pVnode) {
-  if (!pVnode->inUse || !osDataSpaceAvailable()) {
-    return false;
-  }
-
   SVCommitSched *pSched = &pVnode->commitSched;
   int64_t        nowMs = taosGetMonoTimestampMs();
+  bool           diskAvail = osDataSpaceAvailable();
+  bool           needCommit = false;
 
-  return (((pVnode->inUse->size > pVnode->inUse->node.size) && (pSched->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs)) ||
-          (pVnode->inUse->size > 0 && pSched->commitMs + pSched->maxWaitMs < nowMs));
-}
-
-int vnodeShouldCommitOld(SVnode *pVnode) {
-  if (pVnode->inUse) {
-    return osDataSpaceAvailable() && (pVnode->inUse->size > pVnode->inUse->node.size);
+  taosThreadMutexLock(&pVnode->mutex);
+  if (!pVnode->inUse || !diskAvail) {
+    goto _out;
   }
-  return false;
+  needCommit =
+      (((pVnode->inUse->size > pVnode->inUse->node.size) && (pSched->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs)) ||
+       (pVnode->inUse->size > 0 && pSched->commitMs + pSched->maxWaitMs < nowMs));
+_out:
+  taosThreadMutexUnlock(&pVnode->mutex);
+  return needCommit;
 }
 
 int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {

@@ -78,7 +78,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  pTq->path = strdup(path);
+  pTq->path = taosStrdup(path);
   pTq->pVnode = pVnode;
   pTq->walLogLastVer = pVnode->pWal->vers.lastVer;
 
@@ -1283,17 +1283,17 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   for (int32_t i = 0; i < sz; i++) {
     // start key column
     SColumnInfoData* pStartCol = taosArrayGet(pDelBlock->pDataBlock, START_TS_COLUMN_INDEX);
-    colDataAppend(pStartCol, i, (const char*)&pRes->skey, false);  // end key column
+    colDataSetVal(pStartCol, i, (const char*)&pRes->skey, false);  // end key column
     SColumnInfoData* pEndCol = taosArrayGet(pDelBlock->pDataBlock, END_TS_COLUMN_INDEX);
-    colDataAppend(pEndCol, i, (const char*)&pRes->ekey, false);
+    colDataSetVal(pEndCol, i, (const char*)&pRes->ekey, false);
     // uid column
     SColumnInfoData* pUidCol = taosArrayGet(pDelBlock->pDataBlock, UID_COLUMN_INDEX);
     int64_t*         pUid = taosArrayGet(pRes->uidList, i);
-    colDataAppend(pUidCol, i, (const char*)pUid, false);
+    colDataSetVal(pUidCol, i, (const char*)pUid, false);
 
-    colDataAppendNULL(taosArrayGet(pDelBlock->pDataBlock, GROUPID_COLUMN_INDEX), i);
-    colDataAppendNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), i);
-    colDataAppendNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), i);
+    colDataSetNULL(taosArrayGet(pDelBlock->pDataBlock, GROUPID_COLUMN_INDEX), i);
+    colDataSetNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), i);
+    colDataSetNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), i);
   }
 
   taosArrayDestroy(pRes->uidList);

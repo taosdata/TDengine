@@ -156,7 +156,7 @@ TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions) {
   if (!fp) {
     if (errno == ENOENT) {
       // Try to create directory recursively
-      char *s = strdup(path);
+      char *s = taosStrdup(path);
       if (taosMulMkDir(taosDirName(s)) != 0) {
         taosMemoryFree(s);
         return NULL;

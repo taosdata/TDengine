@@ -544,7 +544,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
       }
     } else {
       if (currElement->colArray == NULL) {
-        currElement->colArray = taosArrayInit_s(16, sizeof(SSmlKv), 1);
+        currElement->colArray = taosArrayInit_s(sizeof(SSmlKv), 1);
       }
       taosArrayPush(currElement->colArray, &kv);  // reserve for timestamp
     }

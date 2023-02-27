@@ -53,10 +53,6 @@ typedef struct {
 #define varDataNetLen(v)  (htons(((VarDataLenT *)(v))[0]))
 #define varDataNetTLen(v) (sizeof(VarDataLenT) + varDataNetLen(v))
 
-// this data type is internally used only in 'in' query to hold the values
-#define TSDB_DATA_TYPE_POINTER_ARRAY (1000)
-#define TSDB_DATA_TYPE_VALUE_ARRAY   (1001)
-
 #define GET_TYPED_DATA(_v, _finalType, _type, _data) \
   do {                                               \
     switch (_type) {                                 \

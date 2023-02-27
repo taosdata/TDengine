@@ -12,7 +12,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// #include "osMemory.h"
 #include "transComm.h"
+#include "tutil.h"
 
 typedef struct SConnList {
   queue   conns;
@@ -65,15 +67,13 @@ typedef struct SCliConn {
 
   SCliBatch* pBatch;
 
-  int64_t refId;
-  char*   ip;
-
   SDelayTask* task;
 
-  // debug and log info
-  char src[32];
-  char dst[32];
+  char* ip;
+  char  src[32];
+  char  dst[32];
 
+  int64_t refId;
 } SCliConn;
 
 typedef struct SCliMsg {
@@ -132,6 +132,7 @@ typedef struct {
   int32_t threshold;
   int64_t interval;
 } SFailFastItem;
+
 // conn pool
 // add expire timeout and capacity limit
 static void*     createConnPool(int size);
@@ -224,9 +225,13 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
   } while (0);
 
 // snprintf may cause performance problem
-#define CONN_CONSTRUCT_HASH_KEY(key, ip, port)          \
-  do {                                                  \
-    snprintf(key, sizeof(key), "%s:%d", ip, (int)port); \
+#define CONN_CONSTRUCT_HASH_KEY(key, ip, port) \
+  do {                                         \
+    char*   t = key;                           \
+    int16_t len = strlen(ip);                  \
+    if (ip != NULL) memcpy(t, ip, len);        \
+    t[len] = ':';                              \
+    titoa(port, 10, &t[len + 1]);              \
   } while (0)
 
 #define CONN_PERSIST_TIME(para)   ((para) <= 90000 ? 90000 : (para))
@@ -330,12 +335,8 @@ bool cliMaySendCachedMsg(SCliConn* conn) {
   if (!transQueueEmpty(&conn->cliMsgs)) {
     SCliMsg* pCliMsg = NULL;
     CONN_GET_NEXT_SENDMSG(conn);
-    if (pCliMsg == NULL)
-      return false;
-    else {
-      cliSend(conn);
-      return true;
-    }
+    cliSend(conn);
+    return true;
   }
   return false;
 _RETURN:
@@ -359,6 +360,7 @@ void cliHandleResp(SCliConn* conn) {
 
   int32_t msgLen = transDumpFromBuffer(&conn->readBuf, (char**)&pHead);
   if (msgLen <= 0) {
+    taosMemoryFree(pHead);
     tDebug("%s conn %p recv invalid packet ", CONN_GET_INST_LABEL(conn), conn);
     return;
   }
@@ -727,7 +729,7 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
   QUEUE_INIT(&conn->q);
   conn->hostThrd = pThrd;
   conn->status = ConnNormal;
-  conn->broken = 0;
+  conn->broken = false;
   transRefCliHandle(conn);
 
   atomic_add_fetch_32(&pThrd->connCount, 1);
@@ -985,6 +987,7 @@ _RETURN:
 }
 
 static void cliDestroyBatch(SCliBatch* pBatch) {
+  if (pBatch == NULL) return;
   while (!QUEUE_IS_EMPTY(&pBatch->wq)) {
     queue* h = QUEUE_HEAD(&pBatch->wq);
     QUEUE_REMOVE(h);
@@ -997,6 +1000,11 @@ static void cliDestroyBatch(SCliBatch* pBatch) {
   taosMemoryFree(pBatch);
 }
 static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
+  if (pThrd->quit == true) {
+    cliDestroyBatch(pBatch);
+    return;
+  }
+
   if (pBatch == NULL || pBatch->wLen == 0 || QUEUE_IS_EMPTY(&pBatch->wq)) {
     return;
   }
@@ -1014,7 +1022,7 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
   if (conn == NULL) {
     conn = cliCreateConn(pThrd);
     conn->pBatch = pBatch;
-    conn->ip = strdup(pList->dst);
+    conn->ip = taosStrdup(pList->dst);
 
     uint32_t ipaddr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, pList->ip);
     if (ipaddr == 0xffffffff) {
@@ -1082,17 +1090,23 @@ static void cliSendBatchCb(uv_write_t* req, int status) {
   if (status != 0) {
     tDebug("%s conn %p failed to send batch msg, batch size:%d, msgLen:%d, reason:%s", CONN_GET_INST_LABEL(conn), conn,
            p->wLen, p->batchSize, uv_err_name(status));
-    cliHandleExcept(conn);
+
+    if (!uv_is_closing((uv_handle_t*)&conn->stream)) cliHandleExcept(conn);
+
     cliHandleBatchReq(nxtBatch, thrd);
   } else {
     tDebug("%s conn %p succ to send batch msg, batch size:%d, msgLen:%d", CONN_GET_INST_LABEL(conn), conn, p->wLen,
            p->batchSize);
-
-    if (nxtBatch != NULL) {
-      conn->pBatch = nxtBatch;
-      cliSendBatch(conn);
+    if (!uv_is_closing((uv_handle_t*)&conn->stream)) {
+      if (nxtBatch != NULL) {
+        conn->pBatch = nxtBatch;
+        cliSendBatch(conn);
+      } else {
+        addConnToPool(thrd->pool, conn);
+      }
     } else {
-      addConnToPool(thrd->pool, conn);
+      cliDestroyBatch(nxtBatch);
+      // conn release by other callback
     }
   }
 
@@ -1391,7 +1405,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     uint16_t port = EPSET_GET_INUSE_PORT(&pCtx->epSet);
     CONN_CONSTRUCT_HASH_KEY(key, fqdn, port);
 
-    conn->ip = strdup(key);
+    conn->ip = taosStrdup(key);
 
     uint32_t ipaddr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, fqdn);
     if (ipaddr == 0xffffffff) {
@@ -1454,6 +1468,11 @@ static void cliNoBatchDealReq(queue* wq, SCliThrd* pThrd) {
     QUEUE_REMOVE(h);
 
     SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
+
+    if (pMsg->type == Quit) {
+      pThrd->stopMsg = pMsg;
+      continue;
+    }
     (*cliAsyncHandle[pMsg->type])(pMsg, pThrd);
 
     count++;
@@ -1485,6 +1504,12 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
     QUEUE_REMOVE(h);
 
     SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
+
+    if (pMsg->type == Quit) {
+      pThrd->stopMsg = pMsg;
+      continue;
+    }
+
     if (pMsg->type == Normal && REQUEST_NO_RESP(&pMsg->msg)) {
       STransConnCtx* pCtx = pMsg->ctx;
 
@@ -1503,8 +1528,8 @@ static void cliBatchDealReq(queue* wq, SCliThrd* pThrd) {
         pBatchList->batchLenLimit = pInst->batchSize;
         pBatchList->len += 1;
 
-        pBatchList->ip = strdup(ip);
-        pBatchList->dst = strdup(key);
+        pBatchList->ip = taosStrdup(ip);
+        pBatchList->dst = taosStrdup(key);
         pBatchList->port = port;
 
         SCliBatch* pBatch = taosMemoryCalloc(1, sizeof(SCliBatch));
@@ -1582,7 +1607,6 @@ static void cliAsyncCb(uv_async_t* handle) {
   SCliThrd*   pThrd = item->pThrd;
   STrans*     pTransInst = pThrd->pTransInst;
 
-  SCliMsg* pMsg = NULL;
   // batch process to avoid to lock/unlock frequently
   queue wq;
   taosThreadMutexLock(&item->mtx);
@@ -1705,17 +1729,23 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   for (int i = 0; i < cli->numOfThreads; i++) {
     SCliThrd* pThrd = createThrdObj(shandle);
     if (pThrd == NULL) {
-      return NULL;
+      goto _err;
     }
 
     int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
-    if (err == 0) {
+    if (err != 0) {
+      goto _err;
+    } else {
       tDebug("success to create tranport-cli thread:%d", i);
     }
     cli->pThreadObj[i] = pThrd;
   }
-
   return cli;
+
+_err:
+  taosMemoryFree(cli->pThreadObj);
+  taosMemoryFree(cli);
+  return NULL;
 }
 
 static FORCE_INLINE void destroyUserdata(STransMsg* userdata) {
@@ -2285,24 +2315,11 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return TSDB_CODE_RPC_BROKEN_LINK;
   }
-  /*if (pTransInst->connLimitNum > 0 && REQUEST_NO_RESP(pReq)) {
-    char     key[TSDB_FQDN_LEN + 64] = {0};
-    char*    ip = EPSET_GET_INUSE_IP((SEpSet*)pEpSet);
-    uint16_t port = EPSET_GET_INUSE_PORT((SEpSet*)pEpSet);
-    CONN_CONSTRUCT_HASH_KEY(key, ip, port);
-
-    int32_t* val = taosHashGet(pThrd->connLimitCache, key, strlen(key));
-    if (val != NULL && *val >= pTransInst->connLimitNum) {
-      transFreeMsg(pReq->pCont);
-      transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
-      return TSDB_CODE_RPC_MAX_SESSIONS;
-    }
-  }*/
 
   TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
-
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   pCtx->epSet = *pEpSet;
+  pCtx->origEpSet = *pEpSet;
   pCtx->ahandle = pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
 

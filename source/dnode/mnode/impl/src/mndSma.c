@@ -552,14 +552,14 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.sourceDbUid = pDb->uid;
   streamObj.targetDbUid = pDb->uid;
   streamObj.version = 1;
-  streamObj.sql = strdup(pCreate->sql);
+  streamObj.sql = taosStrdup(pCreate->sql);
   streamObj.smaId = smaObj.uid;
   streamObj.watermark = pCreate->watermark;
   streamObj.deleteMark = pCreate->deleteMark;
   streamObj.fillHistory = STREAM_FILL_HISTORY_ON;
   streamObj.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
   streamObj.triggerParam = pCreate->maxDelay;
-  streamObj.ast = strdup(smaObj.ast);
+  streamObj.ast = taosStrdup(smaObj.ast);
 
   // check the maxDelay
   if (streamObj.triggerParam < TSDB_MIN_ROLLUP_MAX_DELAY) {
@@ -1256,19 +1256,19 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     STR_TO_VARSTR(n3, (char *)tNameGetTableName(&stbName));
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)n1, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)n1, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)n2, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)n2, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)n3, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)n3, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pSma->dstVgId, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pSma->dstVgId, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pSma->createdTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pSma->createdTime, false);
 
     char col[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(col, (char *)"");

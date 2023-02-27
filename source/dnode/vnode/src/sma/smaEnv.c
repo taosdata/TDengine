@@ -291,10 +291,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     // step 1: set rsma trigger stat cancelled
     atomic_store_8(RSMA_TRIGGER_STAT(pStat), TASK_TRIGGER_STAT_CANCELLED);
 
-    // step 2: destroy the rsma info and associated fetch tasks
-    taosHashCleanup(RSMA_INFO_HASH(pStat));
-
-    // step 3: wait for all triggered fetch tasks to finish
+    // step 2: wait for all triggered fetch tasks to finish
     int32_t nLoops = 0;
     while (1) {
       if (T_REF_VAL_GET((SSmaStat *)pStat) == 0) {
@@ -310,8 +307,11 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
       }
     }
 
-    // step 4:
+    // step 3:
     tdRsmaStopExecutor(pSma);
+
+    // step 4: destroy the rsma info and associated fetch tasks
+    taosHashCleanup(RSMA_INFO_HASH(pStat));
 
     // step 5:
     tdRSmaFSClose(RSMA_FS(pStat));

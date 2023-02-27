@@ -281,7 +281,7 @@ int32_t ctgdHandleDbgCommand(char *command) {
     CTG_RET(TSDB_CODE_INVALID_PARA);
   }
 
-  char *dup = strdup(command);
+  char *dup = taosStrdup(command);
   char *option = NULL;
   char *param = NULL;
   

@@ -17,6 +17,7 @@
 #define _TD_UTIL_HTTP_H_
 
 #include "os.h"
+#include "tref.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,7 +25,8 @@ extern "C" {
 
 typedef enum { HTTP_GZIP, HTTP_FLAT } EHttpCompFlag;
 
-int32_t taosSendHttpReport(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag);
+int32_t taosSendHttpReport(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                           EHttpCompFlag flag);
 
 #ifdef __cplusplus
 }

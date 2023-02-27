@@ -33,7 +33,7 @@
 
 static int32_t mndTopicActionInsert(SSdb *pSdb, SMqTopicObj *pTopic);
 static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic);
-static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pTopic, SMqTopicObj *pNewTopic);
+static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pOldTopic, SMqTopicObj *pNewTopic);
 static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq);
 static int32_t mndProcessDropTopicReq(SRpcMsg *pReq);
 
@@ -379,7 +379,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
-  topicObj.sql = strdup(pCreate->sql);
+  topicObj.sql = taosStrdup(pCreate->sql);
   topicObj.sqlLen = strlen(pCreate->sql) + 1;
   topicObj.subType = pCreate->subType;
   topicObj.withMeta = pCreate->withMeta;
@@ -392,7 +392,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   }
 
   if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
-    topicObj.ast = strdup(pCreate->ast);
+    topicObj.ast = taosStrdup(pCreate->ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
 
     qDebugL("ast %s", topicObj.ast);
@@ -561,17 +561,17 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mInfo("topic:%s, start to create, sql:%s", createTopicReq.name, createTopicReq.sql);
+  mInfo("topic:%s start to create, sql:%s", createTopicReq.name, createTopicReq.sql);
 
   if (mndCheckCreateTopicReq(&createTopicReq) != 0) {
-    mError("topic:%s, failed to create since %s", createTopicReq.name, terrstr());
+    mError("topic:%s failed to create since %s", createTopicReq.name, terrstr());
     goto _OVER;
   }
 
   pTopic = mndAcquireTopic(pMnode, createTopicReq.name);
   if (pTopic != NULL) {
     if (createTopicReq.igExists) {
-      mInfo("topic:%s, already exist, ignore exist is set", createTopicReq.name);
+      mInfo("topic:%s already exist, ignore exist is set", createTopicReq.name);
       code = 0;
       goto _OVER;
     } else {
@@ -726,8 +726,9 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   if (pTopic->ntbUid != 0) {
     // broadcast to all vnode
-    void   *pIter = NULL;
+    pIter = NULL;
     SVgObj *pVgroup = NULL;
+
     while (1) {
       pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
       if (pIter == NULL) break;
@@ -813,23 +814,23 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     /*tNameGetDbName(&n, varDataVal(topicName));*/
     varDataSetLen(topicName, strlen(varDataVal(topicName)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)topicName, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)topicName, false);
 
     char dbName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     tNameFromString(&n, pTopic->db, T_NAME_ACCT | T_NAME_DB);
     tNameGetDbName(&n, varDataVal(dbName));
     varDataSetLen(dbName, strlen(varDataVal(dbName)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)dbName, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)dbName, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pTopic->createTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pTopic->createTime, false);
 
     char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
     tstrncpy(&sql[VARSTR_HEADER_SIZE], pTopic->sql, TSDB_SHOW_SQL_LEN);
     varDataSetLen(sql, strlen(&sql[VARSTR_HEADER_SIZE]));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)sql, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)sql, false);
 
     numOfRows++;
     sdbRelease(pSdb, pTopic);
