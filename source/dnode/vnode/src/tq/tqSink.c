@@ -619,6 +619,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
                   TD_VID(pVnode), ctbName, suid, mr.me.ctbEntry.suid);
           metaReaderClear(&mr);
           taosMemoryFree(ctbName);
+          continue;
         }
 
         tbData.uid = mr.me.uid;
