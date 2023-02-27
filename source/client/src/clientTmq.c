@@ -231,7 +231,6 @@ tmq_conf_t* tmq_conf_new() {
   conf->autoCommitInterval = 5000;
   conf->resetOffset = TMQ_CONF__RESET_OFFSET__EARLIEAST;
   conf->hbBgEnable = true;
-  conf->snapEnable = true;
 
   return conf;
 }

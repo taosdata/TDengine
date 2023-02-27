@@ -292,7 +292,7 @@ CREATE TOPIC topic_name AS DATABASE db_name;
 |      `enable.auto.commit`      | boolean | 是否启用消费位点自动提交                                 | 合法值：`true`, `false`。                   |
 |   `auto.commit.interval.ms`    | integer | 以毫秒为单位的消费记录自动提交消费位点时间间             | 默认 5000 m                                 |
 | `enable.heartbeat.background`  | boolean | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 默认开启                                    |
-| `experimental.snapshot.enable` | boolean | 是否允许从 TSDB 消费数据                                 | 默认开启(从版本3.0.3.0开始)                          |
+| `experimental.snapshot.enable` | boolean | 是否允许从 TSDB 消费数据                                 | 默认关闭(默认关闭情况下，如果消费到数据少，可能是由于wal保存策略到了，或者落盘后wal删除了，从wal里消费的数据会少，此时可以通过打开snapshot或者增大wal保存时间)                          |
 |     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）               | |
 
 对于不同编程语言，其设置方式如下：
