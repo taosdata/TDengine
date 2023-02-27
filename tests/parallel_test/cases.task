@@ -994,7 +994,7 @@
 #,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-querfy/percentile.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -Q 4
