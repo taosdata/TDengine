@@ -642,6 +642,8 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *p
   if (ret) goto end;
 #else
   vnodeAsyncRentention(pVnode, ttlReq.timestamp);
+  tsem_wait(&pVnode->canCommit);
+  tsem_post(&pVnode->canCommit);
 #endif
 
 end:
