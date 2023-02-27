@@ -176,7 +176,7 @@ struct ConfigPath {
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]
-#[clap(author, version, about, long_about = include_str!("../README.md"))]
+#[clap(author, version, about, long_about = include_str!(env!("CUS_README")))]
 struct Args {
     /// Configuration file
     #[clap(short = 'C', long, env = "EXPLORER_CONFIG_FILE")]
