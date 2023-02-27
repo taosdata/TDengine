@@ -84,7 +84,6 @@ static void deregisterRequest(SRequestObj *pRequest) {
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
   if (pRequest->pQuery && pRequest->pQuery->pRoot) {
-
     if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
         (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) {
       tscDebug("insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
@@ -160,7 +159,7 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
   rpcInit.retryMaxTimouet = tsMaxRetryWaitTime;
 
-  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
+  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 5);
   connLimitNum = TMAX(connLimitNum, 10);
   connLimitNum = TMIN(connLimitNum, 500);
   rpcInit.connLimitNum = connLimitNum;
@@ -524,7 +523,7 @@ void taos_init_imp(void) {
     if (code) {
       printf("failed to init memory dbg, error:%s\n", tstrerror(code));
     } else {
-      tsAsyncLog = false;    
+      tsAsyncLog = false;
       printf("memory dbg enabled\n");
     }
   }
