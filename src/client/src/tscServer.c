@@ -1252,19 +1252,28 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->tsBuf.tsOffset = htonl((int32_t)(pMsg - pCmd->payload));
 
   if (pQueryInfo->tsBuf != NULL) {
-    // note: here used the idx instead of actual vnode id.
-    int32_t vgId = 0;
-    if (pTableMetaInfo->pVgroupTables != NULL) {
-      int32_t vnodeIndex = pTableMetaInfo->vgroupIndex;
-      SVgroupTableInfo* pTableInfo = taosArrayGet(pTableMetaInfo->pVgroupTables, vnodeIndex);
-      vgId = pTableInfo->vgInfo.vgId;
+    bool qType = tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0);
+    if (qType) {
+      dumpFileBlockByGroupIndex(pQueryInfo->tsBuf, pTableMetaInfo->vgroupIndex, pMsg, &pQueryMsg->tsBuf.tsLen, &pQueryMsg->tsBuf.tsNumOfBlocks);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _end;
+      }
     } else {
-      vgId = query.vgId;
-    }
+      // note: here used the idx instead of actual vnode id.
+      int32_t vgId = 0;
+      if (pTableMetaInfo->pVgroupTables != NULL) {
+        int32_t           vnodeIndex = pTableMetaInfo->vgroupIndex;
+        SVgroupTableInfo *pTableInfo = taosArrayGet(pTableMetaInfo->pVgroupTables, vnodeIndex);
+        vgId = pTableInfo->vgInfo.vgId;
+      } else {
+        vgId = query.vgId;
+      }
 
-    code = dumpFileBlockByGroupId(pQueryInfo->tsBuf, vgId, pMsg, &pQueryMsg->tsBuf.tsLen, &pQueryMsg->tsBuf.tsNumOfBlocks);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _end;
+      code = dumpFileBlockByGroupId(pQueryInfo->tsBuf, vgId, pMsg, &pQueryMsg->tsBuf.tsLen,
+                                    &pQueryMsg->tsBuf.tsNumOfBlocks);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _end;
+      }
     }
 
     pMsg += pQueryMsg->tsBuf.tsLen;

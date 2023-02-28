@@ -1133,6 +1133,32 @@ int32_t dumpFileBlockByGroupId(STSBuf* pTSBuf, int32_t groupId, void* buf, int32
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t dumpFileBlockByGroupIndex(STSBuf* pTSBuf, int32_t groupIndex, void* pBuf, int32_t* len, int32_t* numOfBlocks) {
+  assert(groupIndex >= 0 && groupIndex < pTSBuf->numOfGroups);
+  STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[groupIndex].info;
+
+  *len = 0;
+  *numOfBlocks = 0;
+
+  if (fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET) != 0) {
+    int code = TAOS_SYSTEM_ERROR(ferror(pTSBuf->f));
+    //    qError("%p: fseek failed: %s", pSql, tstrerror(code));
+    return code;
+  }
+
+  size_t s = fread(pBuf, 1, pBlockInfo->compLen, pTSBuf->f);
+  if (s != pBlockInfo->compLen) {
+    int code = TAOS_SYSTEM_ERROR(ferror(pTSBuf->f));
+    //    tscError("%p: fread didn't return expected data: %s", pSql, tstrerror(code));
+    return code;
+  }
+
+  *len = pBlockInfo->compLen;
+  *numOfBlocks = pBlockInfo->numOfBlocks;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 STSElem tsBufFindElemStartPosByTag(STSBuf* pTSBuf, tVariant* pTag) {
   STSElem el = {.id = -1};
 

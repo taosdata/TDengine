@@ -136,6 +136,8 @@ void tsBufGetGroupIdList(STSBuf* pTSBuf, int32_t* num, int32_t** id);
 
 int32_t dumpFileBlockByGroupId(STSBuf* pTSBuf, int32_t id, void* buf, int32_t* len, int32_t* numOfBlocks);
 
+int32_t dumpFileBlockByGroupIndex(STSBuf* pTSBuf, int32_t groupIndex, void* pBuf, int32_t* len, int32_t* numOfBlocks);
+
 STSElem tsBufFindElemStartPosByTag(STSBuf* pTSBuf, tVariant* pTag);
 
 bool tsBufIsValidElem(STSElem* pElem);
