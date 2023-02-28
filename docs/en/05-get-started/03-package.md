@@ -209,11 +209,11 @@ The following `launchctl` commands can help you manage TDengine service:
 - Check TDengine Server status: `sudo launchctl list | grep taosd`
 
 :::info
-- To enhance security, we have added permission requirements for service management.
-- The `launchctl` command require _root_ privileges. You must need to use the `sudo` command.
-- `Launchctl` command manages _com.tdengine.taosd_ requires administrator privileges, be sure to prefix `sudo`.
-- The first content returned by the `launchctl list | grep taosd` command is the PID of the program, if `-` indicates that the TDengine service is not running.
-- If the service is abnormal, please check the `launchd.log` file of the system log or the `taosdlog` in the `/var/log/taos directory` for more information.
+- Please use `sudo` to run `launchctl` to manage _com.tdengine.taosd_ with administrator privileges.
+- The administrator privilege is required for service management to enhance security.
+- Troubleshooting:
+- The first column returned by the command `launchctl list | grep taosd` is the PID of the program. If it's `-`, that means the TDengine service is not running.
+- If the service is abnormal, please check the `launchd.log` file from the system log or the `taosdlog` from the `/var/log/taos directory` for more information.
 
 :::
 
