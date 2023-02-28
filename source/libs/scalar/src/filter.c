@@ -15,7 +15,7 @@
 #include <tlog.h>
 #include "os.h"
 #include "thash.h"
-//#include "queryLog.h"
+// #include "queryLog.h"
 #include "filter.h"
 #include "filterInt.h"
 #include "functionMgt.h"
@@ -123,36 +123,16 @@ int8_t filterGetRangeCompFuncFromOptrs(uint8_t optr, uint8_t optr2) {
   return -1;
 }
 
-__compar_fn_t gDataCompare[] = {compareInt32Val,
-                                compareInt8Val,
-                                compareInt16Val,
-                                compareInt64Val,
-                                compareFloatVal,
-                                compareDoubleVal,
-                                compareLenPrefixedStr,
-                                comparestrPatternMatch,
-                                compareChkInString,
-                                comparewcsPatternMatch,
-                                compareLenPrefixedWStr,
-                                compareUint8Val,
-                                compareUint16Val,
-                                compareUint32Val,
-                                compareUint64Val,
-                                setChkInBytes1,
-                                setChkInBytes2,
-                                setChkInBytes4,
-                                setChkInBytes8,
-                                comparestrRegexMatch,
-                                comparestrRegexNMatch,
-                                setChkNotInBytes1,
-                                setChkNotInBytes2,
-                                setChkNotInBytes4,
-                                setChkNotInBytes8,
-                                compareChkNotInString,
-                                comparestrPatternNMatch,
-                                comparewcsPatternNMatch,
-                                comparewcsRegexMatch,
-                                comparewcsRegexNMatch,};
+__compar_fn_t gDataCompare[] = {
+    compareInt32Val,       compareInt8Val,         compareInt16Val,         compareInt64Val,
+    compareFloatVal,       compareDoubleVal,       compareLenPrefixedStr,   comparestrPatternMatch,
+    compareChkInString,    comparewcsPatternMatch, compareLenPrefixedWStr,  compareUint8Val,
+    compareUint16Val,      compareUint32Val,       compareUint64Val,        setChkInBytes1,
+    setChkInBytes2,        setChkInBytes4,         setChkInBytes8,          comparestrRegexMatch,
+    comparestrRegexNMatch, setChkNotInBytes1,      setChkNotInBytes2,       setChkNotInBytes4,
+    setChkNotInBytes8,     compareChkNotInString,  comparestrPatternNMatch, comparewcsPatternNMatch,
+    comparewcsRegexMatch,  comparewcsRegexNMatch,
+};
 
 __compar_fn_t gInt8SignCompare[] = {compareInt8Val,   compareInt8Int16, compareInt8Int32,
                                     compareInt8Int64, compareInt8Float, compareInt8Double};
@@ -341,7 +321,7 @@ __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr) {
   if (TSDB_DATA_TYPE_NULL == rType || TSDB_DATA_TYPE_JSON == rType) {
     return NULL;
   }
-  
+
   switch (lType) {
     case TSDB_DATA_TYPE_TINYINT: {
       if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
@@ -519,7 +499,7 @@ int32_t filterReuseRangeCtx(SFilterRangeCtx *ctx, int32_t type, int32_t options)
 
 int32_t filterConvertRange(SFilterRangeCtx *cur, SFilterRange *ra, bool *notNull) {
   int64_t tmp = 0;
-  
+
   if (!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
     int32_t sr = cur->pCompareFunc(&ra->s, getDataMin(cur->type, &tmp));
     if (sr == 0) {
@@ -704,7 +684,7 @@ int32_t filterAddRangeImpl(void *h, SFilterRange *ra, int32_t optr) {
 
 int32_t filterAddRange(void *h, SFilterRange *ra, int32_t optr) {
   SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
-  int64_t tmp = 0;
+  int64_t          tmp = 0;
 
   if (FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
     SIMPLE_COPY_VALUES(&ra->s, getDataMin(ctx->type, &tmp));
@@ -991,7 +971,7 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
                        bool freeIfExists, int16_t *srcFlag) {
   int32_t   idx = -1;
   uint32_t *num;
-  bool sameBuf = false;
+  bool      sameBuf = false;
 
   num = &info->fields[type].num;
 
@@ -1251,13 +1231,13 @@ int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit *u
   SFilterField *t = FILTER_UNIT_LEFT_FIELD(src, u);
 
   if (u->right.type == FLD_TYPE_VALUE) {
-    void *data = FILTER_UNIT_VAL_DATA(src, u);
+    void         *data = FILTER_UNIT_VAL_DATA(src, u);
     SFilterField *rField = FILTER_UNIT_RIGHT_FIELD(src, u);
 
     if (IS_VAR_DATA_TYPE(type)) {
       if (FILTER_UNIT_OPTR(u) == OP_TYPE_IN) {
-        filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, POINTER_BYTES,
-                       false, &rField->flag);  // POINTER_BYTES should be sizeof(SHashObj), but POINTER_BYTES is also right.
+        filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, POINTER_BYTES, false,
+                       &rField->flag);  // POINTER_BYTES should be sizeof(SHashObj), but POINTER_BYTES is also right.
 
         t = FILTER_GET_FIELD(dst, right);
         FILTER_SET_FLAG(t->flag, FLD_DATA_IS_HASH);
@@ -3753,31 +3733,31 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       return DEAL_RES_CONTINUE;
     }
 
-/*
-    if (!FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP)) {
-      return DEAL_RES_CONTINUE;
-    }
+    /*
+        if (!FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP)) {
+          return DEAL_RES_CONTINUE;
+        }
 
-    if (TSDB_DATA_TYPE_BINARY != valueNode->node.resType.type && TSDB_DATA_TYPE_NCHAR != valueNode->node.resType.type) {
-      return DEAL_RES_CONTINUE;
-    }
+        if (TSDB_DATA_TYPE_BINARY != valueNode->node.resType.type && TSDB_DATA_TYPE_NCHAR !=
+       valueNode->node.resType.type) { return DEAL_RES_CONTINUE;
+        }
 
-    if (stat->precision < 0) {
-      int32_t code = fltAddValueNodeToConverList(stat, valueNode);
-      if (code) {
-        stat->code = code;
-        return DEAL_RES_ERROR;
-      }
+        if (stat->precision < 0) {
+          int32_t code = fltAddValueNodeToConverList(stat, valueNode);
+          if (code) {
+            stat->code = code;
+            return DEAL_RES_ERROR;
+          }
 
-      return DEAL_RES_CONTINUE;
-    }
+          return DEAL_RES_CONTINUE;
+        }
 
-    int32_t code = sclConvertToTsValueNode(stat->precision, valueNode);
-    if (code) {
-      stat->code = code;
-      return DEAL_RES_ERROR;
-    }
-*/
+        int32_t code = sclConvertToTsValueNode(stat->precision, valueNode);
+        if (code) {
+          stat->code = code;
+          return DEAL_RES_ERROR;
+        }
+    */
     return DEAL_RES_CONTINUE;
   }
 
@@ -3923,7 +3903,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
           stat->scalarMode = true;
           return DEAL_RES_CONTINUE;
         }
-        int32_t        type = vectorGetConvertType(refNode->node.resType.type, listNode->node.resType.type);
+        int32_t type = vectorGetConvertType(refNode->node.resType.type, listNode->node.resType.type);
         if (0 != type && type != refNode->node.resType.type) {
           stat->scalarMode = true;
           return DEAL_RES_CONTINUE;
@@ -3947,14 +3927,14 @@ int32_t fltReviseNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat) {
 
   FLT_ERR_JRET(pStat->code);
 
-/*
-  int32_t nodeNum = taosArrayGetSize(pStat->nodeList);
-  for (int32_t i = 0; i < nodeNum; ++i) {
-    SValueNode *valueNode = *(SValueNode **)taosArrayGet(pStat->nodeList, i);
+  /*
+    int32_t nodeNum = taosArrayGetSize(pStat->nodeList);
+    for (int32_t i = 0; i < nodeNum; ++i) {
+      SValueNode *valueNode = *(SValueNode **)taosArrayGet(pStat->nodeList, i);
 
-    FLT_ERR_JRET(sclConvertToTsValueNode(pStat->precision, valueNode));
-  }
-*/
+      FLT_ERR_JRET(sclConvertToTsValueNode(pStat->precision, valueNode));
+    }
+  */
 
 _return:
 

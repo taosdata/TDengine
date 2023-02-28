@@ -162,6 +162,22 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pMsg->pEpSet);
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
+  } else {
+    struct SCatalog* pCatalog = NULL;
+    int32_t          code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+    if (TSDB_CODE_SUCCESS == code) {
+      STscObj*             pTscObj = pRequest->pTscObj;
+
+      SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
+                               .requestId = pRequest->requestId,
+                               .requestObjRefId = pRequest->self,
+                               .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+      char dbFName[TSDB_DB_FNAME_LEN];
+      snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_INFORMATION_SCHEMA_DB);
+      catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
+      snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_PERFORMANCE_SCHEMA_DB);
+      catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
+    }  
   }
 
   if (pRequest->body.queryFp) {

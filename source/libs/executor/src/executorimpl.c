@@ -1197,13 +1197,14 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
     }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      releaseBufPage(pBuf, page);
-
-      if (pBlock->info.rows <= 0 || pRow->numOfRows > pBlock->info.capacity) {
-        qError("error in copy data to ssdatablock, existed rows in block:%d, rows in pRow:%d, capacity:%d, %s",
-               pBlock->info.rows, pRow->numOfRows, pBlock->info.capacity, GET_TASKID(pTaskInfo));
-        T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
+      // expand the result datablock capacity
+      if (pRow->numOfRows > pBlock->info.capacity) {
+        blockDataEnsureCapacity(pBlock, pRow->numOfRows);
+        qDebug("datablock capacity not sufficient, expand to requried:%d, current capacity:%d, %s", pRow->numOfRows,
+               pBlock->info.capacity, GET_TASKID(pTaskInfo));
+        // todo set the pOperator->resultInfo size
       } else {
+        releaseBufPage(pBuf, page);
         break;
       }
     }

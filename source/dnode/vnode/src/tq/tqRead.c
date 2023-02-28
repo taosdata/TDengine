@@ -355,11 +355,13 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
 int32_t tqReaderSetDataMsg(STqReader* pReader, const SSubmitReq* pMsg, int64_t ver) {
   pReader->pMsg = pMsg;
 
-  if (tInitSubmitMsgIter(pMsg, &pReader->msgIter) < 0) return -1;
-  while (true) {
-    if (tGetSubmitMsgNext(&pReader->msgIter, &pReader->pBlock) < 0) return -1;
-    if (pReader->pBlock == NULL) break;
-  }
+//  if (tInitSubmitMsgIter(pMsg, &pReader->msgIter) < 0) return -1;
+//  while (true) {
+//    if (tGetSubmitMsgNext(&pReader->msgIter, &pReader->pBlock) < 0) return -1;
+//    tqDebug("submitnext vgId:%d, block:%p, dataLen:%d, len:%d, uid:%"PRId64, pReader->pWalReader->pWal->cfg.vgId, pReader->pBlock, pReader->msgIter.dataLen,
+//            pReader->msgIter.len, pReader->msgIter.uid);
+//    if (pReader->pBlock == NULL) break;
+//  }
 
   if (tInitSubmitMsgIter(pMsg, &pReader->msgIter) < 0) return -1;
   pReader->ver = ver;
