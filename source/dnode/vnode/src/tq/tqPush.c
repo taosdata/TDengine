@@ -193,7 +193,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
     memset(&pHandle->pushHandle.rpcInfo, 0, sizeof(SRpcHandleInfo));
     taosWUnLockLatch(&pHandle->pushHandle.lock);
 
-    tqDebug("vgId:%d, offset %" PRId64 " from consumer:%" PRId64 ", (epoch %d) send rsp, block num: %d, reqOffset:%" PRId64 ", rspOffset:%" PRId64,
+    tqDebug("vgId:%d offset %" PRId64 " from consumer:%" PRId64 ", (epoch %d) send rsp, block num: %d, reqOffset:%" PRId64 ", rspOffset:%" PRId64,
             TD_VID(pTq->pVnode), fetchOffset, pHandle->pushHandle.consumerId, pHandle->pushHandle.epoch, rsp.blockNum,
             rsp.reqOffset, rsp.rspOffset);
 
@@ -210,14 +210,15 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
   void*   pReq = POINTER_SHIFT(msg, sizeof(SSubmitReq2Msg));
   int32_t len = msgLen - sizeof(SSubmitReq2Msg);
 
-  tqDebug("vgId:%d, tq push msg ver %" PRId64 ", type: %s, p head %p, p body %p, len %d", pTq->pVnode->config.vgId, ver,
+  tqDebug("vgId:%d tq push msg version:%" PRId64 " type: %s, p head %p, p body %p, len %d", pTq->pVnode->config.vgId, ver,
           TMSG_INFO(msgType), msg, pReq, len);
 
   if (msgType == TDMT_VND_SUBMIT) {
     // lock push mgr to avoid potential msg lost
     taosWLockLatch(&pTq->pushLock);
-    tqDebug("vgId:%d, push handle num %d", pTq->pVnode->config.vgId, taosHashGetSize(pTq->pPushMgr));
     if (taosHashGetSize(pTq->pPushMgr) != 0) {
+
+      tqDebug("vgId:%d, push handle num %d", pTq->pVnode->config.vgId, taosHashGetSize(pTq->pPushMgr));
       SArray* cachedKeys = taosArrayInit(0, sizeof(void*));
       SArray* cachedKeyLens = taosArrayInit(0, sizeof(size_t));
       void*   data = taosMemoryMalloc(len);
@@ -241,11 +242,13 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
           tqDebug("vgId:%d, cannot find handle %s", pTq->pVnode->config.vgId, pPushEntry->subKey);
           continue;
         }
+
         if (pPushEntry->dataRsp.reqOffset.version >= ver) {
           tqDebug("vgId:%d, push entry req version %" PRId64 ", while push version %" PRId64 ", skip",
                   pTq->pVnode->config.vgId, pPushEntry->dataRsp.reqOffset.version, ver);
           continue;
         }
+
         STqExecHandle* pExec = &pHandle->execHandle;
         qTaskInfo_t    task = pExec->task;
 

@@ -7,6 +7,7 @@ title: 数据订阅
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import Java from "./_sub_java.mdx";
+import JavaWS from "./_sub_java_ws.mdx";
 import Python from "./_sub_python.mdx";
 import Go from "./_sub_go.mdx";
 import Rust from "./_sub_rust.mdx";
@@ -807,7 +808,14 @@ SHOW SUBSCRIPTIONS;
 </TabItem>
 
 <TabItem label="Java" value="java">
-    <Java />
+<Tabs defaultValue="native">
+<TabItem value="native" label="本地连接">
+<Java />
+</TabItem>
+<TabItem value="ws" label="WebSocket 连接">
+<JavaWS />
+</TabItem>
+</Tabs>
 </TabItem>
 
 <TabItem label="Go" value="Go">
