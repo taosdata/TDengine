@@ -80,7 +80,7 @@ export function createDB(data, name, appId = store.getters.appId) {
     // url: `/private/data/sql/createdb/${appId}/${name}`,
     url: '/rest/sql',
     data:
-      `CREATE DATABASE ${name} ${Object.keys(DBFILED)
+      `CREATE DATABASE \`${name}\`  ${Object.keys(DBFILED)
         .map(item => {
           let value = data[item];
           const isString = DBFILED[item]?.type == "string";
