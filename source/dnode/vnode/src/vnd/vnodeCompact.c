@@ -15,6 +15,8 @@
 
 #include "vnd.h"
 
+extern int32_t tsdbCommitCompact(STsdb *pTsdb);
+
 static int32_t vnodeCompactTask(void *param) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -33,7 +35,10 @@ static int32_t vnodeCompactTask(void *param) {
   } else {
     snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
   }
+
   vnodeCommitInfo(dir);
+
+  tsdbCommitCompact(pVnode->pTsdb);
 
 _exit:
   tsem_post(&pInfo->pVnode->canCommit);
