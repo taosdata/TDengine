@@ -1,3 +1,27 @@
+<a name="v0.5.0"></a>
+## v0.5.0 TDengine Data Replication Toolkit (2023-02-28)
+
+
+#### Bug Fixes
+
+*   set default connection timeout to 5s ([e99e4819](https://github.com/taosdata/taosx.git/commit/e99e48190433585114daf7129ee55ac88bc63179))
+*   fix labels filter conflicts with stream_type query ([6f3b0bfa](https://github.com/taosdata/taosx.git/commit/6f3b0bfa64e06260dbc7e01814f8c500b917c890))
+*   fix macos compile error. unknown field in &Process ([96e97244](https://github.com/taosdata/taosx.git/commit/96e97244e551a3ae4ca173b9c8a9cacf6ca9a9ff))
+*   from main to 3.0 messages error handling ([1f6181b9](https://github.com/taosdata/taosx.git/commit/1f6181b9afdb4d5abeffd82846fa741ca4b69775))
+*   do not insert into tasks when fail with clear ([b79108c3](https://github.com/taosdata/taosx.git/commit/b79108c390be783170bfc3968d89cc3c72578ad8))
+* **legacy:**  fix prepare error when result is emtpy ([6b805e30](https://github.com/taosdata/taosx.git/commit/6b805e3097e301fd56aa724e09f6ec00f6b243d1))
+* **serve:**  fix label filters ([029d29db](https://github.com/taosdata/taosx.git/commit/029d29db21142c410534ae6e77997c02764922c1))
+
+#### Features
+
+*   expand task detail with datasource definition ([25129288](https://github.com/taosdata/taosx.git/commit/251292888140e83a60fb08ba66e56c119466fe6d))
+*   add data source input tasks API ([faa4043a](https://github.com/taosdata/taosx.git/commit/faa4043a9b8aae01fcb1e5601e298bbc2bfb78ac))
+*   support `select-with-stable` and `tables` params ([898b79be](https://github.com/taosdata/taosx.git/commit/898b79be99acf55583a6b2a4aa9f45bd724653f9))
+* **docker:**  update TDengine to 3.0.2.6 ([92c89ff7](https://github.com/taosdata/taosx.git/commit/92c89ff78ef50e32007ca3eab255f07686ab1a37))
+* **serve:**  support task name and trigger settings ([462e85e9](https://github.com/taosdata/taosx.git/commit/462e85e9f71a7be0cb5cd160091e4191d6580e8a))
+
+
+
 <a name="v0.4.2"></a>
 ## v0.4.2 TDengine Data Replication Toolkit (2023-02-13)
 
