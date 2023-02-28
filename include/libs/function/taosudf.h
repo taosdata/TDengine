@@ -271,7 +271,7 @@ typedef enum EUdfFuncType {
 } EUdfFuncType;
 
 typedef struct SScriptUdfInfo {
-  char *name;
+  const char *name;
 
   EUdfFuncType  funcType;
   int8_t  scriptType;
@@ -279,7 +279,7 @@ typedef struct SScriptUdfInfo {
   int32_t outputLen;
   int32_t bufSize;
 
-  char *path;
+  const char *path;
 } SScriptUdfInfo;
 
 typedef int32_t (*TScriptUdfScalarProcFunc)(SUdfDataBlock *block, SUdfColumn *resultCol, void *udfCtx);
