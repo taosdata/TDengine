@@ -67,7 +67,7 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       // pColInfoData->info.bytes includes the VARSTR_HEADER_SIZE, need to substruct it
       p->hasResult = true;
       varDataSetLen(pRes[i], pColInfoData->info.bytes - VARSTR_HEADER_SIZE);
-      colDataAppend(pColInfoData, numOfRows, (const char*)pRes[i], false);
+      colDataSetVal(pColInfoData, numOfRows, (const char*)pRes[i], false);
     }
 
     pBlock->info.rows += allNullRow ? 0 : 1;
@@ -77,7 +77,7 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
 
       if (slotIds[i] == -1) {
         SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
-        colDataAppend(pColInfoData, numOfRows, (const char*)&pColVal->ts, false);
+        colDataSetVal(pColInfoData, numOfRows, (const char*)&pColVal->ts, false);
       } else {
         int32_t   slotId = slotIds[i];
         SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
@@ -85,14 +85,14 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
 
         if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
           if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
-            colDataAppendNULL(pColInfoData, numOfRows);
+            colDataSetNULL(pColInfoData, numOfRows);
           } else {
             varDataSetLen(pReader->transferBuf[slotId], pVal->value.nData);
             memcpy(varDataVal(pReader->transferBuf[slotId]), pVal->value.pData, pVal->value.nData);
-            colDataAppend(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
+            colDataSetVal(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
           }
         } else {
-          colDataAppend(pColInfoData, numOfRows, (const char*)&pVal->value.val, !COL_VAL_IS_VALUE(pVal));
+          colDataSetVal(pColInfoData, numOfRows, (const char*)&pVal->value.val, !COL_VAL_IS_VALUE(pVal));
         }
       }
     }
@@ -190,7 +190,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  p->idstr = taosMemoryStrDup(idstr);
+  p->idstr = taosStrdup(idstr);
   taosThreadMutexInit(&p->readerMutex, NULL);
 
   *pReader = p;
@@ -433,8 +433,10 @@ _end:
   tsdbUntakeReadSnap((STsdbReader*)pr, pr->pReadSnap, true);
   taosThreadMutexUnlock(&pr->readerMutex);
 
-  for (int32_t j = 0; j < pr->numOfCols; ++j) {
-    taosMemoryFree(pRes[j]);
+  if (pRes != NULL) {
+    for (int32_t j = 0; j < pr->numOfCols; ++j) {
+      taosMemoryFree(pRes[j]);
+    }
   }
 
   taosMemoryFree(pRes);

@@ -301,7 +301,7 @@ print $data00, $data01, $data02, $data03
 print $data10, $data11, $data12, $data13
 print $data20, $data21, $data22, $data23
 
-loop2:
+loop3:
 
 sleep 300
 
@@ -317,47 +317,182 @@ if $rows != 2 then
   print $data00, $data01, $data02, $data03
   print $data10, $data11, $data12, $data13
   print $data20, $data21, $data22, $data23
-  goto loop2
+  goto loop3
 endi
 
 if $data01 != 10 then
   print =====data01=$data01
-  goto loop2
+  goto loop3
 endi
 
 if $data02 != 20 then
   print =====data02=$data02
-  goto loop2
+  goto loop3
 endi
 
 if $data03 != 1 then
   print =====data03=$data03
-  goto loop2
+  goto loop3
 endi
 
 if $data04 != NULL then
   print =====data04=$data04
-  goto loop2
+  goto loop3
 endi
 
 if $data11 != 40 then
   print =====data11=$data11
-  goto loop2
+  goto loop3
 endi
 
 if $data12 != 50 then
   print =====data12=$data12
-  goto loop2
+  goto loop3
 endi
 
 if $data13 != 1 then
   print =====data13=$data13
-  goto loop2
+  goto loop3
 endi
 
 if $data14 != NULL then
   print =====data14=$data14
-  goto loop2
+  goto loop3
+endi
+
+print ===== step7
+
+sql create database result5 vgroups 1;
+
+sql create database test5  vgroups 4;
+sql use test5;
+
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,2,3);
+sql create table t2 using st tags(4,5,6);
+
+sql create stable result5.streamt5(ts timestamp,a int,b int,c int, d int) tags(tg1 int,tg2 int,tg3 int);
+
+sql create stream streams5 trigger at_once  into result5.streamt5(ts,c,a,b) tags(tg2, tg3, tg1) subtable( concat("tbl-", cast(tg3 as varchar(10)) ) )  as select  _wstart, count(*) c1, max(a),min(b) c2 from st partition by ta+1 as tg1, cast(tb as bigint) as tg2, a as tg3 session(ts, 10s);
+
+sql insert into t1 values(1648791213000,NULL,NULL,NULL);
+
+$loop_count = 0
+
+print select  _wstart, count(*) c1, max(a),min(b) c2 from st partition by ta+1 as tg1, cast(tb as bigint) as tg2, a as tg3 session(ts, 10s);
+sql select  _wstart, count(*) c1, max(a),min(b) c2 from st partition by ta+1 as tg1, cast(tb as bigint) as tg2, a as tg3 session(ts, 10s);
+print $data00, $data01, $data02, $data03
+print $data10, $data11, $data12, $data13
+print $data20, $data21, $data22, $data23
+
+loop4:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print sql select * from result5.streamt5 order by tg1;
+sql select * from result5.streamt5 order by tg1;
+print $data00, $data01, $data02, $data03 $data04 $data05 $data06 $data07
+print $data10, $data11, $data12, $data13
+print $data20, $data21, $data22, $data23
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop4
+endi
+
+if $data01 != NULL then
+  print =====data01=$data01
+  goto loop4
+endi
+
+if $data02 != NULL then
+  print =====data02=$data02
+  goto loop4
+endi
+
+if $data03 != 1 then
+  print =====data03=$data03
+  goto loop4
+endi
+
+if $data04 != NULL then
+  print =====data04=$data04
+  goto loop4
+endi
+
+if $data05 != 2 then
+  print =====data05=$data05
+  goto loop4
+endi
+
+if $data06 != 2 then
+  print =====data06=$data06
+  goto loop4
+endi
+
+if $data07 != NULL then
+  print =====data07=$data07
+  goto loop4
+endi
+
+sql drop stream if exists streams4;
+sql drop stream if exists streams5;
+sql drop database if exists test4;
+sql drop database if exists test5;
+sql drop database if exists result4;
+sql drop database if exists result5;
+
+print ===== step8
+
+sql drop stream if exists streams8;
+sql drop database if exists test8;
+sql create database test8  vgroups 1;
+sql use test8;
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams8 trigger at_once  into streamt8 as select  _wstart as ts, count(*) c1, count(d) c2, count(c) c3  from t1 partition by tbname interval(10s) ;
+
+sql drop stream streams8;
+sql create stream streams71 trigger at_once  into streamt8(ts, c2) tags(group_id)as select _wstart, count(*) from t1 partition by tbname as group_id interval(10s);
+
+sql insert into t1 values(1648791233000,1,2,3,1.0);
+
+loop8:
+
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt8;
+print $data00, $data01, $data02, $data03
+print $data10, $data11, $data12, $data13
+print $data20, $data21, $data22, $data23
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop8
+endi
+
+if $data01 != NULL then
+  print =====data01=$data01
+  goto loop8
+endi
+
+if $data02 != 1 then
+  print =====data02=$data02
+  goto loop8
+endi
+
+if $data03 != NULL then
+  print =====data03=$data03
+  goto loop8
 endi
 
 print ======over

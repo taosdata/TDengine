@@ -89,20 +89,20 @@ bool taosAssertRelease(bool condition);
 // Disable all asserts that may compromise the performance.
 #if defined DISABLE_ASSERT
 #define ASSERT(condition)
-#define ASSERTS(condition, ...)    (0)
+#define ASSERTS(condition, ...) (0)
 #else
-#define ASSERTS(condition, ...) taosAssertDebug(condition, __FILE__, __LINE__, __VA_ARGS__)
+#define ASSERTS(condition, ...) ((condition) ? false : taosAssertDebug(condition, __FILE__, __LINE__, __VA_ARGS__))
 #ifdef NDEBUG
 #define ASSERT(condition) taosAssertRelease(condition)
 #else
-#define ASSERT(condition) taosAssertDebug(condition, __FILE__, __LINE__, "assert info not provided")
+#define ASSERT(condition) ASSERTS(condition, "assert info not provided")
 #endif
 #endif
 
-void taosLogCrashInfo(char* nodeType, char* pMsg, int64_t msgLen, int signum, void *sigInfo);
-void taosReadCrashInfo(char* filepath, char** pMsg, int64_t* pMsgLen, TdFilePtr* pFd);
-void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
-int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime);
+void    taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo);
+void    taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd);
+void    taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
+int32_t taosGenCrashJsonMsg(int signum, char **pMsg, int64_t clusterId, int64_t startTime);
 
 // clang-format off
 #define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", DEBUG_FATAL, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
@@ -116,7 +116,7 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
 #define pError(...) { taosPrintLog("APP ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }
 #define pPrint(...) { taosPrintLog("APP ", DEBUG_INFO, 255, __VA_ARGS__); }
 // clang-format on
-//#define BUF_PAGE_DEBUG
+// #define BUF_PAGE_DEBUG
 #ifdef __cplusplus
 }
 #endif

@@ -200,6 +200,7 @@ class TDTestCase:
         tdSql.checkData(1, 1, 1)
         tdSql.checkData(1, 2, '{"k1":1,"k2":"hello"}')
 
+        time.sleep(10)
         tdSql.query("select * from information_schema.ins_tables where table_name = 'stt4'")
         uid1 = tdSql.getData(0, 5)
         uid2 = tdSql.getData(1, 5)

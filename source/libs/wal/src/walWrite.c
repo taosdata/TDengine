@@ -63,7 +63,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
       wInfo("vgId:%d, restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
     }
   }
-  walRemoveMeta(pWal);
+  (void)walRemoveMeta(pWal);
 
   pWal->writeCur = -1;
   pWal->totSize = 0;
@@ -247,21 +247,23 @@ static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
   return 0;
 }
 
-int32_t walBeginSnapshot(SWal *pWal, int64_t ver) {
+int32_t walBeginSnapshot(SWal *pWal, int64_t ver, int64_t logRetention) {
   taosThreadMutexLock(&pWal->mutex);
-
+  ASSERT(logRetention >= 0);
   pWal->vers.verInSnapshotting = ver;
-  wDebug("vgId:%d, wal begin snapshot for version %" PRId64 ", first ver %" PRId64 ", last ver %" PRId64,
-         pWal->cfg.vgId, ver, pWal->vers.firstVer, pWal->vers.lastVer);
+  pWal->vers.logRetention = logRetention;
+
+  wDebug("vgId:%d, wal begin snapshot for version %" PRId64 ", log retention %" PRId64 " first ver %" PRId64
+         ", last ver %" PRId64,
+         pWal->cfg.vgId, ver, pWal->vers.logRetention, pWal->vers.firstVer, pWal->vers.lastVer);
   // check file rolling
-  if (pWal->cfg.retentionPeriod == 0) {
-    if (walGetLastFileSize(pWal) != 0) {
-      if (walRollImpl(pWal) < 0) {
-        wError("vgId:%d, failed to roll wal files since %s", pWal->cfg.vgId, terrstr());
-        goto _err;
-      }
+  if (walGetLastFileSize(pWal) != 0) {
+    if (walRollImpl(pWal) < 0) {
+      wError("vgId:%d, failed to roll wal files since %s", pWal->cfg.vgId, terrstr());
+      goto _err;
     }
   }
+
   taosThreadMutexUnlock(&pWal->mutex);
   return 0;
 
@@ -275,8 +277,9 @@ int32_t walEndSnapshot(SWal *pWal) {
   taosThreadMutexLock(&pWal->mutex);
   int64_t ver = pWal->vers.verInSnapshotting;
 
-  wDebug("vgId:%d, wal end snapshot for version %" PRId64 ", first ver %" PRId64 ", last ver %" PRId64, pWal->cfg.vgId,
-         ver, pWal->vers.firstVer, pWal->vers.lastVer);
+  wDebug("vgId:%d, wal end snapshot for version %" PRId64 ", log retention %" PRId64 " first ver %" PRId64
+         ", last ver %" PRId64,
+         pWal->cfg.vgId, ver, pWal->vers.logRetention, pWal->vers.firstVer, pWal->vers.lastVer);
 
   if (ver == -1) {
     code = -1;
@@ -286,6 +289,7 @@ int32_t walEndSnapshot(SWal *pWal) {
   pWal->vers.snapshotVer = ver;
   int ts = taosGetTimestampSec();
 
+  ver = TMAX(ver - pWal->vers.logRetention, pWal->vers.firstVer - 1);
   void *pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pWal->pRefHash, pIter);

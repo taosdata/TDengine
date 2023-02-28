@@ -53,7 +53,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   pVnode->vgVersion = pCfg->vgVersion;
   pVnode->refCount = 0;
   pVnode->dropped = 0;
-  pVnode->path = tstrdup(pCfg->path);
+  pVnode->path = taosStrdup(pCfg->path);
   pVnode->pImpl = pImpl;
 
   if (pVnode->path == NULL) {

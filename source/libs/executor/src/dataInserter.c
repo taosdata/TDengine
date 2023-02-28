@@ -230,12 +230,19 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         case TSDB_DATA_TYPE_BLOB:
         case TSDB_DATA_TYPE_JSON:
         case TSDB_DATA_TYPE_MEDIUMBLOB:
-          uError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
-          ASSERT(0);
+          qError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
+          terrno = TSDB_CODE_APP_ERROR;
+          goto _end;
           break;
         default:
           if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
             if (colDataIsNull_s(pColInfoData, j)) {
+              if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
+                qError("NULL value for primary key");
+                terrno = TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL;
+                goto _end;
+              }
+              
               SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);  // should use pCol->type
               taosArrayPush(pVals, &cv);
             } else {
@@ -256,7 +263,8 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
             }
           } else {
             uError("the column type %" PRIi16 " is undefined\n", pColInfoData->info.type);
-            ASSERT(0);
+            terrno = TSDB_CODE_APP_ERROR;
+            goto _end;
           }
           break;
       }
@@ -296,7 +304,7 @@ _end:
       tDestroySSubmitReq2(pReq, TSDB_MSG_FLG_ENCODE);
       taosMemoryFree(pReq);
     }
-    return TSDB_CODE_FAILED;
+    return terrno;
   }
   *ppReq = pReq;
   return TSDB_CODE_SUCCESS;

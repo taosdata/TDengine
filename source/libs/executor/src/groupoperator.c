@@ -204,7 +204,6 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
 }
 
 static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
-  ASSERT(pKey != NULL);
   size_t numOfGroupCols = taosArrayGetSize(pGroupColVals);
 
   char* isNull = (char*)pKey;
@@ -572,7 +571,6 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       }
 
       (*columnLen) += contentLen;
-      ASSERT(*columnLen >= 0);
     }
 
     (*rows) += 1;
@@ -683,7 +681,6 @@ static int compareDataGroupInfo(const void* group1, const void* group2) {
   const SDataGroupInfo* pGroupInfo2 = group2;
 
   if (pGroupInfo1->groupId == pGroupInfo2->groupId) {
-    ASSERT(0);
     return 0;
   }
 
@@ -960,7 +957,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       SColumnInfoData* pDestCol = taosArrayGet(pDest->pDataBlock, j);
       bool             isNull = colDataIsNull(pSrcCol, pSrc->info.rows, rowIndex, NULL);
       char*            pSrcData = colDataGetData(pSrcCol, rowIndex);
-      colDataAppend(pDestCol, pDest->info.rows, pSrcData, isNull);
+      colDataSetVal(pDestCol, pDest->info.rows, pSrcData, isNull);
     }
     pDest->info.rows++;
   }
@@ -992,32 +989,42 @@ void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp*
     SSDataBlock* pTmpBlock = blockCopyOneRow(pSrcBlock, rowId);
     memset(pTmpBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
     pTmpBlock->info.id.groupId = groupId;
+    char* tbName = pSrcBlock->info.parTbName;
     if (pTableSup->numOfExprs > 0) {
       projectApplyFunctions(pTableSup->pExprInfo, pDestBlock, pTmpBlock, pTableSup->pCtx, pTableSup->numOfExprs, NULL);
       SColumnInfoData* pTbCol = taosArrayGet(pDestBlock->pDataBlock, UD_TABLE_NAME_COLUMN_INDEX);
-      void*            pData = colDataGetVarData(pTbCol, pDestBlock->info.rows - 1);
-      char*            tbName = pSrcBlock->info.parTbName;
       memset(tbName, 0, TSDB_TABLE_NAME_LEN);
-      int32_t len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN - 1);
-      memcpy(tbName, varDataVal(pData), len);
-      streamStatePutParName(pState, groupId, tbName);
+      int32_t len = 0;
+      if (colDataIsNull_s(pTbCol, pDestBlock->info.rows - 1)) {
+        len = 1;
+        tbName[0] = 0;
+      } else {
+        void* pData = colDataGetData(pTbCol, pDestBlock->info.rows - 1);
+        len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN - 1);
+        memcpy(tbName, varDataVal(pData), len);
+        streamStatePutParName(pState, groupId, tbName);
+      }
       memcpy(pTmpBlock->info.parTbName, tbName, len);
       pDestBlock->info.rows--;
     } else {
       void* pTbNameCol = taosArrayGet(pDestBlock->pDataBlock, UD_TABLE_NAME_COLUMN_INDEX);
-      colDataAppendNULL(pTbNameCol, pDestBlock->info.rows);
-      pSrcBlock->info.parTbName[0] = 0;
+      colDataSetNULL(pTbNameCol, pDestBlock->info.rows);
+      tbName[0] = 0;
     }
 
     if (pTagSup->numOfExprs > 0) {
       projectApplyFunctions(pTagSup->pExprInfo, pDestBlock, pTmpBlock, pTagSup->pCtx, pTagSup->numOfExprs, NULL);
       pDestBlock->info.rows--;
+    } else {
+      memcpy(pDestBlock->info.parTbName, pTmpBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
     }
 
     void* pGpIdCol = taosArrayGet(pDestBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
     colDataAppend(pGpIdCol, pDestBlock->info.rows, (const char*)&groupId, false);
     pDestBlock->info.rows++;
     blockDataDestroy(pTmpBlock);
+  } else {
+    memcpy(pSrcBlock->info.parTbName, pValue, TSDB_TABLE_NAME_LEN);
   }
   streamStateReleaseBuf(pState, NULL, pValue);
 }
@@ -1110,11 +1117,8 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
-      pTaskInfo->code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
+      projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
                                               pInfo->scalarSup.numOfExprs, NULL);
-      if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
-        longjmp(pTaskInfo->env, pTaskInfo->code);
-      }
     }
     taosHashClear(pInfo->pPartitions);
     doStreamHashPartitionImpl(pInfo, pBlock);

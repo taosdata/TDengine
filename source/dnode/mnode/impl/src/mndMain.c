@@ -133,6 +133,7 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   }
 }
 
+#if 0
 static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
   int32_t contLen = 0;
   void   *pReq = mndBuildCheckpointTickMsg(&contLen, sec);
@@ -145,6 +146,7 @@ static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
+#endif
 
 static void mndPullupTelem(SMnode *pMnode) {
   mTrace("pullup telem msg");
@@ -320,7 +322,7 @@ static void mndCleanupTimer(SMnode *pMnode) {
 }
 
 static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
-  pMnode->path = strdup(path);
+  pMnode->path = taosStrdup(path);
   if (pMnode->path == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -714,7 +716,7 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
   } else if (code == 0) {
     mGTrace("msg:%p, successfully processed", pMsg);
   } else {
-    mGError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
+    mGError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, tstrerror(code), pMsg->info.ahandle,
             TMSG_INFO(pMsg->msgType));
   }
 

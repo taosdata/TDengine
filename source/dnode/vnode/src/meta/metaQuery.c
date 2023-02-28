@@ -706,7 +706,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     }
   }
 
-  if (ASSERTS(sver > 0, __FILE__, __LINE__, "failed to get table schema version: %d", sver)) {
+  if (ASSERTS(sver > 0, "failed to get table schema version: %d", sver)) {
     code = TSDB_CODE_NOT_FOUND;
     goto _exit;
   }
@@ -1301,6 +1301,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
 
   /// src:   [[suid, cid1, type1]....[suid, cid2, type2]....[suid, cid3, type3]...]
   /// target:                        [suid, cid2, type2]
+  int diffCidCount = 0;
   do {
     void   *entryKey = NULL, *entryVal = NULL;
     int32_t nEntryKey, nEntryVal;
@@ -1317,7 +1318,9 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     if (p == NULL) break;
 
     if (p->type != pCursor->type || p->suid != pCursor->suid || p->cid != pCursor->cid) {
-      if (found == true) break;
+      if (found == true) break;  //
+      if (diffCidCount > TRY_ERROR_LIMIT) break;
+      diffCidCount++;
       count++;
       valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
       if (valid < 0) {

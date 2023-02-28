@@ -116,12 +116,7 @@ int32_t tMapDataToArray(SMapData *pMapData, int32_t itemSize, int32_t (*tGetItem
   }
 
 _exit:
-  if (code) {
-    *ppArray = NULL;
-    if (pArray) taosArrayDestroy(pArray);
-  } else {
-    *ppArray = pArray;
-  }
+  *ppArray = pArray;
   return code;
 }
 
@@ -1101,6 +1096,7 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
   SArray   *aTmpSkyline = taosArrayInit(dataNum * 2, sizeof(TSDBKEY));
   SArray   *pSkyline = taosArrayInit(dataNum * 2, POINTER_BYTES);
 
+  taosArrayClear(aSkyline);
   for (int32_t i = sidx; i <= eidx; ++i) {
     pDelData = (SDelData *)taosArrayGet(aDelData, i);
     taosArrayPush(aTmpSkyline, &(TSDBKEY){.ts = pDelData->sKey, .version = pDelData->version});
@@ -1233,14 +1229,22 @@ int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema,
     int32_t   iColumn = 1;
     STColumn *pTColumn = &pTSchema->columns[iColumn];
     for (int32_t iCid = 0; iCid < nCid; iCid++) {
-      ASSERT(pTColumn);
+      if (ASSERTS(pTColumn != NULL, "invalid input param")) {
+        code = TSDB_CODE_INVALID_PARA;
+        goto _exit;
+      }
+
       while (pTColumn->colId < aCid[iCid]) {
         iColumn++;
         ASSERT(iColumn < pTSchema->numOfCols);
         pTColumn = &pTSchema->columns[iColumn];
       }
 
-      ASSERT(pTColumn->colId == aCid[iCid]);
+      if (ASSERTS(pTColumn->colId == aCid[iCid], "invalid input param")) {
+        code = TSDB_CODE_INVALID_PARA;
+        goto _exit;
+      }
+
       tColDataInit(&pBlockData->aColData[iCid], pTColumn->colId, pTColumn->type,
                    (pTColumn->flags & COL_SMA_ON) ? 1 : 0);
 

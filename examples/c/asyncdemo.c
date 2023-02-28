@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
   }
 
   // a simple way to parse input parameters
-  if (argc >= 3) strcpy(db, argv[2]);
+  if (argc >= 3) strncpy(db, argv[2], sizeof(db) - 1);
   if (argc >= 4) points = atoi(argv[3]);
   if (argc >= 5) numOfTables = atoi(argv[4]);
 

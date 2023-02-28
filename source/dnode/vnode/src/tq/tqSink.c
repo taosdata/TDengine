@@ -130,7 +130,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
       char* ctbName = NULL;
       // set child table name
       if (pDataBlock->info.parTbName[0]) {
-        ctbName = strdup(pDataBlock->info.parTbName);
+        ctbName = taosStrdup(pDataBlock->info.parTbName);
       } else {
         ctbName = buildCtbNameByGroupId(stbFullName, pDataBlock->info.id.groupId);
       }
@@ -155,7 +155,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
         // set super table name
         SName name = {0};
         tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-        createTbReq.ctb.stbName = strdup((char*)tNameGetTableName(&name));  // strdup(stbFullName);
+        createTbReq.ctb.stbName = taosStrdup((char*)tNameGetTableName(&name));  // taosStrdup(stbFullName);
         createTbReq.name = ctbName;
         ctbName = NULL;
 
@@ -445,7 +445,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         // set super table name
         SName name = {0};
         tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-        pCreateTbReq->ctb.stbName = strdup((char*)tNameGetTableName(&name));  // strdup(stbFullName);
+        pCreateTbReq->ctb.stbName = taosStrdup((char*)tNameGetTableName(&name));  // taosStrdup(stbFullName);
 
         // set tag content
         int32_t size = taosArrayGetSize(pDataBlock->pDataBlock);
@@ -491,7 +491,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
             taosArrayPush(tagArray, &tagVal);
           }
         }
-        pCreateTbReq->ctb.tagNum = size;
+        pCreateTbReq->ctb.tagNum = TMAX(size - UD_TAG_COLUMN_INDEX, 1);
 
         STag* pTag = NULL;
         tTagNew(tagArray, 1, false, &pTag);
@@ -502,18 +502,16 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
           goto _end;
         }
 
+
         pCreateTbReq->ctb.pTag = (uint8_t*)pTag;
 
         // set table name
-        SColumnInfoData* pTbColInfo = taosArrayGet(pDataBlock->pDataBlock, UD_TABLE_NAME_COLUMN_INDEX);
-        if (colDataIsNull_s(pTbColInfo, rowId)) {
+        if (!pDataBlock->info.parTbName[0]) {
           SColumnInfoData* pGpIdColInfo = taosArrayGet(pDataBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
           void*            pGpIdData = colDataGetData(pGpIdColInfo, rowId);
           pCreateTbReq->name = buildCtbNameByGroupId(stbFullName, *(uint64_t*)pGpIdData);
         } else {
-          void* pTbData = colDataGetData(pTbColInfo, rowId);
-          pCreateTbReq->name = taosMemoryCalloc(1, varDataLen(pTbData) + 1);
-          memcpy(pCreateTbReq->name, varDataVal(pTbData), varDataLen(pTbData));
+          pCreateTbReq->name = taosStrdup(pDataBlock->info.parTbName);
         }
         taosArrayPush(reqs.pArray, pCreateTbReq);
       }
@@ -539,7 +537,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
       char* ctbName = NULL;
       tqDebug("vgId:%d, stream write into %s, table auto created", TD_VID(pVnode), pDataBlock->info.parTbName);
       if (pDataBlock->info.parTbName[0]) {
-        ctbName = strdup(pDataBlock->info.parTbName);
+        ctbName = taosStrdup(pDataBlock->info.parTbName);
       } else {
         ctbName = buildCtbNameByGroupId(stbFullName, pDataBlock->info.id.groupId);
       }
@@ -565,7 +563,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         // set super table name
         SName name = {0};
         tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-        pCreateTbReq->ctb.stbName = strdup((char*)tNameGetTableName(&name));  // strdup(stbFullName);
+        pCreateTbReq->ctb.stbName = taosStrdup((char*)tNameGetTableName(&name));  // taosStrdup(stbFullName);
 
         // set tag content
         tagArray = taosArrayInit(1, sizeof(STagVal));
@@ -620,6 +618,8 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
                   ", actual suid %" PRId64 "",
                   TD_VID(pVnode), ctbName, suid, mr.me.ctbEntry.suid);
           metaReaderClear(&mr);
+          taosMemoryFree(ctbName);
+          continue;
         }
 
         tbData.uid = mr.me.uid;

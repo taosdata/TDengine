@@ -191,37 +191,39 @@ SHOW TABLE DISTRIBUTED table_name;
 
 _block_dist: Total_Blocks=[5] Total_Size=[93.65 Kb] Average_size=[18.73 Kb] Compression_Ratio=[23.98 %]
 
-Total_Blocks :  表d0 占用的 block 个数为 5 个
+Total_Blocks:  表 d0 占用的 block 个数为 5 个
 
-Total_Size.    :  表 d0 所有 block 在文件中占用的大小为 93.65 KB 
+Total_Size:    表 d0 所有 block 在文件中占用的大小为 93.65 KB 
 
 Average_size:  平均每个 block 在文件中占用的空间大小为 18.73 KB
 
-Compression_Ratio: 数据压缩率为 23.98%
+Compression_Ratio: 数据压缩率 23.98%
 
  
 *************************** 2.row ***************************
 
 _block_dist: Total_Rows=[20000] Inmem_Rows=[0] MinRows=[3616] MaxRows=[4096] Average_Rows=[4000]
 
-Total_Rows: 统计表 d0 的所有行数 为20000 行
+Total_Rows:  统计表 d0 的存储在磁盘上行数 20000 行（该数值仅供参考，不是精确的行数。获得精确的行数需要使用 count 函数）
 
-Inmem_Rows： 表示仍然还存放在内存中的行数，即没有落盘的行数，为 0行，表示没有
+Inmem_Rows： 存储在写缓存中的数据行数（没有落盘），0 行表示内存缓存中没有数据
 
-MinRows：  BLOCK 中最小的行数，为 3616 行
+MinRows：    BLOCK 中最小的行数，为 3616 行
 
-MaxRows： BLOCK 中最大的行数，为 4096行
+MaxRows：    BLOCK 中最大的行数，为 4096 行
 
-Average_Rows： BLOCK 中的平均行数，为4000 行
+Average_Rows： 每个 BLOCK 中的平均行数，此时为 4000 行
 
 
 *************************** 3.row ***************************
 
-_block_dist: Total_Tables=[1] Total_Files=[2]
+_block_dist: Total_Tables=[1] Total_Files=[2] Total_Vgroups=[1]
 
-Total_Tables:  表示子表的个数，这里为1
+Total_Tables:   子表的个数，这里为 1
 
-Total_Files：   表数据保存在几个文件中，这里保存在 2 个文件中
+Total_Files：   表数据被分别保存的数据文件数量，这里是 2 个文件
+
+Total_Vgroups： 表数据分布的虚拟节点（vnode）数量
 
 
 *************************** 5.row ***************************

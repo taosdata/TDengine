@@ -68,7 +68,7 @@ void             syncNodeLogReplMgrDestroy(SSyncNode* pNode);
 
 // access
 static FORCE_INLINE int64_t syncLogGetRetryBackoffTimeMs(SSyncLogReplMgr* pMgr) {
-  return (1 << pMgr->retryBackoff) * SYNC_LOG_REPL_RETRY_WAIT_MS;
+  return ((int64_t)1 << pMgr->retryBackoff) * SYNC_LOG_REPL_RETRY_WAIT_MS;
 }
 
 static FORCE_INLINE int32_t syncLogGetNextRetryBackoff(SSyncLogReplMgr* pMgr) {
@@ -99,6 +99,7 @@ int32_t         syncLogBufferReInit(SSyncLogBuffer* pBuf, SSyncNode* pNode);
 // access
 int64_t syncLogBufferGetEndIndex(SSyncLogBuffer* pBuf);
 SyncTerm syncLogBufferGetLastMatchTerm(SSyncLogBuffer* pBuf);
+bool     syncLogBufferIsEmpty(SSyncLogBuffer* pBuf);
 int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry);
 int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevTerm);
 int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm);

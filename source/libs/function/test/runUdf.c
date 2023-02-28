@@ -55,7 +55,7 @@ int scalarFuncTest() {
 
     SColumnInfoData *pCol = taosArrayGet(pBlock->pDataBlock, 0);
     for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-      colDataAppendInt32(pCol, j, &j);
+      colDataSetInt32(pCol, j, &j);
     }
 
     SScalarParam input = {0};
@@ -99,7 +99,7 @@ int aggregateFuncTest() {
 
   SColumnInfoData *pColInfo = bdGetColumnInfoData(pBlock, 0);
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-    colDataAppendInt32(pColInfo, j, &j);
+    colDataSetInt32(pColInfo, j, &j);
   }
 
   SUdfInterBuf buf = {0};
