@@ -4,8 +4,6 @@ import (
 	"net/http"
 	"taosainternal/config"
 
-	_ "taosainternal/admin"
-
 	"github.com/gin-contrib/static"
 	"github.com/taosdata/taosadapter/v3/log"
 	"github.com/taosdata/taosadapter/v3/system"
