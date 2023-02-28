@@ -86,10 +86,10 @@ SHOW FUNCTIONS;
 
 Shows all user-defined functions in the system.
 
-## SHOW LICENSE
+## SHOW LICENCES
 
 ```sql
-SHOW LICENSE;
+SHOW LICENCES;
 SHOW GRANTS;
 ```
 
@@ -359,7 +359,7 @@ Shows the working configuration of the parameters that must be the same on each 
 SHOW [db_name.]VGROUPS;
 ```
 
-Shows information about all vgroups in the system or about the vgroups for a specified database.
+Shows information about all vgroups in the current database. 
 
 ## SHOW VNODES
 
