@@ -292,7 +292,7 @@ export default {
               this.previewSql =
                 this.sqlPrefix +
                 this.info.topic_name +
-                " AS DATABASE `" +
+                "  with meta AS DATABASE `" +
                 dbname +
                 "`";
             } else if (this.info.topic_type == "STABLE") {
