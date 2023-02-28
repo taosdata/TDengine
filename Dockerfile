@@ -3,7 +3,7 @@ LABEL maintainer "Linhe Huo <linhe.huo@gmail.com"
 
 RUN apt update && apt install -y wget ca-certificates && rm -rf /var/cache/apt/*
 
-ENV TAOS_VERSION=3.0.2.0
+ENV TAOS_VERSION=3.0.2.6
 
 RUN wget -O /tmp/client.tar.gz https://www.taosdata.com/assets-download/3.0/TDengine-client-${TAOS_VERSION}-Linux-x64.tar.gz \
   && cd /tmp/ && tar xvf /tmp/client.tar.gz \
