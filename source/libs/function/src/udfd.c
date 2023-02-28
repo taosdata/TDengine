@@ -580,7 +580,10 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   switch (call->callType) {
     case TSDB_UDF_CALL_SCALA_PROC: {
       SUdfColumn output = {0};
-
+      output.colMeta.bytes = udf->outputLen;
+      output.colMeta.type = udf->outputType;
+      output.colMeta.precision = 0;
+      output.colMeta.scale = 0;
       SUdfDataBlock input = {0};
       convertDataBlockToUdfDataBlock(&call->block, &input);
       code = udf->scriptPlugin->udfScalarProcFunc(&input, &output, udf->scriptUdfCtx);
