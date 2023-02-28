@@ -70,6 +70,9 @@ if %Enterprise% == TRUE (
     if exist %binary_dir%\\build\\bin\\taosx.exe (
         copy %binary_dir%\\build\\bin\\taosx.exe %target_dir% > nul
     )
+    if exist %binary_dir%\\build\\bin\\taos-explorer.exe (
+        copy %binary_dir%\\build\\bin\\taos-explorer.exe %target_dir% > nul
+    )
     if exist %binary_dir%\\build\\bin\\tmq_sim.exe (
         copy %binary_dir%\\build\\bin\\tmq_sim.exe %target_dir% > nul
     )
