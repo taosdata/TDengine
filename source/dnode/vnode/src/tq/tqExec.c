@@ -113,9 +113,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     return -1;
   }
 
-  ASSERT(pRsp->withTbName == false);
-  ASSERT(pRsp->withSchema == false);
-
+  ASSERT(!(pRsp->withTbName || pRsp->withSchema));
   return 0;
 }
 
