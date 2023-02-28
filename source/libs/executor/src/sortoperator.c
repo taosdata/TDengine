@@ -672,7 +672,9 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
     }
 
     bool limitReached = applyLimitOffset(&pInfo->limitInfo, p, pTaskInfo);
-    if (limitReached) {
+    // if limit is reached within a group, do not clear limiInfo otherwise the next block
+    // will be processed.
+    if (newgroup && limitReached) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
 
