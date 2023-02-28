@@ -68,12 +68,12 @@ static int64_t user_mktime64(const uint32_t year0, const uint32_t mon0, const ui
 
 // ==== mktime() kernel code =================//
 static int64_t m_deltaUtc = 0;
-void           deltaToUtcInitOnce() {
-            struct tm tm = {0};
 
-            (void)taosStrpTime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm);
-            m_deltaUtc = (int64_t)taosMktime(&tm);
-            // printf("====delta:%lld\n\n", seconds);
+void deltaToUtcInitOnce() {
+  struct tm tm = {0};
+  (void)taosStrpTime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm);
+  m_deltaUtc = (int64_t)taosMktime(&tm);
+  // printf("====delta:%lld\n\n", seconds);
 }
 
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);

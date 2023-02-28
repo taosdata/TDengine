@@ -845,6 +845,8 @@ void shellReadHistory() {
       i = (i + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE;
     }
     taosFprintfFile(pFile, "%s\n", pHistory->hist[endIndex]);
+
+    /* coverity[+retval] */
     taosFsyncFile(pFile);
     taosCloseFile(&pFile);
   }

@@ -472,7 +472,7 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
 
   taosThreadMutexLock(&pSdb->filelock);
   if (pSdb->pWal != NULL) {
-    // code = walBeginSnapshot(pSdb->pWal, pSdb->applyIndex);
+    // code = walBeginSnapshot(pSdb->pWal, pSdb->applyIndex, 0);
     if (pSdb->sync == 0) {
       code = 0;
     } else {

@@ -327,23 +327,26 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
               // calculate the cumulative sum (prefix sum) for each number
               // decode[0] = prev_value + final[0]
               // decode[1] = decode[0] + final[1]   -----> prev_value + final[0] + final[1]
-              // decode[2] = decode[1] + final[1]   -----> prev_value + final[0] + final[1] + final[2]
-              // decode[3] = decode[2] + final[1]   -----> prev_value + final[0] + final[1] + final[2] + final[3]
+              // decode[2] = decode[1] + final[2]   -----> prev_value + final[0] + final[1] + final[2]
+              // decode[3] = decode[2] + final[3]   -----> prev_value + final[0] + final[1] + final[2] + final[3]
 
               //  1, 2, 3, 4
-              //+ 0, 1, 2, 3
-              //  1, 3, 5, 7
+              //+ 0, 1, 0, 3
+              //  1, 3, 3, 7
               // shift and add for the first round
               __m128i prev = _mm_set1_epi64x(prev_value);
-              delta = _mm256_add_epi64(delta, _mm256_slli_si256(delta, 8));
+              __m256i x =  _mm256_slli_si256(delta, 8);
+
+              delta = _mm256_add_epi64(delta, x);
               _mm256_storeu_si256((__m256i *)&p[_pos], delta);
 
-              //  1, 3, 5, 7
-              //+ 0, 0, 1, 3
+              //  1, 3, 3, 7
+              //+ 0, 0, 3, 3
               //  1, 3, 6, 10
               // shift and add operation for the second round
               __m128i firstPart = _mm_loadu_si128((__m128i *)&p[_pos]);
-              __m128i secPart = _mm_add_epi64(_mm_loadu_si128((__m128i *)&p[_pos + 2]), firstPart);
+              __m128i secondItem = _mm_set1_epi64x(p[_pos + 1]);
+              __m128i secPart = _mm_add_epi64(_mm_loadu_si128((__m128i *)&p[_pos + 2]), secondItem);
               firstPart = _mm_add_epi64(firstPart, prev);
               secPart = _mm_add_epi64(secPart, prev);
 
@@ -353,15 +356,18 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
 
               shiftBits = _mm256_add_epi64(shiftBits, inc);
               prev_value = p[_pos + 3];
+//              uDebug("_pos:%d %"PRId64", %"PRId64", %"PRId64", %"PRId64, _pos, p[_pos], p[_pos+1], p[_pos+2], p[_pos+3]);
               _pos += 4;
             }
 
             // handle the remain value
             for (int32_t i = 0; i < remain; i++) {
-              zigzag_value = ((w >> (v + (batch * bit))) & mask);
+              zigzag_value = ((w >> (v + (batch * bit * 4))) & mask);
               prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
               p[_pos++] = prev_value;
+//              uDebug("_pos:%d %"PRId64, _pos-1, p[_pos-1]);
+
               v += bit;
             }
           } else {
@@ -370,6 +376,8 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
               prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
 
               p[_pos++] = prev_value;
+//              uDebug("_pos:%d %"PRId64, _pos-1, p[_pos-1]);
+
               v += bit;
             }
           }

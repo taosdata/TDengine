@@ -1502,16 +1502,16 @@ static void deleteIntervalDiscBuf(SStreamState* pState, SHashObj* pPullDataMap, 
       code = streamStateGetKVByCur(pCur, &tmpKey, NULL, 0);
       if (code == TSDB_CODE_SUCCESS) {
         STimeWindow tw = getFinalTimeWindow(tmpKey.ts, pInterval);
-        qDebug("===stream===error stream state first key:%" PRId64 "-%" PRId64 ",%" PRId64 ",mark %" PRId64, tw.skey,
+        qDebug("===stream===error stream state first key:%" PRId64 "-%" PRId64 ",%" PRIu64 ",mark %" PRId64, tw.skey,
                tw.ekey, tmpKey.groupId, mark);
       } else {
         STimeWindow tw = getFinalTimeWindow(key->ts, pInterval);
-        qDebug("===stream===stream state first key:%" PRId64 "-%" PRId64 ",%" PRId64 ",mark %" PRId64, tw.skey, tw.ekey,
+        qDebug("===stream===stream state first key:%" PRId64 "-%" PRId64 ",%" PRIu64 ",mark %" PRId64, tw.skey, tw.ekey,
                key->groupId, mark);
       }
     } else {
       STimeWindow tw = getFinalTimeWindow(key->ts, pInterval);
-      qDebug("===stream===stream state first key:%" PRId64 "-%" PRId64 ",%" PRId64 ",mark %" PRId64, tw.skey, tw.ekey,
+      qDebug("===stream===stream state first key:%" PRId64 "-%" PRId64 ",%" PRIu64 ",mark %" PRId64, tw.skey, tw.ekey,
              key->groupId, mark);
     }
     streamStateFreeCur(pCur);
@@ -2237,11 +2237,11 @@ static void doBuildPullDataBlock(SArray* array, int32_t* pIndex, SSDataBlock* pB
   SColumnInfoData* pCalEndTs = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
   for (; (*pIndex) < size; (*pIndex)++) {
     SPullWindowInfo* pWin = taosArrayGet(array, (*pIndex));
-    colDataAppend(pStartTs, pBlock->info.rows, (const char*)&pWin->window.skey, false);
-    colDataAppend(pEndTs, pBlock->info.rows, (const char*)&pWin->window.ekey, false);
-    colDataAppend(pGroupId, pBlock->info.rows, (const char*)&pWin->groupId, false);
-    colDataAppend(pCalStartTs, pBlock->info.rows, (const char*)&pWin->calWin.skey, false);
-    colDataAppend(pCalEndTs, pBlock->info.rows, (const char*)&pWin->calWin.ekey, false);
+    colDataSetVal(pStartTs, pBlock->info.rows, (const char*)&pWin->window.skey, false);
+    colDataSetVal(pEndTs, pBlock->info.rows, (const char*)&pWin->window.ekey, false);
+    colDataSetVal(pGroupId, pBlock->info.rows, (const char*)&pWin->groupId, false);
+    colDataSetVal(pCalStartTs, pBlock->info.rows, (const char*)&pWin->calWin.skey, false);
+    colDataSetVal(pCalEndTs, pBlock->info.rows, (const char*)&pWin->calWin.ekey, false);
     pBlock->info.rows++;
   }
   if ((*pIndex) == size) {
@@ -3244,28 +3244,28 @@ void doBuildDeleteDataBlock(SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlo
     }
     SSessionKey*     res = tSimpleHashGetKey(*Ite, NULL);
     SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
-    colDataAppend(pStartTsCol, pBlock->info.rows, (const char*)&res->win.skey, false);
+    colDataSetVal(pStartTsCol, pBlock->info.rows, (const char*)&res->win.skey, false);
     SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
-    colDataAppend(pEndTsCol, pBlock->info.rows, (const char*)&res->win.skey, false);
+    colDataSetVal(pEndTsCol, pBlock->info.rows, (const char*)&res->win.skey, false);
     SColumnInfoData* pUidCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
-    colDataAppendNULL(pUidCol, pBlock->info.rows);
+    colDataSetNULL(pUidCol, pBlock->info.rows);
     SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
-    colDataAppend(pGpCol, pBlock->info.rows, (const char*)&res->groupId, false);
+    colDataSetVal(pGpCol, pBlock->info.rows, (const char*)&res->groupId, false);
     SColumnInfoData* pCalStCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
-    colDataAppendNULL(pCalStCol, pBlock->info.rows);
+    colDataSetNULL(pCalStCol, pBlock->info.rows);
     SColumnInfoData* pCalEdCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
-    colDataAppendNULL(pCalEdCol, pBlock->info.rows);
+    colDataSetNULL(pCalEdCol, pBlock->info.rows);
 
     SColumnInfoData* pTableCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
 
     void* tbname = NULL;
     streamStateGetParName(pOp->pTaskInfo->streamInfo.pState, res->groupId, &tbname);
     if (tbname == NULL) {
-      colDataAppendNULL(pTableCol, pBlock->info.rows);
+      colDataSetNULL(pTableCol, pBlock->info.rows);
     } else {
       char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
       STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
-      colDataAppend(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
+      colDataSetVal(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
       tdbFree(tbname);
     }
     pBlock->info.rows += 1;

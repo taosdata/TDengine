@@ -267,7 +267,7 @@ bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo
       qDebug("current block ignore due to offset, current:%" PRId64 ", %s", pLimitInfo->remainOffset, id);
       return false;
     } else {
-      blockDataTrimFirstNRows(pBlock, pLimitInfo->remainOffset);
+      blockDataTrimFirstRows(pBlock, pLimitInfo->remainOffset);
       pLimitInfo->remainOffset = 0;
     }
   }
@@ -455,7 +455,7 @@ static void doSetNullValue(SSDataBlock* pBlock, const SExprInfo* pExpr, int32_t 
     int32_t dstSlotId = pExpr[j].base.resSchema.slotId;
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
-    colDataAppendNNULL(pColInfoData, 0, pBlock->info.rows);
+    colDataSetNNULL(pColInfoData, 0, pBlock->info.rows);
   }
 }
 
@@ -579,15 +579,15 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
       bool isNullVal = (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data));
       if (isNullVal) {
-        colDataAppendNNULL(pColInfoData, 0, pBlock->info.rows);
+        colDataSetNNULL(pColInfoData, 0, pBlock->info.rows);
       } else if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
-        colDataAppendNItems(pColInfoData, 0, data, pBlock->info.rows);
+        colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows);
         if (IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
           taosMemoryFree(data);
         }
       } else {  // todo opt for json tag
         for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-          colDataAppend(pColInfoData, i, data, false);
+          colDataSetVal(pColInfoData, i, data, false);
         }
       }
     }
@@ -613,7 +613,7 @@ void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, len, 1);
 
   colInfoDataEnsureCapacity(&infoData, 1, false);
-  colDataAppend(&infoData, 0, buf, false);
+  colDataSetVal(&infoData, 0, buf, false);
 
   SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .columnData = &infoData};
   SScalarParam param = {.columnData = pColInfoData};
@@ -1161,7 +1161,7 @@ static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32
             SColumnInfoData* pDestCol = taosArrayGet(pResult->pDataBlock, j);
             bool             isNull = colDataIsNull(pSrcCol, tmpBlock->info.rows, i, NULL);
             char*            pSrcData = colDataGetData(pSrcCol, i);
-            colDataAppend(pDestCol, pResult->info.rows, pSrcData, isNull);
+            colDataSetVal(pDestCol, pResult->info.rows, pSrcData, isNull);
           }
           pResult->info.rows++;
         }
@@ -1237,13 +1237,13 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
       qError("generate session scan range failed. rang start:%" PRIx64 ", end:%" PRIx64, startData[i], endData[i]);
       continue;
     }
-    colDataAppend(pDestStartCol, i, (const char*)&startWin.win.skey, false);
-    colDataAppend(pDestEndCol, i, (const char*)&endWin.win.ekey, false);
+    colDataSetVal(pDestStartCol, i, (const char*)&startWin.win.skey, false);
+    colDataSetVal(pDestEndCol, i, (const char*)&endWin.win.ekey, false);
 
-    colDataAppendNULL(pDestUidCol, i);
-    colDataAppend(pDestGpCol, i, (const char*)&groupId, false);
-    colDataAppendNULL(pDestCalStartTsCol, i);
-    colDataAppendNULL(pDestCalEndTsCol, i);
+    colDataSetNULL(pDestUidCol, i);
+    colDataSetVal(pDestGpCol, i, (const char*)&groupId, false);
+    colDataSetNULL(pDestCalStartTsCol, i);
+    colDataSetNULL(pDestCalEndTsCol, i);
     pDestBlock->info.rows++;
   }
   return TSDB_CODE_SUCCESS;
@@ -1312,15 +1312,15 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
       groupId = getGroupIdByData(pInfo, srcUid, srcStartTsCol[i], version);
     }
     TSKEY calStartTs = srcStartTsCol[i];
-    colDataAppend(pCalStartTsCol, pDestBlock->info.rows, (const char*)(&calStartTs), false);
+    colDataSetVal(pCalStartTsCol, pDestBlock->info.rows, (const char*)(&calStartTs), false);
     STimeWindow win = getSlidingWindow(srcStartTsCol, srcEndTsCol, srcGp, &pInfo->interval, &pSrcBlock->info, &i,
                                        pInfo->partitionSup.needCalc);
     TSKEY       calEndTs = srcStartTsCol[i - 1];
-    colDataAppend(pCalEndTsCol, pDestBlock->info.rows, (const char*)(&calEndTs), false);
-    colDataAppend(pDeUidCol, pDestBlock->info.rows, (const char*)(&srcUid), false);
-    colDataAppend(pStartTsCol, pDestBlock->info.rows, (const char*)(&win.skey), false);
-    colDataAppend(pEndTsCol, pDestBlock->info.rows, (const char*)(&win.ekey), false);
-    colDataAppend(pGpCol, pDestBlock->info.rows, (const char*)(&groupId), false);
+    colDataSetVal(pCalEndTsCol, pDestBlock->info.rows, (const char*)(&calEndTs), false);
+    colDataSetVal(pDeUidCol, pDestBlock->info.rows, (const char*)(&srcUid), false);
+    colDataSetVal(pStartTsCol, pDestBlock->info.rows, (const char*)(&win.skey), false);
+    colDataSetVal(pEndTsCol, pDestBlock->info.rows, (const char*)(&win.ekey), false);
+    colDataSetVal(pGpCol, pDestBlock->info.rows, (const char*)(&groupId), false);
     pDestBlock->info.rows++;
   }
   return TSDB_CODE_SUCCESS;
@@ -1435,13 +1435,13 @@ void appendOneRowToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKE
   SColumnInfoData* pCalStartCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pCalEndCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
   SColumnInfoData* pTableCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
-  colDataAppend(pStartTsCol, pBlock->info.rows, (const char*)pStartTs, false);
-  colDataAppend(pEndTsCol, pBlock->info.rows, (const char*)pEndTs, false);
-  colDataAppend(pUidCol, pBlock->info.rows, (const char*)pUid, false);
-  colDataAppend(pGpCol, pBlock->info.rows, (const char*)pGp, false);
-  colDataAppend(pCalStartCol, pBlock->info.rows, (const char*)pStartTs, false);
-  colDataAppend(pCalEndCol, pBlock->info.rows, (const char*)pEndTs, false);
-  colDataAppend(pTableCol, pBlock->info.rows, (const char*)pTbName, pTbName == NULL);
+  colDataSetVal(pStartTsCol, pBlock->info.rows, (const char*)pStartTs, false);
+  colDataSetVal(pEndTsCol, pBlock->info.rows, (const char*)pEndTs, false);
+  colDataSetVal(pUidCol, pBlock->info.rows, (const char*)pUid, false);
+  colDataSetVal(pGpCol, pBlock->info.rows, (const char*)pGp, false);
+  colDataSetVal(pCalStartCol, pBlock->info.rows, (const char*)pStartTs, false);
+  colDataSetVal(pCalEndCol, pBlock->info.rows, (const char*)pEndTs, false);
+  colDataSetVal(pTableCol, pBlock->info.rows, (const char*)pTbName, pTbName == NULL);
   pBlock->info.rows++;
 }
 
@@ -1528,7 +1528,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     // the required column does not exists in submit block, let's set it to be all null value
     if (!colExists) {
       SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, pColMatchInfo->dstSlotId);
-      colDataAppendNNULL(pDst, 0, pBlockInfo->rows);
+      colDataSetNNULL(pDst, 0, pBlockInfo->rows);
     }
   }
 
@@ -1623,7 +1623,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
           tqOffsetResetToLog(&pTaskInfo->streamInfo.lastStatus, pTaskInfo->streamInfo.snapshotVer);
           return NULL;
         }
-        ASSERT(pInfo->tqReader->pWalReader->curVersion == pTaskInfo->streamInfo.snapshotVer + 1);
       } else {
         return NULL;
       }
@@ -1696,13 +1695,13 @@ static int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, S
   int32_t          j = 0;
   for (int32_t i = 0; i < rows; i++) {
     if (taosHashGet(pReader->tbIdHash, &uidCol[i], sizeof(uint64_t))) {
-      colDataAppend(pDstStartCol, j, (const char*)&startCol[i], false);
-      colDataAppend(pDstEndCol, j, (const char*)&endCol[i], false);
-      colDataAppend(pDstUidCol, j, (const char*)&uidCol[i], false);
+      colDataSetVal(pDstStartCol, j, (const char*)&startCol[i], false);
+      colDataSetVal(pDstEndCol, j, (const char*)&endCol[i], false);
+      colDataSetVal(pDstUidCol, j, (const char*)&uidCol[i], false);
 
-      colDataAppendNULL(taosArrayGet(pDst->pDataBlock, GROUPID_COLUMN_INDEX), j);
-      colDataAppendNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), j);
-      colDataAppendNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), j);
+      colDataSetNULL(taosArrayGet(pDst->pDataBlock, GROUPID_COLUMN_INDEX), j);
+      colDataSetNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), j);
+      colDataSetNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), j);
       j++;
     }
   }
@@ -1726,7 +1725,7 @@ static void setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
   if (!pInfo->partitionSup.needCalc) {
     for (int32_t i = 0; i < rows; i++) {
       uint64_t groupId = getGroupIdByUid(pInfo, uidCol[i]);
-      colDataAppend(pGpCol, i, (const char*)&groupId, false);
+      colDataSetVal(pGpCol, i, (const char*)&groupId, false);
     }
   }
 }
@@ -2460,7 +2459,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
       // refactor later
       if (fmIsScanPseudoColumnFunc(pExprInfo[j].pExpr->_function.functionId)) {
         STR_TO_VARSTR(str, mr.me.name);
-        colDataAppend(pDst, count, str, false);
+        colDataSetVal(pDst, count, str, false);
       } else {  // it is a tag value
         STagVal val = {0};
         val.cid = pExprInfo[j].base.pParam[0].pCol->colId;
@@ -2472,7 +2471,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
         } else {
           data = (char*)p;
         }
-        colDataAppend(pDst, count, data,
+        colDataSetVal(pDst, count, data,
                       (data == NULL) || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
 
         if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
@@ -3129,7 +3128,7 @@ void fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, char*
     tstrncpy(varDataVal(varDbName), dbName, TSDB_DB_NAME_LEN);
 
     varDataSetLen(varDbName, strlen(dbName));
-    colDataAppend(colInfoData, 0, varDbName, false);
+    colDataSetVal(colInfoData, 0, varDbName, false);
   }
 
   if (pSupp->stbNameSlotId != -1) {
@@ -3138,15 +3137,15 @@ void fillTableCountScanDataBlock(STableCountScanSupp* pSupp, char* dbName, char*
       char varStbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       strncpy(varDataVal(varStbName), stbName, TSDB_TABLE_NAME_LEN);
       varDataSetLen(varStbName, strlen(stbName));
-      colDataAppend(colInfoData, 0, varStbName, false);
+      colDataSetVal(colInfoData, 0, varStbName, false);
     } else {
-      colDataAppendNULL(colInfoData, 0);
+      colDataSetNULL(colInfoData, 0);
     }
   }
 
   if (pSupp->tbCountSlotId != -1) {
     SColumnInfoData* colInfoData = taosArrayGet(pRes->pDataBlock, pSupp->tbCountSlotId);
-    colDataAppend(colInfoData, 0, (char*)&count, false);
+    colDataSetVal(colInfoData, 0, (char*)&count, false);
   }
   pRes->info.rows = 1;
 }
