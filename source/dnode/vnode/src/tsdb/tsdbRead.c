@@ -4679,8 +4679,13 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   return code;
 }
 
-static int32_t getBucketIndex(int32_t startRow, int32_t bucketRange, int32_t numOfRows) {
-  return ((numOfRows - startRow) / bucketRange) - 1;
+static int32_t getBucketIndex(int32_t startRow, int32_t bucketRange, int32_t numOfRows, int32_t numOfBucket) {
+  int32_t bucketIndex =  ((numOfRows - startRow) / bucketRange);
+  if (bucketIndex == numOfBucket) {
+    bucketIndex -= 1;
+  }
+
+  return bucketIndex;
 }
 
 int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTableBlockInfo) {
@@ -4689,6 +4694,8 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   pTableBlockInfo->totalRows = 0;
   pTableBlockInfo->numOfVgroups = 1;
 
+  const int32_t numOfBuckets = 20.0;
+
   // find the start data block in file
   SReaderStatus* pStatus = &pReader->status;
 
@@ -4696,7 +4703,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   pTableBlockInfo->defMinRows = pc->minRows;
   pTableBlockInfo->defMaxRows = pc->maxRows;
 
-  int32_t bucketRange = ceil((pc->maxRows - pc->minRows) / 20.0);
+  int32_t bucketRange = ceil((pc->maxRows - pc->minRows) / numOfBuckets);
 
   pTableBlockInfo->numOfFiles += 1;
 
@@ -4734,7 +4741,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
 
       pTableBlockInfo->totalSize += pBlock->aSubBlock[0].szBlock;
 
-      int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows);
+      int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows, numOfBuckets);
       pTableBlockInfo->blockRowsHisto[bucketIndex]++;
 
       hasNext = blockIteratorNext(&pStatus->blockIter, pReader->idStr);
