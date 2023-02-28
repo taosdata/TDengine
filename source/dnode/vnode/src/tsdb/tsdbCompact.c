@@ -57,32 +57,6 @@ typedef struct {
   SBlockData    sData;
 } STsdbCompactor;
 
-static int32_t tsdbCommitCompact(STsdbCompactor *pCompactor) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  STsdb *pTsdb = pCompactor->pTsdb;
-
-  code = tsdbFSPrepareCommit(pTsdb, &pCompactor->fs);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  taosThreadRwlockWrlock(&pTsdb->rwLock);
-
-  code = tsdbFSCommit(pTsdb);
-  if (code) {
-    taosThreadRwlockUnlock(&pTsdb->rwLock);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  taosThreadRwlockUnlock(&pTsdb->rwLock);
-
-_exit:
-  if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
 static int32_t tsdbAbortCompact(STsdbCompactor *pCompactor) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -660,8 +634,31 @@ _exit:
   if (code) {
     tsdbAbortCompact(pCompactor);
   } else {
-    tsdbCommitCompact(pCompactor);
+    tsdbFSPrepareCommit(pTsdb, &pCompactor->fs);
   }
   tsdbEndCompact(pCompactor);
+  return code;
+}
+
+int32_t tsdbCommitCompact(STsdb *pTsdb) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  taosThreadRwlockWrlock(&pTsdb->rwLock);
+
+  code = tsdbFSCommit(pTsdb);
+  if (code) {
+    taosThreadRwlockUnlock(&pTsdb->rwLock);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  } else {
+    tsdbInfo("vgId:%d %s done", TD_VID(pTsdb->pVnode), __func__);
+  }
   return code;
 }
