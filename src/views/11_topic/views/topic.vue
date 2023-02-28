@@ -1,6 +1,9 @@
 <template>
   <div>
     <div class="flexEnd">
+      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled="requestIng">{{
+        $t("refresh")
+      }}</el-button>
       <el-button class="big-button" plain @click="dialog = true" size="small" icon="el-icon-plus">{{ $t("topic.createTopic") }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
@@ -31,7 +34,10 @@
     >
     </el-pagination>
     <p class="default-tip" v-html="learnMoreTip"></p>
-    <el-dialog align="center" :title="$t('topic.createTopic')" width="800px" :visible.sync="dialog">
+     <el-dialog align="center" :close-on-click-modal="false" :title="title" :width="width" :visible.sync="dialog">
+      <component :is="dialogComp" v-bind="dialogParams" @close="close"></component>
+    </el-dialog>
+    <!-- <el-dialog align="center" :title="$t('topic.createTopic')" width="800px" :visible.sync="dialog">
       <el-input size="small" @input="errorText = ''" :placeholder="sqlTip" v-model="sql">
         <template slot="prepend">{{ sqlPrefix }}</template>
         <template slot="append">
@@ -52,16 +58,22 @@
           }}</el-button>
         </el-col>
       </el-row>
-    </el-dialog>
+    </el-dialog> -->
   </div>
 </template>
 
 <script>
   import { createTopic, getTopics, delTopic } from "@/api/topic";
   import { SubscriptionDocsUrl } from "@/const";
+  
   export default {
+    components: {
+      AddTopic: () => import("../components/addTopic.vue"),
+      ManageTopic: () => import("../components/manageTopic.vue"),
+    },
     data() {
       return {
+        requestIng: false,
         dialog: false,
         sql: "",
         sqlPrefix: "CREATE TOPIC ",
@@ -70,14 +82,40 @@
         currentPage: 1,
         pageSize: 10,
         total: 0,
+        dialogType: "0",
         sqlTip: "[IF NOT EXISTS] topic_name AS {subquery | DATABASE db_name | STABLE stb_name }",
-        requestIng: false,
+      
+         dialogParams: {},
       };
     },
     computed: {
       learnMoreTip() {
         return this.$t("topic.learnMoreTip").replace(/docsUrl/, SubscriptionDocsUrl);
       },
+      dialogComp() {
+        return {
+          0: "AddTopic",
+          1: "ManageTopic",
+        }[this.dialogType];
+      },
+       title() {
+        return {
+          0: this.$t("topic.createTopic"),
+          1: this.$t("topic.manageTopic"),
+        }[this.dialogType];
+      },
+      width() {
+        return {
+          0: "750px",
+          1: "380px",
+        }[this.dialogType];
+      },
+      userId() {
+        return this.$root.currentInfo.user.id;
+      },
+      addBtnShow() {
+        return this.$store.getters.currentServerLevel || (!this.$store.getters.currentServerLevel && !this.topicList.length);
+      }
     },
     async created() {
       this.getTopics();
@@ -86,6 +124,9 @@
       // }
     },
     methods: {
+      refresh(){
+        this.getTopics();
+      },
       async getTopics() {
         if (this.requestIng) return;
         this.requestIng = true;
@@ -128,6 +169,15 @@
         });
       },
       handlePageChange() {
+        this.getTopics();
+      },
+      add() {
+        this.dialogType = "0";
+        this.dialogParams = { topicList: this.topicList };
+        this.dialog = true;
+      },
+      close() {
+        this.dialog = false;
         this.getTopics();
       },
     },

@@ -17,8 +17,10 @@ let local_baseurl=''
 request.interceptors.request.use(
   config => {
     local_baseurl=localStorage.getItem('base_url')
-    if(local_baseurl){
+    if(local_baseurl&&!config.headers.myHeader){
       config.baseURL=local_baseurl
+    }else if(config.headers.myHeader){
+      config.baseURL=config.headers.myHeader
     }
     if (store.getters.token) {
       // 让每个请求都携带token
@@ -51,15 +53,19 @@ request.interceptors.response.use(
   // Determine the request status by custom code
   response => {
     const res = response.data;
+    
     if (res.type) return Promise.resolve(res);
-    res.code += "";
+    if(res.code){ //针对最新的tasks接口无code情况做出的判断
+      res.code += "";
+    }
+    
 
-    if (checkRegion(res.code)) {
+    if (res.code&&checkRegion(res.code)) {
       // token过期, 让用户重新登录
       store.dispatch("app/logout", false);
       return Promise.reject(null);
     }
-    if (checkStatus(res.code)) {
+    if (res.code&&checkStatus(res.code)) {
       return Promise.resolve(res.data);
     }
     // let curmsg = res.data?.message || res.msg || res.message || "Unknown Error";
@@ -77,13 +83,13 @@ request.interceptors.response.use(
     //     msg = "";
     //   }, 1000);
     // }
-    if(res.code==='0'){//针对 'show databses'
+    if(Object.is(res.code,0)&&res.code==='0'){//针对 'show databses'
       return Promise.resolve(res)
     }
-    if(res.code==='21200'){//测试用---后续删除
+    if(res.code&&res.code==='21200'){//测试用---后续删除
       return Promise.resolve(res)
     }
-    return Promise.reject(res);
+    return Promise.resolve(res);
   },
   error => {
     Message.closeAll();

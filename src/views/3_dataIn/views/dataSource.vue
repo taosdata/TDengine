@@ -107,9 +107,9 @@
         label-position="left"
         class="demo-ruleForm"
       >
-        <el-form-item label="Source Type" prop="name" required>
+        <el-form-item label="Source Type" prop="type" required>
           <el-select
-            v-model="ruleForm.name"
+            v-model="ruleForm.type"
             placeholder="Please Select Source Type"
           >
             <el-option
@@ -123,8 +123,8 @@
             <el-option label="Kafka" value="kafka"></el-option>-->
           </el-select>
         </el-form-item>
-        <el-form-item label="Source Name" prop="status" required>
-          <el-input v-model="ruleForm.status"></el-input>
+        <el-form-item label="Source Name" prop="name" required>
+          <el-input v-model="ruleForm.name"></el-input>
         </el-form-item>
         <!-- <el-form-item label="Created Time" required>
           <el-form-item prop="time">
@@ -172,10 +172,10 @@ export default {
   },
   computed: {
     confirmStatus() {
-      if (!this.ruleForm.name) {
+      if (!this.ruleForm.type) {
         return true;
       }
-      if (!this.ruleForm.status) {
+      if (!this.ruleForm.name) {
         return true;
       }
       return false;
@@ -189,9 +189,8 @@ export default {
       total: 10,
       dialog: false,
       ruleForm: {
-        name: "",
-        status: "",
-        time: "",
+        type: "",
+        name: ""
       },
       topicList: [],
     };
@@ -228,17 +227,15 @@ export default {
     },
     edit(data) {
       let editDdata=[].concat(data.from_detail)
-
-      console.log("打开编辑页面", editDdata,this.$parent);
       this.$parent.uidata=editDdata
-      this.$parent.toggleComponent("ui", this.ruleForm.name,'',editDdata);
+      this.$parent.toggleComponent("ui", this.ruleForm.type,'',editDdata);
       // this.$router.push({
       //   path: `/dataIn/source/${data.data_source_name}`
       // });
     },
     handleAdd() {
-      localStorage.setItem("datainName", this.ruleForm.status);
-      this.$parent.toggleComponent("ui", this.ruleForm.name);
+      localStorage.setItem("datainName", this.ruleForm.name);
+      this.$parent.toggleComponent("ui", this.ruleForm.type);
     },
     async getList() {
       try {
@@ -267,6 +264,9 @@ export default {
       try {
         fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/start`, {
           method: "post",
+          headers:{
+            "Content-Type":"application/json"
+          }
         }).then((res) => {
           if (res.status == 200) {
             this.getList();
@@ -286,6 +286,9 @@ export default {
       try {
         fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
           method: "post",
+           headers:{
+            "Content-Type":"application/json"
+          }
         }).then((res) => {
           if (res.status == 200) {
             this.getList();

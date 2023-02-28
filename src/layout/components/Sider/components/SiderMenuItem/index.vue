@@ -1,12 +1,31 @@
 <template>
   <div class="menu_item">
-    <el-tooltip :disabled="opened" class="item" effect="dark" :content="item.title" placement="right">
-      <el-menu-item :index="item.path" @contextmenu.native.prevent="menuRight(item.path)" :disabled="!isDisabled(item.path)" class="menuItem">
+    <el-tooltip
+      :disabled="opened"
+      class="item"
+      effect="dark"
+      :content="item.title"
+      placement="right"
+    >
+      <el-menu-item
+        :index="item.path"
+        @contextmenu.native.prevent="menuRight(item.path)"
+        :disabled="!isDisabled(item.path)"
+        class="menuItem"
+      >
         <div :aria-data="item.path">
           <span>
-            <Icon :name="item.icon" class="menuItem_icon" :class="{ menuItem_icon_unfold: opened }"></Icon>
+            <Icon
+              :name="item.icon"
+              class="menuItem_icon"
+              :class="{ menuItem_icon_unfold: opened }"
+            ></Icon>
           </span>
-          <span class="menuItem_title" v-if="opened">
+          <span
+            class="menuItem_title"
+            v-if="opened"
+            @click="menuClick(item.title)"
+          >
             {{ item.title }}
           </span>
         </div>
@@ -17,57 +36,67 @@
 </template>
 
 <script>
-  import { mapState } from "vuex";
-  import { BaseRoute } from "@/const";
-  import { OpenNewTab } from "@/utils";
-  export default {
-    name: "MenuItem",
-    props: ["item"],
-    computed: mapState("sidebar", ["opened"]),
-    data() {
-      return {};
+import { mapState } from "vuex";
+import { BaseRoute } from "@/const";
+import { OpenNewTab } from "@/utils";
+export default {
+  name: "MenuItem",
+  props: ["item"],
+  computed: mapState("sidebar", ["opened"]),
+  data() {
+    return {};
+  },
+  methods: {
+    isDisabled(path) {
+      // if (!this.$store.getters.hasCluster) return false;
+      // return BaseRoute.includes(path) || this.$store.getters.operate;
+      return true;
     },
-    methods: {
-      isDisabled(path) {
-        // if (!this.$store.getters.hasCluster) return false;
-        // return BaseRoute.includes(path) || this.$store.getters.operate;
-        return true
-      },
-      menuRight(path) {
-        OpenNewTab(path);
-      },
+    menuRight(path) {
+      OpenNewTab(path);
     },
-  };
+    menuClick(val) {
+      let url = localStorage.getItem("local_grafana");
+      if (val === "Dashboard") {
+        if (url) {
+          OpenNewTab(url);
+        } else {
+          // OpenNewTab(null);
+        }
+      }
+    },
+  },
+};
 </script>
 
 <style lang="scss" scoped>
-  .menu_item {
-    margin-top: 10px;
-    // background: 0px 0px no-repeat padding-box padding-box rgb(232, 239, 255);
-  }
+.menu_item {
+  margin-top: 10px;
+  // background: 0px 0px no-repeat padding-box padding-box rgb(232, 239, 255);
+}
 
-  .menuItem_icon {
-    width: 24px;
-    height: 24px;
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-  }
+.menuItem_icon {
+  width: 24px;
+  height: 24px;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
 
-  .menuItem_icon_unfold {
-    left: 50px;
-  }
+.menuItem_icon_unfold {
+  left: 50px;
+}
 
-  .menuItem_title {
-    position: absolute;
-    left: 90px;
-    font-size: 16px;
-    font-weight: 500;
-    top: 50%;
-    transform: translateY(-50%);
-  }
+.menuItem_title {
+  position: absolute;
+  left: 90px;
+  font-size: 16px;
+  font-weight: 500;
+  top: 50%;
+  transform: translateY(-50%);
+}
 
-  .menuItem {
-    position: relative;
-  }
+.menuItem {
+  position: relative;
+}
 </style>

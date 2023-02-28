@@ -400,7 +400,6 @@ export default {
       this.defaultExpandedKeys = result.reverse();
     },
     async add(data, node) {
-      console.log(data,node,'----add');
       await this.handleVar(data, node);
       switch (data.typeName) {
         case "database":

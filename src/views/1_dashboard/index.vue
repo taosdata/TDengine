@@ -7,11 +7,12 @@
     >
     <div class="content">
       <panelHeader :title="title"> </panelHeader>
-      <!--<Query v-if="isQuery" />
+      <ClusterInfo />
+      <!-- <Query v-if="isQuery" />
       <template v-else>
         <ClusterInfo />
         <UsageTrend />
-        </template>-->
+        </template> -->
     </div>
   </div>
 </template>
