@@ -320,6 +320,57 @@ static int32_t calcConstInsert(SCalcConstContext* pCxt, SInsertStmt* pInsert) {
   return code;
 }
 
+static SNodeList* getChildProjection(SNode* pStmt) {
+  switch (nodeType(pStmt)) {
+    case QUERY_NODE_SELECT_STMT:
+      return ((SSelectStmt*)pStmt)->pProjectionList;
+    case QUERY_NODE_SET_OPERATOR:
+      return ((SSetOperator*)pStmt)->pProjectionList;
+    default:
+      break;
+  }
+  return NULL;
+}
+
+static void eraseSetOpChildProjection(SSetOperator* pSetOp, int32_t index) {
+  SNodeList* pLeftProjs = getChildProjection(pSetOp->pLeft);
+  nodesListErase(pLeftProjs, nodesListGetCell(pLeftProjs, index));
+  SNodeList* pRightProjs = getChildProjection(pSetOp->pRight);
+  nodesListErase(pRightProjs, nodesListGetCell(pRightProjs, index));
+}
+
+static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* pSetOp, bool subquery) {
+  int32_t index = 0;
+  SNode*  pProj = NULL;
+  WHERE_EACH(pProj, pSetOp->pProjectionList) {
+    if (subquery && isUselessCol((SExprNode*)pProj)) {
+      ERASE_NODE(pSetOp->pProjectionList);
+      eraseSetOpChildProjection(pSetOp, index);
+      continue;
+    }
+    ++index;
+    WHERE_NEXT;
+  }
+  if (0 == LIST_LENGTH(pSetOp->pProjectionList)) {
+    return nodesListStrictAppend(pSetOp->pProjectionList, createConstantValue());
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t calcConstSetOperator(SCalcConstContext* pCxt, SSetOperator* pSetOp, bool subquery) {
+  int32_t code = calcConstSetOpProjections(pCxt, pSetOp, subquery);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstQuery(pCxt, pSetOp->pLeft, false);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstQuery(pCxt, pSetOp->pRight, false);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstList(pSetOp->pOrderByList);
+  }
+  return code;
+}
+
 static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subquery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pStmt)) {
@@ -330,11 +381,7 @@ static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subque
       code = calcConstQuery(pCxt, ((SExplainStmt*)pStmt)->pQuery, subquery);
       break;
     case QUERY_NODE_SET_OPERATOR: {
-      SSetOperator* pSetOp = (SSetOperator*)pStmt;
-      code = calcConstQuery(pCxt, pSetOp->pLeft, false);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = calcConstQuery(pCxt, pSetOp->pRight, false);
-      }
+      code = calcConstSetOperator(pCxt, (SSetOperator*)pStmt, subquery);
       break;
     }
     case QUERY_NODE_DELETE_STMT:
