@@ -80,16 +80,16 @@ class TDTestCase:
         tdLog.debug("del data ............ [OK]")
         return
 
-    def threadFunctionForDeletaData(self, **paraDict):
+    def threadFunctionForDeletaData(self, paraDict):
         # create new connector for new tdSql instance in my thread
         newTdSql = tdCom.newTdSql()
         self.delData(newTdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["startTs"],paraDict["endTs"],paraDict["ctbStartIdx"])
         return
 
-    def asyncDeleteData(self, paraDict):
-        pThread = threading.Thread(target=self.threadFunctionForDeletaData, kwargs=paraDict)
-        pThread.start()
-        return pThread
+    # def asyncDeleteData(self, paraDict):
+    #     pThread = threading.Thread(target=self.threadFunctionForDeletaData, kwargs=paraDict)
+    #     pThread.start()
+    #     return pThread
 
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
@@ -340,7 +340,8 @@ class TDTestCase:
         # del some data
         rowsOfDelete = int(self.rowsPerTbl / 4 )
         paraDict["endTs"] = paraDict["startTs"] + rowsOfDelete - 1
-        pDeleteThread = self.asyncDeleteData(paraDict)
+        # pDeleteThread = self.asyncDeleteData(paraDict)
+        self.threadFunctionForDeletaData(paraDict)
 
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
