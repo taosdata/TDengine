@@ -9,9 +9,6 @@ sleep 10
 
 cd ../../docs/examples/python
 
-pip install -U taospy
-pip install -U taos-ws-py
-
 # 1
 taos -s "create database if not exists log"
 python3 connect_example.py
