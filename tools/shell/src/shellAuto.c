@@ -98,6 +98,7 @@ SWords shellCommands[] = {
     {"describe <all_table>", 0, 0, NULL},
     {"delete from <all_table> where ", 0, 0, NULL},
     {"drop database <db_name>", 0, 0, NULL},
+    {"drop index <anyword>", 0, 0, NULL},
     {"drop table <all_table>", 0, 0, NULL},
     {"drop dnode <dnode_id>", 0, 0, NULL},
     {"drop mnode on dnode <dnode_id> ;", 0, 0, NULL},
@@ -384,7 +385,7 @@ void showHelp() {
     create table <tb_name> using <stb_name> tags ...\n\
     create database <db_name> <db_options>  ...\n\
     create dnode \"fqdn:port\" ...\n\
-    create index ...\n\
+    create index <index_name> on <stb_name> (tag_column_name);\n\
     create mnode on dnode <dnode_id> ;\n\
     create qnode on dnode <dnode_id> ;\n\
     create stream <stream_name> into <stb_name> as select ...\n\
@@ -404,6 +405,7 @@ void showHelp() {
     drop consumer group ... \n\
     drop topic <topic_name> ;\n\
     drop stream <stream_name> ;\n\
+    drop index <index_name>;\n\
   ----- E ----- \n\
     explain select clause ...\n\
   ----- F ----- \n\
@@ -534,7 +536,7 @@ SWord* addWord(const char* p, int32_t len, bool pattern) {
   word->len = len;
 
   // check format
-  if (pattern) {
+  if (pattern && len > 0) {
     word->type = wordType(p, len);
   } else {
     word->type = WT_TEXT;
@@ -1722,6 +1724,9 @@ bool matchEnd(TAOS* con, SShellCmd* cmd) {
 
   // less one char can match
   if (strlen(last) == 0) {
+    goto _return;
+  }
+  if (strcmp(last, " ") == 0) {
     goto _return;
   }
 
