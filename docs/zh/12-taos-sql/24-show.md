@@ -86,10 +86,10 @@ SHOW FUNCTIONS;
 
 显示用户定义的自定义函数。
 
-## SHOW LICENSE
+## SHOW LICENCES
 
 ```sql
-SHOW LICENSE;
+SHOW LICENCES;
 SHOW GRANTS;
 ```
 
@@ -303,7 +303,7 @@ SHOW DNODE dnode_id VARIABLES;
 SHOW [db_name.]VGROUPS;
 ```
 
-显示当前系统中所有 VGROUP 或某个 db 的 VGROUPS 的信息。
+显示当前数据库中所有 VGROUP 的信息。
 
 ## SHOW VNODES
 
