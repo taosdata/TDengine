@@ -19,10 +19,10 @@ use serde::{Deserialize, Serialize};
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
-    let mut file_path: PathBuf =
-        std::path::Path::new(concat!("C:", std::path::MAIN_SEPARATOR, env!("CUS_NAME")))
-            .join("cfg")
-            .join("explorer.toml");
+    let mut file_path: PathBuf = std::path::Path::new("C:\\")
+        .join(env!("CUS_NAME"))
+        .join("cfg")
+        .join("explorer.toml");
     #[cfg(not(target_os = "windows"))]
     let mut file_path = std::path::Path::new("/etc")
         .join(env!("CUS_PROMPT"))
