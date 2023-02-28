@@ -339,11 +339,33 @@ static void eraseSetOpChildProjection(SSetOperator* pSetOp, int32_t index) {
   nodesListErase(pRightProjs, nodesListGetCell(pRightProjs, index));
 }
 
+typedef struct SNotRefByOrderByCxt {
+  SColumnNode* pCol;
+  bool         hasThisCol;
+} SNotRefByOrderByCxt;
+
+static EDealRes notRefByOrderByImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SNotRefByOrderByCxt* pCxt = (SNotRefByOrderByCxt*)pContext;
+    if (nodesEqualNode((SNode*)pCxt->pCol, pNode)) {
+      pCxt->hasThisCol = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool notRefByOrderBy(SColumnNode* pCol, SNodeList* pOrderByList) {
+  SNotRefByOrderByCxt cxt = {.pCol = pCol, .hasThisCol = false};
+  nodesWalkExprs(pOrderByList, notRefByOrderByImpl, &cxt);
+  return !cxt.hasThisCol;
+}
+
 static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* pSetOp, bool subquery) {
   int32_t index = 0;
   SNode*  pProj = NULL;
   WHERE_EACH(pProj, pSetOp->pProjectionList) {
-    if (subquery && isUselessCol((SExprNode*)pProj)) {
+    if (subquery && notRefByOrderBy((SColumnNode*)pProj, pSetOp->pOrderByList) && isUselessCol((SExprNode*)pProj)) {
       ERASE_NODE(pSetOp->pProjectionList);
       eraseSetOpChildProjection(pSetOp, index);
       continue;
