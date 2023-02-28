@@ -9,6 +9,9 @@ sleep 10
 
 cd ../../docs/examples/python
 
+pip install -U taospy
+pip install -U taos-ws-py
+
 # 1
 taos -s "create database if not exists log"
 python3 connect_example.py
@@ -85,3 +88,8 @@ python3 fast_write_example.py
 pip3 install kafka-python
 python3 kafka_example_consumer.py
 
+# 21
+python3 conn_websocket_pandas.py
+
+# 22
+python3 connect_websocket_examples.py

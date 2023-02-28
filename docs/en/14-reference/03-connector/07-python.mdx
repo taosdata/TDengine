@@ -229,6 +229,16 @@ All arguments to the `connect()` function are optional keyword arguments. The fo
 - `timeout`: HTTP request timeout. Enter a value in seconds. The default is `socket._GLOBAL_DEFAULT_TIMEOUT`. Usually, no configuration is needed.
 
 </TabItem>
+
+<TabItem value="websocket" label="WebSocket connection">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+
+The parameter of `connect()` is the url of TDengine, and the protocol is `taosws` or `ws`.
+
+</TabItem>
 </Tabs>
 
 ## Example program
@@ -298,7 +308,15 @@ The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-ap
 
 For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
 
+</TabItem>
+<TabItem value="websocket" label="WebSocket connection">
 
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:basic}}
+```
+
+- `conn.execute`: can use to execute arbitrary SQL statements, and return the number of rows affected.
+- `conn.query`: can use to execute query SQL statements, and return the query results.
 
 </TabItem>
 </Tabs>
@@ -317,6 +335,13 @@ For a more detailed description of the `sql()` method, please refer to [RestClie
 
 ```python
 {{#include docs/examples/python/conn_rest_pandas.py}}
+```
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket connection">
+
+```python
+{{#include docs/examples/python/conn_websocket_pandas.py}}
 ```
 
 </TabItem>
