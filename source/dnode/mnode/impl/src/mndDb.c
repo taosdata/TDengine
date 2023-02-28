@@ -1248,14 +1248,11 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
       usedbRsp.errCode = terrno;
 
       if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
-        if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, usedbReq.db) == 0) {
-          mInfo("db:%s, is creating and usedb response after trans finished", usedbReq.db);
-          code = TSDB_CODE_ACTION_IN_PROGRESS;
-          goto _OVER;
-        }
+        mInfo("db:%s, is creating", usedbReq.db);
+        code = terrno;
+        goto _OVER;
       }
 
-      mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
     } else {
       if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
         goto _OVER;
