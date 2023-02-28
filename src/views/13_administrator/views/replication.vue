@@ -195,7 +195,7 @@ export default {
         await fetch(
           `${
             process.env.VUE_APP_X_API
-          }/tasks?type::replication,cluster-id::${localStorage.getItem(
+          }/tasks?labels=type::replication,cluster-id::${localStorage.getItem(
             "local_clusterID"
           )}`,
           {

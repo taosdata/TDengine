@@ -3,12 +3,17 @@ use awc::error::JsonPayloadError;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use log::LevelFilter;
 use std::{fs::File, io::Read, path::PathBuf};
+use tracing::{info, instrument, Level};
+use tracing_actix_web::{RequestId, TracingLogger};
+use tracing_awc::Tracing;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 use actix_embed::Embed;
 use actix_web::{
     error::{self, PayloadError},
     http::header::ContentType,
-    web, App, HttpRequest, HttpResponse, HttpServer, Responder,
+    middleware::Logger,
+    web, App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use futures_util::StreamExt as _;
 
@@ -16,8 +21,19 @@ use clap::Parser;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 
+fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
+    match level {
+        LevelFilter::Off => None,
+        LevelFilter::Error => Some(Level::ERROR),
+        LevelFilter::Warn => Some(Level::WARN),
+        LevelFilter::Info => Some(Level::INFO),
+        LevelFilter::Debug => Some(Level::DEBUG),
+        LevelFilter::Trace => Some(Level::TRACE),
+    }
+}
+
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> anyhow::Result<()> {
     #[cfg(target_os = "windows")]
     let mut file_path: PathBuf = std::path::Path::new("C:\\")
         .join(env!("CUS_NAME"))
@@ -48,19 +64,30 @@ async fn main() -> std::io::Result<()> {
         .clone()
         .or(args.verbose.clone().map(|v| v.log_level_filter()))
         .unwrap_or(log::LevelFilter::Info);
-    pretty_env_logger::formatted_timed_builder()
-        .filter_level(log_level)
+    tracing_subscriber::fmt()
+        .with_level(true)
+        .with_file(true)
+        .with_thread_ids(true)
+        .with_thread_names(true)
+        .with_span_events(FmtSpan::ACTIVE)
+        .with_max_level(log_level_to_tracing_level(log_level))
+        .pretty()
         .init();
 
     const EXPLORER_PORT: u16 = 6060;
     let port = args.port.unwrap_or(EXPLORER_PORT);
     let args = web::Data::new(args);
+
+    info!("Explorer service at http://0.0.0.0:{port}");
+
     HttpServer::new(move || {
         let cors = Cors::default()
             .allow_any_origin()
             .allow_any_method()
             .allow_any_header();
         App::new()
+            .wrap(TracingLogger::default())
+            .wrap(Logger::default())
             .wrap(cors)
             .app_data(args.clone())
             .route("/", web::get().to(index))
@@ -72,7 +99,8 @@ async fn main() -> std::io::Result<()> {
     })
     .bind(("0.0.0.0", port))?
     .run()
-    .await
+    .await?;
+    Ok(())
 }
 
 async fn index() -> impl Responder {
@@ -102,12 +130,15 @@ enum Error {
 
 impl error::ResponseError for Error {}
 
+#[instrument(skip(req, body))]
 async fn x_api(
     req: HttpRequest,
+    req_id: RequestId,
     api: web::Path<String>,
     args: web::Data<Args>,
     mut body: web::Payload,
 ) -> Result<HttpResponse, Error> {
+    req.method();
     if args.x_api.is_none() {
         return Ok(HttpResponse::NotFound().finish());
     }
@@ -117,9 +148,13 @@ async fn x_api(
     }
     let x = args.x_api.as_deref().unwrap();
     let url = format!("{x}/{api}?{}", req.query_string());
-    let client = awc::Client::new();
+    let client = awc::Client::builder().wrap(Tracing).finish();
     let method = req.method();
-    let mut resp = client.request(method.clone(), url).send_body(bytes).await?;
+    let mut resp = client
+        .request(method.clone(), url)
+        .content_type(req.content_type())
+        .send_body(bytes)
+        .await?;
     Ok(HttpResponse::Ok().body(resp.body().await?))
 }
 async fn x_api_doc(
