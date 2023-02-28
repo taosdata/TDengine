@@ -208,10 +208,10 @@ Active: inactive (dead)
 
 :::info
 
-- 为了增强安全性，我们增加了服务管理的权限要求
-- `launchctl` 命令管理“com.tdengine.taosd”需要管理员权限，务必在前面加 `sudo`。
-- `sudo launchctl list | grep taosd` 指令返回的第一个内容是程序的 PID，若为 `-` 则说明 TDengine 服务未运行
-- 服务异常请查看系统日志launchd.log或者/var/log/taos下taosdlog日志获取更多信息
+- 为了增强安全性，我们增加了服务管理的权限要求。
+- `launchctl` 命令管理`com.tdengine.taosd`需要管理员权限，务必在前面加 `sudo`。
+- `sudo launchctl list | grep taosd` 指令返回的第一个内容是程序的 PID，若为 `-` 则说明 TDengine 服务未运行。
+- 服务异常请查看系统日志`launchd.log`或者`/var/log/taos`目录下`taosdlog`日志获取更多信息。
 
 :::
 
