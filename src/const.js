@@ -364,9 +364,52 @@ export const TokenKey = "TDengine-Token";
 export const BusinessEmail = "business@tdengine.com";
 
 export const StreamDocsUrl = "https://docs.tdengine.com/cloud/stream/";
+export const DocsUrl = "https://docs.tdengine.com"
+//PlatForm == 1 ? "https://docs.taosdata.com" : "https://docs.tdengine.com";
 
 export const SubscriptionDocsUrl = " https://docs.tdengine.com/cloud/tmq/";
-
+export const TDengineTimeUnit = [
+  {
+    label: "nanosecond",
+    value: "b",
+  },
+  {
+    label: "microsecond",
+    value: "u",
+  },
+  {
+    label: "millsecond",
+    value: "a",
+  },
+  {
+    label: "second",
+    value: "s",
+  },
+  {
+    label: "minute",
+    value: "m",
+  },
+  {
+    label: "hour",
+    value: "h",
+  },
+  {
+    label: "day",
+    value: "d",
+  },
+  {
+    label: "week",
+    value: "w",
+  },
+  {
+    label: "month",
+    value: "n",
+  },
+  {
+    label: "year",
+    value: "y",
+  },
+];
 export const RequestCommonConfig = {
   timeout: 20000,
   withCredentials: false,
@@ -383,3 +426,190 @@ export const $bus = mitt();
 
 export const CustomShellContent = ["Welcome to TDengine "];
 
+// 数学函数
+export const NumbericFn = [
+  {
+    label: "ABS",
+  },
+  {
+    label: "ACOS",
+  },
+  {
+    label: "ASIN",
+  },
+  {
+    label: "ATAN",
+  },
+  {
+    label: "CEIL",
+  },
+  {
+    label: "COS",
+  },
+  {
+    label: "FLOOR",
+  },
+  {
+    label: "LOG",
+    filters: [
+      {
+        type: "select",
+        label: "Log Filed",
+        options() {
+          return this.fieldList.filter(item => item.filed != this.field);
+        },
+        placeholder: "Select Filed",
+        field: "logFiled",
+        defaultValue: "",
+      },
+    ],
+  },
+  {
+    label: "POW",
+    filters: [
+      {
+        type: "select",
+        label: "Pow Filed",
+        options() {
+          return this.fieldList.filter(item => item.filed != this.field);
+        },
+        placeholder: "Select Filed",
+        field: "powFiled",
+        defaultValue: "",
+      },
+    ],
+  },
+  {
+    label: "ROUND",
+  },
+  {
+    label: "SIN",
+  },
+  {
+    label: "SQRT",
+  },
+  {
+    label: "TAN",
+  },
+];
+// 字符串函数
+export const StringFn = [
+  {
+    label: "CHAR_LENGTH",
+  },
+  {
+    label: "CONCAT",
+    filters: [
+      {
+        type: "select",
+        label: "Concat Fileds",
+        multiple: true,
+        options() {
+          return this.fieldList.filter(item => item.filed != this.field).map(item => ({ label: item.filed, value: item.filed }));
+        },
+        placeholder: "Select Fileds",
+        field: "concatFields",
+        defaultValue: [],
+      },
+    ],
+  },
+  {
+    label: "CONCAT_WS",
+    filters: [
+      {
+        type: "input",
+        label: "Separator",
+        placeholder: "Separator_expr",
+        field: "separator",
+        defaultValue: "",
+      },
+      {
+        type: "select",
+        label: "Concat Fileds",
+        multiple: true,
+        options() {
+          return this.fieldList.filter(item => item.filed != this.field).map(item => ({ label: item.filed, value: item.filed }));
+        },
+        placeholder: "Select Fileds",
+        field: "concatFields",
+        defaultValue: [],
+      },
+    ],
+  },
+  {
+    label: "LENGTH",
+  },
+  {
+    label: "LOWER",
+  },
+  {
+    label: "LTRIM",
+  },
+  {
+    label: "RTRIM",
+  },
+  {
+    label: "SUBSTR",
+    filters: [
+      {
+        type: "number",
+        label: "position",
+        placeholder: "Separator_expr",
+        field: "pos",
+        defaultValue: "",
+      },
+      {
+        type: "number",
+        label: "length",
+        placeholder: "length",
+        field: "len",
+        defaultValue: "",
+      },
+    ],
+  },
+  {
+    label: "UPPER",
+  },
+];
+export const TDengineStringType = ["VARCHAR", "BINARY", "NCHAR"];
+export const TDengineNumberType = [
+  "INT",
+  "INT UNSIGNED",
+  "BIGINT",
+  "BIGINT UNSIGNED",
+  "FLOAT",
+  "DOUBLE",
+  "SMALLINT",
+  "SMALLINT UNSIGNED",
+  "TINYINT",
+  "TINYINT UNSIGNED",
+];
+// 时间戳可使用的运算符
+export const CompareOperator = [">", "<", ">=", "<=", "!=", "=="];
+export const BooleanOperator = ["=="];
+export const JsonOperator = ["Contains"];
+export const GeneralOperator = [
+  {
+    label: "IN",
+    exclude: ["JSON"],
+  },
+  {
+    label: "BETWEEN",
+  },
+  {
+    label: "LIKE",
+  },
+  {
+    label: "NOT LIKE",
+  },
+  {
+    label: "NOT IN",
+  },
+  {
+    label: "NOT BETWEEN",
+  },
+  {
+    label: "ISNULL",
+  },
+];
+// 聚合函数
