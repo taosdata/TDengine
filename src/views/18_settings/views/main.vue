@@ -93,8 +93,14 @@ export default {
       let reg =/^(http|https):\/\/([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*/;
       if(reg.test(this.grafanaUrl)){
         localStorage.setItem('local_grafana',this.grafanaUrl)
+        Message.success('Save Scuessfully')
       }else{
-        Message.error('Please enter the correct  url.')
+        if(this.grafanaUrl){
+          Message.error('Please enter the correct  url.')
+        }else{
+          localStorage.removeItem('local_grafana')
+        }
+        
       }
     }
   },
