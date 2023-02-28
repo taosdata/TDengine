@@ -471,7 +471,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   if (handle) {
     void* pSinkParam = NULL;
     code = createDataSinkParam(pSubplan->pDataSink, &pSinkParam, pTaskInfo, readHandle);
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS || pSinkParam == NULL) {
       qError("failed to createDataSinkParam, vgId:%d, code:%s, %s", vgId, tstrerror(code), (*pTask)->id.str);
       goto _error;
     }

@@ -874,8 +874,10 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       pBlockNum->numOfBlocks += 1;
     }
 
-    if ((pScanInfo->pBlockList != NULL )&& (taosArrayGetSize(pScanInfo->pBlockList) > 0)) {
-      numOfQTable += 1;
+    if (pScanInfo->pBlockList != NULL) {
+      if (taosArrayGetSize(pScanInfo->pBlockList) > 0) {
+        numOfQTable += 1;
+      }
     }
   }
 
