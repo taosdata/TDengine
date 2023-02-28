@@ -2,11 +2,11 @@
   <div class="dnode-block">
     <div class="flexEnd">
       <el-button plain @click="refresh" size="small" icon="el-icon-refresh">
-        {{
-        $t("refresh")
-        }}
+        {{ $t("refresh") }}
       </el-button>
-      <el-button plain @click="add" size="small" icon="el-icon-plus">Add New Replication</el-button>
+      <el-button plain @click="add" size="small" icon="el-icon-plus"
+        >Add New Replication</el-button
+      >
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column label="ID" width="80" prop="id"></el-table-column>
@@ -44,7 +44,12 @@
             @click="stop(scope.row, scope.$index)"
             icon="el-icon-tingzhi"
           ></el-button>-->
-          <el-button plain size="small" @click="del(scope.row, scope.$index)" icon="el-icon-delete"></el-button>
+          <el-button
+            plain
+            size="small"
+            @click="del(scope.row, scope.$index)"
+            icon="el-icon-delete"
+          ></el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -57,7 +62,12 @@
       :total="total"
       @current-change="handlePageChange"
     ></el-pagination>
-    <el-dialog align="center" title="Add New Replication" width="600px" :visible.sync="dialog">
+    <el-dialog
+      align="center"
+      title="Add New Replication"
+      width="600px"
+      :visible.sync="dialog"
+    >
       <el-form
         :model="ruleForm"
         :rules="rules"
@@ -69,20 +79,26 @@
         <el-form-item label="From Source" prop="source" required>
           <!-- <el-input v-model.trim="ruleForm.source"></el-input> -->
           <el-select v-model="ruleForm.source" placeholder="Please select">
-            <el-option v-for="db in dblist" :key="db['node-key']" :label="db.name" :value="db.name"></el-option>
+            <el-option
+              v-for="db in dblist"
+              :key="db['node-key']"
+              :label="db.name"
+              :value="db.name"
+            ></el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="Target DSN" prop="target" required>
-          <el-input v-model.trim="ruleForm.target" placeholder="taos://192.168.0.1:6030/db2"></el-input>
+          <el-input
+            v-model.trim="ruleForm.target"
+            placeholder="taos://192.168.0.1:6030/db2"
+          ></el-input>
         </el-form-item>
       </el-form>
 
       <el-row style="margin-top: 20px">
         <el-col :span="5" :offset="6">
           <el-button size="small" @click="dialog = false" class="w100">
-            {{
-            $t("cancel")
-            }}
+            {{ $t("cancel") }}
           </el-button>
         </el-col>
         <el-col :span="5" :push="4">
@@ -92,7 +108,8 @@
             @click="addReplication"
             class="w100"
             type="primary"
-          >{{ $t("confirm") }}</el-button>
+            >{{ $t("confirm") }}</el-button
+          >
         </el-col>
       </el-row>
     </el-dialog>
@@ -101,7 +118,7 @@
 <script>
 import { format } from "date-fns";
 import { Message } from "element-ui";
-import _ from 'lodash';
+import _ from "lodash";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import taosbenchmarkVue from "@/utils/config/mdx/en/taosbenchmark.vue";
 export default {
@@ -114,23 +131,23 @@ export default {
       dblist: [],
       ruleForm: {
         source: "",
-        target: ""
+        target: "",
       },
       rules: {
         source: [
           {
             message: "Please select the source",
-            trigger: "change"
-          }
+            trigger: "change",
+          },
         ],
         target: [
           {
             message: "Please enter the target dsn",
-            trigger: "blur"
-          }
-        ]
+            trigger: "blur",
+          },
+        ],
       },
-      topicList: []
+      topicList: [],
     };
   },
   computed: {
@@ -142,7 +159,7 @@ export default {
         return true;
       }
       return false;
-    }
+    },
   },
   methods: {
     handlePageChange() {},
@@ -155,7 +172,7 @@ export default {
       this.$confirm("Are you sure  to delete " + data.source + "?", "Warning", {
         confirmButtonText: "Ok",
         cancelButtonText: "Cancle",
-        type: "warning"
+        type: "warning",
       }).then(() => {
         fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}`, {
           method: "delete",
@@ -171,29 +188,34 @@ export default {
       });
     },
     refresh(data) {
-      this.getReplication()
+      this.getReplication();
     },
     async addReplication() {
       try {
-        await fetch(`${process.env.VUE_APP_X_API}/tasks?type::replication,cluster-id::${localStorage.getItem("local_clusterID")}`, {
-          method: "post",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            name: "replication",
-            labels: [
-              "type::replication",
-              `cluster-id::${localStorage.getItem("local_clusterID")}`
-            ],
-            to: `${this.ruleForm.target}`,
-            from: `tmq+${localStorage.getItem("base_url")}/${
-              this.ruleForm.source
-            }`
-          })
-        }).then(res => {
-          console.log(res, "replication----addd");
-
+        await fetch(
+          `${
+            process.env.VUE_APP_X_API
+          }/tasks?type::replication,cluster-id::${localStorage.getItem(
+            "local_clusterID"
+          )}`,
+          {
+            method: "post",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              name: "replication",
+              labels: [
+                "type::replication",
+                `cluster-id::${localStorage.getItem("local_clusterID")}`,
+              ],
+              to: `${this.ruleForm.target}`,
+              from: `tmq+${localStorage.getItem("base_url")}/${
+                this.ruleForm.source
+              }`,
+            }),
+          }
+        ).then((res) => {
           if (res.ok || res.status == 201) {
             Message.success("Created Successfully!");
             this.getReplication();
@@ -213,8 +235,11 @@ export default {
     async start(val, data) {
       try {
         await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/start`, {
-          method: "post"
-        }).then(res => {
+          method: "post",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }).then((res) => {
           if (res.status == 200) {
             Message.success("Operation Successfully Completed!");
             this.getReplication();
@@ -228,8 +253,11 @@ export default {
     async stop(val, data) {
       try {
         await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
-          method: "post"
-        }).then(res => {
+          method: "post",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }).then((res) => {
           if (res.status == 200) {
             Message.success("Operation Successfully Completed!");
             this.getReplication();
@@ -253,16 +281,20 @@ export default {
         await fetch(
           `${process.env.VUE_APP_X_API}/tasks?detail=true&labels=type::replication,cluster-id::${id}`,
           {
-            method: "get"
+            method: "get",
           }
         )
-          .then(res => res.json())
-          .then(result => {
-            this.topicList = result.map(item => {
+          .then((res) => res.json())
+          .then((result) => {
+            this.topicList = result.map((item) => {
               let to_port = _.get(item, "to_expand.port");
               item["fromdb"] = item.from.split("/").at(-1);
-              item["hostport"] = _.get(item, "to_expand.host") || "localhost"  + (to_port ? `:${to_port}` : "") ;
-              item["db"] = item.to_expand?item.to_expand.subject:item['fromdb'];
+              item["hostport"] =
+                _.get(item, "to_expand.host") ||
+                "localhost" + (to_port ? `:${to_port}` : "");
+              item["db"] = item.to_expand
+                ? item.to_expand.subject
+                : item["fromdb"];
               return item;
             });
           });
@@ -274,17 +306,15 @@ export default {
     async getDatabases() {
       try {
         this.dblist = await getDBListReq();
-
-        console.log(this.dblist, "获取数据库---");
       } catch (error) {
         console.log(error);
       }
-    }
+    },
   },
   created() {
     this.getDatabases();
     this.getReplication();
-  }
+  },
 };
 </script>
 <style lang="scss" scoped>

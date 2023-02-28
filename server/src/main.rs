@@ -1,8 +1,8 @@
-// #![feature(btree_drain_filter)]
+use actix_cors::Cors;
 use awc::error::JsonPayloadError;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use log::LevelFilter;
-use std::{fs::File, io::Read};
+use std::{fs::File, io::Read, path::PathBuf};
 
 use actix_embed::Embed;
 use actix_web::{
@@ -18,9 +18,23 @@ use serde::{Deserialize, Serialize};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let file_path = "/etc/taos/explorer.toml";
+    #[cfg(target_os = "windows")]
+    let mut file_path: PathBuf = std::path::Path::new("C:\\")
+        .join(env!("CUS_NAME"))
+        .join("cfg")
+        .join("explorer.toml");
+    #[cfg(not(target_os = "windows"))]
+    let mut file_path = std::path::Path::new("/etc")
+        .join(env!("CUS_PROMPT"))
+        .join("explorer.toml");
 
-    let args = if let Ok(mut file) = File::open(file_path) {
+    if let Ok(config) = ConfigPath::try_parse() {
+        if let Some(value) = config.config_file {
+            file_path = value;
+        }
+    }
+    let args = if let Ok(mut file) = File::open(&file_path) {
+        println!("Use configuration file path: {}", file_path.display());
         let mut content = String::new();
         file.read_to_string(&mut content)?;
         let mut args: Args = toml::from_str(&content).unwrap();
@@ -42,7 +56,12 @@ async fn main() -> std::io::Result<()> {
     let port = args.port.unwrap_or(EXPLORER_PORT);
     let args = web::Data::new(args);
     HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header();
         App::new()
+            .wrap(cors)
             .app_data(args.clone())
             .route("/", web::get().to(index))
             .route("/api/x/{api:.*}", web::to(x_api))
@@ -149,8 +168,18 @@ struct Profile {
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]
-#[clap(author, version, about, long_about = include_str!("../README.md"))]
+struct ConfigPath {
+    /// Configuration file
+    #[clap(short = 'C', long, env = "EXPLORER_CONFIG_FILE")]
+    config_file: Option<PathBuf>,
+}
+
+#[derive(Parser, Debug, Clone, Deserialize)]
+#[clap(author, version, about, long_about = include_str!(env!("CUS_README")))]
 struct Args {
+    /// Configuration file
+    #[clap(short = 'C', long, env = "EXPLORER_CONFIG_FILE")]
+    config_file: Option<PathBuf>,
     /// Port
     #[clap(
         short,
@@ -161,6 +190,7 @@ struct Args {
     )]
     #[serde(default)]
     port: Option<u16>,
+
     /// For verbosity logging.
     #[clap(flatten)]
     #[serde(skip)]

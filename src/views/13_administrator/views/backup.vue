@@ -1,9 +1,14 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="refresh" size="small" icon="el-icon-refresh">{{
-        $t("refresh")
-      }}</el-button>
+      <el-button
+        plain
+        @click="refresh"
+        size="small"
+        icon="el-icon-refresh"
+        :disabled="requestIng"
+        >{{ $t("refresh") }}</el-button
+      >
       <el-button plain @click="add" size="small" icon="el-icon-plus"
         >Create New Backup</el-button
       >
@@ -12,10 +17,59 @@
       <el-table-column label="ID" width="150" prop="id"></el-table-column>
       <el-table-column label="Database" prop="database"></el-table-column>
       <el-table-column label="Create Time" prop="created_at"></el-table-column>
-      <el-table-column
-        label="Last Backup Status"
-        prop="status"
-      ></el-table-column>
+      <el-table-column label="Last Backup Status" prop="status">
+        <template slot-scope="scope">
+          <div class="status-operation">
+            <el-tooltip
+              v-if="
+                ['stopped', 'finished', 'failed'].includes(
+                  scope.row.status.toLowerCase()
+                )
+              "
+              placement="bottom"
+              effect="light"
+              popper-class="backup"
+            >
+              <div v-html="scope.row.last_modified_at" slot="content"></div>
+              <div slot="content" v-html="scope.row.reason"></div>
+              <span style="width: 80px; display: inline-block">{{
+                scope.row.status
+              }}</span>
+            </el-tooltip>
+            <span style="width: 80px; display: inline-block" v-else>{{
+              scope.row.status
+            }}</span>
+            <!-- <template v-if="scope.row.status.toLowerCase() !== 'running'">
+              <el-tooltip
+                placement="bottom"
+                effect="light"
+                content="Excute Start"
+              >
+                <el-button
+                  plain
+                  size="small"
+                  @click="start(scope.row, scope.$index)"
+                  icon="el-icon-qidong"
+                ></el-button>
+              </el-tooltip>
+            </template>
+            <template v-else>
+              <el-tooltip
+                placement="bottom"
+                effect="light"
+                content="Excute Stop"
+              >
+                <el-button
+                  plain
+                  size="small"
+                  @click="stop(scope.row, scope.$index)"
+                  icon="el-icon-tingzhi"
+                ></el-button
+              ></el-tooltip>
+            </template> -->
+          </div>
+        </template>
+      </el-table-column>
 
       <el-table-column label="Operation" width="150">
         <template slot-scope="scope">
@@ -73,7 +127,7 @@
         :rules="rules"
         ref="ruleForm"
         size="mini"
-        label-width="auto"
+        label-width="120px"
         class="demo-ruleForm"
       >
         <el-form-item prop="cycle" required label="Backup Cycle">
@@ -130,11 +184,17 @@
 </template>
 <script>
 import { format } from "date-fns";
+import {
+  getBackupList,
+  addBackupData,
+  editBackup,
+} from "@/api/explorer/backup";
 import { Message } from "element-ui";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 export default {
   data() {
     return {
+      requestIng: false,
       dblist: [],
       isEditDialog: false,
       dialogTitle: "Create New Backup",
@@ -144,6 +204,7 @@ export default {
       dialog: false,
       operateStatus: true,
       currentRow: null,
+      clusterid: localStorage.getItem("local_clusterID"),
       ruleForm: {
         cycle: "",
         db: "",
@@ -262,7 +323,7 @@ export default {
     },
     async stop(val, data) {
       try {
-       await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
+        await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
           method: "post",
         }).then((res) => {
           if (res.status == 200) {
@@ -294,6 +355,12 @@ export default {
     async editBakcup(id) {
       //哪一项修改传参只传哪一项
       try {
+        let params ={
+          trigger: this.ruleForm.cycle
+        }
+        // await editBackup(this.clusterid,params).then(res=>{
+        //   console.log(res,'---edit--balcup');
+        // })
         await fetch(`${process.env.VUE_APP_X_API}/tasks/${id}`, {
           method: "put",
           body: JSON.stringify({
@@ -301,12 +368,12 @@ export default {
           }),
         }).then((res) => {
           console.log(res, "edit");
-          if(res.status==200){
-            this.getBackData()
-          }else{
-            Message.error(res.statusText)
+          if (res.status == 200) {
+            this.getBackData();
+          } else {
+            Message.error(res.statusText);
           }
-          this.dialog=false
+          this.dialog = false;
         });
       } catch (err) {
         err.desc && Message.error(err.desc);
@@ -315,28 +382,24 @@ export default {
     },
     async addBackup() {
       try {
-        await fetch(`${process.env.VUE_APP_X_API}/tasks?labels=type::backup,cluster-id::${localStorage.getItem("local_clusterID")}`, {
-          method: "post",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: "bakcup",
-            labels: [
-              "type::backup",
-              `cluster-id::${localStorage.getItem("local_clusterID")}`,
-            ],
-            trigger: this.ruleForm.cycle,
-            to: `local:${this.ruleForm.directory}`,
-            from: `tmq+${localStorage.getItem("base_url")}/${this.ruleForm.db}`,
-          }),
-        }).then((res) => {
-          if (res.ok || res.status == 201) {
+        let params = {
+          name: "bakcup",
+          labels: [
+            "type::backup",
+            `cluster-id::${localStorage.getItem("local_clusterID")}`,
+          ],
+          trigger: this.ruleForm.cycle,
+          to: `local:${this.ruleForm.directory}`,
+          from: `tmq+${localStorage.getItem("base_url")}/${this.ruleForm.db}`,
+        };
+        await addBackupData(this.clusterid, params).then((res) => {
+          if (res && Object.hasOwnProperty.call(res, "id")) {
             Message.success("Created Successfully!");
             this.getBackData();
             this.dialog = false;
           }
         });
+        
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
@@ -344,22 +407,16 @@ export default {
     },
     async getBackData() {
       try {
+        this.requestIng = true;
         let id = localStorage.getItem("local_clusterID");
-        fetch(
-          `${process.env.VUE_APP_X_API}/tasks?detail=true&labels=type::backup,cluster-id::${id}`,
-          {
-            method: "get",
-          }
-        )
-          .then((res) => res.json())
-          .then((result) => {
-            console.log(result);
-            this.topicList = result.map((item) => {
-              item["database"] = item.from.split("/").at(-1);
+        await getBackupList(id).then((result) => {
+          this.topicList = result.map((item) => {
+            item["database"] = item.from.split("/").at(-1);
 
-              return item;
-            });
+            return item;
           });
+        });
+        this.requestIng = false;
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);

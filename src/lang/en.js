@@ -1,6 +1,7 @@
 let agreementUrl = process.env.VUE_APP_AGREEMENT_URL;
 export default {
   //通用部分
+  sqlPreview: "SQL Preview",
   unknown: "Unknown Error!",
   download: "Download",
   isDel: "Are you sure you want to delete?",
@@ -769,10 +770,15 @@ export default {
     delUser: "Delete User",
   },
   stream: {
+    stableUpper: "STABLE",
+    tableUpper: "TABLE",
+    databaseUpper: "DATABASE",
+    subqueryUpper: "SUBQUERY",
     pageTitle: "Stream Processing",
     createStream: "Add New Stream",
     delStream: "Delete Stream",
     streamName: "Stream Name",
+    tableType: "Table Type",
     sourceDB: "Source DB",
     targetDB: "Target DB",
     targetTable: "Target Table",
@@ -783,6 +789,7 @@ export default {
   topic: {
     activities:'Activities',
     cvs:'CVS',
+    stable: "Super Table",
     //admin-user
     title: 'Topic',
     name:'Name',
