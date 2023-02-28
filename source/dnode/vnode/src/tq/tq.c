@@ -575,7 +575,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       return -1;
     }
 
-#if 1
     // till now, all data has been rsp to consumer, new data needs to push client once arrived.
     if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
         dataRsp.reqOffset.version == dataRsp.rspOffset.version) {
@@ -597,7 +596,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         return 0;
       }
     }
-#endif
     taosWUnLockLatch(&pTq->pushLock);
 
     if (tqSendDataRsp(pTq, pMsg, &req, &dataRsp) < 0) {
@@ -613,10 +611,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // for taosx
-  /*A(pHandle->execHandle.subType != TOPIC_SUB_TYPE__COLUMN);*/
-
   SMqMetaRsp metaRsp = {0};
-
   STaosxRsp taosxRsp = {0};
   tqInitTaosxRsp(&taosxRsp, &req);
 

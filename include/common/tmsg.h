@@ -2684,7 +2684,7 @@ typedef struct {
   char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
   int8_t  subType;
   int8_t  withMeta;
-  char*   qmsg;
+  char*   qmsg;     //SubPlanToString
   int64_t suid;
 } SMqRebVgReq;
 
