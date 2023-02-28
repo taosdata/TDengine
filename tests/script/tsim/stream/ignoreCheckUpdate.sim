@@ -12,9 +12,9 @@ sql create database test  vgroups 1;
 sql use test;
 sql create table t1(ts timestamp, a int, b int , c int);
 
-print create stream streams0 trigger at_once ignore update 1 into streamt as select  _wstart c1, count(*) c2, max(b) c3 from t1 interval(10s);
+print create stream streams0 trigger at_once IGNORE EXPIRED 0 ignore update 1 into streamt as select  _wstart c1, count(*) c2, max(b) c3 from t1 interval(10s);
 
-sql create stream streams0 trigger at_once ignore update 1 into streamt as select  _wstart c1, count(*) c2, max(b) c3 from t1 interval(10s);
+sql create stream streams0 trigger at_once IGNORE EXPIRED 0 ignore update 1 into streamt as select  _wstart c1, count(*) c2, max(b) c3 from t1 interval(10s);
 
 sql insert into t1 values(1648791213000,1,1,1);
 sql insert into t1 values(1648791213000,2,2,2);
