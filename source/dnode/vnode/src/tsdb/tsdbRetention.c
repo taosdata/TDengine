@@ -15,7 +15,7 @@
 
 #include "tsdb.h"
 
-static bool tsdbShouldDoRetention(STsdb *pTsdb, int64_t now) {
+static bool tsdbShouldDoRetentionImpl(STsdb *pTsdb, int64_t now) {
   for (int32_t iSet = 0; iSet < taosArrayGetSize(pTsdb->fs.aDFileSet); iSet++) {
     SDFileSet *pSet = (SDFileSet *)taosArrayGet(pTsdb->fs.aDFileSet, iSet);
     int32_t    expLevel = tsdbFidLevel(pSet->fid, &pTsdb->keepCfg, now);
@@ -38,19 +38,21 @@ static bool tsdbShouldDoRetention(STsdb *pTsdb, int64_t now) {
 
   return false;
 }
+bool tsdbShouldDoRetention(STsdb *pTsdb, int64_t now) {
+  bool should;
+  taosThreadRwlockRdlock(&pTsdb->rwLock);
+  should = tsdbShouldDoRetentionImpl(pTsdb, now);
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
+  return should;
+}
 
 int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
   int32_t code = 0;
-
-  if (!tsdbShouldDoRetention(pTsdb, now)) {
-    return code;
-  }
-
-  // do retention
+  int32_t lino = 0;
   STsdbFS fs = {0};
 
   code = tsdbFSCopy(pTsdb, &fs);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   for (int32_t iSet = 0; iSet < taosArrayGetSize(fs.aDFileSet); iSet++) {
     SDFileSet *pSet = (SDFileSet *)taosArrayGet(fs.aDFileSet, iSet);
@@ -60,8 +62,10 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
     if (expLevel < 0) {
       taosMemoryFree(pSet->pHeadF);
       taosMemoryFree(pSet->pDataF);
-      taosMemoryFree(pSet->aSttF[0]);
       taosMemoryFree(pSet->pSmaF);
+      for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
+        taosMemoryFree(pSet->aSttF[iStt]);
+      }
       taosArrayRemove(fs.aDFileSet, iSet);
       iSet--;
     } else {
@@ -78,35 +82,33 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
       fSet.diskId = did;
 
       code = tsdbDFileSetCopy(pTsdb, pSet, &fSet);
-      if (code) goto _err;
+      TSDB_CHECK_CODE(code, lino, _exit);
 
       code = tsdbFSUpsertFSet(&fs, &fSet);
-      if (code) goto _err;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
   // do change fs
   code = tsdbFSPrepareCommit(pTsdb, &fs);
-  if (code) goto _err;
-
-  taosThreadRwlockWrlock(&pTsdb->rwLock);
-
-  code = tsdbFSCommit(pTsdb);
-  if (code) {
-    taosThreadRwlockUnlock(&pTsdb->rwLock);
-    goto _err;
-  }
-
-  taosThreadRwlockUnlock(&pTsdb->rwLock);
-
-  tsdbFSDestroy(&fs);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  } else {
+    tsdbInfo("vgId:%d %s done", TD_VID(pTsdb->pVnode), __func__);
+  }
+  tsdbFSDestroy(&fs);
   return code;
+}
 
-_err:
-  tsdbError("vgId:%d, tsdb do retention failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  ASSERT(0);
-  // tsdbFSRollback(pTsdb->pFS);
-  return code;
+static int32_t tsdbCommitRetentionImpl(STsdb *pTsdb) { return tsdbFSCommit(pTsdb); }
+
+int32_t tsdbCommitRetention(STsdb *pTsdb) {
+  taosThreadRwlockWrlock(&pTsdb->rwLock);
+  tsdbCommitRetentionImpl(pTsdb);
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
+  tsdbInfo("vgId:%d %s done", TD_VID(pTsdb->pVnode), __func__);
+  return 0;
 }
