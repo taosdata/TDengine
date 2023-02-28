@@ -133,8 +133,7 @@ typedef struct {
   int64_t      snapshotVer;
   // const SSubmitReq* pReq;
 
-  SPackedData submit;
-
+  SPackedData         submit;
   SSchemaWrapper*     schema;
   char                tbName[TSDB_TABLE_NAME_LEN];
   int8_t              recoverStep;

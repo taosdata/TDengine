@@ -294,6 +294,10 @@ TEST(utilTest, tstrncspn) {
   const char* reject5 = "911";
   v = tstrncspn(p2, strlen(p2), reject5, 0);
   ASSERT_EQ(v, 14);
+
+  const char* reject6 = "Kk";
+  v = tstrncspn(p2, strlen(p2), reject6, 2);
+  ASSERT_EQ(v, 10);
 }
 
 TEST(utilTest, intToHextStr) {
