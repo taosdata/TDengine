@@ -61,7 +61,7 @@ export default {
         if (url) {
           OpenNewTab(url);
         } else {
-          OpenNewTab(process.env.VUE_APP_EXPLORER_API+'/profile');
+          // OpenNewTab(null);
         }
       }
     },

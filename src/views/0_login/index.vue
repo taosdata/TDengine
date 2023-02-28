@@ -184,7 +184,7 @@ import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
-import {getUrls} from '@/api/explorer/login'
+import { getUrls } from "@/api/explorer/login";
 export default {
   name: "Login",
   components: {
@@ -240,14 +240,13 @@ export default {
   },
   methods: {
     submitForm(formName) {
-      let reg =/^(http|https):\/\/([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*/;
+      let reg =
+        /^(http|https):\/\/([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*/;
       if (
         this.dynamicValidateForm.cluster &&
         !reg.test(this.dynamicValidateForm.cluster)
       ) {
-        Message.error(
-          "Please enter the correct cluster url ."
-        );
+        Message.error("Please enter the correct cluster url .");
         return;
       }
       this.$refs[formName].validate((valid) => {
@@ -266,8 +265,8 @@ export default {
       try {
         return sendSQLReq(` select id from information_schema.ins_cluster;`)
           .then((res) => {
-            let id = res.data.flat(Infinity).toString()
-            localStorage.setItem('local_clusterID',id)
+            let id = res.data.flat(Infinity).toString();
+            localStorage.setItem("local_clusterID", id);
           })
           .catch((err) => {
             err.desc && Message.error(err.desc);
@@ -299,48 +298,78 @@ export default {
             Authorization: token,
           },
           body: "select server_version()",
-        }).then((res) => {
-          if (res.status === 200) {
-            localStorage.setItem("TDengine-Token", token);
-            this.getClusterID();
-            this.$router.push({
-              path: "/explorer",
-            });
-          } else {
-            Message({
-              type: "error",
-              message: res.statusText,
-            });
-          }
-        }).catch(err=>{
-          Message.error('Faild to fetch,wrong cluster url!')
-        });
+        })
+          .then((res) => {
+            if (res.status === 200) {
+              localStorage.setItem("TDengine-Token", token);
+              this.getClusterID();
+              this.getUserAuthority();
+            } else {
+              Message({
+                type: "error",
+                message: res.statusText,
+              });
+            }
+          })
+          .catch((err) => {
+            Message.error("Faild to fetch,wrong cluster url!");
+          });
       } catch (error) {
-        console.log(error,'login');
+        console.log(error, "login");
       }
     },
     search() {
       this.hidden = true;
     },
-   async getClusterAndDashboardUrl(){
-    try {
-      await getUrls().then(res=>{
-        console.log(res,'login---url');
-        if(res&&res.cluster){
-          this.dynamicValidateForm.cluster=res.cluster
-        }
-        if(res&&res.dashboard){
-          localStorage.setItem('local_grafana',res.dashboard)
-        }
-      })
-    } catch (error) {
-      Message.error(error)
-    }
-    }
+    async getClusterAndDashboardUrl() {
+      try {
+        await getUrls().then((res) => {
+          console.log(res, "login---url");
+          if (res && res.cluster) {
+            this.dynamicValidateForm.cluster = res.cluster;
+          }
+          if (res && res.dashboard) {
+            localStorage.setItem("local_grafana", res.dashboard);
+          }
+        });
+      } catch (error) {
+        Message.error(error);
+      }
+    },
+    //获取登录用户权限
+    getUserAuthority() {
+      try {
+        return sendSQLReq(
+          `select version, (expire_time < now) as valid from information_schema.ins_cluster`
+        ).then((res) => {
+          if (res) {
+            let result = res.data.map((data) => {
+              return Object.fromEntries(
+                res.column_meta.map((item, index) => {
+                  return [item[0], data[index]];
+                })
+              );
+            });
+            if (
+              result.length > 0 &&
+              ["official", "trial"].includes(result[0].version)
+            ) {
+              this.$router.push({
+                path: "/explorer",
+              });
+            }else{
+              Message.error('Only enterprise edition is supported!')
+            }
+          }
+        });
+      } catch (err) {
+        Message.error('Only enterprise edition is supported')
+      }
+    },
   },
-  created(){
-    this.getClusterAndDashboardUrl()
-  }
+  created() {
+    this.getClusterAndDashboardUrl();
+  },
 };
 </script>
 <style lang="scss" scoped>
