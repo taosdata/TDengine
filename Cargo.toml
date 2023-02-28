@@ -38,8 +38,8 @@ tokio-util = { version = "0.7" }
 toml = "0.7.2"
 zstd = "0.12.1"
 
-actix-web = "4"
 actix-cors = "0.6.4"
+actix-web = "4"
 serde_json = { version = "1.0", features = ["raw_value"] }
 sqlx = { version = "0.6", features = ["sqlite", "chrono", "json"] }
 utoipa = { version = "3", features = ["actix_extras", "chrono"] }
@@ -49,13 +49,13 @@ utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }
 const_format = "0.2.30"
 metrics = "0.20.1"
 metrics-exporter-prometheus = { version = "0.11.0", default-features = false, features = ["push-gateway"] }
-sysinfo = "0.27.1"
 palaver = "0.2.8"
 shadow-rs = "0.20.0"
+sysinfo = "0.27.1"
 
 async-backtrace = "0.2.2"
-tracing = "0.1"
 dotenv = "0.15.0"
+tracing = "0.1"
 
 [dependencies.taos]
 version = "0.4.18"
@@ -78,12 +78,6 @@ sys = ["taos/native"]
 rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls"]
 native-tls = ["sqlx/runtime-tokio-native-tls", "taos/ws-native-tls"]
 disable-enterprise-only-validation = []
-
-[target.'cfg(target_env = "musl")']
-rustflags = ["-C", "target-feature=-crt-static"]
-
-[target.debug]
-rustflags = ["-Z", "sanitizer=address"]
 
 [profile.sanitizer]
 inherits = "dev"
