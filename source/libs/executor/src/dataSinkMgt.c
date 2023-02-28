@@ -38,15 +38,9 @@ int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHand
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
-      if (pParam == NULL) {
-        return TSDB_CODE_QRY_INVALID_INPUT;
-      }
       return createDataDeleter(&gDataSinkManager, pDataSink, pHandle, pParam);
     }
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
-      if (pParam == NULL) {
-        return TSDB_CODE_QRY_INVALID_INPUT;
-      }
       return createDataInserter(&gDataSinkManager, pDataSink, pHandle, pParam);
     }
   }
