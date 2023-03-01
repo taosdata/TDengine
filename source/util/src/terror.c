@@ -94,6 +94,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NO_AVAIL_DISK,                "No available disk")
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_FOUND,                    "Not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISKSPACE,                 "Out of disk space")
 TAOS_DEFINE_ERROR(TSDB_CODE_TIMEOUT_ERROR,                "Operation timeout")
+TAOS_DEFINE_ERROR(TSDB_CODE_NO_ENOUGH_DISKSPACE,          "No enough disk space")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STARTING,              "Database is starting up")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STOPPING,              "Database is closing down")

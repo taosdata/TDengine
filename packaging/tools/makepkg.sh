@@ -89,7 +89,7 @@ else
       ${build_dir}/bin/tdengine-datasource.zip \
       ${build_dir}/bin/tdengine-datasource.zip.md5sum"
   [ -f ${build_dir}/bin/taosx ] && taosx_bin="${build_dir}/bin/taosx"
-  explorer_bin_files=$(sh -c "ls ${build_dir}/bin/*-explorer")
+  explorer_bin_files=$(find ${build_dir}/bin/ -name '*-explorer')
 
   bin_files="${build_dir}/bin/${serverName} \
       ${build_dir}/bin/${clientName} \
