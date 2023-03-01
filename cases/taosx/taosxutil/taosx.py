@@ -83,7 +83,7 @@ class Runtaosx():
             target_port = int(target_taosd[1])
         thread_list.append(threading.Thread(target=self.remote_run, args=(
                                 0,taosx_setting['fqdn'][0], f"taosx run \
-                                    -f 'tmq{source_task}://{source_user_name}:{source_password}@{source_taosd_list[source][0]}:{source_port}/{dbname}.{tbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -f 'tmq{source_task}://{source_user_name}:{source_password}@{source_taosd_list[source][0]}:{source_port}/{dbname[source]}.{tbname[source]}?group.id={group_id}&timeout={timeout}'\
                                     -t 'taos{target_task}://{target_user_name}:{target_password}@{target_taosd[0]}:{target_port}/{target_dbname}'")))
     def run_taosx_stb_sync_with_topic(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,source_port,target_taosd,target_port,tbname,target_dbname,source,group_id,timeout,source_user_name='root',source_password='taosdata',target_user_name='root',target_password='taosdata'):
         if source_task == '':
