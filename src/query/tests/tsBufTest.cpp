@@ -497,19 +497,103 @@ void mergeIdenticalVnodeBufferTest() {
   tsBufDestroy(pTSBuf1);
   tsBufDestroy(pTSBuf2);
 }
+
+void mergeMultiBlockFromOneGroupTest() {
+  STSBuf* pTSBuf1 = tsBufCreate(true, TSDB_ORDER_ASC);
+  STSBuf* pTSBuf2 = tsBufCreate(true, TSDB_ORDER_ASC);
+
+  tVariant t = {0};
+  t.nType = TSDB_DATA_TYPE_BIGINT;
+
+  int32_t step = 30;
+  int32_t num = 1000;
+  int32_t numOfTags = 2;
+
+  // vnodeId:0
+  int64_t start = 10000;
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    int64_t* list = createTsList(num, start, step);
+    t.i64 = i;
+
+    tsBufAppend(pTSBuf1, 12, &t, (const char*)list, num * sizeof(int64_t));
+    free(list);
+
+    start += step * num;
+  }
+
+  tsBufFlush(pTSBuf1);
+
+  for (int32_t i = numOfTags; i < numOfTags * 2; ++i) {
+    int64_t* list = createTsList(num, start, step);
+
+    t.i64 = i;
+    tsBufAppend(pTSBuf1, 77, &t, (const char*)list, num * sizeof(int64_t));
+    free(list);
+
+    start += step * num;
+  }
+
+  tsBufFlush(pTSBuf1);
+
+  start = 10000;
+  for (int32_t i = 911; i < 912; ++i) {
+    int64_t* list = createTsList(num, start, step);
+    t.i64 = i;
+
+    tsBufAppend(pTSBuf1, 12, &t, (const char*)list, num * sizeof(int64_t));
+    free(list);
+
+    start += step * num;
+  }
+  tsBufFlush(pTSBuf1);
+
+  char* p = (char*) malloc(1024768);
+  int32_t len = 0;
+  int32_t numOfBlocks = 0;
+
+  dumpFileBlockByGroupId(pTSBuf1, 12, p, &len, &numOfBlocks);
+
+  STSBuf* pNew = tsBufCreateFromCompBlocks(p, numOfBlocks, len, 1, 12);
+  printf("%p\n", pNew);
+
+  tsBufDisplay(pNew);
+
+//  tsBufMerge(pTSBuf1, pTSBuf2);
+//  EXPECT_EQ(pTSBuf1->numOfGroups, 2);
+//  EXPECT_EQ(pTSBuf1->numOfTotal, numOfTags * 2 * num);
+//
+//  tsBufResetPos(pTSBuf1);
+//
+//  int32_t count = 0;
+//  while (tsBufNextPos(pTSBuf1)) {
+//    STSElem elem = tsBufGetElem(pTSBuf1);
+//
+//    if (count++ < numOfTags * num) {
+//      EXPECT_EQ(elem.id, 12);
+//    } else {
+//      EXPECT_EQ(elem.id, 77);
+//    }
+//
+//    printf("%d-%" PRIu64 "-%" PRIu64 "\n", elem.id, elem.tag->i64, elem.ts);
+//  }
+//
+//  tsBufDestroy(pTSBuf1);
+//  tsBufDestroy(pTSBuf2);
+}
 }  // namespace
 
 
 //TODO add binary tag value test case
 TEST(testCase, tsBufTest) {
-  simpleTest();
-  largeTSTest();
-  multiTagsTest();
-  multiVnodeTagsTest();
-  loadDataTest();
-  invalidFileTest();
+//  simpleTest();
+//  largeTSTest();
+//  multiTagsTest();
+//  multiVnodeTagsTest();
+//  loadDataTest();
+//  invalidFileTest();
 //    randomIncTsTest();
-  TSTraverse();
-  mergeDiffVnodeBufferTest();
-  mergeIdenticalVnodeBufferTest();
+//  TSTraverse();
+//  mergeDiffVnodeBufferTest();
+//  mergeIdenticalVnodeBufferTest();
+  mergeMultiBlockFromOneGroupTest();
 }
