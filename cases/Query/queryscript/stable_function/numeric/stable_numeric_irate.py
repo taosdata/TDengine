@@ -524,19 +524,19 @@ class TDTestQuery(TDCase):
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             #sql1 = "select %s from %s where %s tbname in ('%s_1') %s;"  % (func,self.table,interval_fill_and,self.table,time_window_new)
 
-                            sql2 = "select %s from %s where %s tbname in ('%s_1') and %s %s %s %s" %(func,self.table,interval_fill_and,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from %s where %s tbname in ('%s_1') and %s %s %s %s" %(func,self.table,interval_fill_ts_equal_and,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.result_0(sql2)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
-                            sql2 = "select * from (select %s from %s where %s tbname in ('%s_1') and %s %s %s %s)" %(func,self.table,interval_fill_and,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select * from (select %s from %s where %s tbname in ('%s_1') and %s %s %s %s)" %(func,self.table,interval_fill_ts_equal_and,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.result_0(sql2)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
 
-                            sql2 = "select %s from (select * from %s) where %s tbname in ('%s_1') and %s %s %s %s" %(func,self.table,interval_fill_and,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            sql2 = "select %s from (select * from %s) where %s tbname in ('%s_1') and %s %s %s %s" %(func,self.table,interval_fill_ts_equal_and,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                         
