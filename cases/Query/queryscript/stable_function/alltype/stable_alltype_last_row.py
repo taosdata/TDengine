@@ -252,7 +252,7 @@ class TDTestQuery(TDCase):
         # 1: support all table, support all data type  [hanshu = ['LAST_ROW']]
         # 2: support all int type \ double type  [hanshu = ['AVG','SUM','MIN','MAX']]
         # 3: support all int type \ double type \ ts type [hanshu = ['SPREAD']]
-        for i in (13,):
+        for i in (131,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -307,23 +307,14 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
 
                             sql2 = "select %s from %s where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_1,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_1,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_1,sql1,sql2)
                             sql= sql + sql2
                                       
@@ -864,7 +855,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'       
 
         # 1: support all table, support all data type  [hanshu = ['LAST_ROW']]
-        for i in (13,):
+        for i in (131,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -896,9 +887,6 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)                           
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
@@ -907,16 +895,10 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
                             
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
@@ -934,9 +916,6 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)                           
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
@@ -945,16 +924,10 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
                             
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts)" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s %s order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
@@ -1163,23 +1136,14 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s order by ts desc;'  % (func,self.table,time_window_new)                                                
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts desc" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts desc)" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s order by ts desc" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
@@ -1197,23 +1161,14 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s order by ts desc;'  % (func,self.table,interval_fill,time_window_new)                                                
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts desc);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            # self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                            # cur1.execute(sql2)
-                            # self.tdCreateData.explain_sql(sql2)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
@@ -1717,7 +1672,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'
                    
         # 1: support all table, support all data type  [hanshu = ['LAST_ROW']]
-        for i in (13,):
+        for i in (131,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -1939,7 +1894,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'
                    
         # 1: support all table, support all data type  [hanshu = ['LAST_ROW']]
-        for i in (13,):
+        for i in (131,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  

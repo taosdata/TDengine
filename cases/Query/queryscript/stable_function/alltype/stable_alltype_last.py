@@ -247,7 +247,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'         
                            
         # 1: support all table, support all data type  [hanshu = ['LAST']]
-        for i in (12,):
+        for i in (121,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -520,7 +520,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'       
 
         # 1: support all table, support all data type  [hanshu = ['LAST']]
-        for i in (121,):
+        for i in (12,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -637,7 +637,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'       
 
         # 1: support all table, support all data type  [hanshu = ['LAST']]
-        for i in (121,):
+        for i in (12,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -734,7 +734,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'       
 
         # 1: support all table, support all data type  [hanshu = ['LAST']]]
-        for i in (121,):
+        for i in (12,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -1285,7 +1285,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'       
 
         # 1: support all table, support all data type  [hanshu = ['LAST']]
-        for i in (121,):
+        for i in (12,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -1451,7 +1451,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'
                    
         # 1: support all table, support all data type  [hanshu = ['LAST']]
-        for i in (121,):
+        for i in (12,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -1505,7 +1505,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'
                    
         # 1: support all table, support all data type  [hanshu = ['LAST']]
-        for i in (121,):
+        for i in (12,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -1556,7 +1556,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'
 
         # 1: support all table, support all data type  [hanshu = ['LAST']]]
-        for i in (121,):
+        for i in (12,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -1807,7 +1807,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'
                    
         # 1: support all table, support all data type  [hanshu = ['LAST']]
-        for i in (121,):
+        for i in (12,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
