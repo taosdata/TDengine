@@ -291,10 +291,15 @@ void tqCloseReader(STqReader* pReader) {
 }
 
 int32_t tqSeekVer(STqReader* pReader, int64_t ver) {
+  // todo set the correct vgId
+  tqDebug("tmq poll: vgId:%d wal seek to version:%"PRId64, 0, ver);
   if (walReadSeekVer(pReader->pWalReader, ver) < 0) {
+    tqError("tmq poll: wal reader failed to seek to ver:%"PRId64, ver);
     return -1;
+  } else {
+    tqDebug("tmq poll: wal reader seek to ver:%"PRId64, ver);
+    return 0;
   }
-  return 0;
 }
 
 int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
@@ -302,28 +307,33 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
 
   while (1) {
     if (!fromProcessedMsg) {
-      if (walNextValidMsg(pReader->pWalReader) < 0) {
-        pReader->ver =
-            pReader->pWalReader->curVersion - (pReader->pWalReader->curInvalid | pReader->pWalReader->curStopped);
+      SWalReader* pWalReader = pReader->pWalReader;
+
+      if (walNextValidMsg(pWalReader) < 0) {
+        pReader->ver = pWalReader->curVersion - (pWalReader->curInvalid | pWalReader->curStopped);
         ret->offset.type = TMQ_OFFSET__LOG;
         ret->offset.version = pReader->ver;
         ret->fetchType = FETCH_TYPE__NONE;
         tqDebug("return offset %" PRId64 ", no more valid", ret->offset.version);
         return -1;
       }
-      void*   body = POINTER_SHIFT(pReader->pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
-      int32_t bodyLen = pReader->pWalReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
-      int64_t ver = pReader->pWalReader->pHead->head.version;
+
+      void*   body = POINTER_SHIFT(pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
+      int32_t bodyLen = pWalReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
+      int64_t ver = pWalReader->pHead->head.version;
+
+      tqDebug("tmq poll: extract submit msg from wal, version:%"PRId64" len:%d", ver, bodyLen);
+
 #if 0
-      if (pReader->pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
+      if (pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
         // TODO do filter
         ret->fetchType = FETCH_TYPE__META;
-        ret->meta = pReader->pWalReader->pHead->head.body;
+        ret->meta = pWalReader->pHead->head.body;
         return 0;
       } else {
 #endif
       tqReaderSetSubmitReq2(pReader, body, bodyLen, ver);
-      /*tqReaderSetDataMsg(pReader, body, pReader->pWalReader->pHead->head.version);*/
+      /*tqReaderSetDataMsg(pReader, body, pWalReader->pHead->head.version);*/
 #if 0
       }
 #endif
@@ -358,7 +368,7 @@ int32_t tqReaderSetDataMsg(STqReader* pReader, const SSubmitReq* pMsg, int64_t v
 //  if (tInitSubmitMsgIter(pMsg, &pReader->msgIter) < 0) return -1;
 //  while (true) {
 //    if (tGetSubmitMsgNext(&pReader->msgIter, &pReader->pBlock) < 0) return -1;
-//    tqDebug("submitnext vgId:%d, block:%p, dataLen:%d, len:%d, uid:%"PRId64, pReader->pWalReader->pWal->cfg.vgId, pReader->pBlock, pReader->msgIter.dataLen,
+//    tqDebug("submitnext vgId:%d, block:%p, dataLen:%d, len:%d, uid:%"PRId64, pWalReader->pWal->cfg.vgId, pReader->pBlock, pReader->msgIter.dataLen,
 //            pReader->msgIter.len, pReader->msgIter.uid);
 //    if (pReader->pBlock == NULL) break;
 //  }
@@ -371,10 +381,8 @@ int32_t tqReaderSetDataMsg(STqReader* pReader, const SSubmitReq* pMsg, int64_t v
 #endif
 
 int32_t tqReaderSetSubmitReq2(STqReader* pReader, void* msgStr, int32_t msgLen, int64_t ver) {
-  ASSERT(pReader->msg2.msgStr == NULL);
-  ASSERT(msgStr);
-  ASSERT(msgLen);
-  ASSERT(ver >= 0);
+  ASSERT(pReader->msg2.msgStr == NULL && msgStr && msgLen && (ver >= 0));
+
   pReader->msg2.msgStr = msgStr;
   pReader->msg2.msgLen = msgLen;
   pReader->msg2.ver = ver;
@@ -421,7 +429,10 @@ bool tqNextDataBlock(STqReader* pReader) {
 #endif
 
 bool tqNextDataBlock2(STqReader* pReader) {
-  if (pReader->msg2.msgStr == NULL) return false;
+  if (pReader->msg2.msgStr == NULL) {
+    return false;
+  }
+
   ASSERT(pReader->setMsg == 1);
 
   tqDebug("tq reader next data block %p, %d %" PRId64 " %d", pReader->msg2.msgStr, pReader->msg2.msgLen,
@@ -528,7 +539,7 @@ int32_t tqScanSubmitSplit(SArray* pBlocks, SArray* schemas, STqReader* pReader) 
     if (pReader->pSchema == NULL) {
       tqWarn("vgId:%d, cannot found tsschema for table: uid:%" PRId64 " (suid:%" PRId64
              "), version %d, possibly dropped table",
-             pReader->pWalReader->pWal->cfg.vgId, pReader->msgIter.uid, pReader->msgIter.suid, sversion);
+             pWalReader->pWal->cfg.vgId, pReader->msgIter.uid, pReader->msgIter.suid, sversion);
       pReader->cachedSchemaSuid = 0;
       terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
       return -1;
@@ -538,7 +549,7 @@ int32_t tqScanSubmitSplit(SArray* pBlocks, SArray* schemas, STqReader* pReader) 
     pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, pReader->msgIter.uid, sversion, 1);
     if (pReader->pSchemaWrapper == NULL) {
       tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
-             pReader->pWalReader->pWal->cfg.vgId, pReader->msgIter.uid, pReader->cachedSchemaVer);
+             pWalReader->pWal->cfg.vgId, pReader->msgIter.uid, pReader->cachedSchemaVer);
       pReader->cachedSchemaSuid = 0;
       terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
       return -1;

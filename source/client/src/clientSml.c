@@ -1154,13 +1154,16 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
     SSmlLineInfo  *elements = info->lines + i;
     SSmlTableInfo *tinfo = NULL;
     if (info->protocol == TSDB_SML_LINE_PROTOCOL) {
-      tinfo = *(SSmlTableInfo **)taosHashGet(info->childTables, elements->measure, elements->measureTagsLen);
+      SSmlTableInfo** tmp = (SSmlTableInfo **)taosHashGet(info->childTables, elements->measure, elements->measureTagsLen);
+      if(tmp) tinfo = *tmp;
     } else if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
-      tinfo = *(SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag,
+      SSmlTableInfo** tmp = (SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag,
                                              elements->measureLen + elements->tagsLen);
+      if(tmp) tinfo = *tmp;
     } else {
-      tinfo = *(SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag,
+      SSmlTableInfo** tmp = (SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag,
                                              elements->measureLen + elements->tagsLen);
+      if(tmp) tinfo = *tmp;
     }
 
     if (tinfo == NULL) {

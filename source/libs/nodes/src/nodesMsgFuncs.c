@@ -928,7 +928,7 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
         code = TSDB_CODE_FAILED;
         break;
       }
-      pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+      pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes + 1);
       if (NULL == pNode->datum.p) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;

@@ -383,7 +383,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
       break;
     }
 
-    int32_t code = getTableScanInfo(pOperator, &order, &scanFlag);
+    int32_t code = getTableScanInfo(pOperator, &order, &scanFlag, false);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }

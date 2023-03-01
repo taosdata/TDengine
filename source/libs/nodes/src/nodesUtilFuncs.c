@@ -2101,9 +2101,9 @@ void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-      pVal->pz = taosMemoryMalloc(pVal->nLen + VARSTR_HEADER_SIZE + 1);
-      memcpy(pVal->pz, pNode->datum.p, pVal->nLen + VARSTR_HEADER_SIZE);
-      pVal->pz[pVal->nLen + VARSTR_HEADER_SIZE] = 0;
+      pVal->pz = taosMemoryMalloc(pVal->nLen + 1);
+      memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+      pVal->pz[pVal->nLen] = 0;
       break;
     case TSDB_DATA_TYPE_JSON:
       pVal->nLen = getJsonValueLen(pNode->datum.p);

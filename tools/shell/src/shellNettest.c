@@ -21,7 +21,7 @@ static void shellWorkAsClient() {
   SRpcInit    rpcInit = {0};
   SEpSet      epSet = {.inUse = 0, .numOfEps = 1};
   SRpcMsg     rpcRsp = {0};
-  void *      clientRpc = NULL;
+  void       *clientRpc = NULL;
   char        pass[TSDB_PASSWORD_LEN + 1] = {0};
 
   taosEncryptPass_c((uint8_t *)("_pwd"), strlen("_pwd"), pass);
@@ -31,6 +31,7 @@ static void shellWorkAsClient() {
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = "_dnd";
+  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
 
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {
