@@ -41,11 +41,14 @@ static int32_t  mndProcessCreateDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessUseDbReq(SRpcMsg *pReq);
-static int32_t  mndProcessCompactDbReq(SRpcMsg *pReq);
 static int32_t  mndProcessTrimDbReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessGetDbCfgReq(SRpcMsg *pReq);
+
+#ifndef TD_ENTERPRISE
+int32_t mndProcessCompactDbReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+#endif
 
 int32_t mndInitDb(SMnode *pMnode) {
   SSdbTable table = {
