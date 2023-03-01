@@ -571,6 +571,7 @@ export const StringFn = [
     label: "UPPER",
   },
 ];
+
 // 转换函数
 export const CoversionFn = [
   // "CAST",
@@ -772,6 +773,7 @@ export const SelectorFn = [
 export const SeriesSpecificFn = ["CSUM", "DERIVATIVE", "DIFF", "IRATE", "MAVG", "SAMPLE", "STATECOUNT", "STATEDURATION", "STATEMENT"];
 // 系统信息函数
 export const SystemFn = ["DATABASE", "CLIENT_VERSION", "SERVER_VERSION", "SERVER_STATUS", "CURRENT_USER", "USER"];
+
 
 export const TDengineStringType = ["VARCHAR", "BINARY", "NCHAR"];
 export const TDengineNumberType = [
