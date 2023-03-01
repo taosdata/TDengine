@@ -407,7 +407,6 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf
     } else {
       int64_t ekey = pTsdbReader->window.ekey;
       pScanInfo->lastKey = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
-      pScanInfo->lastKeyInStt = pScanInfo->lastKey;
       pScanInfo->lastKeyInStt = ekey;
     }
 
@@ -3939,6 +3938,17 @@ int32_t tsdbSetTableList(STsdbReader* pReader, const void* pTableList, int32_t n
     STableBlockScanInfo* pInfo = getPosInBlockInfoBuf(&pReader->blockInfoBuf, i);
     pInfo->uid = pList[i].uid;
     pUidList->tableUidList[i] = pList[i].uid;
+
+    // todo extract method
+    if (ASCENDING_TRAVERSE(pReader->order)) {
+      int64_t skey = pReader->window.skey;
+      pInfo->lastKey = (skey > INT64_MIN) ? (skey - 1) : skey;
+      pInfo->lastKeyInStt = skey;
+    } else {
+      int64_t ekey = pReader->window.ekey;
+      pInfo->lastKey = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
+      pInfo->lastKeyInStt = ekey;
+    }
 
     taosHashPut(pReader->status.pTableMap, &pInfo->uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
   }
