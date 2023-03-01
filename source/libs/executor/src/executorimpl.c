@@ -1996,6 +1996,11 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
 
 int32_t extractTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNode, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
+  if (pHandle == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
   metaReaderInit(&mr, pHandle->meta, 0);
   int32_t code = metaGetTableEntryByUidCache(&mr, pScanNode->uid);
   if (code != TSDB_CODE_SUCCESS) {
