@@ -77,7 +77,7 @@ settings:
       version: 3.0.1.0
       config_file: /data/cyjia/data/taosd/taosadaper.toml
       adapter_config:
-        logLevel: info
+        logLevel: debug
         port: 6041
         taosConfigDir: /data/cyjia/data/taosd/cluster1
         log:

@@ -10,4 +10,5 @@ taostest --use=taosx_2d.yaml --case=taosx/full_backup.py --keep --containers
 taostest --use=taosx_2d.yaml --case=taosx/add_backup.py --keep --containers
 taostest --use=taosx_2d.yaml --case=taosx/update_backup.py --keep --containers
 # taostest --setup=taosx_2d.yaml --case=taosx/delete_backup.py --keep
+taostest --use=taosx_2d.yaml --case=taosx/sync_user.py --keep --containers
 
