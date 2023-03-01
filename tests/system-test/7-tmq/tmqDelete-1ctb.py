@@ -109,7 +109,7 @@ class TDTestCase:
                     'batchNum':   3000,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'endTs': 0,
-                    'pollDelay':  5,
+                    'pollDelay':  15,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -194,7 +194,7 @@ class TDTestCase:
                     'rowsPerTbl': 10000,
                     'batchNum':   5000,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  5,
+                    'pollDelay':  15,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -296,7 +296,7 @@ class TDTestCase:
                     'rowsPerTbl': 10000,
                     'batchNum':   5000,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  5,
+                    'pollDelay':  15,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
