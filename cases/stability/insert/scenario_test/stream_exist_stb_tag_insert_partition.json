@@ -210,6 +210,7 @@
       "stream_stb": "stream_test.output_streamtb",
       "trigger_mode": "at_once",
       "watermark": "30s",
+      "subtable": "(concat(tbname, \"suffix\"))",
       "fill_history": 1,
       "ignore_update": 1,
       "stream_stb_field": "(ts,c1,c2,c3)",
