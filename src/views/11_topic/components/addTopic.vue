@@ -299,7 +299,7 @@ export default {
               this.previewSql =
                 this.sqlPrefix +
                 this.info.topic_name +
-                ` AS STABLE \`${dbname}\`.\`${this.info.stbName}\``;
+                ` with meta AS STABLE \`${dbname}\`.\`${this.info.stbName}\``;
             } else {
               const subquery = this.$refs.subquery.getResultSet() || "";
               this.previewSql =

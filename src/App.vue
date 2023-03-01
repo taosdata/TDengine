@@ -16,4 +16,8 @@
   };
 </script>
 
-<style></style>
+<style lang="scss" scoped>
+  #app :deep(.CodeMirror-placeholder) {
+    color: #c0c4cc;
+  }
+</style>

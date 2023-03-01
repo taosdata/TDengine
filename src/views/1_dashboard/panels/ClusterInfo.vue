@@ -1,6 +1,6 @@
 <template>
   <div class="clusterInfo">
-    <section class="usage-content">
+    <section class="usage-content" v-if="JSON.stringify(this.cluster_info)!=='{}'">
       <div class="info_card block-border">
         <div class="uptime-value flexCenter nowrap">{{ updateTime }}</div>
         <div class="info_label">{{ $t("dashboard.uptime") }}</div>
@@ -130,6 +130,7 @@ export default {
     //没有配置grafana地址需要走接口展示页面
     async getDashData() {
       try {
+        console.log('dashboard ---api');
         await sendSQLReq(`show cluster`).then((res) => {
           let result = res.data.map((data) => {
             return Object.fromEntries(
@@ -146,8 +147,12 @@ export default {
     },
   },
   created() {
-    if (!localStorage.getItem("local_grafana")) {
+    console.log('dashboard----created',localStorage.getItem("local_grafana")==null,!localStorage.getItem("local_grafana"));
+    if (localStorage.getItem("local_grafana")==null) {
       this.getDashData();
+    }else{
+      this.$store.commit("app/SET_CLUSTER_INFO", null)
+      console.log(this.cluster_info,JSON.stringify(this.cluster_info)==='{}','kkkkk==');
     }
   },
 };

@@ -95,3 +95,10 @@ export function searchStable(prefix, dbname) {
     true
   );
 }
+
+// 判断超级表是否已经存在
+export function isStableExist(stbName, dbName) {
+  return sendSQLReq(
+    `select * from information_schema.ins_stables where db_name='${dbName.toLowerCase()}' and  stable_name='${stbName.toLowerCase()}'`
+  ).then(res => res.rows);
+}

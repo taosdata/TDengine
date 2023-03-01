@@ -44,7 +44,7 @@
         <p class="default-tip" v-html="learnMoreTip"></p>
       </div>
     </section>
-    <el-dialog align="center" :title="$t('stream.createStream')" width="800px" :visible.sync="dialog">
+    <!-- <el-dialog align="center" :title="$t('stream.createStream')" width="800px" :visible.sync="dialog">
       <el-input
         size="small"
         @input="errorText = ''"
@@ -55,9 +55,9 @@
         <template slot="prepend">{{ sqlPrefix }}</template>
         <template slot="append">
           <el-tooltip class="item" :content="sqlTip" effect="light">
-            <!-- <pre v-highlight class="pre-show" slot="content">
+            <pre v-highlight class="pre-show" slot="content">
               <code>{{sqlTip}}</code>
-            </pre> -->
+            </pre>
             <i class="el-icon-info"></i>
           </el-tooltip>
         </template>
@@ -71,14 +71,21 @@
           <el-button size="small" @click="createStream" class="w100" type="primary">{{ $t("confirm") }}</el-button>
         </el-col>
       </el-row>
+    </el-dialog> -->
+    <el-dialog :close-on-click-modal="false" align="center" :title="$t('stream.createStream')" width="800px" :visible.sync="dialog">
+      <AddForm type="stream" @close="close" :stream-list="streamList" />
     </el-dialog>
   </div>
 </template>
 
 <script>
+  import AddForm from "./components/addStream.vue";
   import { getStreams, createStream, delStream } from "@/api/stream";
   import { StreamDocsUrl } from "@/const";
   export default {
+    components: {
+      AddForm,
+    },
     data() {
       return {
         dialog: false,
@@ -146,15 +153,25 @@
       handlePageChange() {
         this.getStreams();
       },
+      close(){}
     },
   };
 </script>
 
-<style>
+<style lang='scss'>
   .sql-code {
     position: relative;
     text-align: left;
     padding: 3px 0;
     font-size: 16px;
+
   }
+  :deep(.CodeMirror) {
+    height: 100px;
+    .CodeMirror-placeholder {
+      color: #c0c4cc;
+    }
+  }
+  
+  
 </style>
