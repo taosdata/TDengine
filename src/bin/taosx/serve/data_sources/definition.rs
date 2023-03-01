@@ -337,6 +337,7 @@ impl DataSourceDefinition {
 
 #[test]
 fn test() {
+    use std::str::FromStr;
     let json = include_str!("tmq.json");
     let mut def: Vec<DataSourceDefinition> = serde_json::from_str(json).unwrap();
     let json2 = serde_json::to_string(&def).unwrap();
@@ -353,6 +354,7 @@ fn test() {
 
 #[test]
 fn test_values() {
+    use std::str::FromStr;
     let dsn = "tmq+ws://root:taosdata@localhost:6041/database?token=abc";
     let dsn = Dsn::from_str(&dsn).unwrap();
 }
