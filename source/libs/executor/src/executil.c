@@ -961,7 +961,11 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
     terrno = 0;
     goto end;
   } else {
-    if ((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) {
+    // found by uid key may slower than itera if pUidTagList size is too bigger
+    // Experimental param: 128
+    static int32_t THRESHOLD = 128;
+    if ((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX &&
+        taosArrayGetSize(pUidTagList) < THRESHOLD) {
       code = metaGetTableTagsByUids(metaHandle, pListInfo->suid, pUidTagList);
     } else {
       code = metaGetTableTags(metaHandle, pListInfo->suid, pUidTagList);
