@@ -69,7 +69,7 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
 
   int32_t order = TSDB_ORDER_ASC;
   int32_t scanFlag = MAIN_SCAN;
-  getTableScanInfo(pOperator, &order, &scanFlag);
+  getTableScanInfo(pOperator, &order, &scanFlag, false);
 
   int64_t ekey = pInfo->existNewGroupBlock->info.window.ekey;
   taosResetFillInfo(pInfo->pFillInfo, getFillInfoStart(pInfo->pFillInfo));
@@ -128,7 +128,7 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
 
   int32_t order = TSDB_ORDER_ASC;
   int32_t scanFlag = MAIN_SCAN;
-  getTableScanInfo(pOperator, &order, &scanFlag);
+  getTableScanInfo(pOperator, &order, &scanFlag, false);
 
   doHandleRemainBlockFromNewGroup(pOperator, pInfo, pResultInfo, pTaskInfo);
   if (pResBlock->info.rows > 0) {
