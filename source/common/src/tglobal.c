@@ -521,7 +521,6 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "numOfRpcSessions");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfRpcSessions = 2000;
     tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
     pItem->i32 = tsNumOfRpcSessions;
     pItem->stype = stype;
@@ -529,7 +528,6 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "timeToGetAvailableConn");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsTimeToGetAvailableConn = 1000;
     tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 1000000);
     pItem->i32 = tsTimeToGetAvailableConn;
     pItem->stype = stype;
