@@ -94,6 +94,13 @@ class TDFunction():
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         return all_column
+    def all_column_tbname_3_1(self):  
+        # LAST_ROW() 不能与 INTERVAL 一起使用   
+        hanshu = ['LAST_ROW']
+        column = ['(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_double)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        all_column = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        return all_column
        
     def int_cloumn(self):  
         # support all int type \ double type              
@@ -174,7 +181,9 @@ class TDFunction():
         elif i == 121:    #['LAST']
             func_stable_tbname_all = self.all_column_tbname_2_1()        
         elif i == 13:    #['LAST_ROW']
-            func_stable_tbname_all = self.all_column_tbname_3()
+            func_stable_tbname_all = self.all_column_tbname_3()        
+        elif i == 131:    #['LAST_ROW']
+            func_stable_tbname_all = self.all_column_tbname_3_1()
         elif i == 2:     #['AVG','SUM','MIN','MAX'] 
             func_stable_tbname_all = self.int_cloumn()
         elif i == 20:    #['SUM']
