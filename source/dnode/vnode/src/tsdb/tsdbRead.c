@@ -403,12 +403,14 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf
     if (ASCENDING_TRAVERSE(pTsdbReader->order)) {
       int64_t skey = pTsdbReader->window.skey;
       pScanInfo->lastKey = (skey > INT64_MIN) ? (skey - 1) : skey;
+      pScanInfo->lastKeyInStt = skey;
     } else {
       int64_t ekey = pTsdbReader->window.ekey;
       pScanInfo->lastKey = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
+      pScanInfo->lastKeyInStt = pScanInfo->lastKey;
+      pScanInfo->lastKeyInStt = ekey;
     }
 
-    pScanInfo->lastKeyInStt = pScanInfo->lastKey;
     taosHashPut(pTableMap, &pScanInfo->uid, sizeof(uint64_t), &pScanInfo, POINTER_BYTES);
     tsdbTrace("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pTsdbReader, pScanInfo->uid,
               pScanInfo->lastKey, pTsdbReader->idStr);
@@ -1809,9 +1811,6 @@ static bool nextRowFromLastBlocks(SLastBlockReader* pLastBlockReader, STableBloc
     if (!hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->lastBlockDelIndex, &k, pLastBlockReader->order, pVerRange)) {
       // the qualifed ts may equal to k.ts, only a greater version one.
       // here we need to fallback one step.
-//      if (pScanInfo->lastKey == k.ts) {
-//        pScanInfo->lastKey -= step;
-//      }
       return true;
     }
   }
