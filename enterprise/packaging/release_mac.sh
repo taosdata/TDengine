@@ -110,7 +110,14 @@ fi
 
 taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeper`
 
-sudo cp -rf /opt/Homebrew/Cellar/tdengine/$version/ /opt/tdengine/
+if [ -d "/usr/local/Cellar/tdengine/$version" ];then
+  sudo cp -rf /usr/local/Cellar/tdengine/$version/ /opt/tdengine/
+elif [ -d "/opt/homebrew/Cellar/tdengine/$version" ];then
+  sudo cp -rf /opt/homebrew/Cellar/tdengine/$version/ /opt/tdengine/
+else
+  sudo cp -rf /usr/local/taos/ /opt/tdengine/
+fi
+
 sudo rm -rf /opt/tdengine/data
 sudo rm -rf /opt/tdengine/log
 sudo mkdir -p /opt/tdengine/service
