@@ -1250,6 +1250,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
       if (terrno == TSDB_CODE_MND_DB_IN_CREATING) {
         mInfo("db:%s, is creating", usedbReq.db);
         code = terrno;
+
         goto _OVER;
       }
 
