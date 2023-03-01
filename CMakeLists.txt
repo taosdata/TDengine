@@ -32,6 +32,7 @@ add_subdirectory(enterprise/contrib)
 
 set( TD_SOURCE_DIR ${TD_COMMUNITY_DIR} )
 
+set(TD_ENTERPRISE TRUE)
 SET(TD_ACCOUNT TRUE)
 SET(TD_ADMIN TRUE)
 SET(TD_VNODE_PLUGINS TRUE)
