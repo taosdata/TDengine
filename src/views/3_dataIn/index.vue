@@ -1,6 +1,6 @@
 <template>
   <div class="page-wrapper">
-    <MainContentHeader :title="$t('route.dataIn')"></MainContentHeader>
+    <MainContentHeader :title="routeTitle"></MainContentHeader>
     
     <div class="content">
       <router-view></router-view>
@@ -21,6 +21,16 @@ export default {
   data() {
     return {};
   },
+  computed: {
+      routeTitle() {
+        let result = this.$t("route.dataIn");
+
+        if (this.$route.params?.lang) {
+          result += " - " + this.$route.params.lang;
+        }
+        return result;
+      },
+    },
   watch: {},
   methods: {},
 };
