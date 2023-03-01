@@ -797,8 +797,9 @@ class TDCreateData():
             try:
                 self.tdSql.query(insert_into_sql,queryTimes=1) 
                 row = self.tdSql.query(insert_into_sql).row_count 
-                self.tdSql.query(sql,queryTimes=1) 
-                row1 = self.tdSql.query(sql).row_count 
+                insert_sql = "select * from stable_null_data;"
+                self.tdSql.query(insert_sql,queryTimes=1) 
+                #row1 = self.tdSql.query(insert_sql).row_count 
                 if (row>=0):
                     sql_verbose_true = "explain verbose true " + insert_into_sql 
                     self.tdSql.query(sql_verbose_true) 
@@ -820,8 +821,9 @@ class TDCreateData():
             try:
                 self.tdSql.query(insert_into_sql,queryTimes=1) 
                 row = self.tdSql.query(insert_into_sql).row_count 
-                self.tdSql.query(sql,queryTimes=1) 
-                row1 = self.tdSql.query(sql).row_count 
+                insert_sql = "select * from stable_null_data;"
+                self.tdSql.query(insert_sql,queryTimes=1) 
+                #row1 = self.tdSql.query(insert_sql).row_count 
                 if (row>=0):
                     sql_ratio_verbose_true = "explain ratio 0.05 verbose true "  + insert_into_sql 
                     self.tdSql.query(sql_ratio_verbose_true) 
@@ -843,8 +845,9 @@ class TDCreateData():
             try:
                 self.tdSql.query(insert_into_sql,queryTimes=1) 
                 row = self.tdSql.query(insert_into_sql).row_count 
-                self.tdSql.query(sql,queryTimes=1) 
-                row1 = self.tdSql.query(sql).row_count 
+                insert_sql = "select * from stable_null_data;"
+                self.tdSql.query(insert_sql,queryTimes=1) 
+                #row1 = self.tdSql.query(insert_sql).row_count 
                 if (row>=0):
                     sql_analyze_verbose_true = "explain analyze verbose true " + insert_into_sql 
                     self.tdSql.query(sql_analyze_verbose_true) 
@@ -866,8 +869,9 @@ class TDCreateData():
             try:
                 self.tdSql.query(insert_into_sql,queryTimes=1) 
                 row = self.tdSql.query(insert_into_sql).row_count 
-                self.tdSql.query(sql,queryTimes=1) 
-                row1 = self.tdSql.query(sql).row_count 
+                insert_sql = "select * from stable_null_data;"
+                self.tdSql.query(insert_sql,queryTimes=1) 
+                #row1 = self.tdSql.query(insert_sql).row_count 
                 if (row>=0):
                     sql_analyze_ratio_verbose_true = "explain analyze ratio {} verbose true ".format(ratio) + insert_into_sql 
                     self.tdSql.query(sql_analyze_ratio_verbose_true) 
@@ -942,7 +946,8 @@ class TDCreateData():
         #self.value_check(sql1_row,sql2_row,sql1,sql2)
        
         if  (list1 == list2) and len(list2)>0:
-            self.logger.info(("===list=_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+            #self.logger.info(("===list=_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+            self.logger.info(("===list=_===sql1: result = sql2:'' result"))
         elif  (list1.sort() == list2.sort()):
             self.logger.info(("===list=sort_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         elif str(list1).replace("]","").replace("[","") == str(list2).replace("]","").replace("[",""):
