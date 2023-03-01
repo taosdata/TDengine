@@ -856,14 +856,14 @@ impl SourceOpts {
             match assert.as_str() {
                 "false" => opts.assert = false,
                 "" | "true" => opts.assert = true,
-                _ => anyhow::bail!("assert in target dsn should be only empty, or true/false"),
+                _ => anyhow::bail!("assert in source dsn should be only empty, or true/false"),
             }
         }
         if let Some(value) = dsn.remove("forever") {
             match value.as_str() {
                 "false" => opts.forever = false,
                 "" | "true" => opts.forever = true,
-                _ => anyhow::bail!("assert in target dsn should be only empty, or true/false"),
+                _ => anyhow::bail!("forever in source dsn should be only empty, or true/false"),
             }
         }
         if let Some(limit) = dsn.remove("limit") {
@@ -1000,6 +1000,7 @@ pub async fn legacy_to_taos(
 ) -> anyhow::Result<()> {
     let _ = (actions, jobs);
     log::info!("synchronization started in legacy mode");
+    let from_database = from.subject.clone().unwrap();
     let mut source_opts = SourceOpts::from_params(&mut from)?;
     let target_opts = TargetOpts::from_params(&mut to)?;
 
@@ -1007,33 +1008,97 @@ pub async fn legacy_to_taos(
     let from_pool = TaosBuilder::from_dsn(&from)?.pool()?;
     let from = from_pool.get()?;
 
-    if target_opts.assert {
-        if let Some(db) = to.subject.take() {
-            let target = TaosBuilder::from_dsn(&to)?.build()?;
-            if target.exec(format!("use `{db}`")).await.is_err() {
-                target
-                    .exec(format!(
-                        "create database if not exists `{db}` {}",
-                        target_opts.database_options.as_deref().unwrap_or("")
-                    ))
-                    .await?;
-            };
-            to.subject = Some(db);
-        } else {
-            anyhow::bail!("Target database should be set!");
-        }
-    }
     let to_builder = TaosBuilder::from_dsn(&to)?;
-    let to_pool = TaosBuilder::from_dsn(&to)?.pool()?;
-    // let to = to_builder.build()?;
-    let to = to_pool.get()?;
-
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
     if !is_available_enterprise_edition(&from_builder).await
         && !is_available_enterprise_edition(&to_builder).await
     {
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }
+
+    let source_taos = from_builder.build()?;
+    if target_opts.assert {
+        // use take there to avoid [Error: [0x0383] Invalid database name] when execute sql with no database
+        if let Some(db) = to.subject.take() {
+            let target = to_builder.build()?;
+            if target.exec(format!("use `{db}`")).await.is_err() {
+                if let Some(database_options) = target_opts.database_options.clone() {
+                    target
+                        .exec(format!(
+                            "create database if not exists `{db}` {}",
+                            database_options
+                        ))
+                        .await?;
+                } else {
+                    // param mapping
+                    let (_, sql): ((), String) = source_taos
+                        .query_one(format!("show create database `{}`", from_database.clone()))
+                        .await?
+                        .unwrap();
+                    let from_version: String = source_taos
+                        .query_one("select server_version()")
+                        .await?
+                        .unwrap();
+                    let to_version: String =
+                        target.query_one("select server_version()").await?.unwrap();
+
+                    let option_iter: Vec<&str> = sql.split(' ').collect();
+                    let mut option_str = String::new();
+                    for (i, s) in option_iter.iter().enumerate() {
+                        if i > 2 {
+                            // ignore create database `dbname`
+                            option_str.push_str(s);
+                            option_str.push_str(" ");
+                        }
+                    }
+                    let ultimate_database_option =
+                        if from_version.starts_with("2") && to_version.starts_with("3") {
+                            database_options_2to3(option_str.as_str()).unwrap()
+                        } else if from_version.starts_with("3") && to_version.starts_with("2") {
+                            database_options_3to2(option_str.as_str()).unwrap()
+                        } else {
+                            // same version or version out of consider
+                            option_str.clone()
+                        };
+                    log::info!(
+                        "original data option:{}, ultimate database option: {}",
+                        option_str,
+                        ultimate_database_option
+                    );
+                    target
+                        .exec(format!(
+                            "create database if not exists `{db}` {}",
+                            ultimate_database_option
+                        ))
+                        .await?;
+                }
+            };
+            to.subject = Some(db);
+        } else {
+            anyhow::bail!("Target database should be set!");
+        }
+    }
+    let (_, from_database_create_sql): ((), String) = source_taos
+        .query_one(format!("show create database `{}`", from_database))
+        .await?
+        .unwrap();
+
+    let target = TaosBuilder::from_dsn(&to)?.build()?;
+    let (_, to_database_create_sql): ((), String) = target
+        .query_one(format!(
+            "show create database `{}`",
+            to.subject.clone().unwrap()
+        ))
+        .await?
+        .unwrap();
+    if get_precision(from_database_create_sql) != get_precision(to_database_create_sql) {
+        anyhow::bail!("from and to databases have different precision");
+    }
+
+    // let (_, sql): ((), String) = show_create_database(&source_taos, &from_database);
+    let to_pool = TaosBuilder::from_dsn(&to)?.pool()?;
+    // let to = to_builder.build()?;
+    let to = to_pool.get()?;
 
     let metrics = Arc::new(LegacyMetrics::default());
 
@@ -1111,6 +1176,332 @@ pub async fn legacy_to_taos(
     Ok(())
 }
 
+fn get_precision(database_create_sql: String) -> Option<String> {
+    let vec: Vec<&str> = database_create_sql.split(' ').collect();
+    let mut index = 0;
+    while index < vec.len() {
+        if "PRECISION".eq_ignore_ascii_case(&vec[index]) {
+            index += 1;
+            return Some(String::from(vec[index]));
+        }
+        index += 1;
+    }
+    // it should't return this
+    None
+}
+
+fn database_options_2to3(options: &str) -> Option<String> {
+    let mut result = String::new();
+    let vec: Vec<&str> = options.split(" ").collect();
+    let mut index = 0;
+    let options_2 = vec![
+        "CACHE",
+        "BLOCKS",
+        "DAYS",
+        "KEEP",
+        "MINROWS",
+        "MAXROWS",
+        "WAL",
+        "FSYNC",
+        "UPDATE",
+        "CACHELAST",
+        "REPLICA",
+        "QUORUM",
+        "COMP",
+        "PRECISION",
+    ];
+    let options_3 = vec![
+        "BUFFER",
+        "DURATION",
+        "KEEP",
+        "MINROWS",
+        "MAXROWS",
+        "WAL_LEVEL",
+        "WAL_FSYNC_PERIOD",
+        "CACHEMODEL",
+        "CACHESIZE",
+        "REPLICA",
+        "COMP",
+        "PRECISION",
+        "PAGES",
+        "PAGESIZE",
+        "RETENTIONS",
+        "VGROUPS",
+        "SINGLE_STABLE",
+        "STT_TRIGGER",
+        "TABLE_PREFIX",
+        "TABLE_SUFFIX",
+        "TSDB_PAGESIZE",
+        "WAL_RETENTION_PERIOD",
+        "WAL_RETENTION_SIZE",
+        "WAL_ROLL_PERIOD",
+        "WAL_SEGMENT_SIZE",
+    ];
+    let mut cache = 0;
+    let mut blocks = 0;
+    while index < vec.len() {
+        if options_2.contains(&vec[index]) {
+            index += 1;
+            if index < vec.len()
+                && !options_2.contains(&vec[index])
+                && !options_3.contains(&vec[index])
+            // 是一个值
+            {
+                if "CACHE".eq_ignore_ascii_case(&vec[index - 1]) {
+                    let cache_result = String::from(vec[index]).parse::<u32>();
+                    if cache_result.is_ok() {
+                        cache = cache_result.unwrap();
+                    }
+                }
+                if "BLOCKS".eq_ignore_ascii_case(&vec[index - 1]) {
+                    let blocks_result = String::from(vec[index]).parse::<u32>();
+                    if blocks_result.is_ok() {
+                        blocks = blocks_result.unwrap();
+                    }
+                }
+                result.push_str(&process_option2to3_pair(&vec[index - 1], &vec[index]));
+            } else {
+                index -= 1;
+                result.push_str(&process_option2to3_pair(&vec[index], ""));
+            }
+        } else {
+            result.push_str(&process_option2to3_pair(&vec[index], ""));
+        }
+        index += 1;
+    }
+    if cache == 0 && blocks != 0 {
+        cache = 1;
+    }
+    if blocks == 0 && cache != 0 {
+        blocks = 1;
+    }
+    if cache != 0 && blocks != 0 {
+        result.push_str(" BUFFER ");
+        result.push_str((cache * blocks).to_string().as_str());
+    }
+    Some(result)
+}
+
+fn process_option2to3_pair(option: &str, option_value: &str) -> String {
+    match option {
+        "DAYS" => {
+            let mut new_option = String::from(" DURATION ");
+            new_option.push_str(option_value);
+            new_option
+        }
+        "CACHELAST" => {
+            let mut new_option = String::from(" CACHEMODEL ");
+            let parse_result = String::from(option_value).parse::<u32>();
+            if parse_result.is_ok() {
+                let cache_last = parse_result.unwrap();
+                match cache_last {
+                    0 => new_option.push_str("'none'"),
+                    1 => new_option.push_str("'last_row'"),
+                    2 => new_option.push_str("'last_value'"),
+                    3 => new_option.push_str("'both'"),
+                    _ => new_option.push_str(option_value),
+                }
+            } else {
+                new_option.push_str(option_value);
+            }
+            new_option
+        }
+        "KEEP" | "MINROWS" | "MAXROWS" | "REPLICA" | "COMP" | "PRECISION" => {
+            same_option(option, option_value)
+        }
+        "WAL" => {
+            let mut new_option = String::from(" WAL_LEVEL ");
+            new_option.push_str(option_value);
+            new_option
+        }
+        "FSYNC" => {
+            let mut new_option = String::from(" WAL_FSYNC_PERIOD ");
+            new_option.push_str(option_value);
+            new_option
+        }
+        // ignore
+        "UPDATE" | "QUORUM" | "CACHE" | "BLOCKS" => String::new(),
+        _ => String::new(),
+    }
+}
+
+fn same_option(option: &str, option_value: &str) -> String {
+    let mut same_option = String::new();
+    same_option.push_str(" ");
+    same_option.push_str(option);
+    if !option_value.is_empty() {
+        same_option.push_str(" ");
+    }
+    same_option.push_str(option_value);
+    same_option
+}
+
+fn database_options_3to2(options: &str) -> Option<String> {
+    let mut result = String::new();
+    let vec: Vec<&str> = options.split(" ").collect();
+    let options_2 = vec![
+        "CACHE",
+        "BLOCKS",
+        "DAYS",
+        "KEEP",
+        "MINROWS",
+        "MAXROWS",
+        "WAL",
+        "FSYNC",
+        "UPDATE",
+        "CACHELAST",
+        "REPLICA",
+        "QUORUM",
+        "COMP",
+        "PRECISION",
+    ];
+    let options_3 = vec![
+        "BUFFER",
+        "DURATION",
+        "KEEP",
+        "MINROWS",
+        "MAXROWS",
+        "WAL_LEVEL",
+        "WAL_FSYNC_PERIOD",
+        "CACHEMODEL",
+        "CACHESIZE",
+        "REPLICA",
+        "COMP",
+        "PRECISION",
+        "PAGES",
+        "PAGESIZE",
+        "RETENTIONS",
+        "VGROUPS",
+        "SINGLE_STABLE",
+        "STT_TRIGGER",
+        "TABLE_PREFIX",
+        "TABLE_SUFFIX",
+        "TSDB_PAGESIZE",
+        "WAL_RETENTION_PERIOD",
+        "WAL_RETENTION_SIZE",
+        "WAL_ROLL_PERIOD",
+        "WAL_SEGMENT_SIZE",
+    ];
+    // let map :HashMap<String, String>= HashMap::new();
+    let mut index = 0;
+    while index < vec.len() {
+        if options_3.contains(&vec[index]) {
+            index += 1;
+            if index < vec.len()
+                && !options_2.contains(&vec[index])
+                && !options_3.contains(&vec[index])
+            // 是一个值
+            {
+                result.push_str(&process_option_pair(&vec[index - 1], &vec[index]));
+            } else {
+                index -= 1;
+                result.push_str(&process_option_pair(&vec[index], ""));
+            }
+        } else {
+            result.push_str(&process_option_pair(&vec[index], ""));
+        }
+
+        index += 1;
+    }
+    Option::Some(result)
+}
+
+fn process_option_pair<'a>(option: &str, option_value: &str) -> String {
+    match option {
+        "BUFFER" => {
+            let value_result = String::from(option_value).parse::<u32>();
+            if value_result.is_ok() {
+                let mut new_option = String::from(" CACHE ");
+                let buffer = value_result.unwrap();
+                new_option.push_str("16 ");
+                new_option.push_str("BLOCKS ");
+                new_option.push_str((buffer / 16).to_string().as_str());
+                new_option
+            } else {
+                println!("option_value not a number");
+                same_option(option, option_value)
+            }
+        }
+        "DURATION" => {
+            let mut new_option = String::from(" DAYS ");
+            new_option.push_str(&process_unit_value(option_value));
+            new_option
+        }
+        "KEEP" => {
+            let mut new_option = String::from(" KEEP ");
+            let value_array: Vec<&str> = option_value.split(",").collect();
+            if value_array.get(0).is_some() {
+                new_option.push_str(&process_unit_value(value_array.get(0).unwrap()));
+            }
+            new_option
+        }
+        "MINROWS" | "MAXROWS" | "REPLICA" | "COMP" | "PRECISION" => {
+            same_option(option, option_value)
+        }
+        "WAL_LEVEL" => {
+            let mut new_option = String::from(" WAL ");
+            new_option.push_str(option_value);
+            new_option
+        }
+        "WAL_FSYNC_PERIOD" => {
+            let mut new_option = String::from(" FSYNC ");
+            new_option.push_str(option_value);
+            new_option
+        }
+        "CACHEMODEL" => {
+            let mut new_option = String::from(" CACHELAST ");
+            match option_value {
+                "'none'" => new_option.push_str("0"),
+                "'last_row'" => new_option.push_str("1"),
+                "'last_value'" => new_option.push_str("2"),
+                "'both'" => new_option.push_str("3"),
+                _ => new_option.push_str(""),
+            }
+            new_option
+        }
+        // ignore
+        "CACHESIZE"
+        | "PAGES"
+        | "PAGESIZE"
+        | "RETENTIONS"
+        | "VGROUPS"
+        | "SINGLE_STABLE"
+        | "TABLE_PREFIX"
+        | "TABLE_SUFFIX"
+        | "TSDB_PAGESIZE"
+        | "WAL_RETENTION_PERIOD"
+        | "WAL_RETENTION_SIZE"
+        | "WAL_ROLL_PERIOD"
+        | "WAL_SEGMENT_SIZE" => String::new(),
+        _ => String::new(),
+    }
+}
+
+fn process_unit_value(option_value: &str) -> String {
+    let mut unit = "d";
+    let option_len = option_value.len();
+    if option_len > 1 {
+        unit = &option_value[option_len - 1..option_len];
+    }
+    match unit {
+        "d" => String::from(option_value),
+        "m" => {
+            let minutes_str = &option_value[0..option_len - 1];
+            let minutes: u32 = minutes_str.parse().expect("need a number");
+            let days = minutes / (24 * 60);
+            days.to_string()
+        }
+        "h" => {
+            let hours: u32 = (&option_value[0..option_len - 1])
+                .parse()
+                .expect("need a number");
+            let days = hours / 24;
+            days.to_string()
+        }
+        _ => String::from(option_value),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1159,5 +1550,35 @@ mod tests {
         };
         legacy_to_taos(v3, vec![], v2, 1).await?;
         Ok(())
+    }
+
+    #[test]
+    fn test_database_options_2to3() {
+        let options2_1 = "REPLICA 1 QUORUM 1 DAYS 10 KEEP 3650 CACHE 16 BLOCKS 6 MINROWS 100 MAXROWS 4096 WAL 1 FSYNC 3000 COMP 2 CACHELAST 0 PRECISION 'ms' UPDATE 0";
+        assert_eq!(" REPLICA 1 DURATION 10 KEEP 3650 MINROWS 100 MAXROWS 4096 WAL_LEVEL 1 WAL_FSYNC_PERIOD 3000 COMP 2 CACHEMODEL 'none' PRECISION 'ms' BUFFER 96", database_options_2to3(options2_1).unwrap());
+        let option2_2 = "REPLICA 1 QUORUM 1";
+        assert_eq!(" REPLICA 1", database_options_2to3(option2_2).unwrap());
+        let option2_3 = "REPLICA QUORUM DAYS 10 KEEP";
+        assert_eq!(
+            " REPLICA DURATION 10 KEEP",
+            database_options_2to3(option2_3).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_database_options_3to2() {
+        let options3_1 = "BUFFER 256 CACHESIZE 1 CACHEMODEL 'none' COMP 2 DURATION 14400m WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 STT_TRIGGER 1 KEEP 5256000m,5256000m,5256000m PAGES 256 PAGESIZE 4 PRECISION 'ms' REPLICA 1 WAL_LEVEL 1 VGROUPS 2 SINGLE_STABLE 0";
+        assert_eq!(" CACHE 16 BLOCKS 16 CACHELAST 0 COMP 2 DAYS 10 FSYNC 3000 MAXROWS 4096 MINROWS 100 KEEP 3650 PRECISION 'ms' REPLICA 1 WAL 1", database_options_3to2(options3_1).unwrap());
+        let option3_2 = "BUFFER CACHESIZE 1 CACHEMODEL";
+        assert_eq!(
+            " BUFFER CACHELAST ",
+            database_options_3to2(option3_2).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_get_precision() {
+        assert_eq!(get_precision(String::from("PRECISION 'ms' REPLICA 1")), get_precision(String::from("CREATE DATABASE `test2` REPLICA 1 QUORUM 1 DAYS 10 KEEP 3650 CACHE 16 BLOCKS 6 MINROWS 100 MAXROWS 4096 WAL 1 FSYNC 3000 COMP 2 CACHELAST 0 PRECISION 'ms' UPDATE 0")));
+        assert_ne!(get_precision(String::from("CREATE DATABASE `test2` REPLICA 1 QUORUM 1 DAYS 10 KEEP 3650 CACHE 16 BLOCKS 6 MINROWS 100 MAXROWS 4096 WAL 1 FSYNC 3000 COMP 2 CACHELAST 0 PRECISION 'us' UPDATE 0")), get_precision(String::from("CREATE DATABASE `test2` REPLICA 1 QUORUM 1 DAYS 10 KEEP 3650 CACHE 16 BLOCKS 6 MINROWS 100 MAXROWS 4096 WAL 1 FSYNC 3000 COMP 2 CACHELAST 0 PRECISION 'ms' UPDATE 0")));
     }
 }
