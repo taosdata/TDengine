@@ -44,10 +44,10 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numer
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_top_bottom_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_top_bottom_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_top_bottom_3.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_twa.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_irate_1.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_irate_2.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_irate_3.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_irate.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_twa_1.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_twa_2.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_twa_3.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_interp.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_twa.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/numeric/table_numeric_irate.py --keep --containers
