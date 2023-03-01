@@ -164,7 +164,6 @@ export default {
         }
         res.push({ name: k, privileges: val.row.privilege[k].join(", ") });
       }
-      console.log(res)
       return res;
     },
     filterTopic(val) {
@@ -269,7 +268,6 @@ export default {
             permissionMap.unshift(rooUser);
             permissionMap.splice(++rootUserIndex, 1);
             this.usersList = permissionMap;
-            console.log(permissionMap);
           })
           .catch((err) => {
             err.desc && Message.error(err.desc);

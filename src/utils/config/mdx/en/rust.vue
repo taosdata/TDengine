@@ -55,32 +55,38 @@ async fn main() -&gt; Result&lt;()&gt; {
   </template>
   
   <script>
+  import _ from 'lodash';
   export default {
     props: {
       token: {
         type: String,
         default: "",
       },
-      url:{
-          type:String,
-          default:"",
+      url: {
+        type: String,
+        default: "",
       }
     },
-    data(){
+    data() {
       return {};
     },
     computed: {
       jdbcURL() {
-        return "jdbc:TAOS-RS://"+this.url.replace(
+        let username = _.first(atob(this.token.replace("Basic ", "")).split(":"));
+        let password = _(atob(this.token.replace("Basic ", ""))).split(":").drop(1).join(":").value();
+        return "jdbc:TAOS-RS://" + this.url.replace(
           /https?:\/\//,
           ""
-        )+"?usessl="+this.url.startsWith("https")+"&token=" + this.token;
+        ) + "?usessl=" + this.url.startsWith("https") + "&user=" + username + "&password=" + password;
       },
       goDSN() {
-        return (this.url.startsWith("https") ? "https" : "http") + "("+this.url.replace(/https?:\/\//, "")+")/?token=" + this.token;
+        return atob(this.token.replace("Basic ", "")) + "@" + (this.url.startsWith("https") ? "https" : "http") + "(" + this.url.replace(/https?:\/\//, "") + ")/";
       },
       DSN() {
-        return this.url + "?token=" + this.token;
+        let auth = atob(this.token.replace("Basic ", ""));
+        let scheme = _(this.url).split("://").first();
+        let url = this.url.replace(/https?:\/\//, "");
+        return scheme + "://" + auth + '@' + url;
       },
       cloud_url() {
         return this.url;

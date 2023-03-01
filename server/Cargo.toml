@@ -1,15 +1,17 @@
 [package]
 name = "taos-explorer"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "TDengine Explorer UI"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+actix-cors = "0.6.4"
 actix-embed = "0.1.0"
 actix-files = "0.6.2"
 actix-web = "4"
+anyhow = "1"
 awc = "3.1"
 clap = { version = "4", features = ["derive", "env"] }
 clap-verbosity-flag = "2.0.0"
@@ -21,4 +23,8 @@ serde = { version = "1.0.32", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"
 toml = "0.7.2"
+tracing = "0.1"
+tracing-actix-web = "0.7.2"
+tracing-awc = { version = "0.1.0" }
+tracing-subscriber = "0.3"
 utoipa = "3.0.2"

@@ -77,6 +77,10 @@ export default {
     }
   },
   async created() {
+    this.selectedDatabasePrivileges = {};
+    this.selectedTopicPrivileges = {};
+    this.prevSelectedDatabasePrivileges = {};
+    this.prevSelectedTopicPrivileges = {};
     await this.getDatabaseList();
     await this.getTopicList();
     await this.getUserPrivileges();
@@ -98,7 +102,9 @@ export default {
       },
       databaseList: [],
       topicList: [],
+      prevDatabasePrivileges: {},
       selectedDatabasePrivileges: {},
+      prevTopicPrivileges: {},
       selectedTopicPrivileges: {},
       confirmStatus: false
     };
@@ -170,20 +176,23 @@ export default {
       sendSQLReq(
         `select * from information_schema.ins_user_privileges where user_name = '${this.ruleForm.user}' and privilege<>'subscribe';`
       ).then((res) => {
+        let selectedDatabasePrivileges = {};
         res.data.map((data) => {
           if (this.selectedDatabasePrivileges[data[2]] === undefined) {
             let name = data[2];
             let pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
 
             this.$set(this.selectedDatabasePrivileges, name, [pri]);
+            this.$set(this.prevDatabasePrivileges, name, [pri]);
           } else {
             let name = data[2];
             let pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
             this.selectedDatabasePrivileges[name].push(pri);
             this.$set(this.selectedDatabasePrivileges, data[2], this.selectedDatabasePrivileges[name]);
+            this.$set(this.prevDatabasePrivileges, data[2], this.selectedDatabasePrivileges[name]);
           }
-          console.log(this.selectedDatabasePrivileges);
         });
+
       })
         .catch((err) => {
           this.$emit("close")
@@ -197,8 +206,7 @@ export default {
       ).then((res) => {
         res.data.map((data) => {
           this.$set(this.selectedTopicPrivileges, data[2], ['Subscribe']);
-
-          console.log(this.selectedTopicPrivileges);
+          this.prevTopicPrivileges = this.selectedTopicPrivileges;
         });
       })
         .catch((err) => {
@@ -251,9 +259,9 @@ export default {
           return Promise.reject(err);
         });
     },
-    async cancelPrivilege() {
+    async cancelPrivilege(privilege, dbName) {
       return await sendSQLReq(
-        `REVOKE all ON *.* FROM ${this.user};`
+        `REVOKE ${privilege} ON ${dbName}.* FROM ${this.user};`
       )
         .then((res) => {
           console.log(res)
@@ -286,21 +294,40 @@ export default {
             if (this.ruleForm.pwd) {
               await this.alterUser();
             }
-            await this.cancelPrivilege();
+            for (let key in this.prevDatabasePrivileges) {
+              let privileges = this.prevDatabasePrivileges[key];
 
+              if (this.selectedDatabasePrivileges[key] === undefined) {
+                privileges.forEach(async (item, index) => {
+                  await this.cancelPrivilege(item, key);
+                });
+              } else {
+                privileges.forEach(async (item, index) => {
+                  if (this.selectedDatabasePrivileges[key].indexOf(item) === -1) {
+                    await this.cancelPrivilege(item, key);
+                  }
+                });
+              }
+            }
             for (let key in this.selectedDatabasePrivileges) {
               if (this.selectedDatabasePrivileges[key].length > 0) {
                 let privileges = this.selectedDatabasePrivileges[key];
                 privileges.forEach(async (item, index) => {
-                  await this.grantPrivilege(item, key, this.ruleForm.user);
+                  await this.grantPrivilege(item, key);
                 });
               }
             }
-            console.log("topicList: " + this.topicList)
-            for (let key in this.topicList) {
-              console.log("key: " + key)
-              await this.cancelTopic(this.topicList[key]);
+
+            for (let key in this.prevTopicPrivileges) {
+              if (this.selectedTopicPrivileges[key] === undefined) {
+                await this.cancelTopic(key);
+              } else {
+                if (this.selectedTopicPrivileges[key].indexOf('Subscribe') === -1) {
+                  await this.cancelTopic(key);
+                }
+              }
             }
+
             for (let key in this.selectedTopicPrivileges) {
               if (this.selectedTopicPrivileges[key].length > 0) {
                 let privileges = this.selectedTopicPrivileges[key];
