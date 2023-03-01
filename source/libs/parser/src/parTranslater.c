@@ -1211,7 +1211,8 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
   } else {
     res = translateNormalValue(pCxt, pVal, targetDt, strict);
   }
-  pVal->node.resType = targetDt;
+  pVal->node.resType.type = targetDt.type;
+  pVal->node.resType.bytes = targetDt.bytes;
   pVal->node.resType.scale = pVal->unit;
   pVal->translate = true;
   if (!strict && TSDB_DATA_TYPE_UBIGINT == pVal->node.resType.type && pVal->datum.u <= INT64_MAX) {
