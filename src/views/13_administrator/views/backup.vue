@@ -189,6 +189,7 @@ import {
   addBackupData,
   editBackup,
 } from "@/api/explorer/backup";
+import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import { Message } from "element-ui";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 export default {
@@ -274,18 +275,25 @@ export default {
           cancelButtonText: "Cancle",
           type: "warning",
         }
-      ).then(() => {
-        fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}`, {
-          method: "delete",
-        }).then((res) => {
-          if (res.status == 200) {
-            Message({
-              type: "success",
-              message: "Deleted Successfully",
-            });
-            this.getBackData();
-          }
+      ).then(async () => {
+        await excuteDel(data.id).then((res) => {
+          Message({
+            type: "success",
+            message: "Deleted Successfully",
+          });
+          this.getBackData();
         });
+        // fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}`, {
+        //   method: "delete",
+        // }).then((res) => {
+        //   if (res.status == 200) {
+        //     Message({
+        //       type: "success",
+        //       message: "Deleted Successfully",
+        //     });
+        //     this.getBackData();
+        //   }
+        // });
       });
     },
     add() {
@@ -308,14 +316,18 @@ export default {
     },
     async start(val, data) {
       try {
-        await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/start`, {
-          method: "post",
-        }).then((res) => {
-          if (res.status == 200) {
-            Message.success("Operation Successfully Completed!");
-            this.getBackData();
-          }
+        await excuteStart(data.id).then((res) => {
+          Message.success("Operation Successfully Completed!");
+          this.getBackData();
         });
+        // await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/start`, {
+        //   method: "post",
+        // }).then((res) => {
+        //   if (res.status == 200) {
+        //     Message.success("Operation Successfully Completed!");
+        //     this.getBackData();
+        //   }
+        // });
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
@@ -323,14 +335,18 @@ export default {
     },
     async stop(val, data) {
       try {
-        await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
-          method: "post",
-        }).then((res) => {
-          if (res.status == 200) {
-            Message.success("Operation Successfully Completed!");
-            this.getBackData();
-          }
+        await excuteStop(data.id).then((res) => {
+          Message.success("Operation Successfully Completed!");
+          this.getBackData();
         });
+        // await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
+        //   method: "post",
+        // }).then((res) => {
+        //   if (res.status == 200) {
+        //     Message.success("Operation Successfully Completed!");
+        //     this.getBackData();
+        //   }
+        // });
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
@@ -339,9 +355,34 @@ export default {
     //切换状态
     switchOperation(val, data) {
       if (val) {
-        this.start(val, data);
+        this.$confirm(
+          this.$t("replication.backupTip")
+            .replace("{operate}", "start")
+            .replace("{id}", data.id),
+          this.$t("warning"),
+          {
+            confirmButtonText: this.$t("confirm"),
+            cancelButtonText: this.$t("cancel"),
+            type: "warning",
+          }
+        ).then(() => {
+          this.start(val, data);
+        });
       } else {
-        this.stop(val, data);
+        this.$confirm(
+          this.$t("replication.backupTip")
+            .replace("{operate}", "stop")
+            .replace("{id}", data.id),
+          this.$t("warning"),
+          {
+            confirmButtonText: this.$t("confirm"),
+            cancelButtonText: this.$t("cancel"),
+            type: "warning",
+          }
+        ).then(()=>{
+          this.stop(val, data);
+        })
+        
       }
     },
     submit() {
@@ -355,26 +396,28 @@ export default {
     async editBakcup(id) {
       //哪一项修改传参只传哪一项
       try {
-        let params ={
-          trigger: this.ruleForm.cycle
-        }
-        // await editBackup(this.clusterid,params).then(res=>{
-        //   console.log(res,'---edit--balcup');
-        // })
-        await fetch(`${process.env.VUE_APP_X_API}/tasks/${id}`, {
-          method: "put",
-          body: JSON.stringify({
-            trigger: this.ruleForm.cycle,
-          }),
-        }).then((res) => {
-          console.log(res, "edit");
-          if (res.status == 200) {
-            this.getBackData();
-          } else {
-            Message.error(res.statusText);
-          }
-          this.dialog = false;
+        let params = {
+          trigger: this.ruleForm.cycle,
+        };
+        await editBackup(id, params).then((res) => {
+          console.log(res, "---edit--balcup");
+          this.getBackData();
         });
+        this.dialog = false;
+        // await fetch(`${process.env.VUE_APP_X_API}/tasks/${id}`, {
+        //   method: "put",
+        //   body: JSON.stringify({
+        //     trigger: this.ruleForm.cycle,
+        //   }),
+        // }).then((res) => {
+        //   console.log(res, "edit");
+        //   if (res.status == 200) {
+        //     this.getBackData();
+        //   } else {
+        //     Message.error(res.statusText);
+        //   }
+        //   this.dialog = false;
+        // });
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
@@ -399,7 +442,6 @@ export default {
             this.dialog = false;
           }
         });
-        
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);

@@ -571,6 +571,210 @@ export const StringFn = [
     label: "UPPER",
   },
 ];
+
+// 转换函数
+export const CoversionFn = [
+  // "CAST",
+  "TO_ISO0861",
+  "TO_JSON",
+  "TO_UNIXTIMESTAMP",
+];
+// 时间和日期函数
+export const DatetimeFN = ["NOW", "TIMEDIFF", "TIMETRUNCATE", "TIMEZONE", "TODAY"];
+// 聚合函数
+export const AggregationFn = [
+  {
+    label: "APERCENTILE",
+    filters: [
+      {
+        type: "number",
+        label: "p",
+        placeholder: "p",
+        min: 0,
+        max: 100,
+        field: "p",
+        defaultValue: 0,
+      },
+      {
+        type: "select",
+        label: "algo_type",
+        options: [
+          {
+            label: "default",
+            value: "default",
+          },
+          {
+            label: "t-digest",
+            value: "t-digest",
+          },
+        ],
+        placeholder: "algo_type",
+        field: "algo_type",
+        defaultValue: "default",
+      },
+    ],
+  },
+  {
+    label: "AVG",
+  },
+  {
+    label: "COUNT",
+  },
+  {
+    label: "ELAPSED",
+    include: ["TIMESTAMP"],
+    filters: [
+      {
+        type: "select",
+        label: "time_unit",
+        options: [
+          {
+            label: "nanosecond",
+            value: "1b",
+          },
+          {
+            label: "microsecond",
+            value: "1u",
+          },
+          {
+            label: "millsecond",
+            value: "1a",
+          },
+          {
+            label: "second",
+            value: "1s",
+          },
+          {
+            label: "minute",
+            value: "1m",
+          },
+          {
+            label: "hour",
+            value: "1h",
+          },
+          {
+            label: "day",
+            value: "1d",
+          },
+          {
+            label: "week",
+            value: "1w",
+          },
+        ],
+        placeholder: "time_unit",
+        field: "time_unit",
+        defaultValue: "",
+      },
+    ],
+  },
+  {
+    label: "LEASTSQUARES",
+    filters: [
+      {
+        type: "number",
+        label: "start_val",
+        placeholder: "start_val",
+        min: 0,
+        field: "start_val",
+        defaultValue: 0,
+      },
+      {
+        type: "number",
+        label: "step_val",
+        placeholder: "step_val",
+        min: 0,
+        field: "step_val",
+        defaultValue: 0,
+      },
+    ],
+  },
+  {
+    label: "MODE",
+  },
+  {
+    label: "SPREAD",
+  },
+  {
+    label: "STDDEV",
+  },
+  {
+    label: "SUM",
+  },
+  {
+    label: "HYPERLOGLOG",
+  },
+  {
+    label: "HIPERLOGLOG",
+  },
+  {
+    label: "HISTOGRAM",
+    filters: [
+      {
+        type: "select",
+        label: "bin_type",
+        options: [
+          {
+            label: "user_input",
+            value: "user_input",
+          },
+          {
+            label: "linear_bin",
+            value: "linear_bin",
+          },
+          {
+            label: "log_bin",
+            value: "log_bin",
+          },
+        ],
+        placeholder: "bin_type",
+        field: "bin_type",
+        defaultValue: "",
+      },
+      {
+        type: "input",
+        label: "bin_description",
+        placeholder: "bin_description",
+        field: "bin_description",
+        defaultValue: "",
+      },
+    ],
+  },
+  {
+    label: "PERCENTILE",
+    filters: [
+      {
+        type: "number",
+        label: "p",
+        placeholder: "p",
+        min: 0,
+        max: 100,
+        field: "p",
+        defaultValue: 0,
+      },
+    ],
+  },
+];
+// 选择函数
+export const SelectorFn = [
+  // "APERCENTILE",
+  "BOTTOM",
+  "FIRST",
+  "INTERP",
+  "LAST",
+  "LAST_ROW",
+  "MAX",
+  "MIN",
+  "PERCENTILE",
+  // "TAIL",
+  "TOP",
+  "UNIQUE",
+];
+// 时序数据特有函数
+export const SeriesSpecificFn = ["CSUM", "DERIVATIVE", "DIFF", "IRATE", "MAVG", "SAMPLE", "STATECOUNT", "STATEDURATION", "STATEMENT"];
+// 系统信息函数
+export const SystemFn = ["DATABASE", "CLIENT_VERSION", "SERVER_VERSION", "SERVER_STATUS", "CURRENT_USER", "USER"];
+
+
 export const TDengineStringType = ["VARCHAR", "BINARY", "NCHAR"];
 export const TDengineNumberType = [
   "INT",

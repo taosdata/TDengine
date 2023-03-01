@@ -118,6 +118,7 @@
               type="primary"
               @click="submitForm('dynamicValidateForm')"
               class="signin"
+              v-loading='loading'
               >Sign In</el-button
             >
           </el-form-item>
@@ -184,7 +185,7 @@ import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
-import { getUrls } from "@/api/explorer/login";
+import { getUrls, fetchApiByCluster } from "@/api/explorer/login";
 export default {
   name: "Login",
   components: {
@@ -205,6 +206,7 @@ export default {
       }
     };
     return {
+      loading:false,
       earch: require("@/assets/earth.webp"),
       hidden: false,
       dynamicValidateForm: {
@@ -252,7 +254,10 @@ export default {
       this.$refs[formName].validate((valid) => {
         if (valid) {
           localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
-          this.login();
+          this.loading=true
+          setTimeout(() => {
+            this.login();
+          }, 1000);
         } else {
           return false;
         }
@@ -260,6 +265,9 @@ export default {
     },
     resetForm(formName) {
       this.$refs[formName].resetFields();
+    },
+    search() {
+      this.hidden = true;
     },
     async getClusterID() {
       try {
@@ -276,7 +284,8 @@ export default {
         console.log(error);
       }
     },
-    login() {
+    async login() {
+
       let token =
         "Basic " +
         DbBase64.encode(
@@ -292,39 +301,27 @@ export default {
         pwd: this.dynamicValidateForm.password,
       });
       try {
-        fetch(`${this.dynamicValidateForm.cluster}/rest/sql`, {
-          method: "post",
-          headers: {
-            Authorization: token,
-          },
-          body: "select server_version()",
-        })
-          .then((res) => {
-            if (res.status === 200) {
-              localStorage.setItem("TDengine-Token", token);
-              this.getClusterID();
-              this.getUserAuthority();
-            } else {
-              Message({
-                type: "error",
-                message: res.statusText,
-              });
-            }
-          })
-          .catch((err) => {
+        await fetchApiByCluster(
+          this.dynamicValidateForm.cluster,
+          token,
+          "select server_version()"
+        ).then((res) => {
+          if (res) {
+            localStorage.setItem("TDengine-Token", token);
+            this.getClusterID();
+            this.getUserAuthority();
+          } else {
             Message.error("Faild to fetch,wrong cluster url!");
-          });
+          }
+        });
+        this.loading=false
       } catch (error) {
-        console.log(error, "login");
+        Message.error("Faild to fetch,wrong cluster url!");
       }
-    },
-    search() {
-      this.hidden = true;
     },
     async getClusterAndDashboardUrl() {
       try {
         await getUrls().then((res) => {
-          console.log(res, "login---url");
           if (res && res.cluster) {
             this.dynamicValidateForm.cluster = res.cluster;
           }
@@ -337,9 +334,9 @@ export default {
       }
     },
     //获取登录用户权限
-    getUserAuthority() {
+    async getUserAuthority() {
       try {
-        return sendSQLReq(
+        return await sendSQLReq(
           `select version, (expire_time < now) as valid from information_schema.ins_cluster`
         ).then((res) => {
           if (res) {
@@ -357,13 +354,13 @@ export default {
               this.$router.push({
                 path: "/explorer",
               });
-            }else{
-              Message.error('Only enterprise edition is supported!')
+            } else {
+              Message.error("Only enterprise edition is supported!");
             }
           }
         });
       } catch (err) {
-        Message.error('Only enterprise edition is supported')
+        Message.error("Only enterprise edition is supported");
       }
     },
   },
