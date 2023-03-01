@@ -94,24 +94,8 @@ class DeleteFyns(TDCase):
                     group_id = self.tdCom.get_long_name(5)
                     if source_type == 'db':
                         self.tdTaosx.run_taosx_db_sync(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.source_taosadapter_list[source]['spec']['adapter_config']['port'],self.target_taosd,self.target_taosadapter['spec']['adapter_config']['port'],self.dbname,self.target_dbname,source,group_id,self.timeout)
-                        # if source_task.lower() == '+ws' and target_task.lower() == '+ws':
-                        #     self.tdTaosx.run_taosx_db_from_ws_to_ws(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.target_dbname,source,group_id,self.timeout)
-                        # elif source_task.lower() == '+ws' and target_task.lower() == '':
-                        #     self.tdTaosx.run_taosx_db_from_ws_to_native(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.target_dbname,source,group_id,self.timeout)
-                        # elif source_task.lower() == '' and target_task.lower() == '':
-                        #     self.tdTaosx.run_taosx_db_from_native_to_native(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.target_dbname,source,group_id,self.timeout)
-                        # elif source_task.lower() == '' and target_task.lower() == '+ws':
-                        #     self.tdTaosx.run_taosx_db_from_native_to_ws(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.target_dbname,source,group_id,self.timeout)
                     elif source_type == 'stable':
                         self.tdTaosx.run_taosx_stb_sync_without_topic(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.source_taosadapter_list[source]['spec']['adapter_config']['port'],self.target_taosd,self.target_taosadapter['spec']['adapter_config']['port'],self.dbname,self.stbname,self.target_dbname,source,group_id,self.timeout)
-                        # if source_task.lower() == '+ws' and target_task.lower() == '+ws':
-                        #     self.tdTaosx.run_taosx_stb_from_ws_to_ws(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.stbname,self.target_dbname,source,group_id,self.timeout)
-                        # elif source_task.lower() == '+ws' and target_task.lower() == '':
-                        #     self.tdTaosx.run_taosx_stb_from_ws_to_native(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.stbname,self.target_dbname,source,group_id,self.timeout)
-                        # elif source_task.lower() == '' and target_task.lower() == '':
-                        #     self.tdTaosx.run_taosx_stb_from_native_to_native(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.stbname,self.target_dbname,source,group_id,self.timeout)
-                        # elif source_task.lower() == '' and target_task.lower() == '+ws':
-                        #     self.tdTaosx.run_taosx_stb_from_native_to_ws(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.stbname,self.target_dbname,source,group_id,self.timeout)
                     thread_list[source].start()
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0],port=int(self.source_taosd_list[source][1]))
                     taosd_master.execute(f'delete from {self.dbname[source]}.{self.stbname[source]} where ts <= "{self.delete_timestamp}" ')

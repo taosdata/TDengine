@@ -81,8 +81,6 @@ class AddSync(TDCase):
                 self.remote.cmd(
                     taosBenchmark_fqdn[0], f'taosBenchmark -h {host} -P {port} -n {row_num} -t {tb_num} -d {dbname[source]} -m {ntbname_m[source]} -N -y -U -s {start_timestamp}')
     def update_sync_db_stb(self,source_type):
-        # for source_task in ['']:
-        #     for target_task in ['']:
         for source_task in ['','+ws']:
             for target_task in ['','+ws']:
                 thread_list = []
@@ -209,10 +207,9 @@ class AddSync(TDCase):
             self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica)
             self.update_sync_db_stb('db')
             self.update_sync_db_stb('stable')
-            # self.update_sync_ctb()
-            # self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
-            # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
-            # self.update_sync_ntb()
+            self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+            self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
+            self.update_sync_ntb()
     def cleanup(self):
         pass
 
