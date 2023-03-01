@@ -119,6 +119,13 @@ IF(TD_BULID_TAOSX)
     set(ENV{TAOS_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib)
     set(ENV{LD_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LD_LIBRARY_PATH})
     set(ENV{LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LIBRARY_PATH})
+    IF (BUILD_SANITIZER)
+        SET(TAOSX_BULID_COMMAND cargo build --release --no-default-features --features optin --features native-tls)
+        SET(TAOSX_BINARY target/release/taosx)
+    ELSE ()
+        SET(TAOSX_BULID_COMMAND LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} cargo build --release)
+        SET(TAOSX_BINARY target/release/taosx)
+    ENDIF ()
     IF (TD_LINUX)
         IF(TD_ALPINE)
             ExternalProject_Add(taosx
@@ -146,9 +153,10 @@ IF(TD_BULID_TAOSX)
                COMMAND git pull || true
                COMMAND cargo update
                BUILD_COMMAND
-               COMMAND LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} cargo build --release
+               COMMAND git pull origin main || true
+               COMMAND ${TAOSX_BULID_COMMAND}
                INSTALL_COMMAND
-               COMMAND cmake -E copy target/release/taosx ${CMAKE_BINARY_DIR}/build/bin
+               COMMAND cmake -E copy ${TAOSX_BINARY} ${CMAKE_BINARY_DIR}/build/bin
                )
         ENDIF()
     ELSEIF (TD_WINDOWS)
@@ -162,6 +170,7 @@ IF(TD_BULID_TAOSX)
             COMMAND git pull origin main || true
             COMMAND cargo update
             BUILD_COMMAND
+            COMMAND git pull origin main || true
             COMMAND set LIBRARY_PATH=$ENV{LIBRARY_PATH} && set LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} && cargo build --release
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taosx.exe ${CMAKE_BINARY_DIR}/build/bin
