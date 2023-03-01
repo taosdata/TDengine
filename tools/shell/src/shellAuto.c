@@ -86,8 +86,8 @@ SWords shellCommands[] = {
      "<anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> "
      "<db_options> <anyword> <db_options> <anyword> ;",
      0, 0, NULL},
-    {"create dnode ", 0, 0, NULL},
-    {"create index ", 0, 0, NULL},
+    {"create dnode <anyword>", 0, 0, NULL},
+    {"create index <anyword> on <stb_name> ()", 0, 0, NULL},
     {"create mnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"create qnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql

@@ -16,7 +16,7 @@ sql drop database if exists test;
 sql create database test  vgroups 1;
 sql use test;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams0 trigger at_once into streamt as select  _wstart c1, count(*) c2, max(a) c3, _group_key(a) c4 from t1 partition by a session(ts, 5s);
+sql create stream streams0 trigger at_once IGNORE EXPIRED 0 into streamt as select  _wstart c1, count(*) c2, max(a) c3, _group_key(a) c4 from t1 partition by a session(ts, 5s);
 
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
@@ -196,7 +196,7 @@ sql drop database if exists test1;
 sql create database test1  vgroups 1;
 sql use test1;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams1 trigger at_once into streamt1 as select  _wstart c1, count(*) c2, max(c) c3, _group_key(a+b) c4 from t1 partition by a+b session(ts, 5s);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 into streamt1 as select  _wstart c1, count(*) c2, max(c) c3, _group_key(a+b) c4 from t1 partition by a+b session(ts, 5s);
 
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
@@ -282,7 +282,7 @@ sql use test2;
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
-sql create stream streams2 trigger at_once into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a session(ts, 5s);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a session(ts, 5s);
 
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
@@ -478,7 +478,7 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create table t3 using st tags(2,2,2);
 sql create table t4 using st tags(2,2,2);
-sql create stream streams4 trigger at_once into test.streamt4 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a session(ts, 5s);
+sql create stream streams4 trigger at_once IGNORE EXPIRED 0 into test.streamt4 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a session(ts, 5s);
 
 sql insert into t1 values(1648791213000,2,2,3,1.0);
 sql insert into t2 values(1648791213000,2,2,3,1.0);

@@ -1645,8 +1645,6 @@ void mndTransPullup(SMnode *pMnode) {
     }
     mndReleaseTrans(pMnode, pTrans);
   }
-
-  sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
   taosArrayDestroy(pArray);
 }
 

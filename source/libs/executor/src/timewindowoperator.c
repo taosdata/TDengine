@@ -1072,7 +1072,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
       break;
     }
 
-    getTableScanInfo(pOperator, &pInfo->inputOrder, &scanFlag);
+    getTableScanInfo(pOperator, &pInfo->inputOrder, &scanFlag, true);
 
     if (pInfo->scalarSupp.pExprInfo != NULL) {
       SExprSupp* pExprSup = &pInfo->scalarSupp;
@@ -4294,7 +4294,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
       }
     }
 
-    getTableScanInfo(pOperator, &pIaInfo->inputOrder, &scanFlag);
+    getTableScanInfo(pOperator, &pIaInfo->inputOrder, &scanFlag, false);
     setInputDataBlock(pSup, pBlock, pIaInfo->inputOrder, scanFlag, true);
     doMergeAlignedIntervalAggImpl(pOperator, &pIaInfo->binfo.resultRowInfo, pBlock, pRes);
 
@@ -4621,7 +4621,7 @@ static SSDataBlock* doMergeIntervalAgg(SOperatorInfo* pOperator) {
         break;
       }
 
-      getTableScanInfo(pOperator, &iaInfo->inputOrder, &scanFlag);
+      getTableScanInfo(pOperator, &iaInfo->inputOrder, &scanFlag, false);
       setInputDataBlock(pExpSupp, pBlock, iaInfo->inputOrder, scanFlag, true);
       doMergeIntervalAggImpl(pOperator, &iaInfo->binfo.resultRowInfo, pBlock, scanFlag, pRes);
 
