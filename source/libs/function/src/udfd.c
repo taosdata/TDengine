@@ -96,8 +96,15 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
     strncat(mergeFuncName, mergeSuffix, strlen(mergeSuffix));
     uv_dlsym(&udfCtx->lib, mergeFuncName, (void **)(&udfCtx->aggMergeFunc));
   }
+  int32_t code = 0;
   if (udfCtx->initFunc) {
-    (udfCtx->initFunc)();
+    // TODO: handle init call return error
+    code = (udfCtx->initFunc)();
+    if (code != 0) {
+      uv_dlclose(&udfCtx->lib);
+      taosMemoryFree(udfCtx);
+      return code;
+    }
   }
   *pUdfCtx = udfCtx;
   return 0;
@@ -105,26 +112,30 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
 
 int32_t udfdCPluginUdfDestroy(void *udfCtx) {
   SUdfCPluginCtx *ctx = udfCtx;
+  int32_t         code = 0;
   if (ctx->destroyFunc) {
-    (ctx->destroyFunc)();
+    code = (ctx->destroyFunc)();
   }
   uv_dlclose(&ctx->lib);
   taosMemoryFree(ctx);
-  return 0;
+  return code;
 }
 
 int32_t udfdCPluginUdfScalarProc(SUdfDataBlock *block, SUdfColumn *resultCol, void *udfCtx) {
   SUdfCPluginCtx *ctx = udfCtx;
   if (ctx->scalarProcFunc) {
-    ctx->scalarProcFunc(block, resultCol);
+    return ctx->scalarProcFunc(block, resultCol);
+  } else {
+    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
   }
-  return 0;
 }
 
 int32_t udfdCPluginUdfAggStart(SUdfInterBuf *buf, void *udfCtx) {
   SUdfCPluginCtx *ctx = udfCtx;
   if (ctx->aggStartFunc) {
-    ctx->aggStartFunc(buf);
+    return ctx->aggStartFunc(buf);
+  } else {
+    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
   }
   return 0;
 }
@@ -132,24 +143,28 @@ int32_t udfdCPluginUdfAggStart(SUdfInterBuf *buf, void *udfCtx) {
 int32_t udfdCPluginUdfAggProc(SUdfDataBlock *block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf, void *udfCtx) {
   SUdfCPluginCtx *ctx = udfCtx;
   if (ctx->aggProcFunc) {
-    ctx->aggProcFunc(block, interBuf, newInterBuf);
+    return ctx->aggProcFunc(block, interBuf, newInterBuf);
+  } else {
+    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
   }
-  return 0;
 }
 
 int32_t udfdCPluginUdfAggMerge(SUdfInterBuf *inputBuf1, SUdfInterBuf *inputBuf2, SUdfInterBuf *outputBuf,
                                void *udfCtx) {
   SUdfCPluginCtx *ctx = udfCtx;
   if (ctx->aggMergeFunc) {
-    ctx->aggMergeFunc(inputBuf1, inputBuf2, outputBuf);
+    return ctx->aggMergeFunc(inputBuf1, inputBuf2, outputBuf);
+  } else {
+    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
   }
-  return 0;
 }
 
 int32_t udfdCPluginUdfAggFinish(SUdfInterBuf *buf, SUdfInterBuf *resultData, void *udfCtx) {
   SUdfCPluginCtx *ctx = udfCtx;
   if (ctx->aggFinishFunc) {
-    ctx->aggFinishFunc(buf, resultData);
+    return ctx->aggFinishFunc(buf, resultData);
+  } else {
+    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
   }
   return 0;
 }

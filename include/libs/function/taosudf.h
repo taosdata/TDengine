@@ -80,10 +80,6 @@ typedef struct SUdfInterBuf {
 } SUdfInterBuf;
 typedef void *UdfcFuncHandle;
 
-// dynamic lib init and destroy
-typedef int32_t (*TUdfInitFunc)();
-typedef int32_t (*TUdfDestroyFunc)();
-
 #define UDF_MEMORY_EXP_GROWTH 1.5
 #define NBIT                  (3u)
 #define BitPos(_n)            ((_n) & ((1 << NBIT) - 1))
@@ -251,6 +247,10 @@ static FORCE_INLINE int32_t udfColDataSet(SUdfColumn *pColumn, uint32_t currentR
   data->numOfRows = ((int32_t)(currentRow + 1) > data->numOfRows) ? (int32_t)(currentRow + 1) : data->numOfRows;
   return 0;
 }
+
+// dynamic lib init and destroy for C UDF
+typedef int32_t (*TUdfInitFunc)();
+typedef int32_t (*TUdfDestroyFunc)();
 
 typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock *block, SUdfColumn *resultCol);
 

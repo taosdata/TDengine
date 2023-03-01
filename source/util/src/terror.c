@@ -583,6 +583,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_UDF_NO_FUNC_HANDLE,             "udf no function han
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_BUFSIZE,            "udf invalid bufsize")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_OUTPUT_TYPE,        "udf invalid output type")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_SCRIPT_NOT_SUPPORTED,       "udf program language not supported")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED,       "udf function not implemented")
 
 //schemaless
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PROTOCOL_TYPE,      "Invalid line protocol type")
