@@ -5,7 +5,7 @@ import { refreshTokenExpire } from "./token";
 import { ReLoginCode, SuccessCode, RequestCommonConfig } from "@/const";
 const request = axios.create({
   ...RequestCommonConfig,
-  baseURL: process.env.VUE_APP_BASE_URL,
+  baseURL: localStorage.getItem('base_url'),
   headers: {
     "Content-Type": "application/json"
   },
@@ -16,12 +16,6 @@ let local_baseurl=''
 
 request.interceptors.request.use(
   config => {
-    local_baseurl=localStorage.getItem('base_url')
-    if(local_baseurl&&!config.headers.myHeader){
-      config.baseURL=local_baseurl
-    }else if(config.headers.myHeader){
-      config.baseURL=config.headers.myHeader
-    }
     if (store.getters.token) {
       // 让每个请求都携带token
       config.headers["Authorization"] = store.getters.token;

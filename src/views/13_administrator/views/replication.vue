@@ -116,8 +116,12 @@
   </div>
 </template>
 <script>
-import { format } from "date-fns";
 import { Message } from "element-ui";
+import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
+import {
+  getReplicationList,
+  addReplicationData,
+} from "@/api/explorer/replication";
 import _ from "lodash";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import taosbenchmarkVue from "@/utils/config/mdx/en/taosbenchmark.vue";
@@ -173,18 +177,25 @@ export default {
         confirmButtonText: "Ok",
         cancelButtonText: "Cancle",
         type: "warning",
-      }).then(() => {
-        fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}`, {
-          method: "delete",
-        }).then((res) => {
-          if (res.status == 200) {
-            Message({
-              type: "success",
-              message: "Deleted Successfully",
-            });
-            this.getReplication();
-          }
+      }).then(async () => {
+        await excuteDel(data.id).then(() => {
+          Message({
+            type: "success",
+            message: "Deleted Successfully",
+          });
+          this.getReplication();
         });
+        // fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}`, {
+        //   method: "delete",
+        // }).then((res) => {
+        //   if (res.status == 200) {
+        //     Message({
+        //       type: "success",
+        //       message: "Deleted Successfully",
+        //     });
+        //     this.getReplication();
+        //   }
+        // });
       });
     },
     refresh(data) {
@@ -192,36 +203,55 @@ export default {
     },
     async addReplication() {
       try {
-        await fetch(
-          `${
-            process.env.VUE_APP_X_API
-          }/tasks?labels=type::replication,cluster-id::${localStorage.getItem(
-            "local_clusterID"
-          )}`,
-          {
-            method: "post",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              name: "replication",
-              labels: [
-                "type::replication",
-                `cluster-id::${localStorage.getItem("local_clusterID")}`,
-              ],
-              to: `${this.ruleForm.target}`,
-              from: `tmq+${localStorage.getItem("base_url")}/${
-                this.ruleForm.source
-              }`,
-            }),
-          }
-        ).then((res) => {
-          if (res.ok || res.status == 201) {
+        let id = localStorage.getItem("local_clusterID");
+        let params = {
+          name: "replication",
+          labels: [
+            "type::replication",
+            `cluster-id::${localStorage.getItem("local_clusterID")}`,
+          ],
+          to: `${this.ruleForm.target}`,
+          from: `tmq+${localStorage.getItem("base_url")}/${
+            this.ruleForm.source
+          }`,
+        };
+        await addReplicationData(id, params).then((res) => {
+          if (res) {
             Message.success("Created Successfully!");
             this.getReplication();
-            this.dialog = false;
           }
+          this.dialog = false;
         });
+        // await fetch(
+        //   `${
+        //     process.env.VUE_APP_X_API
+        //   }/tasks?labels=type::replication,cluster-id::${localStorage.getItem(
+        //     "local_clusterID"
+        //   )}`,
+        //   {
+        //     method: "post",
+        //     headers: {
+        //       "Content-Type": "application/json",
+        //     },
+        //     body: JSON.stringify({
+        //       name: "replication",
+        //       labels: [
+        //         "type::replication",
+        //         `cluster-id::${localStorage.getItem("local_clusterID")}`,
+        //       ],
+        //       to: `${this.ruleForm.target}`,
+        //       from: `tmq+${localStorage.getItem("base_url")}/${
+        //         this.ruleForm.source
+        //       }`,
+        //     }),
+        //   }
+        // ).then((res) => {
+        //   if (res.ok || res.status == 201) {
+        //     Message.success("Created Successfully!");
+        //     this.getReplication();
+        //     this.dialog = false;
+        //   }
+        // });
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
@@ -234,6 +264,10 @@ export default {
     },
     async start(val, data) {
       try {
+        // await excuteStart(data.id).then((res) => {
+        //   Message.success("Operation Successfully Completed!");
+        //   this.getReplication();
+        // });
         await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/start`, {
           method: "post",
           headers: {
@@ -252,52 +286,81 @@ export default {
     },
     async stop(val, data) {
       try {
-        await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
-          method: "post",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }).then((res) => {
-          if (res.status == 200) {
-            Message.success("Operation Successfully Completed!");
-            this.getReplication();
-          }
+        await excuteStop(data.id).then(() => {
+          Message.success("Operation Successfully Completed!");
+          this.getReplication();
         });
+        // await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
+        //   method: "post",
+        //   headers: {
+        //     "Content-Type": "application/json",
+        //   },
+        // }).then((res) => {
+        //   if (res.status == 200) {
+        //     Message.success("Operation Successfully Completed!");
+        //     this.getReplication();
+        //   }
+        // });
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
     switchOperation(val, data) {
-      if (val) {
-        this.start(val, data);
-      } else {
-        this.stop(val, data);
-      }
+      this.$confirm(
+        `${this.$t(val ? "Start" : "Stop")} ${this.$t(
+          "replication.theTaskWithId"
+        ).replace("{id}", data.id)}?`,
+        this.$t("warning"),
+        {
+          confirmButtonText: this.$t("confirm"),
+          cancelButtonText: this.$t("cancel"),
+          type: "warning",
+        }
+      ).then(() => {
+        if (val) {
+          this.start(val, data);
+        } else {
+          this.stop(val, data);
+        }
+      });
     },
     async getReplication() {
       try {
         let id = localStorage.getItem("local_clusterID");
-        await fetch(
-          `${process.env.VUE_APP_X_API}/tasks?detail=true&labels=type::replication,cluster-id::${id}`,
-          {
-            method: "get",
-          }
-        )
-          .then((res) => res.json())
-          .then((result) => {
-            this.topicList = result.map((item) => {
-              let to_port = _.get(item, "to_expand.port");
-              item["fromdb"] = item.from.split("/").at(-1);
-              item["hostport"] =
-                _.get(item, "to_expand.host") ||
-                "localhost" + (to_port ? `:${to_port}` : "");
-              item["db"] = item.to_expand
-                ? item.to_expand.subject
-                : item["fromdb"];
-              return item;
-            });
+        await getReplicationList(id).then((result) => {
+          this.topicList = result.map((item) => {
+            let to_port = _.get(item, "to_expand.port");
+            item["fromdb"] = item.from.split("/").at(-1);
+            item["hostport"] =
+              _.get(item, "to_expand.host") ||
+              "localhost" + (to_port ? `:${to_port}` : "");
+            item["db"] = item.to_expand
+              ? item.to_expand.subject
+              : item["fromdb"];
+            return item;
           });
+        });
+        // await fetch(
+        //   `${process.env.VUE_APP_X_API}/tasks?detail=true&labels=type::replication,cluster-id::${id}`,
+        //   {
+        //     method: "get",
+        //   }
+        // )
+        //   .then((res) => res.json())
+        //   .then((result) => {
+        //     this.topicList = result.map((item) => {
+        //       let to_port = _.get(item, "to_expand.port");
+        //       item["fromdb"] = item.from.split("/").at(-1);
+        //       item["hostport"] =
+        //         _.get(item, "to_expand.host") ||
+        //         "localhost" + (to_port ? `:${to_port}` : "");
+        //       item["db"] = item.to_expand
+        //         ? item.to_expand.subject
+        //         : item["fromdb"];
+        //       return item;
+        //     });
+        //   });
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);

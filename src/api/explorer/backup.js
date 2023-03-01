@@ -4,19 +4,17 @@ import { request } from "@/utils/request";
 export function getBackupList(id) {
     
     return request({
+        baseURL:process.env.VUE_APP_X_API,
         url: `/tasks?detail=true&labels=type::backup,cluster-id::${id}`,
-        method: "get",
-        headers:{
-            myHeader:process.env.VUE_APP_X_API
-        }
+        method: "get"
     });
 }
 
 //添加backup
 export function addBackupData(clusterID,data) {
     return request({
+        baseURL:process.env.VUE_APP_X_API,
         headers:{
-            myHeader:process.env.VUE_APP_X_API,
             "Content-Type":"application/json"
         },
         url: `/tasks?labels=type::backup,cluster-id::${clusterID}`,
@@ -28,11 +26,9 @@ export function addBackupData(clusterID,data) {
 //编辑backup
 export function editBackup(id,data){
     return request({
-        headers:{
-            myHeader:process.env.VUE_APP_X_API
-        },
+        baseURL:process.env.VUE_APP_X_API,
         url: `/tasks/${id}`,
-        method: "pust",
+        method: "patch",
         data
     });
 }
@@ -40,9 +36,7 @@ export function editBackup(id,data){
 //删除backup
 export function deleteBackup(id){
     return request({
-        headers:{
-            myHeader:process.env.VUE_APP_X_API
-        },
+        baseURL:process.env.VUE_APP_X_API,
         url: `/tasks/${id}`,
         method: "delete"
     });

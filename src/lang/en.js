@@ -464,6 +464,8 @@ export default {
     generateTokenTip: "There are not any API tokens, you have to generate one to connect to TDengine Cloud.",
   },
   replication: {
+    theTaskWithId: "the task with id {id}",
+    backupTip: "Are you sure to {operate} the {id} backup task?",
     title: "Data Replication",
     addNewReplication: "Add New Replication",
     noData: "No any backup or replication",
@@ -801,6 +803,9 @@ export default {
     learnMoreTip: `To learn more about stream processing, please check <a target='_blank' href="docsUrl">documentation</a>`,
   },
   topic: {
+    fieldSet: "Field Set",
+    resultSet: "Result Set",
+    conditionSet: "Condition Set",
     activities:'Activities',
     cvs:'CVS',
     stable: "Super Table",
