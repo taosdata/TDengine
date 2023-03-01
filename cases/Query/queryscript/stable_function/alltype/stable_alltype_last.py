@@ -309,15 +309,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
 
                             sql2 = "select %s from %s where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_1,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_1,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_1,sql1,sql2)
                             sql= sql + sql2
                                       
                         for i in (62,72,82,92,31,32,33,34,35,):  
@@ -351,15 +351,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill_f,time_window_new)
 
                             sql2 = "select %s from %s where %s %s %s %s %s;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_1,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s %s);" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_1,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s %s;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_1,sql1,sql2)
                             sql= sql + sql2
                                                 
                         for i in (11,12,13,14,15,16,17,18,19,20,50,51,52,53,54,55,56,57,58,59,):                       
@@ -910,7 +910,7 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s order by ts;'  % (func,self.table,interval_fill,time_window_new)                           
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s order by ts)" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -918,11 +918,11 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
                             
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts)" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s order by ts) where  %s %s %s %s %s order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s ) order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -968,7 +968,7 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s order by ts;'  % (func,self.table,interval_fill_f,time_window_new)                           
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s order by ts)" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -976,11 +976,11 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
                             
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts)" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s order by ts) where  %s %s %s %s %s order by ts" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
                         
                         for i in (11,12,13,14,15,16,17,18,19,20,50,51,52,53,54,55,56,57,58,59,):                      
@@ -1134,15 +1134,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s order by ts desc;'  % (func,self.table,interval_fill,time_window_new)                                                
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts desc);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s order by ts) where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s ) order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1184,15 +1184,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s order by ts desc;'  % (func,self.table,interval_fill_f,time_window_new)                                                
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts desc);" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s order by ts) where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
                             sql= sql + sql2
                                     
                         for i in (11,12,13,14,15,16,17,18,19,20,50,51,52,53,54,55,56,57,58,59,):                        
@@ -1680,15 +1680,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s order by ts;'  % (func,self.table,interval_fill,time_window_new)
                             
                             sql2 = "select %s from %s where %s  %s %s %s %s order by ts limit 10;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_3,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s  %s %s %s %s order by ts limit 10);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_3,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s order by ts) where %s  %s %s %s %s order by ts limit 10;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_3,sql1,sql2)
                             sql= sql + sql2
                         
                         for i in (62,72,82,92,31,32,33,34,35,):  
@@ -1722,15 +1722,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s order by ts;'  % (func,self.table,interval_fill_f,time_window_new)
                             
                             sql2 = "select %s from %s where %s  %s %s %s %s order by ts limit 10;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_3,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s  %s %s %s %s order by ts limit 10);" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_3,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s order by ts) where %s  %s %s %s %s order by ts limit 10;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_3,sql1,sql2)
                             sql= sql + sql2
                                                     
                         for i in (11,12,13,14,15,16,17,18,19,20,50,51,52,53,54,55,56,57,58,59,):                       
