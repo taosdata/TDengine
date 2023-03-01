@@ -469,6 +469,12 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
+                        interval_fill_f = ' where ts between 1600000001000 and 1600100001000 '
+                        interval_fill_f_and = ' ts between 1600000001000 and 1600100001000 and '
+                        
+                        ts = 1600000000000 + random.randint(-100000000000,+100000000000)
+                        interval_fill_ts_equal_and = ' ts >= %d and ts <= %d and ' %(ts,ts) 
+                        
                         for i in (1,2,3,4,21,22,31,32,33,34,35,):                        
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
