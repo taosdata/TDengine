@@ -66,7 +66,8 @@ enum {
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {
-  char* key;
+  char*   key;
+  int32_t idx;
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
