@@ -27,20 +27,27 @@ class AddSync(TDCase):
         self.remote: Remote = Remote(self.logger)
         self.firstEP = []
         self.source_taosd_list = []
+        self.taosadapter_list = []
+        self.source_taosadapter_list = []
         for env_setting in self.env_setting["settings"]:
             if env_setting["name"].lower() == "taosd":
                 self.taosd_setting = env_setting
                 self.firstEP.append(self.taosd_setting['spec']['config']['firstEP'])
             if env_setting["name"].lower() == 'taosx':
                 self.taosx_setting = env_setting
+            if env_setting["name"].lower() == 'taosadapter':
+                self.taosdapter_setting = env_setting
+                self.taosadapter_list.append(self.taosdapter_setting)
         self.taosd_num = len(self.firstEP)
         for i in range(self.taosd_num-1):
             self.source_taosd_list.append(self.firstEP[i].split(':'))
+        for i in range(len(self.taosadapter_list) - 1):
+            self.source_taosadapter_list.append(self.taosadapter_list[i])
         self.target_taosd = self.firstEP[-1].split(':')
         self.test_root = os.environ['TEST_ROOT']
         self.taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         #param for taosBenchmark
-        
+        self.target_taosadapter = self.taosadapter_list[-1]
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
         self.tb_num = 10
@@ -74,8 +81,6 @@ class AddSync(TDCase):
                 self.remote.cmd(
                     taosBenchmark_fqdn[0], f'taosBenchmark -h {host} -P {port} -n {row_num} -t {tb_num} -d {dbname[source]} -m {ntbname_m[source]} -N -y -U -s {start_timestamp}')
     def update_sync_db_stb(self,source_type):
-        # for source_task in ['']:
-        #     for target_task in ['']:
         for source_task in ['','+ws']:
             for target_task in ['','+ws']:
                 thread_list = []
@@ -86,23 +91,9 @@ class AddSync(TDCase):
                 for source in range(len(self.source_taosd_list)):
                     group_id = self.tdCom.get_long_name(5)
                     if source_type == 'db':
-                        if source_task.lower() == '+ws' and target_task.lower() == '+ws':
-                            self.tdTaosx.run_taosx_db_from_ws_to_ws(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.target_dbname,source,group_id,self.timeout)
-                        elif source_task.lower() == '+ws' and target_task.lower() == '':
-                            self.tdTaosx.run_taosx_db_from_ws_to_native(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.target_dbname,source,group_id,self.timeout)
-                        elif source_task.lower() == '' and target_task.lower() == '':
-                            self.tdTaosx.run_taosx_db_from_native_to_native(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.target_dbname,source,group_id,self.timeout)
-                        elif source_task.lower() == '' and target_task.lower() == '+ws':
-                            self.tdTaosx.run_taosx_db_from_native_to_ws(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.target_dbname,source,group_id,self.timeout)
+                        self.tdTaosx.run_taosx_db_sync(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.source_taosadapter_list[source]['spec']['adapter_config']['port'],self.target_taosd,self.target_taosadapter['spec']['adapter_config']['port'],self.dbname,self.target_dbname,source,group_id,self.timeout)
                     elif source_type == 'stable':
-                        if source_task.lower() == '+ws' and target_task.lower() == '+ws':
-                            self.tdTaosx.run_taosx_stb_from_ws_to_ws(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.stbname,self.target_dbname,source,group_id,self.timeout)
-                        elif source_task.lower() == '+ws' and target_task.lower() == '':
-                            self.tdTaosx.run_taosx_stb_from_ws_to_native(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.stbname,self.target_dbname,source,group_id,self.timeout)
-                        elif source_task.lower() == '' and target_task.lower() == '':
-                            self.tdTaosx.run_taosx_stb_from_native_to_native(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.stbname,self.target_dbname,source,group_id,self.timeout)
-                        elif source_task.lower() == '' and target_task.lower() == '+ws':
-                            self.tdTaosx.run_taosx_stb_from_native_to_ws(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.stbname,self.target_dbname,source,group_id,self.timeout)
+                        self.tdTaosx.run_taosx_stb_sync_without_topic(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.source_taosadapter_list[source]['spec']['adapter_config']['port'],self.target_taosd,self.target_taosadapter['spec']['adapter_config']['port'],self.dbname,self.stbname,self.target_dbname,source,group_id,self.timeout)
                     thread_list[source].start()
                 self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.add_row_num,self.start_timestamp,self.add_drop_flag,self.add_child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
                 for thread in thread_list:
@@ -216,7 +207,6 @@ class AddSync(TDCase):
             self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica)
             self.update_sync_db_stb('db')
             self.update_sync_db_stb('stable')
-            self.update_sync_ctb()
             self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
             self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
             self.update_sync_ntb()
