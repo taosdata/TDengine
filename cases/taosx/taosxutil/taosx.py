@@ -66,7 +66,25 @@ class Runtaosx():
                 taosBenchmark_fqdn[0], f'taosBenchmark -f /tmp/basic{source}/basic{source}.json')))
             thread_list[source].start()   
         for thread in thread_list:
-            thread.join() 
+            thread.join()
+    def run_taosx_db_sync(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,source_port,target_taosd,target_port,dbname,target_dbname,source,group_id,timeout,source_user_name='root',source_password='taosdata',target_user_name='root',target_password='taosdata'):
+        if source_task == '':
+            source_port = int(source_taosd_list[source][1])
+        if target_task == '':
+            target_port = int(target_taosd[1])
+        thread_list.append(threading.Thread(target=self.remote_run, args=(
+                                0,taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://{source_user_name}:{source_password}@{source_taosd_list[source][0]}:{source_port}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'taos{target_task}://{target_user_name}:{target_password}@{target_taosd[0]}:{target_port}/{target_dbname}'")))
+    def run_taosx_stb_sync(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,source_port,target_taosd,target_port,tbname,target_dbname,source,group_id,timeout,source_user_name='root',source_password='taosdata',target_user_name='root',target_password='taosdata'):
+        if source_task == '':
+            source_port = int(source_taosd_list[source][1])
+        if target_task == '':
+            target_port = int(target_taosd[1])
+        thread_list.append(threading.Thread(target=self.remote_run, args=(
+                                0,taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://{source_user_name}:{source_password}@{source_taosd_list[source][0]}:{source_port}/{tbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'taos{target_task}://{target_user_name}:{target_password}@{target_taosd[0]}:{target_port}/{target_dbname}'"))) 
     def run_taosx_db_from_native_to_native(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,target_dbname,source,group_id,timeout):
         thread_list.append(threading.Thread(target=self.remote_run, args=(
                                 0,taosx_setting['fqdn'][0], f"taosx run \
@@ -225,4 +243,6 @@ class Runtaosx():
                                 0,taosx_setting['fqdn'][0], f"taosx run \
                                     -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])+11}/{dbname[source]}.{tbname[source]}0?group.id={group_id}&timeout={timeout}'\
                                     -t 'local:{target_file_dir}' -v")))
+
+    
     
