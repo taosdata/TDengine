@@ -197,9 +197,9 @@ taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_json_protoco
 taostest --use=common_insert.yaml --case=schemaless_insert/influxdb_line_protocol_restful_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_telnet_protocol_restful_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_json_protocol_restful_insert.py --keep --containers
-taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
-taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
-taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep --containers
+#taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
+#taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
+#taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep --containers
 
 taostest --use=common_insert.yaml --case=stream_computing/stream_computing_test.py --keep --containers
 

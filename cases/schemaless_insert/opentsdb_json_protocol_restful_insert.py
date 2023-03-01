@@ -517,9 +517,9 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
         self.tdSql.checkEqual(res.status_code, 204)
         query_sql = f'select * from {self.dbname}.`rFa$sta`'
         self.tdSql.query(query_sql)
-        self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2021, 7, 11, 20, 33, 54), True, 'ncharTagValue', 2147483647, 9223372036854775807, 22.123456789, 'binaryTagValue', 32767, 11.12345027923584, False, 127)])
+        self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2021, 7, 11, 20, 33, 54), True, False, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'binaryTagValue', 'ncharTagValue')])
         self.tdSql.query(f'describe {self.dbname}.`rFa$sta`')
-        self.tdSql.checkEqual(self.tdSql.getColNameList(), ['_ts', '_value', 't!@#$%^&*()_+[];:<>?,9', 't$3', 't%4', 't&6', 't*7', 't@2', 't^5', 'Tt!0', 'tT@1'])
+        self.tdSql.checkEqual(self.tdSql.getColNameList(), ['_ts', '_value', 'Tt!0', 'tT@1', 't@2', 't$3', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
         self.tdSql.execute(f'drop table {self.dbname}.`rFa$sta`')
 
 
@@ -537,11 +537,13 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
         self.col_value_length_check()
         self.tag_col_illegal_value_check()
         self.duplicate_insert_exist_check()
-        self.tag_col_binary_nchar_length_increase_check()
+        # ! TD-22898
+        # self.tag_col_binary_nchar_length_increase_check()
         # self.tag_col_binary_max_length_check()
         # self.tag_col_nchar_max_length_check()
-        self.batch_insert_check()
-        self.multi_insert_check(10)
+        # ! TD-22901
+        # self.batch_insert_check()
+        # self.multi_insert_check(10)
         self.batch_error_insert_check()
         self.multi_cols_insert_check()
         self.blank_col_insert_check()

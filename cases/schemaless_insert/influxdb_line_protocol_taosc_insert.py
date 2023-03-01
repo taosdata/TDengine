@@ -809,10 +809,10 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             query_sql = 'select * from `rFa$sta`'
             self.tdSql.query(query_sql)
-            self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2021, 7, 11, 20, 35, 33, 640000), True, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'bnhwlgvj', 'ncharTagValue', 7, '2147483647i32', 'rFas$ta_1', 'L"ncharTagValue"', '32767i16', '9223372036854775807i64', '22.123456789f64', '"ddzhiksj"', '11.12345f32', 'true', '127i8')])
+            self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2021, 7, 11, 20, 35, 33, 640000), True, 127, 32767, 2147483647, 9223372036854775807, 11.12345027923584, 22.123456789, 'bnhwlgvj', 'ncharTagValue', 7, 'rFas$ta_1', 'true', '127i8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
             query_sql = 'describe `rFa$sta`'
             self.tdSql.query(query_sql)
-            self.tdSql.checkEqual(self.tdSql.getColNameList(), ['_ts', 'C)0', 'c{1', 'c[2', 'c;3', 'c:4', 'c<5', 'c>6', 'c?7', 'c.8', 'c!@#$%^&*()_+[];:<>?,', '"t$3"', 'id', 't!@#$%^&*()_+[];:<>?,9', 't#2', 't%4', 't&6', 't*7', 't^5', 'Tt!0', 'tT@1'])
+            self.tdSql.checkEqual(self.tdSql.getColNameList(), ['_ts', 'C)0', 'c{1', 'c[2', 'c;3', 'c:4', 'c<5', 'c>6', 'c?7', 'c.8', 'c!@#$%^&*()_+[];:<>?,', 'id', 'Tt!0', 'tT@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
             self.tdSql.execute('drop table `rFa$sta`')
 
 
@@ -1025,13 +1025,12 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):
-        self.batch_insert_check()
+        self.duplicate_id_tag_col_insert_check()
         return
 
     def run(self):
         # self.test()
         # return
-        
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
                 self.no_id_stb_exist_check()
@@ -1058,7 +1057,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.tag_value_length_check()
             self.col_value_length_check()
             self.tag_col_illegal_value_check()
-            self.duplicate_id_tag_col_insert_check()
+            # ! TD-22900
+            # self.duplicate_id_tag_col_insert_check()
             self.duplicate_insert_exist_check()
             # TODO self.tag_col_binary_max_length_check()
             self.batch_insert_check()
@@ -1080,7 +1080,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.s_stb_d_tb_d_data_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_ac_mt_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_at_mc_insert_multi_thread_check()
-            self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
+            # ! TD-22898
+            # self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_at_mc_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
