@@ -916,7 +916,7 @@ class TDCreateData():
         
     def value_check(self,base_value,check_value,sql1,sql2):
         #两个sql及执行数据检查
-        self.logger.debug(f"sql1={sql1},sql2={sql2}")
+        #self.logger.debug(f"sql1={sql1},sql2={sql2}")
         if (base_value == check_value) :
             self.logger.info(("sql1:'%s' result '%s' = sql2:'%s' result '%s' ") %(sql1,base_value,sql2,check_value))
         elif (base_value > check_value) :
