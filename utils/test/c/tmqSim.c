@@ -856,7 +856,9 @@ void loop_consume(SThreadInfo* pInfo) {
   taosFprintfFile(g_fp, "==== consumerId: %d, consumeMsgCnt: %" PRId64 ", consumeRowCnt: %" PRId64 "\n",
                   pInfo->consumerId, pInfo->consumeMsgCnt, pInfo->consumeRowCnt);
 
-  taosFsyncFile(pInfo->pConsumeRowsFile);
+  if(taosFsyncFile(pInfo->pConsumeRowsFile) < 0){
+    printf("taosFsyncFile error:%s", strerror(errno));
+  }
   taosCloseFile(&pInfo->pConsumeRowsFile);
 }
 
