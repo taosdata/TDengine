@@ -243,7 +243,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'         
                            
         # 1: support all table, support all data type  [hanshu = ['FIRST']]
-        for i in (11,):
+        for i in (111,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -656,7 +656,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'       
 
         # 1: support all table, support all data type  [hanshu = ['FIRST']]
-        for i in (111,):
+        for i in (11,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -753,7 +753,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'       
 
         # 1: support all table, support all data type  [hanshu = ['FIRST']]]
-        for i in (111,):
+        for i in (11,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -1568,7 +1568,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'
                    
         # 1: support all table, support all data type  [hanshu = ['FIRST']]
-        for i in (111,):
+        for i in (11,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -1622,7 +1622,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'
                    
         # 1: support all table, support all data type  [hanshu = ['FIRST']]
-        for i in (111,):
+        for i in (11,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -1673,7 +1673,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'
 
         # 1: support all table, support all data type  [hanshu = ['FIRST']]]
-        for i in (111,):
+        for i in (11,):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
