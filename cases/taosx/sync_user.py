@@ -98,7 +98,7 @@ class StaticFullSync(TDCase):
                     if source_type == 'database':
                         self.tdTaosx.run_taosx_db_sync(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.source_taosadapter_list[source]['spec']['adapter_config']['port'],self.target_taosd,self.target_taosadapter['spec']['adapter_config']['port'],self.dbname,self.target_dbname,source,group_id,self.timeout,self.source_user_name,self.source_user_password,self.target_user_name,self.target_user_password)
                     elif source_type == 'stable':
-                        self.tdTaosx.run_taosx_stb_sync(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.source_taosadapter_list[source]['spec']['adapter_config']['port'],self.target_taosd,self.target_taosadapter['spec']['adapter_config']['port'],self.stbname,self.target_dbname,source,group_id,self.timeout,self.source_user_name,self.source_user_password,self.target_user_name,self.target_user_password)
+                        self.tdTaosx.run_taosx_stb_sync_with_topic(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.source_taosadapter_list[source]['spec']['adapter_config']['port'],self.target_taosd,self.target_taosadapter['spec']['adapter_config']['port'],self.stbname,self.target_dbname,source,group_id,self.timeout,self.source_user_name,self.source_user_password,self.target_user_name,self.target_user_password)
                     thread_list[source].start()
                 for thread in thread_list:
                     thread.join()
