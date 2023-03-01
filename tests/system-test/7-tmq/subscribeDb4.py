@@ -26,7 +26,7 @@ class TDTestCase:
                 'ctbPrefix':  'ctb',
                 'ctbStartIdx': 0,
                 'ctbNum':     10,
-                'rowsPerTbl': 50000,
+                'rowsPerTbl': 10000,
                 'batchNum':   10,
                 'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                 'pollDelay':  20,
