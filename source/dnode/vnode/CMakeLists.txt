@@ -67,6 +67,16 @@ target_sources(
     "src/tq/tqSnapshot.c"
     "src/tq/tqOffsetSnapshot.c"
 )
+
+IF (TD_VNODE_PLUGINS)
+  target_sources(
+    vnode
+    PRIVATE
+    ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompact.c
+    ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/vnodeCompact.c
+  )
+ENDIF ()
+
 target_include_directories(
     vnode
     PUBLIC "inc"
@@ -96,11 +106,6 @@ target_link_libraries(
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(vnode PUBLIC grant)
 ENDIF ()
-
-IF (TD_VNODE_PLUGINS)
-  TARGET_LINK_LIBRARIES(vnode PUBLIC vnode_plugin)
-ENDIF ()
-
 
 target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
 
