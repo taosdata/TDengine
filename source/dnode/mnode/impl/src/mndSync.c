@@ -118,12 +118,12 @@ int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta
             transId, pTrans->createdTime, pMgmt->transId);
       mndTransExecute(pMnode, pTrans, false);
       mndReleaseTrans(pMnode, pTrans);
-      // sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
     } else {
       mError("trans:%d, not found while execute in mnode since %s", transId, terrstr());
     }
   }
 
+  sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
   return 0;
 }
 
@@ -319,6 +319,7 @@ int32_t mndInitSync(SMnode *pMnode) {
     mError("failed to open sync since %s", terrstr());
     return -1;
   }
+  pMnode->pSdb->sync = pMgmt->sync;
 
   mInfo("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
