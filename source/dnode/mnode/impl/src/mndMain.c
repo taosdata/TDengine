@@ -344,8 +344,8 @@ static int32_t mndInitWal(SMnode *pMnode) {
       .fsyncPeriod = 0,
       .rollPeriod = -1,
       .segSize = -1,
-      .retentionPeriod = -1,
-      .retentionSize = -1,
+      .retentionPeriod = 0,
+      .retentionSize = 0,
       .level = TAOS_WAL_FSYNC,
   };
 
@@ -370,7 +370,6 @@ static int32_t mndInitSdb(SMnode *pMnode) {
   opt.path = pMnode->path;
   opt.pMnode = pMnode;
   opt.pWal = pMnode->pWal;
-  opt.sync = pMnode->syncMgmt.sync;
 
   pMnode->pSdb = sdbInit(&opt);
   if (pMnode->pSdb == NULL) {
@@ -552,16 +551,7 @@ void mndPreClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     syncLeaderTransfer(pMnode->syncMgmt.sync);
     syncPreStop(pMnode->syncMgmt.sync);
-#if 0
-    while (syncSnapshotRecving(pMnode->syncMgmt.sync)) {
-      mInfo("vgId:1, snapshot is recving");
-      taosMsleep(300);
-    }
-    while (syncSnapshotSending(pMnode->syncMgmt.sync)) {
-      mInfo("vgId:1, snapshot is sending");
-      taosMsleep(300);
-    }
-#endif
+    sdbWriteFile(pMnode->pSdb, 0);
   }
 }
 
