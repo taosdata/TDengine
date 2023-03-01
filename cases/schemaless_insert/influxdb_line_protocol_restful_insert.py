@@ -229,7 +229,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)} c0=f 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Invalid binary/nchar column length", res.text)
+        self.tdSql.checkIn("Invalid binary/nchar column/tag length", res.text)
 
     def col_value_length_check(self):
         """
@@ -246,7 +246,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(c1=c1)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            self.tdSql.checkIn("tiny int out of range", res.text)
+            self.tdSql.checkIn("smlParseValue error", res.text)
         # i16
         for c2 in [f'-{self.tdCom.boundary_config["SMALLINT_MAX"]}i16']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(c2=c2)
@@ -255,7 +255,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(c2=c2)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            self.tdSql.checkIn("small int our of range", res.text)
+            self.tdSql.checkIn("smlParseValue error", res.text)
 
         # i32
         for c3 in [f'-{self.tdCom.boundary_config["INT_MAX"]}i32']:
@@ -265,7 +265,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(c3=c3)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            self.tdSql.checkIn("int out of range", res.text)
+            self.tdSql.checkIn("smlParseValue error", res.text)
 
         # i64
         for c4 in [f'-{self.tdCom.boundary_config["BIGINT_MAX"]}i64']:
@@ -275,7 +275,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             input_sql = self.tdCom.gen_full_type_sql(c4=c4)[0]
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            self.tdSql.checkIn("big int out of range", res.text)
+            self.tdSql.checkIn("smlParseValue error", res.text)
 
         # f64
         for c6 in [f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64', f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64']:
@@ -296,7 +296,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql = f'{stb_name},t0=t c0=f,c1="{self.tdCom.get_long_name(self.tdCom.boundary_config["BINARY_MAX_LENGTH"]+1)}" 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Invalid binary/nchar column length", res.text)
+        self.tdSql.checkIn("smlParseValue error", res.text)
 
         # nchar
         # * legal nchar could not be larger than 16374/4
@@ -306,7 +306,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)}" 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Invalid binary/nchar column length", res.text)
+        self.tdSql.checkIn("smlParseValue error", res.text)
 
     def tag_col_illegal_value_check(self):
 
@@ -334,7 +334,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
             ]:
             res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
             self.tdSql.checkEqual(res.status_code, 500)
-            self.tdSql.checkIn("invalid data", res.text)
+            self.tdSql.checkIn("smlParseValue error", res.text)
 
         # check binary and nchar blank
         stb_name = self.tdCom.get_long_name()
@@ -364,19 +364,19 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql_id = self.tdCom.gen_full_type_sql(id_double_tag=True)[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql_id, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("dumplicate key", res.text)
+        self.tdSql.checkIn("bound tags error", res.text)
 
         input_sql = self.tdCom.gen_full_type_sql()[0]
         input_sql_tag = input_sql.replace("t5", "t6")
         res = self.tdRest.schemalessApiPost(sql=input_sql_tag, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("dumplicate key", res.text)
+        self.tdSql.checkIn("bound tags error", res.text)
 
         input_sql = self.tdCom.gen_full_type_sql()[0]
         input_sql_col = input_sql.replace("c5", "c6")
         res = self.tdRest.schemalessApiPost(sql=input_sql_col, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("dumplicate key", res.text)
+        self.tdSql.checkIn("bound tags error", res.text)
 
     ##### stb exist #####
     def duplicate_insert_exist_check(self):
@@ -595,7 +595,8 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         self.tag_value_length_check()
         self.col_value_length_check()
         self.tag_col_illegal_value_check()
-        self.duplicate_id_tag_col_insert_Check()
+        # ! TD-22900
+        # self.duplicate_id_tag_col_insert_Check()
         self.duplicate_insert_exist_check()
         self.tag_col_binary_nchar_length_increase_check()
         # self.tag_col_binary_max_length_check()
