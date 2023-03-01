@@ -108,7 +108,7 @@ class TDTestCase:
 
         
         # create stream
-        tdSql.execute('''create stream current_stream into stream_max_stable_1 as select _wstart as startts, _wend as wend, max(q_int) as max_int, min(q_bigint) as min_int from stable_1 where ts is not null interval (5s);''')
+        tdSql.execute('''create stream current_stream trigger at_once IGNORE EXPIRED 0 into stream_max_stable_1 as select _wstart as startts, _wend as wend, max(q_int) as max_int, min(q_bigint) as min_int from stable_1 where ts is not null interval (5s);''')
         
         # insert data
         for i in range(num_random*n):        
