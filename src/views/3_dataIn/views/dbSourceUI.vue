@@ -206,10 +206,14 @@
               <div
                 v-for="al in dbsource[0].authentication.alternatives.slice(1)"
                 :key="al.name"
-                style="display:flex;align-items:baseline;"
+                style="display: flex; align-items: baseline"
               >
                 <span class="label">{{ al.display }}</span>
-                <div v-for="(p, index) in al.params" :key="index" style="width:100%;">
+                <div
+                  v-for="(p, index) in al.params"
+                  :key="index"
+                  style="width: 100%"
+                >
                   <el-input v-model="p.value"></el-input>
                   <div
                     class="description"
@@ -239,7 +243,10 @@
               </span>
               <div class="label-value">
                 <template v-if="p.hint === 'str' || p.hint === 'timeout'">
-                  <el-input v-model="p.value" placeholder="Please enter timeout"></el-input>
+                  <el-input
+                    v-model="p.value"
+                    placeholder="Please enter timeout"
+                  ></el-input>
                 </template>
                 <template v-if="p.hint.type && p.hint.type === 'str'">
                   <el-select
@@ -367,6 +374,7 @@ export default {
     },
     async submit() {
       let dns = "";
+      let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
       try {
         if (data.protocol.value) {
@@ -389,8 +397,10 @@ export default {
         )}:${sessionStorage.getItem("pwd")}@${
           data.options.host.value ? data.options.host.value : ""
         }
-        `
-        dns+=(Object.is(data.options.port.value,null)?'':':')+`${data.options.port.value ? data.options.port.value : ""}`;
+        `;
+        dns +=
+          (Object.is(data.options.port.value, null) ? "" : ":") +
+          `${data.options.port.value ? data.options.port.value : ""}`;
         dns += data.options.subject.value
           ? "/" + data.options.subject.value
           : "";
@@ -398,7 +408,6 @@ export default {
         for (let index = 0; index < data.groups.length; index++) {
           //   for (let j = 0; j < data.groups[index].params.length; j++) {
           for (let g of Object.keys(data.groups[index].params)) {
-
             if (
               Object.hasOwnProperty.call(
                 data.groups[index].params[g],
@@ -412,24 +421,29 @@ export default {
               });
               return;
             } else {
-              querystr +=
-                `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                "&";
+              if (data.groups[index].params[g].value) {
+                querystr +=
+                  `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                  "&";
+              }
             }
           }
           //   }
         }
 
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        console.log(querystr, "querystrquerystr",data.protocol,data.protocol.value==='',Object.is(data.protocol.value, '--'));
         let apiParams = {
-          from: "tmq" +(Object.is(data.protocol.value,null)?'':'+')+ dns,
+          from: "tmq" + (Object.is(data.protocol.value, '--') ? "" : "+") + dns,
           name: localStorage.getItem("datainName"),
+
           to:
             "taos+" +
             localStorage.getItem("base_url") +
             (this.dbname ? "/" + this.dbname : ""),
-          labels: ["type::datain"]
+          labels: ["type::datain", `cluster-id::${id}`],
         };
+
         await fetch(`${process.env.VUE_APP_X_API}/tasks`, {
           method: "post",
           headers: {
