@@ -39,7 +39,7 @@ The Rust Connector is still under rapid development and is not guaranteed to be 
 * Install the Rust development toolchain
 * If using the native connection, please install the TDengine client driver. Please refer to [install client driver](/reference/connector#install-client-driver)
 
-# Add taos dependency
+### Add taos dependency
 
 Depending on the connection method, add the [taos][taos] dependency in your Rust project as follows:
 
@@ -282,7 +282,7 @@ In the application code, use `pool.get()? ` to get a connection object [Taos].
 let taos = pool.get()?;
 ```
 
-# Connectors
+### Connectors
 
 The [Taos][struct.Taos] object provides an API to perform operations on multiple databases.
 
