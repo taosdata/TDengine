@@ -61,7 +61,7 @@ class TDTestCase:
         cmd = "%s -f ./5-taos-tools/taosbenchmark/json/sml_telnet_tcp.json" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
-        time.sleep(5)
+        time.sleep(10)
         tdSql.execute("reset query cache")
         tdSql.query("select client_version()")
         client_ver = "".join(tdSql.queryResult[0])
