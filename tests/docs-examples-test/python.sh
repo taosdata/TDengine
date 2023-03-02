@@ -85,3 +85,9 @@ python3 fast_write_example.py
 pip3 install kafka-python
 python3 kafka_example_consumer.py
 
+# 21
+pip3 install taos-ws-py
+python3 conn_websocket_pandas.py
+
+# 22
+python3 connect_websocket_examples.py
