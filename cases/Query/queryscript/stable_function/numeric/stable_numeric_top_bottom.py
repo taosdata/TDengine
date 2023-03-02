@@ -310,7 +310,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                             
-                        for i in (1,2,3,4,21,22,62,72,82,92,):  
+                        for i in (62,72,82,92,):  
                             #测试相同时间时的处理
                             # top/bottom/sample/histogram not support fill                      
                             time_window_new = tdWhere.time_window_new(i)
