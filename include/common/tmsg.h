@@ -929,12 +929,19 @@ typedef struct {
   int32_t minRows;
   int32_t maxRows;
   int32_t walFsyncPeriod;
+  int16_t hashPrefix;
+  int16_t hashSuffix;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
   int8_t  cacheLast;
+  int32_t tsdbPageSize;
+  int32_t walRetentionPeriod;
+  int32_t walRollPeriod;
+  int64_t walRetentionSize;
+  int64_t walSegmentSize;
   int32_t numOfRetensions;
   SArray* pRetensions;
   int8_t  schemaless;
@@ -1812,7 +1819,7 @@ typedef struct {
 #define STREAM_TRIGGER_AT_ONCE        1
 #define STREAM_TRIGGER_WINDOW_CLOSE   2
 #define STREAM_TRIGGER_MAX_DELAY      3
-#define STREAM_DEFAULT_IGNORE_EXPIRED 0
+#define STREAM_DEFAULT_IGNORE_EXPIRED 1
 #define STREAM_FILL_HISTORY_ON        1
 #define STREAM_FILL_HISTORY_OFF       0
 #define STREAM_DEFAULT_FILL_HISTORY   STREAM_FILL_HISTORY_OFF
@@ -2684,7 +2691,7 @@ typedef struct {
   char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
   int8_t  subType;
   int8_t  withMeta;
-  char*   qmsg;
+  char*   qmsg;     //SubPlanToString
   int64_t suid;
 } SMqRebVgReq;
 

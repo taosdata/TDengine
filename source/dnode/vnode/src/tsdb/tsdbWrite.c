@@ -35,9 +35,7 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq2 *pMsg, SSubmitRsp2
     return -1;
   }
 
-  if (pMsg) {
-    arrSize = taosArrayGetSize(pMsg->aSubmitTbData);
-  }
+  arrSize = taosArrayGetSize(pMsg->aSubmitTbData);
 
   // scan and convert
   if (tsdbScanAndConvertSubmitMsg(pTsdb, pMsg) < 0) {

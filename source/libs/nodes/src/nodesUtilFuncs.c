@@ -963,8 +963,6 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
-    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
@@ -2101,9 +2099,9 @@ void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-      pVal->pz = taosMemoryMalloc(pVal->nLen + VARSTR_HEADER_SIZE + 1);
-      memcpy(pVal->pz, pNode->datum.p, pVal->nLen + VARSTR_HEADER_SIZE);
-      pVal->pz[pVal->nLen + VARSTR_HEADER_SIZE] = 0;
+      pVal->pz = taosMemoryMalloc(pVal->nLen + 1);
+      memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+      pVal->pz[pVal->nLen] = 0;
       break;
     case TSDB_DATA_TYPE_JSON:
       pVal->nLen = getJsonValueLen(pNode->datum.p);

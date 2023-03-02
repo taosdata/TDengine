@@ -217,7 +217,7 @@ int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
   char buf2[80] = {0};
   tFormatOffset(buf1, tListLen(buf1), &pRsp->reqOffset);
   tFormatOffset(buf2, tListLen(buf2), &pRsp->rspOffset);
-  tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) push rsp, block num: %d, reqOffset:%s, rspOffset:%s",
+  tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) push rsp, block num: %d, req:%s, rsp:%s",
           TD_VID(pTq->pVnode), pRsp->head.consumerId, pRsp->head.epoch, pRsp->blockNum, buf1, buf2);
 
   return 0;
@@ -275,7 +275,7 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   char buf2[80] = {0};
   tFormatOffset(buf1, 80, &pRsp->reqOffset);
   tFormatOffset(buf2, 80, &pRsp->rspOffset);
-  tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d), block num:%d, reqOffset:%s, rspOffset:%s",
+  tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d), block num:%d, req:%s, rsp:%s",
           TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
 
   return 0;
@@ -575,7 +575,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       return -1;
     }
 
-#if 1
     // till now, all data has been rsp to consumer, new data needs to push client once arrived.
     if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
         dataRsp.reqOffset.version == dataRsp.rspOffset.version) {
@@ -597,14 +596,13 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         return 0;
       }
     }
-#endif
     taosWUnLockLatch(&pTq->pushLock);
 
     if (tqSendDataRsp(pTq, pMsg, &req, &dataRsp) < 0) {
       code = -1;
     }
 
-    tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp data block:%d, offset type:%d, uid/version:%" PRId64 ", ts:%" PRId64 "",
+    tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, offset type:%d, uid/version:%" PRId64 ", ts:%" PRId64 "",
             consumerId, pHandle->subKey, TD_VID(pTq->pVnode), dataRsp.blockNum, dataRsp.rspOffset.type,
             dataRsp.rspOffset.uid, dataRsp.rspOffset.ts);
 
@@ -613,10 +611,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // for taosx
-  /*A(pHandle->execHandle.subType != TOPIC_SUB_TYPE__COLUMN);*/
-
   SMqMetaRsp metaRsp = {0};
-
   STaosxRsp taosxRsp = {0};
   tqInitTaosxRsp(&taosxRsp, &req);
 

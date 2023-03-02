@@ -53,7 +53,6 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   }
 
   pSdb->pWal = pOption->pWal;
-  pSdb->sync = pOption->sync;
   pSdb->applyIndex = -1;
   pSdb->applyTerm = -1;
   pSdb->applyConfig = -1;

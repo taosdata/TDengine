@@ -595,6 +595,7 @@ static int32_t tdFetchSubmitReqSuids(SSubmitReq2 *pMsg, STbUidStore *pStore) {
   return 0;
 }
 
+#if 0
 /**
  * @brief retention of rsma1/rsma2
  *
@@ -618,6 +619,7 @@ int32_t smaDoRetention(SSma *pSma, int64_t now) {
 _end:
   return code;
 }
+#endif
 
 static void tdBlockDataDestroy(SArray *pBlockArr) {
   for (int32_t i = 0; i < taosArrayGetSize(pBlockArr); ++i) {

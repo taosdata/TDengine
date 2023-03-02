@@ -18,6 +18,7 @@
 #include "indexInt.h"
 #include "indexUtil.h"
 #include "os.h"
+#include "osDef.h"
 #include "tutil.h"
 
 static int32_t kBlockSize = 4096;
@@ -172,7 +173,8 @@ static FORCE_INLINE int idxFileCtxDoFlush(IFileCtx* ctx) {
       int32_t nw = taosWriteFile(ctx->file.pFile, ctx->file.wBuf, ctx->file.wBufOffset);
       ctx->file.wBufOffset = 0;
     }
-    taosFsyncFile(ctx->file.pFile);
+    int ret = taosFsyncFile(ctx->file.pFile);
+    UNUSED(ret);
   } else {
     // do nothing
   }
@@ -180,11 +182,11 @@ static FORCE_INLINE int idxFileCtxDoFlush(IFileCtx* ctx) {
 }
 
 IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int32_t capacity) {
+  int       code = 0;
   IFileCtx* ctx = taosMemoryCalloc(1, sizeof(IFileCtx));
   if (ctx == NULL) {
     return NULL;
   }
-
   ctx->type = type;
   if (ctx->type == TFILE) {
     // ugly code, refactor later
@@ -192,15 +194,21 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
     memcpy(ctx->file.buf, path, strlen(path));
     if (readOnly == false) {
       ctx->file.pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
-      taosFtruncateFile(ctx->file.pFile, 0);
-      taosStatFile(path, &ctx->file.size, NULL);
+
+      code = taosFtruncateFile(ctx->file.pFile, 0);
+      UNUSED(code);
+
+      code = taosStatFile(path, &ctx->file.size, NULL);
+      UNUSED(code);
 
       ctx->file.wBufOffset = 0;
       ctx->file.wBufCap = kBlockSize * 4;
       ctx->file.wBuf = taosMemoryCalloc(1, ctx->file.wBufCap);
     } else {
       ctx->file.pFile = taosOpenFile(path, TD_FILE_READ);
-      taosFStatFile(ctx->file.pFile, &ctx->file.size, NULL);
+      code = taosFStatFile(ctx->file.pFile, &ctx->file.size, NULL);
+      UNUSED(code);
+
       ctx->file.wBufOffset = 0;
 
 #ifdef USE_MMAP
