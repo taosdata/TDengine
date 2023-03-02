@@ -328,7 +328,7 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                             
-                        for i in (62,72,82,92,31,32,33,34,35,):    
+                        for i in (1,2,3,4,21,22,62,72,82,92,31,32,33,34,35,):    
                             #测试相同时间时的处理                     
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
@@ -956,7 +956,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                         
-                        for i in (62,72,82,92,31,32,33,34,35,):  
+                        for i in (1,2,3,4,21,22,62,72,82,92,31,32,33,34,35,):  
                             #测试相同时间时的处理                         
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
@@ -1204,7 +1204,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                         
-                        for i in (62,72,82,92,31,32,33,34,35,):  
+                        for i in (1,2,3,4,21,22,62,72,82,92,31,32,33,34,35,):  
                             #测试相同时间时的处理                        
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
@@ -1754,7 +1754,7 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                         
-                        for i in (62,72,82,92,31,32,33,34,35,):  
+                        for i in (1,2,3,4,21,22,62,72,82,92,31,32,33,34,35,):  
                             #测试相同时间时的处理                        
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n=====right case========case3====time num = %d======interval======\n\n\n" %i)
@@ -1950,7 +1950,7 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2                                                  
                         
-                        for i in (62,72,82,92,31,32,33,34,35,):  
+                        for i in (1,2,3,4,21,22,62,72,82,92,31,32,33,34,35,):  
                             #测试相同时间时的处理                          
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n=====right case========case3====time num = %d======interval======\n\n\n" %i)
