@@ -46,9 +46,9 @@ rd /s /Q C:\TDengine
 cmake --install .
 if not %errorlevel% == 0  ( call :RUNFAILED build x64 failed & exit /b 1)
 cd %package_dir%
-iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%2"  /DCusName="Tdengine" /DCusPrompt="taos" /DMyAppExcludeSource="" tools\tdengine.iss /O..\release
+iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%2"  /DCusName="TDengine" /DCusPrompt="taos" /DMyAppExcludeSource="" tools\tdengine.iss /O..\release
 if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x64% failed & exit /b 1)
-iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%2"  /DCusName="Tdengine" /DCusPrompt="taos" /DMyAppExcludeSource="taosd.exe" tools\tdengine.iss /O..\release
+iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%2"  /DCusName="TDengine" /DCusPrompt="taos" /DMyAppExcludeSource="taosd.exe" tools\tdengine.iss /O..\release
 if not %errorlevel% == 0  ( call :RUNFAILED package %packagClientName_x64% failed & exit /b 1)
 
 goto EXIT0
