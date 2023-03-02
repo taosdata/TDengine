@@ -285,7 +285,6 @@ export default {
       }
     },
     async login() {
-
       let token =
         "Basic " +
         DbBase64.encode(
@@ -316,6 +315,7 @@ export default {
         });
         this.loading=false
       } catch (error) {
+        this.loading=false
         Message.error("Faild to fetch,wrong cluster url!");
       }
     },

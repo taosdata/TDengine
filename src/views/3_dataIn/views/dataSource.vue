@@ -3,7 +3,7 @@
     <div class="flexEnd">
       <el-button
         plain
-        @click="dialog = true"
+        @click="dialog=true"
         size="small"
         icon="el-icon-plus"
         >{{ $t("topic.addsource") }}</el-button
@@ -39,26 +39,32 @@
               scope.row.status
             }}</span>
             <template v-if="scope.row.status.toLowerCase() !== 'running'">
-              <el-tooltip placement="bottom"
-              effect="light" content='Excute Start'>
+              <el-tooltip
+                placement="bottom"
+                effect="light"
+                content="Excute Start"
+              >
                 <el-button
                   plain
                   size="small"
-                  @click="start(scope.row, scope.$index)"
+                  @click="start(scope.row)"
                   icon="el-icon-qidong"
                 ></el-button>
               </el-tooltip>
             </template>
             <template v-else>
-              <el-tooltip placement="bottom"
-              effect="light" content='Excute Stop'>
-              <el-button
-                plain
-                size="small"
-                @click="stop(scope.row, scope.$index)"
-                icon="el-icon-tingzhi"
-              ></el-button></el-tooltip>
-              
+              <el-tooltip
+                placement="bottom"
+                effect="light"
+                content="Excute Stop"
+              >
+                <el-button
+                  plain
+                  size="small"
+                  @click="stop(scope.row)"
+                  icon="el-icon-tingzhi"
+                ></el-button
+              ></el-tooltip>
             </template>
           </div>
           <!-- <template v-if="['stopped','finished','failed'].includes(scope.row.status.toLowerCase())">
@@ -72,6 +78,7 @@
           <el-button
             type="primay"
             size="small"
+            :disabled="scope.row.from_detail === undefined"
             @click="edit(scope.row)"
             icon="el-icon-edit"
           ></el-button>
@@ -98,6 +105,7 @@
       title="Add New Data Source"
       width="400px"
       :visible.sync="dialog"
+      @closed='closeDialog'
     >
       <el-form
         :model="ruleForm"
@@ -118,9 +126,6 @@
               v-for="item in sourceList"
               :key="item.id"
             ></el-option>
-            <!-- <el-option label="OpenTSDB" value="opentsdb"></el-option>
-            <el-option label="OPC" value="opc"></el-option>
-            <el-option label="Kafka" value="kafka"></el-option>-->
           </el-select>
         </el-form-item>
         <el-form-item label="Source Name" prop="name" required>
@@ -159,7 +164,8 @@
 </template>
 <script>
 import { Message } from "element-ui";
-import dbsource from "./datasource.json";
+import { getDatain } from "@/api/explorer/datain";
+import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 export default {
   name: "DataSource",
   props: {
@@ -183,41 +189,38 @@ export default {
   },
   data() {
     return {
-      dbsource: dbsource,
+      dbsource: null,
       pageSize: 10,
       currentPage: 1,
       total: 10,
       dialog: false,
       ruleForm: {
         type: "",
-        name: ""
+        name: "",
       },
       topicList: [],
     };
   },
   methods: {
     handlePageChange() {},
+    closeDialog() {
+      this.$refs.ruleForm.resetFields();
+        this.dialog=false
+    },
     del(data) {
-      this.$confirm(
-        "Are you sure  to delete " + data.data_source_name + "?",
-        "Warning",
-        {
-          confirmButtonText: "Ok",
-          cancelButtonText: "Cancle",
-          type: "warning",
-        }
-      ).then((res) => {
-        fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}`, {
-          method: "delete",
-        })
-          .then((res) => {
-            if (res.status == 200) {
-              Message({
-                type: "success",
-                message: "Deleted Successfully",
-              });
-              this.getList();
-            }
+      console.log(data, "del----");
+      this.$confirm("Are you sure  to delete " + data.name + "?", "Warning", {
+        confirmButtonText: "Ok",
+        cancelButtonText: "Cancle",
+        type: "warning",
+      }).then(async () => {
+        await excuteDel(data.id)
+          .then(() => {
+            Message({
+              type: "success",
+              message: "Deleted Successfully",
+            });
+            this.getList();
           })
           .catch((err) => {
             err.desc && Message.error(err.desc);
@@ -226,9 +229,14 @@ export default {
       });
     },
     edit(data) {
-      let editDdata=[].concat(data.from_detail)
-      this.$parent.uidata=editDdata
-      this.$parent.toggleComponent("ui", this.ruleForm.type,'',editDdata);
+      if (data.from_detail) {
+        let editDdata = [].concat(data.from_detail);
+
+        console.log(data, editDdata, "edit-----datain");
+        this.$parent.uidata = editDdata;
+        this.$parent.toggleComponent("ui", this.ruleForm.type, "", editDdata);
+      }
+
       // this.$router.push({
       //   path: `/dataIn/source/${data.data_source_name}`
       // });
@@ -240,40 +248,13 @@ export default {
     async getList() {
       try {
         let id = localStorage.getItem("local_clusterID");
-        fetch(
-          `${process.env.VUE_APP_X_API}/tasks?detail=true&labels=type::datain,cluster-id::${id}`,
-          {
-            method: "get",
-          }
-        )
-          .then((res) => res.json())
-          .then((result) => {
-            this.topicList = result.map((item) => {
+        await getDatain(id).then((res) => {
+          if (res) {
+            this.topicList = res.map((item) => {
               item["localname"] = item.name ? item.name : "tmq+" + item.id;
               item["localtype"] = item.from_detail ? item.from_detail.name : "";
               item["target"] = item.to_expand ? item.to_expand.subject : "";
               return item;
-            });
-          });
-      } catch (err) {
-        err.desc && Message.error(err.desc);
-        return Promise.reject(err);
-      }
-    },
-    start(data, index) {
-      try {
-        fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/start`, {
-          method: "post",
-          headers:{
-            "Content-Type":"application/json"
-          }
-        }).then((res) => {
-          if (res.status == 200) {
-            this.getList();
-          } else {
-            Message({
-              type: "error",
-              message: "",
             });
           }
         });
@@ -282,17 +263,40 @@ export default {
         return Promise.reject(err);
       }
     },
-    stop(data, index) {
+    start(data, index) {
       try {
-        fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
-          method: "post",
-           headers:{
-            "Content-Type":"application/json"
+        this.$confirm(
+          `Are you sure to start the ${data.name} task?`,
+          this.$t("warning"),
+          {
+            confirmButtonText: this.$t("confirm"),
+            cancelButtonText: this.$t("cancel"),
+            type: "warning",
           }
-        }).then((res) => {
-          if (res.status == 200) {
+        ).then(async () => {
+          await excuteStart(data.id).then((res) => {
             this.getList();
+          });
+        });
+      } catch (err) {
+        err.desc && Message.error(err.desc);
+        return Promise.reject(err);
+      }
+    },
+    stop(data) {
+      try {
+        this.$confirm(
+          `Are you sure to stop the ${data.name} task?`,
+          this.$t("warning"),
+          {
+            confirmButtonText: this.$t("confirm"),
+            cancelButtonText: this.$t("cancel"),
+            type: "warning",
           }
+        ).then(async () => {
+          await excuteStop(data.id).then((res) => {
+            this.getList();
+          });
         });
       } catch (err) {
         err.desc && Message.error(err.desc);

@@ -121,6 +121,7 @@
       :title="dialogTitle"
       width="600px"
       :visible.sync="dialog"
+      @closed='closeDialog'
     >
       <el-form
         :model="ruleForm"
@@ -183,7 +184,6 @@
   </div>
 </template>
 <script>
-import { format } from "date-fns";
 import {
   getBackupList,
   addBackupData,
@@ -266,6 +266,11 @@ export default {
   },
   methods: {
     handlePageChange() {},
+    closeDialog(){
+       this.$refs.ruleForm.resetFields();
+       this.$refs.ruleForm.clearValidate()
+        this.dialog=false
+    },
     del(data) {
       this.$confirm(
         "Are you sure  to delete " + data.id + " backup task?",
@@ -283,17 +288,6 @@ export default {
           });
           this.getBackData();
         });
-        // fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}`, {
-        //   method: "delete",
-        // }).then((res) => {
-        //   if (res.status == 200) {
-        //     Message({
-        //       type: "success",
-        //       message: "Deleted Successfully",
-        //     });
-        //     this.getBackData();
-        //   }
-        // });
       });
     },
     add() {
@@ -320,14 +314,6 @@ export default {
           Message.success("Operation Successfully Completed!");
           this.getBackData();
         });
-        // await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/start`, {
-        //   method: "post",
-        // }).then((res) => {
-        //   if (res.status == 200) {
-        //     Message.success("Operation Successfully Completed!");
-        //     this.getBackData();
-        //   }
-        // });
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
@@ -339,14 +325,6 @@ export default {
           Message.success("Operation Successfully Completed!");
           this.getBackData();
         });
-        // await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
-        //   method: "post",
-        // }).then((res) => {
-        //   if (res.status == 200) {
-        //     Message.success("Operation Successfully Completed!");
-        //     this.getBackData();
-        //   }
-        // });
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
@@ -404,20 +382,6 @@ export default {
           this.getBackData();
         });
         this.dialog = false;
-        // await fetch(`${process.env.VUE_APP_X_API}/tasks/${id}`, {
-        //   method: "put",
-        //   body: JSON.stringify({
-        //     trigger: this.ruleForm.cycle,
-        //   }),
-        // }).then((res) => {
-        //   console.log(res, "edit");
-        //   if (res.status == 200) {
-        //     this.getBackData();
-        //   } else {
-        //     Message.error(res.statusText);
-        //   }
-        //   this.dialog = false;
-        // });
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);

@@ -314,6 +314,7 @@
 </template>
 <script>
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
+import { AddSource } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
 export default {
@@ -351,13 +352,6 @@ export default {
         return val;
       }
     },
-    async getDatabases() {
-      try {
-        this.dblist = await getDBListReq();
-      } catch (error) {
-        console.log(error);
-      }
-    },
     getRequiredItem(source) {
       if (!source && typeof source !== "object") {
         throw new Error("error arguments", "deepClone");
@@ -372,6 +366,14 @@ export default {
       });
       return targetObj;
     },
+    async getDatabases() {
+      try {
+        this.dblist = await getDBListReq();
+      } catch (error) {
+        console.log(error);
+      }
+    },
+
     async submit() {
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
@@ -381,9 +383,13 @@ export default {
           dns += data.protocol.value;
         }
         for (let key of Object.keys(data.options)) {
+          if (key === "subject") {
+            console.log(data.options[key]["value"], "--ppp");
+          }
           if (
             Object.hasOwnProperty.call(data.options[key], "required") &&
-            data.options[key]["value"] == ""
+            (data.options[key]["value"] == "" ||
+              data.options[key]["value"] == undefined)
           ) {
             Message({
               type: "warning",
@@ -432,9 +438,8 @@ export default {
         }
 
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-        console.log(querystr, "querystrquerystr",data.protocol,data.protocol.value==='',Object.is(data.protocol.value, '--'));
         let apiParams = {
-          from: "tmq" + (Object.is(data.protocol.value, '--') ? "" : "+") + dns,
+          from: "tmq" + (Object.is(data.protocol.value, "--") ? "" : "+") + dns,
           name: localStorage.getItem("datainName"),
 
           to:
@@ -444,17 +449,9 @@ export default {
           labels: ["type::datain", `cluster-id::${id}`],
         };
 
-        await fetch(`${process.env.VUE_APP_X_API}/tasks`, {
-          method: "post",
-          headers: {
-            "Content-type": "application/json",
-          },
-          body: JSON.stringify(apiParams),
-        })
-          .then((res) => res.json())
-          .then((result) => {
-            this.$parent.toggleComponent("dbsource", "");
-          });
+        await AddSource(apiParams).then((res) => {
+          this.$parent.toggleComponent("dbsource", "");
+        });
       } catch (error) {
         console.log(error);
       }

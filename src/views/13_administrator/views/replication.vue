@@ -1,7 +1,7 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="refresh" size="small" icon="el-icon-refresh">
+      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled='refreshable'>
         {{ $t("refresh") }}
       </el-button>
       <el-button plain @click="add" size="small" icon="el-icon-plus"
@@ -128,6 +128,7 @@ import taosbenchmarkVue from "@/utils/config/mdx/en/taosbenchmark.vue";
 export default {
   data() {
     return {
+      refreshable:false,
       pageSize: 10,
       currentPage: 1,
       total: 10,
@@ -185,20 +186,10 @@ export default {
           });
           this.getReplication();
         });
-        // fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}`, {
-        //   method: "delete",
-        // }).then((res) => {
-        //   if (res.status == 200) {
-        //     Message({
-        //       type: "success",
-        //       message: "Deleted Successfully",
-        //     });
-        //     this.getReplication();
-        //   }
-        // });
       });
     },
-    refresh(data) {
+    refresh() {
+      this.refreshable=true
       this.getReplication();
     },
     async addReplication() {
@@ -222,36 +213,7 @@ export default {
           }
           this.dialog = false;
         });
-        // await fetch(
-        //   `${
-        //     process.env.VUE_APP_X_API
-        //   }/tasks?labels=type::replication,cluster-id::${localStorage.getItem(
-        //     "local_clusterID"
-        //   )}`,
-        //   {
-        //     method: "post",
-        //     headers: {
-        //       "Content-Type": "application/json",
-        //     },
-        //     body: JSON.stringify({
-        //       name: "replication",
-        //       labels: [
-        //         "type::replication",
-        //         `cluster-id::${localStorage.getItem("local_clusterID")}`,
-        //       ],
-        //       to: `${this.ruleForm.target}`,
-        //       from: `tmq+${localStorage.getItem("base_url")}/${
-        //         this.ruleForm.source
-        //       }`,
-        //     }),
-        //   }
-        // ).then((res) => {
-        //   if (res.ok || res.status == 201) {
-        //     Message.success("Created Successfully!");
-        //     this.getReplication();
-        //     this.dialog = false;
-        //   }
-        // });
+        
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
@@ -264,20 +226,9 @@ export default {
     },
     async start(val, data) {
       try {
-        // await excuteStart(data.id).then((res) => {
-        //   Message.success("Operation Successfully Completed!");
-        //   this.getReplication();
-        // });
-        await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/start`, {
-          method: "post",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }).then((res) => {
-          if (res.status == 200) {
-            Message.success("Operation Successfully Completed!");
-            this.getReplication();
-          }
+        await excuteStart(data.id).then((res) => {
+          Message.success("Operation Successfully Completed!");
+          this.getReplication();
         });
       } catch (err) {
         err.desc && Message.error(err.desc);
@@ -290,17 +241,6 @@ export default {
           Message.success("Operation Successfully Completed!");
           this.getReplication();
         });
-        // await fetch(`${process.env.VUE_APP_X_API}/tasks/${data.id}/stop`, {
-        //   method: "post",
-        //   headers: {
-        //     "Content-Type": "application/json",
-        //   },
-        // }).then((res) => {
-        //   if (res.status == 200) {
-        //     Message.success("Operation Successfully Completed!");
-        //     this.getReplication();
-        //   }
-        // });
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
@@ -341,30 +281,11 @@ export default {
             return item;
           });
         });
-        // await fetch(
-        //   `${process.env.VUE_APP_X_API}/tasks?detail=true&labels=type::replication,cluster-id::${id}`,
-        //   {
-        //     method: "get",
-        //   }
-        // )
-        //   .then((res) => res.json())
-        //   .then((result) => {
-        //     this.topicList = result.map((item) => {
-        //       let to_port = _.get(item, "to_expand.port");
-        //       item["fromdb"] = item.from.split("/").at(-1);
-        //       item["hostport"] =
-        //         _.get(item, "to_expand.host") ||
-        //         "localhost" + (to_port ? `:${to_port}` : "");
-        //       item["db"] = item.to_expand
-        //         ? item.to_expand.subject
-        //         : item["fromdb"];
-        //       return item;
-        //     });
-        //   });
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
+      this.refreshable=false
     },
     async getDatabases() {
       try {

@@ -2,7 +2,6 @@ import { request } from "@/utils/request";
 
 //获取backup列表
 export function getBackupList(id) {
-    
     return request({
         baseURL:process.env.VUE_APP_X_API,
         url: `/tasks?detail=true&labels=type::backup,cluster-id::${id}`,

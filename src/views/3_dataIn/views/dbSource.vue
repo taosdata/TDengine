@@ -10,6 +10,8 @@
 <script>
 import DataSource from "./dataSource.vue";
 import DbSourceUI from "./dbSourceUI.vue";
+import {getUIData} from "@/api/explorer/datain";
+import { Message } from 'element-ui';
 export default {
   name: "DbSource",
   components: {
@@ -29,15 +31,11 @@ export default {
   methods: {
     async getData() {
       try {
-        await fetch(`${process.env.VUE_APP_X_API}/ds/in`, {
-          method: "get",
+        await getUIData().then(result=>{
+          this.sourceList = result;
         })
-          .then((res) => res.json())
-          .then((result) => {
-            this.sourceList = result;
-          });
       } catch (error) {
-        console.log(error);
+        Message.error(error)
       }
     },
     toggleComponent(name, id, val) {
