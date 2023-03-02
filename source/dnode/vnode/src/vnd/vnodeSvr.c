@@ -1228,6 +1228,44 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
     tDecoderClear(&dc);
   }
 
+  // scan
+  TSKEY now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
+  TSKEY minKey = now - tsTickPerMin[pVnode->config.tsdbCfg.precision] * pVnode->config.tsdbCfg.keep2;
+  TSKEY maxKey = tsMaxKeyByPrecision[pVnode->config.tsdbCfg.precision];
+  for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
+    SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
+
+    if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      if (TARRAY_SIZE(pSubmitTbData->aCol) <= 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+
+      SColData *pColData = (SColData *)taosArrayGet(pSubmitTbData->aCol, 0);
+      TSKEY    *aKey = (TSKEY *)(pColData->pData);
+
+      for (int32_t iRow = 0; iRow < pColData->nVal; iRow++) {
+        if (aKey[iRow] < minKey || aKey[iRow] > maxKey || (iRow > 0 && aKey[iRow] <= aKey[iRow - 1])) {
+          code = TSDB_CODE_INVALID_MSG;
+          vError("vgId:%d %s failed since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(terrno), version);
+          goto _exit;
+        }
+      }
+
+    } else {
+      int32_t nRow = TARRAY_SIZE(pSubmitTbData->aRowP);
+      SRow  **aRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
+
+      for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+        if (aRow[iRow]->ts < minKey || aRow[iRow]->ts > maxKey || (iRow > 0 && aRow[iRow]->ts <= aRow[iRow - 1]->ts)) {
+          code = TSDB_CODE_INVALID_MSG;
+          vError("vgId:%d %s failed since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(terrno), version);
+          goto _exit;
+        }
+      }
+    }
+  }
+
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
 
