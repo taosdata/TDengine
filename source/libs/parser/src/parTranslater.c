@@ -6477,6 +6477,11 @@ static int32_t translateShowCreateDatabase(STranslateContext* pCxt, SShowCreateD
   if (NULL == pStmt->pCfg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  
+  SName name;
+  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  tNameGetFullDbName(&name, pStmt->dbFName);
+  
   return getDBCfg(pCxt, pStmt->dbName, (SDbCfgInfo*)pStmt->pCfg);
 }
 
