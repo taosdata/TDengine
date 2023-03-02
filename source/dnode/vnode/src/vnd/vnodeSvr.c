@@ -599,16 +599,10 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
 
   vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
 
-// process
-#if 0
-  code = tsdbDoRetention(pVnode->pTsdb, trimReq.timestamp);
-  if (code) goto _exit;
-
-  code = smaDoRetention(pVnode->pSma, trimReq.timestamp);
-  if (code) goto _exit;
-#else
+  // process
   vnodeAsyncRentention(pVnode, trimReq.timestamp);
-#endif
+  tsem_wait(&pVnode->canCommit);
+  tsem_post(&pVnode->canCommit);
 
 _exit:
   return code;
@@ -633,18 +627,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *p
     tqUpdateTbUidList(pVnode->pTq, tbUids, false);
   }
 
-#if 0
-  // process
-  ret = tsdbDoRetention(pVnode->pTsdb, ttlReq.timestamp);
-  if (ret) goto end;
-
-  ret = smaDoRetention(pVnode->pSma, ttlReq.timestamp);
-  if (ret) goto end;
-#else
   vnodeAsyncRentention(pVnode, ttlReq.timestamp);
-  tsem_wait(&pVnode->canCommit);
-  tsem_post(&pVnode->canCommit);
-#endif
 
 end:
   taosArrayDestroy(tbUids);
@@ -1647,7 +1630,8 @@ static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t version, void
   return vnodeProcessCompactVnodeReqImpl(pVnode, version, pReq, len, pRsp);
 }
 
-
 #ifndef TD_ENTERPRISE
-int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) { return 0; }
+int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  return 0;
+}
 #endif
