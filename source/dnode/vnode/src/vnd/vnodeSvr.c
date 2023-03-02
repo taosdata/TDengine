@@ -1641,17 +1641,13 @@ static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t version, void *p
   return TSDB_CODE_SUCCESS;
 }
 
+extern int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
+
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SCompactVnodeReq req = {0};
-  if (tDeserializeSCompactVnodeReq(pReq, len, &req) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return TSDB_CODE_INVALID_MSG;
-  }
-  vInfo("vgId:%d, compact msg will be processed, db:%s dbUid:%" PRId64 " compactStartTime:%" PRId64, TD_VID(pVnode),
-        req.db, req.dbUid, req.compactStartTime);
-
-  vnodeAsyncCompact(pVnode);
-  vnodeBegin(pVnode);
-
-  return 0;
+  return vnodeProcessCompactVnodeReqImpl(pVnode, version, pReq, len, pRsp);
 }
+
+
+#ifndef TD_ENTERPRISE
+int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) { return 0; }
+#endif
