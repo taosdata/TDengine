@@ -44,10 +44,12 @@ class TDTestQuery(TDTestQuery):
         # self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
         startTime2 = time.time()
+        self.data_create(self.db_2)
         self.right_case_2()
         self.right_case_2_tbname()
         self.right_case_2_interval()
         self.right_case_2_tbname_interval()
+        self.rm_sql_2()
         endTime2 = time.time()       
         self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         

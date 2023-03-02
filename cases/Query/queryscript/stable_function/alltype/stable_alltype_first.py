@@ -168,11 +168,11 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where  %s %s %s group by tbname order by tbname" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                        self.tdCreateData.ignore_error_check(self.service_host,self.db_1,sql1,sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where %s %s %s group by tbname order by tbname)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                        self.tdCreateData.ignore_error_check(self.service_host,self.db_1,sql1,sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where %s %s %s group by tbname" %(func,self.table,qt_where,qt_like_match,qt_in_where)
