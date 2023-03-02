@@ -1432,6 +1432,7 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
   int16_t   nLastCol = pTSchema->numOfCols;
   int16_t   noneCol = 0;
   bool      setNoneCol = false;
+  bool      hasRow = false;
   SArray   *pColArray = NULL;
   SColVal  *pColVal = &(SColVal){0};
 
@@ -1453,6 +1454,8 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
     if (!pRow) {
       break;
     }
+
+    hasRow = true;
 
     code = updateTSchema(TSDBROW_SVERSION(pRow), pr, uid);
     if (TSDB_CODE_SUCCESS != code) {
@@ -1545,6 +1548,9 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
   //*ppLastArray = NULL;
   // taosArrayDestroy(pColArray);
   //} else {
+  if (!hasRow) {
+    taosArrayClear(pColArray);
+  }
   *ppLastArray = pColArray;
   //}
 
