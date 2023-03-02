@@ -72,7 +72,7 @@ class DeleteBackup(TDCase):
                 taosd_backup = taos.connect(host=self.target_taosd[0],port=int(self.target_taosd[1]))
                 group_id = self.tdCom.get_long_name(5)
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'/tmp/{self.source_taosd_list[source][0]}_backup_{source}'
+                    target_file_dir = f'/home/{self.source_taosd_list[source][0]}_backup_{source}'
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     # group_id = self.tdCom.get_long_name(5)
                     if source_type == 'db':
@@ -93,7 +93,7 @@ class DeleteBackup(TDCase):
                     thread.join()
                 thread_list_source = []    
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'/tmp/{self.source_taosd_list[source][0]}_backup_{source}'
+                    target_file_dir = f'/home/{self.source_taosd_list[source][0]}_backup_{source}'
                     if source_type == 'db':
                         if source_task.lower() == '+ws':
                             self.tdTaosx.run_backup_db_from_ws_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,source,group_id,self.timeout)
@@ -107,7 +107,7 @@ class DeleteBackup(TDCase):
                             self.tdTaosx.run_backup_stb_from_native_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,self.stbname,source,group_id,self.timeout)
                     thread_list_source[source].start()    
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'/tmp/{self.source_taosd_list[source][0]}_backup_{source}'
+                    target_file_dir = f'/home/{self.source_taosd_list[source][0]}_backup_{source}'
                     if target_task.lower() == '+ws':
                         self.tdTaosx.run_restore_from_local_to_ws(thread_list_target,self.taosx_setting,target_task,target_file_dir,self.target_taosd,self.dbname,source)
                     elif target_task.lower() == '':
