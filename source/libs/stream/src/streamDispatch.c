@@ -278,7 +278,7 @@ int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecov
   msg.contLen = tlen + sizeof(SMsgHead);
   msg.pCont = buf;
   msg.msgType = TDMT_STREAM_RECOVER_FINISH;
-
+  msg.info.noResp = 1;
   tmsgSendReq(pEpSet, &msg);
 
   qDebug("dispatch from task %d to task %d node %d: recover finish msg", pTask->taskId, pReq->taskId, vgId);
@@ -522,4 +522,3 @@ FREE:
   taosFreeQitem(pBlock);
   return code;
 }
-
