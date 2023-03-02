@@ -83,7 +83,7 @@ class FullBackup(TDCase):
                 master_sum = []
                 taosd_backup = taos.connect(host=self.target_taosd[0], port=int(self.target_taosd[1]))
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'/tmp/{self.source_taosd_list[source][0]}_backup_{source}'
+                    target_file_dir = f'/home/{self.source_taosd_list[source][0]}_backup_{source}'
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf {target_file_dir}')
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     group_id = self.tdCom.get_long_name(5)
@@ -108,7 +108,7 @@ class FullBackup(TDCase):
                 for thread in thread_list_source:
                     thread.join()
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'/tmp/{self.source_taosd_list[source][0]}_backup_{source}'
+                    target_file_dir = f'/home/{self.source_taosd_list[source][0]}_backup_{source}'
                     if target_task.lower() == '+ws':
                         self.tdTaosx.run_restore_from_local_to_ws(thread_list_target,self.taosx_setting,target_task,target_file_dir,self.target_taosd,self.dbname,source)
                     elif target_task.lower() == '':
@@ -127,7 +127,7 @@ class FullBackup(TDCase):
                 for source in range(len(self.source_taosd_list)):
                     self.tdSql.checkEqual(master_count_rows[source][0]['count(*)'], backup_count_rows[source][0]['count(*)'])
                     self.tdSql.checkEqual(master_sum[source][0]['sum(voltage)'], backup_sum[source][0]['sum(voltage)'])
-                    self.remote.cmd(self.taosx_setting['fqdn'][0],f'/tmp/{self.source_taosd_list[source][0]}_backup_{source}')
+                    self.remote.cmd(self.taosx_setting['fqdn'][0],f'/home/{self.source_taosd_list[source][0]}_backup_{source}')
                     taosd_backup.execute(f'drop database {self.dbname[source]}')
     def full_backup_ctb(self):
         # for target_task in ['']:
@@ -140,7 +140,7 @@ class FullBackup(TDCase):
                 master_sum = []
                 taosd_backup = taos.connect(host=self.target_taosd[0], port=int(self.target_taosd[1]))
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'/tmp/{self.source_taosd_list[source][0]}_backup_{source}'
+                    target_file_dir = f'/home/{self.source_taosd_list[source][0]}_backup_{source}'
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf {target_file_dir}')
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     group_id = self.tdCom.get_long_name(5)
@@ -158,7 +158,7 @@ class FullBackup(TDCase):
                 for thread in thread_list_source:
                     thread.join()
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'/tmp/{self.source_taosd_list[source][0]}_backup_{source}'
+                    target_file_dir = f'/home/{self.source_taosd_list[source][0]}_backup_{source}'
                     if target_task.lower() == '+ws':
                         self.tdTaosx.run_restore_from_local_to_ws(thread_list_target,self.taosx_setting,target_task,target_file_dir,self.target_taosd,self.dbname,source)
                     elif target_task.lower() == '':
@@ -177,7 +177,7 @@ class FullBackup(TDCase):
                     self.tdSql.checkEqual(master_count_rows[source][0]['count(*)'], backup_count_rows[source][0]['count(*)'])
                     self.tdSql.checkEqual(master_sum[source][0]['sum(voltage)'], backup_sum[source][0]['sum(voltage)'])
                     taosd_backup.execute(f'drop database {self.dbname[source]}')
-                    self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf /tmp/{self.source_taosd_list[source][0]}_backup_{source}')    
+                    self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf /home/{self.source_taosd_list[source][0]}_backup_{source}')    
     def full_backup_ntb(self):
         # for target_task in ['']:
         #     for source_task in ['']:
@@ -189,7 +189,7 @@ class FullBackup(TDCase):
                 master_sum = []
                 taosd_backup = taos.connect(host=self.target_taosd[0], port=int(self.target_taosd[1]))
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'/tmp/{self.source_taosd_list[source][0]}_backup_{source}'
+                    target_file_dir = f'/home/{self.source_taosd_list[source][0]}_backup_{source}'
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf {target_file_dir}')
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     group_id = self.tdCom.get_long_name(5)
@@ -208,7 +208,7 @@ class FullBackup(TDCase):
                     thread.join()
                 
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'/tmp/{self.source_taosd_list[source][0]}_backup_{source}'
+                    target_file_dir = f'/home/{self.source_taosd_list[source][0]}_backup_{source}'
                     if target_task.lower() == '+ws':
                         self.tdTaosx.run_restore_from_local_to_ws(thread_list_target,self.taosx_setting,target_task,target_file_dir,self.target_taosd,self.ntb_name_m,source)
                     elif target_task.lower() == '':
@@ -227,7 +227,7 @@ class FullBackup(TDCase):
                     self.tdSql.checkEqual(master_count_rows[source][0]['count(*)'], backup_count_rows[source][0]['count(*)'])
                     self.tdSql.checkEqual(master_sum[source][0]['sum(c1)'], backup_sum[source][0]['sum(c1)'])
                     taosd_backup.execute(f'drop database {self.ntb_name_m[source]}')
-                    self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf /tmp/{self.source_taosd_list[source][0]}_backup_{source}')
+                    self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf /home/{self.source_taosd_list[source][0]}_backup_{source}')
     def run(self):
         for replica in self.replica:
             self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
