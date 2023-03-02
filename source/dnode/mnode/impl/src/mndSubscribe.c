@@ -16,15 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "mndSubscribe.h"
 #include "mndConsumer.h"
-#include "mndDb.h"
-#include "mndDnode.h"
-#include "mndMnode.h"
 #include "mndScheduler.h"
 #include "mndShow.h"
-#include "mndStb.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
-#include "mndUser.h"
 #include "mndVgroup.h"
 #include "tcompare.h"
 #include "tname.h"
@@ -122,6 +117,7 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscri
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   SMsgHead *pMsgHead = (SMsgHead *)buf;
 
   pMsgHead->contLen = htonl(tlen);
@@ -1040,7 +1036,6 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
     }
 
     // do not show for cleared subscription
-#if 1
     int32_t sz = taosArrayGetSize(pSub->unassignedVgs);
     for (int32_t i = 0; i < sz; i++) {
       SMqVgEp *pVgEp = taosArrayGetP(pSub->unassignedVgs, i);
@@ -1085,8 +1080,6 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
 
       numOfRows++;
     }
-
-#endif
 
     pBlock->info.rows = numOfRows;
 

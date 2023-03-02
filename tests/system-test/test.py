@@ -318,7 +318,7 @@ if __name__ == "__main__":
                 for i in range(cursor.rowcount):
                     if res[i][0] == "queryPolicy" :
                         if int(res[i][1]) == int(queryPolicy):
-                            tdLog.success(f'alter queryPolicy to {queryPolicy} successfully')
+                            tdLog.info(f'alter queryPolicy to {queryPolicy} successfully')
                         else:
                             tdLog.debug(res)
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
@@ -371,7 +371,7 @@ if __name__ == "__main__":
                 for i in range(cursor.rowcount):
                     if res[i][0] == "queryPolicy" :
                         if int(res[i][1]) == int(queryPolicy):
-                            tdLog.success(f'alter queryPolicy to {queryPolicy} successfully')
+                            tdLog.info(f'alter queryPolicy to {queryPolicy} successfully')
                         else:
                             tdLog.debug(res)
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
@@ -472,7 +472,7 @@ if __name__ == "__main__":
                 # for i in range(tdSql.queryRows):
                 #     if tdSql.queryResult[i][0] == "queryPolicy" :
                 #         if int(tdSql.queryResult[i][1]) == int(queryPolicy):
-                #             tdLog.success('alter queryPolicy to %d successfully'%queryPolicy)
+                #             tdLog.info('alter queryPolicy to %d successfully'%queryPolicy)
                 #         else :
                 #             tdLog.debug(tdSql.queryResult)
                 #             tdLog.exit("alter queryPolicy to  %d failed"%queryPolicy)
@@ -485,7 +485,7 @@ if __name__ == "__main__":
                 for i in range(cursor.rowcount):
                     if res[i][0] == "queryPolicy" :
                         if int(res[i][1]) == int(queryPolicy):
-                            tdLog.success(f'alter queryPolicy to {queryPolicy} successfully')
+                            tdLog.info(f'alter queryPolicy to {queryPolicy} successfully')
                         else:
                             tdLog.debug(res)
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
@@ -542,7 +542,7 @@ if __name__ == "__main__":
                 for i in range(cursor.rowcount):
                     if res[i][0] == "queryPolicy" :
                         if int(res[i][1]) == int(queryPolicy):
-                            tdLog.success(f'alter queryPolicy to {queryPolicy} successfully')
+                            tdLog.info(f'alter queryPolicy to {queryPolicy} successfully')
                         else:
                             tdLog.debug(res)
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")

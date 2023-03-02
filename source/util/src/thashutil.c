@@ -50,11 +50,6 @@ uint32_t taosDJB2Hash(const char *key, uint32_t len) {
   return hash;
 }
 
-uint32_t xxHash(const char *key, uint32_t len) {
-  int32_t seed = 0xcc9e2d51;
-  return XXH32(key, len, seed);
-}
-
 uint32_t MurmurHash3_32(const char *key, uint32_t len) {
   const uint8_t *data = (const uint8_t *)key;
   const int32_t  nblocks = len >> 2u;

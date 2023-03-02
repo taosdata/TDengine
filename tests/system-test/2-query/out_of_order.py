@@ -130,6 +130,18 @@ class TDTestCase:
         sql2 = "select count(t1) from (select * from %s.meters)" %dbname
         self.sql_base_check(sql1,sql2)
 
+        # TD-22520
+        tdSql.query("select tbname, ts from %s.meters where ts < '2017-07-14 10:40:00' order by ts asc limit 150;" %dbname)
+        tdSql.checkRows(150)
+
+        tdSql.query("select tbname, ts from %s.meters where ts < '2017-07-14 10:40:00' order by ts asc limit 300;" %dbname)
+        tdSql.checkRows(300)
+
+        tdSql.query("select tbname, ts from %s.meters where ts < '2017-07-14 10:40:00' order by ts desc limit 150;" %dbname)
+        tdSql.checkRows(150)
+
+        tdSql.query("select tbname, ts from %s.meters where ts < '2017-07-14 10:40:00' order by ts desc limit 300;" %dbname)
+        tdSql.checkRows(300)
 
     def sql_base_check(self,sql1,sql2):
         tdSql.query(sql1)
@@ -175,14 +187,14 @@ class TDTestCase:
     def run(self):
         startTime = time.time()
 
-        #self.check_out_of_order('db1',10,random.randint(10000,50000),random.randint(1,10),1)  
+        #self.check_out_of_order('db1',10,random.randint(10000,50000),random.randint(1,10),1)
         self.check_out_of_order('db1',random.randint(50,200),random.randint(10000,20000),random.randint(1,5),1)
 
-        # self.check_out_of_order('db2',random.randint(50,200),random.randint(10000,50000),random.randint(5,50),1)  
+        # self.check_out_of_order('db2',random.randint(50,200),random.randint(10000,50000),random.randint(5,50),1)
 
-        # self.check_out_of_order('db3',random.randint(50,200),random.randint(10000,50000),random.randint(50,100),1)         
+        # self.check_out_of_order('db3',random.randint(50,200),random.randint(10000,50000),random.randint(50,100),1)
 
-        # self.check_out_of_order('db4',random.randint(50,200),random.randint(10000,50000),100,1)    
+        # self.check_out_of_order('db4',random.randint(50,200),random.randint(10000,50000),100,1)
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))

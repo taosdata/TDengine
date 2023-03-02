@@ -22,6 +22,7 @@ extern "C" {
 #include "os.h"
 #include "taoserror.h"
 #include "theap.h"
+#include "tmisce.h"
 #include "transLog.h"
 #include "transportInt.h"
 #include "trpc.h"
@@ -147,7 +148,8 @@ typedef struct {
   int8_t  epsetRetryCnt;
   int32_t retryCode;
 
-  int hThrdIdx;
+  void* task;
+  int   hThrdIdx;
 } STransConnCtx;
 
 #pragma pack(push, 1)

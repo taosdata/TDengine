@@ -115,7 +115,7 @@ int32_t mndAddDispatcherToInnerTask(SMnode* pMnode, SStreamObj* pStream, SStream
 
   if (pStream->fixedSinkVgId == 0) {
     SDbObj* pDb = mndAcquireDb(pMnode, pStream->targetDb);
-    if (pDb->cfg.numOfVgroups > 1) {
+    if (pDb != NULL && pDb->cfg.numOfVgroups > 1) {
       isShuffle = true;
       pTask->outputType = TASK_OUTPUT__SHUFFLE_DISPATCH;
       pTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;

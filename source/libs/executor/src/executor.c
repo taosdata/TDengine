@@ -110,7 +110,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     pOperator->status = OP_NOT_OPENED;
 
     SStreamScanInfo* pInfo = pOperator->info;
-
+    qDebug("stream set total blocks:%d, task id:%s" PRIx64, (int32_t)numOfBlocks, id);
     ASSERT(pInfo->validBlockIndex == 0);
     ASSERT(taosArrayGetSize(pInfo->pBlockLists) == 0);
 
@@ -1035,8 +1035,9 @@ int32_t qStreamScanMemData(qTaskInfo_t tinfo, const SSubmitReq* pReq, int64_t sc
 
 int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
-  ASSERT(pTaskInfo->streamInfo.submit.msgStr == NULL);
+  ASSERT((pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE )&& (pTaskInfo->streamInfo.submit.msgStr == NULL));
+  qDebug("set the submit block for future scan");
+
   pTaskInfo->streamInfo.submit = submit;
   return 0;
 }
@@ -1047,14 +1048,16 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
   pTaskInfo->streamInfo.prepareStatus = *pOffset;
   pTaskInfo->streamInfo.returned = 0;
+
   if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus)) {
     return 0;
   }
+
   if (subType == TOPIC_SUB_TYPE__COLUMN) {
-    uint16_t type = pOperator->operatorType;
     pOperator->status = OP_OPENED;
+
     // TODO add more check
-    if (type != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
       ASSERT(pOperator->numOfDownstream == 1);
       pOperator = pOperator->pDownstream[0];
     }
@@ -1064,20 +1067,13 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
       tsdbReaderClose(pTSInfo->base.dataReader);
       pTSInfo->base.dataReader = NULL;
-#if 0
-      if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus) &&
-          pInfo->tqReader->pWalReader->curVersion != pOffset->version) {
-        qError("prepare scan ver %" PRId64 " actual ver %" PRId64 ", last %" PRId64, pOffset->version,
-               pInfo->tqReader->pWalReader->curVersion, pTaskInfo->streamInfo.lastStatus.version);
-        ASSERT(0);
-      }
-#endif
+      // let's seek to the next version in wal file
       if (tqSeekVer(pInfo->tqReader, pOffset->version + 1) < 0) {
         return -1;
       }
-      ASSERT(pInfo->tqReader->pWalReader->curVersion == pOffset->version + 1);
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-      /*pInfo->blockType = STREAM_INPUT__TABLE_SCAN;*/
+      // iterate all tables from tableInfoList, and retrieve rows from each table one-by-one
+      // those data are from the snapshot in tsdb, besides the data in the wal file.
       int64_t uid = pOffset->uid;
       int64_t ts = pOffset->ts;
 
@@ -1136,7 +1132,6 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       qDebug("tsdb reader offset seek to uid %" PRId64 " ts %" PRId64 ", table cur set to %d , all table num %d", uid,
              ts, pTableScanInfo->currentTable, numOfTables);
-      /*}*/
     } else {
       ASSERT(0);
     }
@@ -1179,7 +1174,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     tDeleteSSchemaWrapper(pTaskInfo->streamInfo.schema);
     pTaskInfo->streamInfo.schema = mtInfo.schema;
 
-    qDebug("tmqsnap qStreamPrepareScan snapshot data uid %" PRId64 " ts %" PRId64, mtInfo.uid, pOffset->ts);
+    qDebug("tmqsnap qStreamPrepareScan snapshot data uid:%" PRId64 " ts %" PRId64, mtInfo.uid, pOffset->ts);
   } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_META) {
     SStreamRawScanInfo* pInfo = pOperator->info;
     SSnapContext*       sContext = pInfo->sContext;
@@ -1187,7 +1182,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       qError("setForSnapShot error. uid:%" PRIu64 " ,version:%" PRId64, pOffset->uid, pOffset->version);
       return -1;
     }
-    qDebug("tmqsnap qStreamPrepareScan snapshot meta uid %" PRId64 " ts %" PRId64, pOffset->uid, pOffset->ts);
+    qDebug("tmqsnap qStreamPrepareScan snapshot meta uid:%" PRId64 " ts %" PRId64, pOffset->uid, pOffset->ts);
   } else if (pOffset->type == TMQ_OFFSET__LOG) {
     SStreamRawScanInfo* pInfo = pOperator->info;
     tsdbReaderClose(pInfo->dataReader);

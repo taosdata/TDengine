@@ -5439,8 +5439,6 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
     pDistInfo->maxRows = p1.maxRows;
   }
   pDistInfo->numOfVgroups += (p1.numOfTables != 0 ? 1 : 0);
-
-  pDistInfo->numOfVgroups += (p1.numOfTables != 0 ? 1 : 0);
   for (int32_t i = 0; i < tListLen(pDistInfo->blockRowsHisto); ++i) {
     pDistInfo->blockRowsHisto[i] += p1.blockRowsHisto[i];
   }
@@ -5581,7 +5579,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t bucketRange = (pData->defMaxRows - pData->defMinRows) / numOfBuckets;
 
   for (int32_t i = 0; i < tListLen(pData->blockRowsHisto); ++i) {
-    len = sprintf(st + VARSTR_HEADER_SIZE, "%04d |", pData->defMinRows + bucketRange * i);
+    len = sprintf(st + VARSTR_HEADER_SIZE, "%04d |", pData->defMinRows + bucketRange * (i + 1));
 
     int32_t num = 0;
     if (pData->blockRowsHisto[i] > 0) {

@@ -1562,7 +1562,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
 
-  qDebug("queue scan called");
+  qDebug("start to exec queue scan");
 
   if (pTaskInfo->streamInfo.submit.msgStr != NULL) {
     if (pInfo->tqReader->msg2.msgStr == NULL) {
@@ -1587,7 +1587,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       SSDataBlock block = {0};
 
       int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader, NULL);
-
       if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
         continue;
       }
@@ -1623,7 +1622,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
           tqOffsetResetToLog(&pTaskInfo->streamInfo.lastStatus, pTaskInfo->streamInfo.snapshotVer);
           return NULL;
         }
-        ASSERT(pInfo->tqReader->pWalReader->curVersion == pTaskInfo->streamInfo.snapshotVer + 1);
       } else {
         return NULL;
       }

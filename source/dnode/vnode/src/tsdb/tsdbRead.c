@@ -155,6 +155,7 @@ typedef struct SBlockInfoBuf {
   int32_t currentIndex;
   SArray* pData;
   int32_t numPerBucket;
+  int32_t numOfTables;
 } SBlockInfoBuf;
 
 struct STsdbReader {
@@ -301,6 +302,47 @@ static int32_t initBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
     }
     taosArrayPush(pBuf->pData, &p);
   }
+
+  pBuf->numOfTables = numOfTables;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) {
+  if (numOfTables <= pBuf->numOfTables) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pBuf->numOfTables > 0) {
+    STableBlockScanInfo **p = (STableBlockScanInfo**)taosArrayPop(pBuf->pData);
+    taosMemoryFree(*p);
+    pBuf->numOfTables /= pBuf->numPerBucket;
+  }
+  
+  int32_t num = (numOfTables - pBuf->numOfTables) / pBuf->numPerBucket;
+  int32_t remainder = (numOfTables - pBuf->numOfTables) % pBuf->numPerBucket;
+  if (pBuf->pData == NULL) {
+    pBuf->pData = taosArrayInit(num + 1, POINTER_BYTES);
+  }
+
+  for (int32_t i = 0; i < num; ++i) {
+    char* p = taosMemoryCalloc(pBuf->numPerBucket, sizeof(STableBlockScanInfo));
+    if (p == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    taosArrayPush(pBuf->pData, &p);
+  }
+
+  if (remainder > 0) {
+    char* p = taosMemoryCalloc(remainder, sizeof(STableBlockScanInfo));
+    if (p == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    taosArrayPush(pBuf->pData, &p);
+  }
+
+  pBuf->numOfTables = numOfTables;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -874,8 +916,10 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       pBlockNum->numOfBlocks += 1;
     }
 
-    if ((pScanInfo->pBlockList != NULL )&& (taosArrayGetSize(pScanInfo->pBlockList) > 0)) {
-      numOfQTable += 1;
+    if (pScanInfo->pBlockList != NULL) {
+      if (taosArrayGetSize(pScanInfo->pBlockList) > 0) {
+        numOfQTable += 1;
+      }
     }
   }
 
@@ -3876,8 +3920,13 @@ int32_t tsdbSetTableList(STsdbReader* pReader, const void* pTableList, int32_t n
     clearBlockScanInfo(*p);
   }
 
-  // todo handle the case where size is less than the value of num
-  ASSERT(size >= num);
+  if (size < num) {
+    int32_t code = ensureBlockScanInfoBuf(&pReader->blockInfoBuf, num);
+    if (code) {
+      return code;
+    }
+    pReader->status.uidList.tableUidList = (uint64_t*)taosMemoryRealloc(pReader->status.uidList.tableUidList, sizeof(uint64_t) * num);
+  }
 
   taosHashClear(pReader->status.pTableMap);
   STableUidList* pUidList = &pReader->status.uidList;
@@ -4673,8 +4722,13 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   return code;
 }
 
-static int32_t getBucketIndex(int32_t startRow, int32_t bucketRange, int32_t numOfRows) {
-  return (numOfRows - startRow) / bucketRange;
+static int32_t getBucketIndex(int32_t startRow, int32_t bucketRange, int32_t numOfRows, int32_t numOfBucket) {
+  int32_t bucketIndex =  ((numOfRows - startRow) / bucketRange);
+  if (bucketIndex == numOfBucket) {
+    bucketIndex -= 1;
+  }
+
+  return bucketIndex;
 }
 
 int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTableBlockInfo) {
@@ -4682,6 +4736,8 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   pTableBlockInfo->totalSize = 0;
   pTableBlockInfo->totalRows = 0;
   pTableBlockInfo->numOfVgroups = 1;
+
+  const int32_t numOfBuckets = 20.0;
 
   // find the start data block in file
 
@@ -4695,7 +4751,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   pTableBlockInfo->defMinRows = pc->minRows;
   pTableBlockInfo->defMaxRows = pc->maxRows;
 
-  int32_t bucketRange = ceil((pc->maxRows - pc->minRows) / 20.0);
+  int32_t bucketRange = ceil((pc->maxRows - pc->minRows) / numOfBuckets);
 
   pTableBlockInfo->numOfFiles += 1;
 
@@ -4733,7 +4789,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
 
       pTableBlockInfo->totalSize += pBlock->aSubBlock[0].szBlock;
 
-      int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows);
+      int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows, numOfBuckets);
       pTableBlockInfo->blockRowsHisto[bucketIndex]++;
 
       hasNext = blockIteratorNext(&pStatus->blockIter, pReader->idStr);
