@@ -209,6 +209,8 @@ void* tsdbCacherowsReaderClose(void* pReader) {
     taosMemoryFree(p->pSchema);
   }
 
+  taosMemoryFree(p->pCurrSchema);
+
   destroyLastBlockLoadInfo(p->pLoadInfo);
 
   taosMemoryFree((void*)p->idstr);
@@ -303,7 +305,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   for (int32_t i = 0; i < pr->pSchema->numOfCols; ++i) {
     struct STColumn* pCol = &pr->pSchema->columns[i];
-    SLastCol         p = {.ts = INT64_MIN, .colVal.type = pCol->type};
+    SLastCol         p = {.ts = INT64_MIN, .colVal.type = pCol->type, .colVal.flag = CV_FLAG_NULL};
 
     if (IS_VAR_DATA_TYPE(pCol->type)) {
       p.colVal.value.pData = taosMemoryCalloc(pCol->bytes, sizeof(char));
