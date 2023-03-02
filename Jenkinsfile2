@@ -40,7 +40,7 @@ def check_docs() {
         sh '''
             cd ${WKC}
             git reset --hard
-            git clean -fxd
+            git clean -f
             rm -rf examples/rust/
             git remote prune origin
             git fetch
@@ -86,7 +86,7 @@ def pre_test(){
         git fetch
         cd ${WKC}
         git reset --hard
-        git clean -fxd
+        git clean -f
         rm -rf examples/rust/
         git remote prune origin
         git fetch
@@ -201,7 +201,7 @@ def pre_test_win(){
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%
-        git clean -fxd
+        git clean -f
         git reset --hard
         git remote prune origin
         git fetch
