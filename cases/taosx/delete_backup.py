@@ -62,13 +62,6 @@ class DeleteBackup(TDCase):
         self.ntb_name_m = ['nd','nt']
         self.ntb_num = 1000
         self.ntb_row_num = 10000
-    def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num):
-        taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
-        for source in range(len(source_taosd_list)):
-            host = source_taosd_list[source][0]
-            port = source_taosd_list[source][1]
-            self.remote.cmd(
-                taosBenchmark_fqdn[0], f'taosBenchmark -h {host} -P {port} -n {row_num} -t {tb_num} -d {dbname[source]} -m {ntbname_m[source]} -N -y')
     def delete_backup_db_stb(self,source_type):
         for source_task in ['','+ws']:
             for target_task in ['','+ws']:
@@ -79,7 +72,7 @@ class DeleteBackup(TDCase):
                 taosd_backup = taos.connect(host=self.target_taosd[0],port=int(self.target_taosd[1]))
                 group_id = self.tdCom.get_long_name(5)
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup'
+                    target_file_dir = f'/tmp/{self.source_taosd_list[source][0]}_backup_{source}'
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     # group_id = self.tdCom.get_long_name(5)
                     if source_type == 'db':
@@ -100,7 +93,7 @@ class DeleteBackup(TDCase):
                     thread.join()
                 thread_list_source = []    
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup'
+                    target_file_dir = f'/tmp/{self.source_taosd_list[source][0]}_backup_{source}'
                     if source_type == 'db':
                         if source_task.lower() == '+ws':
                             self.tdTaosx.run_backup_db_from_ws_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,source,group_id,self.timeout)
@@ -114,7 +107,7 @@ class DeleteBackup(TDCase):
                             self.tdTaosx.run_backup_stb_from_native_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,self.stbname,source,group_id,self.timeout)
                     thread_list_source[source].start()    
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup'
+                    target_file_dir = f'/tmp/{self.source_taosd_list[source][0]}_backup_{source}'
                     if target_task.lower() == '+ws':
                         self.tdTaosx.run_restore_from_local_to_ws(thread_list_target,self.taosx_setting,target_task,target_file_dir,self.target_taosd,self.dbname,source)
                     elif target_task.lower() == '':
@@ -146,11 +139,8 @@ class DeleteBackup(TDCase):
 
     def run(self):
         self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
-        self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
         self.delete_backup_db_stb('db')
         self.delete_backup_db_stb('stb')
-        # self.add_backup_ctb()
-        # self.add_backuo_ntb()
     def cleanup(self):
         pass
 
