@@ -642,7 +642,7 @@ static int32_t sdbPerformUpdateAction(SWalHead *pHead, SSdbTable *pTable) {
   return sdbUpdateHash(pTable, &row);
 }
 
-static int32_t sdbProcessPrint(SWalHead *hparam) {
+static int32_t sdbProcessDumpWal(SWalHead *hparam) {
   SWalHead  *pHead = hparam;
   int32_t    tableId = pHead->msgType / 10;
   int32_t    action = pHead->msgType % 10;
@@ -754,7 +754,9 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
     }
   }
 
-  sdbProcessPrint(hparam);
+  if (sdbDebugFlag & DEBUG_DUMP) {
+    sdbProcessDumpWal(hparam);
+  }
 
   int32_t code = walWrite(tsSdbMgmt.wal, pHead);
   if (code < 0) {
