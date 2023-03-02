@@ -118,9 +118,18 @@ call :stop_delete
 call :check_svc taosd
 call :check_svc taosadapter
 
-copy /y C:\\TDengine\\driver\\taos.dll C:\\Windows\\System32 > nul
-if exist C:\\TDengine\\driver\\taosws.dll (
-    copy /y C:\\TDengine\\driver\\taosws.dll C:\\Windows\\System32 > nul
+if exist c:\\windows\\sysnative (
+    echo x86
+    copy /y C:\\TDengine\\driver\\taos.dll %windir%\\sysnative > nul
+    if exist C:\\TDengine\\driver\\taosws.dll (
+        copy /y C:\\TDengine\\driver\\taosws.dll %windir%\\sysnative > nul
+    )
+) else (
+    echo x64
+    copy /y C:\\TDengine\\driver\\taos.dll C:\\Windows\\System32 > nul
+    if exist C:\\TDengine\\driver\\taosws.dll (
+        copy /y C:\\TDengine\\driver\\taosws.dll C:\\Windows\\System32 > nul
+    )
 )
 
 rem // create services
