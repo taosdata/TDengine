@@ -1444,14 +1444,19 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag) {
+int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag, bool inheritUsOrder) {
   // todo add more information about exchange operation
   int32_t type = pOperator->operatorType;
-  if (type == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE || type == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN) {
+  if (type == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN ||
+      type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN ||
+      type == QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN) {
     *order = TSDB_ORDER_ASC;
+    *scanFlag = MAIN_SCAN;
+    return TSDB_CODE_SUCCESS;
+  } else if (type == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+    if (!inheritUsOrder) {
+      *order = TSDB_ORDER_ASC;
+    }
     *scanFlag = MAIN_SCAN;
     return TSDB_CODE_SUCCESS;
   } else if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
@@ -1468,7 +1473,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
     if (pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL) {
       return TSDB_CODE_INVALID_PARA;
     } else {
-      return getTableScanInfo(pOperator->pDownstream[0], order, scanFlag);
+      return getTableScanInfo(pOperator->pDownstream[0], order, scanFlag, inheritUsOrder);
     }
   }
 }
@@ -1584,7 +1589,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     }
     hasValidBlock = true;
 
-    int32_t code = getTableScanInfo(pOperator, &order, &scanFlag);
+    int32_t code = getTableScanInfo(pOperator, &order, &scanFlag, false);
     if (code != TSDB_CODE_SUCCESS) {
       destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
       T_LONG_JMP(pTaskInfo->env, code);

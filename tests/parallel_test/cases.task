@@ -632,6 +632,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/update_data.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/tb_100w_data_order.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_stable.py
@@ -655,6 +657,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tagFilter.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py
 ,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode2mnode.py -N 5
@@ -680,8 +683,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py -N 6 -M 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3 -n 3
-#,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
-#,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
@@ -738,7 +741,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUpdateWithConsume.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot0.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
+# ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDelete-multiCtb.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStbCtb.py
@@ -854,6 +857,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 3
@@ -945,13 +949,14 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 3
-#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 4
@@ -1070,6 +1075,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/odbc.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py

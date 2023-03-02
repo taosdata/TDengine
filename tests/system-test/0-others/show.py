@@ -12,12 +12,15 @@
 # -*- coding: utf-8 -*-
 
 
+
+
+
+import re
 from util.log import *
 from util.cases import *
 from util.sql import *
 from util.common import *
 from util.sqlset import *
-
 
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
@@ -28,7 +31,7 @@ class TDTestCase:
         self.ins_param_list = ['dnodes','mnodes','qnodes','cluster','functions','users','grants','topics','subscriptions','streams']
         self.perf_param = ['apps','connections','consumers','queries','transactions']
         self.perf_param_list = ['apps','connections','consumers','queries','trans']
-
+        
     def ins_check(self):
         tdSql.prepare()
         for param in self.ins_param_list:
@@ -113,7 +116,25 @@ class TDTestCase:
         query_result = tdSql.queryResult
         tdSql.checkEqual(query_result[0][1].lower(),sql)
         tdSql.execute('drop database db')
+    def check_gitinfo(self):
+        taosd_gitinfo_sql = ''
+        tdSql.query('show dnode 1 variables')
+        for i in tdSql.queryResult:
+            if i[1].lower() == "gitinfo":
+                taosd_gitinfo_sql = f"gitinfo: {i[2]}"
+        taos_gitinfo_sql = ''
+        tdSql.query('show local variables')
+        for i in tdSql.queryResult:
+            if i[0].lower() == "gitinfo":
+                taos_gitinfo_sql = f"gitinfo: {i[1]}"
+        taos_info = os.popen('taos -V').read()
+        taos_gitinfo = re.findall("^gitinfo.*",taos_info,re.M)
+        tdSql.checkEqual(taos_gitinfo_sql,taos_gitinfo[0])
+        taosd_info = os.popen('taosd -V').read()
+        taosd_gitinfo = re.findall("^gitinfo.*",taosd_info,re.M)
+        tdSql.checkEqual(taosd_gitinfo_sql,taosd_gitinfo[0])
     def run(self):
+        self.check_gitinfo()
         self.ins_check()
         self.perf_check()
         self.show_sql()

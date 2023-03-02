@@ -106,10 +106,6 @@ int32_t vnodeSyncCommit(SVnode* pVnode);
 int32_t vnodeAsyncCommit(SVnode* pVnode);
 bool    vnodeShouldRollback(SVnode* pVnode);
 
-// vnodeCompact.c
-int32_t vnodeAsyncCompact(SVnode* pVnode);
-int32_t vnodeSyncCompact(SVnode* pVnode);
-
 // vnodeSync.c
 int32_t vnodeSyncOpen(SVnode* pVnode, char* path);
 int32_t vnodeSyncStart(SVnode* pVnode);

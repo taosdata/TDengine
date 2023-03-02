@@ -289,7 +289,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       }
 
       // the pDataBlock are always the same one, no need to call this again
-      int32_t code = getTableScanInfo(downstream, &order, &scanFlag);
+      int32_t code = getTableScanInfo(downstream, &order, &scanFlag, false);
       if (code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
@@ -441,7 +441,7 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   SExprSupp*          pSup = &pOperator->exprSupp;
 
   // the pDataBlock are always the same one, no need to call this again
-  int32_t code = getTableScanInfo(downstream, &order, &scanFlag);
+  int32_t code = getTableScanInfo(downstream, &order, &scanFlag, false);
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
