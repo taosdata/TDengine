@@ -92,9 +92,7 @@ rm -rf rpms/*
 echo "./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType"
 $topDir/enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
 
-
 echo "build taoskeeper..."
-cd $communityDir/release
 
 if [ "$cpuType" = "x64" ] || [ "$cpuType" = "x86_64" ] || [ "$cpuType" = "amd64" ]; then
   arch=amd64
@@ -118,9 +116,7 @@ else
   sudo cp -rf /usr/local/taos/ /opt/tdengine/
 fi
 
-sudo rm -rf /opt/tdengine/data
-sudo rm -rf /opt/tdengine/log
-sudo mkdir -p /opt/tdengine/service
+sudo rm -rf /opt/tdengine/*
 sudo cp $communityDir/packaging/tools/{logo.png,TDengine,com.taosdata.*} /opt/tdengine/service/
 
 sudo cp -f $taoskeeper_binary /opt/tdengine/bin/
@@ -130,7 +126,7 @@ sudo chmod ugo+w /opt/tdengine/bin/remove.sh
 sudo cat $scriptDir/remove_taoskeeper.sh >> /opt/tdengine/bin/remove.sh
 
 cd $communityDir/packaging/tools
-sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-server-$version-macOS-$arch\</g" $communityDir/packaging/tools/TDengine.pkgproj
+sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-server-$version-macOS-$cpuType\</g" $communityDir/packaging/tools/TDengine.pkgproj
 sed -i '' "s/3.0.1.4/$version/g" $communityDir/packaging/tools/TDengine.pkgproj
 sed -i '' "s|/opt.*/tools/post.sh|$communityDir/packaging/tools/post.sh|g" $communityDir/packaging/tools/TDengine.pkgproj
 sed -i '' "s|/opt.*/tools/mac_before_install.txt|$communityDir/packaging/tools/mac_before_install.txt|g" $communityDir/packaging/tools/TDengine.pkgproj
@@ -139,6 +135,6 @@ sed -i '' "s|/opt/.*/release|$topDir/release|g" $communityDir/packaging/tools/TD
 /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
 
 sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/udfd}
-sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-$arch\</g" $communityDir/packaging/tools/TDengine.pkgproj
+sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-$cpuType\</g" $communityDir/packaging/tools/TDengine.pkgproj
 sed -i '' "s/mac_before_install.txt/mac_before_install_client.txt/g" $communityDir/packaging/tools/TDengine.pkgproj
 /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
