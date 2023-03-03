@@ -274,9 +274,9 @@ Provides dnode configuration information.
 | 1   | stream_name  | BINARY(64)   | Stream name                              |
 | 2   | create_time  | TIMESTAMP    | Creation time                                |
 | 3   |     sql      | BINARY(1024) | SQL statement used to create the stream             |
-| 4   |    status    | BIANRY(20)   | Current status                              |
+| 4   |    status    | BINARY(20)   | Current status                              |
 | 5   |  source_db   | BINARY(64)   | Source database                                |
-| 6   |  target_db   | BIANRY(64)   | Target database                              |
+| 6   |  target_db   | BINARY(64)   | Target database                              |
 | 7   | target_table | BINARY(192)  | Target table                      |
 | 8   |  watermark   | BIGINT       | Watermark (see stream processing documentation). It should be noted that `watermark` is a TDengine keyword and needs to be escaped with ` when used as a column name.        |
 | 9   |   trigger    | INT          | Method of triggering the result push (see stream processing documentation). It should be noted that `trigger` is a TDengine keyword and needs to be escaped with ` when used as a column name. |

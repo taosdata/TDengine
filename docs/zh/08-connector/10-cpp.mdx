@@ -302,7 +302,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 
 - `TAOS_FIELD *taos_fetch_fields(TAOS_RES *res)`
 
-  获取查询结果集每列数据的属性（列的名称、列的数据类型、列的长度），与 `taos_num_fileds()` 配合使用，可用来解析 `taos_fetch_row()` 返回的一个元组(一行)的数据。 `TAOS_FIELD` 的结构如下：
+  获取查询结果集每列数据的属性（列的名称、列的数据类型、列的长度），与 `taos_num_fields()` 配合使用，可用来解析 `taos_fetch_row()` 返回的一个元组(一行)的数据。 `TAOS_FIELD` 的结构如下：
 
 ```c
 typedef struct taosField {

@@ -208,7 +208,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
   Keep trying if failed to insert, default is no. Available with v3.0.9+.
 
 - **-z/--trying-interval <NUMBER\>** :
-  Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled. Available with v3.0.9+.
+  Specify interval between keep trying insert. Valid value is a positive number. Only valid when keep trying be enabled. Available with v3.0.9+.
 
 - **-V/--version** :
   Show version information only. Users should not use it with other parameters.
@@ -239,7 +239,7 @@ The parameters listed in this section apply to all function modes.
 
 - ** keep_trying ** : Keep trying if failed to insert, default is no. Available with v3.0.9+.
 
-- ** trying_interval ** : Specify interval between keep trying insert. Valid value is a postive number. Only valid when keep trying be enabled. Available with v3.0.9+.
+- ** trying_interval ** : Specify interval between keep trying insert. Valid value is a positive number. Only valid when keep trying be enabled. Available with v3.0.9+.
 
 #### Database related configuration parameters
 
@@ -352,7 +352,7 @@ The configuration parameters for specifying super table tag columns and data col
 
 - **min**: The minimum value of the column/label of the data type. The generated value will equal or large than the minimum value.
 
-- **max**: The maximum value of the column/label of the data type. The generated value will less than the maxium value.
+- **max**: The maximum value of the column/label of the data type. The generated value will less than the maximum value.
 
 - **values**: The value field of the nchar/binary column/label, which will be chosen randomly from the values.
 
