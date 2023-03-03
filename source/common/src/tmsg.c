@@ -2865,12 +2865,19 @@ int32_t tSerializeSDbCfgRsp(void *buf, int32_t bufLen, const SDbCfgRsp *pRsp) {
   if (tEncodeI32(&encoder, pRsp->minRows) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->maxRows) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->walFsyncPeriod) < 0) return -1;
+  if (tEncodeI16(&encoder, pRsp->hashPrefix) < 0) return -1;
+  if (tEncodeI16(&encoder, pRsp->hashSuffix) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->walLevel) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->precision) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->compression) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->replications) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->strict) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->cacheLast) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->tsdbPageSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->walRetentionPeriod) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->walRollPeriod) < 0) return -1;
+  if (tEncodeI64(&encoder, pRsp->walRetentionSize) < 0) return -1;
+  if (tEncodeI64(&encoder, pRsp->walSegmentSize) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->numOfRetensions) < 0) return -1;
   for (int32_t i = 0; i < pRsp->numOfRetensions; ++i) {
     SRetention *pRetension = taosArrayGet(pRsp->pRetensions, i);
@@ -2905,12 +2912,19 @@ int32_t tDeserializeSDbCfgRsp(void *buf, int32_t bufLen, SDbCfgRsp *pRsp) {
   if (tDecodeI32(&decoder, &pRsp->minRows) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->maxRows) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->walFsyncPeriod) < 0) return -1;
+  if (tDecodeI16(&decoder, &pRsp->hashPrefix) < 0) return -1;
+  if (tDecodeI16(&decoder, &pRsp->hashSuffix) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->walLevel) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->precision) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->compression) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->replications) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->strict) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->cacheLast) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->tsdbPageSize) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->walRetentionPeriod) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->walRollPeriod) < 0) return -1;
+  if (tDecodeI64(&decoder, &pRsp->walRetentionSize) < 0) return -1;
+  if (tDecodeI64(&decoder, &pRsp->walSegmentSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->numOfRetensions) < 0) return -1;
   if (pRsp->numOfRetensions > 0) {
     pRsp->pRetensions = taosArrayInit(pRsp->numOfRetensions, sizeof(SRetention));

@@ -265,6 +265,7 @@ typedef struct SShowStmt {
 typedef struct SShowCreateDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
+  char      dbFName[TSDB_DB_FNAME_LEN];
   void*     pCfg;  // SDbCfgInfo
 } SShowCreateDatabaseStmt;
 

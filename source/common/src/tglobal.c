@@ -41,8 +41,8 @@ bool    tsPrintAuth = false;
 
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
-int32_t tsNumOfRpcSessions = 5000;
-int32_t tsTimeToGetAvailableConn = 100000;
+int32_t tsNumOfRpcSessions = 6000;
+int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 4;
 int32_t tsNumOfMnodeQueryThreads = 4;
@@ -521,7 +521,6 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "numOfRpcSessions");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfRpcSessions = 2000;
     tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
     pItem->i32 = tsNumOfRpcSessions;
     pItem->stype = stype;
@@ -529,7 +528,6 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "timeToGetAvailableConn");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsTimeToGetAvailableConn = 1000;
     tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 1000000);
     pItem->i32 = tsTimeToGetAvailableConn;
     pItem->stype = stype;
