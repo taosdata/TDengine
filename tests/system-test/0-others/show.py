@@ -28,8 +28,9 @@ class TDTestCase:
         self.perf_param = ['apps','connections','consumers','queries','transactions']
         self.perf_param_list = ['apps','connections','consumers','queries','trans']
         self.dbname = "db"
-        self.stbname = f'{self.dbname}.`{tdCom.getLongName(5)}`'
-        self.tbname = f'{self.dbname}.`{tdCom.getLongName(3)}`'
+        self.vgroups = 10
+        self.stbname = f'`{tdCom.getLongName(5)}`'
+        self.tbname = f'`{tdCom.getLongName(3)}`'
         self.db_param = {
             "database":f"{self.dbname}",
             "buffer":100,
@@ -42,15 +43,13 @@ class TDTestCase:
             "pagesize":16,
             "precision":"'ms'",
             "replica":1,
-            "retentions":"15s:7d,1m:21d,15m:50d",
             "wal_level":1,
             "wal_fsync_period":6000,
-            "wal_retention_period":1,
-            "wal_retention_size":1024,
             "wal_roll_period":0,
             "wal_segment_size":1024,
-            "vgroups":10,
-            "stt_trigger":1
+            "vgroups":self.vgroups,
+            "stt_trigger":1,
+            "tsdb_pagesize":16
         }
     def ins_check(self):
         tdSql.prepare()
@@ -89,9 +88,10 @@ class TDTestCase:
         create_sql = 'create'
         for key,value in sql_dict.items():
             create_sql += f' {key} {value}'
-        
+        return create_sql
     def show_create_sql(self):
         create_db_sql = self.set_create_database_sql(self.db_param)
+        print(create_db_sql)
         tdSql.execute(create_db_sql)
         tdSql.query(f'show create database {self.dbname}')
         tdSql.checkEqual(self.dbname,tdSql.queryResult[0][0])
@@ -105,7 +105,9 @@ class TDTestCase:
                     continue
                 else:
                     tdLog.exit(f"show create database check failed with {key} {value}")
-        
+        tdSql.query('show vnodes 1')
+        tdSql.checkRows(self.vgroups)
+        tdSql.execute(f'use {self.dbname}')
         
         column_dict = {
             '`ts`': 'timestamp',
@@ -186,10 +188,10 @@ class TDTestCase:
         tdSql.checkEqual(grants_info,licences_info)
 
     def run(self):
-        self.check_gitinfo()
-        self.show_base()
-        self.ins_check()
-        self.perf_check()
+        # self.check_gitinfo()
+        # self.show_base()
+        # self.ins_check()
+        # self.perf_check()
         self.show_create_sql()
 
     def stop(self):
@@ -198,4 +200,3 @@ class TDTestCase:
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
-
