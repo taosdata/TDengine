@@ -123,7 +123,7 @@ int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta
     }
   }
 
-  sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
+  sdbWriteFile(pMnode->pSdb, tsMndSdbWriteDelta);
   return 0;
 }
 
