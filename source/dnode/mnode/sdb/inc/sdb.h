@@ -37,8 +37,6 @@ extern "C" {
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
-#define SDB_WRITE_DELTA 2000
-
 #define SDB_GET_VAL(pData, dataPos, val, pos, func, type) \
   {                                                       \
     if (func(pRaw, dataPos, val) != 0) {                  \
