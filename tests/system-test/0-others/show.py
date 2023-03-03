@@ -11,10 +11,6 @@
 
 # -*- coding: utf-8 -*-
 
-
-
-
-
 import re
 from util.log import *
 from util.cases import *
@@ -31,10 +27,35 @@ class TDTestCase:
         self.ins_param_list = ['dnodes','mnodes','qnodes','cluster','functions','users','grants','topics','subscriptions','streams']
         self.perf_param = ['apps','connections','consumers','queries','transactions']
         self.perf_param_list = ['apps','connections','consumers','queries','trans']
-        
+        self.dbname = "db"
+        self.vgroups = 10
+        self.stbname = f'`{tdCom.getLongName(5)}`'
+        self.tbname = f'`{tdCom.getLongName(3)}`'
+        self.db_param = {
+            "database":f"{self.dbname}",
+            "buffer":100,
+            "cachemodel":"'none'",
+            "cachesize":1,
+            "comp":2,
+            "maxrows":1000,
+            "minrows":200,
+            "pages":512,
+            "pagesize":16,
+            "precision":"'ms'",
+            "replica":1,
+            "wal_level":1,
+            "wal_fsync_period":6000,
+            "wal_roll_period":0,
+            "wal_segment_size":1024,
+            "vgroups":self.vgroups,
+            "stt_trigger":1,
+            "tsdb_pagesize":16
+        }
     def ins_check(self):
         tdSql.prepare()
         for param in self.ins_param_list:
+            if param.lower() == 'qnodes':
+                tdSql.execute('create qnode on dnode 1')
             tdSql.query(f'show {param}')
             show_result = tdSql.queryResult
             tdSql.query(f'select * from information_schema.ins_{param}')
@@ -62,11 +83,32 @@ class TDTestCase:
             tag_sql += f"{k} {v}, "
         create_stb_sql = f'create stable {stbname} ({column_sql[:-2]}) tags ({tag_sql[:-2]})'
         return create_stb_sql
-    def show_sql(self):
-        tdSql.prepare()
-        tdSql.execute('use db')
-        stbname = f'`{tdCom.getLongName(5)}`'
-        tbname = f'`{tdCom.getLongName(3)}`'
+    
+    def set_create_database_sql(self,sql_dict):
+        create_sql = 'create'
+        for key,value in sql_dict.items():
+            create_sql += f' {key} {value}'
+        return create_sql
+    def show_create_sql(self):
+        create_db_sql = self.set_create_database_sql(self.db_param)
+        print(create_db_sql)
+        tdSql.execute(create_db_sql)
+        tdSql.query(f'show create database {self.dbname}')
+        tdSql.checkEqual(self.dbname,tdSql.queryResult[0][0])
+        for key,value in self.db_param.items():
+            if key == 'database':
+                continue
+            else:
+                param = f'{key} {value}'
+                if param in tdSql.queryResult[0][1].lower():
+                    tdLog.info(f'show create database check success with {key} {value}')
+                    continue
+                else:
+                    tdLog.exit(f"show create database check failed with {key} {value}")
+        tdSql.query('show vnodes 1')
+        tdSql.checkRows(self.vgroups)
+        tdSql.execute(f'use {self.dbname}')
+        
         column_dict = {
             '`ts`': 'timestamp',
             '`col1`': 'tinyint',
@@ -101,21 +143,21 @@ class TDTestCase:
             '`t14`': 'timestamp'
             
         }
-        create_table_sql = self.set_stb_sql(stbname,column_dict,tag_dict)
+        create_table_sql = self.set_stb_sql(self.stbname,column_dict,tag_dict)
         tdSql.execute(create_table_sql)
-        tdSql.query(f'show create table {stbname}')
+        tdSql.query(f'show create stable {self.stbname}')
         query_result = tdSql.queryResult
         tdSql.checkEqual(query_result[0][1].lower(),create_table_sql)
-        tdSql.execute(f'create table {tbname} using {stbname} tags(1,1,1,1,1,1,1,1,1.000000e+00,1.000000e+00,true,"abc","abc123",0)')
+        tdSql.execute(f'create table {self.tbname} using {self.stbname} tags(1,1,1,1,1,1,1,1,1.000000e+00,1.000000e+00,true,"abc","abc123",0)')
         tag_sql = '('
         for tag_keys in tag_dict.keys():
             tag_sql += f'{tag_keys}, '
         tags = f'{tag_sql[:-2]})' 
-        sql = f'create table {tbname} using {stbname} {tags} tags (1, 1, 1, 1, 1, 1, 1, 1, 1.000000e+00, 1.000000e+00, true, "abc", "abc123", 0)'
-        tdSql.query(f'show create table {tbname}')
+        sql = f'create table {self.tbname} using {self.stbname} {tags} tags (1, 1, 1, 1, 1, 1, 1, 1, 1.000000e+00, 1.000000e+00, true, "abc", "abc123", 0)'
+        tdSql.query(f'show create table {self.tbname}')
         query_result = tdSql.queryResult
         tdSql.checkEqual(query_result[0][1].lower(),sql)
-        tdSql.execute('drop database db')
+        tdSql.execute(f'drop database {self.dbname}')
     def check_gitinfo(self):
         taosd_gitinfo_sql = ''
         tdSql.query('show dnode 1 variables')
@@ -133,11 +175,24 @@ class TDTestCase:
         taosd_info = os.popen('taosd -V').read()
         taosd_gitinfo = re.findall("^gitinfo.*",taosd_info,re.M)
         tdSql.checkEqual(taosd_gitinfo_sql,taosd_gitinfo[0])
+    
+    def show_base(self):
+        for sql in ['dnodes','mnodes','cluster']:
+            tdSql.query(f'show {sql}')
+            print(tdSql.queryResult)
+            tdSql.checkRows(1)
+        tdSql.query('show grants')
+        grants_info = tdSql.queryResult
+        tdSql.query('show licences')
+        licences_info = tdSql.queryResult
+        tdSql.checkEqual(grants_info,licences_info)
+
     def run(self):
         self.check_gitinfo()
+        self.show_base()
         self.ins_check()
         self.perf_check()
-        self.show_sql()
+        self.show_create_sql()
 
     def stop(self):
         tdSql.close()
@@ -145,4 +200,3 @@ class TDTestCase:
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
-

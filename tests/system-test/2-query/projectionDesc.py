@@ -38,6 +38,7 @@ class TDTestCase:
         #tdSql.checkData(0,0,1537146000000)
         tdSql.checkData(0,1,10)
 
+        tdSql.query(f"select * from {dbname}.stb_1 order by 'aaa' desc")
 
     def stop(self):
         tdSql.close()
