@@ -78,7 +78,7 @@ static int32_t authSetOperator(SAuthCxt* pCxt, SSetOperator* pSetOper) {
 }
 
 static int32_t authDropUser(SAuthCxt* pCxt, SDropUserStmt* pStmt) {
-  if (!pCxt->pParseCxt->isSuperUser || 0 == strcmp(pStmt->useName, TSDB_DEFAULT_USER)) {
+  if (!pCxt->pParseCxt->isSuperUser || 0 == strcmp(pStmt->userName, TSDB_DEFAULT_USER)) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
   return TSDB_CODE_SUCCESS;
@@ -97,11 +97,27 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
 }
 
 static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
-  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, AUTH_TYPE_READ);
+  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, AUTH_TYPE_READ_OR_WRITE);
 }
 
 static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) {
   return checkAuth(pCxt, pStmt->dbName, AUTH_TYPE_READ);
+}
+
+static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
+  return checkAuth(pCxt, pStmt->dbName, AUTH_TYPE_WRITE);
+}
+
+static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pStmt->pSubTables) {
+    code = checkAuth(pCxt, ((SCreateSubTableClause*)pNode)->dbName, AUTH_TYPE_WRITE);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
 }
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
@@ -116,6 +132,10 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authDelete(pCxt, (SDeleteStmt*)pStmt);
     case QUERY_NODE_INSERT_STMT:
       return authInsert(pCxt, (SInsertStmt*)pStmt);
+    case QUERY_NODE_CREATE_TABLE_STMT:
+      return authCreateTable(pCxt, (SCreateTableStmt*)pStmt);
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+      return authCreateMultiTable(pCxt, (SCreateMultiTablesStmt*)pStmt);
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
@@ -125,7 +145,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
-    case QUERY_NODE_SHOW_VARIABLES_STMT:
+    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:    
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:

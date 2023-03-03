@@ -35,7 +35,13 @@ int64_t         tsOpenMax = 0;
 int64_t         tsStreamMax = 0;
 float           tsNumOfCores = 0;
 int64_t         tsTotalMemoryKB = 0;
-char*           tsProcPath = NULL;
+char           *tsProcPath = NULL;
+
+char tsSIMDBuiltins = 0;
+char tsSSE42Enable = 0;
+char tsAVXEnable = 0;
+char tsAVX2Enable = 0;
+char tsFMAEnable = 0;
 
 void osDefaultInit() {
   taosSeedRand(taosSafeRand());
@@ -59,34 +65,18 @@ void osDefaultInit() {
   if (tmpDir != NULL) {
     strcpy(tsTempDir, tmpDir);
   }
-
-  if (configDir[0] == 0) {
-    strcpy(configDir, "C:\\TDengine\\cfg");
-  }
-  strcpy(tsDataDir, "C:\\TDengine\\data");
-  strcpy(tsLogDir, "C:\\TDengine\\log");
-  strcpy(tsTempDir, "C:\\Windows\\Temp");
   strcpy(tsOsName, "Windows");
-
 #elif defined(_TD_DARWIN_64)
-  if (configDir[0] == 0) {
-    strcpy(configDir, "/usr/local/etc/taos");
-  }
-  strcpy(tsDataDir, "/usr/local/var/lib/taos");
-  strcpy(tsLogDir, "/usr/local/var/log/taos");
-  strcpy(tsTempDir, "/tmp/taosd");
   strcpy(tsOsName, "Darwin");
-
 #else
-  if (configDir[0] == 0) {
-    strcpy(configDir, "/etc/taos");
-  }
-  strcpy(tsDataDir, "/var/lib/taos");
-  strcpy(tsLogDir, "/var/log/taos");
-  strcpy(tsTempDir, "/tmp");
   strcpy(tsOsName, "Linux");
-
 #endif
+  if (configDir[0] == 0) {
+    strcpy(configDir, TD_CFG_DIR_PATH);
+  }
+  strcpy(tsDataDir, TD_DATA_DIR_PATH);
+  strcpy(tsLogDir, TD_LOG_DIR_PATH);
+  strcpy(tsTempDir, TD_TMP_DIR_PATH);
 }
 
 void osUpdate() {
@@ -103,15 +93,23 @@ void osUpdate() {
 
 void osCleanup() {}
 
-bool osLogSpaceAvailable() { return tsLogSpace.reserved <= tsLogSpace.size.avail; }
+bool osLogSpaceAvailable() { return tsLogSpace.size.avail > 0; }
 
-bool osDataSpaceAvailable() { return tsDataSpace.reserved <= tsDataSpace.size.avail; }
+bool osDataSpaceAvailable() { return tsDataSpace.size.avail > 0; }
 
-bool osTempSpaceAvailable() { return tsTempSpace.reserved <= tsTempSpace.size.avail; }
+bool osTempSpaceAvailable() { return tsTempSpace.size.avail > 0; }
 
-void osSetTimezone(const char *timezone) { taosSetSystemTimezone(timezone, tsTimezoneStr, &tsDaylight, &tsTimezone); }
+bool osLogSpaceSufficient() { return tsLogSpace.size.avail > tsLogSpace.reserved; }
+
+bool osDataSpaceSufficient() { return tsDataSpace.size.avail > tsDataSpace.reserved; }
+
+bool osTempSpaceSufficient() { return tsTempSpace.size.avail > tsTempSpace.reserved; }
+
+void osSetTimezone(const char *tz) { taosSetSystemTimezone(tz, tsTimezoneStr, &tsDaylight, &tsTimezone); }
 
 void osSetSystemLocale(const char *inLocale, const char *inCharSet) {
   memcpy(tsLocale, inLocale, strlen(inLocale) + 1);
   memcpy(tsCharset, inCharSet, strlen(inCharSet) + 1);
 }
+
+void osSetProcPath(int32_t argc, char **argv) { tsProcPath = argv[0]; }

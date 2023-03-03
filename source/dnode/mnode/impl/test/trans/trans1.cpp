@@ -112,9 +112,9 @@ TEST_F(MndTestTrans1, 02_Create_Qnode1_Crash) {
     SMCreateQnodeReq createReq = {0};
     createReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -129,9 +129,9 @@ TEST_F(MndTestTrans1, 02_Create_Qnode1_Crash) {
     SMCreateQnodeReq createReq = {0};
     createReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -165,9 +165,9 @@ TEST_F(MndTestTrans1, 03_Create_Qnode2_Crash) {
     SMCreateQnodeReq createReq = {0};
     createReq.dnodeId = 2;
 
-    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
     server2.Stop();
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
@@ -209,9 +209,9 @@ TEST_F(MndTestTrans1, 03_Create_Qnode2_Crash) {
     SMCreateQnodeReq createReq = {0};
     createReq.dnodeId = 2;
 
-    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -232,9 +232,9 @@ TEST_F(MndTestTrans1, 03_Create_Qnode2_Crash) {
       SMCreateQnodeReq createReq = {0};
       createReq.dnodeId = 2;
 
-      int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
+      int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
       void*   pReq = rpcMallocCont(contLen);
-      tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
+      tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
       SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
       ASSERT_NE(pRsp, nullptr);

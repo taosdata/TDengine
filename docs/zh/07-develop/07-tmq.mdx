@@ -7,6 +7,7 @@ title: 数据订阅
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import Java from "./_sub_java.mdx";
+import JavaWS from "./_sub_java_ws.mdx";
 import Python from "./_sub_python.mdx";
 import Go from "./_sub_go.mdx";
 import Rust from "./_sub_rust.mdx";
@@ -92,22 +93,21 @@ void close() throws SQLException;
 <TabItem value="Python" label="Python">
 
 ```python
-class TaosConsumer():
-    def __init__(self, *topics, **configs)
+class Consumer:
+    def subscribe(self, topics):
+        pass
 
-    def __iter__(self)
+    def unsubscribe(self):
+        pass
 
-    def __next__(self)
+    def poll(self, timeout: float = 1.0):
+        pass
 
-    def sync_next(self)
-    
-    def subscription(self)
+    def close(self):
+        pass
 
-    def unsubscribe(self)
-
-    def close(self)
-    
-    def __del__(self)
+    def commit(self, message):
+        pass
 ```
 
 </TabItem>
@@ -115,19 +115,22 @@ class TaosConsumer():
 <TabItem label="Go" value="Go">
 
 ```go
-func NewConsumer(conf *Config) (*Consumer, error)
+func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)
 
-func (c *Consumer) Close() error
+// 出于兼容目的保留 rebalanceCb 参数，当前未使用
+func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error
 
-func (c *Consumer) Commit(ctx context.Context, message unsafe.Pointer) error
+// 出于兼容目的保留 rebalanceCb 参数，当前未使用
+func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error
 
-func (c *Consumer) FreeMessage(message unsafe.Pointer)
+func (c *Consumer) Poll(timeoutMs int) tmq.Event
 
-func (c *Consumer) Poll(timeout time.Duration) (*Result, error)
-
-func (c *Consumer) Subscribe(topics []string) error
+// 出于兼容目的保留 tmq.TopicPartition 参数，当前未使用
+func (c *Consumer) Commit() ([]tmq.TopicPartition, error)
 
 func (c *Consumer) Unsubscribe() error
+
+func (c *Consumer) Close() error
 ```
 
 </TabItem>
@@ -247,7 +250,7 @@ CREATE TOPIC topic_name as subquery
 
 - 该类型 TOPIC 一旦创建则订阅数据的结构确定。
 - 被订阅或用于计算的列或标签不可被删除（`ALTER table DROP`）、修改（`ALTER table MODIFY`）。
-- 若发生表结构变更，新增的列不出现在结果中，若发生列删除则会报错。
+- 若发生表结构变更，新增的列不出现在结果中。
 
 ### 超级表订阅
 
@@ -269,10 +272,10 @@ CREATE TOPIC topic_name AS STABLE stb_name
 语法：
 
 ```sql
-CREATE TOPIC topic_name [WITH META] AS DATABASE db_name;
+CREATE TOPIC topic_name AS DATABASE db_name;
 ```
 
-通过该语句可创建一个包含数据库所有表数据的订阅，`WITH META` 可选择将数据库结构变动信息加入到订阅消息流，TMQ 将消费当前数据库下所有表结构的变动，包括超级表的创建与删除，列添加、删除或修改，子表的创建、删除及 TAG 变动信息等等。消费者可通过 API 来判断具体的消息类型。这一点也是与 Kafka 不同的地方。
+通过该语句可创建一个包含数据库所有表数据的订阅
 
 ## 创建消费者 *consumer*
 
@@ -282,16 +285,16 @@ CREATE TOPIC topic_name [WITH META] AS DATABASE db_name;
 | :----------------------------: | :-----: | -------------------------------------------------------- | ------------------------------------------- |
 |        `td.connect.ip`         | string  | 用于创建连接，同 `taos_connect`                          |                                             |
 |       `td.connect.user`        | string  | 用于创建连接，同 `taos_connect`                          |                                             |
-|       `td.connect.pass`        | string  | 用于创建连接，同 `taos_connect`                          |
-|       `td.connect.port`        | integer | 用于创建连接，同 `taos_connect`                          |
+|       `td.connect.pass`        | string  | 用于创建连接，同 `taos_connect`                          |                                             |
+|       `td.connect.port`        | integer | 用于创建连接，同 `taos_connect`                          |                                             |
 |           `group.id`           | string  | 消费组 ID，同一消费组共享消费进度                        | **必填项**。最大长度：192。                 |
 |          `client.id`           | string  | 客户端 ID                                                | 最大长度：192。                             |
-|      `auto.offset.reset`       |  enum   | 消费组订阅的初始位置                                     | 可选：`earliest`, `latest`, `none`(default) |
-|      `enable.auto.commit`      | boolean | 启用自动提交                                             | 合法值：`true`, `false`。                   |
-|   `auto.commit.interval.ms`    | integer | 以毫秒为单位的自动提交时间间隔                           |
-| `enable.heartbeat.background`  | boolean | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 |                                             |
-| `experimental.snapshot.enable` | boolean | 从 WAL 开始消费，还是从 TSBS 开始消费                    |                                             |
-|     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名                                 |
+|      `auto.offset.reset`       |  enum   | 消费组订阅的初始位置                                     | <br />`earliest`: default;从头开始订阅; <br/>`latest`: 仅从最新数据开始订阅; <br/>`none`: 没有提交的 offset 无法订阅 |
+|      `enable.auto.commit`      | boolean | 是否启用消费位点自动提交                                 | 合法值：`true`, `false`。                   |
+|   `auto.commit.interval.ms`    | integer | 以毫秒为单位的消费记录自动提交消费位点时间间隔             | 默认 5000 m                                 |
+| `enable.heartbeat.background`  | boolean | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 默认开启                                    |
+| `experimental.snapshot.enable` | boolean | 是否允许从 TSDB 消费数据                                 | 实验功能，默认关闭                          |
+|     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）               | |
 
 对于不同编程语言，其设置方式如下：
 
@@ -355,50 +358,20 @@ public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 <TabItem label="Go" value="Go">
 
 ```go
-config := tmq.NewConfig()
-defer config.Destroy()
-err = config.SetGroupID("test")
-if err != nil {
-  panic(err)
+conf := &tmq.ConfigMap{
+ "group.id":                     "test",
+ "auto.offset.reset":            "earliest",
+ "td.connect.ip":                "127.0.0.1",
+ "td.connect.user":              "root",
+ "td.connect.pass":              "taosdata",
+ "td.connect.port":              "6030",
+ "client.id":                    "test_tmq_c",
+ "enable.auto.commit":           "false",
+ "enable.heartbeat.background":  "true",
+ "experimental.snapshot.enable": "true",
+ "msg.with.table.name":          "true",
 }
-err = config.SetAutoOffsetReset("earliest")
-if err != nil {
-  panic(err)
-}
-err = config.SetConnectIP("127.0.0.1")
-if err != nil {
-  panic(err)
-}
-err = config.SetConnectUser("root")
-if err != nil {
-  panic(err)
-}
-err = config.SetConnectPass("taosdata")
-if err != nil {
-  panic(err)
-}
-err = config.SetConnectPort("6030")
-if err != nil {
-  panic(err)
-}
-err = config.SetMsgWithTableName(true)
-if err != nil {
-  panic(err)
-}
-err = config.EnableHeartBeat()
-if err != nil {
-  panic(err)
-}
-err = config.EnableAutoCommit(func(result *wrapper.TMQCommitCallbackResult) {
-  if result.ErrCode != 0 {
-    errStr := wrapper.TMQErr2Str(result.ErrCode)
-    err := errors.NewError(int(result.ErrCode), errStr)
-    panic(err)
-  }
-})
-if err != nil {
-  panic(err)
-}
+consumer, err := NewConsumer(conf)
 ```
 
 </TabItem>
@@ -420,23 +393,33 @@ let mut consumer = tmq.build()?;
 
 <TabItem value="Python" label="Python">
 
-Python 使用以下配置项创建一个 Consumer 实例。
+Python 语言下引入 `taos` 库的 `Consumer` 类，创建一个 Consumer 示例：
 
-|            参数名称            |  类型  | 参数说明                                                 | 备注                                        |
-| :----------------------------: | :----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td_connect_ip`         | string | 用于创建连接，同 `taos_connect`                          |                                             |
-|       `td_connect_user`        | string | 用于创建连接，同 `taos_connect`                          |                                             |
-|       `td_connect_pass`        | string | 用于创建连接，同 `taos_connect`                          |                                             |
-|       `td_connect_port`        | string | 用于创建连接，同 `taos_connect`                          |                                             |
-|           `group_id`           | string | 消费组 ID，同一消费组共享消费进度                        | **必填项**。最大长度：192。                 |
-|          `client_id`           | string | 客户端 ID                                                | 最大长度：192。                             |
-|      `auto_offset_reset`       | string | 消费组订阅的初始位置                                     | 可选：`earliest`, `latest`, `none`(default) |
-|      `enable_auto_commit`      | string | 启用自动提交                                             | 合法值：`true`, `false`。                   |
-|   `auto_commit_interval_ms`    | string | 以毫秒为单位的自动提交时间间隔                           |                                             |
-| `enable_heartbeat_background`  | string | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 合法值：`true`, `false`                     |
-| `experimental_snapshot_enable` | string | 从 WAL 开始消费，还是从 TSBS 开始消费                    | 合法值：`true`, `false`                     |
-|     `msg_with_table_name`      | string | 是否允许从消息中解析表名                                 | 合法值：`true`, `false`                     |
-|           `timeout`            |  int   | 消费者拉去的超时时间                                     |                                             |
+```python
+from taos.tmq import Consumer
+
+# Syntax: `consumer = Consumer(configs)`
+#
+# Example:
+consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
+```
+
+其中，`configs` 为 dict 类型，传递创建 Consumer 的参数。可以配置的参数有：
+
+| 参数名称 | 类型 | 参数说明 | 备注 |
+|:------:|:----:|:-------:|:---:|
+| `td.connect.ip` | string | 用于创建连接||
+| `td.connect.user` | string | 用于创建连接||
+| `td.connect.pass` | string | 用于创建连接||
+| `td.connect.port` | string | 用于创建连接||
+| `group.id` | string | 消费组 ID，同一消费组共享消费进度 | **必填项**。最大长度：192 |
+| `client.id` | string | 客户端 ID | 最大长度：192 |
+| `msg.with.table.name` | string | 是否允许从消息中解析表名,不适用于列订阅 | 合法值：`true`, `false` |
+| `enable.auto.commit` | string | 启用自动提交 | 合法值：`true`, `false` |
+| `auto.commit.interval.ms` | string | 以毫秒为单位的自动提交时间间隔 | 默认值：5000 ms |
+| `auto.offset.reset` | string | 消费组订阅的初始位置 | 可选：`earliest`(default), `latest`, `none` |
+| `experimental.snapshot.enable` | string | 是否允许从 TSDB 消费数据 | 合法值：`true`, `false` |
+| `enable.heartbeat.background` | string | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 合法值：`true`, `false` |
 
 </TabItem>
 
@@ -521,11 +504,7 @@ consumer.subscribe(topics);
 <TabItem value="Go" label="Go">
 
 ```go
-consumer, err := tmq.NewConsumer(config)
-if err != nil {
- panic(err)
-}
-err = consumer.Subscribe([]string{"example_tmq_topic"})
+err = consumer.Subscribe("example_tmq_topic", nil)
 if err != nil {
  panic(err)
 }
@@ -543,7 +522,7 @@ consumer.subscribe(["tmq_meters"]).await?;
 <TabItem value="Python" label="Python">
 
 ```python
-consumer = TaosConsumer('topic_ctb_column', group_id='vg2')
+consumer.subscribe(['topic1', 'topic2'])
 ```
 
 </TabItem>
@@ -609,13 +588,17 @@ while(running){
 
 ```go
 for {
- result, err := consumer.Poll(time.Second)
- if err != nil {
-  panic(err)
+ ev := consumer.Poll(0)
+ if ev != nil {
+  switch e := ev.(type) {
+  case *tmqcommon.DataMessage:
+   fmt.Println(e.Value())
+  case tmqcommon.Error:
+   fmt.Fprintf(os.Stderr, "%% Error: %v: %v\n", e.Code(), e)
+   panic(e)
+  }
+  consumer.Commit()
  }
- fmt.Println(result)
- consumer.Commit(context.Background(), result.Message)
- consumer.FreeMessage(result.Message)
 }
 ```
 
@@ -658,9 +641,17 @@ for {
 <TabItem value="Python" label="Python">
 
 ```python
-for msg in consumer:
-    for row in msg:
-        print(row)
+while True:
+    res = consumer.poll(100)
+    if not res:
+        continue
+    err = res.error()
+    if err is not None:
+        raise err
+    val = res.value()
+
+    for block in val:
+        print(block.fetchall())
 ```
 
 </TabItem>
@@ -727,7 +718,11 @@ consumer.close();
 <TabItem value="Go" label="Go">
 
 ```go
-consumer.Close()
+/* Unsubscribe */
+_ = consumer.Unsubscribe()
+
+/* Close consumer */
+_ = consumer.Close()
 ```
 
 </TabItem>
@@ -813,7 +808,14 @@ SHOW SUBSCRIPTIONS;
 </TabItem>
 
 <TabItem label="Java" value="java">
-    <Java />
+<Tabs defaultValue="native">
+<TabItem value="native" label="本地连接">
+<Java />
+</TabItem>
+<TabItem value="ws" label="WebSocket 连接">
+<JavaWS />
+</TabItem>
+</Tabs>
 </TabItem>
 
 <TabItem label="Go" value="Go">

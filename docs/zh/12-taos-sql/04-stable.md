@@ -7,7 +7,7 @@ description: 对超级表的各种管理操作
 ## 创建超级表
 
 ```sql
-CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definitionn] ...) TAGS (create_definition [, create_definition] ...) [table_options]
+CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definition] ...) TAGS (create_definition [, create_definition] ...) [table_options]
  
 create_definition:
     col_name column_definition
@@ -50,6 +50,56 @@ SHOW CREATE STABLE stb_name;
 DESCRIBE [db_name.]stb_name;
 ```
 
+### 获取超级表中所有子表的标签信息
+
+```
+taos> SHOW TABLE TAGS FROM st1;
+             tbname             |     id      |         loc          |
+======================================================================
+ st1s1                          |           1 | beijing              |
+ st1s2                          |           2 | shanghai             |
+ st1s3                          |           3 | guangzhou            |
+Query OK, 3 rows in database (0.004455s)
+```
+
+返回结果集的第一列为子表名，后续列为标签列。
+
+如果已经知道标签列的名称，可以使用下面的语句来获取指定标签列的值。
+
+```
+taos> SELECT DISTINCT TBNAME, id FROM st1;
+             tbname             |     id      |
+===============================================
+ st1s1                          |           1 |
+ st1s2                          |           2 |
+ st1s3                          |           3 |
+Query OK, 3 rows in database (0.002891s)
+```
+
+需要注意，SELECT 语句中的 DISTINCT 和 TBNAME 都是必不可少的，TDengine 会根据它们对语句进行优化，使之在没有数据或数据非常多的情况下都可以正确并快速的返回标签值。
+
+### 获取某个子表的标签信息
+
+```
+taos> SHOW TAGS FROM st1s1;
+   table_name    |     db_name     |   stable_name   |    tag_name     |    tag_type     |    tag_value    |
+============================================================================================================
+ st1s1           | test            | st1             | id              | INT             | 1               |
+ st1s1           | test            | st1             | loc             | VARCHAR(20)     | beijing         |
+Query OK, 2 rows in database (0.003684s)
+```
+
+同样的，也可以用 SELECT 语句来查询指定标签列的值。
+
+```
+taos> SELECT DISTINCT TBNAME, id, loc FROM st1s1;
+     tbname      |     id      |       loc       |
+==================================================
+ st1s1           |           1 | beijing         |
+Query OK, 1 rows in database (0.001884s)
+```
+
+
 ## 删除超级表
 
 ```
@@ -89,10 +139,10 @@ alter_table_option: {
 
 - ADD COLUMN：添加列。
 - DROP COLUMN：删除列。
-- MODIFY COLUMN：修改列定义，如果数据列的类型是可变长类型，那么可以使用此指令修改其宽度，只能改大，不能改小。
+- MODIFY COLUMN：修改列的宽度，数据列的类型必须是 nchar 和 binary，使用此指令可以修改其宽度，只能改大，不能改小。
 - ADD TAG：给超级表添加一个标签。
 - DROP TAG：删除超级表的一个标签。从超级表删除某个标签后，该超级表下的所有子表也会自动删除该标签。
-- MODIFY TAG：修改超级表的一个标签的定义。如果标签的类型是可变长类型，那么可以使用此指令修改其宽度，只能改大，不能改小。
+- MODIFY TAG：修改超级表的一个标签的列宽度。标签的类型只能是 nchar 和 binary，使用此指令可以修改其宽度，只能改大，不能改小。
 - RENAME TAG：修改超级表的一个标签的名称。从超级表修改某个标签名后，该超级表下的所有子表也会自动更新该标签名。
 
 ### 增加列

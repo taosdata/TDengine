@@ -1,13 +1,13 @@
 ---
-toc_max_heading_level: 4
-sidebar_label: Go
 title: TDengine Go Connector
+sidebar_label: Go
+description: This document describes the TDengine Go connector.
+toc_max_heading_level: 4
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-import Preparition from "./_preparation.mdx"
 import GoInsert from "../../07-develop/03-insert-data/_go_sql.mdx"
 import GoInfluxLine from "../../07-develop/03-insert-data/_go_line.mdx"
 import GoOpenTSDBTelnet from "../../07-develop/03-insert-data/_go_opts_telnet.mdx"
@@ -113,7 +113,7 @@ username:password@protocol(address)/dbname?param=value
 ```
 ### Connecting via connector
 
-<Tabs defaultValue="native">
+<Tabs defaultValue="rest">
 <TabItem value="native" label="native connection">
 
 _taosSql_ implements Go's `database/sql/driver` interface via cgo. You can use the [`database/sql`](https://golang.org/pkg/database/sql/) interface by simply introducing the driver.
@@ -169,6 +169,37 @@ import (
 func main() {
     var taosUri = "root:taosdata@http(localhost:6041)/"
     taos, err := sql.Open("taosRestful", taosUri)
+    if err != nil {
+        fmt.Println("failed to connect TDengine, err:", err)
+        return
+    }
+}
+```
+</TabItem>
+<TabItem value="WebSocket" label="WebSocket connection">
+
+_taosRestful_ implements Go's `database/sql/driver` interface via `http client`. You can use the [`database/sql`](https://golang.org/pkg/database/sql/) interface by simply introducing the driver (driver-go minimum version 3.0.2).
+
+Use `taosWS` as `driverName` and use a correct [DSN](#DSN) as `dataSourceName` with the following parameters supported by the DSN.
+
+* `writeTimeout` The timeout to send data via WebSocket.
+* `readTimeout` The timeout to receive response data via WebSocket.
+
+For example:
+
+```go
+package main
+
+import (
+    "database/sql"
+    "fmt"
+
+    _ "github.com/taosdata/driver-go/v3/taosWS"
+)
+
+func main() {
+    var taosUri = "root:taosdata@ws(localhost:6041)/"
+    taos, err := sql.Open("taosWS", taosUri)
     if err != nil {
         fmt.Println("failed to connect TDengine, err:", err)
         return
@@ -323,27 +354,30 @@ The `af` package encapsulates TDengine advanced functions such as connection man
 
   Closes the connection.
 
-#### Subscribe to
+#### Subscribe
 
-* `func NewConsumer(conf *Config) (*Consumer, error)`
+* `func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)`
 
 Creates consumer group.
 
-* `func (c *Consumer) Subscribe(topics []string) error`
+* `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
+Note: `rebalanceCb` is reserved for compatibility purpose
 
-Subscribes to a topic.
+Subscribes a topic.
 
-* `func (c *Consumer) Poll(timeout time.Duration) (*Result, error)`
+* `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
+Note: `rebalanceCb` is reserved for compatibility purpose
+
+Subscribes to topics.
+
+* `func (c *Consumer) Poll(timeoutMs int) tmq.Event`
 
 Polling information.
 
-* `func (c *Consumer) Commit(ctx context.Context, message unsafe.Pointer) error`
+* `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
+Note: `tmq.TopicPartition` is reserved for compatibility purpose
 
 Commit information.
-
-* `func (c *Consumer) FreeMessage(message unsafe.Pointer)`
-
-Free information.
 
 * `func (c *Consumer) Unsubscribe() error`
 
@@ -357,7 +391,7 @@ Close consumer.
 
 * `func (conn *Connector) InfluxDBInsertLines(lines []string, precision string) error`
 
-  Write to influxDB line protocol.
+  Write to InfluxDB line protocol.
 
 * `func (conn *Connector) OpenTSDBInsertTelnetLines(lines []string) error`
 
@@ -383,7 +417,7 @@ Close consumer.
 
 * `func (stmt *InsertStmt) SetTableName(name string) error`
 
-  Bind the set table name parameter.
+  Bind the table name parameter.
 
 * `func (stmt *InsertStmt) SetSubTableName(name string) error`
 
@@ -408,6 +442,89 @@ Close consumer.
 * `func (stmt *InsertStmt) Close() error`
 
   Closes the parameter binding.
+
+### Subscribe via WebSocket
+
+* `func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)`
+
+Creates consumer group.
+
+* `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
+Note: `rebalanceCb` is reserved for compatibility purpose
+
+Subscribes a topic.
+
+* `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
+Note: `rebalanceCb` is reserved for compatibility purpose
+
+Subscribes to topics.
+
+* `func (c *Consumer) Poll(timeoutMs int) tmq.Event`
+
+Polling information.
+
+* `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
+Note: `tmq.TopicPartition` is reserved for compatibility purpose
+
+Commit information.
+
+* `func (c *Consumer) Unsubscribe() error`
+
+Unsubscribe.
+
+* `func (c *Consumer) Close() error`
+
+Close consumer.
+
+For a complete example see [GitHub sample file](https://github.com/taosdata/driver-go/blob/3.0/examples/tmqoverws/main.go)
+
+### parameter binding via WebSocket
+
+* `func NewConnector(config *Config) (*Connector, error)`
+
+  Create a connection.
+
+* `func (c *Connector) Init() (*Stmt, error)`
+
+  Initialize the parameters.
+
+* `func (c *Connector) Close() error`
+
+  Close the connection.
+
+* `func (s *Stmt) Prepare(sql string) error`
+
+  Parameter binding preprocessing SQL statement.
+
+* `func (s *Stmt) SetTableName(name string) error`
+
+  Bind the table name parameter.
+
+* `func (s *Stmt) SetTags(tags *param.Param, bindType *param.ColumnType) error`
+
+  Set tags.
+
+* `func (s *Stmt) BindParam(params []*param.Param, bindType *param.ColumnType) error`
+
+  Parameter bind multiple rows of data.
+
+* `func (s *Stmt) AddBatch() error`
+
+  Add to a parameter-bound batch.
+
+* `func (s *Stmt) Exec() error`
+
+  Execute a parameter binding.
+
+* `func (s *Stmt) GetAffectedRows() int`
+
+  Gets the number of affected rows inserted by the parameter binding.
+
+* `func (s *Stmt) Close() error`
+
+  Closes the parameter binding.
+
+For a complete example see [GitHub sample file](https://github.com/taosdata/driver-go/blob/3.0/examples/stmtoverws/main.go)
 
 ## API Reference
 

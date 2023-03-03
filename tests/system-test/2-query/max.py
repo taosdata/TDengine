@@ -6,7 +6,8 @@ import numpy as np
 
 class TDTestCase:
     updatecfgDict = {"maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
 
@@ -44,6 +45,22 @@ class TDTestCase:
         tdSql.checkData(0,0,5)
         tdSql.query(f"select max(col1) from {dbname}.stb where col2<=5")
         tdSql.checkData(0,0,5)
+
+        tdSql.query(f"select ts, max(col1) from {dbname}.stb")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, np.max(intData))
+
+        tdSql.query(f"select ts, max(col1) from {dbname}.stb_1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, np.max(intData))
+
+        tdSql.query(f"select ts, min(col9) from {dbname}.stb")
+        tdSql.checkRows(1)        
+        tdSql.checkData(0, 1, np.min(floatData))
+
+        tdSql.query(f"select ts, min(col9) from {dbname}.stb_1")
+        tdSql.checkRows(1)        
+        tdSql.checkData(0, 1, np.min(floatData))
 
     def max_check_ntb_base(self, dbname="db"):
         tdSql.prepare()

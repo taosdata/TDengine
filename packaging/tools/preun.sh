@@ -25,7 +25,7 @@ fi
 
 initd_mod=0
 service_mod=2
-if pidof systemd &> /dev/null; then
+if ps aux | grep -v grep | grep systemd &> /dev/null; then
     service_mod=0
 elif $(which service &> /dev/null); then
     service_mod=1
@@ -82,7 +82,7 @@ function clean_service_on_sysvinit() {
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
     #${csudo}sed -i "\|${restart_config_str}|d" /etc/inittab || :
 
-    if pidof taosd &> /dev/null; then
+    if ps aux | grep -v grep | grep taosd &> /dev/null; then
         echo "TDengine taosd is running, stopping it..."
         ${csudo}service taosd stop || :
     fi

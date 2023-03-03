@@ -54,11 +54,17 @@
 void*   indexQhandle = NULL;
 int32_t indexRefMgt;
 
+int32_t indexThreads = 5;
+
 static void indexDestroy(void* sIdx);
 
-void indexInit() {
+void indexInit(int32_t threadNum) {
+  indexThreads = threadNum;
+  if (indexThreads <= 1) indexThreads = INDEX_NUM_OF_THREADS;
+}
+void indexEnvInit() {
   // refactor later
-  indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, INDEX_NUM_OF_THREADS, "index", NULL);
+  indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, indexThreads, "index", NULL);
   indexRefMgt = taosOpenRef(1000, indexDestroy);
 }
 void indexCleanup() {
@@ -99,7 +105,7 @@ static void indexWait(void* idx) {
 
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   int ret = TSDB_CODE_SUCCESS;
-  taosThreadOnce(&isInit, indexInit);
+  taosThreadOnce(&isInit, indexEnvInit);
   SIndex* idx = taosMemoryCalloc(1, sizeof(SIndex));
   if (idx == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -120,7 +126,7 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
 
   idx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   idx->version = 1;
-  idx->path = tstrdup(path);
+  idx->path = taosStrdup(path);
   taosThreadMutexInit(&idx->mtx, NULL);
   tsem_init(&idx->sem, 0, 0);
 
@@ -133,7 +139,7 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
 
 END:
   if (idx != NULL) {
-    indexClose(idx);
+    indexDestroy(idx);
   }
   *index = NULL;
   return ret;
@@ -220,7 +226,9 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
     indexDebug("w suid:%" PRIu64 ", colName:%s, colType:%d", key.suid, key.colName, key.colType);
 
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
-    assert(*cache != NULL);
+    ASSERTS(*cache != NULL, "index-cache already release");
+    if (*cache == NULL) return -1;
+
     int ret = idxCachePut(*cache, p, uid);
     if (ret != 0) {
       return ret;

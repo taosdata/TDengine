@@ -23,10 +23,10 @@ extern "C" {
 extern int32_t exchangeObjRefPool;
 
 typedef struct {
-  char*           pData;
-  bool            isNull;
-  int16_t         type;
-  int32_t         bytes;
+  char*   pData;
+  bool    isNull;
+  int16_t type;
+  int32_t bytes;
 } SGroupKeys, SStateKeys;
 
 uint64_t calcGroupId(char* pData, int32_t len);

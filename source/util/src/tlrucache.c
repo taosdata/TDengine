@@ -337,6 +337,7 @@ static int taosLRUCacheShardInit(SLRUCacheShard *shard, size_t capacity, bool st
 
   taosThreadMutexInit(&shard->mutex, NULL);
 
+  taosThreadMutexLock(&shard->mutex);
   shard->capacity = 0;
   shard->highPriPoolUsage = 0;
   shard->strictCapacity = strict;
@@ -349,6 +350,7 @@ static int taosLRUCacheShardInit(SLRUCacheShard *shard, size_t capacity, bool st
   shard->lru.next = &shard->lru;
   shard->lru.prev = &shard->lru;
   shard->lruLowPri = &shard->lru;
+  taosThreadMutexUnlock(&shard->mutex);
 
   taosLRUCacheShardSetCapacity(shard, capacity);
 
@@ -628,13 +630,16 @@ static int getDefaultCacheShardBits(size_t capacity) {
 
 SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoolRatio) {
   if (numShardBits >= 20) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
   if (highPriPoolRatio < 0.0 || highPriPoolRatio > 1.0) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
   SLRUCache *cache = taosMemoryCalloc(1, sizeof(SLRUCache));
   if (!cache) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -646,7 +651,7 @@ SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoo
   cache->shards = taosMemoryCalloc(numShards, sizeof(SLRUCacheShard));
   if (!cache->shards) {
     taosMemoryFree(cache);
-
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 

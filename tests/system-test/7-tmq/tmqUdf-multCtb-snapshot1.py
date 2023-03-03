@@ -23,7 +23,8 @@ class TDTestCase:
         self.ctbNum     = 100
         self.rowsPerTbl = 1000
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
@@ -104,7 +105,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  3,
+                    'pollDelay':  10,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -149,7 +150,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  3,
+                    'pollDelay':  10,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -251,7 +252,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  3,
+                    'pollDelay':  10,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}

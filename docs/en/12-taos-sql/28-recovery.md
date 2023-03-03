@@ -1,6 +1,7 @@
 ---
-sidebar_label: Error Recovery
 title: Error Recovery
+sidebar_label: Error Recovery
+description: This document describes the SQL statements related to error recovery in TDengine.
 ---
 
 In a complex environment, connections and query tasks may encounter errors or fail to return in a reasonable time. If this occurs, you can terminate the connection or task.
@@ -16,10 +17,10 @@ You can use the SHOW CONNECTIONS statement to find the conn_id.
 ## Terminate a Query
 
 ```sql
-SHOW QUERY query_id;
+KILL QUERY kill_id;
 ```
 
-You can use the SHOW QUERIES statement to find the query_id.
+You can use the SHOW QUERIES statement to find the kill_id.
 
 ## Terminate a Transaction
 

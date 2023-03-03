@@ -20,6 +20,8 @@
 
 #define CLUSTER_VER_NUMBE    1
 #define CLUSTER_RESERVE_SIZE 60
+char    tsVersionName[16] = "community";
+int64_t tsExpireTime = 0;
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster);
 static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw);
@@ -157,6 +159,8 @@ _OVER:
 
 static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SClusterObj *pCluster = NULL;
+  SSdbRow *pRow = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -166,10 +170,10 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SClusterObj));
+  pRow = sdbAllocRow(sizeof(SClusterObj));
   if (pRow == NULL) goto _OVER;
 
-  SClusterObj *pCluster = sdbGetRowObj(pRow);
+  pCluster = sdbGetRowObj(pRow);
   if (pCluster == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -184,7 +188,8 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("cluster:%" PRId64 ", failed to decode from raw:%p since %s", pCluster->id, pRaw, terrstr());
+    mError("cluster:%" PRId64 ", failed to decode from raw:%p since %s", pCluster == NULL ? 0 : pCluster->id, pRaw,
+           terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -231,23 +236,24 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
 
   SSdbRaw *pRaw = mndClusterActionEncode(&clusterObj);
   if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("cluster:%" PRId64 ", will be created when deploying, raw:%p", clusterObj.id, pRaw);
+  mInfo("cluster:%" PRId64 ", will be created when deploying, raw:%p", clusterObj.id, pRaw);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-cluster");
   if (pTrans == NULL) {
+    sdbFreeRaw(pRaw);
     mError("cluster:%" PRId64 ", failed to create since %s", clusterObj.id, terrstr());
     return -1;
   }
-  mDebug("trans:%d, used to create cluster:%" PRId64, pTrans->id, clusterObj.id);
+  mInfo("trans:%d, used to create cluster:%" PRId64, pTrans->id, clusterObj.id);
 
   if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -272,20 +278,32 @@ static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pCluster->id, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pCluster->id, false);
 
     char buf[tListLen(pCluster->name) + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->name, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, buf, false);
+    colDataSetVal(pColInfo, numOfRows, buf, false);
 
     int32_t upTime = mndGetClusterUpTimeImp(pCluster);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&upTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&upTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pCluster->createdTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pCluster->createdTime, false);
+
+    char ver[12] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(ver, tsVersionName, pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)ver, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (tsExpireTime <= 0) {
+      colDataSetNULL(pColInfo, numOfRows);
+    } else {
+      colDataSetVal(pColInfo, numOfRows, (const char *)&tsExpireTime, false);
+    }
 
     sdbRelease(pSdb, pCluster);
     numOfRows++;
@@ -315,7 +333,7 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
     return 0;
   }
 
-  mTrace("update cluster uptime to %" PRId64, clusterObj.upTime);
+  mInfo("update cluster uptime to %d", clusterObj.upTime);
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-uptime");
   if (pTrans == NULL) return -1;
 
@@ -325,7 +343,7 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());

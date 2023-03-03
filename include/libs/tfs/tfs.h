@@ -16,15 +16,15 @@
 #ifndef _TD_TFS_H_
 #define _TD_TFS_H_
 
-#include "tdef.h"
 #include "monitor.h"
+#include "tdef.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct STfs STfs;
+typedef struct STfs    STfs;
 typedef struct STfsDir STfsDir;
 
 typedef struct {
@@ -150,7 +150,7 @@ int32_t tfsRmdir(STfs *pTfs, const char *rname);
  * @param nrname The rel name of new file.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t tfsRename(STfs *pTfs, char *orname, char *nrname);
+int32_t tfsRename(STfs *pTfs, const char *orname, const char *nrname);
 
 /**
  * @brief Init file object in tfs.

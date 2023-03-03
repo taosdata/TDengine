@@ -1,6 +1,7 @@
 ---
-sidebar_label: Select
 title: Select
+sidebar_label: Select
+description: This document describes how to query data in TDengine.
 ---
 
 ## Syntax
@@ -11,7 +12,8 @@ SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW
 SELECT [DISTINCT] select_list
     from_clause
     [WHERE condition]
-    [PARTITION BY tag_list]
+    [partition_by_clause]
+    [interp_clause]
     [window_clause]
     [group_by_clause]
     [order_by_clasue]
@@ -51,6 +53,12 @@ window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
+
+interp_clause:
+    RANGE(ts_val, ts_val), EVERY(every_val), FILL(fill_mod_and_val)
+
+partition_by_clause:
+    PARTITION BY expr [, expr] ...
 
 group_by_clause:
     GROUP BY expr [, expr] ... HAVING condition
@@ -181,6 +189,14 @@ In TDengine, the first column of all tables must be a timestamp. This column is 
 select _rowts, max(current) from meters;
 ```
 
+**\_IROWTS**
+
+The \_IROWTS pseudocolumn can only be used with INTERP function. This pseudocolumn can be used to retrieve the corresponding timestamp column associated with the interpolation results.
+
+```sql
+select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
+```
+
 ## Query Objects
 
 `FROM` can be followed by a number of tables or super tables, or can be followed by a sub-query.
@@ -244,7 +260,7 @@ Note: If you include an ORDER BY clause, only one partition can be displayed.
 
 Some special query functions can be invoked without `FROM` sub-clause.
 
-## Obtain Current Database
+### Obtain Current Database
 
 The following SQL statement returns the current database. If a database has not been specified on login or with the `USE` command, a null value is returned.
 
@@ -259,7 +275,7 @@ SELECT CLIENT_VERSION();
 SELECT SERVER_VERSION();
 ```
 
-## Obtain Server Status
+### Obtain Server Status
 
 The following SQL statement returns the status of the TDengine server. An integer indicates that the server is running normally. An error code indicates that an error has occurred. This statement can also detect whether a connection pool or third-party tool is connected to TDengine properly. By using this statement, you can ensure that connections in a pool are not lost due to an incorrect heartbeat detection statement.
 
@@ -290,7 +306,7 @@ SELECT TIMEZONE();
 ### Syntax
 
 ```txt
-WHERE (column|tbname) **match/MATCH/nmatch/NMATCH** _regex_
+WHERE (column|tbname) match/MATCH/nmatch/NMATCH _regex_
 ```
 
 ### Specification
@@ -303,11 +319,45 @@ Regular expression filtering is supported only on table names (TBNAME), BINARY t
 
 A regular expression string cannot exceed 128 bytes. You can configure this value by modifying the maxRegexStringLen parameter on the TDengine Client. The modified value takes effect when the client is restarted.
 
+## CASE Expressions
+
+### Syntax
+
+```txt
+CASE value WHEN compare_value THEN result [WHEN compare_value THEN result ...] [ELSE result] END
+CASE WHEN condition THEN result [WHEN condition THEN result ...] [ELSE result] END
+```
+
+### Description
+CASE expressions let you use IF ... THEN ... ELSE logic in SQL statements without having to invoke procedures. 
+
+The first CASE syntax returns the `result` for the first `value`=`compare_value` comparison that is true. 
+
+The second syntax returns the `result` for the first `condition` that is true. 
+
+If no comparison or condition is true, the result after ELSE is returned, or NULL if there is no ELSE part.
+
+The return type of the CASE expression is the result type of the first WHEN WHEN part, and the result type of the other WHEN WHEN parts and ELSE parts can be converted to them, otherwise TDengine will report an error.
+
+### Examples
+
+A device has three status codes to display its status. The statements are as follows:
+
+```sql
+SELECT CASE dev_status WHEN 1 THEN 'Running' WHEN 2 THEN 'Warning' WHEN 3 THEN 'Downtime' ELSE 'Unknown' END FROM dev_table;
+```
+
+The average voltage value of the smart meter is counted. When the voltage is less than 200 or more than 250, it is considered that the statistics is wrong, and the value is corrected to 220. The statement is as follows:
+
+```sql
+SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) FROM meters;
+```
+
 ## JOIN
 
-TDengine supports natural joins between supertables, between standard tables, and between subqueries. The difference between natural joins and inner joins is that natural joins require that the fields being joined in the supertables or standard tables must have the same name. Data or tag columns must be joined with the equivalent column in another table.
+TDengine supports the `INTER JOIN` based on the timestamp primary key, that is, the `JOIN` condition must contain the timestamp primary key. As long as the requirement of timestamp-based primary key is met, `INTER JOIN` can be made between normal tables, sub-tables, super tables and sub-queries at will, and there is no limit on the number of tables.
 
-For standard tables, only the timestamp (primary key) can be used in join operations. For example:
+For standard tables:
 
 ```sql
 SELECT *
@@ -315,7 +365,7 @@ FROM temp_tb_1 t1, pressure_tb_1 t2
 WHERE t1.ts = t2.ts
 ```
 
-For supertables, tags as well as timestamps can be used in join operations. For example:
+For supertables:
 
 ```sql
 SELECT *
@@ -323,20 +373,15 @@ FROM temp_stable t1, temp_stable t2
 WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
+For sub-table and super table：
+
+```sql
+SELECT *
+FROM temp_ctable t1, temp_stable t2
+WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+```
+
 Similarly, join operations can be performed on the result sets of multiple subqueries.
-
-:::note
-
-The following restriction apply to JOIN statements:
-
-- The number of tables or supertables in a single join operation cannot exceed 10.
-- `FILL` cannot be used in a JOIN statement.
-- Arithmetic operations cannot be performed on the result sets of join operation.
-- `GROUP BY` is not allowed on a segment of the tables that participate in a join operation.
-- `OR` cannot be used in the conditions for join operation
-- Join operation can be performed only on tags or timestamps. You cannot perform a join operation on data columns.
-
-:::
 
 ## Nested Query
 

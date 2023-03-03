@@ -35,15 +35,15 @@
     memcpy(&((pDst)->fldname), &((pSrc)->fldname), size); \
   } while (0)
 
-#define COPY_CHAR_POINT_FIELD(fldname)         \
-  do {                                         \
-    if (NULL == (pSrc)->fldname) {             \
-      break;                                   \
-    }                                          \
-    (pDst)->fldname = strdup((pSrc)->fldname); \
-    if (NULL == (pDst)->fldname) {             \
-      return TSDB_CODE_OUT_OF_MEMORY;          \
-    }                                          \
+#define COPY_CHAR_POINT_FIELD(fldname)             \
+  do {                                             \
+    if (NULL == (pSrc)->fldname) {                 \
+      break;                                       \
+    }                                              \
+    (pDst)->fldname = taosStrdup((pSrc)->fldname); \
+    if (NULL == (pDst)->fldname) {                 \
+      return TSDB_CODE_OUT_OF_MEMORY;              \
+    }                                              \
   } while (0)
 
 #define CLONE_NODE_FIELD(fldname)                      \
@@ -131,7 +131,7 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   COPY_SCALAR_FIELD(placeholderNo);
   COPY_SCALAR_FIELD(typeData);
   COPY_SCALAR_FIELD(unit);
-  if (!pSrc->translate) {
+  if (!pSrc->translate || pSrc->isNull) {
     return TSDB_CODE_SUCCESS;
   }
   switch (pSrc->node.resType.type) {
@@ -158,7 +158,7 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY: {
-      int32_t len = varDataTLen(pSrc->datum.p) + 1;
+      int32_t len = pSrc->node.resType.bytes + 1;
       pDst->datum.p = taosMemoryCalloc(1, len);
       if (NULL == pDst->datum.p) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -295,6 +295,13 @@ static int32_t stateWindowNodeCopy(const SStateWindowNode* pSrc, SStateWindowNod
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t eventWindowNodeCopy(const SEventWindowNode* pSrc, SEventWindowNode* pDst) {
+  CLONE_NODE_FIELD(pCol);
+  CLONE_NODE_FIELD(pStartCond);
+  CLONE_NODE_FIELD(pEndCond);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t sessionWindowNodeCopy(const SSessionWindowNode* pSrc, SSessionWindowNode* pDst) {
   CLONE_NODE_FIELD_EX(pCol, SColumnNode*);
   CLONE_NODE_FIELD_EX(pGap, SValueNode*);
@@ -311,7 +318,7 @@ static int32_t intervalWindowNodeCopy(const SIntervalWindowNode* pSrc, SInterval
 }
 
 static int32_t nodeListNodeCopy(const SNodeListNode* pSrc, SNodeListNode* pDst) {
-  COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
+  COPY_OBJECT_FIELD(node.resType, sizeof(SDataType));
   CLONE_NODE_LIST_FIELD(pNodeList);
   return TSDB_CODE_SUCCESS;
 }
@@ -321,6 +328,21 @@ static int32_t fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
   CLONE_NODE_FIELD(pValues);
   CLONE_NODE_FIELD(pWStartTs);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t whenThenNodeCopy(const SWhenThenNode* pSrc, SWhenThenNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
+  CLONE_NODE_FIELD(pWhen);
+  CLONE_NODE_FIELD(pThen);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t caseWhenNodeCopy(const SCaseWhenNode* pSrc, SCaseWhenNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
+  CLONE_NODE_FIELD(pCase);
+  CLONE_NODE_FIELD(pElse);
+  CLONE_NODE_LIST_FIELD(pWhenThenList);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -363,9 +385,14 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_NODE_FIELD(pTagIndexCond);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
+  COPY_SCALAR_FIELD(deleteMark);
   COPY_SCALAR_FIELD(igExpired);
+  COPY_SCALAR_FIELD(igCheckUpdate);
   CLONE_NODE_LIST_FIELD(pGroupTags);
   COPY_SCALAR_FIELD(groupSort);
+  CLONE_NODE_LIST_FIELD(pTags);
+  CLONE_NODE_FIELD(pSubtable);
+  COPY_SCALAR_FIELD(igLastNull);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -383,6 +410,7 @@ static int32_t logicAggCopy(const SAggLogicNode* pSrc, SAggLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pGroupKeys);
   CLONE_NODE_LIST_FIELD(pAggFuncs);
+  COPY_SCALAR_FIELD(hasGroupKeyOptimized);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -414,7 +442,9 @@ static int32_t logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModi
 
 static int32_t logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
-  COPY_SCALAR_FIELD(srcGroupId);
+  COPY_SCALAR_FIELD(srcStartGroupId);
+  COPY_SCALAR_FIELD(srcEndGroupId);
+  COPY_SCALAR_FIELD(seqRecvData);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -441,9 +471,13 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   CLONE_NODE_FIELD(pTspk);
   CLONE_NODE_FIELD(pTsEnd);
   CLONE_NODE_FIELD(pStateExpr);
+  CLONE_NODE_FIELD(pStartCond);
+  CLONE_NODE_FIELD(pEndCond);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
+  COPY_SCALAR_FIELD(deleteMark);
   COPY_SCALAR_FIELD(igExpired);
+  COPY_SCALAR_FIELD(igCheckUpdate);
   COPY_SCALAR_FIELD(windowAlgo);
   COPY_SCALAR_FIELD(inputTsOrder);
   COPY_SCALAR_FIELD(outputTsOrder);
@@ -472,6 +506,8 @@ static int32_t logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
 static int32_t logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pPartitionKeys);
+  CLONE_NODE_LIST_FIELD(pTags);
+  CLONE_NODE_FIELD(pSubtable);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -611,6 +647,7 @@ static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstre
   COPY_SCALAR_FIELD(schedId);
   COPY_SCALAR_FIELD(execId);
   COPY_SCALAR_FIELD(fetchMsgType);
+  COPY_SCALAR_FIELD(localExec);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -684,6 +721,9 @@ SNode* nodesCloneNode(const SNode* pNode) {
     case QUERY_NODE_STATE_WINDOW:
       code = stateWindowNodeCopy((const SStateWindowNode*)pNode, (SStateWindowNode*)pDst);
       break;
+    case QUERY_NODE_EVENT_WINDOW:
+      code = eventWindowNodeCopy((const SEventWindowNode*)pNode, (SEventWindowNode*)pDst);
+      break;
     case QUERY_NODE_SESSION_WINDOW:
       code = sessionWindowNodeCopy((const SSessionWindowNode*)pNode, (SSessionWindowNode*)pDst);
       break;
@@ -710,6 +750,12 @@ SNode* nodesCloneNode(const SNode* pNode) {
       break;
     case QUERY_NODE_LEFT_VALUE:
       code = TSDB_CODE_SUCCESS;
+      break;
+    case QUERY_NODE_WHEN_THEN:
+      code = whenThenNodeCopy((const SWhenThenNode*)pNode, (SWhenThenNode*)pDst);
+      break;
+    case QUERY_NODE_CASE_WHEN:
+      code = caseWhenNodeCopy((const SCaseWhenNode*)pNode, (SCaseWhenNode*)pDst);
       break;
     case QUERY_NODE_SELECT_STMT:
       code = selectStmtCopy((const SSelectStmt*)pNode, (SSelectStmt*)pDst);

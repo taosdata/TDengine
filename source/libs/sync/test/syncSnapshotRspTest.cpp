@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -21,7 +17,7 @@ SyncSnapshotRsp *createMsg() {
   pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 5678);
   pMsg->destId.vgId = 100;
   pMsg->term = 11;
-  pMsg->privateTerm = 99;
+  pMsg->startTime = 99;
   pMsg->lastIndex = 22;
   pMsg->lastTerm = 33;
   pMsg->ack = 44;
@@ -38,7 +34,7 @@ void test1() {
 void test2() {
   SyncSnapshotRsp *pMsg = createMsg();
   uint32_t         len = pMsg->bytes;
-  char *           serialized = (char *)taosMemoryMalloc(len);
+  char            *serialized = (char *)taosMemoryMalloc(len);
   syncSnapshotRspSerialize(pMsg, serialized, len);
   SyncSnapshotRsp *pMsg2 = syncSnapshotRspBuild(1000);
   syncSnapshotRspDeserialize(serialized, len, pMsg2);
@@ -52,7 +48,7 @@ void test2() {
 void test3() {
   SyncSnapshotRsp *pMsg = createMsg();
   uint32_t         len;
-  char *           serialized = syncSnapshotRspSerialize2(pMsg, &len);
+  char            *serialized = syncSnapshotRspSerialize2(pMsg, &len);
   SyncSnapshotRsp *pMsg2 = syncSnapshotRspDeserialize2(serialized, len);
   syncSnapshotRspLog2((char *)"test3: syncSnapshotRspSerialize2 -> syncSnapshotRspDeserialize2 ", pMsg2);
 

@@ -15,8 +15,32 @@
 
 #define __USE_XOPEN
 #include "shellInt.h"
+#include "shellAuto.h"
 
 SShellObj shell = {0};
+
+
+void shellCrashHandler(int signum, void *sigInfo, void *context) {
+  taosIgnSignal(SIGTERM);
+  taosIgnSignal(SIGHUP);
+  taosIgnSignal(SIGINT);
+  taosIgnSignal(SIGBREAK);
+
+#if !defined(WINDOWS)
+  taosIgnSignal(SIGBUS);
+#endif  
+  taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGFPE);
+  taosIgnSignal(SIGSEGV);
+
+  tscWriteCrashInfo(signum, sigInfo, context);
+
+#ifdef _TD_DARWIN_64
+  exit(signum);
+#elif defined(WINDOWS)
+  exit(signum);
+#endif
+}
 
 int main(int argc, char *argv[]) {
   shell.exit = false;
@@ -24,6 +48,13 @@ int main(int argc, char *argv[]) {
   shell.args.timeout = 10;
   shell.args.cloud = true;
 #endif
+
+#if !defined(WINDOWS)
+  taosSetSignal(SIGBUS, shellCrashHandler);
+#endif
+  taosSetSignal(SIGABRT, shellCrashHandler);
+  taosSetSignal(SIGFPE, shellCrashHandler);
+  taosSetSignal(SIGSEGV, shellCrashHandler);
 
   if (shellCheckIntSize() != 0) {
     return -1;
@@ -70,5 +101,9 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  return shellExecute();
+  // support port feature 
+  shellAutoInit();
+  int32_t ret = shellExecute();
+  shellAutoExit();
+  return ret;
 }

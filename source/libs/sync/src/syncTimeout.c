@@ -13,69 +13,108 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncTimeout.h"
 #include "syncElection.h"
 #include "syncRaftCfg.h"
+#include "syncRaftLog.h"
 #include "syncReplication.h"
 #include "syncRespMgr.h"
+#include "syncSnapshot.h"
+#include "syncUtil.h"
 
 static void syncNodeCleanConfigIndex(SSyncNode* ths) {
+#if 0
   int32_t   newArrIndex = 0;
-  SyncIndex newConfigIndexArr[MAX_CONFIG_INDEX_COUNT];
-  memset(newConfigIndexArr, 0, sizeof(newConfigIndexArr));
-
+  SyncIndex newConfigIndexArr[MAX_CONFIG_INDEX_COUNT] = {0};
   SSnapshot snapshot = {0};
-  if (ths->pFsm != NULL && ths->pFsm->FpGetSnapshotInfo != NULL) {
-    ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
-  }
 
+  ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
   if (snapshot.lastApplyIndex != SYNC_INDEX_INVALID) {
-    for (int i = 0; i < ths->pRaftCfg->configIndexCount; ++i) {
-      if (ths->pRaftCfg->configIndexArr[i] < snapshot.lastConfigIndex) {
+    for (int32_t i = 0; i < ths->raftCfg.configIndexCount; ++i) {
+      if (ths->raftCfg.configIndexArr[i] < snapshot.lastConfigIndex) {
         // pass
-        ;
       } else {
         // save
-        newConfigIndexArr[newArrIndex] = ths->pRaftCfg->configIndexArr[i];
+        newConfigIndexArr[newArrIndex] = ths->raftCfg.configIndexArr[i];
         ++newArrIndex;
       }
     }
 
-    int32_t oldCnt = ths->pRaftCfg->configIndexCount;
-    ths->pRaftCfg->configIndexCount = newArrIndex;
-    memcpy(ths->pRaftCfg->configIndexArr, newConfigIndexArr, sizeof(newConfigIndexArr));
+    int32_t oldCnt = ths->raftCfg.configIndexCount;
+    ths->raftCfg.configIndexCount = newArrIndex;
+    memcpy(ths->raftCfg.configIndexArr, newConfigIndexArr, sizeof(newConfigIndexArr));
 
-    int32_t code = raftCfgPersist(ths->pRaftCfg);
-    ASSERT(code == 0);
-
-    do {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "clean config index arr, old-cnt:%d, new-cnt:%d", oldCnt,
-               ths->pRaftCfg->configIndexCount);
-      syncNodeEventLog(ths, logBuf);
-    } while (0);
+    int32_t code = syncWriteCfgFile(ths);
+    if (code != 0) {
+      sNFatal(ths, "failed to persist cfg");
+    } else {
+      sNTrace(ths, "clean config index arr, old-cnt:%d, new-cnt:%d", oldCnt, ths->raftCfg.configIndexCount);
+    }
   }
+#endif
 }
 
-int32_t syncNodeTimerRoutine(SSyncNode* ths) {
-  syncNodeEventLog(ths, "timer routines");
+static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
+  ths->tmrRoutineNum++;
 
-  if (ths->vgId == 1) {
+  if (ths->tmrRoutineNum % 60 == 0 && ths->replicaNum > 1) {
+    sNInfo(ths, "timer routines");
+  } else {
+    sNTrace(ths, "timer routines");
+  }
+
+  // timer replicate
+  syncNodeReplicate(ths);
+
+  // clean mnode index
+  if (syncNodeIsMnode(ths)) {
     syncNodeCleanConfigIndex(ths);
   }
 
-#if 0
-  if (ths->vgId != 1) {
+  int64_t timeNow = taosGetTimestampMs();
+
+  for (int i = 0; i < ths->peersNum; ++i) {
+    SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(ths->peersId[i]));
+    if (pSender != NULL) {
+      if (ths->isStart && ths->state == TAOS_SYNC_STATE_LEADER && pSender->start &&
+          timeNow - pSender->lastSendTime > SYNC_SNAP_RESEND_MS) {
+        snapshotReSend(pSender);
+      } else {
+        sTrace("vgId:%d, do not resend: nstart%d, now:%" PRId64 ", lstsend:%" PRId64 ", diff:%" PRId64, ths->vgId,
+               ths->isStart, timeNow, pSender->lastSendTime, timeNow - pSender->lastSendTime);
+      }
+    }
+  }
+
+  if (atomic_load_64(&ths->snapshottingIndex) != SYNC_INDEX_INVALID) {
+    // end timeout wal snapshot
+    if (timeNow - ths->snapshottingTime > SYNC_DEL_WAL_MS &&
+        atomic_load_64(&ths->snapshottingIndex) != SYNC_INDEX_INVALID) {
+      SSyncLogStoreData* pData = ths->pLogStore->data;
+      int32_t            code = walEndSnapshot(pData->pWal);
+      if (code != 0) {
+        sNError(ths, "timer wal snapshot end error since:%s", terrstr());
+        return -1;
+      } else {
+        sNTrace(ths, "wal snapshot end, index:%" PRId64, atomic_load_64(&ths->snapshottingIndex));
+        atomic_store_64(&ths->snapshottingIndex, SYNC_INDEX_INVALID);
+      }
+    }
+  }
+
+  if (!syncNodeIsMnode(ths)) {
     syncRespClean(ths->pSyncRespMgr);
   }
-#endif
 
   return 0;
 }
 
-int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
-  int32_t ret = 0;
-  syncTimeoutLog2("==syncNodeOnTimeoutCb==", pMsg);
+int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pRpc) {
+  int32_t      ret = 0;
+  SyncTimeout* pMsg = pRpc->pCont;
+
+  syncLogRecvTimer(ths, pMsg, "");
 
   if (pMsg->timeoutType == SYNC_TIMEOUT_PING) {
     if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {
@@ -84,27 +123,27 @@ int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
       // syncNodePingAll(ths);
       // syncNodePingPeers(ths);
 
-      // sTrace("vgId:%d, sync timeout, type:ping count:%d", ths->vgId, ths->pingTimerCounter);
       syncNodeTimerRoutine(ths);
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
-    if (atomic_load_64(&ths->electTimerLogicClockUser) <= pMsg->logicClock) {
+    if (atomic_load_64(&ths->electTimerLogicClock) <= pMsg->logicClock) {
       ++(ths->electTimerCounter);
-      sTrace("vgId:%d, sync timer, type:election count:%d, electTimerLogicClockUser:%ld", ths->vgId,
-             ths->electTimerCounter, ths->electTimerLogicClockUser);
+
       syncNodeElect(ths);
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_HEARTBEAT) {
     if (atomic_load_64(&ths->heartbeatTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->heartbeatTimerCounter);
-      sTrace("vgId:%d, sync timer, type:replicate count:%d, heartbeatTimerLogicClockUser:%ld", ths->vgId,
+      sTrace("vgId:%d, sync timer, type:replicate count:%" PRIu64 ", lc-user:%" PRIu64, ths->vgId,
              ths->heartbeatTimerCounter, ths->heartbeatTimerLogicClockUser);
-      syncNodeReplicate(ths, true);
+
+      // syncNodeReplicate(ths, true);
     }
+
   } else {
-    sError("vgId:%d, unknown timeout-type:%d", ths->vgId, pMsg->timeoutType);
+    sError("vgId:%d, recv unknown timer-type:%d", ths->vgId, pMsg->timeoutType);
   }
 
   return ret;

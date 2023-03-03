@@ -26,18 +26,18 @@ extern "C" {
 extern tsem_t schdRspSem;
 
 typedef struct SQueryProfileSummary {
-  int64_t startTs;      // Object created and added into the message queue
-  int64_t endTs;        // the timestamp when the task is completed
-  int64_t cputime;      // total cpu cost, not execute elapsed time
+  int64_t startTs;  // Object created and added into the message queue
+  int64_t endTs;    // the timestamp when the task is completed
+  int64_t cputime;  // total cpu cost, not execute elapsed time
 
-  int64_t loadRemoteDataDuration;       // remote io time
-  int64_t loadNativeDataDuration;       // native disk io time
+  int64_t loadRemoteDataDuration;  // remote io time
+  int64_t loadNativeDataDuration;  // native disk io time
 
-  uint64_t loadNativeData; // blocks + SMA + header files
-  uint64_t loadRemoteData; // remote data acquired by exchange operator.
+  uint64_t loadNativeData;  // blocks + SMA + header files
+  uint64_t loadRemoteData;  // remote data acquired by exchange operator.
 
-  uint64_t waitDuration; // the time to waiting to be scheduled in queue does matter, so we need to record it
-  int64_t  addQTs;       // the time to be added into the message queue, used to calculate the waiting duration in queue.
+  uint64_t waitDuration;  // the time to waiting to be scheduled in queue does matter, so we need to record it
+  int64_t  addQTs;  // the time to be added into the message queue, used to calculate the waiting duration in queue.
 
   uint64_t totalRows;
   uint64_t loadRows;
@@ -45,16 +45,16 @@ typedef struct SQueryProfileSummary {
   uint32_t loadBlocks;
   uint32_t loadBlockAgg;
   uint32_t skipBlocks;
-  uint64_t resultSize;   // generated result size in Kb.
+  uint64_t resultSize;  // generated result size in Kb.
 } SQueryProfileSummary;
 
 typedef struct STaskInfo {
   SQueryNodeAddr addr;
-  SSubQueryMsg  *msg;
+  SSubQueryMsg*  msg;
 } STaskInfo;
 
 typedef struct SSchdFetchParam {
-  void **pData;
+  void**   pData;
   int32_t* code;
 } SSchdFetchParam;
 
@@ -63,34 +63,34 @@ typedef void (*schedulerFetchFp)(void* pResult, void* param, int32_t code);
 typedef bool (*schedulerChkKillFp)(void* param);
 
 typedef struct SSchedulerReq {
-  bool                  syncReq;
-  SRequestConnInfo     *pConn;
-  SArray               *pNodeList;
-  SQueryPlan           *pDag;
-  int64_t               allocatorRefId;
-  const char           *sql;
-  int64_t               startTs;
-  schedulerExecFp       execFp;
-  schedulerFetchFp      fetchFp;
-  void*                 cbParam;
-  schedulerChkKillFp    chkKillFp;
-  void*                 chkKillParam;
-  SExecResult*          pExecRes;
-  void**                pFetchRes;
+  bool               syncReq;
+  bool               localReq;
+  SRequestConnInfo*  pConn;
+  SArray*            pNodeList;
+  SQueryPlan*        pDag;
+  int64_t            allocatorRefId;
+  const char*        sql;
+  int64_t            startTs;
+  schedulerExecFp    execFp;
+  schedulerFetchFp   fetchFp;
+  void*              cbParam;
+  schedulerChkKillFp chkKillFp;
+  void*              chkKillParam;
+  SExecResult*       pExecRes;
+  void**             pFetchRes;
 } SSchedulerReq;
-
 
 int32_t schedulerInit(void);
 
-int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJob);
+int32_t schedulerExecJob(SSchedulerReq* pReq, int64_t* pJob);
 
-int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq);
+int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq* pReq);
 
 void schedulerFetchRowsA(int64_t job, schedulerFetchFp fp, void* param);
 
-int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub);
+int32_t schedulerGetTasksStatus(int64_t job, SArray* pSub);
 
-void schedulerStopQueryHb(void *pTrans);
+void schedulerStopQueryHb(void* pTrans);
 
 int32_t schedulerUpdatePolicy(int32_t policy);
 int32_t schedulerEnableReSchedule(bool enableResche);
@@ -100,7 +100,7 @@ int32_t schedulerEnableReSchedule(bool enableResche);
  * @param pJob
  * @return
  */
-//int32_t scheduleCancelJob(void *pJob);
+// int32_t scheduleCancelJob(void *pJob);
 
 /**
  * Free the query job

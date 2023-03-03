@@ -1,0 +1,724 @@
+$loop_all = 0
+looptest:
+
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 200
+sql connect
+
+sql drop database if exists test;
+sql create database test  vgroups 1;
+sql use test;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));;
+sql create stream streams1 trigger at_once  into streamt as select  _wstart ts, count(*) c1 from t1 where ts > 1648791210000 and ts < 1648791413000 interval(10s) fill(value, 100);
+sql create stream streams1a trigger at_once  into streamta as select  _wstart ts, count(*) c1 from t1 where ts > 1648791210000 and ts < 1648791413000 interval(10s) fill(value_f, 100);
+sql insert into t1 values(1648791213000,1,2,3,1.0,'aaa');
+sleep 100
+sql insert into t1 values(1648791233000,1,2,3,1.0,'aaa');
+sql insert into t1 values(1648791223000,1,2,3,1.0,'aaa');
+sql insert into t1 values(1648791283000,1,2,3,1.0,'aaa');
+sql insert into t1 values(1648791253000,1,2,3,1.0,'aaa');
+
+$loop_count = 0
+
+loop0:
+sleep 200
+sql select * from streamt order by ts;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 8 then
+  print =====rows=$rows
+  goto loop0
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop0
+endi
+
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop0
+endi
+
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop0
+endi
+
+if $data31 != 100 then
+  print =====data31=$data31
+  goto loop0
+endi
+
+if $data41 != 1 then
+  print =====data41=$data41
+  goto loop0
+endi
+
+if $data51 != 100 then
+  print =====data01=$data01
+  goto loop0
+endi
+
+if $data61 != 100 then
+  print =====data61=$data61
+  goto loop0
+endi
+
+if $data71 != 1 then
+  print =====data71=$data71
+  goto loop0
+endi
+
+
+print "force fill vaule"
+
+$loop_count = 0
+
+loop0a:
+sleep 200
+sql select * from streamta order by ts;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 8 then
+  print =====rows=$rows
+  goto loop0a
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop0a
+endi
+
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop0a
+endi
+
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop0a
+endi
+
+if $data31 != 100 then
+  print =====data31=$data31
+  goto loop0a
+endi
+
+if $data41 != 1 then
+  print =====data41=$data41
+  goto loop0a
+endi
+
+if $data51 != 100 then
+  print =====data01=$data01
+  goto loop0a
+endi
+
+if $data61 != 100 then
+  print =====data61=$data61
+  goto loop0a
+endi
+
+if $data71 != 1 then
+  print =====data71=$data71
+  goto loop0a
+endi
+
+
+
+
+
+sql drop stream if exists streams2;
+sql drop database if exists test2;
+sql create database test2  vgroups 1;
+sql use test2;
+sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
+sql create stream streams2 trigger at_once  into streamt2 as select  _wstart as ts, count(*) c1, max(b)+sum(a) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(value, 100,200);
+sql insert into t1 values(1648791211000,1,1,1,1.0,'aaa') (1648791217000,2,2,2,2.0,'aaa') (1648791220000,3,3,3,3.0,'aaa');
+sql insert into t1 values(1648791213000,4,4,4,4.0,'aaa') (1648791215000,5,5,5,5.0,'aaa');
+
+$loop_count = 0
+
+loop1:
+sleep 200
+sql select * from streamt2 order by ts;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 10 then
+  print =====rows=$rows
+  goto loop1
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data02 != 2.000000000 then
+  print =====data02=$data02
+  goto loop1
+endi
+
+
+if $data11 != 100 then
+  print =====data11=$data11
+  goto loop1
+endi
+
+if $data12 != 200.000000000 then
+  print =====data12=$data12
+  goto loop1
+endi
+
+
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop1
+endi
+
+if $data22 != 8.000000000 then
+  print =====data22=$data22
+  goto loop1
+endi
+
+
+if $data31 != 100 then
+  print =====data31=$data31
+  goto loop1
+endi
+
+if $data32 != 200.000000000 then
+  print =====data32=$data32
+  goto loop1
+endi
+
+
+if $data41 != 1 then
+  print =====data41=$data41
+  goto loop1
+endi
+
+if $data42 != 10.000000000 then
+  print =====data42=$data42
+  goto loop1
+endi
+
+
+if $data51 != 100 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data52 != 200.000000000 then
+  print =====data52=$data52
+  goto loop1
+endi
+
+
+if $data61 != 1 then
+  print =====data61=$data61
+  goto loop1
+endi
+
+if $data62 != 4.000000000 then
+  print =====data62=$data62
+  goto loop1
+endi
+
+
+if $data71 != 100 then
+  print =====data71=$data71
+  goto loop1
+endi
+
+if $data72 != 200.000000000 then
+  print =====data72=$data72
+  goto loop1
+endi
+
+
+if $data81 != 100 then
+  print =====data81=$data81
+  goto loop1
+endi
+
+if $data82 != 200.000000000 then
+  print =====data82=$data82
+  goto loop1
+endi
+
+
+if $data91 != 1 then
+  print =====data91=$data91
+  goto loop1
+endi
+
+if $data92 != 6.000000000 then
+  print =====data92=$data92
+  goto loop1
+endi
+
+sql drop stream if exists streams3;
+sql drop database if exists test3;
+sql create database test3  vgroups 1;
+sql use test3;
+sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
+sql create stream streams3 trigger at_once  into streamt3 as select  _wstart as ts,  max(b), a+b, c from t1 where ts >= 1648791200000 and ts < 1648791261000 interval(10s) sliding(3s) fill(value, 100,200,300);
+
+sql insert into t1 values(1648791220000,1,1,1,1.0,'aaa');
+sleep 100
+sql insert into t1 values(1648791260000,1,1,1,1.0,'aaa');
+sleep 100
+sql insert into t1 values(1648791200000,1,1,1,1.0,'aaa');
+
+$loop_count = 0
+
+loop3:
+sleep 200
+sql select * from streamt3 order by ts;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 23 then
+  print =====rows=$rows
+  goto loop3
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop3
+endi
+
+if $data02 != 2.000000000 then
+  print =====data02=$data02
+  goto loop3
+endi
+
+if $data03 != 1 then
+  print =====data03=$data03
+  goto loop3
+endi
+
+
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop3
+endi
+
+if $data22 != 2.000000000 then
+  print =====data22=$data22
+  goto loop3
+endi
+
+if $data23 != 1 then
+  print =====data23=$data23
+  goto loop3
+endi
+
+
+if $data31 != 100 then
+  print =====data31=$data31
+  goto loop3
+endi
+
+if $data32 != 200.000000000 then
+  print =====data32=$data32
+  goto loop3
+endi
+
+if $data33 != 300 then
+  print =====data33=$data33
+  goto loop3
+endi
+
+if $data61 != 100 then
+  print =====data61=$data61
+  goto loop3
+endi
+
+if $data62 != 200.000000000 then
+  print =====data62=$data62
+  goto loop3
+endi
+
+if $data63 != 300 then
+  print =====data63=$data63
+  goto loop3
+endi
+
+
+if $data71 != 1 then
+  print =====data71=$data71
+  goto loop3
+endi
+
+if $data72 != 2.000000000 then
+  print =====data72=$data72
+  goto loop3
+endi
+
+if $data73 != 1 then
+  print =====data73=$data73
+  goto loop3
+endi
+
+
+if $data91 != 1 then
+  print =====data91=$data91
+  goto loop3
+endi
+
+if $data92 != 2.000000000 then
+  print =====data92=$data92
+  goto loop3
+endi
+
+if $data93 != 1 then
+  print =====data93=$data93
+  goto loop3
+endi
+
+
+if $data[10][1] != 100 then
+  print =====data[10][1]=$data[10][1]
+  goto loop3
+endi
+
+if $data[10][2] != 200.000000000 then
+  print =====data[10][2]=$data[10][2]
+  goto loop3
+endi
+
+if $data[10][3] != 300 then
+  print =====data[10][3]=$data[10][3]
+  goto loop3
+endi
+
+if $data[19][1] != 100 then
+  print =====data[19][1]=$data[19][1]
+  goto loop3
+endi
+
+if $data[19][2] != 200.000000000 then
+  print =====data[19][2]=$data[19][2]
+  goto loop3
+endi
+
+if $data[19][3] != 300 then
+  print =====data[19][3]=$data[19][3]
+  goto loop3
+endi
+
+
+if $data[20][1] != 1 then
+  print =====data[20][1]=$data[20][1]
+  goto loop3
+endi
+
+if $data[20][2] != 2.000000000 then
+  print =====data[20][2]=$data[20][2]
+  goto loop3
+endi
+
+if $data[20][3] != 1 then
+  print =====data[20][3]=$data[20][3]
+  goto loop3
+endi
+
+
+if $data[22][1] != 1 then
+  print =====data[22][1]=$data[22][1]
+  goto loop3
+endi
+
+if $data[22][2] != 2.000000000 then
+  print =====data[22][2]=$data[22][2]
+  goto loop3
+endi
+
+if $data[22][3] != 1 then
+  print =====data[22][3]=$data[22][3]
+  goto loop3
+endi
+
+
+sql drop stream if exists streams4;
+sql drop database if exists test4;
+sql create database test4  vgroups 1;
+sql use test4;
+
+sql create stable st(ts timestamp,a int,b int,c int, d double, s varchar(20) ) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql create stream streams4 trigger at_once  into streamt4 as select  _wstart ts, count(*) c1, concat(tbname, 'aaa') as pname, timezone()  from st where ts > 1648791000000 and ts < 1648793000000 partition by tbname interval(10s) fill(NULL);
+sql create stream streams4a trigger at_once  into streamt4a as select  _wstart ts, count(*) c1, concat(tbname, 'aaa') as pname, timezone()  from st where ts > 1648791000000 and ts < 1648793000000 partition by tbname interval(10s) fill(NULL_F);
+sql insert into t1 values(1648791213000,1,2,3,1.0,'aaa');
+sql insert into t1 values(1648791233000,1,2,3,1.0,'aaa');
+sql insert into t1 values(1648791273000,1,2,3,1.0,'aaa');
+
+sql insert into t2 values(1648791213000,1,2,3,1.0,'bbb');
+sql insert into t2 values(1648791233000,1,2,3,1.0,'bbb');
+sql insert into t2 values(1648791273000,1,2,3,1.0,'bbb');
+
+$loop_count = 0
+
+loop4:
+sleep 200
+sql select * from streamt4 order by pname, ts;
+
+print ===> $data[0][0] , $data[0][1] , $data[0][2] , $data[0][3]
+print ===> $data[1][0] , $data[1][1] , $data[1][2] , $data[1][3]
+print ===> $data[2][0] , $data[2][1] , $data[2][2] , $data[2][3]
+print ===> $data[3][0] , $data[3][1] , $data[3][2] , $data[3][3]
+print ===> $data[4][0] , $data[4][1] , $data[4][2] , $data[4][3]
+print ===> $data[5][0] , $data[5][1] , $data[5][2] , $data[5][3]
+print ===> $data[6][0] , $data[6][1] , $data[6][2] , $data[6][3]
+print ===> $data[7][0] , $data[7][1] , $data[7][2] , $data[7][3]
+print ===> $data[8][0] , $data[8][1] , $data[8][2] , $data[8][3]
+print ===> $data[9][0] , $data[9][1] , $data[9][2] , $data[9][3]
+print ===> $data[10][0] , $data[10][1] , $data[10][2] , $data[10][3]
+print ===> $data[11][0] , $data[11][1] , $data[11][2] , $data[11][3]
+print ===> $data[12][0] , $data[12][1] , $data[12][2] , $data[12][3]
+print ===> $data[13][0] , $data[13][1] , $data[13][2] , $data[13][3]
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 14 then
+  print =====rows=$rows
+  goto loop4
+endi
+
+if $data11 != NULL then
+  print =====data11=$data11
+  goto loop4
+endi
+
+if $data12 != t1aaa then
+  print =====data12=$data12
+  goto loop4
+endi
+
+if $data13 == NULL then
+  print =====data13=$data13
+  goto loop4
+endi
+
+if $data32 != t1aaa then
+  print =====data32=$data32
+  goto loop4
+endi
+
+if $data42 != t1aaa then
+  print =====data42=$data42
+  goto loop4
+endi
+
+if $data52 != t1aaa then
+  print =====data52=$data52
+  goto loop4
+endi
+
+if $data81 != NULL then
+  print =====data81=$data81
+  goto loop4
+endi
+
+if $data82 != t2aaa then
+  print =====data82=$data82
+  goto loop4
+endi
+
+if $data83 == NULL then
+  print =====data83=$data83
+  goto loop4
+endi
+
+if $data[10][2] != t2aaa then
+  print =====data[10][2]=$data[10][2]
+  goto loop4
+endi
+
+if $data[11][2] != t2aaa then
+  print =====data[11][2]=$data[11][2]
+  goto loop4
+endi
+
+if $data[12][2] != t2aaa then
+  print =====data[12][2]=$data[12][2]
+  goto loop4
+endi
+
+if $data[12][3] == NULL then
+  print =====data[12][3]=$data[12][3]
+  goto loop4
+endi
+
+print "force fill null"
+
+
+$loop_count = 0
+
+loop4a:
+sleep 200
+sql select * from streamt4a order by pname, ts;
+
+print ===> $data[0][0] , $data[0][1] , $data[0][2] , $data[0][3]
+print ===> $data[1][0] , $data[1][1] , $data[1][2] , $data[1][3]
+print ===> $data[2][0] , $data[2][1] , $data[2][2] , $data[2][3]
+print ===> $data[3][0] , $data[3][1] , $data[3][2] , $data[3][3]
+print ===> $data[4][0] , $data[4][1] , $data[4][2] , $data[4][3]
+print ===> $data[5][0] , $data[5][1] , $data[5][2] , $data[5][3]
+print ===> $data[6][0] , $data[6][1] , $data[6][2] , $data[6][3]
+print ===> $data[7][0] , $data[7][1] , $data[7][2] , $data[7][3]
+print ===> $data[8][0] , $data[8][1] , $data[8][2] , $data[8][3]
+print ===> $data[9][0] , $data[9][1] , $data[9][2] , $data[9][3]
+print ===> $data[10][0] , $data[10][1] , $data[10][2] , $data[10][3]
+print ===> $data[11][0] , $data[11][1] , $data[11][2] , $data[11][3]
+print ===> $data[12][0] , $data[12][1] , $data[12][2] , $data[12][3]
+print ===> $data[13][0] , $data[13][1] , $data[13][2] , $data[13][3]
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 14 then
+  print =====rows=$rows
+  goto loop4a
+endi
+
+if $data11 != NULL then
+  print =====data11=$data11
+  goto loop4a
+endi
+
+if $data12 != t1aaa then
+  print =====data12=$data12
+  goto loop4a
+endi
+
+if $data13 == NULL then
+  print =====data13=$data13
+  goto loop4a
+endi
+
+if $data32 != t1aaa then
+  print =====data32=$data32
+  goto loop4a
+endi
+
+if $data42 != t1aaa then
+  print =====data42=$data42
+  goto loop4a
+endi
+
+if $data52 != t1aaa then
+  print =====data52=$data52
+  goto loop4a
+endi
+
+if $data81 != NULL then
+  print =====data81=$data81
+  goto loop4a
+endi
+
+if $data82 != t2aaa then
+  print =====data82=$data82
+  goto loop4a
+endi
+
+if $data83 == NULL then
+  print =====data83=$data83
+  goto loop4a
+endi
+
+if $data[10][2] != t2aaa then
+  print =====data[10][2]=$data[10][2]
+  goto loop4a
+endi
+
+if $data[11][2] != t2aaa then
+  print =====data[11][2]=$data[11][2]
+  goto loop4a
+endi
+
+if $data[12][2] != t2aaa then
+  print =====data[12][2]=$data[12][2]
+  goto loop4a
+endi
+
+if $data[12][3] == NULL then
+  print =====data[12][3]=$data[12][3]
+  goto loop4a
+endi
+
+
+
+
+
+
+
+
+
+
+#==system sh/exec.sh -n dnode1 -s stop -x SIGINT
+#==print =============== check
+#==$null=
+
+#==system_content sh/checkValgrind.sh -n dnode1 
+#==print cmd return result ----> [ $system_content ]
+#==if $system_content > 0 then
+#==  return -1
+#==endi 
+
+#==if $system_content == $null then
+#==  return -1
+#==endi
+#==return 1
+
+
+
+sql drop stream if exists streams0;
+sql drop stream if exists streams1;
+sql drop stream if exists streams2;
+sql drop stream if exists streams3;
+sql drop stream if exists streams4;
+sql drop stream if exists streams5;
+sql drop stream if exists streams6;
+sql drop stream if exists streams7;
+sql drop stream if exists streams8;
+
+sql use test;
+sql select * from t1;
+print $data00
+
+$loop_all = $loop_all + 1
+print ============loop_all=$loop_all
+
+system sh/stop_dnodes.sh
+
+#goto looptest

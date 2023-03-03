@@ -132,7 +132,6 @@ typedef enum {
   SDB_MNODE = 2,
   SDB_QNODE = 3,
   SDB_SNODE = 4,
-  SDB_BNODE = 5,
   SDB_DNODE = 6,
   SDB_USER = 7,
   SDB_AUTH = 8,
@@ -148,7 +147,8 @@ typedef enum {
   SDB_STB = 18,
   SDB_DB = 19,
   SDB_FUNC = 20,
-  SDB_MAX = 21
+  SDB_IDX = 21,
+  SDB_MAX = 22
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -170,6 +170,7 @@ typedef struct SSdbRow {
 typedef struct SSdb {
   SMnode        *pMnode;
   SWal          *pWal;
+  int64_t        sync;
   char          *currDir;
   char          *tmpDir;
   int64_t        commitIndex;
@@ -213,6 +214,7 @@ typedef struct SSdbOpt {
   const char *path;
   SMnode     *pMnode;
   SWal       *pWal;
+  int64_t     sync;
 } SSdbOpt;
 
 /**
@@ -290,6 +292,7 @@ int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw);
  * @return void* The object of the row.
  */
 void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey);
+void *sdbAcquireNotReadyObj(SSdb *pSdb, ESdbType type, const void *pKey);
 
 /**
  * @brief Release a row from sdb.
@@ -298,6 +301,7 @@ void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey);
  * @param pObj The object of the row.
  */
 void sdbRelease(SSdb *pSdb, void *pObj);
+void sdbReleaseLock(SSdb *pSdb, void *pObj, bool lock);
 
 /**
  * @brief Traverse a sdb table
@@ -309,7 +313,7 @@ void sdbRelease(SSdb *pSdb, void *pObj);
  * @return void* The next iterator of the table.
  */
 void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj);
-void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status);
+void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status, bool lock);
 
 /**
  * @brief Cancel a traversal
@@ -390,7 +394,7 @@ void    *sdbGetRowObj(SSdbRow *pRow);
 void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
 
 int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *term, int64_t *config);
-int32_t sdbStopRead(SSdb *pSdb, SSdbIter *pIter);
+void    sdbStopRead(SSdb *pSdb, SSdbIter *pIter);
 int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len);
 
 int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter);
@@ -401,6 +405,10 @@ const char *sdbTableName(ESdbType type);
 const char *sdbStatusName(ESdbStatus status);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
 int32_t     sdbGetIdFromRaw(SSdb *pSdb, SSdbRaw *pRaw);
+
+void sdbWriteLock(SSdb *pSdb, int32_t type);
+void sdbReadLock(SSdb *pSdb, int32_t type);
+void sdbUnLock(SSdb *pSdb, int32_t type);
 
 #ifdef __cplusplus
 }

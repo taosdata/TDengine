@@ -5,15 +5,15 @@ sleep 50
 sql connect
 
 print =============== create database
-sql create database test vgroups 1
-sql select * from information_schema.ins_databases
+sql create database test vgroups 1;
+sql select * from information_schema.ins_databases;
 if $rows != 3 then
   return -1
 endi
 
 print $data00 $data01 $data02
 
-sql use test
+sql use test;
 
 
 sql create table t1(ts timestamp, a int, b int , c int, d double,id int);
@@ -195,6 +195,100 @@ sql select * from streamt order by s desc;
 if $data01 != 1 then
   print ======$data01
   return -1
+endi
+
+sql create database test1  vgroups 1;
+sql use test1;
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams3 trigger at_once  into streamt3 as select  _wstart, count(*) c1 from t1 where a > 5 session(ts, 5s);
+sql insert into t1 values(1648791213000,1,2,3,1.0);
+
+$loop_count = 0
+loop13:
+sleep 200
+
+sql select * from streamt3;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $rows != 0 then
+  print =====rows=$rows
+  goto loop13
+endi
+
+sql insert into t1 values(1648791213000,6,2,3,1.0);
+
+$loop_count = 0
+loop14:
+sleep 200
+sql select * from streamt3;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop14
+endi
+
+sql insert into t1 values(1648791213000,2,2,3,1.0);
+
+$loop_count = 0
+loop15:
+sleep 200
+sql select * from streamt3;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 0 then
+  print =====rows=$rows
+  goto loop15
+endi
+
+
+sql insert into t1 values(1648791223000,2,2,3,1.0);
+sql insert into t1 values(1648791223000,10,2,3,1.0);
+sql insert into t1 values(1648791233000,10,2,3,1.0);
+
+$loop_count = 0
+loop16:
+sleep 200
+sql select * from streamt3;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 2 then
+  print =====rows=$rows
+  goto loop16
+endi
+
+sql insert into t1 values(1648791233000,2,2,3,1.0);
+
+$loop_count = 0
+loop17:
+sleep 200
+sql select * from streamt3;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop17
 endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

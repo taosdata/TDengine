@@ -1,7 +1,7 @@
 ---
-sidebar_label: Connect
 title: Connect to TDengine
-description: "How to establish connections to TDengine and how to install and use TDengine connectors."
+sidebar_label: Connect
+description: This document describes how to establish connections to TDengine and how to install and use TDengine connectors.
 ---
 
 import Tabs from "@theme/Tabs";
@@ -15,10 +15,12 @@ import ConnCSNative from "./_connect_cs.mdx";
 import ConnC from "./_connect_c.mdx";
 import ConnR from "./_connect_r.mdx";
 import ConnPHP from "./_connect_php.mdx";
-import InstallOnWindows from "../../14-reference/03-connector/_linux_install.mdx";
-import InstallOnLinux from "../../14-reference/03-connector/_windows_install.mdx";
+import InstallOnLinux from "../../14-reference/03-connector/_linux_install.mdx";
+import InstallOnWindows from "../../14-reference/03-connector/_windows_install.mdx";
+import InstallOnMacOS from "../../14-reference/03-connector/_macos_install.mdx";
 import VerifyLinux from "../../14-reference/03-connector/_verify_linux.mdx";
 import VerifyWindows from "../../14-reference/03-connector/_verify_windows.mdx";
+import VerifyMacOS from "../../14-reference/03-connector/_verify_macos.mdx";
 
 Any application running on any platform can access TDengine through the REST API provided by TDengine. For information, see [REST API](/reference/rest-api/). Applications can also use the connectors for various programming languages, including C/C++, Java, Python, Go, Node.js, C#, and Rust, to access TDengine. These connectors support connecting to TDengine clusters using both native interfaces (taosc). Some connectors also support connecting over a REST interface. Community developers have also contributed several unofficial connectors, such as the ADO.NET connector, the Lua connector, and the PHP connector.
 
@@ -44,10 +46,13 @@ If you are choosing to use the native connection and the the application is not 
 
 <Tabs defaultValue="linux" groupId="os">
   <TabItem value="linux" label="Linux">
-    <InstallOnWindows />
+    <InstallOnLinux />
   </TabItem>
   <TabItem value="windows" label="Windows">
-    <InstallOnLinux />
+    <InstallOnWindows />
+  </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <InstallOnMacOS />
   </TabItem>
 </Tabs>
 
@@ -62,13 +67,16 @@ After the above installation and configuration are done and making sure TDengine
   <TabItem value="windows" label="Windows">
     <VerifyWindows />
   </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <VerifyMacOS />
+  </TabItem>
 </Tabs>
 
 ## Install Connectors
 
 <Tabs groupId="lang">
 <TabItem label="Java" value="java">
-  
+
 If `maven` is used to manage the projects, what needs to be done is only adding below dependency in `pom.xml`.
 
 ```xml
@@ -138,19 +146,19 @@ Node.js connector provides different ways of establishing connections by providi
 
 1. Install Node.js Native Connector
 
-  ```
-  npm install @tdengine/client
-  ```
+```
+npm install @tdengine/client
+```
 
 :::note
 It's recommend to use Node whose version is between `node-v12.8.0` and `node-v13.0.0`.
-::: 
-  
+:::
+
 2. Install Node.js REST Connector
 
-  ```
-  npm install @tdengine/rest
-  ```
+```
+npm install @tdengine/rest
+```
 
 </TabItem>
 <TabItem label="C#" value="csharp">

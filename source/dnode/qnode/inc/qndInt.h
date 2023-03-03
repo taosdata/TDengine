@@ -20,8 +20,8 @@
 
 #include "tlog.h"
 #include "tmsg.h"
-#include "trpc.h"
 #include "tmsgcb.h"
+#include "trpc.h"
 
 #include "qnode.h"
 
@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-typedef struct SQWorker SQHandle;
+typedef struct SQueueWorker SQHandle;
 
 typedef struct SQnode {
   int32_t   qndId;

@@ -20,12 +20,8 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
 #include "syncRaftEntry.h"
-#include "taosdef.h"
 #include "wal.h"
 
 typedef struct SSyncLogStoreData {
@@ -40,25 +36,18 @@ typedef struct SSyncLogStoreData {
 
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode);
 void           logStoreDestory(SSyncLogStore* pLogStore);
-cJSON*         logStore2Json(SSyncLogStore* pLogStore);
-char*          logStore2Str(SSyncLogStore* pLogStore);
-cJSON*         logStoreSimple2Json(SSyncLogStore* pLogStore);
-char*          logStoreSimple2Str(SSyncLogStore* pLogStore);
 
 SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore);
-
 SyncIndex logStoreWalCommitVer(SSyncLogStore* pLogStore);
 
-// for debug
-void logStorePrint(SSyncLogStore* pLogStore);
-void logStorePrint2(char* s, SSyncLogStore* pLogStore);
-void logStoreLog(SSyncLogStore* pLogStore);
-void logStoreLog2(char* s, SSyncLogStore* pLogStore);
-
-void logStoreSimplePrint(SSyncLogStore* pLogStore);
-void logStoreSimplePrint2(char* s, SSyncLogStore* pLogStore);
-void logStoreSimpleLog(SSyncLogStore* pLogStore);
-void logStoreSimpleLog2(char* s, SSyncLogStore* pLogStore);
+SyncIndex raftLogWriteIndex(struct SSyncLogStore* pLogStore);
+bool      raftLogIsEmpty(struct SSyncLogStore* pLogStore);
+SyncIndex raftLogBeginIndex(struct SSyncLogStore* pLogStore);
+SyncIndex raftLogEndIndex(struct SSyncLogStore* pLogStore);
+int32_t   raftLogEntryCount(struct SSyncLogStore* pLogStore);
+SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore);
+SyncTerm  raftLogLastTerm(struct SSyncLogStore* pLogStore);
+int32_t   raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
 
 #ifdef __cplusplus
 }

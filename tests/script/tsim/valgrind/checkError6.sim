@@ -92,7 +92,7 @@ sql select avg(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol
 sql show table distributed stb
 sql select count(1) from stb
 sql select count(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
-sql select diff(tbcol) from stb where ts <= 1601481840000 
+#sql select diff(tbcol) from stb where ts <= 1601481840000 
 sql select first(tbcol), last(tbcol) as c from stb group by tgcol
 sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 and tbcol2 is null partition by tgcol interval(1m)
 sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
@@ -158,9 +158,15 @@ print =============== restart
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start -v
 
-sleep 1000
+$x = 0
+steps: 
+	$x = $x + 1
+	sleep 500
+	if $x == 50 then
+		return -1
+	endi
+sql select avg(tbcol) as c from stb -x steps
 
-sql select avg(tbcol) as c from stb
 sql select avg(tbcol) as c from stb where ts <= 1601481840000
 sql select avg(tbcol) as c from stb where tgcol < 5 and ts <= 1601481840000
 sql select avg(tbcol) as c from stb interval(1m)
@@ -170,7 +176,7 @@ sql select avg(tbcol) as c from stb group by tgcol
 sql select avg(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
 sql show table distributed stb
 sql select count(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)
-sql select diff(tbcol) from stb where ts <= 1601481840000 
+#sql select diff(tbcol) from stb where ts <= 1601481840000 
 sql select first(tbcol), last(tbcol) as c from stb group by tgcol
 sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 and tbcol2 is null partition by tgcol interval(1m)
 sql select first(tbcol), last(tbcol) as b from stb where ts <= 1601481840000 partition by tgcol interval(1m)

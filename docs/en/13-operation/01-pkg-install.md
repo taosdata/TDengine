@@ -1,6 +1,6 @@
 ---
 title: Install and Uninstall
-description: Install, Uninstall, Start, Stop and Upgrade
+description: This document describes how to install, upgrade, and uninstall TDengine.
 ---
 
 import Tabs from "@theme/Tabs";

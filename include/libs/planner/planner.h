@@ -34,7 +34,9 @@ typedef struct SPlanContext {
   bool        showRewrite;
   int8_t      triggerType;
   int64_t     watermark;
+  int64_t     deleteMark;
   int8_t      igExpired;
+  int8_t      igCheckUpdate;
   char*       pMsg;
   int32_t     msgLen;
   const char* pUser;
@@ -61,7 +63,6 @@ int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan);
 int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
 int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan);
 
-char*       qQueryPlanToString(const SQueryPlan* pPlan);
 SQueryPlan* qStringToQueryPlan(const char* pStr);
 
 void qDestroyQueryPlan(SQueryPlan* pPlan);

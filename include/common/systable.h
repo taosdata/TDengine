@@ -12,6 +12,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+ 
+#ifndef TDENGINE_SYSTABLE_H
+#define TDENGINE_SYSTABLE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,15 +22,12 @@ extern "C" {
 
 #include "os.h"
 
-#ifndef TDENGINE_SYSTABLE_H
-#define TDENGINE_SYSTABLE_H
-
 #define TSDB_INFORMATION_SCHEMA_DB       "information_schema"
 #define TSDB_INS_TABLE_DNODES            "ins_dnodes"
 #define TSDB_INS_TABLE_MNODES            "ins_mnodes"
 #define TSDB_INS_TABLE_MODULES           "ins_modules"
 #define TSDB_INS_TABLE_QNODES            "ins_qnodes"
-#define TSDB_INS_TABLE_BNODES            "ins_bnodes"
+#define TSDB_INS_TABLE_BNODES            "ins_bnodes"  // no longer used
 #define TSDB_INS_TABLE_SNODES            "ins_snodes"
 #define TSDB_INS_TABLE_CLUSTER           "ins_cluster"
 #define TSDB_INS_TABLE_DATABASES         "ins_databases"
@@ -36,6 +36,7 @@ extern "C" {
 #define TSDB_INS_TABLE_STABLES           "ins_stables"
 #define TSDB_INS_TABLE_TABLES            "ins_tables"
 #define TSDB_INS_TABLE_TAGS              "ins_tags"
+#define TSDB_INS_TABLE_COLS              "ins_columns"
 #define TSDB_INS_TABLE_TABLE_DISTRIBUTED "ins_table_distributed"
 #define TSDB_INS_TABLE_USERS             "ins_users"
 #define TSDB_INS_TABLE_LICENCES          "ins_grants"
@@ -46,15 +47,17 @@ extern "C" {
 #define TSDB_INS_TABLE_SUBSCRIPTIONS     "ins_subscriptions"
 #define TSDB_INS_TABLE_TOPICS            "ins_topics"
 #define TSDB_INS_TABLE_STREAMS           "ins_streams"
+#define TSDB_INS_TABLE_STREAM_TASKS      "ins_stream_tasks"
+#define TSDB_INS_TABLE_USER_PRIVILEGES   "ins_user_privileges"
 
-#define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
-#define TSDB_PERFS_TABLE_SMAS          "perf_smas"
-#define TSDB_PERFS_TABLE_CONNECTIONS   "perf_connections"
-#define TSDB_PERFS_TABLE_QUERIES       "perf_queries"
-#define TSDB_PERFS_TABLE_CONSUMERS     "perf_consumers"
-#define TSDB_PERFS_TABLE_OFFSETS       "perf_offsets"
-#define TSDB_PERFS_TABLE_TRANS         "perf_trans"
-#define TSDB_PERFS_TABLE_APPS          "perf_apps"
+#define TSDB_PERFORMANCE_SCHEMA_DB   "performance_schema"
+#define TSDB_PERFS_TABLE_SMAS        "perf_smas"
+#define TSDB_PERFS_TABLE_CONNECTIONS "perf_connections"
+#define TSDB_PERFS_TABLE_QUERIES     "perf_queries"
+#define TSDB_PERFS_TABLE_CONSUMERS   "perf_consumers"
+#define TSDB_PERFS_TABLE_OFFSETS     "perf_offsets"
+#define TSDB_PERFS_TABLE_TRANS       "perf_trans"
+#define TSDB_PERFS_TABLE_APPS        "perf_apps"
 
 typedef struct SSysDbTableSchema {
   const char*   name;

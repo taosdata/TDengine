@@ -80,7 +80,7 @@ STfs *tfsOpen(SDiskCfg *pCfg, int32_t ndisk) {
 void tfsClose(STfs *pTfs) {
   if (pTfs == NULL) return;
 
-  for (int32_t level = 0; level < TFS_MAX_LEVEL; level++) {
+  for (int32_t level = 0; level <= TFS_MAX_LEVEL; level++) {
     tfsDestroyTier(&pTfs->tiers[level]);
   }
 
@@ -213,7 +213,7 @@ void tfsDirname(const STfsFile *pFile, char *dest) {
 
 void tfsAbsoluteName(STfs *pTfs, SDiskID diskId, const char *rname, char *aname) {
   STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
-  
+
   snprintf(aname, TSDB_FILENAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
 }
 
@@ -240,7 +240,7 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   if (tfsMkdirAt(pTfs, rname, diskId) < 0) {
     if (errno == ENOENT) {
       // Try to create upper
-      char *s = strdup(rname);
+      char *s = taosStrdup(rname);
 
       // Make a copy of dirname(s) because the implementation of 'dirname' differs on different platforms.
       // Some platform may modify the contents of the string passed into dirname(). Others may return a pointer to
@@ -248,7 +248,7 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
       // the pointer directly in this recursion.
       // See
       // https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/dirname.3.html
-      char *dir = strdup(taosDirName(s));
+      char *dir = taosStrdup(taosDirName(s));
 
       if (tfsMkdirRecurAt(pTfs, dir, diskId) < 0) {
         taosMemoryFree(s);
@@ -284,8 +284,10 @@ int32_t tfsMkdir(STfs *pTfs, const char *rname) {
 }
 
 int32_t tfsRmdir(STfs *pTfs, const char *rname) {
-  ASSERT(rname[0] != 0);
-    
+  if (rname[0] == 0) {
+    return 0;
+  }
+
   char aname[TMPNAME_LEN] = "\0";
 
   for (int32_t level = 0; level < pTfs->nlevel; level++) {
@@ -293,7 +295,7 @@ int32_t tfsRmdir(STfs *pTfs, const char *rname) {
     for (int32_t id = 0; id < pTier->ndisk; id++) {
       STfsDisk *pDisk = pTier->disks[id];
       snprintf(aname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
-      uInfo("tfs remove dir : path:%s aname:%s rname:[%s]", pDisk->path, aname, rname);
+      uInfo("tfs remove dir:%s aname:%s rname:[%s]", pDisk->path, aname, rname);
       taosRemoveDir(aname);
     }
   }
@@ -301,7 +303,7 @@ int32_t tfsRmdir(STfs *pTfs, const char *rname) {
   return 0;
 }
 
-int32_t tfsRename(STfs *pTfs, char *orname, char *nrname) {
+int32_t tfsRename(STfs *pTfs, const char *orname, const char *nrname) {
   char oaname[TMPNAME_LEN] = "\0";
   char naname[TMPNAME_LEN] = "\0";
 
@@ -332,7 +334,7 @@ STfsDir *tfsOpendir(STfs *pTfs, const char *rname) {
   SDiskID diskId = {.id = 0, .level = 0};
   pDir->iter.pDisk = TFS_DISK_AT(pTfs, diskId);
   pDir->pTfs = pTfs;
-  tstrncpy(pDir->dirname, rname, TSDB_FILENAME_LEN);
+  tstrncpy(pDir->dirName, rname, TSDB_FILENAME_LEN);
 
   if (tfsOpendirImpl(pTfs, pDir) < 0) {
     taosMemoryFree(pDir);
@@ -354,10 +356,10 @@ const STfsFile *tfsReaddir(STfsDir *pTfsDir) {
       char *name = taosGetDirEntryName(pDirEntry);
       if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
 
-      if (pTfsDir->dirname == NULL || pTfsDir->dirname[0] == 0) {
+      if (pTfsDir->dirName[0] == 0) {
         snprintf(bname, TMPNAME_LEN * 2, "%s", name);
       } else {
-        snprintf(bname, TMPNAME_LEN * 2, "%s%s%s", pTfsDir->dirname, TD_DIRSEP, name);
+        snprintf(bname, TMPNAME_LEN * 2, "%s%s%s", pTfsDir->dirName, TD_DIRSEP, name);
       }
 
       tfsInitFile(pTfsDir->pTfs, &pTfsDir->tfile, pTfsDir->did, bname);
@@ -523,9 +525,9 @@ static int32_t tfsOpendirImpl(STfs *pTfs, STfsDir *pTfsDir) {
     pTfsDir->did.id = pDisk->id;
 
     if (pDisk->path == NULL || pDisk->path[0] == 0) {
-      snprintf(adir, TMPNAME_LEN * 2, "%s", pTfsDir->dirname);
+      snprintf(adir, TMPNAME_LEN * 2, "%s", pTfsDir->dirName);
     } else {
-      snprintf(adir, TMPNAME_LEN * 2, "%s%s%s", pDisk->path, TD_DIRSEP, pTfsDir->dirname);
+      snprintf(adir, TMPNAME_LEN * 2, "%s%s%s", pDisk->path, TD_DIRSEP, pTfsDir->dirName);
     }
     pTfsDir->pDir = taosOpenDir(adir);
     if (pTfsDir->pDir != NULL) break;

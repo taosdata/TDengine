@@ -13,239 +13,156 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncIndexMgr.h"
 #include "syncUtil.h"
 
-// SMatchIndex -----------------------------
+SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pNode) {
+  SSyncIndexMgr *pIndexMgr = taosMemoryCalloc(1, sizeof(SSyncIndexMgr));
+  if (pIndexMgr == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
-SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pSyncNode) {
-  SSyncIndexMgr *pSyncIndexMgr = taosMemoryMalloc(sizeof(SSyncIndexMgr));
-  ASSERT(pSyncIndexMgr != NULL);
-  memset(pSyncIndexMgr, 0, sizeof(SSyncIndexMgr));
+  pIndexMgr->replicas = &pNode->replicasId;
+  pIndexMgr->replicaNum = pNode->replicaNum;
+  pIndexMgr->pNode = pNode;
+  syncIndexMgrClear(pIndexMgr);
 
-  pSyncIndexMgr->replicas = &(pSyncNode->replicasId);
-  pSyncIndexMgr->replicaNum = pSyncNode->replicaNum;
-  pSyncIndexMgr->pSyncNode = pSyncNode;
-  syncIndexMgrClear(pSyncIndexMgr);
-
-  return pSyncIndexMgr;
+  return pIndexMgr;
 }
 
-void syncIndexMgrUpdate(SSyncIndexMgr *pSyncIndexMgr, SSyncNode *pSyncNode) {
-  pSyncIndexMgr->replicas = &(pSyncNode->replicasId);
-  pSyncIndexMgr->replicaNum = pSyncNode->replicaNum;
-  pSyncIndexMgr->pSyncNode = pSyncNode;
-  syncIndexMgrClear(pSyncIndexMgr);
+void syncIndexMgrUpdate(SSyncIndexMgr *pIndexMgr, SSyncNode *pNode) {
+  pIndexMgr->replicas = &pNode->replicasId;
+  pIndexMgr->replicaNum = pNode->replicaNum;
+  pIndexMgr->pNode = pNode;
+  syncIndexMgrClear(pIndexMgr);
 }
 
-void syncIndexMgrDestroy(SSyncIndexMgr *pSyncIndexMgr) {
-  if (pSyncIndexMgr != NULL) {
-    taosMemoryFree(pSyncIndexMgr);
+void syncIndexMgrDestroy(SSyncIndexMgr *pIndexMgr) {
+  if (pIndexMgr != NULL) {
+    taosMemoryFree(pIndexMgr);
   }
 }
 
-void syncIndexMgrClear(SSyncIndexMgr *pSyncIndexMgr) {
-  memset(pSyncIndexMgr->index, 0, sizeof(pSyncIndexMgr->index));
-  memset(pSyncIndexMgr->privateTerm, 0, sizeof(pSyncIndexMgr->privateTerm));
+void syncIndexMgrClear(SSyncIndexMgr *pIndexMgr) {
+  memset(pIndexMgr->index, 0, sizeof(pIndexMgr->index));
+  memset(pIndexMgr->privateTerm, 0, sizeof(pIndexMgr->privateTerm));
 
-  // int64_t timeNow = taosGetMonotonicMs();
-  for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-    pSyncIndexMgr->startTimeArr[i] = 0;
-    pSyncIndexMgr->recvTimeArr[i] = 0;
+  int64_t timeNow = taosGetTimestampMs();
+  for (int i = 0; i < pIndexMgr->replicaNum; ++i) {
+    pIndexMgr->startTimeArr[i] = 0;
+    pIndexMgr->recvTimeArr[i] = timeNow;
   }
-
-  /*
-  for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-    pSyncIndexMgr->index[i] = 0;
-  }
-  */
 }
 
-void syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, SyncIndex index) {
-  for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-    if (syncUtilSameId(&((*(pSyncIndexMgr->replicas))[i]), pRaftId)) {
-      (pSyncIndexMgr->index)[i] = index;
+void syncIndexMgrSetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncIndex index) {
+  for (int i = 0; i < pIndexMgr->replicaNum; ++i) {
+    if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
+      (pIndexMgr->index)[i] = index;
       return;
     }
   }
 
-  // maybe config change
-  // ASSERT(0);
-
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, index mgr set for %s:%d, index:%" PRId64 " error", pSyncIndexMgr->pSyncNode->vgId, host, port,
-         index);
+  sError("vgId:%d, indexmgr set index:%" PRId64 " for dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, index,
+         DID(pRaftId), CID(pRaftId));
 }
 
-SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {
-  for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-    if (syncUtilSameId(&((*(pSyncIndexMgr->replicas))[i]), pRaftId)) {
-      SyncIndex idx = (pSyncIndexMgr->index)[i];
+SSyncLogReplMgr *syncNodeGetLogReplMgr(SSyncNode *pNode, SRaftId *pRaftId) {
+  for (int i = 0; i < pNode->replicaNum; i++) {
+    if (syncUtilSameId(&pNode->replicasId[i], pRaftId)) {
+      return pNode->logReplMgrs[i];
+    }
+  }
+
+  sError("vgId:%d, indexmgr get replmgr from dnode:%d cluster:%d failed", pNode->vgId, DID(pRaftId), CID(pRaftId));
+  return NULL;
+}
+
+SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
+  for (int i = 0; i < pIndexMgr->replicaNum; ++i) {
+    if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
+      SyncIndex idx = (pIndexMgr->index)[i];
       return idx;
     }
   }
 
+  sError("vgId:%d, indexmgr get index from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
+         CID(pRaftId));
   return SYNC_INDEX_INVALID;
 }
 
-cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
-  char   u64buf[128] = {0};
-  cJSON *pRoot = cJSON_CreateObject();
-
-  if (pSyncIndexMgr != NULL) {
-    cJSON_AddNumberToObject(pRoot, "replicaNum", pSyncIndexMgr->replicaNum);
-    cJSON *pReplicas = cJSON_CreateArray();
-    cJSON_AddItemToObject(pRoot, "replicas", pReplicas);
-    for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-      cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pSyncIndexMgr->replicas))[i]));
-    }
-
-    {
-      int *arr = (int *)taosMemoryMalloc(sizeof(int) * pSyncIndexMgr->replicaNum);
-      for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-        arr[i] = pSyncIndexMgr->index[i];
-      }
-      cJSON *pIndex = cJSON_CreateIntArray(arr, pSyncIndexMgr->replicaNum);
-      taosMemoryFree(arr);
-      cJSON_AddItemToObject(pRoot, "index", pIndex);
-    }
-
-    {
-      int *arr = (int *)taosMemoryMalloc(sizeof(int) * pSyncIndexMgr->replicaNum);
-      for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-        arr[i] = pSyncIndexMgr->privateTerm[i];
-      }
-      cJSON *pIndex = cJSON_CreateIntArray(arr, pSyncIndexMgr->replicaNum);
-      taosMemoryFree(arr);
-      cJSON_AddItemToObject(pRoot, "privateTerm", pIndex);
-    }
-
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncIndexMgr->pSyncNode);
-    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
-  }
-
-  cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "pSyncIndexMgr", pRoot);
-  return pJson;
-}
-
-char *syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr) {
-  cJSON *pJson = syncIndexMgr2Json(pSyncIndexMgr);
-  char  *serialized = cJSON_Print(pJson);
-  cJSON_Delete(pJson);
-  return serialized;
-}
-
-void syncIndexMgrSetStartTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, int64_t startTime) {
-  for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-    if (syncUtilSameId(&((*(pSyncIndexMgr->replicas))[i]), pRaftId)) {
-      (pSyncIndexMgr->startTimeArr)[i] = startTime;
+void syncIndexMgrSetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t startTime) {
+  for (int i = 0; i < pIndexMgr->replicaNum; ++i) {
+    if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
+      (pIndexMgr->startTimeArr)[i] = startTime;
       return;
     }
   }
 
-  // maybe config change
-  // ASSERT(0);
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, index mgr set for %s:%d, start-time:%" PRId64 " error", pSyncIndexMgr->pSyncNode->vgId, host, port,
-         startTime);
+  sError("vgId:%d, indexmgr set start-time:%" PRId64 " for dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId,
+         startTime, DID(pRaftId), CID(pRaftId));
 }
 
-int64_t syncIndexMgrGetStartTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {
-  for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-    if (syncUtilSameId(&((*(pSyncIndexMgr->replicas))[i]), pRaftId)) {
-      int64_t startTime = (pSyncIndexMgr->startTimeArr)[i];
+int64_t syncIndexMgrGetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
+  for (int i = 0; i < pIndexMgr->replicaNum; ++i) {
+    if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
+      int64_t startTime = (pIndexMgr->startTimeArr)[i];
       return startTime;
     }
   }
-  ASSERT(0);
+
+  sError("vgId:%d, indexmgr get start-time from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
+         CID(pRaftId));
   return -1;
 }
 
-void syncIndexMgrSetRecvTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, int64_t recvTime) {
-  for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-    if (syncUtilSameId(&((*(pSyncIndexMgr->replicas))[i]), pRaftId)) {
-      (pSyncIndexMgr->recvTimeArr)[i] = recvTime;
+void syncIndexMgrSetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t recvTime) {
+  for (int i = 0; i < pIndexMgr->replicaNum; ++i) {
+    if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
+      (pIndexMgr->recvTimeArr)[i] = recvTime;
       return;
     }
   }
 
-  // maybe config change
-  // ASSERT(0);
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, index mgr set for %s:%d, recv-time:%" PRId64 " error", pSyncIndexMgr->pSyncNode->vgId, host, port,
-         recvTime);
+  sError("vgId:%d, indexmgr set recv-time:%" PRId64 " for dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, recvTime,
+         DID(pRaftId), CID(pRaftId));
 }
 
-int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {
-  for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-    if (syncUtilSameId(&((*(pSyncIndexMgr->replicas))[i]), pRaftId)) {
-      int64_t recvTime = (pSyncIndexMgr->recvTimeArr)[i];
+int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
+  for (int i = 0; i < pIndexMgr->replicaNum; ++i) {
+    if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
+      int64_t recvTime = (pIndexMgr->recvTimeArr)[i];
       return recvTime;
     }
   }
-  ASSERT(0);
+
+  sError("vgId:%d, indexmgr get recv-time from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
+         CID(pRaftId));
   return -1;
 }
 
-// for debug -------------------
-void syncIndexMgrPrint(SSyncIndexMgr *pObj) {
-  char *serialized = syncIndexMgr2Str(pObj);
-  printf("syncIndexMgrPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncIndexMgrPrint2(char *s, SSyncIndexMgr *pObj) {
-  char *serialized = syncIndexMgr2Str(pObj);
-  printf("syncIndexMgrPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncIndexMgrLog(SSyncIndexMgr *pObj) {
-  char *serialized = syncIndexMgr2Str(pObj);
-  sTrace("syncIndexMgrLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
-  taosMemoryFree(serialized);
-}
-
-void syncIndexMgrLog2(char *s, SSyncIndexMgr *pObj) {
-  if (gRaftDetailLog) {
-    char *serialized = syncIndexMgr2Str(pObj);
-    sTrace("syncIndexMgrLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
-    taosMemoryFree(serialized);
-  }
-}
-
-void syncIndexMgrSetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, SyncTerm term) {
-  for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-    if (syncUtilSameId(&((*(pSyncIndexMgr->replicas))[i]), pRaftId)) {
-      (pSyncIndexMgr->privateTerm)[i] = term;
+void syncIndexMgrSetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, SyncTerm term) {
+  for (int i = 0; i < pIndexMgr->replicaNum; ++i) {
+    if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
+      (pIndexMgr->privateTerm)[i] = term;
       return;
     }
   }
 
-  // maybe config change
-  // ASSERT(0);
-  char     host[128];
-  uint16_t port;
-  syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
-  sError("vgId:%d, index mgr set for %s:%d, term:%" PRIu64 " error", pSyncIndexMgr->pSyncNode->vgId, host, port, term);
+  sError("vgId:%d, indexmgr set term:%" PRId64 " for dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, term,
+         DID(pRaftId), CID(pRaftId));
 }
 
-SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {
-  for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
-    if (syncUtilSameId(&((*(pSyncIndexMgr->replicas))[i]), pRaftId)) {
-      SyncTerm term = (pSyncIndexMgr->privateTerm)[i];
+SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
+  for (int i = 0; i < pIndexMgr->replicaNum; ++i) {
+    if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
+      SyncTerm term = (pIndexMgr->privateTerm)[i];
       return term;
     }
   }
-  ASSERT(0);
+
+  sError("vgId:%d, indexmgr get term from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
+         CID(pRaftId));
   return -1;
 }

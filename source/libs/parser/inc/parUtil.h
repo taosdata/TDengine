@@ -60,22 +60,17 @@ typedef struct SInsertTablesMetaReq {
 } SInsertTablesMetaReq;
 
 typedef struct SParseMetaCache {
-  SHashObj*     pTableMeta;    // key is tbFName, element is STableMeta*
-  SHashObj*     pDbVgroup;     // key is dbFName, element is SArray<SVgroupInfo>*
-  SHashObj*     pTableVgroup;  // key is tbFName, element is SVgroupInfo*
-  SHashObj*     pDbCfg;        // key is tbFName, element is SDbCfgInfo*
-  SHashObj*     pDbInfo;       // key is tbFName, element is SDbInfo*
-  SHashObj*     pUserAuth;  // key is SUserAuthInfo serialized string, element is bool indicating whether or not to pass
-  SHashObj*     pUdf;       // key is funcName, element is SFuncInfo*
-  SHashObj*     pTableIndex;  // key is tbFName, element is SArray<STableIndexInfo>*
-  SHashObj*     pTableCfg;    // key is tbFName, element is STableCfg*
-  SArray*       pDnodes;      // element is SEpSet
-  bool          dnodeRequired;
-  SHashObj*     pInsertTables;  // key is dbName, element is SInsertTablesMetaReq*, for insert
-  const char*   pUser;
-  const SArray* pTableMetaData;    // pRes = STableMeta*
-  const SArray* pTableVgroupData;  // pRes = SVgroupInfo*
-  int32_t       sqlTableNum;
+  SHashObj* pTableMeta;    // key is tbFName, element is STableMeta*
+  SHashObj* pDbVgroup;     // key is dbFName, element is SArray<SVgroupInfo>*
+  SHashObj* pTableVgroup;  // key is tbFName, element is SVgroupInfo*
+  SHashObj* pDbCfg;        // key is tbFName, element is SDbCfgInfo*
+  SHashObj* pDbInfo;       // key is tbFName, element is SDbInfo*
+  SHashObj* pUserAuth;     // key is SUserAuthInfo serialized string, element is bool indicating whether or not to pass
+  SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
+  SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
+  SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
+  SArray*   pDnodes;       // element is SEpSet
+  bool      dnodeRequired;
 } SParseMetaCache;
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
@@ -91,10 +86,10 @@ STableComInfo getTableInfo(const STableMeta* pTableMeta);
 STableMeta*   tableMetaDup(const STableMeta* pTableMeta);
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen);
+int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName);
 
-int32_t buildCatalogReq(SParseContext* pCxt, const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq);
-int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache,
-                           bool insertValuesStmt);
+int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq);
+int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache);
 int32_t reserveTableMetaInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTableMetaInCacheExt(const SName* pName, SParseMetaCache* pMetaCache);
 int32_t reserveDbVgInfoInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache);
@@ -113,7 +108,7 @@ int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, S
 int32_t getDbVgInfoFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SArray** pVgInfo);
 int32_t getTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName, SVgroupInfo* pVgroup);
 int32_t getDbVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, int32_t* pVersion, int64_t* pDbId,
-                                int32_t* pTableNum);
+                                int32_t* pTableNum, int64_t* pStateTs);
 int32_t getDbCfgFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SDbCfgInfo* pInfo);
 int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, const char* pUser, const char* pDbFName, AUTH_TYPE type,
                              bool* pPass);
@@ -121,12 +116,6 @@ int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFun
 int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes);
 int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableCfg** pOutput);
 int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes);
-int32_t reserveTableMetaInCacheForInsert(const SName* pName, ECatalogReqType reqType, int32_t tableNo,
-                                         SParseMetaCache* pMetaCache);
-int32_t getTableMetaFromCacheForInsert(SArray* pTableMetaPos, SParseMetaCache* pMetaCache, int32_t tableNo,
-                                       STableMeta** pMeta);
-int32_t getTableVgroupFromCacheForInsert(SArray* pTableVgroupPos, SParseMetaCache* pMetaCache, int32_t tableNo,
-                                         SVgroupInfo* pVgroup);
 void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
 
 #ifdef __cplusplus

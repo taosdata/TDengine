@@ -1,12 +1,13 @@
 ---
-sidebar_label: Supertable
 title: Supertable
+sidebar_label: Supertable
+description: This document describes how to create and perform operations on supertables.
 ---
 
 ## Create a Supertable
 
 ```sql
-CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definitionn] ...) TAGS (create_definition [, create_definition] ...) [table_options]
+CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definition] ...) TAGS (create_definition [, create_definition] ...) [table_options]
  
 create_definition:
     col_name column_definition
@@ -47,6 +48,55 @@ The preceding SQL statement can be used in migration scenarios. It returns the C
 
 ```
 DESCRIBE [db_name.]stb_name;
+```
+
+### View tag information for all child tables in the supertable
+
+```
+taos> SHOW TABLE TAGS FROM st1;
+             tbname             |     id      |         loc          |
+======================================================================
+ st1s1                          |           1 | beijing              |
+ st1s2                          |           2 | shanghai             |
+ st1s3                          |           3 | guangzhou            |
+Query OK, 3 rows in database (0.004455s)
+```
+
+The first column of the returned result set is the subtable name, and the subsequent columns are the tag columns.
+
+If you already know the name of the tag column, you can use the following statement to get the value of the specified tag column.
+
+```
+taos> SELECT DISTINCT TBNAME, id FROM st1;
+             tbname             |     id      |
+===============================================
+ st1s1                          |           1 |
+ st1s2                          |           2 |
+ st1s3                          |           3 |
+Query OK, 3 rows in database (0.002891s)
+```
+
+It should be noted that DISTINCT and TBNAME in the SELECT statement are essential, and TDengine will optimize the statement according to them, so that it can return the tag value correctly and quickly even when there is no data or a lot of data.
+
+### View the tag information of a subtable
+
+```
+taos> SHOW TAGS FROM st1s1;
+   table_name    |     db_name     |   stable_name   |    tag_name     |    tag_type     |    tag_value    |
+============================================================================================================
+ st1s1           | test            | st1             | id              | INT             | 1               |
+ st1s1           | test            | st1             | loc             | VARCHAR(20)     | beijing         |
+Query OK, 2 rows in database (0.003684s)
+```
+
+Similarly, you can also use the SELECT statement to query the value of the specified tag column.
+
+```
+taos> SELECT DISTINCT TBNAME, id, loc FROM st1s1;
+     tbname      |     id      |       loc       |
+==================================================
+ st1s1           |           1 | beijing         |
+Query OK, 1 rows in database (0.001884s)
 ```
 
 ## Drop STable

@@ -55,7 +55,7 @@ uint32_t tGetToken(const char *z, uint32_t *tokenType);
  * @param isPrevOptr
  * @return
  */
-SToken tStrGetToken(const char *str, int32_t *i, bool isPrevOptr);
+SToken tStrGetToken(const char *str, int32_t *i, bool isPrevOptr, bool *pIgnoreComma);
 
 /**
  * check if it is a keyword or not
@@ -174,10 +174,6 @@ _end:
 }
 
 void taosCleanupKeywordsTable();
-
-SToken tscReplaceStrToken(char **str, SToken *token, const char *newToken);
-
-SToken taosTokenDup(SToken *pToken, char *buf, int32_t len);
 
 #ifdef __cplusplus
 }

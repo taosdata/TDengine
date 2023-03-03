@@ -13,37 +13,40 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tarray.h"
 #include "dataSinkMgt.h"
 #include "dataSinkInt.h"
 #include "planner.h"
+#include "tarray.h"
 
 static SDataSinkManager gDataSinkManager = {0};
-SDataSinkStat gDataSinkStat = {0};
+SDataSinkStat           gDataSinkStat = {0};
 
-int32_t dsDataSinkMgtInit(SDataSinkMgtCfg *cfg) {
+int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg) {
   gDataSinkManager.cfg = *cfg;
   taosThreadMutexInit(&gDataSinkManager.mutex, NULL);
-  return 0; // to avoid compiler eror
+  return 0;  // to avoid compiler eror
 }
 
-int32_t dsDataSinkGetCacheSize(SDataSinkStat *pStat) {
+int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat) {
   pStat->cachedSize = atomic_load_64(&gDataSinkStat.cachedSize);
 
   return 0;
 }
 
-
-int32_t dsCreateDataSinker(const SDataSinkNode *pDataSink, DataSinkHandle* pHandle, void* pParam) {
+int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id) {
   switch ((int)nodeType(pDataSink)) {
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
-    case QUERY_NODE_PHYSICAL_PLAN_DELETE:
+    case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
       return createDataDeleter(&gDataSinkManager, pDataSink, pHandle, pParam);
-    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
       return createDataInserter(&gDataSinkManager, pDataSink, pHandle, pParam);
+    }
   }
-  return TSDB_CODE_FAILED;
+
+  qError("invalid input node type:%d, %s", nodeType(pDataSink), id);
+  return TSDB_CODE_QRY_INVALID_INPUT;
 }
 
 int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, bool* pContinue) {
@@ -66,11 +69,10 @@ int32_t dsGetDataBlock(DataSinkHandle handle, SOutputData* pOutput) {
   return pHandleImpl->fGetData(pHandleImpl, pOutput);
 }
 
-int32_t dsGetCacheSize(DataSinkHandle handle, uint64_t *pSize) {
+int32_t dsGetCacheSize(DataSinkHandle handle, uint64_t* pSize) {
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
   return pHandleImpl->fGetCacheSize(pHandleImpl, pSize);
 }
-
 
 void dsScheduleProcess(void* ahandle, void* pItem) {
   // todo

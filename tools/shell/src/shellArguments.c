@@ -19,10 +19,25 @@
 
 #include "shellInt.h"
 
-#define TAOS_CONSOLE_PROMPT_HEADER "taos> "
+#ifndef CUS_NAME
+    char cusName[] = "TDengine";
+#endif
+
+#ifndef CUS_PROMPT
+    char cusPrompt[] = "taos";
+#endif
+
+#ifndef CUS_EMAIL
+    char cusEmail[] = "<support@taosdata.com>";
+#endif
+
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#include "cus_name.h"
+#endif
+
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
 
-#define SHELL_HOST     "The auth string to use when connecting to the server."
+#define SHELL_HOST     "The server FQDN to connect. The default host is localhost."
 #define SHELL_PORT     "The TCP/IP port number to use for the connection."
 #define SHELL_USER     "The user name to use when connecting to the server."
 #define SHELL_PASSWORD "The password to use when connecting to the server."
@@ -41,7 +56,6 @@
 #define SHELL_PKT_LEN  "Packet length used for net test, default is 1024 bytes."
 #define SHELL_PKT_NUM  "Packet numbers used for net test, default is 100."
 #define SHELL_VERSION  "Print program version."
-#define SHELL_EMAIL    "<support@taosdata.com>"
 
 #ifdef WEBSOCKET
 #define SHELL_DSN      "The dsn to use when connecting to cloud server."
@@ -78,15 +92,19 @@ void shellPrintHelp() {
 #endif
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
   printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
-  printf("\r\n\r\nReport bugs to %s.\r\n", SHELL_EMAIL);
+  printf("\r\n\r\nReport bugs to %s.\r\n", cusEmail);
 }
 
 #ifdef LINUX
 #include <argp.h>
+#ifdef _ALPINE
+#include <termios.h>
+#else
 #include <termio.h>
+#endif
 
 const char *argp_program_version = version;
-const char *argp_program_bug_address = SHELL_EMAIL;
+const char *argp_program_bug_address = cusEmail;
 
 static struct argp_option shellOptions[] = {
     {"host", 'h', "HOST", 0, SHELL_HOST},
@@ -358,7 +376,7 @@ static int32_t shellCheckArgs() {
     return -1;
   }
 
-  if (pArgs->password != NULL && (strlen(pArgs->password) <= 0)) {
+  if (/*pArgs->password != NULL && */ (strlen(pArgs->password) <= 0)) {
     printf("Invalid password\r\n");
     return -1;
   }
@@ -388,13 +406,16 @@ static int32_t shellCheckArgs() {
 
 int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
-  shell.info.clientVersion =
-      "Welcome to the TDengine Command Line Interface, Client Version:%s\r\n"
-      "Copyright (c) 2022 by TDengine, all rights reserved.\r\n\r\n";
-  shell.info.promptHeader = TAOS_CONSOLE_PROMPT_HEADER;
+  shell.info.clientVersion = 
+      "Welcome to the %s Command Line Interface, Client Version:%s\r\n"
+      "Copyright (c) 2022 by %s, all rights reserved.\r\n\r\n";
+  strcpy(shell.info.cusName, cusName);
+  sprintf(shell.info.promptHeader, "%s> ", cusPrompt);
   shell.info.promptContinue = TAOS_CONSOLE_PROMPT_CONTINUE;
-  shell.info.promptSize = 6;
-  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion), "version: %s", version);
+  shell.info.promptSize = strlen(shell.info.promptHeader);
+  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
+           "version: %s compatible_version: %s\ngitinfo: %s\nbuildInfo: %s", version, compatible_version, gitinfo,
+           buildinfo);
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   shell.info.osname = "Windows";

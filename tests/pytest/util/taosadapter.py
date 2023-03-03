@@ -13,7 +13,7 @@ class TAdapter:
             "debug"         : True,
             "taosConfigDir" : "",
             "port"          : 6041,
-            "logLevel"      : "debug",
+            "logLevel"      : "error",
             "cors"          : {
                 "allowAllOrigins" : True,
             },
@@ -49,25 +49,25 @@ class TAdapter:
                 "writeInterval"             : "30s"
             },
             "opentsdb"      : {
-                "enable"        : False
+                "enable"        : True
             },
             "influxdb"      : {
-                "enable"        : False
+                "enable"        : True
             },
             "statsd"      : {
-                "enable"        : False
+                "enable"        : True
             },
             "collectd"      : {
-                "enable"        : False
+                "enable"        : True
             },
             "opentsdb_telnet"      : {
-                "enable"        : False
+                "enable"        : True
             },
             "node_exporter"      : {
-                "enable"        : False
+                "enable"        : True
             },
             "prometheus"      : {
-                "enable"        : False
+                "enable"        : True
             },
         }
     # TODO: add taosadapter env:
@@ -164,7 +164,7 @@ class TAdapter:
         if platform.system().lower() == 'windows':
             cmd = f"mintty -h never {bin_path} -c {self.cfg_dir}"
         else:
-            cmd = f"nohup {bin_path} -c {self.cfg_path} > /dev/null 2>&1 & "
+            cmd = f"nohup {bin_path} -c {self.cfg_path} > /dev/null & "
 
         if  self.remoteIP:
             self.remote_exec(self.taosadapter_cfg_dict, f"tAdapter.deployed=1\ntAdapter.log_dir={self.log_dir}\ntAdapter.cfg_dir={self.cfg_dir}\ntAdapter.start()")
@@ -213,7 +213,7 @@ class TAdapter:
         if platform.system().lower() == 'windows':
             cmd = f"mintty -h never {bin_path} -c {self.cfg_dir}"
         else:
-            cmd = f"nohup {bin_path} -c {self.cfg_path} > /dev/null 2>&1 & "
+            cmd = f"nohup {bin_path} -c {self.cfg_path} > /dev/null & "
 
         if  self.remoteIP:
             self.remote_exec(self.taosadapter_cfg_dict, f"tAdapter.deployed=1\ntAdapter.log_dir={self.log_dir}\ntAdapter.cfg_dir={self.cfg_dir}\ntAdapter.start()")
@@ -227,7 +227,7 @@ class TAdapter:
             time.sleep(0.1)
 
     def stop(self, force_kill=False):
-        signal = "-SIGKILL" if force_kill else "-SIGTERM"
+        signal = "-9" if force_kill else "-15"
 
         if  self.remoteIP:
             self.remote_exec(self.taosadapter_cfg_dict, "tAdapter.running=1\ntAdapter.stop()")
@@ -235,19 +235,16 @@ class TAdapter:
             return
 
         toBeKilled = "taosadapter"
-
+        
         if self.running != 0:
             psCmd = f"ps -ef|grep -w {toBeKilled}| grep -v grep | awk '{{print $2}}'"
-            # psCmd = f"pgrep {toBeKilled}"
-            processID = subprocess.check_output(
-                psCmd, shell=True)
-
-            while(processID):
-                killCmd = f"pkill {signal} {processID} > /dev/null 2>&1"
+            # psCmd = f"pgrep {toBeKilled}"            
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            while(processID):                
+                killCmd = "kill %s %s > /dev/null 2>&1" % (signal, processID)                
                 os.system(killCmd)
                 time.sleep(1)
-                processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8")
+                processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()                
             if not platform.system().lower() == 'windows':
                 port = 6041
                 fuserCmd = f"fuser -k -n tcp {port} > /dev/null"
@@ -256,8 +253,8 @@ class TAdapter:
                     # fuserCmd = f"fuser -k -n tcp {port} > /dev/null"
                     # os.system(fuserCmd)
 
-        self.running = 0
-        tdLog.debug(f"taosadapter is stopped by kill {signal}")
+            self.running = 0
+            tdLog.debug(f"taosadapter is stopped by kill {signal}")
 
 
 

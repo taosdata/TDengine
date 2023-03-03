@@ -44,6 +44,7 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer);
 SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw);
 
 int32_t mndSetConsumerCommitLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer);
+int32_t mndSetConsumerDropLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer);
 
 bool mndRebTryStart();
 void mndRebEnd();

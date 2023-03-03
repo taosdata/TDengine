@@ -21,7 +21,7 @@
 int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg) {
   if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) return 0;
   SMnode *pMnode = pMsg->info.node;
-  return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg);
+  return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg, false);
 }
 
 void mndPostProcessQueryMsg(SRpcMsg *pMsg) {
@@ -55,7 +55,7 @@ int32_t mndProcessQueryMsg(SRpcMsg *pMsg) {
       code = qWorkerProcessHbMsg(pMnode, pMnode->pQuery, pMsg, 0);
       break;
     default:
-      terrno = TSDB_CODE_VND_APP_ERROR;
+      terrno = TSDB_CODE_APP_ERROR;
       mError("unknown msg type:%d in query queue", pMsg->msgType);
   }
 
@@ -63,49 +63,60 @@ int32_t mndProcessQueryMsg(SRpcMsg *pMsg) {
   return code;
 }
 
-int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
-  int32_t code = 0;
-  int32_t offset = 0;
-  int32_t rspSize = 0;
-  SBatchReq *batchReq = (SBatchReq*)pMsg->pCont;
-  int32_t msgNum = ntohl(batchReq->msgNum);
-  offset += sizeof(SBatchReq);
-  SBatchMsg req = {0};
-  SBatchRsp rsp = {0};
-  SRpcMsg reqMsg = *pMsg;
-  SRpcMsg rspMsg = {0};
-  void* pRsp = NULL;
-  SMnode *pMnode = pMsg->info.node;
 
-  SArray* batchRsp = taosArrayInit(msgNum, sizeof(SBatchRsp));
-  if (NULL == batchRsp) {
+static FORCE_INLINE void mnodeFreeSBatchRspMsg(void* p) {
+  if (NULL == p) {
+    return;
+  }
+
+  SBatchRspMsg* pRsp = (SBatchRspMsg*)p;
+  rpcFreeCont(pRsp->msg);
+}
+
+int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
+  int32_t    code = 0;
+  int32_t    rspSize = 0;
+  SBatchReq  batchReq = {0};
+  SBatchMsg req = {0};
+  SBatchRspMsg rsp = {0};
+  SBatchRsp batchRsp = {0};
+  SRpcMsg   reqMsg = *pMsg;
+  void     *pRsp = NULL;
+  SMnode   *pMnode = pMsg->info.node;
+
+  if (tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq)) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    mError("tDeserializeSBatchReq failed");
+    goto _exit;
+  }
+
+  int32_t    msgNum = taosArrayGetSize(batchReq.pMsgs);
+  if (msgNum >= MAX_META_MSG_IN_BATCH) {
+    code = TSDB_CODE_INVALID_MSG;
+    mError("too many msgs %d in mnode batch meta req", msgNum);
+    goto _exit;
+  }
+
+  batchRsp.pRsps = taosArrayInit(msgNum, sizeof(SBatchRspMsg));
+  if (NULL == batchRsp.pRsps) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  
+
   for (int32_t i = 0; i < msgNum; ++i) {
-    req.msgIdx = ntohl(*(int32_t*)((char*)pMsg->pCont + offset));
-    offset += sizeof(req.msgIdx);
+    SBatchMsg* req = taosArrayGet(batchReq.pMsgs, i);
 
-    req.msgType = ntohl(*(int32_t*)((char*)pMsg->pCont + offset));
-    offset += sizeof(req.msgType);
-
-    req.msgLen = ntohl(*(int32_t*)((char*)pMsg->pCont + offset));
-    offset += sizeof(req.msgLen);
-
-    req.msg = (char*)pMsg->pCont + offset;
-    offset += req.msgLen;
-
-    reqMsg.msgType = req.msgType;
-    reqMsg.pCont = req.msg;
-    reqMsg.contLen = req.msgLen;
+    reqMsg.msgType = req->msgType;
+    reqMsg.pCont = req->msg;
+    reqMsg.contLen = req->msgLen;
     reqMsg.info.rsp = NULL;
     reqMsg.info.rspLen = 0;
 
-    MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(req.msgType)];
+    MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(req->msgType)];
     if (fp == NULL) {
       mError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp.pRsps);
       return -1;
     }
 
@@ -114,46 +125,28 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     } else {
       rsp.rspCode = 0;
     }
-    rsp.msgIdx = req.msgIdx;
+    rsp.msgIdx = req->msgIdx;
     rsp.reqType = reqMsg.msgType;
     rsp.msgLen = reqMsg.info.rspLen;
     rsp.msg = reqMsg.info.rsp;
-    
-    taosArrayPush(batchRsp, &rsp);
 
-    rspSize += sizeof(rsp) + rsp.msgLen - POINTER_BYTES;
+    taosArrayPush(batchRsp.pRsps, &rsp);
   }
 
-  rspSize += sizeof(int32_t);
-  offset = 0;
-  
+  rspSize = tSerializeSBatchRsp(NULL, 0, &batchRsp);
+  if (rspSize < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
   pRsp = rpcMallocCont(rspSize);
   if (pRsp == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-
-  *(int32_t*)((char*)pRsp + offset) = htonl(msgNum);
-  offset += sizeof(msgNum);
-  for (int32_t i = 0; i < msgNum; ++i) {
-    SBatchRsp *p = taosArrayGet(batchRsp, i);
-    
-    *(int32_t*)((char*)pRsp + offset) = htonl(p->reqType);
-    offset += sizeof(p->reqType);
-    *(int32_t*)((char*)pRsp + offset) = htonl(p->msgIdx);
-    offset += sizeof(p->msgIdx);
-    *(int32_t*)((char*)pRsp + offset) = htonl(p->msgLen);
-    offset += sizeof(p->msgLen);
-    *(int32_t*)((char*)pRsp + offset) = htonl(p->rspCode);
-    offset += sizeof(p->rspCode);
-    memcpy((char*)pRsp + offset, p->msg, p->msgLen);
-    offset += p->msgLen;
-
-    rpcFreeCont(p->msg);
+  if (tSerializeSBatchRsp(pRsp, rspSize, &batchRsp) < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
   }
-
-  taosArrayDestroy(batchRsp);
-  batchRsp = NULL;
 
 _exit:
 
@@ -164,13 +157,14 @@ _exit:
     mError("mnd get batch meta failed cause of %s", tstrerror(code));
   }
 
-  taosArrayDestroyEx(batchRsp, tFreeSBatchRsp);
+  taosArrayDestroyEx(batchReq.pMsgs, tFreeSBatchReqMsg);
+  taosArrayDestroyEx(batchRsp.pRsps, mnodeFreeSBatchRspMsg);
 
   return code;
 }
 
 int32_t mndInitQuery(SMnode *pMnode) {
-  if (qWorkerInit(NODE_TYPE_MNODE, MNODE_HANDLE, NULL, (void **)&pMnode->pQuery, &pMnode->msgCb) != 0) {
+  if (qWorkerInit(NODE_TYPE_MNODE, MNODE_HANDLE, (void **)&pMnode->pQuery, &pMnode->msgCb) != 0) {
     mError("failed to init qworker in mnode since %s", terrstr());
     return -1;
   }

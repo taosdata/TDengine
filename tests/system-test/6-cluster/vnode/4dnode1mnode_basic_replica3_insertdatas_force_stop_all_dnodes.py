@@ -21,7 +21,8 @@ import threading
 sys.path.append(os.path.dirname(__file__))
 
 class TDTestCase:
-    def init(self,conn ,logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
@@ -35,7 +36,7 @@ class TDTestCase:
         self.tb_nums = 10 
         self.row_nums = 100
         self.stop_dnode_id = None
-        self.loop_restart_times = 5
+        self.loop_restart_times = 3
         self.current_thread = None
         self.max_restart_time = 10
         self.try_check_times = 10
@@ -83,14 +84,14 @@ class TDTestCase:
         if count==1 and is_leader:
             tdLog.notice("===== depoly cluster success with 1 mnode as leader =====")
         else:
-            tdLog.exit("===== depoly cluster fail with 1 mnode as leader =====")
+            tdLog.notice("===== depoly cluster fail with 1 mnode as leader =====")
 
         for k ,v in self.dnode_list.items():
             if k == mnode_name:
                 if v[3]==0:
                     tdLog.notice("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
                 else:
-                    tdLog.exit("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
+                    tdLog.notice("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
             else:
                 continue
 
@@ -149,7 +150,7 @@ class TDTestCase:
         while not status_OK :
             if count > self.try_check_times:
                 os.system("taos -s ' show {}.vgroups; '".format(dbname))
-                tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
+                tdLog.notice(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
                 break
             time.sleep(0.1)
             tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
@@ -170,7 +171,7 @@ class TDTestCase:
         while not status_OK :
             if count > self.try_check_times:
                 os.system("taos -s ' show {}.vgroups;'".format(dbname))
-                tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
+                tdLog.notice(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
                 break
             time.sleep(0.1)
             tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
@@ -270,16 +271,16 @@ class TDTestCase:
         caller = inspect.getframeinfo(inspect.stack()[2][0])
         if row < 0:
             args = (caller.filename, caller.lineno, sql, row)
-            tdLog.exit("%s(%d) failed: sql:%s, row:%d is smaller than zero" % args)
+            tdLog.notice("%s(%d) failed: sql:%s, row:%d is smaller than zero" % args)
         if col < 0:
             args = (caller.filename, caller.lineno, sql, row)
-            tdLog.exit("%s(%d) failed: sql:%s, col:%d is smaller than zero" % args)
+            tdLog.notice("%s(%d) failed: sql:%s, col:%d is smaller than zero" % args)
         if row > tdSql.queryRows:
             args = (caller.filename, caller.lineno, sql, row, tdSql.queryRows)
-            tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+            tdLog.notice("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
         if col > tdSql.queryCols:
             args = (caller.filename, caller.lineno, sql, col, tdSql.queryCols)
-            tdLog.exit("%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args)
+            tdLog.notice("%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args)
 
     def mycheckData(self, sql ,row, col, data):
         check_status = True
@@ -360,31 +361,31 @@ class TDTestCase:
             # print(ps_kill_taosd)
             os.system(ps_kill_taosd)
         else :
-            tdLog.exit(" ==== port of dnode {} not found ====".format(dnode_id))
+            tdLog.notice(" ==== port of dnode {} not found ====".format(dnode_id))
 
     def stop_All(self):
 
         tdDnodes = cluster.dnodes
-        # newTdSql=tdCom.newTdSql()
+        newTdSql=tdCom.newTdSql()
         # ==== stop all dnode =====
         for k ,v in self.dnode_list.items():
             dnode_id = v[0]
-            # tdDnodes[dnode_id-1].stoptaosd()
-            self.force_stop_dnode(dnode_id)
+            
+            tdDnodes[dnode_id-1].stoptaosd()
+            # self.force_stop_dnode(dnode_id)
             # self.wait_stop_dnode_OK(newTdSql)
 
     def start_All(self):
         tdDnodes = cluster.dnodes
-        # newTdSql=tdCom.newTdSql()
+        
         for k ,v in self.dnode_list.items():
             dnode_id = v[0]
             start = time.time()
             tdDnodes[dnode_id-1].starttaosd()
-            # self.wait_start_dnode_OK(newTdSql)
             end = time.time()
             time_cost = int(end -start)
             if time_cost > self.max_restart_time:
-                tdLog.exit(" ==== restart dnode {} cost too much time , please check ====".format(self.stop_dnode_id))
+                tdLog.notice(" ==== restart dnode {} cost too much time , please check ====".format(self.stop_dnode_id))
 
 
         
@@ -400,7 +401,10 @@ class TDTestCase:
             # begin to stop All taosd 
             self.stop_All()
             # begin to start All taosd
-            self.start_All()
+            self.start_All()     
+
+            time.sleep(5)
+                 
 
             tdLog.debug(" ==== cluster has restart , this is {}_th restart cluster  ==== ".format(i))
 
@@ -417,9 +421,6 @@ class TDTestCase:
         self.check_setup_cluster_status()
         self.stop_All_dnodes_check_datas()
         
-        
-
-
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

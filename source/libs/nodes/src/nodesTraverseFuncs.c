@@ -146,6 +146,36 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
     case QUERY_NODE_TARGET:
       res = walkExpr(((STargetNode*)pNode)->pExpr, order, walker, pContext);
       break;
+    case QUERY_NODE_WHEN_THEN: {
+      SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
+      res = walkExpr(pWhenThen->pWhen, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pWhenThen->pThen, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_CASE_WHEN: {
+      SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)pNode;
+      res = walkExpr(pCaseWhen->pCase, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pCaseWhen->pElse, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pCaseWhen->pWhenThenList, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_EVENT_WINDOW: {
+      SEventWindowNode* pEvent = (SEventWindowNode*)pNode;
+      res = walkExpr(pEvent->pCol, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pEvent->pStartCond, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pEvent->pEndCond, order, walker, pContext);
+      }
+      break;
+    }
     default:
       break;
   }
@@ -291,6 +321,36 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_TARGET:
       res = rewriteExpr(&(((STargetNode*)pNode)->pExpr), order, rewriter, pContext);
       break;
+    case QUERY_NODE_WHEN_THEN: {
+      SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
+      res = rewriteExpr(&pWhenThen->pWhen, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pWhenThen->pThen, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_CASE_WHEN: {
+      SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)pNode;
+      res = rewriteExpr(&pCaseWhen->pCase, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pCaseWhen->pElse, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExprs(pCaseWhen->pWhenThenList, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_EVENT_WINDOW: {
+      SEventWindowNode* pEvent = (SEventWindowNode*)pNode;
+      res = rewriteExpr(&pEvent->pCol, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pEvent->pStartCond, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pEvent->pEndCond, order, rewriter, pContext);
+      }
+      break;
+    }
     default:
       break;
   }
@@ -340,6 +400,8 @@ void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker wa
       nodesWalkExpr(pSelect->pWhere, walker, pContext);
     case SQL_CLAUSE_WHERE:
       nodesWalkExprs(pSelect->pPartitionByList, walker, pContext);
+      nodesWalkExprs(pSelect->pTags, walker, pContext);
+      nodesWalkExpr(pSelect->pSubtable, walker, pContext);
     case SQL_CLAUSE_PARTITION_BY:
       nodesWalkExpr(pSelect->pWindow, walker, pContext);
     case SQL_CLAUSE_WINDOW:
@@ -374,6 +436,8 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
       nodesRewriteExpr(&(pSelect->pWhere), rewriter, pContext);
     case SQL_CLAUSE_WHERE:
       nodesRewriteExprs(pSelect->pPartitionByList, rewriter, pContext);
+      nodesRewriteExprs(pSelect->pTags, rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pSubtable), rewriter, pContext);
     case SQL_CLAUSE_PARTITION_BY:
       nodesRewriteExpr(&(pSelect->pWindow), rewriter, pContext);
     case SQL_CLAUSE_WINDOW:
@@ -395,211 +459,4 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
   }
 
   return;
-}
-
-static EDealRes walkPhysiNode(SPhysiNode* pNode, ETraversalOrder order, FNodeWalker walker, void* pContext) {
-  EDealRes res = walkPhysiPlan((SNode*)pNode->pOutputDataBlockDesc, order, walker, pContext);
-  if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-    res = walkPhysiPlan(pNode->pConditions, order, walker, pContext);
-  }
-  if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-    res = walkPhysiPlans(pNode->pChildren, order, walker, pContext);
-  }
-  return res;
-}
-
-static EDealRes walkScanPhysi(SScanPhysiNode* pScan, ETraversalOrder order, FNodeWalker walker, void* pContext) {
-  EDealRes res = walkPhysiNode((SPhysiNode*)pScan, order, walker, pContext);
-  if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-    res = walkPhysiPlans(pScan->pScanCols, order, walker, pContext);
-  }
-  return res;
-}
-
-static EDealRes walkTableScanPhysi(STableScanPhysiNode* pScan, ETraversalOrder order, FNodeWalker walker,
-                                   void* pContext) {
-  EDealRes res = walkScanPhysi((SScanPhysiNode*)pScan, order, walker, pContext);
-  if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-    res = walkPhysiPlans(pScan->pDynamicScanFuncs, order, walker, pContext);
-  }
-  return res;
-}
-
-static EDealRes walkWindowPhysi(SWinodwPhysiNode* pWindow, ETraversalOrder order, FNodeWalker walker, void* pContext) {
-  EDealRes res = walkPhysiNode((SPhysiNode*)pWindow, order, walker, pContext);
-  if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-    res = walkPhysiPlans(pWindow->pExprs, order, walker, pContext);
-  }
-  if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-    res = walkPhysiPlans(pWindow->pFuncs, order, walker, pContext);
-  }
-  if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-    res = walkPhysiPlan(pWindow->pTspk, order, walker, pContext);
-  }
-  return res;
-}
-
-static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalker walker, void* pContext) {
-  EDealRes res = DEAL_RES_CONTINUE;
-
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_NODE_LIST:
-      res = walkPhysiPlans(((SNodeListNode*)pNode)->pNodeList, order, walker, pContext);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
-      res = walkScanPhysi((SScanPhysiNode*)pNode, order, walker, pContext);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
-      res = walkTableScanPhysi((STableScanPhysiNode*)pNode, order, walker, pContext);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
-      res = walkTableScanPhysi((STableScanPhysiNode*)pNode, order, walker, pContext);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
-      res = walkScanPhysi((SScanPhysiNode*)pNode, order, walker, pContext);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
-      res = walkScanPhysi((SScanPhysiNode*)pNode, order, walker, pContext);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
-      SProjectPhysiNode* pProject = (SProjectPhysiNode*)pNode;
-      res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pProject->pProjections, order, walker, pContext);
-      }
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
-      SSortMergeJoinPhysiNode* pJoin = (SSortMergeJoinPhysiNode*)pNode;
-      res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlan(pJoin->pMergeCondition, order, walker, pContext);
-      }
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlan(pJoin->pOnConditions, order, walker, pContext);
-      }
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pJoin->pTargets, order, walker, pContext);
-      }
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
-      SAggPhysiNode* pAgg = (SAggPhysiNode*)pNode;
-      res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pAgg->pExprs, order, walker, pContext);
-      }
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pAgg->pGroupKeys, order, walker, pContext);
-      }
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pAgg->pAggFuncs, order, walker, pContext);
-      }
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
-      SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
-      res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pExchange->pSrcEndPoints, order, walker, pContext);
-      }
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_SORT:
-    case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT: {
-      SSortPhysiNode* pSort = (SSortPhysiNode*)pNode;
-      res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pSort->pExprs, order, walker, pContext);
-      }
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pSort->pSortKeys, order, walker, pContext);
-      }
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pSort->pTargets, order, walker, pContext);
-      }
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
-      res = walkWindowPhysi((SWinodwPhysiNode*)pNode, order, walker, pContext);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
-      res = walkWindowPhysi((SWinodwPhysiNode*)pNode, order, walker, pContext);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE: {
-      SStateWinodwPhysiNode* pState = (SStateWinodwPhysiNode*)pNode;
-      res = walkWindowPhysi((SWinodwPhysiNode*)pNode, order, walker, pContext);
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlan(pState->pStateKey, order, walker, pContext);
-      }
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION: {
-      SPartitionPhysiNode* pPart = (SPartitionPhysiNode*)pNode;
-      res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pPart->pExprs, order, walker, pContext);
-      }
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pPart->pPartitionKeys, order, walker, pContext);
-      }
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pPart->pTargets, order, walker, pContext);
-      }
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
-      res = walkPhysiPlan((SNode*)(((SDataSinkNode*)pNode)->pInputDataBlockDesc), order, walker, pContext);
-      break;
-    case QUERY_NODE_PHYSICAL_PLAN_INSERT:
-      res = walkPhysiPlan((SNode*)(((SDataSinkNode*)pNode)->pInputDataBlockDesc), order, walker, pContext);
-      break;
-    case QUERY_NODE_PHYSICAL_SUBPLAN: {
-      SSubplan* pSubplan = (SSubplan*)pNode;
-      res = walkPhysiPlans(pSubplan->pChildren, order, walker, pContext);
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlan((SNode*)pSubplan->pNode, order, walker, pContext);
-      }
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlan((SNode*)pSubplan->pDataSink, order, walker, pContext);
-      }
-      break;
-    }
-    case QUERY_NODE_PHYSICAL_PLAN: {
-      SQueryPlan* pPlan = (SQueryPlan*)pNode;
-      if (NULL != pPlan->pSubplans) {
-        // only need to walk the top-level subplans, because they will recurse to all the subplans below
-        walkPhysiPlan(nodesListGetNode(pPlan->pSubplans, 0), order, walker, pContext);
-      }
-      break;
-    }
-    default:
-      res = dispatchExpr(pNode, order, walker, pContext);
-      break;
-  }
-
-  return res;
-}
-
-static EDealRes walkPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalker walker, void* pContext) {
-  return walkNode(pNode, order, walker, pContext, dispatchPhysiPlan);
-}
-
-static EDealRes walkPhysiPlans(SNodeList* pNodeList, ETraversalOrder order, FNodeWalker walker, void* pContext) {
-  SNode* node;
-  FOREACH(node, pNodeList) {
-    EDealRes res = walkPhysiPlan(node, order, walker, pContext);
-    if (DEAL_RES_ERROR == res || DEAL_RES_END == res) {
-      return res;
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-void nodesWalkPhysiPlan(SNode* pNode, FNodeWalker walker, void* pContext) {
-  (void)walkPhysiPlan(pNode, TRAVERSAL_PREORDER, walker, pContext);
 }

@@ -444,6 +444,7 @@ class PlannerTestBaseImpl {
       tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req);
       g_mockCatalogService->createSmaIndex(&req);
       nodesStringToNode(req.ast, &pCxt->pAstRoot);
+      pCxt->deleteMark = req.deleteMark;
       tFreeSMCreateSmaReq(&req);
       nodesDestroyNode(pQuery->pRoot);
       pQuery->pRoot = pCxt->pAstRoot;
@@ -466,8 +467,13 @@ class PlannerTestBaseImpl {
     char*   pStr = NULL;
     int32_t len = 0;
     DO_WITH_THROW(nodesNodeToString, pRoot, false, &pStr, &len)
+    // check toObject
+    SNode* pCopy = NULL;
+    DO_WITH_THROW(nodesStringToNode, pStr, &pCopy)
+    nodesDestroyNode(pCopy);
     string str(pStr);
     taosMemoryFreeClear(pStr);
+
     return str;
   }
 

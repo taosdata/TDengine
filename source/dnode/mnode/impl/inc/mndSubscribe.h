@@ -31,6 +31,10 @@ void             mndReleaseSubscribe(SMnode *pMnode, SMqSubscribeObj *pSub);
 
 int32_t mndMakeSubscribeKey(char *key, const char *cgroup, const char *topicName);
 
+static FORCE_INLINE int32_t mndMakePartitionKey(char *key, const char *cgroup, const char *topicName, int32_t vgId) {
+  return snprintf(key, TSDB_PARTITION_KEY_LEN, "%d:%s:%s", vgId, cgroup, topicName);
+}
+
 int32_t mndDropSubByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topic);
 int32_t mndSetDropSubCommitLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub);

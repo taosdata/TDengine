@@ -19,11 +19,20 @@ void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
   pReader->flags = flags;
   pReader->pMeta = pMeta;
-  metaRLock(pMeta);
+  if (pReader->pMeta && !(flags & META_READER_NOLOCK)) {
+    metaRLock(pMeta);
+  }
+}
+
+void metaReaderReleaseLock(SMetaReader *pReader) {
+  if (pReader->pMeta && !(pReader->flags & META_READER_NOLOCK)) {
+    metaULock(pReader->pMeta);
+    pReader->flags |= META_READER_NOLOCK;
+  }
 }
 
 void metaReaderClear(SMetaReader *pReader) {
-  if (pReader->pMeta) {
+  if (pReader->pMeta && !(pReader->flags & META_READER_NOLOCK)) {
     metaULock(pReader->pMeta);
   }
   tDecoderClear(&pReader->coder);
@@ -144,7 +153,7 @@ bool metaIsTableExist(SMeta *pMeta, tb_uid_t uid) {
 
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   SMeta  *pMeta = pReader->pMeta;
-  int64_t version;
+  int64_t version1;
 
   // query uid.idx
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
@@ -152,8 +161,20 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
     return -1;
   }
 
-  version = ((SUidIdxVal *)pReader->pBuf)[0].version;
-  return metaGetTableEntryByVersion(pReader, version, uid);
+  version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
+  return metaGetTableEntryByVersion(pReader, version1, uid);
+}
+
+int metaGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
+  SMeta *pMeta = pReader->pMeta;
+
+  SMetaInfo info;
+  if (metaGetInfo(pMeta, uid, &info, pReader) == TSDB_CODE_NOT_FOUND) {
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    return -1;
+  }
+
+  return metaGetTableEntryByVersion(pReader, info.version, uid);
 }
 
 int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
@@ -203,6 +224,54 @@ int metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName) {
   return 0;
 }
 
+int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
+  int         code = 0;
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, (SMeta *)meta, 0);
+  code = metaGetTableEntryByUid(&mr, uid);
+  if (code < 0) {
+    metaReaderClear(&mr);
+    return -1;
+  }
+  strncpy(tbName, mr.me.name, TSDB_TABLE_NAME_LEN);
+  metaReaderClear(&mr);
+
+  return 0;
+}
+
+int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
+  int         code = 0;
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, (SMeta *)meta, 0);
+
+  SMetaReader *pReader = &mr;
+
+  // query name.idx
+  if (tdbTbGet(pReader->pMeta->pNameIdx, tbName, strlen(tbName) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    metaReaderClear(&mr);
+    return -1;
+  }
+
+  *uid = *(tb_uid_t *)pReader->pBuf;
+
+  metaReaderClear(&mr);
+
+  return 0;
+}
+
+int metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType) {
+  int         code = 0;
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, (SMeta *)meta, 0);
+
+  code = metaGetTableEntryByName(&mr, tbName);
+  if (code == 0) *tbType = mr.me.type;
+
+  metaReaderClear(&mr);
+  return code;
+}
+
 int metaReadNext(SMetaReader *pReader) {
   SMeta *pMeta = pReader->pMeta;
 
@@ -241,13 +310,37 @@ void metaCloseTbCursor(SMTbCursor *pTbCur) {
   }
 }
 
-int metaTbCursorNext(SMTbCursor *pTbCur) {
+int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
   int    ret;
   void  *pBuf;
   STbCfg tbCfg;
 
   for (;;) {
     ret = tdbTbcNext(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
+    if (ret < 0) {
+      return -1;
+    }
+
+    tDecoderClear(&pTbCur->mr.coder);
+
+    metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
+    if (pTbCur->mr.me.type == jumpTableType) {
+      continue;
+    }
+
+    break;
+  }
+
+  return 0;
+}
+
+int32_t metaTbCursorPrev(SMTbCursor *pTbCur) {
+  int    ret;
+  void  *pBuf;
+  STbCfg tbCfg;
+
+  for (;;) {
+    ret = tdbTbcPrev(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
     if (ret < 0) {
       return -1;
     }
@@ -265,15 +358,16 @@ int metaTbCursorNext(SMTbCursor *pTbCur) {
   return 0;
 }
 
-SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
+SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
   void           *pData = NULL;
   int             nData = 0;
   int64_t         version;
   SSchemaWrapper  schema = {0};
   SSchemaWrapper *pSchema = NULL;
   SDecoder        dc = {0};
-
-  metaRLock(pMeta);
+  if (lock) {
+    metaRLock(pMeta);
+  }
 _query:
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
     goto _err;
@@ -291,25 +385,25 @@ _query:
       tDecoderClear(&dc);
       goto _exit;
     }
-    { // Traverse to find the previous qualified data
-      TBC      *pCur;
+    {  // Traverse to find the previous qualified data
+      TBC *pCur;
       tdbTbcOpen(pMeta->pTbDb, &pCur, NULL);
       STbDbKey key = {.version = sver, .uid = INT64_MAX};
-      int c = 0;
+      int      c = 0;
       tdbTbcMoveTo(pCur, &key, sizeof(key), &c);
-      if(c < 0){
+      if (c < 0) {
         tdbTbcMoveToPrev(pCur);
       }
 
       void *pKey = NULL;
       void *pVal = NULL;
       int   vLen = 0, kLen = 0;
-      while(1){
+      while (1) {
         int32_t ret = tdbTbcPrev(pCur, &pKey, &kLen, &pVal, &vLen);
         if (ret < 0) break;
 
-        STbDbKey *tmp = (STbDbKey*)pKey;
-        if(tmp->uid != uid){
+        STbDbKey *tmp = (STbDbKey *)pKey;
+        if (tmp->uid != uid) {
           continue;
         }
         SDecoder   dcNew = {0};
@@ -352,13 +446,17 @@ _query:
 
 _exit:
   tDecoderClear(&dc);
-  metaULock(pMeta);
+  if (lock) {
+    metaULock(pMeta);
+  }
   tdbFree(pData);
   return pSchema;
 
 _err:
   tDecoderClear(&dc);
-  metaULock(pMeta);
+  if (lock) {
+    metaULock(pMeta);
+  }
   tdbFree(pData);
   return NULL;
 }
@@ -404,7 +502,7 @@ struct SMCtbCursor {
   int      vLen;
 };
 
-SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
+SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid, int lock) {
   SMCtbCursor *pCtbCur = NULL;
   SCtbIdxKey   ctbIdxKey;
   int          ret = 0;
@@ -417,7 +515,9 @@ SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
 
   pCtbCur->pMeta = pMeta;
   pCtbCur->suid = uid;
-  metaRLock(pMeta);
+  if (lock) {
+    metaRLock(pMeta);
+  }
 
   ret = tdbTbcOpen(pMeta->pCtbIdx, &pCtbCur->pCur, NULL);
   if (ret < 0) {
@@ -437,9 +537,9 @@ SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
   return pCtbCur;
 }
 
-void metaCloseCtbCursor(SMCtbCursor *pCtbCur) {
+void metaCloseCtbCursor(SMCtbCursor *pCtbCur, int lock) {
   if (pCtbCur) {
-    if (pCtbCur->pMeta) metaULock(pCtbCur->pMeta);
+    if (pCtbCur->pMeta && lock) metaULock(pCtbCur->pMeta);
     if (pCtbCur->pCur) {
       tdbTbcClose(pCtbCur->pCur);
 
@@ -534,24 +634,15 @@ tb_uid_t metaStbCursorNext(SMStbCursor *pStbCur) {
   return *(tb_uid_t *)pStbCur->pKey;
 }
 
-STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
-  // SMetaReader     mr = {0};
+STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
   STSchema       *pTSchema = NULL;
   SSchemaWrapper *pSW = NULL;
-  STSchemaBuilder sb = {0};
-  SSchema        *pSchema;
+  SSchema        *pSchema = NULL;
 
-  pSW = metaGetTableSchema(pMeta, uid, sver, 0);
+  pSW = metaGetTableSchema(pMeta, uid, sver, lock);
   if (!pSW) return NULL;
 
-  tdInitTSchemaBuilder(&sb, pSW->version);
-  for (int i = 0; i < pSW->nCols; i++) {
-    pSchema = pSW->pSchema + i;
-    tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
-  }
-  pTSchema = tdGetSchemaFromBuilder(&sb);
-
-  tdDestroyTSchemaBuilder(&sb);
+  pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version);
 
   taosMemoryFree(pSW->pSchema);
   taosMemoryFree(pSW);
@@ -566,7 +657,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   SSkmDbKey skmDbKey;
   if (sver <= 0) {
     SMetaInfo info;
-    if (metaGetInfo(pMeta, suid ? suid : uid, &info) == 0) {
+    if (metaGetInfo(pMeta, suid ? suid : uid, &info, NULL) == 0) {
       sver = info.skmVer;
     } else {
       TBC *pSkmDbC = NULL;
@@ -585,7 +676,13 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
         goto _exit;
       }
 
-      ASSERT(c);
+      if (c == 0) {
+        metaULock(pMeta);
+        tdbTbcClose(pSkmDbC);
+        code = TSDB_CODE_FAILED;
+        metaError("meta/query: incorrect c: %" PRId32 ".", c);
+        goto _exit;
+      }
 
       if (c < 0) {
         tdbTbcMoveToPrev(pSkmDbC);
@@ -609,7 +706,10 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     }
   }
 
-  ASSERT(sver > 0);
+  if (ASSERTS(sver > 0, "failed to get table schema version: %d", sver)) {
+    code = TSDB_CODE_NOT_FOUND;
+    goto _exit;
+  }
 
   skmDbKey.uid = suid ? suid : uid;
   skmDbKey.sver = sver;
@@ -627,20 +727,15 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   SSchemaWrapper *pSchemaWrapper = &schema;
 
   tDecoderInit(&dc, pData, nData);
-  tDecodeSSchemaWrapper(&dc, pSchemaWrapper);
+  (void)tDecodeSSchemaWrapper(&dc, pSchemaWrapper);
   tDecoderClear(&dc);
   tdbFree(pData);
 
   // convert
-  STSchemaBuilder sb = {0};
-
-  tdInitTSchemaBuilder(&sb, pSchemaWrapper->version);
-  for (int i = 0; i < pSchemaWrapper->nCols; i++) {
-    SSchema *pSchema = pSchemaWrapper->pSchema + i;
-    tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
+  STSchema *pTSchema = tBuildTSchema(pSchemaWrapper->pSchema, pSchemaWrapper->nCols, pSchemaWrapper->version);
+  if (pTSchema == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
   }
-  STSchema *pTSchema = tdGetSchemaFromBuilder(&sb);
-  tdDestroyTSchemaBuilder(&sb);
 
   *ppTSchema = pTSchema;
   taosMemoryFree(pSchemaWrapper->pSchema);
@@ -662,16 +757,19 @@ int64_t metaGetTbNum(SMeta *pMeta) {
 // N.B. Called by statusReq per second
 int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
   // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
-  if (pMeta->pVnode->config.vndStats.numOfTimeSeries <= 0 || ++pMeta->pVnode->config.vndStats.itvTimeSeries % 60 == 0) {
+  if (pMeta->pVnode->config.vndStats.numOfTimeSeries <= 0 ||
+      ++pMeta->pVnode->config.vndStats.itvTimeSeries % (60 * 5) == 0) {
     int64_t num = 0;
     vnodeGetTimeSeriesNum(pMeta->pVnode, &num);
     pMeta->pVnode->config.vndStats.numOfTimeSeries = num;
 
-    pMeta->pVnode->config.vndStats.itvTimeSeries = 0;
+    pMeta->pVnode->config.vndStats.itvTimeSeries = (TD_VID(pMeta->pVnode) % 100) * 2;
   }
 
   return pMeta->pVnode->config.vndStats.numOfTimeSeries + pMeta->pVnode->config.vndStats.numOfNTimeSeries;
 }
+
+int64_t metaGetNtbNum(SMeta *pMeta) { return pMeta->pVnode->config.vndStats.numOfNTables; }
 
 typedef struct {
   SMeta   *pMeta;
@@ -871,7 +969,7 @@ SArray *metaGetSmaIdsByTable(SMeta *pMeta, tb_uid_t uid) {
 
     pSmaIdxKey = (SSmaIdxKey *)pCur->pKey;
 
-    if (taosArrayPush(pUids, &pSmaIdxKey->smaUid) < 0) {
+    if (!taosArrayPush(pUids, &pSmaIdxKey->smaUid)) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       metaCloseSmaCursor(pCur);
       taosArrayDestroy(pUids);
@@ -914,7 +1012,7 @@ SArray *metaGetSmaTbUids(SMeta *pMeta) {
       }
     }
 
-    if (taosArrayPush(pUids, &uid) < 0) {
+    if (!taosArrayPush(pUids, &uid)) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       metaCloseSmaCursor(pCur);
       taosArrayDestroy(pUids);
@@ -984,6 +1082,158 @@ typedef struct {
   int32_t  vLen;
 } SIdxCursor;
 
+int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
+  int32_t ret = 0;
+
+  SIdxCursor *pCursor = NULL;
+  pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
+  pCursor->pMeta = pMeta;
+  pCursor->suid = param->suid;
+  pCursor->cid = param->cid;
+  pCursor->type = param->type;
+
+  metaRLock(pMeta);
+  ret = tdbTbcOpen(pMeta->pCtimeIdx, &pCursor->pCur, NULL);
+  if (ret != 0) {
+    goto END;
+  }
+  int64_t uidLimit = param->reverse ? INT64_MAX : 0;
+
+  SCtimeIdxKey  ctimeKey = {.ctime = *(int64_t *)(param->val), .uid = uidLimit};
+  SCtimeIdxKey *pCtimeKey = &ctimeKey;
+
+  int cmp = 0;
+  if (tdbTbcMoveTo(pCursor->pCur, &ctimeKey, sizeof(ctimeKey), &cmp) < 0) {
+    goto END;
+  }
+
+  int32_t valid = 0;
+  int32_t count = 0;
+
+  static const int8_t TRY_ERROR_LIMIT = 1;
+  do {
+    void   *entryKey = NULL;
+    int32_t nEntryKey = -1;
+    valid = tdbTbcGet(pCursor->pCur, (const void **)&entryKey, &nEntryKey, NULL, NULL);
+    if (valid < 0) break;
+
+    SCtimeIdxKey *p = entryKey;
+    if (count > TRY_ERROR_LIMIT) break;
+
+    int32_t cmp = (*param->filterFunc)((void *)&p->ctime, (void *)&pCtimeKey->ctime, param->type);
+    if (cmp == 0)
+      taosArrayPush(pUids, &p->uid);
+    else {
+      if (param->equal == true) {
+        if (count > TRY_ERROR_LIMIT) break;
+        count++;
+      }
+    }
+    valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
+    if (valid < 0) break;
+  } while (1);
+
+END:
+  if (pCursor->pMeta) metaULock(pCursor->pMeta);
+  if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
+  taosMemoryFree(pCursor);
+  return ret;
+}
+
+int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
+  int32_t ret = 0;
+  char   *buf = NULL;
+
+  STagIdxKey *pKey = NULL;
+  int32_t     nKey = 0;
+
+  SIdxCursor *pCursor = NULL;
+  pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
+  pCursor->pMeta = pMeta;
+  pCursor->suid = param->suid;
+  pCursor->cid = param->cid;
+  pCursor->type = param->type;
+
+  char *pName = param->val;
+
+  metaRLock(pMeta);
+  ret = tdbTbcOpen(pMeta->pNameIdx, &pCursor->pCur, NULL);
+  if (ret != 0) {
+    goto END;
+  }
+
+  int cmp = 0;
+  if (tdbTbcMoveTo(pCursor->pCur, pName, strlen(pName) + 1, &cmp) < 0) {
+    goto END;
+  }
+  int32_t valid = 0;
+  int32_t count = 0;
+
+  int32_t TRY_ERROR_LIMIT = 1;
+  do {
+    void   *pEntryKey = NULL, *pEntryVal = NULL;
+    int32_t nEntryKey = -1, nEntryVal = 0;
+    valid = tdbTbcGet(pCursor->pCur, (const void **)pEntryKey, &nEntryKey, (const void **)&pEntryVal, &nEntryVal);
+    if (valid < 0) break;
+
+    if (count > TRY_ERROR_LIMIT) break;
+
+    char *pTableKey = (char *)pEntryKey;
+    cmp = (*param->filterFunc)(pTableKey, pName, pCursor->type);
+    if (cmp == 0) {
+      tb_uid_t tuid = *(tb_uid_t *)pEntryVal;
+      taosArrayPush(pUids, &tuid);
+    } else {
+      if (param->equal == true) {
+        if (count > TRY_ERROR_LIMIT) break;
+        count++;
+      }
+    }
+    valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
+    if (valid < 0) {
+      break;
+    }
+  } while (1);
+
+END:
+  if (pCursor->pMeta) metaULock(pCursor->pMeta);
+  if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
+  taosMemoryFree(buf);
+  taosMemoryFree(pKey);
+
+  taosMemoryFree(pCursor);
+
+  return ret;
+}
+int32_t metaFilterTtl(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
+  int32_t ret = 0;
+  char   *buf = NULL;
+
+  STtlIdxKey *pKey = NULL;
+  int32_t     nKey = 0;
+
+  SIdxCursor *pCursor = NULL;
+  pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
+  pCursor->pMeta = pMeta;
+  pCursor->suid = param->suid;
+  pCursor->cid = param->cid;
+  pCursor->type = param->type;
+
+  metaRLock(pMeta);
+  ret = tdbTbcOpen(pMeta->pTtlIdx, &pCursor->pCur, NULL);
+
+END:
+  if (pCursor->pMeta) metaULock(pCursor->pMeta);
+  if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
+  taosMemoryFree(buf);
+  taosMemoryFree(pKey);
+
+  taosMemoryFree(pCursor);
+
+  return ret;
+  // impl later
+  return 0;
+}
 int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   int32_t ret = 0;
   char   *buf = NULL;
@@ -1010,7 +1260,8 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
 
   if (param->val == NULL) {
     metaError("vgId:%d, failed to filter NULL data", TD_VID(pMeta->pVnode));
-    return -1;
+    ret = -1;
+    goto END;
   } else {
     if (IS_VAR_DATA_TYPE(param->type)) {
       tagData = varDataVal(param->val);
@@ -1042,9 +1293,16 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     goto END;
   }
 
-  bool    first = true;
+  int     count = 0;
   int32_t valid = 0;
-  while (1) {
+  bool    found = false;
+
+  static const int8_t TRY_ERROR_LIMIT = 1;
+
+  /// src:   [[suid, cid1, type1]....[suid, cid2, type2]....[suid, cid3, type3]...]
+  /// target:                        [suid, cid2, type2]
+  int diffCidCount = 0;
+  do {
     void   *entryKey = NULL, *entryVal = NULL;
     int32_t nEntryKey, nEntryVal;
 
@@ -1052,43 +1310,48 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     if (valid < 0) {
       break;
     }
-    STagIdxKey *p = entryKey;
-    if (p->type != pCursor->type) {
-      if (first) {
-        valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
-        if (valid < 0) break;
-        continue;
-      } else {
-        break;
-      }
-    }
-    if (p->suid != pKey->suid) {
+    if (count > TRY_ERROR_LIMIT) {
       break;
     }
-    first = false;
-    if (p != NULL) {
-      int32_t cmp = (*param->filterFunc)(p->data, pKey->data, pKey->type);
-      if (cmp == 0) {
-        // match
-        tb_uid_t tuid = 0;
-        if (IS_VAR_DATA_TYPE(pKey->type)) {
-          tuid = *(tb_uid_t *)(p->data + varDataTLen(p->data));
-        } else {
-          tuid = *(tb_uid_t *)(p->data + tDataTypes[pCursor->type].bytes);
-        }
-        taosArrayPush(pUids, &tuid);
-      } else if (cmp == 1) {
-        // not match but should continue to iter
-      } else {
-        // not match and no more result
+
+    STagIdxKey *p = entryKey;
+    if (p == NULL) break;
+
+    if (p->type != pCursor->type || p->suid != pCursor->suid || p->cid != pCursor->cid) {
+      if (found == true) break;  //
+      if (diffCidCount > TRY_ERROR_LIMIT) break;
+      diffCidCount++;
+      count++;
+      valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
+      if (valid < 0) {
         break;
+      } else {
+        continue;
+      }
+    }
+
+    int32_t cmp = (*param->filterFunc)(p->data, pKey->data, pKey->type);
+    if (cmp == 0) {
+      // match
+      tb_uid_t tuid = 0;
+      if (IS_VAR_DATA_TYPE(pKey->type)) {
+        tuid = *(tb_uid_t *)(p->data + varDataTLen(p->data));
+      } else {
+        tuid = *(tb_uid_t *)(p->data + tDataTypes[pCursor->type].bytes);
+      }
+      taosArrayPush(pUids, &tuid);
+      found = true;
+    } else {
+      if (param->equal == true) {
+        if (count > TRY_ERROR_LIMIT) break;
+        count++;
       }
     }
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) {
       break;
     }
-  }
+  } while (1);
 
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
@@ -1101,44 +1364,114 @@ END:
   return ret;
 }
 
-int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pMeta, suid);
-
-  SHashObj *uHash = NULL;
-  size_t    len = taosArrayGetSize(uidList);  // len > 0 means there already have uids
-  if (len > 0) {
-    uHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-    for (int i = 0; i < len; i++) {
-      int64_t *uid = taosArrayGet(uidList, i);
-      taosHashPut(uHash, uid, sizeof(int64_t), &i, sizeof(i));
-    }
-  }
-  while (1) {
-    tb_uid_t id = metaCtbCursorNext(pCur);
-    if (id == 0) {
-      break;
-    }
-
-    if (len > 0 && taosHashGet(uHash, &id, sizeof(int64_t)) == NULL) {
-      continue;
-    } else if (len == 0) {
-      taosArrayPush(uidList, &id);
-    }
-
-    taosHashPut(tags, &id, sizeof(int64_t), pCur->pVal, pCur->vLen);
+static int32_t metaGetTableTagByUid(SMeta *pMeta, int64_t suid, int64_t uid, void **tag, int32_t *len, bool lock) {
+  int ret = 0;
+  if (lock) {
+    metaRLock(pMeta);
   }
 
-  taosHashCleanup(uHash);
-  metaCloseCtbCursor(pCur);
+  SCtbIdxKey ctbIdxKey = {.suid = suid, .uid = uid};
+  ret = tdbTbGet(pMeta->pCtbIdx, &ctbIdxKey, sizeof(SCtbIdxKey), tag, len);
+  if (lock) {
+    metaULock(pMeta);
+  }
+
+  return ret;
+}
+
+int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList) {
+  const int32_t LIMIT = 128;
+
+  int32_t isLock = false;
+  int32_t sz = uidList ? taosArrayGetSize(uidList) : 0;
+  for (int i = 0; i < sz; i++) {
+    STUidTagInfo *p = taosArrayGet(uidList, i);
+
+    if (i % LIMIT == 0) {
+      if (isLock) metaULock(pMeta);
+
+      metaRLock(pMeta);
+      isLock = true;
+    }
+
+    //    if (taosHashGet(tags, &p->uid, sizeof(tb_uid_t)) == NULL) {
+    void   *val = NULL;
+    int32_t len = 0;
+    if (metaGetTableTagByUid(pMeta, suid, p->uid, &val, &len, false) == 0) {
+      p->pTagVal = taosMemoryMalloc(len);
+      memcpy(p->pTagVal, val, len);
+      tdbFree(val);
+    } else {
+      metaError("vgId:%d, failed to table tags, suid: %" PRId64 ", uid: %" PRId64 "", TD_VID(pMeta->pVnode), suid,
+                p->uid);
+    }
+  }
+  //  }
+  if (isLock) metaULock(pMeta);
+  return 0;
+}
+
+int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *pUidTagInfo) {
+  SMCtbCursor *pCur = metaOpenCtbCursor(pMeta, suid, 1);
+
+  // If len > 0 means there already have uids, and we only want the
+  // tags of the specified tables, of which uid in the uid list. Otherwise, all table tags are retrieved and kept
+  // in the hash map, that may require a lot of memory
+  SHashObj *pSepecifiedUidMap = NULL;
+  size_t    numOfElems = taosArrayGetSize(pUidTagInfo);
+  if (numOfElems > 0) {
+    pSepecifiedUidMap =
+        taosHashInit(numOfElems / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    for (int i = 0; i < numOfElems; i++) {
+      STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, i);
+      taosHashPut(pSepecifiedUidMap, &pTagInfo->uid, sizeof(uint64_t), &i, sizeof(int32_t));
+    }
+  }
+
+  if (numOfElems == 0) {  // all data needs to be added into the pUidTagInfo list
+    while (1) {
+      tb_uid_t uid = metaCtbCursorNext(pCur);
+      if (uid == 0) {
+        break;
+      }
+
+      STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
+      info.pTagVal = taosMemoryMalloc(pCur->vLen);
+      memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
+      taosArrayPush(pUidTagInfo, &info);
+    }
+  } else {  // only the specified tables need to be added
+    while (1) {
+      tb_uid_t uid = metaCtbCursorNext(pCur);
+      if (uid == 0) {
+        break;
+      }
+
+      int32_t *index = taosHashGet(pSepecifiedUidMap, &uid, sizeof(uint64_t));
+      if (index == NULL) {
+        continue;
+      }
+
+      STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, *index);
+      if (pTagInfo->pTagVal == NULL) {
+        pTagInfo->pTagVal = taosMemoryMalloc(pCur->vLen);
+        memcpy(pTagInfo->pTagVal, pCur->pVal, pCur->vLen);
+      }
+    }
+  }
+
+  taosHashCleanup(pSepecifiedUidMap);
+  metaCloseCtbCursor(pCur, 1);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t metaCacheGet(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo);
 
-int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo) {
+int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo, SMetaReader *pReader) {
   int32_t code = 0;
   void   *pData = NULL;
   int     nData = 0;
+  int     lock = 0;
 
   metaRLock(pMeta);
 
@@ -1163,12 +1496,62 @@ int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo) {
   pInfo->version = ((SUidIdxVal *)pData)->version;
   pInfo->skmVer = ((SUidIdxVal *)pData)->skmVer;
 
+  if (pReader != NULL) {
+    lock = !(pReader->flags & META_READER_NOLOCK);
+    if (lock) {
+      metaULock(pReader->pMeta);
+      // metaReaderReleaseLock(pReader);
+    }
+  }
   // upsert the cache
   metaWLock(pMeta);
   metaCacheUpsert(pMeta, pInfo);
   metaULock(pMeta);
 
+  if (lock) {
+    metaRLock(pReader->pMeta);
+  }
+
 _exit:
   tdbFree(pData);
   return code;
+}
+
+int32_t metaGetStbStats(SMeta *pMeta, int64_t uid, SMetaStbStats *pInfo) {
+  int32_t code = 0;
+
+  metaRLock(pMeta);
+
+  // fast path: search cache
+  if (metaStatsCacheGet(pMeta, uid, pInfo) == TSDB_CODE_SUCCESS) {
+    metaULock(pMeta);
+    goto _exit;
+  }
+
+  // slow path: search TDB
+  int64_t ctbNum = 0;
+  vnodeGetCtbNum(pMeta->pVnode, uid, &ctbNum);
+
+  metaULock(pMeta);
+
+  pInfo->uid = uid;
+  pInfo->ctbNum = ctbNum;
+
+  // upsert the cache
+  metaWLock(pMeta);
+  metaStatsCacheUpsert(pMeta, pInfo);
+  metaULock(pMeta);
+
+_exit:
+  return code;
+}
+
+void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t delta) {
+  SMetaStbStats stats = {0};
+
+  if (metaStatsCacheGet(pMeta, uid, &stats) == TSDB_CODE_SUCCESS) {
+    stats.ctbNum += delta;
+
+    metaStatsCacheUpsert(pMeta, &stats);
+  }
 }

@@ -33,6 +33,11 @@
 #include <time.h>
 //#define TM_YEAR_BASE 1970 //origin
 #define TM_YEAR_BASE 1900  // slguan
+
+// This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
+// until 00:00:00 January 1, 1970
+static const uint64_t TIMEEPOCH = ((uint64_t)116444736000000000ULL);
+
 /*
  * We do not implement alternate representations. However, we always
  * check whether a given modifier is allowed for a certain conversion.
@@ -339,17 +344,19 @@ char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm) {
 #endif
 }
 
-FORCE_INLINE int32_t taosGetTimeOfDay(struct timeval *tv) {
+int32_t taosGetTimeOfDay(struct timeval *tv) {
 #ifdef WINDOWS
-  time_t t;
-  t = taosGetTimestampSec();
-  SYSTEMTIME st;
-  GetLocalTime(&st);
+  LARGE_INTEGER t;
+  FILETIME      f;
 
-  tv->tv_sec = (long)t;
-  tv->tv_usec = st.wMilliseconds * 1000;
+  GetSystemTimeAsFileTime(&f);
+  t.QuadPart = f.dwHighDateTime;
+  t.QuadPart <<= 32;
+  t.QuadPart |= f.dwLowDateTime;
 
-  return 0;
+  t.QuadPart -= TIMEEPOCH;
+  tv->tv_sec = t.QuadPart / 10000000;
+  tv->tv_usec = (t.QuadPart % 10000000) / 10;
 #else
   return gettimeofday(tv, NULL);
 #endif
@@ -359,15 +366,15 @@ time_t taosTime(time_t *t) { return time(t); }
 
 time_t taosMktime(struct tm *timep) {
 #ifdef WINDOWS
-  struct tm tm1 = {0};
-  LARGE_INTEGER        t;
-  FILETIME             f;
-  SYSTEMTIME           s;
-  FILETIME             ff;
-  SYSTEMTIME           ss;
-  LARGE_INTEGER        offset;
+  struct tm     tm1 = {0};
+  LARGE_INTEGER t;
+  FILETIME      f;
+  SYSTEMTIME    s;
+  FILETIME      ff;
+  SYSTEMTIME    ss;
+  LARGE_INTEGER offset;
 
-  time_t    tt = 0;
+  time_t tt = 0;
   localtime_s(&tm1, &tt);
   ss.wYear = tm1.tm_year + 1900;
   ss.wMonth = tm1.tm_mon + 1;
@@ -394,11 +401,11 @@ time_t taosMktime(struct tm *timep) {
   t.QuadPart |= f.dwLowDateTime;
 
   t.QuadPart -= offset.QuadPart;
- return (time_t)(t.QuadPart / 10000000);
+  return (time_t)(t.QuadPart / 10000000);
 #else
   return mktime(timep);
 #endif
- }
+}
 
 struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
   if (result == NULL) {
@@ -406,8 +413,8 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
   }
 #ifdef WINDOWS
   if (*timep < 0) {
-    SYSTEMTIME    ss,s;
-    FILETIME      ff,f;
+    SYSTEMTIME    ss, s;
+    FILETIME      ff, f;
     LARGE_INTEGER offset;
     struct tm     tm1;
     time_t        tt = 0;
@@ -431,8 +438,8 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
     result->tm_min = s.wMinute;
     result->tm_hour = s.wHour;
     result->tm_mday = s.wDay;
-    result->tm_mon = s.wMonth-1;
-    result->tm_year = s.wYear-1900;
+    result->tm_mon = s.wMonth - 1;
+    result->tm_year = s.wYear - 1900;
     result->tm_wday = s.wDayOfWeek;
     result->tm_yday = 0;
     result->tm_isdst = 0;
@@ -445,35 +452,120 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
   return result;
 }
 
+static int isLeapYear(time_t year) {
+  if (year % 4)
+    return 0;
+  else if (year % 100)
+    return 1;
+  else if (year % 400)
+    return 0;
+  else
+    return 1;
+}
+
+struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst) {
+  if (result == NULL) {
+    return localtime(timep);
+  }
+#ifdef WINDOWS
+  if (*timep < 0) {
+    SYSTEMTIME    ss, s;
+    FILETIME      ff, f;
+    LARGE_INTEGER offset;
+    struct tm     tm1;
+    time_t        tt = 0;
+    localtime_s(&tm1, &tt);
+    ss.wYear = tm1.tm_year + 1900;
+    ss.wMonth = tm1.tm_mon + 1;
+    ss.wDay = tm1.tm_mday;
+    ss.wHour = tm1.tm_hour;
+    ss.wMinute = tm1.tm_min;
+    ss.wSecond = tm1.tm_sec;
+    ss.wMilliseconds = 0;
+    SystemTimeToFileTime(&ss, &ff);
+    offset.QuadPart = ff.dwHighDateTime;
+    offset.QuadPart <<= 32;
+    offset.QuadPart |= ff.dwLowDateTime;
+    offset.QuadPart += *timep * 10000000;
+    f.dwLowDateTime = offset.QuadPart & 0xffffffff;
+    f.dwHighDateTime = (offset.QuadPart >> 32) & 0xffffffff;
+    FileTimeToSystemTime(&f, &s);
+    result->tm_sec = s.wSecond;
+    result->tm_min = s.wMinute;
+    result->tm_hour = s.wHour;
+    result->tm_mday = s.wDay;
+    result->tm_mon = s.wMonth - 1;
+    result->tm_year = s.wYear - 1900;
+    result->tm_wday = s.wDayOfWeek;
+    result->tm_yday = 0;
+    result->tm_isdst = 0;
+  } else {
+    localtime_s(result, timep);
+  }
+#elif defined(LINUX)
+  time_t secsMin = 60, secsHour = 3600, secsDay = 3600 * 24;
+  long   tz = timezone;
+
+  time_t t = *timep;
+  t -= tz;                      /* Adjust for timezone. */
+  t += 3600 * dst;              /* Adjust for daylight time. */
+  time_t days = t / secsDay;    /* Days passed since epoch. */
+  time_t seconds = t % secsDay; /* Remaining seconds. */
+
+  result->tm_isdst = dst;
+  result->tm_hour = seconds / secsHour;
+  result->tm_min = (seconds % secsHour) / secsMin;
+  result->tm_sec = (seconds % secsHour) % secsMin;
+
+  /* 1/1/1970 was a Thursday, that is, day 4 from the POV of the tm structure
+   * where sunday = 0, so to calculate the day of the week we have to add 4
+   * and take the modulo by 7. */
+  result->tm_wday = (days + 4) % 7;
+
+  /* Calculate the current year. */
+  result->tm_year = 1970;
+  while (1) {
+    /* Leap years have one day more. */
+    time_t daysOfYear = 365 + isLeapYear(result->tm_year);
+    if (daysOfYear > days) break;
+    days -= daysOfYear;
+    result->tm_year++;
+  }
+  result->tm_yday = days; /* Number of day of the current year. */
+  /* We need to calculate in which month and day of the month we are. To do
+   * so we need to skip days according to how many days there are in each
+   * month, and adjust for the leap year that has one more day in February. */
+  int mdays[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  mdays[1] += isLeapYear(result->tm_year);
+  result->tm_mon = 0;
+  while (days >= mdays[result->tm_mon]) {
+    days -= mdays[result->tm_mon];
+    result->tm_mon++;
+  }
+
+  result->tm_mday = days + 1; /* Add 1 since our 'days' is zero-based. */
+  result->tm_year -= 1900;    /* Surprisingly tm_year is year-1900. */
+#else
+  localtime_r(timep, result);
+#endif
+  return result;
+}
+
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
+
 int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
 #ifdef WINDOWS
   LARGE_INTEGER        t;
   FILETIME             f;
-  static FILETIME      ff;
-  static SYSTEMTIME    ss;
-  static LARGE_INTEGER offset;
-
-  ss.wYear = 1970;
-  ss.wMonth = 1;
-  ss.wDay = 1;
-  ss.wHour = 0;
-  ss.wMinute = 0;
-  ss.wSecond = 0;
-  ss.wMilliseconds = 0;
-  SystemTimeToFileTime(&ss, &ff);
-  offset.QuadPart = ff.dwHighDateTime;
-  offset.QuadPart <<= 32;
-  offset.QuadPart |= ff.dwLowDateTime;
 
   GetSystemTimeAsFileTime(&f);
   t.QuadPart = f.dwHighDateTime;
   t.QuadPart <<= 32;
   t.QuadPart |= f.dwLowDateTime;
 
-  t.QuadPart -= offset.QuadPart;
+  t.QuadPart -= TIMEEPOCH;
   pTS->tv_sec = t.QuadPart / 10000000;
-  pTS->tv_nsec = (t.QuadPart % 10000000)*100;
+  pTS->tv_nsec = (t.QuadPart % 10000000) * 100;
   return (0);
 #else
   return clock_gettime(clock_id, pTS);

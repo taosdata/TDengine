@@ -9,7 +9,8 @@ import math
 class TDTestCase:
     updatecfgDict = {"maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         self.vnode_disbutes = None
@@ -24,7 +25,7 @@ class TDTestCase:
         tdSql.execute(f"create database if not exists {dbname} keep 3650 duration 1000 vgroups 5")
         tdSql.execute(
             f'''create table {dbname}.stb1
-            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp,c11 int UNSIGNED, c12 bigint UNSIGNED,  c13 smallint UNSIGNED, c14 tinyint UNSIGNED)
             tags (t0 timestamp, t1 int, t2 bigint, t3 smallint, t4 tinyint, t5 float, t6 double, t7 bool, t8 binary(16),t9 nchar(32))
             '''
         )
@@ -35,12 +36,12 @@ class TDTestCase:
             for j in range(self.row_nums):
                 ts+=j*self.time_step
                 tdSql.execute(
-                    f"insert into {dbname}.ct{i+1} values({ts}, 1, 11111, 111, 1, 1.11, 11.11, 2, 'binary{j}', 'nchar{j}', now()+{1*j}a )"
+                    f"insert into {dbname}.ct{i+1} values({ts}, 1, 11111, 111, 1, 1.11, 11.11, 2, 'binary{j}', 'nchar{j}', now()+{1*j}a, 1, 11111, 111, 1 )"
                 )
 
-        tdSql.execute(f"insert into {dbname}.ct1 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute(f"insert into {dbname}.ct1 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute(f"insert into {dbname}.ct1 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL , NULL, NULL, NULL, NULL ) ")
 
         tdLog.info(" prepare data for distributed_aggregate done! ")
 
@@ -48,7 +49,7 @@ class TDTestCase:
         tdSql.query(f"desc {dbname}.stb1 ")
         schema_list = tdSql.queryResult
         for col_type in schema_list:
-            if col_type[1] in ["TINYINT" ,"SMALLINT","BIGINT" ,"INT","FLOAT","DOUBLE"]:
+            if col_type[1] in ["TINYINT" ,"SMALLINT","BIGINT" ,"INT","FLOAT","DOUBLE","TINYINT UNSIGNED" ,"SMALLINT UNSIGNED","BIGINT UNSIGNED" ,"INT UNSIGNED"]:
                 tdSql.query(f"select twa({col_type[0]}) from {dbname}.stb1 partition by tbname ")
             else:
                 tdSql.error(f"select twa({col_type[0]}) from {dbname}.stb1 partition by tbname ")
@@ -98,11 +99,57 @@ class TDTestCase:
         tdSql.query(f"select twa(c1) from {dbname}.stb1 partition by t1")
         tdSql.checkRows(self.tb_nums)
         tdSql.checkData(0,0,1.000000000)
+        
+        tdSql.query(f"select twa(c11) from {dbname}.ct1  ")
+        tdSql.checkData(0,0,1.000000000)
+
+        tdSql.query(f"select twa(c11) from {dbname}.stb1 partition by tbname  ")
+        tdSql.checkRows(self.tb_nums)
+        tdSql.checkData(0,0,1.000000000)
+
+        tdSql.query(f"select twa(c12) from {dbname}.stb1 group by tbname ")
+        tdSql.checkRows(self.tb_nums)
+        tdSql.checkData(0,0,11111.000000000)
+
+        tdSql.query(f"select twa(c11+c12) from {dbname}.stb1 partition by tbname ")
+        tdSql.checkData(0,0,11112.000000000)
+
+        tdSql.query(f"select twa(c11) from {dbname}.stb1 partition by t1")
+        tdSql.checkRows(self.tb_nums)
+        tdSql.checkData(0,0,1.000000000)
+        
+        tdSql.query(f"select twa(c13) from {dbname}.stb1 partition by tbname  ")
+        tdSql.checkRows(self.tb_nums)
+        
+        tdSql.query(f"select twa(c13) from {dbname}.stb1 group by tbname  ")
+        tdSql.checkRows(self.tb_nums)
+        
+        tdSql.query(f"select twa(c14) from {dbname}.stb1 partition by tbname  ")
+        tdSql.checkRows(self.tb_nums)
+        
+        tdSql.query(f"select twa(c14) from {dbname}.stb1 group by tbname  ")
+        tdSql.checkRows(self.tb_nums)
 
         # union all
         tdSql.query(f"select twa(c1) from {dbname}.stb1 partition by tbname union all select twa(c1) from {dbname}.stb1 partition by tbname ")
         tdSql.checkRows(40)
         tdSql.checkData(0,0,1.000000000)
+        tdSql.query(f"select twa(c11) from {dbname}.stb1 partition by tbname union all select twa(c11) from {dbname}.stb1 partition by tbname ")
+        tdSql.checkRows(40)
+        tdSql.checkData(0,0,1.000000000)
+        
+        tdSql.query(f"select twa(c2) from {dbname}.stb1 partition by tbname union all select twa(c2) from {dbname}.stb1 partition by tbname ")
+        tdSql.checkRows(40)
+        tdSql.query(f"select twa(c3) from {dbname}.stb1 partition by tbname union all select twa(c3) from {dbname}.stb1 partition by tbname ")
+        tdSql.checkRows(40)
+        tdSql.query(f"select twa(c4) from {dbname}.stb1 partition by tbname union all select twa(c4) from {dbname}.stb1 partition by tbname ")
+        tdSql.checkRows(40)
+        tdSql.query(f"select twa(c12) from {dbname}.stb1 partition by tbname union all select twa(c12) from {dbname}.stb1 partition by tbname ")
+        tdSql.checkRows(40)
+        tdSql.query(f"select twa(c13) from {dbname}.stb1 partition by tbname union all select twa(c13) from {dbname}.stb1 partition by tbname ")
+        tdSql.checkRows(40)
+        tdSql.query(f"select twa(c14) from {dbname}.stb1 partition by tbname union all select twa(c14) from {dbname}.stb1 partition by tbname ")
+        tdSql.checkRows(40)
 
         # join
 
@@ -122,6 +169,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0,0,4.500000000)
         tdSql.checkData(0,1,4.500000000)
+        
 
         # mixup with other functions
         tdSql.query(f"select twa(c1),twa(c2),max(c1),elapsed(ts) from {dbname}.ct1 ")

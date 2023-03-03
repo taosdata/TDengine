@@ -134,7 +134,8 @@ class SMAschema:
 class TDTestCase:
     updatecfgDict = {"querySmaOptimize": 1}
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
         self.precision = "ms"
@@ -565,15 +566,18 @@ class TDTestCase:
         tdSql.checkData(0, 0 , 111)
 
         tdSql.execute(f"flush database {DBNAME}")
+        
+        tdLog.printNoPrefix("==========step1.5 : drop index")
+        tdSql.execute(f"drop index {DBNAME}.sma_index_name1")
 
-        tdLog.printNoPrefix("==========step1.5 : drop child table")
+        tdLog.printNoPrefix("==========step1.6 : drop child table")
         tdSql.execute(f"drop table {CTBNAME}")
         tdSql.query(f"select max({INT_COL}), max({BINT_COL}), min({INT_COL}) from {DBNAME}.{STBNAME} interval(6m,10s) sliding(6m)")
         tdSql.checkData(0, 0, self.rows - 1)
         tdSql.checkData(0, 1, (self.rows - 1) * 2 )
         tdSql.checkData(tdSql.queryRows - 1, 2, 0)
 
-        tdLog.printNoPrefix("==========step1.6 : drop stable")
+        tdLog.printNoPrefix("==========step1.7 : drop stable")
         tdSql.execute(f"drop table {STBNAME}")
         tdSql.error(f"select * from {DBNAME}.{STBNAME}")
 
@@ -595,6 +599,11 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
+
+        # add for TS-2440
+        for i in range(self.rows):
+            tdSql.execute("drop database if exists db3 ")
+            tdSql.execute("create database db3 retentions 1s:4m,2s:8m,3s:12m")
 
     def stop(self):
         tdSql.close()

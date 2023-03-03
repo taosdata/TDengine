@@ -29,19 +29,22 @@ static int32_t rsmaRestore(SSma *pSma);
     pKeepCfg->days = smaEvalDays(v, pCfg->retentions, l, pCfg->precision, pCfg->days);            \
   } while (0)
 
-#define SMA_OPEN_RSMA_IMPL(v, l)                                                   \
-  do {                                                                             \
-    SRetention *r = (SRetention *)VND_RETENTIONS(v) + l;                           \
-    if (!RETENTION_VALID(r)) {                                                     \
-      if (l == 0) {                                                                \
-        goto _err;                                                                 \
-      }                                                                            \
-      break;                                                                       \
-    }                                                                              \
-    smaSetKeepCfg(v, &keepCfg, pCfg, TSDB_TYPE_RSMA_L##l);                         \
-    if (tsdbOpen(v, &SMA_RSMA_TSDB##l(pSma), VNODE_RSMA##l##_DIR, &keepCfg) < 0) { \
-      goto _err;                                                                   \
-    }                                                                              \
+#define SMA_OPEN_RSMA_IMPL(v, l)                                                             \
+  do {                                                                                       \
+    SRetention *r = (SRetention *)VND_RETENTIONS(v) + l;                                     \
+    if (!RETENTION_VALID(r)) {                                                               \
+      if (l == 0) {                                                                          \
+        code = TSDB_CODE_INVALID_PARA;                                                       \
+        TSDB_CHECK_CODE(code, lino, _exit);                                                  \
+      }                                                                                      \
+      break;                                                                                 \
+    }                                                                                        \
+    code = smaSetKeepCfg(v, &keepCfg, pCfg, TSDB_TYPE_RSMA_L##l);                            \
+    TSDB_CHECK_CODE(code, lino, _exit);                                                      \
+    if (tsdbOpen(v, &SMA_RSMA_TSDB##l(pSma), VNODE_RSMA##l##_DIR, &keepCfg, rollback) < 0) { \
+      code = terrno;                                                                         \
+      TSDB_CHECK_CODE(code, lino, _exit);                                                    \
+    }                                                                                        \
   } while (0)
 
 /**
@@ -68,12 +71,10 @@ static int32_t smaEvalDays(SVnode *pVnode, SRetention *r, int8_t level, int8_t p
     days = keepDuration;
   }
 
-  if (level == TSDB_RETENTION_L0) {
-    goto end;
+  if (level < TSDB_RETENTION_L1 || level > TSDB_RETENTION_L2) {
+    goto _exit;
   }
 
-  ASSERT(level >= TSDB_RETENTION_L1 && level <= TSDB_RETENTION_L2);
-  
   freqDuration = convertTimeFromPrecisionToUnit((r + level)->freq, precision, TIME_UNIT_MINUTE);
   keepDuration = convertTimeFromPrecisionToUnit((r + level)->keep, precision, TIME_UNIT_MINUTE);
 
@@ -91,16 +92,18 @@ static int32_t smaEvalDays(SVnode *pVnode, SRetention *r, int8_t level, int8_t p
   if (days < freqDuration) {
     days = freqDuration;
   }
-end:
-  smaInfo("vgId:%d, evaluated duration for level %" PRIi8 " is %d, raw val:%d", TD_VID(pVnode), level + 1, days, duration);
+_exit:
+  smaInfo("vgId:%d, evaluated duration for level %d is %d, raw val:%d", TD_VID(pVnode), level + 1, days, duration);
   return days;
 }
 
 int smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int type) {
+  terrno = 0;
   pKeepCfg->precision = pCfg->precision;
   switch (type) {
     case TSDB_TYPE_TSMA:
-      ASSERT(0);
+      ASSERTS(0, "undefined smaType:%d", (int32_t)type);
+      terrno = TSDB_CODE_APP_ERROR;
       break;
     case TSDB_TYPE_RSMA_L0:
       SMA_SET_KEEP_CFG(pVnode, 0);
@@ -112,21 +115,22 @@ int smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int ty
       SMA_SET_KEEP_CFG(pVnode, 2);
       break;
     default:
-      ASSERT(0);
+      ASSERTS(0, "unknown smaType:%d", (int32_t)type);
+      terrno = TSDB_CODE_APP_ERROR;
       break;
   }
-  return 0;
+  return terrno;
 }
 
-int32_t smaOpen(SVnode *pVnode) {
+int32_t smaOpen(SVnode *pVnode, int8_t rollback) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
   STsdbCfg *pCfg = &pVnode->config.tsdbCfg;
-
-  ASSERT(!pVnode->pSma);
 
   SSma *pSma = taosMemoryCalloc(1, sizeof(SSma));
   if (!pSma) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   pVnode->pSma = pSma;
@@ -137,31 +141,33 @@ int32_t smaOpen(SVnode *pVnode) {
 
   if (VND_IS_RSMA(pVnode)) {
     STsdbKeepCfg keepCfg = {0};
-    for (int i = 0; i < TSDB_RETENTION_MAX; ++i) {
+    for (int32_t i = 0; i < TSDB_RETENTION_MAX; ++i) {
       if (i == TSDB_RETENTION_L0) {
         SMA_OPEN_RSMA_IMPL(pVnode, 0);
       } else if (i == TSDB_RETENTION_L1) {
         SMA_OPEN_RSMA_IMPL(pVnode, 1);
       } else if (i == TSDB_RETENTION_L2) {
         SMA_OPEN_RSMA_IMPL(pVnode, 2);
-      } else {
-        ASSERT(0);
       }
     }
 
     // restore the rsma
-    if (tdRSmaRestore(pSma, RSMA_RESTORE_REBOOT, pVnode->state.committed) < 0) {
-      goto _err;
+    if (tdRSmaRestore(pSma, RSMA_RESTORE_REBOOT, pVnode->state.committed, rollback) < 0) {
+      code = terrno;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
-  return 0;
-_err:
-  return -1;
+_exit:
+  if (code) {
+    smaError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t smaClose(SSma *pSma) {
   if (pSma) {
+    smaPreClose(pSma);
     taosThreadMutexDestroy(&pSma->mutex);
     SMA_TSMA_ENV(pSma) = tdFreeSmaEnv(SMA_TSMA_ENV(pSma));
     SMA_RSMA_ENV(pSma) = tdFreeSmaEnv(SMA_RSMA_ENV(pSma));
@@ -181,8 +187,11 @@ int32_t smaClose(SSma *pSma) {
  * @param committedVer
  * @return int32_t
  */
-int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer) {
-  ASSERT(VND_IS_RSMA(pSma->pVnode));
+int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer, int8_t rollback) {
+  if (!VND_IS_RSMA(pSma->pVnode)) {
+    terrno = TSDB_CODE_RSMA_INVALID_ENV;
+    return TSDB_CODE_FAILED;
+  }
 
-  return tdRSmaProcessRestoreImpl(pSma, type, committedVer);
+  return tdRSmaProcessRestoreImpl(pSma, type, committedVer, rollback);
 }

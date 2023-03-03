@@ -12,7 +12,6 @@
 # -*- coding: utf-8 -*-
 
 import random
-import string
 from datetime import datetime
 from util import constant
 from util.log import *
@@ -21,9 +20,10 @@ from util.sql import *
 from util.common import *
 from util.sqlset import TDSetSql
 class TDTestCase:
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(),logSql)
+        tdSql.init(conn.cursor())
         self.setsql = TDSetSql()
         self.dbname = 'db_test'
         self.ntbname = 'ntb'
@@ -31,6 +31,7 @@ class TDTestCase:
         self.ctbname = 'ctb'
         self.ts = 1537146000000
         self.str_length = 20
+        self.block_update_times = 10000
         self.column_dict = {
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -47,6 +48,14 @@ class TDTestCase:
             'col13': f'nchar({self.str_length})',
             'col_ts'  : 'timestamp'
         }
+        self.tag_dict = {
+            't0':'int'
+        }
+        # The number of tag_values should be same as tbnum
+        self.tag_values = [
+            f'10',
+            f'100'
+        ]
 
     def data_check(self,tbname,col_name,col_type,value):
         tdSql.query(f'select {col_name} from {tbname}')
@@ -248,11 +257,26 @@ class TDTestCase:
         self.error_check(self.ntbname,self.column_dict,'ntb')
         self.error_check(self.ctbname,self.column_dict,'ctb',self.stbname)
 
+    def update_10000times_and_query(self):
+        new_column_dict = {"ts": "timestamp"}
+        new_column_dict.update(self.column_dict)
+        tdSql.execute(f'drop database if exists {self.dbname}')
+        tdSql.execute(f'create database {self.dbname}')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,new_column_dict,self.tag_dict))
+        tdSql.execute(f'create table {self.stbname}_1 using {self.stbname} tags({self.tag_values[0]})')
+        tdSql.execute(f'insert into {self.stbname}_1 values ({self.ts}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.choice(["True", "FALSE"])}, {random.randint(1, 127)}, {random.randint(1, 127)}, now)')
+        for i in range(self.block_update_times):
+            tdSql.execute(f'insert into {self.stbname}_1 values ({self.ts}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.randint(1, 127)}, {random.choice(["True", "FALSE"])}, {random.randint(1, 127)}, {random.randint(1, 127)}, now)')
+        tdSql.query(f'select count(*) from {self.stbname}')
+        tdSql.query(f'select * from {self.stbname}')
+
     def run(self):
         #!bug TD-17708 and TD-17709
         # for i in range(10):
             self.update_check()
             self.update_check_error()
+            self.update_10000times_and_query()
             # i+=1
 
     def stop(self):

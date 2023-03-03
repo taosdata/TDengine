@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -35,13 +31,12 @@ void test1() {
 
 void test2() {
   SyncHeartbeatReply *pMsg = createMsg();
-  uint32_t                len = pMsg->bytes;
-  char *                  serialized = (char *)taosMemoryMalloc(len);
+  uint32_t            len = pMsg->bytes;
+  char *              serialized = (char *)taosMemoryMalloc(len);
   syncHeartbeatReplySerialize(pMsg, serialized, len);
   SyncHeartbeatReply *pMsg2 = syncHeartbeatReplyBuild(1000);
   syncHeartbeatReplyDeserialize(serialized, len, pMsg2);
-  syncHeartbeatReplyLog2((char *)"test2: syncHeartbeatReplySerialize -> syncHeartbeatReplyDeserialize ",
-                             pMsg2);
+  syncHeartbeatReplyLog2((char *)"test2: syncHeartbeatReplySerialize -> syncHeartbeatReplyDeserialize ", pMsg2);
 
   taosMemoryFree(serialized);
   syncHeartbeatReplyDestroy(pMsg);
@@ -50,11 +45,10 @@ void test2() {
 
 void test3() {
   SyncHeartbeatReply *pMsg = createMsg();
-  uint32_t                len;
-  char *                  serialized = syncHeartbeatReplySerialize2(pMsg, &len);
+  uint32_t            len;
+  char *              serialized = syncHeartbeatReplySerialize2(pMsg, &len);
   SyncHeartbeatReply *pMsg2 = syncHeartbeatReplyDeserialize2(serialized, len);
-  syncHeartbeatReplyLog2((char *)"test3: syncHeartbeatReplySerialize3 -> syncHeartbeatReplyDeserialize2 ",
-                             pMsg2);
+  syncHeartbeatReplyLog2((char *)"test3: syncHeartbeatReplySerialize3 -> syncHeartbeatReplyDeserialize2 ", pMsg2);
 
   taosMemoryFree(serialized);
   syncHeartbeatReplyDestroy(pMsg);
@@ -63,12 +57,11 @@ void test3() {
 
 void test4() {
   SyncHeartbeatReply *pMsg = createMsg();
-  SRpcMsg                 rpcMsg;
+  SRpcMsg             rpcMsg;
   syncHeartbeatReply2RpcMsg(pMsg, &rpcMsg);
   SyncHeartbeatReply *pMsg2 = syncHeartbeatReplyBuild(1000);
   syncHeartbeatReplyFromRpcMsg(&rpcMsg, pMsg2);
-  syncHeartbeatReplyLog2((char *)"test4: syncHeartbeatReply2RpcMsg -> syncHeartbeatReplyFromRpcMsg ",
-                             pMsg2);
+  syncHeartbeatReplyLog2((char *)"test4: syncHeartbeatReply2RpcMsg -> syncHeartbeatReplyFromRpcMsg ", pMsg2);
 
   rpcFreeCont(rpcMsg.pCont);
   syncHeartbeatReplyDestroy(pMsg);
@@ -77,11 +70,10 @@ void test4() {
 
 void test5() {
   SyncHeartbeatReply *pMsg = createMsg();
-  SRpcMsg                 rpcMsg;
+  SRpcMsg             rpcMsg;
   syncHeartbeatReply2RpcMsg(pMsg, &rpcMsg);
   SyncHeartbeatReply *pMsg2 = syncHeartbeatReplyFromRpcMsg2(&rpcMsg);
-  syncHeartbeatReplyLog2((char *)"test5: syncHeartbeatReply2RpcMsg -> syncHeartbeatReplyFromRpcMsg2 ",
-                             pMsg2);
+  syncHeartbeatReplyLog2((char *)"test5: syncHeartbeatReply2RpcMsg -> syncHeartbeatReplyFromRpcMsg2 ", pMsg2);
 
   rpcFreeCont(rpcMsg.pCont);
   syncHeartbeatReplyDestroy(pMsg);

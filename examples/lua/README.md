@@ -1,6 +1,12 @@
 # TDengine driver connector for Lua
 
 It's a Lua implementation for [TDengine](https://github.com/taosdata/TDengine), an open-sourced big data platform designed and optimized for the Internet of Things (IoT), Connected Cars, Industrial IoT, and IT Infrastructure and Application Monitoring. You may need to install Lua5.3 .
+As TDengine is built with lua-enable with default configure, the built-in lua lib conflicts with external lua lib. The following commands require TDengine built with lua-disable.
+To disable built-in lua:
+```
+mkdir debug && cd debug
+cmake .. -DBUILD_LUA=false && cmake --build .
+```
 
 ## Lua Dependencies
 - Lua: 

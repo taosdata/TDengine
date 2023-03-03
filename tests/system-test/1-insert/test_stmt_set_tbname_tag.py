@@ -57,7 +57,8 @@ class TDTestCase:
         return buildPath
 
     # init
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         # tdSql.prepare()
@@ -238,6 +239,7 @@ class TDTestCase:
 
             # conn.execute("drop database if exists %s" % dbname)
             conn.close()
+            tdLog.success("%s successfully executed" % __file__)
 
         except Exception as err:
             # conn.execute("drop database if exists %s" % dbname)

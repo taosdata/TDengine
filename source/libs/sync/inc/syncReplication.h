@@ -20,11 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "taosdef.h"
 
 // TLA+ Spec
 // AppendEntries(i, j) ==
@@ -50,16 +46,16 @@ extern "C" {
 //                msource        |-> i,
 //                mdest          |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
-//
-int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode);
-int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode);
-int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode);
 
-int32_t syncNodeAppendEntriesOnePeer(SSyncNode* pSyncNode, SRaftId* pDestId, SyncIndex nextIndex);
+int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode);
+int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* pDestId, SRpcMsg* pMsg);
 
-int32_t syncNodeReplicate(SSyncNode* pSyncNode, bool isTimer);
-int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg);
-int32_t syncNodeAppendEntriesBatch(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntriesBatch* pMsg);
+int32_t syncNodeReplicate(SSyncNode* pSyncNode);
+int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId, bool snapshot);
+int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode);
+
+int32_t syncNodeSendAppendEntries(SSyncNode* pNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
+int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
 
 #ifdef __cplusplus
 }

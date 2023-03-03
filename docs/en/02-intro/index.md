@@ -1,5 +1,6 @@
 ---
 title: Introduction
+description: This document introduces the major features, competitive advantages, typical use cases, and benchmarks of TDengine.
 toc_max_heading_level: 2
 ---
 
@@ -23,8 +24,8 @@ The major features are listed below:
 4. [Stream Processing](../develop/stream/): Not only is the continuous query is supported, but TDengine also supports event driven stream processing, so Flink or Spark is not needed for time-series data processing.
 5. [Data Subscription](../develop/tmq/): Application can subscribe a table or a set of tables. API is the same as Kafka, but you can specify filter conditions.
 6. Visualization
-   - Supports seamless integration with [Grafana](../third-party/grafana/) for visualization.
-   - Supports seamless integration with Google Data Studio.
+   - Supports seamless integration with [Grafana](../third-party/grafana/).
+   - Supports seamless integration with [Google Data Studio](../third-party/google-data-studio/).
 7. Cluster
    - Supports [cluster](../deployment/) with the capability of increasing processing power by adding more nodes.
    - Supports [deployment on Kubernetes](../deployment/k8s/).
@@ -33,7 +34,7 @@ The major features are listed below:
    - Provides [monitoring](../operation/monitor) on running instances of TDengine.
    - Provides many ways to [import](../operation/import) and [export](../operation/export) data.
 9. Tools
-   - Provides an interactive [Command-line Interface (CLI)](../reference/taos-shell) for management, maintenance and ad-hoc queries.
+   - Provides an interactive [Command Line Interface (CLI)](../reference/taos-shell) for management, maintenance and ad-hoc queries.
    - Provides a tool [taosBenchmark](../reference/taosbenchmark/) for testing the performance of TDengine.
 10. Programming
     - Provides [connectors](../reference/connector/) for [C/C++](../reference/connector/cpp), [Java](../reference/connector/java), [Python](../reference/connector/python), [Go](../reference/connector/go), [Rust](../reference/connector/rust), [Node.js](../reference/connector/node) and other programming languages.
@@ -122,11 +123,11 @@ As a high-performance, scalable and SQL supported time-series database, TDengine
 
 ## Comparison with other databases
 
-- [Writing Performance Comparison of TDengine and InfluxDB ](https://tdengine.com/2022/02/23/4975.html)
-- [Query Performance Comparison of TDengine and InfluxDB](https://tdengine.com/2022/02/24/5120.html)
-- [TDengine vs OpenTSDB](https://tdengine.com/2019/09/12/710.html)
-- [TDengine vs Cassandra](https://tdengine.com/2019/09/12/708.html)
-- [TDengine vs InfluxDB](https://tdengine.com/2019/09/12/706.html)
+- [Writing Performance Comparison of TDengine and InfluxDB ](https://tdengine.com/performance-comparison-of-tdengine-and-influxdb/)
+- [Query Performance Comparison of TDengine and InfluxDB](https://tdengine.com/query-performance-comparison-test-report-tdengine-vs-influxdb/)
+- [TDengine vs OpenTSDB](https://tdengine.com/performance-tdengine-vs-opentsdb/)
+- [TDengine vs Cassandra](https://tdengine.com/performance-tdengine-vs-cassandra/)
+- [TDengine vs InfluxDB](https://tdengine.com/performance-tdengine-vs-influxdb/)
 
 ## More readings
 - [Introduction to Time-Series Database](https://tdengine.com/tsdb/)

@@ -18,10 +18,12 @@
 #include "os.h"
 #include "tconfig.h"
 #include "tutil.h"
+#include "tjson.h"
+#include "tglobal.h"
 
 #define LOG_MAX_LINE_SIZE             (1024)
 #define LOG_MAX_LINE_BUFFER_SIZE      (LOG_MAX_LINE_SIZE + 3)
-#define LOG_MAX_LINE_DUMP_SIZE        (65 * 1024)
+#define LOG_MAX_LINE_DUMP_SIZE        (1024 * 1024)
 #define LOG_MAX_LINE_DUMP_BUFFER_SIZE (LOG_MAX_LINE_DUMP_SIZE + 3)
 
 #define LOG_FILE_NAME_LEN    300
@@ -68,9 +70,11 @@ static int8_t   tsLogInited = 0;
 static SLogObj  tsLogObj = {.fileNum = 1};
 static int64_t  tsAsyncLogLostLines = 0;
 static int32_t  tsWriteInterval = LOG_DEFAULT_INTERVAL;
+static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
 
 bool    tsLogEmbedded = 0;
 bool    tsAsyncLog = true;
+bool    tsAssert = true;
 int32_t tsNumOfLogLines = 10000000;
 int32_t tsLogKeepDays = 0;
 LogFp   tsLogFp = NULL;
@@ -80,25 +84,25 @@ int64_t tsNumOfDebugLogs = 0;
 int64_t tsNumOfTraceLogs = 0;
 
 // log
-int32_t dDebugFlag = 135;
-int32_t vDebugFlag = 135;
-int32_t mDebugFlag = 135;
+int32_t dDebugFlag = 131;
+int32_t vDebugFlag = 131;
+int32_t mDebugFlag = 131;
 int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t tmrDebugFlag = 131;
 int32_t uDebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t qDebugFlag = 131;
-int32_t wDebugFlag = 135;
-int32_t sDebugFlag = 135;
+int32_t wDebugFlag = 131;
+int32_t sDebugFlag = 131;
 int32_t tsdbDebugFlag = 131;
 int32_t tdbDebugFlag = 131;
-int32_t tqDebugFlag = 135;
-int32_t fsDebugFlag = 135;
-int32_t metaDebugFlag = 135;
-int32_t udfDebugFlag = 135;
+int32_t tqDebugFlag = 131;
+int32_t fsDebugFlag = 131;
+int32_t metaDebugFlag = 131;
+int32_t udfDebugFlag = 131;
 int32_t smaDebugFlag = 131;
-int32_t idxDebugFlag = 135;
+int32_t idxDebugFlag = 131;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
@@ -111,7 +115,16 @@ static int32_t   taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t m
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(TdFilePtr pFile);
 static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum);
-static int32_t   taosCompressFile(char *srcFileName, char *destFileName);
+
+static FORCE_INLINE void taosUpdateDaylight() {
+  struct tm      Tm, *ptm;
+  struct timeval timeSecs;
+  taosGetTimeOfDay(&timeSecs);
+  time_t curTime = timeSecs.tv_sec;
+  ptm = taosLocalTime(&curTime, &Tm);
+  tsDaylightActive = ptm->tm_isdst;
+}
+static FORCE_INLINE int32_t taosGetDaylight() { return tsDaylightActive; }
 
 static int32_t taosStartLog() {
   TdThreadAttr threadAttr;
@@ -133,6 +146,7 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles) {
   } else {
     snprintf(fullName, PATH_MAX, "%s", logName);
   }
+  taosUpdateDaylight();
 
   tsLogObj.logHandle = taosLogBuffNew(LOG_DEFAULT_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return -1;
@@ -195,7 +209,8 @@ static void taosKeepOldLog(char *oldName) {
   char    fileName[LOG_FILE_NAME_LEN + 20];
   snprintf(fileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
 
-  taosRenameFile(oldName, fileName);
+  (void)taosRenameFile(oldName, fileName);
+
   if (tsLogKeepDays < 0) {
     char compressFileName[LOG_FILE_NAME_LEN + 20];
     snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);
@@ -304,14 +319,14 @@ static void taosGetLogFileName(char *fn) {
     for (int32_t i = 0; i < tsLogObj.fileNum; i++) {
       char fileName[LOG_FILE_NAME_LEN];
 
-      sprintf(fileName, "%s%d.0", fn, i);
+      snprintf(fileName, LOG_FILE_NAME_LEN, "%s%d.0", fn, i);
       bool file1open = taosCheckFileIsOpen(fileName);
 
-      sprintf(fileName, "%s%d.1", fn, i);
+      snprintf(fileName, LOG_FILE_NAME_LEN, "%s%d.1", fn, i);
       bool file2open = taosCheckFileIsOpen(fileName);
 
       if (!file1open && !file2open) {
-        sprintf(tsLogObj.logName, "%s%d", fn, i);
+        snprintf(tsLogObj.logName, LOG_FILE_NAME_LEN, "%s%d", fn, i);
         return;
       }
     }
@@ -431,11 +446,24 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
   if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceAvailable()) {
     taosUpdateLogNums(level);
+#if 0 
+    // DEBUG_FATAL and DEBUG_ERROR are duplicated
+    // fsync will cause thread blocking and may also generate log misalignment in case of asyncLog
+    if (tsAsyncLog && level != DEBUG_FATAL) {
+      taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
+    } else {
+      taosWriteFile(tsLogObj.logHandle->pFile, buffer, len);
+      if (level == DEBUG_FATAL) {
+        taosFsyncFile(tsLogObj.logHandle->pFile);
+      }
+    }
+#else
     if (tsAsyncLog) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
       taosWriteFile(tsLogObj.logHandle->pFile, buffer, len);
     }
+#endif
 
     if (tsLogObj.maxLines > 0) {
       atomic_add_fetch_32(&tsLogObj.lines, 1);
@@ -480,7 +508,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
   if (!osLogSpaceAvailable()) return;
   if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
 
-  char    buffer[LOG_MAX_LINE_DUMP_BUFFER_SIZE];
+  char   *buffer = taosMemoryMalloc(LOG_MAX_LINE_DUMP_BUFFER_SIZE);
   int32_t len = taosBuildLogHead(buffer, flags);
 
   va_list argpointer;
@@ -493,6 +521,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
   buffer[len] = 0;
 
   taosPrintLogImp(level, dflag, buffer, len);
+  taosMemoryFree(buffer);
 }
 
 void taosDumpData(unsigned char *msg, int32_t len) {
@@ -570,7 +599,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   int32_t        end = 0;
   int32_t        remainSize = 0;
   static int64_t lostLine = 0;
-  char           tmpBuf[40] = {0};
+  char           tmpBuf[128] = {0};
   int32_t        tmpBufLen = 0;
 
   if (pLogBuf == NULL || pLogBuf->stop) return -1;
@@ -582,7 +611,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   remainSize = (start > end) ? (start - end - 1) : (start + LOG_BUF_SIZE(pLogBuf) - end - 1);
 
   if (lostLine > 0) {
-    sprintf(tmpBuf, "...Lost %" PRId64 " lines here...\n", lostLine);
+    snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
     tmpBufLen = (int32_t)strlen(tmpBuf);
   }
 
@@ -694,8 +723,10 @@ static void *taosAsyncOutputLog(void *param) {
   SLogBuff *pLogBuf = (SLogBuff *)param;
   setThreadName("log");
   int32_t count = 0;
+  int32_t updateCron = 0;
   while (1) {
     count += tsWriteInterval;
+    updateCron++;
     taosMsleep(tsWriteInterval);
     if (count > 1000) {
       osUpdate();
@@ -705,52 +736,278 @@ static void *taosAsyncOutputLog(void *param) {
     // Polling the buffer
     taosWriteLog(pLogBuf);
 
+    if (updateCron >= 3600 * 24 * 40 / 2) {
+      taosUpdateDaylight();
+      updateCron = 0;
+    }
+
     if (pLogBuf->stop) break;
   }
 
   return NULL;
 }
 
-int32_t taosCompressFile(char *srcFileName, char *destFileName) {
-  int32_t compressSize = 163840;
-  int32_t ret = 0;
-  int32_t len = 0;
-  char   *data = taosMemoryMalloc(compressSize);
-  //  gzFile  dstFp = NULL;
+bool taosAssertDebug(bool condition, const char *file, int32_t line, const char *format, ...) {
+  if (condition) return false;
 
-  // srcFp = fopen(srcFileName, "r");
-  TdFilePtr pSrcFile = taosOpenFile(srcFileName, TD_FILE_READ);
-  if (pSrcFile == NULL) {
-    ret = -1;
-    goto cmp_end;
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;  // tsLogEmbedded ? 255 : uDebugFlag
+  char        buffer[LOG_MAX_LINE_BUFFER_SIZE];
+  int32_t     len = taosBuildLogHead(buffer, flags);
+
+  va_list argpointer;
+  va_start(argpointer, format);
+  len = len + vsnprintf(buffer + len, LOG_MAX_LINE_BUFFER_SIZE - len, format, argpointer);
+  va_end(argpointer);
+  buffer[len++] = '\n';
+  buffer[len] = 0;
+  taosPrintLogImp(1, 255, buffer, len);
+
+  taosPrintLog(flags, level, dflag, "tAssert at file %s:%d exit:%d", file, line, tsAssert);
+  taosPrintTrace(flags, level, dflag, -1);
+
+  if (tsAssert) {
+    // taosCloseLog();
+    taosMsleep(300);
+
+#ifdef NDEBUG
+    abort();
+#else
+    assert(0);
+#endif
   }
 
-  TdFilePtr pFile = taosOpenFile(destFileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pFile == NULL) {
-    ret = -2;
-    goto cmp_end;
-  }
-
-  //  dstFp = gzdopen(fd, "wb6f");
-  //  if (dstFp == NULL) {
-  //    ret = -3;
-  //    close(fd);
-  //    goto cmp_end;
-  //  }
-  //
-  //  while (!feof(srcFp)) {
-  //    len = (int32_t)fread(data, 1, compressSize, srcFp);
-  //    (void)gzwrite(dstFp, data, len);
-  //  }
-
-cmp_end:
-  if (pSrcFile) {
-    taosCloseFile(&pSrcFile);
-  }
-  //  if (dstFp) {
-  //    gzclose(dstFp);
-  //  }
-  taosMemoryFree(data);
-
-  return ret;
+  return true;
 }
+
+int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime) {
+  SJson* pJson = tjsonCreateObject();
+  if (pJson == NULL) return -1;
+  char tmp[4096] = {0};
+
+  tjsonAddDoubleToObject(pJson, "reportVersion", 1);
+
+  tjsonAddIntegerToObject(pJson, "clusterId", clusterId);
+  tjsonAddIntegerToObject(pJson, "startTime", startTime);
+
+  taosGetFqdn(tmp);  
+  tjsonAddStringToObject(pJson, "fqdn", tmp);
+  
+  tjsonAddIntegerToObject(pJson, "pid", taosGetPId());
+
+  taosGetAppName(tmp, NULL);
+  tjsonAddStringToObject(pJson, "appName", tmp);  
+
+  if (taosGetOsReleaseName(tmp, sizeof(tmp)) == 0) {
+    tjsonAddStringToObject(pJson, "os", tmp);
+  }
+
+  float numOfCores = 0;
+  if (taosGetCpuInfo(tmp, sizeof(tmp), &numOfCores) == 0) {
+    tjsonAddStringToObject(pJson, "cpuModel", tmp);
+    tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores);
+  } else {
+    tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores);
+  }
+
+  snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
+  tjsonAddStringToObject(pJson, "memory", tmp);
+
+  tjsonAddStringToObject(pJson, "version", version);
+  tjsonAddStringToObject(pJson, "buildInfo", buildinfo);
+  tjsonAddStringToObject(pJson, "gitInfo", gitinfo);
+
+  tjsonAddIntegerToObject(pJson, "crashSig", signum);
+  tjsonAddIntegerToObject(pJson, "crashTs", taosGetTimestampUs());
+
+#ifdef _TD_DARWIN_64
+  taosLogTraceToBuf(tmp, sizeof(tmp), 4);
+#elif !defined(WINDOWS)
+  taosLogTraceToBuf(tmp, sizeof(tmp), 3);
+#else
+  taosLogTraceToBuf(tmp, sizeof(tmp), 8);
+#endif
+
+  tjsonAddStringToObject(pJson, "stackInfo", tmp);
+  
+  char* pCont = tjsonToString(pJson);
+  tjsonDelete(pJson);
+
+  *pMsg = pCont;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+void taosLogCrashInfo(char* nodeType, char* pMsg, int64_t msgLen, int signum, void *sigInfo) {
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;
+  char filepath[PATH_MAX] = {0};
+  TdFilePtr pFile = NULL;
+
+  if (pMsg && msgLen > 0) {
+    snprintf(filepath, sizeof(filepath), "%s%s.%sCrashLog", tsLogDir, TD_DIRSEP, nodeType);
+
+    pFile = taosOpenFile(filepath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+    if (pFile == NULL) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      taosPrintLog(flags, level, dflag, "failed to open file:%s since %s", filepath, terrstr());
+      goto _return;
+    }
+
+    taosLockFile(pFile);
+
+    int64_t writeSize = taosWriteFile(pFile, &msgLen, sizeof(msgLen));
+    if (sizeof(msgLen) != writeSize) {
+      taosUnLockFile(pFile);
+      taosPrintLog(flags, level, dflag, "failed to write len to file:%s,%p wlen:%" PRId64 " tlen:%lu since %s", 
+          filepath, pFile, writeSize, sizeof(msgLen), terrstr());
+      goto _return;
+    }
+
+    writeSize = taosWriteFile(pFile, pMsg, msgLen);
+    if (msgLen != writeSize) {
+      taosUnLockFile(pFile);
+      taosPrintLog(flags, level, dflag, "failed to write file:%s,%p wlen:%" PRId64 " tlen:%" PRId64 " since %s", 
+          filepath, pFile, writeSize, msgLen, terrstr());
+      goto _return;
+    }
+
+    taosUnLockFile(pFile);
+  }
+
+_return:
+
+  if (pFile) taosCloseFile(&pFile);
+
+  terrno = TAOS_SYSTEM_ERROR(errno);
+  taosPrintLog(flags, level, dflag, "crash signal is %d", signum);
+
+#ifdef _TD_DARWIN_64
+  taosPrintTrace(flags, level, dflag, 4);
+#elif !defined(WINDOWS)
+  taosPrintLog(flags, level, dflag, "sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
+        taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
+  taosPrintTrace(flags, level, dflag, 3);
+#else
+  taosPrintTrace(flags, level, dflag, 8);
+#endif
+
+  taosMemoryFree(pMsg);
+}
+
+void taosReadCrashInfo(char* filepath, char** pMsg, int64_t* pMsgLen, TdFilePtr* pFd) {
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;
+  TdFilePtr   pFile = NULL;
+  bool        truncateFile = false;
+  char*       buf = NULL;
+
+  if (NULL == *pFd) {
+    int64_t filesize = 0;
+    if (taosStatFile(filepath, &filesize, NULL) < 0) {
+      if (ENOENT == errno) {
+        return;
+      }
+
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      taosPrintLog(flags, level, dflag, "failed to stat file:%s since %s", filepath, terrstr());
+      return;
+    }
+
+    if (filesize <= 0) {
+      return;
+    }
+
+    pFile = taosOpenFile(filepath, TD_FILE_READ|TD_FILE_WRITE);
+    if (pFile == NULL) {
+      if (ENOENT == errno) {
+        return;
+      }
+
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      taosPrintLog(flags, level, dflag, "failed to open file:%s since %s", filepath, terrstr());
+      return;
+    }
+    
+    taosLockFile(pFile);
+  } else {
+    pFile = *pFd;
+  }
+
+  int64_t msgLen = 0;
+  int64_t readSize = taosReadFile(pFile, &msgLen, sizeof(msgLen));
+  if (sizeof(msgLen) != readSize) {
+    truncateFile = true;
+    if (readSize < 0) {
+      taosPrintLog(flags, level, dflag, "failed to read len from file:%s,%p wlen:%" PRId64 " tlen:%lu since %s", 
+          filepath, pFile, readSize, sizeof(msgLen), terrstr());
+    }
+    goto _return;
+  }
+
+  buf = taosMemoryMalloc(msgLen);
+  if (NULL == buf) {
+    taosPrintLog(flags, level, dflag, "failed to malloc buf, size:%" PRId64, msgLen);
+    goto _return;
+  }
+  
+  readSize = taosReadFile(pFile, buf, msgLen);
+  if (msgLen != readSize) {
+    truncateFile = true;
+    taosPrintLog(flags, level, dflag, "failed to read file:%s,%p wlen:%" PRId64 " tlen:%" PRId64 " since %s", 
+        filepath, pFile, readSize, msgLen, terrstr());
+    goto _return;
+  }
+
+  *pMsg = buf;
+  *pMsgLen = msgLen;
+  *pFd = pFile;
+
+  return;
+
+_return:
+
+  if (truncateFile) {
+    taosFtruncateFile(pFile, 0);
+  }
+  taosUnLockFile(pFile);
+  taosCloseFile(&pFile);
+  taosMemoryFree(buf);
+
+  *pMsg = NULL;
+  *pMsgLen = 0;
+  *pFd = NULL;
+}
+
+void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile) {
+  if (truncateFile) {
+    taosFtruncateFile(pFile, 0);
+  }
+  
+  taosUnLockFile(pFile);
+  taosCloseFile(&pFile);
+}
+
+#ifdef NDEBUG
+bool taosAssertRelease(bool condition) {
+  if (condition) return false;
+
+  const char *flags = "UTL FATAL ";
+  ELogLevel   level = DEBUG_FATAL;
+  int32_t     dflag = 255;  // tsLogEmbedded ? 255 : uDebugFlag
+
+  taosPrintLog(flags, level, dflag, "tAssert called in release mode, exit:%d", tsAssert);
+  taosPrintTrace(flags, level, dflag, 0);
+
+  if (tsAssert) {
+    taosMsleep(300);
+    abort();
+  }
+
+  return true;
+}
+#endif

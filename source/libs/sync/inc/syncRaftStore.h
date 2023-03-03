@@ -20,43 +20,21 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "cJSON.h"
 #include "syncInt.h"
-#include "taosdef.h"
 
 #define RAFT_STORE_BLOCK_SIZE 512
-#define RAFT_STORE_PATH_LEN (TSDB_FILENAME_LEN * 2)
+#define RAFT_STORE_PATH_LEN   (TSDB_FILENAME_LEN * 2)
+#define EMPTY_RAFT_ID         ((SRaftId){.addr = 0, .vgId = 0})
 
-typedef struct SRaftStore {
-  SyncTerm  currentTerm;
-  SRaftId   voteFor;
-  TdFilePtr pFile;
-  char      path[RAFT_STORE_PATH_LEN];
-} SRaftStore;
+int32_t raftStoreOpen(SSyncNode *pNode);
+void    raftStoreClose(SSyncNode *pNode);
 
-SRaftStore *raftStoreOpen(const char *path);
-int32_t     raftStoreClose(SRaftStore *pRaftStore);
-int32_t     raftStorePersist(SRaftStore *pRaftStore);
-int32_t     raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len);
-int32_t     raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len);
-
-bool    raftStoreHasVoted(SRaftStore *pRaftStore);
-void    raftStoreVote(SRaftStore *pRaftStore, SRaftId *pRaftId);
-void    raftStoreClearVote(SRaftStore *pRaftStore);
-void    raftStoreNextTerm(SRaftStore *pRaftStore);
-void    raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term);
-int32_t raftStoreFromJson(SRaftStore *pRaftStore, cJSON *pJson);
-cJSON * raftStore2Json(SRaftStore *pRaftStore);
-char *  raftStore2Str(SRaftStore *pRaftStore);
-
-// for debug -------------------
-void raftStorePrint(SRaftStore *pObj);
-void raftStorePrint2(char *s, SRaftStore *pObj);
-void raftStoreLog(SRaftStore *pObj);
-void raftStoreLog2(char *s, SRaftStore *pObj);
+bool raftStoreHasVoted(SSyncNode *pNode);
+void raftStoreVote(SSyncNode *pNode, SRaftId *pRaftId);
+void raftStoreClearVote(SSyncNode *pNode);
+void raftStoreNextTerm(SSyncNode *pNode);
+void raftStoreSetTerm(SSyncNode *pNode, SyncTerm term);
+SyncTerm raftStoreGetTerm(SSyncNode *pNode);
 
 #ifdef __cplusplus
 }

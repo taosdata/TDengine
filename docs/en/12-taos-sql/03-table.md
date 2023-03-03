@@ -1,5 +1,6 @@
 ---
 title: Table
+description: This document describes how to create and perform operations on standard tables and subtables.
 ---
 
 ## Create Table
@@ -7,12 +8,12 @@ title: Table
 You create standard tables and subtables with the `CREATE TABLE` statement.
 
 ```sql
-CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definitionn] ...) [table_options]
+CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definition] ...) [table_options]
  
 CREATE TABLE create_subtable_clause
  
-CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definitionn] ...)
-    [TAGS (create_definition [, create_definitionn] ...)]
+CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definition] ...)
+    [TAGS (create_definition [, create_definition] ...)]
     [table_options]
  
 create_subtable_clause: {

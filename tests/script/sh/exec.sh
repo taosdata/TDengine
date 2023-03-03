@@ -10,7 +10,16 @@
 
 set +e
 #set -x
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    TD_OS="Darwin"
+else
+    OS=$(cat /etc/*-release | grep "^NAME=" | cut -d= -f2)
+    len=$(echo ${#OS})
+    len=$((len-2))
+    TD_OS=$(echo -ne ${OS:1:${len}} | cut -d" " -f1)
+fi
 
+unset LD_PRELOAD
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
 
@@ -43,7 +52,10 @@ do
       ;;
   esac
 done
-
+if [[ "$VALGRIND_OPTION" = "true" ]] && [[ "$TD_OS" == "Alpine" ]]; then
+  echo alpine skip valgrind
+  VALGRIND_OPTION="false"
+fi
 SCRIPT_DIR=`dirname $0`
 cd $SCRIPT_DIR/../
 SCRIPT_DIR=`pwd`
@@ -58,11 +70,7 @@ fi
 TAOS_DIR=`pwd`
 TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
-if [[ "$OS_TYPE" != "Darwin" ]]; then
-  cut_opt="--field="
-else
-  cut_opt="-f "
-fi
+cut_opt="-f "
 
 if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
   BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
@@ -80,7 +88,7 @@ LOG_DIR=$NODE_DIR/log
 DATA_DIR=$NODE_DIR/data
 MGMT_DIR=$NODE_DIR/data/mgmt
 TSDB_DIR=$NODE_DIR/data/tsdb
-
+ASAN_DIR=$SIM_DIR/asan
 TAOS_CFG=$NODE_DIR/cfg/taos.cfg
 
 echo ------------ $EXEC_OPTON $NODE_NAME
@@ -105,7 +113,7 @@ if [ "$EXEC_OPTON" = "start" ]; then
     nohup valgrind --log-file=${LOG_DIR}/valgrind-taosd-${NODE_NAME}-${TT}.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all --num-callers=20 -v -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &   
   else
     echo "nohup $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &"
-    nohup $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 & 
+    nohup $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2> $ASAN_DIR/$NODE_NAME.asan & 
   fi
   
 else

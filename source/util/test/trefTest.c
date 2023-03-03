@@ -1,91 +1,88 @@
+#include "tref.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include "os.h"
-#include "tref.h"
-#include "tlog.h"
-#include "tglobal.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "tlog.h"
 
 typedef struct {
-  int     refNum;
-  int     steps;
-  int     rsetId;
-  int64_t*rid;
-  void  **p;
+  int      refNum;
+  int      steps;
+  int      rsetId;
+  int64_t *rid;
+  void   **p;
 } SRefSpace;
 
 void iterateRefs(int rsetId) {
-  int  count = 0;
+  int count = 0;
 
   void *p = taosIterateRef(rsetId, 0);
   while (p) {
     // process P
     count++;
-    p = taosIterateRef(rsetId, (int64_t) p);
-  }    
+    p = taosIterateRef(rsetId, (int64_t)p);
+  }
 
-  printf(" %d ", count); 
+  printf(" %d ", count);
 }
 
 void *addRef(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
-  int id;
+  int        id;
 
-  for (int i=0; i < pSpace->steps; ++i) {
+  for (int i = 0; i < pSpace->steps; ++i) {
     printf("a");
-    id = taosRand() % pSpace->refNum; 
+    id = taosRand() % pSpace->refNum;
     if (pSpace->rid[id] <= 0) {
       pSpace->p[id] = taosMemoryMalloc(128);
       pSpace->rid[id] = taosAddRef(pSpace->rsetId, pSpace->p[id]);
     }
     taosUsleep(100);
-  }  
+  }
 
   return NULL;
 }
-       
+
 void *removeRef(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
-  int id, code;
+  int        id, code;
 
-  for (int i=0; i < pSpace->steps; ++i) {
+  for (int i = 0; i < pSpace->steps; ++i) {
     printf("d");
-    id = taosRand() % pSpace->refNum; 
+    id = taosRand() % pSpace->refNum;
     if (pSpace->rid[id] > 0) {
       code = taosRemoveRef(pSpace->rsetId, pSpace->rid[id]);
       if (code == 0) pSpace->rid[id] = 0;
     }
 
     taosUsleep(100);
-  }  
+  }
 
   return NULL;
 }
-       
+
 void *acquireRelease(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
-  int id;
+  int        id;
 
-  for (int i=0; i < pSpace->steps; ++i) {
+  for (int i = 0; i < pSpace->steps; ++i) {
     printf("a");
-    
-    id = taosRand() % pSpace->refNum; 
-    void *p = taosAcquireRef(pSpace->rsetId, (int64_t) pSpace->p[id]);
+
+    id = taosRand() % pSpace->refNum;
+    void *p = taosAcquireRef(pSpace->rsetId, (int64_t)pSpace->p[id]);
     if (p) {
       taosUsleep(id % 5 + 1);
-      taosReleaseRef(pSpace->rsetId, (int64_t) pSpace->p[id]);
+      taosReleaseRef(pSpace->rsetId, (int64_t)pSpace->p[id]);
     }
-  }  
+  }
 
   return NULL;
 }
-       
-void myfree(void *p) {
-  taosMemoryFree(p);
-}
+
+void myfree(void *p) { taosMemoryFree(p); }
 
 void *openRefSpace(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
@@ -96,9 +93,9 @@ void *openRefSpace(void *param) {
   if (pSpace->rsetId < 0) {
     printf("failed to open ref, reason:%s\n", tstrerror(pSpace->rsetId));
     return NULL;
-  } 
+  }
 
-  pSpace->p = (void **) taosMemoryCalloc(sizeof(void *), pSpace->refNum);
+  pSpace->p = (void **)taosMemoryCalloc(sizeof(void *), pSpace->refNum);
   pSpace->rid = taosMemoryCalloc(pSpace->refNum, sizeof(int64_t));
 
   TdThreadAttr thattr;
@@ -114,7 +111,7 @@ void *openRefSpace(void *param) {
   taosThreadJoin(thread2, NULL);
   taosThreadJoin(thread3, NULL);
 
-  for (int i=0; i<pSpace->refNum; ++i) {
+  for (int i = 0; i < pSpace->refNum; ++i) {
     taosRemoveRef(pSpace->rsetId, pSpace->rid[i]);
   }
 
@@ -130,21 +127,21 @@ void *openRefSpace(void *param) {
 int main(int argc, char *argv[]) {
   int refNum = 100;
   int threads = 10;
-  int steps = 10000;  
+  int steps = 10000;
   int loops = 1;
 
   uDebugFlag = 143;
 
-  for (int i=1; i<argc; ++i) {
-    if (strcmp(argv[i], "-n")==0 && i < argc-1) {
+  for (int i = 1; i < argc; ++i) {
+    if (strcmp(argv[i], "-n") == 0 && i < argc - 1) {
       refNum = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-s")==0 && i < argc-1) {
+    } else if (strcmp(argv[i], "-s") == 0 && i < argc - 1) {
       steps = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-t")==0 && i < argc-1) {
+    } else if (strcmp(argv[i], "-t") == 0 && i < argc - 1) {
       threads = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-l")==0 && i < argc-1) {
+    } else if (strcmp(argv[i], "-l") == 0 && i < argc - 1) {
       loops = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-d")==0 && i < argc-1) {
+    } else if (strcmp(argv[i], "-d") == 0 && i < argc - 1) {
       uDebugFlag = atoi(argv[i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
@@ -159,22 +156,22 @@ int main(int argc, char *argv[]) {
 
   taosInitLog("tref.log", 10);
 
-  SRefSpace *pSpaceList = (SRefSpace *) taosMemoryCalloc(sizeof(SRefSpace), threads);
-  TdThread *pThreadList = (TdThread *) taosMemoryCalloc(sizeof(TdThread), threads);
+  SRefSpace *pSpaceList = (SRefSpace *)taosMemoryCalloc(sizeof(SRefSpace), threads);
+  TdThread  *pThreadList = (TdThread *)taosMemoryCalloc(sizeof(TdThread), threads);
 
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);
   taosThreadAttrSetDetachState(&thattr, PTHREAD_CREATE_JOINABLE);
 
-  for (int i=0; i<loops; ++i) {
+  for (int i = 0; i < loops; ++i) {
     printf("\nloop: %d\n", i);
-    for (int j=0; j<threads; ++j) {
+    for (int j = 0; j < threads; ++j) {
       pSpaceList[j].steps = steps;
       pSpaceList[j].refNum = refNum;
-      taosThreadCreate(&(pThreadList[j]), &thattr, openRefSpace, (void *)(pSpaceList+j));
+      taosThreadCreate(&(pThreadList[j]), &thattr, openRefSpace, (void *)(pSpaceList + j));
     }
 
-    for (int j=0; j<threads; ++j) {
+    for (int j = 0; j < threads; ++j) {
       taosThreadJoin(pThreadList[j], NULL);
     }
   }
@@ -189,4 +186,3 @@ int main(int argc, char *argv[]) {
 
   return num;
 }
-

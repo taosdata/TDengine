@@ -1,5 +1,6 @@
 ---
 title: REST API
+description: This document describes the TDengine REST API.
 ---
 
 To support the development of various types of applications and platforms, TDengine provides an API that conforms to REST principles; namely REST API. To minimize the learning cost, unlike REST APIs for other database engines, TDengine allows insertion of SQL commands in the BODY of an HTTP POST request, to operate the database. 
@@ -67,7 +68,7 @@ The following return value results indicate that the verification passed.
 ## HTTP request URL format
 
 ```text
-http://<fqdn>:<port>/rest/sql/[db_name]
+http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id]]
 ```
 
 Parameter Description:
@@ -75,6 +76,8 @@ Parameter Description:
 - fqnd: FQDN or IP address of any host in the cluster.
 - port: httpPort configuration item in the configuration file, default is 6041.
 - db_name: Optional parameter that specifies the default database name for the executed SQL command.
+- tz: Optional parameter that specifies the timezone of the returned time, following the IANA Time Zone rules, e.g. `America/New_York`.
+- req_id: Optional parameter that specifies the request id for tracing.
 
 For example, `http://h1.taos.com:6041/rest/sql/test` is a URL to `h1.taos.com:6041` and sets the default database name to `test`.
 
@@ -97,13 +100,13 @@ The HTTP request's BODY is a complete SQL command, and the data table in the SQL
 Use `curl` to initiate an HTTP request with a custom authentication method, with the following syntax.
 
 ```bash
-curl -L -H "Authorization: Basic <TOKEN>" -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name]
+curl -L -H "Authorization: Basic <TOKEN>" -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone[&req_id=req_id]]
 ```
 
 or
 
 ```bash
-curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name]
+curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone[&req_id=req_id]]
 ```
 
 where `TOKEN` is the string after Base64 encoding of `{username}:{password}`, e.g. `root:taosdata` is encoded as `cm9vdDp0YW9zZGF0YQ==`..
@@ -123,7 +126,7 @@ where `TOKEN` is the string after Base64 encoding of `{username}:{password}`, e.
 
 ### HTTP body structure
 
-#### Successful Operation
+#### Successful Insert Operation
 
 Example:
 
@@ -143,7 +146,7 @@ Description:
 - rows: (`int`) Only returns `1`.
 - data: (`[][]any`) Returns the number of rows affected.
 
-#### Successful Query
+#### Successful Query Operation
 
 Example:
 

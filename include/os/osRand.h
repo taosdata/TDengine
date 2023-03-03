@@ -23,14 +23,14 @@ extern "C" {
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
-    #define rand RAND_FUNC_TAOS_FORBID
-    #define srand SRAND_FUNC_TAOS_FORBID
-    #define rand_r RANDR_FUNC_TAOS_FORBID
+#define rand   RAND_FUNC_TAOS_FORBID
+#define srand  SRAND_FUNC_TAOS_FORBID
+#define rand_r RANDR_FUNC_TAOS_FORBID
 #endif
 
-void taosSeedRand(uint32_t seed);
+void     taosSeedRand(uint32_t seed);
 uint32_t taosRand(void);
-uint32_t taosRandR(uint32_t *pSeed);
+uint32_t taosRandR(uint32_t* pSeed);
 void     taosRandStr(char* str, int32_t size);
 uint32_t taosSafeRand(void);
 

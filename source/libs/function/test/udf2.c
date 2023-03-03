@@ -1,32 +1,27 @@
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "taosudf.h"
 
-DLL_EXPORT int32_t udf2_init() {
-  return 0;
-}
+DLL_EXPORT int32_t udf2_init() { return 0; }
 
-DLL_EXPORT int32_t udf2_destroy() {
-  return 0;
-}
+DLL_EXPORT int32_t udf2_destroy() { return 0; }
 
-DLL_EXPORT int32_t udf2_start(SUdfInterBuf *buf) {
+DLL_EXPORT int32_t udf2_start(SUdfInterBuf* buf) {
   *(int64_t*)(buf->buf) = 0;
   buf->bufLen = sizeof(double);
   buf->numOfResult = 0;
   return 0;
 }
 
-DLL_EXPORT int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf) {
+DLL_EXPORT int32_t udf2(SUdfDataBlock* block, SUdfInterBuf* interBuf, SUdfInterBuf* newInterBuf) {
   double sumSquares = *(double*)interBuf->buf;
   int8_t numNotNull = 0;
   for (int32_t i = 0; i < block->numOfCols; ++i) {
     SUdfColumn* col = block->udfCols[i];
-    if (!(col->colMeta.type == TSDB_DATA_TYPE_INT || 
-          col->colMeta.type == TSDB_DATA_TYPE_DOUBLE)) {
+    if (!(col->colMeta.type == TSDB_DATA_TYPE_INT || col->colMeta.type == TSDB_DATA_TYPE_DOUBLE)) {
       return TSDB_CODE_UDF_INVALID_INPUT;
     }
   }
@@ -38,18 +33,18 @@ DLL_EXPORT int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterB
       }
       switch (col->colMeta.type) {
         case TSDB_DATA_TYPE_INT: {
-          char* cell = udfColDataGetData(col, j);
+          char*   cell = udfColDataGetData(col, j);
           int32_t num = *(int32_t*)cell;
           sumSquares += (double)num * num;
           break;
         }
         case TSDB_DATA_TYPE_DOUBLE: {
-          char* cell = udfColDataGetData(col, j);
+          char*  cell = udfColDataGetData(col, j);
           double num = *(double*)cell;
           sumSquares += num * num;
           break;
         }
-        default: 
+        default:
           break;
       }
       ++numNotNull;
@@ -67,7 +62,7 @@ DLL_EXPORT int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterB
   return 0;
 }
 
-DLL_EXPORT int32_t udf2_finish(SUdfInterBuf* buf, SUdfInterBuf *resultData) {
+DLL_EXPORT int32_t udf2_finish(SUdfInterBuf* buf, SUdfInterBuf* resultData) {
   if (buf->numOfResult == 0) {
     resultData->numOfResult = 0;
     return 0;

@@ -24,7 +24,8 @@ struct STBC {
   SBTC btc;
 };
 
-int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb) {
+int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb,
+              int8_t rollback) {
   TTB    *pTb;
   SPager *pPager;
   int     ret;
@@ -52,6 +53,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
   if (strcmp(TDB_MAINDB_NAME, tbname)) {
     pPager = tdbEnvGetPager(pEnv, fFullName);
     if (!pPager) {
+      tdbOsFree(pTb);
       return -1;
     }
 
@@ -71,6 +73,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
     if (pPager == NULL) {
       ret = tdbPagerOpen(pEnv->pCache, fFullName, &pPager);
       if (ret < 0) {
+        tdbOsFree(pTb);
         return -1;
       }
 
@@ -93,6 +96,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
     snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->dbName, tbname);
     ret = tdbPagerOpen(pEnv->pCache, fFullName, &pPager);
     if (ret < 0) {
+      tdbOsFree(pTb);
       return -1;
     }
 
@@ -101,16 +105,20 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
 
 #endif
 
-  ASSERT(pPager != NULL);
-
-  // pTb->pBt
-  ret = tdbBtreeOpen(keyLen, valLen, pPager, tbname, pgno, keyCmprFn, &(pTb->pBt));
-  if (ret < 0) {
-    return -1;
+  if (rollback) {
+    ret = tdbPagerRestoreJournals(pPager);
+    if (ret < 0) {
+      tdbOsFree(pTb);
+      return -1;
+    }
+  } else {
+    tdbPagerRollback(pPager);
   }
 
-  ret = tdbPagerRestore(pPager, pTb->pBt);
+  // pTb->pBt
+  ret = tdbBtreeOpen(keyLen, valLen, pPager, tbname, pgno, keyCmprFn, pEnv, &(pTb->pBt));
   if (ret < 0) {
+    tdbOsFree(pTb);
     return -1;
   }
 

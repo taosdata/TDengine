@@ -15,7 +15,7 @@
 
 #include "tdbInt.h"
 
-int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb) {
+int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, int8_t rollback) {
   TDB *pDb;
   int  dsize;
   int  zsize;
@@ -62,11 +62,11 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb) {
   }
   memset(pDb->pgrHash, 0, tsize);
 
-  mkdir(dbname, 0755);
+  taosMulModeMkDir(dbname, 0755);
 
 #ifdef USE_MAINDB
   // open main db
-  ret = tdbTbOpen(TDB_MAINDB_NAME, -1, sizeof(SBtInfo), NULL, pDb, &pDb->pMainDb);
+  ret = tdbTbOpen(TDB_MAINDB_NAME, -1, sizeof(SBtInfo), NULL, pDb, &pDb->pMainDb, rollback);
   if (ret < 0) {
     return -1;
   }
@@ -97,17 +97,38 @@ int tdbClose(TDB *pDb) {
   return 0;
 }
 
-int32_t tdbBegin(TDB *pDb, TXN *pTxn) {
+int32_t tdbAlter(TDB *pDb, int pages) { return tdbPCacheAlter(pDb->pCache, pages); }
+
+int32_t tdbBegin(TDB *pDb, TXN **ppTxn, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *), void *xArg,
+                 int flags) {
   SPager *pPager;
   int     ret;
+  int64_t txnId = ++pDb->txnId;
+  if (txnId == INT64_MAX) {
+    pDb->txnId = 0;
+  }
+
+  TXN *pTxn = tdbOsCalloc(1, sizeof(*pTxn));
+  if (!pTxn) {
+    return -1;
+  }
+
+  if (tdbTxnOpen(pTxn, txnId, xMalloc, xFree, xArg, flags) < 0) {
+    tdbOsFree(pTxn);
+    return -1;
+  }
 
   for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
     ret = tdbPagerBegin(pPager, pTxn);
     if (ret < 0) {
-      ASSERT(0);
+      tdbError("failed to begin pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
+               pTxn->txnId);
+      tdbTxnClose(pTxn);
       return -1;
     }
   }
+
+  *ppTxn = pTxn;
 
   return 0;
 }
@@ -119,7 +140,42 @@ int32_t tdbCommit(TDB *pDb, TXN *pTxn) {
   for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
     ret = tdbPagerCommit(pPager, pTxn);
     if (ret < 0) {
-      ASSERT(0);
+      tdbError("failed to commit pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
+               pTxn->txnId);
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+int32_t tdbPostCommit(TDB *pDb, TXN *pTxn) {
+  SPager *pPager;
+  int     ret;
+
+  for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
+    ret = tdbPagerPostCommit(pPager, pTxn);
+    if (ret < 0) {
+      tdbError("failed to commit pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
+               pTxn->txnId);
+      return -1;
+    }
+  }
+
+  tdbTxnClose(pTxn);
+
+  return 0;
+}
+
+int32_t tdbPrepareAsyncCommit(TDB *pDb, TXN *pTxn) {
+  SPager *pPager;
+  int     ret;
+
+  for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
+    ret = tdbPagerPrepareAsyncCommit(pPager, pTxn);
+    if (ret < 0) {
+      tdbError("failed to commit pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
+               pTxn->txnId);
       return -1;
     }
   }
@@ -134,10 +190,13 @@ int32_t tdbAbort(TDB *pDb, TXN *pTxn) {
   for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
     ret = tdbPagerAbort(pPager, pTxn);
     if (ret < 0) {
-      ASSERT(0);
+      tdbError("failed to abort pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
+               pTxn->txnId);
       return -1;
     }
   }
+
+  tdbTxnClose(pTxn);
 
   return 0;
 }
@@ -188,7 +247,10 @@ void tdbEnvRemovePager(TDB *pDb, SPager *pPager) {
   // remove from the list
   for (ppPager = &pDb->pgrList; *ppPager && (*ppPager != pPager); ppPager = &((*ppPager)->pNext)) {
   }
-  ASSERT(*ppPager == pPager);
+  if (*ppPager != pPager) {
+    tdbError("tdb/db: invalid pPager: %p, *ppPager: %p", pPager, *ppPager);
+    return;
+  }
   *ppPager = pPager->pNext;
 
   // remove from hash
@@ -196,7 +258,10 @@ void tdbEnvRemovePager(TDB *pDb, SPager *pPager) {
   ppPager = &pDb->pgrHash[hash % pDb->nPgrHash];
   for (; *ppPager && *ppPager != pPager; ppPager = &((*ppPager)->pHashNext)) {
   }
-  ASSERT(*ppPager == pPager);
+  if (*ppPager != pPager) {
+    tdbError("tdb/db: invalid pPager: %p, *ppPager: %p", pPager, *ppPager);
+    return;
+  }
   *ppPager = pPager->pNext;
 
   // decrease the counter

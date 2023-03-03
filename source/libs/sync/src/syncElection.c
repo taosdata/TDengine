@@ -13,10 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncElection.h"
 #include "syncMessage.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
+#include "syncUtil.h"
 #include "syncVoteMgr.h"
 
 // TLA+ Spec
@@ -30,48 +32,45 @@
 //             msource       |-> i,
 //             mdest         |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
-//
-int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
-  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+
+static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
+  if (pNode->state != TAOS_SYNC_STATE_CANDIDATE) {
+    sNTrace(pNode, "not candidate, stop elect");
+    return 0;
+  }
 
   int32_t ret = 0;
-  for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    SyncRequestVote* pMsg = syncRequestVoteBuild(pSyncNode->vgId);
-    pMsg->srcId = pSyncNode->myRaftId;
-    pMsg->destId = pSyncNode->peersId[i];
-    pMsg->term = pSyncNode->pRaftStore->currentTerm;
-    pMsg->lastLogIndex = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore);
-    pMsg->lastLogTerm = pSyncNode->pLogStore->getLastTerm(pSyncNode->pLogStore);
+  for (int i = 0; i < pNode->peersNum; ++i) {
+    SRpcMsg rpcMsg = {0};
+    ret = syncBuildRequestVote(&rpcMsg, pNode->vgId);
+    if (ret < 0) {
+      sError("vgId:%d, failed to build request-vote msg since %s", pNode->vgId, terrstr());
+      continue;
+    }
 
-    ret = syncNodeRequestVote(pSyncNode, &pSyncNode->peersId[i], pMsg);
-    ASSERT(ret == 0);
-    syncRequestVoteDestroy(pMsg);
+    SyncRequestVote* pMsg = rpcMsg.pCont;
+    pMsg->srcId = pNode->myRaftId;
+    pMsg->destId = pNode->peersId[i];
+    pMsg->term = raftStoreGetTerm(pNode);
+
+    ret = syncNodeGetLastIndexTerm(pNode, &pMsg->lastLogIndex, &pMsg->lastLogTerm);
+    if (ret < 0) {
+      sError("vgId:%d, failed to get index and term of last log since %s", pNode->vgId, terrstr());
+      continue;
+    }
+
+    ret = syncNodeSendMsgById(&pNode->peersId[i], pNode, &rpcMsg);
+    if (ret < 0) {
+      sError("vgId:%d, failed to send msg to peerId:%" PRId64, pNode->vgId, pNode->peersId[i].addr);
+      continue;
+    }
   }
-  return ret;
-}
-
-int32_t syncNodeRequestVotePeersSnapshot(SSyncNode* pSyncNode) {
-  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
-
-  int32_t ret = 0;
-  for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    SyncRequestVote* pMsg = syncRequestVoteBuild(pSyncNode->vgId);
-    pMsg->srcId = pSyncNode->myRaftId;
-    pMsg->destId = pSyncNode->peersId[i];
-    pMsg->term = pSyncNode->pRaftStore->currentTerm;
-
-    ret = syncNodeGetLastIndexTerm(pSyncNode, &(pMsg->lastLogIndex), &(pMsg->lastLogTerm));
-    ASSERT(ret == 0);
-
-    ret = syncNodeRequestVote(pSyncNode, &pSyncNode->peersId[i], pMsg);
-    ASSERT(ret == 0);
-    syncRequestVoteDestroy(pMsg);
-  }
-  return ret;
+  return 0;
 }
 
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
-  syncNodeEventLog(pSyncNode, "begin election");
+  sNInfo(pSyncNode, "begin election");
+  pSyncNode->electNum++;
 
   int32_t ret = 0;
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
@@ -79,17 +78,19 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   }
 
   if (pSyncNode->state != TAOS_SYNC_STATE_CANDIDATE) {
-    syncNodeErrorLog(pSyncNode, "not candidate, can not elect");
+    sNError(pSyncNode, "not candidate, can not elect");
     return -1;
   }
 
   // start election
-  raftStoreNextTerm(pSyncNode->pRaftStore);
-  raftStoreClearVote(pSyncNode->pRaftStore);
-  voteGrantedReset(pSyncNode->pVotesGranted, pSyncNode->pRaftStore->currentTerm);
-  votesRespondReset(pSyncNode->pVotesRespond, pSyncNode->pRaftStore->currentTerm);
+  raftStoreNextTerm(pSyncNode);
+  raftStoreClearVote(pSyncNode);
 
-  syncNodeVoteForSelf(pSyncNode);
+  SyncTerm currentTerm = raftStoreGetTerm(pSyncNode);
+  voteGrantedReset(pSyncNode->pVotesGranted, currentTerm);
+  votesRespondReset(pSyncNode->pVotesRespond, currentTerm);
+  syncNodeVoteForSelf(pSyncNode, currentTerm);
+
   if (voteGrantedMajority(pSyncNode->pVotesGranted)) {
     // only myself, to leader
     ASSERT(!pSyncNode->pVotesGranted->toLeader);
@@ -98,32 +99,22 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
     return ret;
   }
 
-  switch (pSyncNode->pRaftCfg->snapshotStrategy) {
-    case SYNC_STRATEGY_NO_SNAPSHOT:
-      ret = syncNodeRequestVotePeers(pSyncNode);
-      break;
+  if (pSyncNode->replicaNum == 1) {
+    // only myself, to leader
+    voteGrantedUpdate(pSyncNode->pVotesGranted, pSyncNode);
+    votesRespondUpdate(pSyncNode->pVotesRespond, pSyncNode);
 
-    case SYNC_STRATEGY_STANDARD_SNAPSHOT:
-    case SYNC_STRATEGY_WAL_FIRST:
-      ret = syncNodeRequestVotePeersSnapshot(pSyncNode);
-      break;
+    pSyncNode->quorum = syncUtilQuorum(pSyncNode->raftCfg.cfg.replicaNum);
 
-    default:
-      ret = syncNodeRequestVotePeers(pSyncNode);
-      break;
+    syncNodeCandidate2Leader(pSyncNode);
+    pSyncNode->pVotesGranted->toLeader = true;
+    return ret;
   }
+
+  ret = syncNodeRequestVotePeers(pSyncNode);
   ASSERT(ret == 0);
+
   syncNodeResetElectTimer(pSyncNode);
 
-  return ret;
-}
-
-int32_t syncNodeRequestVote(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncRequestVote* pMsg) {
-  int32_t ret = 0;
-  syncLogSendRequestVote(pSyncNode, pMsg, "");
-
-  SRpcMsg rpcMsg;
-  syncRequestVote2RpcMsg(pMsg, &rpcMsg);
-  syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
   return ret;
 }

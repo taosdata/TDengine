@@ -6,7 +6,7 @@ description: TDengine 3.0 版本监控指标的导出工具
 
 ## 简介
 
-TaosKeeper 是 TDengine 3.0 版本监控指标的导出工具，通过简单的几项配置即可获取 TDengine 的运行状态。taosKeeper 使用 TDengine RESTful 接口，所以不需要安装 TDengine 客户端即可使用。
+taosKeeper 是 TDengine 3.0 版本监控指标的导出工具，通过简单的几项配置即可获取 TDengine 的运行状态。taosKeeper 使用 TDengine RESTful 接口，所以不需要安装 TDengine 客户端即可使用。
 
 ## 安装
 
@@ -24,7 +24,15 @@ taosKeeper 安装方式：
 
 taosKeeper 需要在操作系统终端执行，该工具支持三种配置方式：[命令行参数](#命令行参数启动)、[环境变量](#环境变量启动) 和 [配置文件](#配置文件启动)。优先级为：命令行参数、环境变量、配置文件参数。
 
-**在运行 taosKeeper 之前要确保 TDengine 集群与 taosAdapter 已经在正确运行。** 并且 TDengine 已经开启监控服务，具体请参考：[TDengine 监控配置](../config/#监控相关)。
+**在运行 taosKeeper 之前要确保 TDengine 集群与 taosAdapter 已经在正确运行。** 并且 TDengine 已经开启监控服务，TDengine 配置文件 `taos.cfg` 中至少需要配置 `monitor` 和 `monitorFqdn`。
+
+```shell
+monitor 1
+monitorFqdn localhost # taoskeeper 服务的 FQDN
+```
+
+TDengine 监控配置相关，具体请参考：[TDengine 监控配置](../config/#监控相关)。
+
 
 ### 命令行参数启动
 

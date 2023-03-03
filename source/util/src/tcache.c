@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "tcache.h"
-#include "taoserror.h"
 #include "osThread.h"
+#include "taoserror.h"
 #include "tlog.h"
 #include "tutil.h"
 
@@ -35,7 +35,7 @@ typedef struct SCacheNode {
   uint64_t           addedTime;   // the added time when this element is added or updated into cache
   uint64_t           lifespan;    // life duration when this element should be remove from cache
   int64_t            expireTime;  // expire time
-  void*              signature;
+  void              *signature;
   struct STrashElem *pTNodeHeader;    // point to trash node head
   uint16_t           keyLen : 15;     // max key size: 32kb
   bool               inTrashcan : 1;  // denote if it is in trash or not
@@ -227,7 +227,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheNode *
 
 static FORCE_INLINE STrashElem *doRemoveElemInTrashcan(SCacheObj *pCacheObj, STrashElem *pElem) {
   if (pElem->pData->signature != pElem->pData) {
-    uWarn("key:sig:0x%" PRIx64 " %p data has been released, ignore", pElem->pData->signature, pElem->pData);
+    uWarn("key:sig:0x%" PRIx64 " %p data has been released, ignore", (int64_t)pElem->pData->signature, pElem->pData);
     return NULL;
   }
 
@@ -279,7 +279,7 @@ static void removeNodeInEntryList(SCacheEntry *pe, SCacheNode *prev, SCacheNode 
 
   pNode->pNext = NULL;
   pe->num -= 1;
-  ASSERT((pe->next && pe->num > 0) || (NULL == pe->next && pe->num == 0));  
+  ASSERT((pe->next && pe->num > 0) || (NULL == pe->next && pe->num == 0));
 }
 
 static FORCE_INLINE SCacheEntry *doFindEntry(SCacheObj *pCacheObj, const void *key, size_t keyLen) {
@@ -391,7 +391,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
     return NULL;
   }
 
-  pCacheObj->name = strdup(cacheName);
+  pCacheObj->name = taosStrdup(cacheName);
   doRegisterCacheObj(pCacheObj);
   return pCacheObj;
 }
@@ -660,7 +660,7 @@ void doTraverseElems(SCacheObj *pCacheObj, bool (*fp)(void *param, SCacheNode *p
     taosWLockLatch(&pEntry->latch);
 
     SCacheNode **pPre = &pEntry->next;
-    SCacheNode *pNode = pEntry->next;
+    SCacheNode  *pNode = pEntry->next;
     while (pNode != NULL) {
       SCacheNode *next = pNode->pNext;
 
@@ -921,7 +921,7 @@ void taosCacheRefresh(SCacheObj *pCacheObj, __cache_trav_fn_t fp, void *param1) 
 void taosStopCacheRefreshWorker(void) {
   stopRefreshWorker = true;
   TdThreadOnce tmp = PTHREAD_ONCE_INIT;
-  if (memcmp(&cacheRefreshWorker, &tmp, sizeof(TdThreadOnce)) != 0) taosThreadJoin(cacheRefreshWorker, NULL);
+  if (memcmp(&cacheThreadInit, &tmp, sizeof(TdThreadOnce)) != 0) taosThreadJoin(cacheRefreshWorker, NULL);
   taosArrayDestroy(pCacheArrayList);
 }
 
@@ -945,7 +945,7 @@ bool taosCacheIterNext(SCacheIter *pIter) {
       char *p = pIter->pCurrent[i]->data;
       taosCacheRelease(pCacheObj, (void **)&p, false);
       pIter->pCurrent[i] = NULL;
-    }   
+    }
 
     if (pIter->entryIndex + 1 >= pCacheObj->capacity) {
       return false;

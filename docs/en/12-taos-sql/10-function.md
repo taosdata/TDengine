@@ -1,6 +1,7 @@
 ---
-sidebar_label: Functions
 title: Functions
+sidebar_label: Functions
+description: This document describes the standard SQL functions available in TDengine.
 toc_max_heading_level: 4
 ---
 
@@ -13,7 +14,7 @@ Single row functions return a result for each row.
 #### ABS
 
 ```sql
-SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+ABS(expr)
 ```
 
 **Description**: The absolute value of a specific field.
@@ -31,7 +32,7 @@ SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### ACOS
 
 ```sql
-SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+ACOS(expr)
 ```
 
 **Description**: The arc cosine of a specific field.
@@ -49,7 +50,7 @@ SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### ASIN
 
 ```sql
-SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+ASIN(expr)
 ```
 
 **Description**: The arc sine of a specific field.
@@ -68,7 +69,7 @@ SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### ATAN
 
 ```sql
-SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+ATAN(expr)
 ```
 
 **Description**: The arc tangent of a specific field.
@@ -87,7 +88,7 @@ SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### CEIL
 
 ```sql
-SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
+CEIL(expr)
 ```
 
 **Description**: The rounded up value of a specific field
@@ -105,7 +106,7 @@ SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
 #### COS
 
 ```sql
-SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+COS(expr)
 ```
 
 **Description**: The cosine of a specific field.
@@ -123,7 +124,7 @@ SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### FLOOR
 
 ```sql
-SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
+FLOOR(expr)
 ```
 
 **Description**: The rounded down value of a specific field
@@ -132,7 +133,7 @@ SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
 #### LOG
 
 ```sql
-SELECT LOG(field_name[, base]) FROM { tb_name | stb_name } [WHERE clause]
+LOG(expr [, base])
 ```
 
 **Description**: The logarithm of a specific field with `base` as the radix. If you do not enter a base, the natural logarithm of the field is returned.
@@ -151,7 +152,7 @@ SELECT LOG(field_name[, base]) FROM { tb_name | stb_name } [WHERE clause]
 #### POW
 
 ```sql
-SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
+POW(expr, power)
 ```
 
 **Description**: The power of a specific field with `power` as the exponent.
@@ -170,7 +171,7 @@ SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
 #### ROUND
 
 ```sql
-SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
+ROUND(expr)
 ```
 
 **Description**: The rounded value of a specific field.
@@ -180,7 +181,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 #### SIN
 
 ```sql
-SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SIN(expr)
 ```
 
 **Description**: The sine of a specific field.
@@ -198,7 +199,7 @@ SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### SQRT
 
 ```sql
-SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SQRT(expr)
 ```
 
 **Description**: The square root of a specific field.
@@ -216,7 +217,7 @@ SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### TAN
 
 ```sql
-SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+TAN(expr)
 ```
 
 **Description**: The tangent of a specific field.
@@ -238,7 +239,7 @@ Concatenation functions take strings as input and produce string or numeric valu
 #### CHAR_LENGTH
 
 ```sql
-SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+CHAR_LENGTH(expr)
 ```
 
 **Description**: The length in number of characters of a string
@@ -254,7 +255,7 @@ SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
 #### CONCAT
 
 ```sql
-SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+CONCAT(expr1, expr2 [, expr] ...)
 ```
 
 **Description**: The concatenation result of two or more strings
@@ -271,7 +272,7 @@ SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHER
 #### CONCAT_WS
 
 ```sql
-SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 ```
 
 **Description**: The concatenation result of two or more strings with separator
@@ -288,7 +289,7 @@ SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | st
 #### LENGTH
 
 ```sql
-SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+LENGTH(expr)
 ```
 
 **Description**: The length in bytes of a string
@@ -305,7 +306,7 @@ SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
 #### LOWER
 
 ```sql
-SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+LOWER(expr)
 ```
 
 **Description**: Convert the input string to lower case
@@ -322,7 +323,7 @@ SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
 #### LTRIM
 
 ```sql
-SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+LTRIM(expr)
 ```
 
 **Description**: Remove the left leading blanks of a string
@@ -339,7 +340,7 @@ SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
 #### RTRIM
 
 ```sql
-SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+LTRIM(expr)
 ```
 
 **Description**: Remove the right tailing blanks of a string
@@ -356,7 +357,7 @@ SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
 #### SUBSTR
 
 ```sql
-SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
+SUBSTR(expr, pos [, len])
 ```
 
 **Description**: The sub-string starting from `pos` with length of `len` from the original string `str` - If `len` is not specified, it means from `pos` to the end.
@@ -373,7 +374,7 @@ SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
 #### UPPER
 
 ```sql
-SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+UPPER(expr)
 ```
 
 **Description**: Convert the input string to upper case
@@ -394,10 +395,10 @@ Conversion functions change the data type of a value.
 #### CAST
 
 ```sql
-SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
+CAST(expr AS type_name)
 ```
 
-**Description**: Convert the input data `expression` into the type specified by `type_name`. This function can be used only in SELECT statements.
+**Description**: Convert the input data `expr` into the type specified by `type_name`. This function can be used only in SELECT statements.
 
 **Return value type**: The type specified by parameter `type_name`
 
@@ -418,7 +419,7 @@ SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 #### TO_ISO8601
 
 ```sql
-SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
+TO_ISO8601(expr [, timezone])
 ```
 
 **Description**: The ISO8601 date/time format converted from a UNIX timestamp, plus the timezone. You can specify any time zone with the timezone parameter. If you do not enter this parameter, the time zone on the client is used.
@@ -441,7 +442,7 @@ SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
 #### TO_JSON
 
 ```sql
-SELECT TO_JSON(str_literal) FROM { tb_name | stb_name } [WHERE clause];
+TO_JSON(str_literal)
 ```
 
 **Description**: Converts a string into JSON.
@@ -458,7 +459,7 @@ SELECT TO_JSON(str_literal) FROM { tb_name | stb_name } [WHERE clause];
 #### TO_UNIXTIMESTAMP
 
 ```sql
-SELECT TO_UNIXTIMESTAMP(datetime_string) FROM { tb_name | stb_name } [WHERE clause];
+TO_UNIXTIMESTAMP(expr)
 ```
 
 **Description**: UNIX timestamp converted from a string of date/time format
@@ -486,9 +487,7 @@ All functions that return the current time, such as `NOW`, `TODAY`, and `TIMEZON
 #### NOW
 
 ```sql
-SELECT NOW() FROM { tb_name | stb_name } [WHERE clause];
-SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior NOW();
-INSERT INTO tb_name VALUES (NOW(), ...);
+NOW()
 ```
 
 **Description**: The current time of the client side system
@@ -511,7 +510,7 @@ INSERT INTO tb_name VALUES (NOW(), ...);
 #### TIMEDIFF
 
 ```sql
-SELECT TIMEDIFF(ts | datetime_string1, ts | datetime_string2 [, time_unit]) FROM { tb_name | stb_name } [WHERE clause];
+TIMEDIFF(expr1, expr2 [, time_unit])
 ```
 
 **Description**: The difference between two timestamps, and rounded to the time unit specified by `time_unit`
@@ -534,7 +533,12 @@ SELECT TIMEDIFF(ts | datetime_string1, ts | datetime_string2 [, time_unit]) FROM
 #### TIMETRUNCATE
 
 ```sql
-SELECT TIMETRUNCATE(ts | datetime_string , time_unit) FROM { tb_name | stb_name } [WHERE clause];
+TIMETRUNCATE(expr, time_unit [, ignore_timezone])
+
+ignore_timezone: {
+    0
+  | 1
+}
 ```
 
 **Description**: Truncate the input timestamp with unit specified by `time_unit`
@@ -550,12 +554,15 @@ SELECT TIMETRUNCATE(ts | datetime_string , time_unit) FROM { tb_name | stb_name 
           1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
 - The precision of the returned timestamp is same as the precision set for the current data base in use
 - If the input data is not formatted as a timestamp, the returned value is null.
-
+- If `1d` is used as `time_unit` to truncate the timestamp, `ignore_timezone` option can be set to indicate if the returned result is affected by client timezone or not.
+  For example, if client timezone is set to UTC+0800, TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) will return '2020-01-01 08:00:00'.
+  Otherwise, TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) will return '2020-01-01 00:00:00'.
+  If `ignore_timezone` option is omitted, the default value is set to 1.
 
 #### TIMEZONE
 
 ```sql
-SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
+TIMEZONE()
 ```
 
 **Description**: The timezone of the client side system
@@ -570,9 +577,7 @@ SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
 #### TODAY
 
 ```sql
-SELECT TODAY() FROM { tb_name | stb_name } [WHERE clause];
-SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior TODAY()];
-INSERT INTO tb_name VALUES (TODAY(), ...);
+TODAY()
 ```
 
 **Description**: The timestamp of 00:00:00 of the client side system
@@ -599,7 +604,12 @@ TDengine supports the following aggregate functions:
 ### APERCENTILE
 
 ```sql
-SELECT APERCENTILE(field_name, P[, algo_type]) FROM { tb_name | stb_name } [WHERE clause]
+APERCENTILE(expr, p [, algo_type])
+
+algo_type: {
+    "default"
+  | "t-digest"
+}
 ```
 
 **Description**: Similar to `PERCENTILE`, but a simulated result is returned
@@ -611,14 +621,14 @@ SELECT APERCENTILE(field_name, P[, algo_type]) FROM { tb_name | stb_name } [WHER
 **Applicable table types**: standard tables and supertables
 
 **Explanations**：
-- _P_ is in range [0,100], when _P_ is 0, the result is same as using function MIN; when _P_ is 100, the result is same as function MAX.
+- _p_ is in range [0,100], when _p_ is 0, the result is same as using function MIN; when _p_ is 100, the result is same as function MAX.
 - `algo_type` can only be input as `default` or `t-digest` Enter `default` to use a histogram-based algorithm. Enter `t-digest` to use the t-digest algorithm to calculate the approximation of the quantile. `default` is used by default.
 - The approximation result of `t-digest` algorithm is sensitive to input data order. For example, when querying STable with different input data order there might be minor differences in calculated results.
 
 ### AVG
 
 ```sql
-SELECT AVG(field_name) FROM tb_name [WHERE clause];
+AVG(expr)
 ```
 
 **Description**: The average value of the specified fields.
@@ -633,7 +643,7 @@ SELECT AVG(field_name) FROM tb_name [WHERE clause];
 ### COUNT
 
 ```sql
-SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause];
+COUNT({* | expr})
 ```
 
 **Description**: The number of records in the specified fields.
@@ -653,7 +663,7 @@ If you input a specific column, the number of non-null values in the column is r
 ### ELAPSED
 
 ```sql
-SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE clause] [INTERVAL(interval [, offset]) [SLIDING sliding]];
+ELAPSED(ts_primary_key [, time_unit])
 ```
 
 **Description**：`elapsed` function can be used to calculate the continuous time length in which there is valid data. If it's used with `INTERVAL` clause, the returned result is the calcualted time length within each time window. If it's used without `INTERVAL` caluse, the returned result is the calculated time length within the specified time range. Please be noted that the return value of `elapsed` is the number of `time_unit` in the calculated time length.
@@ -665,7 +675,7 @@ SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE 
 **Applicable tables**: table, STable, outter in nested query
 
 **Explanations**：
-- `field_name` parameter can only be the first column of a table, i.e. timestamp primary key.
+- `ts_primary_key` parameter can only be the first column of a table, i.e. timestamp primary key.
 - The minimum value of `time_unit` is the time precision of the database. If `time_unit` is not specified, the time precision of the database is used as the default time unit. Time unit specified by `time_unit` can be:
           1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), or 1w (weeks)
 - It can be used with `INTERVAL` to get the time valid time length of each time window. Please be noted that the return value is same as the time window for all time windows except for the first and the last time window.
@@ -679,7 +689,7 @@ SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE 
 ### LEASTSQUARES
 
 ```sql
-SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause];
+LEASTSQUARES(expr, start_val, step_val)
 ```
 
 **Description**: The linear regression function of the specified column and the timestamp column (primary key), `start_val` is the initial value and `step_val` is the step value.
@@ -694,7 +704,7 @@ SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause]
 ### SPREAD
 
 ```sql
-SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
+SPREAD(expr)
 ```
 
 **Description**: The difference between the max and the min of a specific column
@@ -709,7 +719,7 @@ SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ### STDDEV
 
 ```sql
-SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
+STDDEV(expr)
 ```
 
 **Description**: Standard deviation of a specific column in a table or STable
@@ -724,7 +734,7 @@ SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
 ### SUM
 
 ```sql
-SELECT SUM(field_name) FROM tb_name [WHERE clause];
+SUM(expr)
 ```
 
 **Description**: The sum of a specific column in a table or STable
@@ -739,7 +749,7 @@ SELECT SUM(field_name) FROM tb_name [WHERE clause];
 ### HYPERLOGLOG
 
 ```sql
-SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
+HYPERLOGLOG(expr)
 ```
 
 **Description**：
@@ -756,7 +766,7 @@ SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ### HISTOGRAM
 
 ```sql
-SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_name [WHERE clause];
+HISTOGRAM(expr，bin_type, bin_description, normalized)
 ```
 
 **Description**：Returns count of data points in user-specified ranges.
@@ -786,19 +796,23 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 ### PERCENTILE
 
 ```sql
-SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
+PERCENTILE(expr, p [, p1] ...)
 ```
 
 **Description**: The value whose rank in a specific column matches the specified percentage. If such a value matching the specified percentage doesn't exist in the column, an interpolation value will be returned.
 
-**Return value type**: DOUBLE
+**Return value type**: This function takes 2 minumum and 11 maximum parameters, and it can simultaneously return 10 percentiles at most. If 2 parameters are given, a single percentile is returned and the value type is DOUBLE.
+                       If more than 2 parameters are given, the return value type is a VARCHAR string, the format of which is a JSON ARRAY containing all return values.
 
 **Applicable column types**: Numeric
 
 **Applicable table types**: table only
 
-**More explanations**: _P_ is in range [0,100], when _P_ is 0, the result is same as using function MIN; when _P_ is 100, the result is same as function MAX.
+**More explanations**:
 
+- _p_ is in range [0,100], when _p_ is 0, the result is same as using function MIN; when _p_ is 100, the result is same as function MAX.
+- When calculating multiple percentiles of a specific column, a single PERCENTILE function with multiple parameters is adviced, as this can largely reduce the query response time.
+  For example, using SELECT percentile(col, 90, 95, 99) FROM table will perform better than SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table.
 
 ## Selection Functions
 
@@ -807,7 +821,7 @@ Selection functions return one or more results depending. You can specify the ti
 ### BOTTOM
 
 ```sql
-SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
+BOTTOM(expr, k)
 ```
 
 **Description**: The least _k_ values of a specific column in a table or STable. If a value has multiple occurrences in the column but counting all of them in will exceed the upper limit _k_, then a part of them will be returned randomly.
@@ -827,7 +841,7 @@ SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 ### FIRST
 
 ```sql
-SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
+FIRST(expr)
 ```
 
 **Description**: The first non-null value of a specific column in a table or STable
@@ -847,7 +861,7 @@ SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ### INTERP
 
 ```sql
-SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] RANGE(timestamp1,timestamp2) EVERY(interval) FILL({ VALUE | PREV | NULL | LINEAR | NEXT});
+INTERP(expr)
 ```
 
 **Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned.
@@ -862,15 +876,27 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] RA
 
 - `INTERP` is used to get the value that matches the specified time slice from a column. If no such value exists an interpolation value will be returned based on `FILL` parameter.
 - The input data of `INTERP` is the value of the specified column and a `where` clause can be used to filter the original data. If no `where` condition is specified then all original data is the input.
-- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1<=timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified.
-- The number of rows in the result set of `INTERP` is determined by the parameter `EVERY`. Starting from timestamp1, one interpolation is performed for every time interval specified `EVERY` parameter.
-- Interpolation is performed based on `FILL` parameter.
+- `INTERP` must be used along with `RANGE`, `EVERY`, `FILL` keywords.
+- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1 <= timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified.
+- The number of rows in the result set of `INTERP` is determined by the parameter `EVERY(time_unit)`. Starting from timestamp1, one interpolation is performed for every time interval specified `time_unit` parameter. The parameter `time_unit` must be an integer, with no quotes, with a time unit of: a(millisecond)), s(second), m(minute), h(hour), d(day), or w(week). For example, `EVERY(500a)` will interpolate every 500 milliseconds.
+- Interpolation is performed based on `FILL` parameter. For more information about FILL clause, see [FILL Clause](../distinguished/#fill-clause).
 - `INTERP` can only be used to interpolate in single timeline. So it must be used with `partition by tbname` when it's used on a STable.
+- Pseudocolumn `_irowts` can be used along with `INTERP` to return the timestamps associated with interpolation points(support after version 3.0.2.0).
+- Pseudocolumn `_isfilled` can be used along with `INTERP` to indicate whether the results are original records or data points generated by interpolation algorithm(support after version 3.0.3.0).
+
+**Example**
+
+- We use the smart meters example used in this documentation to illustrate how to use the INTERP function.
+- We want to downsample every 1 hour and use a linear fill for missing values. Note the order in which the "partition by" clause and the "range", "every" and "fill" parameters are used.
+
+```sql
+SELECT _irowts,INTERP(current) FROM test.meters PARTITION BY TBNAME RANGE('2017-07-22 00:00:00','2017-07-24 12:25:00') EVERY(1h) FILL(LINEAR) 
+```
 
 ### LAST
 
 ```sql
-SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
+LAST(expr)
 ```
 
 **Description**: The last non-NULL value of a specific column in a table or STable
@@ -891,7 +917,7 @@ SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ### LAST_ROW
 
 ```sql
-SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
+LAST_ROW(expr)
 ```
 
 **Description**: The last row of a table or STable
@@ -910,7 +936,7 @@ SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
 ### MAX
 
 ```sql
-SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
+MAX(expr)
 ```
 
 **Description**: The maximum value of a specific column of a table or STable
@@ -925,7 +951,7 @@ SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ### MIN
 
 ```sql
-SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
+MIN(expr)
 ```
 
 **Description**: The minimum value of a specific column in a table or STable
@@ -940,10 +966,10 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 ### MODE
 
 ```sql
-SELECT MODE(field_name) FROM tb_name [WHERE clause];
+MODE(expr)
 ```
 
-**Description**:The value which has the highest frequency of occurrence. NULL is returned if there are multiple values which have highest frequency of occurrence.
+**Description**:The value which has the highest frequency of occurrence. One random value is returned if there are multiple values which have highest frequency of occurrence.
 
 **Return value type**: Same as the input data
 
@@ -955,7 +981,7 @@ SELECT MODE(field_name) FROM tb_name [WHERE clause];
 ### SAMPLE
 
 ```sql
-SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+SAMPLE(expr, k)
 ```
 
 **Description**: _k_ sampling values of a specific column. The applicable range of _k_ is [1,1000].
@@ -977,7 +1003,7 @@ This function cannot be used in expression calculation.
 ### TAIL
 
 ```sql
-SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
+TAIL(expr, k, offset_val)
 ```
 
 **Description**: The next _k_ rows are returned after skipping the last `offset_val` rows, NULL values are not ignored. `offset_val` is optional parameter. When it's not specified, the last _k_ rows are returned. When `offset_val` is used, the effect is same as `order by ts desc LIMIT k OFFSET offset_val`.
@@ -994,7 +1020,7 @@ SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
 ### TOP
 
 ```sql
-SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
+TOP(expr, k)
 ```
 
 **Description**: The greatest _k_ values of a specific column in a table or STable. If a value has multiple occurrences in the column but counting all of them in will exceed the upper limit _k_, then a part of them will be returned randomly.
@@ -1014,7 +1040,7 @@ SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 ### UNIQUE
 
 ```sql
-SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
+UNIQUE(expr)
 ```
 
 **Description**: The values that occur the first time in the specified column. The effect is similar to `distinct` keyword, but it can also be used to match tags or timestamp. The first occurrence of a timestamp or tag is used.
@@ -1033,7 +1059,7 @@ TDengine includes extensions to standard SQL that are intended specifically for 
 ### CSUM
 
 ```sql
-SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
+CSUM(expr)
 ```
 
 **Description**: The cumulative sum of each row for a specific column. The number of output rows is same as that of the input rows.
@@ -1056,7 +1082,12 @@ SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
 ### DERIVATIVE
 
 ```sql
-SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHERE clause];
+DERIVATIVE(expr, time_inerval, ignore_negative)
+
+ignore_negative: {
+    0
+  | 1
+}
 ```
 
 **Description**: The derivative of a specific column. The time rage can be specified by parameter `time_interval`, the minimum allowed time range is 1 second (1s); the value of `ignore_negative` can be 0 or 1, 1 means negative values are ignored.
@@ -1075,7 +1106,12 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 ### DIFF
 
 ```sql
-SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHERE clause];
+DIFF(expr [, ignore_negative])
+
+ignore_negative: {
+    0
+  | 1
+}
 ```
 
 **Description**: The different of each row with its previous row for a specific column. `ignore_negative` can be specified as 0 or 1, the default value is 1 if it's not specified. `1` means negative values are ignored.
@@ -1095,7 +1131,7 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 ### IRATE
 
 ```sql
-SELECT IRATE(field_name) FROM tb_name WHERE clause;
+IRATE(expr)
 ```
 
 **Description**: instantaneous rate on a specific column. The last two samples in the specified time range are used to calculate instantaneous rate. If the last sample value is smaller, then only the last sample value is used instead of the difference between the last two sample values.
@@ -1110,7 +1146,7 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 ### MAVG
 
 ```sql
-SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+MAVG(expr, k)
 ```
 
 **Description**: The moving average of continuous _k_ values of a specific column. If the number of input rows is less than _k_, nothing is returned. The applicable range of _k_ is [1,1000].
@@ -1133,7 +1169,7 @@ SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 ### STATECOUNT
 
 ```sql
-SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clause];
+STATECOUNT(expr, oper, val)
 ```
 
 **Description**: The number of continuous rows satisfying the specified conditions for a specific column. The result is shown as an extra column for each row. If the specified condition is evaluated as true, the number is increased by 1; otherwise the number is reset to -1. If the input value is NULL, then the corresponding row is skipped.
@@ -1160,7 +1196,7 @@ SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clau
 ### STATEDURATION
 
 ```sql
-SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [WHERE clause];
+STATEDURATION(expr, oper, val, unit)
 ```
 
 **Description**: The length of time range in which all rows satisfy the specified condition for a specific column. The result is shown as an extra column for each row. The length for the first row that satisfies the condition is 0. Next, if the condition is evaluated as true for a row, the time interval between current row and its previous row is added up to the time range; otherwise the time range length is reset to -1. If the value of the column is NULL, the corresponding row is skipped.
@@ -1188,7 +1224,7 @@ SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [W
 ### TWA
 
 ```sql
-SELECT TWA(field_name) FROM tb_name WHERE clause;
+TWA(expr)
 ```
 
 **Description**: Time weighted average on a specific column within a time range

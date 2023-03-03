@@ -562,6 +562,100 @@ if $data21 != 1 then
   goto loop14
 endi
 
+sql drop stream if exists streams5;
+sql drop database if exists test5;
+sql create database test5  vgroups 4;
+sql use test5;
+sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql create table t3 using st tags(2,2,2);
+sql create table t4 using st tags(2,2,2);
+sql create stream streams5 trigger at_once into test.streamt5 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a interval(10s);
+
+sql insert into t1 values(1648791213000,1,2,3,1.0);
+sql insert into t2 values(1648791213000,2,2,3,1.0);
+sql insert into t3 values(1648791213000,3,2,3,1.0);
+sql insert into t4 values(1648791213000,4,2,3,1.0);
+
+sql insert into t1 values(1648791223000,1,2,3,1.0);
+sql insert into t2 values(1648791223000,2,2,3,1.0);
+sql insert into t3 values(1648791223000,3,2,3,1.0);
+sql insert into t4 values(1648791223000,4,2,3,1.0);
+
+sleep 300
+
+sql delete from st where ts = 1648791223000;
+
+$loop_count = 0
+
+loop15:
+sleep 50
+sql select * from test.streamt5 order by c1, c2, c3;
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+if $rows != 4 then
+  print ======rows=$rows
+  goto loop15
+endi
+
+sql insert into t1 values(1648791223001,11,2,3,1.0);
+sql insert into t2 values(1648791223001,21,2,3,1.0);
+sql insert into t3 values(1648791223001,31,2,3,1.0);
+sql insert into t4 values(1648791223001,41,2,3,1.0);
+
+sleep 300
+
+sql delete from st where ts = 1648791223001;
+
+$loop_count = 0
+
+loop16:
+sleep 50
+sql select * from test.streamt5 order by c1, c2, c3;
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  print ======rows=$rows
+  return -1
+endi
+
+if $rows != 4 then
+  goto loop16
+endi
+
+sql insert into t1 values(1648791223001,12,2,3,1.0);
+sql insert into t2 values(1648791223001,22,2,3,1.0);
+sql insert into t3 values(1648791223001,32,2,3,1.0);
+sql insert into t4 values(1648791223001,42,2,3,1.0);
+
+sleep 300
+
+sql delete from st where ts = 1648791223001;
+
+$loop_count = 0
+
+loop17:
+sleep 50
+sql select * from test.streamt5 order by c1, c2, c3;
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+if $rows != 4 then
+  print ======rows=$rows
+  print ======rows=$rows
+  print ======rows=$rows
+  return 1
+  #goto loop17
+endi
+
 $loop_all = $loop_all + 1
 print ============loop_all=$loop_all
 

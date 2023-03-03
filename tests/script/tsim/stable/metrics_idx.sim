@@ -1,0 +1,65 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = m_me_db_idx
+$tbPrefix = m_me_tb_idx
+$mtPrefix = m_me_mt_idx
+
+print =============== step1
+$i = 0
+$db = $dbPrefix
+$mt = $mtPrefix 
+
+sql drop database  if exists $db
+sql create database $db
+
+sql use $db
+
+sql create table $mt (ts timestamp, speed int) TAGS(sp int)
+
+$tbNum = 10000
+
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql insert into $tb using $mt tags( $i ) values(now,  $i )
+  $i = $i + 1
+endw
+
+sql use information_schema
+sql select count(*) from ins_tables where db_name = "m_me_db_idx" and create_time > now() - 10m
+if $data[0][0] != $tbNum then 
+  return -1
+endi
+
+sql select count(*) from ins_tables where db_name = "m_me_db_idx" and create_time < now();
+if $data[0][0] != $tbNum then 
+  return -1
+endi
+
+sleep 1000 
+
+
+sql use $db
+$doubletbNum = 20000
+
+while $i < $doubletbNum 
+  $tb = $tbPrefix . $i
+  sql insert into $tb using $mt tags( $i ) values(now,  $i )
+  $i = $i + 1
+endw
+
+
+sql use information_schema
+
+sql select count(*) from ins_tables where db_name = "m_me_db_idx" and create_time < now();
+if $data[0][0] != $doubletbNum then 
+  print ==== $data[0][0]
+  return -1
+endi
+
+
+
+
+

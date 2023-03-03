@@ -119,7 +119,7 @@ taos -h tdengine -P 6030
 FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y wget
 ENV TDENGINE_VERSION=3.0.0.0
-RUN wget -c https://www.tdengine.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
+RUN wget -c https://www.tdengine.com/assets-download/3.0/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && tar xvf TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && cd TDengine-client-${TDENGINE_VERSION} \
    && ./install_client.sh \
@@ -309,7 +309,7 @@ services:
       TAOS_FIRST_EP: "td-1"
     volumes:
       - taosdata-td3:/var/lib/taos/
-      - taoslog-td3:/var/log/taos/    
+      - taoslog-td3:/var/log/taos/
 volumes:
   taosdata-td1:
   taoslog-td1:
@@ -473,18 +473,18 @@ Creating service taos_adapter
 ```shell
 $ docker stack ps taos
 ID             NAME             IMAGE                       NODE      DESIRED STATE   CURRENT STATE                ERROR     PORTS
-7m3sbf532bqp   taos_adapter.1   tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago             
-pj403n6ofmmh   taos_adapter.2   tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago             
-rxqfwsyk5q1h   taos_adapter.3   tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago             
-qj40lpxr40oc   taos_adapter.4   tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago             
-oe3455ulxpze   taos_nginx.1     nginx:latest                vm98      Running         Running about a minute ago             
-o0tsg70nrrc6   taos_td-1.1      tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago             
+7m3sbf532bqp   taos_adapter.1   tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago
+pj403n6ofmmh   taos_adapter.2   tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago
+rxqfwsyk5q1h   taos_adapter.3   tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago
+qj40lpxr40oc   taos_adapter.4   tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago
+oe3455ulxpze   taos_nginx.1     nginx:latest                vm98      Running         Running about a minute ago
+o0tsg70nrrc6   taos_td-1.1      tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago
 q5m1oxs589cp   taos_td-2.1      tdengine/tdengine:3.0.0.0   vm98      Running         Running about a minute ago
 $ docker service ls
 ID             NAME           MODE         REPLICAS   IMAGE                       PORTS
-ozuklorgl8bs   taos_adapter   replicated   4/4        tdengine/tdengine:3.0.0.0   
+ozuklorgl8bs   taos_adapter   replicated   4/4        tdengine/tdengine:3.0.0.0
 crmhdjw6vxw0   taos_nginx     replicated   1/1        nginx:latest                *:6041->6041/tcp, *:6044->6044/udp
-o86ngy7csv5n   taos_td-1      replicated   1/1        tdengine/tdengine:3.0.0.0   
+o86ngy7csv5n   taos_td-1      replicated   1/1        tdengine/tdengine:3.0.0.0
 rma040ny4tb0   taos_td-2      replicated   1/1        tdengine/tdengine:3.0.0.0
 ```
 
@@ -495,11 +495,11 @@ rma040ny4tb0   taos_td-2      replicated   1/1        tdengine/tdengine:3.0.0.0
 ```shell
 $ docker service scale taos_adapter=1
 taos_adapter scaled to 1
-overall progress: 1 out of 1 tasks 
-1/1: running   [==================================================>] 
+overall progress: 1 out of 1 tasks
+1/1: running   [==================================================>]
 verify: Service converged
 
 $ docker service ls -f name=taos_adapter
 ID             NAME           MODE         REPLICAS   IMAGE                       PORTS
-ozuklorgl8bs   taos_adapter   replicated   1/1        tdengine/tdengine:3.0.0.0  
+ozuklorgl8bs   taos_adapter   replicated   1/1        tdengine/tdengine:3.0.0.0
 ```

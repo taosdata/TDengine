@@ -29,6 +29,7 @@ enum {
   NODE_TYPE_QNODE,
   NODE_TYPE_SNODE,
   NODE_TYPE_MNODE,
+  NODE_TYPE_CLIENT,
 };
 
 typedef struct SQWorkerCfg {
@@ -55,11 +56,27 @@ typedef struct {
   uint64_t numOfErrors;
 } SQWorkerStat;
 
-int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, const SMsgCb *pMsgCb);
+typedef struct SQWMsgInfo {
+  int8_t taskType;
+  int8_t explain;
+  int8_t needFetch;
+} SQWMsgInfo;
+
+typedef struct SQWMsg {
+  void          *node;
+  int32_t        code;
+  int32_t        msgType;
+  void          *msg;
+  int32_t        msgLen;
+  SQWMsgInfo     msgInfo;
+  SRpcHandleInfo connInfo;
+} SQWMsg;
+
+int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const SMsgCb *pMsgCb);
 
 int32_t qWorkerAbortPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg);
 
-int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg);
+int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGrant);
 
 int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
@@ -77,9 +94,17 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_
 
 int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SDeleteRes *pRes);
 
+void qWorkerStopAllTasks(void *qWorkerMgmt);
+
 void qWorkerDestroy(void **qWorkerMgmt);
 
 int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pStat);
+
+int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId,
+                                 SQWMsg *qwMsg, SArray *explainRes);
+
+int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId,
+                                 void **pRsp, SArray *explainRes);
 
 #ifdef __cplusplus
 }

@@ -119,14 +119,19 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_WSTART,
   FUNCTION_TYPE_WEND,
   FUNCTION_TYPE_WDURATION,
+  FUNCTION_TYPE_IROWTS,
+  FUNCTION_TYPE_ISFILLED,
+  FUNCTION_TYPE_TAGS,
 
   // internal function
-  FUNCTION_TYPE_SELECT_VALUE,
+  FUNCTION_TYPE_SELECT_VALUE = 3750,
   FUNCTION_TYPE_BLOCK_DIST,       // block distribution aggregate function
   FUNCTION_TYPE_BLOCK_DIST_INFO,  // block distribution pseudo column function
   FUNCTION_TYPE_TO_COLUMN,
   FUNCTION_TYPE_GROUP_KEY,
   FUNCTION_TYPE_CACHE_LAST_ROW,
+  FUNCTION_TYPE_CACHE_LAST,
+  FUNCTION_TYPE_TABLE_COUNT,
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
@@ -212,12 +217,17 @@ bool fmIsClientPseudoColumnFunc(int32_t funcId);
 bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(int32_t funcId);
 bool fmIsCumulativeFunc(int32_t funcId);
+bool fmIsInterpPseudoColumnFunc(int32_t funcId);
+bool fmIsGroupKeyFunc(int32_t funcId);
+bool fmIsBlockDistFunc(int32_t funcId);
+
+void getLastCacheDataType(SDataType* pType);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,
-  FUNC_DATA_REQUIRED_STATIS_LOAD,
+  FUNC_DATA_REQUIRED_SMA_LOAD,
   FUNC_DATA_REQUIRED_NOT_LOAD,
   FUNC_DATA_REQUIRED_FILTEROUT,
 } EFuncDataRequired;

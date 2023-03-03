@@ -21,25 +21,25 @@ extern "C" {
 #endif
 
 #ifdef WINDOWS
-  int32_t BUILDIN_CLZL(uint64_t val);
-  int32_t BUILDIN_CLZ(uint32_t val);
-  int32_t BUILDIN_CTZL(uint64_t val);
-  int32_t BUILDIN_CTZ(uint32_t val);
-#elif defined (_TD_LINUX_32)
-  #define BUILDIN_CLZL(val) __builtin_clzll(val)
-  #define BUILDIN_CTZL(val) __builtin_ctzll(val)
-  #define BUILDIN_CLZ(val) __builtin_clz(val)
-  #define BUILDIN_CTZ(val) __builtin_ctz(val)
-#elif defined (_TD_ARM_32)
-  #define BUILDIN_CLZL(val) __builtin_clzll(val)
-  #define BUILDIN_CTZL(val) __builtin_ctzll(val)
-  #define BUILDIN_CLZ(val) __builtin_clz(val)
-  #define BUILDIN_CTZ(val) __builtin_ctz(val)
+int32_t BUILDIN_CLZL(uint64_t val);
+int32_t BUILDIN_CLZ(uint32_t val);
+int32_t BUILDIN_CTZL(uint64_t val);
+int32_t BUILDIN_CTZ(uint32_t val);
+#elif defined(_TD_LINUX_32)
+#define BUILDIN_CLZL(val) __builtin_clzll(val)
+#define BUILDIN_CTZL(val) __builtin_ctzll(val)
+#define BUILDIN_CLZ(val)  __builtin_clz(val)
+#define BUILDIN_CTZ(val)  __builtin_ctz(val)
+#elif defined(_TD_ARM_32)
+#define BUILDIN_CLZL(val) __builtin_clzll(val)
+#define BUILDIN_CTZL(val) __builtin_ctzll(val)
+#define BUILDIN_CLZ(val)  __builtin_clz(val)
+#define BUILDIN_CTZ(val)  __builtin_ctz(val)
 #else
-  #define BUILDIN_CLZL(val) __builtin_clzl(val)
-  #define BUILDIN_CTZL(val) __builtin_ctzl(val)
-  #define BUILDIN_CLZ(val) __builtin_clz(val)
-  #define BUILDIN_CTZ(val) __builtin_ctz(val)
+#define BUILDIN_CLZL(val) __builtin_clzl(val)
+#define BUILDIN_CTZL(val) __builtin_ctzl(val)
+#define BUILDIN_CLZ(val)  __builtin_clz(val)
+#define BUILDIN_CTZ(val)  __builtin_ctz(val)
 #endif
 
 #ifdef __cplusplus

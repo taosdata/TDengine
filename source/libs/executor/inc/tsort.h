@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-#include "tcommon.h"
 #include "os.h"
+#include "tcommon.h"
 
 enum {
   SORT_MULTISOURCE_MERGE = 0x1,
@@ -31,29 +31,30 @@ enum {
 typedef struct SMultiMergeSource {
   int32_t      type;
   int32_t      rowIndex;
-  SSDataBlock *pBlock;
+  SSDataBlock* pBlock;
 } SMultiMergeSource;
 
 typedef struct SSortSource {
   SMultiMergeSource src;
-  union{
-    struct{
-      SArray*           pageIdList;
-      int32_t           pageIndex;
-    };
-    void             *param;
+  struct {
+    SArray* pageIdList;
+    int32_t pageIndex;
+  };
+  struct {
+    void* param;
+    bool  onlyRef;
   };
 
 } SSortSource;
 
 typedef struct SMsortComparParam {
-  void        **pSources;
-  int32_t       numOfSources;
-  SArray       *orderInfo;   // SArray<SBlockOrderInfo>
-  bool          cmpGroupId;
+  void**  pSources;
+  int32_t numOfSources;
+  SArray* orderInfo;  // SArray<SBlockOrderInfo>
+  bool    cmpGroupId;
 } SMsortComparParam;
 
-typedef struct SSortHandle SSortHandle;
+typedef struct SSortHandle  SSortHandle;
 typedef struct STupleHandle STupleHandle;
 
 typedef SSDataBlock* (*_sort_fetch_block_fn_t)(void* param);
@@ -64,7 +65,8 @@ typedef int32_t (*_sort_merge_compar_fn_t)(const void* p1, const void* p2, void*
  * @param type
  * @return
  */
-SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr);
+SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, int32_t type, int32_t pageSize, int32_t numOfPages,
+                                   SSDataBlock* pBlock, const char* idstr);
 
 /**
  *
@@ -90,7 +92,8 @@ int32_t tsortClose(SSortHandle* pHandle);
  *
  * @return
  */
-int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*), void* param);
+int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*),
+                               void* param);
 
 /**
  *
@@ -161,9 +164,10 @@ SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
 /**
  * get proper sort buffer pages according to the row size
  * @param rowSize
+ * @param numOfCols columns count that be put into page
  * @return
  */
-int32_t getProperSortPageSize(size_t rowSize);
+int32_t getProperSortPageSize(size_t rowSize, uint32_t numOfCols);
 
 #ifdef __cplusplus
 }

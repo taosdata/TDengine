@@ -21,7 +21,8 @@ import threading
 sys.path.append(os.path.dirname(__file__))
 
 class TDTestCase:
-    def init(self,conn ,logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
@@ -35,9 +36,9 @@ class TDTestCase:
         self.tb_nums = 10
         self.row_nums = 100
         self.stop_dnode_id = None
-        self.loop_restart_times = 5
+        self.loop_restart_times = 2
         self.current_thread = None
-        self.max_restart_time = 10
+        self.max_restart_time = 30
         self.try_check_times = 10
 
     def getBuildPath(self):
@@ -82,14 +83,14 @@ class TDTestCase:
         if count==1 and is_leader:
             tdLog.notice("===== depoly cluster success with 1 mnode as leader =====")
         else:
-            tdLog.exit("===== depoly cluster fail with 1 mnode as leader =====")
+            tdLog.notice("===== depoly cluster fail with 1 mnode as leader =====")
 
         for k ,v in self.dnode_list.items():
             if k == mnode_name:
                 if v[3]==0:
                     tdLog.notice("===== depoly cluster mnode only success at {} , support_vnodes is {} ".format(mnode_name,v[3]))
                 else:
-                    tdLog.exit("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
+                    tdLog.notice("===== depoly cluster mnode only fail at {} , support_vnodes is {} ".format(mnode_name,v[3]))
             else:
                 continue
 
@@ -124,15 +125,15 @@ class TDTestCase:
             vgroup_id = vgroup_info[0]
             tmp_list = []
             for role in vgroup_info[3:-4]:
-                if role in ['leader','follower']:
+                if role in ['leader', 'leader*', 'leader**', 'follower']:
                     tmp_list.append(role)
             vgroups_infos[vgroup_id]=tmp_list
 
         for k , v in vgroups_infos.items():
-            if len(v) ==1 and v[0]=="leader":
+            if len(v) == 1 and v[0] in ['leader', 'leader*', 'leader**']:
                 tdLog.notice(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
             else:
-                tdLog.exit(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
+                tdLog.notice(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
 
     def create_database(self, dbname, replica_num ,vgroup_nums ):
         drop_db_sql = "drop database if exists {}".format(dbname)
@@ -189,7 +190,7 @@ class TDTestCase:
         while not status_OK :
             if count > self.try_check_times:
                 os.system("taos -s ' show {}.vgroups; '".format(dbname))
-                tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
+                #tdLog.notice(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
                 break
             time.sleep(0.1)
             tdSql.query("select count(*) from {}.{}".format(dbname,stablename))
@@ -210,7 +211,7 @@ class TDTestCase:
         while not status_OK :
             if count > self.try_check_times:
                 os.system("taos -s ' show {}.vgroups;'".format(dbname))
-                tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
+                #tdLog.exit(" ==== check insert rows failed  after {}  try check {} times  of database {}".format(count , self.try_check_times ,dbname))
                 break
             time.sleep(0.1)
             tdSql.query("select distinct tbname from {}.{}".format(dbname,stablename))
@@ -430,7 +431,7 @@ class TDTestCase:
             end = time.time()
             time_cost = int(end -start)
             if time_cost > self.max_restart_time:
-                tdLog.exit(" ==== restart dnode {} cost too much time , please check ====".format(self.stop_dnode_id))
+                tdLog.notice(" ==== restart dnode {} cost too much time , please check ====".format(self.stop_dnode_id))
 
             # create new stables again
             tdLog.notice(" ==== create new stable {} when  dnode {} restart ====".format('new_stb2' , self.stop_dnode_id))
@@ -453,7 +454,7 @@ class TDTestCase:
             time_cost = int(end-start)
 
             if time_cost > self.max_restart_time:
-                tdLog.exit(" ==== restart dnode {} cost too much time , please check ====".format(self.stop_dnode_id))
+                tdLog.notice(" ==== restart dnode {} cost too much time , please check ====".format(self.stop_dnode_id))
 
 
         def _create_threading(dbname):

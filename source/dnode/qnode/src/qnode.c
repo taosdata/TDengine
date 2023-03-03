@@ -14,10 +14,10 @@
  */
 
 #include "executor.h"
+#include "libs/function/function.h"
 #include "qndInt.h"
 #include "query.h"
 #include "qworker.h"
-#include "libs/function/function.h"
 
 SQnode *qndOpen(const SQnodeOpt *pOption) {
   SQnode *pQnode = taosMemoryCalloc(1, sizeof(SQnode));
@@ -26,7 +26,7 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
     return NULL;
   }
 
-  if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, NULL, (void **)&pQnode->pQuery, &pOption->msgCb)) {
+  if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, (void **)&pQnode->pQuery, &pOption->msgCb)) {
     taosMemoryFreeClear(pQnode);
     return NULL;
   }
@@ -40,8 +40,8 @@ void qndClose(SQnode *pQnode) {
   taosMemoryFree(pQnode);
 }
 
-int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { 
-  SReadHandle handle = {.pMsgCb = &pQnode->msgCb};
+int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) {
+  SReadHandle  handle = {.pMsgCb = &pQnode->msgCb};
   SQWorkerStat stat = {0};
 
   int32_t code = qWorkerGetStat(&handle, pQnode->pQuery, &stat);
@@ -60,16 +60,16 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) {
   pLoad->numOfProcessedDrop = stat.dropProcessed;
   pLoad->numOfProcessedHb = stat.hbProcessed;
   pLoad->numOfProcessedDelete = stat.deleteProcessed;
-  
-  return 0; 
+
+  return 0;
 }
 
-int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg * pMsg) {
+int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
   if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) {
     return 0;
   }
 
-  return qWorkerPreprocessQueryMsg(pQnode->pQuery, pMsg);
+  return qWorkerPreprocessQueryMsg(pQnode->pQuery, pMsg, false);
 }
 
 int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
@@ -90,12 +90,12 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
       code = qWorkerProcessFetchMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_SCH_CANCEL_TASK:
-      code = qWorkerProcessCancelMsg(pQnode, pQnode->pQuery, pMsg, ts);
+      // code = qWorkerProcessCancelMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_SCH_DROP_TASK:
       code = qWorkerProcessDropMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
-    case TDMT_VND_CONSUME:
+    case TDMT_VND_TMQ_CONSUME:
       // code =  tqProcessConsumeReq(pQnode->pTq, pMsg);
       // break;
     case TDMT_SCH_QUERY_HEARTBEAT:
@@ -103,7 +103,7 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
       break;
     default:
       qError("unknown msg type:%d in qnode queue", pMsg->msgType);
-      terrno = TSDB_CODE_VND_APP_ERROR;
+      terrno = TSDB_CODE_APP_ERROR;
   }
 
   if (code == 0) return TSDB_CODE_ACTION_IN_PROGRESS;

@@ -43,8 +43,6 @@ typedef enum {
   MND_OPER_CREATE_USER,
   MND_OPER_DROP_USER,
   MND_OPER_ALTER_USER,
-  MND_OPER_CREATE_BNODE,
-  MND_OPER_DROP_BNODE,
   MND_OPER_CREATE_DNODE,
   MND_OPER_DROP_DNODE,
   MND_OPER_CONFIG_DNODE,
@@ -73,6 +71,9 @@ typedef enum {
   MND_OPER_READ_DB,
   MND_OPER_READ_OR_WRITE_DB,
   MND_OPER_SHOW_VARIBALES,
+  MND_OPER_SUBSCRIBE,
+  MND_OPER_CREATE_TOPIC,
+  MND_OPER_DROP_TOPIC,
 } EOperType;
 
 typedef enum {
@@ -173,6 +174,7 @@ typedef struct {
   void*       param;
   char        opername[TSDB_TRANS_OPER_LEN];
   SArray*     pRpcArray;
+  SRWLatch    lockRpcArray;
 } STrans;
 
 typedef struct {
@@ -191,6 +193,7 @@ typedef struct {
   int64_t    lastAccessTime;
   int32_t    accessTimes;
   int32_t    numOfVnodes;
+  int32_t    numOfOtherNodes;
   int32_t    numOfSupportVnodes;
   float      numOfCores;
   int64_t    memTotal;
@@ -206,7 +209,8 @@ typedef struct {
   int32_t    id;
   int64_t    createdTime;
   int64_t    updateTime;
-  ESyncState state;
+  ESyncState syncState;
+  bool       syncRestore;
   int64_t    stateStartTime;
   SDnodeObj* pDnode;
 } SMnodeObj;
@@ -225,13 +229,6 @@ typedef struct {
   int64_t    updateTime;
   SDnodeObj* pDnode;
 } SSnodeObj;
-
-typedef struct {
-  int32_t    id;
-  int64_t    createdTime;
-  int64_t    updateTime;
-  SDnodeObj* pDnode;
-} SBnodeObj;
 
 typedef struct {
   int32_t maxUsers;
@@ -281,6 +278,7 @@ typedef struct {
   int32_t   authVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
+  SHashObj* topics;
   SRWLatch  lock;
 } SUserObj;
 
@@ -329,11 +327,15 @@ typedef struct {
   int32_t  vgVersion;
   SDbCfg   cfg;
   SRWLatch lock;
+  int64_t  stateTs;
+  int64_t  compactStartTime;
 } SDbObj;
 
 typedef struct {
   int32_t    dnodeId;
-  ESyncState role;
+  ESyncState syncState;
+  bool       syncRestore;
+  bool       syncCanRead;
 } SVnodeGid;
 
 typedef struct {
@@ -386,6 +388,18 @@ typedef struct {
   SSchemaWrapper schemaRow;  // for dstVgroup
   SSchemaWrapper schemaTag;  // for dstVgroup
 } SSmaObj;
+
+typedef struct {
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char    stb[TSDB_TABLE_FNAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
+  char    dstTbName[TSDB_TABLE_FNAME_LEN];
+  char    colName[TSDB_COL_NAME_LEN];
+  int64_t createdTime;
+  int64_t uid;
+  int64_t stbUid;
+  int64_t dbUid;
+} SIdxObj;
 
 typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
@@ -443,6 +457,7 @@ typedef struct {
   STableMetaRsp* pMeta;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
+  char           filterTb[TSDB_TABLE_NAME_LEN];
 } SShowObj;
 
 typedef struct {
@@ -474,6 +489,7 @@ void*   tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset);
 typedef struct {
   char           name[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
+  char           createUser[TSDB_USER_LEN];
   int64_t        createTime;
   int64_t        updateTime;
   int64_t        uid;
@@ -620,6 +636,7 @@ typedef struct {
   // config
   int8_t  igExpired;
   int8_t  trigger;
+  int8_t  fillHistory;
   int64_t triggerParam;
   int64_t watermark;
   // source and target
@@ -639,10 +656,17 @@ typedef struct {
   char*          physicalPlan;
   SArray*        tasks;  // SArray<SArray<SStreamTask>>
   SSchemaWrapper outputSchema;
+  SSchemaWrapper tagSchema;
+
+  // 3.0.20
+  int64_t checkpointFreq;  // ms
+  int64_t currentTick;     // do not serialize
+  int64_t deleteMark;
+  int8_t  igCheckUpdate;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
-int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj);
+int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj, int32_t sver);
 void    tFreeStreamObj(SStreamObj* pObj);
 
 typedef struct {
@@ -651,15 +675,6 @@ typedef struct {
   int64_t streamUid;
   SArray* childInfo;  // SArray<SStreamChildEpInfo>
 } SStreamCheckpointObj;
-
-#if 0
-typedef struct {
-  int64_t uid;
-  int64_t streamId;
-  int8_t  status;
-  int8_t  stage;
-} SStreamRecoverObj;
-#endif
 
 #ifdef __cplusplus
 }

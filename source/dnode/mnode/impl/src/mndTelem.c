@@ -17,7 +17,6 @@
 #include "mndTelem.h"
 #include "mndCluster.h"
 #include "mndSync.h"
-#include "tbuffer.h"
 #include "thttp.h"
 #include "tjson.h"
 
@@ -127,28 +126,32 @@ static int32_t mndProcessTelemTimer(SRpcMsg* pReq) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
   if (!tsEnableTelem) return 0;
 
-  taosWLockLatch(&pMgmt->lock);
+  taosThreadMutexLock(&pMgmt->lock);
   char* pCont = mndBuildTelemetryReport(pMnode);
+  taosThreadMutexUnlock(&pMgmt->lock);
+
   if (pCont != NULL) {
-    if (taosSendHttpReport(tsTelemServer, tsTelemPort, pCont, strlen(pCont), HTTP_FLAT) != 0) {
+    if (taosSendHttpReport(tsTelemServer, tsTelemUri, tsTelemPort, pCont, strlen(pCont), HTTP_FLAT) != 0) {
       mError("failed to send telemetry report");
     } else {
-      mTrace("succeed to send telemetry report");
+      mInfo("succeed to send telemetry report");
     }
     taosMemoryFree(pCont);
   }
-  taosWUnLockLatch(&pMgmt->lock);
   return 0;
 }
 
 int32_t mndInitTelem(SMnode* pMnode) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
 
-  taosInitRWLatch(&pMgmt->lock);
+  taosThreadMutexInit(&pMgmt->lock, NULL);
   taosGetEmail(pMgmt->email, sizeof(pMgmt->email));
   mndSetMsgHandle(pMnode, TDMT_MND_TELEM_TIMER, mndProcessTelemTimer);
 
   return 0;
 }
 
-void mndCleanupTelem(SMnode* pMnode) {}
+void mndCleanupTelem(SMnode* pMnode) {
+  STelemMgmt* pMgmt = &pMnode->telemMgmt;
+  taosThreadMutexDestroy(&pMgmt->lock);
+}

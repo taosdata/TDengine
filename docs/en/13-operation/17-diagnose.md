@@ -1,12 +1,13 @@
 ---
 title: Problem Diagnostics
+description: This document describes how to diagnose issues with your TDengine cluster.
 ---
 
 ## Network Connection Diagnostics
 
 When a TDengine client is unable to access a TDengine server, the network connection between the client side and the server side must be checked to find the root cause and resolve problems.
 
-Diagnostics for network connections can be executed between Linux and Linux or between Linux and Windows.
+Diagnostics for network connections can be executed between Linux/Windows/macOS.
 
 Diagnostic steps：
 

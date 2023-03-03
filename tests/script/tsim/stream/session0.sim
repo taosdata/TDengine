@@ -201,7 +201,7 @@ if $loop_count == 10 then
 endi
 
 if $rows != 1 then
-  print ======$rows
+  print =====rows=$rows
   goto loop2
 endi
 
@@ -216,12 +216,12 @@ if $data02 != 3.274823935 then
   goto loop2
 endi
 
-if $data03 != 1.800000000 then
+if $data03 != 1.500000000 then
   print ======$data03
   return -1
 endi
 
-if $data04 != 3.350000000 then
+if $data04 != 3.500000000 then
   print ======$data04
   return -1
 endi

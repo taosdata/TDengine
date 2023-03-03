@@ -193,11 +193,11 @@ void* interlocked_sub_fetch_ptr(void* volatile* ptr, void* val) {
 }
 int32_t interlocked_fetch_sub_32(int32_t volatile* ptr, int32_t val) { return _InterlockedExchangeAdd(ptr, -val); }
 
-int64_t interlocked_fetch_sub_64(int64_t volatile* ptr, int64_t val) { 
+int64_t interlocked_fetch_sub_64(int64_t volatile* ptr, int64_t val) {
 #ifdef _TD_WINDOWS_32
-  return _InterlockedExchangeAdd((int32_t volatile*)ptr, -(int32_t)val); 
+  return _InterlockedExchangeAdd((int32_t volatile*)ptr, -(int32_t)val);
 #else
-  return _InterlockedExchangeAdd64(ptr, -val); 
+  return _InterlockedExchangeAdd64(ptr, -val);
 #endif
 }
 

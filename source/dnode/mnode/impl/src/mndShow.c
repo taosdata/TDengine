@@ -19,6 +19,7 @@
 #include "systable.h"
 
 #define SHOW_STEP_SIZE 100
+#define SHOW_COLS_STEP_SIZE 4096
 
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq);
 static void      mndFreeShowObj(SShowObj *pShow);
@@ -60,8 +61,6 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_MODULE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_QNODE;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, len) == 0) {
-    type = TSDB_MGMT_TABLE_BNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_SNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {
@@ -78,6 +77,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_TABLE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_TAGS, len) == 0) {
     type = TSDB_MGMT_TABLE_TAG;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, len) == 0) {
+    type = TSDB_MGMT_TABLE_COL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_TABLE_DISTRIBUTED, len) == 0) {
     //    type = TSDB_MGMT_TABLE_DIST;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USERS, len) == 0) {
@@ -108,8 +109,12 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_STREAMS;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_APPS, len) == 0) {
     type = TSDB_MGMT_TABLE_APPS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_STREAM_TASKS, len) == 0) {
+    type = TSDB_MGMT_TABLE_STREAM_TASKS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_PRIVILEGES, len) == 0) {
+    type = TSDB_MGMT_TABLE_PRIVILEGES;
   } else {
-    //    ASSERT(0);
+    mError("invalid show name:%s len:%d", name, len);
   }
 
   return type;
@@ -129,6 +134,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   showObj.pMnode = pMnode;
   showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
   memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
+  tstrncpy(showObj.filterTb, pReq->filterTb, TSDB_TABLE_NAME_LEN);
 
   int32_t   keepTime = tsShellActivityTimer * 6 * 1000;
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);
@@ -188,17 +194,19 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   int32_t    rowsToRead = SHOW_STEP_SIZE;
   int32_t    size = 0;
   int32_t    rowsRead = 0;
-
+  mDebug("mndProcessRetrieveSysTableReq start");
   SRetrieveTableReq retrieveReq = {0};
   if (tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
+  mDebug("mndProcessRetrieveSysTableReq tb:%s", retrieveReq.tb);
+
   if (retrieveReq.showId == 0) {
-    STableMetaRsp *pMeta = (STableMetaRsp *)taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
+    STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
     if (pMeta == NULL) {
-      pMeta = (STableMetaRsp *)taosHashGet(pMnode->perfsMeta, retrieveReq.tb, strlen(retrieveReq.tb));
+      pMeta = taosHashGet(pMnode->perfsMeta, retrieveReq.tb, strlen(retrieveReq.tb));
       if (pMeta == NULL) {
         terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
         mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
@@ -224,6 +232,9 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
   }
 
+  if(pShow->type == TSDB_MGMT_TABLE_COL){   // expend capacity for ins_columns
+    rowsToRead = SHOW_COLS_STEP_SIZE;
+  }
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {
     mndReleaseShowObj(pShow, false);
@@ -242,25 +253,22 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  int32_t      numOfCols = pShow->pMeta->numOfColumns;
-  SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+  int32_t numOfCols = pShow->pMeta->numOfColumns;
 
+  SSDataBlock *pBlock = createDataBlock();
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {0};
-    SSchema        *p = &pShow->pMeta->pSchemas[i];
+
+    SSchema *p = &pShow->pMeta->pSchemas[i];
 
     idata.info.bytes = p->bytes;
     idata.info.type = p->type;
     idata.info.colId = p->colId;
-
-    taosArrayPush(pBlock->pDataBlock, &idata);
-    if (IS_VAR_DATA_TYPE(p->type)) {
-      pBlock->info.hasVarCol = true;
-    }
+    blockDataAppendColInfo(pBlock, &idata);
   }
 
   blockDataEnsureCapacity(pBlock, rowsToRead);
+
   if (mndCheckRetrieveFinished(pShow)) {
     mDebug("show:0x%" PRIx64 ", read finished, numOfRows:%d", pShow->id, pShow->numOfRows);
     rowsRead = 0;
@@ -308,8 +316,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       pStart += sizeof(SSysTableSchema);
     }
 
-    int32_t len = 0;
-    blockEncode(pBlock, pStart, &len, pShow->pMeta->numOfColumns, false);
+    int32_t len = blockEncode(pBlock, pStart, pShow->pMeta->numOfColumns);
   }
 
   pRsp->numOfRows = htonl(rowsRead);

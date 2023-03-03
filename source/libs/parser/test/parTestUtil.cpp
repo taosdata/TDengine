@@ -49,9 +49,11 @@ bool    g_dump = false;
 bool    g_testAsyncApis = true;
 int32_t g_logLevel = 131;
 int32_t g_skipSql = 0;
+int32_t g_limitSql = 0;
 
-void setAsyncFlag(const char* pFlag) { g_testAsyncApis = stoi(pFlag) > 0 ? true : false; }
-void setSkipSqlNum(const char* pNum) { g_skipSql = stoi(pNum); }
+void setAsyncFlag(const char* pArg) { g_testAsyncApis = stoi(pArg) > 0 ? true : false; }
+void setSkipSqlNum(const char* pArg) { g_skipSql = stoi(pArg); }
+void setLimitSqlNum(const char* pArg) { g_limitSql = stoi(pArg); }
 
 struct TerminateFlag : public exception {
   const char* what() const throw() { return "success and terminate"; }
@@ -63,22 +65,27 @@ int32_t getLogLevel() { return g_logLevel; }
 
 class ParserTestBaseImpl {
  public:
-  ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0) {}
+  ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0), sqlNum_(0) {}
 
   void login(const std::string& user) { caseEnv_.user_ = user; }
 
   void useDb(const string& acctId, const string& db) {
     caseEnv_.acctId_ = acctId;
     caseEnv_.db_ = db;
-    caseEnv_.nsql_ = g_skipSql;
+    caseEnv_.numOfSkipSql_ = g_skipSql;
+    caseEnv_.numOfLimitSql_ = g_limitSql;
   }
 
   void run(const string& sql, int32_t expect, ParserStage checkStage) {
     ++sqlNo_;
-    if (caseEnv_.nsql_ > 0) {
-      --(caseEnv_.nsql_);
+    if (caseEnv_.numOfSkipSql_ > 0) {
+      --(caseEnv_.numOfSkipSql_);
       return;
     }
+    if (caseEnv_.numOfLimitSql_ > 0 && caseEnv_.numOfLimitSql_ == sqlNum_) {
+      return;
+    }
+    ++sqlNum_;
 
     runInternalFuncs(sql, expect, checkStage);
     runApis(sql, expect, checkStage);
@@ -94,9 +101,10 @@ class ParserTestBaseImpl {
     string  acctId_;
     string  user_;
     string  db_;
-    int32_t nsql_;
+    int32_t numOfSkipSql_;
+    int32_t numOfLimitSql_;
 
-    caseEnv() : user_("wangxiaoyu"), nsql_(0) {}
+    caseEnv() : user_("wangxiaoyu"), numOfSkipSql_(0) {}
   };
 
   struct stmtEnv {
@@ -233,16 +241,15 @@ class ParserTestBaseImpl {
   }
 
   void doBuildCatalogReq(SParseContext* pCxt, const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
-    DO_WITH_THROW(buildCatalogReq, pCxt, pMetaCache, pCatalogReq);
+    DO_WITH_THROW(buildCatalogReq, pMetaCache, pCatalogReq);
   }
 
   void doGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) {
     DO_WITH_THROW(g_mockCatalogService->catalogGetAllMeta, pCatalogReq, pMetaData);
   }
 
-  void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache,
-                            bool isInsertValues) {
-    DO_WITH_THROW(putMetaDataToCache, pCatalogReq, pMetaData, pMetaCache, isInsertValues);
+  void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
+    DO_WITH_THROW(putMetaDataToCache, pCatalogReq, pMetaData, pMetaCache);
   }
 
   void doAuthenticate(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
@@ -280,21 +287,24 @@ class ParserTestBaseImpl {
     res_.calcConstAst_ = toString(pQuery->pRoot);
   }
 
-  void doParseInsertSql(SParseContext* pCxt, SQuery** pQuery, SParseMetaCache* pMetaCache) {
-    DO_WITH_THROW(parseInsertSql, pCxt, pQuery, pMetaCache);
+  void doParseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatalogReq, const SMetaData* pMetaData) {
+    DO_WITH_THROW(parseInsertSql, pCxt, pQuery, pCatalogReq, pMetaData);
     ASSERT_NE(*pQuery, nullptr);
     res_.parsedAst_ = toString((*pQuery)->pRoot);
   }
 
-  void doParseInsertSyntax(SParseContext* pCxt, SQuery** pQuery, SParseMetaCache* pMetaCache) {
-    DO_WITH_THROW(parseInsertSyntax, pCxt, pQuery, pMetaCache);
-    ASSERT_NE(*pQuery, nullptr);
+  void doContinueParseSql(SParseContext* pCxt, SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SQuery* pQuery) {
+    DO_WITH_THROW(qContinueParseSql, pCxt, pCatalogReq, pMetaData, pQuery);
   }
 
   string toString(const SNode* pRoot) {
     char*   pStr = NULL;
     int32_t len = 0;
     DO_WITH_THROW(nodesNodeToString, pRoot, false, &pStr, &len)
+    // check toObject
+    SNode* pCopy = NULL;
+    DO_WITH_THROW(nodesStringToNode, pStr, &pCopy)
+    nodesDestroyNode(pCopy);
     string str(pStr);
     taosMemoryFreeClear(pStr);
     return str;
@@ -310,7 +320,7 @@ class ParserTestBaseImpl {
 
       if (qIsInsertValuesSql(cxt.pSql, cxt.sqlLen)) {
         unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
-        doParseInsertSql(&cxt, query.get(), nullptr);
+        doParseInsertSql(&cxt, query.get(), nullptr, nullptr);
       } else {
         unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
         doParse(&cxt, query.get());
@@ -343,7 +353,6 @@ class ParserTestBaseImpl {
 
       unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
       doParseSql(&cxt, query.get());
-      SQuery* pQuery = *(query.get());
 
       if (g_dump) {
         dump();
@@ -357,61 +366,102 @@ class ParserTestBaseImpl {
     }
   }
 
+  void runQueryAsyncInternalFuncs(SParseContext* pParCxt) {
+    unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
+    bool                                    request = true;
+    unique_ptr<SParseMetaCache, function<void(SParseMetaCache*)> > metaCache(
+        new SParseMetaCache(), bind(destoryParseMetaCacheWarpper, _1, cref(request)));
+    doParse(pParCxt, query.get());
+    doCollectMetaKey(pParCxt, *(query.get()), metaCache.get());
+
+    SQuery* pQuery = *(query.get());
+
+    unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
+                                                               MockCatalogService::destoryCatalogReq);
+    doBuildCatalogReq(pParCxt, metaCache.get(), catalogReq.get());
+
+    string err;
+    thread t1([&]() {
+      try {
+        unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
+        doGetAllMeta(catalogReq.get(), metaData.get());
+
+        metaCache.reset(new SParseMetaCache());
+        request = false;
+        doPutMetaDataToCache(catalogReq.get(), metaData.get(), metaCache.get());
+
+        doAuthenticate(pParCxt, pQuery, metaCache.get());
+
+        doTranslate(pParCxt, pQuery, metaCache.get());
+
+        doCalculateConstant(pParCxt, pQuery);
+      } catch (const TerminateFlag& e) {
+        // success and terminate
+      } catch (const runtime_error& e) {
+        err = e.what();
+      } catch (...) {
+        err = "unknown error";
+      }
+    });
+
+    t1.join();
+    if (!err.empty()) {
+      throw runtime_error(err);
+    }
+  }
+
+  void runInsertAsyncInternalFuncsImpl(SParseContext* pParCxt, SQuery** pQuery, SCatalogReq* pCatalogReq,
+                                       SMetaData* pMetaData) {
+    doParseInsertSql(pParCxt, pQuery, pCatalogReq, pMetaData);
+
+    if (QUERY_EXEC_STAGE_SCHEDULE == (*pQuery)->execStage) {
+      return;
+    }
+
+    string err;
+    thread t1([&]() {
+      try {
+        doGetAllMeta(pCatalogReq, pMetaData);
+
+        doParseInsertSql(pParCxt, pQuery, pCatalogReq, pMetaData);
+
+        if (QUERY_EXEC_STAGE_SCHEDULE != (*pQuery)->execStage) {
+          runInsertAsyncInternalFuncsImpl(pParCxt, pQuery, pCatalogReq, pMetaData);
+        }
+      } catch (const TerminateFlag& e) {
+        // success and terminate
+      } catch (const runtime_error& e) {
+        err = e.what();
+      } catch (...) {
+        err = "unknown error";
+      }
+    });
+
+    t1.join();
+    if (!err.empty()) {
+      throw runtime_error(err);
+    }
+  }
+
+  void runInsertAsyncInternalFuncs(SParseContext* pParCxt) {
+    unique_ptr<SQuery*, void (*)(SQuery**)>         query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
+    unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
+                                                               MockCatalogService::destoryCatalogReq);
+    unique_ptr<SMetaData, void (*)(SMetaData*)>     metaData(new SMetaData(), MockCatalogService::destoryMetaData);
+    runInsertAsyncInternalFuncsImpl(pParCxt, query.get(), catalogReq.get(), metaData.get());
+  }
+
   void runAsyncInternalFuncs(const string& sql, int32_t expect, ParserStage checkStage) {
     reset(expect, checkStage, TEST_INTERFACE_ASYNC_INTERNAL);
     try {
       unique_ptr<SParseContext, function<void(SParseContext*)> > cxt(new SParseContext(), destoryParseContext);
       setParseContext(sql, cxt.get(), true);
 
-      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
-      bool                                    request = true;
-      unique_ptr<SParseMetaCache, function<void(SParseMetaCache*)> > metaCache(
-          new SParseMetaCache(), bind(destoryParseMetaCacheWarpper, _1, cref(request)));
       bool isInsertValues = qIsInsertValuesSql(cxt->pSql, cxt->sqlLen);
       if (isInsertValues) {
-        doParseInsertSyntax(cxt.get(), query.get(), metaCache.get());
+        runInsertAsyncInternalFuncs(cxt.get());
       } else {
-        doParse(cxt.get(), query.get());
-        doCollectMetaKey(cxt.get(), *(query.get()), metaCache.get());
-      }
-
-      SQuery* pQuery = *(query.get());
-
-      unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
-                                                                 MockCatalogService::destoryCatalogReq);
-      doBuildCatalogReq(cxt.get(), metaCache.get(), catalogReq.get());
-
-      string err;
-      thread t1([&]() {
-        try {
-          unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
-          doGetAllMeta(catalogReq.get(), metaData.get());
-
-          metaCache.reset(new SParseMetaCache());
-          request = false;
-          doPutMetaDataToCache(catalogReq.get(), metaData.get(), metaCache.get(), isInsertValues);
-
-          if (isInsertValues) {
-            doParseInsertSql(cxt.get(), query.get(), metaCache.get());
-          } else {
-            doAuthenticate(cxt.get(), pQuery, metaCache.get());
-
-            doTranslate(cxt.get(), pQuery, metaCache.get());
-
-            doCalculateConstant(cxt.get(), pQuery);
-          }
-        } catch (const TerminateFlag& e) {
-          // success and terminate
-        } catch (const runtime_error& e) {
-          err = e.what();
-        } catch (...) {
-          err = "unknown error";
-        }
-      });
-
-      t1.join();
-      if (!err.empty()) {
-        throw runtime_error(err);
+        runQueryAsyncInternalFuncs(cxt.get());
       }
 
       if (g_dump) {
@@ -438,25 +488,39 @@ class ParserTestBaseImpl {
       doParseSqlSyntax(cxt.get(), query.get(), catalogReq.get());
       SQuery* pQuery = *(query.get());
 
-      string err;
-      thread t1([&]() {
-        try {
-          unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
-          doGetAllMeta(catalogReq.get(), metaData.get());
+      switch (pQuery->execStage) {
+        case QUERY_EXEC_STAGE_PARSE:
+        case QUERY_EXEC_STAGE_ANALYSE: {
+          string err;
+          thread t1([&]() {
+            try {
+              unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(),
+                                                                   MockCatalogService::destoryMetaData);
+              doGetAllMeta(catalogReq.get(), metaData.get());
+              if (QUERY_EXEC_STAGE_PARSE == pQuery->execStage) {
+                doContinueParseSql(cxt.get(), catalogReq.get(), metaData.get(), pQuery);
+              } else {
+                doAnalyseSqlSemantic(cxt.get(), catalogReq.get(), metaData.get(), pQuery);
+              }
+            } catch (const TerminateFlag& e) {
+              // success and terminate
+            } catch (const runtime_error& e) {
+              err = e.what();
+            } catch (...) {
+              err = "unknown error";
+            }
+          });
 
-          doAnalyseSqlSemantic(cxt.get(), catalogReq.get(), metaData.get(), pQuery);
-        } catch (const TerminateFlag& e) {
-          // success and terminate
-        } catch (const runtime_error& e) {
-          err = e.what();
-        } catch (...) {
-          err = "unknown error";
+          t1.join();
+          if (!err.empty()) {
+            throw runtime_error(err);
+          }
+          break;
         }
-      });
-
-      t1.join();
-      if (!err.empty()) {
-        throw runtime_error(err);
+        case QUERY_EXEC_STAGE_SCHEDULE:
+          break;
+        default:
+          break;
       }
 
       if (g_dump) {
@@ -476,6 +540,7 @@ class ParserTestBaseImpl {
   stmtRes         res_;
   ParserTestBase* pBase_;
   int32_t         sqlNo_;
+  int32_t         sqlNum_;
 };
 
 ParserTestBase::ParserTestBase() : impl_(new ParserTestBaseImpl(this)) {}

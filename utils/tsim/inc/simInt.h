@@ -19,20 +19,20 @@
 #include "os.h"
 
 #include "cJSON.h"
-#include "tconfig.h"
 #include "taos.h"
 #include "taoserror.h"
+#include "tconfig.h"
+#include "tglobal.h"
 #include "tidpool.h"
 #include "tlog.h"
 #include "ttimer.h"
 #include "ttypes.h"
 #include "tutil.h"
-#include "tglobal.h"
 
 #define MAX_MAIN_SCRIPT_NUM       10
 #define MAX_BACKGROUND_SCRIPT_NUM 10
 #define MAX_FILE_NAME_LEN         256
-#define MAX_ERROR_LEN             1024
+#define MAX_ERROR_LEN             4096
 #define MAX_QUERY_VALUE_LEN       1024
 #define MAX_QUERY_COL_NUM         100
 #define MAX_QUERY_ROW_NUM         100
@@ -55,12 +55,42 @@
 #define FAILED_POSTFIX  ""
 #endif
 
-#define simFatal(...) { if (simDebugFlag & DEBUG_FATAL) { taosPrintLog("SIM FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
-#define simError(...) { if (simDebugFlag & DEBUG_ERROR) { taosPrintLog("SIM ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
-#define simWarn(...)  { if (simDebugFlag & DEBUG_WARN)  { taosPrintLog("SIM WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
-#define simInfo(...)  { if (simDebugFlag & DEBUG_INFO)  { taosPrintLog("SIM ", DEBUG_INFO, 255, __VA_ARGS__); }}
-#define simDebug(...) { if (simDebugFlag & DEBUG_DEBUG) { taosPrintLog("SIM ", DEBUG_DEBUG, simDebugFlag, __VA_ARGS__); }}
-#define simTrace(...) { if (simDebugFlag & DEBUG_TRACE) { taosPrintLog("SIM ", DEBUG_TRACE, simDebugFlag, __VA_ARGS__); }}
+#define simFatal(...)                                            \
+  {                                                              \
+    if (simDebugFlag & DEBUG_FATAL) {                            \
+      taosPrintLog("SIM FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
+    }                                                            \
+  }
+#define simError(...)                                            \
+  {                                                              \
+    if (simDebugFlag & DEBUG_ERROR) {                            \
+      taosPrintLog("SIM ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
+    }                                                            \
+  }
+#define simWarn(...)                                           \
+  {                                                            \
+    if (simDebugFlag & DEBUG_WARN) {                           \
+      taosPrintLog("SIM WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
+    }                                                          \
+  }
+#define simInfo(...)                                      \
+  {                                                       \
+    if (simDebugFlag & DEBUG_INFO) {                      \
+      taosPrintLog("SIM ", DEBUG_INFO, 255, __VA_ARGS__); \
+    }                                                     \
+  }
+#define simDebug(...)                                               \
+  {                                                                 \
+    if (simDebugFlag & DEBUG_DEBUG) {                               \
+      taosPrintLog("SIM ", DEBUG_DEBUG, simDebugFlag, __VA_ARGS__); \
+    }                                                               \
+  }
+#define simTrace(...)                                               \
+  {                                                                 \
+    if (simDebugFlag & DEBUG_TRACE) {                               \
+      taosPrintLog("SIM ", DEBUG_TRACE, simDebugFlag, __VA_ARGS__); \
+    }                                                               \
+  }
 
 enum { SIM_SCRIPT_TYPE_MAIN, SIM_SCRIPT_TYPE_BACKGROUND };
 
@@ -143,7 +173,7 @@ typedef struct _script_t {
   char             *optionBuffer;
   SCmdLine         *lines;  // command list
   SVariable         variables[MAX_VAR_LEN];
-  TdThread         bgPid;
+  TdThread          bgPid;
   char              auth[128];
   struct _script_t *bgScripts[MAX_BACKGROUND_SCRIPT_NUM];
 } SScript;
@@ -151,11 +181,10 @@ typedef struct _script_t {
 extern SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];
 extern SCommand simCmdList[];
 extern int32_t  simScriptPos;
-extern int32_t  simScriptSucced;
+extern int32_t  simScriptSucceed;
 extern int32_t  simDebugFlag;
 extern char     simScriptDir[];
 extern bool     abortExecution;
-extern bool     useMultiProcess;
 extern bool     useValgrind;
 
 SScript *simParseScript(char *fileName);

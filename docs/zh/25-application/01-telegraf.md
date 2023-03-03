@@ -39,15 +39,9 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 ## 数据链路设置
 
-### 下载 TDengine 插件到 Grafana 插件目录
+### 安装 Grafana Plugin 并配置数据源
 
-```bash
-1. wget -c https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip
-2. sudo unzip tdengine-datasource-3.1.3.zip -d /var/lib/grafana/plugins/
-3. sudo chown grafana:grafana -R /var/lib/grafana/plugins/tdengine
-4. echo -e "[plugins]\nallow_loading_unsigned_plugins = tdengine-datasource\n" | sudo tee -a /etc/grafana/grafana.ini
-5. sudo systemctl restart grafana-server.service
-```
+请参考[安装 Grafana Plugin 并配置数据源](/third-party/grafana/#%E5%AE%89%E8%A3%85-grafana-plugin-%E5%B9%B6%E9%85%8D%E7%BD%AE%E6%95%B0%E6%8D%AE%E6%BA%90)。
 
 ### 修改 /etc/telegraf/telegraf.conf
 
@@ -61,7 +55,6 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
   username = "<TDengine's username>"
   password = "<TDengine's password>"
   data_format = "influx"
-  influx_max_line_bytes = 250
 ```
 
 然后重启 Telegraf：
@@ -74,7 +67,7 @@ sudo systemctl start telegraf
 
 使用 Web 浏览器访问 `IP:3000` 登录 Grafana 界面，系统初始用户名密码为 admin/admin。
 点击左侧齿轮图标并选择 `Plugins`，应该可以找到 TDengine data source 插件图标。
-点击左侧加号图标并选择 `Import`，从 `https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard-v0.1.0.json` 下载 dashboard JSON 文件后导入。之后可以看到如下界面的仪表盘：
+点击左侧加号图标并选择 `Import`，从 `https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard-v3.json` (适配 TDengine 3.0, 如果使用 TDengine 2.x， 请下载 `telegraf-dashboard-v2.json`) 下载 dashboard JSON 文件后导入。之后可以看到如下界面的仪表盘：
 
 ![TDengine Database IT-DevOps-Solutions-telegraf-dashboard](./IT-DevOps-Solutions-telegraf-dashboard.webp)
 

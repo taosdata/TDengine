@@ -16,8 +16,18 @@
 #include "sut.h"
 
 void* serverLoop(void* param) {
-  dmInit(0);
-  dmRun();
+  TestServer* server = (TestServer*)param;
+  server->runnning = false;
+
+  if (dmInit() != 0) {
+    return NULL;
+  }
+
+  server->runnning = true;
+  if (dmRun() != 0) {
+    return NULL;
+  }
+
   dmCleanup();
   return NULL;
 }
@@ -26,10 +36,10 @@ bool TestServer::Start() {
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
   taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-  taosThreadCreate(&threadId, &thAttr, serverLoop, NULL);
+  taosThreadCreate(&threadId, &thAttr, serverLoop, this);
   taosThreadAttrDestroy(&thAttr);
   taosMsleep(2100);
-  return true;
+  return runnning;
 }
 
 void TestServer::Stop() {

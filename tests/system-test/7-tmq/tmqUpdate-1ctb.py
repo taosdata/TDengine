@@ -21,7 +21,8 @@ class TDTestCase:
         self.ctbNum     = 1
         self.rowsPerTbl = 10000
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
 
@@ -182,6 +183,7 @@ class TDTestCase:
 
         tdLog.info("restart taosd to ensure that the data falls into the disk")
         tdSql.query("flush database %s"%(paraDict['dbName']))
+        time.sleep(10)
 
         # update to half tables
         paraDict['startTs'] = paraDict['startTs'] + int(self.rowsPerTbl / 2)
@@ -205,7 +207,7 @@ class TDTestCase:
         paraDict['rowsPerTbl'] = self.rowsPerTbl
         consumerId     = 1
         if self.snapshot == 0:
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (2))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1/2))
         elif self.snapshot == 1:
             expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1))
 

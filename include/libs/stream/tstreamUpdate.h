@@ -17,12 +17,18 @@
 
 #include "taosdef.h"
 #include "tarray.h"
+#include "tcommon.h"
 #include "tmsg.h"
 #include "tscalablebf.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct SUpdateKey {
+  int64_t tbUid;
+  TSKEY   ts;
+} SUpdateKey;
 
 typedef struct SUpdateInfo {
   SArray      *pTsBuckets;
@@ -41,6 +47,7 @@ typedef struct SUpdateInfo {
 
 SUpdateInfo *updateInfoInitP(SInterval *pInterval, int64_t watermark);
 SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t watermark);
+TSKEY        updateInfoFillBlockData(SUpdateInfo *pInfo, SSDataBlock *pBlock, int32_t primaryTsCol);
 bool         updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts);
 bool         updateInfoIsTableInserted(SUpdateInfo *pInfo, int64_t tbUid);
 void         updateInfoSetScanRange(SUpdateInfo *pInfo, STimeWindow *pWin, uint64_t groupId, uint64_t version);

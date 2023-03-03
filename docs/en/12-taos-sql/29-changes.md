@@ -1,7 +1,7 @@
 ---
-sidebar_label: Changes in TDengine 3.0
 title: Changes in TDengine 3.0
-description: "This document explains how TDengine SQL has changed in version 3.0."
+sidebar_label: Changes in TDengine 3.0
+description: This document describes how TDengine SQL has changed in version 3.0 compared with previous versions.
 ---
 
 ## Basic SQL Elements
@@ -11,12 +11,13 @@ description: "This document explains how TDengine SQL has changed in version 3.0
 | 1 | VARCHAR | Added | Alias of BINARY.
 | 2 | TIMESTAMP literal | Added | TIMESTAMP 'timestamp format' syntax now supported.
 | 3 | _ROWTS pseudocolumn | Added | Indicates the primary key. Alias of _C0.
-| 4 | INFORMATION_SCHEMA | Added |	Database for system metadata containing all schema definitions
-| 5 | PERFORMANCE_SCHEMA | Added | Database for system performance information.
-| 6 | Connection queries | Deprecated | Connection queries are no longer supported. The syntax and interfaces are deprecated.
-| 7 | Mixed operations | Enhanced | Mixing scalar and vector operations in queries has been enhanced and is supported in all SELECT clauses.
-| 8 | Tag operations | Added | Tag columns can be used in queries and clauses like data columns.
-| 9 | Timeline clauses and time functions in supertables | Enhanced | When PARTITION BY is not used, data in supertables is merged into a single timeline.
+| 4 | _IROWTS pseudocolumn | Added | Used to retrieve timestamps with INTERP function.
+| 5 | INFORMATION_SCHEMA | Added |	Database for system metadata containing all schema definitions
+| 6 | PERFORMANCE_SCHEMA | Added | Database for system performance information.
+| 7 | Connection queries | Deprecated | Connection queries are no longer supported. The syntax and interfaces are deprecated.
+| 8 | Mixed operations | Enhanced | Mixing scalar and vector operations in queries has been enhanced and is supported in all SELECT clauses.
+| 9 | Tag operations | Added | Tag columns can be used in queries and clauses like data columns.
+| 10 | Timeline clauses and time functions in supertables | Enhanced | When PARTITION BY is not used, data in supertables is merged into a single timeline.
 
 ## SQL Syntax
 
@@ -53,7 +54,6 @@ The following data types can be used in the schema for standard tables.
 | 27 | GRANT | Added | Grants permissions to a user.
 | 28 | KILL TRANSACTION | Added | Terminates an mnode transaction.
 | 29 | KILL STREAM | Deprecated | Terminated a continuous query. The continuous query feature has been replaced with the stream processing feature.
-| 30 | MERGE VGROUP | Added | Merges vgroups.
 | 31 | REVOKE | Added | Revokes permissions from a user.
 | 32 | SELECT	| Modified | <ul><li>SELECT does not use the implicit results column. Output columns must be specified in the SELECT clause. </li><li>DISTINCT support is enhanced. In previous versions, DISTINCT only worked on the tag column and could not be used with JOIN or GROUP BY. </li><li>JOIN support is enhanced. The following are now supported after JOIN: a WHERE clause with OR, operations on multiple tables, and GROUP BY on multiple tables. </li><li>Subqueries after FROM are enhanced. Levels of nesting are no longer restricted. Subqueries can be used with UNION ALL. Other syntax restrictions are eliminated. </li><li>All scalar functions can be used after WHERE. </li><li>GROUP BY is enhanced. You can group by any scalar expression or combination thereof. </li><li>SESSION can be used on supertables. When PARTITION BY is not used, data in supertables is merged into a single timeline. </li><li>STATE_WINDOW can be used on supertables. When PARTITION BY is not used, data in supertables is merged into a single timeline. </li><li>ORDER BY is enhanced. It is no longer required to use ORDER BY and GROUP BY together. There is no longer a restriction on the number of order expressions. NULLS FIRST and NULLS LAST syntax has been added. Any expression that conforms to the ORDER BY semantics can be used. </li><li>Added PARTITION BY syntax. PARTITION BY replaces GROUP BY tags. </li></ul>
 | 33 | SHOW ACCOUNTS | Deprecated | This Enterprise Edition-only statement has been removed. It returns the error "This statement is no longer supported."
@@ -75,8 +75,9 @@ The following data types can be used in the schema for standard tables.
 | 49 | SHOW TRANSACTIONS | Added | Shows all running transactions in the system.
 | 50 | SHOW DNODE VARIABLES | Added | Shows the configuration of the specified dnode.
 | 51 | SHOW VNODES | Not supported | Shows information about vnodes in the system. Not supported.
-| 52 | SPLIT VGROUP | Added | Splits a vgroup into two vgroups.
-| 53 | TRIM DATABASE | Added | Deletes data that has expired and orders the remaining data in accordance with the storage configuration.
+| 52 | TRIM DATABASE | Added | Deletes data that has expired and orders the remaining data in accordance with the storage configuration.
+| 53 | REDISTRIBUTE VGROUP | Added | Adjust the distribution of VNODES in VGROUP.
+| 54 | BALANCE VGROUP | Added | Auto adjust the distribution of VNODES in VGROUP.
 
 ## SQL Functions
 

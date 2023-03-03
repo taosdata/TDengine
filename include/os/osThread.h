@@ -22,28 +22,27 @@
 extern "C" {
 #endif
 
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(_ALPINE)
 #ifndef __USE_XOPEN2K
 #define TD_USE_SPINLOCK_AS_MUTEX
 typedef pthread_mutex_t pthread_spinlock_t;
 #endif
 #endif
 
-typedef pthread_t TdThread;
-typedef pthread_spinlock_t TdThreadSpinlock;
-typedef pthread_mutex_t TdThreadMutex;
-typedef pthread_mutexattr_t TdThreadMutexAttr;
-typedef pthread_rwlock_t TdThreadRwlock;
-typedef pthread_attr_t TdThreadAttr;
-typedef pthread_once_t TdThreadOnce;
+typedef pthread_t            TdThread;
+typedef pthread_spinlock_t   TdThreadSpinlock;
+typedef pthread_mutex_t      TdThreadMutex;
+typedef pthread_mutexattr_t  TdThreadMutexAttr;
+typedef pthread_rwlock_t     TdThreadRwlock;
+typedef pthread_attr_t       TdThreadAttr;
+typedef pthread_once_t       TdThreadOnce;
 typedef pthread_rwlockattr_t TdThreadRwlockAttr;
-typedef pthread_cond_t TdThreadCond;
-typedef pthread_condattr_t TdThreadCondAttr;
-typedef pthread_key_t TdThreadKey;
+typedef pthread_cond_t       TdThreadCond;
+typedef pthread_condattr_t   TdThreadCondAttr;
+typedef pthread_key_t        TdThreadKey;
 
 #define taosThreadCleanupPush pthread_cleanup_push
-#define taosThreadCleanupPop pthread_cleanup_pop
-
+#define taosThreadCleanupPop  pthread_cleanup_pop
 
 #ifdef WINDOWS
 #define TD_PTHREAD_MUTEX_INITIALIZER (TdThreadMutex)(-1)
@@ -54,181 +53,185 @@ typedef pthread_key_t TdThreadKey;
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
-    #define pthread_t PTHREAD_T_TYPE_TAOS_FORBID
-    #define pthread_spinlock_t PTHREAD_SPINLOCK_T_TYPE_TAOS_FORBID
-    #define pthread_mutex_t PTHREAD_MUTEX_T_TYPE_TAOS_FORBID
-    #define pthread_mutexattr_t PTHREAD_MUTEXATTR_T_TYPE_TAOS_FORBID
-    #define pthread_rwlock_t PTHREAD_RWLOCK_T_TYPE_TAOS_FORBID
-    #define pthread_attr_t PTHREAD_ATTR_T_TYPE_TAOS_FORBID
-    #define pthread_once_t PTHREAD_ONCE_T_TYPE_TAOS_FORBID
-    #define pthread_rwlockattr_t PTHREAD_RWLOCKATTR_T_TYPE_TAOS_FORBID
-    #define pthread_cond_t PTHREAD_COND_T_TYPE_TAOS_FORBID
-    #define pthread_condattr_t PTHREAD_CONDATTR_T_TYPE_TAOS_FORBID
-    #define pthread_key_t PTHREAD_KEY_T_TYPE_TAOS_FORBID
-    #define pthread_barrier_t PTHREAD_BARRIER_T_TYPE_TAOS_FORBID
-    #define pthread_barrierattr_t PTHREAD_BARRIERATTR_T_TYPE_TAOS_FORBID
-    #define pthread_create PTHREAD_CREATE_FUNC_TAOS_FORBID
-    #define pthread_attr_destroy PTHREAD_ATTR_DESTROY_FUNC_TAOS_FORBID
-    #define pthread_attr_getdetachstate PTHREAD_ATTR_GETDETACHSTATE_FUNC_TAOS_FORBID
-    #define pthread_attr_getinheritsched PTHREAD_ATTR_GETINHERITSCHED_FUNC_TAOS_FORBID
-    #define pthread_attr_getschedparam PTHREAD_ATTR_GETSCHEDPARAM_FUNC_TAOS_FORBID
-    #define pthread_attr_getschedpolicy PTHREAD_ATTR_GETSCHEDPOLICY_FUNC_TAOS_FORBID
-    #define pthread_attr_getscope PTHREAD_ATTR_GETSCOPE_FUNC_TAOS_FORBID
-    #define pthread_attr_getstacksize PTHREAD_ATTR_GETSTACKSIZE_FUNC_TAOS_FORBID
-    #define pthread_attr_init PTHREAD_ATTR_INIT_FUNC_TAOS_FORBID
-    #define pthread_attr_setdetachstate PTHREAD_ATTR_SETDETACHSTATE_FUNC_TAOS_FORBID
-    #define pthread_attr_setinheritsched PTHREAD_ATTR_SETINHERITSCHED_FUNC_TAOS_FORBID
-    #define pthread_attr_setschedparam PTHREAD_ATTR_SETSCHEDPARAM_FUNC_TAOS_FORBID
-    #define pthread_attr_setschedpolicy PTHREAD_ATTR_SETSCHEDPOLICY_FUNC_TAOS_FORBID
-    #define pthread_attr_setscope PTHREAD_ATTR_SETSCOPE_FUNC_TAOS_FORBID
-    #define pthread_attr_setstacksize PTHREAD_ATTR_SETSTACKSIZE_FUNC_TAOS_FORBID
-    #define pthread_barrier_destroy PTHREAD_BARRIER_DESTROY_FUNC_TAOS_FORBID
-    #define pthread_barrier_init PTHREAD_BARRIER_INIT_FUNC_TAOS_FORBID
-    #define pthread_barrier_wait PTHREAD_BARRIER_WAIT_FUNC_TAOS_FORBID
-    #define pthread_barrierattr_destroy PTHREAD_BARRIERATTR_DESTROY_FUNC_TAOS_FORBID
-    #define pthread_barrierattr_getpshared PTHREAD_BARRIERATTR_GETPSHARED_FUNC_TAOS_FORBID
-    #define pthread_barrierattr_init PTHREAD_BARRIERATTR_INIT_FUNC_TAOS_FORBID
-    #define pthread_barrierattr_setpshared PTHREAD_BARRIERATTR_SETPSHARED_FUNC_TAOS_FORBID
-    #define pthread_cancel PTHREAD_CANCEL_FUNC_TAOS_FORBID
-    #define pthread_cond_destroy PTHREAD_COND_DESTROY_FUNC_TAOS_FORBID
-    #define pthread_cond_init PTHREAD_COND_INIT_FUNC_TAOS_FORBID
-    #define pthread_cond_signal PTHREAD_COND_SIGNAL_FUNC_TAOS_FORBID
-    #define pthread_cond_broadcast PTHREAD_COND_BROADCAST_FUNC_TAOS_FORBID
-    #define pthread_cond_wait PTHREAD_COND_WAIT_FUNC_TAOS_FORBID
-    #define pthread_cond_timedwait PTHREAD_COND_TIMEDWAIT_FUNC_TAOS_FORBID
-    #define pthread_condattr_destroy PTHREAD_CONDATTR_DESTROY_FUNC_TAOS_FORBID
-    #define pthread_condattr_getpshared PTHREAD_CONDATTR_GETPSHARED_FUNC_TAOS_FORBID
-    #define pthread_condattr_init PTHREAD_CONDATTR_INIT_FUNC_TAOS_FORBID
-    #define pthread_condattr_setpshared PTHREAD_CONDATTR_SETPSHARED_FUNC_TAOS_FORBID
-    #define pthread_detach PTHREAD_DETACH_FUNC_TAOS_FORBID
-    #define pthread_equal PTHREAD_EQUAL_FUNC_TAOS_FORBID
-    #define pthread_exit PTHREAD_EXIT_FUNC_TAOS_FORBID
-    #define pthread_getschedparam PTHREAD_GETSCHEDPARAM_FUNC_TAOS_FORBID
-    #define pthread_getspecific PTHREAD_GETSPECIFIC_FUNC_TAOS_FORBID
-    #define pthread_join PTHREAD_JOIN_FUNC_TAOS_FORBID
-    #define pthread_key_create PTHREAD_KEY_CREATE_FUNC_TAOS_FORBID
-    #define pthread_key_delete PTHREAD_KEY_DELETE_FUNC_TAOS_FORBID
-    #define pthread_kill PTHREAD_KILL_FUNC_TAOS_FORBID
-    #define pthread_mutex_consistent PTHREAD_MUTEX_CONSISTENT_FUNC_TAOS_FORBID
-    #define pthread_mutex_destroy PTHREAD_MUTEX_DESTROY_FUNC_TAOS_FORBID
-    #define pthread_mutex_init PTHREAD_MUTEX_INIT_FUNC_TAOS_FORBID
-    #define pthread_mutex_lock PTHREAD_MUTEX_LOCK_FUNC_TAOS_FORBID
-    #define pthread_mutex_timedlock PTHREAD_MUTEX_TIMEDLOCK_FUNC_TAOS_FORBID
-    #define pthread_mutex_trylock PTHREAD_MUTEX_TRYLOCK_FUNC_TAOS_FORBID
-    #define pthread_mutex_unlock PTHREAD_MUTEX_UNLOCK_FUNC_TAOS_FORBID
-    #define pthread_mutexattr_destroy PTHREAD_MUTEXATTR_DESTROY_FUNC_TAOS_FORBID
-    #define pthread_mutexattr_getpshared PTHREAD_MUTEXATTR_GETPSHARED_FUNC_TAOS_FORBID
-    #define pthread_mutexattr_getrobust PTHREAD_MUTEXATTR_GETROBUST_FUNC_TAOS_FORBID
-    #define pthread_mutexattr_gettype PTHREAD_MUTEXATTR_GETTYPE_FUNC_TAOS_FORBID
-    #define pthread_mutexattr_init PTHREAD_MUTEXATTR_INIT_FUNC_TAOS_FORBID
-    #define pthread_mutexattr_setpshared PTHREAD_MUTEXATTR_SETPSHARED_FUNC_TAOS_FORBID
-    #define pthread_mutexattr_setrobust PTHREAD_MUTEXATTR_SETROBUST_FUNC_TAOS_FORBID
-    #define pthread_mutexattr_settype PTHREAD_MUTEXATTR_SETTYPE_FUNC_TAOS_FORBID
-    #define pthread_once PTHREAD_ONCE_FUNC_TAOS_FORBID
-    #define pthread_rwlock_destroy PTHREAD_RWLOCK_DESTROY_FUNC_TAOS_FORBID
-    #define pthread_rwlock_init PTHREAD_RWLOCK_INIT_FUNC_TAOS_FORBID
-    #define pthread_rwlock_rdlock PTHREAD_RWLOCK_RDLOCK_FUNC_TAOS_FORBID
-    #define pthread_rwlock_timedrdlock PTHREAD_RWLOCK_TIMEDRDLOCK_FUNC_TAOS_FORBID
-    #define pthread_rwlock_timedwrlock PTHREAD_RWLOCK_TIMEDWRLOCK_FUNC_TAOS_FORBID
-    #define pthread_rwlock_tryrdlock PTHREAD_RWLOCK_TRYRDLOCK_FUNC_TAOS_FORBID
-    #define pthread_rwlock_trywrlock PTHREAD_RWLOCK_TRYWRLOCK_FUNC_TAOS_FORBID
-    #define pthread_rwlock_unlock PTHREAD_RWLOCK_UNLOCK_FUNC_TAOS_FORBID
-    #define pthread_rwlock_wrlock PTHREAD_RWLOCK_WRLOCK_FUNC_TAOS_FORBID
-    #define pthread_rwlockattr_destroy PTHREAD_RWLOCKATTR_DESTROY_FUNC_TAOS_FORBID
-    #define pthread_rwlockattr_getpshared PTHREAD_RWLOCKATTR_GETPSHARED_FUNC_TAOS_FORBID
-    #define pthread_rwlockattr_init PTHREAD_RWLOCKATTR_INIT_FUNC_TAOS_FORBID
-    #define pthread_rwlockattr_setpshared PTHREAD_RWLOCKATTR_SETPSHARED_FUNC_TAOS_FORBID
-    #define pthread_self PTHREAD_SELF_FUNC_TAOS_FORBID
-    #define pthread_setcancelstate PTHREAD_SETCANCELSTATE_FUNC_TAOS_FORBID
-    #define pthread_setcanceltype PTHREAD_SETCANCELTYPE_FUNC_TAOS_FORBID
-    #define pthread_setschedparam PTHREAD_SETSCHEDPARAM_FUNC_TAOS_FORBID
-    #define pthread_setspecific PTHREAD_SETSPECIFIC_FUNC_TAOS_FORBID
-    #define pthread_spin_destroy PTHREAD_SPIN_DESTROY_FUNC_TAOS_FORBID
-    #define pthread_spin_init PTHREAD_SPIN_INIT_FUNC_TAOS_FORBID
-    #define pthread_spin_lock PTHREAD_SPIN_LOCK_FUNC_TAOS_FORBID
-    #define pthread_spin_trylock PTHREAD_SPIN_TRYLOCK_FUNC_TAOS_FORBID
-    #define pthread_spin_unlock PTHREAD_SPIN_UNLOCK_FUNC_TAOS_FORBID
-    #define pthread_testcancel PTHREAD_TESTCANCEL_FUNC_TAOS_FORBID
-    #define pthread_sigmask PTHREAD_SIGMASK_FUNC_TAOS_FORBID
-    #define sigwait SIGWAIT_FUNC_TAOS_FORBID
+#define pthread_t                      PTHREAD_T_TYPE_TAOS_FORBID
+#define pthread_spinlock_t             PTHREAD_SPINLOCK_T_TYPE_TAOS_FORBID
+#define pthread_mutex_t                PTHREAD_MUTEX_T_TYPE_TAOS_FORBID
+#define pthread_mutexattr_t            PTHREAD_MUTEXATTR_T_TYPE_TAOS_FORBID
+#define pthread_rwlock_t               PTHREAD_RWLOCK_T_TYPE_TAOS_FORBID
+#define pthread_attr_t                 PTHREAD_ATTR_T_TYPE_TAOS_FORBID
+#define pthread_once_t                 PTHREAD_ONCE_T_TYPE_TAOS_FORBID
+#define pthread_rwlockattr_t           PTHREAD_RWLOCKATTR_T_TYPE_TAOS_FORBID
+#define pthread_cond_t                 PTHREAD_COND_T_TYPE_TAOS_FORBID
+#define pthread_condattr_t             PTHREAD_CONDATTR_T_TYPE_TAOS_FORBID
+#define pthread_key_t                  PTHREAD_KEY_T_TYPE_TAOS_FORBID
+#define pthread_barrier_t              PTHREAD_BARRIER_T_TYPE_TAOS_FORBID
+#define pthread_barrierattr_t          PTHREAD_BARRIERATTR_T_TYPE_TAOS_FORBID
+#define pthread_create                 PTHREAD_CREATE_FUNC_TAOS_FORBID
+#define pthread_attr_destroy           PTHREAD_ATTR_DESTROY_FUNC_TAOS_FORBID
+#define pthread_attr_getdetachstate    PTHREAD_ATTR_GETDETACHSTATE_FUNC_TAOS_FORBID
+#define pthread_attr_getinheritsched   PTHREAD_ATTR_GETINHERITSCHED_FUNC_TAOS_FORBID
+#define pthread_attr_getschedparam     PTHREAD_ATTR_GETSCHEDPARAM_FUNC_TAOS_FORBID
+#define pthread_attr_getschedpolicy    PTHREAD_ATTR_GETSCHEDPOLICY_FUNC_TAOS_FORBID
+#define pthread_attr_getscope          PTHREAD_ATTR_GETSCOPE_FUNC_TAOS_FORBID
+#define pthread_attr_getstacksize      PTHREAD_ATTR_GETSTACKSIZE_FUNC_TAOS_FORBID
+#define pthread_attr_init              PTHREAD_ATTR_INIT_FUNC_TAOS_FORBID
+#define pthread_attr_setdetachstate    PTHREAD_ATTR_SETDETACHSTATE_FUNC_TAOS_FORBID
+#define pthread_attr_setinheritsched   PTHREAD_ATTR_SETINHERITSCHED_FUNC_TAOS_FORBID
+#define pthread_attr_setschedparam     PTHREAD_ATTR_SETSCHEDPARAM_FUNC_TAOS_FORBID
+#define pthread_attr_setschedpolicy    PTHREAD_ATTR_SETSCHEDPOLICY_FUNC_TAOS_FORBID
+#define pthread_attr_setscope          PTHREAD_ATTR_SETSCOPE_FUNC_TAOS_FORBID
+#define pthread_attr_setstacksize      PTHREAD_ATTR_SETSTACKSIZE_FUNC_TAOS_FORBID
+#define pthread_barrier_destroy        PTHREAD_BARRIER_DESTROY_FUNC_TAOS_FORBID
+#define pthread_barrier_init           PTHREAD_BARRIER_INIT_FUNC_TAOS_FORBID
+#define pthread_barrier_wait           PTHREAD_BARRIER_WAIT_FUNC_TAOS_FORBID
+#define pthread_barrierattr_destroy    PTHREAD_BARRIERATTR_DESTROY_FUNC_TAOS_FORBID
+#define pthread_barrierattr_getpshared PTHREAD_BARRIERATTR_GETPSHARED_FUNC_TAOS_FORBID
+#define pthread_barrierattr_init       PTHREAD_BARRIERATTR_INIT_FUNC_TAOS_FORBID
+#define pthread_barrierattr_setpshared PTHREAD_BARRIERATTR_SETPSHARED_FUNC_TAOS_FORBID
+#define pthread_cancel                 PTHREAD_CANCEL_FUNC_TAOS_FORBID
+#define pthread_cond_destroy           PTHREAD_COND_DESTROY_FUNC_TAOS_FORBID
+#define pthread_cond_init              PTHREAD_COND_INIT_FUNC_TAOS_FORBID
+#define pthread_cond_signal            PTHREAD_COND_SIGNAL_FUNC_TAOS_FORBID
+#define pthread_cond_broadcast         PTHREAD_COND_BROADCAST_FUNC_TAOS_FORBID
+#define pthread_cond_wait              PTHREAD_COND_WAIT_FUNC_TAOS_FORBID
+#define pthread_cond_timedwait         PTHREAD_COND_TIMEDWAIT_FUNC_TAOS_FORBID
+#define pthread_condattr_destroy       PTHREAD_CONDATTR_DESTROY_FUNC_TAOS_FORBID
+#define pthread_condattr_getpshared    PTHREAD_CONDATTR_GETPSHARED_FUNC_TAOS_FORBID
+#define pthread_condattr_init          PTHREAD_CONDATTR_INIT_FUNC_TAOS_FORBID
+#define pthread_condattr_setpshared    PTHREAD_CONDATTR_SETPSHARED_FUNC_TAOS_FORBID
+#define pthread_detach                 PTHREAD_DETACH_FUNC_TAOS_FORBID
+
+#if !defined(_ALPINE)
+#define pthread_equal                  PTHREAD_EQUAL_FUNC_TAOS_FORBID
 #endif
 
-int32_t taosThreadCreate(TdThread * tid, const TdThreadAttr * attr, void *(*start)(void *), void *arg);
-int32_t taosThreadAttrDestroy(TdThreadAttr * attr);
-int32_t taosThreadAttrGetDetachState(const TdThreadAttr * attr, int32_t *detachstate);
-int32_t taosThreadAttrGetInheritSched(const TdThreadAttr * attr, int32_t *inheritsched);
-int32_t taosThreadAttrGetSchedParam(const TdThreadAttr * attr, struct sched_param *param);
-int32_t taosThreadAttrGetSchedPolicy(const TdThreadAttr * attr, int32_t *policy);
-int32_t taosThreadAttrGetScope(const TdThreadAttr * attr, int32_t *contentionscope);
-int32_t taosThreadAttrGetStackSize(const TdThreadAttr * attr, size_t * stacksize);
-int32_t taosThreadAttrInit(TdThreadAttr * attr);
-int32_t taosThreadAttrSetDetachState(TdThreadAttr * attr, int32_t detachstate);
-int32_t taosThreadAttrSetInheritSched(TdThreadAttr * attr, int32_t inheritsched);
-int32_t taosThreadAttrSetSchedParam(TdThreadAttr * attr, const struct sched_param *param);
-int32_t taosThreadAttrSetSchedPolicy(TdThreadAttr * attr, int32_t policy);
-int32_t taosThreadAttrSetScope(TdThreadAttr * attr, int32_t contentionscope);
-int32_t taosThreadAttrSetStackSize(TdThreadAttr * attr, size_t stacksize);
+#define pthread_exit                   PTHREAD_EXIT_FUNC_TAOS_FORBID
+#define pthread_getschedparam          PTHREAD_GETSCHEDPARAM_FUNC_TAOS_FORBID
+#define pthread_getspecific            PTHREAD_GETSPECIFIC_FUNC_TAOS_FORBID
+#define pthread_join                   PTHREAD_JOIN_FUNC_TAOS_FORBID
+#define pthread_key_create             PTHREAD_KEY_CREATE_FUNC_TAOS_FORBID
+#define pthread_key_delete             PTHREAD_KEY_DELETE_FUNC_TAOS_FORBID
+#define pthread_kill                   PTHREAD_KILL_FUNC_TAOS_FORBID
+#define pthread_mutex_consistent       PTHREAD_MUTEX_CONSISTENT_FUNC_TAOS_FORBID
+#define pthread_mutex_destroy          PTHREAD_MUTEX_DESTROY_FUNC_TAOS_FORBID
+#define pthread_mutex_init             PTHREAD_MUTEX_INIT_FUNC_TAOS_FORBID
+#define pthread_mutex_lock             PTHREAD_MUTEX_LOCK_FUNC_TAOS_FORBID
+#define pthread_mutex_timedlock        PTHREAD_MUTEX_TIMEDLOCK_FUNC_TAOS_FORBID
+#define pthread_mutex_trylock          PTHREAD_MUTEX_TRYLOCK_FUNC_TAOS_FORBID
+#define pthread_mutex_unlock           PTHREAD_MUTEX_UNLOCK_FUNC_TAOS_FORBID
+#define pthread_mutexattr_destroy      PTHREAD_MUTEXATTR_DESTROY_FUNC_TAOS_FORBID
+#define pthread_mutexattr_getpshared   PTHREAD_MUTEXATTR_GETPSHARED_FUNC_TAOS_FORBID
+#define pthread_mutexattr_getrobust    PTHREAD_MUTEXATTR_GETROBUST_FUNC_TAOS_FORBID
+#define pthread_mutexattr_gettype      PTHREAD_MUTEXATTR_GETTYPE_FUNC_TAOS_FORBID
+#define pthread_mutexattr_init         PTHREAD_MUTEXATTR_INIT_FUNC_TAOS_FORBID
+#define pthread_mutexattr_setpshared   PTHREAD_MUTEXATTR_SETPSHARED_FUNC_TAOS_FORBID
+#define pthread_mutexattr_setrobust    PTHREAD_MUTEXATTR_SETROBUST_FUNC_TAOS_FORBID
+#define pthread_mutexattr_settype      PTHREAD_MUTEXATTR_SETTYPE_FUNC_TAOS_FORBID
+#define pthread_once                   PTHREAD_ONCE_FUNC_TAOS_FORBID
+#define pthread_rwlock_destroy         PTHREAD_RWLOCK_DESTROY_FUNC_TAOS_FORBID
+#define pthread_rwlock_init            PTHREAD_RWLOCK_INIT_FUNC_TAOS_FORBID
+#define pthread_rwlock_rdlock          PTHREAD_RWLOCK_RDLOCK_FUNC_TAOS_FORBID
+#define pthread_rwlock_timedrdlock     PTHREAD_RWLOCK_TIMEDRDLOCK_FUNC_TAOS_FORBID
+#define pthread_rwlock_timedwrlock     PTHREAD_RWLOCK_TIMEDWRLOCK_FUNC_TAOS_FORBID
+#define pthread_rwlock_tryrdlock       PTHREAD_RWLOCK_TRYRDLOCK_FUNC_TAOS_FORBID
+#define pthread_rwlock_trywrlock       PTHREAD_RWLOCK_TRYWRLOCK_FUNC_TAOS_FORBID
+#define pthread_rwlock_unlock          PTHREAD_RWLOCK_UNLOCK_FUNC_TAOS_FORBID
+#define pthread_rwlock_wrlock          PTHREAD_RWLOCK_WRLOCK_FUNC_TAOS_FORBID
+#define pthread_rwlockattr_destroy     PTHREAD_RWLOCKATTR_DESTROY_FUNC_TAOS_FORBID
+#define pthread_rwlockattr_getpshared  PTHREAD_RWLOCKATTR_GETPSHARED_FUNC_TAOS_FORBID
+#define pthread_rwlockattr_init        PTHREAD_RWLOCKATTR_INIT_FUNC_TAOS_FORBID
+#define pthread_rwlockattr_setpshared  PTHREAD_RWLOCKATTR_SETPSHARED_FUNC_TAOS_FORBID
+#define pthread_self                   PTHREAD_SELF_FUNC_TAOS_FORBID
+#define pthread_setcancelstate         PTHREAD_SETCANCELSTATE_FUNC_TAOS_FORBID
+#define pthread_setcanceltype          PTHREAD_SETCANCELTYPE_FUNC_TAOS_FORBID
+#define pthread_setschedparam          PTHREAD_SETSCHEDPARAM_FUNC_TAOS_FORBID
+#define pthread_setspecific            PTHREAD_SETSPECIFIC_FUNC_TAOS_FORBID
+#define pthread_spin_destroy           PTHREAD_SPIN_DESTROY_FUNC_TAOS_FORBID
+#define pthread_spin_init              PTHREAD_SPIN_INIT_FUNC_TAOS_FORBID
+#define pthread_spin_lock              PTHREAD_SPIN_LOCK_FUNC_TAOS_FORBID
+#define pthread_spin_trylock           PTHREAD_SPIN_TRYLOCK_FUNC_TAOS_FORBID
+#define pthread_spin_unlock            PTHREAD_SPIN_UNLOCK_FUNC_TAOS_FORBID
+#define pthread_testcancel             PTHREAD_TESTCANCEL_FUNC_TAOS_FORBID
+#define pthread_sigmask                PTHREAD_SIGMASK_FUNC_TAOS_FORBID
+#define sigwait                        SIGWAIT_FUNC_TAOS_FORBID
+#endif
+
+int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)(void *), void *arg);
+int32_t taosThreadAttrDestroy(TdThreadAttr *attr);
+int32_t taosThreadAttrGetDetachState(const TdThreadAttr *attr, int32_t *detachstate);
+int32_t taosThreadAttrGetInheritSched(const TdThreadAttr *attr, int32_t *inheritsched);
+int32_t taosThreadAttrGetSchedParam(const TdThreadAttr *attr, struct sched_param *param);
+int32_t taosThreadAttrGetSchedPolicy(const TdThreadAttr *attr, int32_t *policy);
+int32_t taosThreadAttrGetScope(const TdThreadAttr *attr, int32_t *contentionscope);
+int32_t taosThreadAttrGetStackSize(const TdThreadAttr *attr, size_t *stacksize);
+int32_t taosThreadAttrInit(TdThreadAttr *attr);
+int32_t taosThreadAttrSetDetachState(TdThreadAttr *attr, int32_t detachstate);
+int32_t taosThreadAttrSetInheritSched(TdThreadAttr *attr, int32_t inheritsched);
+int32_t taosThreadAttrSetSchedParam(TdThreadAttr *attr, const struct sched_param *param);
+int32_t taosThreadAttrSetSchedPolicy(TdThreadAttr *attr, int32_t policy);
+int32_t taosThreadAttrSetScope(TdThreadAttr *attr, int32_t contentionscope);
+int32_t taosThreadAttrSetStackSize(TdThreadAttr *attr, size_t stacksize);
 int32_t taosThreadCancel(TdThread thread);
-int32_t taosThreadCondDestroy(TdThreadCond * cond);
-int32_t taosThreadCondInit(TdThreadCond * cond, const TdThreadCondAttr * attr);
-int32_t taosThreadCondSignal(TdThreadCond * cond);
-int32_t taosThreadCondBroadcast(TdThreadCond * cond);
-int32_t taosThreadCondWait(TdThreadCond * cond, TdThreadMutex * mutex);
-int32_t taosThreadCondTimedWait(TdThreadCond * cond, TdThreadMutex * mutex, const struct timespec *abstime);
-int32_t taosThreadCondAttrDestroy(TdThreadCondAttr * attr);
-int32_t taosThreadCondAttrGetPshared(const TdThreadCondAttr * attr, int32_t *pshared);
-int32_t taosThreadCondAttrInit(TdThreadCondAttr * attr);
-int32_t taosThreadCondAttrSetPshared(TdThreadCondAttr * attr, int32_t pshared);
+int32_t taosThreadCondDestroy(TdThreadCond *cond);
+int32_t taosThreadCondInit(TdThreadCond *cond, const TdThreadCondAttr *attr);
+int32_t taosThreadCondSignal(TdThreadCond *cond);
+int32_t taosThreadCondBroadcast(TdThreadCond *cond);
+int32_t taosThreadCondWait(TdThreadCond *cond, TdThreadMutex *mutex);
+int32_t taosThreadCondTimedWait(TdThreadCond *cond, TdThreadMutex *mutex, const struct timespec *abstime);
+int32_t taosThreadCondAttrDestroy(TdThreadCondAttr *attr);
+int32_t taosThreadCondAttrGetPshared(const TdThreadCondAttr *attr, int32_t *pshared);
+int32_t taosThreadCondAttrInit(TdThreadCondAttr *attr);
+int32_t taosThreadCondAttrSetPshared(TdThreadCondAttr *attr, int32_t pshared);
 int32_t taosThreadDetach(TdThread thread);
 int32_t taosThreadEqual(TdThread t1, TdThread t2);
-void taosThreadExit(void *valuePtr);
+void    taosThreadExit(void *valuePtr);
 int32_t taosThreadGetSchedParam(TdThread thread, int32_t *policy, struct sched_param *param);
-void *taosThreadGetSpecific(TdThreadKey key);
+void   *taosThreadGetSpecific(TdThreadKey key);
 int32_t taosThreadJoin(TdThread thread, void **valuePtr);
-int32_t taosThreadKeyCreate(TdThreadKey * key, void(*destructor)(void *));
+int32_t taosThreadKeyCreate(TdThreadKey *key, void (*destructor)(void *));
 int32_t taosThreadKeyDelete(TdThreadKey key);
 int32_t taosThreadKill(TdThread thread, int32_t sig);
 // int32_t taosThreadMutexConsistent(TdThreadMutex* mutex);
-int32_t taosThreadMutexDestroy(TdThreadMutex * mutex);
-int32_t taosThreadMutexInit(TdThreadMutex * mutex, const TdThreadMutexAttr * attr);
-int32_t taosThreadMutexLock(TdThreadMutex * mutex);
+int32_t taosThreadMutexDestroy(TdThreadMutex *mutex);
+int32_t taosThreadMutexInit(TdThreadMutex *mutex, const TdThreadMutexAttr *attr);
+int32_t taosThreadMutexLock(TdThreadMutex *mutex);
 // int32_t taosThreadMutexTimedLock(TdThreadMutex * mutex, const struct timespec *abstime);
-int32_t taosThreadMutexTryLock(TdThreadMutex * mutex);
-int32_t taosThreadMutexUnlock(TdThreadMutex * mutex);
-int32_t taosThreadMutexAttrDestroy(TdThreadMutexAttr * attr);
-int32_t taosThreadMutexAttrGetPshared(const TdThreadMutexAttr * attr, int32_t *pshared);
+int32_t taosThreadMutexTryLock(TdThreadMutex *mutex);
+int32_t taosThreadMutexUnlock(TdThreadMutex *mutex);
+int32_t taosThreadMutexAttrDestroy(TdThreadMutexAttr *attr);
+int32_t taosThreadMutexAttrGetPshared(const TdThreadMutexAttr *attr, int32_t *pshared);
 // int32_t taosThreadMutexAttrGetRobust(const TdThreadMutexAttr * attr, int32_t * robust);
-int32_t taosThreadMutexAttrGetType(const TdThreadMutexAttr * attr, int32_t *kind);
-int32_t taosThreadMutexAttrInit(TdThreadMutexAttr * attr);
-int32_t taosThreadMutexAttrSetPshared(TdThreadMutexAttr * attr, int32_t pshared);
+int32_t taosThreadMutexAttrGetType(const TdThreadMutexAttr *attr, int32_t *kind);
+int32_t taosThreadMutexAttrInit(TdThreadMutexAttr *attr);
+int32_t taosThreadMutexAttrSetPshared(TdThreadMutexAttr *attr, int32_t pshared);
 // int32_t taosThreadMutexAttrSetRobust(TdThreadMutexAttr * attr, int32_t robust);
-int32_t taosThreadMutexAttrSetType(TdThreadMutexAttr * attr, int32_t kind);
-int32_t taosThreadOnce(TdThreadOnce * onceControl, void(*initRoutine)(void));
-int32_t taosThreadRwlockDestroy(TdThreadRwlock * rwlock);
-int32_t taosThreadRwlockInit(TdThreadRwlock * rwlock, const TdThreadRwlockAttr * attr);
-int32_t taosThreadRwlockRdlock(TdThreadRwlock * rwlock);
+int32_t taosThreadMutexAttrSetType(TdThreadMutexAttr *attr, int32_t kind);
+int32_t taosThreadOnce(TdThreadOnce *onceControl, void (*initRoutine)(void));
+int32_t taosThreadRwlockDestroy(TdThreadRwlock *rwlock);
+int32_t taosThreadRwlockInit(TdThreadRwlock *rwlock, const TdThreadRwlockAttr *attr);
+int32_t taosThreadRwlockRdlock(TdThreadRwlock *rwlock);
 // int32_t taosThreadRwlockTimedRdlock(TdThreadRwlock * rwlock, const struct timespec *abstime);
 // int32_t taosThreadRwlockTimedWrlock(TdThreadRwlock * rwlock, const struct timespec *abstime);
-int32_t taosThreadRwlockTryRdlock(TdThreadRwlock * rwlock);
-int32_t taosThreadRwlockTryWrlock(TdThreadRwlock * rwlock);
-int32_t taosThreadRwlockUnlock(TdThreadRwlock * rwlock);
-int32_t taosThreadRwlockWrlock(TdThreadRwlock * rwlock);
-int32_t taosThreadRwlockAttrDestroy(TdThreadRwlockAttr * attr);
-int32_t taosThreadRwlockAttrGetPshared(const TdThreadRwlockAttr * attr, int32_t *pshared);
-int32_t taosThreadRwlockAttrInit(TdThreadRwlockAttr * attr);
-int32_t taosThreadRwlockAttrSetPshared(TdThreadRwlockAttr * attr, int32_t pshared);
+int32_t  taosThreadRwlockTryRdlock(TdThreadRwlock *rwlock);
+int32_t  taosThreadRwlockTryWrlock(TdThreadRwlock *rwlock);
+int32_t  taosThreadRwlockUnlock(TdThreadRwlock *rwlock);
+int32_t  taosThreadRwlockWrlock(TdThreadRwlock *rwlock);
+int32_t  taosThreadRwlockAttrDestroy(TdThreadRwlockAttr *attr);
+int32_t  taosThreadRwlockAttrGetPshared(const TdThreadRwlockAttr *attr, int32_t *pshared);
+int32_t  taosThreadRwlockAttrInit(TdThreadRwlockAttr *attr);
+int32_t  taosThreadRwlockAttrSetPshared(TdThreadRwlockAttr *attr, int32_t pshared);
 TdThread taosThreadSelf(void);
-int32_t taosThreadSetCancelState(int32_t state, int32_t *oldstate);
-int32_t taosThreadSetCancelType(int32_t type, int32_t *oldtype);
-int32_t taosThreadSetSchedParam(TdThread thread, int32_t policy, const struct sched_param *param);
-int32_t taosThreadSetSpecific(TdThreadKey key, const void *value);
-int32_t taosThreadSpinDestroy(TdThreadSpinlock * lock);
-int32_t taosThreadSpinInit(TdThreadSpinlock * lock, int32_t pshared);
-int32_t taosThreadSpinLock(TdThreadSpinlock * lock);
-int32_t taosThreadSpinTrylock(TdThreadSpinlock * lock);
-int32_t taosThreadSpinUnlock(TdThreadSpinlock * lock);
-void taosThreadTestCancel(void);
-void taosThreadClear(TdThread *thread);
+int32_t  taosThreadSetCancelState(int32_t state, int32_t *oldstate);
+int32_t  taosThreadSetCancelType(int32_t type, int32_t *oldtype);
+int32_t  taosThreadSetSchedParam(TdThread thread, int32_t policy, const struct sched_param *param);
+int32_t  taosThreadSetSpecific(TdThreadKey key, const void *value);
+int32_t  taosThreadSpinDestroy(TdThreadSpinlock *lock);
+int32_t  taosThreadSpinInit(TdThreadSpinlock *lock, int32_t pshared);
+int32_t  taosThreadSpinLock(TdThreadSpinlock *lock);
+int32_t  taosThreadSpinTrylock(TdThreadSpinlock *lock);
+int32_t  taosThreadSpinUnlock(TdThreadSpinlock *lock);
+void     taosThreadTestCancel(void);
+void     taosThreadClear(TdThread *thread);
 
 #ifdef __cplusplus
 }

@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -30,9 +26,9 @@ void test1() {
 void test2() {
   SyncTimeout *pMsg = createMsg();
   uint32_t     len = pMsg->bytes;
-  char *       serialized = (char *)taosMemoryMalloc(len);
+  char        *serialized = (char *)taosMemoryMalloc(len);
   syncTimeoutSerialize(pMsg, serialized, len);
-  SyncTimeout *pMsg2 = syncTimeoutBuild();
+  SyncTimeout *pMsg2 = syncTimeoutBuildX();
   syncTimeoutDeserialize(serialized, len, pMsg2);
   syncTimeoutLog2((char *)"test2: syncTimeoutSerialize -> syncTimeoutDeserialize ", pMsg2);
 
@@ -44,7 +40,7 @@ void test2() {
 void test3() {
   SyncTimeout *pMsg = createMsg();
   uint32_t     len;
-  char *       serialized = syncTimeoutSerialize2(pMsg, &len);
+  char        *serialized = syncTimeoutSerialize2(pMsg, &len);
   SyncTimeout *pMsg2 = syncTimeoutDeserialize2(serialized, len);
   syncTimeoutLog2((char *)"test3: syncTimeoutSerialize3 -> syncTimeoutDeserialize2 ", pMsg2);
 
@@ -78,9 +74,31 @@ void test5() {
   syncTimeoutDestroy(pMsg2);
 }
 
+void syncUtilJson2Line(char *jsonStr) {
+  int p, q, len;
+  p = 0;
+  q = 1;
+  len = strlen(jsonStr);
+  while (1) {
+    if (jsonStr[q] == '\0') {
+      jsonStr[p + 1] = '\0';
+      break;
+    }
+
+    if (jsonStr[q] == '\n' || jsonStr[q] == ' ' || jsonStr[q] == '\t') {
+      q++;
+      continue;
+    } else {
+      jsonStr[p + 1] = jsonStr[q];
+      p++;
+      q++;
+    }
+  }
+}
+
 void test6() {
   SyncTimeout *pMsg = createMsg();
-  char *       jsonStr = syncTimeout2Str(pMsg);
+  char        *jsonStr = syncTimeout2Str(pMsg);
   sTrace("jsonStr: %s", jsonStr);
 
   syncUtilJson2Line(jsonStr);

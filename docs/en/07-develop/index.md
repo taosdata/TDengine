@@ -1,8 +1,10 @@
 ---
 title: Developer Guide
+description: This document describes how to use the various components of TDengine from a developer's perspective.
 ---
 
 Before creating an application to process time-series data with TDengine, consider the following:
+
 1. Choose the method to connect to TDengine. TDengine offers a REST API that can be used with any programming language. It also has connectors for a variety of languages.
 2. Design the data model based on your own use cases. Consider the main [concepts](/concept/) of TDengine, including "one table per data collection point" and the supertable. Learn about static labels, collected metrics, and subtables. Depending on the characteristics of your data and your requirements, you decide to create one or more databases and design a supertable schema that fit your data.
 3. Decide how you will insert data. TDengine supports writing using standard SQL, but also supports schemaless writing, so that data can be written directly without creating tables manually.

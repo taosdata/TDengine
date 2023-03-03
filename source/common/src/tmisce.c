@@ -14,14 +14,15 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tdatablock.h"
+#include "tmisce.h"
 #include "tglobal.h"
 #include "tlog.h"
 #include "tname.h"
 
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
-  strcpy(pEp->fqdn, ep);
+  memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
+  strncpy(pEp->fqdn, ep, TSDB_FQDN_LEN - 1);
 
   char* temp = strchr(pEp->fqdn, ':');
   if (temp) {
@@ -59,19 +60,30 @@ bool isEpsetEqual(const SEpSet* s1, const SEpSet* s2) {
   return true;
 }
 
+void epsetAssign(SEpSet* pDst, const SEpSet* pSrc) {
+  if (pSrc == NULL || pDst == NULL) {
+      return;
+  }
+
+  pDst->inUse = pSrc->inUse;
+  pDst->numOfEps = pSrc->numOfEps;
+  for (int32_t i = 0; i < pSrc->numOfEps; ++i) {
+    pDst->eps[i].port = pSrc->eps[i].port;
+    tstrncpy(pDst->eps[i].fqdn, pSrc->eps[i].fqdn, tListLen(pSrc->eps[i].fqdn));
+  }
+}
+
 void updateEpSet_s(SCorEpSet* pEpSet, SEpSet* pNewEpSet) {
   taosCorBeginWrite(&pEpSet->version);
-    pEpSet->epSet = *pNewEpSet;
+  pEpSet->epSet = *pNewEpSet;
   taosCorEndWrite(&pEpSet->version);
 }
 
 SEpSet getEpSet_s(SCorEpSet* pEpSet) {
   SEpSet ep = {0};
   taosCorBeginRead(&pEpSet->version);
-    ep = pEpSet->epSet;
+  ep = pEpSet->epSet;
   taosCorEndRead(&pEpSet->version);
 
   return ep;
 }
-
-

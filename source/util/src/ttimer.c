@@ -16,9 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "ttimer.h"
 #include "taoserror.h"
+#include "tdef.h"
 #include "tlog.h"
 #include "tsched.h"
-#include "tdef.h"
 
 #define tmrFatal(...)                                                     \
   {                                                                       \
@@ -104,21 +104,21 @@ typedef struct timer_map_t {
 
 typedef struct time_wheel_t {
   TdThreadMutex mutex;
-  int64_t         nextScanAt;
-  uint32_t        resolution;
-  uint16_t        size;
-  uint16_t        index;
-  tmr_obj_t**     slots;
+  int64_t       nextScanAt;
+  uint32_t      resolution;
+  uint16_t      size;
+  uint16_t      index;
+  tmr_obj_t**   slots;
 } time_wheel_t;
 
 static int32_t tsMaxTmrCtrl = TSDB_MAX_VNODES_PER_DB + 100;
 
 static TdThreadOnce  tmrModuleInit = PTHREAD_ONCE_INIT;
 static TdThreadMutex tmrCtrlMutex;
-static tmr_ctrl_t*     tmrCtrls;
-static tmr_ctrl_t*     unusedTmrCtrl = NULL;
-static void*           tmrQhandle;
-static int32_t         numOfTmrCtrl = 0;
+static tmr_ctrl_t*   tmrCtrls;
+static tmr_ctrl_t*   unusedTmrCtrl = NULL;
+static void*         tmrQhandle;
+static int32_t       numOfTmrCtrl = 0;
 
 int32_t          taosTmrThreads = 1;
 static uintptr_t nextTimerId = 0;
@@ -133,7 +133,7 @@ static timer_map_t timerMap;
 static uintptr_t getNextTimerId() {
   uintptr_t id;
   do {
-    id = (uintptr_t)atomic_add_fetch_ptr((void **)&nextTimerId, 1);
+    id = (uintptr_t)atomic_add_fetch_ptr((void**)&nextTimerId, 1);
   } while (id == 0);
   return id;
 }
@@ -159,8 +159,7 @@ static void lockTimerList(timer_list_t* list) {
 static void unlockTimerList(timer_list_t* list) {
   int64_t tid = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(&(list->lockedBy), tid, 0) != tid) {
-    assert(false);
-    tmrError("%" PRId64 " trying to unlock a timer list not locked by current thread.", tid);
+    ASSERTS(false, "%" PRId64 " trying to unlock a timer list not locked by current thread.", tid);
   }
 }
 
@@ -506,7 +505,7 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* han
     }
   }
 
-  assert(timer->refCount == 1);
+  ASSERTS(timer->refCount == 1, "timer refCount=%d not expected 1", timer->refCount);
   memset(timer, 0, sizeof(*timer));
   *pTmrId = (tmr_h)doStartTimer(timer, fp, mseconds, param, ctrl);
 

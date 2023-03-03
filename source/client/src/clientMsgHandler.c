@@ -20,6 +20,8 @@
 #include "query.h"
 #include "tdef.h"
 #include "tname.h"
+#include "tdatablock.h"
+#include "systable.h"
 
 static void setErrno(SRequestObj* pRequest, int32_t code) {
   pRequest->code = code;
@@ -45,39 +47,48 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
-  SRequestObj* pRequest = param;
+  SRequestObj *pRequest = acquireRequest(*(int64_t*)param);
+  if (NULL == pRequest) {
+    goto End;
+  }
+  
   if (code != TSDB_CODE_SUCCESS) {
-    taosMemoryFree(pMsg->pEpSet);
-    taosMemoryFree(pMsg->pData);
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
-    return code;
+    goto End;
   }
 
   STscObj* pTscObj = pRequest->pTscObj;
 
+  if (NULL == pTscObj->pAppInfo || NULL == pTscObj->pAppInfo->pAppHbMgr) {
+    setErrno(pRequest, TSDB_CODE_TSC_DISCONNECTED);
+    tsem_post(&pRequest->body.rspSem);
+    goto End;
+  }
+  
   SConnectRsp connectRsp = {0};
-  tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp);
+  if (tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp) != 0) {
+    code = TSDB_CODE_TSC_INVALID_VERSION;
+    setErrno(pRequest, code);
+    tsem_post(&pRequest->body.rspSem);
+    goto End;
+  }
 
   int32_t now = taosGetTimestampSec();
   int32_t delta = abs(now - connectRsp.svrTimestamp);
   if (delta > timestampDeltaLimit) {
     code = TSDB_CODE_TIME_UNSYNCED;
     tscError("time diff:%ds is too big", delta);
-    taosMemoryFree(pMsg->pEpSet);
-    taosMemoryFree(pMsg->pData);
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
-    return code;
+    goto End;
   }
 
   /*assert(connectRsp.epSet.numOfEps > 0);*/
   if (connectRsp.epSet.numOfEps == 0) {
-    taosMemoryFree(pMsg->pEpSet);
-    taosMemoryFree(pMsg->pData);
-    setErrno(pRequest, TSDB_CODE_MND_APP_ERROR);
+    setErrno(pRequest, TSDB_CODE_APP_ERROR);
     tsem_post(&pRequest->body.rspSem);
-    return code;
+    goto End;
   }
 
   if (connectRsp.dnodeNum == 1) {
@@ -108,19 +119,26 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   // update the appInstInfo
   pTscObj->pAppInfo->clusterId = connectRsp.clusterId;
+  lastClusterId = connectRsp.clusterId;
 
   pTscObj->connType = connectRsp.connType;
 
   hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
 
-  //  pRequest->body.resInfo.pRspMsg = pMsg->pData;
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
            pTscObj->pAppInfo->numOfConns);
-
-  taosMemoryFree(pMsg->pData);
-  taosMemoryFree(pMsg->pEpSet);
+           
   tsem_post(&pRequest->body.rspSem);
-  return 0;
+End:
+
+  if (pRequest) {
+    releaseRequest(pRequest->self);
+  }
+  
+  taosMemoryFree(param);
+  taosMemoryFree(pMsg->pEpSet);
+  taosMemoryFree(pMsg->pData);
+  return code;
 }
 
 SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pRequest) {
@@ -132,7 +150,6 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pRequest) {
   pMsgSendInfo->msgType = pRequest->type;
   pMsgSendInfo->target.type = TARGET_TYPE_MNODE;
 
-  assert(pRequest != NULL);
   pMsgSendInfo->msgInfo = pRequest->body.requestMsg;
   pMsgSendInfo->fp = getMsgRspHandle(pRequest->type);
   return pMsgSendInfo;
@@ -145,6 +162,22 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pMsg->pEpSet);
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
+  } else {
+    struct SCatalog* pCatalog = NULL;
+    int32_t          code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+    if (TSDB_CODE_SUCCESS == code) {
+      STscObj*             pTscObj = pRequest->pTscObj;
+
+      SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
+                               .requestId = pRequest->requestId,
+                               .requestObjRefId = pRequest->self,
+                               .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+      char dbFName[TSDB_DB_FNAME_LEN];
+      snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_INFORMATION_SCHEMA_DB);
+      catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
+      snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_PERFORMANCE_SCHEMA_DB);
+      catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
+    }  
   }
 
   if (pRequest->body.queryFp) {
@@ -158,12 +191,13 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
 
-  if (TSDB_CODE_MND_DB_NOT_EXIST == code) {
+  if (TSDB_CODE_MND_DB_NOT_EXIST == code || TSDB_CODE_MND_DB_IN_CREATING == code ||
+      TSDB_CODE_MND_DB_IN_DROPPING == code) {
     SUseDbRsp usedbRsp = {0};
     tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
     struct SCatalog* pCatalog = NULL;
 
-    if (usedbRsp.vgVersion >= 0) {
+    if (usedbRsp.vgVersion >= 0) { // cached in local
       uint64_t clusterId = pRequest->pTscObj->pAppInfo->clusterId;
       int32_t  code1 = catalogGetHandle(clusterId, &pCatalog);
       if (code1 != TSDB_CODE_SUCCESS) {
@@ -193,6 +227,23 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   SUseDbRsp usedbRsp = {0};
   tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
+
+  if (strlen(usedbRsp.db) == 0) {
+    if (usedbRsp.errCode != 0) {
+      return usedbRsp.errCode;
+    } else {
+      return TSDB_CODE_APP_ERROR;
+    }
+  }
+
+  tscTrace("db:%s, usedbRsp received, numOfVgroups:%d", usedbRsp.db, usedbRsp.vgNum);
+  for (int32_t i = 0; i < usedbRsp.vgNum; ++i) {
+    SVgroupInfo* pInfo = taosArrayGet(usedbRsp.pVgroupInfos, i);
+    tscTrace("vgId:%d, numOfEps:%d inUse:%d ", pInfo->vgId, pInfo->epSet.numOfEps, pInfo->epSet.inUse);
+    for (int32_t j = 0; j < pInfo->epSet.numOfEps; ++j) {
+      tscTrace("vgId:%d, index:%d epset:%s:%u", pInfo->vgId, j, pInfo->epSet.eps[j].fqdn, pInfo->epSet.eps[j].port);
+    }
+  }
 
   SName name = {0};
   tNameFromString(&name, usedbRsp.db, T_NAME_ACCT | T_NAME_DB);
@@ -238,7 +289,9 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
-  assert(pMsg != NULL && param != NULL);
+  if(pMsg == NULL || param == NULL){
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
   SRequestObj* pRequest = param;
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -288,8 +341,21 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     tDeserializeSDropDbRsp(pMsg->pData, pMsg->len, &dropdbRsp);
 
     struct SCatalog* pCatalog = NULL;
-    catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
-    catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
+    int32_t          code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+    if (TSDB_CODE_SUCCESS == code) {
+      catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
+      STscObj*             pTscObj = pRequest->pTscObj;
+
+      SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
+                               .requestId = pRequest->requestId,
+                               .requestObjRefId = pRequest->self,
+                               .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+      char dbFName[TSDB_DB_FNAME_LEN];
+      snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_INFORMATION_SCHEMA_DB);
+      catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
+      snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_PERFORMANCE_SCHEMA_DB);
+      catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
+    }
   }
 
   taosMemoryFree(pMsg->pData);
@@ -368,12 +434,12 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pInfo->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, name, false);
+    colDataSetVal(pColInfo, i, name, false);
 
     char value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(value, pInfo->value, TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, value, false);
+    colDataSetVal(pColInfo, i, value, false);
   }
 
   pBlock->info.rows = numOfCfg;
@@ -393,6 +459,7 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
+    blockDataDestroy(pBlock);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -401,14 +468,17 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->precision = 0;
   (*pRsp)->compressed = 0;
   (*pRsp)->compLen = 0;
-  (*pRsp)->numOfRows = htonl(pBlock->info.rows);
+  (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
-  int32_t len = 0;
-  blockEncode(pBlock, (*pRsp)->data, &len, SHOW_VARIABLES_RESULT_COLS, false);
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
-
+  int32_t len = blockEncode(pBlock, (*pRsp)->data, SHOW_VARIABLES_RESULT_COLS);
   blockDataDestroy(pBlock);
+
+  if(len != rspSize - sizeof(SRetrieveTableRsp)){
+    uError("buildShowVariablesRsp error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len, (uint64_t) (rspSize - sizeof(SRetrieveTableRsp)));
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -427,6 +497,9 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
       code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, true);
     }
 
+    if(code != 0){
+      taosMemoryFree(pRes);
+    }
     tFreeSShowVariablesRsp(&rsp);
   }
 

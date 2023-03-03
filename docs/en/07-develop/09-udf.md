@@ -1,7 +1,7 @@
 ---
-sidebar_label: UDF
 title: User-Defined Functions (UDF)
-description: "You can define your own scalar and aggregate functions to expand the query capabilities of TDengine."
+sidebar_label: UDF
+description: This document describes how to create user-defined functions (UDF), your own scalar and aggregate functions that can expand the query capabilities of TDengine.
 ---
 
 The built-in functions of TDengine may not be sufficient for the use cases of every application. In this case, you can define custom functions for use in TDengine queries. These are known as user-defined functions (UDF). A user-defined function takes one column of data or the result of a subquery as its input.
@@ -205,22 +205,22 @@ Additional functions are defined in `taosudf.h` to make it easier to work with t
 
 To use your user-defined function in TDengine, first compile it to a dynamically linked library (DLL).
 
-For example, the sample UDF `add_one.c` can be compiled into a DLL as follows:
+For example, the sample UDF `bit_and.c` can be compiled into a DLL as follows:
 
 ```bash
-gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
+gcc -g -O0 -fPIC -shared bit_and.c -o libbitand.so
 ```
 
-The generated DLL file `add_one.so` can now be used to implement your function. Note: GCC 7.5 or later is required.
+The generated DLL file `libbitand.so` can now be used to implement your function. Note: GCC 7.5 or later is required.
 
 ## Manage and Use User-Defined Functions
 After compiling your function into a DLL, you add it to TDengine. For more information, see [User-Defined Functions](../12-taos-sql/26-udf.md).
 
 ## Sample Code
 
-### Sample scalar function: [bit_and](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/bit_and.c)
+### Sample scalar function: [bit_and](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/bit_and.c)
 
-The bit_add function implements bitwise addition for multiple columns. If there is only one column, the column is returned. The bit_add function ignores null values.
+The bit_and function implements bitwise addition for multiple columns. If there is only one column, the column is returned. The bit_and function ignores null values.
 
 <details>
 <summary>bit_and.c</summary>
@@ -231,7 +231,7 @@ The bit_add function implements bitwise addition for multiple columns. If there 
 
 </details>
 
-### Sample aggregate function: [l2norm](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/l2norm.c)
+### Sample aggregate function: [l2norm](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/l2norm.c)
 
 The l2norm function finds the second-order norm for all data in the input column. This squares the values, takes a cumulative sum, and finds the square root.
 

@@ -53,7 +53,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
     }
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
-    case QUERY_NODE_FUNCTION: {
+    case QUERY_NODE_FUNCTION:
+    case QUERY_NODE_CASE_WHEN: {
       SExprNode*   pExpr = (SExprNode*)pNode;
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       if (NULL == pCol) {
@@ -137,7 +138,10 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
   } else if (TSDB_SUPER_TABLE == pScan->tableType) {
     pScan->scanType = SCAN_TYPE_TABLE_MERGE;
   }
-  pScan->node.resultDataOrder = requirement;
+
+  if (TSDB_NORMAL_TABLE != pScan->tableType && TSDB_CHILD_TABLE != pScan->tableType) {
+    pScan->node.resultDataOrder = requirement;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -196,6 +200,15 @@ static int32_t adjustStateDataRequirement(SWindowLogicNode* pWindow, EDataOrderL
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t adjustEventDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
+  if (requirement <= pWindow->node.resultDataOrder) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pWindow->node.resultDataOrder = requirement;
+  pWindow->node.requireDataOrder = requirement;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
   switch (pWindow->winType) {
     case WINDOW_TYPE_INTERVAL:
@@ -204,6 +217,8 @@ static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrder
       return adjustSessionDataRequirement(pWindow, requirement);
     case WINDOW_TYPE_STATE:
       return adjustStateDataRequirement(pWindow, requirement);
+    case WINDOW_TYPE_EVENT:
+      return adjustEventDataRequirement(pWindow, requirement);
     default:
       break;
   }

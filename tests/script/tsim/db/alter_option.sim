@@ -38,7 +38,7 @@ endi
 
 print ============= create database
 #database_option: {
-#  | BUFFER value       [3~16384, default: 96]
+#  | BUFFER value       [3~16384, default: 256]
 #  | PAGES value        [64~16384, default: 256]
 #  | CACHEMODEL value   ['node', 'last_row', 'last_value', 'both']
 #  | WAL_FSYNC_PERIOD value        [0 ~ 180000 ms]
@@ -69,7 +69,7 @@ endi
 if $data4_db != 3 then  # replica
   return -1
 endi
-if $data5_db != off then  # strict
+if $data5_db != on then  # strict
   return -1
 endi
 if $data6_db != 345600m then  # duration
@@ -78,7 +78,7 @@ endi
 if $data7_db != 1440000m,1440000m,1440000m then # keep
   return -1
 endi
-if $data8_db != 96 then  # buffer
+if $data8_db != 256 then  # buffer
   return -1
 endi
 if $data9_db != 4 then  # pagesize
@@ -111,13 +111,13 @@ endi
 if $data21_db != 1000 then  # wal_level fsyncperiod
   return -1
 endi
-if $data22_db != 345600 then  # wal_retention_period
+if $data22_db != 0 then  # wal_retention_period
   return -1
 endi
-if $data23_db != -1 then  # wal_retention_size
+if $data23_db != 0 then  # wal_retention_size
   return -1
 endi
-if $data24_db != 86400 then  # wal_roll_period
+if $data24_db != 0 then  # wal_roll_period
   return -1
 endi
 if $data25_db != 0 then  # wal_segment_size

@@ -1,0 +1,551 @@
+$loop_all = 0
+looptest:
+
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+#==system sh/exec.sh -n dnode1 -s start -v
+
+sleep 200
+sql connect
+
+sql drop stream if exists streams1;
+sql drop stream if exists streams2;
+sql drop database if exists test1;
+sql create database test1  vgroups 1;
+sql use test1;
+sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
+sql create stream streams1 trigger at_once  into streamt1 as select  _wstart as ts, count(*) c1, max(b)+sum(a) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
+sql create stream streams2 trigger at_once  into streamt2 as select  _wstart as ts, count(*) c1, max(a)+min(c), avg(b) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
+sql insert into t1 values(1648791213000,4,4,4,4.0,'aaa') (1648791215000,5,5,5,5.0,'aaa');
+sql insert into t1 values(1648791211000,1,1,1,1.0,'aaa') (1648791217000,2,2,2,2.0,'aaa') (1648791220000,3,3,3,3.0,'aaa');
+
+
+$loop_count = 0
+
+loop1:
+sleep 200
+sql use test1;
+sql select * from streamt1 order by ts;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 10 then
+  print =====rows=$rows
+  goto loop1
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data02 != 2.000000000 then
+  print =====data02=$data02
+  goto loop1
+endi
+
+
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop1
+endi
+
+if $data12 != 2.000000000 then
+  print =====data12=$data12
+  goto loop1
+endi
+
+
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop1
+endi
+
+if $data22 != 8.000000000 then
+  print =====data22=$data22
+  goto loop1
+endi
+
+
+if $data31 != 1 then
+  print =====data31=$data31
+  goto loop1
+endi
+
+if $data32 != 8.000000000 then
+  print =====data32=$data32
+  goto loop1
+endi
+
+
+if $data41 != 1 then
+  print =====data41=$data41
+  goto loop1
+endi
+
+if $data42 != 10.000000000 then
+  print =====data42=$data42
+  goto loop1
+endi
+
+
+if $data51 != 1 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data52 != 10.000000000 then
+  print =====data52=$data52
+  goto loop1
+endi
+
+
+if $data61 != 1 then
+  print =====data61=$data61
+  goto loop1
+endi
+
+if $data62 != 4.000000000 then
+  print =====data62=$data62
+  goto loop1
+endi
+
+
+if $data71 != 1 then
+  print =====data71=$data71
+  goto loop1
+endi
+
+if $data72 != 4.000000000 then
+  print =====data72=$data72
+  goto loop1
+endi
+
+
+if $data81 != 1 then
+  print =====data81=$data81
+  goto loop1
+endi
+
+if $data82 != 4.000000000 then
+  print =====data82=$data82
+  goto loop1
+endi
+
+
+if $data91 != 1 then
+  print =====data91=$data91
+  goto loop1
+endi
+
+if $data92 != 6.000000000 then
+  print =====data92=$data92
+  goto loop1
+endi
+
+sql use test1;
+sql select * from streamt2 order by ts;
+
+print next----------------------151
+
+if $rows != 10 then
+  print =====rows=$rows
+  goto loop1
+endi
+
+if $data02 != 2.000000000 then
+  print =====data02=$data02
+  goto loop1
+endi
+if $data03 != 1.000000000 then
+  print =====data03=$data03
+  goto loop1
+endi
+
+if $data12 != 8.000000000 then
+  print =====data12=$data12
+  goto loop1
+endi
+if $data13 != 4.000000000 then
+  print =====data13=$data13
+  goto loop1
+endi
+
+
+if $data22 != 8.000000000 then
+  print =====data22=$data22
+  goto loop1
+endi
+if $data23 != 4.000000000 then
+  print =====data23=$data23
+  goto loop1
+endi
+
+
+if $data32 != 10.000000000 then
+  print =====data32=$data32
+  goto loop1
+endi
+if $data33 != 5.000000000 then
+  print =====data33=$data33
+  goto loop1
+endi
+
+
+if $data42 != 10.000000000 then
+  print =====data42=$data42
+  goto loop1
+endi
+if $data43 != 5.000000000 then
+  print =====data43=$data43
+  goto loop1
+endi
+
+
+if $data52 != 4.000000000 then
+  print =====data52=$data52
+  goto loop1
+endi
+if $data53 != 2.000000000 then
+  print =====data53=$data53
+  goto loop1
+endi
+
+
+if $data62 != 4.000000000 then
+  print =====data62=$data62
+  goto loop1
+endi
+if $data63 != 2.000000000 then
+  print =====data63=$data63
+  goto loop1
+endi
+
+
+if $data72 != 6.000000000 then
+  print =====data72=$data72
+  goto loop1
+endi
+if $data73 != 3.000000000 then
+  print =====data73=$data73
+  goto loop1
+endi
+
+
+if $data82 != 6.000000000 then
+  print =====data82=$data82
+  goto loop1
+endi
+if $data83 != 3.000000000 then
+  print =====data83=$data83
+  goto loop1
+endi
+
+
+if $data92 != 6.000000000 then
+  print =====data92=$data92
+  goto loop1
+endi
+if $data93 != 3.000000000 then
+  print =====data93=$data93
+  goto loop1
+endi
+
+
+
+sql drop stream if exists streams5;
+sql drop stream if exists streams6;
+sql drop database if exists test5;
+sql create database test5  vgroups 1;
+sql use test5;
+sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
+sql create stream streams5 trigger at_once  into streamt5 as select  _wstart as ts, count(*) c1, max(b)+sum(a) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
+sql create stream streams6 trigger at_once  into streamt6 as select  _wstart as ts, count(*) c1, max(a)+min(c), avg(b) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
+sql insert into t1 values(1648791211000,1,1,1,1.0,'aaa') (1648791217000,2,2,2,2.0,'aaa') (1648791220000,3,3,3,3.0,'aaa');
+sql insert into t1 values(1648791213000,4,4,4,4.0,'aaa') (1648791215000,5,5,5,5.0,'aaa');
+
+$loop_count = 0
+
+loop5:
+sleep 200
+sql select * from streamt5 order by ts;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 10 then
+  print =====rows=$rows
+  goto loop5
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop5
+endi
+
+if $data02 != 2.000000000 then
+  print =====data02=$data02
+  goto loop5
+endi
+
+
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop5
+endi
+
+if $data12 != 2.000000000 then
+  print =====data12=$data12
+  goto loop5
+endi
+
+
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop5
+endi
+
+if $data22 != 8.000000000 then
+  print =====data22=$data22
+  goto loop5
+endi
+
+
+if $data31 != 1 then
+  print =====data31=$data31
+  goto loop5
+endi
+
+if $data32 != 8.000000000 then
+  print =====data32=$data32
+  goto loop5
+endi
+
+
+if $data41 != 1 then
+  print =====data41=$data41
+  goto loop5
+endi
+
+if $data42 != 10.000000000 then
+  print =====data42=$data42
+  goto loop5
+endi
+
+
+if $data51 != 1 then
+  print =====data01=$data01
+  goto loop5
+endi
+
+if $data52 != 10.000000000 then
+  print =====data52=$data52
+  goto loop5
+endi
+
+
+if $data61 != 1 then
+  print =====data61=$data61
+  goto loop5
+endi
+
+if $data62 != 4.000000000 then
+  print =====data62=$data62
+  goto loop5
+endi
+
+
+if $data71 != 1 then
+  print =====data71=$data71
+  goto loop5
+endi
+
+if $data72 != 4.000000000 then
+  print =====data72=$data72
+  goto loop5
+endi
+
+
+if $data81 != 1 then
+  print =====data81=$data81
+  goto loop5
+endi
+
+if $data82 != 4.000000000 then
+  print =====data82=$data82
+  goto loop5
+endi
+
+
+if $data91 != 1 then
+  print =====data91=$data91
+  goto loop5
+endi
+
+if $data92 != 6.000000000 then
+  print =====data92=$data92
+  goto loop5
+endi
+
+
+$loop_count = 0
+
+loop6:
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sleep 200
+
+sql select * from streamt6 order by ts;
+
+if $rows != 10 then
+  print =====rows=$rows
+  goto loop6
+endi
+
+if $data02 != 2.000000000 then
+  print =====data02=$data02
+  goto loop6
+endi
+if $data03 != 1.000000000 then
+  print =====data03=$data03
+  goto loop6
+endi
+
+if $data12 != 8.000000000 then
+  print =====data12=$data12
+  goto loop6
+endi
+if $data13 != 4.000000000 then
+  print =====data13=$data13
+  goto loop6
+endi
+
+
+if $data22 != 8.000000000 then
+  print =====data22=$data22
+  goto loop6
+endi
+if $data23 != 4.000000000 then
+  print =====data23=$data23
+  goto loop6
+endi
+
+
+if $data32 != 10.000000000 then
+  print =====data32=$data32
+  goto loop6
+endi
+if $data33 != 5.000000000 then
+  print =====data33=$data33
+  goto loop6
+endi
+
+
+if $data42 != 10.000000000 then
+  print =====data42=$data42
+  goto loop6
+endi
+if $data43 != 5.000000000 then
+  print =====data43=$data43
+  goto loop6
+endi
+
+
+if $data52 != 4.000000000 then
+  print =====data52=$data52
+  goto loop6
+endi
+if $data53 != 2.000000000 then
+  print =====data53=$data53
+  goto loop6
+endi
+
+
+if $data62 != 4.000000000 then
+  print =====data62=$data62
+  goto loop6
+endi
+if $data63 != 2.000000000 then
+  print =====data63=$data63
+  goto loop6
+endi
+
+
+if $data72 != 6.000000000 then
+  print =====data72=$data72
+  goto loop6
+endi
+if $data73 != 3.000000000 then
+  print =====data73=$data73
+  goto loop6
+endi
+
+
+if $data82 != 6.000000000 then
+  print =====data82=$data82
+  goto loop6
+endi
+if $data83 != 3.000000000 then
+  print =====data83=$data83
+  goto loop6
+endi
+
+
+if $data92 != 6.000000000 then
+  print =====data92=$data92
+  goto loop6
+endi
+if $data93 != 3.000000000 then
+  print =====data93=$data93
+  goto loop6
+endi
+
+
+
+#==system sh/exec.sh -n dnode1 -s stop -x SIGINT
+#==print =============== check
+#==$null=
+
+#==system_content sh/checkValgrind.sh -n dnode1 
+#==print cmd return result ----> [ $system_content ]
+#==if $system_content > 0 then
+#==  return -1
+#==endi 
+
+#==if $system_content == $null then
+#==  return -1
+#==endi
+#==return 1
+
+
+
+sql drop stream if exists streams0;
+sql drop stream if exists streams1;
+sql drop stream if exists streams2;
+sql drop stream if exists streams3;
+sql drop stream if exists streams4;
+sql drop stream if exists streams5;
+sql drop stream if exists streams6;
+sql drop stream if exists streams7;
+sql drop stream if exists streams8;
+
+sql use test1;
+sql select * from t1;
+print $data00
+
+$loop_all = $loop_all + 1
+print ============loop_all=$loop_all
+
+system sh/stop_dnodes.sh
+
+#goto looptest

@@ -26,7 +26,7 @@ import ctypes
 
 class TDTestCase:
 
-    def init(self,conn ,logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         self.TDDnodes = None
         tdSql.init(conn.cursor())
@@ -97,7 +97,7 @@ class TDTestCase:
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    4,
-                    'replica':    1,
+                    'replica':    3,
                     'stbName':    'stb',
                     'stbNumbers': 2,
                     'colPrefix':  'c',
@@ -105,9 +105,9 @@ class TDTestCase:
                     'colSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
-                    'ctbNum':     200,
+                    'ctbNum':     100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    "rowsPerTbl": 10000,
+                    "rowsPerTbl": 100000,
                     "batchNum": 5000
                     }
 
@@ -124,14 +124,10 @@ class TDTestCase:
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
         clusterComCheck.checkDnodes(dnodeNumbers)
-        clusterComCheck.checkMnodeStatus(1)
-
-        # fisr add three mnodes;
-        tdLog.info("fisr add three mnodes and check mnode status")
-        tdSql.execute("create mnode on dnode 2")
-        clusterComCheck.checkMnodeStatus(2)
-        tdSql.execute("create mnode on dnode 3")
-        clusterComCheck.checkMnodeStatus(3)
+        
+        #check mnode status
+        tdLog.info("check mnode status")
+        clusterComCheck.checkMnodeStatus(mnodeNums)
 
         # add some error operations and
         tdLog.info("Confirm the status of the dnode again")
@@ -202,16 +198,16 @@ class TDTestCase:
         clusterComCheck.checkDbRows(dbNumbers)
         # clusterComCheck.checkDb(dbNumbers,1,paraDict["dbName"])
 
-        tdSql.execute("use %s" %(paraDict["dbName"]))
-        tdSql.query("show stables")
+        # tdSql.execute("use %s" %(paraDict["dbName"]))
+        tdSql.query("show %s.stables"%(paraDict["dbName"]))
         tdSql.checkRows(paraDict["stbNumbers"])
         for i in range(paraDict['stbNumbers']):
-            stableName= '%s_%d'%(paraDict['stbName'],i)
-            tdSql.query("select * from %s"%stableName)
-            tdSql.checkRows(rowsPerStb)
+            stableName= '%s.%s_%d'%(paraDict["dbName"],paraDict['stbName'],i)
+            tdSql.query("select count(*) from %s"%stableName)
+            tdSql.checkData(0,0,rowsPerStb)
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=2,stopRole='dnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=1,stopRole='dnode')
 
     def stop(self):
         tdSql.close()

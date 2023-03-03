@@ -1,4 +1,6 @@
 import datetime
+import random
+import os
 
 from util.log import *
 from util.sql import *
@@ -28,9 +30,14 @@ ALL_COL = [ INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BOOL_C
 DBNAME = "db"
 class TDTestCase:
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), logSql)
+        
+        self.testcasePath = os.path.split(__file__)[0]
+        self.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
     def __query_condition(self,tbname):
         query_condition = [f"{tbname}.{col}" for col in ALL_COL]
@@ -132,6 +139,67 @@ class TDTestCase:
             return
         return f"explain select {select_clause} from {from_clause} {where_condition} {group_condition}"
 
+    def __single_sql_verbose_true(self, select_clause, from_clause, where_condition="", group_condition=""):
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+            return
+        return f"explain verbose true select {select_clause} from {from_clause} {where_condition} {group_condition}"
+
+    def __single_sql_verbose_false(self, select_clause, from_clause, where_condition="", group_condition=""):
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+            return
+        return f"explain verbose false select {select_clause} from {from_clause} {where_condition} {group_condition}"
+
+    def __single_sql_ratio(self, select_clause, from_clause, where_condition="", group_condition=""):
+        ratio = random.uniform(0.001,1)
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+            return
+        return f"explain ratio {ratio} select {select_clause} from {from_clause} {where_condition} {group_condition}"
+
+    def __single_sql_ratio_verbose_true(self, select_clause, from_clause, where_condition="", group_condition=""):
+        ratio = random.uniform(0.001,1)
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+            return
+        return f"explain ratio {ratio} verbose true select {select_clause} from {from_clause} {where_condition} {group_condition}"
+
+    def __single_sql_ratio_verbose_false(self, select_clause, from_clause, where_condition="", group_condition=""):
+        ratio = random.uniform(0.001,1)
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+            return
+        return f"explain ratio {ratio} verbose false select {select_clause} from {from_clause} {where_condition} {group_condition}"
+
+    def __single_sql_analyze(self, select_clause, from_clause, where_condition="", group_condition=""):
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+            return
+        return f"explain analyze select {select_clause} from {from_clause} {where_condition} {group_condition}"
+
+    def __single_sql_analyze_verbose_true(self, select_clause, from_clause, where_condition="", group_condition=""):
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+            return
+        return f"explain analyze verbose true select {select_clause} from {from_clause} {where_condition} {group_condition}"
+
+    def __single_sql_analyze_verbose_false(self, select_clause, from_clause, where_condition="", group_condition=""):
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+            return
+        return f"explain analyze verbose false select {select_clause} from {from_clause} {where_condition} {group_condition}"
+
+    def __single_sql_analyze_ratio(self, select_clause, from_clause, where_condition="", group_condition=""):
+        ratio = random.uniform(0.001,1)
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+            return
+        return f"explain analyze ratio {ratio} select {select_clause} from {from_clause} {where_condition} {group_condition}"
+
+    def __single_sql_analyze_ratio_verbose_true(self, select_clause, from_clause, where_condition="", group_condition=""):
+        ratio = random.uniform(0.001,1)
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+            return
+        return f"explain analyze ratio {ratio} verbose true select {select_clause} from {from_clause} {where_condition} {group_condition}"
+
+    def __single_sql_analyze_ratio_verbose_false(self, select_clause, from_clause, where_condition="", group_condition=""):
+        ratio = random.uniform(0.001,1)
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+            return
+        return f"explain analyze ratio {ratio} verbose false select {select_clause} from {from_clause} {where_condition} {group_condition}"
+                    
     @property
     def __tb_list(self, dbname=DBNAME):
         return [
@@ -158,6 +226,53 @@ class TDTestCase:
                         self.__single_sql(select_claus, tb,),
                         self.__single_sql(select_claus, tb, where_condition=where_claus),
                         self.__single_sql(select_claus, tb, group_condition=group_claus),
+                        self.__single_sql_verbose_true(select_claus, tb, where_claus, having_claus),
+                        self.__single_sql_verbose_true(select_claus, tb,),
+                        self.__single_sql_verbose_true(select_claus, tb, where_condition=where_claus),
+                        self.__single_sql_verbose_true(select_claus, tb, group_condition=group_claus),
+                        self.__single_sql_verbose_false(select_claus, tb, where_claus, having_claus),
+                        self.__single_sql_verbose_false(select_claus, tb,),
+                        self.__single_sql_verbose_false(select_claus, tb, where_condition=where_claus),
+                        self.__single_sql_verbose_false(select_claus, tb, group_condition=group_claus),
+                        
+                        self.__single_sql_ratio(select_claus, tb, where_claus, having_claus),
+                        self.__single_sql_ratio(select_claus, tb,),
+                        self.__single_sql_ratio(select_claus, tb, where_condition=where_claus),
+                        self.__single_sql_ratio(select_claus, tb, group_condition=group_claus),
+                        self.__single_sql_ratio_verbose_true(select_claus, tb, where_claus, having_claus),
+                        self.__single_sql_ratio_verbose_true(select_claus, tb,),
+                        self.__single_sql_ratio_verbose_true(select_claus, tb, where_condition=where_claus),
+                        self.__single_sql_ratio_verbose_true(select_claus, tb, group_condition=group_claus),
+                        self.__single_sql_ratio_verbose_false(select_claus, tb, where_claus, having_claus),
+                        self.__single_sql_ratio_verbose_false(select_claus, tb,),
+                        self.__single_sql_ratio_verbose_false(select_claus, tb, where_condition=where_claus),
+                        self.__single_sql_ratio_verbose_false(select_claus, tb, group_condition=group_claus),
+                        
+                        self.__single_sql_analyze(select_claus, tb, where_claus, having_claus),
+                        self.__single_sql_analyze(select_claus, tb,),
+                        self.__single_sql_analyze(select_claus, tb, where_condition=where_claus),
+                        self.__single_sql_analyze(select_claus, tb, group_condition=group_claus),
+                        self.__single_sql_analyze_verbose_true(select_claus, tb, where_claus, having_claus),
+                        self.__single_sql_analyze_verbose_true(select_claus, tb,),
+                        self.__single_sql_analyze_verbose_true(select_claus, tb, where_condition=where_claus),
+                        self.__single_sql_analyze_verbose_true(select_claus, tb, group_condition=group_claus),
+                        self.__single_sql_analyze_verbose_false(select_claus, tb, where_claus, having_claus),
+                        self.__single_sql_analyze_verbose_false(select_claus, tb,),
+                        self.__single_sql_analyze_verbose_false(select_claus, tb, where_condition=where_claus),
+                        self.__single_sql_analyze_verbose_false(select_claus, tb, group_condition=group_claus),
+                        
+                        self.__single_sql_analyze_ratio(select_claus, tb, where_claus, having_claus),
+                        self.__single_sql_analyze_ratio(select_claus, tb,),
+                        self.__single_sql_analyze_ratio(select_claus, tb, where_condition=where_claus),
+                        self.__single_sql_analyze_ratio(select_claus, tb, group_condition=group_claus),
+                        self.__single_sql_analyze_ratio_verbose_true(select_claus, tb, where_claus, having_claus),
+                        self.__single_sql_analyze_ratio_verbose_true(select_claus, tb,),
+                        self.__single_sql_analyze_ratio_verbose_true(select_claus, tb, where_condition=where_claus),
+                        self.__single_sql_analyze_ratio_verbose_true(select_claus, tb, group_condition=group_claus),
+                        self.__single_sql_analyze_ratio_verbose_false(select_claus, tb, where_claus, having_claus),
+                        self.__single_sql_analyze_ratio_verbose_false(select_claus, tb,),
+                        self.__single_sql_analyze_ratio_verbose_false(select_claus, tb, where_condition=where_claus),
+                        self.__single_sql_analyze_ratio_verbose_false(select_claus, tb, group_condition=group_claus),
                     )
                 )
 
@@ -172,6 +287,9 @@ class TDTestCase:
             tdSql.query(sqls[i])
 
     def __test_current(self, dbname=DBNAME):
+        
+        ratio = random.uniform(0.001,1)
+        
         tdSql.query(f"explain select {INT_COL} from {dbname}.ct1")
         tdSql.query(f"explain select 1 from {dbname}.ct2")
         tdSql.query(f"explain select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
@@ -180,8 +298,111 @@ class TDTestCase:
         tdSql.query(f"explain select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
 
         self.explain_check()
+        
+        tdSql.query(f"explain verbose true select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain verbose true select 1 from {dbname}.ct2")
+        tdSql.query(f"explain verbose true select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain verbose true select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain verbose true select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain verbose true select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+
+        self.explain_check()
+        
+        tdSql.query(f"explain verbose false select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain verbose false select 1 from {dbname}.ct2")
+        tdSql.query(f"explain verbose false select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain verbose false select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain verbose false select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain verbose false select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+
+        self.explain_check()
+        
+        
+        tdSql.query(f"explain ratio {ratio} select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain ratio {ratio} select 1 from {dbname}.ct2")
+        tdSql.query(f"explain ratio {ratio} select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain ratio {ratio} select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain ratio {ratio} select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain ratio {ratio} select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+
+        self.explain_check()
+        
+        tdSql.query(f"explain ratio {ratio} verbose true select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain ratio {ratio} verbose true select 1 from {dbname}.ct2")
+        tdSql.query(f"explain ratio {ratio} verbose true select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain ratio {ratio} verbose true select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain ratio {ratio} verbose true select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain ratio {ratio} verbose true select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+
+        self.explain_check()
+        
+        tdSql.query(f"explain ratio {ratio} verbose false select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain ratio {ratio} verbose false select 1 from {dbname}.ct2")
+        tdSql.query(f"explain ratio {ratio} verbose false select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain ratio {ratio} verbose false select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain ratio {ratio} verbose false select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain ratio {ratio} verbose false select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+
+        self.explain_check()
+        
+        tdSql.query(f"explain analyze select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain analyze select 1 from {dbname}.ct2")
+        tdSql.query(f"explain analyze select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain analyze select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain analyze select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain analyze select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+
+        self.explain_check()
+        
+        tdSql.query(f"explain analyze verbose true select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain analyze verbose true select 1 from {dbname}.ct2")
+        tdSql.query(f"explain analyze verbose true select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain analyze verbose true select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain analyze verbose true select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain analyze verbose true select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+
+        self.explain_check()
+        
+        tdSql.query(f"explain analyze verbose false select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain analyze verbose false select 1 from {dbname}.ct2")
+        tdSql.query(f"explain analyze verbose false select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain analyze verbose false select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain analyze verbose false select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain analyze verbose false select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+
+        self.explain_check()
+        
+        
+        tdSql.query(f"explain analyze ratio {ratio} select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain analyze ratio {ratio} select 1 from {dbname}.ct2")
+        tdSql.query(f"explain analyze ratio {ratio} select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain analyze ratio {ratio} select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain analyze ratio {ratio} select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain analyze ratio {ratio} select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+
+        self.explain_check()
+        
+        tdSql.query(f"explain analyze ratio {ratio} verbose true select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain analyze ratio {ratio} verbose true select 1 from {dbname}.ct2")
+        tdSql.query(f"explain analyze ratio {ratio} verbose true select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain analyze ratio {ratio} verbose true select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain analyze ratio {ratio} verbose true select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain analyze ratio {ratio} verbose true select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+
+        self.explain_check()
+        
+        tdSql.query(f"explain analyze ratio {ratio} verbose false select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain analyze ratio {ratio} verbose false select 1 from {dbname}.ct2")
+        tdSql.query(f"explain analyze ratio {ratio} verbose false select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain analyze ratio {ratio} verbose false select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain analyze ratio {ratio} verbose false select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain analyze ratio {ratio} verbose false select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+
+        self.explain_check()
 
     def __test_error(self, dbname=DBNAME):
+        
+        ratio = random.uniform(0.001,1)
 
         tdLog.printNoPrefix("===step 0: err case, must return err")
         tdSql.error( f"explain select hyperloglog({INT_COL}) from {dbname}.ct8" )
@@ -195,6 +416,143 @@ class TDTestCase:
                     where ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null
                     group by ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}']
                     having ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null ''' )
+        
+        tdSql.error( f"explain verbose true  select hyperloglog({INT_COL}) from {dbname}.ct8" )
+        tdSql.error( f"explain verbose true  show databases " )
+        tdSql.error( f"explain verbose true  show {dbname}.stables " )
+        tdSql.error( f"explain verbose true  show {dbname}.tables " )
+        tdSql.error( f"explain verbose true  show {dbname}.vgroups " )
+        tdSql.error( f"explain verbose true  show dnodes " )
+        tdSql.error( f'''explain verbose true  select hyperloglog(['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'])
+                    from {dbname}.ct1
+                    where ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null
+                    group by ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}']
+                    having ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null ''' )
+        
+        tdSql.error( f"explain verbose false  select hyperloglog({INT_COL}) from {dbname}.ct8" )
+        tdSql.error( f"explain verbose false  show databases " )
+        tdSql.error( f"explain verbose false  show {dbname}.stables " )
+        tdSql.error( f"explain verbose false  show {dbname}.tables " )
+        tdSql.error( f"explain verbose false  show {dbname}.vgroups " )
+        tdSql.error( f"explain verbose false  show dnodes " )
+        tdSql.error( f'''explain verbose false  select hyperloglog(['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'])
+                    from {dbname}.ct1
+                    where ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null
+                    group by ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}']
+                    having ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null ''' )
+              
+
+        tdLog.printNoPrefix("===step 0: err case, must return err")
+        tdSql.error( f"explain ratio {ratio} select hyperloglog({INT_COL}) from {dbname}.ct8" )
+        tdSql.error( f"explain ratio {ratio} show databases " )
+        tdSql.error( f"explain ratio {ratio} show {dbname}.stables " )
+        tdSql.error( f"explain ratio {ratio} show {dbname}.tables " )
+        tdSql.error( f"explain ratio {ratio} show {dbname}.vgroups " )
+        tdSql.error( f"explain ratio {ratio} show dnodes " )
+        tdSql.error( f'''explain ratio {ratio} select hyperloglog(['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'])
+                    from {dbname}.ct1
+                    where ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null
+                    group by ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}']
+                    having ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null ''' )
+        
+        tdSql.error( f"explain ratio {ratio} verbose true  select hyperloglog({INT_COL}) from {dbname}.ct8" )
+        tdSql.error( f"explain ratio {ratio} verbose true  show databases " )
+        tdSql.error( f"explain ratio {ratio} verbose true  show {dbname}.stables " )
+        tdSql.error( f"explain ratio {ratio} verbose true  show {dbname}.tables " )
+        tdSql.error( f"explain ratio {ratio} verbose true  show {dbname}.vgroups " )
+        tdSql.error( f"explain ratio {ratio} verbose true  show dnodes " )
+        tdSql.error( f'''explain ratio {ratio} verbose true  select hyperloglog(['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'])
+                    from {dbname}.ct1
+                    where ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null
+                    group by ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}']
+                    having ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null ''' )
+        
+        tdSql.error( f"explain ratio {ratio} verbose false  select hyperloglog({INT_COL}) from {dbname}.ct8" )
+        tdSql.error( f"explain ratio {ratio} verbose false  show databases " )
+        tdSql.error( f"explain ratio {ratio} verbose false  show {dbname}.stables " )
+        tdSql.error( f"explain ratio {ratio} verbose false  show {dbname}.tables " )
+        tdSql.error( f"explain ratio {ratio} verbose false  show {dbname}.vgroups " )
+        tdSql.error( f"explain ratio {ratio} verbose false  show dnodes " )
+        tdSql.error( f'''explain ratio {ratio} verbose false  select hyperloglog(['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'])
+                    from {dbname}.ct1
+                    where ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null
+                    group by ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}']
+                    having ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null ''' )
+
+        tdLog.printNoPrefix("===step 0: err case, must return err")
+        tdSql.error( f"explain analyze select hyperloglog({INT_COL}) from {dbname}.ct8" )
+        tdSql.error( f"explain analyze show databases " )
+        tdSql.error( f"explain analyze show {dbname}.stables " )
+        tdSql.error( f"explain analyze show {dbname}.tables " )
+        tdSql.error( f"explain analyze show {dbname}.vgroups " )
+        tdSql.error( f"explain analyze show dnodes " )
+        tdSql.error( f'''explain analyze select hyperloglog(['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'])
+                    from {dbname}.ct1
+                    where ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null
+                    group by ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}']
+                    having ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null ''' )
+        
+        tdSql.error( f"explain analyze verbose true  select hyperloglog({INT_COL}) from {dbname}.ct8" )
+        tdSql.error( f"explain analyze verbose true  show databases " )
+        tdSql.error( f"explain analyze verbose true  show {dbname}.stables " )
+        tdSql.error( f"explain analyze verbose true  show {dbname}.tables " )
+        tdSql.error( f"explain analyze verbose true  show {dbname}.vgroups " )
+        tdSql.error( f"explain analyze verbose true  show dnodes " )
+        tdSql.error( f'''explain analyze verbose true  select hyperloglog(['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'])
+                    from {dbname}.ct1
+                    where ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null
+                    group by ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}']
+                    having ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null ''' )
+        
+        tdSql.error( f"explain analyze verbose false  select hyperloglog({INT_COL}) from {dbname}.ct8" )
+        tdSql.error( f"explain analyze verbose false  show databases " )
+        tdSql.error( f"explain analyze verbose false  show {dbname}.stables " )
+        tdSql.error( f"explain analyze verbose false  show {dbname}.tables " )
+        tdSql.error( f"explain analyze verbose false  show {dbname}.vgroups " )
+        tdSql.error( f"explain analyze verbose false  show dnodes " )
+        tdSql.error( f'''explain analyze verbose false  select hyperloglog(['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'])
+                    from {dbname}.ct1
+                    where ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null
+                    group by ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}']
+                    having ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null ''' )
+
+        tdLog.printNoPrefix("===step 0: err case, must return err")
+        tdSql.error( f"explain analyze ratio {ratio} select hyperloglog({INT_COL}) from {dbname}.ct8" )
+        tdSql.error( f"explain analyze ratio {ratio} show databases " )
+        tdSql.error( f"explain analyze ratio {ratio} show {dbname}.stables " )
+        tdSql.error( f"explain analyze ratio {ratio} show {dbname}.tables " )
+        tdSql.error( f"explain analyze ratio {ratio} show {dbname}.vgroups " )
+        tdSql.error( f"explain analyze ratio {ratio} show dnodes " )
+        tdSql.error( f'''explain analyze ratio {ratio} select hyperloglog(['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'])
+                    from {dbname}.ct1
+                    where ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null
+                    group by ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}']
+                    having ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null ''' )
+        
+        tdSql.error( f"explain analyze ratio {ratio} verbose true  select hyperloglog({INT_COL}) from {dbname}.ct8" )
+        tdSql.error( f"explain analyze ratio {ratio} verbose true  show databases " )
+        tdSql.error( f"explain analyze ratio {ratio} verbose true  show {dbname}.stables " )
+        tdSql.error( f"explain analyze ratio {ratio} verbose true  show {dbname}.tables " )
+        tdSql.error( f"explain analyze ratio {ratio} verbose true  show {dbname}.vgroups " )
+        tdSql.error( f"explain analyze ratio {ratio} verbose true  show dnodes " )
+        tdSql.error( f'''explain analyze ratio {ratio} verbose true  select hyperloglog(['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'])
+                    from {dbname}.ct1
+                    where ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null
+                    group by ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}']
+                    having ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null ''' )
+        
+        tdSql.error( f"explain analyze ratio {ratio} verbose false  select hyperloglog({INT_COL}) from {dbname}.ct8" )
+        tdSql.error( f"explain analyze ratio {ratio} verbose false  show databases " )
+        tdSql.error( f"explain analyze ratio {ratio} verbose false  show {dbname}.stables " )
+        tdSql.error( f"explain analyze ratio {ratio} verbose false  show {dbname}.tables " )
+        tdSql.error( f"explain analyze ratio {ratio} verbose false  show {dbname}.vgroups " )
+        tdSql.error( f"explain analyze ratio {ratio} verbose false  show dnodes " )
+        tdSql.error( f'''explain analyze ratio {ratio} verbose false  select hyperloglog(['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'])
+                    from {dbname}.ct1
+                    where ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null
+                    group by ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}']
+                    having ['{INT_COL} + {INT_COL}', '{INT_COL} + {BINT_COL}', '{INT_COL} + {SINT_COL}', '{INT_COL} + {TINT_COL}', '{INT_COL} + {FLOAT_COL}', '{INT_COL} + {DOUBLE_COL}', '{INT_COL} + {BOOL_COL}', '{INT_COL} + {BINARY_COL}', '{INT_COL} + {NCHAR_COL}', '{INT_COL} + {TS_COL}'] is not null ''' )
+                     
 
     def all_test(self):
         self.__test_error()

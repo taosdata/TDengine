@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-#include "tbuffer.h"
 #include "tcommon.h"
 #include "tvariant.h"
 
@@ -54,10 +53,10 @@ typedef struct SFuncExecFuncs {
   FExecCombine  combine;
 } SFuncExecFuncs;
 
-#define MAX_INTERVAL_TIME_WINDOW 1000000  // maximum allowed time windows in final results
+#define MAX_INTERVAL_TIME_WINDOW 10000000  // maximum allowed time windows in final results
 
 #define TOP_BOTTOM_QUERY_LIMIT    100
-#define FUNCTIONS_NAME_MAX_LENGTH 16
+#define FUNCTIONS_NAME_MAX_LENGTH 32
 
 typedef struct SResultRowEntryInfo {
   bool     initialized : 1;  // output buffer has been initialized
@@ -77,7 +76,7 @@ enum {
 enum {
   MAIN_SCAN = 0x0u,
   REVERSE_SCAN = 0x1u,  // todo remove it
-  REPEAT_SCAN = 0x2u,   // repeat scan belongs to the master scan
+  PRE_SCAN = 0x2u,   // pre-scan belongs to the main scan and occurs before main scan
 };
 
 typedef struct SPoint1 {
@@ -115,7 +114,7 @@ typedef struct SInputColumnInfoData {
   int32_t           startRowIndex;    // handle started row index
   int32_t           numOfRows;        // the number of rows needs to be handled
   int32_t           numOfInputCols;   // PTS is not included
-  bool              colDataAggIsSet;  // if agg is set or not
+  bool              colDataSMAIsSet;  // if agg is set or not
   SColumnInfoData  *pPTS;             // primary timestamp column
   SColumnInfoData **pData;
   SColumnDataAgg  **pColumnDataAgg;
@@ -133,26 +132,29 @@ typedef struct SqlFunctionCtx {
   SInputColumnInfoData input;
   SResultDataInfo      resDataInfo;
   uint32_t             order;       // data block scanner order: asc|desc
+  uint8_t              isPseudoFunc;// denote current function is pseudo function or not [added for perf reason]
+  uint8_t              isNotNullFunc;// not return null value.
   uint8_t              scanFlag;    // record current running step, default: 0
   int16_t              functionId;  // function id
   char                *pOutput;     // final result output buffer, point to sdata->data
+  // input parameter, e.g., top(k, 20), the number of results of top query is kept in param
+  SFunctParam *param;
+  // corresponding output buffer for timestamp of each result, e.g., diff/csum
+  SColumnInfoData     *pTsOutput;
   int32_t              numOfParams;
-  SFunctParam     *param;  // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
-  SColumnInfoData *pTsOutput;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
-  int32_t          offset;
-  struct SResultRowEntryInfo *resultInfo;
-  SSubsidiaryResInfo          subsidiaries;
-  SPoint1                     start;
-  SPoint1                     end;
-  SFuncExecFuncs              fpSet;
-  SScalarFuncExecFuncs        sfp;
-  struct SExprInfo           *pExpr;
-  struct SSDataBlock         *pSrcBlock;
-  struct SSDataBlock         *pDstBlock;  // used by indefinite rows function to set selectivity
-  SSerializeDataHandle        saveHandle;
-  bool                        isStream;
-
-  char udfName[TSDB_FUNC_NAME_LEN];
+  int32_t              offset;
+  SResultRowEntryInfo *resultInfo;
+  SSubsidiaryResInfo   subsidiaries;
+  SPoint1              start;
+  SPoint1              end;
+  SFuncExecFuncs       fpSet;
+  SScalarFuncExecFuncs sfp;
+  struct SExprInfo    *pExpr;
+  struct SSDataBlock  *pSrcBlock;
+  struct SSDataBlock  *pDstBlock;  // used by indefinite rows function to set selectivity
+  SSerializeDataHandle saveHandle;
+  int32_t              exprIdx;
+  char                *udfName;
 } SqlFunctionCtx;
 
 typedef struct tExprNode {
@@ -163,6 +165,7 @@ typedef struct tExprNode {
       int32_t               functionId;
       int32_t               num;
       struct SFunctionNode *pFunctNode;
+      int32_t               functionType;
     } _function;
 
     struct {
@@ -176,15 +179,14 @@ struct SScalarParam {
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
   int32_t          hashValueType;
-  void            *param; // other parameter, such as meta handle from vnode, to extract table name/tag value
+  void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
-  int32_t          numOfQualified; // number of qualified elements in the final results
+  int32_t          numOfQualified;  // number of qualified elements in the final results
 };
 
-void    cleanupResultRowEntry(struct SResultRowEntryInfo *pCell);
-int32_t getNumOfResult(SqlFunctionCtx *pCtx, int32_t num, SSDataBlock *pResBlock);
-bool    isRowEntryCompleted(struct SResultRowEntryInfo *pEntry);
-bool    isRowEntryInitialized(struct SResultRowEntryInfo *pEntry);
+void cleanupResultRowEntry(struct SResultRowEntryInfo *pCell);
+bool isRowEntryCompleted(struct SResultRowEntryInfo *pEntry);
+bool isRowEntryInitialized(struct SResultRowEntryInfo *pEntry);
 
 typedef struct SPoint {
   int64_t key;
@@ -193,32 +195,6 @@ typedef struct SPoint {
 
 int32_t taosGetLinearInterpolationVal(SPoint *point, int32_t outputType, SPoint *point1, SPoint *point2,
                                       int32_t inputType);
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// udf api
-/**
- * create udfd proxy, called once in process that call doSetupUdf/callUdfxxx/doTeardownUdf
- * @return error code
- */
-int32_t udfcOpen();
-
-/**
- * destroy udfd proxy
- * @return error code
- */
-int32_t udfcClose();
-
-/**
- * start udfd that serves udf function invocation under dnode startDnodeId
- * @param startDnodeId
- * @return
- */
-int32_t udfStartUdfd(int32_t startDnodeId);
-/**
- * stop udfd
- * @return
- */
-int32_t udfStopUdfd();
 
 #ifdef __cplusplus
 }

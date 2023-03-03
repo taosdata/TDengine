@@ -20,6 +20,7 @@
 #include "ttime.h"
 
 static SMonitor tsMonitor = {0};
+static char* tsMonUri = "/report";
 
 void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
   taosThreadMutexLock(&tsMonitor.lock);
@@ -36,7 +37,7 @@ void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
 
 int32_t monGetLogs(SMonLogs *logs) {
   taosThreadMutexLock(&tsMonitor.lock);
-  logs->logs = taosArrayDup(tsMonitor.logs);
+  logs->logs = taosArrayDup(tsMonitor.logs, NULL);
   logs->numOfInfoLogs = tsNumOfInfoLogs;
   logs->numOfErrorLogs = tsNumOfErrorLogs;
   logs->numOfDebugLogs = tsNumOfDebugLogs;
@@ -401,7 +402,6 @@ static void monGenDnodeJson(SMonInfo *pMonitor) {
   tjsonAddDoubleToObject(pJson, "has_mnode", pInfo->has_mnode);
   tjsonAddDoubleToObject(pJson, "has_qnode", pInfo->has_qnode);
   tjsonAddDoubleToObject(pJson, "has_snode", pInfo->has_snode);
-  tjsonAddDoubleToObject(pJson, "has_bnode", pInfo->has_bnode);
 }
 
 static void monGenDiskJson(SMonInfo *pMonitor) {
@@ -451,17 +451,10 @@ static void monGenDiskJson(SMonInfo *pMonitor) {
 }
 
 static const char *monLogLevelStr(ELogLevel level) {
-  switch (level) {
-    case DEBUG_ERROR:
-      return "error";
-    case DEBUG_INFO:
-      return "info";
-    case DEBUG_DEBUG:
-      return "debug";
-    case DEBUG_TRACE:
-      return "trace";
-    default:
-      return "undefine";
+  if (level == DEBUG_ERROR) {
+    return "error";
+  } else {
+    return "info";
   }
 }
 
@@ -556,9 +549,9 @@ void monSendReport() {
 
   char *pCont = tjsonToString(pMonitor->pJson);
   // uDebugL("report cont:%s\n", pCont);
-    if (pCont != NULL) {
+  if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
-    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
+    if (taosSendHttpReport(tsMonitor.cfg.server, tsMonUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
       uError("failed to send monitor msg");
     }
     taosMemoryFree(pCont);

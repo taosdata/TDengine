@@ -30,8 +30,6 @@ const char *sdbTableName(ESdbType type) {
       return "qnode";
     case SDB_SNODE:
       return "snode";
-    case SDB_BNODE:
-      return "bnode";
     case SDB_DNODE:
       return "dnode";
     case SDB_USER:
@@ -40,6 +38,8 @@ const char *sdbTableName(ESdbType type) {
       return "auth";
     case SDB_ACCT:
       return "acct";
+    case SDB_STREAM_CK:
+      return "stream_ck";
     case SDB_STREAM:
       return "stream";
     case SDB_OFFSET:
@@ -60,6 +60,8 @@ const char *sdbTableName(ESdbType type) {
       return "db";
     case SDB_FUNC:
       return "func";
+    case SDB_IDX:
+      return "idx";
     default:
       return "undefine";
   }
@@ -83,7 +85,7 @@ const char *sdbStatusName(ESdbStatus status) {
 }
 
 void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
-#if 0
+#if 1
   EKeyType keyType = pSdb->keyTypes[pRow->type];
 
   if (keyType == SDB_KEY_BINARY) {
@@ -108,7 +110,7 @@ static SHashObj *sdbGetHash(SSdb *pSdb, int32_t type) {
 
   SHashObj *hash = pSdb->hashObjs[type];
   if (hash == NULL) {
-    terrno = TSDB_CODE_SDB_APP_ERROR;
+    terrno = TSDB_CODE_APP_ERROR;
     return NULL;
   }
 
@@ -131,12 +133,12 @@ static int32_t sdbGetkeySize(SSdb *pSdb, ESdbType type, const void *pKey) {
 }
 
 static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_t keySize) {
-  TdThreadRwlock *pLock = &pSdb->locks[pRow->type];
-  taosThreadRwlockWrlock(pLock);
+  int32_t type = pRow->type;
+  sdbWriteLock(pSdb, type);
 
   SSdbRow *pOldRow = taosHashGet(hash, pRow->pObj, keySize);
   if (pOldRow != NULL) {
-    taosThreadRwlockUnlock(pLock);
+    sdbUnLock(pSdb, type);
     sdbFreeRow(pSdb, pRow, false);
     terrno = TSDB_CODE_SDB_OBJ_ALREADY_THERE;
     return terrno;
@@ -147,7 +149,7 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   sdbPrintOper(pSdb, pRow, "insert");
 
   if (taosHashPut(hash, pRow->pObj, keySize, &pRow, sizeof(void *)) != 0) {
-    taosThreadRwlockUnlock(pLock);
+    sdbUnLock(pSdb, type);
     sdbFreeRow(pSdb, pRow, false);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
@@ -162,12 +164,12 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
       taosHashRemove(hash, pRow->pObj, keySize);
       sdbFreeRow(pSdb, pRow, false);
       terrno = code;
-      taosThreadRwlockUnlock(pLock);
+      sdbUnLock(pSdb, type);
       return terrno;
     }
   }
 
-  taosThreadRwlockUnlock(pLock);
+  sdbUnLock(pSdb, type);
 
   if (pSdb->keyTypes[pRow->type] == SDB_KEY_INT32) {
     pSdb->maxId[pRow->type] = TMAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
@@ -181,26 +183,27 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
 }
 
 static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pNewRow, int32_t keySize) {
-  TdThreadRwlock *pLock = &pSdb->locks[pNewRow->type];
-  taosThreadRwlockWrlock(pLock);
+  int32_t type = pNewRow->type;
+  sdbWriteLock(pSdb, type);
 
   SSdbRow **ppOldRow = taosHashGet(hash, pNewRow->pObj, keySize);
   if (ppOldRow == NULL || *ppOldRow == NULL) {
-    taosThreadRwlockUnlock(pLock);
+    sdbUnLock(pSdb, type);
     return sdbInsertRow(pSdb, hash, pRaw, pNewRow, keySize);
   }
 
   SSdbRow *pOldRow = *ppOldRow;
   pOldRow->status = pRaw->status;
   sdbPrintOper(pSdb, pOldRow, "update");
+  sdbUnLock(pSdb, type);
 
   int32_t     code = 0;
-  SdbUpdateFp updateFp = pSdb->updateFps[pNewRow->type];
+  SdbUpdateFp updateFp = pSdb->updateFps[type];
   if (updateFp != NULL) {
     code = (*updateFp)(pSdb, pOldRow->pObj, pNewRow->pObj);
   }
 
-  taosThreadRwlockUnlock(pLock);
+  // sdbUnLock(pSdb, type);
   sdbFreeRow(pSdb, pNewRow, false);
 
   pSdb->tableVer[pOldRow->type]++;
@@ -208,25 +211,26 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
 }
 
 static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_t keySize) {
-  TdThreadRwlock *pLock = &pSdb->locks[pRow->type];
-  taosThreadRwlockWrlock(pLock);
+  int32_t type = pRow->type;
+  sdbWriteLock(pSdb, type);
 
   SSdbRow **ppOldRow = taosHashGet(hash, pRow->pObj, keySize);
   if (ppOldRow == NULL || *ppOldRow == NULL) {
-    taosThreadRwlockUnlock(pLock);
+    sdbUnLock(pSdb, type);
     sdbFreeRow(pSdb, pRow, false);
     terrno = TSDB_CODE_SDB_OBJ_NOT_THERE;
     return terrno;
   }
   SSdbRow *pOldRow = *ppOldRow;
-
   pOldRow->status = pRaw->status;
+
+  atomic_add_fetch_32(&pOldRow->refCount, 1);
   sdbPrintOper(pSdb, pOldRow, "delete");
 
   taosHashRemove(hash, pOldRow->pObj, keySize);
-  taosThreadRwlockUnlock(pLock);
-
   pSdb->tableVer[pOldRow->type]++;
+  sdbUnLock(pSdb, type);
+
   sdbFreeRow(pSdb, pRow, false);
 
   sdbCheckRow(pSdb, pOldRow);
@@ -239,9 +243,7 @@ int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw) {
 
   SdbDecodeFp decodeFp = pSdb->decodeFps[pRaw->type];
   SSdbRow    *pRow = (*decodeFp)(pRaw);
-  if (pRow == NULL) {
-    return terrno;
-  }
+  if (pRow == NULL) return terrno;
 
   pRow->type = pRaw->type;
 
@@ -270,7 +272,7 @@ int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw) {
   return code;
 }
 
-void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) {
+void *sdbAcquireAll(SSdb *pSdb, ESdbType type, const void *pKey, bool onlyReady) {
   terrno = 0;
 
   SHashObj *hash = sdbGetHash(pSdb, type);
@@ -279,12 +281,11 @@ void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) {
   void   *pRet = NULL;
   int32_t keySize = sdbGetkeySize(pSdb, type, pKey);
 
-  TdThreadRwlock *pLock = &pSdb->locks[type];
-  taosThreadRwlockRdlock(pLock);
+  sdbReadLock(pSdb, type);
 
   SSdbRow **ppRow = taosHashGet(hash, pKey, keySize);
   if (ppRow == NULL || *ppRow == NULL) {
-    taosThreadRwlockUnlock(pLock);
+    sdbUnLock(pSdb, type);
     terrno = TSDB_CODE_SDB_OBJ_NOT_THERE;
     return NULL;
   }
@@ -303,35 +304,51 @@ void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) {
       terrno = TSDB_CODE_SDB_OBJ_DROPPING;
       break;
     default:
-      terrno = TSDB_CODE_SDB_APP_ERROR;
+      terrno = TSDB_CODE_APP_ERROR;
       break;
   }
 
-  taosThreadRwlockUnlock(pLock);
+  if (pRet == NULL) {
+    if (!onlyReady) {
+      terrno = 0;
+      atomic_add_fetch_32(&pRow->refCount, 1);
+      pRet = pRow->pObj;
+      sdbPrintOper(pSdb, pRow, "acquire");
+    }
+  }
+
+  sdbUnLock(pSdb, type);
   return pRet;
 }
 
-static void sdbCheckRow(SSdb *pSdb, SSdbRow *pRow) {
-  TdThreadRwlock *pLock = &pSdb->locks[pRow->type];
-  taosThreadRwlockWrlock(pLock);
+void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) { return sdbAcquireAll(pSdb, type, pKey, true); }
+void *sdbAcquireNotReadyObj(SSdb *pSdb, ESdbType type, const void *pKey) {
+  return sdbAcquireAll(pSdb, type, pKey, false);
+}
 
-  int32_t ref = atomic_load_32(&pRow->refCount);
+static void sdbCheckRow(SSdb *pSdb, SSdbRow *pRow) {
+  int32_t type = pRow->type;
+  sdbWriteLock(pSdb, type);
+
+  int32_t ref = atomic_sub_fetch_32(&pRow->refCount, 1);
   sdbPrintOper(pSdb, pRow, "check");
   if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
     sdbFreeRow(pSdb, pRow, true);
   }
 
-  taosThreadRwlockUnlock(pLock);
+  sdbUnLock(pSdb, type);
 }
 
-void sdbRelease(SSdb *pSdb, void *pObj) {
+void sdbReleaseLock(SSdb *pSdb, void *pObj, bool lock) {
   if (pObj == NULL) return;
 
   SSdbRow *pRow = (SSdbRow *)((char *)pObj - sizeof(SSdbRow));
   if (pRow->type >= SDB_MAX) return;
 
-  TdThreadRwlock *pLock = &pSdb->locks[pRow->type];
-  taosThreadRwlockWrlock(pLock);
+  int32_t type = pRow->type;
+  if (lock) {
+    sdbWriteLock(pSdb, type);
+  }
 
   int32_t ref = atomic_sub_fetch_32(&pRow->refCount, 1);
   sdbPrintOper(pSdb, pRow, "release");
@@ -339,8 +356,12 @@ void sdbRelease(SSdb *pSdb, void *pObj) {
     sdbFreeRow(pSdb, pRow, true);
   }
 
-  taosThreadRwlockUnlock(pLock);
+  if (lock) {
+    sdbUnLock(pSdb, type);
+  }
 }
+
+void sdbRelease(SSdb *pSdb, void *pObj) { sdbReleaseLock(pSdb, pObj, true); }
 
 void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
   *ppObj = NULL;
@@ -348,8 +369,7 @@ void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
   SHashObj *hash = sdbGetHash(pSdb, type);
   if (hash == NULL) return NULL;
 
-  TdThreadRwlock *pLock = &pSdb->locks[type];
-  taosThreadRwlockRdlock(pLock);
+  sdbReadLock(pSdb, type);
 
   SSdbRow **ppRow = taosHashIterate(hash, pIter);
   while (ppRow != NULL) {
@@ -364,19 +384,20 @@ void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
     *ppObj = pRow->pObj;
     break;
   }
-  taosThreadRwlockUnlock(pLock);
+  sdbUnLock(pSdb, type);
 
   return ppRow;
 }
 
-void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status) {
+void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status, bool lock) {
   *ppObj = NULL;
 
   SHashObj *hash = sdbGetHash(pSdb, type);
   if (hash == NULL) return NULL;
 
-  TdThreadRwlock *pLock = &pSdb->locks[type];
-  taosThreadRwlockRdlock(pLock);
+  if (lock) {
+    sdbReadLock(pSdb, type);
+  }
 
   SSdbRow **ppRow = taosHashIterate(hash, pIter);
   while (ppRow != NULL) {
@@ -392,7 +413,9 @@ void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStat
     *status = pRow->status;
     break;
   }
-  taosThreadRwlockUnlock(pLock);
+  if (lock) {
+    sdbUnLock(pSdb, type);
+  }
 
   return ppRow;
 }
@@ -403,18 +426,17 @@ void sdbCancelFetch(SSdb *pSdb, void *pIter) {
   SHashObj *hash = sdbGetHash(pSdb, pRow->type);
   if (hash == NULL) return;
 
-  TdThreadRwlock *pLock = &pSdb->locks[pRow->type];
-  taosThreadRwlockRdlock(pLock);
+  int32_t type = pRow->type;
+  sdbReadLock(pSdb, type);
   taosHashCancelIterate(hash, pIter);
-  taosThreadRwlockUnlock(pLock);
+  sdbUnLock(pSdb, type);
 }
 
 void sdbTraverse(SSdb *pSdb, ESdbType type, sdbTraverseFp fp, void *p1, void *p2, void *p3) {
   SHashObj *hash = sdbGetHash(pSdb, type);
   if (hash == NULL) return;
 
-  TdThreadRwlock *pLock = &pSdb->locks[type];
-  taosThreadRwlockRdlock(pLock);
+  sdbReadLock(pSdb, type);
 
   SSdbRow **ppRow = taosHashIterate(hash, NULL);
   while (ppRow != NULL) {
@@ -430,17 +452,16 @@ void sdbTraverse(SSdb *pSdb, ESdbType type, sdbTraverseFp fp, void *p1, void *p2
     ppRow = taosHashIterate(hash, ppRow);
   }
 
-  taosThreadRwlockUnlock(pLock);
+  sdbUnLock(pSdb, type);
 }
 
 int32_t sdbGetSize(SSdb *pSdb, ESdbType type) {
   SHashObj *hash = sdbGetHash(pSdb, type);
   if (hash == NULL) return 0;
 
-  TdThreadRwlock *pLock = &pSdb->locks[type];
-  taosThreadRwlockRdlock(pLock);
+  sdbReadLock(pSdb, type);
   int32_t size = taosHashGetSize(hash);
-  taosThreadRwlockUnlock(pLock);
+  sdbUnLock(pSdb, type);
 
   return size;
 }
@@ -452,9 +473,7 @@ int32_t sdbGetMaxId(SSdb *pSdb, ESdbType type) {
   if (pSdb->keyTypes[type] != SDB_KEY_INT32) return -1;
 
   int32_t maxId = 0;
-
-  TdThreadRwlock *pLock = &pSdb->locks[type];
-  taosThreadRwlockRdlock(pLock);
+  sdbReadLock(pSdb, type);
 
   SSdbRow **ppRow = taosHashIterate(hash, NULL);
   while (ppRow != NULL) {
@@ -464,8 +483,7 @@ int32_t sdbGetMaxId(SSdb *pSdb, ESdbType type) {
     ppRow = taosHashIterate(hash, ppRow);
   }
 
-  taosThreadRwlockUnlock(pLock);
-
+  sdbUnLock(pSdb, type);
   maxId = TMAX(maxId, pSdb->maxId[type]);
   return maxId + 1;
 }

@@ -154,7 +154,8 @@ class User:
 
 class TDTestCase:
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -282,7 +283,7 @@ class TDTestCase:
                 use.error(f"insert into {DBNAME}.{CTBNAME} (ts) values (now())")
             elif check_priv == PRIVILEGES_WRITE:
                 use.query(f"use {DBNAME}")
-                use.error(f"show {DBNAME}.tables")
+                use.query(f"show {DBNAME}.tables")
                 use.error(f"select * from {DBNAME}.{CTBNAME}")
                 use.query(f"insert into {DBNAME}.{CTBNAME} (ts) values (now())")
             elif check_priv is None:

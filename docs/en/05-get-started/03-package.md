@@ -1,23 +1,24 @@
 ---
-sidebar_label: Package
 title: Quick Install from Package
+sidebar_label: Package
+description: This document describes how to install TDengine on Linux, Windows, and macOS and perform queries and inserts.
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import PkgListV3 from "/components/PkgListV3";
 
-This document describes how to install TDengine on Linux and Windows and perform queries and inserts.
+This document describes how to install TDengine on Linux/Windows/macOS and perform queries and inserts.
 
+- The easiest way to explore TDengine is through [TDengine Cloud](http://cloud.tdengine.com). 
 - To get started with TDengine on Docker, see [Quick Install on Docker](../../get-started/docker).
-- For a fully managed solution, see the [TDengine Cloud documentation](/cloud/).
 - If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
 
 The full package of TDengine includes the TDengine Server (`taosd`), TDengine Client (`taosc`), taosAdapter for connecting with third-party systems and providing a RESTful interface, a command-line interface (CLI, taos), and some tools. Note that taosAdapter supports Linux only. In addition to connectors for multiple languages, TDengine also provides a [REST API](../../reference/rest-api) through [taosAdapter](../../reference/taosadapter).
 
 The standard server installation package includes `taos`, `taosd`, `taosAdapter`, `taosBenchmark`, and sample code. You can also download the Lite package that includes only `taosd` and the C/C++ connector.
 
-The TDengine Community Edition is released as Deb and RPM packages. The Deb package can be installed on Debian, Ubuntu, and derivative systems. The RPM package can be installed on CentOS, RHEL, SUSE, and derivative systems. A .tar.gz package is also provided for enterprise customers, and you can install TDengine over `apt-get` as well. The .tar.tz package includes `taosdump` and the TDinsight installation script. If you want to use these utilities with the Deb or RPM package, download and install taosTools separately. TDengine can also be installed on 64-bit Windows.
+The TDengine Community Edition is released as Deb and RPM packages. The Deb package can be installed on Debian, Ubuntu, and derivative systems. The RPM package can be installed on CentOS, RHEL, SUSE, and derivative systems. A .tar.gz package is also provided for enterprise customers, and you can install TDengine over `apt-get` as well. The .tar.tz package includes `taosdump` and the TDinsight installation script. If you want to use these utilities with the Deb or RPM package, download and install taosTools separately. TDengine can also be installed on x64 Windows and x64/m1 macOS.
 
 ## Installation
 
@@ -112,10 +113,17 @@ Note: TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the W
 2. Run the downloaded package to install TDengine.
 
 </TabItem>
+<TabItem label="macOS" value="macos">
+
+1. Download the macOS installation package.
+   <PkgListV3 type={7}/>
+2. Run the downloaded package to install TDengine. If the installation is blocked, you can right-click or ctrl-click on the installation package and select `Open`.
+
+</TabItem>
 </Tabs>
 
 :::info
-For information about TDengine releases, see [Release History](../../releases/tdengine).
+For information about TDengine other releases, check [Release History](../../releases/tdengine).
 :::
 
 :::note
@@ -172,18 +180,49 @@ The following `systemctl` commands can help you manage TDengine service:
 
 :::
 
+## Command Line Interface (CLI)
+
+You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in terminal.
+
 </TabItem>
 
 <TabItem label="Windows" value="windows">
 
 After the installation is complete, run `C:\TDengine\taosd.exe` to start TDengine Server.
 
+## Command Line Interface (CLI)
+
+You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can run `taos.exe` in the `C:\TDengine` directory of the Windows terminal to start the TDengine command line.
+
 </TabItem>
-</Tabs>
+
+<TabItem label="macOS" value="macos">
+
+After the installation is complete, double-click the /applications/TDengine to start the program, or run `launchctl start com.tdengine.taosd` to start TDengine Server.
+
+The following `launchctl` commands can help you manage TDengine service:
+
+- Start TDengine Server: `sudo launchctl start com.tdengine.taosd`
+
+- Stop TDengine Server: `sudo launchctl stop com.tdengine.taosd`
+
+- Check TDengine Server status: `sudo launchctl list | grep taosd`
+
+:::info
+- Please use `sudo` to run `launchctl` to manage _com.tdengine.taosd_ with administrator privileges.
+- The administrator privilege is required for service management to enhance security.
+- Troubleshooting:
+- The first column returned by the command `launchctl list | grep taosd` is the PID of the program. If it's `-`, that means the TDengine service is not running.
+- If the service is abnormal, please check the `launchd.log` file from the system log or the `taosdlog` from the `/var/log/taos directory` for more information.
+
+:::
 
 ## Command Line Interface (CLI)
 
-You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in the Linux terminal where TDengine is installed, or you can run `taos.exe` in the `C:\TDengine` directory of the Windows terminal where TDengine is installed to start the TDengine command line.
+You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in terminal.
+
+</TabItem>
+</Tabs>
 
 ```bash
 taos
@@ -213,13 +252,13 @@ SELECT * FROM t;
 Query OK, 2 row(s) in set (0.003128s)
 ```
 
-You can also can monitor the deployment status, add and remove user accounts, and manage running instances. You can run the TDengine CLI on either Linux or Windows machines. For more information, see [TDengine CLI](../../reference/taos-shell/).
+You can also can monitor the deployment status, add and remove user accounts, and manage running instances. You can run the TDengine CLI on either machines. For more information, see [TDengine CLI](../../reference/taos-shell/).
 
 ## Test data insert performance
 
 After your TDengine Server is running normally, you can run the taosBenchmark utility to test its performance:
 
-Start TDengine service and execute `taosBenchmark` (formerly named `taosdemo`) in a Linux or Windows terminal.
+Start TDengine service and execute `taosBenchmark` (formerly named `taosdemo`) in a terminal.
 
 ```bash
 taosBenchmark

@@ -45,3 +45,61 @@ void streamQueueClose(SStreamQueue* queue) {
   taosCloseQueue(queue->queue);
   taosMemoryFree(queue);
 }
+
+#if 0
+bool streamQueueResEmpty(const SStreamQueueRes* pRes) {
+  //
+  return true;
+}
+int64_t           streamQueueResSize(const SStreamQueueRes* pRes) { return pRes->size; }
+SStreamQueueNode* streamQueueResFront(SStreamQueueRes* pRes) { return pRes->head; }
+SStreamQueueNode* streamQueueResPop(SStreamQueueRes* pRes) {
+  SStreamQueueNode* pRet = pRes->head;
+  pRes->head = pRes->head->next;
+  return pRet;
+}
+
+void streamQueueResClear(SStreamQueueRes* pRes) {
+  while (pRes->head) {
+    SStreamQueueNode* pNode = pRes->head;
+    streamFreeQitem(pRes->head->item);
+    pRes->head = pNode;
+  }
+}
+
+SStreamQueueRes streamQueueBuildRes(SStreamQueueNode* pTail) {
+  int64_t           size = 0;
+  SStreamQueueNode* head = NULL;
+
+  while (pTail) {
+    SStreamQueueNode* pTmp = pTail->next;
+    pTail->next = head;
+    head = pTail;
+    pTail = pTmp;
+    size++;
+  }
+
+  return (SStreamQueueRes){.head = head, .size = size};
+}
+
+bool    streamQueueHasTask(const SStreamQueue1* pQueue) { return atomic_load_ptr(pQueue->pHead); }
+int32_t streamQueuePush(SStreamQueue1* pQueue, SStreamQueueItem* pItem) {
+  SStreamQueueNode* pNode = taosMemoryMalloc(sizeof(SStreamQueueNode));
+  pNode->item = pItem;
+  SStreamQueueNode* pHead = atomic_load_ptr(pQueue->pHead);
+  while (1) {
+    pNode->next = pHead;
+    SStreamQueueNode* pOld = atomic_val_compare_exchange_ptr(pQueue->pHead, pHead, pNode);
+    if (pOld == pHead) {
+      break;
+    }
+  }
+  return 0;
+}
+
+SStreamQueueRes streamQueueGetRes(SStreamQueue1* pQueue) {
+  SStreamQueueNode* pNode = atomic_exchange_ptr(pQueue->pHead, NULL);
+  if (pNode) return streamQueueBuildRes(pNode);
+  return (SStreamQueueRes){0};
+}
+#endif

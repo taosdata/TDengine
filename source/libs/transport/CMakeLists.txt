@@ -16,11 +16,6 @@ target_link_libraries(
 )
 if (${BUILD_WITH_UV_TRANS}) 
 if (${BUILD_WITH_UV})
-  target_include_directories(
-    transport    
-    PUBLIC "${TD_SOURCE_DIR}/contrib/libuv/include"
-  )
-  
   target_link_libraries(
     transport    
     PUBLIC uv_a

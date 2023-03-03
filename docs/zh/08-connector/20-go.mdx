@@ -8,14 +8,14 @@ title: TDengine Go Connector
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-import Preparition from "./_preparition.mdx"
+import Preparation from "./_preparation.mdx"
 import GoInsert from "../07-develop/03-insert-data/_go_sql.mdx"
 import GoInfluxLine from "../07-develop/03-insert-data/_go_line.mdx"
 import GoOpenTSDBTelnet from "../07-develop/03-insert-data/_go_opts_telnet.mdx"
 import GoOpenTSDBJson from "../07-develop/03-insert-data/_go_opts_json.mdx"
 import GoQuery from "../07-develop/04-query-data/_go.mdx"
 
-`driver-go` 是 TDengine 的官方 Go 语言连接器，实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
+`driver-go` 是 TDengine 的官方 Go 语言连接器，实现了 Go 语言 [database/sql](https://golang.org/pkg/database/sql/)  包的接口。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
 
 `driver-go` 提供两种建立连接的方式。一种是**原生连接**，它通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 运行实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。另外一种是 **REST 连接**，它通过 taosAdapter 提供的 REST 接口连接 TDengine 运行实例。REST 连接实现的功能特性集合和原生连接有少量不同。
 
@@ -112,9 +112,10 @@ REST 连接支持所有能运行 Go 的平台。
 ```text
 username:password@protocol(address)/dbname?param=value
 ```
+
 ### 使用连接器进行连接
 
-<Tabs defaultValue="native">
+<Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接">
 
 _taosSql_ 通过 cgo 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用 [`database/sql`](https://golang.org/pkg/database/sql/) 的接口。
@@ -176,6 +177,39 @@ func main() {
     }
 }
 ```
+
+</TabItem>
+<TabItem value="WebSocket" label="WebSocket 连接">
+
+_taosWS_ 通过 `WebSocket` 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动（driver-go 最低版本 3.0.2）就可以使用[`database/sql`](https://golang.org/pkg/database/sql/)的接口。
+
+使用 `taosWS` 作为 `driverName` 并且使用一个正确的 [DSN](#DSN) 作为 `dataSourceName`，DSN 支持的参数：
+
+* `writeTimeout` 通过 WebSocket 发送数据的超时时间。
+* `readTimeout` 通过 WebSocket 接收响应数据的超时时间。
+
+示例：
+
+```go
+package main
+
+import (
+    "database/sql"
+    "fmt"
+
+    _ "github.com/taosdata/driver-go/v3/taosWS"
+)
+
+func main() {
+    var taosUri = "root:taosdata@ws(localhost:6041)/"
+    taos, err := sql.Open("taosWS", taosUri)
+    if err != nil {
+        fmt.Println("failed to connect TDengine, err:", err)
+        return
+    }
+}
+```
+
 </TabItem>
 </Tabs>
 
@@ -326,39 +360,38 @@ func main() {
 
 #### 订阅
 
-* `func NewConsumer(conf *Config) (*Consumer, error)`
+* `func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)`
 
-创建消费者。
+ 创建消费者。
 
-* `func (c *Consumer) Subscribe(topics []string) error`
+* `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
+注意：出于兼容目的保留 `rebalanceCb` 参数，当前未使用
 
-订阅主题。
+ 订阅单个主题。
 
-* `func (c *Consumer) Poll(timeout time.Duration) (*Result, error)`
+* `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
+注意：出于兼容目的保留 `rebalanceCb` 参数，当前未使用
 
-轮询消息。
+ 订阅主题。
 
-* `func (c *Consumer) Commit(ctx context.Context, message unsafe.Pointer) error`
+* `func (c *Consumer) Poll(timeoutMs int) tmq.Event`
 
-提交消息。
+ 轮询消息。
 
-* `func (c *Consumer) FreeMessage(message unsafe.Pointer)`
+* `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
+注意：出于兼容目的保留 `tmq.TopicPartition` 参数，当前未使用
 
-释放消息。
-
-* `func (c *Consumer) Unsubscribe() error`
-
-取消订阅。
+ 提交消息。
 
 * `func (c *Consumer) Close() error`
 
-关闭消费者。
+ 关闭连接。
 
 #### schemaless
 
 * `func (conn *Connector) InfluxDBInsertLines(lines []string, precision string) error`
 
-  写入 influxDB 行协议。
+  写入 InfluxDB 行协议。
 
 * `func (conn *Connector) OpenTSDBInsertTelnetLines(lines []string) error`
 
@@ -409,6 +442,85 @@ func main() {
 * `func (stmt *InsertStmt) Close() error`
 
   结束参数绑定。
+
+### 通过 WebSocket 订阅
+
+* `func NewConsumer(conf *tmq.ConfigMap) (*Consumer, error)`
+
+ 创建消费者。
+
+* `func (c *Consumer) Subscribe(topic string, rebalanceCb RebalanceCb) error`
+注意：出于兼容目的保留 `rebalanceCb` 参数，当前未使用
+
+ 订阅单个主题。
+
+* `func (c *Consumer) SubscribeTopics(topics []string, rebalanceCb RebalanceCb) error`
+注意：出于兼容目的保留 `rebalanceCb` 参数，当前未使用
+
+ 订阅主题。
+
+* `func (c *Consumer) Poll(timeoutMs int) tmq.Event`
+
+ 轮询消息。
+
+* `func (c *Consumer) Commit() ([]tmq.TopicPartition, error)`
+注意：出于兼容目的保留 `tmq.TopicPartition` 参数，当前未使用
+
+ 提交消息。
+
+* `func (c *Consumer) Close() error`
+
+ 关闭连接。
+
+完整订阅示例参见 [GitHub 示例文件](https://github.com/taosdata/driver-go/blob/3.0/examples/tmqoverws/main.go)
+
+### 通过 WebSocket 进行参数绑定
+
+* `func NewConnector(config *Config) (*Connector, error)`
+
+  创建连接。
+
+* `func (c *Connector) Init() (*Stmt, error)`
+
+  初始化参数。
+
+* `func (c *Connector) Close() error`
+
+  关闭连接。
+
+* `func (s *Stmt) Prepare(sql string) error`
+
+  参数绑定预处理 SQL 语句。
+
+* `func (s *Stmt) SetTableName(name string) error`
+
+  参数绑定设置表名。
+
+* `func (s *Stmt) SetTags(tags *param.Param, bindType *param.ColumnType) error`
+
+  参数绑定设置标签。
+
+* `func (s *Stmt) BindParam(params []*param.Param, bindType *param.ColumnType) error`
+
+  参数绑定多行数据。
+
+* `func (s *Stmt) AddBatch() error`
+
+  添加到参数绑定批处理。
+
+* `func (s *Stmt) Exec() error`
+
+  执行参数绑定。
+
+* `func (s *Stmt) GetAffectedRows() int`
+
+  获取参数绑定插入受影响行数。
+
+* `func (s *Stmt) Close() error`
+
+  结束参数绑定。
+
+完整参数绑定示例参见 [GitHub 示例文件](https://github.com/taosdata/driver-go/blob/3.0/examples/stmtoverws/main.go)
 
 ## API 参考
 

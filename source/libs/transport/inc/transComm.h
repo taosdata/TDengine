@@ -22,6 +22,7 @@ extern "C" {
 #include "os.h"
 #include "taoserror.h"
 #include "theap.h"
+#include "tmisce.h"
 #include "transLog.h"
 #include "transportInt.h"
 #include "trpc.h"
@@ -94,20 +95,13 @@ typedef void* queue[2];
 /* Return the structure holding the given element. */
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
-#define TRANS_RETRY_COUNT_LIMIT 100   // retry count limit
-#define TRANS_RETRY_INTERVAL    15    // retry interval (ms)
-#define TRANS_CONN_TIMEOUT      3     // connect timeout (s)
-#define TRANS_READ_TIMEOUT      3000  // read timeout  (ms)
-#define TRANS_PACKET_LIMIT      1024 * 1024 * 512
-
-#define TRANS_MAGIC_NUM 0x5f375a86
-
-#define TRANS_NOVALID_PACKET(src) ((src) != TRANS_MAGIC_NUM ? 1 : 0)
-
+// #define TRANS_RETRY_COUNT_LIMIT 100   // retry count limit
+// #define TRANS_RETRY_INTERVAL    15    // retry interval (ms)
+#define TRANS_CONN_TIMEOUT 3000  // connect timeout (ms)
+#define TRANS_READ_TIMEOUT 3000  // read timeout  (ms)
 #define TRANS_PACKET_LIMIT 1024 * 1024 * 512
 
-#define TRANS_MAGIC_NUM 0x5f375a86
-
+#define TRANS_MAGIC_NUM           0x5f375a86
 #define TRANS_NOVALID_PACKET(src) ((src) != TRANS_MAGIC_NUM ? 1 : 0)
 
 typedef SRpcMsg      STransMsg;
@@ -137,16 +131,25 @@ typedef struct {
   tmsg_t msgType;   // message type
   int8_t connType;  // connection type cli/srv
 
-  int8_t retryCnt;
-  int8_t retryLimit;
-
   STransCtx  appCtx;  //
   STransMsg* pRsp;    // for synchronous API
   tsem_t*    pSem;    // for synchronous API
   SCvtAddr   cvtAddr;
   bool       setMaxRetry;
 
-  int hThrdIdx;
+  int32_t retryMinInterval;
+  int32_t retryMaxInterval;
+  int32_t retryStepFactor;
+  int64_t retryMaxTimeout;
+  int64_t retryInitTimestamp;
+  int64_t retryNextInterval;
+  bool    retryInit;
+  int32_t retryStep;
+  int8_t  epsetRetryCnt;
+  int32_t retryCode;
+
+  void* task;
+  int   hThrdIdx;
 } STransConnCtx;
 
 #pragma pack(push, 1)
@@ -161,6 +164,7 @@ typedef struct {
   char spi : 2;
   char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset
 
+  uint64_t timestamp;
   char     user[TSDB_UNI_LEN];
   uint32_t magicNum;
   STraceId traceId;
@@ -200,15 +204,13 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 
 #define TRANS_MSG_OVERHEAD           (sizeof(STransMsgHead))
 #define transHeadFromCont(cont)      ((STransMsgHead*)((char*)cont - sizeof(STransMsgHead)))
-#define transContFromHead(msg)       (msg + sizeof(STransMsgHead))
+#define transContFromHead(msg)       (((char*)msg) + sizeof(STransMsgHead))
 #define transMsgLenFromCont(contLen) (contLen + sizeof(STransMsgHead))
 #define transContLenFromMsg(msgLen)  (msgLen - sizeof(STransMsgHead));
 #define transIsReq(type)             (type & 1U)
 
 #define transLabel(trans) ((STrans*)trans)->label
 
-void transFreeMsg(void* msg);
-//
 typedef struct SConnBuffer {
   char* buf;
   int   len;
@@ -415,6 +417,10 @@ void transThreadOnce();
 void transInit();
 void transCleanup();
 
+void    transFreeMsg(void* msg);
+int32_t transCompressMsg(char* msg, int32_t len);
+int32_t transDecompressMsg(char** msg, int32_t len);
+
 int32_t transOpenRefMgt(int size, void (*func)(void*));
 void    transCloseRefMgt(int32_t refMgt);
 int64_t transAddExHandle(int32_t refMgt, void* p);
@@ -426,6 +432,7 @@ void    transDestoryExHandle(void* handle);
 int32_t transGetRefMgt();
 int32_t transGetInstMgt();
 
+void transHttpEnvDestroy();
 #ifdef __cplusplus
 }
 #endif

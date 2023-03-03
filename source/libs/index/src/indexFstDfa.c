@@ -104,8 +104,9 @@ bool dfaBuilderRunState(FstDfaBuilder *builder, FstSparseSet *cur, FstSparseSet 
   DfaState *t = taosArrayGet(builder->dfa->states, state);
   for (int i = 0; i < taosArrayGetSize(t->insts); i++) {
     int32_t ip = *(int32_t *)taosArrayGet(t->insts, i);
-    bool    succ = sparSetAdd(cur, ip, NULL);
-    assert(succ == true);
+
+    bool succ = sparSetAdd(cur, ip, NULL);
+    if (succ == false) return false;
   }
   dfaRun(builder->dfa, cur, next, byte);
 
@@ -139,6 +140,7 @@ bool dfaBuilderCacheState(FstDfaBuilder *builder, FstSparseSet *set, uint32_t *r
     }
   }
   if (taosArrayGetSize(tinsts) == 0) {
+    taosArrayDestroy(tinsts);
     return false;
   }
   uint32_t *v = taosHashGet(builder->cache, &tinsts, sizeof(POINTER_BYTES));

@@ -6,7 +6,8 @@ import numpy as np
 
 
 class TDTestCase:
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
 
@@ -93,7 +94,18 @@ class TDTestCase:
         tdSql.error(f"select diff(col12) from  {dbname}.stb_1")
         tdSql.error(f"select diff(col13) from  {dbname}.stb_1")
         tdSql.error(f"select diff(col14) from  {dbname}.stb_1")
+        tdSql.error(f"select diff(col14) from  {dbname}.stb_1")
+        tdSql.error(f"select diff(col1,col1,col1) from  {dbname}.stb_1")
+        tdSql.error(f"select diff(col1,1,col1) from  {dbname}.stb_1")
+        tdSql.error(f"select diff(col1,col1,col) from  {dbname}.stb_1")
+        tdSql.error(f"select diff(col1,col1) from  {dbname}.stb_1")
+        tdSql.error(f"select diff(col1,'123') from  {dbname}.stb_1")
+        tdSql.error(f"select diff(col1,1.23) from  {dbname}.stb_1")
+        tdSql.error(f"select diff(col1,-1) from  {dbname}.stb_1")
         tdSql.query(f"select ts,diff(col1),ts from  {dbname}.stb_1")
+
+        tdSql.query(f"select diff(ts) from  {dbname}.stb_1")
+        tdSql.checkRows(10)
 
         tdSql.query(f"select diff(col1) from  {dbname}.stb_1")
         tdSql.checkRows(10)

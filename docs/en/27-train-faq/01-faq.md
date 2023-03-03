@@ -1,5 +1,6 @@
 ---
 title: Frequently Asked Questions
+description: This document describes the frequently asked questions about TDengine.
 ---
 
 ## Submit an Issue
@@ -33,7 +34,7 @@ TDengine 3.0 is not compatible with the configuration and data files from previo
 4. Install TDengine 3.0.
 5. For assistance in migrating data to TDengine 3.0, contact [TDengine Support](https://tdengine.com/support).
 
-### 4. How can I resolve the "Unable to establish connection" error?
+### 2. How can I resolve the "Unable to establish connection" error?
 
 This error indicates that the client could not connect to the server. Perform the following troubleshooting steps:
 
@@ -55,18 +56,20 @@ This error indicates that the client could not connect to the server. Perform th
 
 7. If you are using the Python, Java, Go, Rust, C#, or Node.js connector on Linux to connect to the server, verify that `libtaos.so` is in the `/usr/local/taos/driver` directory and `/usr/local/taos/driver` is in the `LD_LIBRARY_PATH` environment variable.
 
-8. If you are using Windows, verify that `C:\TDengine\driver\taos.dll` is in the `PATH` environment variable. If possible, move `taos.dll` to the `C:\Windows\System32` directory.
+8. If you are using macOS, verify that `libtaos.dylib` is in the `/usr/local/lib` directory and `/usr/local/lib` is in the `LD_LIBRARY_PATH` environment variable..
 
-9. On Linux systems, you can use the `nc` tool to check whether a port is accessible:
+9. If you are using Windows, verify that `C:\TDengine\driver\taos.dll` is in the `PATH` environment variable. If possible, move `taos.dll` to the `C:\Windows\System32` directory.
+
+10. On Linux/macOS, you can use the `nc` tool to check whether a port is accessible:
    - To check whether a UDP port is open, run `nc -vuz {hostIP} {port}`.
    - To check whether a TCP port on the server side is open, run `nc -l {port}`.
    - To check whether a TCP port on client side is open, run `nc {hostIP} {port}`.
 
-10. On Windows systems, you can run `Test-NetConnection -ComputerName {fqdn} -Port {port}` in PowerShell to check whether a port on the server side is accessible.
+  On Windows systems, you can run `Test-NetConnection -ComputerName {fqdn} -Port {port}` in PowerShell to check whether a port on the server side is accessible.
 
 11. You can also use the TDengine CLI to diagnose network issues. For more information, see [Problem Diagnostics](https://docs.tdengine.com/operation/diagnose/).
 
-### 5. How can I resolve the "Unable to resolve FQDN" error?
+### 3. How can I resolve the "Unable to resolve FQDN" error?
 
 Clients and dnodes must be able to resolve the FQDN of each required node. You can confirm your configuration as follows:
 
@@ -77,15 +80,15 @@ Clients and dnodes must be able to resolve the FQDN of each required node. You c
 5. If TDengine has been previously installed and the `hostname` was modified, open `dnode.json` in the `data` folder and verify that the endpoint configuration is correct. The default location of the dnode file is `/var/lib/taos/dnode`. Ensure that you clean up previous installations before reinstalling TDengine.
 6. Confirm whether FQDNs are preconfigured in `/etc/hosts` and `/etc/hostname`.
 
-### 6. What is the most effective way to write data to TDengine?
+### 4. What is the most effective way to write data to TDengine?
 
 Writing data in batches provides higher efficiency in most situations. You can insert one or more data records into one or more tables in a single SQL statement.
 
-### 9. Why are table names not fully displayed?
+### 5. Why are table names not fully displayed?
 
 The number of columns in the TDengine CLI terminal display is limited. This can cause table names to be cut off, and if you use an incomplete name in a statement, the "Table does not exist" error will occur. You can increase the display size with the `maxBinaryDisplayWidth` parameter or the SQL statement `set max_binary_display_width`. You can also append `\G` to your SQL statement to bypass this limitation.
 
-### 10. How can I migrate data?
+### 6. How can I migrate data?
 
 In TDengine, the `hostname` uniquely identifies a machine. When you move data files to a new machine, you must configure the new machine to have the same `host name` as the original machine.
 
@@ -95,7 +98,7 @@ The data structure of previous versions of TDengine is not compatible with versi
 
 :::
 
-### 11. How can I temporary change the log level from the TDengine Client?
+### 7. How can I temporary change the log level from the TDengine Client?
 
 To change the log level for debugging purposes, you can use the following command:
 
@@ -104,11 +107,11 @@ ALTER LOCAL local_option
  
 local_option: {
     'resetLog'
-  | 'rpcDebugFlag' value
-  | 'tmrDebugFlag' value
-  | 'cDebugFlag' value
-  | 'uDebugFlag' value
-  | 'debugFlag' value
+  | 'rpcDebugFlag' 'value'
+  | 'tmrDebugFlag' 'value'
+  | 'cDebugFlag' 'value'
+  | 'uDebugFlag' 'value'
+  | 'debugFlag' 'value'
 }
 ```
 
@@ -116,14 +119,14 @@ Use `resetlog` to remove all logs generated on the local client. Use the other p
 
 For each parameter, you can set the value to `131` (error and warning), `135` (error, warning, and debug), or `143` (error, warning, debug, and trace).
 
-### Why do TDengine components written in Go fail to compile?
+### 8. Why do TDengine components written in Go fail to compile?
 
 TDengine includes taosAdapter, an independent component written in Go. This component provides the REST API as well as data access for other products such as Prometheus and Telegraf.
 When using the develop branch, you must run `git submodule update --init --recursive` to download the taosAdapter repository and then compile it.
 
 TDengine Go components require Go version 1.14 or later.
 
-### 13. How can I query the storage space being used by my data?
+### 9. How can I query the storage space being used by my data?
 
 The TDengine data files are stored in `/var/lib/taos` by default. Log files are stored in `/var/log/taos`.
 
@@ -131,7 +134,7 @@ To see how much space your data files occupy, run `du -sh /var/lib/taos/vnode --
 
 If you want to see how much space is occupied by a single database, first determine which vgroup is storing the database by running `show vgroups`. Then check `/var/lib/taos/vnode` for the files associated with the vgroup ID.
 
-### 15. How is timezone information processed for timestamps?
+### 10. How is timezone information processed for timestamps?
 
 TDengine uses the timezone of the client for timestamps. The server timezone does not affect timestamps. The client converts Unix timestamps in SQL statements to UTC before sending them to the server. When you query data on the server, it provides timestamps in UTC to the client, which converts them to its local time.
 
@@ -142,13 +145,13 @@ Timestamps are processed as follows:
 3. A timezone explicitly specified when establishing a connection to TDengine through a connector takes precedence over `taos.cfg` and the system timezone. For example, the Java connector allows you to specify a timezone in the JDBC URL.
 4. If you use an RFC 3339 timestamp (2013-04-12T15:52:01.123+08:00), or an ISO 8601 timestamp (2013-04-12T15:52:01.123+0800), the timezone specified in the timestamp is used instead of the timestamps configured using any other method. 
 
-### 16. Which network ports are required by TDengine?
+### 11. Which network ports are required by TDengine?
 
 See [serverPort](https://docs.tdengine.com/reference/config/#serverport) in Configuration Parameters.
 
 Note that ports are specified using 6030 as the default first port. If you change this port, all other ports change as well.
 
-### 17. Why do applications such as Grafana fail to connect to TDengine over the REST API?
+### 12. Why do applications such as Grafana fail to connect to TDengine over the REST API?
 
 In TDengine, the REST API is provided by taosAdapter. Ensure that taosAdapter is running before you connect an application to TDengine over the REST API. You can run `systemctl start taosadapter` to start the service.
 
@@ -156,7 +159,7 @@ Note that the log path for taosAdapter must be configured separately. The defaul
 
 For more information, see [taosAdapter](https://docs.tdengine.com/reference/taosadapter/).
 
-### 18. How can I resolve out-of-memory (OOM) errors?
+### 13. How can I resolve out-of-memory (OOM) errors?
 
 OOM errors are thrown by the operating system when its memory, including swap, becomes insufficient and it needs to terminate processes to remain operational. Most OOM errors in TDengine occur for one of the following reasons: free memory is less than the value of `vm.min_free_kbytes` or free memory is less than the size of the request. If TDengine occupies reserved memory, an OOM error can occur even when free memory is sufficient.
 

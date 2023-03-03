@@ -15,6 +15,7 @@
 #define ALLOW_FORBID_FUNC
 #include "os.h"
 #include "osSemaphore.h"
+#include "zlib.h"
 
 #ifdef WINDOWS
 #include <io.h>
@@ -39,14 +40,6 @@
 #define _SEND_FILE_STEP_ 1000
 #endif
 
-#if defined(WINDOWS)
-typedef int32_t FileFd;
-typedef int32_t SocketFd;
-#else
-typedef int32_t FileFd;
-typedef int32_t SocketFd;
-#endif
-
 typedef int32_t FileFd;
 
 typedef struct TdFile {
@@ -54,18 +47,9 @@ typedef struct TdFile {
   int            refId;
   FileFd         fd;
   FILE          *fp;
-} * TdFilePtr, TdFile;
+} TdFile;
 
 #define FILE_WITH_LOCK 1
-
-typedef struct AutoDelFile * AutoDelFilePtr;
-typedef struct AutoDelFile {
-  char           *name;
-  AutoDelFilePtr  lastAutoDelFilePtr;
-} AutoDelFile;
-static TdThreadMutex autoDelFileLock;
-static AutoDelFilePtr nowAutoDelFilePtr = NULL;
-static TdThreadOnce autoDelFileInit = PTHREAD_ONCE_INIT;
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
 #ifdef WINDOWS
@@ -148,15 +132,20 @@ int64_t taosCopyFile(const char *from, const char *to) {
     if (bytes < sizeof(buffer)) break;
   }
 
-  taosFsyncFile(pFileTo);
+  int code = taosFsyncFile(pFileTo);
 
   taosCloseFile(&pFileFrom);
   taosCloseFile(&pFileTo);
+
+  if (code != 0) {
+    return -1;
+  }
   return size;
 
 _err:
   if (pFileFrom != NULL) taosCloseFile(&pFileFrom);
   if (pFileTo != NULL) taosCloseFile(&pFileTo);
+  /* coverity[+retval] */
   taosRemoveFile(to);
   return -1;
 #endif
@@ -167,7 +156,7 @@ TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions) {
   if (!fp) {
     if (errno == ENOENT) {
       // Try to create directory recursively
-      char *s = strdup(path);
+      char *s = taosStrdup(path);
       if (taosMulMkDir(taosDirName(s)) != 0) {
         taosMemoryFree(s);
         return NULL;
@@ -191,7 +180,7 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
     printf("failed to rename file %s to %s, reason:%s\n", oldName, newName, strerror(errno));
   }
 
-  return !code;
+  return code ? 0 : -1;
 #else
   int32_t code = rename(oldName, newName);
   if (code < 0) {
@@ -205,7 +194,7 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
 #ifdef WINDOWS
   struct _stati64 fileStat;
-  int32_t code = _stati64(path, &fileStat);
+  int32_t         code = _stati64(path, &fileStat);
 #else
   struct stat fileStat;
   int32_t code = stat(path, &fileStat);
@@ -225,10 +214,9 @@ int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
   return 0;
 }
 int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
-  if (pFile == NULL) {
-    return 0;
+  if (pFile == NULL || pFile->fd < 0) {
+    return -1;
   }
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
 
 #ifdef WINDOWS
 
@@ -250,7 +238,7 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
 #else
 
   struct stat fileStat;
-  int32_t     code = fstat(pFile->fd, &fileStat);
+  int32_t code = fstat(pFile->fd, &fileStat);
   if (code < 0) {
     printf("taosFStatFile run fstat fail.");
     return code;
@@ -268,34 +256,6 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
   return 0;
 }
 
-void autoDelFileList() {
-  taosThreadMutexLock(&autoDelFileLock);
-  while (nowAutoDelFilePtr != NULL) {
-    taosRemoveFile(nowAutoDelFilePtr->name);
-    AutoDelFilePtr tmp = nowAutoDelFilePtr->lastAutoDelFilePtr;
-    taosMemoryFree(nowAutoDelFilePtr->name);
-    taosMemoryFree(nowAutoDelFilePtr);
-    nowAutoDelFilePtr = tmp;
-  }
-  taosThreadMutexUnlock(&autoDelFileLock);
-  taosThreadMutexDestroy(&autoDelFileLock);
-}
-
-void autoDelFileListInit() {
-  taosThreadMutexInit(&autoDelFileLock, NULL);
-  atexit(autoDelFileList);
-}
-
-void autoDelFileListAdd(const char *path) {
-  taosThreadOnce(&autoDelFileInit, autoDelFileListInit);
-  taosThreadMutexLock(&autoDelFileLock);
-  AutoDelFilePtr tmp = taosMemoryMalloc(sizeof(AutoDelFile));
-  tmp->lastAutoDelFilePtr = nowAutoDelFilePtr;
-  tmp->name = taosMemoryStrDup(path);
-  nowAutoDelFilePtr = tmp;
-  taosThreadMutexUnlock(&autoDelFileLock);
-}
-
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   int   fd = -1;
   FILE *fp = NULL;
@@ -310,10 +270,12 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     } else {
       mode = (tdFileOptions & TD_FILE_TEXT) ? "rt+" : "rb+";
     }
-    assert(!(tdFileOptions & TD_FILE_EXCL));
+    ASSERT(!(tdFileOptions & TD_FILE_EXCL));
+    if (tdFileOptions & TD_FILE_EXCL) {
+      return NULL;
+    }
     fp = fopen(path, mode);
     if (fp == NULL) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
     }
   } else {
@@ -331,12 +293,15 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     access |= (tdFileOptions & TD_FILE_TEXT) ? O_TEXT : 0;
     access |= (tdFileOptions & TD_FILE_EXCL) ? O_EXCL : 0;
 #ifdef WINDOWS
-    fd = _open(path, access, _S_IREAD | _S_IWRITE);
+    int32_t pmode = _S_IREAD | _S_IWRITE;
+    if (tdFileOptions & TD_FILE_AUTO_DEL) {
+      pmode |= _O_TEMPORARY;
+    }
+    fd = _open(path, access, pmode);
 #else
     fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
 #endif
     if (fd == -1) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
     }
   }
@@ -347,15 +312,25 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     if (fp != NULL) fclose(fp);
     return NULL;
   }
+
 #if FILE_WITH_LOCK
   taosThreadRwlockInit(&(pFile->rwlock), NULL);
 #endif
   pFile->fd = fd;
   pFile->fp = fp;
   pFile->refId = 0;
+
   if (tdFileOptions & TD_FILE_AUTO_DEL) {
-    autoDelFileListAdd(path);
+#ifdef WINDOWS
+    // do nothing, since the property of pmode is set with _O_TEMPORARY; the OS will recycle
+    // the file handle, as well as the space on disk.
+#else
+    // Remove it instantly, so when the program exits normally/abnormally, the file
+    // will be automatically remove by OS.
+    unlink(path);
+#endif
   }
+
   return pFile;
 }
 
@@ -397,7 +372,13 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
 #if FILE_WITH_LOCK
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
+  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+  if (pFile->fd < 0) {
+#if FILE_WITH_LOCK
+    taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+    return -1;
+  }
   int64_t leftbytes = count;
   int64_t readbytes;
   char   *tbuf = (char *)buf;
@@ -441,7 +422,13 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 #if FILE_WITH_LOCK
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
+  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+  if (pFile->fd < 0) {
+#if FILE_WITH_LOCK
+    taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+    return -1;
+  }
 #ifdef WINDOWS
   size_t pos = _lseeki64(pFile->fd, 0, SEEK_CUR);
   _lseeki64(pFile->fd, offset, SEEK_SET);
@@ -463,7 +450,12 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
+  if (pFile->fd < 0) {
+#if FILE_WITH_LOCK
+    taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+    return 0;
+  }
 
   int64_t nleft = count;
   int64_t nwritten = 0;
@@ -490,11 +482,42 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
   return count;
 }
 
+int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t offset) {
+  if (pFile == NULL) {
+    return 0;
+  }
+#if FILE_WITH_LOCK
+  taosThreadRwlockWrlock(&(pFile->rwlock));
+#endif
+  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+  if (pFile->fd < 0) {
+#if FILE_WITH_LOCK
+    taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+    return 0;
+  }
+#ifdef WINDOWS
+  size_t pos = _lseeki64(pFile->fd, 0, SEEK_CUR);
+  _lseeki64(pFile->fd, offset, SEEK_SET);
+  int64_t ret = _write(pFile->fd, buf, count);
+  _lseeki64(pFile->fd, pos, SEEK_SET);
+#else
+  int64_t ret = pwrite(pFile->fd, buf, count, offset);
+#endif
+#if FILE_WITH_LOCK
+  taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+  return ret;
+}
+
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
+  if (pFile == NULL || pFile->fd < 0) {
+    return -1;
+  }
 #if FILE_WITH_LOCK
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
+  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
 #ifdef WINDOWS
   int64_t ret = _lseeki64(pFile->fd, offset, whence);
 #else
@@ -510,7 +533,10 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   if (pFile == NULL) {
     return 0;
   }
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
+  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+  if (pFile->fd < 0) {
+    return -1;
+  }
 
   struct stat fileStat;
 #ifdef WINDOWS
@@ -534,32 +560,61 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
 }
 
 int32_t taosLockFile(TdFilePtr pFile) {
+  ASSERT(pFile->fd >= 0);  // Please check if you have closed the file.
+  if (pFile->fd < 0) {
+    return -1;
+  }
 #ifdef WINDOWS
+  BOOL          fSuccess = FALSE;
+  LARGE_INTEGER fileSize;
+  OVERLAPPED    overlapped = {0};
+
+  HANDLE hFile = (HANDLE)_get_osfhandle(pFile->fd);
+
+  fSuccess = LockFileEx(hFile, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY,
+                        0,           // reserved
+                        ~0,          // number of bytes to lock low
+                        ~0,          // number of bytes to lock high
+                        &overlapped  // overlapped structure
+  );
+  if (!fSuccess) {
+    return GetLastError();
+  }
   return 0;
 #else
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
-
   return (int32_t)flock(pFile->fd, LOCK_EX | LOCK_NB);
 #endif
 }
 
 int32_t taosUnLockFile(TdFilePtr pFile) {
+  ASSERT(pFile->fd >= 0);
+  if (pFile->fd < 0) {
+    return 0;
+  }
 #ifdef WINDOWS
+  BOOL       fSuccess = FALSE;
+  OVERLAPPED overlapped = {0};
+  HANDLE     hFile = (HANDLE)_get_osfhandle(pFile->fd);
+
+  fSuccess = UnlockFileEx(hFile, 0, ~0, ~0, &overlapped);
+  if (!fSuccess) {
+    return GetLastError();
+  }
   return 0;
 #else
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
-
   return (int32_t)flock(pFile->fd, LOCK_UN | LOCK_NB);
 #endif
 }
 
 int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
-#ifdef WINDOWS
+  if (pFile == NULL) {
+    return 0;
+  }
   if (pFile->fd < 0) {
-    errno = EBADF;
     printf("Ftruncate file error, fd arg was negative\n");
     return -1;
   }
+#ifdef WINDOWS
 
   HANDLE h = (HANDLE)_get_osfhandle(pFile->fd);
 
@@ -604,11 +659,6 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
 
   return 0;
 #else
-  if (pFile == NULL) {
-    return 0;
-  }
-  assert(pFile->fd >= 0);  // Please check if you have closed the file.
-
   return ftruncate(pFile->fd, l_size);
 #endif
 }
@@ -636,7 +686,10 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   if (pFileOut == NULL || pFileIn == NULL) {
     return 0;
   }
-  assert(pFileIn->fd >= 0 && pFileOut->fd >= 0);
+  ASSERT(pFileIn->fd >= 0 && pFileOut->fd >= 0);
+  if (pFileIn->fd < 0 || pFileOut->fd < 0) {
+    return 0;
+  }
 
 #ifdef WINDOWS
 
@@ -706,11 +759,11 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   int64_t sentbytes;
 
   while (leftbytes > 0) {
-  #ifdef _TD_ARM_32
-    sentbytes = sendfile(pFileOut->fd, pFileIn->fd, (long int*)offset, leftbytes);
-  #else
+#ifdef _TD_ARM_32
+    sentbytes = sendfile(pFileOut->fd, pFileIn->fd, (long int *)offset, leftbytes);
+#else
     sentbytes = sendfile(pFileOut->fd, pFileIn->fd, offset, leftbytes);
-  #endif
+#endif
     if (sentbytes == -1) {
       if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
         continue;
@@ -729,16 +782,13 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 }
 
 void taosFprintfFile(TdFilePtr pFile, const char *format, ...) {
-  if (pFile == NULL) {
+  if (pFile == NULL || pFile->fp == NULL) {
     return;
   }
-  assert(pFile->fp != NULL);
-
   va_list ap;
   va_start(ap, format);
   vfprintf(pFile->fp, format, ap);
   va_end(ap);
-  fflush(pFile->fp);
 }
 
 bool taosValidFile(TdFilePtr pFile) { return pFile != NULL && pFile->fd > 0; }
@@ -759,7 +809,10 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   if (*ptrBuf != NULL) {
     taosMemoryFreeClear(*ptrBuf);
   }
-  assert(pFile->fp != NULL);
+  ASSERT(pFile->fp != NULL);
+  if (pFile->fp == NULL) {
+    return -1;
+  }
 #ifdef WINDOWS
   *ptrBuf = taosMemoryMalloc(1024);
   if (*ptrBuf == NULL) return -1;
@@ -774,21 +827,29 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   return getline(ptrBuf, &len, pFile->fp);
 #endif
 }
+
 int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf) {
   if (pFile == NULL || buf == NULL) {
     return -1;
   }
-  assert(pFile->fp != NULL);
+  ASSERT(pFile->fp != NULL);
+  if (pFile->fp == NULL) {
+    return -1;
+  }
   if (fgets(buf, maxSize, pFile->fp) == NULL) {
     return -1;
   }
   return strlen(buf);
 }
+
 int32_t taosEOFFile(TdFilePtr pFile) {
   if (pFile == NULL) {
-    return 0;
+    return -1;
   }
-  assert(pFile->fp != NULL);
+  ASSERT(pFile->fp != NULL);
+  if (pFile->fp == NULL) {
+    return -1;
+  }
 
   return feof(pFile->fp);
 }
@@ -815,3 +876,48 @@ bool taosCheckAccessFile(const char *pathname, int32_t tdFileAccessOptions) {
 }
 
 bool taosCheckExistFile(const char *pathname) { return taosCheckAccessFile(pathname, TD_FILE_ACCESS_EXIST_OK); };
+
+int32_t taosCompressFile(char *srcFileName, char *destFileName) {
+  int32_t compressSize = 163840;
+  int32_t ret = 0;
+  int32_t len = 0;
+  char   *data = taosMemoryMalloc(compressSize);
+  gzFile  dstFp = NULL;
+
+  TdFilePtr pSrcFile = taosOpenFile(srcFileName, TD_FILE_READ | TD_FILE_STREAM);
+  if (pSrcFile == NULL) {
+    ret = -1;
+    goto cmp_end;
+  }
+
+  TdFilePtr pFile = taosOpenFile(destFileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
+    ret = -2;
+    goto cmp_end;
+  }
+
+   dstFp = gzdopen(pFile->fd, "wb6f");
+   if (dstFp == NULL) {
+     ret = -3;
+     taosCloseFile(&pFile);
+     goto cmp_end;
+   }
+
+   while (!feof(pSrcFile->fp)) {
+     len = (int32_t)fread(data, 1, compressSize, pSrcFile->fp);
+     (void)gzwrite(dstFp, data, len);
+   }
+
+cmp_end:
+  if (pSrcFile) {
+    taosCloseFile(&pSrcFile);
+  }
+
+  if (dstFp) {
+    gzclose(dstFp);
+  }
+
+  taosMemoryFree(data);
+
+  return ret;
+}

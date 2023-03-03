@@ -28,7 +28,7 @@ SMnodeObj *mndAcquireMnode(SMnode *pMnode, int32_t mnodeId);
 void       mndReleaseMnode(SMnode *pMnode, SMnodeObj *pObj);
 bool       mndIsMnode(SMnode *pMnode, int32_t dnodeId);
 void       mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet);
-int32_t    mndSetDropMnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj);
+int32_t    mndSetDropMnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj, bool force);
 
 #ifdef __cplusplus
 }

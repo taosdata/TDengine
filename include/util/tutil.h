@@ -19,8 +19,8 @@
 #include "os.h"
 #include "tcrc32c.h"
 #include "tdef.h"
-#include "tmd5.h"
 #include "thash.h"
+#include "tmd5.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,16 +29,25 @@ extern "C" {
 int32_t strdequote(char *src);
 size_t  strtrim(char *src);
 char   *strnchr(const char *haystack, char needle, int32_t len, bool skipquote);
+TdUcs4* wcsnchr(const TdUcs4* haystack, TdUcs4 needle, size_t len);
+
 char  **strsplit(char *src, const char *delim, int32_t *num);
 char   *strtolower(char *dst, const char *src);
 char   *strntolower(char *dst, const char *src, int32_t n);
 char   *strntolower_s(char *dst, const char *src, int32_t n);
 int64_t strnatoi(char *num, int32_t len);
+
+size_t  tstrncspn(const char *str, size_t ssize, const char *reject, size_t rsize);
+size_t  twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rsize);
+
 char   *strbetween(char *string, char *begin, char *end);
 char   *paGetToken(char *src, char **token, int32_t *tokenLen);
 
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]);
 int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
+
+int32_t tintToHex(uint64_t val, char hex[]);
+int32_t titoa(uint64_t val, size_t radix, char str[]);
 
 char    *taosIpStr(uint32_t ipInt);
 uint32_t ip2uint(const char *const ip_addr);
@@ -62,6 +71,7 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
   tMD5Final(&context);
   char buf[TSDB_PASSWORD_LEN + 1];
 
+  buf[TSDB_PASSWORD_LEN] = 0;
   sprintf(buf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0], context.digest[1],
           context.digest[2], context.digest[3], context.digest[4], context.digest[5], context.digest[6],
           context.digest[7], context.digest[8], context.digest[9], context.digest[10], context.digest[11],
@@ -70,7 +80,7 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
 }
 
 static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, int32_t method, int32_t prefix,
-                                      int32_t suffix) {
+                                             int32_t suffix) {
   if (prefix == 0 && suffix == 0) {
     return MurmurHash3_32(tbname, tblen);
   } else {
@@ -81,6 +91,12 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }
   }
 }
+
+#define TSDB_CHECK_CODE(CODE, LINO, LABEL) \
+  if (CODE) {                              \
+    LINO = __LINE__;                       \
+    goto LABEL;                            \
+  }
 
 #ifdef __cplusplus
 }

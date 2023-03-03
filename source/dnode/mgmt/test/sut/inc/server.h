@@ -20,7 +20,8 @@ class TestServer {
  public:
   bool Start();
   void Stop();
-
+bool runnning;
+  
  private:
   TdThread threadId;
 };

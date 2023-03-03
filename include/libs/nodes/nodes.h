@@ -27,9 +27,10 @@ extern "C" {
 
 #define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
 
-#define FOREACH(node, list)                                       \
-  for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
-       (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
+#define FOREACH(node, list)                                                                                   \
+  for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL), *pNext;                                     \
+       (NULL != cell ? (node = cell->pNode, pNext = cell->pNext, true) : (node = NULL, pNext = NULL, false)); \
+       cell = pNext)
 
 #define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
 
@@ -58,6 +59,12 @@ extern "C" {
 #define FOREACH_FOR_REWRITE(node, list)                           \
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
        (NULL != cell ? (node = &(cell->pNode), true) : (node = NULL, false)); cell = cell->pNext)
+
+#define NODES_DESTORY_NODE(node) \
+  do {                           \
+    nodesDestroyNode((node));    \
+    (node) = NULL;               \
+  } while (0)
 
 #define NODES_DESTORY_LIST(list) \
   do {                           \
@@ -103,11 +110,14 @@ typedef enum ENodeType {
   QUERY_NODE_STREAM_OPTIONS,
   QUERY_NODE_LEFT_VALUE,
   QUERY_NODE_COLUMN_REF,
+  QUERY_NODE_WHEN_THEN,
+  QUERY_NODE_CASE_WHEN,
+  QUERY_NODE_EVENT_WINDOW,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
   QUERY_NODE_SELECT_STMT,
-  QUERY_NODE_VNODE_MODIF_STMT,
+  QUERY_NODE_VNODE_MODIFY_STMT,
   QUERY_NODE_CREATE_DATABASE_STMT,
   QUERY_NODE_DROP_DATABASE_STMT,
   QUERY_NODE_ALTER_DATABASE_STMT,
@@ -115,7 +125,7 @@ typedef enum ENodeType {
   QUERY_NODE_TRIM_DATABASE_STMT,
   QUERY_NODE_CREATE_TABLE_STMT,
   QUERY_NODE_CREATE_SUBTABLE_CLAUSE,
-  QUERY_NODE_CREATE_MULTI_TABLE_STMT,
+  QUERY_NODE_CREATE_MULTI_TABLES_STMT,
   QUERY_NODE_DROP_TABLE_CLAUSE,
   QUERY_NODE_DROP_TABLE_STMT,
   QUERY_NODE_DROP_SUPER_TABLE_STMT,
@@ -145,7 +155,7 @@ typedef enum ENodeType {
   QUERY_NODE_EXPLAIN_STMT,
   QUERY_NODE_DESCRIBE_STMT,
   QUERY_NODE_RESET_QUERY_CACHE_STMT,
-  QUERY_NODE_COMPACT_STMT,
+  QUERY_NODE_COMPACT_DATABASE_STMT,
   QUERY_NODE_CREATE_FUNCTION_STMT,
   QUERY_NODE_DROP_FUNCTION_STMT,
   QUERY_NODE_CREATE_STREAM_STMT,
@@ -184,18 +194,22 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TRANSACTIONS_STMT,
   QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT,
   QUERY_NODE_SHOW_VNODES_STMT,
+  QUERY_NODE_SHOW_USER_PRIVILEGES_STMT,
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
   QUERY_NODE_SHOW_CREATE_TABLE_STMT,
   QUERY_NODE_SHOW_CREATE_STABLE_STMT,
   QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT,
   QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT,
   QUERY_NODE_SHOW_SCORES_STMT,
+  QUERY_NODE_SHOW_TABLE_TAGS_STMT,
   QUERY_NODE_KILL_CONNECTION_STMT,
   QUERY_NODE_KILL_QUERY_STMT,
   QUERY_NODE_KILL_TRANSACTION_STMT,
   QUERY_NODE_DELETE_STMT,
   QUERY_NODE_INSERT_STMT,
   QUERY_NODE_QUERY,
+  QUERY_NODE_SHOW_DB_ALIVE_STMT,
+  QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT,  
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -237,6 +251,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_FILL,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION,
@@ -252,7 +267,10 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT,
   QUERY_NODE_PHYSICAL_PLAN_DELETE,
   QUERY_NODE_PHYSICAL_SUBPLAN,
-  QUERY_NODE_PHYSICAL_PLAN
+  QUERY_NODE_PHYSICAL_PLAN,
+  QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT
 } ENodeType;
 
 /**

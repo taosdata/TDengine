@@ -57,7 +57,7 @@ static void    taosIncRsetCount(SRefSet *pSet);
 static void    taosDecRsetCount(SRefSet *pSet);
 static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove);
 
-int32_t taosOpenRef(int32_t max, void (*fp)(void *)) {
+int32_t taosOpenRef(int32_t max, RefFp fp) {
   SRefNode **nodeList;
   SRefSet   *pSet;
   int64_t   *lockedBy;
@@ -67,14 +67,14 @@ int32_t taosOpenRef(int32_t max, void (*fp)(void *)) {
 
   nodeList = taosMemoryCalloc(sizeof(SRefNode *), (size_t)max);
   if (nodeList == NULL) {
-    terrno = TSDB_CODE_REF_NO_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   lockedBy = taosMemoryCalloc(sizeof(int64_t), (size_t)max);
   if (lockedBy == NULL) {
     taosMemoryFree(nodeList);
-    terrno = TSDB_CODE_REF_NO_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -164,7 +164,7 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
 
   pNode = taosMemoryCalloc(sizeof(SRefNode), 1);
   if (pNode == NULL) {
-    terrno = TSDB_CODE_REF_NO_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -361,7 +361,7 @@ int32_t taosListRef() {
 
     if (pSet->state == TSDB_REF_STATE_EMPTY) continue;
 
-    uInfo("rsetId:%d state:%d count::%d", i, pSet->state, pSet->count);
+    uInfo("rsetId:%d state:%d count:%d", i, pSet->state, pSet->count);
 
     for (int32_t j = 0; j < pSet->max; ++j) {
       pNode = pSet->nodeList[j];
@@ -466,7 +466,7 @@ static void taosLockList(int64_t *lockedBy) {
 static void taosUnlockList(int64_t *lockedBy) {
   int64_t tid = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(lockedBy, tid, 0) != tid) {
-    assert(false);
+    ASSERTS(false, "atomic_val_compare_exchange_64 tid failed");
   }
 }
 

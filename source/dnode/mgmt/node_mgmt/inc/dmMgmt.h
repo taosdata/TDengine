@@ -25,44 +25,6 @@
 extern "C" {
 #endif
 
-typedef struct SMgmtWrapper SMgmtWrapper;
-
-#define SINGLE_PROC               0
-#define CHILD_PROC                1
-#define PARENT_PROC               2
-#define TEST_PROC                 3
-#define OnlyInSingleProc(wrapper) ((wrapper)->proc.ptype == SINGLE_PROC)
-#define OnlyInChildProc(wrapper)  ((wrapper)->proc.ptype == CHILD_PROC)
-#define OnlyInParentProc(wrapper) ((wrapper)->proc.ptype == PARENT_PROC)
-#define InChildProc(wrapper)      ((wrapper)->proc.ptype & CHILD_PROC)
-#define InParentProc(wrapper)     ((wrapper)->proc.ptype & PARENT_PROC)
-
-typedef struct {
-  int32_t       head;
-  int32_t       tail;
-  int32_t       total;
-  int32_t       avail;
-  int32_t       items;
-  char          name[8];
-  TdThreadMutex mutex;
-  tsem_t        sem;
-  char          pBuffer[];
-} SProcQueue;
-
-typedef struct {
-  SMgmtWrapper *wrapper;
-  const char   *name;
-  SHashObj     *hash;
-  SProcQueue   *pqueue;
-  SProcQueue   *cqueue;
-  TdThread      pthread;
-  TdThread      cthread;
-  SShm          shm;
-  int32_t       pid;
-  EDndProcType  ptype;
-  bool          stop;
-} SProc;
-
 typedef struct SMgmtWrapper {
   SMgmtFunc      func;
   struct SDnode *pDnode;
@@ -74,7 +36,6 @@ typedef struct SMgmtWrapper {
   EDndNodeType   ntype;
   bool           deployed;
   bool           required;
-  SProc          proc;
   NodeMsgFp      msgFps[TDMT_MAX];
 } SMgmtWrapper;
 
@@ -111,8 +72,6 @@ typedef struct SUdfdData {
 typedef struct SDnode {
   int8_t        once;
   bool          stop;
-  EDndProcType  ptype;
-  EDndNodeType  rtype;
   EDndRunStatus status;
   SStartupInfo  startup;
   SDnodeTrans   trans;
@@ -126,9 +85,10 @@ typedef struct SDnode {
 // dmEnv.c
 SDnode *dmInstance();
 void    dmReportStartup(const char *pName, const char *pDesc);
+int64_t dmGetClusterId();
 
 // dmMgmt.c
-int32_t       dmInitDnode(SDnode *pDnode, EDndNodeType rtype);
+int32_t       dmInitDnode(SDnode *pDnode);
 void          dmCleanupDnode(SDnode *pDnode);
 SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType nType);
 int32_t       dmMarkWrapper(SMgmtWrapper *pWrapper);
@@ -144,16 +104,6 @@ int32_t dmStartNode(SMgmtWrapper *pWrapper);
 void    dmStopNode(SMgmtWrapper *pWrapper);
 void    dmCloseNode(SMgmtWrapper *pWrapper);
 int32_t dmRunDnode(SDnode *pDnode);
-
-// dmProc.c
-int32_t dmInitProc(struct SMgmtWrapper *pWrapper);
-void    dmCleanupProc(struct SMgmtWrapper *pWrapper);
-int32_t dmRunProc(SProc *proc);
-void    dmStopProc(SProc *proc);
-void    dmRemoveProcRpcHandle(SProc *proc, void *handle);
-void    dmCloseProcRpcHandles(SProc *proc);
-int32_t dmPutToProcCQueue(SProc *proc, SRpcMsg *pMsg, EProcFuncType ftype);
-void    dmPutToProcPQueue(SProc *proc, SRpcMsg *pMsg, EProcFuncType ftype);
 
 // dmTransport.c
 int32_t dmInitServer(SDnode *pDnode);

@@ -1,12 +1,11 @@
 ---
 title: Data Model
+description: This document describes the data model of TDengine.
 ---
 
-The data model employed by TDengine is similar to that of a relational database. You have to create databases and tables. You must design the data model based on your own business and application requirements. You should design the [STable](/concept/#super-table-stable) (an abbreviation for super table) schema to fit your data. This chapter will explain the big picture without getting into syntactical details. 
+The data model employed by TDengine is similar to that of a relational database. You have to create databases and tables. You must design the data model based on your own business and application requirements. You should design the [STable](/concept/#super-table-stable) (an abbreviation for super table) schema to fit your data. This chapter will explain the big picture without getting into syntactical details.
 
 Note: before you read this chapter, please make sure you have already read through [Key Concepts](/concept/), since TDengine introduces new concepts like "one table for one [data collection point](/concept/#data-collection-point)" and "[super table](/concept/#super-table-stable)".
-
-
 
 ## Create Database
 
@@ -17,10 +16,11 @@ CREATE DATABASE power KEEP 365 DURATION 10 BUFFER 16 WAL_LEVEL 1;
 ```
 
 In the above SQL statement:
+
 - a database named "power" is created
 - the data in it is retained for 365 days, which means that data older than 365 days will be deleted automatically
 - a new data file will be created every 10 days
-- the size of the write cache pool on each vnode is 16 MB
+- the size of the write cache pool on each VNode is 16 MB
 - the number of vgroups is 100
 - WAL is enabled but fsync is disabled For more details please refer to [Database](/taos-sql/database).
 

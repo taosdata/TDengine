@@ -30,26 +30,24 @@ typedef struct SSnodeMgmt {
   SMsgCb        msgCb;
   const char   *path;
   const char   *name;
-  int8_t        uniqueWorkerInUse;
-  SArray       *uniqueWorkers;  // SArray<SMultiWorker*>
-  SSingleWorker sharedWorker;
-  SSingleWorker monitorWorker;
+  int8_t        writeWorkerInUse;
+  SArray       *writeWroker;  // SArray<SMultiWorker*>
+  SSingleWorker streamWorker;
 } SSnodeMgmt;
 
 // smHandle.c
 SArray *smGetMsgHandles();
 int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
-int32_t smProcessGetMonitorInfoReq(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // smWorker.c
 int32_t smStartWorker(SSnodeMgmt *pMgmt);
 void    smStopWorker(SSnodeMgmt *pMgmt);
+int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pMsg);
 int32_t smPutNodeMsgToMgmtQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t smPutNodeMsgToUniqueQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t smPutNodeMsgToSharedQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t smPutNodeMsgToExecQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t smPutNodeMsgToMonitorQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t smPutNodeMsgToWriteQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t smPutNodeMsgToStreamQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
+void    sndEnqueueStreamDispatch(SSnode *pSnode, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

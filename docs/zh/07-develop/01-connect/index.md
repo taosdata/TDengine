@@ -14,9 +14,11 @@ import ConnCSNative from "./_connect_cs.mdx";
 import ConnC from "./_connect_c.mdx";
 import ConnR from "./_connect_r.mdx";
 import ConnPHP from "./_connect_php.mdx";
-import InstallOnWindows from "../../08-connector/_linux_install.mdx";
-import InstallOnLinux from "../../08-connector/_windows_install.mdx";
+import InstallOnLinux from "../../08-connector/_linux_install.mdx";
+import InstallOnWindows from "../../08-connector/_windows_install.mdx";
+import InstallOnMacOS from "../../08-connector/_macos_install.mdx";
 import VerifyLinux from "../../08-connector/_verify_linux.mdx";
+import VerifyMacOS from "../../08-connector/_verify_macos.mdx";
 import VerifyWindows from "../../08-connector/_verify_windows.mdx";
 
 TDengine 提供了丰富的应用程序开发接口，为了便于用户快速开发自己的应用，TDengine 支持了多种编程语言的连接器，其中官方连接器包括支持 C/C++、Java、Python、Go、Node.js、C#、Rust、Lua（社区贡献）和 PHP （社区贡献）的连接器。这些连接器支持使用原生接口（taosc）和 REST 接口（部分语言暂不支持）连接 TDengine 集群。社区开发者也贡献了多个非官方连接器，例如 ADO.NET 连接器、Lua 连接器和 PHP 连接器。
@@ -32,7 +34,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 
 关键不同点在于：
 
-1. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但性能要下降 30%左右。
+1. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但性能要下降 30% 左右。
 2. 使用原生连接可以体验 TDengine 的全部功能，如[参数绑定接口](../../connector/cpp/#参数绑定-api)、[订阅](../../connector/cpp/#订阅和消费-api)等等。
 
 ## 安装客户端驱动 taosc
@@ -43,10 +45,13 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 
 <Tabs defaultValue="linux" groupId="os">
   <TabItem value="linux" label="Linux">
-    <InstallOnWindows />
+    <InstallOnLinux />
   </TabItem>
   <TabItem value="windows" label="Windows">
-    <InstallOnLinux />
+    <InstallOnWindows />
+  </TabItem>
+  <TabItem value="macos" label="macOS">
+    <InstallOnMacOS />
   </TabItem>
 </Tabs>
 
@@ -61,14 +66,17 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
   <TabItem value="windows" label="Windows">
     <VerifyWindows />
   </TabItem>
+  <TabItem value="macos" label="macOS">
+    <VerifyMacOS />
+  </TabItem>
 </Tabs>
 
 ## 安装连接器
 
 <Tabs groupId="lang">
 <TabItem label="Java" value="java">
-  
-如果使用 maven 管理项目，只需在 pom.xml 中加入以下依赖。
+
+如果使用 Maven 管理项目，只需在 pom.xml 中加入以下依赖。
 
 ```xml
 <dependency>
@@ -107,7 +115,7 @@ require github.com/taosdata/driver-go/v3 latest
 ```
 
 :::note
-driver-go 使用 cgo 封装了 taosc 的 API。cgo 需要使用 gcc 编译 C 的源码。因此需要确保你的系统上有 gcc。
+driver-go 使用 cgo 封装了 taosc 的 API。cgo 需要使用 GCC 编译 C 的源码。因此需要确保你的系统上有 GCC。
 
 :::
 
@@ -137,19 +145,19 @@ Node.js 连接器通过不同的包提供不同的连接方式。
 
 1. 安装 Node.js 原生连接器
 
-  ```
-  npm install @tdengine/client
-  ```
+```
+npm install @tdengine/client
+```
 
 :::note
 推荐 Node 版本大于等于 `node-v12.8.0` 小于 `node-v13.0.0`
-::: 
-  
+:::
+
 2. 安装 Node.js REST 连接器
 
-  ```
-  npm install @tdengine/rest
-  ```
+```
+npm install @tdengine/rest
+```
 
 </TabItem>
 <TabItem label="C#" value="csharp">

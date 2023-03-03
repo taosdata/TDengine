@@ -56,7 +56,7 @@ description: 一些常见问题的解决方法汇总
 
 3. 在服务器，执行 `systemctl status taosd` 检查*taosd*运行状态。如果没有运行，启动*taosd*
 
-4. 确认客户端连接时指定了正确的服务器 FQDN (Fully Qualified Domain Name —— 可在服务器上执行 Linux 命令 hostname -f 获得），FQDN 配置参考：[一篇文章说清楚 TDengine 的 FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
+4. 确认客户端连接时指定了正确的服务器 FQDN (Fully Qualified Domain Name —— 可在服务器上执行 Linux/macOS 命令 hostname -f 获得），FQDN 配置参考：[一篇文章说清楚 TDengine 的 FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
 
 5. ping 服务器 FQDN，如果没有反应，请检查你的网络，DNS 设置，或客户端所在计算机的系统 hosts 文件。如果部署的是 TDengine 集群，客户端需要能 ping 通所有集群节点的 FQDN。
 
@@ -64,18 +64,20 @@ description: 一些常见问题的解决方法汇总
 
 7. 对于 Linux 上的 JDBC（ODBC, Python, Go 等接口类似）连接, 确保*libtaos.so*在目录*/usr/local/taos/driver*里, 并且*/usr/local/taos/driver*在系统库函数搜索路径*LD_LIBRARY_PATH*里
 
-8. 对于 Windows 上的 JDBC, ODBC, Python, Go 等连接，确保*C:\TDengine\driver\taos.dll*在你的系统库函数搜索目录里 (建议*taos.dll*放在目录 _C:\Windows\System32_)
+8. 对于 macOS 上的 JDBC（ODBC, Python, Go 等接口类似）连接, 确保*libtaos.dylib*在目录*/usr/local/lib*里, 并且*/usr/local/lib*在系统库函数搜索路径*LD_LIBRARY_PATH*里
 
-9. 如果仍不能排除连接故障
+9. 对于 Windows 上的 JDBC, ODBC, Python, Go 等连接，确保*C:\TDengine\driver\taos.dll*在你的系统库函数搜索目录里 (建议*taos.dll*放在目录 _C:\Windows\System32_)
 
- - Linux 系统请使用命令行工具 nc 来分别判断指定端口的 TCP 和 UDP 连接是否通畅
+10. 如果仍不能排除连接故障
+
+ - Linux/macOS 系统请使用命令行工具 nc 来分别判断指定端口的 TCP 和 UDP 连接是否通畅
    检查 UDP 端口连接是否工作：`nc -vuz {hostIP} {port} `
    检查服务器侧 TCP 端口连接是否工作：`nc -l {port}`
    检查客户端侧 TCP 端口连接是否工作：`nc {hostIP} {port}`
 
  - Windows 系统请使用 PowerShell 命令 Test-NetConnection -ComputerName {fqdn} -Port {port} 检测服务段端口是否访问
 
-10. 也可以使用 taos 程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅：[诊断及其他](https://docs.taosdata.com/3.0-preview/operation/diagnose/)。
+11. 也可以使用 taos 程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅：[诊断及其他](https://docs.taosdata.com/3.0-preview/operation/diagnose/)。
 
 ### 5. 遇到错误 Unable to resolve FQDN” 怎么办？
 
@@ -133,11 +135,11 @@ ALTER LOCAL local_option
  
 local_option: {
     'resetLog'
-  | 'rpcDebugFlag' value
-  | 'tmrDebugFlag' value
-  | 'cDebugFlag' value
-  | 'uDebugFlag' value
-  | 'debugFlag' value
+  | 'rpcDebugFlag' 'value'
+  | 'tmrDebugFlag' 'value'
+  | 'cDebugFlag' 'value'
+  | 'uDebugFlag' 'value'
+  | 'debugFlag' 'value'
 }
 ```
 
@@ -199,3 +201,50 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 OOM 是操作系统的保护机制，当操作系统内存(包括 SWAP )不足时，会杀掉某些进程，从而保证操作系统的稳定运行。通常内存不足主要是如下两个原因导致，一是剩余内存小于 vm.min_free_kbytes ；二是程序请求的内存大于剩余内存。还有一种情况是内存充足但程序占用了特殊的内存地址，也会触发 OOM 。
 
 TDengine 会预先为每个 VNode 分配好内存，每个 Database 的 VNode 个数受 建库时的vgroups参数影响，每个 VNode 占用的内存大小受 buffer参数 影响。要防止 OOM，需要在项目建设之初合理规划内存，并合理设置 SWAP ，除此之外查询过量的数据也有可能导致内存暴涨，这取决于具体的查询语句。TDengine 企业版对内存管理做了优化，采用了新的内存分配器，对稳定性有更高要求的用户可以考虑选择企业版。
+
+### 19. 在macOS上遇到Too many open files怎么办？
+
+taosd日志文件报错Too many open file，是由于taosd打开文件数超过系统设置的上限所致。
+解决方案如下：
+1. 新建文件 /Library/LaunchDaemons/limit.maxfiles.plist，写入以下内容(以下示例将limit和maxfiles改为10万，可按需修改)：
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+<key>Label</key>
+  <string>limit.maxfiles</string>
+<key>ProgramArguments</key>
+<array>
+  <string>launchctl</string>
+  <string>limit</string>
+  <string>maxfiles</string>
+  <string>100000</string>
+  <string>100000</string>
+</array>
+<key>RunAtLoad</key>
+  <true/>
+<key>ServiceIPC</key>
+  <false/>
+</dict>
+</plist>
+```
+2. 修改文件权限
+```
+sudo chown root:wheel /Library/LaunchDaemons/limit.maxfiles.plist
+sudo chmod 644 /Library/LaunchDaemons/limit.maxfiles.plist
+```
+3. 加载 plist 文件 (或重启系统后生效。launchd在启动时会自动加载该目录的 plist)
+```
+sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
+```
+4.确认更改后的限制
+```
+launchctl limit maxfiles
+```
+### 20 建库时提示 Out of dnodes
+该提示是创建 db 的 vnode 数量不够了，需要的 vnode 不能超过了 dnode 中 vnode 的上限。因为系统默认是一个 dnode 中有 CPU 核数两倍的 vnode，也可以通过配置文件中的参数 supportVnodes 控制。
+正常调大 taos.cfg 中 supportVnodes 参数即可。
+
+

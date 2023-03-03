@@ -34,6 +34,7 @@ extern "C" {
 #define EXPLAIN_SYSTBL_SCAN_FORMAT "System Table Scan on %s"
 #define EXPLAIN_DISTBLK_SCAN_FORMAT "Block Dist Scan on %s"
 #define EXPLAIN_LASTROW_SCAN_FORMAT "Last Row Scan on %s"
+#define EXPLAIN_TABLE_COUNT_SCAN_FORMAT "Table Count Row Scan on %s"
 #define EXPLAIN_PROJECTION_FORMAT "Projection"
 #define EXPLAIN_JOIN_FORMAT "%s"
 #define EXPLAIN_AGG_FORMAT "Aggragate"
@@ -63,6 +64,9 @@ extern "C" {
 #define EXPLAIN_IGNORE_GROUPID_FORMAT "Ignore Group Id: %s"
 #define EXPLAIN_PARTITION_KETS_FORMAT "Partition Key: "
 #define EXPLAIN_INTERP_FORMAT "Interp"
+#define EXPLAIN_EVENT_FORMAT "Event"
+#define EXPLAIN_EVENT_START_FORMAT "Start Cond: "
+#define EXPLAIN_EVENT_END_FORMAT "End Cond: "
 
 #define EXPLAIN_PLANNING_TIME_FORMAT "Planning Time: %.3f ms"
 #define EXPLAIN_EXEC_TIME_FORMAT "Execution Time: %.3f ms"
@@ -89,18 +93,23 @@ extern "C" {
 #define EXPLAIN_STRING_TYPE_FORMAT "%s"
 #define EXPLAIN_INPUT_ORDER_FORMAT "input_order=%s"
 #define EXPLAIN_OUTPUT_ORDER_TYPE_FORMAT "output_order=%s"
-#define EXPLAIN_OFFSET_FORMAT "offset=%d"
-#define EXPLAIN_SOFFSET_FORMAT "soffset=%d"
+#define EXPLAIN_OFFSET_FORMAT "offset=%" PRId64
+#define EXPLAIN_SOFFSET_FORMAT "soffset=%" PRId64
 #define EXPLAIN_PARTITIONS_FORMAT "partitions=%d"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"
 #define COMMAND_ENABLE_RESCHEDULE "enableReSchedule"
+#define COMMAND_CATALOG_DEBUG "catalogDebug"
+#define COMMAND_ENABLE_MEM_DEBUG "enableMemDebug"
+#define COMMAND_DISABLE_MEM_DEBUG "disableMemDebug"
 
 typedef struct SExplainGroup {
   int32_t   nodeNum;
+  int32_t   nodeIdx;
   int32_t   physiPlanExecNum;
   int32_t   physiPlanExecIdx;
+  bool      singleChannel;
   SRWLatch  lock;
   SSubplan *plan;
   SArray   *nodeExecInfo;      //Array<SExplainRsp>

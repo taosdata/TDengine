@@ -40,6 +40,13 @@ TEST_F(PlanBasicTest, whereClause) {
   run("SELECT ts, c1 FROM t1 WHERE ts > NOW AND ts IS NULL AND (c1 > 0 OR c3 < 20)");
 }
 
+TEST_F(PlanBasicTest, caseWhen) {
+  useDb("root", "test");
+
+  run("SELECT CASE WHEN ts > '2020-1-1 10:10:10' THEN c1 + 10 ELSE c1 - 10 END FROM t1 "
+      "WHERE CASE c1 WHEN c2 + 20 THEN c4 - 1 WHEN c2 + 10 THEN c4 - 2 ELSE 10 END > 0");
+}
+
 TEST_F(PlanBasicTest, func) {
   useDb("root", "test");
 
@@ -94,24 +101,13 @@ TEST_F(PlanBasicTest, interpFunc) {
   useDb("root", "test");
 
   run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
-}
 
-TEST_F(PlanBasicTest, lastRowFunc) {
-  useDb("root", "cache_db");
+  run("SELECT _IROWTS, INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
 
-  run("SELECT LAST_ROW(c1) FROM t1");
+  run("SELECT _IROWTS, INTERP(c1), _ISFILLED FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
 
-  run("SELECT LAST_ROW(*) FROM t1");
-
-  run("SELECT LAST_ROW(c1, c2) FROM t1");
-
-  run("SELECT LAST_ROW(c1), c2 FROM t1");
-
-  run("SELECT LAST_ROW(c1) FROM st1");
-
-  run("SELECT LAST_ROW(c1) FROM st1 PARTITION BY TBNAME");
-
-  run("SELECT LAST_ROW(c1), SUM(c3) FROM t1");
+  run("SELECT TBNAME, _IROWTS, INTERP(c1) FROM t1 PARTITION BY TBNAME "
+      "RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
 }
 
 TEST_F(PlanBasicTest, lastRowFuncWithoutCache) {
@@ -171,6 +167,8 @@ TEST_F(PlanBasicTest, pseudoColumn) {
 
   run("SELECT _QSTART, _QEND, _QDURATION, _WSTART, _WEND, _WDURATION, COUNT(*) FROM t1 "
       "WHERE ts BETWEEN '2017-7-14 18:00:00' AND '2017-7-14 19:00:00' INTERVAL(10S)");
+
+  run("SELECT _TAGS, * FROM st1s1");
 }
 
 TEST_F(PlanBasicTest, indefiniteRowsFunc) {

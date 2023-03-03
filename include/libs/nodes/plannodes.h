@@ -62,7 +62,8 @@ typedef enum EScanType {
   SCAN_TYPE_STREAM,
   SCAN_TYPE_TABLE_MERGE,
   SCAN_TYPE_BLOCK_INFO,
-  SCAN_TYPE_LAST_ROW
+  SCAN_TYPE_LAST_ROW,
+  SCAN_TYPE_TABLE_COUNT
 } EScanType;
 
 typedef struct SScanLogicNode {
@@ -90,13 +91,18 @@ typedef struct SScanLogicNode {
   SNode*        pTagIndexCond;
   int8_t        triggerType;
   int64_t       watermark;
+  int64_t       deleteMark;
   int8_t        igExpired;
+  int8_t        igCheckUpdate;
   SArray*       pSmaIndexes;
   SNodeList*    pGroupTags;
   bool          groupSort;
+  SNodeList*    pTags;      // for create stream
+  SNode*        pSubtable;  // for create stream
   int8_t        cacheLastMode;
   bool          hasNormalCols;  // neither tag column nor primary key tag column
   bool          sortPrimaryKey;
+  bool          igLastNull;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -113,8 +119,10 @@ typedef struct SAggLogicNode {
   SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
   bool       hasLastRow;
+  bool       hasLast;
   bool       hasTimeLineFunc;
   bool       onlyHasKeepOrderFunc;
+  bool       hasGroupKeyOptimized;
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {
@@ -165,7 +173,9 @@ typedef struct SVnodeModifyLogicNode {
 
 typedef struct SExchangeLogicNode {
   SLogicNode node;
-  int32_t    srcGroupId;
+  int32_t    srcStartGroupId;
+  int32_t    srcEndGroupId;
+  bool       seqRecvData;
 } SExchangeLogicNode;
 
 typedef struct SMergeLogicNode {
@@ -177,7 +187,12 @@ typedef struct SMergeLogicNode {
   bool       groupSort;
 } SMergeLogicNode;
 
-typedef enum EWindowType { WINDOW_TYPE_INTERVAL = 1, WINDOW_TYPE_SESSION, WINDOW_TYPE_STATE } EWindowType;
+typedef enum EWindowType {
+  WINDOW_TYPE_INTERVAL = 1,
+  WINDOW_TYPE_SESSION,
+  WINDOW_TYPE_STATE,
+  WINDOW_TYPE_EVENT
+} EWindowType;
 
 typedef enum EWindowAlgorithm {
   INTERVAL_ALGO_HASH = 1,
@@ -204,9 +219,13 @@ typedef struct SWindowLogicNode {
   SNode*           pTspk;
   SNode*           pTsEnd;
   SNode*           pStateExpr;
+  SNode*           pStartCond;
+  SNode*           pEndCond;
   int8_t           triggerType;
   int64_t          watermark;
+  int64_t          deleteMark;
   int8_t           igExpired;
+  int8_t           igCheckUpdate;
   EWindowAlgorithm windowAlgo;
   EOrder           inputTsOrder;
   EOrder           outputTsOrder;
@@ -232,6 +251,8 @@ typedef struct SSortLogicNode {
 typedef struct SPartitionLogicNode {
   SLogicNode node;
   SNodeList* pPartitionKeys;
+  SNodeList* pTags;
+  SNode*     pSubtable;
 } SPartitionLogicNode;
 
 typedef enum ESubplanType {
@@ -312,7 +333,10 @@ typedef struct SLastRowScanPhysiNode {
   SScanPhysiNode scan;
   SNodeList*     pGroupTags;
   bool           groupSort;
+  bool           ignoreNull;
 } SLastRowScanPhysiNode;
+
+typedef SLastRowScanPhysiNode STableCountScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
@@ -331,6 +355,8 @@ typedef struct STableScanPhysiNode {
   SNodeList*     pDynamicScanFuncs;
   SNodeList*     pGroupTags;
   bool           groupSort;
+  SNodeList*     pTags;
+  SNode*         pSubtable;
   int64_t        interval;
   int64_t        offset;
   int64_t        sliding;
@@ -340,6 +366,7 @@ typedef struct STableScanPhysiNode {
   int64_t        watermark;
   int8_t         igExpired;
   bool           assignBlockUid;
+  int8_t         igCheckUpdate;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -386,6 +413,7 @@ typedef struct SAggPhysiNode {
   SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
   bool       mergeDataBlock;
+  bool       groupKeyOptimized;
 } SAggPhysiNode;
 
 typedef struct SDownstreamSourceNode {
@@ -395,13 +423,18 @@ typedef struct SDownstreamSourceNode {
   uint64_t       schedId;
   int32_t        execId;
   int32_t        fetchMsgType;
+  bool           localExec;
 } SDownstreamSourceNode;
 
 typedef struct SExchangePhysiNode {
   SPhysiNode node;
-  int32_t    srcGroupId;  // group id of datasource suplans
+  // for set operators, there will be multiple execution groups under one exchange, and the ids of these execution
+  // groups are consecutive
+  int32_t    srcStartGroupId;
+  int32_t    srcEndGroupId;
   bool       singleChannel;
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
+  bool       seqRecvData;
 } SExchangePhysiNode;
 
 typedef struct SMergePhysiNode {
@@ -421,6 +454,7 @@ typedef struct SWinodwPhysiNode {
   SNode*     pTsEnd;  // window end timestamp
   int8_t     triggerType;
   int64_t    watermark;
+  int64_t    deleteMark;
   int8_t     igExpired;
   EOrder     inputTsOrder;
   EOrder     outputTsOrder;
@@ -453,6 +487,8 @@ typedef struct SFillPhysiNode {
   EOrder      inputTsOrder;
 } SFillPhysiNode;
 
+typedef SFillPhysiNode SStreamFillPhysiNode;
+
 typedef struct SMultiTableIntervalPhysiNode {
   SIntervalPhysiNode interval;
   SNodeList*         pPartitionKeys;
@@ -474,6 +510,14 @@ typedef struct SStateWinodwPhysiNode {
 
 typedef SStateWinodwPhysiNode SStreamStateWinodwPhysiNode;
 
+typedef struct SEventWinodwPhysiNode {
+  SWinodwPhysiNode window;
+  SNode*           pStartCond;
+  SNode*           pEndCond;
+} SEventWinodwPhysiNode;
+
+typedef SEventWinodwPhysiNode SStreamEventWinodwPhysiNode;
+
 typedef struct SSortPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;     // these are expression list of order_by_clause and parameter expression of aggregate function
@@ -490,7 +534,11 @@ typedef struct SPartitionPhysiNode {
   SNodeList* pTargets;
 } SPartitionPhysiNode;
 
-typedef SPartitionPhysiNode SStreamPartitionPhysiNode;
+typedef struct SStreamPartitionPhysiNode {
+  SPartitionPhysiNode part;
+  SNodeList*          pTags;
+  SNode*              pSubtable;
+} SStreamPartitionPhysiNode;
 
 typedef struct SDataSinkNode {
   ENodeType           type;
@@ -505,7 +553,7 @@ typedef struct SDataInserterNode {
   SDataSinkNode sink;
   int32_t       numOfTables;
   uint32_t      size;
-  char*         pData;
+  void*         pData;
 } SDataInserterNode;
 
 typedef struct SQueryInserterNode {
@@ -517,6 +565,7 @@ typedef struct SQueryInserterNode {
   char          tableName[TSDB_TABLE_NAME_LEN];
   int32_t       vgId;
   SEpSet        epSet;
+  bool          explain;
 } SQueryInserterNode;
 
 typedef struct SDataDeleterNode {
@@ -547,6 +596,7 @@ typedef struct SSubplan {
   SDataSinkNode* pDataSink;     // data of the subplan flow into the datasink
   SNode*         pTagCond;
   SNode*         pTagIndexCond;
+  bool           showRewrite;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;
@@ -564,8 +614,6 @@ typedef struct SQueryPlan {
   SNodeList*   pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
   SExplainInfo explainInfo;
 } SQueryPlan;
-
-void nodesWalkPhysiPlan(SNode* pNode, FNodeWalker walker, void* pContext);
 
 const char* dataOrderStr(EDataOrderLevel order);
 

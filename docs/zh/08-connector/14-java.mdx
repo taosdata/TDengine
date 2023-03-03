@@ -80,9 +80,9 @@ Maven 项目中，在 pom.xml 中添加以下依赖：
 
 ```xml-dtd
 <dependency>
- <groupId>com.taosdata.jdbc</groupId>
- <artifactId>taos-jdbcdriver</artifactId>
- <version>3.0.0</version>
+  <groupId>com.taosdata.jdbc</groupId>
+  <artifactId>taos-jdbcdriver</artifactId>
+  <version>3.0.0</version>
 </dependency>
 ```
 
@@ -109,7 +109,7 @@ TDengine 的 JDBC URL 规范格式为：
 
 对于建立连接，原生连接与 REST 连接有细微不同。
 
-<Tabs defaultValue="native">
+<Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接">
 
 ```java
@@ -118,9 +118,10 @@ String jdbcUrl = "jdbc:TAOS://taosdemo.com:6030/test?user=root&password=taosdata
 Connection conn = DriverManager.getConnection(jdbcUrl);
 ```
 
-以上示例，使用了 JDBC 原生连接的 TSDBDriver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
+以上示例，使用了 JDBC 原生连接的 TSDBDriver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL
+中指定用户名（user）为 root，密码（password）为 taosdata。
 
-**注意**：使用 JDBC 原生连接，taos-jdbcdriver 需要依赖客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
+**注意**：使用 JDBC 原生连接，taos-jdbcdriver 需要依赖客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll；macOS 下是 libtaos.dylib）。
 
 url 中的配置参数如下：
 
@@ -158,16 +159,16 @@ public Connection getConn() throws Exception{
 
 ```shell
 # first fully qualified domain name (FQDN) for TDengine system
-firstEp               cluster_node1:6030
+firstEp cluster_node1:6030
 
 # second fully qualified domain name (FQDN) for TDengine system, for cluster only
-secondEp              cluster_node2:6030
+secondEp cluster_node2:6030
 
 # default system charset
-# charset               UTF-8
+# charset UTF-8
 
 # system locale
-# locale                en_US.UTF-8
+# locale en_US.UTF-8
 ```
 
 以上示例，jdbc 会使用客户端的配置文件，建立到 hostname 为 cluster_node1、端口为 6030、数据库名为 test 的连接。当集群中 firstEp 节点失效时，JDBC 会尝试使用 secondEp 连接集群。
@@ -271,7 +272,7 @@ properties 中的配置参数如下：
 - TSDBDriver.HTTP_SOCKET_TIMEOUT: socket 超时时间，单位 ms，默认值为 5000。仅在 REST 连接且 batchfetch 设置为 false 时生效。
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 3000。 仅在 REST 连接且 batchfetch 设置为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_USE_SSL: 连接中是否使用 SSL。仅在 REST 连接时生效。
-  此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](/reference/config/#仅客户端适用)。
+此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](/reference/config/#仅客户端适用)。
 
 ### 配置参数的优先级
 
@@ -375,7 +376,7 @@ public class ParameterBindingDemo {
 
     private static final String host = "127.0.0.1";
     private static final Random random = new Random(System.currentTimeMillis());
-    private static final int BINARY_COLUMN_SIZE = 20;
+    private static final int BINARY_COLUMN_SIZE = 30;
     private static final String[] schemaList = {
             "create table stable1(ts timestamp, f1 tinyint, f2 smallint, f3 int, f4 bigint) tags(t1 tinyint, t2 smallint, t3 int, t4 bigint)",
             "create table stable2(ts timestamp, f1 float, f2 double) tags(t1 float, t2 double)",
@@ -698,7 +699,10 @@ TaosConsumer consumer = new TaosConsumer<>(config);
 - enable.auto.commit: 是否允许自动提交。
 - group.id: consumer: 所在的 group。
 - value.deserializer: 结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。
-- 其他参数请参考：[Consumer 参数列表](../../../develop/tmq#创建-consumer-以及consumer-group)
+- td.connect.type: 连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。默认为 jni 方式。
+- httpConnectTimeout：创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
+- messageWaitTimeout：数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
+其他参数请参考：[Consumer 参数列表](../../../develop/tmq#创建-consumer-以及consumer-group)
 
 #### 订阅消费数据
 
@@ -725,6 +729,9 @@ consumer.close()
 详情请参考：[数据订阅](../../../develop/tmq)
 
 ### 使用示例如下：
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="原生连接">
 
 ```java
 public abstract class ConsumerLoop {
@@ -797,6 +804,89 @@ public abstract class ConsumerLoop {
 }
 ```
 
+</TabItem>
+<TabItem value="ws" label="WebSocket 连接">
+
+除了原生的连接方式，Java 连接器还支持通过 WebSocket 订阅数据。
+
+```java
+public abstract class ConsumerLoop {
+    private final TaosConsumer<ResultBean> consumer;
+    private final List<String> topics;
+    private final AtomicBoolean shutdown;
+    private final CountDownLatch shutdownLatch;
+
+    public ConsumerLoop() throws SQLException {
+        Properties config = new Properties();
+        config.setProperty("bootstrap.servers", "localhost:6041");
+        config.setProperty("td.connect.type", "ws");
+        config.setProperty("msg.with.table.name", "true");
+        config.setProperty("enable.auto.commit", "true");
+        config.setProperty("group.id", "group2");
+        config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ConsumerLoop$ResultDeserializer");
+
+        this.consumer = new TaosConsumer<>(config);
+        this.topics = Collections.singletonList("topic_speed");
+        this.shutdown = new AtomicBoolean(false);
+        this.shutdownLatch = new CountDownLatch(1);
+    }
+
+    public abstract void process(ResultBean result);
+
+    public void pollData() throws SQLException {
+        try {
+            consumer.subscribe(topics);
+
+            while (!shutdown.get()) {
+                ConsumerRecords<ResultBean> records = consumer.poll(Duration.ofMillis(100));
+                for (ResultBean record : records) {
+                    process(record);
+                }
+            }
+            consumer.unsubscribe();
+        } finally {
+            consumer.close();
+            shutdownLatch.countDown();
+        }
+    }
+
+    public void shutdown() throws InterruptedException {
+        shutdown.set(true);
+        shutdownLatch.await();
+    }
+
+    public static class ResultDeserializer extends ReferenceDeserializer<ResultBean> {
+
+    }
+
+    public static class ResultBean {
+        private Timestamp ts;
+        private int speed;
+
+        public Timestamp getTs() {
+            return ts;
+        }
+
+        public void setTs(Timestamp ts) {
+            this.ts = ts;
+        }
+
+        public int getSpeed() {
+            return speed;
+        }
+
+        public void setSpeed(int speed) {
+            this.speed = speed;
+        }
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+> **注意**：这里的 value.deserializer 配置参数值应该根据测试环境的包路径做相应的调整。
+
 ### 与连接池使用
 
 #### HikariCP
@@ -826,7 +916,7 @@ public abstract class ConsumerLoop {
     //query or insert
     // ...
 
-    connection.close(); // put back to conneciton pool
+    connection.close(); // put back to connection pool
 }
 ```
 
@@ -858,7 +948,7 @@ public static void main(String[] args) throws Exception {
     //query or insert
     // ...
 
-    connection.close(); // put back to conneciton pool
+    connection.close(); // put back to connection pool
 }
 ```
 
@@ -880,7 +970,11 @@ public static void main(String[] args) throws Exception {
 
 | taos-jdbcdriver 版本 |            主要变化            |
 | :------------------: | :----------------------------: |
+|       3.1.0           |   WebSocket 连接支持订阅功能      |
+|       3.0.1 - 3.0.4        |  修复一些情况下结果集数据解析错误的问题。3.0.1 在 JDK 11 环境编译，JDK 8 环境下建议使用其他版本    |
 |       3.0.0        |   支持 TDengine 3.0    |
+|       2.0.42        |   修在 WebSocket 连接中 wasNull 接口返回值  |
+|       2.0.41        |   修正 REST 连接中用户名和密码转码方式    |
 |   2.0.39 - 2.0.40    |  增加 REST 连接/请求 超时设置  |
 |        2.0.38        | JDBC REST 连接增加批量拉取功能 |
 |        2.0.37        |      增加对 json tag 支持      |
@@ -890,27 +984,33 @@ public static void main(String[] args) throws Exception {
 
 1. 使用 Statement 的 `addBatch()` 和 `executeBatch()` 来执行“批量写入/更新”，为什么没有带来性能上的提升？
 
-   **原因**：TDengine 的 JDBC 实现中，通过 `addBatch` 方法提交的 SQL 语句，会按照添加的顺序，依次执行，这种方式没有减少与服务端的交互次数，不会带来性能上的提升。
+**原因**：TDengine 的 JDBC 实现中，通过 `addBatch` 方法提交的 SQL 语句，会按照添加的顺序，依次执行，这种方式没有减少与服务端的交互次数，不会带来性能上的提升。
 
-   **解决方法**：1. 在一条 insert 语句中拼接多个 values 值；2. 使用多线程的方式并发插入；3. 使用参数绑定的写入方式
+**解决方法**：1. 在一条 insert 语句中拼接多个 values 值；2. 使用多线程的方式并发插入；3. 使用参数绑定的写入方式
 
 2. java.lang.UnsatisfiedLinkError: no taos in java.library.path
 
-   **原因**：程序没有找到依赖的本地函数库 taos。
+**原因**：程序没有找到依赖的本地函数库 taos。
 
-   **解决方法**：Windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，Linux 下将建立如下软链 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
+**解决方法**：Windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，Linux 下将建立如下软链 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可，macOS 下需要建立软链 `ln -s /usr/local/lib/libtaos.dylib`。
 
 3. java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
 
-   **原因**：目前 TDengine 只支持 64 位 JDK。
+**原因**：目前 TDengine 只支持 64 位 JDK。
 
-   **解决方法**：重新安装 64 位 JDK。
+**解决方法**：重新安装 64 位 JDK。
 
 4. java.lang.NoSuchMethodError: setByteArray
 
-  **原因**：taos-jdbcdriver 3.* 版本仅支持 TDengine 3.0 及以上版本。
+**原因**：taos-jdbcdriver 3.* 版本仅支持 TDengine 3.0 及以上版本。
 
-  **解决方法**： 使用 taos-jdbcdriver 2.* 版本连接 TDengine 2.* 版本。
+**解决方法**： 使用 taos-jdbcdriver 2.* 版本连接 TDengine 2.* 版本。
+
+5. java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer; ... taos-jdbcdriver-3.0.1.jar
+
+**原因**：taos-jdbcdriver 3.0.1 版本需要在 JDK 11+ 环境使用。
+
+**解决方法**： 更换 taos-jdbcdriver 3.0.2+ 版本。
 
 其它问题请参考 [FAQ](../../../train-faq/faq)
 

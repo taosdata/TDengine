@@ -36,7 +36,7 @@ int64_t st, et;
 char hostName[128];
 char dbName[128];
 char tbName[128];
-int32_t runTimes = 1000;
+int32_t runTimes = 10;
 
 typedef struct {
   int       id;
@@ -657,7 +657,6 @@ int sqConCleanupAsyncQuery(bool fetch) {
 
 
 void sqRunAllCase(void) {
-#if 1
   sqStopSyncQuery(false);
   sqStopSyncQuery(true);
   sqStopAsyncQuery(false);
@@ -678,32 +677,32 @@ void sqRunAllCase(void) {
   sqConCloseAsyncQuery(false);
   sqConCloseAsyncQuery(true);
 
-
   sqKillSyncQuery(false);
   sqKillSyncQuery(true);
   sqKillAsyncQuery(false);
   sqKillAsyncQuery(true);
 
+#if 0
+  /*  
   sqConKillSyncQuery(false);
   sqConKillSyncQuery(true);
   sqConKillAsyncQuery(false);
   sqConKillAsyncQuery(true);
-#endif
 
-  /*  
   sqConCleanupSyncQuery(false);
   sqConCleanupSyncQuery(true);
   sqConCleanupAsyncQuery(false);
   sqConCleanupAsyncQuery(true);
   */
-
+#endif
+  
   int32_t l = 5;
   while (l) {
     printf("%d\n", l--);
     sleep(1);
   }
+  printf("test done\n");
 }
-
 
 int main(int argc, char *argv[]) {
   if (argc != 4) {

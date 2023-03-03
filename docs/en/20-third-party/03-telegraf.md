@@ -1,6 +1,7 @@
 ---
-sidebar_label: Telegraf
 title: Telegraf writing
+sidebar_label: Telegraf
+description: This document describes how to integrate TDengine with Telegraf.
 ---
 
 import Telegraf from "../14-reference/_telegraf.mdx"
@@ -15,6 +16,7 @@ To write Telegraf data to TDengine requires the following preparations.
 - The TDengine cluster is deployed and functioning properly
 - taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](/reference/taosadapter) for details.
 - Telegraf has been installed. Please refer to the [official documentation](https://docs.influxdata.com/telegraf/v1.22/install/) for Telegraf installation.
+- Telegraf collects the running status measurements of current system. You can enable [input plugins](https://docs.influxdata.com/telegraf/v1.22/plugins/) to insert [other formats](https://docs.influxdata.com/telegraf/v1.24/data_formats/input/) data to Telegraf then forward to TDengine.
 
 ## Configuration steps
 <Telegraf />
@@ -31,26 +33,27 @@ Use TDengine CLI to verify Telegraf correctly writing data to TDengine and read 
 
 ```
 taos> show databases;
-              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
-====================================================================================================================================================================================================================================================================================
- telegraf                       | 2022-04-20 08:47:53.488 |          22 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ns        |      2 | ready      |
- log                            | 2022-04-20 07:19:50.260 |           9 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ms        |      0 | ready      |
-Query OK, 2 row(s) in set (0.002401s)
+              name              |
+=================================
+ information_schema             |
+ performance_schema             |
+ telegraf                       |
+Query OK, 3 rows in database (0.010568s)
 
 taos> use telegraf;
 Database changed.
 
 taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- swap                           | 2022-04-20 08:47:53.532 |       7 |      1 |           1 |
- cpu                            | 2022-04-20 08:48:03.488 |      11 |      2 |           5 |
- system                         | 2022-04-20 08:47:53.512 |       8 |      1 |           1 |
- diskio                         | 2022-04-20 08:47:53.550 |      12 |      2 |          15 |
- kernel                         | 2022-04-20 08:47:53.503 |       6 |      1 |           1 |
- mem                            | 2022-04-20 08:47:53.521 |      35 |      1 |           1 |
- processes                      | 2022-04-20 08:47:53.555 |      12 |      1 |           1 |
- disk                           | 2022-04-20 08:47:53.541 |       8 |      5 |           2 |
+              name              |
+=================================
+ swap                           |
+ cpu                            |
+ system                         |
+ diskio                         |
+ kernel                         |
+ mem                            |
+ processes                      |
+ disk                           |
 Query OK, 8 row(s) in set (0.000521s)
 
 taos> select * from telegraf.system limit 10;
@@ -65,3 +68,11 @@ taos> select * from telegraf.system limit 10;
 |
 Query OK, 3 row(s) in set (0.013269s)
 ```
+
+:::note
+
+- TDengine take influxdb format data and create unique ID for table names by the rule.
+The user can configure `smlChildTableName` parameter to generate specified table names if he/she needs. And he/she also need to insert data with specified data format.
+For example, Add `smlChildTableName=tname` in the taos.cfg file. Insert data `st,tname=cpu1,t1=4 c1=3 1626006833639000000` then the table name will be cpu1. If there are multiple lines has same tname but different tag_set, the first line's tag_set will be used to automatically creating table and ignore other lines. Please refer to [TDengine Schemaless](/reference/schemaless/#Schemaless-Line-Protocol)
+:::
+

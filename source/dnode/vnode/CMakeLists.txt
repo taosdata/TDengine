@@ -14,6 +14,8 @@ target_sources(
     "src/vnd/vnodeSvr.c"
     "src/vnd/vnodeSync.c"
     "src/vnd/vnodeSnapshot.c"
+    "src/vnd/vnodeCompact.c"
+    "src/vnd/vnodeRetention.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -53,6 +55,7 @@ target_sources(
     "src/tsdb/tsdbDiskData.c"
     "src/tsdb/tsdbCompact.c"
     "src/tsdb/tsdbMergeTree.c"
+    "src/tsdb/tsdbDataIter.c"
 
     # tq
     "src/tq/tq.c"

@@ -15,13 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "tconfig.h"
+#include "cJSON.h"
 #include "taoserror.h"
+#include "tenv.h"
+#include "tgrant.h"
+#include "tjson.h"
 #include "tlog.h"
 #include "tutil.h"
-#include "tenv.h"
-#include "cJSON.h"
-#include "tjson.h"
-#include "tgrant.h"
 
 #define CFG_NAME_PRINT_LEN 24
 #define CFG_SRC_PRINT_LEN  12
@@ -109,7 +109,7 @@ int32_t cfgGetSize(SConfig *pCfg) { return taosArrayGetSize(pCfg->array); }
 
 static int32_t cfgCheckAndSetTimezone(SConfigItem *pItem, const char *timezone) {
   cfgFreeItem(pItem);
-  pItem->str = strdup(timezone);
+  pItem->str = taosStrdup(timezone);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -120,7 +120,7 @@ static int32_t cfgCheckAndSetTimezone(SConfigItem *pItem, const char *timezone) 
 
 static int32_t cfgCheckAndSetCharset(SConfigItem *pItem, const char *charset) {
   cfgFreeItem(pItem);
-  pItem->str = strdup(charset);
+  pItem->str = taosStrdup(charset);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -131,7 +131,7 @@ static int32_t cfgCheckAndSetCharset(SConfigItem *pItem, const char *charset) {
 
 static int32_t cfgCheckAndSetLocale(SConfigItem *pItem, const char *locale) {
   cfgFreeItem(pItem);
-  pItem->str = strdup(locale);
+  pItem->str = taosStrdup(locale);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -149,7 +149,7 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
   }
 
   taosMemoryFreeClear(pItem->str);
-  pItem->str = strdup(fullDir);
+  pItem->str = taosStrdup(fullDir);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -215,7 +215,7 @@ static int32_t cfgSetFloat(SConfigItem *pItem, const char *value, ECfgSrcType st
 }
 
 static int32_t cfgSetString(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  char *tmp = strdup(value);
+  char *tmp = taosStrdup(value);
   if (tmp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s", pItem->name, cfgDtypeStr(pItem->dtype),
@@ -271,8 +271,11 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
            cfgStypeStr(stype), value, terrstr());
     return -1;
   }
-
   pItem->stype = stype;
+
+  // apply new timezone
+  osSetTimezone(value);
+
   return 0;
 }
 
@@ -290,9 +293,9 @@ static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value,
   }
 
   SDiskCfg cfg = {0};
-  tstrncpy(cfg.dir, value, sizeof(cfg.dir));
-  cfg.level = atoi(level);
-  cfg.primary = atoi(primary);
+  tstrncpy(cfg.dir, pItem->str, sizeof(cfg.dir));
+  cfg.level = level ? atoi(level) : 0;
+  cfg.primary = primary ? atoi(primary) : 1;
   void *ret = taosArrayPush(pItem->array, &cfg);
   if (ret == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -355,7 +358,7 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *name) {
 
 static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
   pItem->stype = CFG_STYPE_DEFAULT;
-  pItem->name = strdup(name);
+  pItem->name = taosStrdup(name);
   if (pItem->name == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -414,7 +417,7 @@ int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double mi
 
 int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, bool tsc) {
   SConfigItem item = {.dtype = CFG_DTYPE_STRING, .tsc = tsc};
-  item.str = strdup(defaultVal);
+  item.str = taosStrdup(defaultVal);
   if (item.str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -508,7 +511,7 @@ const char *cfgDtypeStr(ECfgDataType type) {
   }
 }
 
-void cfgDumpItemValue(SConfigItem *pItem, char* buf, int32_t bufSize, int32_t* pLen) {
+void cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen) {
   int32_t len = 0;
   switch (pItem->dtype) {
     case CFG_DTYPE_BOOL:
@@ -561,13 +564,13 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
     if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
     if (dump && strcmp(pItem->name, "simDebugFlag") == 0) continue;
     tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
-    for (int32_t i = 0; i < CFG_SRC_PRINT_LEN; ++i) {
-      if (src[i] == 0) src[i] = ' ';
+    for (int32_t j = 0; j < CFG_SRC_PRINT_LEN; ++j) {
+      if (src[j] == 0) src[j] = ' ';
     }
 
     tstrncpy(name, pItem->name, CFG_NAME_PRINT_LEN);
-    for (int32_t i = 0; i < CFG_NAME_PRINT_LEN; ++i) {
-      if (name[i] == 0) name[i] = ' ';
+    for (int32_t j = 0; j < CFG_NAME_PRINT_LEN; ++j) {
+      if (name[j] == 0) name[j] = ' ';
     }
 
     switch (pItem->dtype) {
@@ -629,16 +632,16 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
 }
 
 int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
-  char   line[1024], *name, *value, *value2, *value3;
+  char    line[1024], *name, *value, *value2, *value3;
   int32_t olen, vlen, vlen2, vlen3;
   int32_t code = 0;
-  char **pEnv = environ;
+  char  **pEnv = environ;
   line[1023] = 0;
-  while(*pEnv != NULL) {
+  while (*pEnv != NULL) {
     name = value = value2 = value3 = NULL;
     olen = vlen = vlen2 = vlen3 = 0;
 
-    strncpy(line, *pEnv, sizeof(line)-1);
+    strncpy(line, *pEnv, sizeof(line) - 1);
     pEnv++;
     taosEnvToCfg(line, line);
 
@@ -657,11 +660,11 @@ int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
       if (vlen3 != 0) value3[vlen3] = 0;
     }
 
-    if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0 && strcasecmp(name, "dataDir") == 0) {
+    code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_VAR);
+    if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
+
+    if (strcasecmp(name, "dataDir") == 0) {
       code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_ENV_VAR);
-      if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
-    } else {
-      code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_VAR);
       if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
     }
   }
@@ -676,12 +679,12 @@ int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
   int32_t code = 0;
   int32_t index = 0;
   if (envCmd == NULL) return 0;
-  while (envCmd[index]!=NULL) {
-    strncpy(buf, envCmd[index], sizeof(buf)-1);
-    buf[sizeof(buf)-1] = 0;
+  while (envCmd[index] != NULL) {
+    strncpy(buf, envCmd[index], sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = 0;
     taosEnvToCfg(buf, buf);
     index++;
-    
+
     name = value = value2 = value3 = NULL;
     olen = vlen = vlen2 = vlen3 = 0;
 
@@ -700,11 +703,11 @@ int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
       if (vlen3 != 0) value3[vlen3] = 0;
     }
 
-    if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0 && strcasecmp(name, "dataDir") == 0) {
+    code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_CMD);
+    if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
+
+    if (strcasecmp(name, "dataDir") == 0) {
       code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_ENV_CMD);
-      if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
-    } else {
-      code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_CMD);
       if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
     }
   }
@@ -714,21 +717,21 @@ int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
 }
 
 int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
-  char   *line = NULL, *name, *value, *value2, *value3;
+  char    line[1024], *name, *value, *value2, *value3;
   int32_t olen, vlen, vlen2, vlen3;
   int32_t code = 0;
   ssize_t _bytes = 0;
 
   const char *filepath = ".env";
-  if (envFile != NULL && strlen(envFile)>0) {
+  if (envFile != NULL && strlen(envFile) > 0) {
     if (!taosCheckExistFile(envFile)) {
-      uError("failed to load env file: %s", envFile);
+      uError("failed to load env file:%s", envFile);
       return -1;
     }
     filepath = envFile;
-  }else {
+  } else {
     if (!taosCheckExistFile(filepath)) {
-      uInfo("failed to load env file: %s", filepath);
+      uInfo("env file:%s not load", filepath);
       return 0;
     }
   }
@@ -743,11 +746,11 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
     name = value = value2 = value3 = NULL;
     olen = vlen = vlen2 = vlen3 = 0;
 
-    _bytes = taosGetLineFile(pFile, &line);
+    _bytes = taosGetsFile(pFile, sizeof(line), line);
     if (_bytes <= 0) {
       break;
     }
-    if(line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
+    if (line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
     taosEnvToCfg(line, line);
 
     paGetToken(line, &name, &olen);
@@ -765,24 +768,23 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
       if (vlen3 != 0) value3[vlen3] = 0;
     }
 
-    if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0 && strcasecmp(name, "dataDir") == 0) {
+    code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_FILE);
+    if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
+
+    if (strcasecmp(name, "dataDir") == 0) {
       code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_ENV_FILE);
-      if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
-    } else {
-      code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_FILE);
       if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
     }
   }
 
   taosCloseFile(&pFile);
-  if (line != NULL) taosMemoryFreeClear(line);
 
   uInfo("load from env cfg file %s success", filepath);
   return 0;
 }
 
 int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
-  char   *line = NULL, *name, *value, *value2, *value3;
+  char    line[1024], *name, *value, *value2, *value3;
   int32_t olen, vlen, vlen2, vlen3;
   ssize_t _bytes = 0;
   int32_t code = 0;
@@ -804,12 +806,12 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
     name = value = value2 = value3 = NULL;
     olen = vlen = vlen2 = vlen3 = 0;
 
-    _bytes = taosGetLineFile(pFile, &line);
+    _bytes = taosGetsFile(pFile, sizeof(line), line);
     if (_bytes <= 0) {
       break;
     }
 
-    if(line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
+    if (line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
 
     paGetToken(line, &name, &olen);
     if (olen == 0) continue;
@@ -826,17 +828,16 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
       if (vlen3 != 0) value3[vlen3] = 0;
     }
 
-    if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0 && strcasecmp(name, "dataDir") == 0) {
+    code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
+    if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
+
+    if (strcasecmp(name, "dataDir") == 0) {
       code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_CFG_FILE);
-      if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
-    } else {
-      code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
       if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
     }
   }
 
   taosCloseFile(&pFile);
-  if (line != NULL) taosMemoryFreeClear(line);
 
   if (code == 0 || (code != 0 && terrno == TSDB_CODE_CFG_NOT_FOUND)) {
     uInfo("load from cfg file %s success", filepath);
@@ -894,7 +895,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
 
 //     code = cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
 //     if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
-//     if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0 && strcasecmp(name, "dataDir") == 0) {
+//     if (strcasecmp(name, "dataDir") == 0) {
 //       code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_CFG_FILE);
 //       if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
 //     }
@@ -917,10 +918,10 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   int32_t olen, vlen, vlen2, vlen3;
   int32_t code = 0;
   if (url == NULL || strlen(url) == 0) {
-    uInfo("fail to load apoll url");
+    uInfo("apoll url not load");
     return 0;
   }
-  
+
   char *p = strchr(url, ':');
   if (p == NULL) {
     uError("fail to load apoll url: %s, unknown format", url);
@@ -931,7 +932,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   if (strncmp(url, "jsonFile", 8) == 0) {
     char *filepath = p;
     if (!taosCheckExistFile(filepath)) {
-      uError("failed to load json file: %s", filepath);
+      uError("failed to load json file:%s", filepath);
       return -1;
     }
 
@@ -941,27 +942,29 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
       return -1;
     }
     size_t fileSize = taosLSeekFile(pFile, 0, SEEK_END);
-    char *buf = taosMemoryMalloc(fileSize);
+    char  *buf = taosMemoryMalloc(fileSize);
     taosLSeekFile(pFile, 0, SEEK_SET);
-    if(taosReadFile(pFile, buf, fileSize) <= 0) {
+    if (taosReadFile(pFile, buf, fileSize) <= 0) {
       taosCloseFile(&pFile);
       uError("load json file error: %s", filepath);
+      taosMemoryFreeClear(buf);
       return -1;
     }
     taosCloseFile(&pFile);
-    SJson* pJson = tjsonParse(buf);
+    SJson *pJson = tjsonParse(buf);
     if (NULL == pJson) {
       const char *jsonParseError = tjsonGetError();
       if (jsonParseError != NULL) {
         uError("load json file parse error: %s", jsonParseError);
       }
+      taosMemoryFreeClear(buf);
       return -1;
     }
     taosMemoryFreeClear(buf);
 
     int32_t jsonArraySize = tjsonGetArraySize(pJson);
-    for(int32_t i = 0; i < jsonArraySize; i++) {
-      cJSON* item = tjsonGetArrayItem(pJson, i);
+    for (int32_t i = 0; i < jsonArraySize; i++) {
+      cJSON *item = tjsonGetArrayItem(pJson, i);
       if (item == NULL) break;
       char *itemName = NULL, *itemValueString = NULL;
       tjsonGetObjectName(item, &itemName);
@@ -973,7 +976,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
         cfgLineBuf = taosMemoryMalloc(itemNameLen + itemValueStringLen + 2);
         memcpy(cfgLineBuf, itemName, itemNameLen);
         cfgLineBuf[itemNameLen] = ' ';
-        memcpy(&cfgLineBuf[itemNameLen+1], itemValueString, itemValueStringLen);
+        memcpy(&cfgLineBuf[itemNameLen + 1], itemValueString, itemValueStringLen);
         cfgLineBuf[itemNameLen + itemValueStringLen + 1] = '\0';
 
         paGetToken(cfgLineBuf, &name, &olen);
@@ -990,19 +993,20 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
           paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
           if (vlen3 != 0) value3[vlen3] = 0;
         }
-        if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0 && strcasecmp(name, "dataDir") == 0) {
+
+        code = cfgSetItem(pConfig, name, value, CFG_STYPE_APOLLO_URL);
+        if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
+        
+        if (strcasecmp(name, "dataDir") == 0) {
           code = cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_APOLLO_URL);
-          if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
-        } else {
-          code = cfgSetItem(pConfig, name, value, CFG_STYPE_APOLLO_URL);
           if (code != 0 && terrno != TSDB_CODE_CFG_NOT_FOUND) break;
         }
       }
     }
     tjsonDelete(pJson);
 
-  // } else if (strncmp(url, "jsonUrl", 7) == 0) {
-  // } else if (strncmp(url, "etcdUrl", 7) == 0) {
+    // } else if (strncmp(url, "jsonUrl", 7) == 0) {
+    // } else if (strncmp(url, "etcdUrl", 7) == 0) {
   } else {
     uError("Unsupported url: %s", url);
     return -1;
@@ -1012,19 +1016,19 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   return 0;
 }
 
-int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl) {
+int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl) {
   int32_t index = 0;
   if (envCmd == NULL) return 0;
-  while (envCmd[index]!=NULL) {
+  while (envCmd[index] != NULL) {
     if (strncmp(envCmd[index], "TAOS_APOLLO_URL", 14) == 0) {
       char *p = strchr(envCmd[index], '=');
       if (p != NULL) {
         p++;
         if (*p == '\'') {
           p++;
-          p[strlen(p)-1] = '\0';
+          p[strlen(p) - 1] = '\0';
         }
-        memcpy(apolloUrl, p, TMIN(strlen(p)+1,PATH_MAX));
+        memcpy(apolloUrl, p, TMIN(strlen(p) + 1, PATH_MAX));
         uInfo("get apollo url from env cmd success");
         return 0;
       }
@@ -1035,8 +1039,8 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
   char   line[1024];
   char **pEnv = environ;
   line[1023] = 0;
-  while(*pEnv != NULL) {
-    strncpy(line, *pEnv, sizeof(line)-1);
+  while (*pEnv != NULL) {
+    strncpy(line, *pEnv, sizeof(line) - 1);
     pEnv++;
     if (strncmp(line, "TAOS_APOLLO_URL", 14) == 0) {
       char *p = strchr(line, '=');
@@ -1044,29 +1048,29 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
         p++;
         if (*p == '\'') {
           p++;
-          p[strlen(p)-1] = '\0';
+          p[strlen(p) - 1] = '\0';
         }
-        memcpy(apolloUrl, p, TMIN(strlen(p)+1,PATH_MAX));
-        uInfo("get apollo url from env variables success, apolloUrl=%s",apolloUrl);
+        memcpy(apolloUrl, p, TMIN(strlen(p) + 1, PATH_MAX));
+        uInfo("get apollo url from env variables success, apolloUrl=%s", apolloUrl);
         return 0;
       }
     }
   }
 
   const char *filepath = ".env";
-  if (envFile != NULL && strlen(envFile)>0) {
+  if (envFile != NULL && strlen(envFile) > 0) {
     if (!taosCheckExistFile(envFile)) {
-      uError("failed to load env file: %s", envFile);
+      uError("failed to load env file:%s", envFile);
       return -1;
     }
     filepath = envFile;
-  }else {
+  } else {
     if (!taosCheckExistFile(filepath)) {
-      uInfo("failed to load env file: %s", filepath);
+      uInfo("env file:%s not load", filepath);
       return 0;
     }
   }
-  int64_t _bytes;
+  int64_t   _bytes;
   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile != NULL) {
     while (!taosEOFFile(pFile)) {
@@ -1074,16 +1078,16 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl
       if (_bytes <= 0) {
         break;
       }
-      if(line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
+      if (line[_bytes - 1] == '\n') line[_bytes - 1] = 0;
       if (strncmp(line, "TAOS_APOLLO_URL", 14) == 0) {
         char *p = strchr(line, '=');
         if (p != NULL) {
           p++;
           if (*p == '\'') {
             p++;
-            p[strlen(p)-1] = '\0';
+            p[strlen(p) - 1] = '\0';
           }
-          memcpy(apolloUrl, p, TMIN(strlen(p)+1,PATH_MAX));
+          memcpy(apolloUrl, p, TMIN(strlen(p) + 1, PATH_MAX));
           taosCloseFile(&pFile);
           uInfo("get apollo url from env file success");
           return 0;

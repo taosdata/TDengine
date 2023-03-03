@@ -58,6 +58,7 @@ void taosStringBuilderAppendChar(SStringBuilder* sb, char c) {
 
 void taosStringBuilderAppendStringLen(SStringBuilder* sb, const char* str, size_t len) {
   taosStringBuilderEnsureCapacity(sb, len);
+  if(!sb->buf) return;
   memcpy(sb->buf + sb->pos, str, len);
   sb->pos += len;
 }

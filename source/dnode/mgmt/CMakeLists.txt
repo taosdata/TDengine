@@ -1,6 +1,5 @@
 add_subdirectory(node_mgmt)
 add_subdirectory(node_util)
-add_subdirectory(mgmt_bnode)
 add_subdirectory(mgmt_mnode)
 add_subdirectory(mgmt_qnode)
 add_subdirectory(mgmt_snode)
@@ -14,7 +13,18 @@ target_include_directories(
     taosd
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc"
 )
+
 IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
-    add_dependencies(taosd jemalloc)
+  ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
+  SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
+ELSE ()
+  SET(LINK_JEMALLOC "")
 ENDIF ()
-target_link_libraries(taosd dnode)
+
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    ADD_DEPENDENCIES(taosd jemalloc)
+    target_link_libraries(taosd dnode ${LINK_JEMALLOC})
+ELSE ()
+    target_link_libraries(taosd dnode)
+ENDIF ()
+

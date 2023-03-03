@@ -12,7 +12,8 @@ SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW
 SELECT [DISTINCT] select_list
     from_clause
     [WHERE condition]
-    [PARTITION BY tag_list]
+    [partition_by_clause]
+    [interp_clause]
     [window_clause]
     [group_by_clause]
     [order_by_clasue]
@@ -52,6 +53,12 @@ window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
+
+interp_clause:
+    RANGE(ts_val, ts_val), EVERY(every_val), FILL(fill_mod_and_val)
+
+partition_by_clause:
+    PARTITION BY expr [, expr] ...
 
 group_by_clause:
     GROUP BY expr [, expr] ... HAVING condition
@@ -182,6 +189,14 @@ TDengine 中，所有表的第一列都必须是时间戳类型，且为其主�
 select _rowts, max(current) from meters;
 ```
 
+**\_IROWTS**
+
+\_irowts 伪列只能与 interp 函数一起使用，用于返回 interp 函数插值结果对应的时间戳列。
+
+```sql
+select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
+```
+
 ## 查询对象
 
 FROM 关键字后面可以是若干个表（超级表）列表，也可以是子查询的结果。
@@ -213,7 +228,7 @@ GROUP BY 子句中的表达式可以包含表或视图中的任何列，这些�
 该子句对行进行分组，但不保证结果集的顺序。若要对分组进行排序，请使用 ORDER BY 子句
 
 
-## PARTITON BY
+## PARTITION BY
 
 PARTITION BY 子句是 TDengine 特色语法，按 part_list 对数据进行切分，在每个切分的分片中进行计算。
 
@@ -291,7 +306,7 @@ SELECT TIMEZONE();
 ### 语法
 
 ```txt
-WHERE (column|tbname) **match/MATCH/nmatch/NMATCH** _regex_
+WHERE (column|tbname) match/MATCH/nmatch/NMATCH _regex_
 ```
 
 ### 正则表达式规范
@@ -304,11 +319,44 @@ WHERE (column|tbname) **match/MATCH/nmatch/NMATCH** _regex_
 
 正则匹配字符串长度不能超过 128 字节。可以通过参数 _maxRegexStringLen_ 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启才能生效。
 
+## CASE 表达式
+
+### 语法
+
+```txt
+CASE value WHEN compare_value THEN result [WHEN compare_value THEN result ...] [ELSE result] END
+CASE WHEN condition THEN result [WHEN condition THEN result ...] [ELSE result] END
+```
+
+### 说明
+
+TDengine 通过 CASE 表达式让用户可以在 SQL 语句中使用 IF ... THEN ... ELSE 逻辑。
+
+第一种 CASE 语法返回第一个 value 等于 compare_value 的 result，如果没有 compare_value 符合，则返回 ELSE 之后的 result，如果没有 ELSE 部分，则返回 NULL。
+
+第二种语法返回第一个 condition 为真的 result。 如果没有 condition 符合，则返回 ELSE 之后的 result，如果没有 ELSE 部分，则返回 NULL。
+
+CASE 表达式的返回类型为第一个 WHEN THEN 部分的 result 类型，其余 WHEN THEN 部分和 ELSE 部分，result 类型都需要可以向其转换，否则 TDengine 会报错。
+
+### 示例
+
+某设备有三个状态码，显示其状态，语句如下：
+
+```sql
+SELECT CASE dev_status WHEN 1 THEN 'Running' WHEN 2 THEN 'Warning' WHEN 3 THEN 'Downtime' ELSE 'Unknown' END FROM dev_table;
+```
+
+统计智能电表的电压平均值，当电压小于 200 或大于 250 时认为是统计有误，修正其值为 220，语句如下：
+
+```sql
+SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) FROM meters;
+```
+
 ## JOIN 子句
 
-TDengine 支持“普通表与普通表之间”、“超级表与超级表之间”、“子查询与子查询之间” 进行自然连接。自然连接与内连接的主要区别是，自然连接要求参与连接的字段在不同的表/超级表中必须是同名字段。也即，TDengine 在连接关系的表达中，要求必须使用同名数据列/标签列的相等关系。
+TDengine 支持基于时间戳主键的内连接，即 JOIN 条件必须包含时间戳主键。只要满足基于时间戳主键这个要求，普通表、子表、超级表和子查询之间可以随意的进行内连接，且对表个数没有限制。
 
-在普通表与普通表之间的 JOIN 操作中，只能使用主键时间戳之间的相等关系。例如：
+普通表与普通表之间的 JOIN 操作：
 
 ```sql
 SELECT *
@@ -316,7 +364,7 @@ FROM temp_tb_1 t1, pressure_tb_1 t2
 WHERE t1.ts = t2.ts
 ```
 
-在超级表与超级表之间的 JOIN 操作中，除了主键时间戳一致的条件外，还要求引入能实现一一对应的标签列的相等关系。例如：
+超级表与超级表之间的 JOIN 操作：
 
 ```sql
 SELECT *
@@ -324,20 +372,15 @@ FROM temp_stable t1, temp_stable t2
 WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
+子表与超级表之间的 JOIN 操作：
+
+```sql
+SELECT *
+FROM temp_ctable t1, temp_stable t2
+WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+```
+
 类似地，也可以对多个子查询的查询结果进行 JOIN 操作。
-
-:::note
-
-JOIN 语句存在如下限制要求：
-
-- 参与一条语句中 JOIN 操作的表/超级表最多可以有 10 个。
-- 在包含 JOIN 操作的查询语句中不支持 FILL。
-- 暂不支持参与 JOIN 操作的表之间聚合后的四则运算。
-- 不支持只对其中一部分表做 GROUP BY。
-- JOIN 查询的不同表的过滤条件之间不能为 OR。
-- JOIN 查询要求连接条件不能是普通列，只能针对标签和主时间字段列（第一列）。
-
-:::
 
 ## 嵌套查询
 

@@ -23,7 +23,6 @@ extern "C" {
 #endif
 
 SMgmtFunc dmGetMgmtFunc();
-SMgmtFunc bmGetMgmtFunc();
 SMgmtFunc qmGetMgmtFunc();
 SMgmtFunc smGetMgmtFunc();
 SMgmtFunc vmGetMgmtFunc();
@@ -35,7 +34,7 @@ void qmGetMonitorInfo(void *pMgmt, SMonQmInfo *pInfo);
 void smGetMonitorInfo(void *pMgmt, SMonSmInfo *pInfo);
 void bmGetMonitorInfo(void *pMgmt, SMonBmInfo *pInfo);
 
-void vmGetVnodeLoads(void *pMgmt, SMonVloadInfo *pInfo);
+void vmGetVnodeLoads(void *pMgmt, SMonVloadInfo *pInfo, bool isReset);
 void mmGetMnodeLoads(void *pMgmt, SMonMloadInfo *pInfo);
 void qmGetQnodeLoads(void *pMgmt, SQnodeLoad *pInfo);
 

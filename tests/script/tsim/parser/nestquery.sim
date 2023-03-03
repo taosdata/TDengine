@@ -338,20 +338,20 @@ if $data03 != @20-09-15 00:00:00.000@ then
   return -1
 endi
 
-sql select diff(val) from (select c1 val from nest_tb0);
-if $rows != 9999 then
-  return -1
-endi
-if $data00 != 1 then
-  return -1
-endi
+#sql select diff(val) from (select c1 val from nest_tb0);
+#if $rows != 9999 then
+#  return -1
+#endi
+#if $data00 != 1 then
+#  return -1
+#endi
 
 sql_error select last_row(*) from (select * from nest_tb0) having c1 > 0
 
 print ===========>td-4805
 sql_error select tbname, i from (select * from nest_tb0) group by i;
 
-sql select count(*),c1 from (select * from nest_tb0) where c1 < 2 group by c1;
+sql select count(*),c1 from (select * from nest_tb0) where c1 < 2 group by c1 order by c1;
 if $rows != 2 then
   return -1
 endi

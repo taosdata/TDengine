@@ -54,12 +54,14 @@ static SKeyword keywordTable[] = {
     {"CACHE",                TK_CACHE},
     {"CACHEMODEL",           TK_CACHEMODEL},
     {"CACHESIZE",            TK_CACHESIZE},
+    {"CASE",                 TK_CASE},
     {"CAST",                 TK_CAST},
     {"CLIENT_VERSION",       TK_CLIENT_VERSION},
     {"CLUSTER",              TK_CLUSTER},
     {"COLUMN",               TK_COLUMN},
     {"COMMENT",              TK_COMMENT},
     {"COMP",                 TK_COMP},
+    {"COMPACT",              TK_COMPACT},
     {"CONNECTION",           TK_CONNECTION},
     {"CONNECTIONS",          TK_CONNECTIONS},
     {"CONNS",                TK_CONNS},
@@ -73,6 +75,7 @@ static SKeyword keywordTable[] = {
     {"DATABASES",            TK_DATABASES},
     {"DBS",                  TK_DBS},
     {"DELETE",               TK_DELETE},
+    {"DELETE_MARK",          TK_DELETE_MARK},
     {"DESC",                 TK_DESC},
     {"DESCRIBE",             TK_DESCRIBE},
     {"DISTINCT",             TK_DISTINCT},
@@ -82,17 +85,22 @@ static SKeyword keywordTable[] = {
     {"DOUBLE",               TK_DOUBLE},
     {"DROP",                 TK_DROP},
     {"DURATION",             TK_DURATION},
+    {"ELSE",                 TK_ELSE},
     {"ENABLE",               TK_ENABLE},
+    {"END",                  TK_END},
     {"EXISTS",               TK_EXISTS},
     {"EXPIRED",              TK_EXPIRED},
     {"EXPLAIN",              TK_EXPLAIN},
+    {"EVENT_WINDOW",         TK_EVENT_WINDOW},
     {"EVERY",                TK_EVERY},
     {"FILE",                 TK_FILE},
     {"FILL",                 TK_FILL},
+    {"FILL_HISTORY",         TK_FILL_HISTORY},
     {"FIRST",                TK_FIRST},
     {"FLOAT",                TK_FLOAT},
     {"FLUSH",                TK_FLUSH},
     {"FROM",                 TK_FROM},
+    {"FORCE",                TK_FORCE},
     {"FUNCTION",             TK_FUNCTION},
     {"FUNCTIONS",            TK_FUNCTIONS},
     {"GRANT",                TK_GRANT},
@@ -126,6 +134,7 @@ static SKeyword keywordTable[] = {
     {"MATCH",                TK_MATCH},
     {"MAXROWS",              TK_MAXROWS},
     {"MAX_DELAY",            TK_MAX_DELAY},
+    {"MAX_SPEED",            TK_MAX_SPEED},
     {"MERGE",                TK_MERGE},
     {"META",                 TK_META},
     {"MINROWS",              TK_MINROWS},
@@ -141,6 +150,7 @@ static SKeyword keywordTable[] = {
     {"NOT",                  TK_NOT},
     {"NOW",                  TK_NOW},
     {"NULL",                 TK_NULL},
+    {"NULL_F",               TK_NULL_F},
     {"NULLS",                TK_NULLS},
     {"OFFSET",               TK_OFFSET},
     {"ON",                   TK_ON},
@@ -155,6 +165,7 @@ static SKeyword keywordTable[] = {
     {"PPS",                  TK_PPS},
     {"PRECISION",            TK_PRECISION},
     {"PREV",                 TK_PREV},
+    {"PRIVILEGES",           TK_PRIVILEGES},
     {"QNODE",                TK_QNODE},
     {"QNODES",               TK_QNODES},
     {"QTIME",                TK_QTIME},
@@ -187,16 +198,19 @@ static SKeyword keywordTable[] = {
     {"SNODES",               TK_SNODES},
     {"SOFFSET",              TK_SOFFSET},
     {"SPLIT",                TK_SPLIT},
-    {"STT_TRIGGER",          TK_STT_TRIGGER},
     {"STABLE",               TK_STABLE},
     {"STABLES",              TK_STABLES},
+    {"START",                TK_START},
     {"STATE",                TK_STATE},
     {"STATE_WINDOW",         TK_STATE_WINDOW},
     {"STORAGE",              TK_STORAGE},
     {"STREAM",               TK_STREAM},
     {"STREAMS",              TK_STREAMS},
     {"STRICT",               TK_STRICT},
+    {"STT_TRIGGER",          TK_STT_TRIGGER},
+    {"SUBSCRIBE",            TK_SUBSCRIBE},
     {"SUBSCRIPTIONS",        TK_SUBSCRIPTIONS},
+    {"SUBTABLE",             TK_SUBTABLE},
     {"SYSINFO",              TK_SYSINFO},
     {"TABLE",                TK_TABLE},
     {"TABLES",               TK_TABLES},
@@ -205,6 +219,7 @@ static SKeyword keywordTable[] = {
     {"TAG",                  TK_TAG},
     {"TAGS",                 TK_TAGS},
     {"TBNAME",               TK_TBNAME},
+    {"THEN",                 TK_THEN},
     {"TIMESTAMP",            TK_TIMESTAMP},
     {"TIMEZONE",             TK_TIMEZONE},
     {"TINYINT",              TK_TINYINT},
@@ -221,11 +236,13 @@ static SKeyword keywordTable[] = {
     {"TTL",                  TK_TTL},
     {"UNION",                TK_UNION},
     {"UNSIGNED",             TK_UNSIGNED},
+    {"UPDATE",                  TK_UPDATE},
     {"USE",                  TK_USE},
     {"USER",                 TK_USER},
     {"USERS",                TK_USERS},
     {"USING",                TK_USING},
     {"VALUE",                TK_VALUE},
+    {"VALUE_F",              TK_VALUE_F},
     {"VALUES",               TK_VALUES},
     {"VARCHAR",              TK_VARCHAR},
     {"VARIABLES",            TK_VARIABLES},
@@ -240,18 +257,23 @@ static SKeyword keywordTable[] = {
     {"WAL_ROLL_PERIOD",      TK_WAL_ROLL_PERIOD},
     {"WAL_SEGMENT_SIZE",     TK_WAL_SEGMENT_SIZE},
     {"WATERMARK",            TK_WATERMARK},
+    {"WHEN",                 TK_WHEN},
     {"WHERE",                TK_WHERE},
     {"WINDOW_CLOSE",         TK_WINDOW_CLOSE},
     {"WITH",                 TK_WITH},
     {"WRITE",                TK_WRITE},
     {"_C0",                  TK_ROWTS},
+    {"_IROWTS",              TK_IROWTS},
+    {"_ISFILLED",            TK_ISFILLED},
     {"_QDURATION",           TK_QDURATION},
     {"_QEND",                TK_QEND},
     {"_QSTART",              TK_QSTART},
     {"_ROWTS",               TK_ROWTS},
+    {"_TAGS",                TK_QTAGS},
     {"_WDURATION",           TK_WDURATION},
     {"_WEND",                TK_WEND},
     {"_WSTART",              TK_WSTART},
+    {"ALIVE",                TK_ALIVE},
 };
 // clang-format on
 
@@ -588,6 +610,8 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         *tokenId = TK_NK_BOOL;
         return i;
       }
+      *tokenId = tKeywordCode(z, i);
+      return i;
     }
     default: {
       if (((*z & 0x80) != 0) || !isIdChar[(uint8_t)*z]) {
@@ -604,28 +628,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
   return 0;
 }
 
-SToken tscReplaceStrToken(char** str, SToken* token, const char* newToken) {
-  char*   src = *str;
-  size_t  nsize = strlen(newToken);
-  int32_t size = (int32_t)strlen(*str) - token->n + (int32_t)nsize + 1;
-  int32_t bsize = (int32_t)((uint64_t)token->z - (uint64_t)src);
-  SToken  ntoken;
-
-  *str = taosMemoryCalloc(1, size);
-
-  strncpy(*str, src, bsize);
-  strcat(*str, newToken);
-  strcat(*str, token->z + token->n);
-
-  ntoken.n = (uint32_t)nsize;
-  ntoken.z = *str + bsize;
-
-  taosMemoryFreeClear(src);
-
-  return ntoken;
-}
-
-SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
+SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreComma) {
   SToken t0 = {0};
 
   // here we reach the end of sql string, null-terminated string
@@ -644,6 +647,10 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
         return t0;
+      }
+
+      if (NULL != pIgnoreComma && t == ',') {
+        *pIgnoreComma = true;
       }
 
       t = str[++(*i)];
@@ -715,15 +722,4 @@ void taosCleanupKeywordsTable() {
   if (m != NULL && atomic_val_compare_exchange_ptr(&keywordHashTable, m, 0) == m) {
     taosHashCleanup(m);
   }
-}
-
-SToken taosTokenDup(SToken* pToken, char* buf, int32_t len) {
-  assert(pToken != NULL && buf != NULL && len > pToken->n);
-
-  strncpy(buf, pToken->z, pToken->n);
-  buf[pToken->n] = 0;
-
-  SToken token = *pToken;
-  token.z = buf;
-  return token;
 }

@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -43,7 +39,7 @@ void test1() {
 void test2() {
   SyncApplyMsg *pMsg = createMsg();
   uint32_t      len = pMsg->bytes;
-  char *        serialized = (char *)taosMemoryMalloc(len);
+  char         *serialized = (char *)taosMemoryMalloc(len);
   syncApplyMsgSerialize(pMsg, serialized, len);
   SyncApplyMsg *pMsg2 = syncApplyMsgBuild(pMsg->dataLen);
   syncApplyMsgDeserialize(serialized, len, pMsg2);
@@ -57,7 +53,7 @@ void test2() {
 void test3() {
   SyncApplyMsg *pMsg = createMsg();
   uint32_t      len;
-  char *        serialized = syncApplyMsgSerialize2(pMsg, &len);
+  char         *serialized = syncApplyMsgSerialize2(pMsg, &len);
   SyncApplyMsg *pMsg2 = syncApplyMsgDeserialize2(serialized, len);
   syncApplyMsgLog2((char *)"test3: syncApplyMsgSerialize2 -> syncApplyMsgDeserialize2 ", pMsg2);
 
@@ -81,7 +77,7 @@ void test4() {
 
 void test5() {
   SyncApplyMsg *pMsg = createMsg();
-  SRpcMsg       rpcMsg;
+  SRpcMsg       rpcMsg = {0};
   syncApplyMsg2RpcMsg(pMsg, &rpcMsg);
   SyncApplyMsg *pMsg2 = syncApplyMsgFromRpcMsg2(&rpcMsg);
   syncApplyMsgLog2((char *)"test5: syncClientRequest2RpcMsg -> syncApplyMsgFromRpcMsg2 ", pMsg2);

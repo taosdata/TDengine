@@ -1,6 +1,7 @@
 ---
-sidebar_label: Insert
 title: Insert
+sidebar_label: Insert
+description: This document describes how to insert data into TDengine.
 ---
 
 ## Syntax
@@ -27,7 +28,7 @@ INSERT INTO tb_name [(field1_name, ...)] subquery
 2. The precision of a timestamp depends on its format. The precision configured for the database affects only timestamps that are inserted as long integers (UNIX time). Timestamps inserted as date and time strings are not affected. As an example, the timestamp 2021-07-13 16:16:48 is equivalent to 1626164208 in UNIX time. This UNIX time is modified to 1626164208000 for databases with millisecond precision, 1626164208000000 for databases with microsecond precision, and 1626164208000000000 for databases with nanosecond precision.
 
 3. If you want to insert multiple rows simultaneously, do not use the NOW function in the timestamp. Using the NOW function in this situation will cause multiple rows to have the same timestamp and prevent them from being stored correctly. This is because the NOW function obtains the current time on the client, and multiple instances of NOW in a single statement will return the same time.
-   The earliest timestamp that you can use when inserting data is equal to the current time on the server minus the value of the KEEP parameter. The latest timestamp that you can use when inserting data is equal to the current time on the server plus the value of the DURATION parameter. You can configure the KEEP and DURATION parameters when you create a database. The default values are 3650 days for the KEEP parameter and 10 days for the DURATION parameter.
+   The earliest timestamp that you can use when inserting data is equal to the current time on the server minus the value of the KEEP parameter (You can configure the KEEP parameter when you create a database and the default value is 3650 days). The latest timestamp you can use when inserting data depends on the PRECISION parameter (You can configure the PRECISION parameter when you create a database, ms means milliseconds, us means microseconds, ns means nanoseconds, and the default value is milliseconds). If the timestamp precision is milliseconds or microseconds, the latest timestamp is the Unix epoch (January 1st, 1970 at 00:00:00.000 UTC) plus 1000 years, that is, January 1st, 2970 at 00:00:00.000 UTC; If the timestamp precision is nanoseconds, the latest timestamp is the Unix epoch plus 292 years, that is, January 1st, 2262 at 00:00:00.000000000 UTC.
 
 **Syntax**
 
@@ -108,11 +109,11 @@ INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('202
 
 ## Insert Rows From A File
 
-Besides using `VALUES` to insert one or multiple rows, the data to be inserted can also be prepared in a CSV file with comma as separator and each field value quoted by single quotes. Table definition is not required in the CSV file. For example, if file "/tmp/csvfile.csv" contains the below data:
+Besides using `VALUES` to insert one or multiple rows, the data to be inserted can also be prepared in a CSV file with comma as separator and timestamp and string field value quoted by single quotes. Table definition is not required in the CSV file. For example, if file "/tmp/csvfile.csv" contains the below data:
 
 ```
-'2021-07-13 14:07:34.630', '10.2', '219', '0.32'
-'2021-07-13 14:07:35.779', '10.15', '217', '0.33'
+'2021-07-13 14:07:34.630', 10.2, 219, 0.32
+'2021-07-13 14:07:35.779', 10.15, 217, 0.33
 ```
 
 Then data in this file can be inserted by the SQL statement below:

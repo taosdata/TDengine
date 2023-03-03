@@ -19,7 +19,7 @@ TEST(testCase, string_dequote_test) {
   EXPECT_EQ(3, len);
   EXPECT_STRCASEEQ(t1, "abc");
 
-  char t21[] = " abc ";
+  char    t21[] = " abc ";
   int32_t lx = strtrim(t21);
 
   EXPECT_STREQ("abc", t21);

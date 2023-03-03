@@ -67,9 +67,13 @@ mkdir -p /var/lib/taos
 cd $CONTAINER_TESTDIR/tests/$exec_dir
 ulimit -c unlimited
 
+md5sum /usr/lib/libtaos.so.1
+md5sum /home/TDinternal/debug/build/lib/libtaos.so
 $TIMEOUT_CMD $cmd
 RET=$?
 echo "cmd exit code: $RET"
+md5sum /usr/lib/libtaos.so.1
+md5sum /home/TDinternal/debug/build/lib/libtaos.so
 
 if [ $RET -ne 0 ]; then
     pwd

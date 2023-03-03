@@ -20,23 +20,14 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "taosdef.h"
-#include "trpc.h"
-#include "ttimer.h"
 
-#define TIMER_MAX_MS         0x7FFFFFFF
-#define ENV_TICK_TIMER_MS    1000
-#define PING_TIMER_MS        5000
-#define ELECT_TIMER_MS_MIN   5000
-#define ELECT_TIMER_MS_MAX   (ELECT_TIMER_MS_MIN * 2)
-#define ELECT_TIMER_MS_RANGE (ELECT_TIMER_MS_MAX - ELECT_TIMER_MS_MIN)
-#define HEARTBEAT_TIMER_MS   900
-
-#define EMPTY_RAFT_ID ((SRaftId){.addr = 0, .vgId = 0})
+#define TIMER_MAX_MS       0x7FFFFFFF
+#define ENV_TICK_TIMER_MS  1000
+#define PING_TIMER_MS      5000
+#define ELECT_TIMER_MS_MIN 2500
+#define HEARTBEAT_TIMER_MS 1000
+#define HEARTBEAT_TICK_NUM 20
 
 typedef struct SSyncEnv {
   uint8_t isStart;
@@ -57,12 +48,18 @@ typedef struct SSyncEnv {
 
 } SSyncEnv;
 
-extern SSyncEnv* gSyncEnv;
+SSyncEnv* syncEnv();
+bool      syncIsInit();
 
-int32_t syncEnvStart();
-int32_t syncEnvStop();
-int32_t syncEnvStartTimer();
-int32_t syncEnvStopTimer();
+int64_t    syncNodeAdd(SSyncNode* pNode);
+void       syncNodeRemove(int64_t rid);
+SSyncNode* syncNodeAcquire(int64_t rid);
+void       syncNodeRelease(SSyncNode* pNode);
+
+int64_t           syncHbTimerDataAdd(SSyncHbTimerData* pData);
+void              syncHbTimerDataRemove(int64_t rid);
+SSyncHbTimerData* syncHbTimerDataAcquire(int64_t rid);
+void              syncHbTimerDataRelease(SSyncHbTimerData* pData);
 
 #ifdef __cplusplus
 }

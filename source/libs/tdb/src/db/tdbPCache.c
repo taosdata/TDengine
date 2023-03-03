@@ -61,7 +61,11 @@ int tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache) {
 
   pCache->szPage = pageSize;
   pCache->nPages = cacheSize;
-  pCache->aPage = (SPage **)&pCache[1];
+  pCache->aPage = (SPage **)tdbOsCalloc(cacheSize, sizeof(SPage *));
+  if (pCache->aPage == NULL) {
+    tdbOsFree(pCache);
+    return -1;
+  }
 
   if (tdbPCacheOpenImpl(pCache) < 0) {
     tdbOsFree(pCache);
@@ -75,14 +79,97 @@ int tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache) {
 int tdbPCacheClose(SPCache *pCache) {
   if (pCache) {
     tdbPCacheCloseImpl(pCache);
+    tdbOsFree(pCache->aPage);
     tdbOsFree(pCache);
   }
   return 0;
 }
 
+// TODO:
+// if (pPage->id >= pCache->nPages) {
+//   free(pPage);
+//   pCache->aPage[pPage->id] = NULL;
+// } else {
+//   add to free list
+// }
+
+static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
+  if (pCache->nPages == nPage) {
+    return 0;
+  } else if (pCache->nPages < nPage) {
+    SPage **aPage = tdbOsCalloc(nPage, sizeof(SPage *));
+    if (aPage == NULL) {
+      return -1;
+    }
+
+    for (int32_t iPage = pCache->nPages; iPage < nPage; iPage++) {
+      if (tdbPageCreate(pCache->szPage, &aPage[iPage], tdbDefaultMalloc, NULL) < 0) {
+        // TODO: handle error
+        tdbOsFree(aPage);
+        return -1;
+      }
+
+      // pPage->pgid = 0;
+      aPage[iPage]->isAnchor = 0;
+      aPage[iPage]->isLocal = 1;
+      aPage[iPage]->nRef = 0;
+      aPage[iPage]->pHashNext = NULL;
+      aPage[iPage]->pLruNext = NULL;
+      aPage[iPage]->pLruPrev = NULL;
+      aPage[iPage]->pDirtyNext = NULL;
+
+      // add to local list
+      aPage[iPage]->id = iPage;
+    }
+
+    // add page to free list
+    for (int32_t iPage = pCache->nPages; iPage < nPage; iPage++) {
+      aPage[iPage]->pFreeNext = pCache->pFree;
+      pCache->pFree = aPage[iPage];
+      pCache->nFree++;
+    }
+
+    for (int32_t iPage = 0; iPage < pCache->nPages; iPage++) {
+      aPage[iPage] = pCache->aPage[iPage];
+    }
+
+    tdbOsFree(pCache->aPage);
+    pCache->aPage = aPage;
+  } else {
+    for (SPage **ppPage = &pCache->pFree; *ppPage;) {
+      int32_t iPage = (*ppPage)->id;
+
+      if (iPage >= nPage) {
+        SPage *pPage = *ppPage;
+        *ppPage = pPage->pFreeNext;
+        pCache->aPage[pPage->id] = NULL;
+        tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+        pCache->nFree--;
+      } else {
+        ppPage = &(*ppPage)->pFreeNext;
+      }
+    }
+  }
+
+  pCache->nPages = nPage;
+  return 0;
+}
+
+int tdbPCacheAlter(SPCache *pCache, int32_t nPage) {
+  int ret = 0;
+
+  tdbPCacheLock(pCache);
+
+  ret = tdbPCacheAlterImpl(pCache, nPage);
+
+  tdbPCacheUnlock(pCache);
+
+  return ret;
+}
+
 SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
   SPage *pPage;
-  i32    nRef;
+  i32    nRef = 0;
 
   tdbPCacheLock(pCache);
 
@@ -91,35 +178,83 @@ SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
     nRef = tdbRefPage(pPage);
   }
 
-  ASSERT(pPage);
-
   tdbPCacheUnlock(pCache);
 
   // printf("thread %" PRId64 " fetch page %d pgno %d pPage %p nRef %d\n", taosGetSelfPthreadId(), pPage->id,
   //        TDB_PAGE_PGNO(pPage), pPage, nRef);
 
-  tdbDebug("pcache/fetch page %p/%d/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id, nRef);
+  if (pPage) {
+    tdbTrace("pcache/fetch page %p/%d/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id, nRef);
+  } else {
+    tdbTrace("pcache/fetch page %p", pPage);
+  }
+
   return pPage;
+}
+
+void tdbPCacheMarkFree(SPCache *pCache, SPage *pPage) {
+  tdbPCacheLock(pCache);
+  tdbPCacheRemovePageFromHash(pCache, pPage);
+  pPage->isFree = 1;
+  tdbPCacheUnlock(pCache);
+}
+
+static void tdbPCacheFreePage(SPCache *pCache, SPage *pPage) {
+  if (pPage->id < pCache->nPages) {
+    pPage->pFreeNext = pCache->pFree;
+    pCache->pFree = pPage;
+    pPage->isFree = 0;
+    ++pCache->nFree;
+    tdbTrace("pcache/free page %p/%d, pgno:%d, ", pPage, pPage->id, TDB_PAGE_PGNO(pPage));
+  } else {
+    tdbTrace("pcache/free2 page: %p/%d, pgno:%d, ", pPage, pPage->id, TDB_PAGE_PGNO(pPage));
+
+    tdbPCacheRemovePageFromHash(pCache, pPage);
+    tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+  }
+}
+
+void tdbPCacheInvalidatePage(SPCache *pCache, SPager *pPager, SPgno pgno) {
+  SPgid        pgid;
+  const SPgid *pPgid = &pgid;
+  SPage       *pPage = NULL;
+
+  memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
+  pgid.pgno = pgno;
+
+  pPage = pCache->pgHash[tdbPCachePageHash(pPgid) % pCache->nHash];
+  while (pPage) {
+    if (pPage->pgid.pgno == pPgid->pgno && memcmp(pPage->pgid.fileid, pPgid->fileid, TDB_FILE_ID_LEN) == 0) break;
+    pPage = pPage->pHashNext;
+  }
+
+  if (pPage) {
+    tdbPCacheRemovePageFromHash(pCache, pPage);
+  }
 }
 
 void tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn) {
   i32 nRef;
 
-  ASSERT(pTxn);
-
-  // nRef = tdbUnrefPage(pPage);
-  // ASSERT(nRef >= 0);
+  if (!pTxn) {
+    tdbError("tdb/pcache: null ptr pTxn, release failed.");
+    return;
+  }
 
   tdbPCacheLock(pCache);
   nRef = tdbUnrefPage(pPage);
-  tdbDebug("pcache/release page %p/%d/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id, nRef);
+  tdbTrace("pcache/release page %p/%d/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id, nRef);
   if (nRef == 0) {
     // test the nRef again to make sure
     // it is safe th handle the page
     // nRef = tdbGetPageRef(pPage);
     // if (nRef == 0) {
     if (pPage->isLocal) {
-      tdbPCacheUnpinPage(pCache, pPage);
+      if (!pPage->isFree) {
+        tdbPCacheUnpinPage(pCache, pPage);
+      } else {
+        tdbPCacheFreePage(pCache, pPage);
+      }
     } else {
       if (TDB_TXN_IS_WRITE(pTxn)) {
         // remove from hash
@@ -131,8 +266,6 @@ void tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn) {
     // }
   }
   tdbPCacheUnlock(pCache);
-  // printf("thread %" PRId64 " relas page %d pgno %d pPage %p nRef %d\n", taosGetSelfPthreadId(), pPage->id,
-  //        TDB_PAGE_PGNO(pPage), pPage, nRef);
 }
 
 int tdbPCacheGetPageSize(SPCache *pCache) { return pCache->szPage; }
@@ -142,7 +275,10 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   SPage *pPage = NULL;
   SPage *pPageH = NULL;
 
-  ASSERT(pTxn);
+  if (!pTxn) {
+    tdbError("tdb/pcache: null ptr pTxn, fetch impl failed.");
+    return NULL;
+  }
 
   // 1. Search the hash table
   pPage = pCache->pgHash[tdbPCachePageHash(pPgid) % pCache->nHash];
@@ -179,11 +315,11 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   }
 
   // 4. Try a create new page
-  if (!pPage) {
+  if (!pPage && pTxn->xMalloc != NULL) {
     ret = tdbPageCreate(pCache->szPage, &pPage, pTxn->xMalloc, pTxn->xArg);
-    if (ret < 0) {
-      // TODO
-      ASSERT(0);
+    if (ret < 0 || pPage == NULL) {
+      tdbError("tdb/pcache: ret: %" PRId32 " pPage: %p, page create failed.", ret, pPage);
+      // TODO: recycle other backup pages
       return NULL;
     }
 
@@ -214,8 +350,8 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
       pPage->pPager = pPageH->pPager;
 
       memcpy(pPage->pData, pPageH->pData, pPage->pageSize);
-      tdbDebug("pcache/pPageH: %p %d %p %p %d", pPageH, pPageH->pPageHdr - pPageH->pData, pPageH->xCellSize, pPage,
-               TDB_PAGE_PGNO(pPageH));
+      // tdbDebug("pcache/pPageH: %p %ld %p %p %u", pPageH, pPageH->pPageHdr - pPageH->pData, pPageH->xCellSize, pPage,
+      //         TDB_PAGE_PGNO(pPageH));
       tdbPageInit(pPage, pPageH->pPageHdr - pPageH->pData, pPageH->xCellSize);
       pPage->kLen = pPageH->kLen;
       pPage->vLen = pPageH->vLen;
@@ -237,7 +373,11 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
 
 static void tdbPCachePinPage(SPCache *pCache, SPage *pPage) {
   if (pPage->pLruNext != NULL) {
-    ASSERT(tdbGetPageRef(pPage) == 0);
+    int32_t nRef = tdbGetPageRef(pPage);
+    if (nRef != 0) {
+      tdbError("tdb/pcache: pin page's ref not zero: %" PRId32, nRef);
+      return;
+    }
 
     pPage->pLruPrev->pLruNext = pPage->pLruNext;
     pPage->pLruNext->pLruPrev = pPage->pLruPrev;
@@ -245,29 +385,47 @@ static void tdbPCachePinPage(SPCache *pCache, SPage *pPage) {
 
     pCache->nRecyclable--;
 
-    // printf("pin page %d pgno %d pPage %p\n", pPage->id, TDB_PAGE_PGNO(pPage), pPage);
-    tdbDebug("pcache/pin page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
+    tdbTrace("pcache/pin page %p/%d, pgno:%d, ", pPage, pPage->id, TDB_PAGE_PGNO(pPage));
   }
 }
 
 static void tdbPCacheUnpinPage(SPCache *pCache, SPage *pPage) {
-  i32 nRef;
+  i32 nRef = tdbGetPageRef(pPage);
+  if (nRef != 0) {
+    tdbError("tdb/pcache: unpin page's ref not zero: %" PRId32, nRef);
+    return;
+  }
+  if (!pPage->isLocal) {
+    tdbError("tdb/pcache: unpin page's not local: %" PRIu8, pPage->isLocal);
+    return;
+  }
+  if (pPage->isDirty) {
+    tdbError("tdb/pcache: unpin page's dirty: %" PRIu8, pPage->isDirty);
+    return;
+  }
+  if (NULL != pPage->pLruNext) {
+    tdbError("tdb/pcache: unpin page's pLruNext not null.");
+    return;
+  }
 
-  ASSERT(pPage->isLocal);
-  ASSERT(!pPage->isDirty);
-  ASSERT(tdbGetPageRef(pPage) == 0);
+  tdbTrace("pCache:%p unpin page %p/%d, nPages:%d, pgno:%d, ", pCache, pPage, pPage->id, pCache->nPages,
+           TDB_PAGE_PGNO(pPage));
+  if (pPage->id < pCache->nPages) {
+    pPage->pLruPrev = &(pCache->lru);
+    pPage->pLruNext = pCache->lru.pLruNext;
+    pCache->lru.pLruNext->pLruPrev = pPage;
+    pCache->lru.pLruNext = pPage;
 
-  ASSERT(pPage->pLruNext == NULL);
+    pCache->nRecyclable++;
 
-  pPage->pLruPrev = &(pCache->lru);
-  pPage->pLruNext = pCache->lru.pLruNext;
-  pCache->lru.pLruNext->pLruPrev = pPage;
-  pCache->lru.pLruNext = pPage;
+    // printf("unpin page %d pgno %d pPage %p\n", pPage->id, TDB_PAGE_PGNO(pPage), pPage);
+    tdbTrace("pcache/unpin page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
+  } else {
+    tdbTrace("pcache destroy page: %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
 
-  pCache->nRecyclable++;
-
-  // printf("unpin page %d pgno %d pPage %p\n", pPage->id, TDB_PAGE_PGNO(pPage), pPage);
-  tdbDebug("pcache/unpin page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
+    tdbPCacheRemovePageFromHash(pCache, pPage);
+    tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+  }
 }
 
 static void tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage) {
@@ -283,7 +441,7 @@ static void tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage) {
     // printf("rmv page %d to hash, pgno %d, pPage %p\n", pPage->id, TDB_PAGE_PGNO(pPage), pPage);
   }
 
-  tdbDebug("pcache/remove page %p/%d/%d from hash %" PRIu32, pPage, TDB_PAGE_PGNO(pPage), pPage->id, h);
+  tdbTrace("pcache/remove page %p/%d from hash %" PRIu32 " pgno:%d, ", pPage, pPage->id, h, TDB_PAGE_PGNO(pPage));
 }
 
 static void tdbPCacheAddPageToHash(SPCache *pCache, SPage *pPage) {
@@ -294,8 +452,7 @@ static void tdbPCacheAddPageToHash(SPCache *pCache, SPage *pPage) {
 
   pCache->nPage++;
 
-  // printf("add page %d to hash, pgno %d, pPage %p\n", pPage->id, TDB_PAGE_PGNO(pPage), pPage);
-  tdbDebug("pcache/add page %p/%d/%d to hash %" PRIu32, pPage, TDB_PAGE_PGNO(pPage), pPage->id, h);
+  tdbTrace("pcache/add page %p/%d to hash %" PRIu32 " pgno:%d, ", pPage, pPage->id, h, TDB_PAGE_PGNO(pPage));
 }
 
 static int tdbPCacheOpenImpl(SPCache *pCache) {
@@ -310,8 +467,7 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
   pCache->nFree = 0;
   pCache->pFree = NULL;
   for (int i = 0; i < pCache->nPages; i++) {
-    ret = tdbPageCreate(pCache->szPage, &pPage, tdbDefaultMalloc, NULL);
-    if (ret < 0) {
+    if (tdbPageCreate(pCache->szPage, &pPage, tdbDefaultMalloc, NULL) < 0) {
       // TODO: handle error
       return -1;
     }
@@ -354,10 +510,18 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
 }
 
 static int tdbPCacheCloseImpl(SPCache *pCache) {
-  for (i32 iPage = 0; iPage < pCache->nPages; iPage++) {
-    if (pCache->aPage[iPage]) {
-      tdbPageDestroy(pCache->aPage[iPage], tdbDefaultFree, NULL);
-      pCache->aPage[iPage] = NULL;
+  // free free page
+  for (SPage *pPage = pCache->pFree; pPage;) {
+    SPage *pPageT = pPage->pFreeNext;
+    tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+    pPage = pPageT;
+  }
+
+  for (int32_t iBucket = 0; iBucket < pCache->nHash; iBucket++) {
+    for (SPage *pPage = pCache->pgHash[iBucket]; pPage;) {
+      SPage *pPageT = pPage->pHashNext;
+      tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+      pPage = pPageT;
     }
   }
 

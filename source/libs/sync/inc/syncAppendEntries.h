@@ -20,12 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "syncMessage.h"
-#include "taosdef.h"
 
 // TLA+ Spec
 // HandleAppendEntriesRequest(i, j, m) ==
@@ -92,9 +87,8 @@ extern "C" {
 //                       /\ UNCHANGED <<serverVars, commitIndex, messages>>
 //       /\ UNCHANGED <<candidateVars, leaderVars>>
 //
-int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg);
-int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMsg);
-int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatch* pMsg);
+
+int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pMsg);
 
 #ifdef __cplusplus
 }

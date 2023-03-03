@@ -1,0 +1,154 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
+system sh/cfg.sh -n dnode2 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode3 -c supportVnodes -v 4
+
+print ========== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ========== step2
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+
+$x = 0
+step2:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 3 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step2
+endi
+if $data(2)[4] != ready then
+  goto step2
+endi
+if $data(3)[4] != ready then
+  goto step2
+endi
+
+print ========== step3
+sql create database d1 vgroups 1
+sql use d1;
+
+print --> create stb
+sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned);
+
+print --> create sma
+sql create sma index sma_index_name1 on stb function(max(c1),max(c2),min(c1)) interval(6m,10s) sliding(6m);
+
+return
+
+print --> show sma
+sql show indexes from stb from d1;
+if $rows != 1 then
+  return -1
+endi
+if $data[0][0] != sma_index_name1 then
+  return -1
+endi
+if $data[0][1] != d1 then
+  return -1
+endi
+if $data[0][2] != stb then
+  return -1
+endi
+
+print --> drop stb
+sql drop table stb;
+
+print ========== step4 repeat
+
+print --> create stb
+sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned);
+
+print --> create sma
+sql create sma index sma_index_name1 on stb function(max(c1),max(c2),min(c1)) interval(6m,10s) sliding(6m);
+
+print --> show sma
+sql show indexes from stb from d1;
+if $rows != 1 then
+  return -1
+endi
+if $data[0][0] != sma_index_name1 then
+  return -1
+endi
+if $data[0][1] != d1 then
+  return -1
+endi
+if $data[0][2] != stb then
+  return -1
+endi
+
+print --> drop stb
+sql drop table stb;
+
+print ========== step5
+sql drop database if exists db;
+sql create database db duration 300;
+sql use db;
+sql create table stb1(ts timestamp, c_int int, c_bint bigint, c_sint smallint, c_tint tinyint, c_float float, c_double double, c_bool bool, c_binary binary(16), c_nchar nchar(32), c_ts timestamp, c_tint_un tinyint unsigned, c_sint_un smallint unsigned, c_int_un int unsigned, c_bint_un bigint unsigned) tags (t_int int);
+sql CREATE SMA INDEX sma_index_1 ON stb1 function(min(c_int), max(c_int)) interval(6m, 10s) sliding(6m) watermark 5s;
+
+print ========== step6 repeat
+sql drop database if exists db;
+sql create database db duration 300;
+sql use db;
+sql create table stb1(ts timestamp, c_int int, c_bint bigint ) tags (t_int int);
+sql CREATE SMA INDEX sma_index_1 ON stb1 function(min(c_int), max(c_int)) interval(6m, 10s) sliding(6m) watermark 5s;
+
+print ========== step7
+sql drop database if exists db;
+sql create database db duration 300;
+sql use db;
+sql create table stb1(ts timestamp, c_int int, c_bint bigint, c_sint smallint, c_tint tinyint,c_float float, c_double double, c_bool bool,c_binary binary(16), c_nchar nchar(32), c_ts timestamp,c_tint_un tinyint unsigned, c_sint_un smallint unsigned,c_int_un int unsigned, c_bint_un bigint unsigned) tags (t_int int);
+
+sql create table ct1 using stb1 tags ( 1 );
+sql create table ct2 using stb1 tags ( 2 );
+sql create table ct3 using stb1 tags ( 3 );
+sql create table ct4 using stb1 tags ( 4 );
+
+sql CREATE SMA INDEX sma_index_1 ON stb1 function(min(c_int), max(c_int)) interval(6m, 10s) sliding(6m) watermark 5s;
+sql CREATE SMA INDEX sma_index_2 ON stb1 function(min(c_int), max(c_int)) interval(6m, 10s) sliding(6m) max_delay 6m;
+sql CREATE SMA INDEX sma_index_3 ON stb1 function(min(c_int), max(c_int)) interval(6m, 10s) watermark 5s max_delay 6m;
+
+sql DROP INDEX sma_index_1 ;
+sql DROP INDEX sma_index_2 ;
+sql DROP INDEX sma_index_3 ;
+
+print ========== step8
+sql drop database if exists db;
+sql create database db duration 300;
+sql use db;
+sql create table stb1(ts timestamp, c_int int, c_bint bigint, c_sint smallint, c_tint tinyint,c_float float, c_double double, c_bool bool,c_binary binary(16), c_nchar nchar(32), c_ts timestamp,c_tint_un tinyint unsigned, c_sint_un smallint unsigned,c_int_un int unsigned, c_bint_un bigint unsigned) tags (t_int int);
+
+sql create table ct1 using stb1 tags ( 1 );
+sql create table ct2 using stb1 tags ( 2 );
+sql create table ct3 using stb1 tags ( 3 );
+sql create table ct4 using stb1 tags ( 4 );
+
+sql CREATE SMA INDEX sma_index_1 ON stb1 function(min(c_int), max(c_int)) interval(6m, 10s) sliding(6m) watermark 5s;
+sql CREATE SMA INDEX sma_index_2 ON stb1 function(min(c_int), max(c_int)) interval(6m, 10s) sliding(6m) max_delay 6m;
+sql CREATE SMA INDEX sma_index_3 ON stb1 function(min(c_int), max(c_int)) interval(6m, 10s) watermark 5s max_delay 6m;
+
+sql DROP INDEX sma_index_1 ;
+sql DROP INDEX sma_index_2 ;
+sql DROP INDEX sma_index_3 ;
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT

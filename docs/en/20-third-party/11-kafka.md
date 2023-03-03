@@ -1,6 +1,7 @@
 ---
-sidebar_label: Kafka
 title: TDengine Kafka Connector Tutorial
+sidebar_label: Kafka
+description: This document describes how to integrate TDengine with Kafka.
 ---
 
 TDengine Kafka Connector contains two plugins: TDengine Source Connector and TDengine Sink Connector. Users only need to provide a simple configuration file to synchronize the data of the specified topic in Kafka (batch or real-time) to TDengine or synchronize the data (batch or real-time) of the specified database in TDengine to Kafka.
@@ -76,7 +77,7 @@ Development: false
 ### Install from source code
 
 ```
-git clone https://github.com:taosdata/kafka-connect-tdengine.git
+git clone https://github.com/taosdata/kafka-connect-tdengine.git
 cd kafka-connect-tdengine
 mvn clean package
 unzip -d $CONFLUENT_HOME/share/java/ target/components/packages/taosdata-kafka-connect-tdengine-*.zip

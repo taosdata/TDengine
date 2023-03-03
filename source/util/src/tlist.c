@@ -60,7 +60,7 @@ int32_t tdListPrepend(SList *list, void *data) {
   return 0;
 }
 
-int32_t tdListAppend(SList *list, void *data) {
+int32_t tdListAppend(SList *list, const void *data) {
   SListNode *node = (SListNode *)taosMemoryCalloc(1, sizeof(SListNode) + list->eleSize);
   if (node == NULL) return -1;
 

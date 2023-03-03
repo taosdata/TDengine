@@ -52,7 +52,7 @@ CREATE TABLE d1004 USING meters TAGS ("California.LosAngeles", 3);
 ### 创建流
 
 ```sql
-create stream current_stream into current_stream_output_stb as select _wstart as start, _wend as end, max(current) as max_current from meters where voltage <= 220 interval (5s);
+create stream current_stream into current_stream_output_stb as select _wstart as start, _wend as wend, max(current) as max_current from meters where voltage <= 220 interval (5s);
 ```
 
 ### 写入数据
@@ -70,8 +70,8 @@ insert into d1004 values("2018-10-03 14:38:06.500", 11.50000, 221, 0.35000);
 ### 查询以观察结果
 
 ```sql
-taos> select start, end, max_current from current_stream_output_stb;
-          start          |           end           |     max_current      |
+taos> select start, wend, max_current from current_stream_output_stb;
+          start          |          wend           |     max_current      |
 ===========================================================================
  2018-10-03 14:38:05.000 | 2018-10-03 14:38:10.000 |             10.30000 |
  2018-10-03 14:38:15.000 | 2018-10-03 14:38:20.000 |             12.60000 |

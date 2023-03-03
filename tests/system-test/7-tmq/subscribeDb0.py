@@ -20,7 +20,8 @@ class TDTestCase:
     #updatecfgDict["rpcDebugFlag"] = rpcDebugFlagVal
     #print ("===================: ", updatecfgDict)
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
@@ -173,12 +174,13 @@ class TDTestCase:
                          'ctbNum':     10,       \
                          'rowsPerTbl': 5000,    \
                          'batchNum':   100,      \
+                         'replica':   self.replicaVar,      \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
 
         self.initConsumerTable()
 
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict['dbName'], parameterDict['vgroups']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict['dbName'], parameterDict['vgroups'], parameterDict['replica']))
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
@@ -190,6 +192,7 @@ class TDTestCase:
                          'ctbNum':     10,       \
                          'rowsPerTbl': 5000,    \
                          'batchNum':   100,      \
+                         'replica':   self.replicaVar,      \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
 
@@ -253,12 +256,13 @@ class TDTestCase:
                          'ctbNum':     10,       \
                          'rowsPerTbl': 5000,    \
                          'batchNum':   100,      \
+                         'replica':   self.replicaVar,      \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
 
         self.initConsumerTable()
 
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict['dbName'], parameterDict['vgroups']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict['dbName'], parameterDict['vgroups'], parameterDict['replica']))
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()

@@ -1,6 +1,7 @@
 ---
-sidebar_label: Prometheus
 title: Prometheus writing and reading
+sidebar_label: Prometheus
+description: This document describes how to integrate TDengine with Prometheus.
 ---
 
 import Prometheus from "../14-reference/_prometheus.mdx"
@@ -30,21 +31,20 @@ After restarting Prometheus, you can refer to the following example to verify th
 
 ```
 taos> show databases;
-              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
-====================================================================================================================================================================================================================================================================================
- test                           | 2022-04-12 08:07:58.756 |           1 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ms        |      0 | ready      |
- log                            | 2022-04-20 07:19:50.260 |           2 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ms        |      0 | ready      |
- prometheus_data                | 2022-04-20 07:21:09.202 |         158 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ns        |      2 | ready      |
- db                             | 2022-04-15 06:37:08.512 |           1 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ms        |      0 | ready      |
-Query OK, 4 row(s) in set (0.000585s)
+              name              |
+=================================
+ information_schema             |
+ performance_schema             |
+ prometheus_data                |
+Query OK, 3 row(s) in set (0.000585s)
 
 taos> use prometheus_data;
 Database changed.
 
 taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- metrics                        | 2022-04-20 07:21:09.209 |       2 |      1 |        1389 |
+              name              |
+=================================
+ metrics                        |
 Query OK, 1 row(s) in set (0.000487s)
 
 taos> select * from metrics limit 10;
@@ -89,3 +89,7 @@ VALUE    TIMESTAMP
 
 ```
 
+:::note
+
+- TDengine will automatically create unique IDs for sub-table names by the rule.
+:::

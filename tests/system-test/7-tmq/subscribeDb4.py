@@ -31,7 +31,8 @@ class TDTestCase:
                 'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                 'pollDelay':  20,
                 'showMsg':    1,
-                'showRow':    1}
+                'showRow':    1,
+                'snapshot':    1}
 
     cdbName = 'cdb'
     # some parameter to consumer processor
@@ -41,8 +42,8 @@ class TDTestCase:
     ifcheckdata = 0
     ifManualCommit = 1
     groupId = 'group.id:cgrp1'
-    autoCommit = 'enable.auto.commit:false'
-    autoCommitInterval = 'auto.commit.interval.ms:1000'
+    autoCommit = 'enable.auto.commit:true'
+    autoCommitInterval = 'auto.commit.interval.ms:100'
     autoOffset = 'auto.offset.reset:earliest'
 
     pollDelay = 20
@@ -51,7 +52,8 @@ class TDTestCase:
 
     hostname = socket.gethostname()
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         logSql = False
         tdSql.init(conn.cursor(), logSql)
@@ -85,10 +87,11 @@ class TDTestCase:
         tmqCom.insertConsumerInfo(self.consumerId, self.expectrowcnt,topicList,keyList,self.ifcheckdata,self.ifManualCommit)
 
         tdLog.info("start consume processor")
-        tmqCom.startTmqSimProcess(self.pollDelay,self.paraDict["dbName"],self.showMsg, self.showRow,self.cdbName)
+        tmqCom.startTmqSimProcess(self.pollDelay,self.paraDict["dbName"],self.showMsg, self.showRow,self.cdbName,0,0,self.paraDict["snapshot"])
 
-        tdLog.info("After waiting for a period of time, drop one stable")
-        time.sleep(3)
+        tdLog.info("After waiting for a commit notify, drop one stable")
+        #time.sleep(3)
+        tmqCom.getStartCommitNotifyFromTmqsim()
         tdSql.execute("drop table %s.%s" %(self.paraDict['dbName'], self.paraDict['stbName']))
 
         tdLog.info("wait result from consumer, then check it")

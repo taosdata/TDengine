@@ -19,7 +19,6 @@
 #include "os.h"
 #include "taos.h"
 #include "tarray.h"
-#include "tfunctional.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,7 +66,6 @@ typedef struct SSkipList {
   uint32_t           size;
   SSkipListNode     *pHead;  // point to the first element
   SSkipListNode     *pTail;  // point to the last element
-  tGenericSavedFunc *insertHandleFn;
 } SSkipList;
 
 typedef struct SSkipListIterator {

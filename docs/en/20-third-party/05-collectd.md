@@ -1,6 +1,7 @@
 ---
-sidebar_label: collectd
 title: collectd writing
+sidebar_label: collectd
+description: This document describes how to integrate TDengine with collectd.
 ---
 
 import CollectD from "../14-reference/_collectd.mdx"
@@ -32,28 +33,29 @@ Use the TDengine CLI to verify that collectd's data is written to TDengine and c
 
 ```
 taos> show databases;
-              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
-====================================================================================================================================================================================================================================================================================
- collectd                       | 2022-04-20 09:27:45.460 |          95 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ns        |      2 | ready      |
- log                            | 2022-04-20 07:19:50.260 |          11 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ms        |      0 | ready      |
-Query OK, 2 row(s) in set (0.003266s)
+              name              |
+=================================
+ information_schema             |
+ performance_schema             |
+ collectd                       |
+Query OK, 3 row(s) in set (0.003266s)
 
 taos> use collectd;
 Database changed.
 
 taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- load_1                         | 2022-04-20 09:27:45.492 |       2 |      2 |           1 |
- memory_value                   | 2022-04-20 09:27:45.463 |       2 |      3 |           6 |
- df_value                       | 2022-04-20 09:27:45.463 |       2 |      4 |          25 |
- load_2                         | 2022-04-20 09:27:45.501 |       2 |      2 |           1 |
- load_0                         | 2022-04-20 09:27:45.485 |       2 |      2 |           1 |
- interface_1                    | 2022-04-20 09:27:45.488 |       2 |      3 |          12 |
- irq_value                      | 2022-04-20 09:27:45.476 |       2 |      3 |          31 |
- interface_0                    | 2022-04-20 09:27:45.480 |       2 |      3 |          12 |
- entropy_value                  | 2022-04-20 09:27:45.473 |       2 |      2 |           1 |
- swap_value                     | 2022-04-20 09:27:45.477 |       2 |      3 |           5 |
+              name              |
+=================================
+ load_1                         |
+ memory_value                   |
+ df_value                       |
+ load_2                         |
+ load_0                         |
+ interface_1                    |
+ irq_value                      |
+ interface_0                    |
+ entropy_value                  |
+ swap_value                     |
 Query OK, 10 row(s) in set (0.002236s)
 
 taos> select * from collectd.memory_value limit 10;
@@ -72,3 +74,7 @@ taos> select * from collectd.memory_value limit 10;
 Query OK, 10 row(s) in set (0.010348s)
 ```
 
+:::note
+
+- TDengine will automatically create unique IDs for sub-table names by the rule.
+:::

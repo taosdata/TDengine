@@ -25,7 +25,8 @@ extern "C" {
 
 // open a reference set, max is the mod used by hash, fp is the pointer to free resource function
 // return rsetId which will be used by other APIs. On error, -1 is returned, and terrno is set appropriately
-int32_t taosOpenRef(int32_t max, void (*fp)(void *));
+typedef void (*RefFp)(void *);
+int32_t taosOpenRef(int32_t max, RefFp fp);
 
 // close the reference set, refId is the return value by taosOpenRef
 // return 0 if success. On error, -1 is returned, and terrno is set appropriately

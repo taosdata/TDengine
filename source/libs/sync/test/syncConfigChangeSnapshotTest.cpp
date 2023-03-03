@@ -1,11 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "os.h"
-#include "syncEnv.h"
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncUtil.h"
-#include "wal.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -47,8 +41,8 @@ void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
     snprintf(logBuf, sizeof(logBuf),
              "==callback== ==CommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64
              ", term:%" PRIu64 " \n",
-             pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
-             cbMeta.flag, cbMeta.term);
+             pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncStr(cbMeta.state), cbMeta.flag,
+             cbMeta.term);
     syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
   } else {
     sTrace("==callback== ==CommitCb== do not apply again %" PRId64, cbMeta.index);
@@ -57,10 +51,10 @@ void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
 
 void PreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256] = {0};
-  snprintf(
-      logBuf, sizeof(logBuf),
-      "==callback== ==PreCommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s flag:%" PRIu64 "\n",
-      pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), cbMeta.flag);
+  snprintf(logBuf, sizeof(logBuf),
+           "==callback== ==PreCommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s flag:%" PRIu64
+           "\n",
+           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncStr(cbMeta.state), cbMeta.flag);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
 }
 
@@ -68,8 +62,7 @@ void RollBackCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
            "==callback== ==RollBackCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s flag:%" PRIu64 "\n",
-           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
-           cbMeta.flag);
+           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncStr(cbMeta.state), cbMeta.flag);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
 }
 
@@ -149,15 +142,17 @@ int32_t SnapshotDoWrite(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_
 
 void RestoreFinishCb(struct SSyncFSM* pFsm) { sTrace("==callback== ==RestoreFinishCb=="); }
 
-void ReConfigCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta) {
-  sTrace("==callback== ==ReConfigCb== flag:0x%lX, index:%" PRId64 ", code:%d, currentTerm:%" PRIu64 ", term:%" PRIu64,
-         cbMeta.flag, cbMeta.index, cbMeta.code, cbMeta.currentTerm, cbMeta.term);
+void ReConfigCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta* cbMeta) {
+  sTrace("==callback== ==ReConfigCb== flag:%" PRIx64 ", index:%" PRId64 ", code:%d, currentTerm:%" PRIu64
+         ", term:%" PRIu64,
+         cbMeta->flag, cbMeta->index, cbMeta->code, cbMeta->currentTerm, cbMeta->term);
 }
 
 SSyncFSM* createFsm() {
   SSyncFSM* pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
   memset(pFsm, 0, sizeof(*pFsm));
 
+#if 0
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
@@ -172,6 +167,7 @@ SSyncFSM* createFsm() {
   pFsm->FpSnapshotDoWrite = SnapshotDoWrite;
 
   pFsm->FpReConfigCb = ReConfigCb;
+#endif
 
   return pFsm;
 }
@@ -195,8 +191,8 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   SSyncInfo syncInfo;
   syncInfo.vgId = vgId;
   syncInfo.msgcb = &gSyncIO->msgcb;
-  syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.FpEqMsg = syncIOEqMsg;
+  syncInfo.syncSendMSg = syncIOSendMsg;
+  syncInfo.syncEqMsg = syncIOEqMsg;
   syncInfo.pFsm = createFsm();
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s_sync_replica%d_index%d", path, replicaNum, myIndex);
   syncInfo.pWal = pWal;
@@ -227,18 +223,18 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
 
   SSyncNode* pSyncNode = (SSyncNode*)syncNodeAcquire(rid);
   assert(pSyncNode != NULL);
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
-  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
-  gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
+  // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
+  // gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  // gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
+  // gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
 
-  gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
-  gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
-  gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
-  gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
+  // gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
+  // gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
+  // gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
+  // gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
 
-  gSyncIO->FpOnSyncSnapshotSend = pSyncNode->FpOnSnapshotSend;
-  gSyncIO->FpOnSyncSnapshotRsp = pSyncNode->FpOnSnapshotRsp;
+  // gSyncIO->FpOnSyncSnapshot = pSyncNode->FpOnSnapshot;
+  // gSyncIO->FpOnSyncSnapshotReply = pSyncNode->FpOnSnapshotReply;
 
   gSyncIO->pSyncNode = pSyncNode;
   syncNodeRelease(pSyncNode);
@@ -270,7 +266,7 @@ SRpcMsg* createRpcMsg(int i, int count, int myIndex) {
   pMsg->msgType = 9999;
   pMsg->contLen = 256;
   pMsg->pCont = rpcMallocCont(pMsg->contLen);
-  snprintf((char*)(pMsg->pCont), pMsg->contLen, "value-myIndex:%u-%d-%d-" PRId64, myIndex, i, count,
+  snprintf((char*)(pMsg->pCont), pMsg->contLen, "value-myIndex:%u-%d-%d-%" PRId64, myIndex, i, count,
            taosGetTimestampMs());
   return pMsg;
 }
@@ -341,7 +337,7 @@ int main(int argc, char** argv) {
 
     if (alreadySend < writeRecordNum) {
       SRpcMsg* pRpcMsg = createRpcMsg(alreadySend, writeRecordNum, myIndex);
-      int32_t  ret = syncPropose(rid, pRpcMsg, false);
+      int32_t  ret = syncPropose(rid, pRpcMsg, false, NULL);
       if (ret == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
         sTrace("%s value%d write not leader", s, alreadySend);
       } else {

@@ -28,6 +28,10 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
 int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *dbname) {
   return 0;
 }
+int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operType, SMqTopicObj *pTopic) { return 0; }
+int32_t mndCheckTopicPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *topicName) {
+  return 0;
+}
 int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp) {
   memcpy(pRsp->user, pUser->user, TSDB_USER_LEN);
   pRsp->superAuth = 1;

@@ -63,14 +63,14 @@ class TDCases:
 
         tdLog.info("total %d Linux test case(s) executed" % (runNum))
 
-    def runOneLinux(self, conn, fileName):
+    def runOneLinux(self, conn, fileName, replicaVar=1):
         testModule = self.__dynamicLoadModule(fileName)
 
         runNum = 0
         for tmp in self.linuxCases:
             if tmp.name.find(fileName) != -1:
                 case = testModule.TDTestCase()
-                case.init(conn, self._logSql)
+                case.init(conn, self._logSql, replicaVar)
                 try:
                     case.run()
                 except Exception as e:

@@ -10,4 +10,4 @@ chrono = "0.4"
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }
 
-taos = { version = "0.*" }
+taos = { version = "0.4.8" }

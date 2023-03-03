@@ -122,6 +122,8 @@ typedef struct SBtInfo {
 #define TDB_CELLD_F_VAL 0x2
 
 #define TDB_CELLDECODER_SET_FREE_NIL(pCellDecoder) ((pCellDecoder)->freeKV = TDB_CELLD_F_NIL)
+#define TDB_CELLDECODER_CLZ_FREE_KEY(pCellDecoder) ((pCellDecoder)->freeKV &= ~TDB_CELLD_F_KEY)
+#define TDB_CELLDECODER_CLZ_FREE_VAL(pCellDecoder) ((pCellDecoder)->freeKV &= ~TDB_CELLD_F_VAL)
 #define TDB_CELLDECODER_SET_FREE_KEY(pCellDecoder) ((pCellDecoder)->freeKV |= TDB_CELLD_F_KEY)
 #define TDB_CELLDECODER_SET_FREE_VAL(pCellDecoder) ((pCellDecoder)->freeKV |= TDB_CELLD_F_VAL)
 
@@ -147,11 +149,11 @@ struct SBTC {
   SPage       *pgStack[BTREE_MAX_DEPTH + 1];
   SCellDecoder coder;
   TXN         *pTxn;
-  TXN          txn;
+  i8           freeTxn;
 };
 
 // SBTree
-int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr,
+int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr, TDB *pEnv,
                  SBTree **ppBt);
 int tdbBtreeClose(SBTree *pBt);
 int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
@@ -190,18 +192,22 @@ int  tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt);
 int  tdbPagerWrite(SPager *pPager, SPage *pPage);
 int  tdbPagerBegin(SPager *pPager, TXN *pTxn);
 int  tdbPagerCommit(SPager *pPager, TXN *pTxn);
+int  tdbPagerPostCommit(SPager *pPager, TXN *pTxn);
+int  tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn);
 int  tdbPagerAbort(SPager *pPager, TXN *pTxn);
 int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
                        TXN *pTxn);
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
 int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
-int  tdbPagerRestore(SPager *pPager, SBTree *pBt);
+int  tdbPagerRestoreJournals(SPager *pPager);
+int  tdbPagerRollback(SPager *pPager);
 
 // tdbPCache.c ====================================
 #define TDB_PCACHE_PAGE    \
   u8           isAnchor;   \
   u8           isLocal;    \
   u8           isDirty;    \
+  u8           isFree;     \
   volatile i32 nRef;       \
   i32          id;         \
   SPage       *pFreeNext;  \
@@ -216,8 +222,11 @@ int  tdbPagerRestore(SPager *pPager, SBTree *pBt);
 
 int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
 int    tdbPCacheClose(SPCache *pCache);
+int    tdbPCacheAlter(SPCache *pCache, int32_t nPage);
 SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn);
 void   tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn);
+void   tdbPCacheMarkFree(SPCache *pCache, SPage *pPage);
+void   tdbPCacheInvalidatePage(SPCache *pCache, SPager *pPager, SPgno pgno);
 int    tdbPCacheGetPageSize(SPCache *pCache);
 
 // tdbPage.c ====================================
@@ -378,6 +387,7 @@ struct STDB {
 #ifdef USE_MAINDB
   TTB *pMainDb;
 #endif
+  int64_t txnId;
 };
 
 struct SPager {
@@ -386,15 +396,15 @@ struct SPager {
   int      pageSize;
   uint8_t  fid[TDB_FILE_ID_LEN];
   tdb_fd_t fd;
-  tdb_fd_t jfd;
   SPCache *pCache;
   SPgno    dbFileSize;
   SPgno    dbOrigSize;
-  SPage   *pDirty;
-  SRBTree  rbt;
-  u8       inTran;
-  SPager  *pNext;      // used by TDB
-  SPager  *pHashNext;  // used by TDB
+  // SPage   *pDirty;
+  SRBTree rbt;
+  // u8        inTran;
+  TXN    *pActiveTxn;
+  SPager *pNext;      // used by TDB
+  SPager *pHashNext;  // used by TDB
 #ifdef USE_MAINDB
   TDB *pEnv;
 #endif

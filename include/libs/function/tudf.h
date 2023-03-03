@@ -24,12 +24,12 @@
 #define alloc alloc
 #include <taosudf.h>
 
-#include <stdint.h>
 #include <stdbool.h>
-#include "tmsg.h"
-#include "tcommon.h"
+#include <stdint.h>
 #include "function.h"
+#include "tcommon.h"
 #include "tdatablock.h"
+#include "tmsg.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,8 +43,7 @@ extern "C" {
 #endif
 #define UDF_DNODE_ID_ENV_NAME "DNODE_ID"
 
-
-//low level APIs
+// low level APIs
 /**
  * setup udf
  * @param udf, in
@@ -62,7 +61,8 @@ int32_t doCallUdfAggProcess(UdfcFuncHandle handle, SSDataBlock *block, SUdfInter
 int32_t doCallUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData);
 // input: interbuf1, interbuf2
 // output: resultBuf
-int32_t doCallUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2, SUdfInterBuf *resultBuf);
+int32_t doCallUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2,
+                          SUdfInterBuf *resultBuf);
 // input: block
 // output: resultData
 int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
@@ -75,15 +75,41 @@ int32_t doTeardownUdf(UdfcFuncHandle handle);
 
 void freeUdfInterBuf(SUdfInterBuf *buf);
 
-//high level APIs
-bool udfAggGetEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
+// high level APIs
+bool    udfAggGetEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
+bool    udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
 int32_t udfAggProcess(struct SqlFunctionCtx *pCtx);
-int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
+int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
 
 int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
 
 int32_t cleanUpUdfs();
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// udf api
+/**
+ * create udfd proxy, called once in process that call doSetupUdf/callUdfxxx/doTeardownUdf
+ * @return error code
+ */
+int32_t udfcOpen();
+
+/**
+ * destroy udfd proxy
+ * @return error code
+ */
+int32_t udfcClose();
+
+/**
+ * start udfd that serves udf function invocation under dnode startDnodeId
+ * @param startDnodeId
+ * @return
+ */
+int32_t udfStartUdfd(int32_t startDnodeId);
+/**
+ * stop udfd
+ * @return
+ */
+int32_t udfStopUdfd();
 
 #ifdef __cplusplus
 }

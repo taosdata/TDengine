@@ -20,15 +20,8 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
-#include "taosdef.h"
 
-// SVotesGranted -----------------------------
 typedef struct SVotesGranted {
   SRaftId (*replicas)[TSDB_MAX_REPLICA];
   bool       isGranted[TSDB_MAX_REPLICA];
@@ -37,47 +30,30 @@ typedef struct SVotesGranted {
   SyncTerm   term;
   int32_t    quorum;
   bool       toLeader;
-  SSyncNode *pSyncNode;
+  SSyncNode *pNode;
 } SVotesGranted;
 
-SVotesGranted *voteGrantedCreate(SSyncNode *pSyncNode);
+SVotesGranted *voteGrantedCreate(SSyncNode *pNode);
 void           voteGrantedDestroy(SVotesGranted *pVotesGranted);
-void           voteGrantedUpdate(SVotesGranted *pVotesGranted, SSyncNode *pSyncNode);
+void           voteGrantedUpdate(SVotesGranted *pVotesGranted, SSyncNode *pNode);
 bool           voteGrantedMajority(SVotesGranted *pVotesGranted);
 void           voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg);
 void           voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term);
-cJSON *        voteGranted2Json(SVotesGranted *pVotesGranted);
-char *         voteGranted2Str(SVotesGranted *pVotesGranted);
 
-// for debug -------------------
-void voteGrantedPrint(SVotesGranted *pObj);
-void voteGrantedPrint2(char *s, SVotesGranted *pObj);
-void voteGrantedLog(SVotesGranted *pObj);
-void voteGrantedLog2(char *s, SVotesGranted *pObj);
-
-// SVotesRespond -----------------------------
 typedef struct SVotesRespond {
   SRaftId (*replicas)[TSDB_MAX_REPLICA];
   bool       isRespond[TSDB_MAX_REPLICA];
   int32_t    replicaNum;
   SyncTerm   term;
-  SSyncNode *pSyncNode;
+  SSyncNode *pNode;
 } SVotesRespond;
 
-SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode);
+SVotesRespond *votesRespondCreate(SSyncNode *pNode);
 void           votesRespondDestory(SVotesRespond *pVotesRespond);
-void           votesRespondUpdate(SVotesRespond *pVotesRespond, SSyncNode *pSyncNode);
+void           votesRespondUpdate(SVotesRespond *pVotesRespond, SSyncNode *pNode);
 bool           votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId);
 void           votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *pMsg);
 void           votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term);
-cJSON *        votesRespond2Json(SVotesRespond *pVotesRespond);
-char *         votesRespond2Str(SVotesRespond *pVotesRespond);
-
-// for debug -------------------
-void votesRespondPrint(SVotesRespond *pObj);
-void votesRespondPrint2(char *s, SVotesRespond *pObj);
-void votesRespondLog(SVotesRespond *pObj);
-void votesRespondLog2(char *s, SVotesRespond *pObj);
 
 #ifdef __cplusplus
 }

@@ -23,6 +23,16 @@ osType=Linux
 pagMode=full
 verMode=edge
 
+clientName2="taos"
+serverName2="taosd"
+productName2="TDengine"
+emailName2="taosdata.com"
+
+benchmarkName2="${clientName2}Benchmark"
+dumpName2="${clientName2}dump"
+demoName2="${clientName2}demo"
+uninstallScript2="rm${clientName2}"
+
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
     # Dynamic directory
@@ -112,6 +122,15 @@ function install_bin() {
   fi
   [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
+
+  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+    #Make link
+    [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName2}                 || :
+    if [ "$osType" != "Darwin" ]; then
+        [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/${demoName2}  || :
+    fi
+    [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/${uninstallScript2} || :
+  fi
 }
 
 function clean_lib() {
@@ -263,9 +282,9 @@ function update_TDengine() {
         exit 1
     fi
     tar -zxf ${tarName}
-    echo -e "${GREEN}Start to update ${productName} client...${NC}"
+    echo -e "${GREEN}Start to update ${productName2} client...${NC}"
     # Stop the client shell if running
-    if pidof ${clientName} &> /dev/null; then
+    if ps aux | grep -v grep | grep ${clientName2} &> /dev/null; then
         kill_client
         sleep 1
     fi
@@ -284,7 +303,7 @@ function update_TDengine() {
     install_config
 
     echo
-    echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
+    echo -e "\033[44;32;1m${productName2} client is updated successfully!${NC}"
 
     rm -rf $(tar -tf ${tarName})
 }
@@ -296,7 +315,7 @@ function install_TDengine() {
         exit 1
     fi
     tar -zxf ${tarName}
-    echo -e "${GREEN}Start to install ${productName} client...${NC}"
+    echo -e "${GREEN}Start to install ${productName2} client...${NC}"
 
     install_main_path
     install_log
@@ -311,7 +330,7 @@ function install_TDengine() {
     install_config
 
     echo
-    echo -e "\033[44;32;1m${productName} client is installed successfully!${NC}"
+    echo -e "\033[44;32;1m${productName2} client is installed successfully!${NC}"
 
     rm -rf $(tar -tf ${tarName})
 }
@@ -321,7 +340,7 @@ function install_TDengine() {
 # Install or updata client and client
 # if server is already install, don't install client
 if [ -e ${bin_dir}/${serverName} ]; then
-    echo -e "\033[44;32;1mThere are already installed ${productName} server, so don't need install client!${NC}"
+    echo -e "\033[44;32;1mThere are already installed ${productName2} server, so don't need install client!${NC}"
     exit 0
 fi
 

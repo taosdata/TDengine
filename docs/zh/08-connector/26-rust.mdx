@@ -7,7 +7,7 @@ title: TDengine Rust Connector
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-import Preparition from "./_preparition.mdx"
+import Preparation from "./_preparation.mdx"
 import RustInsert from "../07-develop/03-insert-data/_rust_sql.mdx"
 import RustBind from "../07-develop/03-insert-data/_rust_stmt.mdx"
 import RustQuery from "../07-develop/04-query-data/_rust.mdx"
@@ -55,16 +55,6 @@ taos = "*"
 
 </TabItem>
 
-<TabItem value="native" label="仅原生连接">
-
-在 `Cargo.toml` 文件中添加 [taos][taos]，并启用 `native` 特性：
-
-```toml
-[dependencies]
-taos = { version = "*", default-features = false, features = ["native"] }
-```
-
-</TabItem>
 <TabItem value="rest" label="仅 Websocket">
 
 在 `Cargo.toml` 文件中添加 [taos][taos]，并启用 `ws` 特性。
@@ -72,6 +62,17 @@ taos = { version = "*", default-features = false, features = ["native"] }
 ```toml
 [dependencies]
 taos = { version = "*", default-features = false, features = ["ws"] }
+```
+
+</TabItem>
+
+<TabItem value="native" label="仅原生连接">
+
+在 `Cargo.toml` 文件中添加 [taos][taos]，并启用 `native` 特性：
+
+```toml
+[dependencies]
+taos = { version = "*", default-features = false, features = ["native"] }
 ```
 
 </TabItem>

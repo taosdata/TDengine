@@ -37,7 +37,7 @@ endi
 
 print ============= create database with all options
 #database_option: {
-#  | BUFFER value       [3~16384, default: 96]
+#  | BUFFER value       [3~16384, default: 256]
 #  | PAGES value        [64~16384, default: 256]
 #  | PAGESIZE value     [1~16384, default: 4]
 #  | CACHEMODEL value   ['node', 'last_row', 'last_value', 'both', default: 'node']
@@ -89,7 +89,7 @@ if $data4_db != 1 then  # replica
   print expect 1, actual: $data4_db
   return -1
 endi
-if $data5_db != off then  # strict
+if $data5_db != on then  # strict
   return -1
 endi
 if $data6_db != 14400m then  # duration
@@ -98,7 +98,7 @@ endi
 if $data7_db != 5256000m,5256000m,5256000m then # keep
   return -1
 endi
-if $data8_db != 96 then  # buffer
+if $data8_db != 256 then  # buffer
   return -1
 endi
 if $data9_db != 4 then  # pagesize

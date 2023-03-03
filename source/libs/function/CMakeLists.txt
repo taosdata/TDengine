@@ -1,6 +1,7 @@
 aux_source_directory(src FUNCTION_SRC)
+aux_source_directory(src/detail FUNCTION_SRC_DETAIL)
 list(REMOVE_ITEM FUNCTION_SRC src/udfd.c)
-add_library(function STATIC ${FUNCTION_SRC})
+add_library(function STATIC ${FUNCTION_SRC} ${FUNCTION_SRC_DETAIL})
 target_include_directories(
     function
     PUBLIC
@@ -12,9 +13,27 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+  ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
+  SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
+ELSE ()
+  SET(LINK_JEMALLOC "")
+ENDIF ()
+
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    ADD_DEPENDENCIES(function jemalloc)
+ENDIF ()
+
 target_link_libraries(
     function
-    PRIVATE os util common nodes scalar qcom transport stream
+    PRIVATE os 
+    PRIVATE util 
+    PRIVATE common 
+    PRIVATE nodes 
+    PRIVATE qcom 
+    PRIVATE scalar 
+    PRIVATE transport 
+    PRIVATE stream ${LINK_JEMALLOC}
     PUBLIC uv_a
 )
 
@@ -30,10 +49,15 @@ target_include_directories(
             "${TD_SOURCE_DIR}/include/os"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    ADD_DEPENDENCIES(runUdf jemalloc)
+ENDIF ()
+
 target_link_libraries(
         runUdf
         PUBLIC uv_a
-        PRIVATE os util common nodes function
+        PRIVATE os util common nodes function ${LINK_JEMALLOC}
 )
 
 add_library(udf1 STATIC MODULE test/udf1.c)
@@ -47,8 +71,13 @@ target_include_directories(
             "${TD_SOURCE_DIR}/include/os"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    ADD_DEPENDENCIES(udf1 jemalloc)
+ENDIF ()
+
 target_link_libraries(
-    udf1 PUBLIC os)
+    udf1 PUBLIC os ${LINK_JEMALLOC})
 
 add_library(udf2 STATIC MODULE test/udf2.c)
 target_include_directories(
@@ -61,8 +90,13 @@ target_include_directories(
             "${TD_SOURCE_DIR}/include/os"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    ADD_DEPENDENCIES(udf2 jemalloc)
+ENDIF ()
+
 target_link_libraries(
-    udf2 PUBLIC os
+    udf2 PUBLIC os ${LINK_JEMALLOC}
 )
 
 #SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
@@ -79,9 +113,13 @@ target_include_directories(
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    ADD_DEPENDENCIES(udfd jemalloc)
+ENDIF ()
+
 target_link_libraries(
-        udfd
-        PUBLIC uv_a
-        PRIVATE os util common nodes function
-)
+    udfd
+    PUBLIC uv_a
+    PRIVATE os util common nodes function ${LINK_JEMALLOC}
+    )
 

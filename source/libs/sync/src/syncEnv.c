@@ -13,118 +13,150 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncEnv.h"
-// #include <ASSERT.h>
+#include "syncUtil.h"
+#include "tref.h"
 
-SSyncEnv *gSyncEnv = NULL;
+static SSyncEnv gSyncEnv = {0};
+static int32_t  gNodeRefId = -1;
+static int32_t  gHbDataRefId = -1;
+static void     syncEnvTick(void *param, void *tmrId);
 
-// local function -----------------
-static SSyncEnv *doSyncEnvStart();
-static int32_t   doSyncEnvStop(SSyncEnv *pSyncEnv);
-static int32_t   doSyncEnvStartTimer(SSyncEnv *pSyncEnv);
-static int32_t   doSyncEnvStopTimer(SSyncEnv *pSyncEnv);
-static void      syncEnvTick(void *param, void *tmrId);
-// --------------------------------
+SSyncEnv *syncEnv() { return &gSyncEnv; }
 
-bool syncEnvIsStart() {
-  if (gSyncEnv == NULL) {
-    return false;
-  }
+bool syncIsInit() { return atomic_load_8(&gSyncEnv.isStart); }
 
-  return atomic_load_8(&(gSyncEnv->isStart));
-}
+int32_t syncInit() {
+  if (syncIsInit()) return 0;
 
-int32_t syncEnvStart() {
-  int32_t  ret = 0;
   uint32_t seed = (uint32_t)(taosGetTimestampNs() & 0x00000000FFFFFFFF);
   taosSeedRand(seed);
-  // gSyncEnv = doSyncEnvStart(gSyncEnv);
-  gSyncEnv = doSyncEnvStart();
-  ASSERT(gSyncEnv != NULL);
-  sTrace("sync env start ok");
-  return ret;
-}
 
-int32_t syncEnvStop() {
-  int32_t ret = doSyncEnvStop(gSyncEnv);
-  return ret;
-}
-
-int32_t syncEnvStartTimer() {
-  int32_t ret = doSyncEnvStartTimer(gSyncEnv);
-  return ret;
-}
-
-int32_t syncEnvStopTimer() {
-  int32_t ret = doSyncEnvStopTimer(gSyncEnv);
-  return ret;
-}
-
-// local function -----------------
-static void syncEnvTick(void *param, void *tmrId) {
-  SSyncEnv *pSyncEnv = (SSyncEnv *)param;
-  if (atomic_load_64(&pSyncEnv->envTickTimerLogicClockUser) <= atomic_load_64(&pSyncEnv->envTickTimerLogicClock)) {
-    ++(pSyncEnv->envTickTimerCounter);
-    sTrace("syncEnvTick do ... envTickTimerLogicClockUser:%" PRIu64 ", envTickTimerLogicClock:%" PRIu64
-           ", envTickTimerCounter:%" PRIu64
-           ", "
-           "envTickTimerMS:%d, tmrId:%p",
-           pSyncEnv->envTickTimerLogicClockUser, pSyncEnv->envTickTimerLogicClock, pSyncEnv->envTickTimerCounter,
-           pSyncEnv->envTickTimerMS, tmrId);
-
-    // do something, tick ...
-    taosTmrReset(syncEnvTick, pSyncEnv->envTickTimerMS, pSyncEnv, pSyncEnv->pTimerManager, &pSyncEnv->pEnvTickTimer);
-  } else {
-    sTrace("syncEnvTick pass ... envTickTimerLogicClockUser:%" PRIu64 ", envTickTimerLogicClock:%" PRIu64
-           ", envTickTimerCounter:%" PRIu64
-           ", "
-           "envTickTimerMS:%d, tmrId:%p",
-           pSyncEnv->envTickTimerLogicClockUser, pSyncEnv->envTickTimerLogicClock, pSyncEnv->envTickTimerCounter,
-           pSyncEnv->envTickTimerMS, tmrId);
-  }
-}
-
-static SSyncEnv *doSyncEnvStart() {
-  SSyncEnv *pSyncEnv = (SSyncEnv *)taosMemoryMalloc(sizeof(SSyncEnv));
-  ASSERT(pSyncEnv != NULL);
-  memset(pSyncEnv, 0, sizeof(SSyncEnv));
-
-  pSyncEnv->envTickTimerCounter = 0;
-  pSyncEnv->envTickTimerMS = ENV_TICK_TIMER_MS;
-  pSyncEnv->FpEnvTickTimer = syncEnvTick;
-  atomic_store_64(&pSyncEnv->envTickTimerLogicClock, 0);
-  atomic_store_64(&pSyncEnv->envTickTimerLogicClockUser, 0);
+  memset(&gSyncEnv, 0, sizeof(SSyncEnv));
+  gSyncEnv.envTickTimerCounter = 0;
+  gSyncEnv.envTickTimerMS = ENV_TICK_TIMER_MS;
+  gSyncEnv.FpEnvTickTimer = syncEnvTick;
+  atomic_store_64(&gSyncEnv.envTickTimerLogicClock, 0);
+  atomic_store_64(&gSyncEnv.envTickTimerLogicClockUser, 0);
 
   // start tmr thread
-  pSyncEnv->pTimerManager = taosTmrInit(1000, 50, 10000, "SYNC-ENV");
+  gSyncEnv.pTimerManager = taosTmrInit(1000, 50, 10000, "SYNC-ENV");
+  atomic_store_8(&gSyncEnv.isStart, 1);
 
-  atomic_store_8(&(pSyncEnv->isStart), 1);
-  return pSyncEnv;
-}
-
-static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) {
-  ASSERT(pSyncEnv == gSyncEnv);
-  if (pSyncEnv != NULL) {
-    atomic_store_8(&(pSyncEnv->isStart), 0);
-    taosTmrCleanUp(pSyncEnv->pTimerManager);
-    taosMemoryFree(pSyncEnv);
+  gNodeRefId = taosOpenRef(200, (RefFp)syncNodeClose);
+  if (gNodeRefId < 0) {
+    sError("failed to init node ref");
+    syncCleanUp();
+    return -1;
   }
-  gSyncEnv = NULL;
+
+  gHbDataRefId = taosOpenRef(200, (RefFp)syncHbTimerDataFree);
+  if (gHbDataRefId < 0) {
+    sError("failed to init hb-data ref");
+    syncCleanUp();
+    return -1;
+  }
+
+  sDebug("sync rsetId:%d is open", gNodeRefId);
   return 0;
 }
 
-static int32_t doSyncEnvStartTimer(SSyncEnv *pSyncEnv) {
-  int32_t ret = 0;
-  taosTmrReset(pSyncEnv->FpEnvTickTimer, pSyncEnv->envTickTimerMS, pSyncEnv, pSyncEnv->pTimerManager,
-               &pSyncEnv->pEnvTickTimer);
-  atomic_store_64(&pSyncEnv->envTickTimerLogicClock, pSyncEnv->envTickTimerLogicClockUser);
-  return ret;
+void syncCleanUp() {
+  atomic_store_8(&gSyncEnv.isStart, 0);
+  taosTmrCleanUp(gSyncEnv.pTimerManager);
+  memset(&gSyncEnv, 0, sizeof(SSyncEnv));
+
+  if (gNodeRefId != -1) {
+    sDebug("sync rsetId:%d is closed", gNodeRefId);
+    taosCloseRef(gNodeRefId);
+    gNodeRefId = -1;
+  }
+
+  if (gHbDataRefId != -1) {
+    sDebug("sync rsetId:%d is closed", gHbDataRefId);
+    taosCloseRef(gHbDataRefId);
+    gHbDataRefId = -1;
+  }
 }
 
-static int32_t doSyncEnvStopTimer(SSyncEnv *pSyncEnv) {
+int64_t syncNodeAdd(SSyncNode *pNode) {
+  pNode->rid = taosAddRef(gNodeRefId, pNode);
+  if (pNode->rid < 0) return -1;
+
+  sDebug("vgId:%d, sync rid:%" PRId64 " is added to rsetId:%d", pNode->vgId, pNode->rid, gNodeRefId);
+  return pNode->rid;
+}
+
+void syncNodeRemove(int64_t rid) { taosRemoveRef(gNodeRefId, rid); }
+
+SSyncNode *syncNodeAcquire(int64_t rid) {
+  SSyncNode *pNode = taosAcquireRef(gNodeRefId, rid);
+  if (pNode == NULL) {
+    sError("failed to acquire node from refId:%" PRId64, rid);
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+
+  return pNode;
+}
+
+void syncNodeRelease(SSyncNode *pNode) {
+  if (pNode) taosReleaseRef(gNodeRefId, pNode->rid);
+}
+
+int64_t syncHbTimerDataAdd(SSyncHbTimerData *pData) {
+  pData->rid = taosAddRef(gHbDataRefId, pData);
+  if (pData->rid < 0) return -1;
+  return pData->rid;
+}
+
+void syncHbTimerDataRemove(int64_t rid) { taosRemoveRef(gHbDataRefId, rid); }
+
+SSyncHbTimerData *syncHbTimerDataAcquire(int64_t rid) {
+  SSyncHbTimerData *pData = taosAcquireRef(gHbDataRefId, rid);
+  if (pData == NULL && rid > 0) {
+    sInfo("failed to acquire hb-timer-data from refId:%" PRId64, rid);
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+
+  return pData;
+}
+
+void syncHbTimerDataRelease(SSyncHbTimerData *pData) { taosReleaseRef(gHbDataRefId, pData->rid); }
+
+#if 0
+void syncEnvStartTimer() {
+  taosTmrReset(gSyncEnv.FpEnvTickTimer, gSyncEnv.envTickTimerMS, &gSyncEnv, gSyncEnv.pTimerManager,
+               &gSyncEnv.pEnvTickTimer);
+  atomic_store_64(&gSyncEnv.envTickTimerLogicClock, gSyncEnv.envTickTimerLogicClockUser);
+}
+
+void syncEnvStopTimer() {
   int32_t ret = 0;
-  atomic_add_fetch_64(&pSyncEnv->envTickTimerLogicClockUser, 1);
-  taosTmrStop(pSyncEnv->pEnvTickTimer);
-  pSyncEnv->pEnvTickTimer = NULL;
+  atomic_add_fetch_64(&gSyncEnv.envTickTimerLogicClockUser, 1);
+  taosTmrStop(gSyncEnv.pEnvTickTimer);
+  gSyncEnv.pEnvTickTimer = NULL;
   return ret;
+}
+#endif
+
+static void syncEnvTick(void *param, void *tmrId) {
+#if 0
+  SSyncEnv *pSyncEnv = param;
+  if (atomic_load_64(&gSyncEnv.envTickTimerLogicClockUser) <= atomic_load_64(&gSyncEnv.envTickTimerLogicClock)) {
+    gSyncEnv.envTickTimerCounter++;
+    sTrace("syncEnvTick do ... envTickTimerLogicClockUser:%" PRIu64 ", envTickTimerLogicClock:%" PRIu64
+           ", envTickTimerCounter:%" PRIu64 ", envTickTimerMS:%d, tmrId:%p",
+           gSyncEnv.envTickTimerLogicClockUser, gSyncEnv.envTickTimerLogicClock, gSyncEnv.envTickTimerCounter,
+           gSyncEnv.envTickTimerMS, tmrId);
+
+    // do something, tick ...
+    taosTmrReset(syncEnvTick, gSyncEnv.envTickTimerMS, pSyncEnv, gSyncEnv.pTimerManager, &gSyncEnv.pEnvTickTimer);
+  } else {
+    sTrace("syncEnvTick pass ... envTickTimerLogicClockUser:%" PRIu64 ", envTickTimerLogicClock:%" PRIu64
+           ", envTickTimerCounter:%" PRIu64 ", envTickTimerMS:%d, tmrId:%p",
+           gSyncEnv.envTickTimerLogicClockUser, gSyncEnv.envTickTimerLogicClock, gSyncEnv.envTickTimerCounter,
+           gSyncEnv.envTickTimerMS, tmrId);
+  }
+#endif
 }

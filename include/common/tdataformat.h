@@ -27,69 +27,95 @@
 extern "C" {
 #endif
 
-typedef struct SSchema       SSchema;
-typedef struct STColumn      STColumn;
-typedef struct STSchema      STSchema;
-typedef struct SValue        SValue;
-typedef struct SColVal       SColVal;
-typedef struct STSRow2       STSRow2;
-typedef struct STSRowBuilder STSRowBuilder;
-typedef struct STagVal       STagVal;
-typedef struct STag          STag;
-typedef struct SColData      SColData;
+typedef struct SBuffer  SBuffer;
+typedef struct SSchema  SSchema;
+typedef struct SSchema2 SSchema2;
+typedef struct STColumn STColumn;
+typedef struct STSchema STSchema;
+typedef struct SValue   SValue;
+typedef struct SColVal  SColVal;
+typedef struct SRow     SRow;
+typedef struct SRowIter SRowIter;
+typedef struct STagVal  STagVal;
+typedef struct STag     STag;
+typedef struct SColData SColData;
 
 #define HAS_NONE  ((uint8_t)0x1)
 #define HAS_NULL  ((uint8_t)0x2)
 #define HAS_VALUE ((uint8_t)0x4)
 
 // bitmap ================================
-const static uint8_t BIT2_MAP[4][4] = {{0b00000000, 0b00000001, 0b00000010, 0},
-                                       {0b00000000, 0b00000100, 0b00001000, 2},
-                                       {0b00000000, 0b00010000, 0b00100000, 4},
-                                       {0b00000000, 0b01000000, 0b10000000, 6}};
+const static uint8_t BIT1_MAP[8] = {0b11111110, 0b11111101, 0b11111011, 0b11110111,
+                                    0b11101111, 0b11011111, 0b10111111, 0b01111111};
 
-#define N1(n)             ((((uint8_t)1) << (n)) - 1)
-#define BIT1_SIZE(n)      ((((n)-1) >> 3) + 1)
-#define BIT2_SIZE(n)      ((((n)-1) >> 2) + 1)
-#define SET_BIT1(p, i, v) ((p)[(i) >> 3] = (p)[(i) >> 3] & N1((i)&7) | (((uint8_t)(v)) << ((i)&7)))
-#define GET_BIT1(p, i)    (((p)[(i) >> 3] >> ((i)&7)) & ((uint8_t)1))
-#define SET_BIT2(p, i, v) ((p)[(i) >> 2] = (p)[(i) >> 2] & N1(BIT2_MAP[(i)&3][3]) | BIT2_MAP[(i)&3][(v)])
-#define GET_BIT2(p, i)    (((p)[(i) >> 2] >> BIT2_MAP[(i)&3][3]) & ((uint8_t)3))
+const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b00111111};
 
-// STSchema ================================
-int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
-void    tTSchemaDestroy(STSchema *pTSchema);
+#define ONE               ((uint8_t)1)
+#define THREE             ((uint8_t)3)
+#define DIV_8(i)          ((i) >> 3)
+#define MOD_8(i)          ((i)&7)
+#define DIV_4(i)          ((i) >> 2)
+#define MOD_4(i)          ((i)&3)
+#define MOD_4_TIME_2(i)   (MOD_4(i) << 1)
+#define BIT1_SIZE(n)      (DIV_8((n)-1) + 1)
+#define BIT2_SIZE(n)      (DIV_4((n)-1) + 1)
+#define SET_BIT1(p, i, v) ((p)[DIV_8(i)] = (p)[DIV_8(i)] & BIT1_MAP[MOD_8(i)] | ((v) << MOD_8(i)))
+#define SET_BIT1_EX(p, i, v) \
+  do {                       \
+    if (MOD_8(i) == 0) {     \
+      (p)[DIV_8(i)] = 0;     \
+    }                        \
+    SET_BIT1(p, i, v);       \
+  } while (0)
+#define GET_BIT1(p, i)    (((p)[DIV_8(i)] >> MOD_8(i)) & ONE)
+#define SET_BIT2(p, i, v) ((p)[DIV_4(i)] = (p)[DIV_4(i)] & BIT2_MAP[MOD_4(i)] | ((v) << MOD_4_TIME_2(i)))
+#define SET_BIT2_EX(p, i, v) \
+  do {                       \
+    if (MOD_4(i) == 0) {     \
+      (p)[DIV_4(i)] = 0;     \
+    }                        \
+    SET_BIT2(p, i, v);       \
+  } while (0)
+#define GET_BIT2(p, i) (((p)[DIV_4(i)] >> MOD_4_TIME_2(i)) & THREE)
 
-// SValue ================================
-int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type);
-int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type);
-int     tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
+// SBuffer ================================
+struct SBuffer {
+  int64_t  nBuf;
+  uint8_t *pBuf;
+};
+
+#define tBufferCreate() \
+  (SBuffer) { .nBuf = 0, .pBuf = NULL }
+void    tBufferDestroy(SBuffer *pBuffer);
+int32_t tBufferInit(SBuffer *pBuffer, int64_t size);
+int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData);
+int32_t tBufferReserve(SBuffer *pBuffer, int64_t nData, void **ppData);
 
 // SColVal ================================
-#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNone = 1})
-#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNull = 1})
+#define CV_FLAG_VALUE ((int8_t)0x0)
+#define CV_FLAG_NONE  ((int8_t)0x1)
+#define CV_FLAG_NULL  ((int8_t)0x2)
+
+#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NONE})
+#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NULL})
 #define COL_VAL_VALUE(CID, TYPE, V) ((SColVal){.cid = (CID), .type = (TYPE), .value = (V)})
 
-// STSRow2 ================================
-#define TSROW_LEN(PROW, V)  tGetI32v((uint8_t *)(PROW)->data, (V) ? &(V) : NULL)
-#define TSROW_SVER(PROW, V) tGetI32v((PROW)->data + TSROW_LEN(PROW, NULL), (V) ? &(V) : NULL)
+#define COL_VAL_IS_NONE(CV)  ((CV)->flag == CV_FLAG_NONE)
+#define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
+#define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
-int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow);
-int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow);
-void    tTSRowFree(STSRow2 *pRow);
-void    tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
-int32_t tTSRowToArray(STSRow2 *pRow, STSchema *pTSchema, SArray **ppArray);
-int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
-int32_t tGetTSRow(uint8_t *p, STSRow2 **ppRow);
+// SRow ================================
+int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
+int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
+void    tRowDestroy(SRow *pRow);
+void    tRowSort(SArray *aRowP);
+int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
+int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
 
-// STSRowBuilder ================================
-#define tsRowBuilderInit() ((STSRowBuilder){0})
-#define tsRowBuilderClear(B)     \
-  do {                           \
-    if ((B)->pBuf) {             \
-      taosMemoryFree((B)->pBuf); \
-    }                            \
-  } while (0)
+// SRowIter ================================
+int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
+void     tRowIterClose(SRowIter **ppIter);
+SColVal *tRowIterNext(SRowIter *pIter);
 
 // STag ================================
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
@@ -106,13 +132,28 @@ void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remov
 int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
 
 // SColData ================================
+typedef void *(*xMallocFn)(void *, int32_t);
 void    tColDataDestroy(void *ph);
 void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
 void    tColDataClear(SColData *pColData);
+void    tColDataDeepClear(SColData *pColData);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
+int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
 void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
-uint8_t tColDataGetBitValue(SColData *pColData, int32_t iVal);
-int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
+uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
+int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
+extern void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull);
+
+// for stmt bind
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind);
+void    tColDataSortMerge(SArray *colDataArr);
+
+// for raw block
+int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
+                                    char *data);
+// for encode/decode
+int32_t tPutColData(uint8_t *pBuf, SColData *pColData);
+int32_t tGetColData(uint8_t *pBuf, SColData *pColData);
 
 // STRUCT ================================
 struct STColumn {
@@ -127,44 +168,22 @@ struct STSchema {
   int32_t  numOfCols;
   int32_t  version;
   int32_t  flen;
-  int32_t  vlen;
   int32_t  tlen;
   STColumn columns[];
 };
 
-#define TSROW_HAS_NONE ((uint8_t)0x1)
-#define TSROW_HAS_NULL ((uint8_t)0x2U)
-#define TSROW_HAS_VAL  ((uint8_t)0x4U)
-#define TSROW_KV_SMALL ((uint8_t)0x10U)
-#define TSROW_KV_MID   ((uint8_t)0x20U)
-#define TSROW_KV_BIG   ((uint8_t)0x40U)
-#pragma pack(push, 1)
-struct STSRow2 {
-  TSKEY   ts;
-  uint8_t flags;
-  uint8_t data[];
-};
-#pragma pack(pop)
-
-struct STSRowBuilder {
-  // STSRow2  tsRow;
-  int32_t  szBuf;
-  uint8_t *pBuf;
+struct SRow {
+  uint8_t  flag;
+  uint8_t  rsv;
+  uint16_t sver;
+  uint32_t len;
+  TSKEY    ts;
+  uint8_t  data[];
 };
 
 struct SValue {
   union {
-    int8_t   i8;   // TSDB_DATA_TYPE_BOOL||TSDB_DATA_TYPE_TINYINT
-    uint8_t  u8;   // TSDB_DATA_TYPE_UTINYINT
-    int16_t  i16;  // TSDB_DATA_TYPE_SMALLINT
-    uint16_t u16;  // TSDB_DATA_TYPE_USMALLINT
-    int32_t  i32;  // TSDB_DATA_TYPE_INT
-    uint32_t u32;  // TSDB_DATA_TYPE_UINT
-    int64_t  i64;  // TSDB_DATA_TYPE_BIGINT
-    uint64_t u64;  // TSDB_DATA_TYPE_UBIGINT
-    TSKEY    ts;   // TSDB_DATA_TYPE_TIMESTAMP
-    float    f;    // TSDB_DATA_TYPE_FLOAT
-    double   d;    // TSDB_DATA_TYPE_DOUBLE
+    int64_t val;
     struct {
       uint32_t nData;
       uint8_t *pData;
@@ -175,8 +194,7 @@ struct SValue {
 struct SColVal {
   int16_t cid;
   int8_t  type;
-  int8_t  isNone;
-  int8_t  isNull;
+  int8_t  flag;
   SValue  value;
 };
 
@@ -184,8 +202,11 @@ struct SColData {
   int16_t  cid;
   int8_t   type;
   int8_t   smaOn;
+  int32_t  numOfNone;   // # of none
+  int32_t  numOfNull;   // # of null
+  int32_t  numOfValue;  // # of vale
   int32_t  nVal;
-  uint8_t  flag;
+  int8_t   flag;
   uint8_t *pBitMap;
   int32_t *aOffset;
   int32_t  nData;
@@ -224,19 +245,10 @@ struct STag {
 // Imported since 3.0 and use bitmap to demonstrate None/Null/Norm, while use Null/Norm below 3.0 without of bitmap.
 #define TD_SUPPORT_BITMAP
 
-#define TASSERT(x) ASSERT(x)
-
 #define STR_TO_VARSTR(x, str)                     \
   do {                                            \
     VarDataLenT __len = (VarDataLenT)strlen(str); \
     *(VarDataLenT *)(x) = __len;                  \
-    memcpy(varDataVal(x), (str), __len);          \
-  } while (0);
-
-#define STR_TO_NET_VARSTR(x, str)                 \
-  do {                                            \
-    VarDataLenT __len = (VarDataLenT)strlen(str); \
-    *(VarDataLenT *)(x) = htons(__len);           \
     memcpy(varDataVal(x), (str), __len);          \
   } while (0);
 
@@ -252,34 +264,15 @@ struct STag {
     memcpy(varDataVal(x), (str), (_size));      \
   } while (0);
 
-// ----------------- SCHEMA BUILDER DEFINITION
-typedef struct {
-  int32_t      tCols;
-  int32_t      nCols;
-  schema_ver_t version;
-  uint16_t     flen;
-  int32_t      vlen;
-  int32_t      tlen;
-  STColumn    *columns;
-} STSchemaBuilder;
-
-// use 2 bits for bitmap(default: STSRow/sub block)
-#define TD_VTYPE_BITS        2
-#define TD_VTYPE_PARTS       4  // PARTITIONS: 1 byte / 2 bits
-#define TD_VTYPE_OPTR        3  // OPERATOR: 4 - 1, utilize to get remainder
-#define TD_BITMAP_BYTES(cnt) (((cnt) + TD_VTYPE_OPTR) >> 2)
-
-// use 1 bit for bitmap(super block)
-#define TD_VTYPE_BITS_I        1
-#define TD_VTYPE_PARTS_I       8  // PARTITIONS: 1 byte / 1 bit
-#define TD_VTYPE_OPTR_I        7  // OPERATOR: 8 - 1, utilize to get remainder
-#define TD_BITMAP_BYTES_I(cnt) (((cnt) + TD_VTYPE_OPTR_I) >> 3)
-
-int32_t   tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
-void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
-void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
-int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, col_id_t colId, col_bytes_t bytes);
-STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
+// STSchema ================================
+STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version);
+#define tDestroyTSchema(pTSchema) \
+  do {                            \
+    if (pTSchema) {               \
+      taosMemoryFree(pTSchema);   \
+      pTSchema = NULL;            \
+    }                             \
+  } while (0)
 
 #endif
 

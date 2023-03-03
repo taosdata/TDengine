@@ -63,14 +63,14 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
       ASSERT_EQ(pRsp->code, 0);
       test.Restart();
     } else {
-      ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_ALREADY_DEPLOYED);
+      ASSERT_EQ(pRsp->code, TSDB_CODE_VND_ALREADY_EXIST);
     }
   }
 }
 
 TEST_F(DndTestVnode, 02_Alter_Vnode) {
   for (int i = 0; i < 3; ++i) {
-    SAlterVnodeReq alterReq = {0};
+    SAlterVnodeConfigReq alterReq = {0};
     alterReq.vgVersion = 2;
     alterReq.daysPerFile = 10;
     alterReq.daysToKeep0 = 3650;
@@ -285,7 +285,7 @@ TEST_F(DndTestVnode, 06_Drop_Vnode) {
       ASSERT_EQ(pRsp->code, 0);
       test.Restart();
     } else {
-      ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_NOT_DEPLOYED);
+      ASSERT_EQ(pRsp->code, TSDB_CODE_VND_NOT_EXIST);
     }
   }
 }

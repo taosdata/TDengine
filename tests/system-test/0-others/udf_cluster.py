@@ -19,7 +19,8 @@ class MyDnodes(TDDnodes):
 
 class TDTestCase:
 
-    def init(self,conn ,logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         self.TDDnodes = None
         self.depoly_cluster(3)
@@ -258,6 +259,8 @@ class TDTestCase:
         self.TDDnodes.init("")
         self.TDDnodes.setTestCluster(testCluster)
         self.TDDnodes.setValgrind(valgrind)
+
+        self.TDDnodes.setAsan(tdDnodes.getAsan())
         self.TDDnodes.stopAll()
         for dnode in self.TDDnodes.dnodes:
             self.TDDnodes.deploy(dnode.index,{})

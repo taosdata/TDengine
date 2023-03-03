@@ -1,7 +1,7 @@
 ---
 title: TDengine Command Line Interface (CLI)
 sidebar_label: Command Line Interface
-description: Instructions and tips for using the TDengine CLI
+description: This document describes how to use the TDengine CLI.
 ---
 
 The TDengine command-line interface (hereafter referred to as `TDengine CLI`) is the simplest way for users to manipulate and interact with TDengine instances.
@@ -12,7 +12,7 @@ If executed on the TDengine server-side, there is no need for additional install
 
 ## Execution
 
-To access the TDengine CLI, you can execute `taos` command-line utility from a Linux terminal or Windows terminal.
+To access the TDengine CLI, you can execute `taos` command-line utility from a terminal.
 
 ```bash
 taos

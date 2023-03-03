@@ -23,36 +23,35 @@ extern "C" {
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
-    #define tzset TZSET_FUNC_TAOS_FORBID
+#define tzset TZSET_FUNC_TAOS_FORBID
 #endif
 
-enum TdTimezone
-{
-      TdWestZone12=-12,
-      TdWestZone11,
-      TdWestZone10,
-      TdWestZone9,
-      TdWestZone8,
-      TdWestZone7,
-      TdWestZone6,
-      TdWestZone5,
-      TdWestZone4,
-      TdWestZone3,
-      TdWestZone2,
-      TdWestZone1,
-      TdZeroZone,
-      TdEastZone1,
-      TdEastZone2,
-      TdEastZone3,
-      TdEastZone4,
-      TdEastZone5,
-      TdEastZone6,
-      TdEastZone7,
-      TdEastZone8,
-      TdEastZone9,
-      TdEastZone10,
-      TdEastZone11,
-      TdEastZone12
+enum TdTimezone {
+  TdWestZone12 = -12,
+  TdWestZone11,
+  TdWestZone10,
+  TdWestZone9,
+  TdWestZone8,
+  TdWestZone7,
+  TdWestZone6,
+  TdWestZone5,
+  TdWestZone4,
+  TdWestZone3,
+  TdWestZone2,
+  TdWestZone1,
+  TdZeroZone,
+  TdEastZone1,
+  TdEastZone2,
+  TdEastZone3,
+  TdEastZone4,
+  TdEastZone5,
+  TdEastZone6,
+  TdEastZone7,
+  TdEastZone8,
+  TdEastZone9,
+  TdEastZone10,
+  TdEastZone11,
+  TdEastZone12
 };
 
 void taosGetSystemTimezone(char *outTimezone, enum TdTimezone *tsTimezone);

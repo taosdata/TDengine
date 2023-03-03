@@ -1,19 +1,66 @@
 import taos
 import sys
-import datetime
-import inspect
 
+import math
+import numpy as np
 from util.log import *
 from util.sql import *
 from util.cases import *
-
+from util.sqlset import TDSetSql
+from util.common import *
 class TDTestCase:
     # updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     # "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     # "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
+        self.setsql = TDSetSql()
+        self.column_dict = {
+            'ts':'timestamp',
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+    
+        }
+        self.dbname = tdCom.getLongName(3,"letters")
+        self.row_num = 10
+        self.ts = 1537146000000
+    def insert_data(self,column_dict,tbname,row_num):
+        insert_sql = self.setsql.set_insertsql(column_dict,tbname)
+        for i in range(row_num):
+            insert_list = []
+            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+
+    def avg_check_unsigned(self):
+        stbname = f'{self.dbname}.{tdCom.getLongName(5,"letters")}'
+        tag_dict = {
+            't0':'int'
+        }
+        tag_values = [
+            f'1'
+            ]
+        tdSql.execute(f"create database if not exists {self.dbname}")
+        tdSql.execute(self.setsql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
+        tdSql.execute(f"create table {stbname}_1 using {stbname} tags({tag_values[0]})")
+        self.insert_data(self.column_dict,f'{stbname}_1',self.row_num)
+        for col in self.column_dict.keys():
+            col_val_list = []
+            if col.lower() != 'ts':
+                tdSql.query(f'select {col} from {stbname}_1')
+                sum_val = 0
+                for col_val in tdSql.queryResult:
+                    col_val_list.append(col_val[0])
+                col_avg = np.mean(col_val_list)
+                tdSql.query(f'select avg({col}) from {stbname}_1')
+                tdSql.checkEqual(col_avg,tdSql.queryResult[0][0])
+        tdSql.execute(f'drop database {self.dbname}')
 
     def prepare_datas(self, dbname="db"):
         tdSql.execute(
@@ -69,16 +116,10 @@ class TDTestCase:
         avg_result = tdSql.getResult(origin_query)
         origin_result = tdSql.getResult(check_query)
 
-        check_status = True
+        tdSql.query(origin_query)
         for row_index , row in enumerate(avg_result):
             for col_index , elem in enumerate(row):
-                if avg_result[row_index][col_index] != origin_result[row_index][col_index]:
-                    check_status = False
-        if not check_status:
-            tdLog.notice("avg function value has not as expected , sql is \"%s\" "%origin_query )
-            sys.exit(1)
-        else:
-            tdLog.info("avg value check pass , it work as expected ,sql is \"%s\"   "%check_query )
+                tdSql.checkData(row_index,col_index,origin_result[row_index][col_index])
 
     def test_errors(self, dbname="db"):
         error_sql_lists = [
@@ -333,33 +374,33 @@ class TDTestCase:
         )
         tdSql.execute(f'create table {dbname}.sub1_bound using {dbname}.stb_bound tags ( 1 )')
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()-1s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-10s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()-1s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
-
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now(), 2147483645, 9223372036854775805, 32765, 125, 3.40E+37, 1.7e+307, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
-
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now(), 2147483644, 9223372036854775804, 32764, 124, 3.40E+37, 1.7e+307, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
-
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()-5s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         tdSql.execute(
                 f"insert into {dbname}.sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+5s, 2147483645, 9223372036854775805, 32765, 125, 3.40E+37, 1.7e+307, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+10s, 2147483644, 9223372036854775804, 32764, 124, 3.40E+37, 1.7e+307, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+15s, -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+20s, 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
 
 
         tdSql.error(
-                f"insert into {dbname}.sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+                f"insert into {dbname}.sub1_bound values ( now()+5s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         #self.check_avg(f"select avg(c1), avg(c2), avg(c3) , avg(c4), avg(c5) ,avg(c6) from {dbname}.sub1_bound " , f" select sum(c1)/count(c1), sum(c2)/count(c2) ,sum(c3)/count(c3), sum(c4)/count(c4), sum(c5)/count(c5) ,sum(c6)/count(c6) from {dbname}.sub1_bound ")
 
@@ -368,7 +409,7 @@ class TDTestCase:
         tdSql.query(f"select avg(c1) ,avg(c2) , avg(c3) , avg(c4), avg(c5), avg(c6) from {dbname}.sub1_bound ")
         tdSql.checkRows(1)
         tdSql.checkData(0,0,920350133.571428537)
-        tdSql.checkData(0,1,1.3176245766935393e+18)
+        tdSql.checkData(0,1,3.952873730080618e+18)
         tdSql.checkData(0,2,14042.142857143)
         tdSql.checkData(0,3,53.571428571)
         tdSql.checkData(0,4,5.828571332045761e+37)
@@ -378,13 +419,56 @@ class TDTestCase:
         # check  + - * / in functions
         tdSql.query(f" select avg(c1+1) ,avg(c2) , avg(c3*1) , avg(c4/2), avg(c5)/2, avg(c6) from {dbname}.sub1_bound ")
         tdSql.checkData(0,0,920350134.5714285)
-        tdSql.checkData(0,1,1.3176245766935393e+18)
+        tdSql.checkData(0,1,3.952873730080618e+18)
         tdSql.checkData(0,2,14042.142857143)
         tdSql.checkData(0,3,26.785714286)
         tdSql.checkData(0,4,2.9142856660228804e+37)
         tdSql.checkData(0,5,None)
 
+    #
+    # test bigint to check overflow
+    #
+    def avg_check_overflow(self):
+        # create db
+        tdSql.execute(f"drop database if exists db")
+        tdSql.execute(f"create database if not exists db")
+        time.sleep(3)
+        tdSql.execute(f"use db")
+        tdSql.execute(f"create table db.st(ts timestamp, ibv bigint, ubv bigint unsigned) tags(area int)")
+        # insert t1 data
+        tdSql.execute(f"insert into db.t1 using db.st tags(1) values(now,9223372036854775801,18446744073709551611)")
+        tdSql.execute(f"insert into db.t1 using db.st tags(1) values(now,8223372036854775801,17446744073709551611)")
+        tdSql.execute(f"insert into db.t1 using db.st tags(1) values(now,7223372036854775801,16446744073709551611)")
+        # insert t2 data
+        tdSql.execute(f"insert into db.t2 using db.st tags(2) values(now,9223372036854775801,18446744073709551611)")
+        tdSql.execute(f"insert into db.t2 using db.st tags(2) values(now,8223372036854775801,17446744073709551611)")
+        tdSql.execute(f"insert into db.t2 using db.st tags(2) values(now,7223372036854775801,16446744073709551611)")
+        
+        # check single table answer
+        tdSql.query(f"select avg(ibv), avg(ubv) from db.t1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0,8.223372036854776e+18)
+        tdSql.checkData(0, 1,1.744674407370955e+19)
 
+        # check super table
+        tdSql.query(f"select avg(ibv), avg(ubv) from db.st")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0,8.223372036854776e+18)
+        tdSql.checkData(0, 1,1.744674407370955e+19)
+
+        # check child query
+        tdSql.query(f"select avg(ibv), avg(ubv) from (select * from db.st)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0,8.223372036854776e+18)
+        tdSql.checkData(0, 1,1.744674407370955e+19)
+
+        # check group by
+        tdSql.query(f"select avg(ibv), avg(ubv) from db.st group by tbname")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0,8.223372036854776e+18)
+        tdSql.checkData(0, 1,1.744674407370955e+19)
+        tdSql.checkData(1, 0,8.223372036854776e+18)
+        tdSql.checkData(1, 1,1.744674407370955e+19)
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -412,7 +496,10 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step6: avg filter query ============")
 
         self.avg_func_filter()
+        self.avg_check_unsigned()
 
+        # check avg overflow
+        self.avg_check_overflow()
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

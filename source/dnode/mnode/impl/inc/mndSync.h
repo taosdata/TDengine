@@ -24,8 +24,9 @@ extern "C" {
 
 int32_t mndInitSync(SMnode *pMnode);
 void    mndCleanupSync(SMnode *pMnode);
-bool    mndIsMaster(SMnode *pMnode);
+bool    mndIsLeader(SMnode *pMnode);
 int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId);
+void    mndSyncCheckTimeout(SMnode *pMnode);
 void    mndSyncStart(SMnode *pMnode);
 void    mndSyncStop(SMnode *pMnode);
 

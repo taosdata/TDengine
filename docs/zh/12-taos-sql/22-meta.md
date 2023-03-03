@@ -12,7 +12,15 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 4. TDengine 在后续演进中可以灵活的添加已有 INFORMATION_SCHEMA 中表的列，而不用担心对既有业务系统造成影响
 5. 与其他数据库系统更具互操作性。例如，Oracle 数据库用户熟悉查询 Oracle 数据字典中的表
 
-Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们仍然被保留。
+:::info
+
+- 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们仍然被保留。
+- 系统表中的一些列可能是关键字，在查询时需要使用转义符'\`'，例如查询数据库 test 有几个 VGROUP：
+```sql 
+   select `vgroups` from ins_databases where name = 'test';
+``` 
+
+:::
 
 本章将详细介绍 `INFORMATION_SCHEMA` 这个内置元数据库中的表和表结构。
 
@@ -22,7 +30,7 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 
 | #   |    **列名**    | **数据类型** | **说明**                  |
 | --- | :------------: | ------------ | ------------------------- |
-| 1   |     vnodes     | SMALLINT     | dnode 中的实际 vnode 个数 |
+| 1   |     vnodes     | SMALLINT     | dnode 中的实际 vnode 个数。需要注意，`vnodes` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
 | 2   | support_vnodes | SMALLINT     | 最多支持的 vnode 个数     |
 | 3   |     status     | BINARY(10)   | 当前状态                  |
 | 4   |      note      | BINARY(256)  | 离线原因等信息            |
@@ -41,16 +49,6 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 | 3   |    role     | BINARY(10)   | 当前角色           |
 | 4   |  role_time  | TIMESTAMP    | 成为当前角色的时间 |
 | 5   | create_time | TIMESTAMP    | 创建时间           |
-
-## INS_MODULES
-
-提供组件的相关信息。也可以使用 SHOW MODULES 来查询这些信息
-
-| #   | **列名** | **数据类型** | **说明**   |
-| --- | :------: | ------------ | ---------- |
-| 1   |    id    | SMALLINT     | module id  |
-| 2   | endpoint | BINARY(134)  | 组件的地址 |
-| 3   |  module  | BINARY(10)   | 组件状态   |
 
 ## INS_QNODES
 
@@ -81,29 +79,33 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 | 1   |         name         | BINARY(32)       | 数据库名                                         |
 | 2   |     create_time      | TIMESTAMP        | 创建时间                                         |
 | 3   |       ntables        | INT              | 数据库中表的数量，包含子表和普通表但不包含超级表 |
-| 4   |       vgroups        | INT              | 数据库中有多少个 vgroup                          |
-| 6   |       replica        | INT              | 副本数                                           |
-| 7   |        quorum        | BINARY(3)        | 强一致性                                         |
-| 8   |       duration       | INT              | 单文件存储数据的时间跨度                         |
-| 9   |         keep         | INT              | 数据保留时长                                     |
-| 10  |        buffer        | INT              | 每个 vnode 写缓存的内存块大小，单位 MB           |
-| 11  |       pagesize       | INT              | 每个 VNODE 中元数据存储引擎的页大小，单位为 KB   |
-| 12  |        pages         | INT              | 每个 vnode 元数据存储引擎的缓存页个数            |
-| 13  |       minrows        | INT              | 文件块中记录的最大条数                           |
-| 14  |       maxrows        | INT              | 文件块中记录的最小条数                           |
-| 15  |         comp         | INT              | 数据压缩方式                                     |
-| 16  |      precision       | BINARY(2)        | 时间分辨率                                       |
+| 4   |       vgroups        | INT              | 数据库中有多少个 vgroup。需要注意，`vgroups` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                          |
+| 6   |       replica        | INT              | 副本数。需要注意，`replica` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                           |
+| 7   |        strict        | BINARY(3)        | 强一致性。需要注意，`strict` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                         |
+| 8   |       duration       | INT              | 单文件存储数据的时间跨度。需要注意，`duration` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                         |
+| 9   |         keep         | INT              | 数据保留时长。需要注意，`keep` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                     |
+| 10  |        buffer        | INT              | 每个 vnode 写缓存的内存块大小，单位 MB。需要注意，`buffer` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。           |
+| 11  |       pagesize       | INT              | 每个 VNODE 中元数据存储引擎的页大小，单位为 KB。需要注意，`pagesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。   |
+| 12  |        pages         | INT              | 每个 vnode 元数据存储引擎的缓存页个数。需要注意，`pages` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。            |
+| 13  |       minrows        | INT              | 文件块中记录的最大条数。需要注意，`minrows` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                           |
+| 14  |       maxrows        | INT              | 文件块中记录的最小条数。需要注意，`maxrows` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                           |
+| 15  |         comp         | INT              | 数据压缩方式。需要注意，`comp` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                     |
+| 16  |      precision       | BINARY(2)        | 时间分辨率。需要注意，`precision` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                       |
 | 17  |        status        | BINARY(10)       | 数据库状态                                       |
-| 18  |      retention       | BINARY (60)      | 数据的聚合周期和保存时长                         |
-| 19  |    single_stable     | BOOL             | 表示此数据库中是否只可以创建一个超级表           |
-| 20  |      cachemodel      | BINARY(60)       | 表示是否在内存中缓存子表的最近数据               |
-| 21  |      cachesize       | INT              | 表示每个 vnode 中用于缓存子表最近数据的内存大小  |
-| 22  |      wal_level       | INT              | WAL 级别                                         |
-| 23  |   wal_fsync_period   | INT              | 数据落盘周期                                     |
-| 24  | wal_retention_period | INT              | WAL 的保存时长                                   |
-| 25  |  wal_retention_size  | INT              | WAL 的保存上限                                   |
-| 26  |   wal_roll_period    | INT              | wal 文件切换时长                                 |
-| 27  |   wal_segment_size   | wal 单个文件大小 |
+| 18  |      retentions       | BINARY (60)      | 数据的聚合周期和保存时长。需要注意，`retentions` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                         |
+| 19  |    single_stable     | BOOL             | 表示此数据库中是否只可以创建一个超级表。需要注意，`single_stable` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。           |
+| 20  |      cachemodel      | BINARY(60)       | 表示是否在内存中缓存子表的最近数据。需要注意，`cachemodel` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。               |
+| 21  |      cachesize       | INT              | 表示每个 vnode 中用于缓存子表最近数据的内存大小。需要注意，`cachesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。  |
+| 22  |      wal_level       | INT              | WAL 级别。需要注意，`wal_level` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                         |
+| 23  |   wal_fsync_period   | INT              | 数据落盘周期。需要注意，`wal_fsync_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                     |
+| 24  | wal_retention_period | INT              | WAL 的保存时长。需要注意，`wal_retention_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                   |
+| 25  |  wal_retention_size  | INT              | WAL 的保存上限。需要注意，`wal_retention_size` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                   |
+| 26  |   wal_roll_period    | INT              | wal 文件切换时长。需要注意，`wal_roll_period` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                 |
+| 27  |   wal_segment_size   | BIGINT | wal 单个文件大小。需要注意，`wal_segment_size` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
+| 28  |   stt_trigger   | SMALLINT | 触发文件合并的落盘文件的个数。需要注意，`stt_trigger` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
+| 29  |   table_prefix   | SMALLINT | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。需要注意，`table_prefix` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
+| 30  |   table_suffix   | SMALLINT | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。需要注意，`table_suffix` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
+| 31  |   tsdb_pagesize   | INT | 时序数据存储引擎中的页大小。需要注意，`tsdb_pagesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
 
 ## INS_FUNCTIONS
 
@@ -112,8 +114,8 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 | #   |  **列名**   | **数据类型** | **说明**       |
 | --- | :---------: | ------------ | -------------- |
 | 1   |    name     | BINARY(64)   | 函数名         |
-| 2   |   comment   | BINARY(255)  | 补充说明       |
-| 3   |  aggregate  | INT          | 是否为聚合函数 |
+| 2   |   comment   | BINARY(255)  | 补充说明。需要注意，`comment` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。       |
+| 3   |  aggregate  | INT          | 是否为聚合函数。需要注意，`aggregate` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
 | 4   | output_type | BINARY(31)   | 输出类型       |
 | 5   | create_time | TIMESTAMP    | 创建时间       |
 | 6   |  code_len   | INT          | 代码长度       |
@@ -142,12 +144,12 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 | 2   |    db_name    | BINARY(64)   | 超级表所在的数据库的名称 |
 | 3   |  create_time  | TIMESTAMP    | 创建时间                 |
 | 4   |    columns    | INT          | 列数目                   |
-| 5   |     tags      | INT          | 标签数目                 |
+| 5   |     tags      | INT          | 标签数目。需要注意，`tags` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                 |
 | 6   |  last_update  | TIMESTAMP    | 最后更新时间             |
 | 7   | table_comment | BINARY(1024) | 表注释                   |
-| 8   |   watermark   | BINARY(64)   | 窗口的关闭时间           |
-| 9   |   max_delay   | BINARY(64)   | 推送计算结果的最大延迟   |
-| 10  |    rollup     | BINARY(128)  | rollup 聚合函数          |
+| 8   |   watermark   | BINARY(64)   | 窗口的关闭时间。需要注意，`watermark` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。           |
+| 9   |   max_delay   | BINARY(64)   | 推送计算结果的最大延迟。需要注意，`max_delay` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。   |
+| 10  |    rollup     | BINARY(128)  | rollup 聚合函数。需要注意，`rollup` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。          |
 
 ## INS_TABLES
 
@@ -162,7 +164,7 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 | 5   |  stable_name  | BINARY(192)  | 所属的超级表表名 |
 | 6   |      uid      | BIGINT       | 表 id            |
 | 7   |   vgroup_id   | INT          | vgroup id        |
-| 8   |      ttl      | INT          | 表的生命周期     |
+| 8   |      ttl      | INT          | 表的生命周期。需要注意，`ttl` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。     |
 | 9   | table_comment | BINARY(1024) | 表注释           |
 | 10  |     type      | BINARY(20)   | 表类型           |
 
@@ -195,13 +197,13 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 | --- | :---------: | ------------ | -------------------------------------------------- |
 | 1   |   version   | BINARY(9)    | 企业版授权说明：official(官方授权的)/trial(试用的) |
 | 2   |  cpu_cores  | BINARY(9)    | 授权使用的 CPU 核心数量                            |
-| 3   |   dnodes    | BINARY(10)   | 授权使用的 dnode 节点数量                          |
-| 4   |   streams   | BINARY(10)   | 授权创建的流数量                                   |
-| 5   |    users    | BINARY(10)   | 授权创建的用户数量                                 |
-| 6   |  accounts   | BINARY(10)   | 授权创建的帐户数量                                 |
-| 7   |   storage   | BINARY(21)   | 授权使用的存储空间大小                             |
-| 8   | connections | BINARY(21)   | 授权使用的客户端连接数量                           |
-| 9   |  databases  | BINARY(11)   | 授权使用的数据库数量                               |
+| 3   |   dnodes    | BINARY(10)   | 授权使用的 dnode 节点数量。需要注意，`dnodes` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                          |
+| 4   |   streams   | BINARY(10)   | 授权创建的流数量。需要注意，`streams` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                   |
+| 5   |    users    | BINARY(10)   | 授权创建的用户数量。需要注意，`users` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                 |
+| 6   |  accounts   | BINARY(10)   | 授权创建的帐户数量。需要注意，`accounts` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                 |
+| 7   |   storage   | BINARY(21)   | 授权使用的存储空间大小。需要注意，`storage` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                             |
+| 8   | connections | BINARY(21)   | 授权使用的客户端连接数量。需要注意，`connections` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                           |
+| 9   |  databases  | BINARY(11)   | 授权使用的数据库数量。需要注意，`databases` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                               |
 | 10  |    speed    | BINARY(9)    | 授权使用的数据点每秒写入数量                       |
 | 11  |  querytime  | BINARY(9)    | 授权使用的查询总时长                               |
 | 12  | timeseries  | BINARY(21)   | 授权使用的测点数量                                 |
@@ -216,7 +218,7 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 | --- | :-------: | ------------ | ------------------------------------------------------ |
 | 1   | vgroup_id | INT          | vgroup id                                              |
 | 2   |  db_name  | BINARY(32)   | 数据库名                                               |
-| 3   |  tables   | INT          | 此 vgroup 内有多少表                                   |
+| 3   |  tables   | INT          | 此 vgroup 内有多少表。需要注意，`tables` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                   |
 | 4   |  status   | BINARY(10)   | 此 vgroup 的状态                                       |
 | 5   | v1_dnode  | INT          | 第一个成员所在的 dnode 的 id                           |
 | 6   | v1_status | BINARY(10)   | 第一个成员的状态                                       |
@@ -235,7 +237,7 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 | #   | **列名** | **数据类型** | **说明**     |
 | --- | :------: | ------------ | ------------ |
 | 1   |   name   | BINARY(32)   | 配置项名称   |
-| 2   |  value   | BINARY(64)   | 该配置项的值 |
+| 2   |  value   | BINARY(64)   | 该配置项的值。需要注意，`value` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
 
 ## INS_DNODE_VARIABLES
 
@@ -245,7 +247,7 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 | --- | :------: | ------------ | ------------ |
 | 1   | dnode_id | INT          | dnode 的 ID  |
 | 2   |   name   | BINARY(32)   | 配置项名称   |
-| 3   |  value   | BINARY(64)   | 该配置项的值 |
+| 3   |  value   | BINARY(64)   | 该配置项的值。需要注意，`value` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |
 
 ## INS_TOPICS
 
@@ -276,5 +278,5 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 | 5   |  source_db   | BINARY(64)   | 源数据库                                |
 | 6   |  target_db   | BIANRY(64)   | 目的数据库                              |
 | 7   | target_table | BINARY(192)  | 流计算写入的目标表                      |
-| 8   |  watermark   | BIGINT       | watermark，详见 SQL 手册流式计算        |
-| 9   |   trigger    | INT          | 计算结果推送模式，详见 SQL 手册流式计算 |
+| 8   |  watermark   | BIGINT       | watermark，详见 SQL 手册流式计算。需要注意，`watermark` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。        |
+| 9   |   trigger    | INT          | 计算结果推送模式，详见 SQL 手册流式计算。需要注意，`trigger` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |

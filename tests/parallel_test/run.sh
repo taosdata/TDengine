@@ -164,14 +164,27 @@ function run_thread() {
         if [ -z "$case_redo_time" ]; then
             case_redo_time=${DEFAULT_RETRY_TIME:-2}
         fi
-        local exec_dir=`echo "$line"|cut -d, -f3`
-        local case_cmd=`echo "$line"|cut -d, -f4`
+        local case_build_san=`echo "$line"|cut -d, -f3`
+        if [ "${case_build_san}" == "y" ]; then
+            case_build_san="y"
+        elif [[ "${case_build_san}" == "n" ]] || [[ "${case_build_san}" == "" ]]; then
+            case_build_san="n"
+        else
+            usage
+            exit 1
+        fi
+        local exec_dir=`echo "$line"|cut -d, -f4`
+        local case_cmd=`echo "$line"|cut -d, -f5`
         local case_file=""
         echo "$case_cmd"|grep -q "\.sh"
         if [ $? -eq 0 ]; then
             case_file=`echo "$case_cmd"|grep -o ".*\.sh"|awk '{print $NF}'`
         fi
         echo "$case_cmd"|grep -q "^python3"
+        if [ $? -eq 0 ]; then
+            case_file=`echo "$case_cmd"|grep -o ".*\.py"|awk '{print $NF}'`
+        fi
+        echo "$case_cmd"|grep -q "^./pytest.sh"
         if [ $? -eq 0 ]; then
             case_file=`echo "$case_cmd"|grep -o ".*\.py"|awk '{print $NF}'`
         fi
@@ -191,7 +204,7 @@ function run_thread() {
         if [ ! -z "$case_path" ]; then
             mkdir -p $log_dir/$case_path
         fi
-        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir} ${timeout_param}"
+        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
         # echo "$thread_no $count $cmd"
         local ret=0
         local redo_count=1
@@ -199,7 +212,7 @@ function run_thread() {
         start_time=`date +%s`
         local case_index=`flock -x $lock_file -c "sh -c \"echo \\\$(( \\\$( cat $index_file ) + 1 )) | tee $index_file\""`
         case_index=`printf "%5d" $case_index`
-        local case_info=`echo "$line"|cut -d, -f 3,4`
+        local case_info=`echo "$line"|cut -d, -f 3,4,5`
         while [ ${redo_count} -lt 6 ]; do
             if [ -f $case_log_file ]; then
                 cp $case_log_file $log_dir/$case_file.${redo_count}.redotxt
@@ -413,7 +426,7 @@ if [ -f "${failed_case_file}" ]; then
                 continue
             fi
         fi
-        line=`echo "$line"|cut -d, -f 3,4`
+        line=`echo "$line"|cut -d, -f 3,4,5`
         echo -e "$i. $line \e[31m failed\e[0m" >&2
         i=$(( i + 1 ))
     done <${failed_case_file}

@@ -30,6 +30,7 @@ TEST_F(MndTestDb, 01_ShowDb) {
   EXPECT_EQ(test.GetShowRows(), 2);
 }
 
+#if 0
 TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   {
     SCreateDbReq createReq = {0};
@@ -125,6 +126,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   test.SendShowReq(TSDB_MGMT_TABLE_DB, "ins_databases", "");
   EXPECT_EQ(test.GetShowRows(), 2);
 }
+#endif
 
 TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
   {

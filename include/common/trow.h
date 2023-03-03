@@ -20,7 +20,6 @@
 #include "talgo.h"
 #include "taosdef.h"
 #include "taoserror.h"
-#include "tbuffer.h"
 #include "tdataformat.h"
 #include "tdef.h"
 #include "ttypes.h"
@@ -30,7 +29,7 @@
 extern "C" {
 #endif
 
-typedef struct {
+typedef struct STSRow {
   TSKEY ts;
   union {
     uint32_t info;
@@ -54,6 +53,14 @@ typedef struct {
 // row type
 #define TD_ROW_TP 0x0U  // default
 #define TD_ROW_KV 0x01U
+
+#define TD_VTYPE_PARTS       4  // PARTITIONS: 1 byte / 2 bits
+#define TD_VTYPE_OPTR        3  // OPERATOR: 4 - 1, utilize to get remainder
+#define TD_BITMAP_BYTES(cnt) (((cnt) + TD_VTYPE_OPTR) >> 2)
+
+#define TD_VTYPE_PARTS_I       8  // PARTITIONS: 1 byte / 1 bit
+#define TD_VTYPE_OPTR_I        7  // OPERATOR: 8 - 1, utilize to get remainder
+#define TD_BITMAP_BYTES_I(cnt) (((cnt) + TD_VTYPE_OPTR_I) >> 3)
 
 /**
  * @brief value type
@@ -169,7 +176,7 @@ typedef struct {
 // #define TD_ROW_VER(r)      ((r)->ver)
 #define TD_ROW_KEY_ADDR(r) (r)
 
-// N.B. If without STSchema, getExtendedRowSize() is used to get the rowMaxBytes and
+// N.B. If without STSchema, insGetExtendedRowSize() is used to get the rowMaxBytes and
 // (int32_t)ceil((double)nCols/TD_VTYPE_PARTS) should be added if TD_SUPPORT_BITMAP defined.
 #define TD_ROW_MAX_BYTES_FROM_SCHEMA(s) ((s)->tlen + TD_ROW_HEAD_LEN)
 
@@ -244,7 +251,7 @@ int32_t tdGetBitmapValTypeI(const void *pBitmap, int16_t colIdx, TDRowValT *pVal
  */
 static FORCE_INLINE void *tdGetBitmapAddrTp(STSRow *pRow, uint32_t flen) {
   // The primary TS key is stored separatedly.
-  return POINTER_SHIFT(TD_ROW_DATA(pRow), flen - sizeof(TSKEY));
+  return POINTER_SHIFT(TD_ROW_DATA(pRow), flen);
   // return POINTER_SHIFT(pRow->ts, flen);
 }
 
@@ -255,7 +262,7 @@ static FORCE_INLINE void *tdGetBitmapAddrKv(STSRow *pRow, col_id_t nKvCols) {
 void   *tdGetBitmapAddr(STSRow *pRow, uint8_t rowType, uint32_t flen, col_id_t nKvCols);
 int32_t tdSetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT valType, int8_t bitmapMode);
 int32_t tdSetBitmapValTypeII(void *pBitmap, int16_t colIdx, TDRowValT valType);
-bool    tdIsBitmapValTypeNorm(const void *pBitmap, int16_t idx, int8_t bitmapMode);
+// bool    tdIsBitmapValTypeNorm(const void *pBitmap, int16_t idx, int8_t bitmapMode);
 int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType, int8_t bitmapMode);
 
 // ----------------- Tuple row structure(STpRow)
@@ -285,11 +292,11 @@ static FORCE_INLINE void tdSRowInit(SRowBuilder *pBuilder, int16_t sver) {
   pBuilder->rowType = TD_ROW_TP;  // default STpRow
   pBuilder->sver = sver;
 }
-int32_t tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen);
-int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen);
-int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen,
-                              int32_t allNullLen, int32_t boundNullLen);
-int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf);
+int32_t                  tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen);
+int32_t                  tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen);
+int32_t                  tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen,
+                                               int32_t allNullLen, int32_t boundNullLen);
+int32_t                  tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf);
 static FORCE_INLINE void tdSRowEnd(SRowBuilder *pBuilder) {
   STSRow *pRow = (STSRow *)pBuilder->pBuf;
   if (pBuilder->hasNull || pBuilder->hasNone) {

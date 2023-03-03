@@ -24,11 +24,8 @@
 extern "C" {
 #endif
 
-typedef struct SArray*       SIDList;
 typedef struct SPageInfo     SPageInfo;
 typedef struct SDiskbasedBuf SDiskbasedBuf;
-
-#define DEFAULT_INTERN_BUF_PAGE_SIZE (1024LL)  // in bytes
 
 typedef struct SFilePage {
   int32_t num;
@@ -53,7 +50,8 @@ typedef struct SDiskbasedBufStatis {
  * @param handle
  * @return
  */
-int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, const char* id, const char* dir);
+int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, const char* id,
+                           const char* dir);
 
 /**
  *
@@ -68,7 +66,7 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId);
  * @param pBuf
  * @return
  */
-SIDList getDataBufPagesIdList(SDiskbasedBuf* pBuf);
+SArray* getDataBufPagesIdList(SDiskbasedBuf* pBuf);
 
 /**
  * get the specified buffer page by id
@@ -110,7 +108,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf);
  * @param pList
  * @return
  */
-SPageInfo* getLastPageInfo(SIDList pList);
+SPageInfo* getLastPageInfo(SArray* pList);
 
 /**
  *
@@ -158,7 +156,7 @@ void setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp);
  * @param pBuf
  * @param pageId
  */
-void dBufSetBufPageRecycled(SDiskbasedBuf *pBuf, void* pPage);
+void dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage);
 
 /**
  * Print the statistics when closing this buffer

@@ -17,14 +17,15 @@
 #define _TD_UTIL_CODING_H_
 
 #include "os.h"
+#include "tlog.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define ENCODE_LIMIT  (((uint8_t)1) << 7)
-#define ZIGZAGE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode
-#define ZIGZAGD(T, v) ((v) >> 1) ^ -((T)((v)&1))                                 // zigzag decode
+#define ZIGZAGE(T, v) (((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1))  // zigzag encode
+#define ZIGZAGD(T, v) (((v) >> 1) ^ -((T)((v)&1)))                                 // zigzag decode
 
 /* ------------------------ LEGACY CODES ------------------------ */
 #if 1
@@ -70,7 +71,7 @@ static FORCE_INLINE int32_t taosEncodeFixedBool(void **buf, bool value) {
 }
 
 static FORCE_INLINE void *taosDecodeFixedBool(const void *buf, bool *value) {
-  *value = ( (((int8_t *)buf)[0] == 0) ? false : true );
+  *value = ((((int8_t *)buf)[0] == 0) ? false : true);
   return POINTER_SHIFT(buf, sizeof(int8_t));
 }
 

@@ -59,10 +59,52 @@ typedef enum {
 typedef void (*FItem)(SQueueInfo *pInfo, void *pItem);
 typedef void (*FItems)(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfItems);
 
+typedef struct STaosQnode STaosQnode;
+
+typedef struct STaosQnode {
+  STaosQnode *next;
+  STaosQueue *queue;
+  int64_t     timestamp;
+  int64_t     dataSize;
+  int32_t     size;
+  int8_t      itype;
+  int8_t      reserved[3];
+  char        item[];
+} STaosQnode;
+
+typedef struct STaosQueue {
+  STaosQnode   *head;
+  STaosQnode   *tail;
+  STaosQueue   *next;     // for queue set
+  STaosQset    *qset;     // for queue set
+  void         *ahandle;  // for queue set
+  FItem         itemFp;
+  FItems        itemsFp;
+  TdThreadMutex mutex;
+  int64_t       memOfItems;
+  int32_t       numOfItems;
+  int64_t       threadId;
+} STaosQueue;
+
+typedef struct STaosQset {
+  STaosQueue   *head;
+  STaosQueue   *current;
+  TdThreadMutex mutex;
+  tsem_t        sem;
+  int32_t       numOfQueues;
+  int32_t       numOfItems;
+} STaosQset;
+
+typedef struct STaosQall {
+  STaosQnode *current;
+  STaosQnode *start;
+  int32_t     numOfItems;
+} STaosQall;
+
 STaosQueue *taosOpenQueue();
 void        taosCloseQueue(STaosQueue *queue);
 void        taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp);
-void       *taosAllocateQitem(int32_t size, EQItype itype);
+void       *taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize);
 void        taosFreeQitem(void *pItem);
 void        taosWriteQitem(STaosQueue *queue, void *pItem);
 int32_t     taosReadQitem(STaosQueue *queue, void **ppItem);

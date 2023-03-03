@@ -201,7 +201,7 @@ void *threadFunc(void *param) {
     int64_t t = pInfo->tableBeginIndex;
     for (; t <= pInfo->tableEndIndex;) {
       // int64_t batch = (pInfo->tableEndIndex - t);
-      // batch = MIN(batch, batchNum);
+      // batch = TMIN(batch, batchNum);
 
       int32_t len = sprintf(qstr, "create table");
       for (int32_t i = 0; i < batchNumOfTbl;) {
@@ -330,11 +330,11 @@ void parseArgument(int32_t argc, char *argv[]) {
       printHelp();
       exit(0);
     } else if (strcmp(argv[i], "-d") == 0) {
-      strcpy(dbName, argv[++i]);
+      tstrncpy(dbName, argv[++i], sizeof(dbName));
     } else if (strcmp(argv[i], "-c") == 0) {
-      strcpy(configDir, argv[++i]);
+      tstrncpy(configDir, argv[++i], PATH_MAX);
     } else if (strcmp(argv[i], "-s") == 0) {
-      strcpy(stbName, argv[++i]);
+      tstrncpy(stbName, argv[++i], sizeof(stbName));
     } else if (strcmp(argv[i], "-t") == 0) {
       numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-n") == 0) {

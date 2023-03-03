@@ -49,7 +49,7 @@ bool tNameIsValid(const SName* name);
 
 const char* tNameGetTableName(const SName* name);
 
-int32_t tNameGetDbName(const SName* name, char* dst);
+int32_t     tNameGetDbName(const SName* name, char* dst);
 const char* tNameGetDbNameP(const SName* name);
 
 int32_t tNameGetFullDbName(const SName* name, char* dst);
@@ -72,13 +72,13 @@ bool tNameTbNameEqual(SName* left, SName* right);
 
 typedef struct {
   // input
-  SArray*     tags;           // element is SSmlKv
-  const char* sTableName;     // super table name
-  uint8_t     sTableNameLen;  // the length of super table name
+  SArray*     tags;            // element is SSmlKv
+  const char* stbFullName;     // super table name
+  uint8_t     stbFullNameLen;  // the length of super table name
 
   // output
-  char*    childTableName;  // must have size of TSDB_TABLE_NAME_LEN;
-  uint64_t uid;             // child table uid, may be useful
+  char*    ctbShortName;  // must have size of TSDB_TABLE_NAME_LEN;
+//  uint64_t uid;           // child table uid, may be useful
 } RandTableName;
 
 void buildChildTableName(RandTableName* rName);

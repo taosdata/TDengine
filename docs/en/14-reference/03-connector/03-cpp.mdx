@@ -1,6 +1,7 @@
 ---
-sidebar_label: C/C++
 title: C/C++ Connector
+sidebar_label: C/C++
+description: This document describes the TDengine C/C++ connector.
 ---
 
 C/C++ developers can use TDengine's client driver and the C/C++ connector, to develop their applications to connect to TDengine clusters for data writing, querying, and other functions.  To use the C/C++ connector you must include the TDengine header file _taos.h_, which lists the function prototypes of the provided APIs. The application also needs to link to the corresponding dynamic libraries on the platform where it is located.
@@ -13,11 +14,13 @@ After TDengine server or client installation, `taos.h` is located at
 
 - Linux：`/usr/local/taos/include`
 - Windows：`C:\TDengine\include`
+- macOS：`/usr/local/include`
 
 The dynamic libraries for the TDengine client driver are located in.
 
 - Linux: `/usr/local/taos/driver/libtaos.so`
 - Windows: `C:\TDengine\taos.dll`
+- macOS: `/usr/local/lib/libtaos.dylib`
 
 ## Supported platforms
 
@@ -119,7 +122,7 @@ This section shows sample code for standard access methods to TDengine clusters 
 
 :::info
 More example code and downloads are available at [GitHub](https://github.com/taosdata/TDengine/tree/develop/examples/c).
-You can find it in the installation directory under the `examples/c` path. This directory has a makefile and can be compiled under Linux by executing `make` directly.
+You can find it in the installation directory under the `examples/c` path. This directory has a makefile and can be compiled under Linux/macOS by executing `make` directly.
 **Hint:** When compiling in an ARM environment, please remove `-msse4.2` from the makefile. This option is only supported on the x64/x86 hardware platforms.
 
 :::

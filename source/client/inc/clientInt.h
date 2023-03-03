@@ -26,7 +26,7 @@ extern "C" {
 #include "query.h"
 #include "taos.h"
 #include "tcommon.h"
-#include "tdatablock.h"
+#include "tmisce.h"
 #include "tdef.h"
 #include "thash.h"
 #include "tlist.h"
@@ -46,7 +46,6 @@ extern "C" {
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
-#define SYNC_ON_TOP_OF_ASYNC       1
 
 enum {
   RES_TYPE__QUERY = 1,
@@ -98,16 +97,14 @@ typedef struct {
 
 typedef struct SQueryExecMetric {
   int64_t start;        // start timestamp, us
-  int64_t syntaxStart;  // start to parse, us
-  int64_t syntaxEnd;    // end to parse, us
   int64_t ctgStart;     // start to parse, us
-  int64_t ctgEnd;       // end to parse, us
-  int64_t semanticEnd;
-  int64_t planEnd;
-  int64_t resultReady;
-  int64_t execEnd;
-  int64_t send;  // start to send to server, us
-  int64_t rsp;   // receive response from server, us
+  int64_t execStart;     // start to parse, us
+
+  int64_t parseCostUs;   
+  int64_t ctgCostUs;
+  int64_t analyseCostUs;
+  int64_t planCostUs;
+  int64_t execCostUs;
 } SQueryExecMetric;
 
 struct SAppInstInfo {
@@ -150,8 +147,11 @@ typedef struct STscObj {
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
-  int8_t        schemalessType;  // todo remove it, this attribute should be move to request
 } STscObj;
+
+typedef struct STscDbg {
+  bool memEnable;
+} STscDbg;
 
 typedef struct SResultColumn {
   union {
@@ -172,9 +172,9 @@ typedef struct SReqResultInfo {
   char**         convertBuf;
   TAOS_ROW       row;
   SResultColumn* pCol;
-  uint32_t       numOfRows;
+  uint64_t       numOfRows; // from int32_t change to int64_t
   uint64_t       totalRows;
-  uint32_t       current;
+  uint64_t       current;
   bool           localResultFetched;
   bool           completed;
   int32_t        precision;
@@ -271,9 +271,12 @@ void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
 void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
 
-SRequestObj* execQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly);
-TAOS_RES*    taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly);
-void         taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly);
+TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly);
+TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly, int64_t reqid);
+
+void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly);
+void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
+                                 int64_t reqid);
 
 int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols);
 
@@ -311,6 +314,8 @@ extern SAppInfo appInfo;
 extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
 extern int32_t  timestampDeltaLimit;
+extern int64_t  lastClusterId;
+
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 
@@ -320,10 +325,11 @@ void*    createTscObj(const char* user, const char* auth, const char* db, int32_
 void     destroyTscObj(void* pObj);
 STscObj* acquireTscObj(int64_t rid);
 int32_t  releaseTscObj(int64_t rid);
+void     destroyAppInst(SAppInstInfo* pAppInfo);
 
 uint64_t generateRequestId();
 
-void*        createRequest(uint64_t connId, int32_t type);
+void*        createRequest(uint64_t connId, int32_t type, int64_t reqid);
 void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
@@ -337,6 +343,7 @@ void  resetConnectDB(STscObj* pTscObj);
 int taos_options_imp(TSDB_OPTION option, const char* str);
 
 void* openTransporter(const char* user, const char* auth, int32_t numOfThreads);
+void tscStopCrashReport();
 
 typedef struct AsyncArg {
   SRpcMsg msg;
@@ -349,14 +356,12 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 STscObj* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
                                uint16_t port, int connType);
 
-SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool validateOnly, bool inRetry);
-
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
 
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
 
 int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql,
-                     SRequestObj** pRequest);
+                     SRequestObj** pRequest, int64_t reqid);
 
 void taos_close_internal(void* taos);
 
@@ -380,16 +385,24 @@ void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
 // --- mq
 void hbMgrInitMqHbRspHandle();
 
+typedef struct SSqlCallbackWrapper {
+  SParseContext* pParseCtx;
+  SCatalogReq*   pCatalogReq;
+  SRequestObj*   pRequest;
+} SSqlCallbackWrapper;
+
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
 int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
-void         launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta);
-int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
-int32_t      updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
-void         doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
-int32_t      removeMeta(STscObj* pTscObj, SArray* tbList);
-int32_t      handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
-int32_t      handleCreateTbExecRes(void* res, SCatalog* pCatalog);
-bool         qnodeRequired(SRequestObj* pRequest);
+void    launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta, SSqlCallbackWrapper* pWrapper);
+int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
+int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
+void    doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
+int32_t removeMeta(STscObj* pTscObj, SArray* tbList);
+int32_t handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
+int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
+bool    qnodeRequired(SRequestObj* pRequest);
+void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
+void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
 
 #ifdef __cplusplus
 }

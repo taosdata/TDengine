@@ -26,14 +26,13 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 
 TDengine 版本更新往往会增加新的功能特性，列表中的连接器版本为连接器最佳适配版本。
 
-| **TDengine 版本**     | **Java** | **Python** | **Go**       | **C#**        | **Node.js**     | **Rust** |
-| --------------------- | -------- | ---------- | ------------ | ------------- | --------------- | -------- |
-| **3.0.0.0 及以上**    | 3.0.0    | 当前版本   | 3.0 分支     | 3.0.0         | 3.0.0           | 当前版本 |
-| **2.4.0.14 及以上**   | 2.0.38   | 当前版本   | develop 分支 | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | 当前版本 |
-| **2.4.0.6 及以上**    | 2.0.37   | 当前版本   | develop 分支 | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | 当前版本 |
-| **2.4.0.4 - 2.4.0.5** | 2.0.37   | 当前版本   | develop 分支 | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | 当前版本 |
-| **2.2.x.x **          | 2.0.36   | 当前版本   | master 分支  | n/a           | 2.0.7 - 2.0.9   | 当前版本 |
-| **2.0.x.x **          | 2.0.34   | 当前版本   | master 分支  | n/a           | 2.0.1 - 2.0.6   | 当前版本 |
+| **TDengine 版本**      | **Java**  | **Python** | **Go**       | **C#**        | **Node.js**     | **Rust** |
+| ---------------------- | --------- | ---------- | ------------ | ------------- | --------------- | -------- |
+| **3.0.0.0 及以上**     | 3.0.2以上 | 当前版本   | 3.0 分支     | 3.0.0         | 3.0.0           | 当前版本 |
+| **2.4.0.14 及以上**    | 2.0.38    | 当前版本   | develop 分支 | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | 当前版本 |
+| **2.4.0.4 - 2.4.0.13** | 2.0.37    | 当前版本   | develop 分支 | 1.0.2 - 1.0.6 | 2.0.10 - 2.0.12 | 当前版本 |
+| **2.2.x.x **           | 2.0.36    | 当前版本   | master 分支  | n/a           | 2.0.7 - 2.0.9   | 当前版本 |
+| **2.0.x.x **           | 2.0.34    | 当前版本   | master 分支  | n/a           | 2.0.1 - 2.0.6   | 当前版本 |
 
 ## 功能特性
 
@@ -60,10 +59,10 @@ TDengine 版本更新往往会增加新的功能特性，列表中的连接器�
 | ------------------------------ | -------- | ---------- | -------- | -------- | ----------- | -------- |
 | **连接管理**                   | 支持     | 支持       | 支持     | 支持     | 支持        | 支持     |
 | **普通查询**                   | 支持     | 支持       | 支持     | 支持     | 支持        | 支持     |
-| **参数绑定**                   | 暂不支持 | 暂不支持   | 暂不支持 | 支持     | 暂不支持    | 支持     |
-| **数据订阅（TMQ）**            | 暂不支持 | 暂不支持   | 暂不支持 | 暂不支持 | 暂不支持    | 支持     |
+| **参数绑定**                   | 暂不支持 | 暂不支持   | 支持     | 支持     | 暂不支持    | 支持     |
+| **数据订阅（TMQ）**            | 暂不支持 | 支持       | 支持     | 暂不支持 | 暂不支持    | 支持     |
 | **Schemaless**                 | 暂不支持 | 暂不支持   | 暂不支持 | 暂不支持 | 暂不支持    | 暂不支持 |
-| **批量拉取（基于 WebSocket）** | 支持     | 支持       | 暂不支持 | 支持     | 暂不支持    | 支持     |
+| **批量拉取（基于 WebSocket）** | 支持     | 支持       | 支持     | 支持     | 支持        | 支持     |
 | **DataFrame**                  | 不支持   | 支持       | 不支持   | 不支持   | 不支持      | 不支持   |
 
 :::warning
@@ -74,10 +73,12 @@ TDengine 版本更新往往会增加新的功能特性，列表中的连接器�
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import InstallOnWindows from "./_linux_install.mdx";
-import InstallOnLinux from "./_windows_install.mdx";
+import InstallOnLinux from "./_linux_install.mdx";
+import InstallOnWindows from "./_windows_install.mdx";
+import InstallOnMacOS from "./_macos_install.mdx";
 import VerifyWindows from "./_verify_windows.mdx";
 import VerifyLinux from "./_verify_linux.mdx";
+import VerifyMacOS from "./_verify_macos.mdx";
 
 ## 安装客户端驱动
 
@@ -90,10 +91,13 @@ import VerifyLinux from "./_verify_linux.mdx";
 
 <Tabs defaultValue="linux" groupId="os">
   <TabItem value="linux" label="Linux">
-    <InstallOnWindows />
+    <InstallOnLinux />
   </TabItem>
   <TabItem value="windows" label="Windows">
-    <InstallOnLinux />
+    <InstallOnWindows />
+  </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <InstallOnMacOS />
   </TabItem>
 </Tabs>
 
@@ -107,6 +111,9 @@ import VerifyLinux from "./_verify_linux.mdx";
   </TabItem>
   <TabItem value="windows" label="Windows">
     <VerifyWindows />
+  </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <VerifyMacOS />
   </TabItem>
 </Tabs>
 

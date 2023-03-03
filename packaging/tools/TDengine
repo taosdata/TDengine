@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+
+function showAlertMessage(){
+osascript <<EOF
+	set buttonStr to "${3}"
+	set oldDelimiters to AppleScript's text item delimiters
+	set AppleScript's text item delimiters to ","
+	set buttonList to every text item of buttonStr
+	set AppleScript's text item delimiters to oldDelimiters
+	get buttonList
+	set btns to buttonList
+	display dialog "${1}" with title "${2}" buttons btns with icon ${4}
+	get result 
+EOF
+}
+
+taosd_status=`Launchctl list | grep taosd | head -n 1 | awk '{print $1}'`
+if [ "$taosd_status"x = "-"x ]; then
+    launchctl start com.tdengine.taosd
+    showAlertMessage "Taosd is running!" "TDengine" "ok" "note"
+else
+    choose_result=`showAlertMessage "Taosd is running!\nDo you want to close it?" "TDengine" "yes,cancel" "stop"`
+    if [ "$choose_result"x = "button returned:yes"x ]; then
+        launchctl stop com.tdengine.taosd
+    fi
+fi
+

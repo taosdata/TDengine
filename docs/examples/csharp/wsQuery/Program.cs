@@ -7,13 +7,14 @@ namespace Examples
 {
     public class WSQueryExample
     {
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
             string DSN = "ws://root:taosdata@127.0.0.1:6041/test";
             IntPtr wsConn = LibTaosWS.WSConnectWithDSN(DSN);
             if (wsConn == IntPtr.Zero)
             {
-                throw new Exception($"get WS connection failed,reason:{LibTaosWS.WSErrorStr(IntPtr.Zero)} code:{LibTaosWS.WSErrorNo(IntPtr.Zero)}");
+                Console.WriteLine("get WS connection failed");
+                return -1;
             }
             else
             {
@@ -28,7 +29,9 @@ namespace Examples
             int code = LibTaosWS.WSErrorNo(wsRes);
             if (code != 0)
             {
-                throw new Exception($"execute SQL failed: reason: {LibTaosWS.WSErrorStr(wsRes)}, code:{code}");
+                Console.WriteLine($"execute SQL failed: reason: {LibTaosWS.WSErrorStr(wsRes)}, code:{code}");
+                LibTaosWS.WSFreeResult(wsRes);
+                return -1;
             }
 
             // get meta data
@@ -58,6 +61,8 @@ namespace Examples
 
             // close connection.
             LibTaosWS.WSClose(wsConn);
+
+            return 0;
         }
     }
 }

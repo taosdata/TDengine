@@ -11,23 +11,23 @@
 
 typedef struct SThreadObj {
   TdThread    thread;
-  uv_pipe_t * pipe;
-  uv_loop_t * loop;
+  uv_pipe_t  *pipe;
+  uv_loop_t  *loop;
   uv_async_t *workerAsync;  //
   int         fd;
 } SThreadObj;
 
 typedef struct SServerObj {
   uv_tcp_t     server;
-  uv_loop_t *  loop;
+  uv_loop_t   *loop;
   int          workerIdx;
   int          numOfThread;
   SThreadObj **pThreadObj;
-  uv_pipe_t ** pipe;
+  uv_pipe_t  **pipe;
 } SServerObj;
 
 typedef struct SConnCtx {
-  uv_tcp_t *  pClient;
+  uv_tcp_t   *pClient;
   uv_timer_t *pTimer;
   uv_async_t *pWorkerAsync;
   int         ref;

@@ -29,42 +29,62 @@ sql insert into tb4 values (now, 4, "Bitmap Heap Scan on tenk1 t1  (cost=5.07..2
 #sql create table tb4 using st2 tags(4);
 #sql insert into tb4 values (now, 4, "Bitmap Heap Scan on tenk1 t1  (cost=5.07..229.20 rows=101 width=244) (actual time=0.080..0.526 rows=100 loops=1)");
 
+# for explain insert into select
+sql create table t1 (ts timestamp, f1 int, f2 binary(200), t1 int);
 
 print ======== step2
 sql explain select * from st1 where -2;
+sql explain insert into t1 select * from st1 where -2;
 sql explain select ts from tb1;
+sql explain insert into t1(ts) select ts from tb1;
 sql explain select * from st1;
+sql explain insert into t1 select * from st1;
 sql explain select * from st1 order by ts;
+sql explain insert into t1 select * from st1 order by ts;
 sql explain select * from information_schema.ins_stables;
 sql explain select count(*),sum(f1) from tb1;
 sql explain select count(*),sum(f1) from st1;
 sql explain select count(*),sum(f1) from st1 group by f1;
 #sql explain select count(f1) from tb1 interval(10s, 2s) sliding(3s) fill(prev);
+sql explain insert into t1(ts, t1) select _wstart, count(*) from st1 interval(10s);
 
 print ======== step3
 sql explain verbose true select * from st1 where -2;
+sql explain verbose true insert into t1 select * from st1 where -2;
 sql explain verbose true select ts from tb1 where f1 > 0;
+sql explain verbose true insert into t1(ts) select ts from tb1 where f1 > 0;
 sql explain verbose true select * from st1 where f1 > 0 and ts > '2020-10-31 00:00:00' and ts < '2021-10-31 00:00:00';
+sql explain verbose true insert into t1 select * from st1 where f1 > 0 and ts > '2020-10-31 00:00:00' and ts < '2021-10-31 00:00:00';
 sql explain verbose true select count(*) from st1 partition by tbname slimit 1 soffset 2 limit 2 offset 1;
 sql explain verbose true select * from information_schema.ins_stables where db_name='db2';
+sql explain verbose true select st1.f1 from st1 join st2 on st1.ts=st2.ts and st1.f1 > 0;
+sql explain verbose true insert into t1(ts) select st1.f1 from st1 join st2 on st1.ts=st2.ts and st1.f1 > 0;
+sql explain verbose true insert into t1(ts, t1) select _wstart, count(*) from st1 interval(10s);
 
 print ======== step4
 sql explain analyze select ts from st1 where -2;
+sql explain analyze insert into t1(ts) select ts from st1 where -2;
 sql explain analyze select ts from tb1;
+sql explain analyze insert into t1(ts) select ts from tb1;
 sql explain analyze select ts from st1;
-sql explain analyze select ts from st1;
+sql explain analyze insert into t1(ts) select ts from st1;
 sql explain analyze select ts from st1 order by ts;
+sql explain analyze insert into t1(ts) select ts from st1 order by ts;
 sql explain analyze select * from information_schema.ins_stables;
 sql explain analyze select count(*),sum(f1) from tb1;
 sql explain analyze select count(*),sum(f1) from st1;
 sql explain analyze select count(*),sum(f1) from st1 group by f1;
+sql explain analyze insert into t1(ts, t1) select _wstart, count(*) from st1 interval(10s);
 
 print ======== step5
 sql explain analyze verbose true select ts from st1 where -2;
+sql explain analyze verbose true insert into t1(ts) select ts from st1 where -2;
 sql explain analyze verbose true select ts from tb1;
+sql explain analyze verbose true insert into t1(ts) select ts from tb1;
 sql explain analyze verbose true select ts from st1;
-sql explain analyze verbose true select ts from st1;
+sql explain analyze verbose true insert into t1(ts) select ts from st1;
 sql explain analyze verbose true select ts from st1 order by ts;
+sql explain analyze verbose true insert into t1(ts) select ts from st1 order by ts;
 sql explain analyze verbose true select * from information_schema.ins_stables;
 sql explain analyze verbose true select count(*),sum(f1) from tb1;
 sql explain analyze verbose true select count(*),sum(f1) from st1;
@@ -75,6 +95,7 @@ sql explain analyze verbose true select f1 from st1 where f1 > 0 and ts > '2020-
 sql explain analyze verbose true select * from information_schema.ins_stables where db_name='db2';
 sql explain analyze verbose true select * from (select min(f1),count(*) a from st1 where f1 > 0) where a < 0;
 sql explain analyze verbose true select count(f1) from st1 group by tbname;
+sql explain analyze verbose true select st1.f1 from st1 join st2 on st1.ts=st2.ts and st1.f1 > 0;
 
 #not pass case
 #sql explain verbose true select count(*),sum(f1) as aa from tb1 where (f1 > 0 or f1 < -1) and ts > '2020-10-31 00:00:00' and ts < '2021-10-31 00:00:00' order by aa;
@@ -95,4 +116,4 @@ sql explain analyze verbose true select count(f1) from st1 group by tbname;
 #sql explain analyze verbose true select min(f1) from st1 interval(3m, 2a) sliding(1m);
 
 
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT

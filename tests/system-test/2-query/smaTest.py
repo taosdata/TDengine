@@ -31,7 +31,8 @@ class TDTestCase:
     # updatecfgDict = {'fqdn': 135}
 
     # init
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         tdSql.prepare()
@@ -43,15 +44,14 @@ class TDTestCase:
     def run(self):
         # insert data
         dbname = "db"
-        self.insert_data1(f"{dbname}.t1", self.ts, 1000*10000)
-        self.insert_data1(f"{dbname}.t4", self.ts, 1000*10000)
+        self.insert_data1(f"{dbname}.t1", self.ts, 10*10000)
+        self.insert_data1(f"{dbname}.t4", self.ts, 10*10000)
         # test base case
         # self.test_case1()
         tdLog.debug(" LIMIT test_case1 ............ [OK]")
         # test advance case
         # self.test_case2()
         tdLog.debug(" LIMIT test_case2 ............ [OK]")
-
 
     # stop
     def stop(self):
@@ -76,15 +76,17 @@ class TDTestCase:
 
     # insert data1
     def insert_data(self, tbname, ts_start, count):
-        pre_insert = "insert into %s values"%tbname
+        pre_insert = "insert into %s values" % tbname
         sql = pre_insert
-        tdLog.debug("doing insert table %s rows=%d ..."%(tbname, count))
+        tdLog.debug("insert table %s rows=%d ..." % (tbname, count))
         for i in range(count):
-            sql += " (%d,%d)"%(ts_start + i*1000, i )
-            if i >0 and i%30000 == 0:
+            sql += " (%d,%d)" % (ts_start + i*1000, i)
+            if i > 0 and i % 20000 == 0:
+                tdLog.info("%d rows inserted" % i)
                 tdSql.execute(sql)
                 sql = pre_insert
         # end sql
+        tdLog.info("insert_data end")
         if sql != pre_insert:
             tdSql.execute(sql)
 
@@ -92,15 +94,17 @@ class TDTestCase:
         return
 
     def insert_data1(self, tbname, ts_start, count):
-        pre_insert = "insert into %s values"%tbname
+        pre_insert = "insert into %s values" % tbname
         sql = pre_insert
-        tdLog.debug("doing insert table %s rows=%d ..."%(tbname, count))
+        tdLog.debug("insert table %s rows=%d ..." % (tbname, count))
         for i in range(count):
-            sql += " (%d,%d,%d)"%(ts_start + i*1000, i , i+1)
-            if i >0 and i%30000 == 0:
+            sql += " (%d,%d,%d)" % (ts_start + i*1000, i, i+1)
+            if i > 0 and i % 20000 == 0:
+                tdLog.info("%d rows inserted" % i)
                 tdSql.execute(sql)
                 sql = pre_insert
         # end sql
+        tdLog.info("insert_data1 end")
         if sql != pre_insert:
             tdSql.execute(sql)
 

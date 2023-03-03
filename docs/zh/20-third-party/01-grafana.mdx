@@ -77,7 +77,7 @@ sudo -u grafana grafana-cli plugins install tdengine-datasource
 或者从 [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) 或 [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) 下载 .zip 文件到本地并解压到 Grafana 插件目录。命令行下载示例如下：
 
 ```bash
-GF_VERSION=3.2.2
+GF_VERSION=3.2.9
 # from GitHub
 wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
 # from Grafana
@@ -156,13 +156,13 @@ docker run -d \
 
     services:
       tdengine:
-        image: tdengine/tdengine:2.6.0.2
+        image: tdengine/tdengine:3.0.2.4
         environment:
           TAOS_FQDN: tdengine
         volumes:
           - tdengine-data:/var/lib/taos/
       grafana:
-        image: grafana/grafana:8.5.6
+        image: grafana/grafana:9.3.6
         volumes:
           - ./tdengine.yml/:/etc/grafana/provisioning/tdengine.yml
           - grafana-data:/var/lib/grafana
@@ -197,10 +197,16 @@ docker run -d \
 - INPUT SQL：输入要查询的语句（该 SQL 语句的结果集应为两列多行），例如：`select _wstart, avg(mem_system) from log.dnodes_info where ts >= $from and ts < $to interval($interval)` ，其中，from、to 和 interval 为 TDengine 插件的内置变量，表示从 Grafana 插件面板获取的查询范围和时间间隔。除了内置变量外，`也支持可以使用自定义模板变量`。
 - ALIAS BY：可设置当前查询别名。
 - GENERATE SQL： 点击该按钮会自动替换相应变量，并生成最终执行的语句。
+- Group by column name(s)： **半角**逗号分隔的 `group by` 或 `partition by` 列名。如果是 `group by` or `partition by` 查询语句，设置 `Group by` 列，可以展示多维数据。例如：INPUT SQL 为 `select _wstart as ts, avg(mem_system), dnode_ep from log.dnodes_info where ts>=$from and ts<=$to partition by dnode_ep interval($interval)`，设置 Group by 列名为 `dnode_ep`，可以按 `dnode_ep` 展示数据。
+- Format to： Group by 或 Partition by 场景下多维数据 legend 格式化格式。例如上述 INPUT SQL，将 Format to 设置为 `mem_system_{{dnode_ep}}`，展示的 legend 名字为格式化的列名。
 
 按照默认提示查询当前 TDengine 部署所在服务器指定间隔系统内存平均使用量如下：
 
 ![TDengine Database Grafana plugin create dashboard](./create_dashboard2.webp)
+
+查询每台 TDengine 服务器指定间隔系统内存平均使用量如下：
+
+![TDengine Database Grafana plugin create dashboard](./create_dashboard3.webp)
 
 > 关于如何使用 Grafana 创建相应的监测界面以及更多有关使用 Grafana 的信息，请参考 Grafana 官方的[文档](https://grafana.com/docs/)。
 

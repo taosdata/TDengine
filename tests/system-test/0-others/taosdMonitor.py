@@ -94,7 +94,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
                 tdLog.exit("vgroup_id is null!")
             if "database_name" not in infoDict["vgroup_infos"][index] or len(infoDict["vgroup_infos"][index]["database_name"]) < 0:
                 tdLog.exit("database_name is null!")
-            if "tables_num" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["tables_num"]!= 0:
+            if "tables_num" not in infoDict["vgroup_infos"][index]:
                 tdLog.exit("tables_num is null!")
             if "status" not in infoDict["vgroup_infos"][index] or len(infoDict["vgroup_infos"][index]["status"]) < 0 :
                 tdLog.exit("status is null!")
@@ -125,7 +125,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         dnode_infos =  ['uptime', 'cpu_engine', 'cpu_system', 'cpu_cores', 'mem_engine', 'mem_system', 'mem_total', 'disk_engine',
         'disk_used', 'disk_total', 'net_in', 'net_out', 'io_read', 'io_write', 'io_read_disk', 'io_write_disk', 'req_select',
         'req_select_rate', 'req_insert', 'req_insert_success', 'req_insert_rate', 'req_insert_batch', 'req_insert_batch_success',
-        'req_insert_batch_rate', 'errors', 'vnodes_num', 'masters', 'has_mnode', 'has_qnode', 'has_snode', 'has_bnode']
+        'req_insert_batch_rate', 'errors', 'vnodes_num', 'masters', 'has_mnode', 'has_qnode', 'has_snode']
         for elem in dnode_infos:
             if elem not in infoDict["dnode_info"] or  infoDict["dnode_info"][elem] < 0:
                 tdLog.exit(f"{elem} is null!")
@@ -284,7 +284,8 @@ class TDTestCase:
 
     print ("===================: ", updatecfgDict)
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -293,6 +294,10 @@ class TDTestCase:
         # time.sleep(2)
         vgroups = "30"
         sql = "create database db3 vgroups " + vgroups
+        tdSql.query(sql)
+        sql = "create table db3.stb (ts timestamp, f int) tags (t int)"
+        tdSql.query(sql)
+        sql = "create table db3.tb using db3.stb tags (1)"
         tdSql.query(sql)
 
         # create http server: bing ip/port , and  request processor

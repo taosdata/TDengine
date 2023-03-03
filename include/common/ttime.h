@@ -59,11 +59,11 @@ static FORCE_INLINE int64_t taosGetTimestamp(int32_t precision) {
  *    precision == TSDB_TIME_PRECISION_NANO,  it returns timestamp in nanosecond.
  */
 static FORCE_INLINE int64_t taosGetTimestampToday(int32_t precision) {
-  int64_t    factor = (precision == TSDB_TIME_PRECISION_MILLI)   ? 1000
-                      : (precision == TSDB_TIME_PRECISION_MICRO) ? 1000000
-                                                                 : 1000000000;
-  time_t     t = taosTime(NULL);
-  struct tm  tm;
+  int64_t   factor = (precision == TSDB_TIME_PRECISION_MILLI)   ? 1000
+                     : (precision == TSDB_TIME_PRECISION_MICRO) ? 1000000
+                                                                : 1000000000;
+  time_t    t = taosTime(NULL);
+  struct tm tm;
   taosLocalTime(&t, &tm);
   tm.tm_hour = 0;
   tm.tm_min = 0;
@@ -80,15 +80,15 @@ int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char
 int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* ts, char* unit, int32_t timePrecision);
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision);
 
-int32_t taosParseTime(const char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t dayligth);
+int32_t taosParseTime(const char* timestr, int64_t* pTime, int32_t len, int32_t timePrec, int8_t dayligth);
 void    deltaToUtcInitOnce();
 char    getPrecisionUnit(int32_t precision);
 
-int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision);
-int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit);
+int64_t convertTimePrecision(int64_t ts, int32_t fromPrecision, int32_t toPrecision);
+int64_t convertTimeFromPrecisionToUnit(int64_t ts, int32_t fromPrecision, char toUnit);
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal);
 
-void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t time, int32_t precision);
+void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
 
 #ifdef __cplusplus
 }

@@ -26,7 +26,7 @@ int32_t mndInitPerfsTableSchema(const SSysDbTableSchema *pSrc, int32_t colNum, S
   }
 
   for (int32_t i = 0; i < colNum; ++i) {
-    strcpy(schema[i].name, pSrc[i].name);
+    tstrncpy(schema[i].name, pSrc[i].name, sizeof(schema[i].name));
 
     schema[i].type = pSrc[i].type;
     schema[i].colId = i + 1;
@@ -40,17 +40,17 @@ int32_t mndInitPerfsTableSchema(const SSysDbTableSchema *pSrc, int32_t colNum, S
 int32_t mndPerfsInitMeta(SHashObj *hash) {
   STableMetaRsp meta = {0};
 
-  strcpy(meta.dbFName, TSDB_INFORMATION_SCHEMA_DB);
+  tstrncpy(meta.dbFName, TSDB_INFORMATION_SCHEMA_DB, sizeof(meta.dbFName));
   meta.tableType = TSDB_SYSTEM_TABLE;
   meta.sversion = 1;
   meta.tversion = 1;
 
-  size_t size = 0;
-  const SSysTableMeta* pSysDbTableMeta = NULL;
+  size_t               size = 0;
+  const SSysTableMeta *pSysDbTableMeta = NULL;
   getPerfDbMeta(&pSysDbTableMeta, &size);
 
   for (int32_t i = 0; i < size; ++i) {
-    strcpy(meta.tbName, pSysDbTableMeta[i].name);
+    tstrncpy(meta.tbName, pSysDbTableMeta[i].name, sizeof(meta.tbName));
     meta.numOfColumns = pSysDbTableMeta[i].colNum;
 
     if (mndInitPerfsTableSchema(pSysDbTableMeta[i].schema, pSysDbTableMeta[i].colNum, &meta.pSchemas)) {
@@ -68,7 +68,7 @@ int32_t mndPerfsInitMeta(SHashObj *hash) {
 
 int32_t mndBuildPerfsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp) {
   if (NULL == pMnode->perfsMeta) {
-    terrno = TSDB_CODE_APP_NOT_READY;
+    terrno = TSDB_CODE_APP_ERROR;
     return -1;
   }
 
@@ -94,7 +94,7 @@ int32_t mndBuildPerfsTableSchema(SMnode *pMnode, const char *dbFName, const char
 
 int32_t mndBuildPerfsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp) {
   if (NULL == pMnode->perfsMeta) {
-    terrno = TSDB_CODE_APP_NOT_READY;
+    terrno = TSDB_CODE_APP_ERROR;
     return -1;
   }
 
@@ -150,4 +150,3 @@ void mndCleanupPerfs(SMnode *pMnode) {
   taosHashCleanup(pMnode->perfsMeta);
   pMnode->perfsMeta = NULL;
 }
-

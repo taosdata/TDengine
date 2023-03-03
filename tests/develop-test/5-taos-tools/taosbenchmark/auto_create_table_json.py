@@ -25,7 +25,8 @@ class TDTestCase:
         '''
         return
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
 
@@ -151,6 +152,8 @@ class TDTestCase:
         tdSql.checkData(0, 0, 8)
         tdSql.query("select count(*) from db.`stb4-2`")
         tdSql.checkData(0, 0, 160)
+
+        tAdapter.stop()
 
     def stop(self):
         tdSql.close()

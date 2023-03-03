@@ -77,16 +77,17 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
 
   SSdbRaw *pRaw = mndAcctActionEncode(&acctObj);
   if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("acct:%s, will be created when deploying, raw:%p", acctObj.acct, pRaw);
+  mInfo("acct:%s, will be created when deploying, raw:%p", acctObj.acct, pRaw);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-acct");
   if (pTrans == NULL) {
+    sdbFreeRaw(pRaw);
     mError("acct:%s, failed to create since %s", acctObj.acct, terrstr());
     return -1;
   }
-  mDebug("trans:%d, used to create acct:%s", pTrans->id, acctObj.acct);
+  mInfo("trans:%d, used to create acct:%s", pTrans->id, acctObj.acct);
 
   if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
@@ -146,6 +147,8 @@ _OVER:
 
 static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SAcctObj *pAcct = NULL;
+  SSdbRow  *pRow = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -155,10 +158,10 @@ static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SAcctObj));
+  pRow = sdbAllocRow(sizeof(SAcctObj));
   if (pRow == NULL) goto _OVER;
 
-  SAcctObj *pAcct = sdbGetRowObj(pRow);
+  pAcct = sdbGetRowObj(pRow);
   if (pAcct == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -185,7 +188,7 @@ static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("acct:%s, failed to decode from raw:%p since %s", pAcct->acct, pRaw, terrstr());
+    mError("acct:%s, failed to decode from raw:%p since %s", pAcct == NULL ? "null" : pAcct->acct, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -217,7 +220,7 @@ static int32_t mndProcessCreateAcctReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
@@ -227,7 +230,7 @@ static int32_t mndProcessAlterAcctReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
@@ -237,7 +240,7 @@ static int32_t mndProcessDropAcctReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }

@@ -7,27 +7,55 @@
 iplist=""
 serverFqdn=""
 
-# -----------------------Variables definition---------------------
-script_dir=$(dirname $(readlink -f "$0"))
+osType=`uname`
+
 # Dynamic directory
 data_dir="/var/lib/taos"
 log_dir="/var/log/taos"
-data_link_dir="/usr/local/taos/data"
-log_link_dir="/usr/local/taos/log"
-install_main_dir="/usr/local/taos"
+cfg_install_dir="/etc/taos"
+
+if [ "$osType" != "Darwin" ]; then
+  script_dir=$(dirname $(readlink -f "$0"))
+  verNumber=""
+  lib_file_ext="so"
+  lib_file_ext_1="so.1"
+
+  bin_link_dir="/usr/bin"
+  lib_link_dir="/usr/lib"
+  lib64_link_dir="/usr/lib64"
+  inc_link_dir="/usr/include"
+  
+  install_main_dir="/usr/local/taos"
+else
+  script_dir=${source_dir}/packaging/tools
+  verNumber=`ls tdengine/driver | grep -E "libtaos\.[0-9]\.[0-9]" | sed "s/libtaos.//g" |  sed "s/.dylib//g" | head -n 1`
+  lib_file_ext="dylib"
+  lib_file_ext_1="1.dylib"
+
+  bin_link_dir="/usr/local/bin"
+  lib_link_dir="/usr/local/lib"
+  lib64_link_dir="/usr/local/lib"
+  inc_link_dir="/usr/local/include"
+
+  if [ -d "/usr/local/Cellar/" ];then
+    install_main_dir="/usr/local/Cellar/tdengine/${verNumber}"
+  elif [ -d "/opt/homebrew/Cellar/" ];then
+    install_main_dir="/opt/homebrew/Cellar/tdengine/${verNumber}"
+  else
+    install_main_dir="/usr/local/taos"
+  fi
+fi
+
+data_link_dir="${install_main_dir}/data"
+log_link_dir="${install_main_dir}/log"
+install_log_path="${log_dir}/tdengine_install.log"
 
 # static directory
-cfg_dir="/usr/local/taos/cfg"
-bin_dir="/usr/local/taos/bin"
-lib_dir="/usr/local/taos/driver"
-init_d_dir="/usr/local/taos/init.d"
-inc_dir="/usr/local/taos/include"
-
-cfg_install_dir="/etc/taos"
-bin_link_dir="/usr/bin"
-lib_link_dir="/usr/lib"
-lib64_link_dir="/usr/lib64"
-inc_link_dir="/usr/include"
+cfg_dir="${install_main_dir}/cfg"
+bin_dir="${install_main_dir}/bin"
+lib_dir="${install_main_dir}/driver"
+init_d_dir="${install_main_dir}/init.d"
+inc_dir="${install_main_dir}/include"
 
 service_config_dir="/etc/systemd/system"
 
@@ -40,13 +68,15 @@ GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
 csudo=""
+csudouser=""
 if command -v sudo > /dev/null; then
     csudo="sudo "
+    csudouser="sudo -u ${USER} "
 fi
 
 initd_mod=0
 service_mod=2
-if pidof systemd &> /dev/null; then
+if ps aux | grep -v grep | grep systemd &> /dev/null; then
     service_mod=0
 elif $(which service &> /dev/null); then
     service_mod=1
@@ -63,10 +93,30 @@ elif $(which service &> /dev/null); then
 else
     service_mod=2
 fi
+if [ "$osType" = "Darwin" ]; then
+  if [ -d "${install_main_dir}" ];then
+    ${csudo}rm -rf ${install_main_dir}
+  fi
+  ${csudo}mkdir -p ${install_main_dir}
+  ${csudo}rm -rf ${install_main_dir}
+  ${csudo}cp -rf tdengine ${install_main_dir}
+fi
+
+function log_print(){
+  now=$(date +"%D %T")
+  echo "$now  $1" >> ${install_log_path}
+}
 
 function kill_taosadapter() {
 #  ${csudo}pkill -f taosadapter || :
   pid=$(ps -ef | grep "taosadapter" | grep -v "grep" | awk '{print $2}')
+  if [ -n "$pid" ]; then
+    ${csudo}kill -9 $pid   || :
+  fi
+}
+
+function kill_taoskeeper() {
+  pid=$(ps -ef | grep "taoskeeper" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo}kill -9 $pid   || :
   fi
@@ -81,6 +131,8 @@ function kill_taosd() {
 }
 
 function install_include() {
+    log_print "start install include from ${inc_dir} to ${inc_link_dir}"
+    ${csudo}mkdir -p ${inc_link_dir}
     ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/taosudf.h || :
     [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h ||:
 
@@ -90,37 +142,45 @@ function install_include() {
     ${csudo}ln -s ${inc_dir}/taosudf.h ${inc_link_dir}/taosudf.h
 
     [ -f ${inc_dir}/taosws.h ] && ${csudo}ln -sf ${inc_dir}/taosws.h ${inc_link_dir}/taosws.h ||:
+    log_print "install include success"
 }
 
 function install_lib() {
+    log_print "start install lib from ${lib_dir} to ${lib_link_dir}"
     ${csudo}rm -f ${lib_link_dir}/libtaos* || :
     ${csudo}rm -f ${lib64_link_dir}/libtaos* || :
 
-    [ -f ${lib_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.so || :
-    [ -f ${lib64_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.so || :
+    [ -f ${lib_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.${lib_file_ext} || :
+    [ -f ${lib64_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.${lib_file_ext} || :
 
-    ${csudo}ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.so.1
-    ${csudo}ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+    ${csudo}ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.${lib_file_ext_1} 2>>${install_log_path} || return 1
+    ${csudo}ln -s ${lib_link_dir}/libtaos.${lib_file_ext_1} ${lib_link_dir}/libtaos.${lib_file_ext} 2>>${install_log_path} || return 1
 
-    [ -f ${lib_dir}/libtaosws.so ] && ${csudo}ln -sf ${lib_dir}/libtaosws.so ${lib_link_dir}/libtaosws.so ||:
+    [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib_link_dir}/libtaosws.${lib_file_ext} ||:
 
-    if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
-      ${csudo}ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.1           || :
-      ${csudo}ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so   || :
+    if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.${lib_file_ext} ]]; then
+      ${csudo}ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.${lib_file_ext_1} 2>>${install_log_path} || return 1
+      ${csudo}ln -s ${lib64_link_dir}/libtaos.${lib_file_ext_1} ${lib64_link_dir}/libtaos.${lib_file_ext}  2>>${install_log_path} || return 1
 
-      [ -f ${lib_dir}/libtaosws.so ] && ${csudo}ln -sf ${lib_dir}/libtaosws.so ${lib64_link_dir}/libtaosws.so           || :
+      [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib64_link_dir}/libtaosws.${lib_file_ext} 2>>${install_log_path}
     fi
 
-    ${csudo}ldconfig
+    if [ "$osType" != "Darwin" ]; then
+      ${csudo}ldconfig
+    fi
+
+    log_print "install lib success"
 }
 
 function install_bin() {
     # Remove links
+    log_print "start install bin from ${bin_dir} to ${bin_link_dir}"
     ${csudo}rm -f ${bin_link_dir}/taos     || :
     ${csudo}rm -f ${bin_link_dir}/taosd    || :
     ${csudo}rm -f ${bin_link_dir}/udfd     || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter     || :
     ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
+    ${csudo}rm -f ${bin_link_dir}/taoskeeper || :
     ${csudo}rm -f ${bin_link_dir}/taosdemo || :
     ${csudo}rm -f ${bin_link_dir}/taosdump || :
     ${csudo}rm -f ${bin_link_dir}/rmtaos   || :
@@ -129,15 +189,38 @@ function install_bin() {
     ${csudo}chmod 0555 ${bin_dir}/*
 
     #Make link
-    [ -x ${bin_dir}/taos ] && ${csudo}ln -s ${bin_dir}/taos ${bin_link_dir}/taos             || :
-    [ -x ${bin_dir}/taosd ] && ${csudo}ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd          || :
-    [ -x ${bin_dir}/udfd ] && ${csudo}ln -s ${bin_dir}/udfd ${bin_link_dir}/udfd             || :
-    [ -x ${bin_dir}/taosadapter ] && ${csudo}ln -s ${bin_dir}/taosadapter ${bin_link_dir}/taosadapter             || :
-    [ -x ${bin_dir}/taosBenchmark ] && ${csudo}ln -sf ${bin_dir}/taosBenchmark ${bin_link_dir}/taosdemo || :
-    [ -x ${bin_dir}/taosBenchmark ] && ${csudo}ln -sf ${bin_dir}/taosBenchmark ${bin_link_dir}/taosBenchmark || :
-    [ -x ${bin_dir}/TDinsight.sh ] && ${csudo}ln -sf ${bin_dir}/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
-    [ -x ${bin_dir}/taosdump ] && ${csudo}ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump || :
-    [ -x ${bin_dir}/set_core.sh ] && ${csudo}ln -s ${bin_dir}/set_core.sh ${bin_link_dir}/set_core || :
+    if [ -x ${bin_dir}/taos ]; then
+      ${csudo}ln -s ${bin_dir}/taos ${bin_link_dir}/taos                     2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/taosd ]; then
+      ${csudo}ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd                   2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/udfd ]; then
+      ${csudo}ln -s ${bin_dir}/udfd ${bin_link_dir}/udfd                     2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/taosadapter ]; then
+      ${csudo}ln -s ${bin_dir}/taosadapter ${bin_link_dir}/taosadapter       2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/taosBenchmark ]; then
+      ${csudo}ln -sf ${bin_dir}/taosBenchmark ${bin_link_dir}/taosdemo       2>>${install_log_path}
+      ${csudo}ln -sf ${bin_dir}/taosBenchmark ${bin_link_dir}/taosBenchmark  2>>${install_log_path}
+    fi
+    if [ -x ${bin_dir}/TDinsight.sh ]; then
+      ${csudo}ln -sf ${bin_dir}/TDinsight.sh ${bin_link_dir}/TDinsight.sh    2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/taosdump ]; then
+      ${csudo}ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump             2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/set_core.sh ]; then
+      ${csudo}ln -s ${bin_dir}/set_core.sh ${bin_link_dir}/set_core          2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/remove.sh ]; then
+      ${csudo}ln -s ${bin_dir}/remove.sh ${bin_link_dir}/rmtaos              2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/taoskeeper ]; then
+      ${csudo}ln -sf ${bin_dir}/taoskeeper ${bin_link_dir}/taoskeeper        2>>${install_log_path} || return 1
+    fi
+    log_print "install bin success"
 }
 
 function add_newHostname_to_hosts() {
@@ -164,6 +247,7 @@ function set_hostname() {
       break
     else
       read -p "Please enter one hostname(must not be 'localhost'):" newHostname
+      break
     fi
   done
 
@@ -283,7 +367,9 @@ function local_fqdn_check() {
                 ;;
 
             *)
+                set_ipAsFqdn
                 echo "Invalid input..."
+                break
                 ;;
             esac
         fi
@@ -307,7 +393,24 @@ function install_taosadapter_config() {
         ${csudo}ln -s ${cfg_install_dir}/taosadapter.toml ${cfg_dir}
 }
 
+function install_taoskeeper_config() {
+    if [ ! -f "${cfg_install_dir}/keeper.toml" ]; then
+        [ ! -d %{cfg_install_dir} ] &&
+            ${csudo}${csudo}mkdir -p ${cfg_install_dir}
+        [ -f ${cfg_dir}/keeper.toml ] && ${csudo}cp ${cfg_dir}/keeper.toml ${cfg_install_dir}
+        [ -f ${cfg_install_dir}/keeper.toml ] &&
+            ${csudo}chmod 644 ${cfg_install_dir}/keeper.toml
+    fi
+
+    [ -f ${cfg_dir}/keeper.toml ] &&
+        ${csudo}mv ${cfg_dir}/keeper.toml ${cfg_dir}/keeper.toml.new
+
+    [ -f ${cfg_install_dir}/keeper.toml ] &&
+        ${csudo}ln -s ${cfg_install_dir}/keeper.toml ${cfg_dir}
+}
+
 function install_config() {
+    log_print "start install config from ${cfg_dir} to ${cfg_install_dir}"
     if [ ! -f "${cfg_install_dir}/taos.cfg" ]; then
         ${csudo}${csudo}mkdir -p ${cfg_install_dir}
         [ -f ${cfg_dir}/taos.cfg ] && ${csudo}cp ${cfg_dir}/taos.cfg ${cfg_install_dir}
@@ -375,13 +478,15 @@ function install_config() {
             break
         fi
     done
+
+    log_print "install config success"
 }
 
 function clean_service_on_sysvinit() {
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
     #${csudo}sed -i "\|${restart_config_str}|d" /etc/inittab || :
 
-    if pidof taosd &> /dev/null; then
+    if ps aux | grep -v grep | grep taosd &> /dev/null; then
         ${csudo}service taosd stop || :
     fi
 
@@ -466,6 +571,19 @@ function install_service_on_systemd() {
     ${csudo}systemctl enable taosd
 }
 
+function install_service_on_launchctl() {
+  if [ -f ${install_main_dir}/service/com.taosdata.taosd.plist ]; then
+    ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
+    ${csudo}cp ${install_main_dir}/service/com.taosdata.taosd.plist /Library/LaunchDaemons/com.taosdata.taosd.plist || :
+    ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosd.plist || :
+  fi
+  if [ -f ${install_main_dir}/service/com.taosdata.taosadapter.plist ]; then
+    ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
+    ${csudo}cp ${install_main_dir}/service/com.taosdata.taosadapter.plist /Library/LaunchDaemons/com.taosdata.taosadapter.plist || :
+    ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist || :
+  fi
+}
+
 function install_taosadapter_service() {
     if ((${service_mod}==0)); then
         [ -f ${script_dir}/../cfg/taosadapter.service ] &&\
@@ -476,6 +594,8 @@ function install_taosadapter_service() {
 }
 
 function install_service() {
+  log_print "start install service"
+  if [ "$osType" != "Darwin" ]; then
     if ((${service_mod}==0)); then
         install_service_on_systemd
     elif ((${service_mod}==1)); then
@@ -485,29 +605,72 @@ function install_service() {
         kill_taosadapter
         kill_taosd
     fi
+  else
+    install_service_on_launchctl
+  fi
+  log_print "install service success"
 }
 
-function install_TDengine() {
-    echo -e "${GREEN}Start to install TDengine...${NC}"
+function install_app() {
+  if [ "$osType" = "Darwin" ]; then
+    if [ -f ${install_main_dir}/service/TDengine ]; then
+      ${csudo}rm -rf /Applications/TDengine.app &&
+        ${csudo}mkdir -p /Applications/TDengine.app/Contents/MacOS/ &&
+        ${csudo}cp ${install_main_dir}/service/TDengine /Applications/TDengine.app/Contents/MacOS/ &&
+        echo "<plist><dict></dict></plist>" | ${csudo}tee /Applications/TDengine.app/Contents/Info.plist > /dev/null &&
+        ${csudo}sips -i ${install_main_dir}/service/logo.png > /dev/null && 
+        DeRez -only icns ${install_main_dir}/service/logo.png | ${csudo}tee /Applications/TDengine.app/mac_logo.rsrc > /dev/null &&
+        ${csudo}rez -append /Applications/TDengine.app/mac_logo.rsrc -o $'/Applications/TDengine.app/Icon\r' &&
+        ${csudo}SetFile -a C /Applications/TDengine.app/ &&
+        ${csudo}rm /Applications/TDengine.app/mac_logo.rsrc
+    fi
+  fi
+}
+
+function checkDirectory() {
+    if [ ! -d "${bin_link_dir}" ]; then
+      ${csudo}mkdir -p ${bin_link_dir}
+      log_print "${bin_link_dir} directory created"
+    fi
+
+    if [ ! -d "${lib_link_dir}" ]; then
+      ${csudo}mkdir -p ${lib_link_dir}
+      log_print "${lib_link_dir} directory created"
+    fi
 
     #install log and data dir , then ln to /usr/local/taos
     ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
-    ${csudo}mkdir -p ${data_dir}
+    ${csudo}mkdir -p ${data_dir} && ${csudo}chmod 777 ${data_dir}
 
     ${csudo}rm -rf ${log_link_dir}   || :
     ${csudo}rm -rf ${data_link_dir}  || :
 
     ${csudo}ln -s ${log_dir} ${log_link_dir}     || :
     ${csudo}ln -s ${data_dir} ${data_link_dir}   || :
+}
+
+function install_TDengine() {
+    echo -e "${GREEN}Start to install TDengine...${NC}"
+    log_print "start to install TDengine"
+
+    checkDirectory
 
     # Install include, lib, binary and service
-    install_include
-    install_lib
+    install_include &&
+    install_lib &&
     install_bin
+
+    if [[ "$?" != 0 ]];then
+      log_print "install TDengine failed!"
+      return 1
+    fi
+
     install_config
     install_taosadapter_config
+    install_taoskeeper_config
     install_taosadapter_service
     install_service
+    install_app
 
     # Ask if to start the service
     #echo
@@ -544,11 +707,14 @@ function install_TDengine() {
       echo -e "${GREEN_DARK}To access TDengine    ${NC}: taos -h $serverFqdn${GREEN_DARK} to login into TDengine server${NC}"
       echo
     fi
+    log_print "install TDengine successfully!"
     echo
     echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
 }
 
 
 ## ==============================Main program starts from here============================
+${csudo}rm -rf ${install_log_path}
+log_print "installer start..."
 serverFqdn=$(hostname)
 install_TDengine

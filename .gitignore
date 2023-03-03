@@ -101,6 +101,7 @@ tests/examples/JDBC/JDBCDemo/.settings/
 source/libs/parser/inc/sql.*
 tests/script/tmqResult.txt
 tests/tmqResult.txt
+tests/script/jenkins/basic.txt
 
 # Emacs
 # -*- mode: gitignore; -*-
@@ -128,3 +129,5 @@ tools/NEWS
 tools/COPYING
 tools/BUGS
 tools/taos-tools
+tools/taosws-rs
+tags

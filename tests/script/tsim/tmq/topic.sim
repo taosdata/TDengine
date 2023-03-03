@@ -72,15 +72,31 @@ sql create topic topic_ntb_column as select ts, c3 from ntb0
 sql create topic topic_ntb_all as select * from ntb0
 sql create topic topic_ntb_function as select ts, abs(c1), sin(c2) from ntb0
 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
 
-print == show topics 
 sql show topics
 if $rows != 9 then 
   return -1
 endi
 
-print == drop topic
 sql drop topic topic_stb_column
+
+sql show topics
+if $rows != 8 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+print == show topics 
+sql show topics
+if $rows != 8 then 
+  return -1
+endi
+
+print == drop topic
 sql drop topic topic_ctb_column
 sql drop topic topic_ntb_column
 
@@ -90,4 +106,4 @@ if $rows != 6 then
   return -1
 endi
 
-
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -25,15 +25,22 @@
 #include "tref.h"
 #include "ttimer.h"
 
-int32_t tmqAskEp(tmq_t* tmq, bool async);
+#if 0
+#undef tsem_post
+#define tsem_post(x)                                         \
+  tscInfo("call sem post at %s %d", __FUNCTION__, __LINE__); \
+  sem_post(x)
+#endif
 
-typedef struct {
+struct SMqMgmt {
   int8_t  inited;
   tmr_h   timer;
   int32_t rsetId;
-} SMqMgmt;
+};
 
-static SMqMgmt tmqMgmt = {0};
+static TdThreadOnce   tmqInit = PTHREAD_ONCE_INIT;  // initialize only once
+volatile int32_t      tmqInitRes = 0;               // initialize rsp code
+static struct SMqMgmt tmqMgmt = {0};
 
 typedef struct {
   int8_t  tmqRspType;
@@ -51,16 +58,14 @@ struct tmq_list_t {
 };
 
 struct tmq_conf_t {
-  char    clientId[256];
-  char    groupId[TSDB_CGROUP_LEN];
-  int8_t  autoCommit;
-  int8_t  resetOffset;
-  int8_t  withTbName;
-  int8_t  snapEnable;
-  int32_t snapBatchSize;
-
-  bool hbBgEnable;
-
+  char           clientId[256];
+  char           groupId[TSDB_CGROUP_LEN];
+  int8_t         autoCommit;
+  int8_t         resetOffset;
+  int8_t         withTbName;
+  int8_t         snapEnable;
+  int32_t        snapBatchSize;
+  bool           hbBgEnable;
   uint16_t       port;
   int32_t        autoCommitInterval;
   char*          ip;
@@ -73,16 +78,15 @@ struct tmq_conf_t {
 struct tmq_t {
   int64_t refId;
   // conf
-  char    groupId[TSDB_CGROUP_LEN];
-  char    clientId[256];
-  int8_t  withTbName;
-  int8_t  useSnapshot;
-  int8_t  autoCommit;
-  int32_t autoCommitInterval;
-  int32_t resetOffsetCfg;
-  int64_t consumerId;
-
-  bool hbBgEnable;
+  char     groupId[TSDB_CGROUP_LEN];
+  char     clientId[256];
+  int8_t   withTbName;
+  int8_t   useSnapshot;
+  int8_t   autoCommit;
+  int32_t  autoCommitInterval;
+  int32_t  resetOffsetCfg;
+  uint64_t consumerId;
+  bool     hbBgEnable;
 
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
@@ -148,11 +152,9 @@ typedef struct {
 
 typedef struct {
   // subscribe info
-  char topicName[TSDB_TOPIC_FNAME_LEN];
-  char db[TSDB_DB_FNAME_LEN];
-
-  SArray* vgs;  // SArray<SMqClientVg>
-
+  char           topicName[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
+  SArray*        vgs;  // SArray<SMqClientVg>
   SSchemaWrapper schema;
 } SMqClientTopic;
 
@@ -210,15 +212,26 @@ typedef struct {
 typedef struct {
   SMqCommitCbParamSet* params;
   STqOffset*           pOffset;
+  SMqClientVg*         pMqVg;
+  /*char                 topicName[TSDB_TOPIC_FNAME_LEN];*/
+  /*int32_t              vgId;*/
 } SMqCommitCbParam;
+
+static int32_t tmqAskEp(tmq_t* tmq, bool async);
 
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = taosMemoryCalloc(1, sizeof(tmq_conf_t));
+  if (conf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return conf;
+  }
+
   conf->withTbName = false;
   conf->autoCommit = true;
   conf->autoCommitInterval = 5000;
   conf->resetOffset = TMQ_CONF__RESET_OFFSET__EARLIEAST;
   conf->hbBgEnable = true;
+
   return conf;
 }
 
@@ -233,12 +246,12 @@ void tmq_conf_destroy(tmq_conf_t* conf) {
 
 tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value) {
   if (strcmp(key, "group.id") == 0) {
-    strcpy(conf->groupId, value);
+    tstrncpy(conf->groupId, value, TSDB_CGROUP_LEN);
     return TMQ_CONF_OK;
   }
 
   if (strcmp(key, "client.id") == 0) {
-    strcpy(conf->clientId, value);
+    tstrncpy(conf->clientId, value, 256);
     return TMQ_CONF_OK;
   }
 
@@ -317,15 +330,15 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcmp(key, "td.connect.ip") == 0) {
-    conf->ip = strdup(value);
+    conf->ip = taosStrdup(value);
     return TMQ_CONF_OK;
   }
   if (strcmp(key, "td.connect.user") == 0) {
-    conf->user = strdup(value);
+    conf->user = taosStrdup(value);
     return TMQ_CONF_OK;
   }
   if (strcmp(key, "td.connect.pass") == 0) {
-    conf->pass = strdup(value);
+    conf->pass = taosStrdup(value);
     return TMQ_CONF_OK;
   }
   if (strcmp(key, "td.connect.port") == 0) {
@@ -333,7 +346,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
   if (strcmp(key, "td.connect.db") == 0) {
-    /*conf->db = strdup(value);*/
+    /*conf->db = taosStrdup(value);*/
     return TMQ_CONF_OK;
   }
 
@@ -348,7 +361,7 @@ tmq_list_t* tmq_list_new() {
 int32_t tmq_list_append(tmq_list_t* list, const char* src) {
   SArray* container = &list->container;
   if (src == NULL || src[0] == 0) return -1;
-  char* topic = strdup(src);
+  char* topic = taosStrdup(src);
   if (topic[0] != '`') {
     strtolower(topic, src);
   }
@@ -407,6 +420,13 @@ int32_t tmqCommitDone(SMqCommitCbParamSet* pParamSet) {
   return 0;
 }
 
+static void tmqCommitRspCountDown(SMqCommitCbParamSet* pParamSet) {
+  int32_t waitingRspNum = atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
+  if (waitingRspNum == 0) {
+    tmqCommitDone(pParamSet);
+  }
+}
+
 int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
   SMqCommitCbParam*    pParam = (SMqCommitCbParam*)param;
   SMqCommitCbParamSet* pParamSet = (SMqCommitCbParamSet*)pParam->params;
@@ -419,19 +439,25 @@ int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
   }
 #endif
 
+  // there may be race condition. fix it
+  if (pBuf->pEpSet != NULL && pParam->pMqVg != NULL) {
+    SMqClientVg* pMqVg = pParam->pMqVg;
+
+    SEp* pEp = GET_ACTIVE_EP(pBuf->pEpSet);
+    SEp* pOld = GET_ACTIVE_EP(&(pMqVg->epSet));
+    uDebug("subKey:%s update the epset vgId:%d, ep:%s:%d, old ep:%s:%d", pParam->pOffset->subKey, pMqVg->vgId,
+           pEp->fqdn, pEp->port, pOld->fqdn, pOld->port);
+    pParam->pMqVg->epSet = *pBuf->pEpSet;
+  }
+
   taosMemoryFree(pParam->pOffset);
-  if (pBuf->pData) taosMemoryFree(pBuf->pData);
+  taosMemoryFree(pBuf->pData);
+  taosMemoryFree(pBuf->pEpSet);
 
   /*tscDebug("receive offset commit cb of %s on vgId:%d, offset is %" PRId64, pParam->pOffset->subKey, pParam->->vgId,
    * pOffset->version);*/
 
-  // count down waiting rsp
-  int32_t waitingRspNum = atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
-  ASSERT(waitingRspNum >= 0);
-
-  if (waitingRspNum == 0) {
-    tmqCommitDone(pParamSet);
-  }
+  tmqCommitRspCountDown(pParamSet);
   return 0;
 }
 
@@ -441,6 +467,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   pOffset->val = pVg->currentOffset;
 
   int32_t groupLen = strlen(tmq->groupId);
@@ -452,11 +479,15 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
   int32_t code;
   tEncodeSize(tEncodeSTqOffset, pOffset, len, code);
   if (code < 0) {
-    ASSERT(0);
     return -1;
   }
+
   void* buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
-  if (buf == NULL) return -1;
+  if (buf == NULL) {
+    taosMemoryFree(pOffset);
+    return -1;
+  }
+
   ((SMsgHead*)buf)->vgId = htonl(pVg->vgId);
 
   void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
@@ -464,27 +495,40 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, len);
   tEncodeSTqOffset(&encoder, pOffset);
+  tEncoderClear(&encoder);
 
   // build param
   SMqCommitCbParam* pParam = taosMemoryCalloc(1, sizeof(SMqCommitCbParam));
+  if (pParam == NULL) {
+    taosMemoryFree(pOffset);
+    taosMemoryFree(buf);
+    return -1;
+  }
+
   pParam->params = pParamSet;
   pParam->pOffset = pOffset;
+  pParam->pMqVg = pVg;  // there may be an race condition
 
   // build send info
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (pMsgSendInfo == NULL) {
+    taosMemoryFree(pOffset);
+    taosMemoryFree(buf);
+    taosMemoryFree(pParam);
     return -1;
   }
+
   pMsgSendInfo->msgInfo = (SDataBuf){
       .pData = buf,
       .len = sizeof(SMsgHead) + len,
       .handle = NULL,
   };
 
-  tscDebug("consumer:%" PRId64 ", commit offset of %s on vgId:%d, offset is %" PRId64, tmq->consumerId, pOffset->subKey,
-           pVg->vgId, pOffset->val.version);
+  SEp* pEp = &pVg->epSet.eps[pVg->epSet.inUse];
+  tscDebug("consumer:0x%" PRIx64 " topic:%s on vgId:%d offset:%" PRId64 " prev:%" PRId64 ", ep:%s:%d", tmq->consumerId,
+           pOffset->subKey, pVg->vgId, pOffset->val.version, pVg->committedOffset.version, pEp->fqdn, pEp->port);
 
-  // TODO: put into cb
+  // TODO: put into cb, the commit offset should be move to the callback function
   pVg->committedOffset = pVg->currentOffset;
 
   pMsgSendInfo->requestId = generateRequestId();
@@ -492,7 +536,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
   pMsgSendInfo->param = pParam;
   pMsgSendInfo->paramFreeFp = taosMemoryFree;
   pMsgSendInfo->fp = tmqCommitCb;
-  pMsgSendInfo->msgType = TDMT_VND_MQ_COMMIT_OFFSET;
+  pMsgSendInfo->msgType = TDMT_VND_TMQ_COMMIT_OFFSET;
   // send msg
 
   atomic_add_fetch_32(&pParamSet->waitingRspNum, 1);
@@ -506,7 +550,6 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
 int32_t tmqCommitMsgImpl(tmq_t* tmq, const TAOS_RES* msg, int8_t async, tmq_commit_cb* userCb, void* userParam) {
   char*   topic;
   int32_t vgId;
-  ASSERT(msg != NULL);
   if (TD_RES_TMQ(msg)) {
     SMqRspObj* pRspObj = (SMqRspObj*)msg;
     topic = pRspObj->topic;
@@ -515,7 +558,7 @@ int32_t tmqCommitMsgImpl(tmq_t* tmq, const TAOS_RES* msg, int8_t async, tmq_comm
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)msg;
     topic = pMetaRspObj->topic;
     vgId = pMetaRspObj->vgId;
-  } else if(TD_RES_TMQ_METADATA(msg)) {
+  } else if (TD_RES_TMQ_METADATA(msg)) {
     SMqTaosxRspObj* pRspObj = (SMqTaosxRspObj*)msg;
     topic = pRspObj->topic;
     vgId = pRspObj->vgId;
@@ -547,6 +590,8 @@ int32_t tmqCommitMsgImpl(tmq_t* tmq, const TAOS_RES* msg, int8_t async, tmq_comm
 
       if (pVg->currentOffset.type > 0 && !tOffsetEqual(&pVg->currentOffset, &pVg->committedOffset)) {
         if (tmqSendCommitReq(tmq, pVg, pTopic, pParamSet) < 0) {
+          tsem_destroy(&pParamSet->rspSem);
+          taosMemoryFree(pParamSet);
           goto FAIL;
         }
         goto HANDLE_RSP;
@@ -565,6 +610,7 @@ HANDLE_RSP:
     tsem_wait(&pParamSet->rspSem);
     code = pParamSet->rspErr;
     tsem_destroy(&pParamSet->rspSem);
+    taosMemoryFree(pParamSet);
     return code;
   } else {
     code = 0;
@@ -577,17 +623,20 @@ FAIL:
   return 0;
 }
 
-int32_t tmqCommitInner(tmq_t* tmq, const TAOS_RES* msg, int8_t automatic, int8_t async, tmq_commit_cb* userCb,
-                       void* userParam) {
+static int32_t tmqCommitConsumerImpl(tmq_t* tmq, int8_t automatic, int8_t async, tmq_commit_cb* userCb,
+                                     void* userParam) {
   int32_t code = -1;
-
-  if (msg != NULL) {
-    return tmqCommitMsgImpl(tmq, msg, async, userCb, userParam);
-  }
 
   SMqCommitCbParamSet* pParamSet = taosMemoryCalloc(1, sizeof(SMqCommitCbParamSet));
   if (pParamSet == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    if (async) {
+      if (automatic) {
+        tmq->commitCb(tmq, code, tmq->commitCbUserParam);
+      } else {
+        userCb(tmq, code, userParam);
+      }
+    }
     return -1;
   }
 
@@ -603,72 +652,64 @@ int32_t tmqCommitInner(tmq_t* tmq, const TAOS_RES* msg, int8_t automatic, int8_t
   // init as 1 to prevent concurrency issue
   pParamSet->waitingRspNum = 1;
 
-  for (int32_t i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
+  int32_t numOfTopics = taosArrayGetSize(tmq->clientTopics);
+  tscDebug("consumer:0x%" PRIx64 " start to commit offset for %d topics", tmq->consumerId, numOfTopics);
+
+  for (int32_t i = 0; i < numOfTopics; i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
 
-    tscDebug("consumer:%" PRId64 ", begin commit for topic %s, vgNum %d", tmq->consumerId, pTopic->topicName,
-             (int32_t)taosArrayGetSize(pTopic->vgs));
-
-    for (int32_t j = 0; j < taosArrayGetSize(pTopic->vgs); j++) {
+    int32_t numOfVgroups = taosArrayGetSize(pTopic->vgs);
+    for (int32_t j = 0; j < numOfVgroups; j++) {
       SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
-
-      tscDebug("consumer:%" PRId64 ", begin commit for topic %s, vgId:%d", tmq->consumerId, pTopic->topicName,
-               pVg->vgId);
-
       if (pVg->currentOffset.type > 0 && !tOffsetEqual(&pVg->currentOffset, &pVg->committedOffset)) {
-        tscDebug("consumer: %ld, vg:%d, current %ld, committed %ld", tmq->consumerId, pVg->vgId,
-                 pVg->currentOffset.version, pVg->committedOffset.version);
         if (tmqSendCommitReq(tmq, pVg, pTopic, pParamSet) < 0) {
           continue;
         }
+      } else {
+        tscDebug("consumer:0x%" PRIx64 " topic:%s vgId:%d, not commit, current:%" PRId64 ", ordinal:%d/%d",
+                 tmq->consumerId, pTopic->topicName, pVg->vgId, pVg->currentOffset.version, j + 1, numOfVgroups);
       }
     }
   }
 
+  // no request is sent
   if (pParamSet->totalRspNum == 0) {
     tsem_destroy(&pParamSet->rspSem);
     taosMemoryFree(pParamSet);
     return 0;
   }
 
-  int32_t waitingRspNum = atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
-  ASSERT(waitingRspNum >= 0);
-  if (waitingRspNum == 0) {
-    tmqCommitDone(pParamSet);
-  }
+  // count down since waiting rsp num init as 1
+  tmqCommitRspCountDown(pParamSet);
 
   if (!async) {
     tsem_wait(&pParamSet->rspSem);
     code = pParamSet->rspErr;
     tsem_destroy(&pParamSet->rspSem);
     taosMemoryFree(pParamSet);
-  } else {
-    code = 0;
-  }
-
-  if (code != 0 && async) {
-    if (automatic) {
-      tmq->commitCb(tmq, code, tmq->commitCbUserParam);
-    } else {
-      userCb(tmq, code, userParam);
-    }
-  }
-
 #if 0
-  if (!async) {
     taosArrayDestroyP(pParamSet->successfulOffsets, taosMemoryFree);
     taosArrayDestroyP(pParamSet->failedOffsets, taosMemoryFree);
-  }
 #endif
+  }
 
-  return 0;
+  return code;
+}
+
+int32_t tmqCommitInner(tmq_t* tmq, const TAOS_RES* msg, int8_t automatic, int8_t async, tmq_commit_cb* userCb,
+                       void* userParam) {
+  if (msg) {
+    return tmqCommitMsgImpl(tmq, msg, async, userCb, userParam);
+  } else {
+    return tmqCommitConsumerImpl(tmq, automatic, async, userCb, userParam);
+  }
 }
 
 void tmqAssignAskEpTask(void* param, void* tmrId) {
   int64_t refId = *(int64_t*)param;
   tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
   if (tmq != NULL) {
-    int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM);
+    int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM, 0);
     *pTaskType = TMQ_DELAYED_TASK__ASK_EP;
     taosWriteQitem(tmq->delayedTask, pTaskType);
     tsem_post(&tmq->rspSem);
@@ -680,7 +721,7 @@ void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
   int64_t refId = *(int64_t*)param;
   tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
   if (tmq != NULL) {
-    int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM);
+    int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM, 0);
     *pTaskType = TMQ_DELAYED_TASK__COMMIT;
     taosWriteQitem(tmq->delayedTask, pTaskType);
     tsem_post(&tmq->rspSem);
@@ -692,7 +733,7 @@ void tmqAssignDelayedReportTask(void* param, void* tmrId) {
   int64_t refId = *(int64_t*)param;
   tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
   if (tmq != NULL) {
-    int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM);
+    int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM, 0);
     *pTaskType = TMQ_DELAYED_TASK__REPORT;
     taosWriteQitem(tmq->delayedTask, pTaskType);
     tsem_post(&tmq->rspSem);
@@ -701,7 +742,10 @@ void tmqAssignDelayedReportTask(void* param, void* tmrId) {
 }
 
 int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
-  if (pMsg && pMsg->pData) taosMemoryFree(pMsg->pData);
+  if (pMsg) {
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+  }
   return 0;
 }
 
@@ -709,22 +753,38 @@ void tmqSendHbReq(void* param, void* tmrId) {
   int64_t refId = *(int64_t*)param;
   tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
   if (tmq == NULL) {
+    taosMemoryFree(param);
     return;
   }
-  int64_t   consumerId = tmq->consumerId;
-  int32_t   epoch = tmq->epoch;
-  SMqHbReq* pReq = taosMemoryMalloc(sizeof(SMqHbReq));
-  if (pReq == NULL) goto OVER;
-  pReq->consumerId = consumerId;
-  pReq->epoch = epoch;
+
+  SMqHbReq req = {0};
+  req.consumerId = tmq->consumerId;
+  req.epoch = tmq->epoch;
+
+  int32_t tlen = tSerializeSMqHbReq(NULL, 0, &req);
+  if (tlen < 0) {
+    tscError("tSerializeSMqHbReq failed");
+    return;
+  }
+  void* pReq = taosMemoryCalloc(1, tlen);
+  if (tlen < 0) {
+    tscError("failed to malloc MqHbReq msg, size:%d", tlen);
+    return;
+  }
+  if (tSerializeSMqHbReq(pReq, tlen, &req) < 0) {
+    tscError("tSerializeSMqHbReq %d failed", tlen);
+    taosMemoryFree(pReq);
+    return;
+  }
 
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
     taosMemoryFree(pReq);
+    goto OVER;
   }
   sendInfo->msgInfo = (SDataBuf){
       .pData = pReq,
-      .len = sizeof(SMqHbReq),
+      .len = tlen,
       .handle = NULL,
   };
 
@@ -732,7 +792,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
   sendInfo->requestObjRefId = 0;
   sendInfo->param = NULL;
   sendInfo->fp = tmqHbCb;
-  sendInfo->msgType = TDMT_MND_MQ_HB;
+  sendInfo->msgType = TDMT_MND_TMQ_HB;
 
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
@@ -743,62 +803,105 @@ OVER:
   taosTmrReset(tmqSendHbReq, 1000, param, tmqMgmt.timer, &tmq->hbLiveTimer);
 }
 
-int32_t tmqHandleAllDelayedTask(tmq_t* tmq) {
+int32_t tmqHandleAllDelayedTask(tmq_t* pTmq) {
   STaosQall* qall = taosAllocateQall();
-  taosReadAllQitems(tmq->delayedTask, qall);
-  while (1) {
-    int8_t* pTaskType = NULL;
-    taosGetQitem(qall, (void**)&pTaskType);
-    if (pTaskType == NULL) break;
+  taosReadAllQitems(pTmq->delayedTask, qall);
 
-    if (*pTaskType == TMQ_DELAYED_TASK__ASK_EP) {
-      tmqAskEp(tmq, true);
-
-      int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
-      *pRefId = tmq->refId;
-
-      taosTmrReset(tmqAssignAskEpTask, 1000, pRefId, tmqMgmt.timer, &tmq->epTimer);
-    } else if (*pTaskType == TMQ_DELAYED_TASK__COMMIT) {
-      tmqCommitInner(tmq, NULL, 1, 1, tmq->commitCb, tmq->commitCbUserParam);
-
-      int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
-      *pRefId = tmq->refId;
-
-      taosTmrReset(tmqAssignDelayedCommitTask, tmq->autoCommitInterval, pRefId, tmqMgmt.timer, &tmq->commitTimer);
-    } else if (*pTaskType == TMQ_DELAYED_TASK__REPORT) {
-    } else {
-      ASSERT(0);
-    }
-    taosFreeQitem(pTaskType);
+  if (qall->numOfItems == 0) {
+    taosFreeQall(qall);
+    return TSDB_CODE_SUCCESS;
   }
+
+  tscDebug("consumer:0x%" PRIx64 " handle delayed %d tasks before poll data", pTmq->consumerId, qall->numOfItems);
+  int8_t* pTaskType = NULL;
+  taosGetQitem(qall, (void**)&pTaskType);
+
+  while (pTaskType != NULL) {
+    if (*pTaskType == TMQ_DELAYED_TASK__ASK_EP) {
+      tmqAskEp(pTmq, true);
+
+      int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
+      *pRefId = pTmq->refId;
+
+      tscDebug("consumer:0x%" PRIx64 " retrieve ep from mnode in 1s", pTmq->consumerId);
+      taosTmrReset(tmqAssignAskEpTask, 1000, pRefId, tmqMgmt.timer, &pTmq->epTimer);
+    } else if (*pTaskType == TMQ_DELAYED_TASK__COMMIT) {
+      tmqCommitInner(pTmq, NULL, 1, 1, pTmq->commitCb, pTmq->commitCbUserParam);
+
+      int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
+      *pRefId = pTmq->refId;
+
+      tscDebug("consumer:0x%" PRIx64 " commit to vnode(s) in %.2fs", pTmq->consumerId,
+               pTmq->autoCommitInterval / 1000.0);
+      taosTmrReset(tmqAssignDelayedCommitTask, pTmq->autoCommitInterval, pRefId, tmqMgmt.timer, &pTmq->commitTimer);
+    } else if (*pTaskType == TMQ_DELAYED_TASK__REPORT) {
+    }
+
+    taosFreeQitem(pTaskType);
+    taosGetQitem(qall, (void**)&pTaskType);
+  }
+
   taosFreeQall(qall);
   return 0;
 }
 
+static void tmqFreeRspWrapper(SMqRspWrapper* rspWrapper) {
+  if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__END_RSP) {
+    // do nothing
+  } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__EP_RSP) {
+    SMqAskEpRspWrapper* pEpRspWrapper = (SMqAskEpRspWrapper*)rspWrapper;
+    tDeleteSMqAskEpRsp(&pEpRspWrapper->msg);
+  } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_RSP) {
+    SMqPollRspWrapper* pRsp = (SMqPollRspWrapper*)rspWrapper;
+    taosArrayDestroyP(pRsp->dataRsp.blockData, taosMemoryFree);
+    taosArrayDestroy(pRsp->dataRsp.blockDataLen);
+    taosArrayDestroyP(pRsp->dataRsp.blockTbName, taosMemoryFree);
+    taosArrayDestroyP(pRsp->dataRsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+  } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP) {
+    SMqPollRspWrapper* pRsp = (SMqPollRspWrapper*)rspWrapper;
+    taosMemoryFree(pRsp->metaRsp.metaRsp);
+  } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__TAOSX_RSP) {
+    SMqPollRspWrapper* pRsp = (SMqPollRspWrapper*)rspWrapper;
+    taosArrayDestroyP(pRsp->taosxRsp.blockData, taosMemoryFree);
+    taosArrayDestroy(pRsp->taosxRsp.blockDataLen);
+    taosArrayDestroyP(pRsp->taosxRsp.blockTbName, taosMemoryFree);
+    taosArrayDestroyP(pRsp->taosxRsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+    // taosx
+    taosArrayDestroy(pRsp->taosxRsp.createTableLen);
+    taosArrayDestroyP(pRsp->taosxRsp.createTableReq, taosMemoryFree);
+  }
+}
+
 void tmqClearUnhandleMsg(tmq_t* tmq) {
-  SMqRspWrapper* msg = NULL;
+  SMqRspWrapper* rspWrapper = NULL;
   while (1) {
-    taosGetQitem(tmq->qall, (void**)&msg);
-    if (msg)
-      taosFreeQitem(msg);
-    else
+    taosGetQitem(tmq->qall, (void**)&rspWrapper);
+    if (rspWrapper) {
+      tmqFreeRspWrapper(rspWrapper);
+      taosFreeQitem(rspWrapper);
+    } else {
       break;
+    }
   }
 
-  msg = NULL;
+  rspWrapper = NULL;
   taosReadAllQitems(tmq->mqueue, tmq->qall);
   while (1) {
-    taosGetQitem(tmq->qall, (void**)&msg);
-    if (msg)
-      taosFreeQitem(msg);
-    else
+    taosGetQitem(tmq->qall, (void**)&rspWrapper);
+    if (rspWrapper) {
+      tmqFreeRspWrapper(rspWrapper);
+      taosFreeQitem(rspWrapper);
+    } else {
       break;
+    }
   }
 }
 
 int32_t tmqSubscribeCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqSubscribeCbParam* pParam = (SMqSubscribeCbParam*)param;
   pParam->rspErr = code;
+
+  taosMemoryFree(pMsg->pEpSet);
   tsem_post(&pParam->rspSem);
   return 0;
 }
@@ -836,17 +939,19 @@ void tmqFreeImpl(void* handle) {
   tmq_t* tmq = (tmq_t*)handle;
 
   // TODO stop timer
-  if (tmq->mqueue) taosCloseQueue(tmq->mqueue);
+  if (tmq->mqueue) {
+    tmqClearUnhandleMsg(tmq);
+    taosCloseQueue(tmq->mqueue);
+  }
   if (tmq->delayedTask) taosCloseQueue(tmq->delayedTask);
-  if (tmq->qall) taosFreeQall(tmq->qall);
+  taosFreeQall(tmq->qall);
 
   tsem_destroy(&tmq->rspSem);
 
   int32_t sz = taosArrayGetSize(tmq->clientTopics);
   for (int32_t i = 0; i < sz; i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
-    if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
-    int32_t vgSz = taosArrayGetSize(pTopic->vgs);
+    taosMemoryFreeClear(pTopic->schema.pSchema);
     taosArrayDestroy(pTopic->vgs);
   }
   taosArrayDestroy(tmq->clientTopics);
@@ -854,42 +959,46 @@ void tmqFreeImpl(void* handle) {
   taosMemoryFree(tmq);
 }
 
+static void tmqMgmtInit(void) {
+  tmqInitRes = 0;
+  tmqMgmt.timer = taosTmrInit(1000, 100, 360000, "TMQ");
+
+  if (tmqMgmt.timer == NULL) {
+    tmqInitRes = TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  tmqMgmt.rsetId = taosOpenRef(10000, tmqFreeImpl);
+  if (tmqMgmt.rsetId < 0) {
+    tmqInitRes = terrno;
+  }
+}
+
 tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
-  // init timer
-  int8_t inited = atomic_val_compare_exchange_8(&tmqMgmt.inited, 0, 1);
-  if (inited == 0) {
-    tmqMgmt.timer = taosTmrInit(1000, 100, 360000, "TMQ");
-    if (tmqMgmt.timer == NULL) {
-      atomic_store_8(&tmqMgmt.inited, 0);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return NULL;
-    }
-    tmqMgmt.rsetId = taosOpenRef(10000, tmqFreeImpl);
+  taosThreadOnce(&tmqInit, tmqMgmtInit);
+  if (tmqInitRes != 0) {
+    terrno = tmqInitRes;
+    return NULL;
   }
 
   tmq_t* pTmq = taosMemoryCalloc(1, sizeof(tmq_t));
   if (pTmq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tscError("consumer %" PRId64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
-             pTmq->groupId);
+    tscError("failed to create consumer, consumer group %s, code:%s", conf->groupId, terrstr());
     return NULL;
   }
 
   const char* user = conf->user == NULL ? TSDB_DEFAULT_USER : conf->user;
   const char* pass = conf->pass == NULL ? TSDB_DEFAULT_PASS : conf->pass;
 
-  ASSERT(user);
-  ASSERT(pass);
-  ASSERT(conf->groupId[0]);
-
   pTmq->clientTopics = taosArrayInit(0, sizeof(SMqClientTopic));
   pTmq->mqueue = taosOpenQueue();
   pTmq->qall = taosAllocateQall();
   pTmq->delayedTask = taosOpenQueue();
 
-  if (pTmq->clientTopics == NULL || pTmq->mqueue == NULL || pTmq->qall == NULL || pTmq->delayedTask == NULL) {
+  if (pTmq->clientTopics == NULL || pTmq->mqueue == NULL || pTmq->qall == NULL || pTmq->delayedTask == NULL ||
+      conf->groupId[0] == 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tscError("consumer %" PRId64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
+    tscError("consumer:0x%" PRIx64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
              pTmq->groupId);
     goto FAIL;
   }
@@ -919,7 +1028,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
 
   // init semaphore
   if (tsem_init(&pTmq->rspSem, 0, 0) != 0) {
-    tscError("consumer %" PRId64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
+    tscError("consumer:0x %" PRIx64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
              pTmq->groupId);
     goto FAIL;
   }
@@ -927,7 +1036,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   // init connection
   pTmq->pTscObj = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__TMQ);
   if (pTmq->pTscObj == NULL) {
-    tscError("consumer %" PRId64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
+    tscError("consumer:0x %" PRIx64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
              pTmq->groupId);
     tsem_destroy(&pTmq->rspSem);
     goto FAIL;
@@ -939,15 +1048,13 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
     return NULL;
   }
 
-  int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
-  *pRefId = pTmq->refId;
-
   if (pTmq->hbBgEnable) {
+    int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
+    *pRefId = pTmq->refId;
     pTmq->hbLiveTimer = taosTmrStart(tmqSendHbReq, 1000, pRefId, tmqMgmt.timer);
   }
 
-  tscInfo("consumer %" PRId64 " is setup, consumer group %s", pTmq->consumerId, pTmq->groupId);
-
+  tscInfo("consumer:0x%" PRIx64 " is setup, consumer groupId %s", pTmq->consumerId, pTmq->groupId);
   return pTmq;
 
 FAIL:
@@ -956,6 +1063,7 @@ FAIL:
   if (pTmq->delayedTask) taosCloseQueue(pTmq->delayedTask);
   if (pTmq->qall) taosFreeQall(pTmq->qall);
   taosMemoryFree(pTmq);
+
   return NULL;
 }
 
@@ -963,41 +1071,54 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   const SArray*   container = &topic_list->container;
   int32_t         sz = taosArrayGetSize(container);
   void*           buf = NULL;
+  SMsgSendInfo*   sendInfo = NULL;
   SCMSubscribeReq req = {0};
-  int32_t         code = -1;
+  int32_t         code = 0;
+
+  tscDebug("consumer:0x%" PRIx64 " subscribe %d topics", tmq->consumerId, sz);
 
   req.consumerId = tmq->consumerId;
   tstrncpy(req.clientId, tmq->clientId, 256);
   tstrncpy(req.cgroup, tmq->groupId, TSDB_CGROUP_LEN);
   req.topicNames = taosArrayInit(sz, sizeof(void*));
-  if (req.topicNames == NULL) goto FAIL;
+
+  if (req.topicNames == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto FAIL;
+  }
 
   for (int32_t i = 0; i < sz; i++) {
     char* topic = taosArrayGetP(container, i);
 
     SName name = {0};
     tNameSetDbName(&name, tmq->pTscObj->acctId, topic, strlen(topic));
-
     char* topicFName = taosMemoryCalloc(1, TSDB_TOPIC_FNAME_LEN);
     if (topicFName == NULL) {
       goto FAIL;
     }
-    tNameExtractFullName(&name, topicFName);
 
-    tscDebug("subscribe topic: %s", topicFName);
+    tNameExtractFullName(&name, topicFName);
+    tscDebug("consumer:0x%" PRIx64 " subscribe topic:%s", tmq->consumerId, topicFName);
 
     taosArrayPush(req.topicNames, &topicFName);
   }
 
   int32_t tlen = tSerializeSCMSubscribeReq(NULL, &req);
+
   buf = taosMemoryMalloc(tlen);
-  if (buf == NULL) goto FAIL;
+  if (buf == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto FAIL;
+  }
 
   void* abuf = buf;
   tSerializeSCMSubscribeReq(&abuf, &req);
 
-  SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
-  if (sendInfo == NULL) goto FAIL;
+  sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (sendInfo == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto FAIL;
+  }
 
   SMqSubscribeCbParam param = {
       .rspErr = 0,
@@ -1005,7 +1126,9 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
       .epoch = tmq->epoch,
   };
 
-  if (tsem_init(&param.rspSem, 0, 0) != 0) goto FAIL;
+  if (tsem_init(&param.rspSem, 0, 0) != 0) {
+    goto FAIL;
+  }
 
   sendInfo->msgInfo = (SDataBuf){
       .pData = buf,
@@ -1017,7 +1140,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   sendInfo->requestObjRefId = 0;
   sendInfo->param = &param;
   sendInfo->fp = tmqSubscribeCb;
-  sendInfo->msgType = TDMT_MND_SUBSCRIBE;
+  sendInfo->msgType = TDMT_MND_TMQ_SUBSCRIBE;
 
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
@@ -1026,19 +1149,23 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
 
   // avoid double free if msg is sent
   buf = NULL;
+  sendInfo = NULL;
 
   tsem_wait(&param.rspSem);
   tsem_destroy(&param.rspSem);
 
-  code = param.rspErr;
-  if (code != 0) goto FAIL;
+  if (param.rspErr != 0) {
+    code = param.rspErr;
+    goto FAIL;
+  }
 
   int32_t retryCnt = 0;
   while (TSDB_CODE_MND_CONSUMER_NOT_READY == tmqAskEp(tmq, false)) {
     if (retryCnt++ > 10) {
       goto FAIL;
     }
-    tscDebug("consumer not ready, retry");
+
+    tscDebug("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry:%d in 500ms", tmq->consumerId, retryCnt);
     taosMsleep(500);
   }
 
@@ -1056,12 +1183,11 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
     tmq->commitTimer = taosTmrStart(tmqAssignDelayedCommitTask, tmq->autoCommitInterval, pRefId2, tmqMgmt.timer);
   }
 
-  code = 0;
 FAIL:
-  if (req.topicNames != NULL) taosArrayDestroyP(req.topicNames, taosMemoryFree);
-  if (code != 0 && buf) {
-    taosMemoryFree(buf);
-  }
+  taosArrayDestroyP(req.topicNames, taosMemoryFree);
+  taosMemoryFree(buf);
+  taosMemoryFree(sendInfo);
+
   return code;
 }
 
@@ -1092,14 +1218,15 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (code != 0) {
     tscWarn("msg discard from vgId:%d, epoch %d, since %s", vgId, epoch, terrstr());
     if (pMsg->pData) taosMemoryFree(pMsg->pData);
+    if (pMsg->pEpSet) taosMemoryFree(pMsg->pEpSet);
+
     if (code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
       atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__RECOVER);
       goto CREATE_MSG_FAIL;
     }
     if (code == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
-      SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM);
+      SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM, 0);
       if (pRspWrapper == NULL) {
-        taosMemoryFree(pMsg->pData);
         tscWarn("msg discard from vgId:%d, epoch %d since out of memory", vgId, epoch);
         goto CREATE_MSG_FAIL;
       }
@@ -1131,7 +1258,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   // handle meta rsp
   int8_t rspType = ((SMqRspHead*)pMsg->pData)->mqMsgType;
 
-  SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM);
+  SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM, 0);
   if (pRspWrapper == NULL) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
@@ -1150,7 +1277,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->dataRsp, pMsg->pData, sizeof(SMqRspHead));
 
-    tscDebug("consumer:%" PRId64 ", recv poll: vgId:%d, req offset %" PRId64 ", rsp offset %" PRId64 " type %d",
+    tscDebug("consumer:0x%" PRIx64 ", recv poll: vgId:%d, req offset %" PRId64 ", rsp offset %" PRId64 " type %d",
              tmq->consumerId, pVg->vgId, pRspWrapper->dataRsp.reqOffset.version, pRspWrapper->dataRsp.rspOffset.version,
              rspType);
 
@@ -1166,12 +1293,12 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tDecodeSTaosxRsp(&decoder, &pRspWrapper->taosxRsp);
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->taosxRsp, pMsg->pData, sizeof(SMqRspHead));
-  } else {
-    ASSERT(0);
   }
 
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
+
+  tscDebug("consumer:0x%" PRIx64 ", put poll res into mqueue %p", tmq->consumerId, pRspWrapper);
 
   taosWriteQitem(tmq->mqueue, pRspWrapper);
   tsem_post(&tmq->rspSem);
@@ -1185,13 +1312,15 @@ CREATE_MSG_FAIL:
   return -1;
 }
 
-bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
+bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) {
   bool set = false;
 
+  int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
   int32_t topicNumGet = taosArrayGetSize(pRsp->topics);
-  char    vgKey[TSDB_TOPIC_FNAME_LEN + 22];
-  tscDebug("consumer:%" PRId64 ", update ep epoch %d to epoch %d, topic num:%d", tmq->consumerId, tmq->epoch, epoch,
-           topicNumGet);
+
+  char vgKey[TSDB_TOPIC_FNAME_LEN + 22];
+  tscDebug("consumer:0x%" PRIx64 " update ep epoch from %d to epoch %d, incoming topics:%d, existed topics:%d",
+           tmq->consumerId, tmq->epoch, epoch, topicNumGet, topicNumCur);
 
   SArray* newTopics = taosArrayInit(topicNumGet, sizeof(SMqClientTopic));
   if (newTopics == NULL) {
@@ -1203,19 +1332,19 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
     taosArrayDestroy(newTopics);
     return false;
   }
-  int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
+
   for (int32_t i = 0; i < topicNumCur; i++) {
     // find old topic
     SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, i);
     if (pTopicCur->vgs) {
       int32_t vgNumCur = taosArrayGetSize(pTopicCur->vgs);
-      tscDebug("consumer:%" PRId64 ", new vg num: %d", tmq->consumerId, vgNumCur);
+      tscDebug("consumer:0x%" PRIx64 ", new vg num: %d", tmq->consumerId, vgNumCur);
       for (int32_t j = 0; j < vgNumCur; j++) {
         SMqClientVg* pVgCur = taosArrayGet(pTopicCur->vgs, j);
         sprintf(vgKey, "%s:%d", pTopicCur->topicName, pVgCur->vgId);
         char buf[80];
         tFormatOffset(buf, 80, &pVgCur->currentOffset);
-        tscDebug("consumer:%" PRId64 ", epoch %d vgId:%d vgKey is %s, offset is %s", tmq->consumerId, epoch,
+        tscDebug("consumer:0x%" PRIx64 ", epoch %d vgId:%d vgKey is %s, offset is %s", tmq->consumerId, epoch,
                  pVgCur->vgId, vgKey, buf);
         taosHashPut(pHash, vgKey, strlen(vgKey), &pVgCur->currentOffset, sizeof(STqOffsetVal));
       }
@@ -1231,7 +1360,7 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
     tstrncpy(topic.topicName, pTopicEp->topic, TSDB_TOPIC_FNAME_LEN);
     tstrncpy(topic.db, pTopicEp->db, TSDB_DB_FNAME_LEN);
 
-    tscDebug("consumer:%" PRId64 ", update topic: %s", tmq->consumerId, topic.topicName);
+    tscDebug("consumer:0x%" PRIx64 ", update topic: %s", tmq->consumerId, topic.topicName);
 
     int32_t vgNumGet = taosArrayGetSize(pTopicEp->vgs);
     topic.vgs = taosArrayInit(vgNumGet, sizeof(SMqClientVg));
@@ -1257,25 +1386,30 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
     }
     taosArrayPush(newTopics, &topic);
   }
+
+  // destroy current buffered existed topics info
   if (tmq->clientTopics) {
     int32_t sz = taosArrayGetSize(tmq->clientTopics);
     for (int32_t i = 0; i < sz; i++) {
       SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
       if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
-      int32_t vgSz = taosArrayGetSize(pTopic->vgs);
       taosArrayDestroy(pTopic->vgs);
     }
+
     taosArrayDestroy(tmq->clientTopics);
   }
+
   taosHashCleanup(pHash);
   tmq->clientTopics = newTopics;
 
-  if (taosArrayGetSize(tmq->clientTopics) == 0)
+  if (taosArrayGetSize(tmq->clientTopics) == 0) {
     atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__NO_TOPIC);
-  else
+  } else {
     atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__READY);
+  }
 
   atomic_store_32(&tmq->epoch, epoch);
+  tscDebug("consumer:0x%" PRIx64 " update topic info completed", tmq->consumerId);
   return set;
 }
 
@@ -1291,13 +1425,15 @@ int32_t tmqAskEpCb(void* param, SDataBuf* pMsg, int32_t code) {
       taosMemoryFree(pParam);
     }
     taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
     terrno = TSDB_CODE_TMQ_CONSUMER_CLOSED;
     return -1;
   }
 
   pParam->code = code;
   if (code != 0) {
-    tscError("consumer:%" PRId64 ", get topic endpoint error, not ready, wait:%d", tmq->consumerId, pParam->async);
+    tscError("consumer:0x%" PRIx64 ", get topic endpoint error, async:%d, code:%s", tmq->consumerId, pParam->async,
+             tstrerror(code));
     goto END;
   }
 
@@ -1306,10 +1442,14 @@ int32_t tmqAskEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   // Epoch will only increase when received newer epoch ep msg
   SMqRspHead* head = pMsg->pData;
   int32_t     epoch = atomic_load_32(&tmq->epoch);
-  tscDebug("consumer:%" PRId64 ", recv ep, msg epoch %d, current epoch %d", tmq->consumerId, head->epoch, epoch);
   if (head->epoch <= epoch) {
+    tscDebug("consumer:0x%" PRIx64 ", recv ep, msg epoch %d, current epoch %d, no need to update local ep",
+             tmq->consumerId, head->epoch, epoch);
     goto END;
   }
+
+  tscDebug("consumer:0x%" PRIx64 ", recv ep, msg epoch %d, current epoch %d, update local ep", tmq->consumerId,
+           head->epoch, epoch);
 
   if (!async) {
     SMqAskEpRsp rsp;
@@ -1319,12 +1459,13 @@ int32_t tmqAskEpCb(void* param, SDataBuf* pMsg, int32_t code) {
     tmqUpdateEp(tmq, head->epoch, &rsp);
     tDeleteSMqAskEpRsp(&rsp);
   } else {
-    SMqAskEpRspWrapper* pWrapper = taosAllocateQitem(sizeof(SMqAskEpRspWrapper), DEF_QITEM);
+    SMqAskEpRspWrapper* pWrapper = taosAllocateQitem(sizeof(SMqAskEpRspWrapper), DEF_QITEM, 0);
     if (pWrapper == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       code = -1;
       goto END;
     }
+
     pWrapper->tmqRspType = TMQ_MSG_TYPE__EP_RSP;
     pWrapper->epoch = head->epoch;
     memcpy(&pWrapper->msg, pMsg->pData, sizeof(SMqRspHead));
@@ -1341,39 +1482,56 @@ END:
   } else {
     taosMemoryFree(pParam);
   }
+
+  taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pMsg->pData);
   return code;
 }
 
 int32_t tmqAskEp(tmq_t* tmq, bool async) {
-  int32_t code = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
 #if 0
   int8_t  epStatus = atomic_val_compare_exchange_8(&tmq->epStatus, 0, 1);
   if (epStatus == 1) {
     int32_t epSkipCnt = atomic_add_fetch_32(&tmq->epSkipCnt, 1);
-    tscTrace("consumer:%" PRId64 ", skip ask ep cnt %d", tmq->consumerId, epSkipCnt);
+    tscTrace("consumer:0x%" PRIx64 ", skip ask ep cnt %d", tmq->consumerId, epSkipCnt);
     if (epSkipCnt < 5000) return 0;
   }
   atomic_store_32(&tmq->epSkipCnt, 0);
 #endif
-  int32_t      tlen = sizeof(SMqAskEpReq);
-  SMqAskEpReq* req = taosMemoryCalloc(1, tlen);
-  if (req == NULL) {
-    tscError("failed to malloc get subscribe ep buf");
-    /*atomic_store_8(&tmq->epStatus, 0);*/
+
+  SMqAskEpReq req = {0};
+  req.consumerId = tmq->consumerId;
+  req.epoch = tmq->epoch;
+  strcpy(req.cgroup, tmq->groupId);
+
+  int32_t tlen = tSerializeSMqAskEpReq(NULL, 0, &req);
+  if (tlen < 0) {
+    tscError("consumer:0x%" PRIx64 ", tSerializeSMqAskEpReq failed", tmq->consumerId);
     return -1;
   }
-  req->consumerId = htobe64(tmq->consumerId);
-  req->epoch = htonl(tmq->epoch);
-  strcpy(req->cgroup, tmq->groupId);
+
+  void* pReq = taosMemoryCalloc(1, tlen);
+  if (pReq == NULL) {
+    tscError("consumer:0x%" PRIx64 ", failed to malloc askEpReq msg, size:%d", tmq->consumerId, tlen);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (tSerializeSMqAskEpReq(pReq, tlen, &req) < 0) {
+    tscError("consumer:0x%" PRIx64 ", tSerializeSMqAskEpReq %d failed", tmq->consumerId, tlen);
+    taosMemoryFree(pReq);
+    return -1;
+  }
 
   SMqAskEpCbParam* pParam = taosMemoryCalloc(1, sizeof(SMqAskEpCbParam));
   if (pParam == NULL) {
-    tscError("failed to malloc subscribe param");
-    taosMemoryFree(req);
+    tscError("consumer:0x%" PRIx64 ", failed to malloc subscribe param", tmq->consumerId);
+    taosMemoryFree(pReq);
     /*atomic_store_8(&tmq->epStatus, 0);*/
     return -1;
   }
+
   pParam->refId = tmq->refId;
   pParam->epoch = tmq->epoch;
   pParam->async = async;
@@ -1383,26 +1541,26 @@ int32_t tmqAskEp(tmq_t* tmq, bool async) {
   if (sendInfo == NULL) {
     tsem_destroy(&pParam->rspSem);
     taosMemoryFree(pParam);
-    taosMemoryFree(req);
+    taosMemoryFree(pReq);
     /*atomic_store_8(&tmq->epStatus, 0);*/
     return -1;
   }
 
   sendInfo->msgInfo = (SDataBuf){
-      .pData = req,
+      .pData = pReq,
       .len = tlen,
       .handle = NULL,
   };
 
-  sendInfo->requestId = generateRequestId();
+  sendInfo->requestId = tmq->consumerId;
   sendInfo->requestObjRefId = 0;
   sendInfo->param = pParam;
   sendInfo->fp = tmqAskEpCb;
-  sendInfo->msgType = TDMT_MND_MQ_ASK_EP;
+  sendInfo->msgType = TDMT_MND_TMQ_ASK_EP;
 
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
-
-  tscDebug("consumer:%" PRId64 ", ask ep", tmq->consumerId);
+  tscDebug("consumer:0x%" PRIx64 " ask ep from mnode, async:%d, reqId:0x%" PRIx64, tmq->consumerId, async,
+           tmq->consumerId);
 
   int64_t transporterId = 0;
   asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
@@ -1412,36 +1570,25 @@ int32_t tmqAskEp(tmq_t* tmq, bool async) {
     code = pParam->code;
     taosMemoryFree(pParam);
   }
+
   return code;
 }
 
-SMqPollReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t timeout, SMqClientTopic* pTopic, SMqClientVg* pVg) {
-  SMqPollReq* pReq = taosMemoryCalloc(1, sizeof(SMqPollReq));
-  if (pReq == NULL) {
-    return NULL;
-  }
-
-  /*strcpy(pReq->topic, pTopic->topicName);*/
-  /*strcpy(pReq->cgroup, tmq->groupId);*/
-
+void tmqBuildConsumeReqImpl(SMqPollReq* pReq, tmq_t* tmq, int64_t timeout, SMqClientTopic* pTopic, SMqClientVg* pVg) {
   int32_t groupLen = strlen(tmq->groupId);
   memcpy(pReq->subKey, tmq->groupId, groupLen);
   pReq->subKey[groupLen] = TMQ_SEPARATOR;
   strcpy(pReq->subKey + groupLen + 1, pTopic->topicName);
 
   pReq->withTbName = tmq->withTbName;
-  pReq->timeout = timeout;
   pReq->consumerId = tmq->consumerId;
+  pReq->timeout = timeout;
   pReq->epoch = tmq->epoch;
   /*pReq->currentOffset = reqOffset;*/
   pReq->reqOffset = pVg->currentOffset;
-  pReq->reqId = generateRequestId();
-
+  pReq->head.vgId = pVg->vgId;
   pReq->useSnapshot = tmq->useSnapshot;
-
-  pReq->head.vgId = htonl(pVg->vgId);
-  pReq->head.contLen = htonl(sizeof(SMqPollReq));
-  return pReq;
+  pReq->reqId = generateRequestId();
 }
 
 SMqMetaRspObj* tmqBuildMetaRspFromWrapper(SMqPollRspWrapper* pWrapper) {
@@ -1491,81 +1638,111 @@ SMqTaosxRspObj* tmqBuildTaosxRspFromWrapper(SMqPollRspWrapper* pWrapper) {
   return pRspObj;
 }
 
+static int32_t handleErrorBeforePoll(SMqClientVg* pVg, tmq_t* pTmq) {
+  atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
+  tsem_post(&pTmq->rspSem);
+  return -1;
+}
+
+static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* pVg, int64_t timeout) {
+  SMqPollReq req = {0};
+  tmqBuildConsumeReqImpl(&req, pTmq, timeout, pTopic, pVg);
+
+  int32_t msgSize = tSerializeSMqPollReq(NULL, 0, &req);
+  if (msgSize < 0) {
+    return handleErrorBeforePoll(pVg, pTmq);
+  }
+
+  char* msg = taosMemoryCalloc(1, msgSize);
+  if (NULL == msg) {
+    return handleErrorBeforePoll(pVg, pTmq);
+  }
+
+  if (tSerializeSMqPollReq(msg, msgSize, &req) < 0) {
+    taosMemoryFree(msg);
+    return handleErrorBeforePoll(pVg, pTmq);
+  }
+
+  SMqPollCbParam* pParam = taosMemoryMalloc(sizeof(SMqPollCbParam));
+  if (pParam == NULL) {
+    taosMemoryFree(msg);
+    return handleErrorBeforePoll(pVg, pTmq);
+  }
+
+  pParam->refId = pTmq->refId;
+  pParam->epoch = pTmq->epoch;
+  pParam->pVg = pVg;  // pVg may be released,fix it
+  pParam->pTopic = pTopic;
+  pParam->vgId = pVg->vgId;
+
+  SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (sendInfo == NULL) {
+    taosMemoryFree(pParam);
+    taosMemoryFree(msg);
+    return handleErrorBeforePoll(pVg, pTmq);
+  }
+
+  sendInfo->msgInfo = (SDataBuf){
+      .pData = msg,
+      .len = msgSize,
+      .handle = NULL,
+  };
+
+  sendInfo->requestId = req.reqId;
+  sendInfo->requestObjRefId = 0;
+  sendInfo->param = pParam;
+  sendInfo->fp = tmqPollCb;
+  sendInfo->msgType = TDMT_VND_TMQ_CONSUME;
+
+  int64_t transporterId = 0;
+  char    offsetFormatBuf[80];
+  tFormatOffset(offsetFormatBuf, tListLen(offsetFormatBuf), &pVg->currentOffset);
+
+  tscDebug("consumer:0x%" PRIx64 " send poll to %s vgId:%d, epoch %d, req offset:%s, reqId:0x%" PRIx64,
+           pTmq->consumerId, pTopic->topicName, pVg->vgId, pTmq->epoch, offsetFormatBuf, req.reqId);
+  asyncSendMsgToServer(pTmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
+
+  pVg->pollCnt++;
+  pTmq->pollCnt++;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// broadcast the poll request to all related vnodes
 int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
-  /*tscDebug("call poll");*/
-  for (int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
+  int32_t numOfTopics = taosArrayGetSize(tmq->clientTopics);
+  tscDebug("consumer:0x%" PRIx64 " start to poll data, numOfTopics:%d", tmq->consumerId, numOfTopics);
+
+  for (int i = 0; i < numOfTopics; i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
-    for (int j = 0; j < taosArrayGetSize(pTopic->vgs); j++) {
+    int32_t         numOfVg = taosArrayGetSize(pTopic->vgs);
+
+    for (int j = 0; j < numOfVg; j++) {
       SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
       int32_t      vgStatus = atomic_val_compare_exchange_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE, TMQ_VG_STATUS__WAIT);
-      if (vgStatus != TMQ_VG_STATUS__IDLE) {
+      if (vgStatus == TMQ_VG_STATUS__WAIT) {
         int32_t vgSkipCnt = atomic_add_fetch_32(&pVg->vgSkipCnt, 1);
-        tscTrace("consumer:%" PRId64 ", epoch %d skip vgId:%d skip cnt %d", tmq->consumerId, tmq->epoch, pVg->vgId,
-                 vgSkipCnt);
+        tscDebug("consumer:0x%" PRIx64 " epoch %d wait poll-rsp, skip vgId:%d skip cnt %d", tmq->consumerId, tmq->epoch,
+                 pVg->vgId, vgSkipCnt);
         continue;
         /*if (vgSkipCnt < 10000) continue;*/
 #if 0
         if (skipCnt < 30000) {
           continue;
         } else {
-        tscDebug("consumer:%" PRId64 ",skip vgId:%d skip too much reset", tmq->consumerId, pVg->vgId);
+        tscDebug("consumer:0x%" PRIx64 ",skip vgId:%d skip too much reset", tmq->consumerId, pVg->vgId);
         }
 #endif
       }
+
       atomic_store_32(&pVg->vgSkipCnt, 0);
-      SMqPollReq* pReq = tmqBuildConsumeReqImpl(tmq, timeout, pTopic, pVg);
-      if (pReq == NULL) {
-        atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
-        tsem_post(&tmq->rspSem);
-        return -1;
+      int32_t code = doTmqPollImpl(tmq, pTopic, pVg, timeout);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
-      SMqPollCbParam* pParam = taosMemoryMalloc(sizeof(SMqPollCbParam));
-      if (pParam == NULL) {
-        taosMemoryFree(pReq);
-        atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
-        tsem_post(&tmq->rspSem);
-        return -1;
-      }
-      pParam->refId = tmq->refId;
-      pParam->epoch = tmq->epoch;
-
-      pParam->pVg = pVg;
-      pParam->pTopic = pTopic;
-      pParam->vgId = pVg->vgId;
-
-      SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
-      if (sendInfo == NULL) {
-        taosMemoryFree(pReq);
-        taosMemoryFree(pParam);
-        atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
-        tsem_post(&tmq->rspSem);
-        return -1;
-      }
-
-      sendInfo->msgInfo = (SDataBuf){
-          .pData = pReq,
-          .len = sizeof(SMqPollReq),
-          .handle = NULL,
-      };
-      sendInfo->requestId = pReq->reqId;
-      sendInfo->requestObjRefId = 0;
-      sendInfo->param = pParam;
-      sendInfo->fp = tmqPollCb;
-      sendInfo->msgType = TDMT_VND_CONSUME;
-
-      int64_t transporterId = 0;
-      /*printf("send poll\n");*/
-
-      char offsetFormatBuf[80];
-      tFormatOffset(offsetFormatBuf, 80, &pVg->currentOffset);
-      tscDebug("consumer:%" PRId64 ", send poll to %s vgId:%d, epoch %d, req offset:%s, reqId:%" PRIu64,
-               tmq->consumerId, pTopic->topicName, pVg->vgId, tmq->epoch, offsetFormatBuf, pReq->reqId);
-      /*printf("send vgId:%d %" PRId64 "\n", pVg->vgId, pVg->currentOffset);*/
-      asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
-      pVg->pollCnt++;
-      tmq->pollCnt++;
     }
   }
+
   return 0;
 }
 
@@ -1577,8 +1754,10 @@ int32_t tmqHandleNoPollRsp(tmq_t* tmq, SMqRspWrapper* rspWrapper, bool* pReset) 
       SMqAskEpRsp*        rspMsg = &pEpRspWrapper->msg;
       tmqUpdateEp(tmq, rspWrapper->epoch, rspMsg);
       /*tmqClearUnhandleMsg(tmq);*/
+      tDeleteSMqAskEpRsp(rspMsg);
       *pReset = true;
     } else {
+      tmqFreeRspWrapper(rspWrapper);
       *pReset = false;
     }
   } else {
@@ -1588,13 +1767,19 @@ int32_t tmqHandleNoPollRsp(tmq_t* tmq, SMqRspWrapper* rspWrapper, bool* pReset) 
 }
 
 void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
+  tscDebug("consumer:0x%" PRIx64 " start to handle the rsp", tmq->consumerId);
+
   while (1) {
     SMqRspWrapper* rspWrapper = NULL;
     taosGetQitem(tmq->qall, (void**)&rspWrapper);
+
     if (rspWrapper == NULL) {
       taosReadAllQitems(tmq->mqueue, tmq->qall);
       taosGetQitem(tmq->qall, (void**)&rspWrapper);
-      if (rspWrapper == NULL) return NULL;
+
+      if (rspWrapper == NULL) {
+        return NULL;
+      }
     }
 
     if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__END_RSP) {
@@ -1603,6 +1788,7 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
       return NULL;
     } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_RSP) {
       SMqPollRspWrapper* pollRspWrapper = (SMqPollRspWrapper*)rspWrapper;
+      tscDebug("consumer:0x%" PRIx64 " process poll rsp", tmq->consumerId);
       /*atomic_sub_fetch_32(&tmq->readyRequest, 1);*/
       int32_t consumerEpoch = atomic_load_32(&tmq->epoch);
       if (pollRspWrapper->dataRsp.head.epoch == consumerEpoch) {
@@ -1621,13 +1807,17 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         taosFreeQitem(pollRspWrapper);
         return pRsp;
       } else {
-        tscDebug("msg discard since epoch mismatch: msg epoch %d, consumer epoch %d\n",
-                 pollRspWrapper->dataRsp.head.epoch, consumerEpoch);
+        tscDebug("consumer:0x%" PRIx64 " msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
+                 tmq->consumerId, pollRspWrapper->dataRsp.head.epoch, consumerEpoch);
+        tmqFreeRspWrapper(rspWrapper);
         taosFreeQitem(pollRspWrapper);
       }
     } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP) {
       SMqPollRspWrapper* pollRspWrapper = (SMqPollRspWrapper*)rspWrapper;
       int32_t            consumerEpoch = atomic_load_32(&tmq->epoch);
+
+      tscDebug("consumer:0x%" PRIx64 " process meta rsp", tmq->consumerId);
+
       if (pollRspWrapper->metaRsp.head.epoch == consumerEpoch) {
         SMqClientVg* pVg = pollRspWrapper->vgHandle;
         /*printf("vgId:%d, offset %" PRId64 " up to %" PRId64 "\n", pVg->vgId, pVg->currentOffset,
@@ -1639,8 +1829,9 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         taosFreeQitem(pollRspWrapper);
         return pRsp;
       } else {
-        tscDebug("msg discard since epoch mismatch: msg epoch %d, consumer epoch %d\n",
-                 pollRspWrapper->metaRsp.head.epoch, consumerEpoch);
+        tscDebug("consumer:0x%" PRIx64 " msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
+                 tmq->consumerId, pollRspWrapper->metaRsp.head.epoch, consumerEpoch);
+        tmqFreeRspWrapper(rspWrapper);
         taosFreeQitem(pollRspWrapper);
       }
     } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__TAOSX_RSP) {
@@ -1661,16 +1852,17 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
         // build rsp
         void* pRsp = NULL;
-        if(pollRspWrapper->taosxRsp.createTableNum == 0){
+        if (pollRspWrapper->taosxRsp.createTableNum == 0) {
           pRsp = tmqBuildRspFromWrapper(pollRspWrapper);
-        }else{
+        } else {
           pRsp = tmqBuildTaosxRspFromWrapper(pollRspWrapper);
         }
         taosFreeQitem(pollRspWrapper);
         return pRsp;
       } else {
-        tscDebug("msg discard since epoch mismatch: msg epoch %d, consumer epoch %d\n",
-                 pollRspWrapper->taosxRsp.head.epoch, consumerEpoch);
+        tscDebug("consumer:0x%" PRIx64 " msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
+                 tmq->consumerId, pollRspWrapper->taosxRsp.head.epoch, consumerEpoch);
+        tmqFreeRspWrapper(rspWrapper);
         taosFreeQitem(pollRspWrapper);
       }
     } else {
@@ -1679,7 +1871,7 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
       tmqHandleNoPollRsp(tmq, rspWrapper, &reset);
       taosFreeQitem(rspWrapper);
       if (pollIfReset && reset) {
-        tscDebug("consumer:%" PRId64 ", reset and repoll", tmq->consumerId);
+        tscDebug("consumer:0x%" PRIx64 ", reset and repoll", tmq->consumerId);
         tmqPollImpl(tmq, timeout);
       }
     }
@@ -1687,9 +1879,10 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 }
 
 TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
-  /*tscDebug("call poll1");*/
   void*   rspObj;
   int64_t startTime = taosGetTimestampMs();
+
+  tscDebug("consumer:0x%" PRIx64 " start to poll at %" PRId64, tmq->consumerId, startTime);
 
 #if 0
   tmqHandleAllDelayedTask(tmq);
@@ -1702,6 +1895,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
 
   // in no topic status, delayed task also need to be processed
   if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__INIT) {
+    tscDebug("consumer:0x%" PRIx64 " poll return since consumer is init", tmq->consumerId);
     return NULL;
   }
 
@@ -1711,32 +1905,44 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
       if (retryCnt++ > 10) {
         return NULL;
       }
-      tscDebug("consumer not ready, retry");
+
+      tscDebug("consumer:0x%" PRIx64 " not ready, retry:%d/10 in 500ms", tmq->consumerId, retryCnt);
       taosMsleep(500);
     }
   }
 
   while (1) {
     tmqHandleAllDelayedTask(tmq);
-    if (tmqPollImpl(tmq, timeout) < 0) return NULL;
+
+    if (tmqPollImpl(tmq, timeout) < 0) {
+      tscDebug("consumer:0x%" PRIx64 " return due to poll error", tmq->consumerId);
+      /*return NULL;*/
+    }
 
     rspObj = tmqHandleAllRsp(tmq, timeout, false);
     if (rspObj) {
+      tscDebug("consumer:0x%" PRIx64 " return rsp %p", tmq->consumerId, rspObj);
       return (TAOS_RES*)rspObj;
     } else if (terrno == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
+      tscDebug("consumer:0x%" PRIx64 " return null since no committed offset", tmq->consumerId);
       return NULL;
     }
+
     if (timeout != -1) {
-      int64_t endTime = taosGetTimestampMs();
-      int64_t leftTime = endTime - startTime;
-      if (leftTime > timeout) {
-        tscDebug("consumer:%" PRId64 ", (epoch %d) timeout, no rsp", tmq->consumerId, tmq->epoch);
+      int64_t currentTime = taosGetTimestampMs();
+      int64_t elapsedTime = currentTime - startTime;
+      if (elapsedTime > timeout) {
+        tscDebug("consumer:0x%" PRIx64 " (epoch %d) timeout, no rsp, start time %" PRId64 ", current time %" PRId64,
+                 tmq->consumerId, tmq->epoch, startTime, currentTime);
         return NULL;
       }
-      tsem_timewait(&tmq->rspSem, leftTime * 1000);
+      /*tscInfo("consumer:0x%" PRIx64 ", (epoch %d) wait, start time %" PRId64 ", current time %" PRId64*/
+      /*", left time %" PRId64,*/
+      /*tmq->consumerId, tmq->epoch, startTime, currentTime, (timeout - elapsedTime));*/
+      tsem_timewait(&tmq->rspSem, (timeout - elapsedTime));
     } else {
       // use tsem_timewait instead of tsem_wait to avoid unexpected stuck
-      tsem_timewait(&tmq->rspSem, 500 * 1000);
+      tsem_timewait(&tmq->rspSem, 1000);
     }
   }
 }
@@ -1761,9 +1967,6 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
     }
 
     tmq_list_destroy(lst);
-
-    /*return rsp;*/
-    return 0;
   }
   taosRemoveRef(tmqMgmt.rsetId, tmq->refId);
   return 0;
@@ -1783,10 +1986,6 @@ tmq_res_t tmq_get_res_type(TAOS_RES* res) {
   if (TD_RES_TMQ(res)) {
     return TMQ_RES_DATA;
   } else if (TD_RES_TMQ_META(res)) {
-    SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
-    if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DELETE) {
-      return TMQ_RES_DATA;
-    }
     return TMQ_RES_TABLE_META;
   } else if (TD_RES_TMQ_METADATA(res)) {
     return TMQ_RES_METADATA;
@@ -1850,12 +2049,12 @@ const char* tmq_get_table_name(TAOS_RES* res) {
     return (const char*)taosArrayGetP(pRspObj->rsp.blockTbName, pRspObj->resIter);
   } else if (TD_RES_TMQ_METADATA(res)) {
     SMqTaosxRspObj* pRspObj = (SMqTaosxRspObj*)res;
-      if (!pRspObj->rsp.withTbName || pRspObj->rsp.blockTbName == NULL || pRspObj->resIter < 0 ||
-          pRspObj->resIter >= pRspObj->rsp.blockNum) {
-        return NULL;
-      }
-      return (const char*)taosArrayGetP(pRspObj->rsp.blockTbName, pRspObj->resIter);
+    if (!pRspObj->rsp.withTbName || pRspObj->rsp.blockTbName == NULL || pRspObj->resIter < 0 ||
+        pRspObj->resIter >= pRspObj->rsp.blockNum) {
+      return NULL;
     }
+    return (const char*)taosArrayGetP(pRspObj->rsp.blockTbName, pRspObj->resIter);
+  }
   return NULL;
 }
 

@@ -5,15 +5,15 @@ sleep 50
 sql connect
 
 print =============== create database
-sql create database test vgroups 1
-sql select * from information_schema.ins_databases
+sql create database test vgroups 1;
+sql select * from information_schema.ins_databases;
 if $rows != 3 then
   return -1
 endi
 
 print $data00 $data01 $data02
 
-sql use test
+sql use test;
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
@@ -48,8 +48,9 @@ if $loop_count == 10 then
   return -1
 endi
 
+print step 0
 
-sql select * from streamt
+sql select * from streamt;
 
 # row 0
 if $data01 != 1 then
@@ -97,7 +98,7 @@ endi
 
 print step 1
 
-sql select * from streamt2
+sql select * from streamt2;
 
 # row 0
 if $data01 != 1 then
@@ -239,6 +240,67 @@ if $data32 != 6 then
   goto loop0
 endi
 
+print step 3.1
+
+sql insert into t1 values(1648791216001,2,2,3,1.1);
+
+$loop_count = 0
+
+loop00:
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt2;
+
+# row 0
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop00
+endi
+
+if $data02 != 1 then
+  print =====data02=$data02
+  goto loop00
+endi
+
+# row 1
+if $data11 != 3 then
+  print =====data11=$data11
+  goto loop00
+endi
+
+if $data12 != 5 then
+  print =====data12=$data12
+  goto loop00
+endi
+
+# row 2
+if $data21 != 3 then
+  print =====data21=$data21
+  goto loop00
+endi
+
+if $data22 != 7 then
+  print =====data22=$data22
+  goto loop00
+endi
+
+# row 3
+if $data31 != 1 then
+  print =====data31=$data31
+  goto loop00
+endi
+
+if $data32 != 3 then
+  print =====data32=$data32
+  goto loop00
+endi
+
+
 print step 4
 
 sql create database test1 vgroups 1
@@ -369,9 +431,10 @@ endi
 #$loop_all = 0
 #=looptest:
 
-sql drop database IF EXISTS test2;
 sql drop stream IF EXISTS streams21;
 sql drop stream IF EXISTS streams22;
+sql drop stream IF EXISTS streams23;
+sql drop database IF EXISTS test2;
 
 sql create database test2 vgroups 6;
 sql use test2;
@@ -381,6 +444,7 @@ sql create table t2 using st tags(2,2,2);
 
 sql create stream streams21 trigger at_once  into streamt as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s, 5s);
 sql create stream streams22 trigger at_once  into streamt2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s, 5s);
+sql create stream streams23 trigger at_once  into streamt3 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(20s) sliding(10s);
 
 sql insert into t1 values(1648791213000,1,1,1,1.0);
 sql insert into t1 values(1648791223001,2,2,2,1.1);
@@ -397,7 +461,7 @@ sql insert into t2 values(1648791213004,4,10,10,4.1);
 $loop_count = 0
 
 loop2:
-sleep 100
+sleep 200
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -455,7 +519,7 @@ print step 6
 $loop_count = 0
 
 loop3:
-# sleep 300
+sleep 300
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -506,6 +570,223 @@ endi
 if $data32 != 8 then
   print =====data32=$data32
   goto loop3
+endi
+
+
+$loop_count = 0
+
+print step 7
+
+loop4:
+sleep 100
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt3;
+
+# row 0
+if $rows != 5 then
+  print =====rows=$rows
+  goto loop4
+endi
+
+if $data01 != 4 then
+  print =====data01=$data01
+  goto loop4
+endi
+
+if $data11 != 6 then
+  print =====data11=$data11
+  goto loop4
+endi
+
+if $data21 != 4 then
+  print =====data21=$data21
+  goto loop4
+endi
+
+if $data31 != 4 then
+  print =====data31=$data31
+  goto loop4
+endi
+
+if $data41 != 2 then
+  print =====data41=$data41
+  goto loop4
+endi
+
+sql insert into t1 values(1648791343003,4,4,4,3.1);
+sql insert into t1 values(1648791213004,4,5,5,4.1);
+
+loop5:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt3;
+
+# row 0
+if $rows != 7 then
+  print =====rows=$rows
+  goto loop5
+endi
+
+if $data01 != 4 then
+  print =====data01=$data01
+  goto loop5
+endi
+
+if $data11 != 6 then
+  print =====data11=$data11
+  goto loop5
+endi
+
+if $data21 != 4 then
+  print =====data21=$data21
+  goto loop5
+endi
+
+if $data31 != 4 then
+  print =====data31=$data31
+  goto loop5
+endi
+
+if $data41 != 2 then
+  print =====data41=$data41
+  goto loop5
+endi
+
+if $data51 != 1 then
+  print =====data51=$data51
+  goto loop5
+endi
+
+if $data61 != 1 then
+  print =====data61=$data61
+  goto loop5
+endi
+
+print step 8
+
+sql drop stream IF EXISTS streams4;
+sql drop database IF EXISTS test4;
+
+sql create database test4 vgroups 6;
+sql use test4;
+sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+
+sql create stream streams4 trigger at_once  into streamt4 as select  _wstart as ts, count(*),min(a) c1 from st interval(10s) sliding(5s);
+
+sql insert into t1 values(1648791213000,1,1,1,1.0);
+sql insert into t1 values(1648791243000,2,1,1,1.0);
+
+sql insert into t2 values(1648791273000,3,1,1,1.0);
+sql insert into t2 values(1648791313000,4,1,1,1.0);
+
+$loop_count = 0
+
+loop6:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt4 order by 1;
+
+# row 0
+if $rows != 8 then
+  print ====loop6=rows=$rows
+  goto loop6
+endi
+
+if $data01 != 1 then
+  print ====loop6=data01=$data01
+  goto loop6
+endi
+
+if $data02 != 1 then
+  print ====loop6=data02=$data02
+  return -1
+endi
+
+if $data11 != 1 then
+  print ====loop6=data11=$data11
+  goto loop6
+endi
+
+if $data12 != 1 then
+  print ====loop6=data12=$data12
+  return -1
+endi
+
+if $data21 != 1 then
+  print ====loop6=data21=$data21
+  goto loop6
+endi
+
+if $data22 != 2 then
+  print ====loop6=data22=$data22
+  return -1
+endi
+
+if $data31 != 1 then
+  print ====loop6=data31=$data31
+  goto loop6
+endi
+
+if $data32 != 2 then
+  print ====loop6=data32=$data32
+  return -1
+endi
+
+if $data41 != 1 then
+  print ====loop6=data41=$data41
+  goto loop6
+endi
+
+if $data42 != 3 then
+  print ====loop6=data42=$data42
+  return -1
+endi
+
+if $data51 != 1 then
+  print ====loop6=data51=$data51
+  goto loop6
+endi
+
+if $data52 != 3 then
+  print ====loop6=data52=$data52
+  return -1
+endi
+
+if $data61 != 1 then
+  print ====loop6=data61=$data61
+  return -1
+endi
+
+if $data62 != 4 then
+  print ====loop6=data62=$data62
+  return -1
+endi
+
+if $data71 != 1 then
+  print ====loop6=data71=$data71
+  return -1
+endi
+
+if $data72 != 4 then
+  print ====loop6=data72=$data72
+  return -1
 endi
 
 $loop_all = $loop_all + 1

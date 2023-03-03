@@ -21,7 +21,8 @@ from util.common import *
 from util.sqlset import *
 
 class TDTestCase:
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         self.setsql = TDSetSql()
@@ -86,7 +87,6 @@ class TDTestCase:
 
         }
     def alter_check_ntb(self):      
-        
         tdSql.prepare()
         tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         for i in self.values_list:
@@ -106,6 +106,7 @@ class TDTestCase:
                 v = f'binary({self.binary_length+1})'
                 v_error = f'binary({self.binary_length-1})'
                 tdSql.error(f'alter table {self.ntbname} modify column {key} {v_error}')
+                tdSql.error(f'alter table {self.ntbname} set tag {key} = "abcd1"')
                 tdSql.execute(f'alter table {self.ntbname} modify column {key} {v}')
                 tdSql.query(f'describe {self.ntbname}')
                 result = tdCom.getOneRow(1,'VARCHAR')
@@ -114,6 +115,7 @@ class TDTestCase:
                 v = f'nchar({self.binary_length+1})'
                 v_error = f'nchar({self.binary_length-1})'
                 tdSql.error(f'alter table {self.ntbname} modify column {key} {v_error}')
+                tdSql.error(f'alter table {self.ntbname} set tag {key} = "abcd1"')
                 tdSql.execute(f'alter table {self.ntbname} modify column {key} {v}')
                 tdSql.query(f'describe {self.ntbname}')
                 result = tdCom.getOneRow(1,'NCHAR')
@@ -121,6 +123,7 @@ class TDTestCase:
             else:
                 for v in self.column_dict.values():
                     tdSql.error(f'alter table {self.ntbname} modify column {key} {v}')
+                    tdSql.error(f'alter table {self.ntbname} set tag {key} = "abcd1"')
         for key,values in self.column_dict.items():
             rename_str = f'{tdCom.getLongName(constant.COL_NAME_LENGTH_MAX,"letters")}'
             tdSql.execute(f'alter table {self.ntbname} rename column {key} {rename_str}')
@@ -284,6 +287,7 @@ class TDTestCase:
                 v = f'binary({self.binary_length+1})'
                 v_error = f'binary({self.binary_length-1})'
                 tdSql.error(f'alter table {self.stbname} modify column {key} {v_error}')
+                tdSql.error(f'alter table {self.stbname} set tag {key} = "abcd1"')
                 tdSql.execute(f'alter table {self.stbname} modify column {key} {v}')
                 tdSql.query(f'describe {self.stbname}')
                 result = tdCom.getOneRow(1,'VARCHAR')
@@ -296,6 +300,7 @@ class TDTestCase:
                 v = f'nchar({self.binary_length+1})'
                 v_error = f'nchar({self.binary_length-1})'
                 tdSql.error(f'alter table {self.stbname} modify column {key} {v_error}')
+                tdSql.error(f'alter table {self.stbname} set tag {key} = "abcd1"')
                 tdSql.execute(f'alter table {self.stbname} modify column {key} {v}')
                 tdSql.query(f'describe {self.stbname}')
                 result = tdCom.getOneRow(1,'NCHAR')
@@ -307,6 +312,7 @@ class TDTestCase:
             else:
                 for v in self.column_dict.values():
                     tdSql.error(f'alter table {self.stbname} modify column {key} {v}')
+                    tdSql.error(f'alter table {self.stbname} set tag {key} = "abcd1"')
         for key,values in self.column_dict.items():
             rename_str = f'{tdCom.getLongName(constant.COL_NAME_LENGTH_MAX,"letters")}'
             tdSql.error(f'alter table {self.stbname} rename column {key} {rename_str}')

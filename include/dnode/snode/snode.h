@@ -68,8 +68,8 @@ int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad);
  * @param pMsg The request message
  * @param pRsp The response message
  */
-int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg);
-int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg);
+int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp);
+int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

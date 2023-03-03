@@ -67,7 +67,7 @@ struct SHashObj {
   bool              enableUpdate;  // enable update
   SArray           *pMemBlock;     // memory block allocated for SHashEntry
   _hash_before_fn_t callbackFp;    // function invoked before return the value to caller
-  int64_t           compTimes;
+//  int64_t           compTimes;
 };
 
 /*
@@ -147,7 +147,7 @@ static FORCE_INLINE SHashNode *doSearchInEntryList(SHashObj *pHashObj, SHashEntr
                                                    uint32_t hashVal) {
   SHashNode *pNode = pe->next;
   while (pNode) {
-    atomic_add_fetch_64(&pHashObj->compTimes, 1);
+    //atomic_add_fetch_64(&pHashObj->compTimes, 1);
     if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) &&
         pNode->removed == 0) {
       assert(pNode->hashVal == hashVal);
@@ -244,7 +244,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
     capacity = 4;
   }
 
-  SHashObj *pHashObj = (SHashObj *)taosMemoryCalloc(1, sizeof(SHashObj));
+  SHashObj *pHashObj = (SHashObj *)taosMemoryMalloc(sizeof(SHashObj));
   if (pHashObj == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -264,7 +264,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
   ASSERT((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
-  pHashObj->hashList = (SHashEntry **)taosMemoryCalloc(pHashObj->capacity, sizeof(void *));
+  pHashObj->hashList = (SHashEntry **)taosMemoryMalloc(pHashObj->capacity * sizeof(void *));
   if (pHashObj->hashList == NULL) {
     taosMemoryFree(pHashObj);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -279,7 +279,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
     return NULL;
   }
 
-  void *p = taosMemoryCalloc(pHashObj->capacity, sizeof(SHashEntry));
+  void *p = taosMemoryMalloc(pHashObj->capacity * sizeof(SHashEntry));
   if (p == NULL) {
     taosArrayDestroy(pHashObj->pMemBlock);
     taosMemoryFree(pHashObj->hashList);
@@ -290,6 +290,9 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
   for (int32_t i = 0; i < pHashObj->capacity; ++i) {
     pHashObj->hashList[i] = (void *)((char *)p + i * sizeof(SHashEntry));
+    pHashObj->hashList[i]->num = 0;
+    pHashObj->hashList[i]->latch = 0;
+    pHashObj->hashList[i]->next = NULL;
   }
 
   taosArrayPush(pHashObj->pMemBlock, &p);
@@ -333,7 +336,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
   // disable resize
   taosHashRLock(pHashObj);
 
-  uint32_t   slot = HASH_INDEX(hashVal, pHashObj->capacity);
+  uint32_t    slot = HASH_INDEX(hashVal, pHashObj->capacity);
   SHashEntry *pe = pHashObj->hashList[slot];
 
   taosHashEntryWLock(pHashObj, pe);
@@ -418,7 +421,11 @@ int32_t taosHashGetDup_m(SHashObj *pHashObj, const void *key, size_t keyLen, voi
 }
 
 void *taosHashGetImpl(SHashObj *pHashObj, const void *key, size_t keyLen, void **d, int32_t *size, bool addRef) {
-  if (pHashObj == NULL || taosHashTableEmpty(pHashObj) || keyLen == 0 || key == NULL) {
+  if (pHashObj == NULL || keyLen == 0 || key == NULL) {
+    return NULL;
+  }
+
+  if ((atomic_load_64((int64_t *)&pHashObj->size) == 0)) {
     return NULL;
   }
 
@@ -639,7 +646,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
   }
 
   int64_t st = taosGetTimestampUs();
-  void   *pNewEntryList = taosMemoryRealloc(pHashObj->hashList, sizeof(void *) * newCapacity);
+  SHashEntry **pNewEntryList = taosMemoryRealloc(pHashObj->hashList, sizeof(SHashEntry *) * newCapacity);
   if (pNewEntryList == NULL) {
     //    uDebug("cache resize failed due to out of memory, capacity remain:%zu", pHashObj->capacity);
     return;
@@ -798,7 +805,7 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
 }
 
 void *taosHashIterate(SHashObj *pHashObj, void *p) {
-  if (pHashObj == NULL) return NULL;
+  if (pHashObj == NULL || pHashObj->size == 0) return NULL;
 
   int   slot = 0;
   char *data = NULL;
@@ -889,6 +896,4 @@ void *taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen) {
 
 void taosHashRelease(SHashObj *pHashObj, void *p) { taosHashCancelIterate(pHashObj, p); }
 
-int64_t taosHashGetCompTimes(SHashObj *pHashObj) { return atomic_load_64(&pHashObj->compTimes); }
-
-
+int64_t taosHashGetCompTimes(SHashObj *pHashObj) { return 0 /*atomic_load_64(&pHashObj->compTimes)*/; }

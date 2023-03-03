@@ -330,7 +330,7 @@ if $data11 != -1 then
 endi
 
 # fill_char_values_to_arithmetic_fields
-sql_error select sum(c1), avg(c2), max(c3), min(c4), avg(c4), count(c6), last(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c')
+sql select sum(c1), avg(c2), max(c3), min(c4), avg(c4), count(c6), last(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c')
 
 # fill_multiple_columns
 sql_error select sum(c1), avg(c2), min(c3), max(c4), count(c6), first(c7), last(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 99, 99, 99, 99, 99, abc, abc)
@@ -355,25 +355,25 @@ endi
 
 # fill_into_nonarithmetic_fieds
 print select _wstart, first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 20000000, 20000000, 20000000)
-sql_error select _wstart, first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 20000000, 20000000, 20000000)
+sql select _wstart, first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 20000000, 20000000, 20000000)
 
-sql_error select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1, 1, 1)
-sql_error select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1.1, 1.1, 1.1)
-sql_error select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1e1, 1e1, 1e1)
+sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1, 1, 1)
+sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1.1, 1.1, 1.1)
+sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1e1, 1e1, 1e1)
 sql select first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e', '1e1')
 # fill quoted values into bool column will throw error unless the value is 'true' or 'false' Note:2018-10-24
 # fill values into binary or nchar columns will be set to NULL automatically Note:2018-10-24
 sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e', '1e1','1e1')
-sql_error select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, true, true, true)
+sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, true, true, true)
 sql select first(c6), first(c7), first(c8) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true', 'true','true')
 
 
 # fill nonarithmetic values into arithmetic fields
 sql_error select count(*) where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, abc);
-sql_error select count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true');
+sql select count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 'true');
 
 print select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e1');
-sql_error select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e1');
+sql select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '1e1');
 
 sql select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, 1e1);
 if $rows != 9 then
@@ -383,7 +383,7 @@ if $data01 != 1 then
   return -1
 endi
 
-sql_error select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '10');
+sql select _wstart, count(*) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, '10');
 
 ## linear fill
 # feature currently switched off 2018/09/29
@@ -795,9 +795,31 @@ if $data81 != 4 then
 endi
 
 # desc fill query
-print desc fill query
-sql select count(*) from m_fl_tb0 where ts>='2018-9-17 9:0:0' and ts<='2018-9-17 9:11:00' interval(1m) fill(value,10);
+print asc fill query
+sql select _wstart,count(*) from m_fl_tb0 where ts>='2018-9-17 9:0:0' and ts<='2018-9-17 9:11:00' interval(1m) fill(value,10) order by _wstart asc;
 if $rows != 12 then
+  return -1
+endi
+
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+print desc fill query
+sql select _wstart,count(*) from m_fl_tb0 where ts>='2018-9-17 9:0:0' and ts<='2018-9-17 9:11:00' interval(1m) fill(value,10) order by _wstart desc;
+if $rows != 12 then
+  return -1
+endi
+
+if $data00 != @18-09-17 09:11:00.000@ then
+  return -1
+endi
+
+if $data01 != 10 then
   return -1
 endi
 
@@ -1026,5 +1048,99 @@ print =============== clear
 #if $rows != 0 then
 #  return -1
 #endi
+
+
+print ============== fill
+
+sql drop database if exists test;
+sql create database test  vgroups 4;
+sql use test;
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql insert into t1 values(1648712211000,1,2,3);
+sql insert into t1 values(1648712225000,2,2,3);
+sql insert into t2 values(1648712212000,1,2,3);
+sql insert into t2 values(1648712226000,2,2,3);
+
+$loop_count = 0
+
+loop0:
+sleep 200
+
+sql select count(*) from(select count(a)  from  st where ts >= 1648712201000 and ts <= 1648732226000 partition by tbname interval(1s) fill(value, -1));
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+if $data00 != 40052 then
+  print =====data00=$data00
+  goto loop0
+endi
+
+sql select _wstart, count(a)  from  st where ts >= 1648712201000 and ts <= 1648732226000 partition by tbname interval(1s) fill(prev);
+
+if $rows != 40052 then
+  print =====rows=$rows
+  return -1
+endi
+
+sql select _wstart, count(a)  from  st where ts >= 1648712201000 and ts <= 1648732226000 partition by tbname interval(1s) fill(next);
+
+if $rows != 40052 then
+  print =====rows=$rows
+  return -1
+endi
+
+sql select _wstart, count(a)  from  st where ts >= 1648712201000 and ts <= 1648732226000 partition by tbname interval(1s) fill(linear);
+
+if $rows != 40052 then
+  print =====rows=$rows
+  return -1
+endi
+
+sql select _wstart, count(a)  from  st where ts >= 1648712201000 and ts <= 1648732226000 partition by tbname interval(1s) fill(NULL);
+
+if $rows != 40052 then
+  print =====rows=$rows
+  return -1
+endi
+
+sql select _wstart, count(a)  from  t1 where ts >= 1648712201000 and ts <= 1648732226000 partition by tbname interval(1s) fill(value, -1);
+
+if $rows != 20026 then
+  print =====rows=$rows
+  return -1
+endi
+
+sql select _wstart, count(a)  from  t1 where ts >= 1648712201000 and ts <= 1648732226000 partition by tbname interval(1s) fill(NULL);
+
+if $rows != 20026 then
+  print =====rows=$rows
+  return -1
+endi
+
+sql select _wstart, count(a)  from  t1 where ts >= 1648712201000 and ts <= 1648732226000 partition by tbname interval(1s) fill(prev);
+
+if $rows != 20026 then
+  print =====rows=$rows
+  return -1
+endi
+
+sql select _wstart, count(a)  from  t1 where ts >= 1648712201000 and ts <= 1648732226000 partition by tbname interval(1s) fill(next);
+
+if $rows != 20026 then
+  print =====rows=$rows
+  return -1
+endi
+
+sql select _wstart, count(a)  from  t1 where ts >= 1648712201000 and ts <= 1648732226000 partition by tbname interval(1s) fill(linear);
+
+if $rows != 20026 then
+  print =====rows=$rows
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

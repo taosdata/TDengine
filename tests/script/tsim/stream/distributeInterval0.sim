@@ -33,7 +33,8 @@ if $data(2)[4] != ready then
 endi
 
 print ===== step2
-
+sql drop stream if exists stream_t1;
+sql drop database if exists test;
 sql create database test  vgroups 4;
 sql use test;
 sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);

@@ -4,7 +4,8 @@ from util.cases import *
 from util.gettime import *
 class TDTestCase:
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         self.get_time = GetTime()
@@ -16,6 +17,7 @@ class TDTestCase:
             '2020-5-1 00:00:00.001002001'
 
         ]
+        self.rest_tag = str(conn).lower().split('.')[0].replace("<taos","")
         self.db_param_precision = ['ms','us','ns']
         self.time_unit = ['1w','1d','1h','1m','1s','1a','1u','1b']
         self.error_unit = ['2w','2d','2h','2m','2s','2a','2u','1c','#1']
@@ -101,33 +103,34 @@ class TDTestCase:
                 for i in range(len(self.ts_str)):
                     tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i])-self.subtractor*1000000)))
             elif precision.lower() == 'ns':
-                self.check_tb_type(unit,tb_type)
-                tdSql.checkRows(len(self.ts_str))
-                if unit.lower() == '1w':
+                if self.rest_tag != 'rest':
+                    self.check_tb_type(unit,tb_type)
+                    tdSql.checkRows(len(self.ts_str))
+                    if unit.lower() == '1w':
+                        for i in range(len(self.ts_str)):
+                            tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)/60/60/24/7))
+                    elif unit.lower() == '1d':
+                        for i in range(len(self.ts_str)):
+                            tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)/60/60/24))
+                    elif unit.lower() == '1h':
+                        for i in range(len(self.ts_str)):
+                            tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)/60/60))
+                    elif unit.lower() == '1m':
+                        for i in range(len(self.ts_str)):
+                            tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)/60))
+                    elif unit.lower() == '1s':
+                        for i in range(len(self.ts_str)):
+                            tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)))
+                    elif unit.lower() == '1a':
+                        for i in range(len(self.ts_str)):
+                            tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000)-self.subtractor*1000)))
+                    elif unit.lower() == '1u':
+                        for i in range(len(self.ts_str)):
+                            tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor*1000000)))
+                    self.check_tbtype(tb_type)
+                    tdSql.checkRows(len(self.ts_str))
                     for i in range(len(self.ts_str)):
-                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)/60/60/24/7))
-                elif unit.lower() == '1d':
-                    for i in range(len(self.ts_str)):
-                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)/60/60/24))
-                elif unit.lower() == '1h':
-                    for i in range(len(self.ts_str)):
-                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)/60/60))
-                elif unit.lower() == '1m':
-                    for i in range(len(self.ts_str)):
-                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)/60))
-                elif unit.lower() == '1s':
-                    for i in range(len(self.ts_str)):
-                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000000)-self.subtractor)))
-                elif unit.lower() == '1a':
-                    for i in range(len(self.ts_str)):
-                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000000)-self.subtractor*1000)))
-                elif unit.lower() == '1u':
-                    for i in range(len(self.ts_str)):
-                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i]/1000)-self.subtractor*1000000)))
-                self.check_tbtype(tb_type)
-                tdSql.checkRows(len(self.ts_str))
-                for i in range(len(self.ts_str)):
-                    tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i])-self.subtractor*1000000000)))
+                        tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i])-self.subtractor*1000000000)))
             for unit in self.error_unit:
                 if tb_type.lower() == 'ntb':
                     tdSql.error(f'select timediff(ts,{self.subtractor},{unit}) from {self.ntbname}')
@@ -162,10 +165,35 @@ class TDTestCase:
             date_time = self.get_time.time_transform(self.ts_str,precision)
             self.data_check(date_time,precision,'ctb')
             self.data_check(date_time,precision,'stb')
-    def run(self):  # sourcery skip: extract-duplicate-method
+    def function_without_param(self):
+        for precision in self.db_param_precision:
+            tdSql.execute(f'drop database if exists {self.dbname}')
+            tdSql.execute(f'create database {self.dbname} precision "{precision}"')
+            tdSql.execute(f'use {self.dbname}')
+            tdSql.execute(f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int)')
+            tdSql.execute(f'create table {self.ctbname} using {self.stbname} tags(1)')
+            for ts in self.ts_str:
+                tdSql.execute(f'insert into {self.ctbname} values("{ts}",1)')
+            date_time = self.get_time.time_transform(self.ts_str,precision)
+            tdSql.query(f'select timediff(ts,{self.subtractor}) from {self.ctbname}')
+            if precision.lower() == 'ms':
+                for i in range(len(self.ts_str)):
+                    tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i])-self.subtractor*1000)))
+            elif precision.lower() == 'us':
+                for i in range(len(self.ts_str)):
+                    tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i])-self.subtractor*1000000)))
+            elif precision.lower() == 'ns':
+                for i in range(len(self.ts_str)):
+                    tdSql.checkEqual(tdSql.queryResult[i][0],int(((date_time[i])-self.subtractor*1000000000)))
+                    
 
+
+
+
+    def run(self):  # sourcery skip: extract-duplicate-method
         self.function_check_ntb()
         self.function_check_stb()
+        self.function_without_param()
         
     def stop(self):
         tdSql.close()

@@ -29,7 +29,7 @@ typedef void (*_hash_before_fn_t)(void *);
 typedef void (*_hash_free_fn_t)(void *);
 
 #define HASH_KEY_ALREADY_EXISTS (-2)
-#define HASH_NODE_EXIST(code) (code == HASH_KEY_ALREADY_EXISTS)
+#define HASH_NODE_EXIST(code)   (code == HASH_KEY_ALREADY_EXISTS)
 
 /**
  * murmur hash algorithm
@@ -50,7 +50,10 @@ uint64_t MurmurHash3_64(const char *key, uint32_t len);
 uint32_t taosIntHash_32(const char *key, uint32_t len);
 uint32_t taosIntHash_64(const char *key, uint32_t len);
 
-_hash_fn_t taosGetDefaultHashFunction(int32_t type);
+uint32_t taosFastHash(const char *key, uint32_t len);
+uint32_t taosDJB2Hash(const char *key, uint32_t len);
+
+_hash_fn_t  taosGetDefaultHashFunction(int32_t type);
 _equal_fn_t taosGetDefaultEqualFunction(int32_t type);
 
 typedef enum SHashLockTypeE {
@@ -59,7 +62,7 @@ typedef enum SHashLockTypeE {
 } SHashLockTypeE;
 
 typedef struct SHashNode SHashNode;
-typedef struct SHashObj SHashObj;
+typedef struct SHashObj  SHashObj;
 
 /**
  * init the hash table
@@ -118,7 +121,7 @@ int32_t taosHashGetDup(SHashObj *pHashObj, const void *key, size_t keyLen, void 
  * @param size
  * @return
  */
-int32_t taosHashGetDup_m(SHashObj* pHashObj, const void* key, size_t keyLen, void** destBuf, int32_t* size);
+int32_t taosHashGetDup_m(SHashObj *pHashObj, const void *key, size_t keyLen, void **destBuf, int32_t *size);
 
 /**
  * remove item with the specified key
@@ -169,13 +172,13 @@ void *taosHashIterate(SHashObj *pHashObj, void *p);
  */
 void taosHashCancelIterate(SHashObj *pHashObj, void *p);
 
- /**
-  * Get the corresponding key information for a given data in hash table
-  * @param data
-  * @param keyLen
-  * @return
-  */
-void *taosHashGetKey(void *data, size_t* keyLen);
+/**
+ * Get the corresponding key information for a given data in hash table
+ * @param data
+ * @param keyLen
+ * @return
+ */
+void *taosHashGetKey(void *data, size_t *keyLen);
 
 /**
  * return the payload data with the specified key(reference number added)

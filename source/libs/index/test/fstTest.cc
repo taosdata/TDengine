@@ -599,7 +599,7 @@ void validateTFile(char* arg) {
   std::thread threads[NUM_OF_THREAD];
   // std::vector<std::thread> threads;
   SIndex* index = (SIndex*)taosMemoryCalloc(1, sizeof(SIndex));
-  index->path = strdup(arg);
+  index->path = taosStrdup(arg);
   TFileReader* reader = tfileReaderOpen(index, 0, 20000000, "tag1");
 
   for (int i = 0; i < NUM_OF_THREAD; i++) {

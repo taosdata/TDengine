@@ -17,18 +17,18 @@
 #define TDENGINE_QSCRIPT_H
 
 #if 0
-#include <lua.h>
 #include <lauxlib.h>
+#include <lua.h>
 #include <lualib.h>
 
-#include "tutil.h"
 #include "hash.h"
 #include "tlist.h"
 #include "tudf.h"
+#include "tutil.h"
 
 #define MAX_FUNC_NAME 64
 
-#define USER_FUNC_NAME "funcName" 
+#define USER_FUNC_NAME       "funcName"
 #define USER_FUNC_NAME_LIMIT 48
 
 enum ScriptState {
@@ -81,4 +81,4 @@ void    scriptEnvPoolCleanup();
 bool    isValidScript(char *script, int32_t len);
 #endif
 
-#endif //TDENGINE_QSCRIPT_H 
+#endif  // TDENGINE_QSCRIPT_H

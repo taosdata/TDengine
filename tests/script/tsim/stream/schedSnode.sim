@@ -6,10 +6,14 @@ system sh/exec.sh -n dnode1 -s start
 sleep 50
 sql connect
 
+sleep 50
+
+
+sql create database test  vgroups 2;
+sql create database target vgroups 1;
+
 sql create snode on dnode 1
 
-sql create database test  vgroups 1;
-sql create database target vgroups 1;
 sql use test;
 sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);
 sql create table ts1 using st tags(1,1,1);
@@ -72,23 +76,23 @@ if $data01 != 8 then
   goto loop1
 endi
 
-if $data02 != 4 then
+if $data02 != 6 then
   print =====data02=$data02
   goto loop1
 endi
 
-if $data03 != 4 then
-  print ======$data03
+if $data03 != 52 then
+  print ======data03=$data03
   goto loop1
 endi
 
 if $data04 != 52 then
-  print ======$data04
+  print ======data04=$data04
   goto loop1
 endi
 
 if $data05 != 13 then
-  print ======$data05
+  print ======data05=$data05
   goto loop1
 endi
 
@@ -104,17 +108,17 @@ if $data12 != 6 then
 endi
 
 if $data13 != 92 then
-  print ======$data13
+  print ======data13=$data13
   return -1
 endi
 
 if $data14 != 22 then
-  print ======$data14
+  print ======data14=$data14
   return -1
 endi
 
 if $data15 != 3 then
-  print ======$data15
+  print ======data15=$data15
   return -1
 endi
 
@@ -130,17 +134,17 @@ if $data22 != 4 then
 endi
 
 if $data23 != 32 then
-  print ======$data23
+  print ======data23=$data23
   return -1
 endi
 
 if $data24 != 12 then
-  print ======$data24
+  print ======data24=$data24
   return -1
 endi
 
 if $data25 != 3 then
-  print ======$data25
+  print ======data25=$data25
   return -1
 endi
 
@@ -156,17 +160,17 @@ if $data32 != 30 then
 endi
 
 if $data33 != 180 then
-  print ======$data33
+  print ======data33=$data33
   return -1
 endi
 
 if $data34 != 42 then
-  print ======$data34
+  print ======data34=$data34
   return -1
 endi
 
 if $data35 != 3 then
-  print ======$data35
+  print ======data35=$data35
   return -1
 endi
 

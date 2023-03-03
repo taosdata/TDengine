@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "mndSnode.h"
-#include "mndPrivilege.h"
 #include "mndDnode.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -105,6 +105,8 @@ _OVER:
 
 static SSdbRow *mndSnodeActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SSdbRow   *pRow = NULL;
+  SSnodeObj *pObj = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -114,10 +116,10 @@ static SSdbRow *mndSnodeActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SSnodeObj));
+  pRow = sdbAllocRow(sizeof(SSnodeObj));
   if (pRow == NULL) goto _OVER;
 
-  SSnodeObj *pObj = sdbGetRowObj(pRow);
+  pObj = sdbGetRowObj(pRow);
   if (pObj == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -130,7 +132,7 @@ static SSdbRow *mndSnodeActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("snode:%d, failed to decode from raw:%p since %s", pObj->id, pRaw, terrstr());
+    mError("snode:%d, failed to decode from raw:%p since %s", pObj == NULL ? 0 : pObj->id, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -195,20 +197,20 @@ static int32_t mndSetCreateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   SDCreateSnodeReq createReq = {0};
   createReq.dnodeId = pDnode->id;
 
-  int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
+  int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
   void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
+  tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_CREATE_SNODE;
-  action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_SNODE_ALREADY_DEPLOYED;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
@@ -222,20 +224,20 @@ static int32_t mndSetCreateSnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   SDDropSnodeReq dropReq = {0};
   dropReq.dnodeId = pDnode->id;
 
-  int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
+  int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &dropReq);
   void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
+  tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_SNODE;
-  action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_SNODE_NOT_DEPLOYED;
 
   if (mndTransAppendUndoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
@@ -256,7 +258,7 @@ static int32_t mndCreateSnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-snode");
   if (pTrans == NULL) goto _OVER;
 
-  mDebug("trans:%d, used to create snode:%d", pTrans->id, pCreate->dnodeId);
+  mInfo("trans:%d, used to create snode:%d", pTrans->id, pCreate->dnodeId);
 
   if (mndSetCreateSnodeRedoLogs(pTrans, &snodeObj) != 0) goto _OVER;
   if (mndSetCreateSnodeUndoLogs(pTrans, &snodeObj) != 0) goto _OVER;
@@ -273,21 +275,18 @@ _OVER:
 }
 
 static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
-#if 1
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#else
   SMnode          *pMnode = pReq->info.node;
   int32_t          code = -1;
   SSnodeObj       *pObj = NULL;
   SDnodeObj       *pDnode = NULL;
   SMCreateSnodeReq createReq = {0};
 
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+  if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
-  mDebug("snode:%d, start to create", createReq.dnodeId);
+  mInfo("snode:%d, start to create", createReq.dnodeId);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_SNODE) != 0) {
     goto _OVER;
   }
@@ -318,7 +317,6 @@ _OVER:
   mndReleaseSnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
   return code;
-#endif
 }
 
 static int32_t mndSetDropSnodeRedoLogs(STrans *pTrans, SSnodeObj *pObj) {
@@ -341,20 +339,20 @@ static int32_t mndSetDropSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSn
   SDDropSnodeReq dropReq = {0};
   dropReq.dnodeId = pDnode->id;
 
-  int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
+  int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &dropReq);
   void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
+  tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_SNODE;
-  action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_SNODE_NOT_DEPLOYED;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
@@ -364,11 +362,13 @@ static int32_t mndSetDropSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSn
   return 0;
 }
 
-int32_t mndSetDropSnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SSnodeObj *pObj) {
+int32_t mndSetDropSnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SSnodeObj *pObj, bool force) {
   if (pObj == NULL) return 0;
   if (mndSetDropSnodeRedoLogs(pTrans, pObj) != 0) return -1;
   if (mndSetDropSnodeCommitLogs(pTrans, pObj) != 0) return -1;
-  if (mndSetDropSnodeRedoActions(pTrans, pObj->pDnode, pObj) != 0) return -1;
+  if (!force) {
+    if (mndSetDropSnodeRedoActions(pTrans, pObj->pDnode, pObj) != 0) return -1;
+  }
   return 0;
 }
 
@@ -378,8 +378,8 @@ static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-snode");
   if (pTrans == NULL) goto _OVER;
 
-  mDebug("trans:%d, used to drop snode:%d", pTrans->id, pObj->id);
-  if (mndSetDropSnodeInfoToTrans(pMnode, pTrans, pObj) != 0) goto _OVER;
+  mInfo("trans:%d, used to drop snode:%d", pTrans->id, pObj->id);
+  if (mndSetDropSnodeInfoToTrans(pMnode, pTrans, pObj, false) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
@@ -390,20 +390,17 @@ _OVER:
 }
 
 static int32_t mndProcessDropSnodeReq(SRpcMsg *pReq) {
-#if 1
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#else
-  SMnode *pMnode = pReq->info.node;
-  int32_t code = -1;
-  SSnodeObj *pObj = NULL;
+  SMnode        *pMnode = pReq->info.node;
+  int32_t        code = -1;
+  SSnodeObj     *pObj = NULL;
   SMDropSnodeReq dropReq = {0};
 
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
-  mDebug("snode:%d, start to drop", dropReq.dnodeId);
+  mInfo("snode:%d, start to drop", dropReq.dnodeId);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_SNODE) != 0) {
     goto _OVER;
   }
@@ -429,7 +426,6 @@ _OVER:
 
   mndReleaseSnode(pMnode, pObj);
   return code;
-#endif
 }
 
 static int32_t mndRetrieveSnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
@@ -445,16 +441,16 @@ static int32_t mndRetrieveSnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->id, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char ep[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(ep, pObj->pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)ep, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)ep, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);

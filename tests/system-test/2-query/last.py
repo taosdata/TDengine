@@ -8,7 +8,8 @@ import numpy as np
 
 
 class TDTestCase:
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
 
@@ -17,6 +18,14 @@ class TDTestCase:
         self.ts = 1537146000000
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
+        self.cachemodel = None
+
+    def generateString(self, length):
+        chars = string.ascii_uppercase + string.ascii_lowercase
+        v = ""
+        for i in range(length):
+            v += random.choice(chars)
+        return v
 
     def set_create_normaltable_sql(self, ntbname, column_dict):
         column_sql = ''
@@ -36,7 +45,8 @@ class TDTestCase:
         return create_stb_sql
 
     def last_check_stb_tb_base(self):
-        tdSql.prepare()
+        tdSql.execute(
+            f'create database if not exists db cachemodel "{self.cachemodel}"')
         stbname = f'db.{tdCom.getLongName(5, "letters")}'
         column_dict = {
             'col1': 'tinyint',
@@ -112,7 +122,8 @@ class TDTestCase:
         tdSql.execute('drop database db')
 
     def last_check_ntb_base(self):
-        tdSql.prepare()
+        tdSql.execute(
+            f'create database if not exists db cachemodel "{self.cachemodel}"')
         ntbname = f'db.{tdCom.getLongName(5, "letters")}'
         column_dict = {
             'col1': 'tinyint',
@@ -165,6 +176,8 @@ class TDTestCase:
                 # nchar
                 elif 'nchar' in v.lower():
                     tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
+        
+        
 
         tdSql.error(
             f"select {list(column_dict.keys())[0]} from {ntbname} where last({list(column_dict.keys())[9]})='涛思数据10'")
@@ -191,7 +204,7 @@ class TDTestCase:
         }
 
         tdSql.execute(
-            f"create database if not exists {dbname} vgroups {vgroup_num}")
+            f'create database if not exists {dbname} vgroups {vgroup_num}  cachemodel "{self.cachemodel}"')
         tdSql.execute(f'use {dbname}')
 
         # build 20 child tables,every table insert 10 rows
@@ -243,10 +256,45 @@ class TDTestCase:
                     tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
         tdSql.execute(f'drop database {dbname}')
 
+    def last_file_check(self):
+        dbname = tdCom.getLongName(10, "letters")
+        stbname = f'{dbname}.{tdCom.getLongName(5, "letters")}'
+        vgroup_num = 10
+        buffer_size = 3
+        tables = 100
+        rows = 50
+        str = self.generateString(1024)
+        column_dict = {
+            'c1': 'int',
+            'c2': 'binary(1024)',
+            'c3': 'nchar(1024)'
+        }
+        tag_dict = {
+            't1':'int'
+        }                
+        
+        tdSql.execute(
+            f"create database if not exists {dbname} vgroups {vgroup_num} buffer {buffer_size}")
+        tdSql.execute(f'use {dbname}')
+
+        create_ntb_sql = self.set_create_stable_sql(stbname, column_dict, tag_dict)
+        tdSql.execute(create_ntb_sql)
+
+        for i in range(tables):
+            sql = f"create table {dbname}.sub_tb{i} using {stbname} tags({i})"
+            tdSql.execute(sql)
+            for j in range(rows):
+                tdSql.execute(f"insert into {dbname}.sub_tb{i} values(%d, %d, '%s', '%s')" % (self.ts + j, i, str, str))
+                
+        tdSql.query(f"select * from {stbname}")
+        tdSql.checkRows(tables * rows)
+
+
     def run(self):
         self.last_check_stb_tb_base()
         self.last_check_ntb_base()
         self.last_check_stb_distribute()
+        self.last_file_check()
 
     def stop(self):
         tdSql.close()

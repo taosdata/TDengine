@@ -15,7 +15,8 @@
 
 #define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
-#include "os.h"
+#include <stdlib.h>
+#include "talgo.h"
 
 #ifdef WINDOWS
 void swapStr(char* j, char* J, int width) {
@@ -31,18 +32,17 @@ void swapStr(char* j, char* J, int width) {
 }
 #endif
 
+int32_t qsortHelper(const void* p1, const void* p2, const void* param) {
+  __compar_fn_t comparFn = param;
+  return comparFn(p1, p2);
+}
+
 // todo refactor: 1) move away; 2) use merge sort instead; 3) qsort is not a stable sort actually.
-void taosSort(void* arr, int64_t sz, int64_t width, __compar_fn_t compar) {
-#ifdef WINDOWS
-  int64_t i, j;
-  for (i = 0; i < sz - 1; i++) {
-    for (j = 0; j < sz - 1 - i; j++) {
-      if (compar((char*)arr + j * width, (char*)arr + (j + 1) * width) > 0.00) {
-        swapStr((char*)arr + j * width, (char*)arr + (j + 1) * width, width);
-      }
-    }
-  }
+void taosSort(void* base, int64_t sz, int64_t width, __compar_fn_t compar) {
+#ifdef _ALPINE
+  void* param = compar;
+  taosqsort(base, sz, width, param, qsortHelper);
 #else
-  qsort(arr, sz, width, compar);
+  qsort(base, sz, width, compar);
 #endif
 }

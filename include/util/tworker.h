@@ -17,6 +17,7 @@
 #define _TD_UTIL_WORKER_H_
 
 #include "tqueue.h"
+#include "tarray.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,11 +26,12 @@ extern "C" {
 typedef struct SQWorkerPool SQWorkerPool;
 typedef struct SWWorkerPool SWWorkerPool;
 
-typedef struct SQWorker {
-  int32_t       id;      // worker ID
-  TdThread      thread;  // thread
-  SQWorkerPool *pool;
-} SQWorker;
+typedef struct SQueueWorker {
+  int32_t  id;      // worker id
+  int64_t  pid;     // thread pid
+  TdThread thread;  // thread id
+  void    *pool;
+} SQueueWorker;
 
 typedef struct SQWorkerPool {
   int32_t       max;  // max number of workers
@@ -37,15 +39,24 @@ typedef struct SQWorkerPool {
   int32_t       num;  // current number of workers
   STaosQset    *qset;
   const char   *name;
-  SQWorker     *workers;
+  SQueueWorker *workers;
   TdThreadMutex mutex;
 } SQWorkerPool;
 
+typedef struct SAutoQWorkerPool {
+  float         ratio;
+  STaosQset    *qset;
+  const char   *name;
+  SArray       *workers;
+  TdThreadMutex mutex;
+} SAutoQWorkerPool;
+
 typedef struct SWWorker {
   int32_t       id;      // worker id
-  TdThread      thread;  // thread
+  int64_t       pid;     // thread pid
+  TdThread      thread;  // thread id
   STaosQall    *qall;
-  STaosQset    *qset;  // queue set
+  STaosQset    *qset;
   SWWorkerPool *pool;
 } SWWorker;
 
@@ -62,6 +73,11 @@ int32_t     tQWorkerInit(SQWorkerPool *pool);
 void        tQWorkerCleanup(SQWorkerPool *pool);
 STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp);
 void        tQWorkerFreeQueue(SQWorkerPool *pool, STaosQueue *queue);
+
+int32_t     tAutoQWorkerInit(SAutoQWorkerPool *pool);
+void        tAutoQWorkerCleanup(SAutoQWorkerPool *pool);
+STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem fp);
+void        tAutoQWorkerFreeQueue(SAutoQWorkerPool *pool, STaosQueue *queue);
 
 int32_t     tWWorkerInit(SWWorkerPool *pool);
 void        tWWorkerCleanup(SWWorkerPool *pool);

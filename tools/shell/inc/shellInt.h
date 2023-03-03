@@ -80,12 +80,13 @@ typedef struct {
 } SShellArgs;
 
 typedef struct {
-  const char* clientVersion;
-  const char* promptHeader;
+  const char *clientVersion;
+  char cusName[32];
+  char promptHeader[32];
   const char* promptContinue;
   const char* osname;
   int32_t     promptSize;
-  char        programVersion[32];
+  char        programVersion[256];
 } SShellOsDetails;
 
 typedef struct {
@@ -101,6 +102,16 @@ typedef struct {
   bool		      stop_query;
 #endif
 } SShellObj;
+
+typedef struct {
+  char    *buffer;
+  char    *command;
+  uint32_t commandSize;
+  uint32_t bufferSize;
+  uint32_t cursorOffset;
+  uint32_t screenOffset;
+  uint32_t endOffset;
+} SShellCmd;
 
 // shellArguments.c
 int32_t shellParseArgs(int32_t argc, char* argv[]);
@@ -137,5 +148,6 @@ void shellRunSingleCommandWebsocketImp(char *command);
 
 // shellMain.c
 extern SShellObj shell;
+extern void tscWriteCrashInfo(int signum, void *sigInfo, void *context);
 
 #endif /*_TD_SHELL_INT_H_*/

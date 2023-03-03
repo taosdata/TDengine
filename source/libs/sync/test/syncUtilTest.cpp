@@ -1,9 +1,4 @@
-#include "syncUtil.h"
-//#include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftStore.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");

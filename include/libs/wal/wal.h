@@ -66,6 +66,7 @@ typedef struct {
   int64_t commitVer;
   int64_t appliedVer;
   int64_t lastVer;
+  int64_t logRetention;
 } SWalVer;
 
 #pragma pack(push, 1)
@@ -107,6 +108,8 @@ typedef struct SWal {
   TdFilePtr pIdxFile;
   int32_t   writeCur;
   SArray   *fileInfoSet;  // SArray<SWalFileInfo>
+  // gc
+  SArray *toDeleteFiles;  // SArray<SWalFileInfo>
   // status
   int64_t totSize;
   int64_t lastRollSeq;
@@ -124,7 +127,7 @@ typedef struct SWal {
 typedef struct {
   int64_t refId;
   int64_t refVer;
-  int64_t refFile;
+//  int64_t refFile;
   SWal   *pWal;
 } SWalRef;
 
@@ -158,6 +161,7 @@ void    walCleanUp();
 // handle open and ctl
 SWal   *walOpen(const char *path, SWalCfg *pCfg);
 int32_t walAlter(SWal *, SWalCfg *pCfg);
+int32_t walPersist(SWal *);
 void    walClose(SWal *);
 
 // write interfaces
@@ -169,7 +173,7 @@ int32_t walWriteWithSyncInfo(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo
 
 // Assign version automatically and return to caller,
 // -1 will be returned for failed writes
-int64_t walAppendLog(SWal *, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen);
+int64_t walAppendLog(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen);
 
 void walFsync(SWal *, bool force);
 
@@ -177,7 +181,7 @@ void walFsync(SWal *, bool force);
 int32_t walCommit(SWal *, int64_t ver);
 int32_t walRollback(SWal *, int64_t ver);
 // notify that previous logs can be pruned safely
-int32_t walBeginSnapshot(SWal *, int64_t ver);
+int32_t walBeginSnapshot(SWal *, int64_t ver, int64_t logRetention);
 int32_t walEndSnapshot(SWal *);
 int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
 // for tq
@@ -188,6 +192,7 @@ int32_t walApplyVer(SWal *, int64_t ver);
 // read
 SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond);
 void        walCloseReader(SWalReader *pRead);
+void        walReadReset(SWalReader *pReader);
 int32_t     walReadVer(SWalReader *pRead, int64_t ver);
 int32_t     walReadSeekVer(SWalReader *pRead, int64_t ver);
 int32_t     walNextValidMsg(SWalReader *pRead);
@@ -198,12 +203,12 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead);
 int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead);
 int32_t walSkipFetchBody(SWalReader *pRead, const SWalCkHead *pHead);
 
+SWalRef *walRefFirstVer(SWal *, SWalRef *);
 SWalRef *walRefCommittedVer(SWal *);
 
 SWalRef *walOpenRef(SWal *);
 void     walCloseRef(SWal *pWal, int64_t refId);
 int32_t  walRefVer(SWalRef *, int64_t ver);
-int32_t  walPreRefVer(SWalRef *pRef, int64_t ver);
 void     walUnrefVer(SWalRef *);
 
 // helper function for raft

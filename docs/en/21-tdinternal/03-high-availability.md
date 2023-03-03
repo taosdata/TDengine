@@ -1,6 +1,7 @@
 ---
-sidebar_label: High Availability
 title: High Availability
+sidebar_label: High Availability
+description: This document describes how TDengine implements high availability.
 ---
 
 ## High Availability of Vnode

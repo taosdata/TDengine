@@ -10,7 +10,8 @@ import pandas as pd
 
 class TDTestCase:
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         self.today_date = datetime.datetime.strptime(datetime.datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d")
@@ -43,7 +44,13 @@ class TDTestCase:
                         f'today(),3,3.333,333.333333,now()',
                         f'today()-1d,10,11.11,99.999999,now()',
                         f'today()+1d,1,1.55,100.555555,today()']
-        self.db_percision = ['ms','us','ns']
+        
+        self.rest_tag = str(conn).lower().split('.')[0].replace("<taos","")
+        if self.rest_tag != 'rest':
+            self.db_percision = ['ms','us','ns']
+        else:
+            self.db_percision = ['ms','us']
+            
     def set_create_normaltable_sql(self, ntbname, column_dict):
         column_sql = ''
         for k, v in column_dict.items():

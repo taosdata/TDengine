@@ -95,9 +95,13 @@ TEST_F(PlanOptimizeTest, eliminateProjection) {
   useDb("root", "test");
 
   run("SELECT c1, sum(c3) FROM t1 GROUP BY c1");
+
   run("SELECT c1 FROM t1");
+
   run("SELECT * FROM st1");
+
   run("SELECT c1 FROM st1s3");
+
   // run("select 1-abs(c1) from (select unique(c1) c1 from st1s3) order by 1 nulls first");
 }
 
@@ -109,7 +113,26 @@ TEST_F(PlanOptimizeTest, mergeProjects) {
 
 TEST_F(PlanOptimizeTest, pushDownProjectCond) {
   useDb("root", "test");
+
   run("select 1-abs(c1) from (select unique(c1) c1 from st1s3) where 1-c1>5 order by 1 nulls first");
+}
+
+TEST_F(PlanOptimizeTest, LastRowScan) {
+  useDb("root", "cache_db");
+
+  run("SELECT LAST_ROW(c1), c2 FROM t1");
+
+  run("SELECT LAST_ROW(c1), c2, tag1, tbname FROM st1");
+
+  run("SELECT LAST_ROW(c1) FROM st1 PARTITION BY TBNAME");
+
+  run("SELECT LAST_ROW(c1), SUM(c3) FROM t1");
+
+  run("SELECT LAST_ROW(tag1) FROM st1");
+
+  run("SELECT LAST(c1) FROM st1");
+
+  run("SELECT LAST(c1), c2 FROM st1");
 }
 
 TEST_F(PlanOptimizeTest, tagScan) {
@@ -117,4 +140,14 @@ TEST_F(PlanOptimizeTest, tagScan) {
   run("select tag1 from st1 group by tag1");
   run("select distinct tag1 from st1");
   run("select tag1*tag1 from st1 group by tag1*tag1");
+}
+
+TEST_F(PlanOptimizeTest, pushDownLimit) {
+  useDb("root", "test");
+
+  run("SELECT c1 FROM t1 LIMIT 1");
+
+  run("SELECT c1 FROM st1 LIMIT 1");
+
+  run("SELECT c1 FROM st1 LIMIT 20 OFFSET 10");
 }

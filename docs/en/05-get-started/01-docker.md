@@ -1,17 +1,30 @@
 ---
-sidebar_label: Docker
 title: Quick Install on Docker
+sidebar_label: Docker
+description: This document describes how to install TDengine in a Docker container and perform queries and inserts.
 ---
 
 This document describes how to install TDengine in a Docker container and perform queries and inserts.
 
+- The easiest way to explore TDengine is through [TDengine Cloud](http://cloud.tdengine.com).
 - To get started with TDengine in a non-containerized environment, see [Quick Install from Package](../../get-started/package).
-- For a fully managed solution, see the [TDengine Cloud documentation](/cloud/).
 - If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
 
 ## Run TDengine
 
-If Docker is already installed on your computer, run the following command:
+If Docker is already installed on your computer, pull the latest TDengine Docker container image:
+
+```shell
+docker pull tdengine/tdengine:latest
+```
+
+Or the container image of specific version:
+
+```shell
+docker pull tdengine/tdengine:3.0.1.4
+```
+
+And then run the following command:
 
 ```shell
 docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
@@ -50,7 +63,7 @@ taos>
 
 After your TDengine Server is running normally, you can run the taosBenchmark utility to test its performance:
 
-Start TDengine service and execute `taosBenchmark` (formerly named `taosdemo`) in a Linux or Windows terminal.
+Start TDengine service and execute `taosBenchmark` (formerly named `taosdemo`) in a terminal.
 
 ```bash
 taosBenchmark

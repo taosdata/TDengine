@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "filter.h"
 #include "executorimpl.h"
 #include "function.h"
 #include "os.h"
@@ -23,21 +24,57 @@
 #include "tmsg.h"
 #include "ttypes.h"
 
+typedef struct SJoinRowCtx {
+  bool    rowRemains;
+  int64_t ts;
+  SArray* leftRowLocations;
+  SArray* rightRowLocations;
+  SArray* leftCreatedBlocks;
+  SArray* rightCreatedBlocks;
+  int32_t leftRowIdx;
+  int32_t rightRowIdx;
+} SJoinRowCtx;
+
+typedef struct SJoinOperatorInfo {
+  SSDataBlock* pRes;
+  int32_t      joinType;
+  int32_t      inputOrder;
+
+  SSDataBlock* pLeft;
+  int32_t      leftPos;
+  SColumnInfo  leftCol;
+
+  SSDataBlock* pRight;
+  int32_t      rightPos;
+  SColumnInfo  rightCol;
+  SNode*       pCondAfterMerge;
+
+  SJoinRowCtx  rowCtx;
+} SJoinOperatorInfo;
+
 static void         setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
 static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator);
 static void         destroyMergeJoinOperator(void* param);
-static void         extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t numOfDownstream,
-                                         SSortMergeJoinPhysiNode* pJoinNode);
+static void         extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t num,
+                                         SSortMergeJoinPhysiNode* pJoinNode, const char* idStr);
 
-static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t numOfDownstream,
-                                 SSortMergeJoinPhysiNode* pJoinNode) {
+static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream,  int32_t num,
+                                 SSortMergeJoinPhysiNode* pJoinNode, const char* idStr) {
   SNode* pMergeCondition = pJoinNode->pMergeCondition;
-  if (nodeType(pMergeCondition) == QUERY_NODE_OPERATOR) {
-    SOperatorNode* pNode = (SOperatorNode*)pMergeCondition;
-    SColumnNode*   col1 = (SColumnNode*)pNode->pLeft;
-    SColumnNode*   col2 = (SColumnNode*)pNode->pRight;
-    SColumnNode*   leftTsCol = NULL;
-    SColumnNode*   rightTsCol = NULL;
+  if (nodeType(pMergeCondition) != QUERY_NODE_OPERATOR) {
+    qError("not support this in join operator, %s", idStr);
+    return;  // do not handle this
+  }
+
+  SOperatorNode* pNode = (SOperatorNode*)pMergeCondition;
+  SColumnNode*   col1 = (SColumnNode*)pNode->pLeft;
+  SColumnNode*   col2 = (SColumnNode*)pNode->pRight;
+  SColumnNode*   leftTsCol = NULL;
+  SColumnNode*   rightTsCol = NULL;
+  if (col1->dataBlockId == col2->dataBlockId) {
+    leftTsCol = col1;
+    rightTsCol = col2;
+  } else {
     if (col1->dataBlockId == pDownstream[0]->resultDataBlockId) {
       ASSERT(col2->dataBlockId == pDownstream[1]->resultDataBlockId);
       leftTsCol = col1;
@@ -48,44 +85,49 @@ static void extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDown
       leftTsCol = col2;
       rightTsCol = col1;
     }
-    setJoinColumnInfo(&pInfo->leftCol, leftTsCol);
-    setJoinColumnInfo(&pInfo->rightCol, rightTsCol);
-  } else {
-    ASSERT(false);
   }
+  setJoinColumnInfo(&pInfo->leftCol, leftTsCol);
+  setJoinColumnInfo(&pInfo->rightCol, rightTsCol);
 }
 
 SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {
   SJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SJoinOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+
+  int32_t code = TSDB_CODE_SUCCESS;
   if (pOperator == NULL || pInfo == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
-  SSDataBlock* pResBlock = createResDataBlock(pJoinNode->node.pOutputDataBlockDesc);
+  int32_t      numOfCols = 0;
+  pInfo->pRes = createDataBlockFromDescNode(pJoinNode->node.pOutputDataBlockDesc);
 
-  int32_t    numOfCols = 0;
-  SExprInfo* pExprInfo = createExprInfo(pJoinNode->pTargets, NULL, &numOfCols);
-
+  SExprInfo*   pExprInfo = createExprInfo(pJoinNode->pTargets, NULL, &numOfCols);
   initResultSizeInfo(&pOperator->resultInfo, 4096);
+  blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 
-  pInfo->pRes = pResBlock;
-  pOperator->name = "MergeJoinOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
+  setOperatorInfo(pOperator, "MergeJoinOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.pExprInfo = pExprInfo;
   pOperator->exprSupp.numOfExprs = numOfCols;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
 
-  extractTimeCondition(pInfo, pDownstream, numOfDownstream, pJoinNode);
+  extractTimeCondition(pInfo, pDownstream, numOfDownstream, pJoinNode, GET_TASKID(pTaskInfo));
 
   if (pJoinNode->pOnConditions != NULL && pJoinNode->node.pConditions != NULL) {
     pInfo->pCondAfterMerge = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+    if (pInfo->pCondAfterMerge == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _error;
+    }
+
     SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(pInfo->pCondAfterMerge);
     pLogicCond->pParameterList = nodesMakeList();
+    if (pLogicCond->pParameterList == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _error;
+    }
+
     nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->pOnConditions));
     nodesListMakeAppend(&pLogicCond->pParameterList, nodesCloneNode(pJoinNode->node.pConditions));
     pLogicCond->condType = LOGIC_COND_TYPE_AND;
@@ -97,6 +139,11 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     pInfo->pCondAfterMerge = NULL;
   }
 
+  code = filterInitFromNode(pInfo->pCondAfterMerge, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   pInfo->inputOrder = TSDB_ORDER_ASC;
   if (pJoinNode->inputTsOrder == ORDER_ASC) {
     pInfo->inputOrder = TSDB_ORDER_ASC;
@@ -104,9 +151,8 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     pInfo->inputOrder = TSDB_ORDER_DESC;
   }
 
-  pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doMergeJoin, NULL, NULL, destroyMergeJoinOperator, NULL, NULL, NULL);
-  int32_t code = appendDownstream(pOperator, pDownstream, numOfDownstream);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doMergeJoin, NULL, destroyMergeJoinOperator, optrDefaultBufFn, NULL);
+  code = appendDownstream(pOperator, pDownstream, numOfDownstream);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -114,9 +160,12 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   return pOperator;
 
 _error:
-  taosMemoryFree(pInfo);
+  if (pInfo != NULL) {
+    destroyMergeJoinOperator(pInfo);
+  }
+
   taosMemoryFree(pOperator);
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+  pTaskInfo->code = code;
   return NULL;
 }
 
@@ -151,7 +200,7 @@ static void mergeJoinJoinLeftRight(struct SOperatorInfo* pOperator, SSDataBlock*
     int32_t rowIndex = -1;
 
     SColumnInfoData* pSrc = NULL;
-    if (pLeftBlock->info.blockId == blockId) {
+    if (pLeftBlock->info.id.blockId == blockId) {
       pSrc = taosArrayGet(pLeftBlock->pDataBlock, slotId);
       rowIndex = leftPos;
     } else {
@@ -160,10 +209,10 @@ static void mergeJoinJoinLeftRight(struct SOperatorInfo* pOperator, SSDataBlock*
     }
 
     if (colDataIsNull_s(pSrc, rowIndex)) {
-      colDataAppendNULL(pDst, currRow);
+      colDataSetNULL(pDst, currRow);
     } else {
       char* p = colDataGetData(pSrc, rowIndex);
-      colDataAppend(pDst, currRow, p, false);
+      colDataSetVal(pDst, currRow, p, false);
     }
   }
 }
@@ -251,48 +300,107 @@ static int32_t mergeJoinGetDownStreamRowsEqualTimeStamp(SOperatorInfo* pOperator
 
 static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t timestamp, SSDataBlock* pRes,
                                                int32_t* nRows) {
-  SJoinOperatorInfo* pJoinInfo = pOperator->info;
-  SArray*            leftRowLocations = taosArrayInit(8, sizeof(SRowLocation));
-  SArray*            leftCreatedBlocks = taosArrayInit(8, POINTER_BYTES);
-
-  SArray* rightRowLocations = taosArrayInit(8, sizeof(SRowLocation));
-  SArray* rightCreatedBlocks = taosArrayInit(8, POINTER_BYTES);
   int32_t code = TSDB_CODE_SUCCESS;
-  mergeJoinGetDownStreamRowsEqualTimeStamp(pOperator, 0, pJoinInfo->leftCol.slotId, pJoinInfo->pLeft,
-                                           pJoinInfo->leftPos, timestamp, leftRowLocations, leftCreatedBlocks);
-  mergeJoinGetDownStreamRowsEqualTimeStamp(pOperator, 1, pJoinInfo->rightCol.slotId, pJoinInfo->pRight,
-                                           pJoinInfo->rightPos, timestamp, rightRowLocations, rightCreatedBlocks);
+  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+  SArray* leftRowLocations = NULL;
+  SArray* leftCreatedBlocks = NULL;
+  SArray* rightRowLocations = NULL;
+  SArray* rightCreatedBlocks = NULL;
+  int32_t leftRowIdx = 0;
+  int32_t rightRowIdx = 0;
+  int32_t i, j;
+  
+  if (pJoinInfo->rowCtx.rowRemains) {
+    leftRowLocations = pJoinInfo->rowCtx.leftRowLocations;
+    leftCreatedBlocks = pJoinInfo->rowCtx.leftCreatedBlocks;
+    rightRowLocations = pJoinInfo->rowCtx.rightRowLocations;
+    rightCreatedBlocks = pJoinInfo->rowCtx.rightCreatedBlocks;
+    leftRowIdx = pJoinInfo->rowCtx.leftRowIdx;
+    rightRowIdx = pJoinInfo->rowCtx.rightRowIdx;
+  } else {
+    leftRowLocations = taosArrayInit(8, sizeof(SRowLocation));
+    leftCreatedBlocks = taosArrayInit(8, POINTER_BYTES);
 
+    rightRowLocations = taosArrayInit(8, sizeof(SRowLocation));
+    rightCreatedBlocks = taosArrayInit(8, POINTER_BYTES);
+
+    mergeJoinGetDownStreamRowsEqualTimeStamp(pOperator, 0, pJoinInfo->leftCol.slotId, pJoinInfo->pLeft,
+                                             pJoinInfo->leftPos, timestamp, leftRowLocations, leftCreatedBlocks);
+    mergeJoinGetDownStreamRowsEqualTimeStamp(pOperator, 1, pJoinInfo->rightCol.slotId, pJoinInfo->pRight,
+                                             pJoinInfo->rightPos, timestamp, rightRowLocations, rightCreatedBlocks);
+  }
+  
   size_t leftNumJoin = taosArrayGetSize(leftRowLocations);
   size_t rightNumJoin = taosArrayGetSize(rightRowLocations);
-  code = blockDataEnsureCapacity(pRes, *nRows + leftNumJoin * rightNumJoin);
-  if (code != TSDB_CODE_SUCCESS) {
-      qError("%s can not ensure block capacity for join. left: %zu, right: %zu", GET_TASKID(pOperator->pTaskInfo), leftNumJoin, rightNumJoin);
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-      for (int32_t i = 0; i < leftNumJoin; ++i) {
-          for (int32_t j = 0; j < rightNumJoin; ++j) {
-              SRowLocation *leftRow = taosArrayGet(leftRowLocations, i);
-              SRowLocation *rightRow = taosArrayGet(rightRowLocations, j);
-              mergeJoinJoinLeftRight(pOperator, pRes, *nRows, leftRow->pDataBlock, leftRow->pos, rightRow->pDataBlock,
-                                     rightRow->pos);
-              ++*nRows;
-          }
-      }
+  uint32_t maxRowNum = *nRows + (leftNumJoin - leftRowIdx - 1) * rightNumJoin + rightNumJoin - rightRowIdx;
+  uint32_t limitRowNum = maxRowNum;
+  if (maxRowNum > pOperator->resultInfo.threshold) {
+    limitRowNum = pOperator->resultInfo.threshold;
+    if (!pJoinInfo->rowCtx.rowRemains) {
+      pJoinInfo->rowCtx.rowRemains = true;
+      pJoinInfo->rowCtx.ts = timestamp;
+      pJoinInfo->rowCtx.leftRowLocations = leftRowLocations;
+      pJoinInfo->rowCtx.rightRowLocations = rightRowLocations;
+      pJoinInfo->rowCtx.leftCreatedBlocks = leftCreatedBlocks;
+      pJoinInfo->rowCtx.rightCreatedBlocks = rightCreatedBlocks;
+    }
   }
 
-  for (int i = 0; i < taosArrayGetSize(rightCreatedBlocks); ++i) {
-    SSDataBlock* pBlock = taosArrayGetP(rightCreatedBlocks, i);
-    blockDataDestroy(pBlock);
+  code = blockDataEnsureCapacity(pRes, limitRowNum);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s can not ensure block capacity for join. left: %zu, right: %zu", GET_TASKID(pOperator->pTaskInfo),
+           leftNumJoin, rightNumJoin);
   }
-  taosArrayDestroy(rightCreatedBlocks);
-  taosArrayDestroy(rightRowLocations);
-  for (int i = 0; i < taosArrayGetSize(leftCreatedBlocks); ++i) {
-    SSDataBlock* pBlock = taosArrayGetP(leftCreatedBlocks, i);
-    blockDataDestroy(pBlock);
+
+  
+  if (code == TSDB_CODE_SUCCESS) {
+    bool done = false;
+    for (i = leftRowIdx; i < leftNumJoin; ++i, rightRowIdx = 0) {
+      for (j = rightRowIdx; j < rightNumJoin; ++j) {
+        if (*nRows >= limitRowNum) {
+          done = true;
+          break;
+        }
+
+        SRowLocation* leftRow = taosArrayGet(leftRowLocations, i);
+        SRowLocation* rightRow = taosArrayGet(rightRowLocations, j);
+        mergeJoinJoinLeftRight(pOperator, pRes, *nRows, leftRow->pDataBlock, leftRow->pos, rightRow->pDataBlock,
+                               rightRow->pos);
+        ++*nRows;
+      }
+      if (done) {
+        break;
+      }
+    }
+
+    if (maxRowNum > pOperator->resultInfo.threshold) {
+      pJoinInfo->rowCtx.leftRowIdx = i;
+      pJoinInfo->rowCtx.rightRowIdx = j;
+    }
   }
-  taosArrayDestroy(leftCreatedBlocks);
-  taosArrayDestroy(leftRowLocations);
+
+  if (maxRowNum <= pOperator->resultInfo.threshold) {
+    for (int i = 0; i < taosArrayGetSize(rightCreatedBlocks); ++i) {
+      SSDataBlock* pBlock = taosArrayGetP(rightCreatedBlocks, i);
+      blockDataDestroy(pBlock);
+    }
+    taosArrayDestroy(rightCreatedBlocks);
+    taosArrayDestroy(rightRowLocations);
+    for (int i = 0; i < taosArrayGetSize(leftCreatedBlocks); ++i) {
+      SSDataBlock* pBlock = taosArrayGetP(leftCreatedBlocks, i);
+      blockDataDestroy(pBlock);
+    }
+    taosArrayDestroy(leftCreatedBlocks);
+    taosArrayDestroy(leftRowLocations);
+
+    if (pJoinInfo->rowCtx.rowRemains) {
+      pJoinInfo->rowCtx.rowRemains = false;
+      pJoinInfo->rowCtx.leftRowLocations = NULL;
+      pJoinInfo->rowCtx.rightRowLocations = NULL;
+      pJoinInfo->rowCtx.leftCreatedBlocks = NULL;
+      pJoinInfo->rowCtx.rightCreatedBlocks = NULL;
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -329,8 +437,6 @@ static bool mergeJoinGetNextTimestamp(SOperatorInfo* pOperator, int64_t* pLeftTs
   char*            pRightVal = colDataGetData(pRightCol, pJoinInfo->rightPos);
   *pRightTs = *(int64_t*)pRightVal;
 
-  ASSERT(pLeftCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT(pRightCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
   return true;
 }
 
@@ -344,28 +450,34 @@ static void doMergeJoinImpl(struct SOperatorInfo* pOperator, SSDataBlock* pRes) 
   while (1) {
     int64_t leftTs = 0;
     int64_t rightTs = 0;
-    bool    hasNextTs = mergeJoinGetNextTimestamp(pOperator, &leftTs, &rightTs);
-    if (!hasNextTs) {
-      break;
+    if (pJoinInfo->rowCtx.rowRemains) {
+      leftTs = pJoinInfo->rowCtx.ts;
+      rightTs = pJoinInfo->rowCtx.ts;
+    } else {
+      bool    hasNextTs = mergeJoinGetNextTimestamp(pOperator, &leftTs, &rightTs);
+      if (!hasNextTs) {
+        break;
+      }
     }
 
     if (leftTs == rightTs) {
       mergeJoinJoinDownstreamTsRanges(pOperator, leftTs, pRes, &nrows);
-    } else if (asc && leftTs < rightTs || !asc && leftTs > rightTs) {
+    } else if ((asc && leftTs < rightTs) || (!asc && leftTs > rightTs)) {
       pJoinInfo->leftPos += 1;
 
-      if (pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
+      if (pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows && pRes->info.rows < pOperator->resultInfo.threshold) {
         continue;
       }
-    } else if (asc && leftTs > rightTs || !asc && leftTs < rightTs) {
+    } else if ((asc && leftTs > rightTs) || (!asc && leftTs < rightTs)) {
       pJoinInfo->rightPos += 1;
-      if (pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
+      if (pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows && pRes->info.rows < pOperator->resultInfo.threshold) {
         continue;
       }
     }
 
     // the pDataBlock are always the same one, no need to call this again
     pRes->info.rows = nrows;
+    pRes->info.dataLoad = 1;
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       break;
     }
@@ -377,7 +489,7 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
 
   SSDataBlock* pRes = pJoinInfo->pRes;
   blockDataCleanup(pRes);
-  blockDataEnsureCapacity(pRes, 4096);
+
   while (true) {
     int32_t numOfRowsBefore = pRes->info.rows;
     doMergeJoinImpl(pOperator, pRes);
@@ -385,8 +497,8 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
     if (numOfNewRows == 0) {
       break;
     }
-    if (pJoinInfo->pCondAfterMerge != NULL) {
-      doFilter(pJoinInfo->pCondAfterMerge, pRes, NULL);
+    if (pOperator->exprSupp.pFilterInfo != NULL) {
+      doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
     }
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       break;

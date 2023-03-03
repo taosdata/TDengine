@@ -257,6 +257,39 @@ TEST_F(WalCleanEnv, rollback) {
   ASSERT_EQ(code, 0);
 }
 
+TEST_F(WalCleanEnv, rollbackMultiFile) {
+  int code;
+  for (int i = 0; i < 10; i++) {
+    code = walWrite(pWal, i, i + 1, (void*)ranStr, ranStrLen);
+    ASSERT_EQ(code, 0);
+    ASSERT_EQ(pWal->vers.lastVer, i);
+    if (i == 5) {
+      walBeginSnapshot(pWal, i, 0);
+      walEndSnapshot(pWal);
+    }
+  }
+  code = walRollback(pWal, 12);
+  ASSERT_NE(code, 0);
+  ASSERT_EQ(pWal->vers.lastVer, 9);
+  code = walRollback(pWal, 9);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->vers.lastVer, 8);
+  code = walRollback(pWal, 6);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->vers.lastVer, 5);
+  code = walRollback(pWal, 5);
+  ASSERT_EQ(code, -1);
+
+  ASSERT_EQ(pWal->vers.lastVer, 5);
+
+  code = walWrite(pWal, 6, 6, (void*)ranStr, ranStrLen);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->vers.lastVer, 6);
+
+  code = walSaveMeta(pWal);
+  ASSERT_EQ(code, 0);
+}
+
 TEST_F(WalCleanDeleteEnv, roll) {
   int code;
   int i;
@@ -268,7 +301,7 @@ TEST_F(WalCleanDeleteEnv, roll) {
     ASSERT_EQ(pWal->vers.commitVer, i);
   }
 
-  walBeginSnapshot(pWal, i - 1);
+  walBeginSnapshot(pWal, i - 1, 0);
   ASSERT_EQ(pWal->vers.verInSnapshotting, i - 1);
   walEndSnapshot(pWal);
   ASSERT_EQ(pWal->vers.snapshotVer, i - 1);
@@ -284,7 +317,7 @@ TEST_F(WalCleanDeleteEnv, roll) {
     ASSERT_EQ(pWal->vers.commitVer, i);
   }
 
-  code = walBeginSnapshot(pWal, i - 1);
+  code = walBeginSnapshot(pWal, i - 1, 0);
   ASSERT_EQ(code, 0);
   code = walEndSnapshot(pWal);
   ASSERT_EQ(code, 0);

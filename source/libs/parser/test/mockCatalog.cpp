@@ -32,23 +32,29 @@
 namespace {
 
 void generateInformationSchema(MockCatalogService* mcs) {
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DNODES, TSDB_SYSTEM_TABLE, 1)
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DNODES, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("id", TSDB_DATA_TYPE_INT)
       .addColumn("endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN)
       .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MNODES, TSDB_SYSTEM_TABLE, 1)
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MNODES, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("id", TSDB_DATA_TYPE_INT)
       .addColumn("endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN)
       .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MODULES, TSDB_SYSTEM_TABLE, 1)
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MODULES, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("id", TSDB_DATA_TYPE_INT)
       .addColumn("endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN)
       .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_QNODES, TSDB_SYSTEM_TABLE, 1)
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_QNODES, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("id", TSDB_DATA_TYPE_INT)
       .addColumn("endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN)
       .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DATABASES, TSDB_SYSTEM_TABLE, 1)
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DATABASES, TSDB_SYSTEM_TABLE, 2)
       .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
       .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_FUNCTIONS, TSDB_SYSTEM_TABLE, 1)
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_FUNCTIONS, TSDB_SYSTEM_TABLE, 2)
       .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_FUNC_NAME_LEN)
+      .addColumn("aggregate", TSDB_DATA_TYPE_INT)
       .done();
   mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_INDEXES, TSDB_SYSTEM_TABLE, 3)
       .addColumn("index_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
@@ -59,59 +65,70 @@ void generateInformationSchema(MockCatalogService* mcs) {
       .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
       .addColumn("stable_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
       .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLES, TSDB_SYSTEM_TABLE, 2)
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLES, TSDB_SYSTEM_TABLE, 3)
+      .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+      .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+      .addColumn("stable_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLE_DISTRIBUTED, TSDB_SYSTEM_TABLE, 2)
       .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
       .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
       .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLE_DISTRIBUTED, TSDB_SYSTEM_TABLE, 1)
-      .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
-      .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USERS, TSDB_SYSTEM_TABLE, 1)
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USERS, TSDB_SYSTEM_TABLE, 2)
       .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN)
+      .addColumn("super", TSDB_DATA_TYPE_TINYINT)
       .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VGROUPS, TSDB_SYSTEM_TABLE, 1)
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VGROUPS, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("vgroup_id", TSDB_DATA_TYPE_INT)
       .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
       .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_CONFIGS, TSDB_SYSTEM_TABLE, 1)
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_CONFIGS, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_CONFIG_OPTION_LEN)
+      .addColumn("value", TSDB_DATA_TYPE_BINARY, TSDB_CONFIG_VALUE_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DNODE_VARIABLES, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("dnode_id", TSDB_DATA_TYPE_INT)
       .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_CONFIG_OPTION_LEN)
       .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DNODE_VARIABLES, TSDB_SYSTEM_TABLE, 1)
-      .addColumn("dnode_id", TSDB_DATA_TYPE_INT)
-      .done();
-  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_CLUSTER, TSDB_SYSTEM_TABLE, 1)
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_CLUSTER, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("id", TSDB_DATA_TYPE_BIGINT)
       .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_CLUSTER_ID_LEN)
       .done();
   mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VNODES, TSDB_SYSTEM_TABLE, 2)
       .addColumn("dnode_id", TSDB_DATA_TYPE_INT)
       .addColumn("dnode_ep", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN)
       .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TAGS, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+      .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_COLS, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+      .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USER_PRIVILEGES, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("user_name", TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN)
+      .addColumn("privilege", TSDB_DATA_TYPE_BINARY, 10)
+      .done();
 }
 
 void generatePerformanceSchema(MockCatalogService* mcs) {
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_TRANS, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("id", TSDB_DATA_TYPE_INT);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_STREAMS, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_CONSUMERS, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_SUBSCRIPTIONS, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
-    builder.done();
-  }
+  mcs->createTableBuilder(TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_TRANS, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("id", TSDB_DATA_TYPE_INT)
+      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_STREAMS, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
+  mcs->createTableBuilder(TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_CONSUMERS, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("consumer_id", TSDB_DATA_TYPE_BIGINT)
+      .addColumn("consumer_group", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_SUBSCRIPTIONS, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("vgroup_id", TSDB_DATA_TYPE_INT)
+      .addColumn("consumer_id", TSDB_DATA_TYPE_BIGINT)
+      .done();
 }
 
 /*
@@ -126,16 +143,16 @@ void generatePerformanceSchema(MockCatalogService* mcs) {
  *          c5         |       column       |       DOUBLE       |    8     |
  */
 void generateTestTables(MockCatalogService* mcs, const std::string& db) {
-  ITableBuilder& builder = mcs->createTableBuilder(db, "t1", TSDB_NORMAL_TABLE, 6)
-                               .setPrecision(TSDB_TIME_PRECISION_MILLI)
-                               .setVgid(1)
-                               .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
-                               .addColumn("c1", TSDB_DATA_TYPE_INT)
-                               .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
-                               .addColumn("c3", TSDB_DATA_TYPE_BIGINT)
-                               .addColumn("c4", TSDB_DATA_TYPE_DOUBLE)
-                               .addColumn("c5", TSDB_DATA_TYPE_DOUBLE);
-  builder.done();
+  mcs->createTableBuilder(db, "t1", TSDB_NORMAL_TABLE, 6)
+      .setPrecision(TSDB_TIME_PRECISION_MILLI)
+      .setVgid(2)
+      .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("c1", TSDB_DATA_TYPE_INT)
+      .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
+      .addColumn("c3", TSDB_DATA_TYPE_BIGINT)
+      .addColumn("c4", TSDB_DATA_TYPE_DOUBLE)
+      .addColumn("c5", TSDB_DATA_TYPE_DOUBLE)
+      .done();
 }
 
 /*
@@ -170,9 +187,9 @@ void generateTestStables(MockCatalogService* mcs, const std::string& db) {
                                  .addTag("tag2", TSDB_DATA_TYPE_BINARY, 20)
                                  .addTag("tag3", TSDB_DATA_TYPE_TIMESTAMP);
     builder.done();
-    mcs->createSubTable(db, "st1", "st1s1", 1);
-    mcs->createSubTable(db, "st1", "st1s2", 2);
-    mcs->createSubTable(db, "st1", "st1s3", 1);
+    mcs->createSubTable(db, "st1", "st1s1", 2);
+    mcs->createSubTable(db, "st1", "st1s2", 3);
+    mcs->createSubTable(db, "st1", "st1s3", 2);
   }
   {
     ITableBuilder& builder = mcs->createTableBuilder(db, "st2", TSDB_SUPER_TABLE, 3, 1)
@@ -182,8 +199,8 @@ void generateTestStables(MockCatalogService* mcs, const std::string& db) {
                                  .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
                                  .addTag("jtag", TSDB_DATA_TYPE_JSON);
     builder.done();
-    mcs->createSubTable(db, "st2", "st2s1", 1);
-    mcs->createSubTable(db, "st2", "st2s2", 2);
+    mcs->createSubTable(db, "st2", "st2s1", 2);
+    mcs->createSubTable(db, "st2", "st2s2", 3);
   }
 }
 
@@ -220,9 +237,26 @@ int32_t __catalogGetTableMeta(struct SCatalog* pCatalog, SRequestConnInfo* pConn
   return g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta);
 }
 
+int32_t __catalogGetCachedTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta) {
+  return g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta, true);
+}
+
 int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pTableName,
                                     SVgroupInfo* vgInfo) {
   return g_mockCatalogService->catalogGetTableHashVgroup(pTableName, vgInfo);
+}
+
+int32_t __catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableName, SVgroupInfo* pVgroup, bool* exists) {
+  int32_t code = g_mockCatalogService->catalogGetTableHashVgroup(pTableName, pVgroup, true);
+  *exists = 0 != pVgroup->vgId;
+  return code;
+}
+
+int32_t __catalogGetCachedTableVgMeta(SCatalog* pCtg, const SName* pTableName,          SVgroupInfo* pVgroup, STableMeta** pTableMeta) {
+  int32_t code = g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta, true);
+  if (code) return code;
+  code = g_mockCatalogService->catalogGetTableHashVgroup(pTableName, pVgroup, true);
+  return code;
 }
 
 int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
@@ -230,13 +264,13 @@ int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, con
   return g_mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgList);
 }
 
-int32_t __catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId,
-                                int32_t* tableNum) {
+int32_t __catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId, int32_t* tableNum,
+                                int64_t* stateTs) {
   return 0;
 }
 
-int32_t __catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SArray** pVgList) {
-  return g_mockCatalogService->catalogGetDBVgInfo(dbFName, pVgList);
+int32_t __catalogGetDBVgList(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SArray** pVgList) {
+  return g_mockCatalogService->catalogGetDBVgList(dbFName, pVgList);
 }
 
 int32_t __catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SDbCfgInfo* pDbCfg) {
@@ -246,6 +280,13 @@ int32_t __catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* d
 int32_t __catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
                          bool* pass) {
   *pass = true;
+  return 0;
+}
+
+int32_t __catalogChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type, bool* pass,
+                                  bool* exists) {
+  *pass = true;
+  *exists = true;
   return 0;
 }
 
@@ -281,13 +322,18 @@ void initMetaDataEnv() {
   static Stub stub;
   stub.set(catalogGetHandle, __catalogGetHandle);
   stub.set(catalogGetTableMeta, __catalogGetTableMeta);
+  stub.set(catalogGetCachedTableMeta, __catalogGetCachedTableMeta);
   stub.set(catalogGetSTableMeta, __catalogGetTableMeta);
+  stub.set(catalogGetCachedSTableMeta, __catalogGetCachedTableMeta);
   stub.set(catalogGetTableHashVgroup, __catalogGetTableHashVgroup);
+  stub.set(catalogGetCachedTableHashVgroup, __catalogGetCachedTableHashVgroup);
+  stub.set(catalogGetCachedTableVgMeta, __catalogGetCachedTableVgMeta);
   stub.set(catalogGetTableDistVgInfo, __catalogGetTableDistVgInfo);
   stub.set(catalogGetDBVgVersion, __catalogGetDBVgVersion);
-  stub.set(catalogGetDBVgInfo, __catalogGetDBVgInfo);
+  stub.set(catalogGetDBVgList, __catalogGetDBVgList);
   stub.set(catalogGetDBCfg, __catalogGetDBCfg);
   stub.set(catalogChkAuth, __catalogChkAuth);
+  stub.set(catalogChkAuthFromCache, __catalogChkAuthFromCache);
   stub.set(catalogGetUdfInfo, __catalogGetUdfInfo);
   stub.set(catalogRefreshGetTableMeta, __catalogRefreshGetTableMeta);
   stub.set(catalogRemoveTableMeta, __catalogRemoveTableMeta);

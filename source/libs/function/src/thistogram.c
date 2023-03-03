@@ -14,10 +14,10 @@
  */
 #include "os.h"
 
-#include "thistogram.h"
 #include "taosdef.h"
-#include "tmsg.h"
+#include "thistogram.h"
 #include "tlosertree.h"
+#include "tmsg.h"
 
 /**
  *
@@ -54,7 +54,7 @@ SHistogramInfo* tHistogramCreateFrom(void* pBuf, int32_t numOfBins) {
 
   SHistogramInfo* pHisto = (SHistogramInfo*)pBuf;
   pHisto->elems = (SHistBin*)((char*)pBuf + sizeof(SHistogramInfo));
-  for(int32_t i = 0; i < numOfBins; ++i) {
+  for (int32_t i = 0; i < numOfBins; ++i) {
     pHisto->elems[i].val = -DBL_MAX;
   }
 
@@ -73,7 +73,10 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
 
 #if defined(USE_ARRAYLIST)
   int32_t idx = histoBinarySearch((*pHisto)->elems, (*pHisto)->numOfEntries, val);
-  assert(idx >= 0 && idx <= (*pHisto)->maxEntries && (*pHisto)->elems != NULL);
+  if (ASSERTS(idx >= 0 && idx <= (*pHisto)->maxEntries && (*pHisto)->elems != NULL, "tHistogramAdd Error, idx:%d, maxEntries:%d, elems:%p",
+              idx, (*pHisto)->maxEntries, (*pHisto)->elems)) {
+    return -1;
+  }
 
   if ((*pHisto)->elems[idx].val == val && idx >= 0) {
     (*pHisto)->elems[idx].num += 1;
@@ -84,15 +87,27 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
   } else { /* insert a new slot */
     if ((*pHisto)->numOfElems >= 1 && idx < (*pHisto)->numOfEntries) {
       if (idx > 0) {
-        assert((*pHisto)->elems[idx - 1].val <= val);
+        if (ASSERTS((*pHisto)->elems[idx - 1].val <= val, "tHistogramAdd Error, elems[%d].val:%lf, val:%lf",
+                    idx - 1, (*pHisto)->elems[idx - 1].val, val)) {
+          return -1;
+        }
       } else {
-        assert((*pHisto)->elems[idx].val > val);
+        if (ASSERTS((*pHisto)->elems[idx].val > val, "tHistogramAdd Error, elems[%d].val:%lf, val:%lf",
+                    idx, (*pHisto)->elems[idx].val, val)) {
+          return -1;
+        }
       }
     } else if ((*pHisto)->numOfElems > 0) {
-      assert((*pHisto)->elems[(*pHisto)->numOfEntries].val <= val);
+      if (ASSERTS((*pHisto)->elems[(*pHisto)->numOfEntries].val <= val, "tHistogramAdd Error, elems[%d].val:%lf, val:%lf",
+                  (*pHisto)->numOfEntries, (*pHisto)->elems[idx].val, val)) {
+        return -1;
+      }
     }
 
-    histogramCreateBin(*pHisto, idx, val);
+    int32_t code = histogramCreateBin(*pHisto, idx, val);
+    if (code != 0) {
+      return code;
+    }
   }
 #else
   tSkipListKey key = tSkipListCreateKey(TSDB_DATA_TYPE_DOUBLE, &val, tDataTypes[TSDB_DATA_TYPE_DOUBLE].nSize);
@@ -116,7 +131,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
       pEntry1->delta = ((SHistBin*)pResNode->pForward[0]->pData)->val - val;
 
       if ((*pHisto)->ordered) {
-        int32_t         lastIndex = (*pHisto)->maxIndex;
+        int32_t                 lastIndex = (*pHisto)->maxIndex;
         SMultiwayMergeTreeInfo* pTree = (*pHisto)->pLoserTree;
 
         (*pHisto)->pLoserTree->pNode[lastIndex + pTree->numOfEntries].pData = pResNode;
@@ -151,12 +166,11 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
 
     if ((*pHisto)->numOfEntries >= (*pHisto)->maxEntries + 1) {
       // set the right value for loser-tree
-      assert((*pHisto)->pLoserTree != NULL);
       if (!(*pHisto)->ordered) {
         SSkipListPrint((*pHisto)->pList, 1);
 
         SMultiwayMergeTreeInfo* pTree = (*pHisto)->pLoserTree;
-        tSkipListNode*  pHead = (*pHisto)->pList->pHead.pForward[0];
+        tSkipListNode*          pHead = (*pHisto)->pList->pHead.pForward[0];
 
         tSkipListNode* p1 = pHead;
 
@@ -203,7 +217,10 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
 
       tSkipListNode* pNext = pNode->pForward[0];
       SHistBin*      pNextEntry = (SHistBin*)pNext->pData;
-      assert(pNextEntry->val - pEntry->val == pEntry->delta);
+      if (ASSERTS(pNextEntry->val - pEntry->val == pEntry->delta, "tHistogramAdd Error, pNextEntry->val:%lf, pEntry->val:%lf, pEntry->delta:%lf",
+                  pNextEntry->val, pEntry->val, pEntry->delta)) {
+        return -1;
+      }
 
       double newVal = (pEntry->val * pEntry->num + pNextEntry->val * pNextEntry->num) / (pEntry->num + pNextEntry->num);
       pEntry->val = newVal;
@@ -253,7 +270,9 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
 
   } else {
     SHistBin* pEntry = (SHistBin*)pResNode->pData;
-    assert(pEntry->val == val);
+    if (ASSERTS(pEntry->val == val, "tHistogramAdd Error, pEntry->val:%lf, val:%lf")) {
+      return -1;
+    }
     pEntry->num += 1;
   }
 
@@ -329,7 +348,10 @@ int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double val) {
     memmove(&pHisto->elems[index + 1], &pHisto->elems[index], sizeof(SHistBin) * remain);
   }
 
-  assert(index >= 0 && index <= pHisto->maxEntries);
+  if (ASSERTS(index >= 0 && index <= pHisto->maxEntries, "histogramCreateBin Error, index:%d, maxEntries:%d",
+              index, pHisto->maxEntries)) {
+    return -1;
+  }
 
   pHisto->elems[index].num = 1;
   pHisto->elems[index].val = val;
@@ -343,7 +365,11 @@ int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double val) {
     pHisto->elems[pHisto->maxEntries].num = 0;
   }
 #endif
-  assert(pHisto->numOfEntries <= pHisto->maxEntries);
+  if (ASSERTS(pHisto->numOfEntries <= pHisto->maxEntries, "histogramCreateBin Error, numOfEntries:%d, maxEntries:%d",
+              pHisto->numOfEntries, pHisto->maxEntries)) {
+    return -1;
+  }
+
   return 0;
 }
 
@@ -357,7 +383,7 @@ void tHistogramDestroy(SHistogramInfo** pHisto) {
 }
 
 void tHistogramPrint(SHistogramInfo* pHisto) {
-  printf("total entries: %d, elements: %"PRId64 "\n", pHisto->numOfEntries, pHisto->numOfElems);
+  printf("total entries: %d, elements: %" PRId64 "\n", pHisto->numOfEntries, pHisto->numOfElems);
 #if defined(USE_ARRAYLIST)
   for (int32_t i = 0; i < pHisto->numOfEntries; ++i) {
     printf("%d: (%f, %" PRId64 ")\n", i + 1, pHisto->elems[i].val, pHisto->elems[i].num);
@@ -386,12 +412,14 @@ int64_t tHistogramSum(SHistogramInfo* pHisto, double v) {
 
     if (slotIdx < 0) {
       slotIdx = 0;
-      assert(v <= pHisto->elems[slotIdx].val);
+      ASSERTS(v <= pHisto->elems[slotIdx].val, "tHistogramSum Error, elems[%d].val:%lf, v:%lf",
+              slotIdx, pHisto->elems[slotIdx].val, v);
     } else {
-      assert(v >= pHisto->elems[slotIdx].val);
-
+      ASSERTS(v >= pHisto->elems[slotIdx].val, "tHistogramSum Error, elems[%d].val:%lf, v:%lf",
+              slotIdx, pHisto->elems[slotIdx].val, v);
       if (slotIdx + 1 < pHisto->numOfEntries) {
-        assert(v < pHisto->elems[slotIdx + 1].val);
+        ASSERTS(v < pHisto->elems[slotIdx + 1].val, "tHistogramSum Error, elems[%d].val:%lf, v:%lf",
+                slotIdx + 1, pHisto->elems[slotIdx + 1].val, v);
       }
     }
   }
@@ -445,7 +473,9 @@ double* tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num) {
       j += 1;
     }
 
-    assert(total <= numOfElem && total + pHisto->elems[j + 1].num > numOfElem);
+    ASSERTS(total <= numOfElem && total + pHisto->elems[j + 1].num > numOfElem,
+            "tHistogramUniform Error, total:%d, numOfElem:%d, elems[%d].num:%d",
+            total, numOfElem, j + 1, pHisto->elems[j + 1].num);
 
     double delta = numOfElem - total;
     if (fabs(delta) < FLT_EPSILON) {
@@ -502,7 +532,9 @@ double* tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num) {
       j += 1;
     }
 
-    assert(total <= numOfElem && total + pEntry->num > numOfElem);
+    ASSERTS(total <= numOfElem && total + pEntry->num > numOfElem,
+            "tHistogramUniform Error, total:%d, numOfElem:%d, pEntry->num:%d",
+            total, numOfElem, pEntry->num);
 
     double delta = numOfElem - total;
     if (fabs(delta) < FLT_EPSILON) {
@@ -536,7 +568,7 @@ SHistogramInfo* tHistogramMerge(SHistogramInfo* pHisto1, SHistogramInfo* pHisto2
   }
 
   SHistBin* pHistoBins = taosMemoryCalloc(1, sizeof(SHistBin) * (pHisto1->numOfEntries + pHisto2->numOfEntries));
-  int32_t i = 0, j = 0, k = 0;
+  int32_t   i = 0, j = 0, k = 0;
 
   while (i < pHisto1->numOfEntries && j < pHisto2->numOfEntries) {
     if (pHisto1->elems[i].val < pHisto2->elems[j].val) {

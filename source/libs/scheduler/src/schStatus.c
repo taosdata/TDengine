@@ -29,25 +29,25 @@ int32_t schSwitchJobStatus(SSchJob* pJob, int32_t status, void* param) {
     case JOB_TASK_STATUS_INIT:
       break;
     case JOB_TASK_STATUS_EXEC:
-      SCH_ERR_JRET(schExecJob(pJob, (SSchedulerReq*)param));    
+      SCH_ERR_JRET(schExecJob(pJob, (SSchedulerReq*)param));
       break;
     case JOB_TASK_STATUS_PART_SUCC:
       SCH_ERR_JRET(schProcessOnJobPartialSuccess(pJob));
       break;
     case JOB_TASK_STATUS_SUCC:
       break;
-    case JOB_TASK_STATUS_FAIL:      
+    case JOB_TASK_STATUS_FAIL:
       SCH_RET(schProcessOnJobFailure(pJob, (param ? *(int32_t*)param : 0)));
       break;
     case JOB_TASK_STATUS_DROP:
       schProcessOnJobDropped(pJob, *(int32_t*)param);
-      
+
       if (taosRemoveRef(schMgmt.jobRef, pJob->refId)) {
         SCH_JOB_ELOG("remove job from job list failed, refId:0x%" PRIx64, pJob->refId);
       } else {
         SCH_JOB_DLOG("job removed from jobRef list, refId:0x%" PRIx64, pJob->refId);
       }
-      break;    
+      break;
     default: {
       SCH_JOB_ELOG("unknown job status %d", status);
       SCH_RET(TSDB_CODE_SCH_STATUS_ERROR);
@@ -62,9 +62,9 @@ _return:
 }
 
 int32_t schHandleOpBeginEvent(int64_t jobId, SSchJob** job, SCH_OP_TYPE type, SSchedulerReq* pReq) {
-  SSchJob *pJob = schAcquireJob(jobId);
+  SSchJob* pJob = schAcquireJob(jobId);
   if (NULL == pJob) {
-    qWarn("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, jobId);
+    qDebug("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, jobId);
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
@@ -75,12 +75,12 @@ int32_t schHandleOpBeginEvent(int64_t jobId, SSchJob** job, SCH_OP_TYPE type, SS
 
 int32_t schHandleOpEndEvent(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq, int32_t errCode) {
   int32_t code = errCode;
-  
+
   if (NULL == pJob) {
     schDirectPostJobRes(pReq, errCode);
     SCH_RET(code);
   }
-  
+
   schProcessOnOpEnd(pJob, type, pReq, errCode);
 
   if (TSDB_CODE_SCH_IGNORE_ERROR == errCode) {
@@ -91,5 +91,3 @@ int32_t schHandleOpEndEvent(SSchJob* pJob, SCH_OP_TYPE type, SSchedulerReq* pReq
 
   return code;
 }
-
-

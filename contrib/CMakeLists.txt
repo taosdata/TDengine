@@ -37,6 +37,11 @@ if(${BUILD_WITH_ICONV})
     cat("${TD_SUPPORT_DIR}/iconv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
+# jemalloc
+if(${JEMALLOC_ENABLED})
+    cat("${TD_SUPPORT_DIR}/jemalloc_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
 # msvc regex
 if(${BUILD_MSVCREGEX})
     cat("${TD_SUPPORT_DIR}/msvcregex_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -256,6 +261,19 @@ if(${BUILD_PTHREAD})
     set_target_properties(libpthreadVC3 PROPERTIES OUTPUT_NAME pthread)
     add_library(pthread INTERFACE)
     target_link_libraries(pthread INTERFACE libpthreadVC3)
+endif()
+
+# jemalloc
+if(${JEMALLOC_ENABLED})
+    include(ExternalProject)
+    ExternalProject_Add(jemalloc
+        PREFIX        "jemalloc"
+        SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/jemalloc
+        BUILD_IN_SOURCE     1
+        CONFIGURE_COMMAND  ./autogen.sh COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/ --disable-initial-exec-tls
+        BUILD_COMMAND       ${MAKE}
+    )
+    INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
 endif()
 
 # crashdump

@@ -25,11 +25,12 @@ import ctypes
 
 class TDTestCase:
 
-    def init(self,conn ,logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         self.TDDnodes = None
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
+        self.replicaVar = int(replicaVar)
 
 
     def getBuildPath(self):
@@ -68,7 +69,7 @@ class TDTestCase:
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'db',
-                    'dbNumbers':   8,
+                    'dbNumbers':   4,
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    2,
@@ -84,24 +85,23 @@ class TDTestCase:
                     }
 
         dnodeNumbers=int(dnodeNumbers)
+        dbNumbers=paraDict['dbNumbers']
+        repeatNumber=3
         mnodeNums=int(mnodeNums)
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
-        allDbNumbers=(paraDict['dbNumbers']*restartNumbers)
+        allDbNumbers = int(dbNumbers)
         allStbNumbers=(paraDict['stbNumbers']*restartNumbers)
+        paraDict['replica'] = self.replicaVar
 
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
         clusterComCheck.checkDnodes(dnodeNumbers)
-        clusterComCheck.checkMnodeStatus(1)
-
-        # fisr add three mnodes;
-        tdLog.info("fisr add three mnodes and check mnode status")
-        tdSql.execute("create mnode on dnode 2")
-        clusterComCheck.checkMnodeStatus(2)
-        tdSql.execute("create mnode on dnode 3")
-        clusterComCheck.checkMnodeStatus(3)
+        
+        #check mnode status
+        tdLog.info("check mnode status")
+        clusterComCheck.checkMnodeStatus(mnodeNums)
 
         # add some error operations and
         tdLog.info("Confirm the status of the dnode again")
@@ -116,15 +116,17 @@ class TDTestCase:
         tdDnodes=cluster.dnodes
         stopcount =0
         threads=[]
-        for i in range(restartNumbers):
+        for i in range(dbNumbers):
             dbNameIndex = '%s%d'%(paraDict["dbName"],i)
             newTdSql=tdCom.newTdSql()
-            threads.append(threading.Thread(target=clusterComCreate.create_databases, args=(newTdSql, dbNameIndex,paraDict["dbNumbers"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
+            threads.append(threading.Thread(target=clusterComCreate.createDeltedatabases, args=(newTdSql, dbNameIndex,repeatNumber,paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
 
         for tr in threads:
             tr.start()
 
+
         tdLog.info("Take turns stopping Mnodes ")
+
         while stopcount < restartNumbers:
             tdLog.info(" restart loop: %d"%stopcount )
             if stopRole == "mnode":
@@ -159,19 +161,20 @@ class TDTestCase:
         for tr in threads:
             tr.join()
         clusterComCheck.checkDnodes(dnodeNumbers)
-        # tdSql.query("select * from information_schema.ins_databases")
-        # tdLog.debug("we find %d databases but exepect to create %d  databases "%(tdSql.queryRows-2,allDbNumbers))
+        tdSql.query("select * from information_schema.ins_databases")
+        tdLog.debug("we find %d databases but exepect to create %d  databases "%(tdSql.queryRows-2,allDbNumbers))
 
         # tdLog.info("check DB Rows:")
-        clusterComCheck.checkDbRows(allDbNumbers)
+        # clusterComCheck.checkDbRows(allDbNumbers)
         # tdLog.info("check DB Status on by on")
         # for i in range(restartNumbers):
         #     clusterComCheck.checkDb(paraDict['dbNumbers'],restartNumbers,dbNameIndex = '%s%d'%(paraDict["dbName"],i))
 
 
+
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=10,stopRole='vnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=4,stopRole='vnode')
 
     def stop(self):
         tdSql.close()

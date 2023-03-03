@@ -29,7 +29,7 @@ class MndTestFunc : public ::testing::Test {
 
 Testbase MndTestFunc::test;
 
-void MndTestFunc::SetCode(SCreateFuncReq *pReq, const char *pCode, int32_t size) {
+void MndTestFunc::SetCode(SCreateFuncReq* pReq, const char* pCode, int32_t size) {
   pReq->pCode = (char*)taosMemoryMalloc(size);
   memcpy(pReq->pCode, pCode, size);
   pReq->codeLen = size;
@@ -41,9 +41,7 @@ void MndTestFunc::SetComment(SCreateFuncReq* pReq, const char* pComment) {
   strcpy(pReq->pComment, pComment);
 }
 
-void MndTestFunc::SetBufSize(SCreateFuncReq* pReq, int32_t size) {
-  pReq->bufSize = size;
-}
+void MndTestFunc::SetBufSize(SCreateFuncReq* pReq, int32_t size) { pReq->bufSize = size; }
 
 TEST_F(MndTestFunc, 01_Show_Func) {
   test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
@@ -505,9 +503,8 @@ TEST_F(MndTestFunc, 05_Actual_code) {
     EXPECT_EQ(pFuncInfo->signature, 5);
     EXPECT_STREQ("comment1", pFuncInfo->pComment);
     for (int32_t i = 0; i < 300; ++i) {
-        EXPECT_EQ(pFuncInfo->pCode[i], (i) % 20);
+      EXPECT_EQ(pFuncInfo->pCode[i], (i) % 20);
     }
     tFreeSRetrieveFuncRsp(&retrieveRsp);
   }
-
 }

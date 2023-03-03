@@ -29,40 +29,6 @@ const char *dmStatStr(EDndRunStatus stype) {
   }
 }
 
-const char *dmNodeLogName(EDndNodeType ntype) {
-  switch (ntype) {
-    case VNODE:
-      return "vnode";
-    case QNODE:
-      return "qnode";
-    case SNODE:
-      return "snode";
-    case MNODE:
-      return "mnode";
-    case BNODE:
-      return "bnode";
-    default:
-      return "taosd";
-  }
-}
-
-const char *dmNodeProcName(EDndNodeType ntype) {
-  switch (ntype) {
-    case VNODE:
-      return "taosv";
-    case QNODE:
-      return "taosq";
-    case SNODE:
-      return "taoss";
-    case MNODE:
-      return "taosm";
-    case BNODE:
-      return "taosb";
-    default:
-      return "taosd";
-  }
-}
-
 const char *dmNodeName(EDndNodeType ntype) {
   switch (ntype) {
     case VNODE:
@@ -73,40 +39,8 @@ const char *dmNodeName(EDndNodeType ntype) {
       return "snode";
     case MNODE:
       return "mnode";
-    case BNODE:
-      return "bnode";
     default:
       return "dnode";
-  }
-}
-
-const char *dmProcStr(EDndProcType etype) {
-  switch (etype) {
-    case DND_PROC_SINGLE:
-      return "start";
-    case DND_PROC_CHILD:
-      return "stop";
-    case DND_PROC_PARENT:
-      return "child";
-    case DND_PROC_TEST:
-      return "test";
-    default:
-      return "UNKNOWN";
-  }
-}
-
-const char *dmFuncStr(EProcFuncType etype) {
-  switch (etype) {
-    case DND_FUNC_REQ:
-      return "req";
-    case DND_FUNC_RSP:
-      return "rsp";
-    case DND_FUNC_REGIST:
-      return "regist";
-    case DND_FUNC_RELEASE:
-      return "release";
-    default:
-      return "UNKNOWN";
   }
 }
 
@@ -121,7 +55,7 @@ void *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, bool need
 }
 
 void dmGetMonitorSystemInfo(SMonSysInfo *pInfo) {
-  taosGetCpuUsage(&pInfo->cpu_engine, &pInfo->cpu_system);
+  taosGetCpuUsage(&pInfo->cpu_system, &pInfo->cpu_engine);
   taosGetCpuCores(&pInfo->cpu_cores);
   taosGetProcMemory(&pInfo->mem_engine);
   taosGetSysMemory(&pInfo->mem_system);

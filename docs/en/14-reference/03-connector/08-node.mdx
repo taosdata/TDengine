@@ -1,7 +1,8 @@
 ---
-toc_max_heading_level: 4
-sidebar_label: Node.js
 title: TDengine Node.js Connector
+sidebar_label: Node.js
+description: This document describes the TDengine Node.js connector.
+toc_max_heading_level: 4
 ---
 
 import Tabs from "@theme/Tabs";
@@ -31,7 +32,9 @@ Please refer to [version support list](/reference/connector#version-support)
 
 ## Supported features
 
-### Native connectors
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="Native connector">
 
 1. Connection Management
 2. General Query
@@ -40,11 +43,15 @@ Please refer to [version support list](/reference/connector#version-support)
 5. Subscription
 6. Schemaless
 
-### REST Connector
+</TabItem>
+<TabItem value="rest" label="REST connector">
 
 1. Connection Management
 2. General Query
 3. Continuous Query
+
+</TabItem>
+</Tabs>
 
 ## Installation Steps
 
@@ -59,9 +66,19 @@ Please refer to [version support list](/reference/connector#version-support)
 - `python` (recommended for `v2.7` , `v3.x.x` currently not supported)
 - `@tdengine/client` 3.0.0 supports Node.js LTS v10.9.0 or later and Node.js LTS v12.8.0 or later. Older versions may be incompatible.
 - `make`
-- C compiler, [GCC](https://gcc.gnu.org) v4.8.5 or higher
+- C compiler, [GCC](https://gcc.gnu.org) v4.8.5 or later.
 
 </TabItem>
+
+<TabItem value="macOS" label="macOS installation dependencies">
+
+- `python` (recommended for `v2.7` , `v3.x.x` currently not supported)
+- `@tdengine/client` 3.0.0 currently supports Node.js from v12.22.12, but only later versions of v12. Other versions may be incompatible.
+- `make`
+- C compiler, [GCC](https://gcc.gnu.org) v4.8.5 or later.
+
+</TabItem>
+
 <TabItem value="Windows" label="Windows system installation dependencies">
 
 - Installation method 1
@@ -85,7 +102,7 @@ If using ARM64 Node.js on Windows 10 ARM, you must add "Visual C++ compilers and
 
 ### Install via npm
 
-<Tabs defaultValue="install_native">
+<Tabs defaultValue="install_rest">
 <TabItem value="install_native" label="Install native connector">
 
 ```bash
@@ -104,6 +121,9 @@ npm install @tdengine/rest
 
 ### Verify
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="Native connector">
+
 After installing the TDengine client, use the `nodejsChecker.js` program to verify that the current environment supports Node.js access to TDengine.
 
 Verification in details:
@@ -120,11 +140,33 @@ node nodejsChecker.js host=localhost
 
 - After executing the above steps, the command-line will output the result of `nodejsChecker.js` connecting to the TDengine instance and performing a simple insert and query.
 
+</TabItem>
+<TabItem value="rest" label="REST connector">
+
+After installing the TDengine client, use the `restChecker.js` program to verify that the current environment supports Node.js access to TDengine.
+
+Verification in details:
+
+- Create an installation test folder such as `~/tdengine-test`. Download the [restChecker.js source code](https://github.com/taosdata/TDengine/tree/3.0/docs/examples/node/restexample/restChecker.js) to your local.
+
+- Execute the following command from the command-line.
+
+```bash
+npm init -y
+npm install @tdengine/rest
+node restChecker.js
+```
+
+- After executing the above steps, the command-line will output the result of `restChecker.js` connecting to the TDengine instance and performing a simple insert and query.
+
+</TabItem>
+</Tabs>
+
 ## Establishing a connection
 
 Please choose to use one of the connectors.
 
-<Tabs defaultValue="native">
+<Tabs defaultValue="rest">
 <TabItem value="native" label="native connection">
 
 Install and import the `@tdengine/client` package.
@@ -171,23 +213,68 @@ let cursor = conn.cursor();
 
 #### SQL Write
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
 <NodeInsert />
+
+</TabItem>
+<TabItem value="rest" label="REST connection">
+
+```js
+{{#include docs/examples/node/restexample/insert_example.js}}
+```
+
+</TabItem>
+</Tabs>
 
 #### InfluxDB line protocol write
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
 <NodeInfluxLine />
+
+</TabItem>
+</Tabs>
 
 #### OpenTSDB Telnet line protocol write
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
 <NodeOpenTSDBTelnet />
+
+</TabItem>
+</Tabs>
 
 #### OpenTSDB JSON line protocol write
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
 <NodeOpenTSDBJson />
+
+</TabItem>
+</Tabs>
 
 ### Querying data
 
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+
 <NodeQuery />
+
+</TabItem>
+
+<TabItem value="rest" label="REST connection">
+
+```js
+{{#include docs/examples/node/restexample/query_example.js}}
+```
+
+</TabItem>
+</Tabs>
 
 
 ## More sample programs

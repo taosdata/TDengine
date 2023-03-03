@@ -1,6 +1,7 @@
 ---
-sidebar_label: Cluster
 title: Cluster
+sidebar_label: Cluster
+description: This document describes the SQL statements related to cluster management in TDengine.
 ---
 
 The physical entities that form TDengine clusters are known as data nodes (dnodes). Each dnode is a process running on the operating system of the physical machine. Dnodes can contain virtual nodes (vnodes), which store time-series data. Virtual nodes are formed into vgroups, which have 1 or 3 vnodes depending on the replica setting. If you want to enable replication on your cluster, it must contain at least three nodes. Dnodes can also contain management nodes (mnodes). Each cluster has up to three mnodes. Finally, dnodes can contain query nodes (qnodes), which compute time-series data, thus separating compute from storage. A single dnode can contain a vnode, qnode, and mnode.
@@ -40,29 +41,35 @@ ALTER ALL DNODES dnode_option
 
 dnode_option: {
     'resetLog'
-  | 'balance' value
-  | 'monitor' value
-  | 'debugFlag' value
-  | 'monDebugFlag' value
-  | 'vDebugFlag' value
-  | 'mDebugFlag' value
-  | 'cDebugFlag' value
-  | 'httpDebugFlag' value
-  | 'qDebugflag' value
-  | 'sdbDebugFlag' value
-  | 'uDebugFlag' value
-  | 'tsdbDebugFlag' value
-  | 'sDebugflag' value
-  | 'rpcDebugFlag' value
-  | 'dDebugFlag' value
-  | 'mqttDebugFlag' value
-  | 'wDebugFlag' value
-  | 'tmrDebugFlag' value
-  | 'cqDebugFlag' value
+  | 'balance' 'value'
+  | 'monitor' 'value'
+  | 'debugFlag' 'value'
+  | 'monDebugFlag' 'value'
+  | 'vDebugFlag' 'value'
+  | 'mDebugFlag' 'value'
+  | 'cDebugFlag' 'value'
+  | 'httpDebugFlag' 'value'
+  | 'qDebugflag' 'value'
+  | 'sdbDebugFlag' 'value'
+  | 'uDebugFlag' 'value'
+  | 'tsdbDebugFlag' 'value'
+  | 'sDebugflag' 'value'
+  | 'rpcDebugFlag' 'value'
+  | 'dDebugFlag' 'value'
+  | 'mqttDebugFlag' 'value'
+  | 'wDebugFlag' 'value'
+  | 'tmrDebugFlag' 'value'
+  | 'cqDebugFlag' 'value'
 }
 ```
 
 The parameters that you can modify through this statement are the same as those located in the dnode configuration file. Modifications that you make through this statement take effect immediately, while modifications to the configuration file take effect when the dnode restarts.
+
+`value` is the value of the parameter, which needs to be in character format. For example, modify the log output level of dnode 1 to debug:
+
+```sql
+ALTER DNODE 1 'debugFlag' '143';
+```
 
 ## Add an Mnode
 
@@ -121,11 +128,11 @@ ALTER LOCAL local_option
 
 local_option: {
     'resetLog'
-  | 'rpcDebugFlag' value
-  | 'tmrDebugFlag' value
-  | 'cDebugFlag' value
-  | 'uDebugFlag' value
-  | 'debugFlag' value
+  | 'rpcDebugFlag' 'value'
+  | 'tmrDebugFlag' 'value'
+  | 'cDebugFlag' 'value'
+  | 'uDebugFlag' 'value'
+  | 'debugFlag' 'value'
 }
 ```
 
@@ -136,19 +143,3 @@ The parameters that you can modify through this statement are the same as those 
 ```sql
 SHOW LOCAL VARIABLES;
 ```
-
-## Combine Vgroups
-
-```sql
-MERGE VGROUP vgroup_no1 vgroup_no2;
-```
-
-If load and data are not properly balanced among vgroups due to the data in different tim lines having different characteristics, you can combine or separate vgroups.
-
-## Separate Vgroups
-
-```sql
-SPLIT VGROUP vgroup_no;
-```
-
-This statement creates a new vgroup and migrates part of the data from the original vgroup to the new vgroup with consistent hashing. During this process, the original vgroup can continue to provide services normally.

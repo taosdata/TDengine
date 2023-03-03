@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -19,7 +15,7 @@ SyncHeartbeat *createMsg() {
   pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1234);
   pMsg->srcId.vgId = 100;
   pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 5678);
-  pMsg->destId.vgId = 100;  
+  pMsg->destId.vgId = 100;
   pMsg->term = 8;
   pMsg->commitIndex = 33;
   pMsg->privateTerm = 44;
@@ -34,8 +30,8 @@ void test1() {
 
 void test2() {
   SyncHeartbeat *pMsg = createMsg();
-  uint32_t           len = pMsg->bytes;
-  char *             serialized = (char *)taosMemoryMalloc(len);
+  uint32_t       len = pMsg->bytes;
+  char *         serialized = (char *)taosMemoryMalloc(len);
   syncHeartbeatSerialize(pMsg, serialized, len);
   SyncHeartbeat *pMsg2 = syncHeartbeatBuild(789);
   syncHeartbeatDeserialize(serialized, len, pMsg2);
@@ -48,8 +44,8 @@ void test2() {
 
 void test3() {
   SyncHeartbeat *pMsg = createMsg();
-  uint32_t           len;
-  char *             serialized = syncHeartbeatSerialize2(pMsg, &len);
+  uint32_t       len;
+  char *         serialized = syncHeartbeatSerialize2(pMsg, &len);
   SyncHeartbeat *pMsg2 = syncHeartbeatDeserialize2(serialized, len);
   syncHeartbeatLog2((char *)"test3: syncHeartbeatSerialize2 -> syncHeartbeatDeserialize2 ", pMsg2);
 
@@ -60,7 +56,7 @@ void test3() {
 
 void test4() {
   SyncHeartbeat *pMsg = createMsg();
-  SRpcMsg            rpcMsg;
+  SRpcMsg        rpcMsg;
   syncHeartbeat2RpcMsg(pMsg, &rpcMsg);
   SyncHeartbeat *pMsg2 = (SyncHeartbeat *)taosMemoryMalloc(rpcMsg.contLen);
   syncHeartbeatFromRpcMsg(&rpcMsg, pMsg2);
@@ -73,9 +69,9 @@ void test4() {
 
 void test5() {
   SyncHeartbeat *pMsg = createMsg();
-  SRpcMsg            rpcMsg;
+  SRpcMsg        rpcMsg;
   syncHeartbeat2RpcMsg(pMsg, &rpcMsg);
-  SyncHeartbeat *pMsg2 =syncHeartbeatFromRpcMsg2(&rpcMsg);
+  SyncHeartbeat *pMsg2 = syncHeartbeatFromRpcMsg2(&rpcMsg);
   syncHeartbeatLog2((char *)"test5: syncHeartbeat2RpcMsg -> syncHeartbeatFromRpcMsg2 ", pMsg2);
 
   rpcFreeCont(rpcMsg.pCont);

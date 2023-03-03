@@ -20,6 +20,8 @@
 #include "tlog.h"
 #include "transLog.h"
 #include "trpc.h"
+#include "tmisce.h"
+
 using namespace std;
 
 const char *label = "APP";
@@ -99,7 +101,7 @@ class Client {
  private:
   tsem_t   sem;
   SRpcInit rpcInit_;
-  void *   transCli;
+  void    *transCli;
   SRpcMsg  resp;
 };
 class Server {
@@ -146,7 +148,7 @@ class Server {
 
  private:
   SRpcInit rpcInit_;
-  void *   transSrv;
+  void    *transSrv;
 };
 static void processReq(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SRpcMsg rpcMsg = {0};
@@ -330,7 +332,7 @@ TEST_F(TransEnv, clientUserDefined) {
 
 TEST_F(TransEnv, cliPersistHandle) {
   SRpcMsg resp = {0};
-  void *  handle = NULL;
+  void   *handle = NULL;
   for (int i = 0; i < 10; i++) {
     SRpcMsg req = {0};
     req.info = resp.info;
@@ -366,7 +368,7 @@ TEST_F(TransEnv, srvReleaseHandle) {
   SRpcMsg resp = {0};
   tr->SetSrvContinueSend(processReleaseHandleCb);
   // tr->Restart(processReleaseHandleCb);
-  void *  handle = NULL;
+  void   *handle = NULL;
   SRpcMsg req = {0};
   for (int i = 0; i < 1; i++) {
     memset(&req, 0, sizeof(req));

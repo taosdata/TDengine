@@ -74,11 +74,47 @@ sql insert into d2.t2 values(now+5s, 21)
 sql select * from information_schema.ins_dnodes
 print dnode1 openVnodes $data(1)[2]
 print dnode2 openVnodes $data(2)[2]
-if $data(1)[2] != 0 then
+if $data(1)[2] != 1 then
 	return -1
 endi
-if $data(2)[2] != 2 then
+if $data(2)[2] != 1 then
 	return -1
+endi
+
+sql select * from d1.t1 order by t desc
+print $data01 $data11 $data21 $data31 $data41 
+if $data01 != 11 then
+  return -1
+endi
+if $data11 != 12 then
+  return -1
+endi
+if $data21 != 13 then
+  return -1
+endi
+if $data31 != 14 then
+  return -1
+endi
+if $data41 != 15 then
+  return -1
+endi
+
+sql select * from d2.t2 order by t desc
+print $data01 $data11 $data21 $data31 $data41 
+if $data01 != 21 then
+  return -1
+endi
+if $data11 != 22 then
+  return -1
+endi
+if $data21 != 23 then
+  return -1
+endi
+if $data31 != 24 then
+  return -1
+endi
+if $data41 != 25 then
+  return -1
 endi
 
 print ========== step4
@@ -91,6 +127,42 @@ if $data(1)[2] != 2 then
 endi
 if $data(2)[2] != null then
 	return -1
+endi
+
+sql select * from d1.t1 order by t desc
+print $data01 $data11 $data21 $data31 $data41 
+if $data01 != 11 then
+  return -1
+endi
+if $data11 != 12 then
+  return -1
+endi
+if $data21 != 13 then
+  return -1
+endi
+if $data31 != 14 then
+  return -1
+endi
+if $data41 != 15 then
+  return -1
+endi
+
+sql select * from d2.t2 order by t desc
+print $data01 $data11 $data21 $data31 $data41 
+if $data01 != 21 then
+  return -1
+endi
+if $data11 != 22 then
+  return -1
+endi
+if $data21 != 23 then
+  return -1
+endi
+if $data31 != 24 then
+  return -1
+endi
+if $data41 != 25 then
+  return -1
 endi
 
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
@@ -129,6 +201,42 @@ if $data(1)[2] != 1 then
 endi
 if $data(3)[2] != 1 then
 	return -1
+endi
+
+sql select * from d1.t1 order by t desc
+print $data01 $data11 $data21 $data31 $data41 
+if $data01 != 11 then
+  return -1
+endi
+if $data11 != 12 then
+  return -1
+endi
+if $data21 != 13 then
+  return -1
+endi
+if $data31 != 14 then
+  return -1
+endi
+if $data41 != 15 then
+  return -1
+endi
+
+sql select * from d2.t2 order by t desc
+print $data01 $data11 $data21 $data31 $data41 
+if $data01 != 21 then
+  return -1
+endi
+if $data11 != 22 then
+  return -1
+endi
+if $data21 != 23 then
+  return -1
+endi
+if $data31 != 24 then
+  return -1
+endi
+if $data41 != 25 then
+  return -1
 endi
 
 print ========== step6

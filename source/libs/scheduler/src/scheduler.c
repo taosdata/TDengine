@@ -14,6 +14,7 @@
  */
 
 #include "query.h"
+#include "qworker.h"
 #include "schInt.h"
 #include "tmsg.h"
 #include "tref.h"
@@ -34,17 +35,23 @@ int32_t schedulerInit() {
   schMgmt.cfg.enableReSchedule = true;
 
   qDebug("schedule policy init to %d", schMgmt.cfg.schPolicy);
-  
+
   schMgmt.jobRef = taosOpenRef(schMgmt.cfg.maxJobNum, schFreeJobImpl);
   if (schMgmt.jobRef < 0) {
     qError("init schduler jobRef failed, num:%u", schMgmt.cfg.maxJobNum);
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   schMgmt.hbConnections = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == schMgmt.hbConnections) {
     qError("taosHashInit hb connections failed");
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  schMgmt.timer = taosTmrInit(0, 0, 0, "scheduler");
+  if (NULL == schMgmt.timer) {
+    qError("init timer failed, error:%s", tstrerror(terrno));
+    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   if (taosGetSystemUUID((char *)&schMgmt.sId, sizeof(schMgmt.sId))) {
@@ -60,7 +67,7 @@ int32_t schedulerInit() {
 int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
   qDebug("scheduler %s exec job start", pReq->syncReq ? "SYNC" : "ASYNC");
 
-  int32_t code = 0;  
+  int32_t  code = 0;
   SSchJob *pJob = NULL;
 
   SCH_ERR_JRET(schInitJob(pJobId, pReq));
@@ -72,7 +79,7 @@ int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_EXEC, pReq));
 
 _return:
-  
+
   SCH_RET(schHandleOpEndEvent(pJob, SCH_OP_EXEC, pReq, code));
 }
 
@@ -143,21 +150,20 @@ int32_t schedulerEnableReSchedule(bool enableResche) {
   return TSDB_CODE_SUCCESS;
 }
 
-void schedulerFreeJob(int64_t* jobId, int32_t errCode) {
+void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
   if (0 == *jobId) {
     return;
   }
 
   SSchJob *pJob = schAcquireJob(*jobId);
   if (NULL == pJob) {
-    qWarn("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
+    qDebug("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
     return;
   }
 
-  SCH_JOB_DLOG("start to free job 0x%" PRIx64 ", errCode:0x%x", *jobId, errCode);
-
+  SCH_JOB_DLOG("start to free job 0x%" PRIx64 ", code:%s", *jobId, tstrerror(errCode));
   schHandleJobDrop(pJob, errCode);
-  
+
   schReleaseJob(*jobId);
   *jobId = 0;
 }
@@ -192,4 +198,7 @@ void schedulerDestroy(void) {
     schMgmt.hbConnections = NULL;
   }
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
+
+  qWorkerDestroy(&schMgmt.queryMgmt);
+  schMgmt.queryMgmt = NULL;
 }

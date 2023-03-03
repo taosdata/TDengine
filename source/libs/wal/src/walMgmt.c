@@ -81,6 +81,12 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     return NULL;
   }
 
+  if (taosThreadMutexInit(&pWal->mutex, NULL) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    taosMemoryFree(pWal);
+    return NULL;
+  }
+
   // set config
   memcpy(&pWal->cfg, pCfg, sizeof(SWalCfg));
 
@@ -98,14 +104,14 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   tstrncpy(pWal->path, path, sizeof(pWal->path));
   if (taosMkDir(pWal->path) != 0) {
     wError("vgId:%d, path:%s, failed to create directory since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
-    return NULL;
+    goto _err;
   }
 
   // init ref
   pWal->pRefHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (pWal->pRefHash == NULL) {
-    taosMemoryFree(pWal);
-    return NULL;
+    wError("failed to init hash since %s", tstrerror(terrno));
+    goto _err;
   }
 
   // open meta
@@ -115,10 +121,17 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->writeCur = -1;
   pWal->fileInfoSet = taosArrayInit(8, sizeof(SWalFileInfo));
   if (pWal->fileInfoSet == NULL) {
-    wError("vgId:%d, path:%s, failed to init taosArray %s", pWal->cfg.vgId, pWal->path, strerror(errno));
-    taosHashCleanup(pWal->pRefHash);
-    taosMemoryFree(pWal);
-    return NULL;
+    wError("vgId:%d, failed to init taosArray of fileInfoSet due to %s. path:%s", pWal->cfg.vgId, strerror(errno),
+           pWal->path);
+    goto _err;
+  }
+
+  // init gc
+  pWal->toDeleteFiles = taosArrayInit(8, sizeof(SWalFileInfo));
+  if (pWal->toDeleteFiles == NULL) {
+    wError("vgId:%d, failed to init taosArray of toDeleteFiles due to %s. path:%s", pWal->cfg.vgId, strerror(errno),
+           pWal->path);
+    goto _err;
   }
 
   // init status
@@ -130,50 +143,41 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->writeHead.head.protoVer = WAL_PROTO_VER;
   pWal->writeHead.magic = WAL_MAGIC;
 
-  if (taosThreadMutexInit(&pWal->mutex, NULL) < 0) {
-    taosArrayDestroy(pWal->fileInfoSet);
-    taosHashCleanup(pWal->pRefHash);
-    taosMemoryFree(pWal);
-    return NULL;
-  }
-
-  pWal->refId = taosAddRef(tsWal.refSetId, pWal);
-  if (pWal->refId < 0) {
-    taosHashCleanup(pWal->pRefHash);
-    taosThreadMutexDestroy(&pWal->mutex);
-    taosArrayDestroy(pWal->fileInfoSet);
-    taosMemoryFree(pWal);
-    return NULL;
-  }
-
-  walLoadMeta(pWal);
+  // load meta
+  (void)walLoadMeta(pWal);
 
   if (walCheckAndRepairMeta(pWal) < 0) {
-    wError("vgId:%d cannot open wal since repair meta file failed", pWal->cfg.vgId);
-    taosHashCleanup(pWal->pRefHash);
-    taosRemoveRef(tsWal.refSetId, pWal->refId);
-    taosThreadMutexDestroy(&pWal->mutex);
-    taosArrayDestroy(pWal->fileInfoSet);
-    return NULL;
+    wError("vgId:%d, cannot open wal since repair meta file failed", pWal->cfg.vgId);
+    goto _err;
   }
 
   if (walCheckAndRepairIdx(pWal) < 0) {
-    wError("vgId:%d cannot open wal since repair idx file failed", pWal->cfg.vgId);
-    taosHashCleanup(pWal->pRefHash);
-    taosRemoveRef(tsWal.refSetId, pWal->refId);
-    taosThreadMutexDestroy(&pWal->mutex);
-    taosArrayDestroy(pWal->fileInfoSet);
-    return NULL;
+    wError("vgId:%d, cannot open wal since repair idx file failed", pWal->cfg.vgId);
+    goto _err;
+  }
+
+  // add ref
+  pWal->refId = taosAddRef(tsWal.refSetId, pWal);
+  if (pWal->refId < 0) {
+    wError("failed to add ref for Wal since %s", tstrerror(terrno));
+    goto _err;
   }
 
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->cfg.vgId, pWal, pWal->cfg.level,
          pWal->cfg.fsyncPeriod);
-
   return pWal;
+
+_err:
+  taosArrayDestroy(pWal->fileInfoSet);
+  taosHashCleanup(pWal->pRefHash);
+  taosThreadMutexDestroy(&pWal->mutex);
+  taosMemoryFree(pWal);
+  pWal = NULL;
+  return NULL;
 }
 
 int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
-  if (pWal == NULL) return TSDB_CODE_WAL_APP_ERROR;
+  if (pWal == NULL) return TSDB_CODE_APP_ERROR;
 
   if (pWal->cfg.level == pCfg->level && pWal->cfg.fsyncPeriod == pCfg->fsyncPeriod) {
     wDebug("vgId:%d, old walLevel:%d fsync:%d, new walLevel:%d fsync:%d not change", pWal->cfg.vgId, pWal->cfg.level,
@@ -192,16 +196,34 @@ int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
   return 0;
 }
 
+int32_t walPersist(SWal *pWal) {
+  taosThreadMutexLock(&pWal->mutex);
+  int32_t ret = walSaveMeta(pWal);
+  taosThreadMutexUnlock(&pWal->mutex);
+  return ret;
+}
+
 void walClose(SWal *pWal) {
   taosThreadMutexLock(&pWal->mutex);
+  (void)walSaveMeta(pWal);
   taosCloseFile(&pWal->pLogFile);
   pWal->pLogFile = NULL;
   taosCloseFile(&pWal->pIdxFile);
   pWal->pIdxFile = NULL;
-  walSaveMeta(pWal);
   taosArrayDestroy(pWal->fileInfoSet);
   pWal->fileInfoSet = NULL;
+  taosArrayDestroy(pWal->toDeleteFiles);
+  pWal->toDeleteFiles = NULL;
+
+  void *pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pWal->pRefHash, pIter);
+    if (pIter == NULL) break;
+    SWalRef *pRef = *(SWalRef **)pIter;
+    taosMemoryFree(pRef);
+  }
   taosHashCleanup(pWal->pRefHash);
+  pWal->pRefHash = NULL;
   taosThreadMutexUnlock(&pWal->mutex);
 
   taosRemoveRef(tsWal.refSetId, pWal->refId);
@@ -241,7 +263,7 @@ static void walFsyncAll() {
       int32_t code = taosFsyncFile(pWal->pLogFile);
       if (code != 0) {
         wError("vgId:%d, file:%" PRId64 ".log, failed to fsync since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
-               strerror(code));
+               strerror(errno));
       }
     }
     pWal = taosIterateRef(tsWal.refSetId, pWal->refId);

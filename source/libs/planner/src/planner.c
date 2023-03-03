@@ -63,7 +63,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDownstreamSourceNode* pSource) {
   if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
     SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
-    if (pExchange->srcGroupId == groupId) {
+    if (groupId >= pExchange->srcStartGroupId && groupId <= pExchange->srcEndGroupId) {
       return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, nodesCloneNode((SNode*)pSource));
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
@@ -140,15 +140,6 @@ int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
 
 int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan) {
   return nodesMsgToNode(pStr, len, (SNode**)pSubplan);
-}
-
-char* qQueryPlanToString(const SQueryPlan* pPlan) {
-  char*   pStr = NULL;
-  int32_t len = 0;
-  if (TSDB_CODE_SUCCESS != nodesNodeToString((SNode*)pPlan, false, &pStr, &len)) {
-    return NULL;
-  }
-  return pStr;
 }
 
 SQueryPlan* qStringToQueryPlan(const char* pStr) {

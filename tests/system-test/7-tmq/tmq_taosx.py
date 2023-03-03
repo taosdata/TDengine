@@ -15,7 +15,8 @@ sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
@@ -42,9 +43,9 @@ class TDTestCase:
         tdSql.execute('use db_taosx')
         tdSql.query("show tables")
         if drop:
-            tdSql.checkRows(10)
+            tdSql.checkRows(11)
         else:
-            tdSql.checkRows(15)
+            tdSql.checkRows(16)
         tdSql.query("select * from jt order by i")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 1)
@@ -62,20 +63,20 @@ class TDTestCase:
         tdSql.checkData(1, 5, "sttb4")
 
         tdSql.query("select * from stt order by ts")
-        tdSql.checkRows(2)
+        tdSql.checkRows(3)
         tdSql.checkData(0, 1, 1)
-        tdSql.checkData(1, 1, 21)
+        tdSql.checkData(2, 1, 21)
         tdSql.checkData(0, 2, 2)
-        tdSql.checkData(1, 2, 21)
+        tdSql.checkData(2, 2, 21)
         tdSql.checkData(0, 5, "stt3")
-        tdSql.checkData(1, 5, "stt4")
+        tdSql.checkData(2, 5, "stt4")
 
         tdSql.execute('use abc1')
         tdSql.query("show tables")
         if drop:
-            tdSql.checkRows(10)
+            tdSql.checkRows(11)
         else:
-            tdSql.checkRows(15)
+            tdSql.checkRows(16)
         tdSql.query("select * from jt order by i")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 1)
@@ -93,13 +94,13 @@ class TDTestCase:
         tdSql.checkData(1, 5, "sttb4")
 
         tdSql.query("select * from stt order by ts")
-        tdSql.checkRows(2)
+        tdSql.checkRows(3)
         tdSql.checkData(0, 1, 1)
-        tdSql.checkData(1, 1, 21)
+        tdSql.checkData(2, 1, 21)
         tdSql.checkData(0, 2, 2)
-        tdSql.checkData(1, 2, 21)
+        tdSql.checkData(2, 2, 21)
         tdSql.checkData(0, 5, "stt3")
-        tdSql.checkData(1, 5, "stt4")
+        tdSql.checkData(2, 5, "stt4")
 
         return
 
@@ -122,6 +123,11 @@ class TDTestCase:
 
     def checkData(self):
         tdSql.execute('use db_taosx')
+        tdSql.query("select * from tb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 0)
+        tdSql.checkData(0, 2, 1)
+
         tdSql.query("select * from ct3 order by c1 desc")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 51)
@@ -193,6 +199,12 @@ class TDTestCase:
         tdSql.checkData(0, 2, None)
         tdSql.checkData(1, 1, 1)
         tdSql.checkData(1, 2, '{"k1":1,"k2":"hello"}')
+
+        time.sleep(10)
+        tdSql.query("select * from information_schema.ins_tables where table_name = 'stt4'")
+        uid1 = tdSql.getData(0, 5)
+        uid2 = tdSql.getData(1, 5)
+        tdSql.checkNotEqual(uid1, uid2)
         return
 
     def checkWal1Vgroup(self):

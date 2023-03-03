@@ -110,7 +110,8 @@ class TDTestCase:
 
     print ("===================: ", updatecfgDict)
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -229,9 +230,11 @@ class TDTestCase:
                 tdLog.exit('taos -n client fail!')
         finally:
             if platform.system().lower() == 'windows':
+                tdLog.info("ps -a | grep taos | awk \'{print $2}\' | xargs kill -9")
                 os.system('ps -a | grep taos | awk \'{print $2}\' | xargs kill -9')
             else:
-                os.system('pkill -9 taos')
+                tdLog.info("pkill -9 taos")
+                # os.system('pkill -9 taos')
 
     def stop(self):
         tdSql.close()

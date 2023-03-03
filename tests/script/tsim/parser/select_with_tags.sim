@@ -396,7 +396,10 @@ if $row != 12800 then
    return -1
 endi
 
+print $data00 , $data01
+
 if $data00 != @select_tags_tb0@ then
+  print expect select_tags_tb0 , actual: $data00
   return -1
 endi
 

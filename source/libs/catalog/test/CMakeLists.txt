@@ -18,8 +18,8 @@ IF(NOT TD_DARWIN)
                 PRIVATE "${TD_SOURCE_DIR}/source/libs/catalog/inc"
         )
 
-        # add_test(
-        #     NAME catalogTest
-        #     COMMAND catalogTest
-        # )
+        add_test(
+            NAME catalogTest
+            COMMAND catalogTest
+        )
 ENDIF()

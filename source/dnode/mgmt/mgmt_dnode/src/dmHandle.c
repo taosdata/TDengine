@@ -32,19 +32,25 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
 }
 
 static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
+  const STraceId *trace = &pRsp->info.traceId;
+  dGTrace("status rsp received from mnode, statusSeq:%d code:0x%x", pMgmt->statusSeq, pRsp->code);
+
   if (pRsp->code != 0) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
-      dInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->pData->dnodeId);
+      dGInfo("dnode:%d, set to dropped since not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
+             pMgmt->statusSeq);
       pMgmt->pData->dropped = 1;
       dmWriteEps(pMgmt->pData);
+      dInfo("dnode will exit since it is in the dropped state");
+      raise(SIGINT);
     }
   } else {
     SStatusRsp statusRsp = {0};
     if (pRsp->pCont != NULL && pRsp->contLen > 0 &&
         tDeserializeSStatusRsp(pRsp->pCont, pRsp->contLen, &statusRsp) == 0) {
-      dTrace("status msg received from mnode, dnodeVer:%" PRId64 " saved:%" PRId64, statusRsp.dnodeVer,
-             pMgmt->pData->dnodeVer);
       if (pMgmt->pData->dnodeVer != statusRsp.dnodeVer) {
+        dGInfo("status rsp received from mnode, statusSeq:%d:%d dnodeVer:%" PRId64 ":%" PRId64, pMgmt->statusSeq,
+               statusRsp.statusSeq, pMgmt->pData->dnodeVer, statusRsp.dnodeVer);
         pMgmt->pData->dnodeVer = statusRsp.dnodeVer;
         dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
@@ -91,21 +97,29 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
 
+  pMgmt->statusSeq++;
+  req.statusSeq = pMgmt->statusSeq;
+
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);
   tSerializeSStatusReq(pHead, contLen, &req);
   tFreeSStatusReq(&req);
 
-  SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .info.ahandle = (void *)0x9527};
+  SRpcMsg rpcMsg = {.pCont = pHead,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_STATUS,
+                    .info.ahandle = (void *)0x9527,
+                    .info.refId = 0,
+                    .info.noResp = 0};
   SRpcMsg rpcRsp = {0};
 
-  dTrace("send status msg to mnode, dnodeVer:%" PRId64, req.dnodeVer);
+  dTrace("send status req to mnode, dnodeVer:%" PRId64 " statusSeq:%d", req.dnodeVer, req.statusSeq);
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
   rpcSendRecv(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp);
   if (rpcRsp.code != 0) {
-    dError("failed to send status msg since %s, numOfEps:%d inUse:%d", tstrerror(rpcRsp.code), epSet.numOfEps,
+    dError("failed to send status req since %s, numOfEps:%d inUse:%d", tstrerror(rpcRsp.code), epSet.numOfEps,
            epSet.inUse);
     for (int32_t i = 0; i < epSet.numOfEps; ++i) {
       dDebug("index:%d, mnode ep:%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
@@ -143,7 +157,8 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   SServerStatusRsp statusRsp = {0};
   SMonMloadInfo    minfo = {0};
   (*pMgmt->getMnodeLoadsFp)(&minfo);
-  if (minfo.isMnode && minfo.load.syncState == TAOS_SYNC_STATE_ERROR) {
+  if (minfo.isMnode &&
+      (minfo.load.syncState == TAOS_SYNC_STATE_ERROR || minfo.load.syncState == TAOS_SYNC_STATE_OFFLINE)) {
     pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
     snprintf(pStatus->details, sizeof(pStatus->details), "mnode sync state is %s", syncStr(minfo.load.syncState));
     return;
@@ -153,7 +168,7 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   (*pMgmt->getVnodeLoadsFp)(&vinfo);
   for (int32_t i = 0; i < taosArrayGetSize(vinfo.pVloads); ++i) {
     SVnodeLoad *pLoad = taosArrayGet(vinfo.pVloads, i);
-    if (pLoad->syncState == TAOS_SYNC_STATE_ERROR) {
+    if (pLoad->syncState == TAOS_SYNC_STATE_ERROR || pLoad->syncState == TAOS_SYNC_STATE_OFFLINE) {
       pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
       snprintf(pStatus->details, sizeof(pStatus->details), "vnode:%d sync state is %s", pLoad->vgId,
                syncStr(pLoad->syncState));
@@ -227,19 +242,19 @@ int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
     GRANT_CFG_SKIP;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, (const char *)&dnodeId, false);
+    colDataSetVal(pColInfo, i, (const char *)&dnodeId, false);
 
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, name, false);
+    colDataSetVal(pColInfo, i, name, false);
 
     char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t valueLen = 0;
     cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
     varDataSetLen(value, valueLen);
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
-    colDataAppend(pColInfo, i, value, false);
+    colDataSetVal(pColInfo, i, value, false);
 
     numOfRows++;
   }
@@ -300,8 +315,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     pStart += sizeof(SSysTableSchema);
   }
 
-  int32_t len = 0;
-  blockEncode(pBlock, pStart, &len, numOfCols, false);
+  int32_t len = blockEncode(pBlock, pStart, numOfCols);
 
   pRsp->numOfRows = htonl(pBlock->info.rows);
   pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
@@ -326,15 +340,12 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_QNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_SNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_SNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  // if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT_RSP, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_AUTH_RSP, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   code = 0;

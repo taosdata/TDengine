@@ -27,39 +27,47 @@
 #include "tglobal.h"
 #include "tmsg.h"
 #include "trpc.h"
-// clang-foramt on
+#include "tmisce.h"
+// clang-format on
 
 typedef struct SUdfdContext {
-  uv_loop_t * loop;
+  uv_loop_t  *loop;
   uv_pipe_t   ctrlPipe;
   uv_signal_t intrSignal;
   char        listenPipeName[PATH_MAX + UDF_LISTEN_PIPE_NAME_LEN + 2];
   uv_pipe_t   listeningPipe;
 
-  void *     clientRpc;
+  void      *clientRpc;
   SCorEpSet  mgmtEp;
   uv_mutex_t udfsMutex;
-  SHashObj * udfsHash;
+  SHashObj  *udfsHash;
 
-  SArray* residentFuncs;
+  SArray *residentFuncs;
 
   bool printVersion;
 } SUdfdContext;
 
 SUdfdContext global;
 
+struct SUdfdUvConn;
+struct SUvUdfWork;
+
 typedef struct SUdfdUvConn {
   uv_stream_t *client;
-  char *       inputBuf;
+  char        *inputBuf;
   int32_t      inputLen;
   int32_t      inputCap;
   int32_t      inputTotal;
+
+  struct SUvUdfWork *pWorkList;  // head of work list
 } SUdfdUvConn;
 
 typedef struct SUvUdfWork {
-  uv_stream_t *client;
+  SUdfdUvConn *conn;
   uv_buf_t     input;
   uv_buf_t     output;
+
+  struct SUvUdfWork *pWorkNext;
 } SUvUdfWork;
 
 typedef enum { UDF_STATE_INIT = 0, UDF_STATE_LOADING, UDF_STATE_READY, UDF_STATE_UNLOADING } EUdfState;
@@ -69,9 +77,9 @@ typedef struct SUdf {
   EUdfState  state;
   uv_mutex_t lock;
   uv_cond_t  condReady;
-  bool resident;
+  bool       resident;
 
-  char    name[TSDB_FUNC_NAME_LEN];
+  char    name[TSDB_FUNC_NAME_LEN + 1];
   int8_t  funcType;
   int8_t  scriptType;
   int8_t  outputType;
@@ -106,7 +114,7 @@ typedef enum EUdfdRpcReqRspType {
 typedef struct SUdfdRpcSendRecvInfo {
   EUdfdRpcReqRspType rpcType;
   int32_t            code;
-  void *             param;
+  void              *param;
   uv_sem_t           resultSem;
 } SUdfdRpcSendRecvInfo;
 
@@ -177,7 +185,7 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   fnInfo("setup request. seq num: %" PRId64 ", udf name: %s", request->seqNum, request->setup.udfName);
   SUdfSetupRequest *setup = &request->setup;
   int32_t           code = TSDB_CODE_SUCCESS;
-  SUdf *            udf = NULL;
+  SUdf             *udf = NULL;
   uv_mutex_lock(&global.udfsMutex);
   SUdf **udfInHash = taosHashGet(global.udfsHash, request->setup.udfName, strlen(request->setup.udfName));
   if (udfInHash) {
@@ -188,11 +196,12 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     SUdf *udfNew = taosMemoryCalloc(1, sizeof(SUdf));
     udfNew->refCount = 1;
     udfNew->state = UDF_STATE_INIT;
-
     uv_mutex_init(&udfNew->lock);
     uv_cond_init(&udfNew->condReady);
+
     udf = udfNew;
-    taosHashPut(global.udfsHash, request->setup.udfName, strlen(request->setup.udfName), &udfNew, sizeof(&udfNew));
+    SUdf **pUdf = &udf;
+    taosHashPut(global.udfsHash, request->setup.udfName, strlen(request->setup.udfName), pUdf, POINTER_BYTES);
     uv_mutex_unlock(&global.udfsMutex);
   }
 
@@ -205,7 +214,7 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     }
     udf->resident = false;
     for (int32_t i = 0; i < taosArrayGetSize(global.residentFuncs); ++i) {
-      char* funcName = taosArrayGet(global.residentFuncs, i);
+      char *funcName = taosArrayGet(global.residentFuncs, i);
       if (strcmp(setup->udfName, funcName) == 0) {
         udf->resident = true;
         break;
@@ -246,11 +255,12 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
 void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   SUdfCallRequest *call = &request->call;
-  fnDebug("%" PRId64 "call request. call type %d, handle: %" PRIx64, request->seqNum, call->callType, call->udfHandle);
-  SUdfcFuncHandle * handle = (SUdfcFuncHandle *)(call->udfHandle);
-  SUdf *            udf = handle->udf;
+  fnDebug("call request. call type %d, handle: %" PRIx64 ", seq num %" PRId64, call->callType, call->udfHandle,
+          request->seqNum);
+  SUdfcFuncHandle  *handle = (SUdfcFuncHandle *)(call->udfHandle);
+  SUdf             *udf = handle->udf;
   SUdfResponse      response = {0};
-  SUdfResponse *    rsp = &response;
+  SUdfResponse     *rsp = &response;
   SUdfCallResponse *subRsp = &rsp->callRsp;
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -350,7 +360,7 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   SUdfTeardownRequest *teardown = &request->teardown;
   fnInfo("teardown. seq number: %" PRId64 ", handle:%" PRIx64, request->seqNum, teardown->udfHandle);
   SUdfcFuncHandle *handle = (SUdfcFuncHandle *)(teardown->udfHandle);
-  SUdf *           udf = handle->udf;
+  SUdf            *udf = handle->udf;
   bool             unloadUdf = false;
   int32_t          code = TSDB_CODE_SUCCESS;
 
@@ -372,7 +382,7 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   }
   taosMemoryFree(handle);
 
-  SUdfResponse  response;
+  SUdfResponse  response = {0};
   SUdfResponse *rsp = &response;
   rsp->seqNum = request->seqNum;
   rsp->type = request->type;
@@ -390,7 +400,6 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
 void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SUdfdRpcSendRecvInfo *msgInfo = (SUdfdRpcSendRecvInfo *)pMsg->info.ahandle;
-  ASSERT(pMsg->info.ahandle != NULL);
 
   if (pEpSet) {
     if (!isEpsetEqual(&global.mgmtEp.epSet, pEpSet)) {
@@ -407,17 +416,16 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   if (msgInfo->rpcType == UDFD_RPC_MNODE_CONNECT) {
     SConnectRsp connectRsp = {0};
     tDeserializeSConnectRsp(pMsg->pCont, pMsg->contLen, &connectRsp);
-    
+
     int32_t now = taosGetTimestampSec();
     int32_t delta = abs(now - connectRsp.svrTimestamp);
     if (delta > 900) {
       msgInfo->code = TSDB_CODE_TIME_UNSYNCED;
       goto _return;
     }
-    
-     
+
     if (connectRsp.epSet.numOfEps == 0) {
-      msgInfo->code = TSDB_CODE_MND_APP_ERROR;
+      msgInfo->code = TSDB_CODE_APP_ERROR;
       goto _return;
     }
 
@@ -428,9 +436,11 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   } else if (msgInfo->rpcType == UDFD_RPC_RETRIVE_FUNC) {
     SRetrieveFuncRsp retrieveRsp = {0};
     tDeserializeSRetrieveFuncRsp(pMsg->pCont, pMsg->contLen, &retrieveRsp);
-
+    if (retrieveRsp.pFuncInfos == NULL) {
+      goto _return;
+    }
     SFuncInfo *pFuncInfo = (SFuncInfo *)taosArrayGet(retrieveRsp.pFuncInfos, 0);
-    SUdf *     udf = msgInfo->param;
+    SUdf      *udf = msgInfo->param;
     udf->funcType = pFuncInfo->funcType;
     udf->scriptType = pFuncInfo->scriptType;
     udf->outputType = pFuncInfo->outputType;
@@ -450,13 +460,14 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 #else
     snprintf(path, sizeof(path), "%s/lib%s.so", tsTempDir, pFuncInfo->name);
 #endif
-    TdFilePtr file =
-        taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
+
+    TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
     if (file == NULL) {
       fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(errno));
       msgInfo->code = TSDB_CODE_FILE_CORRUPTED;
       goto _return;
     }
+
     int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
     if (count != pFuncInfo->codeSize) {
       fnError("udfd write udf shared library failed");
@@ -483,7 +494,7 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
   taosArrayPush(retrieveReq.pFuncNames, udfName);
 
   int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
-  void *  pReq = rpcMallocCont(contLen);
+  void   *pReq = rpcMallocCont(contLen);
   tSerializeSRetrieveFuncReq(pReq, contLen, &retrieveReq);
   taosArrayDestroy(retrieveReq.pFuncNames);
 
@@ -518,7 +529,7 @@ int32_t udfdConnectToMnode() {
   connReq.startTime = taosGetTimestampMs();
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connReq);
-  void *  pReq = rpcMallocCont(contLen);
+  void   *pReq = rpcMallocCont(contLen);
   tSerializeSConnectReq(pReq, contLen, &connReq);
 
   SUdfdRpcSendRecvInfo *msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
@@ -540,7 +551,7 @@ int32_t udfdConnectToMnode() {
 }
 
 int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
-  strcpy(udf->name, udfName);
+  strncpy(udf->name, udfName, TSDB_FUNC_NAME_LEN);
   int32_t err = 0;
 
   err = udfdFillUdfInfoFromMNode(global.clientRpc, udf->name, udf);
@@ -585,7 +596,7 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     strncpy(finishFuncName, processFuncName, sizeof(finishFuncName));
     strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
     uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggFinishFunc));
-    char mergeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
+    char  mergeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
     char *mergeSuffix = "_merge";
     strncpy(mergeFuncName, processFuncName, sizeof(mergeFuncName));
     strncat(mergeFuncName, mergeSuffix, strlen(mergeSuffix));
@@ -594,11 +605,13 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
   return 0;
 }
 static bool udfdRpcRfp(int32_t code, tmsg_t msgType) {
-  if (code == TSDB_CODE_RPC_REDIRECT || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_NODE_NOT_DEPLOYED ||
-      code == TSDB_CODE_SYN_NOT_LEADER || code == TSDB_CODE_APP_NOT_READY || code == TSDB_CODE_RPC_BROKEN_LINK) {
-    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH || msgType == TDMT_SCH_MERGE_FETCH) {
+  if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_SYN_NOT_LEADER ||
+      code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED || code == TSDB_CODE_SYN_RESTORING ||
+      code == TSDB_CODE_MNODE_NOT_FOUND || code == TSDB_CODE_APP_IS_STARTING || code == TSDB_CODE_APP_IS_STOPPING) {
+    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||
+        msgType == TDMT_SCH_MERGE_FETCH) {
       return false;
-    } 
+    }
     return true;
   } else {
     return false;
@@ -657,6 +670,13 @@ int32_t udfdOpenClientRpc() {
   rpcInit.user = TSDB_DEFAULT_USER;
   rpcInit.parent = &global;
   rpcInit.rfp = udfdRpcRfp;
+  rpcInit.compressSize = tsCompressMsgSize;
+
+  int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
+  connLimitNum = TMAX(connLimitNum, 10);
+  connLimitNum = TMIN(connLimitNum, 500);
+  rpcInit.connLimitNum = connLimitNum;
+  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
 
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
@@ -678,6 +698,17 @@ void udfdOnWrite(uv_write_t *req, int status) {
   if (status < 0) {
     fnError("udfd send response error, length: %zu code: %s", work->output.len, uv_err_name(status));
   }
+  // remove work from the connection work list
+  if (work->conn != NULL) {
+    SUvUdfWork **ppWork;
+    for (ppWork = &work->conn->pWorkList; *ppWork && (*ppWork != work); ppWork = &((*ppWork)->pWorkNext)) {
+    }
+    if (*ppWork == work) {
+      *ppWork = work->pWorkNext;
+    } else {
+      fnError("work not in conn any more");
+    }
+  }
   taosMemoryFree(work->output.base);
   taosMemoryFree(work);
   taosMemoryFree(req);
@@ -686,10 +717,11 @@ void udfdOnWrite(uv_write_t *req, int status) {
 void udfdSendResponse(uv_work_t *work, int status) {
   SUvUdfWork *udfWork = (SUvUdfWork *)(work->data);
 
-  uv_write_t *write_req = taosMemoryMalloc(sizeof(uv_write_t));
-  write_req->data = udfWork;
-  uv_write(write_req, udfWork->client, &udfWork->output, 1, udfdOnWrite);
-
+  if (udfWork->conn != NULL) {
+    uv_write_t *write_req = taosMemoryMalloc(sizeof(uv_write_t));
+    write_req->data = udfWork;
+    uv_write(write_req, udfWork->conn->client, &udfWork->output, 1, udfdOnWrite);
+  }
   taosMemoryFree(work);
 }
 
@@ -710,8 +742,8 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->len = 0;
     }
   } else if (ctx->inputTotal == -1 && ctx->inputLen < msgHeadSize) {
-      buf->base = ctx->inputBuf + ctx->inputLen;
-      buf->len = msgHeadSize - ctx->inputLen;
+    buf->base = ctx->inputBuf + ctx->inputLen;
+    buf->len = msgHeadSize - ctx->inputLen;
   } else {
     ctx->inputCap = ctx->inputTotal > ctx->inputCap ? ctx->inputTotal : ctx->inputCap;
     void *inputBuf = taosMemoryRealloc(ctx->inputBuf, ctx->inputCap);
@@ -738,10 +770,15 @@ bool isUdfdUvMsgComplete(SUdfdUvConn *pipe) {
 }
 
 void udfdHandleRequest(SUdfdUvConn *conn) {
-  uv_work_t * work = taosMemoryMalloc(sizeof(uv_work_t));
+  char   *inputBuf = conn->inputBuf;
+  int32_t inputLen = conn->inputLen;
+
+  uv_work_t  *work = taosMemoryMalloc(sizeof(uv_work_t));
   SUvUdfWork *udfWork = taosMemoryMalloc(sizeof(SUvUdfWork));
-  udfWork->client = conn->client;
-  udfWork->input = uv_buf_init(conn->inputBuf, conn->inputLen);
+  udfWork->conn = conn;
+  udfWork->pWorkNext = conn->pWorkList;
+  conn->pWorkList = udfWork;
+  udfWork->input = uv_buf_init(inputBuf, inputLen);
   conn->inputBuf = NULL;
   conn->inputLen = 0;
   conn->inputCap = 0;
@@ -752,13 +789,19 @@ void udfdHandleRequest(SUdfdUvConn *conn) {
 
 void udfdPipeCloseCb(uv_handle_t *pipe) {
   SUdfdUvConn *conn = pipe->data;
+  SUvUdfWork  *pWork = conn->pWorkList;
+  while (pWork != NULL) {
+    pWork->conn = NULL;
+    pWork = pWork->pWorkNext;
+  }
+
   taosMemoryFree(conn->client);
   taosMemoryFree(conn->inputBuf);
   taosMemoryFree(conn);
 }
 
 void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
-  fnDebug("udf read %zd bytes from client", nread);
+  fnDebug("udfd read %zd bytes from client", nread);
   if (nread == 0) return;
 
   SUdfdUvConn *conn = client->data;
@@ -774,10 +817,10 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
   }
 
   if (nread < 0) {
-    fnError("Receive error %s", uv_err_name(nread));
     if (nread == UV_EOF) {
-      // TODO check more when close
+      fnInfo("udfd pipe read EOF");
     } else {
+      fnError("Receive error %s", uv_err_name(nread));
     }
     udfdUvHandleError(conn);
   }
@@ -793,6 +836,7 @@ void udfdOnNewConnection(uv_stream_t *server, int status) {
   uv_pipe_init(global.loop, client, 0);
   if (uv_accept(server, (uv_stream_t *)client) == 0) {
     SUdfdUvConn *ctx = taosMemoryMalloc(sizeof(SUdfdUvConn));
+    ctx->pWorkList = NULL;
     ctx->client = (uv_stream_t *)client;
     ctx->inputBuf = 0;
     ctx->inputLen = 0;
@@ -860,6 +904,7 @@ void udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *bu
 void udfdCtrlReadCb(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf) {
   if (nread < 0) {
     fnError("udfd ctrl pipe read error. %s", uv_err_name(nread));
+    taosMemoryFree(buf->base);
     uv_close((uv_handle_t *)q, NULL);
     uv_stop(global.loop);
     return;
@@ -879,13 +924,16 @@ static int32_t udfdUvInit() {
   uv_loop_t *loop = taosMemoryMalloc(sizeof(uv_loop_t));
   if (loop) {
     uv_loop_init(loop);
+  } else {
+    return -1;
   }
   global.loop = loop;
 
-  uv_pipe_init(global.loop, &global.ctrlPipe, 1);
-  uv_pipe_open(&global.ctrlPipe, 0);
-  uv_read_start((uv_stream_t *)&global.ctrlPipe, udfdCtrlAllocBufCb, udfdCtrlReadCb);
-
+  if (tsStartUdfd) {  // udfd is started by taosd, which shall exit when taosd exit
+    uv_pipe_init(global.loop, &global.ctrlPipe, 1);
+    uv_pipe_open(&global.ctrlPipe, 0);
+    uv_read_start((uv_stream_t *)&global.ctrlPipe, udfdCtrlAllocBufCb, udfdCtrlReadCb);
+  }
   getUdfdPipeName(global.listenPipeName, sizeof(global.listenPipeName));
 
   removeListeningPipe();
@@ -900,12 +948,12 @@ static int32_t udfdUvInit() {
   if ((r = uv_pipe_bind(&global.listeningPipe, global.listenPipeName))) {
     fnError("Bind error %s", uv_err_name(r));
     removeListeningPipe();
-    return -1;
+    return -2;
   }
   if ((r = uv_listen((uv_stream_t *)&global.listeningPipe, 128, udfdOnNewConnection))) {
     fnError("Listen error %s", uv_err_name(r));
     removeListeningPipe();
-    return -2;
+    return -3;
   }
   return 0;
 }
@@ -956,11 +1004,12 @@ int32_t udfdInitResidentFuncs() {
   }
 
   global.residentFuncs = taosArrayInit(2, TSDB_FUNC_NAME_LEN);
-  char* pSave = tsUdfdResFuncs;
-  char* token;
+  char *pSave = tsUdfdResFuncs;
+  char *token;
   while ((token = strtok_r(pSave, ",", &pSave)) != NULL) {
-    char func[TSDB_FUNC_NAME_LEN] = {0};
-    strncpy(func, token, strlen(token));
+    char func[TSDB_FUNC_NAME_LEN + 1] = {0};
+    strncpy(func, token, TSDB_FUNC_NAME_LEN);
+    fnInfo("udfd add resident function %s", func);
     taosArrayPush(global.residentFuncs, func);
   }
 
@@ -969,16 +1018,16 @@ int32_t udfdInitResidentFuncs() {
 
 int32_t udfdDeinitResidentFuncs() {
   for (int32_t i = 0; i < taosArrayGetSize(global.residentFuncs); ++i) {
-    char* funcName = taosArrayGet(global.residentFuncs, i);
-    SUdf** udfInHash =  taosHashGet(global.udfsHash, funcName, strlen(funcName));
+    char  *funcName = taosArrayGet(global.residentFuncs, i);
+    SUdf **udfInHash = taosHashGet(global.udfsHash, funcName, strlen(funcName));
     if (udfInHash) {
-      taosHashRemove(global.udfsHash, funcName, strlen(funcName));
-      SUdf* udf = *udfInHash;
+      SUdf *udf = *udfInHash;
       if (udf->destroyFunc) {
         (udf->destroyFunc)();
       }
       uv_dlclose(&udf->lib);
       taosMemoryFree(udf);
+      taosHashRemove(global.udfsHash, funcName, strlen(funcName));
     }
   }
   taosArrayDestroy(global.residentFuncs);
@@ -1008,8 +1057,8 @@ int main(int argc, char *argv[]) {
   }
 
   if (udfdInitLog() != 0) {
+    // ignore create log failed, because this error no matter
     printf("failed to start since init log error\n");
-    return -1;
   }
 
   if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {

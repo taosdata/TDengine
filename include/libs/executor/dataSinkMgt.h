@@ -20,10 +20,10 @@
 extern "C" {
 #endif
 
-#include "os.h"
-#include "thash.h"
 #include "executor.h"
+#include "os.h"
 #include "plannodes.h"
+#include "thash.h"
 
 #define DS_BUF_LOW   1
 #define DS_BUF_FULL  2
@@ -56,11 +56,11 @@ typedef struct SDataSinkStat {
 } SDataSinkStat;
 
 typedef struct SDataSinkMgtCfg {
-  uint32_t maxDataBlockNum;           // todo: this should be numOfRows?
+  uint32_t maxDataBlockNum;  // todo: this should be numOfRows?
   uint32_t maxDataBlockNumPerQuery;
 } SDataSinkMgtCfg;
 
-int32_t dsDataSinkMgtInit(SDataSinkMgtCfg *cfg);
+int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg);
 
 typedef struct SInputData {
   const struct SSDataBlock* pData;
@@ -68,7 +68,7 @@ typedef struct SInputData {
 
 typedef struct SOutputData {
   int32_t numOfBlocks;
-  int32_t numOfRows;
+  int64_t numOfRows; // int32_t changed to int64_t
   int32_t numOfCols;
   int8_t  compressed;
   char*   pData;
@@ -79,14 +79,14 @@ typedef struct SOutputData {
 } SOutputData;
 
 /**
- * Create a subplan's datasinker handle for all later operations. 
+ * Create a subplan's datasinker handle for all later operations.
  * @param pDataSink
  * @param pHandle output
  * @return error code
  */
-int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam);
+int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id);
 
-int32_t dsDataSinkGetCacheSize(SDataSinkStat *pStat);
+int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat);
 
 /**
  * Put the result set returned by the executor into datasinker.
@@ -114,7 +114,7 @@ void dsGetDataLength(DataSinkHandle handle, int64_t* pLen, bool* pQueryEnd);
  */
 int32_t dsGetDataBlock(DataSinkHandle handle, SOutputData* pOutput);
 
-int32_t dsGetCacheSize(DataSinkHandle handle, uint64_t *pSize);
+int32_t dsGetCacheSize(DataSinkHandle handle, uint64_t* pSize);
 
 /**
  * After dsGetStatus returns DS_NEED_SCHEDULE, the caller need to put this into the work queue.

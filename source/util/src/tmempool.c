@@ -19,12 +19,12 @@
 #include "tutil.h"
 
 typedef struct {
-  int32_t         numOfFree;  /* number of free slots */
-  int32_t         first;      /* the first free slot  */
-  int32_t         numOfBlock; /* the number of blocks */
-  int32_t         blockSize;  /* block size in bytes  */
-  int32_t        *freeList;   /* the index list       */
-  char           *pool;       /* the actual mem block */
+  int32_t       numOfFree;  /* number of free slots */
+  int32_t       first;      /* the first free slot  */
+  int32_t       numOfBlock; /* the number of blocks */
+  int32_t       blockSize;  /* block size in bytes  */
+  int32_t      *freeList;   /* the index list       */
+  char         *pool;       /* the actual mem block */
   TdThreadMutex mutex;
 } pool_t;
 

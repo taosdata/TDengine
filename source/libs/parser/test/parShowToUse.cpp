@@ -100,6 +100,8 @@ TEST_F(ParserShowToUseTest, showDnodeVariables) {
   useDb("root", "test");
 
   run("SHOW DNODE 1 VARIABLES");
+
+  run("SHOW DNODE 1 VARIABLES LIKE '%debug%'");
 }
 
 TEST_F(ParserShowToUseTest, showFunctions) {
@@ -128,12 +130,6 @@ TEST_F(ParserShowToUseTest, showMnodes) {
   useDb("root", "test");
 
   run("SHOW mnodes");
-}
-
-TEST_F(ParserShowToUseTest, showModules) {
-  useDb("root", "test");
-
-  run("SHOW modules");
 }
 
 TEST_F(ParserShowToUseTest, showQnodes) {
@@ -196,12 +192,34 @@ TEST_F(ParserShowToUseTest, showTableDistributed) {
   run("SHOW TABLE DISTRIBUTED st1");
 }
 
+TEST_F(ParserShowToUseTest, showTableTags) {
+  useDb("root", "test");
+
+  run("SHOW TABLE TAGS FROM st1");
+
+  run("SHOW TABLE TAGS tag1, tag2 FROM st1");
+
+  run("SHOW TABLE TAGS TBNAME, _TAGS, tag3 FROM st1");
+}
+
+TEST_F(ParserShowToUseTest, showTags) {
+  useDb("root", "test");
+
+  run("SHOW TAGS FROM st1s1");
+}
+
 // todo SHOW topics
 
 TEST_F(ParserShowToUseTest, showUsers) {
   useDb("root", "test");
 
-  run("SHOW users");
+  run("SHOW USERS");
+}
+
+TEST_F(ParserShowToUseTest, showUserPrivileges) {
+  useDb("root", "test");
+
+  run("SHOW USER PRIVILEGES");
 }
 
 TEST_F(ParserShowToUseTest, showVariables) {
@@ -213,9 +231,9 @@ TEST_F(ParserShowToUseTest, showVariables) {
 TEST_F(ParserShowToUseTest, showVgroups) {
   useDb("root", "test");
 
-  run("SHOW vgroups");
+  run("SHOW VGROUPS");
 
-  run("SHOW test.vgroups");
+  run("SHOW test.VGROUPS");
 }
 
 TEST_F(ParserShowToUseTest, showVnodes) {
@@ -250,7 +268,10 @@ TEST_F(ParserShowToUseTest, trimDatabase) {
 
   STrimDbReq expect = {0};
 
-  auto setTrimDbReq = [&](const char* pDb) { snprintf(expect.db, sizeof(expect.db), "0.%s", pDb); };
+  auto setTrimDbReq = [&](const char* pDb, int32_t maxSpeed = 0) {
+    snprintf(expect.db, sizeof(expect.db), "0.%s", pDb);
+    expect.maxSpeed = maxSpeed;
+  };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_TRIM_DATABASE_STMT);
@@ -258,10 +279,14 @@ TEST_F(ParserShowToUseTest, trimDatabase) {
     STrimDbReq req = {0};
     ASSERT_EQ(tDeserializeSTrimDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(std::string(req.db), std::string(expect.db));
+    ASSERT_EQ(req.maxSpeed, expect.maxSpeed);
   });
 
   setTrimDbReq("wxy_db");
   run("TRIM DATABASE wxy_db");
+
+  setTrimDbReq("wxy_db", 100);
+  run("TRIM DATABASE wxy_db MAX_SPEED 100");
 }
 
 TEST_F(ParserShowToUseTest, useDatabase) {

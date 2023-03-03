@@ -112,6 +112,9 @@ taosBenchmark -f <json file>
 - **-u/--user <user\>** :
   用于连接 TDengine 服务端的用户名，默认为 root 。
 
+- **-U/--supplement-insert ** :
+  写入数据而不提前建数据库和表，默认关闭。
+
 - **-p/--password <passwd\>** :
   用于连接 TDengine 服务端的密码，默认值为 taosdata。
 
@@ -147,6 +150,9 @@ taosBenchmark -f <json file>
 
 - **-l/--columns <colNum\>** :
   超级表的数据列的总数量。如果同时设置了该参数和 `-b/--data-type`，则最后的结果列数为两者取大。如果本参数指定的数量大于 `-b/--data-type` 指定的列数，则未指定的列类型默认为 INT， 例如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 `-b/--data-type` 指定的列数，则结果为 `-b/--data-type` 指定的列和类型，例如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT` 。
+
+- **-L/--partial-col-num <colNum\> **：
+  指定某些列写入数据，其他列数据为 NULL。默认所有列都写入数据。
 
 - **-A/--tag-type <tagType\>** :
   超级表的标签列类型。nchar 和 binary 类型可以同时设置长度，例如:
@@ -198,6 +204,10 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-a/--replica <replicaNum\>** :
   创建数据库时指定其副本数，默认值为 1 。
 
+- ** -k/--keep-trying <NUMBER\>** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+
+- ** -z/--trying-interval <NUMBER\>** : 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本。
+
 - **-V/--version** :
   显示版本信息并退出。不能与其它参数混用。
 
@@ -211,7 +221,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 本节所列参数适用于所有功能模式。
 
 - **filetype** : 要测试的功能，可选值为 `insert`, `query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。
-- **cfgdir** : TDengine 集群配置文件所在的目录，默认路径是 /etc/taos 。
+- **cfgdir** : TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos 。
 
 - **host** : 指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost。
 
@@ -225,13 +235,17 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 插入场景下 `filetype` 必须设置为 `insert`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
 
+- ** keep_trying ** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+
+- ** trying_interval ** : 失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
+
 #### 数据库相关配置参数
 
 创建数据库时的相关参数在 json 配置文件中的 `dbinfo` 中配置，个别具体参数如下。其余参数均与 TDengine 中 `create database` 时所指定的数据库参数相对应，详见[../../taos-sql/database]
 
 - **name** : 数据库名。
 
-- **drop** : 插入前是否删除数据库，默认为 true。
+- **drop** : 插入前是否删除数据库，可选项为 "yes" 或者 "no", 为 "no" 时不创建。默认删除。
 
 #### 流式计算相关配置参数
 
@@ -334,13 +348,13 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **name** : 列的名字，若与 count 同时使用，比如 "name"："current", "count":3, 则 3 个列的名字分别为 current, current_2. current_3。
 
-- **min** : 数据类型的 列/标签 的最小值。
+- **min** : 数据类型的 列/标签 的最小值。生成的值将大于或等于最小值。
 
-- **max** : 数据类型的 列/标签 的最大值。
+- **max** : 数据类型的 列/标签 的最大值。生成的值将小于最小值。
 
 - **values** : nchar/binary 列/标签的值域，将从值中随机选择。
 
-- **sma**: 将该列加入bsma中，值为 "yes" 或者 "no"，默认为 "no"。
+- **sma**: 将该列加入 SMA 中，值为 "yes" 或者 "no"，默认为 "no"。
 
 #### 插入行为配置参数
 
@@ -368,7 +382,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 ### 查询场景配置参数
 
-查询场景下 `filetype` 必须设置为 `query`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
+查询场景下 `filetype` 必须设置为 `query`。
+
+查询场景可以通过设置 `kill_slow_query_threshold` 和 `kill_slow_query_interval` 参数来控制杀掉慢查询语句的执行，threshold 控制如果 exec_usec 超过指定时间的查询将被 taosBenchmark 杀掉，单位为秒；interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为秒。
+
+其它通用参数详见[通用配置参数](#通用配置参数)。
 
 #### 执行指定查询语句的配置参数
 

@@ -49,7 +49,7 @@ int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo) {
 }
 
 int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
-  /*if (tStartEncode(pEncoder) < 0) return -1;*/
+  if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pTask->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->taskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->totalLevel) < 0) return -1;
@@ -63,6 +63,10 @@ int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeI32(pEncoder, pTask->selfChildId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->nodeId) < 0) return -1;
   if (tEncodeSEpSet(pEncoder, &pTask->epSet) < 0) return -1;
+
+  if (tEncodeI64(pEncoder, pTask->recoverSnapVer) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTask->startVer) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->fillHistory) < 0) return -1;
 
   int32_t epSz = taosArrayGetSize(pTask->childEpInfo);
   if (tEncodeI32(pEncoder, epSz) < 0) return -1;
@@ -93,12 +97,12 @@ int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   }
   if (tEncodeI64(pEncoder, pTask->triggerParam) < 0) return -1;
 
-  /*tEndEncode(pEncoder);*/
+  tEndEncode(pEncoder);
   return pEncoder->pos;
 }
 
 int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
-  /*if (tStartDecode(pDecoder) < 0) return -1;*/
+  if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pTask->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->taskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->totalLevel) < 0) return -1;
@@ -113,13 +117,20 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI32(pDecoder, &pTask->nodeId) < 0) return -1;
   if (tDecodeSEpSet(pDecoder, &pTask->epSet) < 0) return -1;
 
+  if (tDecodeI64(pDecoder, &pTask->recoverSnapVer) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTask->startVer) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->fillHistory) < 0) return -1;
+
   int32_t epSz;
   if (tDecodeI32(pDecoder, &epSz) < 0) return -1;
   pTask->childEpInfo = taosArrayInit(epSz, sizeof(void*));
   for (int32_t i = 0; i < epSz; i++) {
     SStreamChildEpInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamChildEpInfo));
     if (pInfo == NULL) return -1;
-    if (tDecodeStreamEpInfo(pDecoder, pInfo) < 0) return -1;
+    if (tDecodeStreamEpInfo(pDecoder, pInfo) < 0) {
+      taosMemoryFreeClear(pInfo);
+      return -1;
+    }
     taosArrayPush(pTask->childEpInfo, &pInfo);
   }
 
@@ -147,7 +158,7 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   }
   if (tDecodeI64(pDecoder, &pTask->triggerParam) < 0) return -1;
 
-  /*tEndDecode(pDecoder);*/
+  tEndDecode(pDecoder);
   return 0;
 }
 
@@ -164,6 +175,8 @@ void tFreeSStreamTask(SStreamTask* pTask) {
   }
   if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     taosArrayDestroy(pTask->shuffleDispatcher.dbInfo.pVgroupInfos);
+    taosArrayDestroy(pTask->checkReqIds);
+    pTask->checkReqIds = NULL;
   }
 
   if (pTask->pState) streamStateClose(pTask->pState);

@@ -29,7 +29,8 @@ class TDTestCase:
         '''
         return
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
@@ -115,11 +116,11 @@ class TDTestCase:
 
         assert times == 1, "result is %s != expect: 1" % times
 
-
+        tAdapter.stop()
 
 
     def stop(self):
-        tdSql.close()
+        tdSql.close()        
         tdLog.success("%s successfully executed" % __file__)
 
 

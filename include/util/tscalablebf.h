@@ -23,18 +23,17 @@ extern "C" {
 #endif
 
 typedef struct SScalableBf {
-  SArray *bfArray; // array of bloom filters
+  SArray  *bfArray;  // array of bloom filters
   uint32_t growth;
   uint64_t numBits;
 } SScalableBf;
 
 SScalableBf *tScalableBfInit(uint64_t expectedEntries, double errorRate);
-int32_t tScalableBfPut(SScalableBf *pSBf, const void *keyBuf, uint32_t len);
-int32_t tScalableBfNoContain(const SScalableBf *pSBf, const void *keyBuf,
-                             uint32_t len);
-void tScalableBfDestroy(SScalableBf *pSBf);
-int32_t tScalableBfEncode(const SScalableBf *pSBf, SEncoder* pEncoder);
-SScalableBf* tScalableBfDecode(SDecoder* pDecoder);
+int32_t      tScalableBfPut(SScalableBf *pSBf, const void *keyBuf, uint32_t len);
+int32_t      tScalableBfNoContain(const SScalableBf *pSBf, const void *keyBuf, uint32_t len);
+void         tScalableBfDestroy(SScalableBf *pSBf);
+int32_t      tScalableBfEncode(const SScalableBf *pSBf, SEncoder *pEncoder);
+SScalableBf *tScalableBfDecode(SDecoder *pDecoder);
 
 #ifdef __cplusplus
 }

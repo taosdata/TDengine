@@ -26,7 +26,40 @@ TdFilePtr   pDataFile = NULL;
 STaosQueue *qhandle = NULL;
 STaosQset  *qset = NULL;
 
-void processShellMsg() {
+int32_t balance = 0;
+
+typedef struct {
+  int32_t      numOfThread;
+  STaosQueue **qhandle;
+  STaosQset  **qset;
+
+} MultiThreadQhandle;
+
+typedef struct TThread {
+  TdThread thread;
+  int      idx;
+} TThread;
+
+MultiThreadQhandle *multiQ = NULL;
+
+void initLogEnv() {
+  const char   *logDir = "/tmp/trans_svr";
+  const char   *defaultLogFileNamePrefix = "taoslog";
+  const int32_t maxLogFileNum = 10000;
+  tsAsyncLog = 0;
+  // idxDebugFlag = 143;
+  strcpy(tsLogDir, logDir);
+  taosRemoveDir(tsLogDir);
+  taosMkDir(tsLogDir);
+
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+    printf("failed to open log file in directory:%s\n", tsLogDir);
+  }
+}
+void *processShellMsg(void *arg) {
+  TThread *thread = (TThread *)arg;
+
+  int32_t    idx = thread->idx;
   static int num = 0;
   STaosQall *qall;
   SRpcMsg   *pRpcMsg, rpcMsg;
@@ -36,7 +69,7 @@ void processShellMsg() {
   qall = taosAllocateQall();
 
   while (1) {
-    int numOfMsgs = taosReadAllQitemsFromQset(qset, qall, &qinfo);
+    int numOfMsgs = taosReadAllQitemsFromQset(multiQ->qset[idx], qall, &qinfo);
     tDebug("%d shell msgs are received", numOfMsgs);
     if (numOfMsgs <= 0) break;
 
@@ -89,16 +122,20 @@ void processShellMsg() {
   }
 
   taosFreeQall(qall);
+  return NULL;
 }
 
 void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SRpcMsg *pTemp;
 
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
+  int32_t idx = balance % multiQ->numOfThread;
   tDebug("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
-  taosWriteQitem(qhandle, pTemp);
+  taosWriteQitem(multiQ->qhandle[idx], pTemp);
+  balance++;
+  if (balance >= multiQ->numOfThread) balance = 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -134,7 +171,7 @@ int main(int argc, char *argv[]) {
       dDebugFlag = rpcDebugFlag;
       uDebugFlag = rpcDebugFlag;
     } else {
-      printf("\nusage:% [options] \n", argv[0]);
+      printf("\nusage:%s [options] \n", argv[0]);
       printf("  [-p port]: server port number, default is:%d\n", rpcInit.localPort);
       printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInit.numOfThreads);
       printf("  [-s sessions]: number of sessions, default is:%d\n", rpcInit.sessions);
@@ -147,9 +184,9 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  tsAsyncLog = 0;
   rpcInit.connType = TAOS_CONN_SERVER;
-  taosInitLog("server.log", 100000);
+
+  initLogEnv();
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
@@ -164,16 +201,35 @@ int main(int argc, char *argv[]) {
     pDataFile = taosOpenFile(dataName, TD_FILE_APPEND | TD_FILE_CREATE | TD_FILE_WRITE);
     if (pDataFile == NULL) tInfo("failed to open data file, reason:%s", strerror(errno));
   }
-  qhandle = taosOpenQueue();
-  qset = taosOpenQset();
-  taosAddIntoQset(qset, qhandle, NULL);
 
-  processShellMsg();
+  int32_t numOfAthread = 5;
+  multiQ = taosMemoryMalloc(sizeof(numOfAthread));
+  multiQ->numOfThread = numOfAthread;
+  multiQ->qhandle = (STaosQueue **)taosMemoryMalloc(sizeof(STaosQueue *) * numOfAthread);
+  multiQ->qset = (STaosQset **)taosMemoryMalloc(sizeof(STaosQset *) * numOfAthread);
+
+  for (int i = 0; i < numOfAthread; i++) {
+    multiQ->qhandle[i] = taosOpenQueue();
+    multiQ->qset[i] = taosOpenQset();
+    taosAddIntoQset(multiQ->qset[i], multiQ->qhandle[i], NULL);
+  }
+  TThread *threads = taosMemoryMalloc(sizeof(TThread) * numOfAthread);
+  for (int i = 0; i < numOfAthread; i++) {
+    threads[i].idx = i;
+    taosThreadCreate(&(threads[i].thread), NULL, processShellMsg, (void *)&threads[i]);
+  }
+  // qhandle = taosOpenQueue();
+  // qset = taosOpenQset();
+  // taosAddIntoQset(qset, qhandle, NULL);
+
+  // processShellMsg();
 
   if (pDataFile != NULL) {
     taosCloseFile(&pDataFile);
     taosRemoveFile(dataName);
   }
+  int ch = getchar();
+  UNUSED(ch);
 
   return 0;
 }

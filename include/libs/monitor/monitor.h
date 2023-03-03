@@ -80,7 +80,6 @@ typedef struct {
   int8_t       has_mnode;
   int8_t       has_qnode;
   int8_t       has_snode;
-  int8_t       has_bnode;
   SMonDiskDesc logdir;
   SMonDiskDesc tempdir;
 } SMonDnodeInfo;
@@ -162,10 +161,6 @@ typedef struct {
   SMonLogs        log;
 } SMonMmInfo;
 
-int32_t tSerializeSMonMmInfo(void *buf, int32_t bufLen, SMonMmInfo *pInfo);
-int32_t tDeserializeSMonMmInfo(void *buf, int32_t bufLen, SMonMmInfo *pInfo);
-void    tFreeSMonMmInfo(SMonMmInfo *pInfo);
-
 typedef struct {
   SArray *datadirs;  // array of SMonDiskDesc
 } SMonDiskInfo;
@@ -177,56 +172,30 @@ typedef struct {
   SMonLogs     log;
 } SMonVmInfo;
 
-int32_t tSerializeSMonVmInfo(void *buf, int32_t bufLen, SMonVmInfo *pInfo);
-int32_t tDeserializeSMonVmInfo(void *buf, int32_t bufLen, SMonVmInfo *pInfo);
-void    tFreeSMonVmInfo(SMonVmInfo *pInfo);
-
 typedef struct {
   SMonSysInfo sys;
   SMonLogs    log;
   SQnodeLoad  load;
 } SMonQmInfo;
 
-int32_t tSerializeSMonQmInfo(void *buf, int32_t bufLen, SMonQmInfo *pInfo);
-int32_t tDeserializeSMonQmInfo(void *buf, int32_t bufLen, SMonQmInfo *pInfo);
-void    tFreeSMonQmInfo(SMonQmInfo *pInfo);
-
 typedef struct {
   SMonSysInfo sys;
   SMonLogs    log;
 } SMonSmInfo;
 
-int32_t tSerializeSMonSmInfo(void *buf, int32_t bufLen, SMonSmInfo *pInfo);
-int32_t tDeserializeSMonSmInfo(void *buf, int32_t bufLen, SMonSmInfo *pInfo);
-void    tFreeSMonSmInfo(SMonSmInfo *pInfo);
 typedef struct {
   SMonSysInfo sys;
   SMonLogs    log;
 } SMonBmInfo;
 
-int32_t tSerializeSMonBmInfo(void *buf, int32_t bufLen, SMonBmInfo *pInfo);
-int32_t tDeserializeSMonBmInfo(void *buf, int32_t bufLen, SMonBmInfo *pInfo);
-void    tFreeSMonBmInfo(SMonBmInfo *pInfo);
-
 typedef struct {
   SArray *pVloads;  // SVnodeLoad
 } SMonVloadInfo;
-
-int32_t tSerializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInfo);
-int32_t tDeserializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInfo);
-void    tFreeSMonVloadInfo(SMonVloadInfo *pInfo);
 
 typedef struct {
   int8_t     isMnode;
   SMnodeLoad load;
 } SMonMloadInfo;
-
-int32_t tSerializeSMonMloadInfo(void *buf, int32_t bufLen, SMonMloadInfo *pInfo);
-int32_t tDeserializeSMonMloadInfo(void *buf, int32_t bufLen, SMonMloadInfo *pInfo);
-
-int32_t tSerializeSQnodeLoad(void *buf, int32_t bufLen, SQnodeLoad *pInfo);
-int32_t tDeserializeSQnodeLoad(void *buf, int32_t bufLen, SQnodeLoad *pInfo);
-
 
 typedef struct {
   const char *server;
@@ -246,6 +215,12 @@ void    monSetQmInfo(SMonQmInfo *pInfo);
 void    monSetSmInfo(SMonSmInfo *pInfo);
 void    monSetBmInfo(SMonBmInfo *pInfo);
 void    monSendReport();
+
+void tFreeSMonMmInfo(SMonMmInfo *pInfo);
+void tFreeSMonVmInfo(SMonVmInfo *pInfo);
+void tFreeSMonQmInfo(SMonQmInfo *pInfo);
+void tFreeSMonSmInfo(SMonSmInfo *pInfo);
+void tFreeSMonBmInfo(SMonBmInfo *pInfo);
 
 #ifdef __cplusplus
 }

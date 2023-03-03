@@ -15,8 +15,9 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
-#include "tmsg.h"
+
 #include "query.h"
+#include "tmsg.h"
 #include "trpc.h"
 
 #pragma GCC diagnostic push
@@ -37,7 +38,7 @@ int32_t testPrint(void* p) {
 }
 
 int32_t testPrintError(void* p) {
-  SParam* param = (SParam*) p;
+  SParam* param = (SParam*)p;
   taosMemoryFreeClear(p);
 
   return -1;
@@ -67,8 +68,8 @@ TEST(testCase, async_task_test) {
 }
 
 TEST(testCase, many_async_task_test) {
-  for(int32_t i = 0; i < 50; ++i) {
-    SParam* p = (SParam*) taosMemoryCalloc(1, sizeof(SParam));
+  for (int32_t i = 0; i < 50; ++i) {
+    SParam* p = (SParam*)taosMemoryCalloc(1, sizeof(SParam));
     p->v = i;
     taosAsyncExec(testPrint, p, NULL);
   }
@@ -78,7 +79,7 @@ TEST(testCase, many_async_task_test) {
 
 TEST(testCase, error_in_async_test) {
   int32_t code = 0;
-  SParam* p = (SParam*) taosMemoryCalloc(1, sizeof(SParam));
+  SParam* p = (SParam*)taosMemoryCalloc(1, sizeof(SParam));
   taosAsyncExec(testPrintError, p, &code);
   taosMsleep(1);
   printf("Error code:%d after asynchronously exec function\n", code);

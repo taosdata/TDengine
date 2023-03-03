@@ -38,13 +38,15 @@ static int32_t  mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void     mndCancelGetNextFunc(SMnode *pMnode, void *pIter);
 
 int32_t mndInitFunc(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_FUNC,
-                     .keyType = SDB_KEY_BINARY,
-                     .encodeFp = (SdbEncodeFp)mndFuncActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndFuncActionDecode,
-                     .insertFp = (SdbInsertFp)mndFuncActionInsert,
-                     .updateFp = (SdbUpdateFp)mndFuncActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndFuncActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_FUNC,
+      .keyType = SDB_KEY_BINARY,
+      .encodeFp = (SdbEncodeFp)mndFuncActionEncode,
+      .decodeFp = (SdbDecodeFp)mndFuncActionDecode,
+      .insertFp = (SdbInsertFp)mndFuncActionInsert,
+      .updateFp = (SdbUpdateFp)mndFuncActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndFuncActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_FUNC, mndProcessCreateFuncReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_FUNC, mndProcessDropFuncReq);
@@ -99,6 +101,8 @@ _OVER:
 
 static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SSdbRow  *pRow = NULL;
+  SFuncObj *pFunc = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -108,10 +112,10 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SFuncObj));
+  pRow = sdbAllocRow(sizeof(SFuncObj));
   if (pRow == NULL) goto _OVER;
 
-  SFuncObj *pFunc = sdbGetRowObj(pRow);
+  pFunc = sdbGetRowObj(pRow);
   if (pFunc == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -146,7 +150,7 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
 
 _OVER:
   if (terrno != 0) {
-    mError("func:%s, failed to decode from raw:%p since %s", pFunc->name, pRaw, terrstr());
+    mError("func:%s, failed to decode from raw:%p since %s", pFunc == NULL ? "null" : pFunc->name, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -222,7 +226,7 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-func");
   if (pTrans == NULL) goto _OVER;
 
-  mDebug("trans:%d, used to create func:%s", pTrans->id, pCreate->name);
+  mInfo("trans:%d, used to create func:%s", pTrans->id, pCreate->name);
 
   SSdbRaw *pRedoRaw = mndFuncActionEncode(&func);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) goto _OVER;
@@ -252,19 +256,22 @@ static int32_t mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "drop-func");
   if (pTrans == NULL) goto _OVER;
 
-  mDebug("trans:%d, used to drop user:%s", pTrans->id, pFunc->name);
+  mInfo("trans:%d, used to drop user:%s", pTrans->id, pFunc->name);
 
   SSdbRaw *pRedoRaw = mndFuncActionEncode(pFunc);
-  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) goto _OVER;
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING);
+  if (pRedoRaw == NULL) goto _OVER;
+  if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) goto _OVER;
+  (void)sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING);
 
   SSdbRaw *pUndoRaw = mndFuncActionEncode(pFunc);
-  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) goto _OVER;
-  sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
+  if (pUndoRaw == NULL) goto _OVER;
+  if (mndTransAppendUndolog(pTrans, pUndoRaw) != 0) goto _OVER;
+  (void)sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
 
   SSdbRaw *pCommitRaw = mndFuncActionEncode(pFunc);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) goto _OVER;
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  if (pCommitRaw == NULL) goto _OVER;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) goto _OVER;
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
@@ -286,7 +293,7 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("func:%s, start to create", createReq.name);
+  mInfo("func:%s, start to create, size:%d", createReq.name, createReq.codeLen);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_FUNC) != 0) {
     goto _OVER;
   }
@@ -294,7 +301,7 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
   pFunc = mndAcquireFunc(pMnode, createReq.name);
   if (pFunc != NULL) {
     if (createReq.igExists) {
-      mDebug("func:%s, already exist, ignore exist is set", createReq.name);
+      mInfo("func:%s, already exist, ignore exist is set", createReq.name);
       code = 0;
       goto _OVER;
     } else {
@@ -349,7 +356,7 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("func:%s, start to drop", dropReq.name);
+  mInfo("func:%s, start to drop", dropReq.name);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_FUNC) != 0) {
     goto _OVER;
   }
@@ -362,7 +369,7 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
   pFunc = mndAcquireFunc(pMnode, dropReq.name);
   if (pFunc == NULL) {
     if (dropReq.igNotExists) {
-      mDebug("func:%s, not exist, ignore not exist is set", dropReq.name);
+      mInfo("func:%s, not exist, ignore not exist is set", dropReq.name);
       code = 0;
       goto _OVER;
     } else {
@@ -504,39 +511,39 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     STR_WITH_MAXSIZE_TO_VARSTR(b1, pFunc->name, pShow->pMeta->pSchemas[cols].bytes);
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)b1, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)b1, false);
 
     if (pFunc->pComment) {
       char *b2 = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
       STR_WITH_MAXSIZE_TO_VARSTR(b2, pFunc->pComment, pShow->pMeta->pSchemas[cols].bytes);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
     } else {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, NULL, true);
+      colDataSetVal(pColInfo, numOfRows, NULL, true);
     }
 
     int32_t isAgg = (pFunc->funcType == TSDB_FUNC_TYPE_AGGREGATE) ? 1 : 0;
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&isAgg, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&isAgg, false);
 
     char b3[TSDB_TYPE_STR_MAX_LEN + 1] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, mnodeGenTypeStr(buf, TSDB_TYPE_STR_MAX_LEN, pFunc->outputType, pFunc->outputLen),
                                pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)b3, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)b3, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pFunc->createdTime, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->createdTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pFunc->codeSize, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->codeSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pFunc->bufSize, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->bufSize, false);
 
     numOfRows++;
     sdbRelease(pSdb, pFunc);

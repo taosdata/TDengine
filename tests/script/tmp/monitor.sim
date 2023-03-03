@@ -23,5 +23,6 @@ sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 bin
 print =============== create drop qnode 1
 sql create qnode on dnode 1
 #sql create snode on dnode 1
-#sql create bnode on dnode 1
 
+sleep 10000
+system sh/exec.sh -n dnode1 -s stop

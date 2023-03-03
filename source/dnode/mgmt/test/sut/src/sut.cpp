@@ -30,22 +30,20 @@ void Testbase::InitLog(const char* path) {
   tsdbDebugFlag = 0;
   tsLogEmbedded = 1;
   tsAsyncLog = 0;
-  
+
   taosRemoveDir(path);
   taosMkDir(path);
   tstrncpy(tsLogDir, path, PATH_MAX);
 
   taosGetSystemInfo();
   tsRpcQueueMemoryAllowed = tsTotalMemoryKB * 0.1;
-if (taosInitLog("taosdlog", 1) != 0) {
+  if (taosInitLog("taosdlog", 1) != 0) {
     printf("failed to init log file\n");
   }
 }
 
 void Testbase::Init(const char* path, int16_t port) {
-#ifdef _TD_DARWIN_64
   osDefaultInit();
-#endif
   tsServerPort = port;
   strcpy(tsLocalFqdn, "localhost");
   snprintf(tsLocalEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
@@ -55,7 +53,10 @@ void Testbase::Init(const char* path, int16_t port) {
   taosMkDir(path);
   InitLog(TD_TMP_DIR_PATH "td");
 
-  server.Start();
+  if (!server.Start()) {
+    printf("failed to start server, exit\n");
+    exit(0);
+  };
   client.Init("root", "taosdata");
   showRsp = NULL;
 }

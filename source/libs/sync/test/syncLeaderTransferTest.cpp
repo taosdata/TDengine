@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -27,6 +23,35 @@ SyncLeaderTransfer *createMsg() {
   return pMsg;
 }
 
+// for debug ----------------------
+void syncLeaderTransferPrint(const SyncLeaderTransfer *pMsg) {
+  char *serialized = syncLeaderTransfer2Str(pMsg);
+  printf("syncLeaderTransferPrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncLeaderTransferPrint2(char *s, const SyncLeaderTransfer *pMsg) {
+  char *serialized = syncLeaderTransfer2Str(pMsg);
+  printf("syncLeaderTransferPrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncLeaderTransferLog(const SyncLeaderTransfer *pMsg) {
+  char *serialized = syncLeaderTransfer2Str(pMsg);
+  sTrace("syncLeaderTransferLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
+  taosMemoryFree(serialized);
+}
+
+void syncLeaderTransferLog2(char *s, const SyncLeaderTransfer *pMsg) {
+  if (gRaftDetailLog) {
+    char *serialized = syncLeaderTransfer2Str(pMsg);
+    sTrace("syncLeaderTransferLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
+}
+
 void test1() {
   SyncLeaderTransfer *pMsg = createMsg();
   syncLeaderTransferLog2((char *)"test1:", pMsg);
@@ -36,7 +61,7 @@ void test1() {
 void test2() {
   SyncLeaderTransfer *pMsg = createMsg();
   uint32_t            len = pMsg->bytes;
-  char *              serialized = (char *)taosMemoryMalloc(len);
+  char               *serialized = (char *)taosMemoryMalloc(len);
   syncLeaderTransferSerialize(pMsg, serialized, len);
   SyncLeaderTransfer *pMsg2 = syncLeaderTransferBuild(1000);
   syncLeaderTransferDeserialize(serialized, len, pMsg2);
@@ -50,7 +75,7 @@ void test2() {
 void test3() {
   SyncLeaderTransfer *pMsg = createMsg();
   uint32_t            len;
-  char *              serialized = syncLeaderTransferSerialize2(pMsg, &len);
+  char               *serialized = syncLeaderTransferSerialize2(pMsg, &len);
   SyncLeaderTransfer *pMsg2 = syncLeaderTransferDeserialize2(serialized, len);
   syncLeaderTransferLog2((char *)"test3: syncLeaderTransferSerialize2 -> syncLeaderTransferDeserialize2 ", pMsg2);
 

@@ -11,12 +11,13 @@ description: "TDengine 3.0 版本的语法变更说明"
 | 1 | VARCHAR | 新增 | BINARY类型的别名。
 | 2 | TIMESTAMP字面量 | 新增 | 新增支持 TIMESTAMP 'timestamp format' 语法。
 | 3 | _ROWTS伪列 | 新增 | 表示时间戳主键。是_C0伪列的别名。
-| 4 | INFORMATION_SCHEMA | 新增 |	包含各种SCHEMA定义的系统数据库。
-| 5 | PERFORMANCE_SCHEMA | 新增 | 包含运行信息的系统数据库。
-| 6 | 连续查询 | 废除 | 不再支持连续查询。相关的各种语法和接口废除。
-| 7 | 混合运算 | 增强 | 查询中的混合运算（标量运算和矢量运算混合）全面增强，SELECT的各个子句均全面支持符合语法语义的混合运算。
-| 8 | 标签运算 | 新增 |在查询中，标签列可以像普通列一样参与各种运算，用于各种子句。
-| 9 | 时间线子句和时间函数用于超级表查询 | 增强 |没有PARTITION BY时，超级表的数据会被合并成一条时间线。
+| 4 | _IROWTS伪列 | 新增 | 用于返回 interp 函数插值结果对应的时间戳列。
+| 5 | INFORMATION_SCHEMA | 新增 |	包含各种SCHEMA定义的系统数据库。
+| 6 | PERFORMANCE_SCHEMA | 新增 | 包含运行信息的系统数据库。
+| 7 | 连续查询 | 废除 | 不再支持连续查询。相关的各种语法和接口废除。
+| 8 | 混合运算 | 增强 | 查询中的混合运算（标量运算和矢量运算混合）全面增强，SELECT的各个子句均全面支持符合语法语义的混合运算。
+| 9 | 标签运算 | 新增 |在查询中，标签列可以像普通列一样参与各种运算，用于各种子句。
+| 10 | 时间线子句和时间函数用于超级表查询 | 增强 |没有PARTITION BY时，超级表的数据会被合并成一条时间线。
 
 ## SQL 语句变更
 
@@ -53,7 +54,6 @@ description: "TDengine 3.0 版本的语法变更说明"
 | 27 | GRANT | 新增 | 授予用户权限。
 | 28 | KILL TRANSACTION | 新增 | 终止管理节点的事务。
 | 29 | KILL STREAM | 废除 | 终止连续查询。3.0版本不再支持连续查询，而是用更通用的流计算来代替。
-| 30 | MERGE VGROUP | 新增 | 合并VGROUP。
 | 31 | REVOKE | 新增 | 回收用户权限。
 | 32 | SELECT	| 调整 | <ul><li>SELECT关闭隐式结果列，输出列均需要由SELECT子句来指定。</li><li>DISTINCT功能全面支持。2.x版本只支持对标签列去重，并且不可以和JOIN、GROUP BY等子句混用。</li><li>JOIN功能增强。增加支持：JOIN后WHERE条件中有OR条件；JOIN后的多表运算；JOIN后的多表GROUP BY。</li><li>FROM后子查询功能大幅增强。不限制子查询嵌套层数；支持子查询和UNION ALL混合使用；移除其他一些之前版本的语法限制。</li><li>WHERE后可以使用任意的标量表达式。</li><li>GROUP BY功能增强。支持任意标量表达式及其组合的分组。</li><li>SESSION可以用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。</li><li>STATE_WINDOW可以用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。</li><li>ORDER BY功能大幅增强。不再必须和GROUP BY子句一起使用；不再有排序表达式个数的限制；增加支持NULLS FIRST/LAST语法功能；支持符合语法语义的任意表达式。</li><li>新增PARTITION BY语法。替代原来的GROUP BY tags。</li></ul>
 | 33 | SHOW ACCOUNTS | 废除 | 2.x中为企业版功能，3.0不再支持。语法暂时保留了，执行报“This statement is no longer supported”错误。
@@ -75,8 +75,9 @@ description: "TDengine 3.0 版本的语法变更说明"
 | 49 | SHOW TRANSACTIONS | 新增 | 显示当前系统中正在执行的事务的信息。
 | 50 | SHOW DNODE VARIABLES | 新增 |显示指定DNODE的配置参数。
 | 51 | SHOW VNODES | 暂不支持 | 显示当前系统中VNODE的信息。3.0.0版本暂不支持。
-| 52 | SPLIT VGROUP | 新增 | 拆分VGROUP。
-| 53 | TRIM DATABASE | 新增 | 删除过期数据，并根据多级存储的配置归整数据。
+| 52 | TRIM DATABASE | 新增 | 删除过期数据，并根据多级存储的配置归整数据。
+| 53 | REDISTRIBUTE VGROUP | 新增 | 调整VGROUP中VNODE的分布。
+| 54 | BALANCE VGROUP | 新增 | 自动调整VGROUP中VNODE的分布。
 
 ## SQL 函数变更
 
@@ -93,3 +94,11 @@ description: "TDengine 3.0 版本的语法变更说明"
 | 9 | SAMPLE | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
 | 10 | STATECOUNT | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
 | 11 | STATEDURATION | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
+| 12 | TIMETRUNCATE | 增强 | 增加ignore_timezone参数，可选是否使用，默认值为1.
+
+
+## SCHEMALESS 变更
+
+| # | **元素**  | **<div style={{width: 60}}>差异性</div>** | **说明** |
+| - | :------- | :-------- | :------- |
+| 1 | 主键ts 变更为 _ts | 变更 | schemaless自动建的列名用 _ 开头，不同于2.x。

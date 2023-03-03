@@ -62,8 +62,8 @@ static const int32_t TEST_NUMBER = 1;
 #define SIMPLE8B_MAX_INT64 ((uint64_t)1152921504606846974LL)
 
 #define safeInt64Add(a, b)  (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
-#define ZIGZAG_ENCODE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode
-#define ZIGZAG_DECODE(T, v) ((v) >> 1) ^ -((T)((v)&1))                                 // zigzag decode
+#define ZIGZAG_ENCODE(T, v) (((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1))  // zigzag encode
+#define ZIGZAG_DECODE(T, v) (((v) >> 1) ^ -((T)((v)&1)))                                 // zigzag decode
 
 #ifdef TD_TSZ
 bool lossyFloat = false;
@@ -228,6 +228,7 @@ int32_t tsCompressINTImp(const char *const input, const int32_t nelements, char 
 }
 
 int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, char *const output, const char type) {
+
   int32_t word_length = 0;
   switch (type) {
     case TSDB_DATA_TYPE_BIGINT:
@@ -262,6 +263,185 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
   int32_t     count = 0;
   int32_t     _pos = 0;
   int64_t     prev_value = 0;
+
+#if __AVX2__
+  while (1) {
+    if (_pos == nelements) break;
+
+    uint64_t w = 0;
+    memcpy(&w, ip, LONG_BYTES);
+
+    char    selector = (char)(w & INT64MASK(4));       // selector = 4
+    char    bit = bit_per_integer[(int32_t)selector];  // bit = 3
+    int32_t elems = selector_to_elems[(int32_t)selector];
+
+    // Optimize the performance, by remove the constantly switch operation.
+    int32_t  v = 4;
+    uint64_t zigzag_value = 0;
+    uint64_t mask = INT64MASK(bit);
+
+    switch (type) {
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t* p = (int64_t*) output;
+
+        int32_t gRemainder = (nelements - _pos);
+        int32_t num = (gRemainder > elems)? elems:gRemainder;
+
+        int32_t batch = num >> 2;
+        int32_t remain = num & 0x03;
+        if (selector == 0 || selector == 1) {
+          if (tsAVX2Enable && tsSIMDBuiltins) {
+            for (int32_t i = 0; i < batch; ++i) {
+              __m256i prev = _mm256_set1_epi64x(prev_value);
+              _mm256_storeu_si256((__m256i *)&p[_pos], prev);
+              _pos += 4;
+            }
+
+            for (int32_t i = 0; i < remain; ++i) {
+              p[_pos++] = prev_value;
+            }
+          } else {
+            for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+              p[_pos++] = prev_value;
+              v += bit;
+            }
+          }
+        } else {
+          if (tsAVX2Enable && tsSIMDBuiltins) {
+            __m256i base = _mm256_set1_epi64x(w);
+            __m256i maskVal = _mm256_set1_epi64x(mask);
+
+            __m256i shiftBits = _mm256_set_epi64x(bit * 3 + 4, bit * 2 + 4, bit + 4, 4);
+            __m256i inc = _mm256_set1_epi64x(bit << 2);
+
+            for (int32_t i = 0; i < batch; ++i) {
+              __m256i after = _mm256_srlv_epi64(base, shiftBits);
+              __m256i zigzagVal = _mm256_and_si256(after, maskVal);
+
+              // ZIGZAG_DECODE(T, v) (((v) >> 1) ^ -((T)((v)&1)))
+              __m256i signmask = _mm256_and_si256(_mm256_set1_epi64x(1), zigzagVal);
+              signmask = _mm256_sub_epi64(_mm256_setzero_si256(), signmask);
+              // get the four zigzag values here
+              __m256i delta = _mm256_xor_si256(_mm256_srli_epi64(zigzagVal, 1), signmask);
+
+              // calculate the cumulative sum (prefix sum) for each number
+              // decode[0] = prev_value + final[0]
+              // decode[1] = decode[0] + final[1]   -----> prev_value + final[0] + final[1]
+              // decode[2] = decode[1] + final[2]   -----> prev_value + final[0] + final[1] + final[2]
+              // decode[3] = decode[2] + final[3]   -----> prev_value + final[0] + final[1] + final[2] + final[3]
+
+              //  1, 2, 3, 4
+              //+ 0, 1, 0, 3
+              //  1, 3, 3, 7
+              // shift and add for the first round
+              __m128i prev = _mm_set1_epi64x(prev_value);
+              __m256i x =  _mm256_slli_si256(delta, 8);
+
+              delta = _mm256_add_epi64(delta, x);
+              _mm256_storeu_si256((__m256i *)&p[_pos], delta);
+
+              //  1, 3, 3, 7
+              //+ 0, 0, 3, 3
+              //  1, 3, 6, 10
+              // shift and add operation for the second round
+              __m128i firstPart = _mm_loadu_si128((__m128i *)&p[_pos]);
+              __m128i secondItem = _mm_set1_epi64x(p[_pos + 1]);
+              __m128i secPart = _mm_add_epi64(_mm_loadu_si128((__m128i *)&p[_pos + 2]), secondItem);
+              firstPart = _mm_add_epi64(firstPart, prev);
+              secPart = _mm_add_epi64(secPart, prev);
+
+              // save it in the memory
+              _mm_storeu_si128((__m128i *)&p[_pos], firstPart);
+              _mm_storeu_si128((__m128i *)&p[_pos + 2], secPart);
+
+              shiftBits = _mm256_add_epi64(shiftBits, inc);
+              prev_value = p[_pos + 3];
+//              uDebug("_pos:%d %"PRId64", %"PRId64", %"PRId64", %"PRId64, _pos, p[_pos], p[_pos+1], p[_pos+2], p[_pos+3]);
+              _pos += 4;
+            }
+
+            // handle the remain value
+            for (int32_t i = 0; i < remain; i++) {
+              zigzag_value = ((w >> (v + (batch * bit * 4))) & mask);
+              prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+
+              p[_pos++] = prev_value;
+//              uDebug("_pos:%d %"PRId64, _pos-1, p[_pos-1]);
+
+              v += bit;
+            }
+          } else {
+            for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+              zigzag_value = ((w >> v) & mask);
+              prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+
+              p[_pos++] = prev_value;
+//              uDebug("_pos:%d %"PRId64, _pos-1, p[_pos-1]);
+
+              v += bit;
+            }
+          }
+        }
+      } break;
+      case TSDB_DATA_TYPE_INT: {
+        int32_t* p = (int32_t*) output;
+
+        if (selector == 0 || selector == 1) {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            p[_pos++] = (int32_t)prev_value;
+          }
+        } else {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+
+            p[_pos++] = (int32_t)prev_value;
+            v += bit;
+          }
+        }
+      } break;
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t* p = (int16_t*) output;
+
+        if (selector == 0 || selector == 1) {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            p[_pos++] = (int16_t)prev_value;
+          }
+        } else {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+
+            p[_pos++] = (int16_t)prev_value;
+            v += bit;
+          }
+        }
+      } break;
+
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t *p = (int8_t *)output;
+
+        if (selector == 0 || selector == 1) {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            p[_pos++] = (int8_t)prev_value;
+          }
+        } else {
+          for (int32_t i = 0; i < elems && count < nelements; i++, count++) {
+            zigzag_value = ((w >> v) & mask);
+            prev_value += ZIGZAG_DECODE(int64_t, zigzag_value);
+
+            p[_pos++] = (int8_t)prev_value;
+            v += bit;
+          }
+        }
+      } break;
+    }
+
+    ip += LONG_BYTES;
+  }
+
+  return nelements * word_length;
+#else
 
   while (1) {
     if (count == nelements) break;
@@ -313,6 +493,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
   }
 
   return nelements * word_length;
+#endif
 }
 
 /* ----------------------------------------------Bool Compression
@@ -371,6 +552,7 @@ int32_t tsDecompressBoolImp(const char *const input, const int32_t nelements, ch
   return nelements;
 }
 
+#if 0
 /* Run Length Encoding(RLE) Method */
 int32_t tsCompressBoolRLEImp(const char *const input, const int32_t nelements, char *const output) {
   int32_t _pos = 0;
@@ -419,6 +601,7 @@ int32_t tsDecompressBoolRLEImp(const char *const input, const int32_t nelements,
     }
   }
 }
+#endif
 
 /* ----------------------------------------------String Compression
  * ---------------------------------------------- */
@@ -468,7 +651,7 @@ int32_t tsDecompressStringImp(const char *const input, int32_t compressedSize, c
 // TODO: Take care here, we assumes little endian encoding.
 int32_t tsCompressTimestampImp(const char *const input, const int32_t nelements, char *const output) {
   int32_t _pos = 1;
-  assert(nelements >= 0);
+  ASSERTS(nelements >= 0, "nelements is negative");
 
   if (nelements == 0) return 0;
 
@@ -563,7 +746,7 @@ _exit_over:
 }
 
 int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelements, char *const output) {
-  assert(nelements >= 0);
+  ASSERTS(nelements >= 0, "nelements is negative");
   if (nelements == 0) return 0;
 
   if (input[0] == 0) {
@@ -627,7 +810,7 @@ int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelement
     }
 
   } else {
-    assert(0);
+    ASSERT(0);
     return -1;
   }
 }
@@ -756,7 +939,7 @@ int32_t tsDecompressDoubleImp(const char *const input, const int32_t nelements, 
   uint64_t prev_value = 0;
 
   for (int32_t i = 0; i < nelements; i++) {
-    if (i % 2 == 0) {
+    if ((i & 0x01) == 0) {
       flags = input[ipos++];
     }
 
@@ -999,41 +1182,212 @@ int32_t tsDecompressDoubleLossyImp(const char *input, int32_t compressedSize, co
 /*************************************************************************
  *                  STREAM COMPRESSION
  *************************************************************************/
-#define I64_SAFE_ADD(a, b) (((a) >= 0 && (b) <= INT64_MAX - (b)) || ((a) < 0 && (b) >= INT64_MIN - (a)))
-typedef struct SCompressor SCompressor;
+#define I64_SAFE_ADD(a, b) (((a) >= 0 && (b) <= INT64_MAX - (a)) || ((a) < 0 && (b) >= INT64_MIN - (a)))
 
+static int32_t tCompBoolStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg);
 static int32_t tCompBool(SCompressor *pCmprsor, const void *pData, int32_t nData);
+static int32_t tCompBoolEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData);
+
+static int32_t tCompIntStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg);
 static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData);
+static int32_t tCompIntEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData);
+
+static int32_t tCompFloatStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg);
 static int32_t tCompFloat(SCompressor *pCmprsor, const void *pData, int32_t nData);
+static int32_t tCompFloatEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData);
+
+static int32_t tCompDoubleStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg);
 static int32_t tCompDouble(SCompressor *pCmprsor, const void *pData, int32_t nData);
+static int32_t tCompDoubleEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData);
+
+static int32_t tCompTimestampStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg);
 static int32_t tCompTimestamp(SCompressor *pCmprsor, const void *pData, int32_t nData);
+static int32_t tCompTimestampEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData);
+
+static int32_t tCompBinaryStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg);
 static int32_t tCompBinary(SCompressor *pCmprsor, const void *pData, int32_t nData);
+static int32_t tCompBinaryEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData);
+
+static FORCE_INLINE int64_t tGetI64OfI8(const void *pData) { return *(int8_t *)pData; }
+static FORCE_INLINE int64_t tGetI64OfI16(const void *pData) { return *(int16_t *)pData; }
+static FORCE_INLINE int64_t tGetI64OfI32(const void *pData) { return *(int32_t *)pData; }
+static FORCE_INLINE int64_t tGetI64OfI64(const void *pData) { return *(int64_t *)pData; }
+
+static FORCE_INLINE void tPutI64OfI8(int64_t v, void *pData) { *(int8_t *)pData = v; }
+static FORCE_INLINE void tPutI64OfI16(int64_t v, void *pData) { *(int16_t *)pData = v; }
+static FORCE_INLINE void tPutI64OfI32(int64_t v, void *pData) { *(int32_t *)pData = v; }
+static FORCE_INLINE void tPutI64OfI64(int64_t v, void *pData) { *(int64_t *)pData = v; }
+
 static struct {
   int8_t  type;
   int32_t bytes;
   int8_t  isVarLen;
+  int32_t (*startFn)(SCompressor *, int8_t type, int8_t cmprAlg);
   int32_t (*cmprFn)(SCompressor *, const void *, int32_t nData);
+  int32_t (*endFn)(SCompressor *, const uint8_t **, int32_t *);
+  int64_t (*getI64)(const void *pData);
+  void (*putI64)(int64_t v, void *pData);
 } DATA_TYPE_INFO[] = {
-    {TSDB_DATA_TYPE_NULL, 0, 0, NULL},                 // TSDB_DATA_TYPE_NULL
-    {TSDB_DATA_TYPE_BOOL, 1, 0, tCompBool},            // TSDB_DATA_TYPE_BOOL
-    {TSDB_DATA_TYPE_TINYINT, 1, 0, tCompInt},          // TSDB_DATA_TYPE_TINYINT
-    {TSDB_DATA_TYPE_SMALLINT, 2, 0, tCompInt},         // TSDB_DATA_TYPE_SMALLINT
-    {TSDB_DATA_TYPE_INT, 4, 0, tCompInt},              // TSDB_DATA_TYPE_INT
-    {TSDB_DATA_TYPE_BIGINT, 8, 0, tCompInt},           // TSDB_DATA_TYPE_BIGINT
-    {TSDB_DATA_TYPE_FLOAT, 4, 0, tCompFloat},          // TSDB_DATA_TYPE_FLOAT
-    {TSDB_DATA_TYPE_DOUBLE, 8, 0, tCompDouble},        // TSDB_DATA_TYPE_DOUBLE
-    {TSDB_DATA_TYPE_VARCHAR, 1, 1, tCompBinary},       // TSDB_DATA_TYPE_VARCHAR
-    {TSDB_DATA_TYPE_TIMESTAMP, 8, 0, tCompTimestamp},  // pTSDB_DATA_TYPE_TIMESTAMP
-    {TSDB_DATA_TYPE_NCHAR, 1, 1, tCompBinary},         // TSDB_DATA_TYPE_NCHAR
-    {TSDB_DATA_TYPE_UTINYINT, 1, 0, tCompInt},         // TSDB_DATA_TYPE_UTINYINT
-    {TSDB_DATA_TYPE_USMALLINT, 2, 0, tCompInt},        // TSDB_DATA_TYPE_USMALLINT
-    {TSDB_DATA_TYPE_UINT, 4, 0, tCompInt},             // TSDB_DATA_TYPE_UINT
-    {TSDB_DATA_TYPE_UBIGINT, 8, 0, tCompInt},          // TSDB_DATA_TYPE_UBIGINT
-    {TSDB_DATA_TYPE_JSON, 1, 1, tCompBinary},          // TSDB_DATA_TYPE_JSON
-    {TSDB_DATA_TYPE_VARBINARY, 1, 1, tCompBinary},     // TSDB_DATA_TYPE_VARBINARY
-    {TSDB_DATA_TYPE_DECIMAL, 1, 1, tCompBinary},       // TSDB_DATA_TYPE_DECIMAL
-    {TSDB_DATA_TYPE_BLOB, 1, 1, tCompBinary},          // TSDB_DATA_TYPE_BLOB
-    {TSDB_DATA_TYPE_MEDIUMBLOB, 1, 1, tCompBinary},    // TSDB_DATA_TYPE_MEDIUMBLOB
+    {.type = TSDB_DATA_TYPE_NULL,
+     .bytes = 0,
+     .isVarLen = 0,
+     .startFn = NULL,
+     .cmprFn = NULL,
+     .endFn = NULL,
+     .getI64 = NULL,
+     .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_BOOL,
+     .bytes = 1,
+     .isVarLen = 0,
+     .startFn = tCompBoolStart,
+     .cmprFn = tCompBool,
+     .endFn = tCompBoolEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_TINYINT,
+     .bytes = 1,
+     .isVarLen = 0,
+     .startFn = tCompIntStart,
+     .cmprFn = tCompInt,
+     .endFn = tCompIntEnd,
+     .getI64 = tGetI64OfI8,
+     .putI64 = tPutI64OfI8},
+    {.type = TSDB_DATA_TYPE_SMALLINT,
+     .bytes = 2,
+     .isVarLen = 0,
+     .startFn = tCompIntStart,
+     .cmprFn = tCompInt,
+     .endFn = tCompIntEnd,
+     .getI64 = tGetI64OfI16,
+     .putI64 = tPutI64OfI16},
+    {.type = TSDB_DATA_TYPE_INT,
+     .bytes = 4,
+     .isVarLen = 0,
+     .startFn = tCompIntStart,
+     .cmprFn = tCompInt,
+     .endFn = tCompIntEnd,
+     .getI64 = tGetI64OfI32,
+     .putI64 = tPutI64OfI32},
+    {.type = TSDB_DATA_TYPE_BIGINT,
+     .bytes = 8,
+     .isVarLen = 0,
+     .startFn = tCompIntStart,
+     .cmprFn = tCompInt,
+     .endFn = tCompIntEnd,
+     .getI64 = tGetI64OfI64,
+     .putI64 = tPutI64OfI64},
+    {.type = TSDB_DATA_TYPE_FLOAT,
+     .bytes = 4,
+     .isVarLen = 0,
+     .startFn = tCompFloatStart,
+     .cmprFn = tCompFloat,
+     .endFn = tCompFloatEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_DOUBLE,
+     .bytes = 8,
+     .isVarLen = 0,
+     .startFn = tCompDoubleStart,
+     .cmprFn = tCompDouble,
+     .endFn = tCompDoubleEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_VARCHAR,
+     .bytes = 1,
+     .isVarLen = 1,
+     .startFn = tCompBinaryStart,
+     .cmprFn = tCompBinary,
+     .endFn = tCompBinaryEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_TIMESTAMP,
+     .bytes = 8,
+     .isVarLen = 0,
+     .startFn = tCompTimestampStart,
+     .cmprFn = tCompTimestamp,
+     .endFn = tCompTimestampEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_NCHAR,
+     .bytes = 1,
+     .isVarLen = 1,
+     .startFn = tCompBinaryStart,
+     .cmprFn = tCompBinary,
+     .endFn = tCompBinaryEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_UTINYINT,
+     .bytes = 1,
+     .isVarLen = 0,
+     .startFn = tCompIntStart,
+     .cmprFn = tCompInt,
+     .endFn = tCompIntEnd,
+     .getI64 = tGetI64OfI8,
+     .putI64 = tPutI64OfI8},
+    {.type = TSDB_DATA_TYPE_USMALLINT,
+     .bytes = 2,
+     .isVarLen = 0,
+     .startFn = tCompIntStart,
+     .cmprFn = tCompInt,
+     .endFn = tCompIntEnd,
+     .getI64 = tGetI64OfI16,
+     .putI64 = tPutI64OfI16},
+    {.type = TSDB_DATA_TYPE_UINT,
+     .bytes = 4,
+     .isVarLen = 0,
+     .startFn = tCompIntStart,
+     .cmprFn = tCompInt,
+     .endFn = tCompIntEnd,
+     .getI64 = tGetI64OfI32,
+     .putI64 = tPutI64OfI32},
+    {.type = TSDB_DATA_TYPE_UBIGINT,
+     .bytes = 8,
+     .isVarLen = 0,
+     .startFn = tCompIntStart,
+     .cmprFn = tCompInt,
+     .endFn = tCompIntEnd,
+     .getI64 = tGetI64OfI64,
+     .putI64 = tPutI64OfI64},
+    {.type = TSDB_DATA_TYPE_JSON,
+     .bytes = 1,
+     .isVarLen = 1,
+     .startFn = tCompBinaryStart,
+     .cmprFn = tCompBinary,
+     .endFn = tCompBinaryEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_VARBINARY,
+     .bytes = 1,
+     .isVarLen = 1,
+     .startFn = tCompBinaryStart,
+     .cmprFn = tCompBinary,
+     .endFn = tCompBinaryEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_DECIMAL,
+     .bytes = 1,
+     .isVarLen = 1,
+     .startFn = tCompBinaryStart,
+     .cmprFn = tCompBinary,
+     .endFn = tCompBinaryEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_BLOB,
+     .bytes = 1,
+     .isVarLen = 1,
+     .startFn = tCompBinaryStart,
+     .cmprFn = tCompBinary,
+     .endFn = tCompBinaryEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
+    {.type = TSDB_DATA_TYPE_MEDIUMBLOB,
+     .bytes = 1,
+     .isVarLen = 1,
+     .startFn = tCompBinaryStart,
+     .cmprFn = tCompBinary,
+     .endFn = tCompBinaryEnd,
+     .getI64 = NULL,
+     .putI64 = NULL},
 };
 
 struct SCompressor {
@@ -1041,8 +1395,9 @@ struct SCompressor {
   int8_t   cmprAlg;
   int8_t   autoAlloc;
   int32_t  nVal;
-  uint8_t *aBuf[2];
-  int64_t  nBuf[2];
+  uint8_t *pBuf;
+  int32_t  nBuf;
+  uint8_t *aBuf[1];
   union {
     // Timestamp ----
     struct {
@@ -1056,6 +1411,7 @@ struct SCompressor {
       int32_t  i_selector;
       int32_t  i_start;
       int32_t  i_end;
+      int32_t  i_nEle;
       uint64_t i_aZigzag[241];
       int8_t   i_aBitN[241];
     };
@@ -1072,86 +1428,114 @@ struct SCompressor {
   };
 };
 
-// Timestamp =====================================================
-static int32_t tCompSetCopyMode(SCompressor *pCmprsor) {
+static int32_t tTwoStageComp(SCompressor *pCmprsor, int32_t *szComp) {
   int32_t code = 0;
 
-  if (pCmprsor->nVal) {
-    if (pCmprsor->autoAlloc) {
-      code = tRealloc(&pCmprsor->aBuf[1], sizeof(int64_t) * pCmprsor->nVal);
-      if (code) return code;
-    }
-    pCmprsor->nBuf[1] = 0;
-
-    int64_t  n = 1;
-    int64_t  value;
-    int64_t  delta;
-    uint64_t vZigzag;
-    while (n < pCmprsor->nBuf[0]) {
-      uint8_t aN[2];
-      aN[0] = pCmprsor->aBuf[0][n] & 0xf;
-      aN[1] = pCmprsor->aBuf[0][n] >> 4;
-
-      n++;
-
-      for (int32_t i = 0; i < 2; i++) {
-        vZigzag = 0;
-        for (uint8_t j = 0; j < aN[i]; j++) {
-          vZigzag |= (((uint64_t)pCmprsor->aBuf[0][n]) << (8 * j));
-          n++;
-        }
-
-        int64_t delta_of_delta = ZIGZAG_DECODE(int64_t, vZigzag);
-        if (pCmprsor->nBuf[1] == 0) {
-          delta = 0;
-          value = delta_of_delta;
-        } else {
-          delta = delta_of_delta + delta;
-          value = delta + value;
-        }
-
-        memcpy(pCmprsor->aBuf[1] + pCmprsor->nBuf[1], &value, sizeof(int64_t));
-        pCmprsor->nBuf[1] += sizeof(int64_t);
-
-        if (n >= pCmprsor->nBuf[0]) break;
-      }
-    }
-
-    ASSERT(n == pCmprsor->nBuf[0]);
-
-    if (pCmprsor->autoAlloc) {
-      code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[1] + 1);
-      if (code) return code;
-    }
-    memcpy(pCmprsor->aBuf[0] + 1, pCmprsor->aBuf[1], pCmprsor->nBuf[1]);
-    pCmprsor->nBuf[0] = 1 + pCmprsor->nBuf[1];
+  if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf + 1))) {
+    return code;
   }
-  pCmprsor->aBuf[0][0] = 0;
 
+  *szComp = LZ4_compress_default(pCmprsor->pBuf, pCmprsor->aBuf[0] + 1, pCmprsor->nBuf, pCmprsor->nBuf);
+  if (*szComp && *szComp < pCmprsor->nBuf) {
+    pCmprsor->aBuf[0][0] = 1;
+    *szComp += 1;
+  } else {
+    pCmprsor->aBuf[0][0] = 0;
+    memcpy(pCmprsor->aBuf[0] + 1, pCmprsor->pBuf, pCmprsor->nBuf);
+    *szComp = pCmprsor->nBuf + 1;
+  }
+
+  return code;
+}
+
+// Timestamp =====================================================
+static int32_t tCompTimestampStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
+  int32_t code = 0;
+
+  pCmprsor->nBuf = 1;
+
+  code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf);
+  if (code) return code;
+
+  pCmprsor->pBuf[0] = 1;
+
+  return code;
+}
+
+static int32_t tCompTSSwitchToCopy(SCompressor *pCmprsor) {
+  int32_t code = 0;
+
+  if (pCmprsor->nVal == 0) goto _exit;
+
+  if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->aBuf[0], sizeof(int64_t) * pCmprsor->nVal + 1))) {
+    return code;
+  }
+
+  int32_t n = 1;
+  int32_t nBuf = 1;
+  int64_t value;
+  int64_t delta;
+  for (int32_t iVal = 0; iVal < pCmprsor->nVal;) {
+    uint8_t aN[2] = {(pCmprsor->pBuf[n] & 0xf), (pCmprsor->pBuf[n] >> 4)};
+
+    n++;
+
+    for (int32_t i = 0; i < 2; i++) {
+      uint64_t vZigzag = 0;
+      for (uint8_t j = 0; j < aN[i]; j++) {
+        vZigzag |= (((uint64_t)pCmprsor->pBuf[n]) << (8 * j));
+        n++;
+      }
+
+      int64_t delta_of_delta = ZIGZAG_DECODE(int64_t, vZigzag);
+      if (iVal) {
+        delta = delta_of_delta + delta;
+        value = delta + value;
+      } else {
+        delta = 0;
+        value = delta_of_delta;
+      }
+
+      memcpy(pCmprsor->aBuf[0] + nBuf, &value, sizeof(value));
+      nBuf += sizeof(int64_t);
+
+      iVal++;
+      if (iVal >= pCmprsor->nVal) break;
+    }
+  }
+
+  ASSERT(n == pCmprsor->nBuf && nBuf == sizeof(int64_t) * pCmprsor->nVal + 1);
+
+  uint8_t *pBuf = pCmprsor->pBuf;
+  pCmprsor->pBuf = pCmprsor->aBuf[0];
+  pCmprsor->aBuf[0] = pBuf;
+  pCmprsor->nBuf = nBuf;
+
+_exit:
+  pCmprsor->pBuf[0] = 0;
   return code;
 }
 static int32_t tCompTimestamp(SCompressor *pCmprsor, const void *pData, int32_t nData) {
   int32_t code = 0;
 
   int64_t ts = *(int64_t *)pData;
-  ASSERT(pCmprsor->type == TSDB_DATA_TYPE_TIMESTAMP);
   ASSERT(nData == 8);
 
-  if (pCmprsor->aBuf[0][0] == 1) {
+  if (pCmprsor->pBuf[0] == 1) {
     if (pCmprsor->nVal == 0) {
       pCmprsor->ts_prev_val = ts;
       pCmprsor->ts_prev_delta = -ts;
     }
 
     if (!I64_SAFE_ADD(ts, -pCmprsor->ts_prev_val)) {
-      code = tCompSetCopyMode(pCmprsor);
+      code = tCompTSSwitchToCopy(pCmprsor);
       if (code) return code;
       goto _copy_cmpr;
     }
     int64_t delta = ts - pCmprsor->ts_prev_val;
 
     if (!I64_SAFE_ADD(delta, -pCmprsor->ts_prev_delta)) {
-      code = tCompSetCopyMode(pCmprsor);
+      code = tCompTSSwitchToCopy(pCmprsor);
       if (code) return code;
       goto _copy_cmpr;
     }
@@ -1162,39 +1546,59 @@ static int32_t tCompTimestamp(SCompressor *pCmprsor, const void *pData, int32_t 
     pCmprsor->ts_prev_delta = delta;
 
     if ((pCmprsor->nVal & 0x1) == 0) {
-      if (pCmprsor->autoAlloc) {
-        code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + 17);
-        if (code) return code;
+      if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf + 17))) {
+        return code;
       }
 
-      pCmprsor->ts_flag_p = pCmprsor->aBuf[0] + pCmprsor->nBuf[0];
-      pCmprsor->nBuf[0]++;
+      pCmprsor->ts_flag_p = pCmprsor->pBuf + pCmprsor->nBuf;
+      pCmprsor->nBuf++;
       pCmprsor->ts_flag_p[0] = 0;
       while (vZigzag) {
-        pCmprsor->aBuf[0][pCmprsor->nBuf[0]] = (vZigzag & 0xff);
-        pCmprsor->nBuf[0]++;
+        pCmprsor->pBuf[pCmprsor->nBuf] = (vZigzag & 0xff);
+        pCmprsor->nBuf++;
         pCmprsor->ts_flag_p[0]++;
         vZigzag >>= 8;
       }
     } else {
       while (vZigzag) {
-        pCmprsor->aBuf[0][pCmprsor->nBuf[0]] = (vZigzag & 0xff);
-        pCmprsor->nBuf[0]++;
+        pCmprsor->pBuf[pCmprsor->nBuf] = (vZigzag & 0xff);
+        pCmprsor->nBuf++;
         pCmprsor->ts_flag_p[0] += 0x10;
         vZigzag >>= 8;
       }
     }
   } else {
   _copy_cmpr:
-    if (pCmprsor->autoAlloc) {
-      code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + sizeof(ts));
-      if (code) return code;
+    if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf + sizeof(ts)))) {
+      return code;
     }
 
-    memcpy(pCmprsor->aBuf[0] + pCmprsor->nBuf[0], &ts, sizeof(ts));
-    pCmprsor->nBuf[0] += sizeof(ts);
+    memcpy(pCmprsor->pBuf + pCmprsor->nBuf, &ts, sizeof(ts));
+    pCmprsor->nBuf += sizeof(ts);
   }
   pCmprsor->nVal++;
+
+  return code;
+}
+
+static int32_t tCompTimestampEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData) {
+  int32_t code = 0;
+
+  if (pCmprsor->nBuf >= sizeof(int64_t) * pCmprsor->nVal + 1 && pCmprsor->pBuf[0] == 1) {
+    code = tCompTSSwitchToCopy(pCmprsor);
+    if (code) return code;
+  }
+
+  if (pCmprsor->cmprAlg == TWO_STAGE_COMP) {
+    code = tTwoStageComp(pCmprsor, nData);
+    if (code) return code;
+    *ppData = pCmprsor->aBuf[0];
+  } else if (pCmprsor->cmprAlg == ONE_STAGE_COMP) {
+    *ppData = pCmprsor->pBuf;
+    *nData = pCmprsor->nBuf;
+  } else {
+    ASSERT(0);
+  }
 
   return code;
 }
@@ -1207,94 +1611,163 @@ static const uint8_t BIT_TO_SELECTOR[] = {0,  2,  3,  4,  5,  6,  7,  8,  9,  10
                                           13, 13, 13, 13, 13, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 15,
                                           15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
                                           15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
+static const int32_t NEXT_IDX[] = {
+    1,   2,   3,   4,   5,   6,   7,   8,   9,   10,  11,  12,  13,  14,  15,  16,  17,  18,  19,  20,  21,  22,
+    23,  24,  25,  26,  27,  28,  29,  30,  31,  32,  33,  34,  35,  36,  37,  38,  39,  40,  41,  42,  43,  44,
+    45,  46,  47,  48,  49,  50,  51,  52,  53,  54,  55,  56,  57,  58,  59,  60,  61,  62,  63,  64,  65,  66,
+    67,  68,  69,  70,  71,  72,  73,  74,  75,  76,  77,  78,  79,  80,  81,  82,  83,  84,  85,  86,  87,  88,
+    89,  90,  91,  92,  93,  94,  95,  96,  97,  98,  99,  100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110,
+    111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132,
+    133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154,
+    155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176,
+    177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198,
+    199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220,
+    221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 0};
+
+static int32_t tCompIntStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
+  int32_t code = 0;
+
+  pCmprsor->i_prev = 0;
+  pCmprsor->i_selector = 0;
+  pCmprsor->i_start = 0;
+  pCmprsor->i_end = 0;
+  pCmprsor->i_nEle = 0;
+  pCmprsor->nBuf = 1;
+
+  code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf);
+  if (code) return code;
+
+  pCmprsor->pBuf[0] = 0;
+
+  return code;
+}
+
+static int32_t tCompIntSwitchToCopy(SCompressor *pCmprsor) {
+  int32_t code = 0;
+
+  if (pCmprsor->nVal == 0) goto _exit;
+
+  int32_t size = DATA_TYPE_INFO[pCmprsor->type].bytes * pCmprsor->nVal + 1;
+  if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->aBuf[0], size))) {
+    return code;
+  }
+
+  int32_t n = 1;
+  int32_t nBuf = 1;
+  int64_t vPrev = 0;
+  while (n < pCmprsor->nBuf) {
+    uint64_t b;
+    memcpy(&b, pCmprsor->pBuf + n, sizeof(b));
+    n += sizeof(b);
+
+    int32_t  i_selector = (b & 0xf);
+    int32_t  nEle = SELECTOR_TO_ELEMS[i_selector];
+    uint8_t  bits = BIT_PER_INTEGER[i_selector];
+    uint64_t mask = (((uint64_t)1) << bits) - 1;
+    for (int32_t iEle = 0; iEle < nEle; iEle++) {
+      uint64_t vZigzag = (b >> (bits * iEle + 4)) & mask;
+      vPrev = ZIGZAG_DECODE(int64_t, vZigzag) + vPrev;
+
+      DATA_TYPE_INFO[pCmprsor->type].putI64(vPrev, pCmprsor->aBuf[0] + nBuf);
+      nBuf += DATA_TYPE_INFO[pCmprsor->type].bytes;
+    }
+  }
+
+  while (pCmprsor->i_nEle) {
+    vPrev = ZIGZAG_DECODE(int64_t, pCmprsor->i_aZigzag[pCmprsor->i_start]) + vPrev;
+
+    memcpy(pCmprsor->aBuf[0] + nBuf, &vPrev, DATA_TYPE_INFO[pCmprsor->type].bytes);
+    nBuf += DATA_TYPE_INFO[pCmprsor->type].bytes;
+
+    pCmprsor->i_start = NEXT_IDX[pCmprsor->i_start];
+    pCmprsor->i_nEle--;
+  }
+
+  ASSERT(n == pCmprsor->nBuf && nBuf == size);
+
+  uint8_t *pBuf = pCmprsor->pBuf;
+  pCmprsor->pBuf = pCmprsor->aBuf[0];
+  pCmprsor->aBuf[0] = pBuf;
+  pCmprsor->nBuf = size;
+
+_exit:
+  pCmprsor->pBuf[0] = 1;
+  return code;
+}
 
 static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData) {
   int32_t code = 0;
 
   ASSERT(nData == DATA_TYPE_INFO[pCmprsor->type].bytes);
 
-  if (pCmprsor->aBuf[0][0] == 0) {
-    int64_t val;
-
-    switch (pCmprsor->type) {
-      case TSDB_DATA_TYPE_TINYINT:
-        val = *(int8_t *)pData;
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-        val = *(int16_t *)pData;
-        break;
-      case TSDB_DATA_TYPE_INT:
-        val = *(int32_t *)pData;
-        break;
-      case TSDB_DATA_TYPE_BIGINT:
-        val = *(int64_t *)pData;
-        break;
-      case TSDB_DATA_TYPE_UTINYINT:
-        val = *(uint8_t *)pData;
-        break;
-      case TSDB_DATA_TYPE_USMALLINT:
-        val = *(uint16_t *)pData;
-        break;
-      case TSDB_DATA_TYPE_UINT:
-        val = *(uint32_t *)pData;
-        break;
-      case TSDB_DATA_TYPE_UBIGINT:
-        val = *(int64_t *)pData;
-        break;
-      default:
-        ASSERT(0);
-        break;
-    }
+  if (pCmprsor->pBuf[0] == 0) {
+    int64_t val = DATA_TYPE_INFO[pCmprsor->type].getI64(pData);
 
     if (!I64_SAFE_ADD(val, -pCmprsor->i_prev)) {
-      // TODO
+      code = tCompIntSwitchToCopy(pCmprsor);
+      if (code) return code;
       goto _copy_cmpr;
     }
 
     int64_t  diff = val - pCmprsor->i_prev;
     uint64_t vZigzag = ZIGZAG_ENCODE(int64_t, diff);
     if (vZigzag >= SIMPLE8B_MAX) {
-      // TODO
+      code = tCompIntSwitchToCopy(pCmprsor);
+      if (code) return code;
       goto _copy_cmpr;
     }
 
     int8_t nBit = (vZigzag) ? (64 - BUILDIN_CLZL(vZigzag)) : 0;
     pCmprsor->i_prev = val;
 
-    while (1) {
-      int32_t nEle = (pCmprsor->i_end + 241 - pCmprsor->i_start) % 241;
-
-      if (nEle + 1 <= SELECTOR_TO_ELEMS[pCmprsor->i_selector] && nEle + 1 <= SELECTOR_TO_ELEMS[BIT_TO_SELECTOR[nBit]]) {
+    for (;;) {
+      if (pCmprsor->i_nEle + 1 <= SELECTOR_TO_ELEMS[pCmprsor->i_selector] &&
+          pCmprsor->i_nEle + 1 <= SELECTOR_TO_ELEMS[BIT_TO_SELECTOR[nBit]]) {
         if (pCmprsor->i_selector < BIT_TO_SELECTOR[nBit]) {
           pCmprsor->i_selector = BIT_TO_SELECTOR[nBit];
         }
-        pCmprsor->i_end = (pCmprsor->i_end + 1) % 241;
         pCmprsor->i_aZigzag[pCmprsor->i_end] = vZigzag;
         pCmprsor->i_aBitN[pCmprsor->i_end] = nBit;
+        pCmprsor->i_end = NEXT_IDX[pCmprsor->i_end];
+        pCmprsor->i_nEle++;
         break;
       } else {
-        while (nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
-          pCmprsor->i_selector++;
-        }
-        nEle = SELECTOR_TO_ELEMS[pCmprsor->i_selector];
+        if (pCmprsor->i_nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+          int32_t lidx = pCmprsor->i_selector + 1;
+          int32_t ridx = 15;
+          while (lidx <= ridx) {
+            pCmprsor->i_selector = (lidx + ridx) >> 1;
 
-        if (pCmprsor->autoAlloc) {
-          code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + sizeof(uint64_t));
-          if (code) return code;
+            if (pCmprsor->i_nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+              lidx = pCmprsor->i_selector + 1;
+            } else if (pCmprsor->i_nEle > SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+              ridx = pCmprsor->i_selector - 1;
+            } else {
+              break;
+            }
+          }
+
+          if (pCmprsor->i_nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) pCmprsor->i_selector++;
+        }
+        int32_t nEle = SELECTOR_TO_ELEMS[pCmprsor->i_selector];
+
+        if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf + sizeof(uint64_t)))) {
+          return code;
         }
 
-        uint64_t *bp = (uint64_t *)(pCmprsor->aBuf[0] + pCmprsor->nBuf[0]);
-        pCmprsor->nBuf[0] += sizeof(uint64_t);
+        uint64_t *bp = (uint64_t *)(pCmprsor->pBuf + pCmprsor->nBuf);
+        pCmprsor->nBuf += sizeof(uint64_t);
         bp[0] = pCmprsor->i_selector;
         uint8_t bits = BIT_PER_INTEGER[pCmprsor->i_selector];
         for (int32_t iVal = 0; iVal < nEle; iVal++) {
-          bp[0] |= ((pCmprsor->i_aZigzag[pCmprsor->i_start] & ((((uint64_t)1) << bits) - 1)) << (bits * iVal + 4));
-          pCmprsor->i_start = (pCmprsor->i_start + 1) % 241;
+          bp[0] |= (pCmprsor->i_aZigzag[pCmprsor->i_start] << (bits * iVal + 4));
+          pCmprsor->i_start = NEXT_IDX[pCmprsor->i_start];
+          pCmprsor->i_nEle--;
         }
 
         // reset and continue
         pCmprsor->i_selector = 0;
-        for (int32_t iVal = pCmprsor->i_start; iVal < pCmprsor->i_end; iVal = (iVal + 1) % 241) {
+        for (int32_t iVal = pCmprsor->i_start; iVal < pCmprsor->i_end; iVal = NEXT_IDX[iVal]) {
           if (pCmprsor->i_selector < BIT_TO_SELECTOR[pCmprsor->i_aBitN[iVal]]) {
             pCmprsor->i_selector = BIT_TO_SELECTOR[pCmprsor->i_aBitN[iVal]];
           }
@@ -1303,18 +1776,146 @@ static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData)
     }
   } else {
   _copy_cmpr:
-    code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + nData);
+    code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf + nData);
     if (code) return code;
 
-    memcpy(pCmprsor->aBuf[0] + pCmprsor->nBuf[0], pData, nData);
-    pCmprsor->nBuf[0] += nData;
+    memcpy(pCmprsor->pBuf + pCmprsor->nBuf, pData, nData);
+    pCmprsor->nBuf += nData;
   }
   pCmprsor->nVal++;
 
   return code;
 }
 
+static int32_t tCompIntEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData) {
+  int32_t code = 0;
+
+  for (; pCmprsor->i_nEle;) {
+    if (pCmprsor->i_nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+      int32_t lidx = pCmprsor->i_selector + 1;
+      int32_t ridx = 15;
+      while (lidx <= ridx) {
+        pCmprsor->i_selector = (lidx + ridx) >> 1;
+
+        if (pCmprsor->i_nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+          lidx = pCmprsor->i_selector + 1;
+        } else if (pCmprsor->i_nEle > SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+          ridx = pCmprsor->i_selector - 1;
+        } else {
+          break;
+        }
+      }
+
+      if (pCmprsor->i_nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) pCmprsor->i_selector++;
+    }
+    int32_t nEle = SELECTOR_TO_ELEMS[pCmprsor->i_selector];
+
+    if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf + sizeof(uint64_t)))) {
+      return code;
+    }
+
+    uint64_t *bp = (uint64_t *)(pCmprsor->pBuf + pCmprsor->nBuf);
+    pCmprsor->nBuf += sizeof(uint64_t);
+    bp[0] = pCmprsor->i_selector;
+    uint8_t bits = BIT_PER_INTEGER[pCmprsor->i_selector];
+    for (int32_t iVal = 0; iVal < nEle; iVal++) {
+      bp[0] |= (pCmprsor->i_aZigzag[pCmprsor->i_start] << (bits * iVal + 4));
+      pCmprsor->i_start = NEXT_IDX[pCmprsor->i_start];
+      pCmprsor->i_nEle--;
+    }
+
+    pCmprsor->i_selector = 0;
+  }
+
+  if (pCmprsor->nBuf >= DATA_TYPE_INFO[pCmprsor->type].bytes * pCmprsor->nVal + 1 && pCmprsor->pBuf[0] == 0) {
+    code = tCompIntSwitchToCopy(pCmprsor);
+    if (code) return code;
+  }
+
+  if (pCmprsor->cmprAlg == TWO_STAGE_COMP) {
+    code = tTwoStageComp(pCmprsor, nData);
+    if (code) return code;
+    *ppData = pCmprsor->aBuf[0];
+  } else if (pCmprsor->cmprAlg == ONE_STAGE_COMP) {
+    *ppData = pCmprsor->pBuf;
+    *nData = pCmprsor->nBuf;
+  } else {
+    ASSERT(0);
+  }
+
+  return code;
+}
+
 // Float =====================================================
+static int32_t tCompFloatStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
+  int32_t code = 0;
+
+  pCmprsor->f_prev = 0;
+  pCmprsor->f_flag_p = NULL;
+
+  pCmprsor->nBuf = 1;
+
+  code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf);
+  if (code) return code;
+
+  pCmprsor->pBuf[0] = 0;
+
+  return code;
+}
+
+static int32_t tCompFloatSwitchToCopy(SCompressor *pCmprsor) {
+  int32_t code = 0;
+
+  if (pCmprsor->nVal == 0) goto _exit;
+
+  if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->aBuf[0], sizeof(float) * pCmprsor->nVal + 1))) {
+    return code;
+  }
+
+  int32_t n = 1;
+  int32_t nBuf = 1;
+  union {
+    float    f;
+    uint32_t u;
+  } val = {.u = 0};
+
+  for (int32_t iVal = 0; iVal < pCmprsor->nVal;) {
+    uint8_t flags[2] = {(pCmprsor->pBuf[n] & 0xf), (pCmprsor->pBuf[n] >> 4)};
+
+    n++;
+
+    for (int8_t i = 0; i < 2; i++) {
+      uint8_t flag = flags[i];
+
+      uint32_t diff = 0;
+      int8_t   nBytes = (flag & 0x7) + 1;
+      for (int j = 0; j < nBytes; j++) {
+        diff |= (((uint32_t)pCmprsor->pBuf[n]) << (8 * j));
+        n++;
+      }
+
+      if (flag & 0x8) {
+        diff <<= (32 - nBytes * 8);
+      }
+
+      val.u ^= diff;
+
+      memcpy(pCmprsor->aBuf[0] + nBuf, &val.f, sizeof(val));
+      nBuf += sizeof(val);
+
+      iVal++;
+      if (iVal >= pCmprsor->nVal) break;
+    }
+  }
+  uint8_t *pBuf = pCmprsor->pBuf;
+  pCmprsor->pBuf = pCmprsor->aBuf[0];
+  pCmprsor->aBuf[0] = pBuf;
+  pCmprsor->nBuf = nBuf;
+
+_exit:
+  pCmprsor->pBuf[0] = 1;
+  return code;
+}
 static int32_t tCompFloat(SCompressor *pCmprsor, const void *pData, int32_t nData) {
   int32_t code = 0;
 
@@ -1347,13 +1948,12 @@ static int32_t tCompFloat(SCompressor *pCmprsor, const void *pData, int32_t nDat
   if (nBytes == 0) nBytes++;
 
   if ((pCmprsor->nVal & 0x1) == 0) {
-    if (pCmprsor->autoAlloc) {
-      code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + 9);
-      if (code) return code;
+    if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf + 9))) {
+      return code;
     }
 
-    pCmprsor->f_flag_p = &pCmprsor->aBuf[0][pCmprsor->nBuf[0]];
-    pCmprsor->nBuf[0]++;
+    pCmprsor->f_flag_p = &pCmprsor->pBuf[pCmprsor->nBuf];
+    pCmprsor->nBuf++;
 
     if (clz < ctz) {
       pCmprsor->f_flag_p[0] = (0x08 | (nBytes - 1));
@@ -1368,8 +1968,8 @@ static int32_t tCompFloat(SCompressor *pCmprsor, const void *pData, int32_t nDat
     }
   }
   for (; nBytes; nBytes--) {
-    pCmprsor->aBuf[0][pCmprsor->nBuf[0]] = (diff & 0xff);
-    pCmprsor->nBuf[0]++;
+    pCmprsor->pBuf[pCmprsor->nBuf] = (diff & 0xff);
+    pCmprsor->nBuf++;
     diff >>= BITS_PER_BYTE;
   }
   pCmprsor->nVal++;
@@ -1377,7 +1977,98 @@ static int32_t tCompFloat(SCompressor *pCmprsor, const void *pData, int32_t nDat
   return code;
 }
 
+static int32_t tCompFloatEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData) {
+  int32_t code = 0;
+
+  if (pCmprsor->nBuf >= sizeof(float) * pCmprsor->nVal + 1) {
+    code = tCompFloatSwitchToCopy(pCmprsor);
+    if (code) return code;
+  }
+
+  if (pCmprsor->cmprAlg == TWO_STAGE_COMP) {
+    code = tTwoStageComp(pCmprsor, nData);
+    if (code) return code;
+    *ppData = pCmprsor->aBuf[0];
+  } else if (pCmprsor->cmprAlg == ONE_STAGE_COMP) {
+    *ppData = pCmprsor->pBuf;
+    *nData = pCmprsor->nBuf;
+  } else {
+    ASSERT(0);
+  }
+
+  return code;
+}
+
 // Double =====================================================
+static int32_t tCompDoubleStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
+  int32_t code = 0;
+
+  pCmprsor->d_prev = 0;
+  pCmprsor->d_flag_p = NULL;
+
+  pCmprsor->nBuf = 1;
+
+  code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf);
+  if (code) return code;
+
+  pCmprsor->pBuf[0] = 0;
+
+  return code;
+}
+
+static int32_t tCompDoubleSwitchToCopy(SCompressor *pCmprsor) {
+  int32_t code = 0;
+
+  if (pCmprsor->nVal == 0) goto _exit;
+
+  if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->aBuf[0], sizeof(double) * pCmprsor->nVal + 1))) {
+    return code;
+  }
+
+  int32_t n = 1;
+  int32_t nBuf = 1;
+  union {
+    double   f;
+    uint64_t u;
+  } val = {.u = 0};
+
+  for (int32_t iVal = 0; iVal < pCmprsor->nVal;) {
+    uint8_t flags[2] = {(pCmprsor->pBuf[n] & 0xf), (pCmprsor->pBuf[n] >> 4)};
+
+    n++;
+
+    for (int8_t i = 0; i < 2; i++) {
+      uint8_t flag = flags[i];
+
+      uint64_t diff = 0;
+      int8_t   nBytes = (flag & 0x7) + 1;
+      for (int j = 0; j < nBytes; j++) {
+        diff |= (((uint64_t)pCmprsor->pBuf[n]) << (8 * j));
+        n++;
+      }
+
+      if (flag & 0x8) {
+        diff <<= (64 - nBytes * 8);
+      }
+
+      val.u ^= diff;
+
+      memcpy(pCmprsor->aBuf[0] + nBuf, &val.f, sizeof(val));
+      nBuf += sizeof(val);
+
+      iVal++;
+      if (iVal >= pCmprsor->nVal) break;
+    }
+  }
+  uint8_t *pBuf = pCmprsor->pBuf;
+  pCmprsor->pBuf = pCmprsor->aBuf[0];
+  pCmprsor->aBuf[0] = pBuf;
+  pCmprsor->nBuf = nBuf;
+
+_exit:
+  pCmprsor->pBuf[0] = 1;
+  return code;
+}
 static int32_t tCompDouble(SCompressor *pCmprsor, const void *pData, int32_t nData) {
   int32_t code = 0;
 
@@ -1410,13 +2101,12 @@ static int32_t tCompDouble(SCompressor *pCmprsor, const void *pData, int32_t nDa
   if (nBytes == 0) nBytes++;
 
   if ((pCmprsor->nVal & 0x1) == 0) {
-    if (pCmprsor->autoAlloc) {
-      code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + 17);
-      if (code) return code;
+    if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf + 17))) {
+      return code;
     }
 
-    pCmprsor->d_flag_p = &pCmprsor->aBuf[0][pCmprsor->nBuf[0]];
-    pCmprsor->nBuf[0]++;
+    pCmprsor->d_flag_p = &pCmprsor->pBuf[pCmprsor->nBuf];
+    pCmprsor->nBuf++;
 
     if (clz < ctz) {
       pCmprsor->d_flag_p[0] = (0x08 | (nBytes - 1));
@@ -1431,8 +2121,8 @@ static int32_t tCompDouble(SCompressor *pCmprsor, const void *pData, int32_t nDa
     }
   }
   for (; nBytes; nBytes--) {
-    pCmprsor->aBuf[0][pCmprsor->nBuf[0]] = (diff & 0xff);
-    pCmprsor->nBuf[0]++;
+    pCmprsor->pBuf[pCmprsor->nBuf] = (diff & 0xff);
+    pCmprsor->nBuf++;
     diff >>= BITS_PER_BYTE;
   }
   pCmprsor->nVal++;
@@ -1440,20 +2130,70 @@ static int32_t tCompDouble(SCompressor *pCmprsor, const void *pData, int32_t nDa
   return code;
 }
 
+static int32_t tCompDoubleEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData) {
+  int32_t code = 0;
+
+  if (pCmprsor->nBuf >= sizeof(double) * pCmprsor->nVal + 1) {
+    code = tCompDoubleSwitchToCopy(pCmprsor);
+    if (code) return code;
+  }
+
+  if (pCmprsor->cmprAlg == TWO_STAGE_COMP) {
+    code = tTwoStageComp(pCmprsor, nData);
+    if (code) return code;
+    *ppData = pCmprsor->aBuf[0];
+  } else if (pCmprsor->cmprAlg == ONE_STAGE_COMP) {
+    *ppData = pCmprsor->pBuf;
+    *nData = pCmprsor->nBuf;
+  } else {
+    ASSERT(0);
+  }
+
+  return code;
+}
+
 // Binary =====================================================
+static int32_t tCompBinaryStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
+  pCmprsor->nBuf = 1;
+  return 0;
+}
+
 static int32_t tCompBinary(SCompressor *pCmprsor, const void *pData, int32_t nData) {
   int32_t code = 0;
 
   if (nData) {
-    if (pCmprsor->autoAlloc) {
-      code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + nData);
-      if (code) return code;
+    if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf + nData))) {
+      return code;
     }
 
-    memcpy(pCmprsor->aBuf[0] + pCmprsor->nBuf[0], pData, nData);
-    pCmprsor->nBuf[0] += nData;
+    memcpy(pCmprsor->pBuf + pCmprsor->nBuf, pData, nData);
+    pCmprsor->nBuf += nData;
   }
   pCmprsor->nVal++;
+
+  return code;
+}
+
+static int32_t tCompBinaryEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData) {
+  int32_t code = 0;
+
+  if (pCmprsor->nBuf == 1) return code;
+
+  if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf))) {
+    return code;
+  }
+
+  int32_t szComp =
+      LZ4_compress_default(pCmprsor->pBuf + 1, pCmprsor->aBuf[0] + 1, pCmprsor->nBuf - 1, pCmprsor->nBuf - 1);
+  if (szComp && szComp < pCmprsor->nBuf - 1) {
+    pCmprsor->aBuf[0][0] = 1;
+    *ppData = pCmprsor->aBuf[0];
+    *nData = szComp + 1;
+  } else {
+    pCmprsor->pBuf[0] = 0;
+    *ppData = pCmprsor->pBuf;
+    *nData = pCmprsor->nBuf;
+  }
 
   return code;
 }
@@ -1461,26 +2201,47 @@ static int32_t tCompBinary(SCompressor *pCmprsor, const void *pData, int32_t nDa
 // Bool =====================================================
 static const uint8_t BOOL_CMPR_TABLE[] = {0b01, 0b0100, 0b010000, 0b01000000};
 
+static int32_t tCompBoolStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
+  pCmprsor->nBuf = 0;
+  return 0;
+}
+
 static int32_t tCompBool(SCompressor *pCmprsor, const void *pData, int32_t nData) {
   int32_t code = 0;
 
   bool vBool = *(int8_t *)pData;
 
-  int32_t mod4 = pCmprsor->nVal & 3;
+  int32_t mod4 = (pCmprsor->nVal & 3);
   if (mod4 == 0) {
-    pCmprsor->nBuf[0]++;
+    pCmprsor->nBuf++;
 
-    if (pCmprsor->autoAlloc) {
-      code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0]);
-      if (code) return code;
+    if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf))) {
+      return code;
     }
 
-    pCmprsor->aBuf[0][pCmprsor->nBuf[0] - 1] = 0;
+    pCmprsor->pBuf[pCmprsor->nBuf - 1] = 0;
   }
   if (vBool) {
-    pCmprsor->aBuf[0][pCmprsor->nBuf[0] - 1] |= BOOL_CMPR_TABLE[mod4];
+    pCmprsor->pBuf[pCmprsor->nBuf - 1] |= BOOL_CMPR_TABLE[mod4];
   }
   pCmprsor->nVal++;
+
+  return code;
+}
+
+static int32_t tCompBoolEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData) {
+  int32_t code = 0;
+
+  if (pCmprsor->cmprAlg == TWO_STAGE_COMP) {
+    code = tTwoStageComp(pCmprsor, nData);
+    if (code) return code;
+    *ppData = pCmprsor->aBuf[0];
+  } else if (pCmprsor->cmprAlg == ONE_STAGE_COMP) {
+    *ppData = pCmprsor->pBuf;
+    *nData = pCmprsor->nBuf;
+  } else {
+    ASSERT(0);
+  }
 
   return code;
 }
@@ -1492,119 +2253,59 @@ int32_t tCompressorCreate(SCompressor **ppCmprsor) {
   *ppCmprsor = (SCompressor *)taosMemoryCalloc(1, sizeof(SCompressor));
   if ((*ppCmprsor) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
+    return code;
   }
 
-  code = tRealloc(&(*ppCmprsor)->aBuf[0], 1024);
-  if (code) {
-    taosMemoryFree(*ppCmprsor);
-    *ppCmprsor = NULL;
-    goto _exit;
-  }
-
-_exit:
   return code;
 }
 
 int32_t tCompressorDestroy(SCompressor *pCmprsor) {
   int32_t code = 0;
 
-  if (pCmprsor) {
-    int32_t nBuf = sizeof(pCmprsor->aBuf) / sizeof(pCmprsor->aBuf[0]);
-    for (int32_t iBuf = 0; iBuf < nBuf; iBuf++) {
-      tFree(pCmprsor->aBuf[iBuf]);
-    }
+  tFree(pCmprsor->pBuf);
 
-    taosMemoryFree(pCmprsor);
+  int32_t nBuf = sizeof(pCmprsor->aBuf) / sizeof(pCmprsor->aBuf[0]);
+  for (int32_t iBuf = 0; iBuf < nBuf; iBuf++) {
+    tFree(pCmprsor->aBuf[iBuf]);
   }
+
+  taosMemoryFree(pCmprsor);
 
   return code;
 }
 
-int32_t tCompressorReset(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg, int8_t autoAlloc) {
+int32_t tCompressStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
   int32_t code = 0;
 
   pCmprsor->type = type;
   pCmprsor->cmprAlg = cmprAlg;
-  pCmprsor->autoAlloc = autoAlloc;
+  pCmprsor->autoAlloc = 1;
   pCmprsor->nVal = 0;
 
-  switch (type) {
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      pCmprsor->ts_prev_val = 0;
-      pCmprsor->ts_prev_delta = 0;
-      pCmprsor->ts_flag_p = NULL;
-      pCmprsor->aBuf[0][0] = 1;  // For timestamp, 1 means compressed, 0 otherwise
-      pCmprsor->nBuf[0] = 1;
-      break;
-    case TSDB_DATA_TYPE_BOOL:
-      pCmprsor->nBuf[0] = 0;
-      break;
-    case TSDB_DATA_TYPE_BINARY:
-      pCmprsor->nBuf[0] = 0;
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-      pCmprsor->f_prev = 0;
-      pCmprsor->f_flag_p = NULL;
-      pCmprsor->aBuf[0][0] = 0;  // 0 means compressed, 1 otherwise (for backward compatibility)
-      pCmprsor->nBuf[0] = 1;
-      break;
-    case TSDB_DATA_TYPE_DOUBLE:
-      pCmprsor->d_prev = 0;
-      pCmprsor->d_flag_p = NULL;
-      pCmprsor->aBuf[0][0] = 0;  // 0 means compressed, 1 otherwise (for backward compatibility)
-      pCmprsor->nBuf[0] = 1;
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_INT:
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_UTINYINT:
-    case TSDB_DATA_TYPE_USMALLINT:
-    case TSDB_DATA_TYPE_UINT:
-    case TSDB_DATA_TYPE_UBIGINT:
-      pCmprsor->i_prev = 0;
-      pCmprsor->i_selector = 0;
-      pCmprsor->i_start = 0;
-      pCmprsor->i_end = 0;
-      pCmprsor->aBuf[0][0] = 0;  // 0 means compressed, 1 otherwise (for backward compatibility)
-      pCmprsor->nBuf[0] = 1;
-      break;
-    default:
-      break;
+  if (DATA_TYPE_INFO[type].startFn) {
+    DATA_TYPE_INFO[type].startFn(pCmprsor, type, cmprAlg);
   }
 
   return code;
 }
 
-int32_t tCompGen(SCompressor *pCmprsor, const uint8_t **ppData, int64_t *nData) {
+int32_t tCompressEnd(SCompressor *pCmprsor, const uint8_t **ppOut, int32_t *nOut, int32_t *nOrigin) {
   int32_t code = 0;
 
-  if (pCmprsor->nVal == 0) {
-    *ppData = NULL;
-    *nData = 0;
-    return code;
+  *ppOut = NULL;
+  *nOut = 0;
+  if (nOrigin) {
+    if (DATA_TYPE_INFO[pCmprsor->type].isVarLen) {
+      *nOrigin = pCmprsor->nBuf - 1;
+    } else {
+      *nOrigin = pCmprsor->nVal * DATA_TYPE_INFO[pCmprsor->type].bytes;
+    }
   }
 
-  if (pCmprsor->cmprAlg == TWO_STAGE_COMP /*|| IS_VAR_DATA_TYPE(pCmprsor->type)*/) {
-    code = tRealloc(&pCmprsor->aBuf[1], pCmprsor->nBuf[0] + 1);
-    if (code) return code;
+  if (pCmprsor->nVal == 0) return code;
 
-    int64_t ret = LZ4_compress_default(pCmprsor->aBuf[0], pCmprsor->aBuf[1] + 1, pCmprsor->nBuf[0], pCmprsor->nBuf[0]);
-    if (ret) {
-      pCmprsor->aBuf[1][0] = 0;
-      pCmprsor->nBuf[1] = ret + 1;
-    } else {
-      pCmprsor->aBuf[1][0] = 1;
-      memcpy(pCmprsor->aBuf[1] + 1, pCmprsor->aBuf[0], pCmprsor->nBuf[0]);
-      pCmprsor->nBuf[1] = pCmprsor->nBuf[0] + 1;
-    }
-
-    *ppData = pCmprsor->aBuf[1];
-    *nData = pCmprsor->nBuf[1];
-  } else {
-    *ppData = pCmprsor->aBuf[0];
-    *nData = pCmprsor->nBuf[0];
+  if (DATA_TYPE_INFO[pCmprsor->type].endFn) {
+    return DATA_TYPE_INFO[pCmprsor->type].endFn(pCmprsor, ppOut, nOut);
   }
 
   return code;
@@ -1612,4 +2313,277 @@ int32_t tCompGen(SCompressor *pCmprsor, const uint8_t **ppData, int64_t *nData) 
 
 int32_t tCompress(SCompressor *pCmprsor, const void *pData, int64_t nData) {
   return DATA_TYPE_INFO[pCmprsor->type].cmprFn(pCmprsor, pData, nData);
+}
+
+/*************************************************************************
+ *                  REGULAR COMPRESSION
+ *************************************************************************/
+// Timestamp =====================================================
+int32_t tsCompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                            int32_t nBuf) {
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsCompressTimestampImp(pIn, nEle, pOut);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    int32_t len = tsCompressTimestampImp(pIn, nEle, pBuf);
+    return tsCompressStringImp(pBuf, len, pOut, nOut);
+  } else {
+    ASSERTS(0, "compress algo not one or two stage");
+    return -1;
+  }
+}
+
+int32_t tsDecompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg,
+                              void *pBuf, int32_t nBuf) {
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsDecompressTimestampImp(pIn, nEle, pOut);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
+    return tsDecompressTimestampImp(pBuf, nEle, pOut);
+  } else {
+    ASSERTS(0, "compress algo invalid");
+    return -1;
+  }
+}
+
+// Float =====================================================
+int32_t tsCompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                        int32_t nBuf) {
+#ifdef TD_TSZ
+  // lossy mode
+  if (lossyFloat) {
+    return tsCompressFloatLossyImp(pIn, nEle, pOut);
+    // lossless mode
+  } else {
+#endif
+    if (cmprAlg == ONE_STAGE_COMP) {
+      return tsCompressFloatImp(pIn, nEle, pOut);
+    } else if (cmprAlg == TWO_STAGE_COMP) {
+      int32_t len = tsCompressFloatImp(pIn, nEle, pBuf);
+      return tsCompressStringImp(pBuf, len, pOut, nOut);
+    } else {
+      ASSERTS(0, "compress algo invalid");
+      return -1;
+    }
+#ifdef TD_TSZ
+  }
+#endif
+}
+
+int32_t tsDecompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                          int32_t nBuf) {
+#ifdef TD_TSZ
+  if (HEAD_ALGO(pIn[0]) == ALGO_SZ_LOSSY) {
+    // decompress lossy
+    return tsDecompressFloatLossyImp(pIn, nIn, nEle, pOut);
+  } else {
+#endif
+    // decompress lossless
+    if (cmprAlg == ONE_STAGE_COMP) {
+      return tsDecompressFloatImp(pIn, nEle, pOut);
+    } else if (cmprAlg == TWO_STAGE_COMP) {
+      if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
+      return tsDecompressFloatImp(pBuf, nEle, pOut);
+    } else {
+      ASSERTS(0, "compress algo invalid");
+      return -1;
+    }
+#ifdef TD_TSZ
+  }
+#endif
+}
+
+// Double =====================================================
+int32_t tsCompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                         int32_t nBuf) {
+#ifdef TD_TSZ
+  if (lossyDouble) {
+    // lossy mode
+    return tsCompressDoubleLossyImp(pIn, nEle, pOut);
+  } else {
+#endif
+    // lossless mode
+    if (cmprAlg == ONE_STAGE_COMP) {
+      return tsCompressDoubleImp(pIn, nEle, pOut);
+    } else if (cmprAlg == TWO_STAGE_COMP) {
+      int32_t len = tsCompressDoubleImp(pIn, nEle, pBuf);
+      return tsCompressStringImp(pBuf, len, pOut, nOut);
+    } else {
+      ASSERTS(0, "compress algo invalid");
+      return -1;
+    }
+#ifdef TD_TSZ
+  }
+#endif
+}
+
+int32_t tsDecompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                           int32_t nBuf) {
+#ifdef TD_TSZ
+  if (HEAD_ALGO(input[0]) == ALGO_SZ_LOSSY) {
+    // decompress lossy
+    return tsDecompressDoubleLossyImp(pIn, nIn, nEle, pOut);
+  } else {
+#endif
+    // decompress lossless
+    if (cmprAlg == ONE_STAGE_COMP) {
+      return tsDecompressDoubleImp(pIn, nEle, pOut);
+    } else if (cmprAlg == TWO_STAGE_COMP) {
+      if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
+      return tsDecompressDoubleImp(pBuf, nEle, pOut);
+    } else {
+      ASSERTS(0, "compress algo invalid");
+      return -1;
+    }
+#ifdef TD_TSZ
+  }
+#endif
+}
+
+// Binary =====================================================
+int32_t tsCompressString(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                         int32_t nBuf) {
+  return tsCompressStringImp(pIn, nIn, pOut, nOut);
+}
+
+int32_t tsDecompressString(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                           int32_t nBuf) {
+  return tsDecompressStringImp(pIn, nIn, pOut, nOut);
+}
+
+// Bool =====================================================
+int32_t tsCompressBool(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                       int32_t nBuf) {
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsCompressBoolImp(pIn, nEle, pOut);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    int32_t len = tsCompressBoolImp(pIn, nEle, pBuf);
+    if (len < 0) {
+      return -1;
+    }
+    return tsCompressStringImp(pBuf, len, pOut, nOut);
+  } else {
+    ASSERTS(0, "compress algo invalid");
+    return -1;
+  }
+}
+
+int32_t tsDecompressBool(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                         int32_t nBuf) {
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsDecompressBoolImp(pIn, nEle, pOut);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
+    return tsDecompressBoolImp(pBuf, nEle, pOut);
+  } else {
+    ASSERTS(0, "compress algo invalid");
+    return -1;
+  }
+}
+
+// Tinyint =====================================================
+int32_t tsCompressTinyint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                          int32_t nBuf) {
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsCompressINTImp(pIn, nEle, pOut, TSDB_DATA_TYPE_TINYINT);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    int32_t len = tsCompressINTImp(pIn, nEle, pBuf, TSDB_DATA_TYPE_TINYINT);
+    return tsCompressStringImp(pBuf, len, pOut, nOut);
+  } else {
+    ASSERTS(0, "compress algo invalid");
+    return -1;
+  }
+}
+
+int32_t tsDecompressTinyint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                            int32_t nBuf) {
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsDecompressINTImp(pIn, nEle, pOut, TSDB_DATA_TYPE_TINYINT);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
+    return tsDecompressINTImp(pBuf, nEle, pOut, TSDB_DATA_TYPE_TINYINT);
+  } else {
+    ASSERTS(0, "compress algo invalid");
+    return -1;
+  }
+}
+
+// Smallint =====================================================
+int32_t tsCompressSmallint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                           int32_t nBuf) {
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsCompressINTImp(pIn, nEle, pOut, TSDB_DATA_TYPE_SMALLINT);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    int32_t len = tsCompressINTImp(pIn, nEle, pBuf, TSDB_DATA_TYPE_SMALLINT);
+    return tsCompressStringImp(pBuf, len, pOut, nOut);
+  } else {
+    ASSERTS(0, "compress algo invalid");
+    return -1;
+  }
+}
+
+int32_t tsDecompressSmallint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg,
+                             void *pBuf, int32_t nBuf) {
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsDecompressINTImp(pIn, nEle, pOut, TSDB_DATA_TYPE_SMALLINT);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
+    return tsDecompressINTImp(pBuf, nEle, pOut, TSDB_DATA_TYPE_SMALLINT);
+  } else {
+    ASSERTS(0, "compress algo invalid");
+    return -1;
+  }
+}
+
+// Int =====================================================
+int32_t tsCompressInt(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                      int32_t nBuf) {
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsCompressINTImp(pIn, nEle, pOut, TSDB_DATA_TYPE_INT);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    int32_t len = tsCompressINTImp(pIn, nEle, pBuf, TSDB_DATA_TYPE_INT);
+    return tsCompressStringImp(pBuf, len, pOut, nOut);
+  } else {
+    ASSERTS(0, "compress algo invalid");
+    return -1;
+  }
+}
+
+int32_t tsDecompressInt(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                        int32_t nBuf) {
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsDecompressINTImp(pIn, nEle, pOut, TSDB_DATA_TYPE_INT);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
+    return tsDecompressINTImp(pBuf, nEle, pOut, TSDB_DATA_TYPE_INT);
+  } else {
+    ASSERTS(0, "compress algo invalid");
+    return -1;
+  }
+}
+
+// Bigint =====================================================
+int32_t tsCompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                         int32_t nBuf) {
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsCompressINTImp(pIn, nEle, pOut, TSDB_DATA_TYPE_BIGINT);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    int32_t len = tsCompressINTImp(pIn, nEle, pBuf, TSDB_DATA_TYPE_BIGINT);
+    return tsCompressStringImp(pBuf, len, pOut, nOut);
+  } else {
+    ASSERTS(0, "compress algo invalid");
+    return -1;
+  }
+}
+
+int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                           int32_t nBuf) {
+  if (cmprAlg == ONE_STAGE_COMP) {
+    return tsDecompressINTImp(pIn, nEle, pOut, TSDB_DATA_TYPE_BIGINT);
+  } else if (cmprAlg == TWO_STAGE_COMP) {
+    if (tsDecompressStringImp(pIn, nIn, pBuf, nBuf) < 0) return -1;
+    return tsDecompressINTImp(pBuf, nEle, pOut, TSDB_DATA_TYPE_BIGINT);
+  } else {
+    ASSERTS(0, "compress algo invalid");
+    return -1;
+  }
 }

@@ -20,6 +20,15 @@
 extern "C" {
 #endif
 
+typedef struct SSclVectorConvCtx {
+  const SScalarParam* pIn;
+  SScalarParam* pOut;
+  int32_t startIndex; 
+  int32_t endIndex;
+  int16_t inType;
+  int16_t outType;
+} SSclVectorConvCtx;
+
 typedef double (*_getDoubleValue_fn_t)(void *src, int32_t index);
 
 static FORCE_INLINE double getVectorDoubleValue_TINYINT(void *src, int32_t index) {
@@ -94,12 +103,12 @@ static FORCE_INLINE _getDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType)
   return p;
 }
 
-typedef void (*_bufConverteFunc)(char *buf, SScalarParam* pOut, int32_t outType, int32_t* overflow);
-typedef void (*_bin_scalar_fn_t)(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *output, int32_t order);
+typedef void (*_bufConverteFunc)(char *buf, SScalarParam *pOut, int32_t outType, int32_t *overflow);
+typedef void (*_bin_scalar_fn_t)(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *output, int32_t order);
 _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binOperator);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_COMMON_BIN_SCALAR_OPERATOR_H_*/
+#endif /*_TD_COMMON_BIN_SCALAR_OPERATOR_H_*/

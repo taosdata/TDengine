@@ -1,6 +1,7 @@
 ---
-sidebar_label: Load Balance
 title: Load Balance
+sidebar_label: Load Balance
+description: This document describes how TDengine implements load balancing.
 ---
 
 The load balance in TDengine is mainly about processing data series data. TDengine employes builtin hash algorithm to distribute all the tables, sub-tables and their data of a database across all the vgroups that belongs to the database. Each table or sub-table can only be handled by a single vgroup, while each vgroup can process multiple table or sub-table. 

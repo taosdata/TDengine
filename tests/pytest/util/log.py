@@ -36,10 +36,10 @@ class TDLog:
         printf("\033[1;32m%s %s\033[0m" % (datetime.datetime.now(), info))
 
     def notice(self, err):
-        printf("\033[1;33m%s %s\033[0m" % (datetime.datetime.now(), err))
+        print("\033[1;33m%s %s\033[0m" % (datetime.datetime.now(), err))
 
     def exit(self, err):
-        printf("\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err))
+        print("\033[1;31m%s %s\033[0m" % (datetime.datetime.now(), err))
         sys.exit(1)
 
     def printNoPrefix(self, info):

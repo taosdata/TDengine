@@ -1,9 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncMessage.h"
-#include "syncUtil.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -23,7 +19,7 @@ SyncAppendEntriesReply *createMsg() {
   pMsg->success = true;
   pMsg->matchIndex = 77;
   pMsg->term = 33;
-  pMsg->privateTerm = 44;
+  // pMsg->privateTerm = 44;
   pMsg->startTime = taosGetTimestampMs();
   return pMsg;
 }
@@ -37,7 +33,7 @@ void test1() {
 void test2() {
   SyncAppendEntriesReply *pMsg = createMsg();
   uint32_t                len = pMsg->bytes;
-  char *                  serialized = (char *)taosMemoryMalloc(len);
+  char                   *serialized = (char *)taosMemoryMalloc(len);
   syncAppendEntriesReplySerialize(pMsg, serialized, len);
   SyncAppendEntriesReply *pMsg2 = syncAppendEntriesReplyBuild(1000);
   syncAppendEntriesReplyDeserialize(serialized, len, pMsg2);
@@ -52,7 +48,7 @@ void test2() {
 void test3() {
   SyncAppendEntriesReply *pMsg = createMsg();
   uint32_t                len;
-  char *                  serialized = syncAppendEntriesReplySerialize2(pMsg, &len);
+  char                   *serialized = syncAppendEntriesReplySerialize2(pMsg, &len);
   SyncAppendEntriesReply *pMsg2 = syncAppendEntriesReplyDeserialize2(serialized, len);
   syncAppendEntriesReplyLog2((char *)"test3: syncAppendEntriesReplySerialize3 -> syncAppendEntriesReplyDeserialize2 ",
                              pMsg2);

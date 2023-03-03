@@ -21,7 +21,8 @@ class TDTestCase:
         self.ctbNum     = 10
         self.rowsPerTbl = 10000
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
 
@@ -52,7 +53,7 @@ class TDTestCase:
         paraDict['rowsPerTbl'] = self.rowsPerTbl
 
         tmqCom.initConsumerTable()
-        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
+        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=self.replicaVar)
         tdLog.info("create stb")
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         tdLog.info("create ctb")
@@ -86,7 +87,7 @@ class TDTestCase:
                     'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  15,
+                    'pollDelay':  25,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   1}
@@ -115,7 +116,7 @@ class TDTestCase:
         topicList    = topicNameList[0]
         ifcheckdata  = 1
         ifManualCommit = 1
-        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:1000, auto.offset.reset:earliest'
+        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:200, auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         consumerId   = 4
@@ -157,7 +158,7 @@ class TDTestCase:
                     'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  10,
+                    'pollDelay':  25,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   1}
@@ -187,7 +188,7 @@ class TDTestCase:
         topicList    = topicNameList[0]
         ifcheckdata  = 1
         ifManualCommit = 1
-        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:1000, auto.offset.reset:earliest'
+        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:200, auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor 0")

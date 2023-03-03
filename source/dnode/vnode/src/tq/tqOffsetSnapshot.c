@@ -54,25 +54,30 @@ int32_t tqOffsetSnapRead(STqOffsetReader* pReader, uint8_t** ppData) {
 
   char*     fname = tqOffsetBuildFName(pReader->pTq->path, 0);
   TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ);
-  taosMemoryFree(fname);
-  if (pFile != NULL) {
+  if (pFile == NULL) {
+    taosMemoryFree(fname);
     return 0;
   }
 
   int64_t sz = 0;
   if (taosStatFile(fname, &sz, NULL) < 0) {
-    ASSERT(0);
+    taosCloseFile(&pFile);
+    taosMemoryFree(fname);
+    return -1;
   }
+  taosMemoryFree(fname);
 
   SSnapDataHdr* buf = taosMemoryCalloc(1, sz + sizeof(SSnapDataHdr));
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosCloseFile(&pFile);
     return terrno;
   }
   void*   abuf = POINTER_SHIFT(buf, sizeof(SSnapDataHdr));
   int64_t contLen = taosReadFile(pFile, abuf, sz);
   if (contLen != sz) {
-    ASSERT(0);
+    taosCloseFile(&pFile);
+    taosMemoryFree(buf);
     return -1;
   }
   buf->size = sz;
@@ -120,11 +125,18 @@ int32_t tqOffsetWriterClose(STqOffsetWriter** ppWriter, int8_t rollback) {
   char*            fname = tqOffsetBuildFName(pTq->path, 0);
 
   if (rollback) {
-    taosRemoveFile(pWriter->fname);
+    if (taosRemoveFile(pWriter->fname) < 0) {
+      taosMemoryFree(fname);
+      return -1;
+    }
   } else {
-    taosRenameFile(pWriter->fname, fname);
+    if (taosRenameFile(pWriter->fname, fname) < 0) {
+      taosMemoryFree(fname);
+      return -1;
+    }
     if (tqOffsetRestoreFromFile(pTq->pOffsetStore, fname) < 0) {
-      ASSERT(0);
+      taosMemoryFree(fname);
+      return -1;
     }
   }
   taosMemoryFree(fname);
@@ -141,14 +153,13 @@ int32_t tqOffsetSnapWrite(STqOffsetWriter* pWriter, uint8_t* pData, uint32_t nDa
   TdFilePtr     pFile = taosOpenFile(pWriter->fname, TD_FILE_CREATE | TD_FILE_WRITE);
   SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
   int64_t       size = pHdr->size;
-  ASSERT(size == nData - sizeof(SSnapDataHdr));
   if (pFile) {
     int64_t contLen = taosWriteFile(pFile, pHdr->data, size);
     if (contLen != size) {
-      ASSERT(0);
+      taosCloseFile(&pFile);
+      return -1;
     }
   } else {
-    ASSERT(0);
     return -1;
   }
   return 0;

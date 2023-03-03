@@ -35,6 +35,20 @@ dumpName="taosdump"
 demoName="taosdemo"
 xname="taosx"
 
+clientName2="taos"
+serverName2="taosd"
+productName2="TDengine"
+emailName2="taosdata.com"
+
+benchmarkName2="${clientName2}Benchmark"
+dumpName2="${clientName2}dump"
+uninstallScript2="rm${clientName2}"
+
+historyFile="${clientName2}_history"
+logDir="/var/log/${clientName2}"
+configDir="/etc/${clientName2}"
+installDir="/usr/local/${clientName}"
+
 data_dir=${dataDir}
 log_dir=${logDir}
 cfg_install_dir=${configDir}
@@ -50,8 +64,7 @@ install_main_dir=${installDir}
 bin_dir="${installDir}/bin"
 
 service_config_dir="/etc/systemd/system"
-nginx_port=6060
-nginx_dir="/usr/local/nginxd"
+web_port=6041
 
 # Color setting
 RED='\033[0;31m'
@@ -70,7 +83,7 @@ prompt_force=0
 
 initd_mod=0
 service_mod=2
-if pidof systemd &>/dev/null; then
+if ps aux | grep -v grep | grep systemd &>/dev/null; then
   service_mod=0
 elif $(which service &>/dev/null); then
   service_mod=1
@@ -182,7 +195,7 @@ function install_main_path() {
   ${csudo}mkdir -p ${install_main_dir}/include
   #  ${csudo}mkdir -p ${install_main_dir}/init.d
   if [ "$verMode" == "cluster" ]; then
-    ${csudo}mkdir -p ${nginx_dir}
+    ${csudo}mkdir -p ${install_main_dir}/share
   fi
 
   if [[ -e ${script_dir}/email ]]; then
@@ -211,18 +224,19 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
   [ -x ${install_main_dir}/bin/${udfdName} ] && ${csudo}ln -s ${install_main_dir}/bin/${udfdName} ${bin_link_dir}/${udfdName} || :
   [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
-  [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName} || :
-  [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName} || :
+  [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName} || :
+  [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName} || :
   [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName} || :
-  [ -x ${install_main_dir}/bin/${xname} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${xname} || :
+  [ -x ${install_main_dir}/bin/${xname} ] && ${csudo}ln -s ${install_main_dir}/bin/${xname} ${bin_link_dir}/${xname} || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
 
-  if [ "$verMode" == "cluster" ]; then
-    ${csudo}cp -r ${script_dir}/nginxd/* ${nginx_dir} && ${csudo}chmod 0555 ${nginx_dir}/*
-    ${csudo}mkdir -p ${nginx_dir}/logs
-    ${csudo}chmod 777 ${nginx_dir}/sbin/nginx
+  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+    [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName2} || :
+    [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName2} || :
+    [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName2} || :
+    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript2} || :
   fi
 }
 
@@ -488,10 +502,10 @@ function install_adapter_config() {
     ${csudo}mkdir -p ${cfg_install_dir}
     [ -f ${script_dir}/cfg/${adapterName}.toml ] && ${csudo}cp ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}
     [ -f ${cfg_install_dir}/${adapterName}.toml ] && ${csudo}chmod 644 ${cfg_install_dir}/${adapterName}.toml
+  else
+    [ -f ${script_dir}/cfg/${adapterName}.toml ] &&
+      ${csudo}cp -f ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}/${adapterName}.toml.new
   fi
-
-  [ -f ${script_dir}/cfg/${adapterName}.toml ] &&
-    ${csudo}cp -f ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}/${adapterName}.toml.new
 
   [ -f ${cfg_install_dir}/${adapterName}.toml ] &&
     ${csudo}ln -s ${cfg_install_dir}/${adapterName}.toml ${install_main_dir}/cfg/${adapterName}.toml
@@ -506,9 +520,10 @@ function install_config() {
     ${csudo}mkdir -p ${cfg_install_dir}
     [ -f ${script_dir}/cfg/${configFile} ] && ${csudo}cp ${script_dir}/cfg/${configFile} ${cfg_install_dir}
     ${csudo}chmod 644 ${cfg_install_dir}/*
+  else
+    ${csudo}cp -f ${script_dir}/cfg/${configFile} ${cfg_install_dir}/${configFile}.new
   fi
 
-  ${csudo}cp -f ${script_dir}/cfg/${configFile} ${cfg_install_dir}/${configFile}.new
   ${csudo}ln -s ${cfg_install_dir}/${configFile} ${install_main_dir}/cfg
 
   [ ! -z $1 ] && return 0 || : # only install client
@@ -524,7 +539,7 @@ function install_config() {
   local_fqdn_check
 
   echo
-  echo -e -n "${GREEN}Enter FQDN:port (like h1.${emailName}:6030) of an existing ${productName} cluster node to join${NC}"
+  echo -e -n "${GREEN}Enter FQDN:port (like h1.${emailName2}:6030) of an existing ${productName2} cluster node to join${NC}"
   echo
   echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
   read firstEp
@@ -574,12 +589,19 @@ function install_examples() {
   fi
 }
 
+function install_web() {
+  if [ -d "${script_dir}/share" ]; then
+    ${csudo}cp -rf ${script_dir}/share/* ${install_main_dir}/share
+  fi
+}
+
+
 function clean_service_on_sysvinit() {
-  if pidof ${serverName} &>/dev/null; then
+  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     ${csudo}service ${serverName} stop || :
   fi
 
-  if pidof tarbitrator &>/dev/null; then
+  if ps aux | grep -v grep | grep tarbitrator &>/dev/null; then
     ${csudo}service tarbitratord stop || :
   fi
 
@@ -654,16 +676,9 @@ function clean_service_on_systemd() {
   fi
   ${csudo}systemctl disable tarbitratord &>/dev/null || echo &>/dev/null
   ${csudo}rm -f ${tarbitratord_service_config}
-
-  if [ "$verMode" == "cluster" ]; then
-    nginx_service_config="${service_config_dir}/nginxd.service"
-    if systemctl is-active --quiet nginxd; then
-      echo "Nginx for ${productName} is running, stopping it..."
-      ${csudo}systemctl stop nginxd &>/dev/null || echo &>/dev/null
-    fi
-    ${csudo}systemctl disable nginxd &>/dev/null || echo &>/dev/null
-    ${csudo}rm -f ${nginx_service_config}
-  fi
+  # if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+  #     ${csudo}rm -f ${service_config_dir}/${serverName2}.service
+  # fi
 }
 
 function install_service_on_systemd() {
@@ -672,24 +687,18 @@ function install_service_on_systemd() {
   [ -f ${script_dir}/cfg/${serverName}.service ] &&
     ${csudo}cp ${script_dir}/cfg/${serverName}.service \
       ${service_config_dir}/ || :
+
+  # if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+  #   [ -f ${script_dir}/cfg/${serverName}.service ] &&
+  #   ${csudo}cp ${script_dir}/cfg/${serverName}.service \
+  #     ${service_config_dir}/${serverName2}.service || :
+  # fi
+
   ${csudo}systemctl daemon-reload
 
   ${csudo}systemctl enable ${serverName}
 
   ${csudo}systemctl daemon-reload
-
-  if [ "$verMode" == "cluster" ]; then
-    [ -f ${script_dir}/cfg/nginxd.service ] &&
-      ${csudo}cp ${script_dir}/cfg/nginxd.service \
-        ${service_config_dir}/ || :
-    ${csudo}systemctl daemon-reload
-
-    if ! ${csudo}systemctl enable nginxd &>/dev/null; then
-      ${csudo}systemctl daemon-reexec
-      ${csudo}systemctl enable nginxd
-    fi
-    ${csudo}systemctl start nginxd
-  fi
 }
 
 function install_adapter_service() {
@@ -765,6 +774,34 @@ function is_version_compatible() {
   esac
 }
 
+deb_erase() {
+  confirm=""
+  while [ "" == "${confirm}" ]; do
+    echo -e -n "${RED}Existing TDengine deb is detected, do you want to remove it? [yes|no] ${NC}:"
+    read confirm
+    if [ "yes" == "$confirm" ]; then
+      ${csudo}dpkg --remove tdengine ||:
+      break
+    elif [ "no" == "$confirm" ]; then
+      break
+    fi
+  done
+}
+
+rpm_erase() {
+  confirm=""
+  while [ "" == "${confirm}" ]; do
+    echo -e -n "${RED}Existing TDengine rpm is detected, do you want to remove it? [yes|no] ${NC}:"
+    read confirm
+    if [ "yes" == "$confirm" ]; then
+      ${csudo}rpm -e tdengine ||:
+      break
+    elif [ "no" == "$confirm" ]; then
+      break
+    fi
+  done
+}
+
 function updateProduct() {
   # Check if version compatible
   if ! is_version_compatible; then
@@ -777,12 +814,19 @@ function updateProduct() {
     echo "File ${tarName} does not exist"
     exit 1
   fi
+
+  if echo $osinfo | grep -qwi "centos"; then
+    rpm -q tdengine 2>&1 > /dev/null && rpm_erase tdengine ||:
+  elif echo $osinfo | grep -qwi "ubuntu"; then
+    dpkg -l tdengine 2>&1 | grep ii > /dev/null && deb_erase tdengine ||:
+  fi
+
   tar -zxf ${tarName}
   install_jemalloc
 
-  echo -e "${GREEN}Start to update ${productName}...${NC}"
+  echo -e "${GREEN}Start to update ${productName2}...${NC}"
   # Stop the service if running
-  if pidof ${serverName} &>/dev/null; then
+  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
       ${csudo}systemctl stop ${serverName} || :
     elif ((${service_mod} == 1)); then
@@ -791,19 +835,6 @@ function updateProduct() {
       kill_process ${serverName}
     fi
     sleep 1
-  fi
-
-  if [ "$verMode" == "cluster" ]; then
-    if pidof nginx &>/dev/null; then
-      if ((${service_mod} == 0)); then
-        ${csudo}systemctl stop nginxd || :
-      elif ((${service_mod} == 1)); then
-        ${csudo}service nginxd stop || :
-      else
-        kill_process nginx
-      fi
-      sleep 1
-    fi
   fi
 
   install_main_path
@@ -817,6 +848,7 @@ function updateProduct() {
   fi
 
   install_examples
+  install_web
   if [ -z $1 ]; then
     install_bin
     install_service
@@ -825,41 +857,29 @@ function updateProduct() {
     install_adapter_config
 
     openresty_work=false
-    if [ "$verMode" == "cluster" ]; then
-      # Check if openresty is installed
-      # Check if nginx is installed successfully
-      if type curl &>/dev/null; then
-        if curl -sSf http://127.0.0.1:${nginx_port} &>/dev/null; then
-          echo -e "\033[44;32;1mNginx for ${productName} is updated successfully!${NC}"
-          openresty_work=true
-        else
-          echo -e "\033[44;31;5mNginx for ${productName} does not work! Please try again!\033[0m"
-        fi
-      fi
-    fi
 
     echo
     echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${cfg_install_dir}/${configFile}"
     [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To configure Taos Adapter ${NC}: edit ${configDir}/taosadapter.toml"
+      echo -e "${GREEN_DARK}To configure Adapter ${NC}: edit ${configDir}/taosadapter.toml"
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
       [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
+        echo -e "${GREEN_DARK}To start Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
     elif ((${service_mod} == 1)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
       [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}service taosadapter start${NC}"
+        echo -e "${GREEN_DARK}To start Adapter ${NC}: ${csudo}service taosadapter start${NC}"
     else
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ./${serverName}${NC}"
       [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName} Adapter ${NC}: taosadapter &${NC}"
     fi
 
     if [ ${openresty_work} = 'true' ]; then
-      echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+      echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${web_port}${NC}"
     else
-      echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName} -h $serverFqdn${NC} in shell${NC}"
+      echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell${NC}"
     fi
 
     if ((${prompt_force} == 1)); then
@@ -867,13 +887,13 @@ function updateProduct() {
       echo -e "${RED}Please run '${serverName} --force-keep-file' at first time for the exist ${productName} $exist_version!${NC}"
     fi
     echo
-    echo -e "\033[44;32;1m${productName} is updated successfully!${NC}"
+    echo -e "\033[44;32;1m${productName2} is updated successfully!${NC}"
   else
     install_bin
     install_config
 
     echo
-    echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
+    echo -e "\033[44;32;1m${productName2} client is updated successfully!${NC}"
   fi
 
   rm -rf $(tar -tf ${tarName} | grep -v "^\./$")
@@ -887,7 +907,7 @@ function installProduct() {
   fi
   tar -zxf ${tarName}
 
-  echo -e "${GREEN}Start to install ${productName}...${NC}"
+  echo -e "${GREEN}Start to install ${productName2}...${NC}"
 
   install_main_path
 
@@ -906,6 +926,7 @@ function installProduct() {
       install_connector
   fi
   install_examples
+  install_web
 
   if [ -z $1 ]; then # install service and client
     # For installing new
@@ -915,17 +936,6 @@ function installProduct() {
     install_adapter_config
 
     openresty_work=false
-    if [ "$verMode" == "cluster" ]; then
-      # Check if nginx is installed successfully
-      if type curl &>/dev/null; then
-        if curl -sSf http://127.0.0.1:${nginx_port} &>/dev/null; then
-          echo -e "\033[44;32;1mNginx for ${productName} is installed successfully!${NC}"
-          openresty_work=true
-        else
-          echo -e "\033[44;31;5mNginx for ${productName} does not work! Please try again!\033[0m"
-        fi
-      fi
-    fi
 
     install_config
 
@@ -986,7 +996,7 @@ serverFqdn=$(hostname)
 if [ "$verType" == "server" ]; then
   # Check default 2.x data file.
   if [ -x ${data_dir}/dnode/dnodeCfg.json ]; then
-    echo -e "\033[44;31;5mThe default data directory ${data_dir} contains old data of tdengine 2.x, please clear it before installing!\033[0m"
+    echo -e "\033[44;31;5mThe default data directory ${data_dir} contains old data of ${productName2} 2.x, please clear it before installing!\033[0m"
   else
     # Install server and client
     if [ -x ${bin_dir}/${serverName} ]; then

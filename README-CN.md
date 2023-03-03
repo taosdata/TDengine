@@ -39,9 +39,9 @@ TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series 
 
 # 构建
 
-TDengine 目前可以在 Linux、 Windows 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。
+TDengine 目前可以在 Linux、 Windows、macOS 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。
 
-用户可根据需求选择通过源码、[容器](https://docs.taosdata.com/get-started/docker/)、[安装包](https://docs.taosdata.com/get-started/package/)或[Kubenetes](https://docs.taosdata.com/deployment/k8s/)来安装。本快速指南仅适用于通过源码安装。
+用户可根据需求选择通过源码、[容器](https://docs.taosdata.com/get-started/docker/)、[安装包](https://docs.taosdata.com/get-started/package/)或[Kubernetes](https://docs.taosdata.com/deployment/k8s/)来安装。本快速指南仅适用于通过源码安装。
   
 TDengine 还提供一组辅助工具软件 taosTools，目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。默认 TDengine 编译不包含 taosTools, 您可以在编译 TDengine 时使用`cmake .. -DBUILD_TOOLS=true` 来同时编译 taosTools。
 
@@ -60,7 +60,7 @@ sudo apt-get install -y gcc cmake build-essential git libssl-dev
 为了在 Ubuntu/Debian 系统上编译 [taos-tools](https://github.com/taosdata/taos-tools) 需要安装如下软件：
 
 ```bash
-sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config
 ```
 
 ### CentOS 7.9
@@ -85,7 +85,7 @@ sudo dnf install -y gcc gcc-c++ make cmake epel-release git openssl-devel
 
 
 ```
-sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
+sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static openssl-devel
 ```
 
 #### CentOS 8/Rocky Linux 
@@ -94,7 +94,7 @@ sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgco
 sudo yum install -y epel-release
 sudo yum install -y dnf-plugins-core
 sudo yum config-manager --set-enabled powertools
-sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static openssl-devel
+sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static openssl-devel
 ```
 
 注意：由于 snappy 缺乏 pkg-config 支持（参考 [链接](https://github.com/google/snappy/pull/86)），会导致 cmake 提示无法发现 libsnappy，实际上工作正常。
@@ -102,6 +102,22 @@ sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgco
 若 powertools 安装失败，可以尝试改用：
 ```
 sudo yum config-manager --set-enabled Powertools
+```
+
+#### CentOS + devtoolset
+
+除上述编译依赖包，需要执行以下命令：
+
+```
+sudo yum install centos-release-scl
+sudo yum install devtoolset-9 devtoolset-9-libatomic-devel
+scl enable devtoolset-9 -- bash
+```
+
+### macOS
+
+```
+brew install argp-standalone pkgconfig
 ```
 
 ### 设置 golang 开发环境
@@ -210,14 +226,14 @@ cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-<!-- ### macOS 系统
+### macOS 系统
 
-安装 Xcode 命令行工具和 cmake. 在 Catalina 和 Big Sur 操作系统上，需要安装 XCode 11.4+ 版本。
+安装 XCode 命令行工具和 cmake. 在 Catalina 和 Big Sur 操作系统上，需要安装 XCode 11.4+ 版本。
 
 ```bash
 mkdir debug && cd debug
 cmake .. && cmake --build .
-``` -->
+```
 
 # 安装
 
@@ -262,6 +278,24 @@ nmake install
 ```bash
 sudo make install
 ```
+
+用户可以在[文件目录结构](https://docs.taosdata.com/reference/directory/)中了解更多在操作系统中生成的目录或文件。
+
+从源代码安装也会为 TDengine 配置服务管理 ，用户也可以选择[从安装包中安装](https://docs.taosdata.com/get-started/package/)。
+
+安装成功后，可以在应用程序中双击 TDengine 图标启动服务，或者在终端中启动 TDengine 服务：
+
+```bash
+sudo launchctl start com.tdengine.taosd
+```
+
+用户可以使用 TDengine CLI 来连接 TDengine 服务，在终端中，输入：
+
+```bash
+taos
+```
+
+如果 TDengine CLI 连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印出错误消息。
 
 ## 快速运行
 

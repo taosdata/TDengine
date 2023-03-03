@@ -1,7 +1,7 @@
 ---
-sidebar_label: Access Control
 title: User and Access Control
-description: Manage user and user's permission
+sidebar_label: Access Control
+description: This document describes how to manage users and permissions in TDengine.
 ---
 
 This document describes how to manage permissions in TDengine.

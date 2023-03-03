@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tmsgcb.h"
 #include "taoserror.h"
+#include "transLog.h"
 #include "trpc.h"
 
 static SMsgCb defaultMsgCb;
@@ -44,12 +45,30 @@ int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
   return code;
 }
 
-void tmsgSendRsp(SRpcMsg* pMsg) { return (*defaultMsgCb.sendRspFp)(pMsg); }
-
-void tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet) { (*defaultMsgCb.sendRedirectRspFp)(pMsg, pNewEpSet); }
+void tmsgSendRsp(SRpcMsg* pMsg) {
+#if 1
+  rpcSendResponse(pMsg);
+#else
+  return (*defaultMsgCb.sendRspFp)(pMsg);
+#endif
+}
 
 void tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg) { (*defaultMsgCb.registerBrokenLinkArgFp)(pMsg); }
 
 void tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type) { (*defaultMsgCb.releaseHandleFp)(pHandle, type); }
 
 void tmsgReportStartup(const char* name, const char* desc) { (*defaultMsgCb.reportStartupFp)(name, desc); }
+
+bool tmsgUpdateDnodeInfo(int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port) {
+  if (defaultMsgCb.updateDnodeInfoFp) {
+    return (*defaultMsgCb.updateDnodeInfoFp)(defaultMsgCb.data, dnodeId, clusterId, fqdn, port);
+  } else {
+    return false;
+  }
+}
+
+void tmsgUpdateDnodeEpSet(SEpSet* epset) {
+  for (int32_t i = 0; i < epset->numOfEps; ++i) {
+    tmsgUpdateDnodeInfo(NULL, NULL, epset->eps[i].fqdn, &epset->eps[i].port);
+  }
+}

@@ -19,12 +19,12 @@
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
-    #define opendir OPENDIR_FUNC_TAOS_FORBID
-    #define readdir READDIR_FUNC_TAOS_FORBID
-    #define closedir CLOSEDIR_FUNC_TAOS_FORBID
-    #define dirname DIRNAME_FUNC_TAOS_FORBID
-    #undef basename
-    #define basename BASENAME_FUNC_TAOS_FORBID
+#define opendir  OPENDIR_FUNC_TAOS_FORBID
+#define readdir  READDIR_FUNC_TAOS_FORBID
+#define closedir CLOSEDIR_FUNC_TAOS_FORBID
+#define dirname  DIRNAME_FUNC_TAOS_FORBID
+#undef basename
+#define basename BASENAME_FUNC_TAOS_FORBID
 #endif
 
 #ifdef __cplusplus
@@ -32,25 +32,24 @@ extern "C" {
 #endif
 
 #ifdef WINDOWS
-#define TD_TMP_DIR_PATH "C:\\Windows\\Temp\\"
-#define TD_CFG_DIR_PATH "C:\\TDengine\\cfg\\"
+#define TD_TMP_DIR_PATH  "C:\\Windows\\Temp\\"
+#define TD_CFG_DIR_PATH  "C:\\TDengine\\cfg\\"
 #define TD_DATA_DIR_PATH "C:\\TDengine\\data\\"
-#define TD_LOG_DIR_PATH "C:\\TDengine\\log\\"
+#define TD_LOG_DIR_PATH  "C:\\TDengine\\log\\"
 #elif defined(_TD_DARWIN_64)
-#define TD_TMP_DIR_PATH "/tmp/taosd/"
-#define TD_CFG_DIR_PATH "/usr/local/etc/taos/"
-#define TD_DATA_DIR_PATH "/usr/local/var/lib/taos/"
-#define TD_LOG_DIR_PATH "/usr/local/var/log/taos/"
-#else
-#define TD_TMP_DIR_PATH "/tmp/"
-#define TD_CFG_DIR_PATH "/etc/taos/"
+#define TD_TMP_DIR_PATH  "/tmp/taosd/"
+#define TD_CFG_DIR_PATH  "/etc/taos/"
 #define TD_DATA_DIR_PATH "/var/lib/taos/"
-#define TD_LOG_DIR_PATH "/var/log/taos/"
+#define TD_LOG_DIR_PATH  "/var/log/taos/"
+#else
+#define TD_TMP_DIR_PATH  "/tmp/"
+#define TD_CFG_DIR_PATH  "/etc/taos/"
+#define TD_DATA_DIR_PATH "/var/lib/taos/"
+#define TD_LOG_DIR_PATH  "/var/log/taos/"
 #endif
 
-typedef struct TdDir *TdDirPtr;
+typedef struct TdDir      *TdDirPtr;
 typedef struct TdDirEntry *TdDirEntryPtr;
-
 
 void    taosRemoveDir(const char *dirname);
 bool    taosDirExist(const char *dirname);
@@ -61,13 +60,14 @@ void    taosRemoveOldFiles(const char *dirname, int32_t keepDays);
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen);
 int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen);
 bool    taosIsDir(const char *dirname);
-char*   taosDirName(char *dirname);
-char*   taosDirEntryBaseName(char *dirname);
+char   *taosDirName(char *dirname);
+char   *taosDirEntryBaseName(char *dirname);
+void    taosGetCwd(char *buf, int32_t len);
 
 TdDirPtr      taosOpenDir(const char *dirname);
 TdDirEntryPtr taosReadDir(TdDirPtr pDir);
 bool          taosDirEntryIsDir(TdDirEntryPtr pDirEntry);
-char*         taosGetDirEntryName(TdDirEntryPtr pDirEntry);
+char         *taosGetDirEntryName(TdDirEntryPtr pDirEntry);
 int32_t       taosCloseDir(TdDirPtr *ppDir);
 
 #ifdef __cplusplus

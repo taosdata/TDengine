@@ -1,12 +1,5 @@
 #include <gtest/gtest.h>
-#include <stdio.h>
-#include "syncEnv.h"
-#include "syncIO.h"
-#include "syncInt.h"
-#include "syncRaftLog.h"
-#include "syncRaftStore.h"
-#include "syncUtil.h"
-#include "wal.h"
+#include "syncTest.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -52,7 +45,7 @@ void cleanup() {
 void logStoreTest() {
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
-  assert(pLogStore->getLastIndex(pLogStore) == SYNC_INDEX_INVALID);
+  assert(pLogStore->syncLogLastIndex(pLogStore) == SYNC_INDEX_INVALID);
 
   logStoreLog2((char*)"logStoreTest", pLogStore);
 
@@ -65,22 +58,20 @@ void logStoreTest() {
     pEntry->seqNum = 3;
     pEntry->isWeak = true;
     pEntry->term = 100 + i;
-    pEntry->index = pLogStore->getLastIndex(pLogStore) + 1;
+    pEntry->index = pLogStore->syncLogLastIndex(pLogStore) + 1;
     snprintf(pEntry->data, dataLen, "value%d", i);
 
     syncEntryLog2((char*)"==write entry== :", pEntry);
-    pLogStore->appendEntry(pLogStore, pEntry);
+    pLogStore->syncLogAppendEntry(pLogStore, pEntry);
     syncEntryDestory(pEntry);
 
     if (i == 0) {
-      assert(pLogStore->getLastIndex(pLogStore) == SYNC_INDEX_BEGIN);
+      assert(pLogStore->syncLogLastIndex(pLogStore) == SYNC_INDEX_BEGIN);
     }
   }
   logStoreLog2((char*)"after appendEntry", pLogStore);
-
-  pLogStore->truncate(pLogStore, 3);
+  pLogStore->syncLogTruncate(pLogStore, 3);
   logStoreLog2((char*)"after truncate 3", pLogStore);
-
   logStoreDestory(pLogStore);
 }
 

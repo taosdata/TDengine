@@ -1,0 +1,278 @@
+$loop_all = 0
+looptest:
+
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 200
+sql connect
+
+sql drop stream if exists streams1;
+sql drop stream if exists streams2;
+sql drop stream if exists streams3;
+sql drop stream if exists streams4;
+sql drop stream if exists streams5;
+sql drop database if exists test1;
+sql create database test1  vgroups 1;
+sql use test1;
+sql create stable st(ts timestamp, a int, b int , c int, d double, s varchar(20)) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql create stream streams1 trigger at_once  into streamt1 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(NULL);
+sql create stream streams2 trigger at_once  into streamt2 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(value,100,200,300);
+sql create stream streams3 trigger at_once  into streamt3 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(next);
+sql create stream streams4 trigger at_once  into streamt4 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(prev);
+sql create stream streams5 trigger at_once  into streamt5 as select  _wstart as ts, max(a) c1, sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 partition by ta interval(1s) fill(linear);
+
+sql insert into t1 values(1648791210000,0,0,0,0.0,'aaa');
+sql insert into t1 values(1648791213000,1,1,1,1.0,'bbb');
+sql insert into t1 values(1648791215000,5,5,5,5.0,'ccc');
+sql insert into t1 values(1648791216000,6,6,6,6.0,'ddd');
+sql insert into t2 values(1648791210000,7,0,0,0.0,'aaa');
+sql insert into t2 values(1648791213000,8,1,1,1.0,'bbb');
+sql insert into t2 values(1648791215000,9,5,5,5.0,'ccc');
+sql insert into t2 values(1648791216000,10,6,6,6.0,'ddd');
+
+$loop_count = 0
+
+loop2:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+
+sql select * from streamt1 order by group_id, ts;
+
+if $rows != 14 then
+  print ====streamt1=rows1=$rows
+  goto loop2
+endi
+
+sql select * from streamt2 order by group_id, ts;
+
+if $rows != 14 then
+  print ====streamt2=rows2=$rows
+  goto loop2
+endi
+
+sql select * from streamt3 order by group_id, ts;
+
+if $rows != 14 then
+  print ====streamt3=rows3=$rows
+  goto loop2
+endi
+
+sql select * from streamt4 order by group_id, ts;
+
+if $rows != 14 then
+  print ====streamt4=rows4=$rows
+  goto loop2
+endi
+
+sql select * from streamt5 order by group_id, ts;
+
+if $rows != 14 then
+  print ====streamt5=rows5=$rows
+  goto loop2
+endi
+
+sql delete from t1 where ts = 1648791216000;
+print ======delete from t1 where ts = 1648791216000;
+
+$loop_count = 0
+
+loop3:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt1 order by group_id, ts;
+
+if $rows != 13 then
+  print ====streamt1=rows1=$rows
+  goto loop3
+endi
+
+sql select * from streamt2 order by group_id, ts;
+
+if $rows != 13 then
+  print ====streamt2=rows2=$rows
+  goto loop3
+endi
+
+sql select * from streamt3 order by group_id, ts;
+
+if $rows != 13 then
+  print ====streamt3=rows3=$rows
+  goto loop3
+endi
+
+sql select * from streamt4 order by group_id, ts;
+
+if $rows != 13 then
+  print ====streamt4=rows4=$rows
+  goto loop3
+endi
+
+sql select * from streamt5 order by group_id, ts;
+
+if $rows != 13 then
+  print ====streamt5=rows5=$rows
+  goto loop3
+endi
+
+sql insert into t2 values(1648791217000,11,11,11,11.0,'eee') (1648791219000,11,11,11,11.0,'eee') t1 values(1648791217000,11,11,11,11.0,'eee') (1648791219000,11,11,11,11.0,'eee');
+
+$loop_count = 0
+
+loop4:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+
+sql select * from streamt1 order by group_id, ts;
+
+if $rows != 20 then
+  print ====streamt1=rows1=$rows
+  goto loop4
+endi
+
+if $data04 == 0 then
+  print ====streamt1=data04=$data04
+  goto loop4
+endi
+
+sql select group_id,count(*) from streamt1 group by group_id;
+
+if $rows != 2 then
+  print ====streamt1=rows2=$rows
+  goto loop4
+endi
+
+sql select * from streamt2 order by group_id, ts;
+
+if $rows != 20 then
+  print ====streamt2=rows2=$rows
+  goto loop4
+endi
+
+if $data04 == 0 then
+  print ====streamt2=data04=$data04
+  goto loop4
+endi
+
+sql select group_id,count(*) from streamt2 group by group_id;
+
+if $rows != 2 then
+  print ====streamt2=rows2=$rows
+  goto loop4
+endi
+
+sql select * from streamt3 order by group_id, ts;
+
+if $rows != 20 then
+  print ====streamt3=rows3=$rows
+  goto loop4
+endi
+
+if $data04 == 0 then
+  print ====streamt3=data04=$data04
+  goto loop4
+endi
+
+sql select group_id,count(*) from streamt3 group by group_id;
+
+if $rows != 2 then
+  print ====streamt3=rows2=$rows
+  goto loop4
+endi
+
+
+sql select * from streamt4 order by group_id, ts;
+
+if $rows != 20 then
+  print ====streamt4=rows4=$rows
+  goto loop4
+endi
+
+if $data04 == 0 then
+  print ====streamt4=data04=$data04
+  goto loop4
+endi
+
+sql select group_id,count(*) from streamt4 group by group_id;
+
+if $rows != 2 then
+  print ====streamt4=rows2=$rows
+  goto loop4
+endi
+
+sql select * from streamt5 order by group_id, ts;
+
+if $rows != 20 then
+  print ====streamt5=rows5=$rows
+  goto loop4
+endi
+
+if $data04 == 0 then
+  print ====streamt5=data04=$data04
+  goto loop4
+endi
+
+sql select group_id,count(*) from streamt5 group by group_id;
+
+if $rows != 2 then
+  print ====streamt5=rows2=$rows
+  goto loop4
+endi
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+sql drop stream if exists streams0;
+sql drop stream if exists streams1;
+sql drop stream if exists streams2;
+sql drop stream if exists streams3;
+sql drop stream if exists streams4;
+sql drop stream if exists streams5;
+sql drop stream if exists streams6;
+sql drop stream if exists streams7;
+sql drop stream if exists streams8;
+sql drop stream if exists streams9;
+sql drop stream if exists streams10;
+
+sql use test1;
+sql select * from t1;
+print $data00
+
+$loop_all = $loop_all + 1
+print ============loop_all=$loop_all
+
+system sh/stop_dnodes.sh
+
+#goto looptest
