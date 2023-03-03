@@ -503,7 +503,7 @@ static TransCbFp mndTransGetCbFp(ETrnFunc ftype) {
 }
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
-  mInfo("trans:%d, perform insert action, row:%p stage:%s, startFunc:%d, callfunc:1", pTrans->id, pTrans, mndTransStr(pTrans->stage),
+  mInfo("trans:%d, perform insert action, row:%p stage:%s, callfunc:1, startFunc:%d", pTrans->id, pTrans, mndTransStr(pTrans->stage),
       pTrans->startFunc);
 
   if (pTrans->startFunc > 0) {
@@ -547,8 +547,8 @@ static void mndTransDropData(STrans *pTrans) {
 }
 
 static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans, bool callFunc) {
-  mInfo("trans:%d, perform delete action, row:%p stage:%s callfunc:%d, stopFunc:%d", pTrans->id, pTrans, mndTransStr(pTrans->stage),
-         pTrans->stopFunc, callFunc);
+  mInfo("trans:%d, perform delete action, row:%p stage:%s callfunc:%d, stopFunc:%d", pTrans->id, pTrans,
+        mndTransStr(pTrans->stage), callFunc, pTrans->stopFunc);
 
   if (pTrans->stopFunc > 0 && callFunc) {
     TransCbFp fp = mndTransGetCbFp(pTrans->stopFunc);
