@@ -660,7 +660,7 @@ static int32_t sdbProcessDumpWal(SWalHead *hparam) {
     if (pObj->info.type == TSDB_NORMAL_TABLE) {
       char *pBuf = NULL;
       if (pObj->schema && pObj->numOfColumns) {
-        int32_t schemaLen = pObj->numOfColumns * 80;  // sizeof(SSchema) + 7
+        int32_t schemaLen = pObj->numOfColumns * 80;  // sizeof(SSchema) + 10
         pBuf = malloc(schemaLen);
         if (!pBuf) {
           terrno = TSDB_CODE_MND_OUT_OF_MEMORY;
@@ -672,7 +672,7 @@ static int32_t sdbProcessDumpWal(SWalHead *hparam) {
         for (int16_t nCol = 0; nCol < pObj->numOfColumns; ++nCol) {
           SSchema *pSchema = POINTER_SHIFT(pObj->schema, nCol * sizeof(SSchema));
           char     tBuf[80];
-          snprintf(tBuf, 80, "%" PRIi16 ",%" PRIi8 ",%" PRIu8 ",%s;", pSchema->colId, pSchema->type, pSchema->bytes,
+          snprintf(tBuf, 80, "%" PRIi16 ",%" PRIi8 ",%" PRIu16 ",%s;", pSchema->colId, pSchema->type, pSchema->bytes,
                    pSchema->name);
           sprintf(pBuf + offset, "%s", tBuf);
           offset += strlen(tBuf);
