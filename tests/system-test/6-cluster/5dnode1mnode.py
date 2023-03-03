@@ -18,7 +18,10 @@ class MyDnodes(TDDnodes):
     def __init__(self ,dnodes_lists):
         super(MyDnodes,self).__init__()
         self.dnodes = dnodes_lists  # dnode must be TDDnode instance
-        self.simDeployed = False
+        if platform.system().lower() == 'windows':
+            self.simDeployed = True
+        else:
+            self.simDeployed = False
 
 class TDTestCase:
     noConn = True
