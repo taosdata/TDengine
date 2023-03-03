@@ -944,8 +944,9 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     pOldConsumer->rebalanceTime = pNewConsumer->upTime;
 
     atomic_add_fetch_32(&pOldConsumer->epoch, 1);
-    mDebug("consumer:0x%" PRIx64 " state %s -> %s, new epoch:%d, reb-time:%" PRId64 ", current topics:%d",
-           pOldConsumer->consumerId, mndConsumerStatusName(status), mndConsumerStatusName(pOldConsumer->status),
+    mDebug("consumer:0x%" PRIx64 " state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64 ", current topics:%d",
+           pOldConsumer->consumerId, status, mndConsumerStatusName(status), pOldConsumer->status,
+           mndConsumerStatusName(pOldConsumer->status),
            pOldConsumer->epoch, pOldConsumer->rebalanceTime, (int)taosArrayGetSize(pOldConsumer->currentTopics));
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE__REMOVE) {
     /*A(taosArrayGetSize(pNewConsumer->rebNewTopics) == 0);*/
@@ -1003,8 +1004,9 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     pOldConsumer->rebalanceTime = pNewConsumer->upTime;
     atomic_add_fetch_32(&pOldConsumer->epoch, 1);
 
-    mDebug("consumer:0x%" PRIx64 " state %s -> %s, new epoch:%d, reb-time:%" PRId64 ", current topics:%d",
-           pOldConsumer->consumerId, mndConsumerStatusName(status), mndConsumerStatusName(pOldConsumer->status),
+    mDebug("consumer:0x%" PRIx64 " state %d(%s) -> %d(%s), new epoch:%d, reb-time:%" PRId64 ", current topics:%d",
+           pOldConsumer->consumerId, status, mndConsumerStatusName(status), pOldConsumer->status,
+           mndConsumerStatusName(pOldConsumer->status),
            pOldConsumer->epoch, pOldConsumer->rebalanceTime, (int)taosArrayGetSize(pOldConsumer->currentTopics));
   }
 
