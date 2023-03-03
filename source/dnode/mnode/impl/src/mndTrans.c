@@ -513,7 +513,7 @@ static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
     if (fp) {
       (*fp)(pSdb->pMnode, pTrans->param, pTrans->paramLen);
     }
-    pTrans->startFunc = 0;
+    // pTrans->startFunc = 0;
   }
 
   return 0;
@@ -557,7 +557,7 @@ static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans, bool callFunc) {
     if (fp) {
       (*fp)(pSdb->pMnode, pTrans->param, pTrans->paramLen);
     }
-    pTrans->stopFunc = 0;
+    // pTrans->stopFunc = 0;
   }
 
   mndTransDropData(pTrans);
