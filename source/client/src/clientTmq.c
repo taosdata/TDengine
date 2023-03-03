@@ -1162,7 +1162,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
 
   int32_t retryCnt = 0;
   while (TSDB_CODE_MND_CONSUMER_NOT_READY == tmqAskEp(tmq, false)) {
-    if (retryCnt++ > 10) {
+    if (retryCnt++ > 40) {
       goto FAIL;
     }
 
