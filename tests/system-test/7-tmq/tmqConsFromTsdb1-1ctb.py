@@ -200,7 +200,7 @@ class TDTestCase:
         tdLog.info("pkill consume processor")
         tdCom.killProcessor("tmq_sim")
 
-        time.sleep(6)
+        time.sleep(10)
 
         # reinit consume info, and start tmq_sim, then check consume result
         tmqCom.initConsumerTable()
