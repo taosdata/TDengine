@@ -598,7 +598,7 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
   }
 
   if (pOld->stage == TRN_STAGE_ROLLBACK) {
-    pOld->stage = TRN_STAGE_REDO_ACTION;
+    pOld->stage = TRN_STAGE_UNDO_ACTION;
     mTrace("trans:%d, stage from rollback to undoAction since perform update action", pNew->id);
   }
 
