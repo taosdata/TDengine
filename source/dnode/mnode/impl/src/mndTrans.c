@@ -503,7 +503,8 @@ static TransCbFp mndTransGetCbFp(ETrnFunc ftype) {
 }
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
-  mTrace("trans:%d, perform insert action, row:%p stage:%s", pTrans->id, pTrans, mndTransStr(pTrans->stage));
+  mInfo("trans:%d, perform insert action, row:%p stage:%s, startFunc:%d, callfunc:1", pTrans->id, pTrans, mndTransStr(pTrans->stage),
+      pTrans->startFunc);
 
   if (pTrans->startFunc > 0) {
     TransCbFp fp = mndTransGetCbFp(pTrans->startFunc);
@@ -546,8 +547,9 @@ static void mndTransDropData(STrans *pTrans) {
 }
 
 static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans, bool callFunc) {
-  mTrace("trans:%d, perform delete action, row:%p stage:%s callfunc:%d", pTrans->id, pTrans, mndTransStr(pTrans->stage),
-         callFunc);
+  mInfo("trans:%d, perform delete action, row:%p stage:%s callfunc:%d, stopFunc:%d", pTrans->id, pTrans, mndTransStr(pTrans->stage),
+         pTrans->stopFunc, callFunc);
+
   if (pTrans->stopFunc > 0 && callFunc) {
     TransCbFp fp = mndTransGetCbFp(pTrans->stopFunc);
     if (fp) {
@@ -572,7 +574,7 @@ static void mndTransUpdateActions(SArray *pOldArray, SArray *pNewArray) {
 }
 
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
-  mTrace("trans:%d, perform update action, old row:%p stage:%s create:%" PRId64 ", new row:%p stage:%s create:%" PRId64,
+  mInfo("trans:%d, perform update action, old row:%p stage:%s create:%" PRId64 ", new row:%p stage:%s create:%" PRId64,
          pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage),
          pNew->createdTime);
 

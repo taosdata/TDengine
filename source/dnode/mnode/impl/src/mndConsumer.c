@@ -29,7 +29,7 @@
 #define MND_CONSUMER_LOST_HB_CNT          3
 #define MND_CONSUMER_LOST_CLEAR_THRESHOLD 43200
 
-static int8_t mqRebInExecCnt = 0;
+static int32_t mqRebInExecCnt = 0;
 
 static const char *mndConsumerStatusName(int status);
 
@@ -76,15 +76,16 @@ int32_t mndInitConsumer(SMnode *pMnode) {
 void mndCleanupConsumer(SMnode *pMnode) {}
 
 bool mndRebTryStart() {
-  int8_t old = atomic_val_compare_exchange_8(&mqRebInExecCnt, 0, 1);
+  int32_t old = atomic_val_compare_exchange_32(&mqRebInExecCnt, 0, 1);
+  mInfo("tq timer, rebalance counter old val:%d", old);
   return old == 0;
 }
 
-void mndRebEnd() { atomic_sub_fetch_8(&mqRebInExecCnt, 1); }
+void mndRebEnd() { int32_t val = atomic_sub_fetch_32(&mqRebInExecCnt, 1); mInfo("rebalance end, rebalance counter:%d", val); }
 
-void mndRebCntInc() { atomic_add_fetch_8(&mqRebInExecCnt, 1); }
+void mndRebCntInc() { int32_t val = atomic_add_fetch_32(&mqRebInExecCnt, 1); mInfo("rebalance trans start, rebalance count:%d", val);}
 
-void mndRebCntDec() { atomic_sub_fetch_8(&mqRebInExecCnt, 1); }
+void mndRebCntDec() { int32_t val = atomic_sub_fetch_32(&mqRebInExecCnt, 1); mInfo("rebalance trans end, rebalance count:%d", val); }
 
 static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg) {
   SMnode             *pMnode = pMsg->info.node;
@@ -334,7 +335,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   } else {
     taosHashCleanup(pRebMsg->rebSubHash);
     rpcFreeCont(pRebMsg);
-    mTrace("mq rebalance finished, no modification");
+    mInfo("mq rebalance finished, no modification");
     mndRebEnd();
   }
   return 0;
