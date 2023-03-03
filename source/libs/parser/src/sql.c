@@ -4680,7 +4680,7 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-2].minor.yy42 = yylhsminor.yy42;
         break;
       case 315: /* stream_options ::= stream_options TRIGGER MAX_DELAY duration_literal */
-{ yylhsminor.yy42 = setStreamOptions(pCxt, yymsp[-3].minor.yy42, SOPT_TRIGGER_TYPE_SET, &yymsp[-1].minor.yy0, yymsp[0].minor.yy42); }
+{ yylhsminor.yy42 = setStreamOptions(pCxt, yymsp[-3].minor.yy42, SOPT_TRIGGER_TYPE_SET, &yymsp[-1].minor.yy0, releaseRawExprNode(pCxt, yymsp[0].minor.yy42)); }
   yymsp[-3].minor.yy42 = yylhsminor.yy42;
         break;
       case 316: /* stream_options ::= stream_options WATERMARK duration_literal */
