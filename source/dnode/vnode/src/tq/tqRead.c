@@ -290,14 +290,14 @@ void tqCloseReader(STqReader* pReader) {
   taosMemoryFree(pReader);
 }
 
-int32_t tqSeekVer(STqReader* pReader, int64_t ver) {
+int32_t tqSeekVer(STqReader* pReader, int64_t ver, const char* id) {
   // todo set the correct vgId
-  tqDebug("tmq poll: vgId:%d wal seek to version:%"PRId64, 0, ver);
+  tqDebug("tmq poll: wal seek to version:%"PRId64" %s", ver, id);
   if (walReadSeekVer(pReader->pWalReader, ver) < 0) {
-    tqError("tmq poll: wal reader failed to seek to ver:%"PRId64, ver);
+    tqError("tmq poll: wal reader failed to seek to ver:%"PRId64" code:%s, %s", ver, tstrerror(terrno), id);
     return -1;
   } else {
-    tqDebug("tmq poll: wal reader seek to ver:%"PRId64, ver);
+    tqError("tmq poll: wal reader seek to ver:%"PRId64" %s", ver, id);
     return 0;
   }
 }
