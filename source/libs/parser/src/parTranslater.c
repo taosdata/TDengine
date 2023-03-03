@@ -2797,6 +2797,10 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   bool    other;
   int32_t code = translateOrderByPosition(pCxt, pSelect->pProjectionList, pSelect->pOrderByList, &other);
   if (TSDB_CODE_SUCCESS == code) {
+    if (0 == LIST_LENGTH(pSelect->pOrderByList)) {
+      NODES_DESTORY_LIST(pSelect->pOrderByList);
+      return TSDB_CODE_SUCCESS;
+    }
     if (!other) {
       return TSDB_CODE_SUCCESS;
     }
