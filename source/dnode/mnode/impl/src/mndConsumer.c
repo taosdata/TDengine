@@ -81,11 +81,20 @@ bool mndRebTryStart() {
   return old == 0;
 }
 
-void mndRebEnd() { int32_t val = atomic_sub_fetch_32(&mqRebInExecCnt, 1); mInfo("rebalance end, rebalance counter:%d", val); }
+void mndRebEnd() {
+  int32_t val = atomic_sub_fetch_32(&mqRebInExecCnt, 1);
+  mInfo("rebalance end, rebalance count:%d", val);
+}
 
-void mndRebCntInc() { int32_t val = atomic_add_fetch_32(&mqRebInExecCnt, 1); mInfo("rebalance trans start, rebalance count:%d", val);}
+void mndRebCntInc() {
+  int32_t val = atomic_add_fetch_32(&mqRebInExecCnt, 1);
+  mInfo("rebalance trans start, rebalance count:%d", val);
+}
 
-void mndRebCntDec() { int32_t val = atomic_sub_fetch_32(&mqRebInExecCnt, 1); mInfo("rebalance trans end, rebalance count:%d", val); }
+void mndRebCntDec() {
+  int32_t val = atomic_sub_fetch_32(&mqRebInExecCnt, 1);
+  mInfo("rebalance trans end, rebalance count:%d", val);
+}
 
 static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg) {
   SMnode             *pMnode = pMsg->info.node;
