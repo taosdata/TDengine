@@ -21,7 +21,7 @@ part_list can be any scalar expression, such as a column, constant, scalar funct
 A PARTITION BY clause is processed as follows:
 
 - The PARTITION BY clause must occur after the WHERE clause
-- The PARTITION BY caluse partitions the data according to the specified dimentions, then perform computation on each partition. The performed computation is determined by the rest of the statement - a window clause, GROUP BY clause, or SELECT clause.
+- The PARTITION BY caluse partitions the data according to the specified dimensions, then perform computation on each partition. The performed computation is determined by the rest of the statement - a window clause, GROUP BY clause, or SELECT clause.
 - The PARTITION BY clause can be used together with a window clause or GROUP BY clause. In this case, the window or GROUP BY clause takes effect on every partition. For example, the following statement partitions the table by the location tag, performs downsampling over a 10 minute window, and returns the maximum value:
 
 ```sql
@@ -105,7 +105,7 @@ SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 
 When using time windows, note the following:
 
-- The window length for aggregation depends on the value of INTERVAL. The minimum interval is 10 ms. You can configure a window as an offset from UTC 0:00. The offset cannot be smaler than the interval. You can use SLIDING to specify the length of time that the window moves forward. 
+- The window length for aggregation depends on the value of INTERVAL. The minimum interval is 10 ms. You can configure a window as an offset from UTC 0:00. The offset cannot be smaller than the interval. You can use SLIDING to specify the length of time that the window moves forward. 
 Please note that the `timezone` parameter should be configured to be the same value in the `taos.cfg` configuration file on client side and server side.
 - The result set is in ascending order of timestamp when you aggregate by time window.
 

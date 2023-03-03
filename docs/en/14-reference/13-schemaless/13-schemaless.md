@@ -131,7 +131,7 @@ create stable st (_ts timestamp, c1 bigint, c2 bool, c3 binary(6), c4 bigint) ta
 
 This section describes the impact on the schema caused by different data being written.
 
-If you use line protocol to write to a specific tag field and then later change the field type, a schema error will ocur. This triggers an error on the write API. This is shown as follows:
+If you use line protocol to write to a specific tag field and then later change the field type, a schema error will occur. This triggers an error on the write API. This is shown as follows:
 
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4    1626006833639000000

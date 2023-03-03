@@ -230,6 +230,16 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 - `timeout`: HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。 一般无需配置。
 
 </TabItem>
+
+<TabItem value="websocket" label="WebSocket 连接">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+
+`connect()` 函数参数为连接 url，协议为 `taosws` 或 `ws`
+
+</TabItem>
 </Tabs>
 
 ## 示例程序
@@ -298,8 +308,15 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 ```
 
 对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
+</TabItem>
+<TabItem value="websocket" label="WebSocket 连接">
 
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:basic}}
+```
 
+- `conn.execute`: 用来执行任意 SQL 语句，返回影响的行数
+- `conn.query`: 用来执行查询 SQL 语句，返回查询结果
 
 </TabItem>
 </Tabs>
@@ -321,6 +338,13 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 ```
 
 </TabItem>
+<TabItem value="websocket" label="WebSocket 连接">
+
+```python
+{{#include docs/examples/python/conn_websocket_pandas.py}}
+```
+
+</TabItem>
 </Tabs>
 
 ### 数据订阅
@@ -335,15 +359,17 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 ```python
 {{#include docs/examples/python/tmq_example.py}}
 ```
+
 </TabItem>
 
-<TabItem value="rest" label="websocket 连接">
+<TabItem value="websocket" label="WebSocket 连接">
 
 除了原生的连接方式，Python 连接器还支持通过 websocket 订阅 TMQ 数据。
 
 ```python
 {{#include docs/examples/python/tmq_websocket_example.py}}
 ```
+
 </TabItem>
 </Tabs>
 
@@ -366,7 +392,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 ```python
 {{#include docs/examples/python/handle_exception.py}}
 ```
-
+``
 ### 关于纳秒 (nanosecond)
 
 由于目前 Python 对 nanosecond 支持的不完善(见下面的链接)，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，Python 连接器可能会修改相关接口。
