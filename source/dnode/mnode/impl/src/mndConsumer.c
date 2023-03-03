@@ -621,7 +621,8 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   pExistedConsumer = mndAcquireConsumer(pMnode, consumerId);
   if (pExistedConsumer == NULL) {
-    mInfo("receive subscribe request from new consumer:0x%" PRIx64" cgroup:%s", consumerId, subscribe.cgroup);
+    mInfo("receive subscribe request from new consumer:0x%" PRIx64" cgroup:%s, numOfTopics:%d", consumerId,
+        subscribe.cgroup, (int32_t) taosArrayGetSize(pTopicList));
 
     pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
     tstrncpy(pConsumerNew->clientId, subscribe.clientId, 256);

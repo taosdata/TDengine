@@ -1799,8 +1799,7 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
 
         if (pollRspWrapper->dataRsp.blockNum == 0) {
-          tscDebug("consumer:0x%" PRIx64 " empty block received in poll rsp", tmq->consumerId);
-
+          tscDebug("consumer:0x%" PRIx64 " empty block received, vgId:%d", tmq->consumerId, pVg->vgId);
           taosFreeQitem(pollRspWrapper);
           rspWrapper = NULL;
           continue;
@@ -1913,11 +1912,11 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
   if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__RECOVER) {
     int32_t retryCnt = 0;
     while (TSDB_CODE_MND_CONSUMER_NOT_READY == tmqAskEp(tmq, false)) {
-      if (retryCnt++ > 10) {
+      if (retryCnt++ > 40) {
         return NULL;
       }
 
-      tscDebug("consumer:0x%" PRIx64 " not ready, retry:%d/10 in 500ms", tmq->consumerId, retryCnt);
+      tscDebug("consumer:0x%" PRIx64 " not ready, retry:%d/40 in 500ms", tmq->consumerId, retryCnt);
       taosMsleep(500);
     }
   }
