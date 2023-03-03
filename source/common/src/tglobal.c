@@ -56,6 +56,7 @@ int32_t tsNumOfQnodeQueryThreads = 4;
 int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
+
 // sync raft
 int32_t tsElectInterval = 25 * 1000;
 int32_t tsHeartbeatInterval = 1000;
@@ -63,6 +64,9 @@ int32_t tsHeartbeatTimeout = 20 * 1000;
 
 // vnode
 int64_t tsVndCommitMaxIntervalMs = 600 * 1000;
+
+// mnode
+int64_t tsMndSdbWriteDelta = 2000;
 
 // monitor
 bool     tsEnableMonitor = true;
@@ -456,6 +460,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddInt64(pCfg, "vndCommitMaxInterval", tsVndCommitMaxIntervalMs, 1000, 1000 * 60 * 60, 0) != 0) return -1;
 
+  if (cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, 0) != 0) return -1;
+
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, 0) != 0) return -1;
   if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, 0) != 0) return -1;
@@ -802,6 +808,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsHeartbeatTimeout = cfgGetItem(pCfg, "syncHeartbeatTimeout")->i32;
 
   tsVndCommitMaxIntervalMs = cfgGetItem(pCfg, "vndCommitMaxInterval")->i64;
+
+  tsMndSdbWriteDelta = cfgGetItem(pCfg, "mndSdbWriteDelta")->i64;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));
