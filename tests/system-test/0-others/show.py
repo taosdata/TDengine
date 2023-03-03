@@ -188,10 +188,10 @@ class TDTestCase:
         tdSql.checkEqual(grants_info,licences_info)
 
     def run(self):
-        # self.check_gitinfo()
-        # self.show_base()
-        # self.ins_check()
-        # self.perf_check()
+        self.check_gitinfo()
+        self.show_base()
+        self.ins_check()
+        self.perf_check()
         self.show_create_sql()
 
     def stop(self):
