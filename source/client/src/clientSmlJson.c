@@ -1214,7 +1214,7 @@ static int32_t smlParseJSONString(SSmlHandle *info, char **start, SSmlLineInfo *
     return TSDB_CODE_INVALID_TIMESTAMP;
   } else if (elements->timestamp[0] == '{') {
     char tmp = elements->timestamp[elements->timestampLen];
-    elements->cols[elements->timestampLen] = '\0';
+    elements->timestamp[elements->timestampLen] = '\0';
     cJSON *tsJson = cJSON_Parse(elements->timestamp);
     ts = smlParseTSFromJSON(info, tsJson);
     if (unlikely(ts < 0)) {
