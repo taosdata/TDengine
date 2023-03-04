@@ -16,9 +16,11 @@ use utoipa_swagger_ui::SwaggerUi;
 use task::*;
 
 mod data_sources;
+mod controller;
 mod metrics;
 mod task;
 
+use controller::*;
 use data_sources::*;
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
@@ -136,10 +138,13 @@ impl Cli {
             .with_runtime(rt);
 
         let store = Data::new(controller);
+
+        // let task_ctl: TaskControllerRef = store.clone().into_inner().into();
         let store_cloned = store.clone();
-        let tasks_mgr = store.clone();
         if !self.do_not_resume {
-            tokio::spawn(async move { tasks_mgr.start_all().await });
+            log::info!("resume all tasks");
+            // tokio::spawn(start_all_with_schedule(store.clone().into_inner()));
+            start_all_with_schedule(store.clone().into_inner()).await?;
         }
         // // Make instance variable of ApiDoc so all worker threads gets the same instance.
         let openapi = ApiDoc::openapi();
