@@ -472,7 +472,11 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
         }
         *pSid = sid; // assignment
       } else {
-        int32_t code = taosAssignId(pVgroup->idPool, *pSid);
+        bool forceAssign = false;
+        if (tsMetaSyncOption == 2) {
+          forceAssign = true;
+        }
+        int32_t code = taosAssignId(pVgroup->idPool, *pSid, forceAssign);
         if (code != TSDB_CODE_SUCCESS) {
           mError("msg:%p, app:%p db:%s, failed to assign tid:%d in vgId:%d since %s", pMsg, pMsg->rpcMsg.ahandle,
                  pDb->name, *pSid, pVgroup->vgId, tstrerror(code));

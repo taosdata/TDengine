@@ -72,7 +72,7 @@ int taosAllocateId(void *handle) {
   return slot + 1;
 }
 
-int taosAssignId(void *handle, int id) {
+int taosAssignId(void *handle, int id, bool force) {
   id_pool_t *pIdPool = handle;
   if (handle == NULL) {
     return TSDB_CODE_MND_APP_ERROR;
@@ -83,7 +83,7 @@ int taosAssignId(void *handle, int id) {
 
   if (pIdPool->numOfFree > 0) {
     if (id > 0 && id < pIdPool->maxId) {
-      if (false == pIdPool->freeList[id - 1]) {
+      if (force || (false == pIdPool->freeList[id - 1])) {
         pIdPool->freeList[id - 1] = true;
         pIdPool->numOfFree--;
       } else {
