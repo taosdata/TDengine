@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <fstream>
+
 #include "parTestUtil.h"
 
 using namespace std;
@@ -381,7 +383,8 @@ TEST_F(ParserInitialCTest, createDnode) {
 }
 
 /*
- * CREATE [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name AS library_path OUTPUTTYPE type_name [BUFSIZE value]
+ * CREATE [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name
+ *   AS library_path OUTPUTTYPE type_name [BUFSIZE value] [LANGUAGE value]
  */
 TEST_F(ParserInitialCTest, createFunction) {
   useDb("root", "test");
@@ -389,12 +392,13 @@ TEST_F(ParserInitialCTest, createFunction) {
   SCreateFuncReq expect = {0};
 
   auto setCreateFuncReq = [&](const char* pUdfName, int8_t outputType, int32_t outputBytes = 0,
-                              int8_t funcType = TSDB_FUNC_TYPE_SCALAR, int8_t igExists = 0, int32_t bufSize = 0) {
+                              int8_t funcType = TSDB_FUNC_TYPE_SCALAR, int8_t igExists = 0, int32_t bufSize = 0,
+                              int8_t language = TSDB_FUNC_SCRIPT_BIN_LIB) {
     memset(&expect, 0, sizeof(SCreateFuncReq));
     strcpy(expect.name, pUdfName);
     expect.igExists = igExists;
     expect.funcType = funcType;
-    expect.scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
+    expect.scriptType = language;
     expect.outputType = outputType;
     expect.outputLen = outputBytes > 0 ? outputBytes : tDataTypes[outputType].bytes;
     expect.bufSize = bufSize;
@@ -412,13 +416,25 @@ TEST_F(ParserInitialCTest, createFunction) {
     ASSERT_EQ(req.outputType, expect.outputType);
     ASSERT_EQ(req.outputLen, expect.outputLen);
     ASSERT_EQ(req.bufSize, expect.bufSize);
+
+    tFreeSCreateFuncReq(&req);
   });
 
-  setCreateFuncReq("udf1", TSDB_DATA_TYPE_INT);
-  // run("CREATE FUNCTION udf1 AS './build/lib/libudf1.so' OUTPUTTYPE INT");
+  struct udfFile {
+    udfFile(const std::string& filename) : path_(filename) {
+      std::ofstream file(filename, std::ios::binary);
+      file << 123 << "abc" << '\n';
+      file.close();
+    }
+    ~udfFile() { remove(path_.c_str()); }
+    std::string path_;
+  } udffile("udf");
 
-  setCreateFuncReq("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8);
-  // run("CREATE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS './build/lib/libudf2.so' OUTPUTTYPE DOUBLE BUFSIZE 8");
+  setCreateFuncReq("udf1", TSDB_DATA_TYPE_INT);
+  run("CREATE FUNCTION udf1 AS 'udf' OUTPUTTYPE INT");
+
+  setCreateFuncReq("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8, TSDB_FUNC_SCRIPT_PYTHON);
+  run("CREATE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS 'udf' OUTPUTTYPE DOUBLE BUFSIZE 8 LANGUAGE 'python'");
 }
 
 /*
