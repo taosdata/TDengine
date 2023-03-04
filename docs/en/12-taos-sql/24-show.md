@@ -4,7 +4,7 @@ sidebar_label: SHOW Statement
 description: This document describes how to use the SHOW statement in TDengine.
 ---
 
-`SHOW` command can be used to get brief system information. To get details about metatadata, information, and status in the system, please use `select` to query the tables in database `INFORMATION_SCHEMA`. 
+`SHOW` command can be used to get brief system information. To get details about metadata, information, and status in the system, please use `select` to query the tables in database `INFORMATION_SCHEMA`. 
 
 ## SHOW APPS
 

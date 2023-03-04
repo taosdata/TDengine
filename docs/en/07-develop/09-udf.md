@@ -65,11 +65,11 @@ int32_t aggfn_init() {
 }
 
 // aggregate start function. The intermediate value or the state(@interBuf) is initialized in this function. The function name shall be concatenation of udf name and _start suffix
-// @param interbuf intermediate value to intialize
+// @param interbuf intermediate value to initialize
 // @return error number defined in taoserror.h
 int32_t aggfn_start(SUdfInterBuf* interBuf) {
     // initialize intermediate value in interBuf
-    return TSDB_CODE_SUCESS;
+    return TSDB_CODE_SUCCESS;
 }
 
 // aggregate reduce function. This function aggregate old state(@interbuf) and one data bock(inputBlock) and output a new state(@newInterBuf).

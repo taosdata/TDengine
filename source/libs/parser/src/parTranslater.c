@@ -6358,7 +6358,7 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
   strcpy(req.name, pStmt->funcName);
   req.igExists = pStmt->ignoreExists;
   req.funcType = pStmt->isAgg ? TSDB_FUNC_TYPE_AGGREGATE : TSDB_FUNC_TYPE_SCALAR;
-  req.scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
+  req.scriptType = pStmt->language;
   req.outputType = pStmt->outputDt.type;
   req.outputLen = pStmt->outputDt.bytes;
   req.bufSize = pStmt->bufSize;

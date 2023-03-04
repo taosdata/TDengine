@@ -430,6 +430,7 @@ typedef struct SCreateFunctionStmt {
   char      libraryPath[PATH_MAX];
   SDataType outputDt;
   int32_t   bufSize;
+  int8_t    language;
 } SCreateFunctionStmt;
 
 typedef struct SDropFunctionStmt {

@@ -531,7 +531,7 @@ explain_options(A) ::= explain_options(B) RATIO NK_FLOAT(C).                    
 
 /************************************************ create/drop function ************************************************/
 cmd ::= CREATE agg_func_opt(A) FUNCTION not_exists_opt(F) function_name(B) 
-  AS NK_STRING(C) OUTPUTTYPE type_name(D) bufsize_opt(E).                         { pCxt->pRootNode = createCreateFunctionStmt(pCxt, F, A, &B, &C, D, E); }
+  AS NK_STRING(C) OUTPUTTYPE type_name(D) bufsize_opt(E) language_opt(G).         { pCxt->pRootNode = createCreateFunctionStmt(pCxt, F, A, &B, &C, D, E, &G); }
 cmd ::= DROP FUNCTION exists_opt(B) function_name(A).                             { pCxt->pRootNode = createDropFunctionStmt(pCxt, B, &A); }
 
 %type agg_func_opt                                                                { bool }
@@ -543,6 +543,11 @@ agg_func_opt(A) ::= AGGREGATE.                                                  
 %destructor bufsize_opt                                                           { }
 bufsize_opt(A) ::= .                                                              { A = 0; }
 bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                         { A = taosStr2Int32(B.z, NULL, 10); }
+
+%type language_opt                                                                 { SToken }
+%destructor language_opt                                                           { }
+language_opt(A) ::= .                                                              { A = nil_token; }
+language_opt(A) ::= LANGUAGE NK_STRING(B).                                         { A = B; }
 
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A) stream_options(B) INTO
