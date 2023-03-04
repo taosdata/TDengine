@@ -91,8 +91,33 @@ jobs:
           strip target/release/taosx
           mv target/release/taosx target/release/taosx-amd64-musl
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+      # - name: Upload artifacts
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: taosx
+      #     path: target/release/taosx-amd64-musl
+  release:
+    needs: centos
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      - uses: rickstaa/action-create-tag@v1
+        with:
+          tag: "latest"
+          message: "Latest"
+          force_push_tag: true
+      - run: |
+          chmod +x taosx-amd64
+      - uses: actions/download-artifact@v3
         with:
           name: taosx
-          path: target/release/taosx-amd64-musl
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: Latest
+          tag_name: latest
+          files: |
+            taosx-amd64
