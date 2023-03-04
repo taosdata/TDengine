@@ -1115,7 +1115,8 @@ void cliSend(SCliConn* pConn) {
     msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
   }
 
-  if (pHead->msgType != 0) {
+  if ((pHead->msgType > TDMT_VND_TMQ_MSG && pHead->msgType < TDMT_VND_TMQ_MAX_MSG) ||
+      (pHead->msgType > TDMT_MND_MSG && pHead->msgType < TDMT_MND_MAX_MSG)) {
     char buf[128] = {0};
     sprintf(buf, "%s", TMSG_INFO(pHead->msgType));
     int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
@@ -2364,7 +2365,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     }
   }
 
-  if ((pResp->msgType - 1) > 0) {
+  if ((pResp->msgType - 1 > TDMT_VND_TMQ_MSG && pResp->msgType - 1 < TDMT_VND_TMQ_MAX_MSG) ||
+      (pResp->msgType - 1 > TDMT_MND_MSG && pResp->msgType - 1 < TDMT_MND_MAX_MSG)) {
     char buf[128] = {0};
     sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
     int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
