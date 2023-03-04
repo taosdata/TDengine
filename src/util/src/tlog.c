@@ -20,7 +20,7 @@
 #include "tnote.h"
 #include "tutil.h"
 
-#define MAX_LOGLINE_SIZE              (1000)
+#define MAX_LOGLINE_SIZE              (10000)
 #define MAX_LOGLINE_BUFFER_SIZE       (MAX_LOGLINE_SIZE + 10)
 #define MAX_LOGLINE_CONTENT_SIZE      (MAX_LOGLINE_SIZE - 100)
 #define MAX_LOGLINE_DUMP_SIZE         (65 * 1024)
