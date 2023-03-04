@@ -817,7 +817,6 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
           if (i < pTableMeta->tableInfo.numOfColumns) {
             taosArrayPush(pColumns, &field);
           } else {
-            uError("SML:0x%" PRIx64 "field name:%s, bytes:%d", info->id, field.name, field.bytes);
             taosArrayPush(pTags, &field);
           }
         }
@@ -1074,7 +1073,6 @@ void smlDestroyInfo(SSmlHandle *info) {
   taosArrayDestroy(info->valueJsonArray);
 
   taosArrayDestroy(info->preLineTagKV);
-  taosArrayDestroy(info->preLineColKV);
 
   if (!info->dataFormat) {
     for (int i = 0; i < info->lineNum; i++) {
@@ -1117,7 +1115,6 @@ SSmlHandle *smlBuildSmlInfo(TAOS *taos) {
   info->tagJsonArray = taosArrayInit(8, POINTER_BYTES);
   info->valueJsonArray = taosArrayInit(8, POINTER_BYTES);
   info->preLineTagKV = taosArrayInit(8, sizeof(SSmlKv));
-  info->preLineColKV = taosArrayInit(8, sizeof(SSmlKv));
 
   if (NULL == info->pVgHash || NULL == info->childTables || NULL == info->superTables) {
     uError("create SSmlHandle failed");

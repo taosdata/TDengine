@@ -82,7 +82,7 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
   if (info->dataFormat) {
     if (!isSameMeasure) {
       SSmlSTableMeta **tmp = (SSmlSTableMeta **)taosHashGet(info->superTables, elements->measure, elements->measureLen);
-      SSmlSTableMeta * sMeta = NULL;
+      SSmlSTableMeta *sMeta = NULL;
       if (unlikely(tmp == NULL)) {
         STableMeta *pTableMeta = smlGetMeta(info, elements->measure, elements->measureLen);
         if (pTableMeta == NULL) {
@@ -93,12 +93,12 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
         sMeta = smlBuildSTableMeta(info->dataFormat);
         sMeta->tableMeta = pTableMeta;
         taosHashPut(info->superTables, elements->measure, elements->measureLen, &sMeta, POINTER_BYTES);
-        tmp = &sMeta;
         for(int i = pTableMeta->tableInfo.numOfColumns; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++){
           SSchema *tag = pTableMeta->schema + i;
           SSmlKv kv = {.key = tag->name, .keyLen = strlen(tag->name), .type = tag->type, .length = (tag->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE };
           taosArrayPush(sMeta->tags, &kv);
         }
+        tmp = &sMeta;
       }
       info->currSTableMeta = (*tmp)->tableMeta;
       info->maxTagKVs = (*tmp)->tags;
