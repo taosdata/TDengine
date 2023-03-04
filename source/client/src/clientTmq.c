@@ -1076,7 +1076,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   SCMSubscribeReq req = {0};
   int32_t         code = 0;
 
-  tscDebug("consumer:0x%" PRIx64 " subscribe %d topics", tmq->consumerId, sz);
+  tscDebug("consumer:0x%" PRIx64 " cgroup:%s, subscribe %d topics", tmq->consumerId, tmq->groupId, sz);
 
   req.consumerId = tmq->consumerId;
   tstrncpy(req.clientId, tmq->clientId, 256);
@@ -1213,31 +1213,38 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     return -1;
   }
 
-  int32_t epoch = pParam->epoch;
-  int32_t vgId = pParam->vgId;
+  int32_t  epoch = pParam->epoch;
+  int32_t  vgId = pParam->vgId;
+  uint64_t requestId = pParam->requestId;
+
   taosMemoryFree(pParam);
+
   if (code != 0) {
-    tscWarn("msg discard from vgId:%d, epoch %d, since %s", vgId, epoch, terrstr());
+    tscWarn("consumer:0x%"PRIx64" msg from vgId:%d discarded, epoch %d, since %s, reqId:0x%"PRIx64, tmq->consumerId, vgId,
+        epoch, tstrerror(code), requestId);
+
     if (pMsg->pData) taosMemoryFree(pMsg->pData);
     if (pMsg->pEpSet) taosMemoryFree(pMsg->pEpSet);
 
+    // in case of consumer mismatch, wait for 500ms and retry
     if (code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
+      taosMsleep(500);
       atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__RECOVER);
-      goto CREATE_MSG_FAIL;
-    }
-
-    if (code == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
+    } else if (code == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
       SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM, 0);
       if (pRspWrapper == NULL) {
-        tscWarn("msg discard from vgId:%d, epoch %d since out of memory", vgId, epoch);
+        tscWarn("consumer:0x%" PRIx64 " msg from vgId:%d discarded, epoch %d since out of memory, reqId:0x%" PRIx64,
+                tmq->consumerId, vgId, epoch, requestId);
         goto CREATE_MSG_FAIL;
       }
+
       pRspWrapper->tmqRspType = TMQ_MSG_TYPE__END_RSP;
       /*pRspWrapper->vgHandle = pVg;*/
       /*pRspWrapper->topicHandle = pTopic;*/
       taosWriteQitem(tmq->mqueue, pRspWrapper);
       tsem_post(&tmq->rspSem);
     }
+
     goto CREATE_MSG_FAIL;
   }
 
@@ -1245,8 +1252,9 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   int32_t tmqEpoch = atomic_load_32(&tmq->epoch);
   if (msgEpoch < tmqEpoch) {
     // do not write into queue since updating epoch reset
-    tscWarn("msg discard from vgId:%d since from earlier epoch, rsp epoch %d, current epoch %d", vgId, msgEpoch,
-            tmqEpoch);
+    tscWarn("consumer:0x%" PRIx64 " msg discard from vgId:%d since from earlier epoch, rsp epoch %d, current epoch %d, reqId:0x%"PRIx64,
+            tmq->consumerId, vgId, msgEpoch, tmqEpoch, requestId);
+
     tsem_post(&tmq->rspSem);
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
@@ -1254,7 +1262,8 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (msgEpoch != tmqEpoch) {
-    tscWarn("mismatch rsp from vgId:%d, epoch %d, current epoch %d", vgId, msgEpoch, tmqEpoch);
+    tscWarn("consumer:0x%"PRIx64" mismatch rsp from vgId:%d, epoch %d, current epoch %d, reqId:0x%"PRIx64, tmq->consumerId, vgId,
+        msgEpoch, tmqEpoch, requestId);
   }
 
   // handle meta rsp
@@ -1264,7 +1273,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRspWrapper == NULL) {
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
-    tscWarn("msg discard from vgId:%d, epoch %d since out of memory", vgId, epoch);
+    tscWarn("consumer:0x%"PRIx64" msg discard from vgId:%d, epoch %d since out of memory", tmq->consumerId, vgId, epoch);
     goto CREATE_MSG_FAIL;
   }
 
@@ -1299,16 +1308,19 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
-  tscDebug("consumer:0x%" PRIx64 ", put poll res into mqueue, total in queue:%d", tmq->consumerId, tmq->mqueue->numOfItems);
+  tscDebug("consumer:0x%" PRIx64 ", put poll res into mqueue, total in queue:%d, reqId:0x%" PRIx64, tmq->consumerId,
+           tmq->mqueue->numOfItems, requestId);
 
   taosWriteQitem(tmq->mqueue, pRspWrapper);
   tsem_post(&tmq->rspSem);
 
   return 0;
+
 CREATE_MSG_FAIL:
   if (epoch == tmq->epoch) {
     atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
   }
+
   tsem_post(&tmq->rspSem);
   return -1;
 }

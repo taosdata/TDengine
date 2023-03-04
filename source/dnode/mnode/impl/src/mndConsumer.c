@@ -26,7 +26,7 @@
 #define MND_CONSUMER_VER_NUMBER   1
 #define MND_CONSUMER_RESERVE_SIZE 64
 
-#define MND_CONSUMER_LOST_HB_CNT          3
+#define MND_CONSUMER_LOST_HB_CNT          6
 #define MND_CONSUMER_LOST_CLEAR_THRESHOLD 43200
 
 static int32_t mqRebInExecCnt = 0;
