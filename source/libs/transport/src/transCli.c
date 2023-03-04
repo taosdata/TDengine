@@ -1115,18 +1115,18 @@ void cliSend(SCliConn* pConn) {
     msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
   }
 
-  // if (pHead->msgType != 0) {
-  // char buf[128] = {0};
-  // sprintf(buf, "%s", TMSG_INFO(pHead->msgType));
-  // int* count = taosHashGet(pThrd->msgCount, buf, strlen(buf));
-  // if (NULL == 0) {
-  // int localCount = 1;
-  // taosHashPut(pThrd->msgCount, buf, strlen(buf), &localCount, sizeof(localCount));
-  //} else {
-  // int localCount = *count + 1;
-  // taosHashPut(pThrd->msgCount, buf, strlen(buf), &localCount, sizeof(localCount));
-  //}
-  //}
+  if (pHead->msgType != 0) {
+    char buf[128] = {0};
+    sprintf(buf, "%s", TMSG_INFO(pHead->msgType));
+    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+    if (NULL == 0) {
+      int localCount = 1;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    } else {
+      int localCount = *count + 1;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    }
+  }
 
   tGDebug("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
           TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, msgLen);
@@ -1767,16 +1767,18 @@ static void cliAsyncCb(uv_async_t* handle) {
   QUEUE_MOVE(&item->qmsg, &wq);
   taosThreadMutexUnlock(&item->mtx);
 
-  // void* pIter = taosHashIterate(pThrd->msgCount, NULL);
-  // while (pIter != NULL) {
-  // int*   count = pIter;
-  // size_t len = 0;
-  // char*  key = taosHashGetKey(pIter, &len);
-  // tDebug("key: %s count: %d", key, *count);
+  void* pIter = taosHashIterate(pThrd->msgCount, NULL);
+  while (pIter != NULL) {
+    int*   count = pIter;
+    size_t len = 0;
+    char*  key = taosHashGetKey(pIter, &len);
+    if (*count != 0) {
+      tDebug("key: %s count: %d", key, *count);
+    }
 
-  // pIter = taosHashIterate(pThrd->msgCount, pIter);
-  //}
-  tDebug("conn count: %d", pThrd->newConnCount);
+    pIter = taosHashIterate(pThrd->msgCount, pIter);
+  }
+  tDebug("all conn count: %d", pThrd->newConnCount);
 
   int8_t supportBatch = pTransInst->supportBatch;
   if (supportBatch == 0) {
@@ -2362,18 +2364,18 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     }
   }
 
-  // if ((pResp->msgType - 1) > 0) {
-  // char buf[128] = {0};
-  // sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
-  // int* count = taosHashGet(pThrd->msgCount, buf, strlen(buf));
-  // if (NULL == 0) {
-  // int localCount = 0;
-  // taosHashPut(pThrd->msgCount, buf, strlen(buf), &localCount, sizeof(localCount));
-  //} else {
-  // int localCount = *count - 1;
-  // taosHashPut(pThrd->msgCount, buf, strlen(buf), &localCount, sizeof(localCount));
-  //}
-  //}
+  if ((pResp->msgType - 1) > 0) {
+    char buf[128] = {0};
+    sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
+    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+    if (NULL == 0) {
+      int localCount = 0;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    } else {
+      int localCount = *count - 1;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    }
+  }
   if (pCtx->pSem != NULL) {
     tGTrace("%s conn %p(sync) handle resp", CONN_GET_INST_LABEL(pConn), pConn);
     if (pCtx->pRsp == NULL) {
