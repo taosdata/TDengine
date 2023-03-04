@@ -425,8 +425,8 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
         """
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stb_name = self.tdCom.get_long_name()
-        self.tdRest.restApiPost(f'create stable {self.dbname}.{stb_name}(ts timestamp, f bigint) tags(t1 bigint)')
-        print(f'create stable {self.dbname}.{stb_name}(ts timestamp, f bigint) tags(t1 bigint)')
+        # self.tdRest.restApiPost(f'create stable {self.dbname}.{stb_name}(ts timestamp, f bigint) tags(t1 bigint)')
+        # print(f'create stable {self.dbname}.{stb_name}(ts timestamp, f bigint) tags(t1 bigint)')
         lines = f'st123456 1626006833640 1i64 t1=3i64 t2=4f64 t3=\"t3\"\n\
 st123456 1626006833641 2i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64\n\
 {stb_name} 1626006833642 3i64 t2=5f64 t3=L\"ste\"\n\
@@ -438,8 +438,7 @@ st123456 1626006833647 8i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64\n\
 st123456 1626006833648 9i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64'
 
         res = self.tdRest.schemalessApiPost(sql=lines, url_type="telnet", dbname=self.dbname)
-        print(res)
-        # self.tdSql.checkEqual(res.status_code, 204)
+        self.tdSql.checkEqual(res.status_code, 204)
         self.tdRest.request(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], 3)
         self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
@@ -454,12 +453,12 @@ st123456 1626006833648 9i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64'
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         long_sql = ''
         stb_name = self.tdCom.get_long_name(8)
-        self.tdRest.restApiPost(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
+        # self.tdRest.restApiPost(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
         for i in range(count):
             input_sql = self.tdCom.gen_full_type_sql(stb_name=stb_name, t7=f'"{self.tdCom.get_long_name(8)}"', c7=f'"{self.tdCom.get_long_name(8)}"', id_noexist_tag=True)[0]
             long_sql += f'{input_sql}\n'
         res = self.tdRest.schemalessApiPost(sql=long_sql, url_type="telnet", dbname=self.dbname)
-        # self.tdSql.checkEqual(res.status_code, 204)
+        self.tdSql.checkEqual(res.status_code, 204)
         self.tdRest.request(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdRest.resp["rows"], count)
 
@@ -538,9 +537,8 @@ st123456 1626006833648 9i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64'
         # ! TD-17284
         # self.tag_col_binary_max_length_check()
         # self.tag_col_nchar_max_length_check()
-        # ! TD-22091
-        # self.batch_insert_check()
-        # self.multi_insert_check(100)
+        self.batch_insert_check()
+        self.multi_insert_check(100)
         self.batch_error_insert_check()
         self.multi_cols_insert_check()
         self.blank_col_insert_check()

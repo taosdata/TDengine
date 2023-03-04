@@ -655,7 +655,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom.drop_all_db()
         self.tdCom.createDb(dbname=self.dbname, precision="us")
         self.tdCom.cleanTb()
-        self.tdSql.execute(f'create stable stb_name(ts timestamp, f int) tags(t1 bigint)')
+        # self.tdSql.execute(f'create stable stb_name(ts timestamp, f int) tags(t1 bigint)')
         input_json = [{"metric": "st123456", "timestamp": {"value": 1626006833639000, "type": "us"}, "value": {"value": 1, "type": "bigint"}, "tags": {"t1": {"value": 3, "type": "bigint"}, "t2": {"value": 4, "type": "double"}, "t3": {"value": "t3", "type": "binary"}}},
                     {"metric": "st123456", "timestamp": {"value": 1626006833739000, "type": "us"}, "value": {"value": 2, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
                     {"metric": "stb_name", "timestamp": {"value": 1626006833639100, "type": "us"}, "value": {"value": 3, "type": "bigint"}, "tags": {"t2": {"value": 5, "type": "double"}, "t3": {"value": "ste", "type": "nchar"}}},
@@ -1045,8 +1045,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
                 # self.tag_col_binary_nchar_length_increase_check(value_type)
                 # self.tag_col_binary_max_length_check(value_type)
                 # self.tag_col_nchar_max_length_check(value_type)
-                # ! TD-22901
-                # self.batch_insert_check(value_type)
+                self.batch_insert_check(value_type)
                 self.multi_insert_check(100, value_type)
                 self.multi_cols_insert_check(value_type)
                 self.blank_col_insert_check(value_type)

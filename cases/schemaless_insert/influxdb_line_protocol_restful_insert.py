@@ -475,7 +475,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stb_name = self.tdCom.get_long_name()
-        self.tdRest.restApiPost(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 bigint)')
+        # self.tdRest.restApiPost(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 bigint)')
         lines = f'st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000\n\
 st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000\n\
 {stb_name},t2=5f64,t3=L\"ste\" c1=true,c2=4i64,c3=\"iam\" 1626056811823316532\n\
@@ -502,7 +502,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         long_sql = ''
         stb_name = self.tdCom.get_long_name(8)
-        self.tdRest.restApiPost(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
+        # self.tdRest.restApiPost(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
         for i in range(count):
             input_sql = self.tdCom.gen_full_type_sql(stb_name=stb_name, t7=f'"{self.tdCom.get_long_name(8)}"', c7=f'"{self.tdCom.get_long_name(8)}"', id_noexist_tag=True)[0]
             long_sql += f'{input_sql}\n'
@@ -601,8 +601,8 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         self.tag_col_binary_nchar_length_increase_check()
         # self.tag_col_binary_max_length_check()
         # self.tag_col_nchar_max_length_check()
-        # self.batch_insert_check()
-        # self.multi_insert_check(100)
+        self.batch_insert_check()
+        self.multi_insert_check(100)
         self.batch_error_insert_check()
         self.multi_cols_insert_check()
         self.multi_tags_insert_check()

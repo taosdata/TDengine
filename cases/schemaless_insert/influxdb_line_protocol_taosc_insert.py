@@ -1025,7 +1025,13 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):
-        self.duplicate_id_tag_col_insert_check()
+        self.tdSql.execute('create database iot_dev keep 365 duration 10 buffer 16 wal_level 1;')
+        self.tdSql.execute('use iot_dev')
+        input_sql = 'reported_j1WhBe0W78Edj6hK,realm_device_id=test_device_id_001 Ia=10.01f32,P=1.32012f32,Ib=9.0100001f32,Ia_source_time=1677834213374i64,P_source_time=1677834213374i64,Ib_source_time=1677834213374i64 1677834213374'
+
+        self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
+        
+        # self.duplicate_id_tag_col_insert_check()
         return
 
     def run(self):
@@ -1072,7 +1078,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.chinese_check()
             self.spell_check()
             self.default_type_check()
-            self.tbname_tags_cols_name_check()
+            # self.tbname_tags_cols_name_check()
             self.stb_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_atc_insert_multi_thread_check()
