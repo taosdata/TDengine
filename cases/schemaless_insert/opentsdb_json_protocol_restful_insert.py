@@ -411,7 +411,7 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
         """
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         stb_name = "stb_name"
-        self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
+        # self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
         input_json = [{"metric": "st123456", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": 1, "tags": {"t1": 3, "t2": {"value": 4, "type": "double"}, "t3": {"value": "t3", "type": "binary"}}},
                     {"metric": "st123456", "timestamp": {"value": 1626006833640000000, "type": "ns"}, "value": 2, "tags": {"t1": {"value": 4, "type": "double"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
                     {"metric": "stb_name", "timestamp": {"value": 1626056811823316532, "type": "ns"}, "value": 3, "tags": {"t2": {"value": 5, "type": "double"}, "t3": {"value": "ste", "type": "nchar"}}},
@@ -436,11 +436,11 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
         self.tdCom.cleanTb(connect_type="restful", dbname=self.dbname)
         sql_list = list()
         stb_name = self.tdCom.get_long_name()
-        self.tdSql.execute(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 tinyint)')
+        # self.tdSql.execute(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 tinyint)')
         for i in range(count):
             input_json = self.tdCom.gen_full_type_json(stb_name=stb_name, col_value=self.tdCom.gen_ts_col_value(value=self.tdCom.get_long_name(), t_type="binary"), tag_value=self.tdCom.gen_tag_value(t7_value=self.tdCom.get_long_name()), id_noexist_tag=True)[0]
             sql_list.append(input_json)
-        res = self.tdRest.schemalessApiPost(json.dumps(sql_list), url_type="json", precision=None, dbname=self.dbname)
+        self.tdRest.schemalessApiPost(json.dumps(sql_list), url_type="json", precision=None, dbname=self.dbname)
         self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, count)
 
@@ -541,9 +541,8 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
         # self.tag_col_binary_nchar_length_increase_check()
         # self.tag_col_binary_max_length_check()
         # self.tag_col_nchar_max_length_check()
-        # ! TD-22901
-        # self.batch_insert_check()
-        # self.multi_insert_check(10)
+        self.batch_insert_check()
+        self.multi_insert_check(10)
         self.batch_error_insert_check()
         self.multi_cols_insert_check()
         self.blank_col_insert_check()

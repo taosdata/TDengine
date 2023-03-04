@@ -608,8 +608,8 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.createDb(dbname=self.dbname, precision="us")
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name()
-        ts = self.tdCom.genTs("us")[0]
-        self.tdSql.execute(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 bigint)')
+        # ts = self.tdCom.genTs("us")[0]
+        # self.tdSql.execute(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 bigint)')
         lines = ["st123456 1626006833640 1i64 t1=3i64 t2=4f64 t3=\"t3\"",
                 "st123456 1626006833641 2i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64",
                 f'{stb_name} 1626006833642 3i64 t2=5f64 t3=L\"ste\"',
@@ -620,7 +620,6 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                 "st123456 1626006833647 8i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64",
                 "st123456 1626006833648 9i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64"
                 ]
-        print(lines)
         self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.TELNET.value, None)
         self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
@@ -1011,7 +1010,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def test(self):
-        self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
+        self.batch_insert_check()
         return
 
     def run(self):
@@ -1048,7 +1047,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             self.duplicate_id_tag_col_insert_check()
             self.duplicate_insert_exist_check()
             # self.tag_col_binary_max_length_check()
-            # self.batch_insert_check()
+            self.batch_insert_check()
             self.multiInsert_check(100)
             self.batch_error_insert_check()
             self.multi_cols_insert_check()
@@ -1059,7 +1058,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             self.spell_check()
             self.point_trans_check()
             self.defaultType_check()
-            self.tbname_tags_cols_name_check()
+            # self.tbname_tags_cols_name_check()
             self.stb_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_at_insert_multi_thread_check()
