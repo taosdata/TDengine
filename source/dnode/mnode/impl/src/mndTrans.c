@@ -460,6 +460,8 @@ static const char *mndTransStr(ETrnStage stage) {
       return "commitAction";
     case TRN_STAGE_FINISHED:
       return "finished";
+    case TRN_STAGE_PRE_FINISH:
+      return "pre-finish";
     default:
       return "invalid";
   }
@@ -600,6 +602,11 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
   if (pOld->stage == TRN_STAGE_ROLLBACK) {
     pOld->stage = TRN_STAGE_UNDO_ACTION;
     mTrace("trans:%d, stage from rollback to undoAction since perform update action", pNew->id);
+  }
+
+  if (pOld->stage == TRN_STAGE_PRE_FINISH) {
+    pOld->stage = TRN_STAGE_FINISHED;
+    mTrace("trans:%d, stage from pre-finish to finished since perform update action", pNew->id);
   }
 
   return 0;
@@ -928,6 +935,16 @@ static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
     return -1;
   }
   mInfo("trans:%d, rollback finished", pTrans->id);
+  return 0;
+}
+
+static int32_t mndTransPreFinish(SMnode *pMnode, STrans *pTrans) {
+  mInfo("trans:%d, pre-finish transaction", pTrans->id);
+  if (mndTransSync(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to pre-finish since %s", pTrans->id, terrstr());
+    return -1;
+  }
+  mInfo("trans:%d, pre-finish finished", pTrans->id);
   return 0;
 }
 
@@ -1437,7 +1454,7 @@ static bool mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans) {
 
   if (code == 0) {
     pTrans->code = 0;
-    pTrans->stage = TRN_STAGE_FINISHED;
+    pTrans->stage = TRN_STAGE_FINISHED; // TRN_STAGE_PRE_FINISH is not necessary
     mInfo("trans:%d, stage from commitAction to finished", pTrans->id);
     continueExec = true;
   } else {
@@ -1455,8 +1472,8 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
   int32_t code = mndTransExecuteUndoActions(pMnode, pTrans);
 
   if (code == 0) {
-    pTrans->stage = TRN_STAGE_FINISHED;
-    mInfo("trans:%d, stage from undoAction to finished", pTrans->id);
+    pTrans->stage = TRN_STAGE_PRE_FINISH;
+    mInfo("trans:%d, stage from undoAction to pre-finish", pTrans->id);
     continueExec = true;
   } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
     mInfo("trans:%d, stage keep on undoAction since %s", pTrans->id, tstrerror(code));
@@ -1483,6 +1500,25 @@ static bool mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans) {
   } else {
     pTrans->failedTimes++;
     mError("trans:%d, stage keep on rollback since %s, failedTimes:%d", pTrans->id, terrstr(), pTrans->failedTimes);
+    continueExec = false;
+  }
+
+  return continueExec;
+}
+
+static bool mndTransPerfromPreFinishedStage(SMnode *pMnode, STrans *pTrans) {
+  if (mndCannotExecuteTransAction(pMnode)) return false;
+
+  bool    continueExec = true;
+  int32_t code = mndTransPreFinish(pMnode, pTrans);
+
+  if (code == 0) {
+    pTrans->stage = TRN_STAGE_FINISHED;
+    mInfo("trans:%d, stage from pre-finish to finish", pTrans->id);
+    continueExec = true;
+  } else {
+    pTrans->failedTimes++;
+    mError("trans:%d, stage keep on pre-finish since %s, failedTimes:%d", pTrans->id, terrstr(), pTrans->failedTimes);
     continueExec = false;
   }
 
@@ -1544,6 +1580,14 @@ void mndTransExecute(SMnode *pMnode, STrans *pTrans, bool isLeader) {
         break;
       case TRN_STAGE_UNDO_ACTION:
         continueExec = mndTransPerformUndoActionStage(pMnode, pTrans);
+        break;
+      case TRN_STAGE_PRE_FINISH:
+        if (isLeader) {
+          continueExec = mndTransPerfromPreFinishedStage(pMnode, pTrans);
+        } else {
+          mInfo("trans:%d, can not pre-finish since not leader", pTrans->id);
+          continueExec = false;
+        }
         break;
       case TRN_STAGE_FINISHED:
         continueExec = mndTransPerfromFinishedStage(pMnode, pTrans);
