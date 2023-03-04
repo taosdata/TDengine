@@ -695,10 +695,10 @@ static int32_t sdbProcessDumpWal(SWalHead *hparam) {
         snprintf(act, 10, "%d", action);
       }
 
-      sdbInfo("sdbWal, act:%s, type:%" PRIi8 ", tableId:%s, suid:%" PRIu64 ", uid:%" PRIu64
+      sdbInfo("sdbWal, act:%s, type:%" PRIi8 ", tableId:%s, vgId:%d, suid:%" PRIu64 ", uid:%" PRIu64
               ", tid:%d, create:%s, sver:%d, schema:%s",
-              act, pObj->info.type, pObj->info.tableId, pObj->suid, pObj->uid, pObj->tid, ts, pObj->sversion,
-              pBuf ? pBuf : "");
+              act, pObj->info.type, pObj->info.tableId, pObj->vgId, pObj->suid, pObj->uid, pObj->tid, ts,
+              pObj->sversion, pBuf ? pBuf : "");
 
       tfree(pBuf);
     }
