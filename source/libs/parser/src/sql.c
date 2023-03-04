@@ -4608,7 +4608,6 @@ static YYACTIONTYPE yy_reduce(
 { yymsp[1].minor.yy42 = createStreamOptions(pCxt); }
         break;
       case 279: /* sma_stream_opt ::= sma_stream_opt WATERMARK duration_literal */
-      case 316: /* stream_options ::= stream_options WATERMARK duration_literal */ yytestcase(yyruleno==316);
 { ((SStreamOptions*)yymsp[-2].minor.yy42)->pWatermark = releaseRawExprNode(pCxt, yymsp[0].minor.yy42); yylhsminor.yy42 = yymsp[-2].minor.yy42; }
   yymsp[-2].minor.yy42 = yylhsminor.yy42;
         break;
@@ -4617,7 +4616,6 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-2].minor.yy42 = yylhsminor.yy42;
         break;
       case 281: /* sma_stream_opt ::= sma_stream_opt DELETE_MARK duration_literal */
-      case 319: /* stream_options ::= stream_options DELETE_MARK duration_literal */ yytestcase(yyruleno==319);
 { ((SStreamOptions*)yymsp[-2].minor.yy42)->pDeleteMark = releaseRawExprNode(pCxt, yymsp[0].minor.yy42); yylhsminor.yy42 = yymsp[-2].minor.yy42; }
   yymsp[-2].minor.yy42 = yylhsminor.yy42;
         break;
@@ -4677,27 +4675,32 @@ static YYACTIONTYPE yy_reduce(
 { pCxt->pRootNode = createDropStreamStmt(pCxt, yymsp[-1].minor.yy103, &yymsp[0].minor.yy225); }
         break;
       case 313: /* stream_options ::= stream_options TRIGGER AT_ONCE */
-{ ((SStreamOptions*)yymsp[-2].minor.yy42)->triggerType = STREAM_TRIGGER_AT_ONCE; yylhsminor.yy42 = yymsp[-2].minor.yy42; }
-  yymsp[-2].minor.yy42 = yylhsminor.yy42;
-        break;
-      case 314: /* stream_options ::= stream_options TRIGGER WINDOW_CLOSE */
-{ ((SStreamOptions*)yymsp[-2].minor.yy42)->triggerType = STREAM_TRIGGER_WINDOW_CLOSE; yylhsminor.yy42 = yymsp[-2].minor.yy42; }
+      case 314: /* stream_options ::= stream_options TRIGGER WINDOW_CLOSE */ yytestcase(yyruleno==314);
+{ yylhsminor.yy42 = setStreamOptions(pCxt, yymsp[-2].minor.yy42, SOPT_TRIGGER_TYPE_SET, &yymsp[0].minor.yy0, NULL); }
   yymsp[-2].minor.yy42 = yylhsminor.yy42;
         break;
       case 315: /* stream_options ::= stream_options TRIGGER MAX_DELAY duration_literal */
-{ ((SStreamOptions*)yymsp[-3].minor.yy42)->triggerType = STREAM_TRIGGER_MAX_DELAY; ((SStreamOptions*)yymsp[-3].minor.yy42)->pDelay = releaseRawExprNode(pCxt, yymsp[0].minor.yy42); yylhsminor.yy42 = yymsp[-3].minor.yy42; }
+{ yylhsminor.yy42 = setStreamOptions(pCxt, yymsp[-3].minor.yy42, SOPT_TRIGGER_TYPE_SET, &yymsp[-1].minor.yy0, releaseRawExprNode(pCxt, yymsp[0].minor.yy42)); }
   yymsp[-3].minor.yy42 = yylhsminor.yy42;
         break;
+      case 316: /* stream_options ::= stream_options WATERMARK duration_literal */
+{ yylhsminor.yy42 = setStreamOptions(pCxt, yymsp[-2].minor.yy42, SOPT_WATERMARK_SET, NULL, releaseRawExprNode(pCxt, yymsp[0].minor.yy42)); }
+  yymsp[-2].minor.yy42 = yylhsminor.yy42;
+        break;
       case 317: /* stream_options ::= stream_options IGNORE EXPIRED NK_INTEGER */
-{ ((SStreamOptions*)yymsp[-3].minor.yy42)->ignoreExpired = taosStr2Int8(yymsp[0].minor.yy0.z, NULL, 10); yylhsminor.yy42 = yymsp[-3].minor.yy42; }
+{ yylhsminor.yy42 = setStreamOptions(pCxt, yymsp[-3].minor.yy42, SOPT_IGNORE_EXPIRED_SET, &yymsp[0].minor.yy0, NULL); }
   yymsp[-3].minor.yy42 = yylhsminor.yy42;
         break;
       case 318: /* stream_options ::= stream_options FILL_HISTORY NK_INTEGER */
-{ ((SStreamOptions*)yymsp[-2].minor.yy42)->fillHistory = taosStr2Int8(yymsp[0].minor.yy0.z, NULL, 10); yylhsminor.yy42 = yymsp[-2].minor.yy42; }
+{ yylhsminor.yy42 = setStreamOptions(pCxt, yymsp[-2].minor.yy42, SOPT_FILL_HISTORY_SET, &yymsp[0].minor.yy0, NULL); }
+  yymsp[-2].minor.yy42 = yylhsminor.yy42;
+        break;
+      case 319: /* stream_options ::= stream_options DELETE_MARK duration_literal */
+{ yylhsminor.yy42 = setStreamOptions(pCxt, yymsp[-2].minor.yy42, SOPT_DELETE_MARK_SET, NULL, releaseRawExprNode(pCxt, yymsp[0].minor.yy42)); }
   yymsp[-2].minor.yy42 = yylhsminor.yy42;
         break;
       case 320: /* stream_options ::= stream_options IGNORE UPDATE NK_INTEGER */
-{ ((SStreamOptions*)yymsp[-3].minor.yy42)->ignoreUpdate = taosStr2Int8(yymsp[0].minor.yy0.z, NULL, 10); yylhsminor.yy42 = yymsp[-3].minor.yy42; }
+{ yylhsminor.yy42 = setStreamOptions(pCxt, yymsp[-3].minor.yy42, SOPT_IGNORE_UPDATE_SET, &yymsp[0].minor.yy0, NULL); }
   yymsp[-3].minor.yy42 = yylhsminor.yy42;
         break;
       case 322: /* subtable_opt ::= SUBTABLE NK_LP expression NK_RP */
