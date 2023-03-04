@@ -150,10 +150,8 @@ pub(super) async fn start_all_with_schedule(controller: Arc<TaskController>) -> 
             .bind(Status::Stopped)
             .fetch_all(&controller.pool)
             .await?;
-    dbg!(&tasks);
     let sched = controller.scheduler.clone();
     for task in tasks {
-        dbg!(&task.trigger);
         if let Some(trigger) = task.trigger.as_deref() {
             let schedule = trigger.trim_start_matches("schedule:");
             let id = task.id;
