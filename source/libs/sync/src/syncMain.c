@@ -285,7 +285,7 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
 
   if (syncNodeIsMnode(pSyncNode)) {
     // mnode
-    logRetention = SYNC_MNODE_LOG_RETENTION;
+    logRetention = tsMndLogRetention;
   } else {
     // vnode
     if (pSyncNode->replicaNum > 1) {
