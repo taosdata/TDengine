@@ -44,7 +44,7 @@ extern "C" {
 #define CTG_BATCH_FETCH 1
 
 typedef enum {
-  CTG_CI_CLUSTER,
+  CTG_CI_CLUSTER = 0,
   CTG_CI_DNODE,
   CTG_CI_QNODE,
   CTG_CI_DB,
@@ -64,6 +64,10 @@ typedef enum {
   CTG_CI_SVR_VER,
   CTG_CI_MAX_VALUE,
 } CTG_CACHE_ITEM;
+
+#define CTG_CI_FLAG_LEVEL_GLOBAL  (1)
+#define CTG_CI_FLAG_LEVEL_CLUSTER (1<<1)
+#define CTG_CI_FLAG_LEVEL_DB      (1<<2)
 
 enum {
   CTG_READ = 1,
@@ -118,8 +122,15 @@ typedef struct SCtgDebug {
   bool     cacheEnable;
   bool     apiEnable;
   bool     metaEnable;
+  bool     statEnable;
   uint32_t showCachePeriodSec;
 } SCtgDebug;
+
+typedef struct SCtgCacheStat {
+  uint64_t cacheNum[CTG_CI_MAX_VALUE];
+  uint64_t cacheHit[CTG_CI_MAX_VALUE];
+  uint64_t cacheNHit[CTG_CI_MAX_VALUE];
+} SCtgCacheStat;
 
 typedef struct SCtgTbCacheInfo {
   bool     inCache;
@@ -374,12 +385,6 @@ typedef struct SCtgRuntimeStat {
   uint64_t numOfOpClearCache;
 } SCtgRuntimeStat;
 
-typedef struct SCtgCacheStat {
-  uint64_t cacheNum[CTG_CI_MAX_VALUE];
-  uint64_t cacheHit[CTG_CI_MAX_VALUE];
-  uint64_t cacheNHit[CTG_CI_MAX_VALUE];
-} SCtgCacheStat;
-
 typedef struct SCatalogStat {
   SCtgApiStat     api;
   SCtgRuntimeStat runtime;
@@ -486,7 +491,7 @@ typedef struct SCatalogMgmt {
   SCtgQueue    queue;
   TdThread     updateThread;
   SHashObj*    pCluster;  // key: clusterId, value: SCatalog*
-  SCatalogStat stat;
+  SCatalogStat statInfo;
   SCatalogCfg  cfg;
 } SCatalogMgmt;
 
@@ -499,6 +504,11 @@ typedef struct SCtgOperation {
   ctgOpFunc func;
 } SCtgOperation;
 
+typedef struct SCtgCacheItemInfo {
+  char   *name;
+  int32_t flag;
+} SCtgCacheItemInfo;
+
 #define CTG_AUTH_READ(_t) ((_t) == AUTH_TYPE_READ || (_t) == AUTH_TYPE_READ_OR_WRITE)
 #define CTG_AUTH_WRITE(_t) ((_t) == AUTH_TYPE_WRITE || (_t) == AUTH_TYPE_READ_OR_WRITE)
 
@@ -509,43 +519,41 @@ typedef struct SCtgOperation {
 #define CTG_STAT_DEC(_item, _n) atomic_sub_fetch_64(&(_item), _n)
 #define CTG_STAT_GET(_item)     atomic_load_64(&(_item))
 
-#define CTG_DB_NUM_INC(_item) dbCache->dbCacheNum[_itme] += 1
-#define CTG_DB_NUM_DEC(_item) dbCache->dbCacheNum[_itme] -= 1
-#define CTG_DB_NUM_SET(_item) dbCache->dbCacheNum[_itme] = 1
-#define CTG_DB_NUM_RESET(_item) dbCache->dbCacheNum[_itme] = 0
+#define CTG_DB_NUM_INC(_item) dbCache->dbCacheNum[_item] += 1
+#define CTG_DB_NUM_DEC(_item) dbCache->dbCacheNum[_item] -= 1
+#define CTG_DB_NUM_SET(_item) dbCache->dbCacheNum[_item] = 1
+#define CTG_DB_NUM_RESET(_item) dbCache->dbCacheNum[_item] = 0
 
-#define CTG_STAT_API_INC(item, n)    (CTG_STAT_INC(gCtgMgmt.stat.api.item, n))
-#define CTG_STAT_RT_INC(item, n)    (CTG_STAT_INC(gCtgMgmt.stat.runtime.item, n))
-#define CTG_STAT_NUM_INC(item, n) (CTG_STAT_INC(gCtgMgmt.stat.cache.cacheNum[item], n))
-#define CTG_STAT_NUM_DEC(item, n) (CTG_STAT_DEC(gCtgMgmt.stat.cache.cacheNum[item], n))
-#define CTG_STAT_HIT_INC(item, n) (CTG_STAT_INC(gCtgMgmt.stat.cache.cacheHit[item], n))
-#define CTG_STAT_HIT_DEC(item, n) (CTG_STAT_DEC(gCtgMgmt.stat.cache.cacheHit[item], n))
-#define CTG_STAT_NHIT_INC(item, n) (CTG_STAT_INC(gCtgMgmt.stat.cache.cacheNHit[item], n))
-#define CTG_STAT_NHIT_DEC(item, n) (CTG_STAT_DEC(gCtgMgmt.stat.cache.cacheNHit[item], n))
+#define CTG_STAT_API_INC(item, n)    (CTG_STAT_INC(gCtgMgmt.statInfo.api.item, n))
+#define CTG_STAT_RT_INC(item, n)    (CTG_STAT_INC(gCtgMgmt.statInfo.runtime.item, n))
+#define CTG_STAT_NUM_INC(item, n) (CTG_STAT_INC(gCtgMgmt.statInfo.cache.cacheNum[item], n))
+#define CTG_STAT_NUM_DEC(item, n) (CTG_STAT_DEC(gCtgMgmt.statInfo.cache.cacheNum[item], n))
+#define CTG_STAT_HIT_INC(item, n) (CTG_STAT_INC(gCtgMgmt.statInfo.cache.cacheHit[item], n))
+#define CTG_STAT_HIT_DEC(item, n) (CTG_STAT_DEC(gCtgMgmt.statInfo.cache.cacheHit[item], n))
+#define CTG_STAT_NHIT_INC(item, n) (CTG_STAT_INC(gCtgMgmt.statInfo.cache.cacheNHit[item], n))
+#define CTG_STAT_NHIT_DEC(item, n) (CTG_STAT_DEC(gCtgMgmt.statInfo.cache.cacheNHit[item], n))
 
-#define CTG_CACHE_NUM_INC(item, n) (CTG_STAT_INC(pCtg->stat.cache.cacheNum[item], n))
-#define CTG_CACHE_NUM_DEC(item, n) (CTG_STAT_DEC(pCtg->stat.cache.cacheNum[item], n))
-#define CTG_CACHE_HIT_INC(item, n) (CTG_STAT_INC(pCtg->stat.cache.cacheHit[item], n))
-#define CTG_CACHE_HIT_DEC(item, n) (CTG_STAT_DEC(pCtg->stat.cache.cacheHit[item], n))
-#define CTG_CACHE_NHIT_INC(item, n) (CTG_STAT_INC(pCtg->stat.cache.cacheNHit[item], n))
-#define CTG_CACHE_NHIT_DEC(item, n) (CTG_STAT_DEC(pCtg->stat.cache.cacheNHit[item], n))
+#define CTG_CACHE_NUM_INC(item, n) (CTG_STAT_INC(pCtg->cacheStat.cacheNum[item], n))
+#define CTG_CACHE_NUM_DEC(item, n) (CTG_STAT_DEC(pCtg->cacheStat.cacheNum[item], n))
+#define CTG_CACHE_HIT_INC(item, n) (CTG_STAT_INC(pCtg->cacheStat.cacheHit[item], n))
+#define CTG_CACHE_NHIT_INC(item, n) (CTG_STAT_INC(pCtg->cacheStat.cacheNHit[item], n))
 
 #define CTG_META_NUM_INC(type) do {                   \
   switch (type) {                                     \
     case TSDB_SUPER_TABLE:                            \
-      CTG_DB_NUM_INC(CTG_CI_STABLE_META, 1);          \
+      CTG_DB_NUM_INC(CTG_CI_STABLE_META);             \
       break;                                          \
     case TSDB_CHILD_TABLE:                            \
-      CTG_DB_NUM_INC(CTG_CI_CTABLE_META, 1);          \
+      CTG_DB_NUM_INC(CTG_CI_CTABLE_META);             \
       break;                                          \
     case TSDB_NORMAL_TABLE:                           \
-      CTG_DB_NUM_INC(CTG_CI_NTABLE_META, 1);          \
+      CTG_DB_NUM_INC(CTG_CI_NTABLE_META);             \
       break;                                          \
     case TSDB_SYSTEM_TABLE:                           \
-      CTG_DB_NUM_INC(CTG_CI_SYSTABLE_META, 1);        \
+      CTG_DB_NUM_INC(CTG_CI_SYSTABLE_META);           \
       break;                                          \
     default:                                          \
-      CTG_DB_NUM_INC(CTG_CI_OTHERTABLE_META, 1);      \
+      CTG_DB_NUM_INC(CTG_CI_OTHERTABLE_META);         \
       break;                                          \
   }                                                   \
 } while (0)  
@@ -553,19 +561,19 @@ typedef struct SCtgOperation {
 #define CTG_META_NUM_DEC(type) do {                   \
   switch (type) {                                     \
     case TSDB_SUPER_TABLE:                            \
-      CTG_DB_NUM_INC(CTG_CI_STABLE_META, 1);          \
+      CTG_DB_NUM_DEC(CTG_CI_STABLE_META);             \
       break;                                          \
     case TSDB_CHILD_TABLE:                            \
-      CTG_DB_NUM_INC(CTG_CI_CTABLE_META, 1);          \
+      CTG_DB_NUM_DEC(CTG_CI_CTABLE_META);             \
       break;                                          \
     case TSDB_NORMAL_TABLE:                           \
-      CTG_DB_NUM_INC(CTG_CI_NTABLE_META, 1);          \
+      CTG_DB_NUM_DEC(CTG_CI_NTABLE_META);             \
       break;                                          \
     case TSDB_SYSTEM_TABLE:                           \
-      CTG_DB_NUM_INC(CTG_CI_SYSTABLE_META, 1);        \
+      CTG_DB_NUM_DEC(CTG_CI_SYSTABLE_META);           \
       break;                                          \
     default:                                          \
-      CTG_DB_NUM_INC(CTG_CI_OTHERTABLE_META, 1);      \
+      CTG_DB_NUM_DEC(CTG_CI_OTHERTABLE_META);         \
       break;                                          \
   }                                                   \
 } while (0)  
@@ -776,6 +784,7 @@ typedef struct SCtgOperation {
 void    ctgdShowTableMeta(SCatalog* pCtg, const char* tbName, STableMeta* p);
 void    ctgdShowClusterCache(SCatalog* pCtg);
 int32_t ctgdShowCacheInfo(void);
+int32_t ctgdShowStatInfo(void);
 
 int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq);
 int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
@@ -900,10 +909,12 @@ int32_t ctgAcquireVgMetaFromCache(SCatalog *pCtg, const char *dbFName, const cha
 int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCtgTbCache **pTb, STableMeta **pTableMeta, char* dbFName);
 void    ctgReleaseVgMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, SCtgTbCache *pCache);
 void    ctgReleaseTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, SCtgTbCache *pCache);
+void    ctgGetGlobalCacheStat(SCtgCacheStat *pStat);
 
 extern SCatalogMgmt gCtgMgmt;
 extern SCtgDebug    gCTGDebug;
 extern SCtgAsyncFps gCtgAsyncFps[];
+extern SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE];
 
 #ifdef __cplusplus
 }
