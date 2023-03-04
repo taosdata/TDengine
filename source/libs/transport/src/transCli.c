@@ -877,7 +877,7 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
 static void cliDestroyConn(SCliConn* conn, bool clear) {
   SCliThrd* pThrd = conn->hostThrd;
   tTrace("%s conn %p remove from conn pool", CONN_GET_INST_LABEL(conn), conn);
-
+  conn->broken = true;
   QUEUE_REMOVE(&conn->q);
   QUEUE_INIT(&conn->q);
 
@@ -1262,7 +1262,7 @@ static void cliSendBatchCb(uv_write_t* req, int status) {
   } else {
     tDebug("%s conn %p succ to send batch msg, batch size:%d, msgLen:%d", CONN_GET_INST_LABEL(conn), conn, p->wLen,
            p->batchSize);
-    if (!uv_is_closing((uv_handle_t*)&conn->stream)) {
+    if (!uv_is_closing((uv_handle_t*)&conn->stream) && conn->broken == false) {
       if (nxtBatch != NULL) {
         conn->pBatch = nxtBatch;
         cliSendBatch(conn);
