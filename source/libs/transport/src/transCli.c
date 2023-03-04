@@ -13,7 +13,6 @@
  */
 
 #include "transComm.h"
-#include "tutil.h"
 
 typedef struct {
   int32_t numOfConn;
@@ -121,6 +120,9 @@ typedef struct SCliThrd {
   SCliMsg* stopMsg;
 
   bool quit;
+
+  int       newConnCount;
+  SHashObj* msgCount;
 } SCliThrd;
 
 typedef struct SCliObj {
@@ -422,6 +424,21 @@ void cliHandleResp(SCliConn* conn) {
     transMsg.info.handle = (void*)conn->refId;
     tDebug("%s conn %p ref by app", CONN_GET_INST_LABEL(conn), conn);
   }
+
+  // if (TMSG_INFO(pHead->msgType - 1) != 0) {
+  //   char buf[128] = {0};
+  //   sprintf(buf, "%s", TMSG_INFO(pHead->msgType - 1));
+  //   int* count = taosHashGet(pThrd->msgCount, TMSG_INFO(pHead->msgType - 1), strlen(TMSG_INFO(pHead->msgType - 1)));
+  //   if (NULL == 0) {
+  //     int localCount = 1;
+  //     taosHashPut(pThrd->msgCount, TMSG_INFO(pHead->msgType - 1), strlen(TMSG_INFO(pHead->msgType - 1)), &localCount,
+  //                 sizeof(localCount));
+  //   } else {
+  //     int localCount = *count - 1;
+  //     taosHashPut(pThrd->msgCount, TMSG_INFO(pHead->msgType - 1), strlen(TMSG_INFO(pHead->msgType - 1)), &localCount,
+  //                 sizeof(localCount));
+  //   }
+  // }
 
   STraceId* trace = &transMsg.info.traceId;
   tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, code str:%s", CONN_GET_INST_LABEL(conn), conn,
@@ -1098,6 +1115,20 @@ void cliSend(SCliConn* pConn) {
     msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
   }
 
+  if ((pHead->msgType > TDMT_VND_TMQ_MSG && pHead->msgType < TDMT_VND_TMQ_MAX_MSG) ||
+      (pHead->msgType > TDMT_MND_MSG && pHead->msgType < TDMT_MND_MAX_MSG)) {
+    char buf[128] = {0};
+    sprintf(buf, "%s", TMSG_INFO(pHead->msgType));
+    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+    if (NULL == 0) {
+      int localCount = 1;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    } else {
+      int localCount = *count + 1;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    }
+  }
+
   tGDebug("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
           TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, msgLen);
 
@@ -1173,6 +1204,7 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
     addr.sin_port = (uint16_t)htons(pList->port);
 
     tTrace("%s conn %p try to connect to %s", pTransInst->label, conn, pList->dst);
+    pThrd->newConnCount++;
     int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10);
     if (fd == -1) {
       tError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
@@ -1546,6 +1578,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     addr.sin_port = (uint16_t)htons(port);
 
     tGTrace("%s conn %p try to connect to %s", pTransInst->label, conn, conn->ip);
+    pThrd->newConnCount++;
     int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 4);
     if (fd == -1) {
       tGError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
@@ -1734,6 +1767,19 @@ static void cliAsyncCb(uv_async_t* handle) {
   taosThreadMutexLock(&item->mtx);
   QUEUE_MOVE(&item->qmsg, &wq);
   taosThreadMutexUnlock(&item->mtx);
+
+  void* pIter = taosHashIterate(pThrd->msgCount, NULL);
+  while (pIter != NULL) {
+    int*   count = pIter;
+    size_t len = 0;
+    char*  key = taosHashGetKey(pIter, &len);
+    if (*count != 0) {
+      tDebug("key: %s count: %d", key, *count);
+    }
+
+    pIter = taosHashIterate(pThrd->msgCount, pIter);
+  }
+  tDebug("all conn count: %d", pThrd->newConnCount);
 
   int8_t supportBatch = pTransInst->supportBatch;
   if (supportBatch == 0) {
@@ -1969,6 +2015,9 @@ static SCliThrd* createThrdObj(void* trans) {
   pThrd->batchCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
 
   pThrd->quit = false;
+
+  pThrd->newConnCount = 0;
+  pThrd->msgCount = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   return pThrd;
 }
 static void destroyThrdObj(SCliThrd* pThrd) {
@@ -2316,6 +2365,19 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     }
   }
 
+  if ((pResp->msgType - 1 > TDMT_VND_TMQ_MSG && pResp->msgType - 1 < TDMT_VND_TMQ_MAX_MSG) ||
+      (pResp->msgType - 1 > TDMT_MND_MSG && pResp->msgType - 1 < TDMT_MND_MAX_MSG)) {
+    char buf[128] = {0};
+    sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
+    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+    if (NULL == 0) {
+      int localCount = 0;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    } else {
+      int localCount = *count - 1;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    }
+  }
   if (pCtx->pSem != NULL) {
     tGTrace("%s conn %p(sync) handle resp", CONN_GET_INST_LABEL(pConn), pConn);
     if (pCtx->pRsp == NULL) {
