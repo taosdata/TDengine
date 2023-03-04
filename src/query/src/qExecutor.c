@@ -4551,9 +4551,9 @@ int32_t setTimestampListJoinInfo(SQueryRuntimeEnv* pRuntimeEnv, tVariant* pTag, 
     if (!tsBufIsValidElem(&elem)) {
       if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR ||
           pTag->nType == TSDB_DATA_TYPE_JSON) {
-        qError("QInfo:0x%" PRIx64 " failed to find tag:%s in ts_comp", GET_QID(pRuntimeEnv), pTag->pz);
+        qDebug("QInfo:0x%" PRIx64 " tag not found in:%s in ts_comp", GET_QID(pRuntimeEnv), pTag->pz);
       } else {
-        qError("QInfo:0x%" PRIx64 " failed to find tag:%" PRId64 " in ts_comp", GET_QID(pRuntimeEnv), pTag->i64);
+        qDebug("QInfo:0x%" PRIx64 " tag not found in:%" PRId64 " in ts_comp", GET_QID(pRuntimeEnv), pTag->i64);
       }
 
       return -1;
