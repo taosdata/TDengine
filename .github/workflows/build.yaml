@@ -21,7 +21,7 @@ jobs:
         id: setup-rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           default: true
 
       - name: Install compiler
