@@ -1918,6 +1918,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
   // in no topic status, delayed task also need to be processed
   if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__INIT) {
     tscDebug("consumer:0x%" PRIx64 " poll return since consumer is init", tmq->consumerId);
+    // sleep for a while
     return NULL;
   }
 
