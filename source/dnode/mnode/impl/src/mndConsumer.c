@@ -637,7 +637,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
         subscribe.cgroup, (int32_t) taosArrayGetSize(pTopicList));
 
     pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
-    tstrncpy(pConsumerNew->clientId, subscribe.clientId, 256);
+    tstrncpy(pConsumerNew->clientId, subscribe.clientId, tListLen(pConsumerNew->clientId));
 
     // set the update type
     pConsumerNew->updateType = CONSUMER_UPDATE__MODIFY;
