@@ -1116,18 +1116,18 @@ void cliSend(SCliConn* pConn) {
     msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
   }
 
-  if (tmsgIsValid(pHead->msgType)) {
-    char buf[128] = {0};
-    sprintf(buf, "%s", TMSG_INFO(pHead->msgType));
-    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
-    if (NULL == 0) {
-      int localCount = 1;
-      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-    } else {
-      int localCount = *count + 1;
-      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-    }
-  }
+  // if (tmsgIsValid(pHead->msgType)) {
+  //   char buf[128] = {0};
+  //   sprintf(buf, "%s", TMSG_INFO(pHead->msgType));
+  //   int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+  //   if (NULL == 0) {
+  //     int localCount = 1;
+  //     taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+  //   } else {
+  //     int localCount = *count + 1;
+  //     taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+  //   }
+  // }
 
   tGDebug("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
           TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, msgLen);
@@ -1522,6 +1522,18 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   if (!EPSET_IS_VALID(&pMsg->ctx->epSet)) {
     destroyCmsg(pMsg);
     return;
+  }
+  if (tmsgIsValid(pMsg->msg.msgType)) {
+    char buf[128] = {0};
+    sprintf(buf, "%s", TMSG_INFO(pMsg->msg.msgType));
+    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+    if (NULL == 0) {
+      int localCount = 1;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    } else {
+      int localCount = *count + 1;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    }
   }
 
   char*    fqdn = EPSET_GET_INUSE_IP(&pMsg->ctx->epSet);
