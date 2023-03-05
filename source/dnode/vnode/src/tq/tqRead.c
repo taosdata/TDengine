@@ -297,7 +297,7 @@ int32_t tqSeekVer(STqReader* pReader, int64_t ver, const char* id) {
     tqError("tmq poll: wal reader failed to seek to ver:%"PRId64" code:%s, %s", ver, tstrerror(terrno), id);
     return -1;
   } else {
-    tqError("tmq poll: wal reader seek to ver:%"PRId64" %s", ver, id);
+    tqDebug("tmq poll: wal reader seek to ver:%"PRId64" %s", ver, id);
     return 0;
   }
 }
@@ -308,13 +308,12 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
   while (1) {
     if (!fromProcessedMsg) {
       if (walNextValidMsg(pReader->pWalReader) < 0) {
-        pReader->ver =
-            pReader->pWalReader->curVersion - pReader->pWalReader->curStopped;
-//            pReader->pWalReader->curVersion - (pReader->pWalReader->curInvalid | pReader->pWalReader->curStopped);
+        pReader->ver = pReader->pWalReader->curVersion - pReader->pWalReader->curStopped;
         ret->offset.type = TMQ_OFFSET__LOG;
+
         ret->offset.version = pReader->ver;
         ret->fetchType = FETCH_TYPE__NONE;
-        tqDebug("return offset %" PRId64 ", no more valid", ret->offset.version);
+        tqDebug("return offset %" PRId64 ", no more valid msg in wal", ret->offset.version);
         return -1;
       }
 

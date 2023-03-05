@@ -1632,8 +1632,12 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     while (1) {
       SFetchRet ret = {0};
       if (tqNextBlock(pInfo->tqReader, &ret) < 0) {
-        qError("failed to get next log block since %s", terrstr());
+        // if the end is reached, terrno is 0
+        if (terrno != 0) {
+          qError("failed to get next log block since %s", terrstr());
+        }
       }
+
       if (ret.fetchType == FETCH_TYPE__DATA) {
         blockDataCleanup(pInfo->pRes);
         setBlockIntoRes(pInfo, &ret.data, true);

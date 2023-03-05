@@ -263,7 +263,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
     imbConsumerNum = totalVgNum % afterRebConsumerNum;
   }
 
-  mInfo("sub:%s mq re-balance %d consumers: at least %d vg each, %d consumer has more vg", sub,
+  mInfo("sub:%s mq re-balance %d consumers: at least %d vgs each, %d consumers has more vgs", sub,
         afterRebConsumerNum, minVgCnt, imbConsumerNum);
 
   // 4. first scan: remove consumer more than wanted, put to remove hash
@@ -591,13 +591,13 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       rebOutput.pSub = mndCreateSubscription(pMnode, pTopic, pRebInfo->key);
 
       if (rebOutput.pSub == NULL) {
-        mError("mq rebalance %s failed create sub since %s, abort", pRebInfo->key, terrstr());
+        mError("mq rebalance %s failed create sub since %s, ignore", pRebInfo->key, terrstr());
         taosRUnLockLatch(&pTopic->lock);
         mndReleaseTopic(pMnode, pTopic);
         continue;
       }
-      memcpy(rebOutput.pSub->dbName, pTopic->db, TSDB_DB_FNAME_LEN);
 
+      memcpy(rebOutput.pSub->dbName, pTopic->db, TSDB_DB_FNAME_LEN);
       taosRUnLockLatch(&pTopic->lock);
       mndReleaseTopic(pMnode, pTopic);
 
