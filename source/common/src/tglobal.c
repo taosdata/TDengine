@@ -66,7 +66,8 @@ int32_t tsHeartbeatTimeout = 20 * 1000;
 int64_t tsVndCommitMaxIntervalMs = 600 * 1000;
 
 // mnode
-int64_t tsMndSdbWriteDelta = 2000;
+int64_t tsMndSdbWriteDelta = 200;
+int64_t tsMndLogRetention = 2000;
 
 // monitor
 bool     tsEnableMonitor = true;
@@ -461,6 +462,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt64(pCfg, "vndCommitMaxInterval", tsVndCommitMaxIntervalMs, 1000, 1000 * 60 * 60, 0) != 0) return -1;
 
   if (cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, 0) != 0) return -1;
+  if (cfgAddInt64(pCfg, "mndLogRetention", tsMndLogRetention, 500, 10000, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, 0) != 0) return -1;
@@ -808,6 +810,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsVndCommitMaxIntervalMs = cfgGetItem(pCfg, "vndCommitMaxInterval")->i64;
 
   tsMndSdbWriteDelta = cfgGetItem(pCfg, "mndSdbWriteDelta")->i64;
+  tsMndLogRetention = cfgGetItem(pCfg, "mndLogRetention")->i64;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));

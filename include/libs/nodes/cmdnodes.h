@@ -41,14 +41,15 @@ extern "C" {
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 
 #define SHOW_ALIVE_RESULT_COLS 1
-#define PRIVILEGE_TYPE_MASK(n) (1 << n)
 
-#define PRIVILEGE_TYPE_ALL       PRIVILEGE_TYPE_MASK(0)
-#define PRIVILEGE_TYPE_READ      PRIVILEGE_TYPE_MASK(1)
-#define PRIVILEGE_TYPE_WRITE     PRIVILEGE_TYPE_MASK(2)
-#define PRIVILEGE_TYPE_SUBSCRIBE PRIVILEGE_TYPE_MASK(3)
+#define BIT_FLAG_MASK(n)              (1 << n)
+#define BIT_FLAG_SET_MASK(val, mask)  ((val) |= (mask))
+#define BIT_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
-#define PRIVILEGE_TYPE_TEST_MASK(val, mask) (((val) & (mask)) != 0)
+#define PRIVILEGE_TYPE_ALL       BIT_FLAG_MASK(0)
+#define PRIVILEGE_TYPE_READ      BIT_FLAG_MASK(1)
+#define PRIVILEGE_TYPE_WRITE     BIT_FLAG_MASK(2)
+#define PRIVILEGE_TYPE_SUBSCRIBE BIT_FLAG_MASK(3)
 
 typedef struct SDatabaseOptions {
   ENodeType   type;
@@ -393,6 +394,15 @@ typedef struct SKillQueryStmt {
   char      queryId[TSDB_QUERY_ID_LEN];
 } SKillQueryStmt;
 
+typedef enum EStreamOptionsSetFlag {
+  SOPT_TRIGGER_TYPE_SET = BIT_FLAG_MASK(0),
+  SOPT_WATERMARK_SET = BIT_FLAG_MASK(1),
+  SOPT_DELETE_MARK_SET = BIT_FLAG_MASK(2),
+  SOPT_FILL_HISTORY_SET = BIT_FLAG_MASK(3),
+  SOPT_IGNORE_EXPIRED_SET = BIT_FLAG_MASK(4),
+  SOPT_IGNORE_UPDATE_SET = BIT_FLAG_MASK(5),
+} EStreamOptionsSetFlag;
+
 typedef struct SStreamOptions {
   ENodeType type;
   int8_t    triggerType;
@@ -402,6 +412,7 @@ typedef struct SStreamOptions {
   int8_t    fillHistory;
   int8_t    ignoreExpired;
   int8_t    ignoreUpdate;
+  int64_t   setFlag;
 } SStreamOptions;
 
 typedef struct SCreateStreamStmt {
