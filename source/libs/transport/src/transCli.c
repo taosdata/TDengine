@@ -890,6 +890,7 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
     connList->list->numOfConn--;
   }
   conn->list = NULL;
+  pThrd->newConnCount--;
 
   transReleaseExHandle(transGetRefMgt(), conn->refId);
   transRemoveExHandle(transGetRefMgt(), conn->refId);
@@ -2074,6 +2075,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     pIter = (void**)taosHashIterate(pThrd->batchCache, pIter);
   }
   taosHashCleanup(pThrd->batchCache);
+  taosHashCleanup(pThrd->msgCount);
   taosMemoryFree(pThrd);
 }
 
