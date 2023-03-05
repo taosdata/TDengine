@@ -1076,12 +1076,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   SCMSubscribeReq req = {0};
   int32_t         code = 0;
 
-  if (sz == 0) {
-    tscDebug("consumer:0x%" PRIx64 " cgroup:%s, subscribe %d topics, not allowed", tmq->consumerId, tmq->groupId, sz);
-    return TSDB_CODE_TQ_NO_SUBSCRIBE_TOPICS;
-  } else {
-    tscDebug("consumer:0x%" PRIx64 " cgroup:%s, subscribe %d topics", tmq->consumerId, tmq->groupId, sz);
-  }
+  tscDebug("consumer:0x%" PRIx64 " cgroup:%s, subscribe %d topics", tmq->consumerId, tmq->groupId, sz);
 
   req.consumerId = tmq->consumerId;
   tstrncpy(req.clientId, tmq->clientId, 256);

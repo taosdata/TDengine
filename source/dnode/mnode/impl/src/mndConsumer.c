@@ -82,18 +82,29 @@ bool mndRebTryStart() {
 }
 
 void mndRebEnd() {
-  int32_t val = atomic_sub_fetch_32(&mqRebInExecCnt, 1);
-  mInfo("rebalance end, rebalance count:%d", val);
+  mndRebCntDec();
 }
 
 void mndRebCntInc() {
   int32_t val = atomic_add_fetch_32(&mqRebInExecCnt, 1);
-  mInfo("rebalance trans start, rebalance count:%d", val);
+  mInfo("rebalance trans start, rebalance counter:%d", val);
 }
 
 void mndRebCntDec() {
-  int32_t val = atomic_sub_fetch_32(&mqRebInExecCnt, 1);
-  mInfo("rebalance trans end, rebalance count:%d", val);
+  while (1) {
+    int32_t val = atomic_load_32(&mqRebInExecCnt);
+    if (val <= 0) {
+      mError("rebalance trans end, rebalance counter:%d should not be less equalled than 0, ignore counter desc", val);
+      break;
+    }
+
+    int32_t newVal = val - 1;
+    int32_t oldVal = atomic_val_compare_exchange_32(&mqRebInExecCnt, val, newVal);
+    if (oldVal == val) {
+      mInfo("rebalance trans end, rebalance counter:%d", newVal);
+      break;
+    }
+  }
 }
 
 static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg) {
@@ -308,6 +319,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
       taosRUnLockLatch(&pConsumer->lock);
     } else if (status == MQ_CONSUMER_STATUS__MODIFY) {
       taosRLockLatch(&pConsumer->lock);
+
       int32_t newTopicNum = taosArrayGetSize(pConsumer->rebNewTopics);
       for (int32_t i = 0; i < newTopicNum; i++) {
         char  key[TSDB_SUBSCRIBE_KEY_LEN];
@@ -700,6 +712,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
     // no topics need to be rebalanced
     if (taosArrayGetSize(pConsumerNew->rebNewTopics) == 0 && taosArrayGetSize(pConsumerNew->rebRemovedTopics) == 0) {
+//      mInfo();
       goto _over;
     }
 
@@ -1057,7 +1070,6 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
     }
 
     taosRLockLatch(&pConsumer->lock);
-
     mDebug("showing consumer:0x%" PRIx64, pConsumer->consumerId);
 
     int32_t topicSz = taosArrayGetSize(pConsumer->assignedTopics);
