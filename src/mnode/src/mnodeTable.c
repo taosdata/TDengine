@@ -68,6 +68,7 @@ static int32_t   tsSuperTableUpdateSize;
 typedef struct {
   int32_t  vgId;
   int32_t  tid;
+  int32_t  sversion;
   uint64_t uid;
   uint64_t suid;
 } SMetaInfo;
@@ -2262,7 +2263,7 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, SMetaInfo *pInf) {
       }
     }
 
-    pTable->sversion     = 0;
+    pTable->sversion     = htonl(pInf->sversion);
     pTable->numOfColumns = htons(pCreate->numOfColumns);
     pTable->sqlLen       = htons(pCreate->sqlLen);
 
@@ -2325,7 +2326,7 @@ static int32_t mnodeProcessMetaSyncCreateChildTableMsg(SMnodeMsg *pMsg, SMetaInf
   SCreateTableMsg *pCreate = (SCreateTableMsg *)((char *)pMsg->rpcMsg.pCont + sizeof(SCMCreateTableMsg));
   int32_t          code = 0;
 
-  // 0.db0._taos_meta_sync_cret_mndtb_taos_vgId.suid.uid.tid.tbName
+  // 0.db0._taos_meta_sync_cret_mndtb_taos_vgId.suid.uid.tid.sversion.tbName
   if (strstr(pCreate->tableName, META_SYNC_CRET_MNDTB)) {
     code = TSDB_CODE_MND_INVALID_FORMAT;
     char  realName[TSDB_TABLE_FNAME_LEN] = {0};
@@ -2342,9 +2343,12 @@ static int32_t mnodeProcessMetaSyncCreateChildTableMsg(SMnodeMsg *pMsg, SMetaInf
             if ((pTbName = strchr(pTbName, '.'))) {
               pInf->tid = atoi(++pTbName);
               if ((pTbName = strchr(pTbName, '.'))) {
-                int32_t len = strlen(realName);
-                strncpy(realName + len, pTbName + 1, TSDB_TABLE_FNAME_LEN - len - 1);
-                code = 0;
+                pInf->sversion = atoi(++pTbName);
+                if ((pTbName = strchr(pTbName, '.'))) {
+                  int32_t len = strlen(realName);
+                  strncpy(realName + len, pTbName + 1, TSDB_TABLE_FNAME_LEN - len - 1);
+                  code = 0;
+                }
               }
             }
           }
