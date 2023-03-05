@@ -467,18 +467,19 @@ async fn sync_super_table_schema(
         .query_one(format!("show create table `{name}`"))
         .await?
         .unwrap();
-    if let Err(err) = to
-        .exec(
-            sql.replace("VARCHAR", "BINARY")
-                .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
-                .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS"),
-        )
-        .await
-    {
+    let sql = sql
+        .replace("VARCHAR", "BINARY")
+        .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
+        .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS");
+    if let Err(err) = to.exec(&sql).await {
         if err.to_string().contains("0x000B") {
-            from.exec(format!("desc `{name}`")).await?;
+            if let Err(desc_error) = from.exec(format!("desc `{name}`")).await {
+                to.exec(&sql)
+                    .await
+                    .with_context(|| format!("Execute sql: {sql}"))?;
+            }
         } else {
-            Err(err)?;
+            Err(err).with_context(|| format!("Execute sql: {sql}"))?;
         }
     }
 
@@ -497,7 +498,10 @@ async fn sync_super_table_schema(
     } else {
         format!("SELECT tbname, {tag_names} FROM `{name}`")
     };
-    let mut res = from.query(sql).await?;
+    let mut res = from
+        .query(sql)
+        .await
+        .with_context(|| format!("Try to get table name and tags with sql: {sql}"))?;
 
     let mut blocks = res.blocks();
     const MAX_SQL_LEN: usize = 1000 * 1000; // 800kb.
@@ -515,7 +519,9 @@ async fn sync_super_table_schema(
             let e = format!(" IF NOT EXISTS `{child}` USING `{name}` TAGS({tags})");
 
             if sql.len() + e.len() > max_sql_length {
-                to.exec(&sql).await?;
+                to.exec(&sql)
+                    .await
+                    .with_context(|| format!("Create child tables with sql: {sql}"))?;
                 if let Some(duration) = target_opts.interval {
                     tokio::time::sleep(duration).await;
                 }
