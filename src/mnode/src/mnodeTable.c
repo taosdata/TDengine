@@ -2263,7 +2263,7 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, SMetaInfo *pInf) {
       }
     }
 
-    pTable->sversion     = htonl(pInf->sversion);
+    pTable->sversion     = pInf->sversion;
     pTable->numOfColumns = htons(pCreate->numOfColumns);
     pTable->sqlLen       = htons(pCreate->sqlLen);
 
