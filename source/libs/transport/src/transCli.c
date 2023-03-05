@@ -692,6 +692,7 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
       }
       list->numOfConn++;
     }
+    tTrace("%s numOfConn: %d, limit: %d", pTransInst->label, list->numOfConn, pTransInst->connLimitNum);
     return NULL;
   }
 
@@ -803,7 +804,6 @@ static int32_t specifyConnRef(SCliConn* conn, bool update, int64_t handle) {
 static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SCliConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
-  tTrace("%s conn %p alloc read buf", CONN_GET_INST_LABEL(conn), conn);
   transAllocBuffer(pBuf, buf);
 }
 static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
@@ -877,7 +877,7 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
 static void cliDestroyConn(SCliConn* conn, bool clear) {
   SCliThrd* pThrd = conn->hostThrd;
   tTrace("%s conn %p remove from conn pool", CONN_GET_INST_LABEL(conn), conn);
-
+  conn->broken = true;
   QUEUE_REMOVE(&conn->q);
   QUEUE_INIT(&conn->q);
 
@@ -1115,19 +1115,18 @@ void cliSend(SCliConn* pConn) {
     msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
   }
 
-  if ((pHead->msgType > TDMT_VND_TMQ_MSG && pHead->msgType < TDMT_VND_TMQ_MAX_MSG) ||
-      (pHead->msgType > TDMT_MND_MSG && pHead->msgType < TDMT_MND_MAX_MSG)) {
-    char buf[128] = {0};
-    sprintf(buf, "%s", TMSG_INFO(pHead->msgType));
-    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
-    if (NULL == 0) {
-      int localCount = 1;
-      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-    } else {
-      int localCount = *count + 1;
-      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-    }
-  }
+  // if (tmsgIsValid(pHead->msgType)) {
+  //   char buf[128] = {0};
+  //   sprintf(buf, "%s", TMSG_INFO(pHead->msgType));
+  //   int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+  //   if (NULL == 0) {
+  //     int localCount = 1;
+  //     taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+  //   } else {
+  //     int localCount = *count + 1;
+  //     taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+  //   }
+  // }
 
   tGDebug("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
           TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, msgLen);
@@ -1262,7 +1261,7 @@ static void cliSendBatchCb(uv_write_t* req, int status) {
   } else {
     tDebug("%s conn %p succ to send batch msg, batch size:%d, msgLen:%d", CONN_GET_INST_LABEL(conn), conn, p->wLen,
            p->batchSize);
-    if (!uv_is_closing((uv_handle_t*)&conn->stream)) {
+    if (!uv_is_closing((uv_handle_t*)&conn->stream) && conn->broken == false) {
       if (nxtBatch != NULL) {
         conn->pBatch = nxtBatch;
         cliSendBatch(conn);
@@ -1522,6 +1521,18 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   if (!EPSET_IS_VALID(&pMsg->ctx->epSet)) {
     destroyCmsg(pMsg);
     return;
+  }
+  if (tmsgIsValid(pMsg->msg.msgType)) {
+    char buf[128] = {0};
+    sprintf(buf, "%s", TMSG_INFO(pMsg->msg.msgType));
+    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+    if (NULL == 0) {
+      int localCount = 1;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    } else {
+      int localCount = *count + 1;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    }
   }
 
   char*    fqdn = EPSET_GET_INUSE_IP(&pMsg->ctx->epSet);
@@ -2365,8 +2376,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     }
   }
 
-  if ((pResp->msgType - 1 > TDMT_VND_TMQ_MSG && pResp->msgType - 1 < TDMT_VND_TMQ_MAX_MSG) ||
-      (pResp->msgType - 1 > TDMT_MND_MSG && pResp->msgType - 1 < TDMT_MND_MAX_MSG)) {
+  if (tmsgIsValid(pResp->msgType - 1)) {
     char buf[128] = {0};
     sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
     int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
