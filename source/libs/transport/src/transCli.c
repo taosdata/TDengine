@@ -1116,7 +1116,8 @@ void cliSend(SCliConn* pConn) {
   }
 
   if ((pHead->msgType > TDMT_VND_TMQ_MSG && pHead->msgType < TDMT_VND_TMQ_MAX_MSG) ||
-      (pHead->msgType > TDMT_MND_MSG && pHead->msgType < TDMT_MND_MAX_MSG)) {
+      (pHead->msgType > TDMT_MND_MSG && pHead->msgType < TDMT_MND_MAX_MSG) || pHead->msgType == TDMT_VND_SUBMIT ||
+      pHead->msgType == TDMT_MND_HEARTBEAT) {
     char buf[128] = {0};
     sprintf(buf, "%s", TMSG_INFO(pHead->msgType));
     int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
@@ -2366,7 +2367,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   }
 
   if ((pResp->msgType - 1 > TDMT_VND_TMQ_MSG && pResp->msgType - 1 < TDMT_VND_TMQ_MAX_MSG) ||
-      (pResp->msgType - 1 > TDMT_MND_MSG && pResp->msgType - 1 < TDMT_MND_MAX_MSG)) {
+      (pResp->msgType - 1 > TDMT_MND_MSG && pResp->msgType - 1 < TDMT_MND_MAX_MSG) ||
+      pResp->msgType - 1 == TDMT_VND_SUBMIT_RSP || pResp->msgType - 1 == TDMT_MND_HEARTBEAT_RSP) {
     char buf[128] = {0};
     sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
     int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
