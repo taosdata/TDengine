@@ -129,6 +129,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
   rpcSendRecv(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp);
   if (rpcRsp.code != 0) {
+    dmRotateMnodeEpSet(pMgmt->pData);
     char tbuf[256];
     dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
     dError("failed to send status req since %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code), tbuf, epSet.inUse);
