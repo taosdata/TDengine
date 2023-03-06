@@ -727,6 +727,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
 
+  tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;
   tsNumOfRpcSessions = cfgGetItem(pCfg, "numOfRpcSessions")->i32;
 
   tsTimeToGetAvailableConn = cfgGetItem(pCfg, "timeToGetAvailableConn")->i32;
