@@ -786,7 +786,6 @@ static int32_t specifyConnRef(SCliConn* conn, bool update, int64_t handle) {
 static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SCliConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
-  tTrace("%s conn %p alloc read buf", CONN_GET_INST_LABEL(conn), conn);
   transAllocBuffer(pBuf, buf);
 }
 static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
