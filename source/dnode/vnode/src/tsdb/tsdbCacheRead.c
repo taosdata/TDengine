@@ -292,7 +292,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
-    pRes[j] = taosMemoryCalloc(1, sizeof(SFirstLastRes) + pr->pSchema->columns[slotIds[j]].bytes + VARSTR_HEADER_SIZE);
+    pRes[j] = taosMemoryCalloc(
+        1, sizeof(SFirstLastRes) + pr->pSchema->columns[-1 == slotIds[j] ? 0 : slotIds[j]].bytes + VARSTR_HEADER_SIZE);
     SFirstLastRes* p = (SFirstLastRes*)varDataVal(pRes[j]);
     p->ts = INT64_MIN;
   }
