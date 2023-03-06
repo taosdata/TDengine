@@ -357,10 +357,11 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
   if (numOfFinal) {
     minVgCnt = totalVgNum / numOfFinal;
     imbConsumerNum = totalVgNum % numOfFinal;
+    mInfo("sub:%s mq re-balance %d consumers: at least %d vgs each, %d consumers has 1 more vgroups than avg value",
+          pSubKey, numOfFinal, minVgCnt, imbConsumerNum);
+  } else {
+    mInfo("sub:%s no consumer subscribe this topic", pSubKey);
   }
-
-  mInfo("sub:%s mq re-balance %d consumers: at least %d vgs each, %d consumers has 1 more vgroups than avg value",
-        pSubKey, numOfFinal, minVgCnt, imbConsumerNum);
 
   // 5. first scan: remove vgroups from te consumers, who have more vgroups than the threashold value that is
   // minVgCnt, and then put them into the recycled hash list
