@@ -1032,8 +1032,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
             for value_type in ["obj", "default"]:
                 self.init_check(value_type)
                 self.symbols_check(value_type)
-                # ! TD-22903
-                # self.ts_check()
+                self.ts_check()
                 self.max_col_tag_check(value_type)
                 self.now_check(value_type)
                 self.date_format_check(value_type)
@@ -1041,8 +1040,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
                 # self.tag_value_length_check(value_type)
                 self.col_value_length_check()
                 self.tag_col_illegal_value_check(value_type)
-                # ! TD-22898
-                # self.tag_col_binary_nchar_length_increase_check(value_type)
+                self.tag_col_binary_nchar_length_increase_check(value_type)
                 # self.tag_col_binary_max_length_check(value_type)
                 # self.tag_col_nchar_max_length_check(value_type)
                 self.batch_insert_check(value_type)

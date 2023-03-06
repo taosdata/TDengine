@@ -1066,8 +1066,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             self.s_stb_d_tb_d_data_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_mt_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_at_insert_multi_thread_check()
-            # ! TD-22898
-            # self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_mt_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_at_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()

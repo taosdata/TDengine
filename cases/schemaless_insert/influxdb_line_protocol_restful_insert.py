@@ -364,19 +364,19 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql_id = self.tdCom.gen_full_type_sql(id_double_tag=True)[0]
         res = self.tdRest.schemalessApiPost(sql=input_sql_id, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("bound tags error", res.text)
+        self.tdSql.checkIn("Cannot add duplicate keys to hash", res.text)
 
         input_sql = self.tdCom.gen_full_type_sql()[0]
         input_sql_tag = input_sql.replace("t5", "t6")
         res = self.tdRest.schemalessApiPost(sql=input_sql_tag, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("bound tags error", res.text)
+        self.tdSql.checkIn("Cannot add duplicate keys to hash", res.text)
 
         input_sql = self.tdCom.gen_full_type_sql()[0]
         input_sql_col = input_sql.replace("c5", "c6")
         res = self.tdRest.schemalessApiPost(sql=input_sql_col, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("bound tags error", res.text)
+        self.tdSql.checkIn("Cannot add duplicate keys to hash", res.text)
 
     ##### stb exist #####
     def duplicate_insert_exist_check(self):
@@ -595,8 +595,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         self.tag_value_length_check()
         self.col_value_length_check()
         self.tag_col_illegal_value_check()
-        # ! TD-22900
-        # self.duplicate_id_tag_col_insert_Check()
+        self.duplicate_id_tag_col_insert_Check()
         self.duplicate_insert_exist_check()
         self.tag_col_binary_nchar_length_increase_check()
         # self.tag_col_binary_max_length_check()
