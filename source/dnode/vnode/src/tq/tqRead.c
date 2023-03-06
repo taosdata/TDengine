@@ -308,7 +308,12 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
   while (1) {
     if (!fromProcessedMsg) {
       if (walNextValidMsg(pReader->pWalReader) < 0) {
-        pReader->ver = pReader->pWalReader->curVersion - pReader->pWalReader->curStopped;
+//        pReader->ver = pReader->pWalReader->curVersion - pReader->pWalReader->curStopped;
+        if(pReader->pWalReader->curInvalid == 0){
+          pReader->ver = pReader->pWalReader->curVersion - pReader->pWalReader->curStopped;
+        }else{
+          pReader->ver = walGetLastVer(pReader->pWalReader->pWal);
+        }
         ret->offset.type = TMQ_OFFSET__LOG;
 
         ret->offset.version = pReader->ver;
