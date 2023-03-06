@@ -72,8 +72,9 @@
         </el-col>
       </el-row>
     </el-dialog> -->
-    <el-dialog :close-on-click-modal="false" align="center" :title="$t('stream.createStream')" width="800px" :visible.sync="dialog">
-      <AddForm type="stream" @close="close" :stream-list="streamList" />
+    <el-dialog :close-on-click-modal="false" align="center" :title="$t('stream.createStream')" width="800px" :visible.sync="dialog"  @close='closeDialog'
+      :destroy-on-close='true'>
+      <AddForm type="stream" @close="close" :stream-list="streamList" ref="stream"/>
     </el-dialog>
   </div>
 </template>
@@ -109,6 +110,10 @@
       this.getStreams();
     },
     methods: {
+      closeDialog(){
+        console.log(this.$refs.stream,'----stream----');
+        this.dialog=false
+      },
       async getStreams() {
         if (this.requestIng) return;
         this.requestIng = true;

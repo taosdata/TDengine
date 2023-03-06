@@ -57,6 +57,8 @@
       :title="$t('topic.addsource')"
       width="600px"
       :visible.sync="dialog"
+      @close='closeDialog'
+      :destroy-on-close='true'
     >
       <el-form
         :model="ruleForm"

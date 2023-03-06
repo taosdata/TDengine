@@ -42,6 +42,11 @@ export default {
           },
         add() {
             this.dialog = true
-        }
+        },
+        closeDialog(){
+            this.$refs.ruleForm.resetFields();
+            this.$refs.ruleForm.clearValidate()
+             this.dialog=false
+         },
     }
 }

@@ -1,7 +1,13 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled='refreshable'>
+      <el-button
+        plain
+        @click="refresh"
+        size="small"
+        icon="el-icon-refresh"
+        :disabled="refreshable"
+      >
         {{ $t("refresh") }}
       </el-button>
       <el-button plain @click="add" size="small" icon="el-icon-plus"
@@ -67,6 +73,8 @@
       title="Add New Replication"
       width="600px"
       :visible.sync="dialog"
+      @close="closeDialog"
+      :destroy-on-close="true"
     >
       <el-form
         :model="ruleForm"
@@ -128,7 +136,7 @@ import taosbenchmarkVue from "@/utils/config/mdx/en/taosbenchmark.vue";
 export default {
   data() {
     return {
-      refreshable:false,
+      refreshable: false,
       pageSize: 10,
       currentPage: 1,
       total: 10,
@@ -168,6 +176,11 @@ export default {
   },
   methods: {
     handlePageChange() {},
+    closeDialog() {
+      this.$refs.ruleForm.resetFields();
+      this.$refs.ruleForm.clearValidate();
+      this.dialog = false;
+    },
     add() {
       this.dialog = true;
       this.ruleForm.source = "";
@@ -189,7 +202,7 @@ export default {
       });
     },
     refresh() {
-      this.refreshable=true
+      this.refreshable = true;
       this.getReplication();
     },
     async addReplication() {
@@ -213,7 +226,6 @@ export default {
           }
           this.dialog = false;
         });
-        
       } catch (err) {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
@@ -285,7 +297,8 @@ export default {
         err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
-      this.refreshable=false
+      this.refreshable = false;
+
     },
     async getDatabases() {
       try {

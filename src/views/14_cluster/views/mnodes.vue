@@ -45,6 +45,8 @@
       :title="$t('topic.addsource')"
       width="600px"
       :visible.sync="dialog"
+      @close='closeDialog'
+      :destroy-on-close='true'
     >
       <el-form
         :model="ruleForm"
@@ -61,6 +63,7 @@
           <el-select
             v-model="ruleForm.DNodes"
             placeholder="Please Select DNodes"
+            style="width:100%;"
           >
             <el-option
               v-for="item in dnodes"
@@ -191,12 +194,4 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
-:v-deep {
-  .el-form-item__content {
-    display: flex;
-  }
-  .el-select {
-    flex: 1;
-  }
-}
 </style>

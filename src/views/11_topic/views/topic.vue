@@ -34,7 +34,8 @@
     >
     </el-pagination>
     <p class="default-tip" v-html="learnMoreTip"></p>
-     <el-dialog align="center" :close-on-click-modal="false" :title="title" :width="width" :visible.sync="dialog">
+     <el-dialog align="center" :close-on-click-modal="false" :title="title" :width="width" :visible.sync="dialog" @close='closeDialog'
+      :destroy-on-close='true'>
       <component :is="dialogComp" v-bind="dialogParams" @close="close"></component>
     </el-dialog>
     <!-- <el-dialog align="center" :title="$t('topic.createTopic')" width="800px" :visible.sync="dialog">
@@ -124,6 +125,9 @@
       // }
     },
     methods: {
+      closeDialog(){
+        this.dialog=false
+      },
       refresh(){
         this.getTopics();
       },

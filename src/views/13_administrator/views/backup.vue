@@ -121,7 +121,8 @@
       :title="dialogTitle"
       width="600px"
       :visible.sync="dialog"
-      @closed='closeDialog'
+      @close='closeDialog'
+      :destroy-on-close='true'
     >
       <el-form
         :model="ruleForm"
