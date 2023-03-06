@@ -499,7 +499,7 @@ async fn sync_super_table_schema(
         format!("SELECT tbname, {tag_names} FROM `{name}`")
     };
     let mut res = from
-        .query(sql)
+        .query(&sql)
         .await
         .with_context(|| format!("Try to get table name and tags with sql: {sql}"))?;
 
