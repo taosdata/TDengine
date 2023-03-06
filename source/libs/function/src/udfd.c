@@ -314,7 +314,7 @@ static void    udfdConnectMnodeThreadFunc(void *args);
 
 void udfdInitializeCPlugin(SUdfScriptPlugin *plugin) {
   plugin->scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
-  plugin->scriptSuffix = '.so';
+  plugin->scriptSuffix = "so";
   plugin->openFunc = udfdCPluginOpen;
   plugin->closeFunc = udfdCPluginClose;
   plugin->udfInitFunc = udfdCPluginUdfInit;
@@ -779,7 +779,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     udf->outputType = pFuncInfo->outputType;
     udf->outputLen = pFuncInfo->outputLen;
     udf->bufSize = pFuncInfo->bufSize;
-    char* suffix = global.scriptPlugins[udf->scriptType]->scriptSuffix;
+    const char* suffix = global.scriptPlugins[udf->scriptType]->scriptSuffix;
     if (!osTempSpaceAvailable()) {
       terrno = TSDB_CODE_NO_AVAIL_DISK;
       msgInfo->code = terrno;
