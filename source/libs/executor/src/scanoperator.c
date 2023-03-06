@@ -945,7 +945,7 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* 
   return pOperator;
 }
 
-static FORCE_INLINE void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
+FORCE_INLINE void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
   taosArrayClear(pInfo->pBlockLists);
   pInfo->validBlockIndex = 0;
 }
