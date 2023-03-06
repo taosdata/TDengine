@@ -823,7 +823,7 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
   if (pSub->unassignedVgs != NULL) {
     int32_t size = (int32_t)taosArrayGetSize(pSub->unassignedVgs);
     for (int32_t i = 0; i < size; ++i) {
-      SMqVgEp *pMqVgEp = taosArrayGet(pSub->unassignedVgs, i);
+      SMqVgEp *pMqVgEp = (SMqVgEp *)taosArrayGetP(pSub->unassignedVgs, i);
       tmsgUpdateDnodeEpSet(&pMqVgEp->epSet);
     }
   }
@@ -833,7 +833,7 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
       SMqConsumerEp *pConsumerEp = pIter;
       int32_t        size = (int32_t)taosArrayGetSize(pConsumerEp->vgs);
       for (int32_t i = 0; i < size; ++i) {
-        SMqVgEp *pMqVgEp = taosArrayGet(pConsumerEp->vgs, i);
+        SMqVgEp *pMqVgEp = (SMqVgEp *)taosArrayGetP(pConsumerEp->vgs, i);
         tmsgUpdateDnodeEpSet(&pMqVgEp->epSet);
       }
       pIter = taosHashIterate(pSub->consumerHash, pIter);
