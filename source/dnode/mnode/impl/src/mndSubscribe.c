@@ -444,7 +444,9 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
 
 static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOutputObj *pOutput) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg, "tmq-reb");
-  if (pTrans == NULL) return -1;
+  if (pTrans == NULL) {
+    return -1;
+  }
 
   mndTransSetDbName(pTrans, pOutput->pSub->dbName, NULL);
   if (mndTrancCheckConflict(pMnode, pTrans) != 0) {
@@ -616,9 +618,9 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
 
     // if add more consumer to balanced subscribe,
     // possibly no vg is changed
-
+    // when each topic is re-balanced, issue an trans to save the results in sdb.
     if (mndPersistRebResult(pMnode, pMsg, &rebOutput) < 0) {
-      mError("mq re-balance persist re-balance output error, possibly vnode splitted or dropped");
+      mError("mq re-balance persist output error, possibly vnode splitted or dropped");
     }
 
     taosArrayDestroy(pRebInfo->lostConsumers);

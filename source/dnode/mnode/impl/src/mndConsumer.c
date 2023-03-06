@@ -35,9 +35,9 @@ static const char *mndConsumerStatusName(int status);
 
 static int32_t mndConsumerActionInsert(SSdb *pSdb, SMqConsumerObj *pConsumer);
 static int32_t mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer);
-static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pConsumer, SMqConsumerObj *pNewConsumer);
+static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer, SMqConsumerObj *pNewConsumer);
 static int32_t mndProcessConsumerMetaMsg(SRpcMsg *pMsg);
-static int32_t mndRetrieveConsumer(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextConsumer(SMnode *pMnode, void *pIter);
 
 static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg);
@@ -712,7 +712,6 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
     // no topics need to be rebalanced
     if (taosArrayGetSize(pConsumerNew->rebNewTopics) == 0 && taosArrayGetSize(pConsumerNew->rebRemovedTopics) == 0) {
-//      mInfo();
       goto _over;
     }
 

@@ -875,6 +875,7 @@ int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans) {
     }
   }
 
+
   if (mndCheckTransConflict(pMnode, pTrans)) {
     terrno = TSDB_CODE_MND_TRANS_CONFLICT;
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
