@@ -81,11 +81,11 @@ int taosAssignId(void *handle, int id, bool force) {
   int32_t code = 0;
   pthread_mutex_lock(&pIdPool->mutex);
 
-  if (pIdPool->numOfFree > 0) {
+  if (force || pIdPool->numOfFree > 0) {
     if (id > 0 && id < pIdPool->maxId) {
       if (force || (false == pIdPool->freeList[id - 1])) {
+        if (false == pIdPool->freeList[id - 1]) --pIdPool->numOfFree;
         pIdPool->freeList[id - 1] = true;
-        pIdPool->numOfFree--;
       } else {
         code = TSDB_CODE_MND_DUP_TID;
       }
