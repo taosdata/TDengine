@@ -355,8 +355,6 @@ charset 的有效值是 UTF-8。
 | 取值范围 | 0-4096                      |
 | 缺省值   | CPU 核数的 2 倍                         |
 
-## 时间相关                       |
-
 ## 性能调优
 
 ### numOfCommitThreads
