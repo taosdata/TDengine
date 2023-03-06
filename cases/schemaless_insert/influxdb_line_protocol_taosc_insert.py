@@ -1063,8 +1063,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.tag_value_length_check()
             self.col_value_length_check()
             self.tag_col_illegal_value_check()
-            # ! TD-22900
-            # self.duplicate_id_tag_col_insert_check()
+            self.duplicate_id_tag_col_insert_check()
             self.duplicate_insert_exist_check()
             # TODO self.tag_col_binary_max_length_check()
             self.batch_insert_check()
@@ -1086,8 +1085,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.s_stb_d_tb_d_data_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_ac_mt_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_at_mc_insert_multi_thread_check()
-            # ! TD-22898
-            # self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_at_mc_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()

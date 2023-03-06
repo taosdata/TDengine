@@ -537,8 +537,7 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
         self.col_value_length_check()
         self.tag_col_illegal_value_check()
         self.duplicate_insert_exist_check()
-        # ! TD-22898
-        # self.tag_col_binary_nchar_length_increase_check()
+        self.tag_col_binary_nchar_length_increase_check()
         # self.tag_col_binary_max_length_check()
         # self.tag_col_nchar_max_length_check()
         self.batch_insert_check()
