@@ -899,9 +899,11 @@ int32_t convertDataBlockToScalarParm(SSDataBlock *input, SScalarParam *output) {
 typedef struct SUdfAggRes {
   int8_t finalResNum;
   int8_t interResNum;
+  int32_t interResBufLen;
   char  *finalResBuf;
   char  *interResBuf;
 } SUdfAggRes;
+
 void    onUdfcPipeClose(uv_handle_t *handle);
 int32_t udfcGetUdfTaskResultFromUvTask(SClientUdfTask *task, SClientUvTaskNode *uvTask);
 void    udfcAllocateBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf);
@@ -1096,9 +1098,10 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResult
     releaseUdfFuncHandle(pCtx->udfName);
     return false;
   }
-  udfRes->interResNum = buf.numOfResult;
   if (buf.bufLen <= session->bufSize) {
     memcpy(udfRes->interResBuf, buf.buf, buf.bufLen);
+    udfRes->interResBufLen = buf.bufLen;
+    udfRes->interResNum = buf.numOfResult;
   } else {
     fnError("udfc inter buf size %d is greater than function bufSize %d", buf.bufLen, session->bufSize);
     releaseUdfFuncHandle(pCtx->udfName);
@@ -1136,7 +1139,7 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
 
   SSDataBlock *inputBlock = blockDataExtractBlock(pTempBlock, start, numOfRows);
 
-  SUdfInterBuf state = {.buf = udfRes->interResBuf, .bufLen = session->bufSize, .numOfResult = udfRes->interResNum};
+  SUdfInterBuf state = {.buf = udfRes->interResBuf, .bufLen = udfRes->interResBufLen, .numOfResult = udfRes->interResNum};
   SUdfInterBuf newState = {0};
 
   udfCode = doCallUdfAggProcess(session, inputBlock, &state, &newState);
@@ -1144,17 +1147,17 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
     fnError("udfAggProcess error. code: %d", udfCode);
     newState.numOfResult = 0;
   } else {
-    udfRes->interResNum = newState.numOfResult;
     if (newState.bufLen <= session->bufSize) {
       memcpy(udfRes->interResBuf, newState.buf, newState.bufLen);
+      udfRes->interResBufLen = newState.bufLen;
+      udfRes->interResNum = newState.numOfResult;
     } else {
       fnError("udfc inter buf size %d is greater than function bufSize %d", newState.bufLen, session->bufSize);
       udfCode = TSDB_CODE_UDF_INVALID_BUFSIZE;
     }
   }
-  if (newState.numOfResult == 1 || state.numOfResult == 1) {
-    GET_RES_INFO(pCtx)->numOfRes = 1;
-  }
+
+  GET_RES_INFO(pCtx)->numOfRes = udfRes->interResNum;
 
   blockDataDestroy(inputBlock);
 
@@ -1180,7 +1183,7 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock) {
   udfRes->interResBuf = (char *)udfRes + sizeof(SUdfAggRes) + session->outputLen;
 
   SUdfInterBuf resultBuf = {0};
-  SUdfInterBuf state = {.buf = udfRes->interResBuf, .bufLen = session->bufSize, .numOfResult = udfRes->interResNum};
+  SUdfInterBuf state = {.buf = udfRes->interResBuf, .bufLen = udfRes->interResBufLen, .numOfResult = udfRes->interResNum};
   int32_t      udfCallCode = 0;
   udfCallCode = doCallUdfAggFinalize(session, &state, &resultBuf);
   if (udfCallCode != 0) {

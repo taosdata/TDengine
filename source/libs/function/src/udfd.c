@@ -173,6 +173,7 @@ int32_t udfdCPluginUdfAggFinish(SUdfInterBuf *buf, SUdfInterBuf *resultData, voi
 // for others, dlopen/dlsym to find function pointers
 typedef struct SUdfScriptPlugin {
   int8_t scriptType;
+  const char* scriptSuffix;
 
   char     libPath[PATH_MAX];
   bool     libLoaded;
@@ -313,6 +314,7 @@ static void    udfdConnectMnodeThreadFunc(void *args);
 
 void udfdInitializeCPlugin(SUdfScriptPlugin *plugin) {
   plugin->scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
+  plugin->scriptSuffix = '.so';
   plugin->openFunc = udfdCPluginOpen;
   plugin->closeFunc = udfdCPluginClose;
   plugin->udfInitFunc = udfdCPluginUdfInit;
@@ -346,6 +348,7 @@ int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[],
 
 void udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
   plugin->scriptType = TSDB_FUNC_SCRIPT_PYTHON;
+  plugin->scriptSuffix = "py";
   //todo: windows support
   sprintf(plugin->libPath, "%s", "libtaospyudf.so");
   plugin->libLoaded = false;
@@ -776,7 +779,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     udf->outputType = pFuncInfo->outputType;
     udf->outputLen = pFuncInfo->outputLen;
     udf->bufSize = pFuncInfo->bufSize;
-
+    char* suffix = global.scriptPlugins[udf->scriptType]->scriptSuffix;
     if (!osTempSpaceAvailable()) {
       terrno = TSDB_CODE_NO_AVAIL_DISK;
       msgInfo->code = terrno;
@@ -786,9 +789,9 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
     char path[PATH_MAX] = {0};
 #ifdef WINDOWS
-    snprintf(path, sizeof(path), "%s%s", tsTempDir, pFuncInfo->name);
+    snprintf(path, sizeof(path), "%s%s.%s", tsTempDir, pFuncInfo->name, suffix);
 #else
-    snprintf(path, sizeof(path), "%s/%s", tsTempDir, pFuncInfo->name);
+    snprintf(path, sizeof(path), "%s/%s.%s", tsTempDir, pFuncInfo->name, suffix);
 #endif
     TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
     if (file == NULL) {
