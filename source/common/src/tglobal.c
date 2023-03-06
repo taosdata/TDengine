@@ -41,7 +41,7 @@ bool    tsPrintAuth = false;
 
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
-int32_t tsNumOfRpcSessions = 6000;
+int32_t tsNumOfRpcSessions = 10000;
 int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 4;
@@ -331,6 +331,10 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, true) != 0) return -1;
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, true) != 0) return -1;
+
+  tsNumOfRpcThreads = tsNumOfCores / 2;
+  tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
+  if (cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 100000);
   if (cfgAddInt32(pCfg, "numOfRpcSessions", tsNumOfRpcSessions, 1, 100000, 0) != 0) return -1;
@@ -723,6 +727,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
 
+  tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;
   tsNumOfRpcSessions = cfgGetItem(pCfg, "numOfRpcSessions")->i32;
 
   tsTimeToGetAvailableConn = cfgGetItem(pCfg, "timeToGetAvailableConn")->i32;
@@ -1249,6 +1254,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32, false);
 
   if (taosMulModeMkDir(tsLogDir, 0777) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to create dir:%s since %s", tsLogDir, terrstr());
     cfgCleanup(pCfg);
     return -1;

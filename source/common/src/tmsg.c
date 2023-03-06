@@ -6584,7 +6584,7 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   } else if (pVal->type == TMQ_OFFSET__LOG) {
     snprintf(buf, maxLen, "offset(log) ver:%" PRId64, pVal->version);
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
-    snprintf(buf, maxLen, "offset(ss data) uid:%" PRId64 ", ts:%" PRId64, pVal->uid, pVal->ts);
+    snprintf(buf, maxLen, "offset(snapshot) uid:%" PRId64 " ts:%" PRId64, pVal->uid, pVal->ts);
   } else {
     ASSERT(0);
   }

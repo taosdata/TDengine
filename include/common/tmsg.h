@@ -66,6 +66,15 @@ extern int32_t tMsgDict[];
 
 typedef uint16_t tmsg_t;
 
+static inline bool tmsgIsValid(tmsg_t type) {
+  if (type < TDMT_DND_MAX_MSG || type < TDMT_MND_MAX_MSG || type < TDMT_VND_MAX_MSG || type < TDMT_SCH_MAX_MSG ||
+      type < TDMT_STREAM_MAX_MSG || type < TDMT_MON_MAX_MSG || type < TDMT_SYNC_MAX_MSG || type < TDMT_VND_STREAM_MSG ||
+      type < TDMT_VND_TMQ_MSG || type < TDMT_VND_TMQ_MAX_MSG) {
+    return true;
+  } else {
+    return false;
+  }
+}
 static inline bool vnodeIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
          (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM);
@@ -1911,10 +1920,10 @@ typedef struct {
 } SMqConsumerLostMsg, SMqConsumerRecoverMsg, SMqConsumerClearMsg;
 
 typedef struct {
-  int64_t  consumerId;
-  char     cgroup[TSDB_CGROUP_LEN];
-  char     clientId[256];
-  SArray*  topicNames;  // SArray<char**>
+  int64_t consumerId;
+  char    cgroup[TSDB_CGROUP_LEN];
+  char    clientId[256];
+  SArray* topicNames;  // SArray<char**>
 } SCMSubscribeReq;
 
 static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
@@ -2691,7 +2700,7 @@ typedef struct {
   char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
   int8_t  subType;
   int8_t  withMeta;
-  char*   qmsg;     //SubPlanToString
+  char*   qmsg;  // SubPlanToString
   int64_t suid;
 } SMqRebVgReq;
 

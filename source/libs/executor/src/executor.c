@@ -93,6 +93,17 @@ static int32_t doSetStreamOpOpen(SOperatorInfo* pOperator, char* id) {
   return 0;
 }
 
+static void clearStreamBlock(SOperatorInfo* pOperator) {
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    if (pOperator->numOfDownstream == 1) {
+      return clearStreamBlock(pOperator->pDownstream[0]);
+    }
+  } else {
+    SStreamScanInfo* pInfo = pOperator->info;
+    doClearBufferedBlocks(pInfo);
+  }
+}
+
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
@@ -607,7 +618,8 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
     pTaskInfo->cost.start = taosGetTimestampUs();
   }
 
-  if (isTaskKilled(pTaskInfo)) {
+  if (isTaskKilled(pTaskInfo) && pTaskInfo->code != TSDB_CODE_QRY_IN_EXEC) {
+    clearStreamBlock(pTaskInfo->pRoot);
     atomic_store_64(&pTaskInfo->owner, 0);
     qDebug("%s already killed, abort", GET_TASKID(pTaskInfo));
     return TSDB_CODE_SUCCESS;
@@ -1068,7 +1080,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       tsdbReaderClose(pTSInfo->base.dataReader);
       pTSInfo->base.dataReader = NULL;
       // let's seek to the next version in wal file
-      if (tqSeekVer(pInfo->tqReader, pOffset->version + 1) < 0) {
+      if (tqSeekVer(pInfo->tqReader, pOffset->version + 1, pTaskInfo->id.str) < 0) {
         return -1;
       }
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {

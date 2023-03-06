@@ -945,7 +945,7 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* 
   return pOperator;
 }
 
-static FORCE_INLINE void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
+FORCE_INLINE void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
   taosArrayClear(pInfo->pBlockLists);
   pInfo->validBlockIndex = 0;
 }
@@ -1611,6 +1611,8 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     if (pResult && pResult->info.rows > 0) {
       qDebug("queue scan tsdb return %d rows min:%" PRId64 " max:%" PRId64, pResult->info.rows,
              pResult->info.window.skey, pResult->info.window.ekey);
+      qDebug("queue scan tsdb return %d rows min:%" PRId64 " max:%" PRId64 " wal curVersion:%" PRId64, pResult->info.rows,
+             pResult->info.window.skey, pResult->info.window.ekey, pInfo->tqReader->pWalReader->curVersion);
       pTaskInfo->streamInfo.returned = 1;
       return pResult;
     } else {
@@ -1621,7 +1623,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         pTSInfo->base.dataReader = NULL;
         tqOffsetResetToLog(&pTaskInfo->streamInfo.prepareStatus, pTaskInfo->streamInfo.snapshotVer);
         qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", pTaskInfo->streamInfo.snapshotVer + 1);
-        if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1) < 0) {
+        if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1, pTaskInfo->id.str) < 0) {
           tqOffsetResetToLog(&pTaskInfo->streamInfo.lastStatus, pTaskInfo->streamInfo.snapshotVer);
           return NULL;
         }
@@ -1635,8 +1637,12 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     while (1) {
       SFetchRet ret = {0};
       if (tqNextBlock(pInfo->tqReader, &ret) < 0) {
-        qError("failed to get next log block since %s", terrstr());
+        // if the end is reached, terrno is 0
+        if (terrno != 0) {
+          qError("failed to get next log block since %s", terrstr());
+        }
       }
+
       if (ret.fetchType == FETCH_TYPE__DATA) {
         blockDataCleanup(pInfo->pRes);
         setBlockIntoRes(pInfo, &ret.data, true);

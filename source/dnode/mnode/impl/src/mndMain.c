@@ -706,6 +706,9 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
   } else if (code == 0) {
     mGTrace("msg:%p, successfully processed", pMsg);
   } else {
+    if (code == -1) {
+      code = terrno;
+    }
     mGError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, tstrerror(code), pMsg->info.ahandle,
             TMSG_INFO(pMsg->msgType));
   }
