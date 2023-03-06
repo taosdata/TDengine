@@ -49,9 +49,9 @@ utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }
 const_format = "0.2.30"
 metrics = "0.20.1"
 metrics-exporter-prometheus = { version = "0.11.0", default-features = false, features = ["push-gateway"] }
-palaver = "0.2.8"
+# palaver = "0.2.8"
 shadow-rs = "0.20.0"
-sysinfo = "0.27.1"
+sysinfo = "0.28.0"
 
 async-backtrace = "0.2.2"
 dotenv = "0.15.0"
