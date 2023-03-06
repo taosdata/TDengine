@@ -881,6 +881,8 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
   QUEUE_REMOVE(&conn->q);
   QUEUE_INIT(&conn->q);
 
+  conn->broken = true;
+
   if (conn->list != NULL) {
     SConnList* connList = conn->list;
     connList->list->numOfConn--;
