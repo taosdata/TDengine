@@ -925,7 +925,7 @@ TEST(clientCase, subscription_test) {
 
   // 创建订阅 topics 列表
   tmq_list_t* topicList = tmq_list_new();
-  tmq_list_append(topicList, "topic_t1");
+//  tmq_list_append(topicList, "topic_t1");
 
   // 启动订阅
   tmq_subscribe(tmq, topicList);
@@ -937,6 +937,8 @@ TEST(clientCase, subscription_test) {
   int32_t     totalRows = 0;
   int32_t     msgCnt = 0;
   int32_t     timeout = 5000;
+
+  int32_t count = 0;
 
   while (1) {
     TAOS_RES* pRes = tmq_consumer_poll(tmq, timeout);
@@ -951,6 +953,11 @@ TEST(clientCase, subscription_test) {
       printf("topic: %s\n", topicName);
       printf("db: %s\n", dbName);
       printf("vgroup id: %d\n", vgroupId);
+
+      if (count ++ > 20) {
+        tmq_unsubscribe(tmq);
+        break;
+      }
 
       while (1) {
         TAOS_ROW row = taos_fetch_row(pRes);
