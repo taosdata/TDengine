@@ -924,7 +924,8 @@ class TDCreateData():
         #两个sql及执行数据检查
         #self.logger.debug(f"sql1={sql1},sql2={sql2}")
         if (base_value == check_value) :
-            self.logger.info(("sql1:'%s' result '%s' = sql2:'%s' result '%s' ") %(sql1,base_value,sql2,check_value))
+            #self.logger.info(("sql1:'%s' result '%s' = sql2:'%s' result '%s' ") %(sql1,base_value,sql2,check_value))
+            self.logger.info(("sql1 row nums result '%s' = sql2 row nums result '%s' ") %(base_value,check_value))
         elif (base_value > check_value) :
             self.logger.info(("sql1:'%s' result '%s' > sql2:'%s' result '%s' ,only limit query can cause") %(sql1,base_value,sql2,check_value))
         else:
@@ -953,7 +954,7 @@ class TDCreateData():
        
         if  (list1 == list2) and len(list2)>0:
             #self.logger.info(("===list=_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
-            self.logger.info(("===list=_===sql1: result = sql2:'' result"))
+            self.logger.info(("===list=_===sql1 data result = sql2 data result"))
         elif  (list1.sort() == list2.sort()):
             self.logger.info(("===list=sort_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         elif str(list1).replace("]","").replace("[","") == str(list2).replace("]","").replace("[",""):
