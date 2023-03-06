@@ -845,6 +845,53 @@ static int32_t mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer) {
   return 0;
 }
 
+static void updateConsumerStatus(SMqConsumerObj* pConsumer) {
+  int32_t status = pConsumer->status;
+
+  if (taosArrayGetSize(pConsumer->rebNewTopics) == 0 && taosArrayGetSize(pConsumer->rebRemovedTopics) == 0) {
+    if (status == MQ_CONSUMER_STATUS__MODIFY || status == MQ_CONSUMER_STATUS__MODIFY_IN_REB) {
+      pConsumer->status = MQ_CONSUMER_STATUS__READY;
+    } else if (status == MQ_CONSUMER_STATUS__LOST_IN_REB || status == MQ_CONSUMER_STATUS__LOST) {
+      pConsumer->status = MQ_CONSUMER_STATUS__LOST_REBD;
+    }
+  } else {
+    if (status == MQ_CONSUMER_STATUS__MODIFY || status == MQ_CONSUMER_STATUS__MODIFY_IN_REB) {
+      pConsumer->status = MQ_CONSUMER_STATUS__MODIFY;
+    } else if (status == MQ_CONSUMER_STATUS__LOST || status == MQ_CONSUMER_STATUS__LOST_IN_REB) {
+      pConsumer->status = MQ_CONSUMER_STATUS__LOST;
+    }
+  }
+}
+
+// remove from new topic
+static void removeFromNewTopicList(SMqConsumerObj* pConsumer, const char* pTopic) {
+  int32_t size = taosArrayGetSize(pConsumer->rebNewTopics);
+  for (int32_t i = 0; i < taosArrayGetSize(pConsumer->rebNewTopics); i++) {
+    char *p = taosArrayGetP(pConsumer->rebNewTopics, i);
+    if (strcmp(pTopic, p) == 0) {
+      taosArrayRemove(pConsumer->rebNewTopics, i);
+      taosMemoryFree(p);
+
+      mDebug("consumer:0x%" PRIx64 " remove new topic:%s in the topic list, remain newTopics:%d", pConsumer->consumerId,
+             pTopic, (int) taosArrayGetSize(pConsumer->rebNewTopics));
+      break;
+    }
+  }
+}
+
+// remove from removed topic
+static void removeFromRemoveTopicList(SMqConsumerObj* pConsumer, const char* pTopic) {
+  int32_t size = taosArrayGetSize(pConsumer->rebRemovedTopics);
+  for (int32_t i = 0; i < size; i++) {
+    char *p = taosArrayGetP(pConsumer->rebRemovedTopics, i);
+    if (strcmp(pTopic, p) == 0) {
+      taosArrayRemove(pConsumer->rebRemovedTopics, i);
+      taosMemoryFree(p);
+      break;
+    }
+  }
+}
+
 static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer, SMqConsumerObj *pNewConsumer) {
   mDebug("consumer:0x%" PRIx64 " perform update action, update type:%d, subscribe-time:%" PRId64 ", uptime:%" PRId64,
          pOldConsumer->consumerId, pNewConsumer->updateType, pOldConsumer->subscribeTime, pOldConsumer->upTime);
@@ -855,6 +902,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     /*A(taosArrayGetSize(pOldConsumer->rebNewTopics) == 0);*/
     /*A(taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0);*/
 
+    // this new consumer has identical topics with one existed consumers.
     if (taosArrayGetSize(pNewConsumer->rebNewTopics) == 0 && taosArrayGetSize(pNewConsumer->rebRemovedTopics) == 0) {
       pOldConsumer->status = MQ_CONSUMER_STATUS__READY;
     } else {
@@ -871,7 +919,6 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
       pNewConsumer->assignedTopics = tmp;
 
       pOldConsumer->subscribeTime = pNewConsumer->upTime;
-
       pOldConsumer->status = MQ_CONSUMER_STATUS__MODIFY;
     }
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE__LOST) {
@@ -911,71 +958,48 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     pOldConsumer->rebalanceTime = pNewConsumer->upTime;
 
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE__ADD) {
-    /*A(taosArrayGetSize(pNewConsumer->rebNewTopics) == 1);*/
-    /*A(taosArrayGetSize(pNewConsumer->rebRemovedTopics) == 0);*/
+    ASSERT(taosArrayGetSize(pNewConsumer->rebNewTopics) == 1 && taosArrayGetSize(pNewConsumer->rebRemovedTopics) == 0);
+    char *pNewTopic = taosStrdup(taosArrayGetP(pNewConsumer->rebNewTopics, 0));
 
-    char *addedTopic = taosStrdup(taosArrayGetP(pNewConsumer->rebNewTopics, 0));
     // not exist in current topic
-
-    bool existing = false;
-#if 1
+    bool    existing = false;
     int32_t numOfExistedTopics = taosArrayGetSize(pOldConsumer->currentTopics);
     for (int32_t i = 0; i < numOfExistedTopics; i++) {
       char *topic = taosArrayGetP(pOldConsumer->currentTopics, i);
-      if (strcmp(topic, addedTopic) == 0) {
+      if (strcmp(topic, pNewTopic) == 0) {
         existing = true;
       }
     }
-#endif
 
-    // remove from new topic
-    for (int32_t i = 0; i < taosArrayGetSize(pOldConsumer->rebNewTopics); i++) {
-      char *topic = taosArrayGetP(pOldConsumer->rebNewTopics, i);
-      if (strcmp(addedTopic, topic) == 0) {
-        taosArrayRemove(pOldConsumer->rebNewTopics, i);
-        taosMemoryFree(topic);
-        break;
-      }
-    }
+    removeFromNewTopicList(pOldConsumer, pNewTopic);
 
     // add to current topic
     if (!existing) {
-      taosArrayPush(pOldConsumer->currentTopics, &addedTopic);
+      taosArrayPush(pOldConsumer->currentTopics, &pNewTopic);
       taosArraySort(pOldConsumer->currentTopics, taosArrayCompareString);
     } else {
-      taosMemoryFree(addedTopic);
+      taosMemoryFree(pNewTopic);
     }
 
     // set status
     int32_t status = pOldConsumer->status;
-    if (taosArrayGetSize(pOldConsumer->rebNewTopics) == 0 && taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0) {
-      if (status == MQ_CONSUMER_STATUS__MODIFY || status == MQ_CONSUMER_STATUS__MODIFY_IN_REB) {
-        pOldConsumer->status = MQ_CONSUMER_STATUS__READY;
-      } else if (status == MQ_CONSUMER_STATUS__LOST_IN_REB || status == MQ_CONSUMER_STATUS__LOST) {
-        pOldConsumer->status = MQ_CONSUMER_STATUS__LOST_REBD;
-      }
-    } else {
-      if (status == MQ_CONSUMER_STATUS__MODIFY || status == MQ_CONSUMER_STATUS__MODIFY_IN_REB) {
-        pOldConsumer->status = MQ_CONSUMER_STATUS__MODIFY_IN_REB;
-      } else if (status == MQ_CONSUMER_STATUS__LOST || status == MQ_CONSUMER_STATUS__LOST_IN_REB) {
-        pOldConsumer->status = MQ_CONSUMER_STATUS__LOST_IN_REB;
-      }
-    }
+    updateConsumerStatus(pOldConsumer);
 
     // the re-balance is triggered when the new consumer is launched.
     pOldConsumer->rebalanceTime = pNewConsumer->upTime;
 
     atomic_add_fetch_32(&pOldConsumer->epoch, 1);
-    mDebug("consumer:0x%" PRIx64 " state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64 ", current topics:%d",
+    mDebug("consumer:0x%" PRIx64 " state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
+           ", current topics:%d, newTopics:%d, removeTopics:%d",
            pOldConsumer->consumerId, status, mndConsumerStatusName(status), pOldConsumer->status,
-           mndConsumerStatusName(pOldConsumer->status),
-           pOldConsumer->epoch, pOldConsumer->rebalanceTime, (int)taosArrayGetSize(pOldConsumer->currentTopics));
+           mndConsumerStatusName(pOldConsumer->status), pOldConsumer->epoch, pOldConsumer->rebalanceTime,
+           (int)taosArrayGetSize(pOldConsumer->currentTopics), (int)taosArrayGetSize(pOldConsumer->rebNewTopics),
+           (int)taosArrayGetSize(pOldConsumer->rebRemovedTopics));
+
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE__REMOVE) {
     /*A(taosArrayGetSize(pNewConsumer->rebNewTopics) == 0);*/
     /*A(taosArrayGetSize(pNewConsumer->rebRemovedTopics) == 1);*/
     char *removedTopic = taosArrayGetP(pNewConsumer->rebRemovedTopics, 0);
-
-    // not exist in new topic
 #if 0
     for (int32_t i = 0; i < taosArrayGetSize(pOldConsumer->rebNewTopics); i++) {
       char *topic = taosArrayGetP(pOldConsumer->rebNewTopics, i);
@@ -984,14 +1008,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 #endif
 
     // remove from removed topic
-    for (int32_t i = 0; i < taosArrayGetSize(pOldConsumer->rebRemovedTopics); i++) {
-      char *topic = taosArrayGetP(pOldConsumer->rebRemovedTopics, i);
-      if (strcmp(removedTopic, topic) == 0) {
-        taosArrayRemove(pOldConsumer->rebRemovedTopics, i);
-        taosMemoryFree(topic);
-        break;
-      }
-    }
+    removeFromRemoveTopicList(pOldConsumer, removedTopic);
 
     // remove from current topic
     int32_t i = 0;
@@ -1004,32 +1021,20 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
         break;
       }
     }
-    // must find the topic
-    /*A(i < sz);*/
 
     // set status
     int32_t status = pOldConsumer->status;
-    if (taosArrayGetSize(pOldConsumer->rebNewTopics) == 0 && taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0) {
-      if (status == MQ_CONSUMER_STATUS__MODIFY || status == MQ_CONSUMER_STATUS__MODIFY_IN_REB) {
-        pOldConsumer->status = MQ_CONSUMER_STATUS__READY;
-      } else if (status == MQ_CONSUMER_STATUS__LOST_IN_REB || status == MQ_CONSUMER_STATUS__LOST) {
-        pOldConsumer->status = MQ_CONSUMER_STATUS__LOST_REBD;
-      }
-    } else {
-      if (status == MQ_CONSUMER_STATUS__MODIFY || status == MQ_CONSUMER_STATUS__MODIFY_IN_REB) {
-        pOldConsumer->status = MQ_CONSUMER_STATUS__MODIFY_IN_REB;
-      } else if (status == MQ_CONSUMER_STATUS__LOST || status == MQ_CONSUMER_STATUS__LOST_IN_REB) {
-        pOldConsumer->status = MQ_CONSUMER_STATUS__LOST_IN_REB;
-      }
-    }
+    updateConsumerStatus(pOldConsumer);
 
     pOldConsumer->rebalanceTime = pNewConsumer->upTime;
     atomic_add_fetch_32(&pOldConsumer->epoch, 1);
 
-    mDebug("consumer:0x%" PRIx64 " state %d(%s) -> %d(%s), new epoch:%d, reb-time:%" PRId64 ", current topics:%d",
+    mDebug("consumer:0x%" PRIx64 " state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
+               ", current topics:%d, newTopics:%d, removeTopics:%d",
            pOldConsumer->consumerId, status, mndConsumerStatusName(status), pOldConsumer->status,
-           mndConsumerStatusName(pOldConsumer->status),
-           pOldConsumer->epoch, pOldConsumer->rebalanceTime, (int)taosArrayGetSize(pOldConsumer->currentTopics));
+           mndConsumerStatusName(pOldConsumer->status), pOldConsumer->epoch, pOldConsumer->rebalanceTime,
+           (int)taosArrayGetSize(pOldConsumer->currentTopics), (int)taosArrayGetSize(pOldConsumer->rebNewTopics),
+           (int)taosArrayGetSize(pOldConsumer->rebRemovedTopics));
   }
 
   taosWUnLockLatch(&pOldConsumer->lock);
