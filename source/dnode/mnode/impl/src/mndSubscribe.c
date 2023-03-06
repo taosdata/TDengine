@@ -611,8 +611,6 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       break;
     }
 
-    taosSsleep(20);
-
     SMqRebInputObj rebInput = {0};
     SMqRebOutputObj rebOutput = {0};
     rebOutput.newConsumers = taosArrayInit(0, sizeof(int64_t));
