@@ -1907,7 +1907,9 @@ FETCH_NEXT_BLOCK:
         doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
         pInfo->pRes->info.dataLoad = 1;
         blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
-        return pInfo->pRes;
+        if (pInfo->pRes->info.rows > 0) {
+          return pInfo->pRes;
+        }
       } break;
       case STREAM_SCAN_FROM_DELETE_DATA: {
         generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes);
