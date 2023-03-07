@@ -255,6 +255,12 @@ class TDCreateData():
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
                 tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         
+        self.tdSql.execute('''create stable stable_null_data_insert_data (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+        
+        self.tdSql.execute('''create table stable_null_data_insert_data_1 using stable_null_data_insert_data tags('stable_null_data_insert_data_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+
         for i in range(self.stable_child_num):
             if i == 1 or i == 2 :
                 self.tdSql.execute('''create table stable_1_%d using stable_1 tags('stable_1_%d', '%d' , '%d', '%d' , '%d' , 0 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'0', 'truck_%d', 'South%d', 'Trish%d', NULL, 'v2.3') ;''' 
@@ -426,6 +432,10 @@ class TDCreateData():
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
                 tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         
+        self.tdSql.execute('''create stable stable_null_data_insert_data (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+        
         self.tdSql.execute('''create table stable_1_1 using stable_1 tags('stable_1_1', '0' , '0' , '0' , '0' , 0 , 'binary1' , 'nchar1' , '0' , '0' ,'0') ;''')
         self.tdSql.execute('''create table stable_1_2 using stable_1 tags('stable_1_2', '2147483647' , '9223372036854775807' , '32767' , '127' , 1 , 'binary2' , 'nchar2' , '2' , '22' , \'1999-09-09 09:09:09.090\') ;''')
         self.tdSql.execute('''create table stable_1_3 using stable_1 tags('stable_1_3', '-2147483647' , '-9223372036854775807' , '-32767' , '-127' , false , 'binary3' , 'nchar3nchar3' , '-3.3' , '-33.33' , \'2099-09-09 09:09:09.090\') ;''')
@@ -435,6 +445,8 @@ class TDCreateData():
         self.tdSql.execute('''create table stable_2_2 using stable_2 tags('stable_2_2' , '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
         self.tdSql.execute('''create table stable_null_data_1 using stable_null_data tags('stable_null_data_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+        
+        self.tdSql.execute('''create table stable_null_data_insert_data_1 using stable_null_data_insert_data tags('stable_null_data_insert_data_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
         #regular table
         self.tdSql.execute('''create table regular_table_1 \
@@ -550,6 +562,10 @@ class TDCreateData():
                 q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
                 tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
         
+        self.tdSql.execute('''create stable stable_null_data_insert_data (ts timestamp , q_int int , q_bigint bigint , q_smallint smallint , q_tinyint tinyint , q_float float , q_double double , q_bool bool , q_binary binary(100) , q_nchar nchar(100) , q_ts timestamp , \
+                q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) \
+                tags(loc nchar(100) , t_int int , t_bigint bigint , t_smallint smallint , t_tinyint tinyint, t_bool bool , t_binary binary(100) , t_nchar nchar(100) ,t_float float , t_double double , t_ts timestamp);''')
+        
         self.tdSql.execute('''create table stable_1_1 using stable_1 tags('stable_1_1', '0' , '0' , '0' , '0' , 0 , 'binary1' , 'nchar1' , '0' , '0' ,'0') ;''')
         self.tdSql.execute('''create table stable_1_2 using stable_1 tags('stable_1_2', '2147483647' , '9223372036854775807' , '32767' , '127' , 1 , 'binary2' , 'nchar2' , '2' , '22' , \'1999-09-09 09:09:09.090\') ;''')
         self.tdSql.execute('''create table stable_1_3 using stable_1 tags('stable_1_3', '-2147483647' , '-9223372036854775807' , '-32767' , '-127' , false , 'binary3' , 'nchar3nchar3' , '-3.3' , '-33.33' , \'2099-09-09 09:09:09.090\') ;''')
@@ -559,6 +575,8 @@ class TDCreateData():
         self.tdSql.execute('''create table stable_2_2 using stable_2 tags('stable_2_2' , '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
         self.tdSql.execute('''create table stable_null_data_1 using stable_null_data tags('stable_null_data_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
+
+        self.tdSql.execute('''create table stable_null_data_insert_data_1 using stable_null_data_insert_data tags('stable_null_data_insert_data_1', '0' , '0' , '0' , '0' , 0 , '0' , '0' , '0' , '0' ,'0') ;''')
 
         #regular table
         self.tdSql.execute('''create table regular_table_1 \
@@ -788,7 +806,7 @@ class TDCreateData():
         
         insert_into_sql = sql
         
-        i = random.randint(1,5)
+        i = random.randint(1,9)
         
         if i==1:
         
@@ -796,6 +814,28 @@ class TDCreateData():
             self.tdSql.query(sql) 
             sql_verbose_true = "explain verbose true " + sql_verbose_true 
             self.tdSql.query(sql_verbose_true) 
+            # sql_verbose_false = "explain verbose false " + sql_verbose_false 
+            # self.tdSql.query(sql_verbose_false)
+            
+            insert_into_sql = "insert into stable_null_data_insert_data_1 "  + insert_into_sql 
+            try:
+                self.tdSql.query(insert_into_sql,queryTimes=1) 
+                row = self.tdSql.query(insert_into_sql).row_count 
+                insert_sql = "select * from stable_null_data_insert_data;"
+                self.tdSql.query(insert_sql,queryTimes=1) 
+                #row1 = self.tdSql.query(insert_sql).row_count 
+                if (row>=0):
+                    # sql_verbose_true = "explain verbose true " + insert_into_sql 
+                    # self.tdSql.query(sql_verbose_true) 
+                    sql_verbose_false = "explain verbose false " + insert_into_sql 
+                    self.tdSql.query(sql_verbose_false)
+            except:
+                self.logger.info("sql insert into explain is not support :=====; ")
+                
+        elif i==2:
+        
+            sql = "explain " + sql 
+            self.tdSql.query(sql)  
             sql_verbose_false = "explain verbose false " + sql_verbose_false 
             self.tdSql.query(sql_verbose_false)
             
@@ -805,21 +845,40 @@ class TDCreateData():
                 row = self.tdSql.query(insert_into_sql).row_count 
                 insert_sql = "select * from stable_null_data_insert_data;"
                 self.tdSql.query(insert_sql,queryTimes=1) 
-                #row1 = self.tdSql.query(insert_sql).row_count 
-                if (row>=0):
+                if (row>=0): 
                     sql_verbose_true = "explain verbose true " + insert_into_sql 
-                    self.tdSql.query(sql_verbose_true) 
-                    sql_verbose_false = "explain verbose false " + insert_into_sql 
-                    self.tdSql.query(sql_verbose_false)
+                    self.tdSql.query(sql_verbose_true)
             except:
                 self.logger.info("sql insert into explain is not support :=====; ")
         
-        elif i ==2:
+        elif i ==3:
             
             sql_ratio = "explain ratio {} ".format(ratio) + sql_ratio 
             self.tdSql.query(sql_ratio) 
             sql_ratio_verbose_true = "explain ratio 0.05 verbose true " + sql_ratio_verbose_true 
             self.tdSql.query(sql_ratio_verbose_true) 
+            # sql_ratio_verbose_false = "explain ratio 0.05 verbose false " + sql_ratio_verbose_false 
+            # self.tdSql.query(sql_ratio_verbose_false)
+                       
+            insert_into_sql = "insert into stable_null_data_insert_data_1 "  + insert_into_sql 
+            try:
+                self.tdSql.query(insert_into_sql,queryTimes=1) 
+                row = self.tdSql.query(insert_into_sql).row_count 
+                insert_sql = "select * from stable_null_data_insert_data;"
+                self.tdSql.query(insert_sql,queryTimes=1) 
+                #row1 = self.tdSql.query(insert_sql).row_count 
+                if (row>=0):
+                    # sql_ratio_verbose_true = "explain ratio 0.05 verbose true "  + insert_into_sql 
+                    # self.tdSql.query(sql_ratio_verbose_true) 
+                    sql_ratio_verbose_false = "explain ratio 0.05 verbose false " + insert_into_sql 
+                    self.tdSql.query(sql_ratio_verbose_false)
+            except:
+                self.logger.info("sql insert into explain is not support :=====; " )
+                
+        elif i ==4:
+            
+            sql_ratio = "explain ratio {} ".format(ratio) + sql_ratio 
+            self.tdSql.query(sql_ratio) 
             sql_ratio_verbose_false = "explain ratio 0.05 verbose false " + sql_ratio_verbose_false 
             self.tdSql.query(sql_ratio_verbose_false)
                        
@@ -829,21 +888,40 @@ class TDCreateData():
                 row = self.tdSql.query(insert_into_sql).row_count 
                 insert_sql = "select * from stable_null_data_insert_data;"
                 self.tdSql.query(insert_sql,queryTimes=1) 
-                #row1 = self.tdSql.query(insert_sql).row_count 
                 if (row>=0):
                     sql_ratio_verbose_true = "explain ratio 0.05 verbose true "  + insert_into_sql 
                     self.tdSql.query(sql_ratio_verbose_true) 
-                    sql_ratio_verbose_false = "explain ratio 0.05 verbose false " + insert_into_sql 
-                    self.tdSql.query(sql_ratio_verbose_false)
             except:
                 self.logger.info("sql insert into explain is not support :=====; " )
         
-        elif i ==3:
+        elif i ==5:
             
             sql_analyze = "explain analyze " + sql_analyze 
             self.tdSql.query(sql_analyze)
             sql_analyze_verbose_true = "explain analyze verbose true " + sql_analyze_verbose_true 
             self.tdSql.query(sql_analyze_verbose_true)
+            # sql_analyze_verbose_false = "explain analyze verbose false " + sql_analyze_verbose_false 
+            # self.tdSql.query(sql_analyze_verbose_false)
+                       
+            insert_into_sql = "insert into stable_null_data_insert_data_1 "  + insert_into_sql 
+            try:
+                self.tdSql.query(insert_into_sql,queryTimes=1) 
+                row = self.tdSql.query(insert_into_sql).row_count 
+                insert_sql = "select * from stable_null_data_insert_data;"
+                self.tdSql.query(insert_sql,queryTimes=1) 
+                #row1 = self.tdSql.query(insert_sql).row_count 
+                if (row>=0):
+                    # sql_analyze_verbose_true = "explain analyze verbose true " + insert_into_sql 
+                    # self.tdSql.query(sql_analyze_verbose_true) 
+                    sql_analyze_verbose_false = "explain analyze verbose false " + insert_into_sql 
+                    self.tdSql.query(sql_analyze_verbose_false)
+            except:
+                self.logger.info("sql insert into explain is not support :=====; ")
+                
+        elif i ==6:
+            
+            sql_analyze = "explain analyze " + sql_analyze 
+            self.tdSql.query(sql_analyze)
             sql_analyze_verbose_false = "explain analyze verbose false " + sql_analyze_verbose_false 
             self.tdSql.query(sql_analyze_verbose_false)
                        
@@ -853,23 +931,20 @@ class TDCreateData():
                 row = self.tdSql.query(insert_into_sql).row_count 
                 insert_sql = "select * from stable_null_data_insert_data;"
                 self.tdSql.query(insert_sql,queryTimes=1) 
-                #row1 = self.tdSql.query(insert_sql).row_count 
                 if (row>=0):
                     sql_analyze_verbose_true = "explain analyze verbose true " + insert_into_sql 
                     self.tdSql.query(sql_analyze_verbose_true) 
-                    sql_analyze_verbose_false = "explain analyze verbose false " + insert_into_sql 
-                    self.tdSql.query(sql_analyze_verbose_false)
             except:
                 self.logger.info("sql insert into explain is not support :=====; ")
         
-        else:
+        elif i ==7:
             
             sql_analyze_ratio = "explain analyze ratio {} ".format(ratio) + sql_analyze_ratio 
             self.tdSql.query(sql_analyze_ratio)
             sql_analyze_ratio_verbose_true = "explain analyze ratio {} verbose true ".format(ratio) + sql_analyze_ratio_verbose_true 
             self.tdSql.query(sql_analyze_ratio_verbose_true)
-            sql_analyze_ratio_verbose_false = "explain analyze ratio {} verbose false ".format(ratio) + sql_analyze_ratio_verbose_false 
-            self.tdSql.query(sql_analyze_ratio_verbose_false)
+            # sql_analyze_ratio_verbose_false = "explain analyze ratio {} verbose false ".format(ratio) + sql_analyze_ratio_verbose_false 
+            # self.tdSql.query(sql_analyze_ratio_verbose_false)
                        
             insert_into_sql = "insert into stable_null_data_insert_data_1 "  + insert_into_sql 
             try:
@@ -879,10 +954,29 @@ class TDCreateData():
                 self.tdSql.query(insert_sql,queryTimes=1) 
                 #row1 = self.tdSql.query(insert_sql).row_count 
                 if (row>=0):
-                    sql_analyze_ratio_verbose_true = "explain analyze ratio {} verbose true ".format(ratio) + insert_into_sql 
-                    self.tdSql.query(sql_analyze_ratio_verbose_true) 
+                    # sql_analyze_ratio_verbose_true = "explain analyze ratio {} verbose true ".format(ratio) + insert_into_sql 
+                    # self.tdSql.query(sql_analyze_ratio_verbose_true) 
                     sql_analyze_ratio_verbose_false = "explain analyze ratio {} verbose false ".format(ratio) + insert_into_sql 
                     self.tdSql.query(sql_analyze_ratio_verbose_false)
+            except:
+                self.logger.info("sql insert into explain is not support :=====; " )
+                
+        else:
+            
+            sql_analyze_ratio = "explain analyze ratio {} ".format(ratio) + sql_analyze_ratio 
+            self.tdSql.query(sql_analyze_ratio)
+            sql_analyze_ratio_verbose_false = "explain analyze ratio {} verbose false ".format(ratio) + sql_analyze_ratio_verbose_false 
+            self.tdSql.query(sql_analyze_ratio_verbose_false)
+                       
+            insert_into_sql = "insert into stable_null_data_insert_data_1 "  + insert_into_sql 
+            try:
+                self.tdSql.query(insert_into_sql,queryTimes=1) 
+                row = self.tdSql.query(insert_into_sql).row_count 
+                insert_sql = "select * from stable_null_data_insert_data;"
+                self.tdSql.query(insert_sql,queryTimes=1) 
+                if (row>=0):
+                    sql_analyze_ratio_verbose_true = "explain analyze ratio {} verbose true ".format(ratio) + insert_into_sql 
+                    self.tdSql.query(sql_analyze_ratio_verbose_true) 
             except:
                 self.logger.info("sql insert into explain is not support :=====; " )
         
@@ -918,6 +1012,16 @@ class TDCreateData():
     def result_0(self,sql):
         self.logger.info(sql) 
         self.tdSql.query(sql)
+        self.tdSql.checkRow(0)
+        
+        sql = sql.replace(";","")
+        nest_sql = "select * from (%s);"%sql
+        self.tdSql.query(nest_sql)
+        self.tdSql.checkRow(0)
+                
+        nest_nest_sql = nest_sql.replace(";","")
+        nest_nest_sql = "select * from (%s);"%nest_nest_sql
+        self.tdSql.query(nest_nest_sql)
         self.tdSql.checkRow(0)
         
     def value_check(self,base_value,check_value,sql1,sql2):
@@ -990,6 +1094,17 @@ class TDCreateData():
         sql1_row = self.tdSql.query(sql1).row_count
         sql2_row = self.tdSql.query(sql2).row_count
         self.value_check(sql1_row,sql2_row,sql1,sql2)
+        
+        sql2 = sql2.replace(";","")
+        nest_sq2 = "select * from (%s) " %sql2
+        nest_sql2_row = self.tdSql.query(nest_sq2).row_count
+        self.value_check(sql1_row,nest_sql2_row,sql1,nest_sq2)
+        
+        nest_nest_sq2 = nest_sq2.replace(";","")
+        nest_nest_sq2 = "select * from (%s) " %nest_nest_sq2
+        nest_nest_sql2_row = self.tdSql.query(nest_nest_sq2).row_count
+        self.value_check(sql1_row,nest_nest_sql2_row,sql1,nest_nest_sq2)
+        
 
     def dataequal_hyperloglog(self, sql1,row1,col1, sql2,row2,col2):
         #hyperloglog函数结果允许误差，因此放大误差数值
