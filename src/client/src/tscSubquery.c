@@ -581,6 +581,9 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     SQueryInfo *pQueryInfo = tscGetQueryInfo(&pNew->cmd);
     pQueryInfo->tsBuf = pTsBuf;  // transfer the ownership of timestamp comp-z data to the new created object
 
+    SQueryInfo* pParQueryInfo = tscGetQueryInfo(&pSql->cmd);
+    pQueryInfo->clauseLimit = pParQueryInfo->clauseLimit;
+
     // set the second stage sub query for join process
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE);
     memcpy(&pQueryInfo->interval, &pSupporter->interval, sizeof(pQueryInfo->interval));
@@ -1639,7 +1642,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   SSqlRes* pRes = &pSql->res;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
-
+  
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("0x%"PRIx64" abort query due to other subquery failure. code:%d, global code:%d", pSql->self, numOfRows, pParentSql->res.code);
     if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
@@ -2131,6 +2134,8 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     // refactor as one method
     SQueryInfo *pNewQueryInfo = tscGetQueryInfo(&pNew->cmd);
     assert(pNewQueryInfo != NULL);
+
+    pNewQueryInfo->clauseLimit = -1;
 
     pSupporter->colList = pNewQueryInfo->colList;
     pNewQueryInfo->colList = NULL;
