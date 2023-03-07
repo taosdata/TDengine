@@ -1862,7 +1862,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
       tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0), pSub->res.row, pSub->res.numOfRows,
           pSub->res.completed, pSql->res.numOfClauseTotal, pSql->cmd.active->clauseLimit);
       if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && pSub->res.row >= pSub->res.numOfRows &&
-          pSub->res.completed && pSql->res.numOfClauseTotal < pSql->cmd.active->clauseLimit) {
+          pSub->res.completed && (pSql->cmd.active->clauseLimit < 0 || pSql->res.numOfClauseTotal < pSql->cmd.active->clauseLimit)) {
         STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
         assert(pQueryInfo->numOfTables == 1);
 
