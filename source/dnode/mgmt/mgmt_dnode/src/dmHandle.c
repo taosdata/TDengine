@@ -61,6 +61,16 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   rpcFreeCont(pRsp->pCont);
 }
 
+void dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet) {
+  int32_t n = 0;
+  n += snprintf(buf + n, len - n, "%s", "{");
+  for (int i = 0; i < epSet->numOfEps; i++) {
+    n += snprintf(buf + n, len - n, "%s:%d%s", epSet->eps[i].fqdn, epSet->eps[i].port,
+                  (i + 1 < epSet->numOfEps ? ", " : ""));
+  }
+  n += snprintf(buf + n, len - n, "%s", "}");
+}
+
 void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SStatusReq req = {0};
 
@@ -119,11 +129,10 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
   rpcSendRecv(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp);
   if (rpcRsp.code != 0) {
-    dError("failed to send status req since %s, numOfEps:%d inUse:%d", tstrerror(rpcRsp.code), epSet.numOfEps,
-           epSet.inUse);
-    for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-      dDebug("index:%d, mnode ep:%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
-    }
+    dmRotateMnodeEpSet(pMgmt->pData);
+    char tbuf[256];
+    dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
+    dError("failed to send status req since %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code), tbuf, epSet.inUse);
   }
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
