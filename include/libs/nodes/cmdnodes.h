@@ -128,6 +128,8 @@ typedef struct STrimDatabaseStmt {
 typedef struct SCompactDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
+  SNode*    pStart;
+  SNode*    pEnd;
 } SCompactDatabaseStmt;
 
 typedef struct STableOptions {

@@ -2531,6 +2531,8 @@ int32_t tSerializeSCompactDbReq(void *buf, int32_t bufLen, SCompactDbReq *pReq) 
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->timeRange.skey) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->timeRange.ekey) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2544,6 +2546,8 @@ int32_t tDeserializeSCompactDbReq(void *buf, int32_t bufLen, SCompactDbReq *pReq
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->timeRange.skey) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->timeRange.ekey) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
