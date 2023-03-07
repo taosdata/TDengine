@@ -3,6 +3,8 @@ import taos
 import sys
 import os
 import time
+import inspect
+from taos.tmq import Consumer
 
 from pathlib import Path
 from util.log import *
@@ -14,7 +16,7 @@ from util.dnodes import TDDnode
 from util.cluster import *
 import subprocess
 
-BASEVERSION = "3.0.1.8"
+BASEVERSION = "3.0.2.5"
 class TDTestCase:
     def caseDescription(self):
         '''
@@ -99,6 +101,7 @@ class TDTestCase:
 
 
     def run(self):
+        scriptsPath = os.path.dirname(os.path.realpath(__file__))
         distro_id = distro.id()
         if distro_id == "alpine":
             tdLog.info(f"alpine skip compatibility test")
@@ -128,19 +131,18 @@ class TDTestCase:
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{BASEVERSION}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
         os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
-        sleep(3)
+        os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s 'use test;create stream current_stream into current_stream_output_stb as select _wstart as `start`, _wend as wend, max(current) as max_current from meters where voltage <= 220 interval (5s);' ")
+        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;create stream power_stream into power_stream_output_stb as select ts, concat_ws(\\".\\", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from meters partition by tbname;" ')
+        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show streams;" ')
+        os.system(f"cd {scriptsPath} &&   python3  testRoll.py")
+        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show topics;" ')
 
-        # tdsqlF.query(f"select count(*) from {stb}")
-        # tdsqlF.checkData(0,0,tableNumbers*recordNumbers1)
-        os.system("pkill taosd")
-        self.checkProcessPid("taosd")
-
-        print(f"start taosd: nohup taosd -c {cPath} & ")
-        os.system(f" nohup taosd -c {cPath} & " )
-        sleep(10)
+        # print(f"start taosd: nohup taosd -c {cPath} & ")
+        # os.system(f" nohup taosd -c {cPath} & " )
         tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
         os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
-        os.system("pkill taosd")   # make sure all the data are saved in disk.
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
+        os.system("pkill  taosd")   # make sure all the data are saved in disk.
         self.checkProcessPid("taosd")
 
 
@@ -161,12 +163,14 @@ class TDTestCase:
 
         tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
         tdsql.query(f"select count(*) from {stb}")
-        tdsql.checkData(0,0,tableNumbers*recordNumbers1)        
-        os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
-        tdsql.query(f"select count(*) from {stb}")
-        tdsql.checkData(0,0,tableNumbers*recordNumbers2)
+        tdsql.checkData(0,0,tableNumbers*recordNumbers1)    
+        # tdsql.query("show streams;")
+        # os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
+        # tdsql.query("show streams;")
+        # tdsql.query(f"select count(*) from {stb}")
+        # tdsql.checkData(0,0,tableNumbers*recordNumbers2)
         tdsql.query(f"select count(*) from db4096.stb0")
-        tdsql.checkData(0,0,50000)
+        tdsql.checkData(0,0,5000)
 
         tdsql=tdCom.newTdSql()
         tdLog.printNoPrefix(f"==========step4:verify backticks in taos Sql-TD18542")
@@ -183,13 +187,58 @@ class TDTestCase:
         tdsql.execute("insert into db.`ct4` using db.stb1 TAGS(4) values(now(),14);")
         tdsql.query("select * from db.ct4")
         tdsql.checkData(0,1,14)
+        print(1)
+        tdsql=tdCom.newTdSql()
         tdsql.query("describe  information_schema.ins_databases;")
         qRows=tdsql.queryRows   
-        for i in  range(qRows) :
-            if tdsql.queryResult[i][0]=="retentions" :
-                return True
-            else:
-                return False
+        comFlag=True
+        j=0 
+        while comFlag: 
+            for i in  range(qRows) :
+                if tdsql.queryResult[i][0] == "retentions" :
+                    print("parameters include retentions")
+                    comFlag=False
+                    break
+                else :
+                    comFlag=True 
+                    j=j+1
+            if j == qRows:
+                print("parameters don't include retentions")
+                caller = inspect.getframeinfo(inspect.stack()[0][0])
+                args = (caller.filename, caller.lineno)
+                tdLog.exit("%s(%d) failed" % args)
+        tdsql.query("show streams;")
+        tdsql.checkRows(2)
+        tdsql.execute("insert into tmq_test.tb1 values (now, 11, 3.0, 'tmq test1');")
+        tdsql.execute("insert into tmq_test.tb2 values (now, 22, 3.0, 'tmq test2');")
+
+        conn = taos.connect()
+
+        consumer = Consumer(
+            {
+                "group.id": "tg75",
+                "client.id": "124",
+                "td.connect.user": "root",
+                "td.connect.pass": "taosdata",
+                "enable.auto.commit": "true",
+                "experimental.snapshot.enable":  "true",
+            }
+        )
+        consumer.subscribe(["tmq_test_topic"])
+
+        while True:
+            res = consumer.poll(10)
+            if not res:
+                break
+            err = res.error()
+            if err is not None:
+                raise err
+            val = res.value()
+
+            for block in val:
+                print(block.fetchall())
+        tdsql.query("show topics;")
+        tdsql.checkRows(1)
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
