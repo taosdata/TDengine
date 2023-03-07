@@ -208,7 +208,6 @@ export default {
         this.dialog=false
     },
     del(data) {
-      console.log(data, "del----");
       this.$confirm("Are you sure  to delete " + data.name + "?", "Warning", {
         confirmButtonText: "Ok",
         cancelButtonText: "Cancle",
@@ -231,10 +230,9 @@ export default {
     edit(data) {
       if (data.from_detail) {
         let editDdata = [].concat(data.from_detail);
-
-        console.log(data, editDdata, "edit-----datain");
+        let dbname=data.to_expand&&data.to_expand.subject?data.to_expand.subject:''
         this.$parent.uidata = editDdata;
-        this.$parent.toggleComponent("ui", this.ruleForm.type, "", editDdata);
+        this.$parent.toggleComponent("ui", this.ruleForm.type, data.id,dbname);
       }
 
       // this.$router.push({

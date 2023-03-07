@@ -27,3 +27,15 @@ export function AddSource(data){
         data
     })
 }
+
+export function EditSource(data,id){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/tasks/${id}`,
+        method:'patch',
+        headers:{
+            "Content-Type":"application/json"
+        },
+        data
+    })
+}

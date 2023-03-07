@@ -4,14 +4,17 @@
       :is="currentName"
       :sourceList="sourceList"
       :dbsource="uidata"
+      :editId='editId'
+      :dbName='dbName'
+      :isEditable="isEditable"
     ></component>
   </div>
 </template>
 <script>
 import DataSource from "./dataSource.vue";
 import DbSourceUI from "./dbSourceUI.vue";
-import {getUIData} from "@/api/explorer/datain";
-import { Message } from 'element-ui';
+import { getUIData } from "@/api/explorer/datain";
+import { Message } from "element-ui";
 export default {
   name: "DbSource",
   components: {
@@ -23,6 +26,9 @@ export default {
       currentName: "dbsource",
       sourceList: [],
       uidata: null,
+      editId:0,
+      dbName:'',
+      isEditable: false,
     };
   },
   created() {
@@ -31,21 +37,32 @@ export default {
   methods: {
     async getData() {
       try {
-        await getUIData().then(result=>{
+        await getUIData().then((result) => {
           this.sourceList = result;
-        })
+        });
       } catch (error) {
-        Message.error(error)
+        Message.error(error);
       }
     },
-    toggleComponent(name, id, val) {
+    toggleComponent(name, type, id,dbname) {
       this.currentName = name;
 
-      if (id) {
-        let data = this.sourceList.filter((item) => item.id === id);
+      if (type) {
+        //新增
+        let data = this.sourceList.filter((item) => item.id === type);
         this.uidata = this.deepClone(data);
+        this.isEditable = false;
       } else {
+        this.isEditable = true;
+        this.editId=id
+        this.dbName=dbname
         this.getData();
+        if (!this.uidata[0].protocol.value) {
+          this.uidata[0].protocol.value =
+            this.uidata[0].protocol.choices.filter((item) => {
+             return  item.display === "Native";
+            })[0].name;
+        }
       }
     },
     hasProp(obj, key) {

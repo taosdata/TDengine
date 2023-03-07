@@ -1,5 +1,6 @@
 <template>
   <div class="source-ui">
+    <span style="font-size: 30px; color: red">{{ isEditable }}{{dbName}}{{dbname}}</span>
     <div class="left-ui">
       <section class="header">
         <h1>{{ dbsource[0].name }}</h1>
@@ -11,7 +12,7 @@
           <span>{{ dbsource[0].options.display }}</span>
         </div>
         <div class="protocol">
-          <span class="label">{{ dbsource[0].protocol.display }}</span>
+          <span class="label">{{dbsource[0].protocol.display }}</span>
           <div class="label-value">
             <el-select
               v-model="dbsource[0].protocol.value"
@@ -314,7 +315,7 @@
 </template>
 <script>
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { AddSource } from "@/api/explorer/datain";
+import { AddSource, EditSource } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
 export default {
@@ -326,6 +327,18 @@ export default {
         return [];
       },
     },
+    isEditable: {
+      type: Boolean,
+      default: false,
+    },
+    editId:{
+      type:Number,
+      default:0
+    },
+    dbName:{
+      type:String,
+      default:''
+    }
   },
   data() {
     return {
@@ -343,6 +356,19 @@ export default {
   },
   created() {
     this.getDatabases();
+    if(this.isEditable){
+      this.dbname=this.dbName
+    }
+  },
+  watch:{
+    dbName:{
+      deep:true,
+      handler(val){
+        if(this.isEditable){
+          this.dbname=this.dbName
+        }
+      }
+    }
   },
   methods: {
     transforHtml(val) {
@@ -380,12 +406,9 @@ export default {
       let data = this.dbsource[0];
       try {
         if (data.protocol.value) {
-          dns += data.protocol.value;
+          dns += Object.is(data.protocol.value,'--')?'': data.protocol.value;
         }
         for (let key of Object.keys(data.options)) {
-          if (key === "subject") {
-            console.log(data.options[key]["value"], "--ppp");
-          }
           if (
             Object.hasOwnProperty.call(data.options[key], "required") &&
             (data.options[key]["value"] == "" ||
@@ -404,12 +427,11 @@ export default {
           data.options.host.value ? data.options.host.value : ""
         }
         `;
-        dns +=
-          (Object.is(data.options.port.value, null) ? "" : ":") +
+        dns +=(Object.is(data.options.port.value, null) ? "" : ":") +
           `${data.options.port.value ? data.options.port.value : ""}`;
-        dns += data.options.subject.value
-          ? "/" + data.options.subject.value
-          : "";
+        dns += data.options.subject.value? "/" + data.options.subject.value: "";
+        let reg=/\s+/g
+        dns=dns.replace(reg,'').trim()
         let querystr = "";
         for (let index = 0; index < data.groups.length; index++) {
           //   for (let j = 0; j < data.groups[index].params.length; j++) {
@@ -441,17 +463,21 @@ export default {
         let apiParams = {
           from: "tmq" + (Object.is(data.protocol.value, "--") ? "" : "+") + dns,
           name: localStorage.getItem("datainName"),
-
           to:
             "taos+" +
             localStorage.getItem("base_url") +
             (this.dbname ? "/" + this.dbname : ""),
           labels: ["type::datain", `cluster-id::${id}`],
         };
-
-        await AddSource(apiParams).then((res) => {
-          this.$parent.toggleComponent("dbsource", "");
-        });
+        if (this.isEditable) {
+          await EditSource(apiParams,this.editId).then(() => {
+            this.$parent.toggleComponent("dbsource", "");
+          });
+        } else {
+          await AddSource(apiParams).then((res) => {
+            this.$parent.toggleComponent("dbsource", "");
+          });
+        }
       } catch (error) {
         console.log(error);
       }
