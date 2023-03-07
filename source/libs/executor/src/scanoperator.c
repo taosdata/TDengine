@@ -946,6 +946,7 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* 
 }
 
 FORCE_INLINE void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
+  qDebug("clear buff blocks:%d", (int32_t)taosArrayGetSize(pInfo->pBlockLists));
   taosArrayClear(pInfo->pBlockLists);
   pInfo->validBlockIndex = 0;
 }
