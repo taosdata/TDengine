@@ -581,9 +581,6 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     SQueryInfo *pQueryInfo = tscGetQueryInfo(&pNew->cmd);
     pQueryInfo->tsBuf = pTsBuf;  // transfer the ownership of timestamp comp-z data to the new created object
 
-    SQueryInfo* pParQueryInfo = tscGetQueryInfo(&pSql->cmd);
-    pQueryInfo->clauseLimit = pParQueryInfo->clauseLimit;
-
     // set the second stage sub query for join process
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE);
     memcpy(&pQueryInfo->interval, &pSupporter->interval, sizeof(pQueryInfo->interval));
@@ -1851,7 +1848,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
       SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSub->cmd);
 
       if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && pSub->res.row >= pSub->res.numOfRows &&
-          pSub->res.completed) {
+          pSub->res.completed && pSql->res.numOfClauseTotal < pSql->cmd.active->clauseLimit) {
         STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
         assert(pQueryInfo->numOfTables == 1);
 
@@ -1868,6 +1865,9 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
                    pTableMetaInfo->vgroupIndex);
           pSub->cmd.command = TSDB_SQL_SELECT;
           pSub->fp = tscJoinQueryCallback;
+          pSub->cmd.active->clauseLimit = pSql->cmd.active->clauseLimit - pSql->res.numOfClauseTotal;
+          pSub->cmd.active->limit.limit = pSub->cmd.active->clauseLimit;
+          pSub->cmd.active->limit.offset = pSub->res.offset;
 
           tscBuildAndSendRequest(pSub, NULL);
           tryNextVnode = true;
