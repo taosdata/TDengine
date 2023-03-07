@@ -1,0 +1,20 @@
+{
+  "welcome": {
+    "title": "CUS_NAME Explorer",
+    "subTitle": "Welcome to the Explorer website.",
+    "mainContent": [
+      {
+        "paragraph": "Explorer is a unified visual tool for CUS_NAME database architects, developers, and DBAs. Explorer provides data modeling, SQL development, and comprehensive administration tools for server configuration, user administration, backup-restore, subscription and much more."
+      },
+      {
+        "paragraph": "Contact us with CUS_EMAIL ."
+      }
+    ]
+  },
+  "footer": {
+    "profile": "Explorer",
+    "contracts": [],
+    "policies": [],
+    "copyRight": "© 2023 CUS_NAME"
+  }
+}
