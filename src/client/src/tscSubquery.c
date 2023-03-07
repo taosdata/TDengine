@@ -1682,6 +1682,9 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
       numOfVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
     }
 
+    tscDebug("**clauseLimit:%" PRId64 " numOfClauseTotal:%" PRId64 " vgIdx:%d numOfVgroups:%d", 
+      pParentSql->cmd.active->clauseLimit, pParentSql->res.numOfClauseTotal, pTableMetaInfo->vgroupIndex, numOfVgroups);
+
     if ((++pTableMetaInfo->vgroupIndex) < numOfVgroups && pParentSql->cmd.active->clauseLimit > pParentSql->res.numOfClauseTotal) {
       tscDebug("0x%"PRIx64" no result in current vnode anymore, try next vnode, vgIndex:%d", pSql->self, pTableMetaInfo->vgroupIndex);
       pSql->cmd.command = TSDB_SQL_SELECT;
@@ -1850,6 +1853,9 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
 
       SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSub->cmd);
 
+      tscDebug("**nonorderedPrj:%d resRow:%d numOfRows:%d com:%d numOfClauseTotal:%"PRId64 " clauseLimit:%" PRId64, 
+      tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0), pSub->res.row, pSub->res.numOfRows,
+          pSub->res.completed, pSql->res.numOfClauseTotal, pSql->cmd.active->clauseLimit);
       if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && pSub->res.row >= pSub->res.numOfRows &&
           pSub->res.completed && pSql->res.numOfClauseTotal < pSql->cmd.active->clauseLimit) {
         STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
