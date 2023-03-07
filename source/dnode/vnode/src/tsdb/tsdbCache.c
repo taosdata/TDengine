@@ -257,9 +257,6 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, TS
 
         SLastCol lastCol = {.ts = keyTs, .colVal = colVal};
         if (IS_VAR_DATA_TYPE(colVal.type) && colVal.value.nData > 0) {
-          SLastCol *pLastCol = (SLastCol *)taosArrayGet(pLast, iCol);
-          taosMemoryFree(pLastCol->colVal.value.pData);
-
           lastCol.colVal.value.pData = taosMemoryMalloc(colVal.value.nData);
           if (lastCol.colVal.value.pData == NULL) {
             terrno = TSDB_CODE_OUT_OF_MEMORY;
