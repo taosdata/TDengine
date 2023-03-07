@@ -42,7 +42,7 @@ def pre_test(){
         git fetch
         cd ${WKC}
         git reset --hard
-        git clean -fxd
+        git clean -f
         git remote prune origin
         git fetch
     '''
