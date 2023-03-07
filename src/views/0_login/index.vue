@@ -118,7 +118,7 @@
               type="primary"
               @click="submitForm('dynamicValidateForm')"
               class="signin"
-              v-loading='loading'
+              v-loading="loading"
               >Sign In</el-button
             >
           </el-form-item>
@@ -206,7 +206,7 @@ export default {
       }
     };
     return {
-      loading:false,
+      loading: false,
       earch: require("@/assets/earth.webp"),
       hidden: false,
       dynamicValidateForm: {
@@ -254,7 +254,7 @@ export default {
       this.$refs[formName].validate((valid) => {
         if (valid) {
           localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
-          this.loading=true
+          this.loading = true;
           setTimeout(() => {
             this.login();
           }, 1000);
@@ -277,6 +277,7 @@ export default {
             localStorage.setItem("local_clusterID", id);
           })
           .catch((err) => {
+            localStorage.removeItem("TDengine-Token");
             err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
@@ -313,9 +314,11 @@ export default {
             Message.error("Faild to fetch,wrong cluster url!");
           }
         });
-        this.loading=false
+        this.loading = false;
       } catch (error) {
-        this.loading=false
+        this.loading = false;
+        this.deleteCookieItem()
+        console.log('login---error');
         Message.error("Faild to fetch,wrong cluster url!");
       }
     },
@@ -361,6 +364,23 @@ export default {
         });
       } catch (err) {
         Message.error("Only enterprise edition is supported");
+      }
+    },
+    //删除cookie某一项目
+    deleteCookieItem() {
+      var cookieItems = document.cookie.split(";");
+      for (var i = 0; i < cookieItems.length; i++) {
+        var item = cookieItems[i];
+        while (item.charAt(0) === " ") {
+          item = item.substring(1);
+        }
+        console.log(item,'遍历cookie---');
+        if (item.indexOf("TDengine-Token=") === 0) {
+          document.cookie =
+            encodeURIComponent(item.split("=")[0]) +
+            "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          break;
+        }
       }
     },
   },

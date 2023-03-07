@@ -2,22 +2,6 @@
     "logo": "https://cloud.tdengine.com/static/img/site-logo.3ec8602a.webp",
     "officialWebsite": "https://tdengine.com",
     "externalLinks": [
-        {
-            "name": "Products",
-            "url": "https://tdengine.com/products"
-        },
-        {
-            "name": "Docs",
-            "url": "https://docs.tdengine.com/"
-        },
-        {
-            "name": "Blog",
-            "url": "https://tdengine.com/blog"
-        },
-        {
-            "url": "https://tdengine.com/support",
-            "name": "Support"
-        }
     ],
     "welcome": {
         "title": "TDengine Explorer",

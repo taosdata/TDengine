@@ -6,7 +6,6 @@ import { NoInstanceAccessRoute, InitClusterStatus, BaseRoute, InactiveStatus } f
 const whiteList=['Login']
 router.beforeEach(async (to, from, next) => {
   const hasToken = getToken();
- 
   if(!hasToken){
     if(whiteList.includes(to.name)){
       next()
