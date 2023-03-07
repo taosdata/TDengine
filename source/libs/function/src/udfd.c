@@ -530,7 +530,7 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
 
   uv_mutex_lock(&global.scriptPluginsMutex);
   SUdfScriptPlugin *scriptPlugin = global.scriptPlugins[udf->scriptType];
-  if (scriptPlugin == NULL || scriptPlugin->libLoaded == false) {
+  if (scriptPlugin == NULL) {
     err = udfdInitScriptPlugin(udf->scriptType);
     if (err != 0) {
       uv_mutex_unlock(&global.scriptPluginsMutex);
