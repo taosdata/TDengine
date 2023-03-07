@@ -457,11 +457,10 @@ struct SCommitInfo {
 };
 
 struct SCompactInfo {
-  SVnode* pVnode;
-  int32_t flag;
-  int64_t commitID;
-  int64_t stime;
-  int64_t etime;
+  SVnode*     pVnode;
+  int32_t     flag;
+  int64_t     commitID;
+  STimeWindow tw;
 };
 
 #ifdef __cplusplus
