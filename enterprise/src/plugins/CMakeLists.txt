@@ -211,7 +211,7 @@ IF(TD_BULID_EXPLORER)
             BUILD_COMMAND
             COMMAND git checkout main
             COMMAND git pull || true
-            COMMAND CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} npm install && npm run build && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} cargo build --release
+            COMMAND npm install && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} npm run build && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build --release
             COMMAND git checkout .
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taos-explorer ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer
@@ -228,7 +228,7 @@ IF(TD_BULID_EXPLORER)
             # COMMAND cargo update
             BUILD_COMMAND
             COMMAND git pull || true
-            COMMAND set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} set LIBRARY_PATH=$ENV{LIBRARY_PATH} && set LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} && npm install && npm run build && cargo build --release
+            COMMAND set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && npm install && npm run build && cargo build --release
             COMMAND git checkout .
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taos-explorer.exe ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer.exe
