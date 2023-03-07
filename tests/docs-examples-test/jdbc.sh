@@ -6,15 +6,10 @@ cd ../../docs/examples/java
 
 mvn clean test > jdbc-out.log 2>&1
 tail -n 20 jdbc-out.log
-
-cases=`grep 'Tests run' jdbc-out.log | awk 'END{print $3}'`
-totalJDBCCases=`echo ${cases/%,}`
-failed=`grep 'Tests run' jdbc-out.log | awk 'END{print $5}'`
-JDBCFailed=`echo ${failed/%,}`
-error=`grep 'Tests run' jdbc-out.log | awk 'END{print $7}'`
-JDBCError=`echo ${error/%,}`
-
-totalJDBCFailed=`expr $JDBCFailed + $JDBCError`
+totalJDBCCases=`grep 'Tests run' jdbc-out.log | awk -F"[:,]" 'END{ print $2 }'`
+failed=`grep 'Tests run' jdbc-out.log | awk -F"[:,]" 'END{ print $4 }'`
+error=`grep 'Tests run' jdbc-out.log | awk -F"[:,]" 'END{ print $6 }'`
+totalJDBCFailed=`expr $failed + $error`
 totalJDBCSuccess=`expr $totalJDBCCases - $totalJDBCFailed`
 
 if [ "$totalJDBCSuccess" -gt "0" ]; then
