@@ -1631,6 +1631,8 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   SJoinSupporter* pSupporter = (SJoinSupporter*)param;
   int64_t handle = pSupporter->pObj;
 
+  tscDebug("***enter joinRetrieveFinalResCallback");
+
   SSqlObj* pParentSql = (SSqlObj*)taosAcquireRef(tscObjRef, handle);
   if (pParentSql == NULL) return;
 
@@ -1750,6 +1752,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
   bool    hasData = true;
   bool    reachLimit = false;
 
+  tscDebug("***enter tscFetchDatablockForSubquery");
   { pthread_mutex_lock(&pSql->subState.mutex);
 
   assert(pSql->subState.numOfSub >= 1);
@@ -1788,6 +1791,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
 
   // has data remains in client side, and continue to return data to app
   if (hasData) {
+    tscDebug("*hasData");
     tscBuildResFromSubqueries(pSql);
     return;
   }
@@ -1795,6 +1799,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
   // If at least one subquery is completed in current vnode, try the next vnode in case of multi-vnode
   // super table projection query.
   if (reachLimit) {
+    tscDebug("*reachLimit");
     pSql->res.completed = true;
     freeJoinSubqueryObj(pSql);
 
@@ -3808,6 +3813,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   pthread_mutex_unlock(&pSql->subState.mutex); }
 
   if (numOfRes == 0) {  // no result any more, free all subquery objects
+    tscDebug("*******query complete");
     pSql->res.completed = true;
     freeJoinSubqueryObj(pSql);
     return;
@@ -3892,6 +3898,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
 void tscBuildResFromSubqueries(SSqlObj *pSql) {
   SSqlRes* pRes = &pSql->res;
 
+  tscDebug("*enter tscBuildResFromSubqueries");
   if (pRes->code != TSDB_CODE_SUCCESS) {
     tscAsyncResultOnError(pSql);
     return;
