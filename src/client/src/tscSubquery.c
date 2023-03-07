@@ -1682,10 +1682,13 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
       numOfVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
     }
 
-    if ((++pTableMetaInfo->vgroupIndex) < numOfVgroups) {
+    if ((++pTableMetaInfo->vgroupIndex) < numOfVgroups && pParentSql->cmd.active->clauseLimit > pParentSql->res.numOfClauseTotal) {
       tscDebug("0x%"PRIx64" no result in current vnode anymore, try next vnode, vgIndex:%d", pSql->self, pTableMetaInfo->vgroupIndex);
       pSql->cmd.command = TSDB_SQL_SELECT;
       pSql->fp = tscJoinQueryCallback;
+      pSql->cmd.active->clauseLimit = pParentSql->cmd.active->clauseLimit - pParentSql->res.numOfClauseTotal;
+      pSql->cmd.active->limit.limit = pSql->cmd.active->clauseLimit;
+      pSql->cmd.active->limit.offset = pSql->res.offset;
 
       tscBuildAndSendRequest(pSql, NULL);
       goto _return;
@@ -3866,7 +3869,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   pthread_mutex_unlock(&pSql->subState.mutex); }
 
   pRes->numOfRows = numOfRes;
-  pRes->numOfClauseTotal += numOfRes;
+  //pRes->numOfClauseTotal += numOfRes;
 
   int32_t finalRowSize = 0;
   for(int32_t i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
