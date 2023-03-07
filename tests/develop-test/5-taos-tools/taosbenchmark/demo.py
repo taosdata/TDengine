@@ -35,6 +35,7 @@ class TDTestCase:
     def getPath(self, tool="taosBenchmark"):
         if (platform.system().lower() == 'windows'):
             tool = tool + ".exe"
+        selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if "community" in selfPath:
             projPath = selfPath[: selfPath.find("community")]
