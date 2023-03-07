@@ -22,12 +22,16 @@ namespace ParserTest {
 class ParserInitialCTest : public ParserDdlTest {};
 
 /*
- * COMPACT DATABASE db_name
+ * COMPACT DATABASE db_name [START WITH start_time] [END WITH END_time]
  */
 TEST_F(ParserInitialCTest, compact) {
   SCompactDbReq expect = {0};
 
-  auto setCompactDbReq = [&](const char* pDb) { snprintf(expect.db, sizeof(expect.db), "0.%s", pDb); };
+  auto setCompactDbReq = [&](const char* pDb, int64_t start = INT64_MIN, int64_t end = INT64_MAX) {
+    snprintf(expect.db, sizeof(expect.db), "0.%s", pDb);
+    expect.timeRange.skey = start;
+    expect.timeRange.ekey = end;
+  };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_COMPACT_DATABASE_STMT);
@@ -35,10 +39,21 @@ TEST_F(ParserInitialCTest, compact) {
     SCompactDbReq req = {0};
     ASSERT_EQ(tDeserializeSCompactDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(std::string(req.db), std::string(expect.db));
+    ASSERT_EQ(req.timeRange.skey, expect.timeRange.skey);
+    ASSERT_EQ(req.timeRange.ekey, expect.timeRange.ekey);
   });
 
-  setCompactDbReq("wxy_db");
-  run("COMPACT DATABASE wxy_db");
+  setCompactDbReq("test");
+  run("COMPACT DATABASE test");
+
+  setCompactDbReq("test", 1678168883000, 1678255283000);
+  run("COMPACT DATABASE test START WITH '2023-03-07 14:01:23' END WITH '2023-03-08 14:01:23'");
+
+  setCompactDbReq("testus", 1673071283000000000);
+  run("COMPACT DATABASE testus START WITH TIMESTAMP '2023-01-07 14:01:23'");
+
+  setCompactDbReq("testus", INT64_MIN, 1675749683000000000);
+  run("COMPACT DATABASE testus END WITH 1675749683000000000");
 }
 
 /*
