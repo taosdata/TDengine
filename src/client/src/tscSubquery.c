@@ -1691,8 +1691,8 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
       tscDebug("0x%"PRIx64" no result in current vnode anymore, try next vnode, vgIndex:%d", pSql->self, pTableMetaInfo->vgroupIndex);
       pSql->cmd.command = TSDB_SQL_SELECT;
       pSql->fp = tscJoinQueryCallback;
-      pSql->cmd.active->clauseLimit = pParentSql->cmd.active->clauseLimit - pParentSql->res.numOfClauseTotal;
-      pSql->cmd.active->limit.limit = pSql->cmd.active->clauseLimit;
+      pSql->cmd.active->clauseLimit = pParentSql->cmd.active->clauseLimit;
+      pSql->cmd.active->limit.limit = pParentSql->cmd.active->clauseLimit - pParentSql->res.numOfClauseTotal;
       pSql->cmd.active->limit.offset = pSql->res.offset;
 
       tscBuildAndSendRequest(pSql, NULL);
