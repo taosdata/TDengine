@@ -54,6 +54,8 @@ static int32_t vnodePrepareCompact(SVnode *pVnode, SCompactInfo *pInfo) {
   pInfo->pVnode = pVnode;
   pInfo->flag = 0;
   pInfo->commitID = ++pVnode->state.commitID;
+  pInfo->stime = TSKEY_MIN;  // TODO
+  pInfo->etime = TSKEY_MAX;
 
   char       dir[TSDB_FILENAME_LEN] = {0};
   SVnodeInfo info = {0};
@@ -119,7 +121,7 @@ static int32_t vnodeSyncCompact(SVnode *pVnode) {
   return 0;
 }
 
-int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) { 
+int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SCompactVnodeReq req = {0};
   if (tDeserializeSCompactVnodeReq(pReq, len, &req) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -132,4 +134,4 @@ int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *p
   vnodeBegin(pVnode);
 
   return 0;
- }
+}
