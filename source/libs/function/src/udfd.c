@@ -345,7 +345,7 @@ int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[],
   return 0;
 }
 
-void udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
+int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
   plugin->scriptType = TSDB_FUNC_SCRIPT_PYTHON;
   // todo: windows support
   sprintf(plugin->libPath, "%s", "libtaospyudf.so");
@@ -360,8 +360,9 @@ void udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
   int32_t err = udfdLoadSharedLib(plugin->libPath, &plugin->lib, funcName, funcs, UDFD_MAX_PLUGIN_FUNCS);
   if (err != 0) {
     fnError("can not load python plugin. lib path %s", plugin->libPath);
-    return;
+    return err;
   }
+
   if (plugin->openFunc) {
     int16_t lenPythonPath = strlen(tsUdfdLdLibPath) + strlen(tsTempDir) + 1 + 1;  // tsTempDir:tsUdfdLdLibPath
     char   *pythonPath = taosMemoryMalloc(lenPythonPath);
@@ -371,11 +372,17 @@ void udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
     snprintf(pythonPath, lenPythonPath, "%s:%s", tsTempDir, tsUdfdLdLibPath);
 #endif
     SScriptUdfEnvItem items[] = {{"PYTHONPATH", pythonPath}, {"LOGDIR", tsLogDir}};
-    plugin->openFunc(items, 1);
+    err = plugin->openFunc(items, 1);
     taosMemoryFree(pythonPath);
   }
+  if (err != 0) {
+    fnError("udf script python plugin open func failed. error: %d", err);
+    uv_dlclose(&plugin->lib);
+    return err;
+  }
   plugin->libLoaded = true;
-  return;
+
+  return 0;
 }
 
 void udfdDeinitCPlugin(SUdfScriptPlugin *plugin) {
@@ -420,9 +427,14 @@ int32_t udfdInitScriptPlugin(int8_t scriptType) {
     case TSDB_FUNC_SCRIPT_BIN_LIB:
       udfdInitializeCPlugin(plugin);
       break;
-    case TSDB_FUNC_SCRIPT_PYTHON:
-      udfdInitializePythonPlugin(plugin);
+    case TSDB_FUNC_SCRIPT_PYTHON: {
+      int32_t err = udfdInitializePythonPlugin(plugin);
+      if (err != 0) {
+        taosMemoryFree(plugin);
+        return err;
+      }
       break;
+      }
     default:
       fnError("udf script type %d not supported", scriptType);
       taosMemoryFree(plugin);
@@ -518,7 +530,7 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
 
   uv_mutex_lock(&global.scriptPluginsMutex);
   SUdfScriptPlugin *scriptPlugin = global.scriptPlugins[udf->scriptType];
-  if (scriptPlugin == NULL) {
+  if (scriptPlugin == NULL || scriptPlugin->libLoaded == false) {
     err = udfdInitScriptPlugin(udf->scriptType);
     if (err != 0) {
       uv_mutex_unlock(&global.scriptPluginsMutex);
