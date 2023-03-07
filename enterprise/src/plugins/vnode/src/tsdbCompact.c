@@ -560,8 +560,8 @@ static int32_t tsdbBeginCompact(STsdb *pTsdb, SCompactInfo *pInfo, STsdbCompacto
   pCompactor->cmprAlg = pTsdb->pVnode->config.tsdbCfg.compression;
   pCompactor->maxRows = pTsdb->pVnode->config.tsdbCfg.maxRows;
   pCompactor->minRows = pTsdb->pVnode->config.tsdbCfg.minRows;
-  pCompactor->minFid = tsdbKeyFid(pInfo->stime, pTsdb->keepCfg.days, pTsdb->keepCfg.precision);
-  pCompactor->maxFid = tsdbKeyFid(pInfo->etime, pTsdb->keepCfg.days, pTsdb->keepCfg.precision);
+  pCompactor->minFid = tsdbKeyFid(pInfo->tw.skey, pTsdb->keepCfg.days, pTsdb->keepCfg.precision);
+  pCompactor->maxFid = tsdbKeyFid(pInfo->tw.ekey, pTsdb->keepCfg.days, pTsdb->keepCfg.precision);
   pCompactor->fid = pCompactor->minFid - 1;
 
   code = tsdbFSCopy(pTsdb, &pCompactor->fs);
