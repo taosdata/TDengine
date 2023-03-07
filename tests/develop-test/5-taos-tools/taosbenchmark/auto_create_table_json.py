@@ -31,7 +31,8 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
     def getPath(self, tool="taosBenchmark"):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
+        if (platform.system().lower() == 'windows'):
+            tool = tool + ".exe"
 
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]

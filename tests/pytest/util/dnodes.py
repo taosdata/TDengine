@@ -469,20 +469,25 @@ class TDDnode:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
 
         if self.valgrind == 0:
-            if self.asan:
-               asanDir = "%s/sim/asan/dnode%d.asan" % (
-                   self.path, self.index)
-               cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
-                   binPath, self.cfgDir, asanDir)
+            if platform.system().lower() == 'windows':
+                cmd = "mintty -h never %s -c %s" % (binPath, self.cfgDir)
             else:
-                cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
-                    binPath, self.cfgDir)
+                if self.asan:
+                    asanDir = "%s/sim/asan/dnode%d.asan" % (
+                        self.path, self.index)
+                    cmd = "nohup %s -c %s > /dev/null 2> %s & " % (
+                        binPath, self.cfgDir, asanDir)
+                else:
+                    cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
+                        binPath, self.cfgDir)
         else:
             valgrindCmdline = "valgrind  --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
-
-            cmd = "nohup %s %s -c %s 2>&1 & " % (
-                valgrindCmdline, binPath, self.cfgDir)
-
+            if platform.system().lower() == 'windows':
+                cmd = "mintty -h never %s %s -c %s" % (
+                    valgrindCmdline, binPath, self.cfgDir)
+            else:
+                cmd = "nohup %s %s -c %s 2>&1 & " % (
+                    valgrindCmdline, binPath, self.cfgDir)
             print(cmd)
 
         if (self.remoteIP == ""):
