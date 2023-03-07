@@ -79,8 +79,7 @@ typedef struct {
 } STqExecDb;
 
 typedef struct {
-  int8_t subType;
-
+  int8_t      subType;
   STqReader*  pExecReader;
   qTaskInfo_t task;
   union {
@@ -89,27 +88,19 @@ typedef struct {
     STqExecDb  execDb;
   };
   int32_t numOfCols;  // number of out pout column, temporarily used
+  bool         stop;  // denote if needs to be stopped or not
 } STqExecHandle;
 
 typedef struct {
-  // info
-  char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int64_t consumerId;
-  int32_t epoch;
-  int8_t  fetchMeta;
-
-  int64_t snapshotVer;
-
-  SWalReader* pWalReader;
-
-  SWalRef* pRef;
-
-  // push
-  STqPushHandle pushHandle;
-
-  // exec
-  STqExecHandle execHandle;
-
+  char          subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t       consumerId;
+  int32_t       epoch;
+  int8_t        fetchMeta;
+  int64_t       snapshotVer;
+  SWalReader*   pWalReader;
+  SWalRef*      pRef;
+  STqPushHandle pushHandle;    // push
+  STqExecHandle execHandle;    // exec
 } STqHandle;
 
 typedef struct {

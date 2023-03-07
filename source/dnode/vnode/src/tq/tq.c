@@ -569,16 +569,19 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
     SMqDataRsp dataRsp = {0};
     tqInitDataRsp(&dataRsp, &req, pHandle->execHandle.subType);
+
     // lock
     taosWLockLatch(&pTq->pushLock);
     if (tqScanData(pTq, pHandle, &dataRsp, &fetchOffsetNew) < 0) {
       return -1;
     }
 
+    // todo handle the case where re-balance occurs.
     // till now, all data has been rsp to consumer, new data needs to push client once arrived.
     if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
-        dataRsp.reqOffset.version == dataRsp.rspOffset.version) {
+        dataRsp.reqOffset.version == dataRsp.rspOffset.version && (pHandle->execHandle.stop != false)) {
       STqPushEntry* pPushEntry = taosMemoryCalloc(1, sizeof(STqPushEntry));
+
       if (pPushEntry != NULL) {
         pPushEntry->pInfo = pMsg->info;
         memcpy(pPushEntry->subKey, pHandle->subKey, TSDB_SUBSCRIBE_KEY_LEN);
@@ -591,17 +594,21 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
         tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s offset:%" PRId64 ", vgId:%d save handle to push mgr",
                 consumerId, pHandle->subKey, dataRsp.reqOffset.version, TD_VID(pTq->pVnode));
+
         // unlock
         taosWUnLockLatch(&pTq->pushLock);
         return 0;
       }
     }
-    taosWUnLockLatch(&pTq->pushLock);
 
+    taosWUnLockLatch(&pTq->pushLock);
     if (tqSendDataRsp(pTq, pMsg, &req, &dataRsp) < 0) {
       code = -1;
     }
 
+    pHandle->execHandle.stop = false;
+
+    //NOTE: this pHandle->consumerId may have been changed already.
     tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, offset type:%d, uid/version:%" PRId64 ", ts:%" PRId64 "",
             consumerId, pHandle->subKey, TD_VID(pTq->pVnode), dataRsp.blockNum, dataRsp.rspOffset.type,
             dataRsp.rspOffset.uid, dataRsp.rspOffset.ts);
@@ -610,6 +617,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     return code;
   }
 
+  // todo handle the case where re-balance occurs.
   // for taosx
   SMqMetaRsp metaRsp = {0};
   STaosxRsp taosxRsp = {0};
@@ -894,11 +902,14 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     }
   } else {
     // TODO handle qmsg and exec modification
-    tqInfo("update the consumer info, old consumer id:0x%"PRIx64", new Id:0x%"PRIx64, pHandle->consumerId, req.newConsumerId);
+    tqInfo("vgId:%d switch consumer from Id:0x%"PRIx64" to Id:0x%"PRIx64, req.vgId, pHandle->consumerId, req.newConsumerId);
     atomic_store_32(&pHandle->epoch, -1);
     atomic_store_64(&pHandle->consumerId, req.newConsumerId);
     atomic_add_fetch_32(&pHandle->epoch, 1);
     taosMemoryFree(req.qmsg);
+
+    pHandle->execHandle.stop = true;
+
     if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       qStreamCloseTsdbReader(pHandle->execHandle.task);
     }
@@ -906,7 +917,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
       return -1;
     }
-    // close handle
+
+    pHandle->execHandle.stop = false;
   }
 
   return 0;

@@ -751,7 +751,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     while (1) {
       SSDataBlock* result = doGroupedTableScan(pOperator);
-      if (result) {
+      if (result || (pOperator->status == OP_EXEC_DONE)) {
         return result;
       }
 

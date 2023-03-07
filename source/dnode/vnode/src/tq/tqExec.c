@@ -46,11 +46,13 @@ static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, STaosxRsp* pRsp
 static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, int32_t n) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
+
   // TODO add reference to gurantee success
   if (metaGetTableEntryByUidCache(&mr, uid) < 0) {
     metaReaderClear(&mr);
     return -1;
   }
+
   for (int32_t i = 0; i < n; i++) {
     char* tbName = taosStrdup(mr.me.name);
     taosArrayPush(pRsp->blockTbName, &tbName);
@@ -83,13 +85,16 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
+
     tqDebug("vgId:%d, tmq task start to execute", pTq->pVnode->config.vgId);
     if (qExecTask(task, &pDataBlock, &ts) < 0) {
       tqError("vgId:%d, task exec error since %s", pTq->pVnode->config.vgId, terrstr());
       return -1;
     }
+
     tqDebug("vgId:%d, tmq task executed, get %p", pTq->pVnode->config.vgId, pDataBlock);
 
+    // current scan should be stopped asap, since the rebalance occurs.
     if (pDataBlock == NULL) {
       break;
     }
@@ -99,7 +104,15 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
 
     if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
       rowCnt += pDataBlock->info.rows;
-      if (rowCnt >= 4096) break;
+      if (rowCnt >= 4096) {
+        break;
+      }
+    }
+
+    if (pExec->stop) {
+      tqDebug("vgId:%d, current vgroups has been transferred to other consumer, return results asap",
+              TD_VID(pTq->pVnode));
+      break;
     }
   }
 

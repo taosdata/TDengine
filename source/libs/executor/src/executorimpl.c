@@ -2771,11 +2771,17 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
 }
 
 void qStreamCloseTsdbReader(void* task) {
-  if (task == NULL) return;
+  if (task == NULL) {
+    return;
+  }
+
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)task;
   SOperatorInfo* pOp = pTaskInfo->pRoot;
-  qDebug("stream close tsdb reader, reset status uid %" PRId64 " ts %" PRId64, pTaskInfo->streamInfo.lastStatus.uid,
+
+  qDebug("stream close tsdb reader, reset status uid:%" PRId64 " ts:%" PRId64, pTaskInfo->streamInfo.lastStatus.uid,
          pTaskInfo->streamInfo.lastStatus.ts);
+
+  // todo refactor, other thread may already use this read to extract data.
   pTaskInfo->streamInfo.lastStatus = (STqOffsetVal){0};
   while (pOp->numOfDownstream == 1 && pOp->pDownstream[0]) {
     SOperatorInfo* pDownstreamOp = pOp->pDownstream[0];
@@ -2783,8 +2789,19 @@ void qStreamCloseTsdbReader(void* task) {
       SStreamScanInfo* pInfo = pDownstreamOp->info;
       if (pInfo->pTableScanOp) {
         STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+
+        setOperatorCompleted(pInfo->pTableScanOp);
+        while(pTaskInfo->owner != 0) {
+          taosMsleep(100);
+          qDebug("wait for the reader stopping");
+        }
+
         tsdbReaderClose(pTSInfo->base.dataReader);
         pTSInfo->base.dataReader = NULL;
+
+        // restore the status, todo refactor.
+        pInfo->pTableScanOp->status = OP_OPENED;
+        pTaskInfo->status = TASK_NOT_COMPLETED;
         return;
       }
     }

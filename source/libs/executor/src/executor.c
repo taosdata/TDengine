@@ -709,7 +709,6 @@ void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
 
 int32_t qAsyncKillTask(qTaskInfo_t qinfo, int32_t rspCode) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qinfo;
-
   if (pTaskInfo == NULL) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
@@ -717,7 +716,6 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo, int32_t rspCode) {
   qDebug("%s execTask async killed", GET_TASKID(pTaskInfo));
 
   setTaskKilled(pTaskInfo, rspCode);
-
   qStopTaskOperators(pTaskInfo);
 
   return TSDB_CODE_SUCCESS;
