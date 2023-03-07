@@ -4562,7 +4562,7 @@ int32_t tscErrorMsgWithCode(int32_t code, char* dstBuffer, const char* errMsg, c
 bool tscHasReachLimitation(SQueryInfo* pQueryInfo, SSqlRes* pRes) {
   assert(pQueryInfo != NULL && pQueryInfo->clauseLimit != 0);
   bool reachLimit = (pQueryInfo->clauseLimit > 0 && pRes->numOfClauseTotal >= pQueryInfo->clauseLimit);
-  tscDebug("reachLimit:%d", reachLimit);
+  tscDebug("reachLimit:%d, limit:%" PRId64 " total:%" PRId64, reachLimit, pQueryInfo->clauseLimit, pRes->numOfClauseTotal);
   return reachLimit;
 }
 

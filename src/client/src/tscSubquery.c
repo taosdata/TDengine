@@ -1879,8 +1879,8 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
                    pTableMetaInfo->vgroupIndex);
           pSub->cmd.command = TSDB_SQL_SELECT;
           pSub->fp = tscJoinQueryCallback;
-          pSub->cmd.active->clauseLimit = pSql->cmd.active->clauseLimit - pSql->res.numOfClauseTotal;
-          pSub->cmd.active->limit.limit = pSub->cmd.active->clauseLimit;
+          pSub->cmd.active->clauseLimit = pSql->cmd.active->clauseLimit;
+          pSub->cmd.active->limit.limit = pSql->cmd.active->clauseLimit - pSql->res.numOfClauseTotal;
           pSub->cmd.active->limit.offset = pSub->res.offset;
 
           tscBuildAndSendRequest(pSub, NULL);
