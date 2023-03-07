@@ -134,11 +134,11 @@ class TDTestCase:
         os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s 'use test;create stream current_stream into current_stream_output_stb as select _wstart as `start`, _wend as wend, max(current) as max_current from meters where voltage <= 220 interval (5s);' ")
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;create stream power_stream into power_stream_output_stb as select ts, concat_ws(\\".\\", location, tbname) as meter_location, current*voltage*cos(phase) as active_power, current*voltage*sin(phase) as reactive_power from meters partition by tbname;" ')
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show streams;" ')
-        os.system(f"cd {scriptsPath} &&   python3  testRoll.py")
+        os.system(f"sed -i 's/\/etc\/taos/{cPath}/' 0-others/tmqBasic.json ")
+        # os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/tmqBasic.json -y ")
+        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists tmq_test_topic  as select  current,voltage,phase from test.meters where voltage <= 106 and current <= 5;" ')
         os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show topics;" ')
 
-        # print(f"start taosd: nohup taosd -c {cPath} & ")
-        # os.system(f" nohup taosd -c {cPath} & " )
         tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
         os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
@@ -170,7 +170,7 @@ class TDTestCase:
         # tdsql.query(f"select count(*) from {stb}")
         # tdsql.checkData(0,0,tableNumbers*recordNumbers2)
         tdsql.query(f"select count(*) from db4096.stb0")
-        tdsql.checkData(0,0,5000)
+        tdsql.checkData(0,0,50000)
 
         tdsql=tdCom.newTdSql()
         tdLog.printNoPrefix(f"==========step4:verify backticks in taos Sql-TD18542")
@@ -209,8 +209,8 @@ class TDTestCase:
                 tdLog.exit("%s(%d) failed" % args)
         tdsql.query("show streams;")
         tdsql.checkRows(2)
-        tdsql.execute("insert into tmq_test.tb1 values (now, 11, 3.0, 'tmq test1');")
-        tdsql.execute("insert into tmq_test.tb2 values (now, 22, 3.0, 'tmq test2');")
+        tdsql.execute("insert into test.d80 values (now+1s, 11, 103, 0.21);")
+        tdsql.execute("insert into test.d9 values (now+5s, 4.3, 104, 0.4);")
 
         conn = taos.connect()
 

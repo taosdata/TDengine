@@ -41,7 +41,7 @@
           "interlace_rows": 0,
           "line_protocol": null,
           "tcp_transfer": "no",
-          "insert_rows": 1000,
+          "insert_rows": 10000,
           "childtable_limit": 0,
           "childtable_offset": 0,
           "rows_per_tbl": 0,
