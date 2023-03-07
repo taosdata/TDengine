@@ -1031,7 +1031,8 @@ int32_t tDeserializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchR
 void    tFreeSUserAuthBatchRsp(SUserAuthBatchRsp* pRsp);
 
 typedef struct {
-  char db[TSDB_DB_FNAME_LEN];
+  char        db[TSDB_DB_FNAME_LEN];
+  STimeWindow timeRange;
 } SCompactDbReq;
 
 int32_t tSerializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);

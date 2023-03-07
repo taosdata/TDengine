@@ -65,15 +65,16 @@ int32_t getLogLevel() { return g_logLevel; }
 
 class ParserTestBaseImpl {
  public:
-  ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0), sqlNum_(0) {}
+  ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0), sqlNum_(0) {
+    caseEnv_.numOfSkipSql_ = g_skipSql;
+    caseEnv_.numOfLimitSql_ = g_limitSql;
+  }
 
   void login(const std::string& user) { caseEnv_.user_ = user; }
 
   void useDb(const string& acctId, const string& db) {
     caseEnv_.acctId_ = acctId;
     caseEnv_.db_ = db;
-    caseEnv_.numOfSkipSql_ = g_skipSql;
-    caseEnv_.numOfLimitSql_ = g_limitSql;
   }
 
   void run(const string& sql, int32_t expect, ParserStage checkStage) {
