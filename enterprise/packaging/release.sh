@@ -204,11 +204,11 @@ fi
 
 mkdir -p ${compile_dir}
 cd ${compile_dir}
-
+ 
 if [[ "$allocator" == "jemalloc" ]]; then
-  allocator_macro="-DJEMALLOC_ENABLED=true"
+   allocator_macro="-DJEMALLOC_ENABLED=true"
 else
-  allocator_macro=""
+   allocator_macro=""
 fi
 
 #if [[ "$dbName" != "taos" ]]; then

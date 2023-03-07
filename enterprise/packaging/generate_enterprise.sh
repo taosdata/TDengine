@@ -19,7 +19,7 @@ archiveDir=/nas/TDengine/v$version/enterprise  # version’package directory
 
 ostype=$(uname)
 
-if [ "${ostype}" == "Darwin" ]; then
+if [ "${ostype}" == "Darwin" ] || [ "$cpuType" == "arm64" ]; then
     allocator=glibc
 else
     allocator=jemalloc              # glibc  or  jemalloc, default is jemalloc
