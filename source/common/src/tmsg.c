@@ -4108,6 +4108,11 @@ int32_t tSerializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq *
   if (tEncodeI64(&encoder, pReq->dbUid) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->compactStartTime) < 0) return -1;
+
+  // 1.1 add tw.skey and tw.ekey
+  if (tEncodeI64(&encoder, pReq->tw.skey) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->tw.ekey) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4120,11 +4125,21 @@ int32_t tDeserializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
+
   if (tDecodeI64(&decoder, &pReq->dbUid) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->compactStartTime) < 0) return -1;
-  tEndDecode(&decoder);
 
+  // 1.1
+  if (tDecodeIsEnd(&decoder)) {
+    pReq->tw.skey = TSKEY_MIN;
+    pReq->tw.ekey = TSKEY_MAX;
+  } else {
+    if (tDecodeI64(&decoder, &pReq->tw.skey) < 0) return -1;
+    if (tDecodeI64(&decoder, &pReq->tw.ekey) < 0) return -1;
+  }
+
+  tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
 }
