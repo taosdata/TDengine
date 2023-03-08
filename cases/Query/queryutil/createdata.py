@@ -1202,7 +1202,7 @@ class TDCreateData():
                 list1.append(self.tdSql.getData(i1,j1))
         #self.logger.info("-----list1-------list1---=%s" %list1) 
 
-        self.tdSql.execute("reset query cache;") #TD=16766
+        self.tdSql.execute("reset query cache;") 
         self.sql2 = sql2  
         list2 =[]
         self.tdSql.query(sql2)
@@ -1217,7 +1217,10 @@ class TDCreateData():
         #测试是否 set(list2) 中的每一个元素都在 set(list1) 中 's <= t ' == ' s.issubset(t)'   ' s.issuperset(t) ' == ' s >= t '
         elif (set(list2)).issubset(set(list1)) :
             #self.logger.info(("=====data2in1-true===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            self.logger.info(("===data2in1-true===sql1:'%s' result include sql2:'%s' result") %(sql1,sql2))
+            self.logger.info(("===data2in1-true-num===sql1:'%s' result include sql2:'%s' result") %(sql1,sql2))
+        elif (set[list2]).issubset(set[list1]) :
+            #self.logger.info(("=====data2in1-true===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("===data2in1-true-str===sql1:'%s' result include sql2:'%s' result") %(sql1,sql2))
         else:
             #self.logger.info(("=====data2in1-false===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             #self.logger.info(("\n\n\n=====data2in1-list1-list2===sql1.list2 in list1:'%s'") %(set(list1)-set(list2)))
