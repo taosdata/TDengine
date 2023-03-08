@@ -231,6 +231,8 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  code = -1;
+
   taosIp2String(pReq->info.conn.clientIp, ip);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT) != 0) {
     mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, terrstr());
