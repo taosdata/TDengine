@@ -24,7 +24,7 @@
 #include "mndStb.h"
 #include "mndUser.h"
 #include "tglobal.h"
-#include "version.h"
+#include "tversion.h"
 
 typedef struct {
   uint32_t id;
@@ -221,8 +221,13 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   char            ip[24] = {0};
   const STraceId *trace = &pReq->info.traceId;
 
-  if (tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
+  if ((code = tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq)) != 0) {
+    terrno = (-1 == code ? TSDB_CODE_INVALID_MSG : code);
+    goto _OVER;
+  }
+
+  if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, version, 2)) != 0) {
+    terrno = code;
     goto _OVER;
   }
 

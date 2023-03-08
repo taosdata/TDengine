@@ -612,6 +612,7 @@ typedef struct {
   char    user[TSDB_USER_LEN];
   char    passwd[TSDB_PASSWORD_LEN];
   int64_t startTime;
+  char    sVer[TSDB_VERSION_LEN];
 } SConnectReq;
 
 int32_t tSerializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
