@@ -1497,6 +1497,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     destroyCmsg(pMsg);
     return;
   }
+
   if (rpcDebugFlag & DEBUG_TRACE) {
     if (tmsgIsValid(pMsg->msg.msgType)) {
       char buf[128] = {0};
