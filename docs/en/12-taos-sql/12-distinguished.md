@@ -35,8 +35,6 @@ The most common usage of PARTITION BY is partitioning the data in subtables by t
 Aggregation by time window is supported in TDengine. For example, in the case where temperature sensors report the temperature every seconds, the average temperature for every 10 minutes can be retrieved by performing a query with a time window. Window related clauses are used to divide the data set to be queried into subsets and then aggregation is performed across the subsets. There are four kinds of windows: time window, status window, session window, and event window. There are two kinds of time windows: sliding window and flip time/tumbling window. The syntax of window clause is as follows:
 
 ```sql
-SELECT select_list FROM tb_name
-  [WHERE where_condition]
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
