@@ -202,7 +202,7 @@ typedef enum ELogicConditionType {
 #define TSDB_FUNC_NAME_LEN       65
 #define TSDB_FUNC_COMMENT_LEN    1024 * 1024
 #define TSDB_FUNC_CODE_LEN       10 * 1024 * 1024
-#define TSDB_FUNC_BUF_SIZE       512
+#define TSDB_FUNC_BUF_SIZE       4096 * 64
 #define TSDB_FUNC_TYPE_SCALAR    1
 #define TSDB_FUNC_TYPE_AGGREGATE 2
 #define TSDB_FUNC_SCRIPT_BIN_LIB 0
