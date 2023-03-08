@@ -233,13 +233,14 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
     cnt++;
   }
 
-  elements->measureTag = (char *)taosMemoryMalloc(elements->measureLen + elements->tagsLen);
+  elements->measureTag = (char *)taosMemoryCalloc(elements->measureLen + elements->tagsLen + 1, 1);
   memcpy(elements->measureTag, elements->measure, elements->measureLen);
   memcpy(elements->measureTag + elements->measureLen, elements->tags, elements->tagsLen);
   elements->measureTagsLen = elements->measureLen + elements->tagsLen;
 
   SSmlTableInfo **tmp =
       (SSmlTableInfo **)taosHashGet(info->childTables, elements->measureTag, elements->measureLen + elements->tagsLen);
+  uError("build child table tmp::%p, measure:%s", tmp, elements->measureTag);
   SSmlTableInfo *tinfo = NULL;
   if (unlikely(tmp == NULL)) {
     tinfo = smlBuildTableInfo(1, elements->measure, elements->measureLen);
