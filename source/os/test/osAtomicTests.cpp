@@ -63,17 +63,17 @@ TEST(osAtomicTests, ExchangePtr) {
 }
 
 TEST(osAtomicTests, ValCompareExchange8) {
-  int8_t value = 123;
-  int8_t oldval = 123;
-  int8_t newval = 456;
+  int8_t value = 12;
+  int8_t oldval = 12;
+  int8_t newval = 45;
   int8_t result = atomic_val_compare_exchange_8(&value, oldval, newval);
-  EXPECT_EQ(result, 123);
-  EXPECT_EQ(value, 456);
+  EXPECT_EQ(result, 12);
+  EXPECT_EQ(value, 45);
 
-  oldval = 789;
+  oldval = 78;
   result = atomic_val_compare_exchange_8(&value, oldval, newval);
-  EXPECT_EQ(result, 456);
-  EXPECT_EQ(value, 456);
+  EXPECT_EQ(result, 45);
+  EXPECT_EQ(value, 45);
 }
 
 TEST(osAtomicTests, ValCompareExchange16) {
