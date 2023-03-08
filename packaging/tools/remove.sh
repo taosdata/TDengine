@@ -119,6 +119,7 @@ function clean_bin() {
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
   ${csudo}rm -f ${bin_link_dir}/taoskeeper || :
   ${csudo}rm -f ${bin_link_dir}/taosx || :
+  ${csudo}rm -f ${bin_link_dir}/taos-explorer || :
 
   if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
     ${csudo}rm -f ${bin_link_dir}/${clientName2} || :

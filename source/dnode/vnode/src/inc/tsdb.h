@@ -766,6 +766,7 @@ typedef struct SCacheRowsReader {
   TdThreadMutex      readerMutex;
   SVnode            *pVnode;
   STSchema          *pSchema;
+  STSchema          *pCurrSchema;
   uint64_t           uid;
   uint64_t           suid;
   char             **transferBuf;  // todo remove it soon
