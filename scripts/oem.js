@@ -14,6 +14,6 @@ if (cus_name === "TDengine" && cus_prompt === "taos") {
 } else {
 	let oem_data = path.join("scripts", "oem-data.json");
 	let data = fs.readFileSync(oem_data, "utf8");
-	let newData = data.replaceAll("CUS_NAME", cus_name).replaceAll("CUS_EMAIL", cus_email).replaceAll("CUS_PROMPT", cus_prompt);
+	let newData = data.replace(/CUS_NAME/g, cus_name).replace(/CUS_EMAIL/g, cus_email).replaceAll(/CUS_PROMPT/g, cus_prompt);
 	fs.writeFileSync(data_path, newData);
 }
