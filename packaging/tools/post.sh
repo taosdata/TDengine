@@ -185,6 +185,7 @@ function install_bin() {
     ${csudo}rm -f ${bin_link_dir}/taosdump || :
     ${csudo}rm -f ${bin_link_dir}/rmtaos   || :
     ${csudo}rm -f ${bin_link_dir}/set_core || :
+    ${csudo}rm -f ${bin_link_dir}/*explorer || :
 
     ${csudo}chmod 0555 ${bin_dir}/*
 
@@ -219,6 +220,9 @@ function install_bin() {
     fi
     if [ -x ${bin_dir}/taoskeeper ]; then
       ${csudo}ln -sf ${bin_dir}/taoskeeper ${bin_link_dir}/taoskeeper        2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/*explorer ]; then
+      ${csudo}ln -s ${bin_dir}/*explorer ${bin_link_dir}/*explorer           2>>${install_log_path} || return 1
     fi
     log_print "install bin success"
 }
