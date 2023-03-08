@@ -1687,7 +1687,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
     tscDebug("**clauseLimit:%" PRId64 " numOfClauseTotal:%" PRId64 " vgIdx:%d numOfVgroups:%d", 
       pParentSql->cmd.active->clauseLimit, pParentSql->res.numOfClauseTotal, pTableMetaInfo->vgroupIndex, numOfVgroups);
 
-    if ((++pTableMetaInfo->vgroupIndex) < numOfVgroups && pParentSql->cmd.active->clauseLimit > pParentSql->res.numOfClauseTotal) {
+    if ((++pTableMetaInfo->vgroupIndex) < numOfVgroups && (pParentSql->cmd.active->clauseLimit < 0 || pParentSql->cmd.active->clauseLimit > pParentSql->res.numOfClauseTotal)) {
       tscDebug("0x%"PRIx64" no result in current vnode anymore, try next vnode, vgIndex:%d", pSql->self, pTableMetaInfo->vgroupIndex);
       pSql->cmd.command = TSDB_SQL_SELECT;
       pSql->fp = tscJoinQueryCallback;
