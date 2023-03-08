@@ -32,4 +32,3 @@
 TEST(osThreadTests, osThreadTests1) {
 
 }
-

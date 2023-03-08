@@ -39,4 +39,3 @@ TEST(osSystemTest, osSystem1) {
   taosLogTraceToBuf(tmp, sizeof(tmp), 8);
 #endif
 }
-

@@ -71,3 +71,10 @@ add_test(
     NAME osTimeTests
     COMMAND osTimeTests
 )
+
+add_executable(osAtomicTests "osAtomicTests.cpp")
+target_link_libraries(osAtomicTests os util gtest_main)
+add_test(
+    NAME osAtomicTests
+    COMMAND osAtomicTests
+)

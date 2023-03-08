@@ -108,6 +108,6 @@ TEST(osStringTests, osUcs4lenTests2) {
   TdUcs4 ucs4_2[] = {'\0'};
   EXPECT_EQ(taosUcs4len(ucs4_2), 0);
 
-  TdUcs4 ucs4_3[] = {'C', 'h', 'i', 'n', 'a', 'ÖÐ', 'ÎÄ', '\0'};
+  TdUcs4 ucs4_3[] = {'C', 'h', 'i', 'n', 'a', 0x4E2D, 0x6587, '\0'};
   EXPECT_EQ(taosUcs4len(ucs4_3), 7);
 }
