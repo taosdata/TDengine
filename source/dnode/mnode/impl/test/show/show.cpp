@@ -55,7 +55,7 @@ TEST_F(MndTestShow, 02_ShowMsg_InvalidMsgStart) {
 
 TEST_F(MndTestShow, 03_ShowMsg_Conn) {
   char passwd[] = "taosdata";
-  char secretEncrypt[TSDB_PASSWORD_LEN] = {0};
+  char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
   taosEncryptPass_c((uint8_t*)passwd, strlen(passwd), secretEncrypt);
 
   SConnectReq connectReq = {0};
@@ -64,6 +64,7 @@ TEST_F(MndTestShow, 03_ShowMsg_Conn) {
   strcpy(connectReq.db, "");
   strcpy(connectReq.user, "root");
   strcpy(connectReq.passwd, secretEncrypt);
+  strcpy(connectReq.sVer, version);
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = rpcMallocCont(contLen);

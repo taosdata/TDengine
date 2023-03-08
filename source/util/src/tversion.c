@@ -89,3 +89,20 @@ int32_t taosCheckVersionCompatible(int32_t clientVer, int32_t serverVer, int32_t
     return -1;
   }
 }
+
+int32_t taosCheckVersionCompatibleFromStr(const char *pClientVersion, const char *pServerVersion,
+                                          int32_t comparedSegments) {
+  int32_t clientVersion = 0;
+  int32_t serverVersion = 0;
+  int32_t code = taosVersionStrToInt(pClientVersion, &clientVersion);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = taosVersionStrToInt(pServerVersion, &serverVersion);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = taosCheckVersionCompatible(clientVersion, serverVersion, comparedSegments);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    code = terrno;
+  }
+  return code;
+}

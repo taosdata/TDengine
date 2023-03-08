@@ -3741,6 +3741,7 @@ int32_t tSerializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
   if (tEncodeCStrWithLen(&encoder, pReq->passwd, TSDB_PASSWORD_LEN) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->startTime) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->sVer) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3760,6 +3761,12 @@ int32_t tDeserializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->passwd) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->startTime) < 0) return -1;
+  // Check the client version from version 3.0.3.0
+  if (tDecodeIsEnd(&decoder)) {
+    tDecoderClear(&decoder);
+    return TSDB_CODE_VERSION_NOT_COMPATIBLE;
+  }
+  if (tDecodeCStrTo(&decoder, pReq->sVer) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
