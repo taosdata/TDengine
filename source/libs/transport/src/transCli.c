@@ -12,6 +12,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tlog.h"
 #include "transComm.h"
 
 typedef struct {
@@ -424,21 +425,6 @@ void cliHandleResp(SCliConn* conn) {
     transMsg.info.handle = (void*)conn->refId;
     tDebug("%s conn %p ref by app", CONN_GET_INST_LABEL(conn), conn);
   }
-
-  // if (TMSG_INFO(pHead->msgType - 1) != 0) {
-  //   char buf[128] = {0};
-  //   sprintf(buf, "%s", TMSG_INFO(pHead->msgType - 1));
-  //   int* count = taosHashGet(pThrd->msgCount, TMSG_INFO(pHead->msgType - 1), strlen(TMSG_INFO(pHead->msgType - 1)));
-  //   if (NULL == 0) {
-  //     int localCount = 1;
-  //     taosHashPut(pThrd->msgCount, TMSG_INFO(pHead->msgType - 1), strlen(TMSG_INFO(pHead->msgType - 1)), &localCount,
-  //                 sizeof(localCount));
-  //   } else {
-  //     int localCount = *count - 1;
-  //     taosHashPut(pThrd->msgCount, TMSG_INFO(pHead->msgType - 1), strlen(TMSG_INFO(pHead->msgType - 1)), &localCount,
-  //                 sizeof(localCount));
-  //   }
-  // }
 
   STraceId* trace = &transMsg.info.traceId;
   tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, code str:%s", CONN_GET_INST_LABEL(conn), conn,
@@ -1118,19 +1104,6 @@ void cliSend(SCliConn* pConn) {
     msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
   }
 
-  // if (tmsgIsValid(pHead->msgType)) {
-  //   char buf[128] = {0};
-  //   sprintf(buf, "%s", TMSG_INFO(pHead->msgType));
-  //   int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
-  //   if (NULL == 0) {
-  //     int localCount = 1;
-  //     taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-  //   } else {
-  //     int localCount = *count + 1;
-  //     taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-  //   }
-  // }
-
   tGDebug("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
           TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, msgLen);
 
@@ -1525,16 +1498,18 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     destroyCmsg(pMsg);
     return;
   }
-  if (tmsgIsValid(pMsg->msg.msgType)) {
-    char buf[128] = {0};
-    sprintf(buf, "%s", TMSG_INFO(pMsg->msg.msgType));
-    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
-    if (NULL == 0) {
-      int localCount = 1;
-      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-    } else {
-      int localCount = *count + 1;
-      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+  if (rpcDebugFlag & DEBUG_TRACE) {
+    if (tmsgIsValid(pMsg->msg.msgType)) {
+      char buf[128] = {0};
+      sprintf(buf, "%s", TMSG_INFO(pMsg->msg.msgType));
+      int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+      if (NULL == 0) {
+        int localCount = 1;
+        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+      } else {
+        int localCount = *count + 1;
+        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+      }
     }
   }
 
@@ -1782,18 +1757,20 @@ static void cliAsyncCb(uv_async_t* handle) {
   QUEUE_MOVE(&item->qmsg, &wq);
   taosThreadMutexUnlock(&item->mtx);
 
-  void* pIter = taosHashIterate(pThrd->msgCount, NULL);
-  while (pIter != NULL) {
-    int*   count = pIter;
-    size_t len = 0;
-    char*  key = taosHashGetKey(pIter, &len);
-    if (*count != 0) {
-      tDebug("key: %s count: %d", key, *count);
-    }
+  if (rpcDebugFlag & DEBUG_TRACE) {
+    void* pIter = taosHashIterate(pThrd->msgCount, NULL);
+    while (pIter != NULL) {
+      int*   count = pIter;
+      size_t len = 0;
+      char*  key = taosHashGetKey(pIter, &len);
+      if (*count != 0) {
+        tDebug("key: %s count: %d", key, *count);
+      }
 
-    pIter = taosHashIterate(pThrd->msgCount, pIter);
+      pIter = taosHashIterate(pThrd->msgCount, pIter);
+    }
+    tDebug("all conn count: %d", pThrd->newConnCount);
   }
-  tDebug("all conn count: %d", pThrd->newConnCount);
 
   int8_t supportBatch = pTransInst->supportBatch;
   if (supportBatch == 0) {
@@ -2379,17 +2356,18 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       tGTrace("%s conn %p extract epset from msg", CONN_GET_INST_LABEL(pConn), pConn);
     }
   }
-
-  if (tmsgIsValid(pResp->msgType - 1)) {
-    char buf[128] = {0};
-    sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
-    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
-    if (NULL == 0) {
-      int localCount = 0;
-      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
-    } else {
-      int localCount = *count - 1;
-      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+  if (rpcDebugFlag & DEBUG_TRACE) {
+    if (tmsgIsValid(pResp->msgType - 1)) {
+      char buf[128] = {0};
+      sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
+      int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+      if (NULL == 0) {
+        int localCount = 0;
+        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+      } else {
+        int localCount = *count - 1;
+        taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+      }
     }
   }
   if (pCtx->pSem != NULL) {
