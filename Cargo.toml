@@ -1,3 +1,8 @@
+[workspace]
+members = [
+  "taosx-ipc",
+]
+
 [package]
 name = "taosx"
 version = "0.5.0"
