@@ -1218,8 +1218,7 @@ class TDCreateData():
         elif (set(list2)).issubset(set(list1)) :
             #self.logger.info(("=====data2in1-true===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===data2in1-true-num===sql1:'%s' result include sql2:'%s' result") %(sql1,sql2))
-        elif (set[list2]).issubset(set[list1]) :
-            #self.logger.info(("=====data2in1-true===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+        elif (set(list1)).issubset(set(list2)) :
             self.logger.info(("===data2in1-true-str===sql1:'%s' result include sql2:'%s' result") %(sql1,sql2))
         else:
             #self.logger.info(("=====data2in1-false===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
