@@ -957,9 +957,7 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
       STUidTagInfo* pInfo = taosArrayGet(pUidTagList, i);
       taosArrayPush(pUidList, &pInfo->uid);
     }
-
     terrno = 0;
-    goto end;
   } else {
     if ((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) {
       code = metaGetTableTagsByUids(metaHandle, pListInfo->suid, pUidTagList);
