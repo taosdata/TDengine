@@ -1,12 +1,12 @@
 <template>
   <div class="page-wrapper">
     <div class="content">
-      <el-tabs value="datacollection">
-        <el-tab-pane name="datacollection" :label="$t('topic.datacollection')">
-          <DataIn></DataIn>
+      <el-tabs :value="active">
+        <el-tab-pane name="datacollection" :label="$t('topic.datacollection')" v-if="!isOem">
+          <DataIn ></DataIn>
         </el-tab-pane>
-        <el-tab-pane name="datasource" :label="$t('topic.datasource')">
-          <DbSource></DbSource>
+        <el-tab-pane name="datasource" :label="$t('topic.datasource')" v-if="!isOem">
+          <DbSource ></DbSource>
         </el-tab-pane>
         <el-tab-pane name="csv" :label="$t('topic.csv')">
           <DataCSV></DataCSV>
@@ -30,8 +30,12 @@ export default {
     DataCSV
   },
   data() {
-    return {};
+    return {
+      isOem:process.env.VUE_APP_CUS_NAME,
+      active:process.env.VUE_APP_CUS_NAME?'csv':'datacollection'
+    };
   },
+  
   watch: {},
   methods: {},
 };

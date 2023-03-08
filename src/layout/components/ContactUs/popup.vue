@@ -7,7 +7,7 @@
             {{ $t("footerComp.contactUs") }}
           </div>
           <div class="close-popup" @click="closeBtn">
-            <img src="../../../assets/close.webp" alt="TDengine Database" />
+            <img src="../../../assets/close.webp" alt=" Database" />
           </div>
         </div>
         <div class="popup-content">

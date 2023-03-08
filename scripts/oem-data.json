@@ -1,4 +1,7 @@
 {
+  "supportWebsite":"https://tdengine.com",
+    "documentWebsite":"https://docs.tdengine.com",
+  "landingLogo":"",
   "welcome": {
     "title": "CUS_NAME Explorer",
     "subTitle": "Welcome to the Explorer website.",
@@ -15,6 +18,6 @@
     "profile": "Explorer",
     "contracts": [],
     "policies": [],
-    "copyRight": "© 2023 CUS_NAME"
+    "copyright": "© 2023 CUS_NAME"
   }
 }

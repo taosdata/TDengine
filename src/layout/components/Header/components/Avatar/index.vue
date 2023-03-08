@@ -70,6 +70,8 @@
     methods: {
       logout() {
         localStorage.removeItem('base_url')
+        localStorage.removeItem('documentWebsite')
+        localStorage.removeItem('supportWebsite')
         localStorage.removeItem('TDengine-Token')
         this.$store.dispatch("app/logout");
         this.$router.push({

@@ -10,7 +10,7 @@
                   src="../../assets/site-logo.webp"
                   class="logoImg"
                   width="100"
-                  alt="TDengine Database"
+                  alt=" Database"
                 />
               </figure>
               <div class="tdengine">
@@ -29,7 +29,7 @@
                   <span>
                     <svg
                       aria-hidden="true"
-                      alt="TDengine Database"
+                      alt=" Database"
                       role="img"
                       height="1em"
                       width="1em"
@@ -50,7 +50,7 @@
                 <span class="social-btn wechat">
                   <span class="icon">
                     <svg
-                      alt="TDengine Database"
+                      alt=" Database"
                       role="img"
                       viewBox="0 0 576 512"
                       height="20"
@@ -67,7 +67,7 @@
                     <div class="indexModuleTooltipInner">
                       <img
                         src="../../assets/tdengineqrcode_1.jpeg"
-                        alt="TDengine Database 公众号"
+                        alt=" Database 公众号"
                       />
                       <div>
                         <p>添加公众号：</p>
@@ -85,7 +85,7 @@
                 >
                   <span class="icon">
                     <svg
-                      alt="TDengine Database"
+                      alt=" Database"
                       role="img"
                       viewBox="0 0 512 512"
                       height="20"
@@ -108,7 +108,7 @@
                   aria-label="facebook link"
                   ><span class="icon"
                     ><svg
-                      alt="TDengine Database"
+                      alt=" Database"
                       role="img"
                       viewBox="0 0 512 512"
                       height="20"
@@ -127,7 +127,7 @@
                 >
                   <span class="icon"
                     ><svg
-                      alt="TDengine Database"
+                      alt=" Database"
                       role="img"
                       height="20"
                       width="20"
@@ -149,7 +149,7 @@
                     <div class="indexModuleTooltipInner">
                       <img
                         src="../../assets/tdengine.webp"
-                        alt="TDengine Database 技术交流群"
+                        alt=" Database 技术交流群"
                       />
                       <div>
                         <p>加小T为好友，即可加入物联网大数据技术前沿群</p>
@@ -166,7 +166,7 @@
                   ><span class="icon"
                     ><svg
                       aria-hidden="true"
-                      alt="TDengine Database"
+                      alt=" Database"
                       role="img"
                       height="20"
                       width="20"
@@ -188,7 +188,7 @@
                     ><svg
                       height="20"
                       width="20"
-                      alt="TDengine Database"
+                      alt=" Database"
                       role="img"
                       xmlns="http://www.w3.org/2000/svg"
                       version="1.1"
@@ -209,7 +209,7 @@
                     ><svg
                       height="20"
                       width="20"
-                      alt="TDengine Database"
+                      alt=" Database"
                       role="img"
                       xmlns="http://www.w3.org/2000/svg"
                       version="1.1"

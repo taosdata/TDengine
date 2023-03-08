@@ -41,11 +41,11 @@ export TDENGINE_CLOUD_TOKEN=&quot;${token}&quot;
 </ul>
 <pre v-highlight><code class="language-sql">show databases;
 </code></pre>
-<p><img src="../assets/telegraf/telegraf-show-databases.webp" alt="TDengine show telegraf databases"></p>
+<p><img src="../assets/telegraf/telegraf-show-databases.webp" alt=" show telegraf databases"></p>
 <p>Check weather super table cpu and mem exist:</p>
 <pre v-highlight><code class="language-sql">show telegraf.stables;
 </code></pre>
-<p><img src="../assets/telegraf/telegraf-show-stables.webp" alt="TDengine Cloud show telegraf stables"></p>
+<p><img src="../assets/telegraf/telegraf-show-stables.webp" alt=" Cloud show telegraf stables"></p>
 <p>:::note</p>
 <ul>
 <li>Telegraf collects the running status measurements of current system. You can enable <a href="https://docs.influxdata.com/telegraf/v1.22/plugins/">input plugins</a> to insert <a href="https://docs.influxdata.com/telegraf/v1.24/data_formats/input/">other formats</a> data to Telegraf then forward to TDengine.</li>

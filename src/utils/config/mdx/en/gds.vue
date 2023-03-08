@@ -31,7 +31,7 @@ These conditions are utilized in the where clause in SQL statements, such as:</p
 select * from test.demo where ts &gt;= &#39;2022-05-10 18:24:15&#39; and ts&lt;=&#39;2022-05-12 18:24:15&#39;
 </code></pre>
 <p>In fact, you can speed up the data loading in your report by using these filters.</p>
-<p><img src="../assets/gds/gds_cloud_login.webp" alt="TDengine Cloud Config Page"></p>
+<p><img src="../assets/gds/gds_cloud_login.webp" alt=" Cloud Config Page"></p>
 <p>Click &quot;CONNECT&quot; once configuration is complete, then you can connect to your &quot;TDengine Cloud&quot; with the given database and table.</p>
 <h2 id="create-report-or-dashboard">Create Report or Dashboard</h2>
 <p>Unlock the power of your data with interactive dashboards and beautiful reports with the data stored in TDengine.</p>

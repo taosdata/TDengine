@@ -34,7 +34,7 @@ remote_read:
 <p>Prometheus should start up. It also started a web server at <a href="http://localhost:9090">http://localhost:9090</a>. If you want to access the web server from a browser which is not running on the same host as Prometheus, please change <code>localhost</code> to correct hostname, FQDN or IP address, depending on your network environment.</p>
 <h2 id="verify-remote-write">Verify Remote Write</h2>
 <p>Log in TDengine Cloud, click &quot;Explorer&quot; on the left navigation bar. You will see metrics collected by prometheus.</p>
-<p><img src="../assets/prometheus/prometheus_data.webp" alt="TDengine prometheus remote_write result"></p>
+<p><img src="../assets/prometheus/prometheus_data.webp" alt=" prometheus remote_write result"></p>
 <p>:::note</p>
 <ul>
 <li>TDengine will automatically create unique IDs for sub-table names by the rule.

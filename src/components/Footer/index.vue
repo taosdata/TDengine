@@ -10,7 +10,7 @@
                   src="../../assets/site-logo.webp"
                   class="logoImg"
                   width="100"
-                  alt="TDengine Database"
+                  alt=" Database"
                 />
               </figure>
               <div class="tdengine">
@@ -37,7 +37,7 @@
                 >
                   <span class="icon">
                     <svg
-                      alt="TDengine Database"
+                      alt=" Database"
                       role="img"
                       height="20"
                       width="20"
@@ -66,7 +66,7 @@
                       width="20"
                       height="20"
                       aria-hidden="true"
-                      alt="TDengine Database"
+                      alt=" Database"
                       role="img"
                     >
                       <path
@@ -85,7 +85,7 @@
                 >
                   <span class="icon">
                     <svg
-                      alt="TDengine Database"
+                      alt=" Database"
                       role="img"
                       viewBox="0 0 512 512"
                       height="20"
@@ -107,7 +107,7 @@
                   ><span class="icon"
                     ><svg
                       aria-hidden="true"
-                      alt="TDengine Database"
+                      alt=" Database"
                       role="img"
                       height="20"
                       width="20"
@@ -129,7 +129,7 @@
                     ><svg
                       height="20"
                       width="20"
-                      alt="TDengine Database"
+                      alt=" Database"
                       role="img"
                       xmlns="http://www.w3.org/2000/svg"
                       version="1.1"

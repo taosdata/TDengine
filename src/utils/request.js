@@ -5,14 +5,15 @@ import { refreshTokenExpire } from "./token";
 import { ReLoginCode, SuccessCode, RequestCommonConfig } from "@/const";
 const request = axios.create({
   ...RequestCommonConfig,
-  baseURL: localStorage.getItem('base_url'),
+  baseURL: '',
   headers: {
     "Content-Type": "application/json"
   },
 });
+
+request.defaults.baseURL=localStorage.getItem('base_url')
 let msg = "";
 let setTokenTimer = null;
-let local_baseurl=''
 
 request.interceptors.request.use(
   config => {

@@ -15,7 +15,7 @@
         <div class="site-navigation">
           <nav class="main-navigation">
             <ul id="menu-menu">
-              <li class="gitIframe">
+              <li class="gitIframe" v-if="!oemName">
                 <a href="https://github.com/taosdata/TDengine"
                   ><iframe
                     src="https://tdengine.com/star.html?user=taosdata&amp;repo=TDengine&amp;type=star&amp;count=true"
@@ -35,7 +35,7 @@
                 <a :href="item.url">{{ item.name }}</a>
               </li>
 
-              <li class="link"><a href="#!" @click="search">Search</a></li>
+              <!-- <li class="link"><a href="#!" @click="search">Search</a></li>
               <li>
                 <a href="javascript:void(0)">
                   <img
@@ -47,10 +47,10 @@
                     data-rl-src="https://62edbda222ff1144494a0b29.cdn.rabbitloader.com/62edbda222ff1144494a0b29/rls.s-nw-a28/wp-content/uploads/2022/09/26.03-7-language-menu.png"
                     loading="lazy"
                     class="ls-is-cached rl-lazyloaded"
-                  />
+                  /> -->
                   <!-- <img src="https://62edbda222ff1144494a0b29.cdn.rabbitloader.com/62edbda222ff1144494a0b29/rls.s-nw-a28/wp-content/uploads/2022/09/26.03-7-language-menu.png" alt="" width="100"> -->
-                </a>
-              </li>
+                <!-- </a>
+              </li> -->
             </ul>
           </nav>
         </div>
@@ -89,6 +89,7 @@
             <el-form-item label="" prop="cluster">
               <el-input
                 v-model="dynamicValidateForm.cluster"
+                @blur="getClusterUrl"
                 placeholder="http://192.168.0.201:6050"
               ></el-input>
             </el-form-item>
@@ -148,7 +149,7 @@
               </figure>
               <p class="profile">{{ dataJson.footer.profile }}</p>
             </div>
-            <div class="right">
+            <div class="right" v-if="dataJson.footer.contracts">
               <div class="sales">
                 <span class="button">Contract us</span>
               </div>
@@ -164,7 +165,7 @@
           <div class="foot-bottom">
             <!-- <div class="copy-right"> -->
             <div class="cp-left">
-              {{ dataJson.footer.copyRight }}
+              {{ dataJson.footer.copyright }}
             </div>
             <div class="cp-right">
               <template v-for="(item, index) in dataJson.footer.policies">
@@ -180,6 +181,7 @@
   </div>
 </template>
 <script>
+import {request} from '@/utils/request'
 import { DbBase64 } from "../../utils/dbBase64";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
@@ -206,6 +208,7 @@ export default {
       }
     };
     return {
+      oemName:process.env.VUE_APP_CUS_NAME,
       loading: false,
       earch: require("@/assets/earth.webp"),
       hidden: false,
@@ -241,6 +244,14 @@ export default {
     };
   },
   methods: {
+    getClusterUrl() {
+      localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
+      this.$store.commit(
+        "app/SET_CLUSTER_URL",
+        this.dynamicValidateForm.cluster
+      );
+      request.defaults.baseURL=this.dynamicValidateForm.cluster
+    },
     submitForm(formName) {
       let reg =
         /^(http|https):\/\/([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*/;
@@ -253,7 +264,6 @@ export default {
       }
       this.$refs[formName].validate((valid) => {
         if (valid) {
-          localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
           this.loading = true;
           setTimeout(() => {
             this.login();
@@ -300,6 +310,7 @@ export default {
         username: this.dynamicValidateForm.username,
         pwd: this.dynamicValidateForm.password,
       });
+      request.defaults.baseURL=this.dynamicValidateForm.cluster
       try {
         await fetchApiByCluster(
           this.dynamicValidateForm.cluster,
@@ -317,8 +328,7 @@ export default {
         this.loading = false;
       } catch (error) {
         this.loading = false;
-        this.deleteCookieItem()
-        console.log('login---error');
+        this.deleteCookieItem();
         Message.error("Faild to fetch,wrong cluster url!");
       }
     },
@@ -374,7 +384,6 @@ export default {
         while (item.charAt(0) === " ") {
           item = item.substring(1);
         }
-        console.log(item,'遍历cookie---');
         if (item.indexOf("TDengine-Token=") === 0) {
           document.cookie =
             encodeURIComponent(item.split("=")[0]) +
@@ -385,7 +394,10 @@ export default {
     },
   },
   created() {
+    console.log(process.env,this.dataJson, "env---===");
     this.getClusterAndDashboardUrl();
+    localStorage.setItem('supportWebsite',this.dataJson.supportWebsite)
+    localStorage.setItem('documentWebsite',this.dataJson.documentWebsite)
   },
 };
 </script>

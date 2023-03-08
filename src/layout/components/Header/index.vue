@@ -5,8 +5,8 @@
     </div>
     <div class="headerRight">
 
-      <Support></Support>
-      <Document></Document>
+      <Support v-if="supportUrl"></Support>
+      <Document v-if="docUrl"></Document>
       <!-- <Github></Github> -->
       <!-- <International></International> -->
 
@@ -29,6 +29,8 @@
     data() {
       return {
         issueTypeList: [],
+        supportUrl:localStorage.getItem('supportWebsite'),
+        docUrl:localStorage.getItem('documentWebsite')
       };
     },
     computed: {

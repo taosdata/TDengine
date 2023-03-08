@@ -4,6 +4,7 @@ import { getToken } from "@/utils/token.js";
 import store from "./store";
 import { NoInstanceAccessRoute, InitClusterStatus, BaseRoute, InactiveStatus } from "@/const";
 const whiteList=['Login']
+
 router.beforeEach(async (to, from, next) => {
   const hasToken = getToken();
   if(!hasToken){

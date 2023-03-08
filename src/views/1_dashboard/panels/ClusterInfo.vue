@@ -147,12 +147,10 @@ export default {
     },
   },
   created() {
-    console.log('dashboard----created',localStorage.getItem("local_grafana")==null,!localStorage.getItem("local_grafana"));
     if (localStorage.getItem("local_grafana")==null) {
       this.getDashData();
     }else{
       this.$store.commit("app/SET_CLUSTER_INFO", null)
-      console.log(this.cluster_info,JSON.stringify(this.cluster_info)==='{}','kkkkk==');
     }
   },
 };

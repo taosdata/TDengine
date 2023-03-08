@@ -43,6 +43,7 @@ const defaultUserInfo = {
   company_name: "",
   industry_type: "",
   position: "",
+  cluster_url:""
 };
 // const currentHost = new RegExp("^(https?://)?" + window.location.host + "$");
 const currentHost = {
@@ -57,6 +58,9 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_CLUSTER_URL(state,url){
+    state.cluster_url=url
+  },
   SAVE_LOGIN_INFO(state,info){
     state.loginInfo=info
   },
