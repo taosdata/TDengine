@@ -12,7 +12,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tlog.h"
 #include "transComm.h"
 
 typedef struct {
