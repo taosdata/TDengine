@@ -20,6 +20,11 @@
 static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* pRes) {
   int32_t code;
   void*   exec = pTask->exec.executor;
+  while(atomic_load_8(&pTask->taskStatus) != TASK_STATUS__NORMAL) {
+    qError("stream task wait for the end of fill history");
+    taosMsleep(2);
+    continue;
+  }
 
   // set input
   const SStreamQueueItem* pItem = (const SStreamQueueItem*)data;
@@ -58,6 +63,9 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
     SSDataBlock* output = NULL;
     uint64_t     ts = 0;
     if ((code = qExecTask(exec, &output, &ts)) < 0) {
+      if (code == TSDB_CODE_QRY_IN_EXEC) {
+        resetTaskInfo(exec);
+      }
       /*ASSERT(false);*/
       qError("unexpected stream execution, stream %" PRId64 " task: %d,  since %s", pTask->streamId, pTask->taskId,
              terrstr());
@@ -121,8 +129,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       SSDataBlock* output = NULL;
       uint64_t     ts = 0;
       if (qExecTask(exec, &output, &ts) < 0) {
-        taosArrayDestroy(pRes);
-        return -1;
+        continue;
       }
       if (output == NULL) {
         if (qStreamRecoverScanFinished(exec)) {

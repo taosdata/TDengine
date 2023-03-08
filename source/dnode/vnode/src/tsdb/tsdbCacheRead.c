@@ -38,15 +38,16 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
         *(int64_t*)p->buf = pColVal->ts;
         allNullRow = false;
       } else {
-        int32_t   slotId = slotIds[i];
-        SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
-
+        int32_t slotId = slotIds[i];
         // add check for null value, caused by the modification of table schema (new column added).
-        if (pColVal == NULL) {
+        if (slotId >= taosArrayGetSize(pRow)) {
           p->ts = 0;
           p->isNull = true;
+          colDataSetNULL(pColInfoData, numOfRows);
           continue;
         }
+
+        SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
 
         p->ts = pColVal->ts;
         p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
@@ -79,7 +80,12 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
         SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
         colDataSetVal(pColInfoData, numOfRows, (const char*)&pColVal->ts, false);
       } else {
-        int32_t   slotId = slotIds[i];
+        int32_t slotId = slotIds[i];
+        // add check for null value, caused by the modification of table schema (new column added).
+        if (slotId >= taosArrayGetSize(pRow)) {
+          colDataSetNULL(pColInfoData, numOfRows);
+          continue;
+        }
         SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
         SColVal*  pVal = &pColVal->colVal;
 
