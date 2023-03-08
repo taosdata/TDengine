@@ -57,7 +57,7 @@ CheckVersion(){
     SERVER_VERSION=`taos -s "select server_version()"|sed -n '7,7p'|awk '{print $1}'`
     print "${GREEN}[client_version]:${CLIENT_VERSION} ${RES}"
 
-    if [ ${CLIENT_VERSION} = "3.9.9.9" -a ${CLIENT_VERSION} != ""  ]
+    if [ ${CLIENT_VERSION} = "${VERSION}" -a ${CLIENT_VERSION} != ""  ]
     then
         print "${GREEN}client version through taos-shell correct ${RES}"
     else
@@ -65,7 +65,7 @@ CheckVersion(){
         exit 1
     fi
 
-    if [ ${SERVER_VERSION} = "3.9.9.9" -a ${SERVER_VERSION} != ""  ]
+    if [ ${SERVER_VERSION} = "${VERSION}" -a ${SERVER_VERSION} != ""  ]
     then
         print "${GREEN}server version through taos-shell correct${RES}"
     else
@@ -76,7 +76,7 @@ CheckVersion(){
     CLIENT_VERSION_ADP=`curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ=="  -d "select client_version()"   127.0.0.1:6041/rest/sql|jq -r '.data[0][0]'`
     SERVER_VERSION_ADP=`curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ=="  -d "select server_version()"   127.0.0.1:6041/rest/sql|jq -r '.data[0][0]'`
 
-    if [ ${CLIENT_VERSION_ADP} = "3.9.9.9" -a ${CLIENT_VERSION_ADP} != ""  ]
+    if [ ${CLIENT_VERSION_ADP} = "${VERSION}" -a ${CLIENT_VERSION_ADP} != ""  ]
     then
         print "${GREEN}client version through taosadpter correct${RES}"
     else
@@ -85,7 +85,7 @@ CheckVersion(){
     fi
 
 
-    if [ ${SERVER_VERSION_ADP} = "3.9.9.9" -a ${SERVER_VERSION_ADP} != ""  ]
+    if [ ${SERVER_VERSION_ADP} = "${VERSION}" -a ${SERVER_VERSION_ADP} != ""  ]
     then
         print "${GREEN}server version through taosadpter correct${RES}"
     else
@@ -170,6 +170,14 @@ t        exit 1
     if [ ! -e udfd ]
     then
         print "${RED}udfd not find in package${RES}"
+        exit 1
+    fi
+    print "${GREEN} check enterprise package's bin folder correct.${RES}"
+
+
+    if [ ! -e taos-explorer ]
+    then
+        print "${RED}taos-explorer not find in package${RES}"
         exit 1
     fi
     print "${GREEN} check enterprise package's bin folder correct.${RES}"
