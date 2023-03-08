@@ -211,7 +211,7 @@ static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
   SDecoder *pCoder = &(SDecoder){0};
 
-  if (((SSubmitReq2Msg *)pMsg->pCont)->version != 1) {
+  if (taosHton64(((SSubmitReq2Msg *)pMsg->pCont)->version) != 1) {
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
