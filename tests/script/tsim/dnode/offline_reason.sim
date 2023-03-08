@@ -8,10 +8,10 @@ sql connect
 sql create dnode $hostname port 7200
 
 sql select * from information_schema.ins_dnodes
-print dnode1 off: $data(1)[6]
-print dnode2 off: $data(2)[6]
+print dnode1 off: $data(1)[7]
+print dnode2 off: $data(2)[7]
 
-if $data(2)[6] != @status not received@ then
+if $data(2)[7] != @status not received@ then
 	return -1
 endi
 
@@ -50,9 +50,9 @@ step3:
 		return -1
 	endi
 sql select * from information_schema.ins_dnodes
-print dnode1 off: $data(1)[6]
-print dnode2 off: $data(2)[6]
-if $data(2)[6] != @status msg timeout@ then
+print dnode1 off: $data(1)[7]
+print dnode2 off: $data(2)[7]
+if $data(2)[7] != @status msg timeout@ then
 	goto step3
 endi
 
@@ -77,9 +77,9 @@ step5:
 	endi
 
 sql select * from information_schema.ins_dnodes
-print dnode1 off: $data(1)[6]
-print dnode2 off: $data(3)[6]
-if $data(3)[6] != @dnodeId not match@ then
+print dnode1 off: $data(1)[7]
+print dnode2 off: $data(3)[7]
+if $data(3)[7] != @dnodeId not match@ then
 	goto step5
 endi
 
@@ -98,10 +98,10 @@ step6:
 	endi
 
 sql select * from information_schema.ins_dnodes
-print dnode1 off: $data(1)[6]
-print dnode2 off: $data(3)[6]
-print dnode3 off: $data(4)[6]
-if $data(4)[6] != @interval not match@ then
+print dnode1 off: $data(1)[7]
+print dnode2 off: $data(3)[7]
+print dnode3 off: $data(4)[67
+if $data(4)[7] != @interval not match@ then
 	goto step6
 endi
 
@@ -120,11 +120,11 @@ step7:
 	endi
 
 sql select * from information_schema.ins_dnodes
-print dnode1 off: $data(1)[6]
-print dnode3 off: $data(3)[6]
-print dnode4 off: $data(4)[6]
-print dnode5 off: $data(5)[6]
-if $data(5)[6] != @locale not match@ then
+print dnode1 off: $data(1)[7]
+print dnode3 off: $data(3)[7]
+print dnode4 off: $data(4)[7]
+print dnode5 off: $data(5)[7]
+if $data(5)[7] != @locale not match@ then
 	goto step7
 endi
 
@@ -143,12 +143,12 @@ step8:
 	endi
 
 sql select * from information_schema.ins_dnodes
-print dnode1 off: $data(1)[6]
-print dnode3 off: $data(3)[6]
-print dnode4 off: $data(4)[6]
-print dnode5 off: $data(5)[6]
-print dnode6 off: $data(6)[6]
-if $data(6)[6] != @charset not match@ then
+print dnode1 off: $data(1)[7]
+print dnode3 off: $data(3)[7]
+print dnode4 off: $data(4)[7]
+print dnode5 off: $data(5)[7]
+print dnode6 off: $data(6)[7]
+if $data(6)[7] != @charset not match@ then
 	goto step8
 endi
 
