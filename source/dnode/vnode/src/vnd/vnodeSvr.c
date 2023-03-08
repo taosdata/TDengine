@@ -1655,6 +1655,7 @@ static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t version, void *p
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
+
   if (metaDropIndexFromSTable(pVnode->pMeta, version, &req) < 0) {
     pRsp->code = terrno;
     return -1;
