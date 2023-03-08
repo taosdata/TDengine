@@ -34,7 +34,8 @@ static int32_t mndSetCompactDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
-static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs) {
+static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs,
+                                          STimeWindow tw) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
 
@@ -44,7 +45,7 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     if (pIter == NULL) break;
 
     if (mndVgroupInDb(pVgroup, pDb->uid)) {
-      if (mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs) != 0) {
+      if (mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
         return -1;
@@ -57,7 +58,7 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
   return 0;
 }
 
-static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
+static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw) {
   int64_t compactTs = taosGetTimestampMs();
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "compact-db");
@@ -67,7 +68,7 @@ static int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   mndTransSetDbName(pTrans, pDb->name, NULL);
   if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
   if (mndSetCompactDbCommitLogs(pMnode, pTrans, pDb, compactTs) != 0) goto _OVER;
-  if (mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs) != 0) goto _OVER;
+  if (mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs, tw) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
@@ -98,7 +99,7 @@ int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndCompactDb(pMnode, pReq, pDb);
+  code = mndCompactDb(pMnode, pReq, pDb, compactReq.timeRange);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:

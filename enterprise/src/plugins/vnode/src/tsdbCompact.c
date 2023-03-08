@@ -28,6 +28,8 @@ typedef struct {
 
   STsdbFS fs;
 
+  int32_t  maxFid;
+  int32_t  minFid;
   int32_t  fid;
   TABLEID  tbid;
   SSkmInfo tbSkm;
@@ -56,6 +58,11 @@ typedef struct {
   SBlockData    bData;
   SBlockData    sData;
 } STsdbCompactor;
+
+static bool tsdbNeedCompactFileSet(STsdbCompactor *pCompactor, SDFileSet *pSet) {
+  // TODO
+  return true;
+}
 
 static int32_t tsdbAbortCompact(STsdbCompactor *pCompactor) {
   int32_t code = 0;
@@ -553,7 +560,9 @@ static int32_t tsdbBeginCompact(STsdb *pTsdb, SCompactInfo *pInfo, STsdbCompacto
   pCompactor->cmprAlg = pTsdb->pVnode->config.tsdbCfg.compression;
   pCompactor->maxRows = pTsdb->pVnode->config.tsdbCfg.maxRows;
   pCompactor->minRows = pTsdb->pVnode->config.tsdbCfg.minRows;
-  pCompactor->fid = INT32_MIN;
+  pCompactor->minFid = tsdbKeyFid(pInfo->tw.skey, pTsdb->keepCfg.days, pTsdb->keepCfg.precision);
+  pCompactor->maxFid = tsdbKeyFid(pInfo->tw.ekey, pTsdb->keepCfg.days, pTsdb->keepCfg.precision);
+  pCompactor->fid = pCompactor->minFid - 1;
 
   code = tsdbFSCopy(pTsdb, &pCompactor->fs);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -620,15 +629,15 @@ int32_t tsdbCompact(STsdb *pTsdb, SCompactInfo *pInfo) {
   for (;;) {
     SDFileSet *pSet = (SDFileSet *)taosArraySearch(pCompactor->fs.aDFileSet, &(SDFileSet){.fid = pCompactor->fid},
                                                    tDFileSetCmprFn, TD_GT);
-    if (pSet == NULL) {
+    if (pSet == NULL || pSet->fid > pCompactor->maxFid) {
       pCompactor->fid = INT32_MAX;
       break;
     }
 
+    if (!tsdbNeedCompactFileSet(pCompactor, pSet)) continue;
+
     if ((code = tsdbCompactFileSet(pCompactor, pSet))) goto _exit;
   }
-
-  if ((code = tsdbFSUpsertDelFile(&pCompactor->fs, NULL))) goto _exit;
 
 _exit:
   if (code) {

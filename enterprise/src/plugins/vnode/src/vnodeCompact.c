@@ -45,7 +45,7 @@ _exit:
   taosMemoryFree(pInfo);
   return code;
 }
-static int32_t vnodePrepareCompact(SVnode *pVnode, SCompactInfo *pInfo) {
+static int32_t vnodePrepareCompact(SVnode *pVnode, SCompactInfo *pInfo, SCompactVnodeReq *pReq) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -54,6 +54,7 @@ static int32_t vnodePrepareCompact(SVnode *pVnode, SCompactInfo *pInfo) {
   pInfo->pVnode = pVnode;
   pInfo->flag = 0;
   pInfo->commitID = ++pVnode->state.commitID;
+  pInfo->tw = pReq->tw;
 
   char       dir[TSDB_FILENAME_LEN] = {0};
   SVnodeInfo info = {0};
@@ -85,7 +86,7 @@ _exit:
   }
   return code;
 }
-static int32_t vnodeAsyncCompact(SVnode *pVnode) {
+static int32_t vnodeAsyncCompact(SVnode *pVnode, SCompactVnodeReq *pReq) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -97,7 +98,7 @@ static int32_t vnodeAsyncCompact(SVnode *pVnode) {
 
   vnodeAsyncCommit(pVnode);
 
-  code = vnodePrepareCompact(pVnode, pInfo);
+  code = vnodePrepareCompact(pVnode, pInfo, pReq);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   vnodeScheduleTask(vnodeCompactTask, pInfo);
@@ -112,14 +113,7 @@ _exit:
   return code;
 }
 
-static int32_t vnodeSyncCompact(SVnode *pVnode) {
-  vnodeAsyncCompact(pVnode);
-  tsem_wait(&pVnode->canCommit);
-  tsem_post(&pVnode->canCommit);
-  return 0;
-}
-
-int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) { 
+int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SCompactVnodeReq req = {0};
   if (tDeserializeSCompactVnodeReq(pReq, len, &req) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -128,8 +122,8 @@ int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *p
   vInfo("vgId:%d, compact msg will be processed, db:%s dbUid:%" PRId64 " compactStartTime:%" PRId64, TD_VID(pVnode),
         req.db, req.dbUid, req.compactStartTime);
 
-  vnodeAsyncCompact(pVnode);
+  vnodeAsyncCompact(pVnode, &req);
   vnodeBegin(pVnode);
 
   return 0;
- }
+}
