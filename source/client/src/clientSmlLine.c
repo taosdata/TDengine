@@ -582,8 +582,10 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
                .i = ts,
                .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
   if (info->dataFormat) {
-    smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, 0);
-    smlBuildRow(info->currTableDataCtx);
+    ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, 0);
+    if(ret != TSDB_CODE_SUCCESS){return ret;}
+    ret = smlBuildRow(info->currTableDataCtx);
+    if(ret != TSDB_CODE_SUCCESS){return ret;}
     clearColValArray(info->currTableDataCtx->pValues);
   } else {
     taosArraySet(elements->colArray, 0, &kv);
