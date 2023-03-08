@@ -317,7 +317,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
         taosArrayPush(pRebSub->removedConsumers, &pConsumer->consumerId);
       }
       taosRUnLockLatch(&pConsumer->lock);
-    } else if (status == MQ_CONSUMER_STATUS__MODIFY) {
+    } else if (status == MQ_CONSUMER_STATUS__MODIFY || status == MQ_CONSUMER_STATUS__MODIFY_IN_REB) {
       taosRLockLatch(&pConsumer->lock);
 
       int32_t newTopicNum = taosArrayGetSize(pConsumer->rebNewTopics);
