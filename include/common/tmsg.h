@@ -612,6 +612,7 @@ typedef struct {
   char    user[TSDB_USER_LEN];
   char    passwd[TSDB_PASSWORD_LEN];
   int64_t startTime;
+  char    sVer[TSDB_VERSION_LEN];
 } SConnectReq;
 
 int32_t tSerializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
@@ -1291,9 +1292,10 @@ int32_t tSerializeSDropIdxReq(void* buf, int32_t bufLen, SDropIndexReq* pReq);
 int32_t tDeserializeSDropIdxReq(void* buf, int32_t bufLen, SDropIndexReq* pReq);
 
 typedef struct {
-  int64_t dbUid;
-  char    db[TSDB_DB_FNAME_LEN];
-  int64_t compactStartTime;
+  int64_t     dbUid;
+  char        db[TSDB_DB_FNAME_LEN];
+  int64_t     compactStartTime;
+  STimeWindow tw;
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);

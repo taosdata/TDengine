@@ -742,7 +742,8 @@ int32_t syncLogReplMgrProcessReplyAsRecovery(SSyncLogReplMgr* pMgr, SSyncNode* p
 
   if (pMsg->matchIndex < pNode->pLogBuf->matchIndex) {
     term = syncLogReplMgrGetPrevLogTerm(pMgr, pNode, index + 1);
-    if (term < 0 || (term != pMsg->lastMatchTerm && (index + 1 == firstVer || index == firstVer))) {
+    if ((index + 1 < firstVer) || (term < 0) ||
+        (term != pMsg->lastMatchTerm && (index + 1 == firstVer || index == firstVer))) {
       ASSERT(term >= 0 || terrno == TSDB_CODE_WAL_LOG_NOT_EXIST);
       if (syncNodeStartSnapshot(pNode, &destId) < 0) {
         sError("vgId:%d, failed to start snapshot for peer dnode:%d", pNode->vgId, DID(&destId));
