@@ -6,7 +6,7 @@ if "%1" == "full" (
     echo Windows Taosd Full Test
     set /a exitNum=0
     del /Q /F failed.txt
-    set caseFile="fulltest.sh"
+    set caseFile="win-test-file"
     if not "%2" == "" (
         set caseFile="%2"
     )
