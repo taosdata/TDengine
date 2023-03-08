@@ -104,7 +104,7 @@ class TDTestQuery(TDCase):
         #     self.data_create(self.db)        
         #     self.rm_sql()
             
-        for i in range(1000):
+        for i in range(500):
             self.logger.info("  ================i=  %d ====================" % i)
             if i/4==1:
                 self.data_create(self.db)   

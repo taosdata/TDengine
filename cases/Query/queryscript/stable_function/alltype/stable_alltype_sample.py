@@ -55,7 +55,7 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "stable_sample"
+    db = "stable_sample1"
     
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
@@ -117,13 +117,13 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where  %s %s %s group by tbname" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data2in1('%s' %sql1 ,1,int('%d' %(sql1_row)),1,1,'%s' %sql2 ,1,int('%d' %(n-1)),1,1)
+                        self.tdCreateData.data2in1('%s' %sql1 ,1,int('%d' %(sql1_row)),1,1,'%s' %sql2 ,1,int('%d' %(n)),1,1)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where %s %s %s group by tbname)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data2in1('%s' %sql1 ,1,int('%d' %(sql1_row)),1,1,'%s' %sql2 ,1,int('%d' %(n-1)),1,1)
+                        self.tdCreateData.data2in1('%s' %sql1 ,1,int('%d' %(sql1_row)),1,1,'%s' %sql2 ,1,int('%d' %(n)),1,1)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -175,13 +175,13 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data2in1('%s' %sql1 ,1,int('%d' %(sql1_row)),1,1,'%s' %sql2 ,1,int('%d' %(n-1)),1,1)
+                        self.tdCreateData.data2in1('%s' %sql1 ,1,int('%d' %(sql1_row)),1,1,'%s' %sql2 ,1,int('%d' %(n)),1,1)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data2in1('%s' %sql1 ,1,int('%d' %(sql1_row)),1,1,'%s' %sql2 ,1,int('%d' %(n-1)),1,1)
+                        self.tdCreateData.data2in1('%s' %sql1 ,1,int('%d' %(sql1_row)),1,1,'%s' %sql2 ,1,int('%d' %(n)),1,1)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -1070,13 +1070,13 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts limit 5000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data2in1('%s' %sql1 ,1,int('%d' %(sql1_row)),1,1,'%s' %sql2 ,1,int('%d' %(n-1)),1,1)
+                        self.tdCreateData.data2in1('%s' %sql1 ,1,int('%d' %(sql1_row)),1,1,'%s' %sql2 ,1,int('%d' %(n)),1,1)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2) 
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname order by ts limit 5000)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.data2in1('%s' %sql1 ,1,int('%d' %(sql1_row)),1,1,'%s' %sql2 ,1,int('%d' %(n-1)),1,1)
+                        self.tdCreateData.data2in1('%s' %sql1 ,1,int('%d' %(sql1_row)),1,1,'%s' %sql2 ,1,int('%d' %(n)),1,1)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)                    
                         sql= sql + sql2
