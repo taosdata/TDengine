@@ -17,8 +17,64 @@ INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 
 # osTests
 add_executable(osTests "osTests.cpp")
-target_link_libraries(osTests os util gtest_main)   
+target_link_libraries(osTests os util gtest_main)
 add_test(
     NAME osTests
     COMMAND osTests
+)
+
+add_executable(osSystemTests "osSystemTests.cpp")
+target_link_libraries(osSystemTests os util gtest_main)
+add_test(
+    NAME osSystemTests
+    COMMAND osSystemTests
+)
+
+add_executable(osMathTests "osMathTests.cpp")
+target_link_libraries(osMathTests os util gtest_main)
+add_test(
+    NAME osMathTests
+    COMMAND osMathTests
+)
+
+add_executable(osSignalTests "osSignalTests.cpp")
+target_link_libraries(osSignalTests os util gtest_main)
+add_test(
+    NAME osSignalTests
+    COMMAND osSignalTests
+)
+
+add_executable(osSleepTests "osSleepTests.cpp")
+target_link_libraries(osSleepTests os util gtest_main)
+add_test(
+    NAME osSleepTests
+    COMMAND osSleepTests
+)
+
+add_executable(osStringTests "osStringTests.cpp")
+target_link_libraries(osStringTests os util gtest_main)
+add_test(
+    NAME osStringTests
+    COMMAND osStringTests
+)
+
+add_executable(osThreadTests "osThreadTests.cpp")
+target_link_libraries(osThreadTests os util gtest_main)
+add_test(
+    NAME osThreadTests
+    COMMAND osThreadTests
+)
+
+add_executable(osTimeTests "osTimeTests.cpp")
+target_link_libraries(osTimeTests os util gtest_main)
+add_test(
+    NAME osTimeTests
+    COMMAND osTimeTests
+)
+
+add_executable(osAtomicTests "osAtomicTests.cpp")
+target_link_libraries(osAtomicTests os util gtest_main)
+add_test(
+    NAME osAtomicTests
+    COMMAND osAtomicTests
 )

@@ -285,7 +285,7 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
 
   if (syncNodeIsMnode(pSyncNode)) {
     // mnode
-    logRetention = SYNC_MNODE_LOG_RETENTION;
+    logRetention = tsMndLogRetention;
   } else {
     // vnode
     if (pSyncNode->replicaNum > 1) {
@@ -301,7 +301,7 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
       syncNodeRelease(pSyncNode);
       return 0;
     }
-    logRetention = TMAX(logRetention, lastApplyIndex - pSyncNode->minMatchIndex);
+    logRetention = TMAX(logRetention, lastApplyIndex - pSyncNode->minMatchIndex + logRetention);
   }
 
 _DEL_WAL:

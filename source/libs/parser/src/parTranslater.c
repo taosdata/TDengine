@@ -1211,7 +1211,8 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
   } else {
     res = translateNormalValue(pCxt, pVal, targetDt, strict);
   }
-  pVal->node.resType = targetDt;
+  pVal->node.resType.type = targetDt.type;
+  pVal->node.resType.bytes = targetDt.bytes;
   pVal->node.resType.scale = pVal->unit;
   pVal->translate = true;
   if (!strict && TSDB_DATA_TYPE_UBIGINT == pVal->node.resType.type && pVal->datum.u <= INT64_MAX) {
@@ -2499,6 +2500,12 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
       STempTableNode* pTempTable = (STempTableNode*)pTable;
       code = translateSubquery(pCxt, pTempTable->pSubquery);
       if (TSDB_CODE_SUCCESS == code) {
+        if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) && 
+           ((SSelectStmt*)pTempTable->pSubquery)->isEmptyResult &&
+           isSelectStmt(pCxt->pCurrStmt)) {
+          ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
+        }
+
         pTempTable->table.precision = getStmtPrecision(pTempTable->pSubquery);
         pTempTable->table.singleTable = stmtIsSingleTable(pTempTable->pSubquery);
         code = addNamespace(pCxt, pTempTable);
@@ -2796,6 +2803,10 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   bool    other;
   int32_t code = translateOrderByPosition(pCxt, pSelect->pProjectionList, pSelect->pOrderByList, &other);
   if (TSDB_CODE_SUCCESS == code) {
+    if (0 == LIST_LENGTH(pSelect->pOrderByList)) {
+      NODES_DESTORY_LIST(pSelect->pOrderByList);
+      return TSDB_CODE_SUCCESS;
+    }
     if (!other) {
       return TSDB_CODE_SUCCESS;
     }
@@ -5621,12 +5632,36 @@ static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) 
   return refreshGetTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pStmt->pMeta);
 }
 
+static int32_t translateCompactRange(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt, SCompactDbReq* pReq) {
+  SDbCfgInfo dbCfg = {0};
+  int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pStart) {
+    ((SValueNode*)pStmt->pStart)->node.resType.precision = dbCfg.precision;
+    ((SValueNode*)pStmt->pStart)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    code = doTranslateValue(pCxt, (SValueNode*)pStmt->pStart);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pEnd) {
+    ((SValueNode*)pStmt->pEnd)->node.resType.precision = dbCfg.precision;
+    ((SValueNode*)pStmt->pEnd)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    code = doTranslateValue(pCxt, (SValueNode*)pStmt->pEnd);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pReq->timeRange.skey = NULL != pStmt->pStart ? ((SValueNode*)pStmt->pStart)->datum.i : INT64_MIN;
+    pReq->timeRange.ekey = NULL != pStmt->pEnd ? ((SValueNode*)pStmt->pEnd)->datum.i : INT64_MAX;
+  }
+  return code;
+}
+
 static int32_t translateCompact(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
   SCompactDbReq compactReq = {0};
   SName         name;
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameGetFullDbName(&name, compactReq.db);
-  return buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &compactReq);
+  int32_t code = translateCompactRange(pCxt, pStmt, &compactReq);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &compactReq);
+  }
+  return code;
 }
 
 static int32_t translateKillConnection(STranslateContext* pCxt, SKillStmt* pStmt) {
@@ -6379,15 +6414,15 @@ static int32_t translateDropFunction(STranslateContext* pCxt, SDropFunctionStmt*
 
 static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   SAlterUserReq req = {0};
-  if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
-      (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ) &&
-       PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE))) {
+  if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
+      (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ) &&
+       BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE))) {
     req.alterType = TSDB_ALTER_USER_ADD_ALL_DB;
-  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ)) {
+  } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ)) {
     req.alterType = TSDB_ALTER_USER_ADD_READ_DB;
-  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE)) {
+  } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE)) {
     req.alterType = TSDB_ALTER_USER_ADD_WRITE_DB;
-  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_SUBSCRIBE)) {
+  } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_SUBSCRIBE)) {
     req.alterType = TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC;
   }
   strcpy(req.user, pStmt->userName);
@@ -6397,15 +6432,15 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
 
 static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
   SAlterUserReq req = {0};
-  if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
-      (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ) &&
-       PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE))) {
+  if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
+      (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ) &&
+       BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE))) {
     req.alterType = TSDB_ALTER_USER_REMOVE_ALL_DB;
-  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ)) {
+  } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ)) {
     req.alterType = TSDB_ALTER_USER_REMOVE_READ_DB;
-  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE)) {
+  } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE)) {
     req.alterType = TSDB_ALTER_USER_REMOVE_WRITE_DB;
-  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_SUBSCRIBE)) {
+  } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_SUBSCRIBE)) {
     req.alterType = TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC;
   }
   strcpy(req.user, pStmt->userName);
@@ -6477,6 +6512,11 @@ static int32_t translateShowCreateDatabase(STranslateContext* pCxt, SShowCreateD
   if (NULL == pStmt->pCfg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  SName name;
+  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  tNameGetFullDbName(&name, pStmt->dbFName);
+
   return getDBCfg(pCxt, pStmt->dbName, (SDbCfgInfo*)pStmt->pCfg);
 }
 

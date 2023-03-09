@@ -94,6 +94,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_NO_AVAIL_DISK,                "No available disk")
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_FOUND,                    "Not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_DISKSPACE,                 "Out of disk space")
 TAOS_DEFINE_ERROR(TSDB_CODE_TIMEOUT_ERROR,                "Operation timeout")
+TAOS_DEFINE_ERROR(TSDB_CODE_NO_ENOUGH_DISKSPACE,          "No enough disk space")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STARTING,              "Database is starting up")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STOPPING,              "Database is closing down")
@@ -434,7 +435,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TQ_META_KEY_NOT_IN_TXN,       "TQ meta key not in tx
 TAOS_DEFINE_ERROR(TSDB_CODE_TQ_META_KEY_DUP_IN_TXN,       "TQ met key dup in txn")
 TAOS_DEFINE_ERROR(TSDB_CODE_TQ_GROUP_NOT_SET,             "TQ group not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND,    "TQ table schema not found")
-TAOS_DEFINE_ERROR(TSDB_CODE_TQ_NO_COMMITTED_OFFSET,       "TQ no commited offset")
+TAOS_DEFINE_ERROR(TSDB_CODE_TQ_NO_COMMITTED_OFFSET,       "TQ no committed offset")
 
 // wal
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_FILE_CORRUPTED,           "WAL file is corrupted")

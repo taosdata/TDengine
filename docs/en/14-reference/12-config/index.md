@@ -599,7 +599,7 @@ The charset that takes effect is UTF-8.
 | Applicable | Client only                                           |
 | Meaning     | Whether schemaless columns are consistently ordered, depat, discarded since 3.0.3.0|
 | Value Range     | 0: not consistent; 1: consistent.            |
-| Default   | 1                             |
+| Default   | 0                             |
 
 ## Compress Parameters
 

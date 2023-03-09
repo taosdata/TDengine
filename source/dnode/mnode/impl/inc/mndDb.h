@@ -33,6 +33,8 @@ bool    mndIsDbReady(SMnode *pMnode, SDbObj *pDb);
 SSdbRaw    *mndDbActionEncode(SDbObj *pDb);
 const char *mndGetDbStr(const char *src);
 
+int32_t mndProcessCompactDbReq(SRpcMsg *pReq);
+
 #ifdef __cplusplus
 }
 #endif

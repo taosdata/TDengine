@@ -45,6 +45,8 @@ class TDSimClient:
             "supportVnodes": "1024",
             "enableQueryHb": "1",
             "telemetryReporting": "0",
+            "tqDebugflag": "135",
+            "wDebugflag":"135",
         }
 
     def getLogDir(self):

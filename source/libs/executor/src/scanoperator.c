@@ -945,7 +945,8 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* 
   return pOperator;
 }
 
-static FORCE_INLINE void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
+FORCE_INLINE void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
+  qDebug("clear buff blocks:%d", (int32_t)taosArrayGetSize(pInfo->pBlockLists));
   taosArrayClear(pInfo->pBlockLists);
   pInfo->validBlockIndex = 0;
 }
@@ -1609,6 +1610,8 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     if (pResult && pResult->info.rows > 0) {
       qDebug("queue scan tsdb return %d rows min:%" PRId64 " max:%" PRId64, pResult->info.rows,
              pResult->info.window.skey, pResult->info.window.ekey);
+      qDebug("queue scan tsdb return %d rows min:%" PRId64 " max:%" PRId64 " wal curVersion:%" PRId64, pResult->info.rows,
+             pResult->info.window.skey, pResult->info.window.ekey, pInfo->tqReader->pWalReader->curVersion);
       pTaskInfo->streamInfo.returned = 1;
       return pResult;
     } else {
@@ -1618,7 +1621,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         pTSInfo->base.dataReader = NULL;
         tqOffsetResetToLog(&pTaskInfo->streamInfo.prepareStatus, pTaskInfo->streamInfo.snapshotVer);
         qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", pTaskInfo->streamInfo.snapshotVer + 1);
-        if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1) < 0) {
+        if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1, pTaskInfo->id.str) < 0) {
           tqOffsetResetToLog(&pTaskInfo->streamInfo.lastStatus, pTaskInfo->streamInfo.snapshotVer);
           return NULL;
         }
@@ -1632,8 +1635,12 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     while (1) {
       SFetchRet ret = {0};
       if (tqNextBlock(pInfo->tqReader, &ret) < 0) {
-        qError("failed to get next log block since %s", terrstr());
+        // if the end is reached, terrno is 0
+        if (terrno != 0) {
+          qError("failed to get next log block since %s", terrstr());
+        }
       }
+
       if (ret.fetchType == FETCH_TYPE__DATA) {
         blockDataCleanup(pInfo->pRes);
         setBlockIntoRes(pInfo, &ret.data, true);
@@ -1651,8 +1658,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       } else if (ret.fetchType == FETCH_TYPE__NONE ||
                  (ret.fetchType == FETCH_TYPE__SEP && pOperator->status == OP_EXEC_RECV)) {
         pTaskInfo->streamInfo.lastStatus = ret.offset;
-        ASSERT(pTaskInfo->streamInfo.lastStatus.version >= pTaskInfo->streamInfo.prepareStatus.version);
-        ASSERT(pTaskInfo->streamInfo.lastStatus.version + 1 == pInfo->tqReader->pWalReader->curVersion);
         char formatBuf[80];
         tFormatOffset(formatBuf, 80, &ret.offset);
         qDebug("queue scan log return null, offset %s", formatBuf);
@@ -1660,16 +1665,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         return NULL;
       }
     }
-#if 0
-    } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
-    SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
-    if (pResult && pResult->info.rows > 0) {
-      qDebug("stream scan tsdb return %d rows", pResult->info.rows);
-      return pResult;
-    }
-    qDebug("stream scan tsdb return null");
-    return NULL;
-#endif
   } else {
     qError("unexpected streamInfo prepare type: %d", pTaskInfo->streamInfo.prepareStatus.type);
     return NULL;
@@ -1919,7 +1914,9 @@ FETCH_NEXT_BLOCK:
         doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
         pInfo->pRes->info.dataLoad = 1;
         blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
-        return pInfo->pRes;
+        if (pInfo->pRes->info.rows > 0) {
+          return pInfo->pRes;
+        }
       } break;
       case STREAM_SCAN_FROM_DELETE_DATA: {
         generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes);

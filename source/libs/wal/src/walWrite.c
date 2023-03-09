@@ -328,8 +328,8 @@ int32_t walEndSnapshot(SWal *pWal) {
              "), new tot size %" PRId64,
              pWal->cfg.vgId, iter->firstVer, iter->fileSize, iter->closeTs, newTotSize);
       if (((pWal->cfg.retentionSize == 0) || (pWal->cfg.retentionSize != -1 && newTotSize > pWal->cfg.retentionSize)) ||
-          ((pWal->cfg.retentionPeriod == 0) ||
-           (pWal->cfg.retentionPeriod != -1 && iter->closeTs + pWal->cfg.retentionPeriod > ts))) {
+          ((pWal->cfg.retentionPeriod == 0) || (pWal->cfg.retentionPeriod != -1 && iter->closeTs != -1 &&
+                                                iter->closeTs + pWal->cfg.retentionPeriod < ts))) {
         // delete according to file size or close time
         wDebug("vgId:%d, check pass", pWal->cfg.vgId);
         deleteCnt++;
@@ -387,20 +387,33 @@ END:
 
 int32_t walRollImpl(SWal *pWal) {
   int32_t code = 0;
+
   if (pWal->pIdxFile != NULL) {
+    code = taosFsyncFile(pWal->pIdxFile);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto END;
+    }
     code = taosCloseFile(&pWal->pIdxFile);
     if (code != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto END;
     }
   }
+
   if (pWal->pLogFile != NULL) {
+    code = taosFsyncFile(pWal->pLogFile);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto END;
+    }
     code = taosCloseFile(&pWal->pLogFile);
     if (code != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto END;
     }
   }
+
   TdFilePtr pIdxFile, pLogFile;
   // create new file
   int64_t newFileFirstVer = pWal->vers.lastVer + 1;

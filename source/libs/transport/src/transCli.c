@@ -13,7 +13,6 @@
  */
 
 #include "transComm.h"
-#include "tutil.h"
 
 typedef struct {
   int32_t numOfConn;
@@ -121,6 +120,9 @@ typedef struct SCliThrd {
   SCliMsg* stopMsg;
 
   bool quit;
+
+  int       newConnCount;
+  SHashObj* msgCount;
 } SCliThrd;
 
 typedef struct SCliObj {
@@ -423,6 +425,21 @@ void cliHandleResp(SCliConn* conn) {
     tDebug("%s conn %p ref by app", CONN_GET_INST_LABEL(conn), conn);
   }
 
+  // if (TMSG_INFO(pHead->msgType - 1) != 0) {
+  //   char buf[128] = {0};
+  //   sprintf(buf, "%s", TMSG_INFO(pHead->msgType - 1));
+  //   int* count = taosHashGet(pThrd->msgCount, TMSG_INFO(pHead->msgType - 1), strlen(TMSG_INFO(pHead->msgType - 1)));
+  //   if (NULL == 0) {
+  //     int localCount = 1;
+  //     taosHashPut(pThrd->msgCount, TMSG_INFO(pHead->msgType - 1), strlen(TMSG_INFO(pHead->msgType - 1)), &localCount,
+  //                 sizeof(localCount));
+  //   } else {
+  //     int localCount = *count - 1;
+  //     taosHashPut(pThrd->msgCount, TMSG_INFO(pHead->msgType - 1), strlen(TMSG_INFO(pHead->msgType - 1)), &localCount,
+  //                 sizeof(localCount));
+  //   }
+  // }
+
   STraceId* trace = &transMsg.info.traceId;
   tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, code str:%s", CONN_GET_INST_LABEL(conn), conn,
           TMSG_INFO(pHead->msgType), conn->dst, conn->src, pHead->msgLen, tstrerror(transMsg.code));
@@ -675,6 +692,7 @@ static SCliConn* getConnFromPool2(SCliThrd* pThrd, char* key, SCliMsg** pMsg) {
       }
       list->numOfConn++;
     }
+    tTrace("%s numOfConn: %d, limit: %d", pTransInst->label, list->numOfConn, pTransInst->connLimitNum);
     return NULL;
   }
 
@@ -786,7 +804,6 @@ static int32_t specifyConnRef(SCliConn* conn, bool update, int64_t handle) {
 static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SCliConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
-  tTrace("%s conn %p alloc read buf", CONN_GET_INST_LABEL(conn), conn);
   transAllocBuffer(pBuf, buf);
 }
 static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
@@ -860,9 +877,11 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
 static void cliDestroyConn(SCliConn* conn, bool clear) {
   SCliThrd* pThrd = conn->hostThrd;
   tTrace("%s conn %p remove from conn pool", CONN_GET_INST_LABEL(conn), conn);
-
+  conn->broken = true;
   QUEUE_REMOVE(&conn->q);
   QUEUE_INIT(&conn->q);
+
+  conn->broken = true;
 
   if (conn->list != NULL) {
     SConnList* connList = conn->list;
@@ -873,6 +892,7 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
     connList->list->numOfConn--;
   }
   conn->list = NULL;
+  pThrd->newConnCount--;
 
   transReleaseExHandle(transGetRefMgt(), conn->refId);
   transRemoveExHandle(transGetRefMgt(), conn->refId);
@@ -1098,6 +1118,19 @@ void cliSend(SCliConn* pConn) {
     msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
   }
 
+  // if (tmsgIsValid(pHead->msgType)) {
+  //   char buf[128] = {0};
+  //   sprintf(buf, "%s", TMSG_INFO(pHead->msgType));
+  //   int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+  //   if (NULL == 0) {
+  //     int localCount = 1;
+  //     taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+  //   } else {
+  //     int localCount = *count + 1;
+  //     taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+  //   }
+  // }
+
   tGDebug("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
           TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, msgLen);
 
@@ -1173,7 +1206,8 @@ static void cliHandleBatchReq(SCliBatch* pBatch, SCliThrd* pThrd) {
     addr.sin_port = (uint16_t)htons(pList->port);
 
     tTrace("%s conn %p try to connect to %s", pTransInst->label, conn, pList->dst);
-    int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 4);
+    pThrd->newConnCount++;
+    int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 10);
     if (fd == -1) {
       tError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
              tstrerror(TAOS_SYSTEM_ERROR(errno)));
@@ -1230,7 +1264,7 @@ static void cliSendBatchCb(uv_write_t* req, int status) {
   } else {
     tDebug("%s conn %p succ to send batch msg, batch size:%d, msgLen:%d", CONN_GET_INST_LABEL(conn), conn, p->wLen,
            p->batchSize);
-    if (!uv_is_closing((uv_handle_t*)&conn->stream)) {
+    if (!uv_is_closing((uv_handle_t*)&conn->stream) && conn->broken == false) {
       if (nxtBatch != NULL) {
         conn->pBatch = nxtBatch;
         cliSendBatch(conn);
@@ -1491,6 +1525,18 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     destroyCmsg(pMsg);
     return;
   }
+  if (tmsgIsValid(pMsg->msg.msgType)) {
+    char buf[128] = {0};
+    sprintf(buf, "%s", TMSG_INFO(pMsg->msg.msgType));
+    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+    if (NULL == 0) {
+      int localCount = 1;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    } else {
+      int localCount = *count + 1;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    }
+  }
 
   char*    fqdn = EPSET_GET_INUSE_IP(&pMsg->ctx->epSet);
   uint16_t port = EPSET_GET_INUSE_PORT(&pMsg->ctx->epSet);
@@ -1546,6 +1592,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     addr.sin_port = (uint16_t)htons(port);
 
     tGTrace("%s conn %p try to connect to %s", pTransInst->label, conn, conn->ip);
+    pThrd->newConnCount++;
     int32_t fd = taosCreateSocketWithTimeout(TRANS_CONN_TIMEOUT * 4);
     if (fd == -1) {
       tGError("%s conn %p failed to create socket, reason:%s", transLabel(pTransInst), conn,
@@ -1734,6 +1781,19 @@ static void cliAsyncCb(uv_async_t* handle) {
   taosThreadMutexLock(&item->mtx);
   QUEUE_MOVE(&item->qmsg, &wq);
   taosThreadMutexUnlock(&item->mtx);
+
+  void* pIter = taosHashIterate(pThrd->msgCount, NULL);
+  while (pIter != NULL) {
+    int*   count = pIter;
+    size_t len = 0;
+    char*  key = taosHashGetKey(pIter, &len);
+    if (*count != 0) {
+      tDebug("key: %s count: %d", key, *count);
+    }
+
+    pIter = taosHashIterate(pThrd->msgCount, pIter);
+  }
+  tDebug("all conn count: %d", pThrd->newConnCount);
 
   int8_t supportBatch = pTransInst->supportBatch;
   if (supportBatch == 0) {
@@ -1969,6 +2029,9 @@ static SCliThrd* createThrdObj(void* trans) {
   pThrd->batchCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
 
   pThrd->quit = false;
+
+  pThrd->newConnCount = 0;
+  pThrd->msgCount = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   return pThrd;
 }
 static void destroyThrdObj(SCliThrd* pThrd) {
@@ -2014,6 +2077,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     pIter = (void**)taosHashIterate(pThrd->batchCache, pIter);
   }
   taosHashCleanup(pThrd->batchCache);
+  taosHashCleanup(pThrd->msgCount);
   taosMemoryFree(pThrd);
 }
 
@@ -2316,6 +2380,18 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     }
   }
 
+  if (tmsgIsValid(pResp->msgType - 1)) {
+    char buf[128] = {0};
+    sprintf(buf, "%s", TMSG_INFO(pResp->msgType - 1));
+    int* count = taosHashGet(pThrd->msgCount, buf, sizeof(buf));
+    if (NULL == 0) {
+      int localCount = 0;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    } else {
+      int localCount = *count - 1;
+      taosHashPut(pThrd->msgCount, buf, sizeof(buf), &localCount, sizeof(localCount));
+    }
+  }
   if (pCtx->pSem != NULL) {
     tGTrace("%s conn %p(sync) handle resp", CONN_GET_INST_LABEL(pConn), pConn);
     if (pCtx->pRsp == NULL) {

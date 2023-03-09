@@ -881,6 +881,7 @@ SExprInfo*   createExpr(SNodeList* pNodeList, int32_t* numOfExprs);
 void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
                               SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo);
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset);
+void doClearBufferedBlocks(SStreamScanInfo* pInfo);
 
 #ifdef __cplusplus
 }

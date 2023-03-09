@@ -263,6 +263,14 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 - `int taos_select_db(TAOS *taos, const char *db)`
 
   将当前的缺省数据库设置为 `db`。
+  
+- `int taos_get_current_db(TAOS *taos, char *database, int len, int *required)`
+  
+  - database，len为用户在外面申请的空间，内部会把当前db赋值到database里。
+  - 只要是没有正常把db名赋值到database中（包括截断），返回错误，返回值为-1，然后用户可以通过  taos_errstr(NULL) 来获取错误提示。
+  - 如果，database == NULL 或者 len<=0 返回错误，required里保存存储db需要的空间（包含最后的'\0'）
+  - 如果，len 小于 存储db需要的空间（包含最后的'\0'），返回错误，database里赋值截断的数据，以’\0‘结尾。
+  - 如果，len 大于等于 存储db需要的空间（包含最后的'\0'），返回正常0，database里赋值以’\0‘结尾的db名。
 
 - `void taos_close(TAOS *taos)`
 
@@ -493,5 +501,17 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   需要注意的是，时间戳分辨率参数只在协议类型为 `SML_LINE_PROTOCOL` 的时候生效。
   对于 OpenTSDB 的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
 
-  **支持版本**
-  该功能接口从 2.3.0.0 版本开始支持。
+  **schemaless 其他相关的接口**
+- `TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int64_t reqid)`
+- `TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision)`
+- `TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int64_t reqid)`
+- `TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl)`
+- `TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl, int64_t reqid)`
+- `TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl)`
+- `TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl, int64_t reqid)`
+
+  **说明**
+  - 上面这7个接口是扩展接口，主要用于在schemaless写入时传递ttl、reqid参数，可以根据需要使用。
+  - 带_raw的接口通过传递的参数lines指针和长度len来表示数据，为了解决原始接口数据包含'\0'而被截断的问题。totalRows指针返回解析出来的数据行数。
+  - 带_ttl的接口可以传递ttl参数来控制建表的ttl到期时间。
+  - 带_reqid的接口可以通过传递reqid参数来追踪整个的调用链。

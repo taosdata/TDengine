@@ -147,7 +147,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
     }
     tqDebug("tmqsnap task execute end, get %p", pDataBlock);
 
-    if (pDataBlock != NULL) {
+    if (pDataBlock != NULL && pDataBlock->info.rows > 0) {
       if (pRsp->withTbName) {
         if (pOffset->type == TMQ_OFFSET__LOG) {
           int64_t uid = pExec->pExecReader->lastBlkUid;

@@ -18,20 +18,6 @@
 #include <stdlib.h>
 #include "talgo.h"
 
-#ifdef WINDOWS
-void swapStr(char* j, char* J, int width) {
-  int  i;
-  char tmp;
-  for (i = 0; i < width; i++) {
-    tmp = *j;
-    *j = *J;
-    *J = tmp;
-    j++;
-    J++;
-  }
-}
-#endif
-
 int32_t qsortHelper(const void* p1, const void* p2, const void* param) {
   __compar_fn_t comparFn = param;
   return comparFn(p1, p2);
