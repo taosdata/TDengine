@@ -544,7 +544,11 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
 
   SScriptUdfInfo info = {0};
   convertUdf2UdfInfo(udf, &info);
-  udf->scriptPlugin->udfInitFunc(&info, &udf->scriptUdfCtx);
+  err = udf->scriptPlugin->udfInitFunc(&info, &udf->scriptUdfCtx);
+  if (err != 0) {
+    fnError("udf name %s init failed. error %d", udfName, err);
+    return err;
+  }
   return 0;
 }
 
@@ -753,7 +757,8 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   if (unloadUdf) {
     uv_cond_destroy(&udf->condReady);
     uv_mutex_destroy(&udf->lock);
-    udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
+    code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
+    fnDebug("udfd destroy function returns %d", code);
     taosMemoryFree(udf);
   }
   taosMemoryFree(handle);
@@ -1346,8 +1351,10 @@ int32_t udfdDeinitResidentFuncs() {
     SUdf **udfInHash = taosHashGet(global.udfsHash, funcName, strlen(funcName));
     if (udfInHash) {
       SUdf *udf = *udfInHash;
-      udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
+      int32_t code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
+      fnDebug("udfd destroy function returns %d", code);
       taosHashRemove(global.udfsHash, funcName, strlen(funcName));
+      taosMemoryFree(udf);
     }
   }
   taosArrayDestroy(global.residentFuncs);
