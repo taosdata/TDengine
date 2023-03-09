@@ -1,5 +1,5 @@
 use std::path::Path;
-use taos::{AsyncQueryable, Bindable, Itertools, Stmt, TBuilder};
+use taos::{AsyncQueryable, Bindable, Dsn, Itertools, Stmt, TBuilder, TaosBuilder};
 use taosx_ipc::ack::AckWriterBuilder;
 use tracing::{info, instrument};
 
@@ -13,8 +13,19 @@ async fn hello() -> &'static str {
 }
 
 fn ipc_test(stream: std::os::unix::net::UnixStream) -> anyhow::Result<()> {
-    let taos = taos::TaosBuilder::from_dsn("taos:///x-test-arrow")?;
-    let taos = taos.build()?;
+    let dsn = std::env::var("TAOSX_TARGET").unwrap_or("taos:///test".to_string());
+    let mut dsn: Dsn = dsn.parse()?;
+    let builder = TaosBuilder::from_dsn(&dsn).unwrap();
+
+    let taos = builder.build().unwrap_or_else(|e| {
+        info!("connect error: {}", e);
+        let subject = dsn.subject.take();
+        let new_builder = TaosBuilder::from_dsn(&dsn).unwrap();
+        let taos = new_builder.build().unwrap();
+        taos.exec_sync(format!("create database `{}`", subject.unwrap()))
+            .unwrap();
+        builder.build().unwrap()
+    });
 
     // let (reader, writer) = stream.pair();
     // stream.set_nonblocking(true).unwrap();
@@ -79,7 +90,7 @@ fn listen_unix_socket() {
         match listener.accept() {
             Ok((stream, addr)) => {
                 tracing::info!("new client!: {:?}", addr);
-                std::thread::spawn(|| ipc_test(stream));
+                std::thread::spawn(|| ipc_test(stream).unwrap());
             }
             Err(e) => {
                 /* connection failed */
