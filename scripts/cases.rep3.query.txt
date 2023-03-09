@@ -97,7 +97,9 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/nu
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_tail.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_unique.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_mode.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_sample.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/split/stable_alltype_sample_1.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/split/stable_alltype_sample_2.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/split/stable_alltype_sample_3.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/split/stable_alltype_count_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/split/stable_alltype_count_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/split/stable_alltype_count_3.py --keep --containers
