@@ -162,7 +162,7 @@ static void mndSyncGetSnapshotInfo(const SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   sdbGetCommitInfo(pMnode->pSdb, &pSnapshot->lastApplyIndex, &pSnapshot->lastApplyTerm, &pSnapshot->lastConfigIndex);
 }
 
-void mndRestoreFinish(const SSyncFSM *pFsm) {
+void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   SMnode *pMnode = pFsm->data;
 
   if (!pMnode->deploy) {

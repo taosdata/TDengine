@@ -521,21 +521,27 @@ static int32_t vnodeSnapshotDoWrite(const SSyncFSM *pFsm, void *pWriter, void *p
   return code;
 }
 
-static void vnodeRestoreFinish(const SSyncFSM *pFsm) {
+static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   SVnode *pVnode = pFsm->data;
+  SyncIndex appliedIdx = -1;
 
   do {
-    int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
-    if (itemSize == 0) {
-      vInfo("vgId:%d, apply queue is empty, restore finish", pVnode->config.vgId);
+    appliedIdx = vnodeSyncAppliedIndex(pFsm);
+    ASSERT(appliedIdx <= commitIdx);
+    if (appliedIdx == commitIdx) {
+      vInfo("vgId:%d, no more items to be applied, restore finish", pVnode->config.vgId);
       break;
     } else {
-      vInfo("vgId:%d, restore not finish since %d items in apply queue", pVnode->config.vgId, itemSize);
+      int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
+      vInfo("vgId:%d, restore not finish since %" PRId64
+            " items to be applied, and %d in apply queue. commit-index:%" PRId64 ", applied-index:%" PRId64,
+            pVnode->config.vgId, commitIdx - appliedIdx, itemSize, commitIdx, appliedIdx);
       taosMsleep(10);
     }
   } while (true);
 
-  walApplyVer(pVnode->pWal, pVnode->state.applied);
+  ASSERT(appliedIdx == commitIdx);
+  walApplyVer(pVnode->pWal, commitIdx);
 
   pVnode->restored = true;
   vInfo("vgId:%d, sync restore finished", pVnode->config.vgId);

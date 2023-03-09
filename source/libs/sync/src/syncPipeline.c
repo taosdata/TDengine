@@ -596,10 +596,10 @@ _out:
   // mark as restored if needed
   if (!pNode->restoreFinish && pBuf->commitIndex >= pNode->commitIndex && pEntry != NULL &&
       currentTerm <= pEntry->term) {
-    pNode->pFsm->FpRestoreFinishCb(pNode->pFsm);
+    pNode->pFsm->FpRestoreFinishCb(pNode->pFsm, pBuf->commitIndex);
     pNode->restoreFinish = true;
-    sInfo("vgId:%d, restore finished. log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pNode->vgId,
-          pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+    sInfo("vgId:%d, restore finished. term:%" PRId64 ", log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+          pNode->vgId, currentTerm, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
   }
 
   if (!inBuf) {
