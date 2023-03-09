@@ -325,6 +325,5 @@ void buildChildTableName(RandTableName* rName) {
     sprintf(temp, "%02x", context.digest[i]);
     strcat(rName->ctbShortName, temp);
   }
-  uError("ctablename:%s origin:%s", rName->ctbShortName, keyJoined);
   taosStringBuilderDestroy(&sb);
 }
