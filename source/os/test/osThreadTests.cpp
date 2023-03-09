@@ -13,22 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define ALLOW_FORBID_FUNC
-#define _DEFAULT_SOURCE
-#include <stdlib.h>
-#include "talgo.h"
+#include <gtest/gtest.h>
+#include <iostream>
 
-int32_t qsortHelper(const void* p1, const void* p2, const void* param) {
-  __compar_fn_t comparFn = param;
-  return comparFn(p1, p2);
-}
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wformat"
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+#pragma GCC diagnostic ignored "-Wpointer-arith"
 
-// todo refactor: 1) move away; 2) use merge sort instead; 3) qsort is not a stable sort actually.
-void taosSort(void* base, int64_t sz, int64_t width, __compar_fn_t compar) {
-#ifdef _ALPINE
-  void* param = compar;
-  taosqsort(base, sz, width, param, qsortHelper);
-#else
-  qsort(base, sz, width, compar);
-#endif
+#include "os.h"
+#include "tlog.h"
+
+TEST(osThreadTests, osThreadTests1) {
+
 }

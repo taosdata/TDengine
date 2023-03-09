@@ -1779,11 +1779,27 @@ SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt) {
   return pStmt;
 }
 
+static int32_t convertUdfLanguageType(SAstCreateContext* pCxt, const SToken* pLanguageToken, int8_t* pLanguage) {
+  if (TK_NK_NIL == pLanguageToken->type || 0 == strncasecmp(pLanguageToken->z + 1, "c", pLanguageToken->n - 2)) {
+    *pLanguage = TSDB_FUNC_SCRIPT_BIN_LIB;
+  } else if (0 == strncasecmp(pLanguageToken->z + 1, "python", pLanguageToken->n - 2)) {
+    *pLanguage = TSDB_FUNC_SCRIPT_PYTHON;
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "udf programming language supports c and python");
+  }
+  return pCxt->errCode;
+}
+
 SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool aggFunc, const SToken* pFuncName,
-                                const SToken* pLibPath, SDataType dataType, int32_t bufSize) {
+                                const SToken* pLibPath, SDataType dataType, int32_t bufSize, const SToken* pLanguage) {
   CHECK_PARSER_STATUS(pCxt);
   if (pLibPath->n <= 2) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    return NULL;
+  }
+  int8_t language = 0;
+  if (TSDB_CODE_SUCCESS != convertUdfLanguageType(pCxt, pLanguage, &language)) {
     return NULL;
   }
   SCreateFunctionStmt* pStmt = (SCreateFunctionStmt*)nodesMakeNode(QUERY_NODE_CREATE_FUNCTION_STMT);
@@ -1794,6 +1810,7 @@ SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool
   COPY_STRING_FORM_STR_TOKEN(pStmt->libraryPath, pLibPath);
   pStmt->outputDt = dataType;
   pStmt->bufSize = bufSize;
+  pStmt->language = language;
   return (SNode*)pStmt;
 }
 
