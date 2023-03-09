@@ -475,7 +475,7 @@ _out:
 
 int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry,
                           int32_t applyCode) {
-  if ((pNode->replicaNum == 1) && pNode->restoreFinish && pNode->vgId != 1) {
+  if (pNode->replicaNum == 1 && pNode->restoreFinish && pNode->vgId != 1) {
     return 0;
   }
 

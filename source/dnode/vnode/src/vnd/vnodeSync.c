@@ -429,7 +429,18 @@ static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsm
           pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, pMsg->info.conn.applyIndex, pMeta->isWeak, pMeta->code,
           pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType), pMsg->code);
 
-  return tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
+  if (pMsg->code == 0) {
+    return tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
+  }
+
+  vnodePostBlockMsg(pVnode, pMsg);
+  SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
+  if (rsp.info.handle != NULL) {
+    tmsgSendRsp(&rsp);
+  }
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
+  return 0;
 }
 
 static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
