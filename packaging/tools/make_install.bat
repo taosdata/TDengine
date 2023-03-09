@@ -94,6 +94,9 @@ if %Enterprise% == TRUE (
     if exist %binary_dir%\\build\\bin\\create_table.exe (
         copy %binary_dir%\\build\\bin\\create_table.exe %target_dir% > nul
     )
+    if exist %binary_dir%\\build\\bin\\*explorer.exe (
+        copy %binary_dir%\\build\\bin\\*explorer.exe %target_dir% > nul
+    )
 )
     
 copy %binary_dir%\\build\\bin\\taosd.exe %target_dir% > nul
