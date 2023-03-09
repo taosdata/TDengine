@@ -6,11 +6,6 @@ python3 ./test.py -f 0-others/telemetry.py
 python3 ./test.py -f 0-others/backquote_check.py
 python3 ./test.py -f 0-others/taosdMonitor.py
 python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
-python3 ./test.py -f 0-others/udfTest.py
-python3 ./test.py -f 0-others/udf_create.py
-python3 ./test.py -f 0-others/udf_restart_taosd.py
-python3 ./test.py -f 0-others/udf_cfg1.py
-python3 ./test.py -f 0-others/udf_cfg2.py
 python3 ./test.py -f 0-others/cachemodel.py
 python3 ./test.py -f 0-others/sysinfo.py
 python3 ./test.py -f 0-others/user_control.py
@@ -324,9 +319,6 @@ python3 ./test.py -f 7-tmq/tmqDropStb.py
 python3 ./test.py -f 7-tmq/tmqDropStbCtb.py
 python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot0.py
 python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot1.py
-python3 ./test.py -f 7-tmq/tmqUdf.py
-python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
-python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
 python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py

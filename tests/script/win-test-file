@@ -168,8 +168,6 @@
 ./test.sh -f tsim/query/scalarFunction.sim
 ./test.sh -f tsim/query/scalarNull.sim
 ./test.sh -f tsim/query/session.sim
-./test.sh -f tsim/query/udf.sim
-./test.sh -f tsim/query/udf_with_const.sim
 ./test.sh -f tsim/query/sys_tbname.sim
 ./test.sh -f tsim/query/groupby.sim
 ./test.sh -f tsim/query/event.sim
@@ -295,7 +293,6 @@
 ./test.sh -f tsim/valgrind/checkError6.sim
 ./test.sh -f tsim/valgrind/checkError7.sim
 ./test.sh -f tsim/valgrind/checkError8.sim
-./test.sh -f tsim/valgrind/checkUdf.sim
 ./test.sh -f tsim/vnode/replica3_basic.sim
 ./test.sh -f tsim/vnode/replica3_repeat.sim
 ./test.sh -f tsim/vnode/replica3_vgroup.sim

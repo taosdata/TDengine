@@ -14,7 +14,7 @@ systest="system-test"
 devtest="develop-test"
 doctest="docs-examples-test"
 rm -rf win-${utest}.log  win-${tsimtest}.log  win-${systest}.log  win-${devtest}.log win-${doctest}.log 
-
+rm -rf ${parm_path}/../${utest}/win-test-file ${parm_path}/../${tsimtest}/win-test-file ${parm_path}/../${systest}/win-test-file  ${parm_path}/../${devtest}/win-test-file
 while read -r line
 do
     echo "$line"|grep -q "^#"
