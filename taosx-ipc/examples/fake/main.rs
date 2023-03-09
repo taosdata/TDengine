@@ -16,7 +16,7 @@ async fn main() -> Result<()> {
     #[cfg(not(target_os = "windows"))]
     let stream = std::os::unix::net::UnixStream::connect("./taosx.sock")?;
     #[cfg(target_os = "windows")]
-    let stream = std::net::TcpStream::connect("127.0.0.1:7890")?;
+    let stream = std::net::TcpStream::connect("127.0.0.1:6051")?;
     let timestamp_type = DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None);
 
     let lush_builder = LushMessageBuilder::new()
