@@ -1,15 +1,9 @@
-use std::{any::Any, collections::HashMap, os::unix::net::UnixStream, path::Path, sync::Arc};
+use std::{any::Any};
 
-use actix_web::Either;
 use anyhow::Result;
 
 use arrow::{
-    array::{
-        make_builder, Array, ArrayBuilder, ArrayData, ArrayRef, BinaryArray, Float32Array,
-        GenericListArray, Int32Array, Int32Builder, Int64Array, ListArray, ListBuilder, NullArray,
-        StringArray, StructBuilder, TimestampMillisecondArray, TimestampMillisecondBuilder,
-        UInt8Array,
-    },
+    array::{ Int32Builder, TimestampMillisecondBuilder, },
     datatypes::DataType,
     ipc::writer::StreamWriter,
 };
@@ -19,7 +13,10 @@ use taosx_ipc::writer::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let stream = UnixStream::connect("./taosx.sock")?;
+    #[cfg(not(target_os = "windows"))]
+    let stream = std::os::unix::net::UnixStream::connect("./taosx.sock")?;
+    #[cfg(target_os = "windows")]
+    let stream = std::net::TcpStream::connect("127.0.0.1:7890")?;
     let timestamp_type = DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None);
 
     let lush_builder = LushMessageBuilder::new()
