@@ -933,7 +933,6 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       return -1;
     }
   } else {
-//    ASSERT(pHandle->consumerId == req.oldConsumerId || req.oldConsumerId == -1 || pHandle->consumerId == -1);
     if (pHandle->consumerId == req.newConsumerId) {  // do nothing
       tqInfo("vgId:%d consumer:0x%" PRIx64 " remains, no switch occurs", req.vgId, req.newConsumerId);
       atomic_store_32(&pHandle->epoch, -1);
