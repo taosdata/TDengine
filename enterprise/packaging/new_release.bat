@@ -1,7 +1,7 @@
 @echo off
 
 set internal_dir=%~dp0\..\..\
-set community_dir=%~dp0\..
+set community_dir=%~dp0\..\..\community\
 set package_dir=%cd%
 set install_dir=C:\TDengine
 
@@ -30,16 +30,24 @@ goto :eof
 
 if "%verType%" == "cluster" (
 	set work_dir=%internal_dir%
-	set packagServerName_x64=%cusName%-enterprise-server-%version%-beta-Windows-x64
-	@REM set packagServerName_x86=%cusName%-enterprise-server-%version%-beta-Windows-x86
-	set packagClientName_x64=%cusName%-enterprise-client-%version%-beta-Windows-x64
-	set packagClientName_x86=%cusName%-enterprise-client-%version%-beta-Windows-x86
+	set packagServerName_x64=%cusName%-enterprise-server-%version%-Windows-x64
+	@REM set packagServerName_x86=%cusName%-enterprise-server-%version%-Windows-x86
+	set packagClientName_x64=%cusName%-enterprise-client-%version%-Windows-x64
+	set packagClientName_x86=%cusName%-enterprise-client-%version%-Windows-x86
 ) else (
 	set work_dir=%community_dir%
 	set packagServerName_x64=%cusName%-server-%version%-Windows-x64
 	@REM set packagServerName_x86=%cusName%-server-%version%-Windows-x86
 	set packagClientName_x64=%cusName%-client-%version%-Windows-x64
 	set packagClientName_x86=%cusName%-client-%version%-Windows-x86
+
+	echo "generate community package directory"
+	if not exist %community_dir% (
+		cd %internal_dir%
+		md debug
+		cd debug
+		cmake ..
+	)
 )
 
 echo release windows-client for %verType%, version: %version%
@@ -61,8 +69,14 @@ if not exist %work_dir%\debug\ver-%version%-x86 (
 
 cd %work_dir%\debug\ver-%version%-x64
 call vcvarsall.bat x64
-echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%"
-cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%
+if "%verType%" == "cluster" (
+	echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%"
+	cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%
+) else (
+	echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DWEBSOCKET=true -DBUILD_HTTP=false -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64"
+	cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DWEBSOCKET=true -DBUILD_HTTP=false -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64
+)
+
 cmake --build .
 rd /s /Q C:\TDengine
 cmake --install .

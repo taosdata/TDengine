@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "mndDb.h"
 #include "mndPrivilege.h"
-#include "mndUser.h"
 #include "mndTopic.h"
+#include "mndUser.h"
 
 int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
 

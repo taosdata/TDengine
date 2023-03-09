@@ -92,9 +92,7 @@ rm -rf rpms/*
 echo "./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType"
 $topDir/enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
 
-
 echo "build taoskeeper..."
-cd $communityDir/release
 
 if [ "$cpuType" = "x64" ] || [ "$cpuType" = "x86_64" ] || [ "$cpuType" = "amd64" ]; then
   arch=amd64
@@ -109,6 +107,8 @@ else
 fi
 
 taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeper`
+
+sudo rm -rf /opt/tdengine/*
 
 if [ -d "/usr/local/Cellar/tdengine/$version" ];then
   sudo cp -rf /usr/local/Cellar/tdengine/$version/ /opt/tdengine/
@@ -130,7 +130,7 @@ sudo chmod ugo+w /opt/tdengine/bin/remove.sh
 sudo cat $scriptDir/remove_taoskeeper.sh >> /opt/tdengine/bin/remove.sh
 
 cd $communityDir/packaging/tools
-sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-server-$version-macOS-$arch\</g" $communityDir/packaging/tools/TDengine.pkgproj
+sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-server-$version-macOS-$cpuType\</g" $communityDir/packaging/tools/TDengine.pkgproj
 sed -i '' "s/3.0.1.4/$version/g" $communityDir/packaging/tools/TDengine.pkgproj
 sed -i '' "s|/opt.*/tools/post.sh|$communityDir/packaging/tools/post.sh|g" $communityDir/packaging/tools/TDengine.pkgproj
 sed -i '' "s|/opt.*/tools/mac_before_install.txt|$communityDir/packaging/tools/mac_before_install.txt|g" $communityDir/packaging/tools/TDengine.pkgproj
@@ -139,6 +139,6 @@ sed -i '' "s|/opt/.*/release|$topDir/release|g" $communityDir/packaging/tools/TD
 /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
 
 sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/udfd}
-sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-$arch\</g" $communityDir/packaging/tools/TDengine.pkgproj
+sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-$cpuType\</g" $communityDir/packaging/tools/TDengine.pkgproj
 sed -i '' "s/mac_before_install.txt/mac_before_install_client.txt/g" $communityDir/packaging/tools/TDengine.pkgproj
 /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
