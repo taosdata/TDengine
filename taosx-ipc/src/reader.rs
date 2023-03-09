@@ -3,7 +3,7 @@ use std::{io::Read, sync::Arc};
 use arrow::{
     array::{
         Array, ArrayAccessor, ArrayData, BinaryArray, Int16Array, Int32Array, Int64Array,
-        Int8Array, ListArray, StructArray, TimestampMillisecondArray, UInt8Array,
+        Int8Array, ListArray, StringArray, StructArray, TimestampMillisecondArray, UInt8Array,
     },
     datatypes::{DataType, Schema},
     error::ArrowError,
@@ -160,6 +160,16 @@ impl From<Arc<dyn Array>> for LushInsertAttrs {
                 .into_iter()
                 .zip(tags.columns())
                 .map(|(name, col)| {
+                    macro_rules! primitive_downcast {
+                        ($a:ident,$t:ident) => {{
+                            let v = col.as_any().downcast_ref::<arrow::array::$a>().unwrap();
+                            if v.is_null(0) {
+                                Value::Null(Ty::$t)
+                            } else {
+                                Value::$t(v.value(0))
+                            }
+                        }};
+                    }
                     let value = match col.data_type() {
                         DataType::Null => todo!(),
                         DataType::Boolean => Value::Bool(true),
@@ -195,13 +205,13 @@ impl From<Arc<dyn Array>> for LushInsertAttrs {
                                 Value::BigInt(v.value(0))
                             }
                         }
-                        DataType::UInt8 => todo!(),
-                        DataType::UInt16 => todo!(),
-                        DataType::UInt32 => todo!(),
-                        DataType::UInt64 => todo!(),
-                        DataType::Float16 => todo!(),
-                        DataType::Float32 => todo!(),
-                        DataType::Float64 => todo!(),
+                        DataType::UInt8 => primitive_downcast!(UInt8Array, UTinyInt),
+                        DataType::UInt16 => primitive_downcast!(UInt16Array, USmallInt),
+                        DataType::UInt32 => primitive_downcast!(UInt32Array, UInt),
+                        DataType::UInt64 => primitive_downcast!(UInt64Array, UBigInt),
+                        // DataType::Float16 => primitive_downcast!(Float16Array, Float),
+                        DataType::Float32 => primitive_downcast!(Float32Array, Float),
+                        DataType::Float64 => primitive_downcast!(Float64Array, Double),
                         DataType::Timestamp(_, _) => todo!(),
                         DataType::Date32 => todo!(),
                         DataType::Date64 => todo!(),
@@ -209,10 +219,24 @@ impl From<Arc<dyn Array>> for LushInsertAttrs {
                         DataType::Time64(_) => todo!(),
                         DataType::Duration(_) => todo!(),
                         DataType::Interval(_) => todo!(),
-                        DataType::Binary => todo!(),
+                        DataType::Binary => {
+                            let v = col.as_any().downcast_ref::<BinaryArray>().unwrap();
+                            if v.is_null(0) {
+                                Value::Null(Ty::VarChar)
+                            } else {
+                                Value::VarChar(std::str::from_utf8(v.value(0)).unwrap().to_string())
+                            }
+                        }
                         DataType::FixedSizeBinary(_) => todo!(),
                         DataType::LargeBinary => todo!(),
-                        DataType::Utf8 => todo!(),
+                        DataType::Utf8 => {
+                            let v = col.as_any().downcast_ref::<StringArray>().unwrap();
+                            if v.is_null(0) {
+                                Value::Null(Ty::VarChar)
+                            } else {
+                                Value::VarChar(v.value(0).to_string())
+                            }
+                        }
                         DataType::LargeUtf8 => todo!(),
                         DataType::List(_) => todo!(),
                         DataType::FixedSizeList(_, _) => todo!(),
@@ -224,6 +248,7 @@ impl From<Arc<dyn Array>> for LushInsertAttrs {
                         DataType::Decimal256(_, _) => todo!(),
                         DataType::Map(_, _) => todo!(),
                         DataType::RunEndEncoded(_, _) => todo!(),
+                        _ => todo!("Unsupported data type for tag"),
                     };
                     (name.to_string(), value)
                 })

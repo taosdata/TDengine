@@ -1,15 +1,14 @@
-use std::{any::Any};
+use std::any::Any;
 
 use anyhow::Result;
 
 use arrow::{
-    array::{ Int32Builder, TimestampMillisecondBuilder, },
+    array::{Int32Builder, TimestampMillisecondBuilder},
     datatypes::DataType,
     ipc::writer::StreamWriter,
 };
 
 use taosx_ipc::writer::*;
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -26,12 +25,25 @@ async fn main() -> Result<()> {
                 IpcField::new("ts", false, timestamp_type, IpcDataType::Timestamp),
                 IpcField::new("value", false, ArrowDataType::Int32, IpcDataType::Int32),
             ],
-            vec![IpcField::new(
-                "id",
-                false,
-                ArrowDataType::Int32,
-                IpcDataType::Int32,
-            )],
+            vec![
+                IpcField::new("t1", false, ArrowDataType::Boolean, IpcDataType::Bool),
+                IpcField::new("t2", false, ArrowDataType::Int8, IpcDataType::Int8),
+                IpcField::new("t3", false, ArrowDataType::Int16, IpcDataType::Int16),
+                IpcField::new("t4", false, ArrowDataType::Int32, IpcDataType::Int32),
+                IpcField::new("t5", false, ArrowDataType::Int64, IpcDataType::Int64),
+                IpcField::new("t6", false, ArrowDataType::UInt8, IpcDataType::UInt8),
+                IpcField::new("t7", false, ArrowDataType::UInt16, IpcDataType::UInt16),
+                IpcField::new("t8", false, ArrowDataType::UInt32, IpcDataType::UInt32),
+                IpcField::new("t9", false, ArrowDataType::UInt64, IpcDataType::UInt64),
+                IpcField::new("t10", false, ArrowDataType::Float32, IpcDataType::Float32),
+                IpcField::new("t11", false, ArrowDataType::Float64, IpcDataType::Float64),
+                IpcField::new(
+                    "t12",
+                    false,
+                    ArrowDataType::Binary,
+                    IpcDataType::VarChar(10),
+                ),
+            ],
         )
         .build();
 
@@ -50,7 +62,18 @@ async fn main() -> Result<()> {
         insert
             .table("tb1")
             .using("meters")
-            .with_tag(Box::new(1i32) as Box<dyn Any>);
+            .with_tag(Box::new(true) as Box<dyn Any>)
+            .with_tag(Box::new(1i8) as Box<dyn Any>)
+            .with_tag(Box::new(1i16) as Box<dyn Any>)
+            .with_tag(Box::new(1i32) as Box<dyn Any>)
+            .with_tag(Box::new(1i64) as Box<dyn Any>)
+            .with_tag(Box::new(1u8) as Box<dyn Any>)
+            .with_tag(Box::new(1u16) as Box<dyn Any>)
+            .with_tag(Box::new(1u32) as Box<dyn Any>)
+            .with_tag(Box::new(1u64) as Box<dyn Any>)
+            .with_tag(Box::new(1.0f32) as Box<dyn Any>)
+            .with_tag(Box::new(1.0f64) as Box<dyn Any>)
+            .with_tag(Box::new(&"abc") as Box<dyn Any>);
 
         let builder = insert.columns_builder();
 

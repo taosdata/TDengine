@@ -1,5 +1,5 @@
 use std::{
-    any::Any,
+    any::{Any, TypeId},
     collections::{HashMap, VecDeque},
     fmt::Display,
     str::FromStr,
@@ -8,13 +8,15 @@ use std::{
 
 use arrow::{
     array::{
-        make_builder, ArrayBuilder, ArrayData, ArrayRef, BinaryArray, BinaryBuilder, Int32Builder,
-        ListBuilder, NullArray, StructArray, StructBuilder, TimestampMicrosecondBuilder,
+        make_builder, ArrayBuilder, ArrayData, ArrayRef, BinaryArray, BinaryBuilder,
+        BooleanBuilder, Int16Builder, Int32Builder, Int8Builder, ListBuilder, NullArray,
+        StringBuilder, StructArray, StructBuilder, TimestampMicrosecondBuilder,
         TimestampMillisecondBuilder, TimestampNanosecondBuilder, TimestampSecondBuilder,
         UInt8Array,
     },
     datatypes::{DataType, Field, Schema, TimeUnit},
     error::ArrowError,
+    ipc::BoolBuilder,
     record_batch::RecordBatch,
 };
 
@@ -451,27 +453,30 @@ impl<'a> LushInsertBuilder<'a> {
         debug_assert!(self.using.is_some());
         let idx = self.tag_idx;
         let tag = &self.schema.tags[idx].arrow_data_type;
-        match tag {
-            ArrowDataType::Null => todo!(),
-            ArrowDataType::Boolean => todo!(),
-            ArrowDataType::Int8 => todo!(),
-            ArrowDataType::Int16 => todo!(),
-            ArrowDataType::Int32 => {
-                let v = tag_value.downcast::<i32>().unwrap();
+        macro_rules! primitive_append {
+            ($a:ident, $t:ident) => {{
+                let v = tag_value.downcast::<$t>().unwrap();
                 let b = self
                     .tags_builder()
-                    .field_builder::<Int32Builder>(idx)
+                    .field_builder::<arrow::array::$a>(idx)
                     .unwrap();
                 b.append_value(*v);
-            }
-            ArrowDataType::Int64 => todo!(),
-            ArrowDataType::UInt8 => todo!(),
-            ArrowDataType::UInt16 => todo!(),
-            ArrowDataType::UInt32 => todo!(),
-            ArrowDataType::UInt64 => todo!(),
-            ArrowDataType::Float16 => todo!(),
-            ArrowDataType::Float32 => todo!(),
-            ArrowDataType::Float64 => todo!(),
+            }};
+        }
+        match tag {
+            ArrowDataType::Null => todo!(),
+            ArrowDataType::Boolean => primitive_append!(BooleanBuilder, bool),
+            ArrowDataType::Int8 => primitive_append!(Int8Builder, i8),
+            ArrowDataType::Int16 => primitive_append!(Int16Builder, i16),
+            ArrowDataType::Int32 => primitive_append!(Int32Builder, i32),
+            ArrowDataType::Int64 => primitive_append!(Int64Builder, i64),
+            ArrowDataType::UInt8 => primitive_append!(UInt8Builder, u8),
+            ArrowDataType::UInt16 => primitive_append!(UInt16Builder, u16),
+            ArrowDataType::UInt32 => primitive_append!(UInt32Builder, u32),
+            ArrowDataType::UInt64 => primitive_append!(UInt64Builder, u64),
+            ArrowDataType::Float16 => primitive_append!(Float32Builder, f32),
+            ArrowDataType::Float32 => primitive_append!(Float32Builder, f32),
+            ArrowDataType::Float64 => primitive_append!(Float64Builder, f64),
             ArrowDataType::Timestamp(unit, _) => {
                 let v = tag_value.downcast::<i64>().unwrap();
                 match unit {
@@ -505,16 +510,71 @@ impl<'a> LushInsertBuilder<'a> {
                     }
                 }
             }
+            ArrowDataType::Binary => {
+                let b = self
+                    .tags_builder()
+                    .field_builder::<BinaryBuilder>(idx)
+                    .unwrap();
+                match tag_value.as_ref().type_id() {
+                    t if t == TypeId::of::<&str>() => {
+                        b.append_value(tag_value.downcast::<&str>().unwrap().as_ref())
+                    }
+                    t if t == TypeId::of::<&&str>() => {
+                        b.append_value(tag_value.downcast::<&&str>().unwrap().as_ref())
+                    }
+                    t if t == TypeId::of::<String>() => {
+                        b.append_value(tag_value.downcast::<String>().unwrap().as_ref())
+                    }
+                    t if t == TypeId::of::<&String>() => {
+                        b.append_value(tag_value.downcast::<&String>().unwrap().as_ref())
+                    }
+                    t if t == TypeId::of::<&&String>() => {
+                        b.append_value(tag_value.downcast::<&&String>().unwrap().as_ref())
+                    }
+                    t if t == TypeId::of::<[u8]>() => {
+                        b.append_value(tag_value.downcast::<&[u8]>().unwrap().as_ref())
+                    }
+                    t => panic!("Unsupported binary input type: {t:?}, {tag_value:?}"),
+                }
+            }
+            ArrowDataType::Utf8 => {
+                // let v = tag_value.downcast::<String>().unwrap();
+                let b = self
+                    .tags_builder()
+                    .field_builder::<StringBuilder>(idx)
+                    .unwrap();
+
+                match tag_value.as_ref().type_id() {
+                    t if t == TypeId::of::<&str>() => {
+                        b.append_value(tag_value.downcast::<&str>().unwrap().as_ref())
+                    }
+                    t if t == TypeId::of::<&&str>() => {
+                        b.append_value(tag_value.downcast::<&&str>().unwrap().as_ref())
+                    }
+                    t if t == TypeId::of::<String>() => {
+                        b.append_value(tag_value.downcast::<String>().unwrap().as_ref())
+                    }
+                    t if t == TypeId::of::<&String>() => {
+                        b.append_value(tag_value.downcast::<&String>().unwrap().as_ref())
+                    }
+                    t if t == TypeId::of::<&&String>() => {
+                        b.append_value(tag_value.downcast::<&&String>().unwrap().as_ref())
+                    }
+                    t if t == TypeId::of::<Box<[u8]>>() => b.append_value({
+                        std::str::from_utf8(tag_value.downcast::<&[u8]>().unwrap().as_ref())
+                            .unwrap()
+                    }),
+                    t => panic!("Unsupported binary input type: {t:?}, {tag_value:?}"),
+                }
+            }
             ArrowDataType::Date32 => todo!(),
             ArrowDataType::Date64 => todo!(),
             ArrowDataType::Time32(_) => todo!(),
             ArrowDataType::Time64(_) => todo!(),
             ArrowDataType::Duration(_) => todo!(),
             ArrowDataType::Interval(_) => todo!(),
-            ArrowDataType::Binary => todo!(),
             ArrowDataType::FixedSizeBinary(_) => todo!(),
             ArrowDataType::LargeBinary => todo!(),
-            ArrowDataType::Utf8 => todo!(),
             ArrowDataType::LargeUtf8 => todo!(),
             ArrowDataType::List(_) => todo!(),
             ArrowDataType::FixedSizeList(_, _) => todo!(),
