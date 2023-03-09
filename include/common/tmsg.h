@@ -1316,7 +1316,7 @@ typedef struct {
   int8_t  strict;
   int8_t  cacheLast;
   int64_t reserved[8];
-  // 1.0 modification
+  // 1st modification
   int16_t sttTrigger;
   int32_t minRows;
 } SAlterVnodeConfigReq;

@@ -4173,7 +4173,7 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
     if (tEncodeI64(&encoder, pReq->reserved[i]) < 0) return -1;
   }
 
-  // 1.0 modification
+  // 1st modification
   if (tEncodeI16(&encoder, pReq->sttTrigger) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->minRows) < 0) return -1;
 
@@ -4206,7 +4206,7 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
     if (tDecodeI64(&decoder, &pReq->reserved[i]) < 0) return -1;
   }
 
-  // 1.0 modification
+  // 1st modification
   if (tDecodeIsEnd(&decoder)) {
     pReq->sttTrigger = -1;
     pReq->minRows = -1;
