@@ -436,7 +436,7 @@ static int32_t smlParseColKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
       // bind data
       ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, cnt + 1);
       if (unlikely(ret != TSDB_CODE_SUCCESS)) {
-        uError("smlBuildCol error, retry");
+        uDebug("smlBuildCol error, retry");
         info->dataFormat = false;
         info->reRun = true;
         return TSDB_CODE_SUCCESS;
