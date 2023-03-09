@@ -372,7 +372,7 @@ int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
     snprintf(pythonPath, lenPythonPath, "%s:%s", tsTempDir, tsUdfdLdLibPath);
 #endif
     SScriptUdfEnvItem items[] = {{"PYTHONPATH", pythonPath}, {"LOGDIR", tsLogDir}};
-    err = plugin->openFunc(items, 1);
+    err = plugin->openFunc(items, 2);
     taosMemoryFree(pythonPath);
   }
   if (err != 0) {

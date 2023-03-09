@@ -149,6 +149,8 @@ static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn *pColumn, int32_t ne
     allocCapacity *= UDF_MEMORY_EXP_GROWTH;
   }
 
+  int32_t existedRows = data->numOfRows;
+
   if (IS_VAR_DATA_TYPE(meta->type)) {
     char *tmp = (char *)realloc(data->varLenCol.varOffsets, sizeof(int32_t) * allocCapacity);
     if (tmp == NULL) {
@@ -156,6 +158,7 @@ static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn *pColumn, int32_t ne
     }
     data->varLenCol.varOffsets = (int32_t *)tmp;
     data->varLenCol.varOffsetsLen = sizeof(int32_t) * allocCapacity;
+    memset(&data->varLenCol.varOffsets[existedRows], 0, sizeof(int32_t) * (allocCapacity - existedRows));
     // for payload, add data in udfColDataAppend
   } else {
     char *tmp = (char *)realloc(data->fixLenCol.nullBitmap, BitmapLen(allocCapacity));
@@ -164,6 +167,9 @@ static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn *pColumn, int32_t ne
     }
     data->fixLenCol.nullBitmap = tmp;
     data->fixLenCol.nullBitmapLen = BitmapLen(allocCapacity);
+    int32_t oldLen = BitmapLen(existedRows);
+    memset(&data->fixLenCol.nullBitmap[oldLen], 0, BitmapLen(allocCapacity) - oldLen);
+
     if (meta->type == TSDB_DATA_TYPE_NULL) {
       return TSDB_CODE_SUCCESS;
     }
@@ -260,24 +266,21 @@ typedef int32_t (*TUdfAggMergeFunc)(SUdfInterBuf *inputBuf1, SUdfInterBuf *input
 typedef int32_t (*TUdfAggFinishFunc)(SUdfInterBuf *buf, SUdfInterBuf *resultData);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-typedef struct SScriptUdfEnvItem{
+typedef struct SScriptUdfEnvItem {
   const char *name;
   const char *value;
 } SScriptUdfEnvItem;
 
-typedef enum EUdfFuncType {
-  UDF_FUNC_TYPE_SCALAR = 1, 
-  UDF_FUNC_TYPE_AGG = 2
-} EUdfFuncType;
+typedef enum EUdfFuncType { UDF_FUNC_TYPE_SCALAR = 1, UDF_FUNC_TYPE_AGG = 2 } EUdfFuncType;
 
 typedef struct SScriptUdfInfo {
   const char *name;
 
-  EUdfFuncType  funcType;
-  int8_t  scriptType;
-  int8_t  outputType;
-  int32_t outputLen;
-  int32_t bufSize;
+  EUdfFuncType funcType;
+  int8_t       scriptType;
+  int8_t       outputType;
+  int32_t      outputLen;
+  int32_t      bufSize;
 
   const char *path;
 } SScriptUdfInfo;
@@ -294,7 +297,7 @@ typedef int32_t (*TScriptUdfInitFunc)(SScriptUdfInfo *info, void **pUdfCtx);
 typedef int32_t (*TScriptUdfDestoryFunc)(void *udfCtx);
 
 // the following function is for open/close script plugin.
-typedef int32_t (*TScriptOpenFunc)(SScriptUdfEnvItem* items, int numItems);
+typedef int32_t (*TScriptOpenFunc)(SScriptUdfEnvItem *items, int numItems);
 typedef int32_t (*TScriptCloseFunc)();
 
 #ifdef __cplusplus
