@@ -404,7 +404,7 @@ void tLDataIterNextBlock(SLDataIter *pIter, const char *idStr) {
     tsdbDebug("try next last file block:%d from %d, trigger by uid:%" PRIu64 ", file index:%d, %s", pIter->iSttBlk,
               oldIndex, pIter->uid, pIter->iStt, idStr);
   } else {
-    tsdbDebug("no more last block qualified, uid:%" PRIu64 ", file index::%d, %s", pIter->uid, oldIndex, idStr);
+    tsdbDebug("no more last block qualified, uid:%" PRIu64 ", file index:%d, %s", pIter->uid, oldIndex, idStr);
   }
 }
 

@@ -14,7 +14,6 @@ target_sources(
     "src/vnd/vnodeSvr.c"
     "src/vnd/vnodeSync.c"
     "src/vnd/vnodeSnapshot.c"
-    "src/vnd/vnodeCompact.c"
     "src/vnd/vnodeRetention.c"
 
     # meta
@@ -53,7 +52,6 @@ target_sources(
     "src/tsdb/tsdbCacheRead.c"
     "src/tsdb/tsdbRetention.c"
     "src/tsdb/tsdbDiskData.c"
-    "src/tsdb/tsdbCompact.c"
     "src/tsdb/tsdbMergeTree.c"
     "src/tsdb/tsdbDataIter.c"
 
@@ -69,10 +67,20 @@ target_sources(
     "src/tq/tqSnapshot.c"
     "src/tq/tqOffsetSnapshot.c"
 )
+
+IF (TD_VNODE_PLUGINS)
+  target_sources(
+    vnode
+    PRIVATE
+    ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompact.c
+    ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/vnodeCompact.c
+  )
+ENDIF ()
+
 target_include_directories(
     vnode
     PUBLIC "inc"
-    PRIVATE "src/inc"
+    PUBLIC "src/inc"
     PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
 )
 target_link_libraries(

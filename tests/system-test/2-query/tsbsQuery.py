@@ -86,7 +86,7 @@ class TDTestCase:
         self.ctbNums=ctbNums
         rowNUms=5000
         ts=1451606400000
-        tdSql.execute(f"create database {dbname};")
+        tdSql.execute(f"create database {dbname} cachemodel 'both';")
         tdSql.execute(f"use {dbname} ")
         tdSql.execute(f'''
         create table {stabname1} (ts timestamp,latitude double,longitude double,elevation double,velocity double,heading double,grade double,fuel_consumption double) tags (name binary(30),fleet binary(30),driver binary(30),model binary(30),device_version binary(30),load_capacity double,fuel_capacity double,nominal_fuel_consumption double);

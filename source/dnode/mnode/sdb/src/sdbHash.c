@@ -160,6 +160,7 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   if (insertFp != NULL) {
     code = (*insertFp)(pSdb, pRow->pObj);
     if (code != 0) {
+      if (terrno == 0) terrno = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
       code = terrno;
       taosHashRemove(hash, pRow->pObj, keySize);
       sdbFreeRow(pSdb, pRow, false);

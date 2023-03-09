@@ -49,9 +49,23 @@ while $i < $tbNum
     $nchar = $nchar . $c
     $nchar = $nchar . '
 
-    sql insert into $tb values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
-    $tstart = $tstart + 30
-    $x = $x + 1
+    $next = $tstart + 30
+    $f = $x + 1
+    $c1 = $f / 100
+    $c1 = $c1 * 100
+    $c1 = $f - $c1
+
+    $binary1 = ' . binary
+    $binary1 = $binary1 . $c1
+    $binary1 = $binary1 . '
+
+    $nchar1 = ' . nchar
+    $nchar1 = $nchar1 . $c1
+    $nchar1 = $nchar1 . '
+
+    sql insert into $tb values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar ) ($next , $c1 , $c1 , $c1 , $c1 , $c1 , $c1 , $c1 , $binary1 , $nchar1 )
+    $tstart = $tstart + 60
+    $x = $x + 2
   endw
 
   $i = $i + 1
