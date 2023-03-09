@@ -61,15 +61,17 @@ export function handleBinaryType(type, length) {
 
 export function createStableReq(payload) {
   let { selected_db, stable_form } = payload;
-  let { name, columns, tags, ts_field_name, rollup } = stable_form;
+  let { name, columns, tags, ts_field_name, rollup,varcharLength=8,ncharLength=8 } = stable_form;
   let rollupValue = "";
   if (rollup.length) {
     rollupValue = `rollup (${rollup})`;
   }
   return sendSQLReq(
     `CREATE STABLE ${selected_db}.${name} (\`${ts_field_name}\` TIMESTAMP,${columns
-      .map(item => `\`${item.field}\` ${item.type}`)
-      .join(",")}) TAGS (${tags.map(item => `\`${item.field}\` ${item.type}`).join(",")}) ${rollupValue};`
+      .map(item => `\`${item.field}\` ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
+      'NCHAR('+`${item.ncharLength}`+')':item.type}`)
+      .join(",")}) TAGS (${tags.map(item => `\`${item.field}\` ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
+      'NCHAR('+`${item.ncharLength}`+')':item.type}`).join(",")}) ${rollupValue};`
   ).catch(err => {
     err.desc && Message.error(err.desc);
     return Promise.reject(err);

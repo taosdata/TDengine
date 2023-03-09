@@ -80,6 +80,14 @@ export const dataType = [
     label: "TIMESTAMP",
     value: "TIMESTAMP",
   },
+  {
+    label:'VARCHAR',
+    value:'VARCHAR'
+  },
+  {
+    label:'NCHAR',
+    value:'NCHAR'
+  }
 ];
 
 export const tagType = [
@@ -164,4 +172,12 @@ export const tagType = [
     label: "TIMESTAMP",
     value: "TIMESTAMP",
   },
+  {
+    label:'VARCHAR',
+    value:'VARCHAR'
+  },
+  {
+    label:'NCHAR',
+    value:'NCHAR'
+  }
 ];

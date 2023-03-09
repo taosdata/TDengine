@@ -1,6 +1,5 @@
 <template>
   <div class="source-ui">
-    <span style="font-size: 30px; color: red">{{ isEditable }}{{dbName}}{{dbname}}</span>
     <div class="left-ui">
       <section class="header">
         <h1>{{ dbsource[0].name }}</h1>

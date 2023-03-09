@@ -1,13 +1,18 @@
 <template>
   <section class="slide-header" :class="sider_style">
     <Logo></Logo>
-    <MenuTrigger class="menuTrigger"></MenuTrigger>
+    <MenuTrigger :class="['menuTrigger',isOem?'oem':'']"></MenuTrigger>
   </section>
 </template>
 
 <script>
 import { Logo, MenuTrigger } from "./index.js";
 export default {
+  data(){
+    return {
+      isOem:process.env.VUE_APP_CUS_NAME!==''
+    }
+  },
   components: { MenuTrigger, Logo },
   computed: {
     sider_style() {
@@ -29,6 +34,9 @@ export default {
   position: absolute;
   right: -10px;
   top: 18px;
+}
+.menuTrigger.oem{
+  top:60px;
 }
 .sider_fold {
   width: 60px;

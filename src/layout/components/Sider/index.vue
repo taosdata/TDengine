@@ -24,7 +24,7 @@
 <script>
 import { SlideHeader, SiderMenuItem } from "./components";
 import _ from "lodash";
-const flag = !_.isEmpty(process.env.VUE_APP_CUS_NAME);
+const flag = !_.isEmpty(process.env.VUE_APP_CUS_NAME) && process.env.VUE_APP_CUS_NAME !=='TDengine' ;
 export default {
   components: { SlideHeader, SiderMenuItem },
   data() {

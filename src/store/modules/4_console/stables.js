@@ -36,8 +36,14 @@ const mutations = {
     state.stable_form = form || {
       name: "",
       rollup: "",
-      columns: [{ type: "INT", field: "", value: "" }],
-      tags: [{ type: "INT", field: "", value: "" }],
+      columns: [{
+        type: "INT", field: "", value: "",
+        varcharLength: 8, ncharLength: 8
+      }],
+      tags: [{
+        type: "INT", field: "", value: "",
+        varcharLength: 8, ncharLength: 8
+      }],
       ts_field_name: "",
     };
   },
@@ -102,10 +108,10 @@ const actions = {
       })
       .catch(() => {
         if (!state.stable_form.columns.length) {
-          state.stable_form.columns.push({ type: "INT", field: "", value: "" });
+          state.stable_form.columns.push({ type: "INT", field: "", value: "", varcharLength: 8, ncharLength: 8 });
         }
         if (!state.stable_form.tags.length) {
-          state.stable_form.tags.push({ type: "INT", field: "", value: "" });
+          state.stable_form.tags.push({ type: "INT", field: "", value: "", varcharLength: 8, ncharLength: 8 });
         }
         return Promise.reject();
       });
