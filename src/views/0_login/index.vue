@@ -90,7 +90,7 @@
               <el-input
                 v-model="dynamicValidateForm.cluster"
                 @blur="getClusterUrl"
-                placeholder="http://192.168.0.201:6050"
+                placeholder="http://localhost:8080"
               ></el-input>
             </el-form-item>
           </div>
@@ -394,7 +394,7 @@ export default {
     },
   },
   created() {
-    console.log(process.env,this.dataJson, "env---===");
+    console.log(process.env, "env---===");
     this.getClusterAndDashboardUrl();
     localStorage.setItem('supportWebsite',this.dataJson.supportWebsite)
     localStorage.setItem('documentWebsite',this.dataJson.documentWebsite)

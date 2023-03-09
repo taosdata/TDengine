@@ -42,7 +42,7 @@ const mutations = {
       name: "",
       stbTmpl: "",//创建普通表默认赋值
       ts_field_name: "",
-      columns: [{type: "TIMESTAMP", field: "", value: "" },{ type: "INT", field: "", value: "" }],
+      columns: [{type: "TIMESTAMP", field: "", value: "",varcharLength:8,ncharLength:8 },{ type: "INT", field: "", value: "",varcharLength:8,ncharLength:8 }],
     };
   },
   SET_TABLE_FORM: (state, table_form) => {
@@ -123,10 +123,10 @@ const actions = {
       })
       .catch(() => {
         if (!state.table_form.columns.length) {
-          state.table_form.columns.push({ type: "INT", field: "", value: "" });
+          state.table_form.columns.push({ type: "INT", field: "", value: "",varcharLength:8,ncharLength:8 });
         }
         if (!state.table_form.tags.length) {
-          state.table_form.tags.push({ type: "INT", field: "", value: "" });
+          state.table_form.tags.push({ type: "INT", field: "", value: "",varcharLength:8,ncharLength:8 });
         }
         return Promise.reject();
       });

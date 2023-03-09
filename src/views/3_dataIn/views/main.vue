@@ -31,8 +31,8 @@ export default {
   },
   data() {
     return {
-      isOem:process.env.VUE_APP_CUS_NAME,
-      active:process.env.VUE_APP_CUS_NAME?'csv':'datacollection'
+      isOem:process.env.VUE_APP_CUS_NAME&&process.env.VUE_APP_CUS_NAME!=='TDengine',
+      active:process.env.VUE_APP_CUS_NAME&&process.env.VUE_APP_CUS_NAME!=='TDengine'?'csv':'datacollection'
     };
   },
   

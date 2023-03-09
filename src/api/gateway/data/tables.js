@@ -46,7 +46,8 @@ export function createTableReq(payload) {
       return Promise.reject(err);
     });
   } else {
-    return sendSQLReq(`CREATE TABLE ${selected_db}.${name} (${columns.map(item => `${item.field} ${item.type}`).join(",")});`).catch(err => {
+    return sendSQLReq(`CREATE TABLE ${selected_db}.${name} (${columns.map(item => `\`${item.field}\` ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
+    'NCHAR('+`${item.ncharLength}`+')':item.type}`).join(",")});`).catch(err => {
       err.desc && Message.error(err.desc);
       return Promise.reject(err);
     });
