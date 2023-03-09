@@ -51,7 +51,7 @@ class TDTestQuery(TDTestQuery):
         # self.right_case_2_tbname()
         # self.right_case_2_interval()
         # self.right_case_2_tbname_interval()
-        # self.rm_sql_1()
+        # self.rm_sql_3()
         # endTime2 = time.time()       
         # self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
@@ -61,7 +61,7 @@ class TDTestQuery(TDTestQuery):
         self.right_case_3_tbname()        
         self.right_case_3_interval()
         self.right_case_3_tbname_interval()
-        self.rm_sql_1()
+        self.rm_sql_3()
         endTime3 = time.time()
         self.logger.info("total time3 %ds" % (endTime3 - startTime3))     
 
