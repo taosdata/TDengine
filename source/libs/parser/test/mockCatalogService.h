@@ -65,7 +65,8 @@ class MockCatalogService {
   void createFunction(const std::string& func, int8_t funcType, int8_t outputType, int32_t outputLen, int32_t bufSize);
   void createSmaIndex(const SMCreateSmaReq* pReq);
   void createDnode(int32_t dnodeId, const std::string& host, int16_t port);
-  void createDatabase(const std::string& db, bool rollup = false, int8_t cacheLast = 0);
+  void createDatabase(const std::string& db, bool rollup = false, int8_t cacheLast = 0,
+                      int8_t precision = TSDB_TIME_PRECISION_MILLI);
 
   int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta, bool onlyCache = false) const;
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo, bool onlyCache = false) const;
