@@ -845,6 +845,7 @@ typedef struct {
   int8_t  cacheLast;
   int8_t  replications;
   int32_t sstTrigger;
+  int32_t minRows;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
