@@ -236,7 +236,7 @@ typedef struct SUvUdfWork {
   struct SUvUdfWork *pWorkNext;
 } SUvUdfWork;
 
-typedef enum { UDF_STATE_INIT = 0, UDF_STATE_LOADING, UDF_STATE_READY, UDF_STATE_UNLOADING } EUdfState;
+typedef enum { UDF_STATE_INIT = 0, UDF_STATE_LOADING, UDF_STATE_READY} EUdfState;
 
 typedef struct SUdf {
   char name[TSDB_FUNC_NAME_LEN + 1];
@@ -570,6 +570,14 @@ SUdf *udfdGetOrCreateUdf(const char *udfName) {
     uv_cond_init(&udfNew->condReady);
 
     udf = udfNew;
+    udf->resident = false;
+    for (int32_t i = 0; i < taosArrayGetSize(global.residentFuncs); ++i) {
+      char *funcName = taosArrayGet(global.residentFuncs, i);
+      if (strcmp(udfName, funcName) == 0) {
+        udf->resident = true;
+        break;
+      }
+    }
     SUdf **pUdf = &udf;
     taosHashPut(global.udfsHash, udfName, strlen(udfName), pUdf, POINTER_BYTES);
     uv_mutex_unlock(&global.udfsMutex);
@@ -591,20 +599,15 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   if (udf->state == UDF_STATE_INIT) {
     udf->state = UDF_STATE_LOADING;
     code = udfdInitUdf(setup->udfName, udf);
-
-    udf->resident = false;
-    for (int32_t i = 0; i < taosArrayGetSize(global.residentFuncs); ++i) {
-      char *funcName = taosArrayGet(global.residentFuncs, i);
-      if (strcmp(setup->udfName, funcName) == 0) {
-        udf->resident = true;
-        break;
-      }
+    if (code == 0) {
+      udf->state = UDF_STATE_READY;
+    } else {
+      udf->state = UDF_STATE_INIT;
     }
-    udf->state = UDF_STATE_READY;
     uv_cond_broadcast(&udf->condReady);
     uv_mutex_unlock(&udf->lock);
   } else {
-    while (udf->state != UDF_STATE_READY) {
+    while (udf->state == UDF_STATE_LOADING) {
       uv_cond_wait(&udf->condReady, &udf->lock);
     }
     uv_mutex_unlock(&udf->lock);

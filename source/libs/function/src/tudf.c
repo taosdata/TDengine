@@ -1705,7 +1705,7 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   if (task->errCode != 0) {
     fnError("failed to setup udf. udfname: %s, err: %d", udfName, task->errCode)
   } else {
-    fnInfo("sucessfully setup udf func handle. udfName: %s, handle: %p", udfName, task->session);
+    fnInfo("successfully setup udf func handle. udfName: %s, handle: %p", udfName, task->session);
     *funcHandle = task->session;
   }
   int32_t err = task->errCode;
