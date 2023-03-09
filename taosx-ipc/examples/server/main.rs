@@ -1,6 +1,6 @@
-use std::path::Path;
+use std::{path::Path, net::{TcpListener, TcpStream}, io::{Write, Read}};
 use taos::{AsyncQueryable, Bindable, Dsn, Itertools, Stmt, TBuilder, TaosBuilder};
-use taosx_ipc::ack::AckWriterBuilder;
+use taosx_ipc::ack::{AckWriterBuilder, AckWriter};
 use tracing::{info, instrument};
 
 use taosx_ipc::prelude::*;
@@ -12,7 +12,21 @@ async fn hello() -> &'static str {
     "Hello world!"
 }
 
-fn ipc_test(stream: std::os::unix::net::UnixStream) -> anyhow::Result<()> {
+fn ipc_windows_read(stream: TcpStream) -> anyhow::Result<()> {
+    let ipc_reader = IpcReader::new(&stream).unwrap();
+    let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
+    ipc_test(ipc_reader, ipc_ack_writer)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn ipc_unix_read(stream: std::os::unix::net::UnixStream) -> anyhow::Result<()> {
+    let ipc_reader = IpcReader::new(&stream).unwrap();
+    let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
+    ipc_test(ipc_reader, ipc_ack_writer)
+}
+
+fn ipc_test<R: Read, W: Write>(ipc_reader: IpcReader<R>, mut ipc_ack_writer: AckWriter<W>) -> anyhow::Result<()>
+ {
     let dsn = std::env::var("TAOSX_TARGET").unwrap_or("taos:///test".to_string());
     let mut dsn: Dsn = dsn.parse()?;
     let builder = TaosBuilder::from_dsn(&dsn).unwrap();
@@ -30,7 +44,7 @@ fn ipc_test(stream: std::os::unix::net::UnixStream) -> anyhow::Result<()> {
     // let (reader, writer) = stream.pair();
     // stream.set_nonblocking(true).unwrap();
 
-    let ipc_reader = IpcReader::new(&stream).unwrap();
+    
     let metadata = ipc_reader.metadata();
     dbg!(metadata);
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
@@ -40,7 +54,7 @@ fn ipc_test(stream: std::os::unix::net::UnixStream) -> anyhow::Result<()> {
     let columns = ipc_reader.columns();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
-    let mut ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
+    
     let mut records = 0;
 
     let mut stmt = Stmt::init(&taos)?;
@@ -79,6 +93,7 @@ fn ipc_test(stream: std::os::unix::net::UnixStream) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(not(target_os = "windows"))]
 fn listen_unix_socket() {
     let path = Path::new("taosx.sock");
     if path.exists() {
@@ -90,7 +105,7 @@ fn listen_unix_socket() {
         match listener.accept() {
             Ok((stream, addr)) => {
                 tracing::info!("new client!: {:?}", addr);
-                std::thread::spawn(|| ipc_test(stream).unwrap());
+                std::thread::spawn(|| ipc_unix_read(stream).unwrap());
             }
             Err(e) => {
                 /* connection failed */
@@ -99,6 +114,24 @@ fn listen_unix_socket() {
         }
     }
 }
+
+fn listen_tcp() {
+    let listener = TcpListener::bind("0.0.0.0:7890").unwrap();
+    info!("listen on socket address: 0.0.0.0:7890");
+    loop {
+        match listener.accept() {
+            Ok((stream, addr)) => {
+                tracing::info!("new client!: {:?}", addr);
+                std::thread::spawn(|| ipc_windows_read(stream).unwrap());
+            }
+            Err(e) => {
+                /* connection failed */
+                tracing::error!("Connection error {e}");
+            }
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -109,8 +142,10 @@ async fn main() -> anyhow::Result<()> {
         .with_max_level(tracing::Level::DEBUG)
         .pretty()
         .init();
-
+    #[cfg(not(target_os = "windows"))]
     let handle = std::thread::spawn(listen_unix_socket);
+
+    let handle = std::thread::spawn(listen_tcp);
 
     // HttpServer::new(move || {
     //     App::new()
