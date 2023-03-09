@@ -2935,6 +2935,9 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = translateFillValues(pCxt, pSelect);
   }
+  if (NULL == pSelect->pProjectionList || 0 >= pSelect->pProjectionList->length) {
+    code = TSDB_CODE_PAR_INVALID_SELECTED_EXPR;
+  }
   return code;
 }
 
