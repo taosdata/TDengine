@@ -135,9 +135,9 @@ IF(TD_BULID_TAOSX)
                 DEPENDS             taos
                 BUILD_IN_SOURCE     1
                 CONFIGURE_COMMAND
-                COMMAND git pull || true
-                COMMAND cargo update
+                COMMAND git stash && git checkout main && git pull
                 BUILD_COMMAND
+                COMMAND git stash && git checkout main && git pull
                 COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} cargo build --release
                 INSTALL_COMMAND
                 COMMAND cmake -E copy target/release/taosx ${CMAKE_BINARY_DIR}/build/bin
@@ -150,10 +150,9 @@ IF(TD_BULID_TAOSX)
                DEPENDS             taos
                BUILD_IN_SOURCE     1
                CONFIGURE_COMMAND
-               COMMAND git pull || true
-               COMMAND cargo update
+               COMMAND git stash && git checkout main && git pull
                BUILD_COMMAND
-               COMMAND git pull origin main || true
+               COMMAND git stash && git checkout main && git pull
                COMMAND ${TAOSX_BULID_COMMAND}
                INSTALL_COMMAND
                COMMAND cmake -E copy ${TAOSX_BINARY} ${CMAKE_BINARY_DIR}/build/bin
@@ -167,11 +166,10 @@ IF(TD_BULID_TAOSX)
             DEPENDS             taos
             BUILD_IN_SOURCE     1
             CONFIGURE_COMMAND
-            COMMAND git pull origin main || true
-            COMMAND cargo update
+            COMMAND git stash && git checkout main && git pull
             BUILD_COMMAND
-            COMMAND git pull origin main || true
-            COMMAND set LIBRARY_PATH=$ENV{LIBRARY_PATH} && set LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} && cargo build --release
+            COMMAND git stash && git checkout main && git pull
+            COMMAND set LIBPATH=$ENV{LIBRARY_PATH} && cargo build --release
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taosx.exe ${CMAKE_BINARY_DIR}/build/bin
         )
