@@ -543,7 +543,7 @@ void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer
 
 typedef struct {
   int32_t vgId;
-  char*   qmsg;   //SubPlanToString
+  char*   qmsg;  // SubPlanToString
   SEpSet  epSet;
 } SMqVgEp;
 
