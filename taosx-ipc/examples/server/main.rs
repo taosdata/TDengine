@@ -1,6 +1,10 @@
-use std::{path::Path, net::{TcpListener, TcpStream}, io::{Write, Read}};
+use std::{
+    io::{Read, Write},
+    net::{TcpListener, TcpStream},
+    path::Path,
+};
 use taos::{AsyncQueryable, Bindable, Dsn, Itertools, Stmt, TBuilder, TaosBuilder};
-use taosx_ipc::ack::{AckWriterBuilder, AckWriter};
+use taosx_ipc::ack::{AckWriter, AckWriterBuilder};
 use tracing::{info, instrument};
 
 use taosx_ipc::prelude::*;
@@ -25,8 +29,10 @@ fn ipc_unix_read(stream: std::os::unix::net::UnixStream) -> anyhow::Result<()> {
     ipc_test(ipc_reader, ipc_ack_writer)
 }
 
-fn ipc_test<R: Read, W: Write>(ipc_reader: IpcReader<R>, mut ipc_ack_writer: AckWriter<W>) -> anyhow::Result<()>
- {
+fn ipc_test<R: Read, W: Write>(
+    ipc_reader: IpcReader<R>,
+    mut ipc_ack_writer: AckWriter<W>,
+) -> anyhow::Result<()> {
     let dsn = std::env::var("TAOSX_TARGET").unwrap_or("taos:///test".to_string());
     let mut dsn: Dsn = dsn.parse()?;
     let builder = TaosBuilder::from_dsn(&dsn).unwrap();
@@ -44,7 +50,6 @@ fn ipc_test<R: Read, W: Write>(ipc_reader: IpcReader<R>, mut ipc_ack_writer: Ack
     // let (reader, writer) = stream.pair();
     // stream.set_nonblocking(true).unwrap();
 
-    
     let metadata = ipc_reader.metadata();
     dbg!(metadata);
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
@@ -54,7 +59,7 @@ fn ipc_test<R: Read, W: Write>(ipc_reader: IpcReader<R>, mut ipc_ack_writer: Ack
     let columns = ipc_reader.columns();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
-    
+
     let mut records = 0;
 
     let mut stmt = Stmt::init(&taos)?;
@@ -104,7 +109,7 @@ fn listen_unix_socket() {
     loop {
         match listener.accept() {
             Ok((stream, addr)) => {
-                tracing::info!("new client!: {:?}", addr);
+                tracing::info!("new unix client!: {:?}", addr);
                 std::thread::spawn(|| ipc_unix_read(stream).unwrap());
             }
             Err(e) => {
@@ -116,12 +121,13 @@ fn listen_unix_socket() {
 }
 
 fn listen_tcp() {
-    let listener = TcpListener::bind("0.0.0.0:7890").unwrap();
-    info!("listen on socket address: 0.0.0.0:7890");
+    let tcp_addr = "0.0.0.0:6051";
+    let listener = TcpListener::bind(tcp_addr).unwrap();
+    info!("listen on socket address: {tcp_addr}");
     loop {
         match listener.accept() {
             Ok((stream, addr)) => {
-                tracing::info!("new client!: {:?}", addr);
+                tracing::info!("new tcp client!: {:?}", addr);
                 std::thread::spawn(|| ipc_windows_read(stream).unwrap());
             }
             Err(e) => {
@@ -143,7 +149,7 @@ async fn main() -> anyhow::Result<()> {
         .pretty()
         .init();
     #[cfg(not(target_os = "windows"))]
-    let handle = std::thread::spawn(listen_unix_socket);
+    let unix_handle = std::thread::spawn(listen_unix_socket);
 
     let handle = std::thread::spawn(listen_tcp);
 
@@ -157,5 +163,7 @@ async fn main() -> anyhow::Result<()> {
     // .await?;
 
     handle.join().unwrap();
+    #[cfg(not(target_os = "windows"))]
+    unix_handle.join().unwrap();
     Ok(())
 }
