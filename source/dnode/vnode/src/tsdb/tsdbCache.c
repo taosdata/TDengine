@@ -722,6 +722,7 @@ typedef struct SFSNextRowIter {
   int32_t            iRow;
   TSDBROW            row;
   SSttBlockLoadInfo *pLoadInfo;
+  int64_t            lastTs;
 } SFSNextRowIter;
 
 static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
@@ -816,12 +817,12 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
         SDataBlk block = {0};
 
         tDataBlkReset(&block);
-        // tBlockDataReset(&state->blockData);
         tBlockDataReset(state->pBlockData);
 
         tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetDataBlk);
-        /* code = tsdbReadBlockData(state->pDataFReader, &state->blockIdx, &block, &state->blockData, NULL, NULL);
-         */
+        if (block.maxKey.ts <= state->lastTs) {
+          goto _next_fileset;
+        }
         tBlockDataReset(state->pBlockData);
         TABLEID tid = {.suid = state->suid, .uid = state->uid};
         code = tBlockDataInit(state->pBlockData, &tid, state->pTSchema, NULL, 0);
@@ -1070,7 +1071,7 @@ typedef struct {
 
 static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTsdb, STSchema *pTSchema, tb_uid_t suid,
                                SSttBlockLoadInfo *pLoadInfo, STsdbReadSnap *pReadSnap, SDataFReader **pDataFReader,
-                               SDataFReader **pDataFReaderLast) {
+                               SDataFReader **pDataFReaderLast, int64_t lastTs) {
   int code = 0;
 
   STbData *pMem = NULL;
@@ -1141,6 +1142,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
   pIter->fsState.uid = uid;
   pIter->fsState.pLoadInfo = pLoadInfo;
   pIter->fsState.pDataFReader = pDataFReader;
+  pIter->fsState.lastTs = lastTs;
 
   pIter->input[0] = (TsdbNextRowState){&pIter->memRow, true, false, &pIter->memState, getNextRowFromMem, NULL};
   pIter->input[1] = (TsdbNextRowState){&pIter->imemRow, true, false, &pIter->imemState, getNextRowFromMem, NULL};
@@ -1315,7 +1317,7 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
 
   CacheNextRowIter iter = {0};
   nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLoadInfo, pr->pReadSnap, &pr->pDataFReader,
-                  &pr->pDataFReaderLast);
+                  &pr->pDataFReaderLast, pr->lastTs);
 
   do {
     TSDBROW *pRow = NULL;
@@ -1453,7 +1455,7 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
 
   CacheNextRowIter iter = {0};
   nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLoadInfo, pr->pReadSnap, &pr->pDataFReader,
-                  &pr->pDataFReaderLast);
+                  &pr->pDataFReaderLast, pr->lastTs);
 
   do {
     TSDBROW *pRow = NULL;
