@@ -101,6 +101,7 @@ typedef struct {
   SWalRef*      pRef;
   STqPushHandle pushHandle;    // push
   STqExecHandle execHandle;    // exec
+  int8_t        execStatus;    // this handle is used to handle the poll requirement
 } STqHandle;
 
 typedef struct {

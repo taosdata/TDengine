@@ -344,3 +344,51 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
 
   return 0;
 }
+
+int32_t tqRegisterPushEntry(STQ* pTq, void* pHandle, const SMqPollReq* pRequest, SRpcMsg* pRpcMsg,
+                            SMqDataRsp* pDataRsp) {
+  uint64_t   consumerId = pRequest->consumerId;
+  int32_t    vgId = TD_VID(pTq->pVnode);
+  STqHandle* pTqHandle = pHandle;
+
+  STqPushEntry* pPushEntry = taosMemoryCalloc(1, sizeof(STqPushEntry));
+  if (pPushEntry == NULL) {
+    tqDebug("tmq poll: consumer:0x%" PRIx64 ", vgId:%d failed to malloc, size:%d", consumerId, vgId,
+            (int32_t)sizeof(STqPushEntry));
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  pPushEntry->pInfo = pRpcMsg->info;
+  memcpy(pPushEntry->subKey, pTqHandle->subKey, TSDB_SUBSCRIBE_KEY_LEN);
+  pDataRsp->withTbName = 0;
+
+  memcpy(&pPushEntry->dataRsp, pDataRsp, sizeof(SMqDataRsp));
+  pPushEntry->dataRsp.head.consumerId = consumerId;
+  pPushEntry->dataRsp.head.epoch = pRequest->epoch;
+  pPushEntry->dataRsp.head.mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
+  taosHashPut(pTq->pPushMgr, pTqHandle->subKey, strlen(pTqHandle->subKey), &pPushEntry, sizeof(void*));
+
+  tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s offset:%" PRId64 ", vgId:%d save handle to push mgr, total:%d", consumerId,
+          pTqHandle->subKey, pDataRsp->reqOffset.version, vgId, taosHashGetSize(pTq->pPushMgr));
+  return 0;
+}
+
+int32_t tqRemovePushEntry(STQ* pTq, const char* pKey, int32_t keyLen, uint64_t consumerId, bool rspConsumer) {
+  int32_t       vgId = TD_VID(pTq->pVnode);
+  STqPushEntry** pEntry = taosHashGet(pTq->pPushMgr, pKey, keyLen);
+  if (pEntry != NULL) {
+    uint64_t cId = (*pEntry)->dataRsp.head.consumerId;
+    ASSERT(consumerId == cId);
+
+    tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s vgId:%d remove from push mgr, remains:%d", consumerId,
+            (*pEntry)->subKey, vgId, taosHashGetSize(pTq->pPushMgr) - 1);
+    taosHashRemove(pTq->pPushMgr, pKey, keyLen);
+
+    if (rspConsumer) { // rsp the old consumer with empty block.
+      tqPushDataRsp(pTq, *pEntry);
+    }
+  }
+
+  return 0;
+}
