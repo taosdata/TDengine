@@ -130,6 +130,9 @@ int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta
 int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   int32_t code = 0;
   SMnode *pMnode = pFsm->data;
+  pMsg->info.conn.applyIndex = pMeta->index;
+  pMsg->info.conn.applyTerm = pMeta->term;
+
   atomic_store_64(&pMnode->applied, pMsg->info.conn.applyIndex);
 
   if (!syncUtilUserCommit(pMsg->msgType)) {
@@ -176,6 +179,8 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   } else {
     mInfo("vgId:1, sync restore finished");
   }
+
+  ASSERT(commitIdx == mndSyncAppliedIndex(pFsm));
 }
 
 int32_t mndSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {
@@ -330,10 +335,6 @@ int32_t mndInitSync(SMnode *pMnode) {
     return -1;
   }
   pMnode->pSdb->sync = pMgmt->sync;
-
-  SSnapshot snap = {0};
-  sdbGetCommitInfo(pMnode->pSdb, &snap.lastApplyIndex, &snap.lastApplyTerm, &snap.lastConfigIndex);
-  atomic_store_64(&pMnode->applied, snap.lastApplyIndex);
 
   mInfo("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
