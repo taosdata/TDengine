@@ -529,13 +529,12 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
     appliedIdx = vnodeSyncAppliedIndex(pFsm);
     ASSERT(appliedIdx <= commitIdx);
     if (appliedIdx == commitIdx) {
-      vInfo("vgId:%d, no more items to be applied, restore finish", pVnode->config.vgId);
+      vInfo("vgId:%d, no items to be applied, restore finish", pVnode->config.vgId);
       break;
     } else {
-      int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
-      vInfo("vgId:%d, restore not finish since %" PRId64
-            " items to be applied, and %d in apply queue. commit-index:%" PRId64 ", applied-index:%" PRId64,
-            pVnode->config.vgId, commitIdx - appliedIdx, itemSize, commitIdx, appliedIdx);
+      vInfo("vgId:%d, restore not finish since %" PRId64 " items to be applied. commit-index:%" PRId64
+            ", applied-index:%" PRId64,
+            pVnode->config.vgId, commitIdx - appliedIdx, commitIdx, appliedIdx);
       taosMsleep(10);
     }
   } while (true);
