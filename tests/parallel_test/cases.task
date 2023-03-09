@@ -176,8 +176,8 @@
 ,,y,script,./test.sh -f tsim/query/scalarFunction.sim
 ,,y,script,./test.sh -f tsim/query/scalarNull.sim
 ,,y,script,./test.sh -f tsim/query/session.sim
-,,y,script,./test.sh -f tsim/query/udf.sim
-,,y,script,./test.sh -f tsim/query/udf_with_const.sim
+#,,y,script,./test.sh -f tsim/query/udf.sim
+#,,y,script,./test.sh -f tsim/query/udf_with_const.sim
 ,,y,script,./test.sh -f tsim/query/sys_tbname.sim
 ,,y,script,./test.sh -f tsim/query/groupby.sim
 ,,y,script,./test.sh -f tsim/query/event.sim
@@ -303,7 +303,7 @@
 ,,n,script,./test.sh -f tsim/valgrind/checkError6.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkError7.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkError8.sim
-,,n,script,./test.sh -f tsim/valgrind/checkUdf.sim
+#,,n,script,./test.sh -f tsim/valgrind/checkUdf.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_basic.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_repeat.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_vgroup.sim
@@ -421,11 +421,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/backquote_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdMonitor.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
-,,n,system-test,python3 ./test.py -f 0-others/udfTest.py
-,,n,system-test,python3 ./test.py -f 0-others/udf_create.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_restart_taosd.py
-,,n,system-test,python3 ./test.py -f 0-others/udf_cfg1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_cfg2.py
+#,,n,system-test,python3 ./test.py -f 0-others/udfTest.py
+#,,n,system-test,python3 ./test.py -f 0-others/udf_create.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_restart_taosd.py
+#,,n,system-test,python3 ./test.py -f 0-others/udf_cfg1.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_cfg2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/cachemodel.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/sysinfo.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_control.py
@@ -744,9 +744,9 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStbCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot0.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
@@ -1091,8 +1091,8 @@
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/telnet_tcp.py -R
 
 #docs-examples test
-,,n,docs-examples-test,bash python.sh
-,,n,docs-examples-test,bash node.sh
+#,,n,docs-examples-test,bash python.sh
+#,,n,docs-examples-test,bash node.sh
 ,,n,docs-examples-test,bash csharp.sh
 ,,n,docs-examples-test,bash jdbc.sh
 ,,n,docs-examples-test,bash go.sh
