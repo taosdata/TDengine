@@ -35,5 +35,6 @@ DLL_EXPORT int32_t udf1(SUdfDataBlock *block, SUdfColumn *resultCol) {
 #ifdef WINDOWS
   Sleep(1);
 #endif
+  resultData->numOfRows = block->numOfRows;
   return 0;
 }
