@@ -143,6 +143,7 @@ typedef struct SSyncFSM {
   void* data;
 
   int32_t (*FpCommitCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
+  SyncIndex (*FpAppliedIndexCb)(const struct SSyncFSM* pFsm);
   int32_t (*FpPreCommitCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
   void (*FpRollBackCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
 

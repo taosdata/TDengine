@@ -113,6 +113,7 @@ typedef struct SMnode {
   bool           deploy;
   char          *path;
   int64_t        checkTime;
+  SyncIndex      applied;
   SSdb          *pSdb;
   SArray        *pSteps;
   SQHandle      *pQuery;

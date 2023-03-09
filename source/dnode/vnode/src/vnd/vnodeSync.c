@@ -454,6 +454,11 @@ static int32_t vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const 
   return 0;
 }
 
+static SyncIndex vnodeSyncAppliedIndex(const SSyncFSM *pFSM) {
+  SVnode *pVnode = pFSM->data;
+  return atomic_load_64(&pVnode->state.applied);
+}
+
 static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   SVnode *pVnode = pFsm->data;
   vTrace("vgId:%d, rollback-cb is excuted, fsm:%p, index:%" PRId64 ", weak:%d, code:%d, state:%d %s, type:%s",
@@ -580,6 +585,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pVnode;
   pFsm->FpCommitCb = vnodeSyncCommitMsg;
+  pFsm->FpAppliedIndexCb = vnodeSyncAppliedIndex;
   pFsm->FpPreCommitCb = vnodeSyncPreCommitMsg;
   pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
   pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshotInfo;

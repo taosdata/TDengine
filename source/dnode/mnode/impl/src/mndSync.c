@@ -129,15 +129,24 @@ int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta
 
 int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   int32_t code = 0;
+  SMnode *pMnode = pFsm->data;
+  atomic_store_64(&pMnode->applied, pMsg->info.conn.applyIndex);
+
   if (!syncUtilUserCommit(pMsg->msgType)) {
     goto _out;
   }
+
   code = mndProcessWriteMsg(pFsm, pMsg, pMeta);
 
 _out:
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
   return code;
+}
+
+SyncIndex mndSyncAppliedIndex(const SSyncFSM *pFSM) {
+  SMnode *pMnode = pFSM->data;
+  return atomic_load_64(&pMnode->applied);
 }
 
 int32_t mndSyncGetSnapshot(const SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pReaderParam, void **ppReader) {
@@ -253,6 +262,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
   pFsm->FpCommitCb = mndSyncCommitMsg;
+  pFsm->FpAppliedIndexCb = mndSyncAppliedIndex;
   pFsm->FpPreCommitCb = NULL;
   pFsm->FpRollBackCb = NULL;
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
@@ -320,6 +330,10 @@ int32_t mndInitSync(SMnode *pMnode) {
     return -1;
   }
   pMnode->pSdb->sync = pMgmt->sync;
+
+  SSnapshot snap = {0};
+  sdbGetCommitInfo(pMnode->pSdb, &snap.lastApplyIndex, &snap.lastApplyTerm, &snap.lastConfigIndex);
+  atomic_store_64(&pMnode->applied, snap.lastApplyIndex);
 
   mInfo("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
