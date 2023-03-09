@@ -14,10 +14,8 @@ DLL_EXPORT int32_t udf1_init() { return 0; }
 DLL_EXPORT int32_t udf1_destroy() { return 0; }
 
 DLL_EXPORT int32_t udf1(SUdfDataBlock *block, SUdfColumn *resultCol) {
-
   SUdfColumnData *resultData = &resultCol->colData;
-  resultData->numOfRows = block->numOfRows;
-  for (int32_t i = 0; i < resultData->numOfRows; ++i) {
+  for (int32_t i = 0; i < block->numOfRows; ++i) {
     int j = 0;
     for (; j < block->numOfCols; ++j) {
       if (udfColDataIsNull(block->udfCols[j], i)) {
