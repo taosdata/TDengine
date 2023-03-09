@@ -124,7 +124,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   vmFreeQueue(pMgmt, pVnode);
 
   if (commitAndRemoveWal) {
-    dInfo("vgId:%d, commit data", pVnode->vgId);
+    dInfo("vgId:%d, commit data for vnode split", pVnode->vgId);
     vnodeSyncCommit(pVnode->pImpl);
     vnodeBegin(pVnode->pImpl);
     dInfo("vgId:%d, commit data finished", pVnode->vgId);
