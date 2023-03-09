@@ -3,7 +3,7 @@ use std::any::Any;
 use anyhow::Result;
 
 use arrow::{
-    array::{Int32Builder, TimestampMillisecondBuilder},
+    array::{Int32Builder, TimestampMillisecondBuilder, Float64Builder},
     datatypes::DataType,
     ipc::writer::StreamWriter,
 };
@@ -23,7 +23,8 @@ async fn main() -> Result<()> {
             "meters",
             vec![
                 IpcField::new("ts", false, timestamp_type, IpcDataType::Timestamp),
-                IpcField::new("value", false, ArrowDataType::Int32, IpcDataType::Int32),
+                IpcField::new("c1", false, ArrowDataType::Int32, IpcDataType::Int32),
+                IpcField::new("c2", false, ArrowDataType::Float64, IpcDataType::Float64),
             ],
             vec![
                 IpcField::new("t1", false, ArrowDataType::Boolean, IpcDataType::Bool),
@@ -88,6 +89,10 @@ async fn main() -> Result<()> {
             .field_builder::<Int32Builder>(1)
             .unwrap()
             .append_value(100i32);
+        builder
+            .field_builder::<Float64Builder>(2)
+            .unwrap()
+            .append_value(100.);
 
         let batch = insert.build()?;
         // dbg!(&batch);

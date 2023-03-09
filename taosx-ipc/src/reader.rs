@@ -2,8 +2,9 @@ use std::{io::Read, sync::Arc};
 
 use arrow::{
     array::{
-        Array, ArrayAccessor, ArrayData, BinaryArray, Int16Array, Int32Array, Int64Array,
-        Int8Array, ListArray, StringArray, StructArray, TimestampMillisecondArray, UInt8Array,
+        Array, ArrayAccessor, ArrayData, BinaryArray, BooleanArray, Float16Array, Float32Array,
+        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, ListArray, StringArray,
+        StructArray, TimestampMillisecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
     datatypes::{DataType, Schema},
     error::ArrowError,
@@ -289,25 +290,155 @@ impl LushMessageInsert {
             .iter()
             .map(|column| match column.data_type() {
                 DataType::Null => todo!(),
-                DataType::Boolean => todo!(),
-                DataType::Int8 => todo!(),
-                DataType::Int16 => todo!(),
+                DataType::Boolean => {
+                    let a = column.as_any().downcast_ref::<BooleanArray>().unwrap();
+
+                    ColumnView::from_bools(
+                        (0..a.len())
+                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                            .collect_vec(),
+                    )
+                }
+                DataType::Int8 => {
+                    let a = column.as_any().downcast_ref::<Int8Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_tiny_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_tiny_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Int16 => {
+                    let a = column.as_any().downcast_ref::<Int16Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_small_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_small_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
                 DataType::Int32 => {
                     let a = column.as_any().downcast_ref::<Int32Array>().unwrap();
                     if a.null_count() == 0 {
                         ColumnView::from_ints(a.values().to_vec())
                     } else {
-                        ColumnView::from_ints(a.values().to_vec())
+                        ColumnView::from_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
                     }
                 }
-                DataType::Int64 => todo!(),
-                DataType::UInt8 => todo!(),
-                DataType::UInt16 => todo!(),
-                DataType::UInt32 => todo!(),
-                DataType::UInt64 => todo!(),
-                DataType::Float16 => todo!(),
-                DataType::Float32 => todo!(),
-                DataType::Float64 => todo!(),
+                DataType::Int64 => {
+                    let a = column.as_any().downcast_ref::<Int64Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_big_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_big_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::UInt8 => {
+                    let a = column.as_any().downcast_ref::<UInt8Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_unsigned_tiny_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_unsigned_tiny_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::UInt16 => {
+                    let a = column.as_any().downcast_ref::<UInt16Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_unsigned_small_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_unsigned_small_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::UInt32 => {
+                    let a = column.as_any().downcast_ref::<UInt32Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_unsigned_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_unsigned_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::UInt64 => {
+                    let a = column.as_any().downcast_ref::<UInt64Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_unsigned_big_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_unsigned_big_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Float16 => {
+                    let a = column.as_any().downcast_ref::<Float16Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_floats(
+                            a.values().iter().map(|f| f.to_f32_const()).collect_vec(),
+                        )
+                    } else {
+                        ColumnView::from_floats(
+                            (0..a.len())
+                                .map(|i| {
+                                    if a.is_null(i) {
+                                        None
+                                    } else {
+                                        Some(a.value(i).to_f32())
+                                    }
+                                })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Float32 => {
+                    let a = column.as_any().downcast_ref::<Float32Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_floats(a.values().to_vec())
+                    } else {
+                        ColumnView::from_floats(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Float64 => {
+                    let a = column.as_any().downcast_ref::<Float64Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_doubles(a.values().to_vec())
+                    } else {
+                        ColumnView::from_doubles(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
                 DataType::Timestamp(u, _) => match u {
                     arrow::datatypes::TimeUnit::Second => todo!(),
                     arrow::datatypes::TimeUnit::Millisecond => {
