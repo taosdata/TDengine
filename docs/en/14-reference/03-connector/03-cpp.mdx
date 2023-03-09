@@ -412,5 +412,17 @@ In addition to writing data using the SQL method or the parameter binding API, w
   Note that the timestamp resolution parameter only takes effect when the protocol type is `SML_LINE_PROTOCOL`.
   For OpenTSDB's text protocol, timestamp resolution follows its official resolution rules - time precision is confirmed by the number of characters contained in the timestamp.
 
-  **Supported Versions**
-  This feature interface is supported from version 2.3.0.0.
+  schemaless 其他相关的接口
+- `TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int64_t reqid)`
+- `TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision)`
+- `TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int64_t reqid)`
+- `TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl)`
+- `TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl, int64_t reqid)`
+- `TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl)`
+- `TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl, int64_t reqid)`
+
+  **Description**
+  - The above seven interfaces are extension interfaces, which are mainly used to pass ttl and reqid parameters, and can be used as needed.
+  - Withing _raw interfaces represent data through the passed parameters lines and len. In order to solve the problem that the original interface data contains '\0' and is truncated. The totalRows pointer returns the number of parsed data rows.
+  - Withing _ttl interfaces can pass the ttl parameter to control the ttl expiration time of the table.
+  - Withing _reqid interfaces can track the entire call chain by passing the reqid parameter.
