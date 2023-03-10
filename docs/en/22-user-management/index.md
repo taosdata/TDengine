@@ -19,10 +19,6 @@ The major features are listed below:
 1. [Organization Management](./orgs/): Create new organizations, update their name and also can transfer the owner to some one in the organization.
 2. [User Mgmt](./users/): Create, update or delete users or user groups. You can also create/edit/delete customized roles.
     - [User](./users/users)
-<!-- 3. [Admin](./admin/): Create, update or delete users or user groups. You can also create/edit/delete customized roles.
-4. [Database Access Control](./db/): Create, update or delete users or user groups. You can also create/edit/delete customized roles. -->
-
-<!-- ## User Stories -->
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';
