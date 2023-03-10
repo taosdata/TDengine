@@ -465,10 +465,31 @@ impl LushMessageInsert {
                 DataType::Time64(_) => todo!(),
                 DataType::Duration(_) => todo!(),
                 DataType::Interval(_) => todo!(),
-                DataType::Binary => todo!(),
+                DataType::Binary => {
+                    let a = column.as_any().downcast_ref::<BinaryArray>().unwrap();
+
+                    ColumnView::from_varchar::<&str, _, _, _>(
+                        (0..a.len())
+                            .map(|i| {
+                                if a.is_null(i) {
+                                    None
+                                } else {
+                                    Some(unsafe { std::str::from_utf8_unchecked(a.value(i)) })
+                                }
+                            })
+                            .collect_vec(),
+                    )
+                }
                 DataType::FixedSizeBinary(_) => todo!(),
                 DataType::LargeBinary => todo!(),
-                DataType::Utf8 => todo!(),
+                DataType::Utf8 => {
+                    let a = column.as_any().downcast_ref::<StringArray>().unwrap();
+                    ColumnView::from_varchar::<&str, _, _, _>(
+                        (0..a.len())
+                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                            .collect_vec(),
+                    )
+                }
                 DataType::LargeUtf8 => todo!(),
                 DataType::List(_) => todo!(),
                 DataType::FixedSizeList(_, _) => todo!(),

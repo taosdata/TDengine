@@ -3,7 +3,7 @@ use std::any::Any;
 use anyhow::Result;
 
 use arrow::{
-    array::{Int32Builder, TimestampMillisecondBuilder, Float64Builder},
+    array::{BinaryBuilder, Float64Builder, Int32Builder, TimestampMillisecondBuilder},
     datatypes::DataType,
     ipc::writer::StreamWriter,
 };
@@ -25,6 +25,12 @@ async fn main() -> Result<()> {
                 IpcField::new("ts", false, timestamp_type, IpcDataType::Timestamp),
                 IpcField::new("c1", false, ArrowDataType::Int32, IpcDataType::Int32),
                 IpcField::new("c2", false, ArrowDataType::Float64, IpcDataType::Float64),
+                IpcField::new(
+                    "c3",
+                    false,
+                    ArrowDataType::Binary,
+                    IpcDataType::VarChar(100),
+                ),
             ],
             vec![
                 IpcField::new("t1", false, ArrowDataType::Boolean, IpcDataType::Bool),
@@ -93,10 +99,12 @@ async fn main() -> Result<()> {
             .field_builder::<Float64Builder>(2)
             .unwrap()
             .append_value(100.);
+        builder
+            .field_builder::<BinaryBuilder>(3)
+            .unwrap()
+            .append_value("中文".as_bytes());
 
         let batch = insert.build()?;
-        // dbg!(&batch);
-        // writer.write(batch)
         writer.write(&batch)?;
 
         records += batch.num_rows();
