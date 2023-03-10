@@ -326,10 +326,6 @@ Please refer to: [JDBC example](https://github.com/taosdata/TDengine/tree/develo
 
 **Cause**：taos-jdbcdriver 3.0.1 is compiled on JDK 11.
 
-**Solution**： Use taos-jdbcdriver 3.0.2.
-
-For additional troubleshooting, see [FAQ](../../../train-faq/faq).
-
 ## API Reference
 
 [taos-jdbcdriver doc](https://docs.taosdata.com/api/taos-jdbcdriver)

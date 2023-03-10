@@ -338,10 +338,6 @@ public static void main(String[] args) throws Exception {
 
 **原因**：taos-jdbcdriver 3.0.1 版本需要在 JDK 11+ 环境使用。
 
-**解决方法**： 更换 taos-jdbcdriver 3.0.2+ 版本。
-
-其它问题请参考 [FAQ](../../../train-faq/faq)
-
 ## API 参考
 
 [taos-jdbcdriver doc](https://docs.taosdata.com/api/taos-jdbcdriver)

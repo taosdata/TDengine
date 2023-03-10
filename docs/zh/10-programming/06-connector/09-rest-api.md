@@ -12,7 +12,7 @@ description: 详细介绍 TDengine 提供的 RESTful API.
 
 ## 安装
 
-RESTful 接口不依赖于任何 TDengine 的库，因此客户端不需要安装任何 TDengine 的库，只要客户端的开发语言支持 HTTP 协议即可。TDengine 的 RESTful API 由 [taosAdapter](../../reference/taosadapter) 提供，在使用 RESTful API 之前需要确保 `taosAdapter` 正常运行。
+RESTful 接口不依赖于任何 TDengine 的库，因此客户端不需要安装任何 TDengine 的库，只要客户端的开发语言支持 HTTP 协议即可。
 
 ## 验证
 

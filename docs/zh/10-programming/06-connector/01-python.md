@@ -4,8 +4,7 @@ title: TDengine Python 连接器
 description: "taospy 是 TDengine 的官方 Python 连接器。taospy 提供了丰富的 API， 使得 Python 应用可以很方便地使用 TDengine。tasopy 对 TDengine 的原生接口和 REST 接口都进行了封装， 分别对应 tasopy 的两个子模块：taos 和 taosrest。除了对原生接口和 REST 接口的封装，taospy 还提供了符合 Python 数据访问规范(PEP 249)的编程接口。这使得 taospy 和很多第三方工具集成变得简单，比如 SQLAlchemy 和 pandas"
 ---
 
-`taospy` 是 TDengine 的官方 Python 连接器。`taospy` 提供了丰富的 API， 使得 Python 应用可以很方便地使用 TDengine。`taospy` 对 TDengine 的[原生接口](../cpp)和 [REST 接口](../rest-api)都进行了封装， 分别对应 `taospy` 包的 `taos` 模块 和 `taosrest` 模块。
-除了对原生接口和 REST 接口的封装，`taospy` 还提供了符合 [Python 数据访问规范(PEP 249)](https://peps.python.org/pep-0249/) 的编程接口。这使得 `taospy` 和很多第三方工具集成变得简单，比如 [SQLAlchemy](https://www.sqlalchemy.org/) 和 [pandas](https://pandas.pydata.org/)。
+`taospy` 是 TDengine 的官方 Python 连接器。`taospy` 提供了丰富的 API， 使得 Python 应用可以很方便地使用 TDengine。`taospy` 对 REST 接口都进行了封装。`taospy` 还提供了符合 [Python 数据访问规范(PEP 249)](https://peps.python.org/pep-0249/) 的编程接口。这使得 `taospy` 和很多第三方工具集成变得简单，比如 [SQLAlchemy](https://www.sqlalchemy.org/) 和 [pandas](https://pandas.pydata.org/)。
 
 Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-python)。
 
