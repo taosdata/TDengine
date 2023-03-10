@@ -379,7 +379,6 @@ export default {
           trigger: this.ruleForm.cycle,
         };
         await editBackup(id, params).then((res) => {
-          console.log(res, "---edit--balcup");
           this.getBackData();
         });
         this.dialog = false;

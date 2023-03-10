@@ -111,7 +111,6 @@
     },
     methods: {
       closeDialog(){
-        console.log(this.$refs.stream,'----stream----');
         this.dialog=false
       },
       async getStreams() {
