@@ -42,10 +42,9 @@ jobs:
           name: dist
           path: dist
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          target: aarch64-apple-darwin
+          targets: aarch64-apple-darwin
 
       - uses: actions/cache@v3
         name: Cargo Caches
@@ -91,9 +90,7 @@ jobs:
           name: dist
           path: dist
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
+      - uses: dtolnay/rust-toolchain@stable
 
       - uses: actions/cache@v3
         name: Cargo Caches
@@ -140,10 +137,9 @@ jobs:
           name: dist
           path: dist
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          target: x86_64-unknown-linux-musl
+          targets: x86_64-unknown-linux-musl
 
       - uses: actions/cache@v3
         name: Cargo Caches
@@ -186,10 +182,9 @@ jobs:
           name: dist
           path: dist
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          target: aarch64-unknown-linux-musl
+          targets: aarch64-unknown-linux-musl
 
       - uses: actions/cache@v3
         name: Cargo Caches
