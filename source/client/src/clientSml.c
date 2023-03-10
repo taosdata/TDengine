@@ -1516,7 +1516,7 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
     smlPrintStatisticInfo(info);
     if(code == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER || code == TSDB_CODE_SDB_OBJ_CREATING){
       refreshMeta(request->pTscObj, request);
-      uInfo("SML:%"PRIx64" ver is old retry or object is creating:%d", info->id, code);
+      uInfo("SML:%"PRIx64" ver is old retry or object is creating code:%d", info->id, code);
       smlDestroyInfo(info);
       info = NULL;
       taos_free_result(request);
