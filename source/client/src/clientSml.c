@@ -1213,6 +1213,11 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
 static int32_t smlInsertData(SSmlHandle *info) {
   int32_t code = TSDB_CODE_SUCCESS;
 
+  if(info->pRequest->dbList == NULL){
+    info->pRequest->dbList = taosArrayInit(1, TSDB_DB_FNAME_LEN);
+  }
+  taosArrayPush(info->pRequest->dbList, info->pRequest->pDb);
+
   SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, NULL);
   while (oneTable) {
     SSmlTableInfo *tableData = *oneTable;
@@ -1220,6 +1225,11 @@ static int32_t smlInsertData(SSmlHandle *info) {
     SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
     tstrncpy(pName.dbname, info->pRequest->pDb, sizeof(pName.dbname));
     memcpy(pName.tname, tableData->childTableName, strlen(tableData->childTableName));
+
+    if(info->pRequest->tableList == NULL){
+      info->pRequest->tableList = taosArrayInit(1, sizeof(SName));
+    }
+    taosArrayPush(info->pRequest->tableList, &pName);
 
     SRequestConnInfo conn = {0};
     conn.pTrans = info->taos->pAppInfo->pTransporter;
@@ -1505,7 +1515,8 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
     info->cost.code = code;
     smlPrintStatisticInfo(info);
     if(code == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER || code == TSDB_CODE_SDB_OBJ_CREATING){
-      uInfo("SML:%"PRIx64" ver is old retry", info->id);
+      refreshMeta(request->pTscObj, request);
+      uInfo("SML:%"PRIx64" ver is old retry or object is creating:%d", info->id, code);
       smlDestroyInfo(info);
       info = NULL;
       taos_free_result(request);
