@@ -383,11 +383,11 @@ int32_t tqRemovePushEntry(STQ* pTq, const char* pKey, int32_t keyLen, uint64_t c
 
     tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s vgId:%d remove from push mgr, remains:%d", consumerId,
             (*pEntry)->subKey, vgId, taosHashGetSize(pTq->pPushMgr) - 1);
-    taosHashRemove(pTq->pPushMgr, pKey, keyLen);
-
     if (rspConsumer) { // rsp the old consumer with empty block.
       tqPushDataRsp(pTq, *pEntry);
     }
+
+    taosHashRemove(pTq->pPushMgr, pKey, keyLen);
   }
 
   return 0;
