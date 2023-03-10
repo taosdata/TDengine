@@ -183,6 +183,7 @@
 <script>
 import {request} from '@/utils/request'
 import { DbBase64 } from "../../utils/dbBase64";
+import {deleteCookieItem} from '@/utils/index'
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import dataJson from "./data.json";
@@ -306,6 +307,7 @@ export default {
       this.$store.commit("app/SET_TOKEN", token);
       sessionStorage.setItem("username", this.dynamicValidateForm.username);
       sessionStorage.setItem("pwd", this.dynamicValidateForm.password);
+     
       this.$store.commit("app/SAVE_LOGIN_INFO", {
         username: this.dynamicValidateForm.username,
         pwd: this.dynamicValidateForm.password,
@@ -328,7 +330,7 @@ export default {
         this.loading = false;
       } catch (error) {
         this.loading = false;
-        this.deleteCookieItem();
+        deleteCookieItem();
         Message.error("Faild to fetch,wrong cluster url!");
       }
     },
@@ -377,21 +379,21 @@ export default {
       }
     },
     //删除cookie某一项目
-    deleteCookieItem() {
-      var cookieItems = document.cookie.split(";");
-      for (var i = 0; i < cookieItems.length; i++) {
-        var item = cookieItems[i];
-        while (item.charAt(0) === " ") {
-          item = item.substring(1);
-        }
-        if (item.indexOf("TDengine-Token=") === 0) {
-          document.cookie =
-            encodeURIComponent(item.split("=")[0]) +
-            "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-          break;
-        }
-      }
-    },
+    // deleteCookieItem() {
+    //   var cookieItems = document.cookie.split(";");
+    //   for (var i = 0; i < cookieItems.length; i++) {
+    //     var item = cookieItems[i];
+    //     while (item.charAt(0) === " ") {
+    //       item = item.substring(1);
+    //     }
+    //     if (item.indexOf("TDengine-Token=") === 0) {
+    //       document.cookie =
+    //         encodeURIComponent(item.split("=")[0]) +
+    //         "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    //       break;
+    //     }
+    //   }
+    // },
   },
   created() {
     console.log(process.env, "env---===");
