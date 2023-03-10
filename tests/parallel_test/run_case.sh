@@ -50,6 +50,12 @@ mkdir -p /var/lib/taos/subscribe
 cd $CONTAINER_TESTDIR/tests/$exec_dir
 ulimit -c unlimited
 
+#define taospy 2.7.3
+pip3 list|grep taospy
+pip3 uninstall taospy
+pip3 install taospy==2.7.3
+
+
 $TIMEOUT_CMD $cmd
 RET=$?
 
