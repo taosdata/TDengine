@@ -2500,9 +2500,8 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
       STempTableNode* pTempTable = (STempTableNode*)pTable;
       code = translateSubquery(pCxt, pTempTable->pSubquery);
       if (TSDB_CODE_SUCCESS == code) {
-        if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) && 
-           ((SSelectStmt*)pTempTable->pSubquery)->isEmptyResult &&
-           isSelectStmt(pCxt->pCurrStmt)) {
+        if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) &&
+            ((SSelectStmt*)pTempTable->pSubquery)->isEmptyResult && isSelectStmt(pCxt->pCurrStmt)) {
           ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
         }
 
@@ -4254,6 +4253,7 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->cacheLastSize = pStmt->pOptions->cacheLastSize;
   pReq->replications = pStmt->pOptions->replica;
   pReq->sstTrigger = pStmt->pOptions->sstTrigger;
+  pReq->minRows = pStmt->pOptions->minRowsPerBlock;
   return;
 }
 

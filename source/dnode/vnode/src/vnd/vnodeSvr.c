@@ -1541,6 +1541,14 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
     }
   }
 
+  if (req.sttTrigger != -1 && req.sttTrigger != pVnode->config.sttTrigger) {
+    pVnode->config.sttTrigger = req.sttTrigger;
+  }
+
+  if (req.minRows != -1 && req.minRows != pVnode->config.tsdbCfg.minRows) {
+    pVnode->config.tsdbCfg.minRows = req.minRows;
+  }
+
   if (walChanged) {
     walAlter(pVnode->pWal, &pVnode->config.walCfg);
   }
