@@ -72,7 +72,7 @@ md5sum /home/TDinternal/debug/build/lib/libtaos.so
 
 #define taospy 2.7.3
 pip3 list|grep taospy
-pip3 uninstall taospy
+pip3 uninstall taospy -y
 pip3 install taospy==2.7.3
 
 $TIMEOUT_CMD $cmd
