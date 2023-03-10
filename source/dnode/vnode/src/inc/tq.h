@@ -79,16 +79,15 @@ typedef struct {
 } STqExecDb;
 
 typedef struct {
-  int8_t      subType;
-  STqReader*  pExecReader;
-  qTaskInfo_t task;
+  int8_t       subType;
+  STqReader*   pExecReader;
+  qTaskInfo_t  task;
   union {
     STqExecCol execCol;
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
-  int32_t numOfCols;  // number of out pout column, temporarily used
-  bool         stop;  // denote if needs to be stopped or not
+  int32_t      numOfCols;  // number of out pout column, temporarily used
 } STqExecHandle;
 
 typedef struct {
@@ -101,7 +100,6 @@ typedef struct {
   SWalRef*      pRef;
   STqPushHandle pushHandle;    // push
   STqExecHandle execHandle;    // exec
-  int8_t        execStatus;    // this handle is used to handle the poll requirement
 } STqHandle;
 
 typedef struct {

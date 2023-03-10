@@ -108,12 +108,6 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
         break;
       }
     }
-
-    if (pExec->stop) {
-      tqDebug("vgId:%d, current vgroups has been transferred to other consumer, return results asap",
-              TD_VID(pTq->pVnode));
-      break;
-    }
   }
 
   if (qStreamExtractOffset(task, &pRsp->rspOffset) < 0) {
