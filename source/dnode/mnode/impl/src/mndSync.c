@@ -129,16 +129,17 @@ int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta
 
 int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   int32_t code = 0;
-  SMnode *pMnode = pFsm->data;
   pMsg->info.conn.applyIndex = pMeta->index;
   pMsg->info.conn.applyTerm = pMeta->term;
 
-  atomic_store_64(&pMnode->applied, pMsg->info.conn.applyIndex);
+  if (pMsg->code == 0) {
+    SMnode *pMnode = pFsm->data;
+    atomic_store_64(&pMnode->applied, pMsg->info.conn.applyIndex);
+  }
 
   if (!syncUtilUserCommit(pMsg->msgType)) {
     goto _out;
   }
-
   code = mndProcessWriteMsg(pFsm, pMsg, pMeta);
 
 _out:

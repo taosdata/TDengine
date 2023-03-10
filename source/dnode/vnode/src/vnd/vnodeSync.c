@@ -429,22 +429,27 @@ static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsm
           pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, pMsg->info.conn.applyIndex, pMeta->isWeak, pMeta->code,
           pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType), pMsg->code);
 
+  return tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
+}
+
+static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   if (pMsg->code == 0) {
-    return tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
+    return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
   }
 
+  const STraceId *trace = &pMsg->info.traceId;
+  SVnode         *pVnode = pFsm->data;
   vnodePostBlockMsg(pVnode, pMsg);
+
   SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
   if (rsp.info.handle != NULL) {
     tmsgSendRsp(&rsp);
   }
+
+  vGTrace("vgId:%d, msg:%p is freed, code:0x%x index:%" PRId64, TD_VID(pVnode), pMsg, rsp.code, pMeta->index);
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
   return 0;
-}
-
-static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
-  return vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
 }
 
 static int32_t vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
@@ -539,7 +544,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
     }
   } while (true);
 
-  ASSERT(appliedIdx == commitIdx);
+  ASSERT(commitIdx == vnodeSyncAppliedIndex(pFsm));
   walApplyVer(pVnode->pWal, commitIdx);
 
   pVnode->restored = true;
