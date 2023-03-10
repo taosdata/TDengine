@@ -1110,11 +1110,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
       int32_t         numOfTables = tableListGetSize(pTaskInfo->pTableInfoList);
 
-#ifndef NDEBUG
-      qDebug("switch to next table %" PRId64 " (cursor %d), %" PRId64 " rows returned", uid,
-             pTableScanInfo->currentTable, pInfo->pTableScanOp->resultInfo.totalRows);
+      qDebug("switch to next table %" PRId64 " ts %" PRId64 "% "PRId64 " rows returned", uid, ts, pInfo->pTableScanOp->resultInfo.totalRows);
       pInfo->pTableScanOp->resultInfo.totalRows = 0;
-#endif
 
       bool found = false;
       for (int32_t i = 0; i < numOfTables; i++) {
