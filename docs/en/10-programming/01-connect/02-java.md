@@ -71,7 +71,7 @@ To obtain the value of JDBC URL, please log in [TDengine Cloud](https://cloud.td
 <!-- exclude-end -->
 ## Connect
 
-Code bellow get JDBC URL from environment variables first and then create a `Connection` object, witch is a standard JDBC Connection object.
+Code bellow get JDBC URL from environment variables first and then create a `Connection` object, which is a standard JDBC Connection object.
 
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/ConnectCloudExample.java:connect}}

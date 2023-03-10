@@ -4,7 +4,7 @@ title: Organization Management
 description: 'Organization management'
 ---
 
-TDengine Cloud provides a list page for the user to manage his organizations. On this page, you can get all the organizations which you can have permission to view or edit.  In each line of the organization list, you can get the name of the organization, roles which you have in the organization and the actions you can operate. 
+TDengine Cloud provides a list page for the user to manage his organizations. On this page, you can get all the organizations which you can have permission to view or edit.  In each line of the organization list, you can get the name of the organization, roles which you have in the organization and the actions you can operate.
 
 ![Organization list](./images/orglist.webp)
 

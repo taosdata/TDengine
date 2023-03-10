@@ -1,7 +1,7 @@
 ---
 sidebar_label: Data Subscription
 title: Data Subscription
-description: Using topics to do data subscription and share to others from TDengine.
+description: Using topics to do data subscription and share to others from TDengine Cloud.
 ---
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";

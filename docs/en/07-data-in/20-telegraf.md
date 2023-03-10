@@ -55,7 +55,7 @@ Edit section "outputs.http".
 {{#include docs/examples/thirdparty/telegraf-conf.toml:null:nrc}}
 ```
 
-The resulting configuration will collect CPU and memory data and sends it to TDengine database named "telegraf". Database "telegraf" will be created automatically if it dose not exist in advance.
+The resulting configuration will collect CPU and memory data and sends it to TDengine database named "telegraf". Database "telegraf" must be created first through TDengine Cloud explorer.
 
 ## Start Telegraf
 

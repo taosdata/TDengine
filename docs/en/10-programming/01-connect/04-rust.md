@@ -31,7 +31,7 @@ anyhow = "1.0.0"
 
 ## Config
 
-Run this command in your terminal to save TDengine cloud token as variables:
+Run this command in your terminal to save TDengine cloud DSN as variables:
 
 <Tabs defaultValue="bash">
 <TabItem value="bash" label="Bash">

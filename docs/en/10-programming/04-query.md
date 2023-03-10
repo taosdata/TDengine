@@ -42,7 +42,7 @@ For detailed query syntax please refer to [Select](https://docs.tdengine.com/clo
 
 In most use cases, there are always multiple kinds of data collection points. A new concept, called STable (abbreviation for super table), is used in TDengine to represent one type of data collection point, and a subtable is used to represent a specific data collection point of that type. Tags are used by TDengine to represent the static properties of data collection points. A specific data collection point has its own values for static properties. By specifying filter conditions on tags, aggregation can be performed efficiently among all the subtables created via the same STable, i.e. same type of data collection points. Aggregate functions applicable for tables can be used directly on STables; the syntax is exactly the same.
 
-In summary, records across subtables can be aggregated by a simple query on their STable. It is like a join operation. However, tables belonging to different STables can not be aggregated. 
+In summary, records across subtables can be aggregated by a simple query on their STable. It is like a join operation. However, tables belonging to different STables can not be aggregated.
 
 ### Example 1
 
@@ -106,6 +106,7 @@ Down sampling can also be used for STable. For example, the below SQL statement 
 ```sql title="SQL"
 SELECT _wstart, SUM(current) FROM test.meters where location like "California%" INTERVAL(1s) limit 5;
 ```
+
 ```txt title="output"
          _wstart         |       sum(current)        |
 ======================================================

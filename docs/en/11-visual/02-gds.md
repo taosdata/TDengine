@@ -3,7 +3,7 @@ sidebar_label: Google Data Studio
 title: Use Google Data Studio
 ---
 
-Using its [partner connector](https://datastudio.google.com/data?search=TDengine), Google Data Studio can quickly access TDengine and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development. Share your reports and dashboards with individuals, teams, or the world. Collaborate in real time. Embed your report on any web page.
+Using its [partner connector](https://datastudio.google.com/data?search=TDengine), Google Data Studio can quickly access TDengine and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development. Share your reports and dashboards with individuals, teams, or the world. Collaborate in real time. And embbed your report on any web page.
 
 Refer to [GitHub](https://github.com/taosdata/gds-connector/blob/master/README.md) for additional information on utilizing the Data Studio with TDengine.
 
@@ -19,22 +19,11 @@ The current [connector](https://datastudio.google.com/data?search=TDengine) supp
 
 #### URL
 
-TDengine Cloud URL.
-
-<!---```bash--->
-<!---<cloud_url>--->
-<!---```--->
-
 <!-- exclude -->
 To obtain the URL, please login [TDengine Cloud](https://cloud.tdengine.com) and click "Visualize" and then select "Google Data Studio".
 <!-- exclude-end -->
 
 #### TDengine Cloud Token
-
-
-<!---```bash--->
-<!---<cloud_token>--->
-<!---```--->
 
 <!-- exclude -->
 

@@ -38,12 +38,12 @@ public class SubscribeDemo {
                 statement.executeUpdate("create database " + DB_NAME);
                 statement.executeUpdate("use " + DB_NAME);
                 statement.executeUpdate(
-                        "CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT) TAGS (`groupid` INT, `location` BINARY(16))");
-                statement.executeUpdate("CREATE TABLE `d0` USING `meters` TAGS(0, 'Los Angles')");
+                        "CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT) TAGS (`groupid` INT, `location` BINARY(24))");
+                statement.executeUpdate("CREATE TABLE `d0` USING `meters` TAGS(0, 'California.LosAngles')");
                 statement.executeUpdate("INSERT INTO `d0` values(now - 10s, 0.32, 116)");
                 statement.executeUpdate("INSERT INTO `d0` values(now - 8s, NULL, NULL)");
                 statement.executeUpdate(
-                        "INSERT INTO `d1` USING `meters` TAGS(1, 'San Francisco') values(now - 9s, 10.1, 119)");
+                        "INSERT INTO `d1` USING `meters` TAGS(1, 'California.SanFrancisco') values(now - 9s, 10.1, 119)");
                 statement.executeUpdate(
                         "INSERT INTO `d1` values (now-8s, 10, 120) (now - 6s, 10, 119) (now - 4s, 11.2, 118)");
                 // create topic
@@ -57,7 +57,7 @@ public class SubscribeDemo {
             properties.setProperty(TMQConstants.ENABLE_AUTO_COMMIT, "true");
             properties.setProperty(TMQConstants.GROUP_ID, "test");
             properties.setProperty(TMQConstants.VALUE_DESERIALIZER,
-                    "com.taosdata.jdbc.MetersDeserializer");
+                    "com.taos.example.MetersDeserializer");
 
             // poll data
             try (TaosConsumer<Meters> consumer = new TaosConsumer<>(properties)) {

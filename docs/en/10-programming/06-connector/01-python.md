@@ -18,12 +18,12 @@ The source code for the Python connector is hosted on [GitHub](https://github.co
 ### Install via pip
 
 ```
-pip3 install -U taospy
+pip3 install -U taospy[ws]
 ```
 ### Install vial conda
 
 ```
-conda install -c conda-forge taospy
+conda install -c conda-forge taospy taospyws
 ```
 
 ### Installation verification
@@ -75,16 +75,45 @@ The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-ap
 
 For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
 
-## Important Update
+## Other notes 
 
-| Connector version | Important Update                          | Release date |
-| ----------------- | ----------------------------------------- | ------------ |
-| 2.6.2             | fix ci script                             | 2022-08-18   |
-| 2.5.2             | fix taos-ws-py python version dependency  | 2022-08-12   |
-| 2.5.1             | (rest): add timezone option               | 2022-08-11   |
-| 2.5.0             | add taosws module                         | 2022-08-10   |
-| 2.4.0             | add execute method to TaosRestConnection  | 2022-07-18   |
-| 2.3.3             | support connect to TDengine Cloud Service | 2022-06-06   |
+### Exception handling
+
+All errors from database operations are thrown directly as exceptions and the error message from the database is passed up the exception stack. The application is responsible for exception handling. For example:
+
+```python
+import taos
+
+try:
+    conn = taos.connect()
+    conn.execute("CREATE TABLE 123")  # wrong sql
+except taos.Error as e:
+    print(e)
+    print("exception class: ", e.__class__.__name__)
+    print("error number:", e.errno)
+    print("error message:", e.msg)
+except BaseException as other:
+    print("exception occur")
+    print(other)
+
+# output:
+# [0x0216]: syntax error near 'Incomplete SQL statement'
+# exception class:  ProgrammingError
+# error number: -2147483114
+# error message: syntax error near 'Incomplete SQL statement'
+
+```
+
+[view source code](https://github.com/taosdata/TDengine/blob/3.0/docs/examples/python/handle_exception.py)
+
+### About nanoseconds
+
+Due to the current imperfection of Python's nanosecond support (see link below), the current implementation returns integers at nanosecond precision instead of the `datetime` type produced by `ms` and `us`, which application developers will need to handle on their own. And it is recommended to use pandas' to_datetime(). The Python Connector may modify the interface in the future if Python officially supports nanoseconds in full.
+
+1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
+2. https://www.python.org/dev/peps/pep-0564/
+
+## Important Update
 
 [**Release Notes**](https://github.com/taosdata/taos-connector-python/releases)
 

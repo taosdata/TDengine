@@ -4,7 +4,7 @@ title: REST API
 description: Detailed guide for REST API
 ---
 
-To support the development of various types of applications and platforms, TDengine provides an API that conforms to REST principles; namely REST API. To minimize the learning cost, unlike REST APIs for other database engines, TDengine allows insertion of SQL commands in the BODY of an HTTP POST request, to operate the database. 
+To support the development of various types of applications and platforms, TDengine provides an API that conforms to REST principles; namely REST API. To minimize the learning cost, unlike REST APIs for other database engines, TDengine allows insertion of SQL commands in the BODY of an HTTP POST request, to operate the database.
 
 :::note
 One difference from the native connector is that the REST interface is stateless and so the `USE db_name` command has no effect. All references to table names and super table names need to specify the database name in the prefix. TDengine supports specification of the db_name in RESTful URL. If the database name prefix is not specified in the SQL command, the `db_name` specified in the URL will be used.
@@ -305,4 +305,3 @@ Description:
       "rows": 1
   }
   ```
-

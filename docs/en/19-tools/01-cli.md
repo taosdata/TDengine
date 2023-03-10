@@ -7,7 +7,6 @@ description: Instructions and tips for using the TDengine CLI to connect TDengin
 <!-- exclude -->
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-
 <!-- exclude-end -->
 
 The TDengine command-line interface (hereafter referred to as `TDengine CLI`) is the most simplest way for users to manipulate and interact with TDengine instances.
@@ -61,22 +60,20 @@ To obtain the value of cloud DSN, please log in [TDengine Cloud](https://cloud.t
 :::
 <!-- exclude-end -->
 
-
-
-## Connect 
+## Connect
 
 <Tabs defaultValue="linux" groupId="sys">
 <TabItem value="linux" label="Connect on Linux">
 
-To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
+To access the TDengine Cloud instance, you can execute `taos` if you already set the environment variable.
 
-```
+```bash
 taos
 ```
 
 If you did not set environment variable for a TDengine Cloud instance, or you want to access other TDengine Cloud instances rather than the instance you already set the environment variable, you can use `taos -E <DSN>` as below.
 
-```
+```bash
 taos -E $TDENGINE_CLOUD_DSN
 ```
 
@@ -85,13 +82,13 @@ taos -E $TDENGINE_CLOUD_DSN
 
 To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
 
-```
-taos
+```powershell
+taos.exe
 ```
 
 If you did not set environment variable for a TDengine Cloud instance, or you want to access other TDengine Cloud instances rather than the instance you already set the environment variable, you can use `taos -E <DSN>` as below.
 
-```
+```powershell
 taos.exe -E $TDENGINE_CLOUD_DSN
 ```
 
@@ -100,13 +97,13 @@ taos.exe -E $TDENGINE_CLOUD_DSN
 
 To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
 
-```
+```bash
 taos
 ```
 
 If you did not set environment variable for a TDengine Cloud instance, or you want to access other TDengine Cloud instances rather than the instance you already set the environment variable, you can use `taos -E <DSN>` as below.
 
-```
+```bash
 taos -E $TDENGINE_CLOUD_DSN
 ```
 
@@ -117,7 +114,7 @@ taos -E $TDENGINE_CLOUD_DSN
 
 TDengine CLI will display a welcome message and version information if it successfully connected to the TDengine service. If it fails, TDengine CLI will print an error message. The TDengine CLI prompts as follows:
 
-```
+```text
 Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
 Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
 
@@ -127,4 +124,3 @@ taos>
 ```
 
 After entering the TDengine CLI, you can execute various SQL commands, including inserts, queries, or administrative commands. Please see the [official document](https://docs.tdengine.com/reference/taos-shell#execute-sql-script-file) for more details.
-

@@ -3,7 +3,9 @@ title: Data Model
 description: Typical Data Model used in TDengine
 ---
 
-The data model employed by TDengine is similar to that of a relational database. You have to create databases and tables. You must design the data model based on your own business and application requirements. You should design the STable (an abbreviation for super table) schema to fit your data. This chapter will explain the big picture without getting into syntactical details.
+The data model employed by TDengine is similar to that of a relational database. You have to create databases and tables. You must design the data model based on your own business and application requirements. You should design the [STable](/concept/#super-table-stable) (an abbreviation for super table) schema to fit your data. This chapter will explain the big picture without getting into syntactical details.
+
+Note: before you read this chapter, please make sure you have already read through [Key Concepts](/concept/), since TDengine introduces new concepts like "one table for one [data collection point](/concept/#data-collection-point)" and "[super table](/concept/#super-table-stable)".
 
 ## Create Database
 

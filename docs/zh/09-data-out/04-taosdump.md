@@ -1,0 +1,122 @@
+---
+sidebar_label: taosDump
+title: 使用 taosDump 来备份数据
+description: "taosdump 是一个支持从运行中的 TDengine 集群备份数据并将备份的数据恢复到相同或另一个运行中的 TDengine 集群中的工具应用程序"
+---
+
+## 简介
+
+taosdump 是一个支持从运行中的 TDengine 集群备份数据并将备份的数据恢复到相同或另一个运行中的 TDengine 集群中的工具应用程序。
+
+taosdump 可以用数据库、超级表或普通表作为逻辑数据单元进行备份，也可以对数据库、超级
+表和普通表中指定时间段内的数据记录进行备份。使用时可以指定数据备份的目录路径，如果
+不指定位置，taosdump 默认会将数据备份到当前目录。
+
+如果指定的位置已经有数据文件，taosdump 会提示用户并立即退出，避免数据被覆盖。这意味着同一路径只能被用于一次备份。
+如果看到相关提示，请小心操作。
+
+taosdump 是一个逻辑备份工具，它不应被用于备份任何原始数据、环境设置、
+硬件信息、服务端配置或集群的拓扑结构。taosdump 使用
+[Apache AVRO](https://avro.apache.org/)作为数据文件格式来存储备份数据。
+
+## Installation
+
+Please refer to [Install taosTools](https://docs.tdengine.com/cloud/tools/taosdump/#installation).
+
+## Common usage scenarios
+
+### taosdump backup data
+
+1. backing up all databases: specify `-A` or `-all-databases` parameter.
+2. backup multiple specified databases: use `-D db1,db2,...` parameters;
+3. back up some super or normal tables in the specified database: use `-dbname stbname1 stbname2 tbname1 tbname2 ...` parameters. Note that the first parameter of this input sequence is the database name, and only one database is supported. The second and subsequent parameters are the names of super or normal tables in that database, separated by spaces.
+4. back up the system log database: TDengine clusters usually contain a system database named `log`. The data in this database is the data that TDengine runs itself, and the taosdump will not back up the log database by default. If users need to back up the log database, users can use the `-a` or `-allow-sys` command-line parameter.
+5. Loose mode backup: taosdump version 1.4.1 onwards provides `-n` and `-L` parameters for backing up data without using escape characters and "loose" mode, which can reduce the number of backups if table names, column names, tag names do not use escape characters. This can also reduce the backup data time and backup data footprint. If you are unsure about using `-n` and `-L` conditions, please use the default parameters for "strict" mode backup. See the [official documentation](https://docs.tdengine.com/taos-sql/escape/) for a description of escaped characters.
+
+<!-- exclude -->
+:::tip
+
+- taosdump versions after 1.4.1 provide the `-I` argument for parsing Avro file schema and data. If users specify `-s` then only taosdump will parse schema.
+- Backups after taosdump 1.4.2 use the batch count specified by the `-B` parameter. The default value is 16384. If, in some environments, low network speed or disk performance causes "Error actual dump ... batch ...", then try changing the `-B` parameter to a smaller value.
+
+:::
+<!-- exclude-end -->
+
+### taosdump recover data
+
+Restore the data file in the specified path: use the `-i` parameter plus the path to the data file. You should not use the same directory to backup different data sets, and you should not backup the same data set multiple times in the same path. Otherwise, the backup data will cause overwriting or multiple backups.
+
+<!-- exclude -->
+:::tip
+taosdump internally uses TDengine stmt binding API for writing recovery data with a default batch size of 16384 for better data recovery performance. If there are more columns in the backup data, it may cause a "WAL size exceeds limit" error. You can try to adjust the batch size to a smaller value by using the `-B` parameter.
+
+:::
+<!-- exclude-end -->
+
+## Detailed command-line parameter list
+
+The following is a detailed list of taosdump command-line arguments.
+
+```
+Usage: taosdump [OPTION...] dbname [tbname ...]
+  or:  taosdump [OPTION...] --databases db1,db2,...
+  or:  taosdump [OPTION...] --all-databases
+  or:  taosdump [OPTION...] -i inpath
+  or:  taosdump [OPTION...] -o outpath
+
+  -h, --host=HOST            Server host from which to dump data. Default is
+                             localhost.
+  -p, --password             User password to connect to server. Default is
+                             taosdata.
+  -P, --port=PORT            Port to connect
+  -u, --user=USER            User name used to connect to server. Default is
+                             root.
+  -c, --config-dir=CONFIG_DIR   Configure directory. Default is /etc/taos
+  -i, --inpath=INPATH        Input file path.
+  -o, --outpath=OUTPATH      Output file path.
+  -r, --resultFile=RESULTFILE   DumpOut/In Result file path and name.
+  -a, --allow-sys            Allow to dump system database
+  -A, --all-databases        Dump all databases.
+  -D, --databases=DATABASES  Dump listed databases. Use comma to separate
+                             database names.
+  -N, --without-property     Dump database without its properties.
+  -s, --schemaonly           Only dump table schemas.
+  -y, --answer-yes           Input yes for prompt. It will skip data file
+                             checking!
+  -d, --avro-codec=snappy    Choose an avro codec among null, deflate, snappy,
+                             and lzma.
+  -S, --start-time=START_TIME   Start time to dump. Either epoch or
+                             ISO8601/RFC3339 format is acceptable. ISO8601
+                             format example: 2017-10-01T00:00:00.000+0800 or
+                             2017-10-0100:00:00:000+0800 or '2017-10-01
+                             00:00:00.000+0800'
+  -E, --end-time=END_TIME    End time to dump. Either epoch or ISO8601/RFC3339
+                             format is acceptable. ISO8601 format example:
+                             2017-10-01T00:00:00.000+0800 or
+                             2017-10-0100:00:00.000+0800 or '2017-10-01
+                             00:00:00.000+0800'
+  -B, --data-batch=DATA_BATCH   Number of data per query/insert statement when
+                             backup/restore. Default value is 16384. If you see
+                             'error actual dump .. batch ..' when backup or if
+                             you see 'WAL size exceeds limit' error when
+                             restore, please adjust the value to a smaller one
+                             and try. The workable value is related to the
+                             length of the row and type of table schema.
+  -I, --inspect              inspect avro file content and print on screen
+  -L, --loose-mode           Use loose mode if the table name and column name
+                             use letter and number only. Default is NOT.
+  -n, --no-escape            No escape char '`'. Default is using it.
+  -T, --thread-num=THREAD_NUM   Number of thread for dump in file. Default is
+                             5.
+  -C, --cloud=CLOUD_DSN      specify a DSN to access TDengine cloud service
+  -R, --restful              Use RESTful interface to connect TDengine
+  -g, --debug                Print debug info.
+  -?, --help                 Give this help list
+      --usage                Give a short usage message
+  -V, --version              Print program version
+
+Mandatory or optional arguments to long options are also mandatory or optional
+for any corresponding short options.
+
+Report bugs to <support@taosdata.com>.
+```
