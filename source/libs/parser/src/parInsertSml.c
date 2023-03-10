@@ -201,6 +201,7 @@ int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* data, int32
   SSmlKv*  kv = (SSmlKv*)data;
   if(kv->keyLen != strlen(pColSchema->name) || memcmp(kv->key, pColSchema->name, kv->keyLen) != 0 || kv->type != pColSchema->type){
     ret = TSDB_CODE_SML_INVALID_DATA;
+    uError("SML smlBuildCol error col not same %s", pColSchema->name);
     goto end;
   }
   if (kv->type == TSDB_DATA_TYPE_NCHAR) {
