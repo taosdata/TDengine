@@ -1211,7 +1211,7 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock) {
     GET_RES_INFO(pCtx)->numOfRes = 0;
   } else {
     if (resultBuf.bufLen <= session->bytes) {
-      memcpy(udfRes->finalResBuf, resultBuf.buf, session->bytes);
+      memcpy(udfRes->finalResBuf, resultBuf.buf, resultBuf.bufLen);
       udfRes->finalResNum = resultBuf.numOfResult;
       GET_RES_INFO(pCtx)->numOfRes = udfRes->finalResNum;
     } else {
