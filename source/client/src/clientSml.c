@@ -1216,7 +1216,8 @@ static int32_t smlInsertData(SSmlHandle *info) {
   if(info->pRequest->dbList == NULL){
     info->pRequest->dbList = taosArrayInit(1, TSDB_DB_FNAME_LEN);
   }
-  taosArrayPush(info->pRequest->dbList, info->pRequest->pDb);
+  void* data = taosArrayReserve(info->pRequest->dbList, 1);
+  memcpy(data, info->pRequest->pDb, TSDB_DB_FNAME_LEN > strlen(info->pRequest->pDb) ? strlen(info->pRequest->pDb) : TSDB_DB_FNAME_LEN);
 
   SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, NULL);
   while (oneTable) {
