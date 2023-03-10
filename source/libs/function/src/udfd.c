@@ -621,7 +621,11 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   rsp.code = code;
   rsp.setupRsp.udfHandle = (int64_t)(handle);
   rsp.setupRsp.outputType = udf->outputType;
-  rsp.setupRsp.outputLen = udf->outputLen;
+  if (!IS_VAR_DATA_TYPE(udf->outputType)) {
+    rsp.setupRsp.bytes = udf->outputLen;
+  } else {
+    rsp.setupRsp.bytes = udf->outputLen + VARSTR_HEADER_SIZE;
+  }
   rsp.setupRsp.bufSize = udf->bufSize;
 
   int32_t len = encodeUdfResponse(NULL, &rsp);
@@ -650,7 +654,11 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   switch (call->callType) {
     case TSDB_UDF_CALL_SCALA_PROC: {
       SUdfColumn output = {0};
-      output.colMeta.bytes = udf->outputLen;
+      if (IS_VAR_DATA_TYPE(udf->outputType)) {
+        output.colMeta.bytes = udf->outputLen + VARSTR_HEADER_SIZE;
+      } else {
+        output.colMeta.bytes = udf->outputLen;
+      }
       output.colMeta.type = udf->outputType;
       output.colMeta.precision = 0;
       output.colMeta.scale = 0;
