@@ -33,8 +33,9 @@ if [ "$verMode" == "cluster" ];then
   tdengineNameType="-enterprise"
   dockerParam=""
 elif [ "$verMode" == "cloud" ];then
+  cp docker/2.x-files/run.sh ${communityDir}/packaging/docker/
   chmod u+x ${communityDir}/packaging/docker/run.sh
-  cp docker/run.sh ${communityDir}/packaging/docker/
+  cp docker/DockerfileCloud ${communityDir}/packaging/docker/
   tdengineNameType="-cloud"
   dockerParam="-d y"
 else
@@ -71,8 +72,8 @@ cd ${communityDir}/packaging/docker
 
 if [ "${dockerMode}" == "push" ] && [ "${verMode}" == "cloud" ]; then
   echo ">>>>>>>>>>>>> check whether the docker image has been published"
-  docker login 49.232.151.239:88
-  docker tag ${dockerim}:$version 49.232.151.239:88/${dockerim}:$version
-  echo "ERROR [generate_docker.sh]: should not be here!"
+  #docker login 49.232.151.239:88
+  #docker tag ${dockerim}:$version 49.232.151.239:88/${dockerim}:$version
+  #echo "ERROR [generate_docker.sh]: should not be here!"
 #  docker push 49.232.151.239:88/${dockerim}:$version
 fi
