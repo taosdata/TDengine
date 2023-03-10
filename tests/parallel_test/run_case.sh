@@ -52,7 +52,7 @@ ulimit -c unlimited
 
 #define taospy 2.7.3
 pip3 list|grep taospy
-pip3 uninstall taospy
+pip3 uninstall taospy -y 
 pip3 install taospy==2.7.3
 
 
