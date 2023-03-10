@@ -54,7 +54,7 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   }
 
   SyncIndex appliedIndex = pNode->pFsm->FpAppliedIndexCb(pNode->pFsm);
-  if (index - appliedIndex >= pBuf->size) {
+  if (pNode->restoreFinish && pBuf->commitIndex - appliedIndex >= pBuf->size) {
     terrno = TSDB_CODE_SYN_WRITE_STALL;
     sError("vgId:%d, failed to append since %s. index:%" PRId64 ", commit-index:%" PRId64 ", applied-index:%" PRId64,
            pNode->vgId, terrstr(), index, pBuf->commitIndex, appliedIndex);
