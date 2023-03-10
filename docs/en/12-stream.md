@@ -33,7 +33,7 @@ It is common that smart electrical meter systems for businesses generate million
 
 ### Create a Database for Raw Data
 
-Create database `power` using explore in cloud console. 
+Create database `power` using explorer in TDengine Cloud console.
 
 Then create four subtables as follows:
 

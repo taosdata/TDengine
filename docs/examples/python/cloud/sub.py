@@ -4,13 +4,11 @@ from taosws import Consumer
 
 endpoint = os.environ["TDENGINE_CLOUD_ENDPOINT"]
 token = os.environ["TDENGINE_CLOUD_TOKEN"]
-urlparts = endpoint.split(":", 1)
 
 conf = {
     # auth options
-    "td.connect.websocket.scheme": "ws",
-    "td.connect.ip": urlparts[0],
-    "td.connect.port": urlparts[1],
+    "td.connect.websocket.scheme": "wss",
+    "td.connect.ip": endpoint,
     "td.connect.token": token,
     # consume options
     "group.id": "test_group_py",

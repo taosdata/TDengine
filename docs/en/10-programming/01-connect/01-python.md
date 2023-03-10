@@ -88,7 +88,7 @@ For more details about how to write or query data via REST API, please check [RE
 
 ## Jupyter
 
-**Step 1: Install**
+### Step 1: Install
 
 For the users who are familiar with Jupyter to program in Python, both TDengine Python connector and Jupyter need to be ready in your environment. If you have not done yet, please use the commands below to install them.
 
@@ -113,9 +113,9 @@ conda install -c conda-forge taospy
 </TabItem>
 </Tabs>
 
-**Step 2: Configure**
+### Step 2: Configure
 
-In order for Jupyter to connect to TDengine cloud service, before launching Jupypter, the environment setting must be performed. We use Linux bash as example.
+In order for Jupyter to connect to TDengine cloud service, before launching Jupyter, the environment setting must be performed. We use Linux bash as example.
 
 ```bash
 export TDENGINE_CLOUD_TOKEN="<token>"
@@ -123,7 +123,7 @@ export TDENGINE_CLOUD_URL="<url>"
 jupyter lab
 ```
 
-**Step 3: Connect**
+### Step 3: Connect
 
 Once jupyter lab is launched, Jupyter lab service is automatically connected and shown in your browser. You can create a new notebook and copy the sample code below and run it.
 

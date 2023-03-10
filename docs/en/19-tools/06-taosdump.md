@@ -17,16 +17,13 @@ Users should not use taosdump to back up raw data, environment settings, hardwar
 
 ## Installation
 
-To use taosdump, you need to download and install recent version of [taosTools](https://docs.tdengine.com/releases/tools/). Before installing taosTools, please firstly download and install the [TDengine client installation package](https://docs.tdengine.com/releases/tdengine/).
+There are two ways to install taosdump:
 
-Decompress the package and install.
-```
-tar -xzf taosTools-2.2.7-Linux-x64.tar.gz
-cd taosTools-2.2.7-Linux-x64.tar.gz
-sudo ./install-taostools.sh
-```
+- Install the taosTools official installer. Please find taosTools from [Release History](https://docs.taosdata.com/releases/tools/) page and download and install it.
 
-Set environment variable.
+- Compile taos-tools separately and install it. Please refer to the [taos-tools](https://github.com/taosdata/taos-tools) repository for details.
+
+Run the following command to set environment variable.
 
 ```bash
 export TDENGINE_CLOUD_DSN="<DSN>"

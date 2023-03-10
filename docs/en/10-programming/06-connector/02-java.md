@@ -16,19 +16,19 @@ import TabItem from '@theme/TabItem';
 
 TDengine currently supports timestamp, number, character, Boolean type, and the corresponding type conversion with Java is as follows:
 
-| TDengine DataType | JDBCType (driver version < 2.0.24) | JDBCType (driver version > = 2.0.24) |
-| ----------------- | ---------------------------------- | ------------------------------------ |
-| TIMESTAMP         | java.lang.Long                     | java.sql.Timestamp                   |
-| INT               | java.lang.Integer                  | java.lang.Integer                    |
-| BIGINT            | java.lang.Long                     | java.lang.Long                       |
-| FLOAT             | java.lang.Float                    | java.lang.Float                      |
-| DOUBLE            | java.lang.Double                   | java.lang.Double                     |
-| SMALLINT          | java.lang.Short                    | java.lang.Short                      |
-| TINYINT           | java.lang.Byte                     | java.lang.Byte                       |
-| BOOL              | java.lang.Boolean                  | java.lang.Boolean                    |
-| BINARY            | java.lang.String                   | byte array                           |
-| NCHAR             | java.lang.String                   | java.lang.String                     |
-| JSON              | -                                  | java.lang.String                     |
+| TDengine DataType | JDBCType  |
+| ----------------- | ---------------------------------- |
+| TIMESTAMP         | java.sql.Timestamp                 |
+| INT               | java.lang.Integer                  |
+| BIGINT            | java.lang.Long                     |
+| FLOAT             | java.lang.Float                    |
+| DOUBLE            | java.lang.Double                   |
+| SMALLINT          | java.lang.Short                    |
+| TINYINT           | java.lang.Byte                     |
+| BOOL              | java.lang.Boolean                  |
+| BINARY            | byte array                         |
+| NCHAR             | java.lang.String                   |
+| JSON              | java.lang.String                   |
 
 **Note**: Only TAG supports JSON types
 
@@ -53,7 +53,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
- <version>2.0.**</version>
+ <version>3.0.0</version>
 </dependency>
 ```
 
@@ -68,7 +68,7 @@ cd taos-connector-jdbc
 mvn clean install -Dmaven.test.skip=true
 ```
 
-After compilation, a jar package named taos-jdbcdriver-2.0.XX-dist.jar is generated in the target directory, and the compiled jar file is automatically placed in the local Maven repository.
+After compilation, a jar package named taos-jdbcdriver-3.0.*-dist.jar is generated in the target directory, and the compiled jar file is automatically placed in the local Maven repository.
 
 </TabItem>
 </Tabs>
@@ -76,8 +76,7 @@ After compilation, a jar package named taos-jdbcdriver-2.0.XX-dist.jar is genera
 ## Establish Connection using URL
 
 TDengine's JDBC URL specification format is:
-`jdbc:[TAOS-RS]://[host_name]:[port]/[database_name]?batchfetch={true|false}&useSSL={true|false}&token={token}&httpPoolSize={httpPoolSize}&httpKeepAlive={true|false}]&httpConnectTimeout={httpTimeout}&httpSocketTimeout={socketTimeout}`
-
+`jdbc:TAOS-RS://[host_name]:[port]/[database_name]?batchfetch={true|false}&useSSL={true|false}&token={token}&httpPoolSize={httpPoolSize}&httpKeepAlive={true|false}]&httpConnectTimeout={httpTimeout}&httpSocketTimeout={socketTimeout}`
 
 ```java
 Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
@@ -85,7 +84,7 @@ String jdbcUrl = System.getenv("TDENGINE_JDBC_URL");
 Connection conn = DriverManager.getConnection(jdbcUrl);
 ```
 
-Note:
+:::note
 
 -  REST API is stateless. When using the JDBC REST connection, you need to specify the database name of the table and super table in SQL. For example.
 
@@ -97,7 +96,7 @@ Note:
   ```sql
   insert into test using weather(ts, temperature) tags('California.SanFrancisco') values(now, 24.6);
   ```
-
+:::
 
 ### Establish Connection using URL and Properties
 
@@ -120,7 +119,6 @@ If the configuration parameters are duplicated in the URL, Properties, the `prio
 1. JDBC URL parameters, as described above, can be specified in the parameters of the JDBC URL.
 2. Properties connProps
 
-
 ## Usage Examples
 
 ### Create Database and Tables
@@ -141,8 +139,8 @@ int affectedRows = stmt.executeUpdate("insert into tb values(now, 23, 10.3) (now
 System.out.println("insert " + affectedRows + " rows.");
 ```
 
-`now`` is an internal function. The default is the current time of the client's computer.
-
+> `now` is an internal function. The default is the current time of the client's computer.
+> `now + 1s` represents the current time of the client plus 1 second, followed by the number representing the unit of time: a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks), n (months), y (years).
 
 ### Querying data
 
@@ -188,6 +186,9 @@ There are three types of error codes that the JDBC connector can report:
 - Error code of the native connection method (error code between 0x2351 and 0x2400)
 - Error code of other TDengine function modules
 
+For specific error codes, please refer to.
+
+- [TDengine Java Connector](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 
 ### Closing resources
 
@@ -197,10 +198,10 @@ stmt.close();
 conn.close();
 ```
 
-:::note 
+:::note
  Be sure to close the connection, otherwise, there will be a connection leak.
-
 :::
+
 ### Use with Connection Pool
 
 #### HikariCP
@@ -283,12 +284,47 @@ Please refer to: [JDBC example](https://github.com/taosdata/TDengine/tree/develo
 
 ## Recent update logs
 
-| taos-jdbcdriver version |                major changes                 |
-| :---------------------: | :------------------------------------------: |
-|         2.0.38          | JDBC REST connections add bulk pull function |
-|         2.0.37          |         Added support for json tags          |
-|         2.0.36          |      Add support for schemaless writing      |
+| taos-jdbcdriver version |                 major changes                  |
+| :---------------------: | :--------------------------------------------: |
+|       3.0.3        |  fix timestamp resolution error for REST connection in jdk17+ version    |
+|       3.0.1 - 3.0.2        |  fix the resultSet data is parsed incorrectly sometimes. 3.0.1 is compiled on JDK 11, you are advised to use 3.0.2 in the JDK 8 environment    |
+|       3.0.0        |   Support for TDengine 3.0    |
+|       2.0.42        |   fix wasNull interface return value in WebSocket connection  |
+|       2.0.41        |   fix decode method of username and password in REST connection |
+|     2.0.39 - 2.0.40     | Add REST connection/request timeout parameters |
+|         2.0.38          |  JDBC REST connections add bulk pull function  |
+|         2.0.37          |               Support json tags                |
+|         2.0.36          |           Support schemaless writing           |
 
+## Frequently Asked Questions
+
+1. Why is there no performance improvement when using Statement's `addBatch()` and `executeBatch()` to perform `batch data writing/update`?
+
+   **Cause**: In TDengine's JDBC implementation, SQL statements submitted by `addBatch()` method are executed sequentially in the order they are added, which does not reduce the number of interactions with the server and does not bring performance improvement.
+
+   **Solution**: 1. splice multiple values in a single insert statement; 2. use multi-threaded concurrent insertion; 3. use parameter-bound writing
+
+2. java.lang.UnsatisfiedLinkError: no taos in java.library.path
+
+   **Cause**: The program did not find the dependent native library `taos`.
+
+   **Solution**: On Windows you can copy `C:\TDengine\driver\taos.dll` to the `C:\Windows\System32` directory, on Linux the following soft link will be created `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` will work, on macOS the lib soft link will be `/usr/local/lib/libtaos.dylib`.
+
+3. java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
+
+   **Cause**: Currently, TDengine only supports 64-bit JDK.
+
+   **Solution**: Reinstall the 64-bit JDK.
+
+4. java.lang.NoSuchMethodError: setByteArray
+
+  **Cause**: taos-jbdcdriver 3.* only supports TDengine 3.0 and later.
+
+  **Solution**: Use taos-jdbcdriver 2.* with your TDengine 2.* deployment.
+
+5. java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer; ... taos-jdbcdriver-3.0.1.jar
+
+**Cause**：taos-jdbcdriver 3.0.1 is compiled on JDK 11.
 
 ## API Reference
 
