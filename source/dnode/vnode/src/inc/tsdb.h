@@ -780,6 +780,7 @@ typedef struct SCacheRowsReader {
   SDataFReader      *pDataFReader;
   SDataFReader      *pDataFReaderLast;
   const char        *idstr;
+  int64_t            lastTs;
 } SCacheRowsReader;
 
 typedef struct {
