@@ -9,18 +9,43 @@ on:
       - main
 
 jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "16"
+      - uses: actions/cache@v3
+        name: Cargo Caches
+        with:
+          path: |
+            node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+      - run: |
+          npm install
+          npm run build
+      - name: Upload dist
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: dist
+
   # TODO use matrix instead
   macos:
     runs-on: macos-11
+    needs: web
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/download-artifact@v3
         with:
-          node-version: '16'
-      - run: npm install
-      - run: npm run build
+          name: dist
+          path: dist
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: aarch64-apple-darwin
 
       - uses: actions/cache@v3
         name: Cargo Caches
@@ -31,6 +56,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo
+
       - uses: actions/cache@v3
         name: Target Caches
         with:
@@ -39,30 +65,35 @@ jobs:
           key: ${{ runner.os }}-cargo-target
 
       - name: build package
-        run: cargo build --release
+        run: |
+          cargo install universal2 || true
+          cd server/
+          cargo universal2
 
       - name: build archive
         run: |
-          cd target/release/
-          tar -cavf taos-explorer-x86_64-apple-darwin.tar.gz taos-explorer
+          cd target/universal2-apple-darwin/release/
+          tar -cavf taos-explorer-universal2-apple-darwin.tar.gz taos-explorer
 
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
           name: taos-explorer
-          path: target/release/*.tar.gz
+          path: target/universal2-apple-darwin/release/*.tar.gz
 
   windows:
     runs-on: windows-latest
+    needs: web
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/download-artifact@v3
         with:
-          node-version: '16'
-      - run: npm install
-      - run: npm run build
+          name: dist
+          path: dist
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
 
       - uses: actions/cache@v3
         name: Cargo Caches
@@ -83,29 +114,36 @@ jobs:
 
       - name: build package
         run: cargo build --release
-      
+
       - name: build archive
         run: |
           cd target/release/
-          7z a taos-explorer-x86_64-windows.zip *.exe
+          7z a taos-explorer-x86_64-windows-msvc.zip *.exe
 
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
           name: taos-explorer
-          path: target/release/*.zip
+          path: |
+            target/release/*.zip
+            target/release/taos-explorer.exe
 
-  linux:
+  linux-x86_64:
     runs-on: ubuntu-18.04
+    needs: web
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - run: |
+          sudo apt install musl-tools -y
+      - uses: actions/download-artifact@v3
         with:
-          node-version: '16'
-      - run: npm install
-      - run: npm run build
+          name: dist
+          path: dist
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
 
       - uses: actions/cache@v3
         name: Cargo Caches
@@ -125,28 +163,33 @@ jobs:
           key: ${{ runner.os }}-cargo-target
 
       - name: build package
-        run: cargo build --release
-      
+        run: cargo build --release --target x86_64-unknown-linux-musl
+
       - name: build archive
         run: |
-          cd target/release/
-          tar -cavf taos-explorer-x86_64-linux.tar.gz taos-explorer
+          cd target/x86_64-unknown-linux-musl/release/
+          tar -cavf taos-explorer-x86_64-unknown-linux-musl.tar.gz taos-explorer
 
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
           name: taos-explorer
-          path: target/release/*.tar.gz
+          path: target/x86_64-unknown-linux-musl/release/*.tar.gz
 
   linux-aarch64:
     runs-on: ubuntu-18.04
+    needs: web
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/download-artifact@v3
         with:
-          node-version: '16'
-      - run: npm install
-      - run: npm run build
+          name: dist
+          path: dist
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: aarch64-unknown-linux-musl
 
       - uses: actions/cache@v3
         name: Cargo Caches
@@ -163,7 +206,7 @@ jobs:
         with:
           path: |
             target
-          key: ${{ runner.os }}-cargo-target
+          key: ${{ runner.os }}-cargo-target-aarch64
 
       - name: Build package
         uses: actions-rs/cargo@v1
@@ -182,3 +225,33 @@ jobs:
         with:
           name: taos-explorer
           path: target/aarch64-unknown-linux-musl/release/*.tar.gz
+  release:
+    needs:
+      - macos
+      - windows
+      - linux-x86_64
+      - linux-aarch64
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      - uses: rickstaa/action-create-tag@v1
+        with:
+          tag: "latest"
+          message: "Latest"
+          force_push_tag: true
+      - uses: actions/download-artifact@v3
+        with:
+          name: taos-explorer
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: Latest
+          tag_name: latest
+          files: |
+            taos-explorer-aarch64-unknown-linux-musl.tar.gz
+            taos-explorer-x86_64-unknown-linux-musl.tar.gz
+            taos-explorer-universal2-apple-darwin.tar.gz
+            taos-explorer-x86_64-windows-msvc.zip
