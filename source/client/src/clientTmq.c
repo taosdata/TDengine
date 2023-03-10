@@ -1446,15 +1446,16 @@ static bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) {
     taosArrayPush(newTopics, &topic);
   }
 
+  taosHashCleanup(pVgOffsetHashMap);
+
+  taosThreadMutexLock(&tmq->lock);
   // destroy current buffered existed topics info
   if (tmq->clientTopics) {
     taosArrayDestroyEx(tmq->clientTopics, freeClientVgInfo);
   }
 
-  taosHashCleanup(pVgOffsetHashMap);
-
-  taosThreadMutexLock(&tmq->lock);
   tmq->clientTopics = newTopics;
+
   taosThreadMutexUnlock(&tmq->lock);
 
   int8_t flag = (topicNumGet == 0)? TMQ_CONSUMER_STATUS__NO_TOPIC:TMQ_CONSUMER_STATUS__READY;
