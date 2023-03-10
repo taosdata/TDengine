@@ -6395,6 +6395,7 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
   req.funcType = pStmt->isAgg ? TSDB_FUNC_TYPE_AGGREGATE : TSDB_FUNC_TYPE_SCALAR;
   req.scriptType = pStmt->language;
   req.outputType = pStmt->outputDt.type;
+  pStmt->outputDt.bytes = calcTypeBytes(pStmt->outputDt);
   req.outputLen = pStmt->outputDt.bytes;
   req.bufSize = pStmt->bufSize;
   int32_t code = readFromFile(pStmt->libraryPath, &req.codeLen, &req.pCode);

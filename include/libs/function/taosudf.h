@@ -196,6 +196,7 @@ static FORCE_INLINE void udfColDataSetNull(SUdfColumn *pColumn, int32_t row) {
     udfColDataSetNull_f(pColumn, row);
   }
   pColumn->hasNull = true;
+  pColumn->colData.numOfRows = ((int32_t)(row + 1) > pColumn->colData.numOfRows) ? (int32_t)(row + 1) : pColumn->colData.numOfRows;
 }
 
 static FORCE_INLINE int32_t udfColDataSet(SUdfColumn *pColumn, uint32_t currentRow, const char *pData, bool isNull) {
