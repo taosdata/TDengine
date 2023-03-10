@@ -1316,8 +1316,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
 
     tscDebug("consumer:0x%" PRIx64 " recv poll rsp, vgId:%d, req:%" PRId64 ", rsp:%" PRId64
              " type %d, reqId:0x%" PRIx64,
-             tmq->consumerId, pParam->vgId, pRspWrapper->dataRsp.reqOffset.version,
-             pRspWrapper->dataRsp.rspOffset.version, rspType, requestId);
+             tmq->consumerId, vgId, pRspWrapper->dataRsp.reqOffset.version, pRspWrapper->dataRsp.rspOffset.version, rspType, requestId);
 
   } else if (rspType == TMQ_MSG_TYPE__POLL_META_RSP) {
     SDecoder decoder;
