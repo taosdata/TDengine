@@ -47,7 +47,7 @@ extern "C" {
   do {                                                                                       \
     if (cfgAddString(pCfg, "grant", "", false) != 0) return -1;                              \
     SConfigItem *pItemGrant = cfgGetItem(pCfg, "grant");                                     \
-    pItemGrant->array = taosArrayInit_s(5, sizeof(SConfigGrantItem), 5);                     \
+    pItemGrant->array = taosArrayInit_s(sizeof(SConfigGrantItem), 5);                        \
     if (pItemGrant->array == NULL) {                                                         \
         terrno = TSDB_CODE_OUT_OF_MEMORY;                                                    \
         return -1;                                                                           \
