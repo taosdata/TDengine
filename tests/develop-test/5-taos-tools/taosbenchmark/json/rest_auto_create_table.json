@@ -15,7 +15,7 @@
   "num_of_records_per_req": 10,
   "databases": [{
     "dbinfo": {
-      "name": "db",
+      "name": "rest_db",
       "drop": "yes",
       "replica": 1,
       "precision": "ns",
