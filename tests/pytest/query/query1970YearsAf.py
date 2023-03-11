@@ -25,8 +25,8 @@ from util.cases import *
 from util.dnodes import *
 from util.dnodes import TDDnode
 
-class TDTestCase:
 
+class TDTestCase:
     def __init__(self):
         self.path = ""
 
@@ -68,7 +68,7 @@ class TDTestCase:
             "cachelast": 0,
             "quorum": 1,
             "fsync": 3000,
-            "update": 0
+            "update": 0,
         }
 
         # set stable schema
@@ -99,8 +99,7 @@ class TDTestCase:
                 {"type": "TINYINT", "count": 2},
                 {"type": "BOOL", "count": 2},
                 {"type": "NCHAR", "len": 3, "count": 1},
-                {"type": "BINARY", "len": 8, "count": 1}
-
+                {"type": "BINARY", "len": 8, "count": 1},
             ],
             "tags": [
                 {"type": "INT", "count": 2},
@@ -111,17 +110,14 @@ class TDTestCase:
                 {"type": "TINYINT", "count": 2},
                 {"type": "BOOL", "count": 2},
                 {"type": "NCHAR", "len": 3, "count": 1},
-                {"type": "BINARY", "len": 8, "count": 1}
-            ]
+                {"type": "BINARY", "len": 8, "count": 1},
+            ],
         }
 
         # create different stables like stable1 and add to list super_tables
         super_tables = []
         super_tables.append(stable1)
-        database = {
-            "dbinfo": dbinfo,
-            "super_tables": super_tables
-        }
+        database = {"dbinfo": dbinfo, "super_tables": super_tables}
 
         cfgdir = self.getCfgDir()
         create_table = {
@@ -137,33 +133,60 @@ class TDTestCase:
             "confirm_parameter_prompt": "no",
             "insert_interval": 0,
             "num_of_records_per_req": 100,
-            "databases": [database]
+            "databases": [database],
         }
         return create_table
+
+    def getPath(self, tool="taosBenchmark"):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if "community" in selfPath:
+            projPath = selfPath[: selfPath.find("community")]
+        elif "src" in selfPath:
+            projPath = selfPath[: selfPath.find("src")]
+        elif "/tools/" in selfPath:
+            projPath = selfPath[: selfPath.find("/tools/")]
+        elif "/tests/" in selfPath:
+            projPath = selfPath[: selfPath.find("/tests/")]
+        else:
+            tdLog.exit("path: %s is not supported" % selfPath)
+
+        paths = []
+        for root, dirs, files in os.walk(projPath):
+            if (tool) in files:
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if "packaging" not in rootRealPath:
+                    paths.append(os.path.join(root, tool))
+                    break
+        if len(paths) == 0:
+            return ""
+        return paths[0]
 
     def createinsertfile(self):
         create_table = self.creatcfg()
         date = datetime.datetime.now().strftime("%Y%m%d%H%M")
         file_create_table = f"/tmp/insert_{date}.json"
 
-        with open(file_create_table, 'w') as f:
+        with open(file_create_table, "w") as f:
             json.dump(create_table, f)
         return file_create_table
 
     def inserttable(self, filepath):
-        create_table_cmd = f"taosdemo -f {filepath}  > /dev/null 2>&1"
+        binPath = self.getPath("taosBenchmark")
+        if binPath == "":
+            tdLog.exit("taosBenchmark not found!")
+        else:
+            tdLog.info("taosBenchmark found in %s" % binPath)
+
+        create_table_cmd = "%s -f %s  > /dev/null 2>&1" % (binPath, filepath)
         _ = subprocess.check_output(create_table_cmd, shell=True).decode("utf-8")
 
     def sqlsquery(self):
         # stable query
-        tdSql.query(
-            "select * from stb2 where stb2.ts < '1970-01-01 00:00:00.000' "
-        )
+        tdSql.query("select * from stb2 where stb2.ts < '1970-01-01 00:00:00.000' ")
         tdSql.checkRows(43200)
 
-        tdSql.query(
-            "select * from stb2 where stb2.ts >= '1970-01-01 00:00:00.000' "
-        )
+        tdSql.query("select * from stb2 where stb2.ts >= '1970-01-01 00:00:00.000' ")
         tdSql.checkRows(6800)
 
         tdSql.query(
@@ -172,14 +195,10 @@ class TDTestCase:
         tdSql.checkRows(3590)
 
         # child-tables query
-        tdSql.query(
-            "select * from t0 where t0.ts < '1970-01-01 00:00:00.000' "
-        )
+        tdSql.query("select * from t0 where t0.ts < '1970-01-01 00:00:00.000' ")
         tdSql.checkRows(4320)
 
-        tdSql.query(
-            "select * from t1 where t1.ts >= '1970-01-01 00:00:00.000' "
-        )
+        tdSql.query("select * from t1 where t1.ts >= '1970-01-01 00:00:00.000' ")
         tdSql.checkRows(680)
 
         tdSql.query(
@@ -192,9 +211,7 @@ class TDTestCase:
         )
         tdSql.checkRows(680)
 
-        tdSql.query(
-            "select diff(c1) from t0 where t0.ts >= '1970-01-01 00:00:00.000' "
-        )
+        tdSql.query("select diff(c1) from t0 where t0.ts >= '1970-01-01 00:00:00.000' ")
         tdSql.checkRows(679)
 
         tdSql.query(
@@ -203,9 +220,7 @@ class TDTestCase:
         tdSql.checkRows(43200)
 
         # query with timestamp in 'where ...'
-        tdSql.query(
-            "select * from stb2 where stb2.ts > -28800000 "
-        )
+        tdSql.query("select * from stb2 where stb2.ts > -28800000 ")
         tdSql.checkRows(6790)
 
         tdSql.query(
@@ -219,14 +234,16 @@ class TDTestCase:
         tdSql.checkRows(3590)
 
     def run(self):
-        s = 'reset query cache'
+        s = "reset query cache"
         tdSql.execute(s)
-        s = 'create database if not exists db'
+        s = "create database if not exists db"
         tdSql.execute(s)
-        s = 'use db'
+        s = "use db"
         tdSql.execute(s)
 
-        tdLog.info("==========step1:create table stable and child table,then insert data automatically")
+        tdLog.info(
+            "==========step1:create table stable and child table,then insert data automatically"
+        )
         insertfile = self.createinsertfile()
         self.inserttable(insertfile)
 

@@ -627,7 +627,7 @@ static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
 
   if (!pQueryHandle->pTableCheckInfo) {
     tsdbError("%p table check info is NULL", pQueryHandle);
-    terrno = TSDB_CODE_QRY_APP_ERROR;
+//    terrno = TSDB_CODE_QRY_APP_ERROR;
     return -1;
   }
 
@@ -1866,11 +1866,11 @@ static int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t c
 static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, int32_t numOfRows,
                                SMemRow row1, SMemRow row2, int32_t numOfCols, STable* pTable,
                                STSchema* pSchema1, STSchema* pSchema2, bool forceSetNull) {
-  char* pData = NULL;
+  char*     pData = NULL;
   STSchema* pSchema;
-  SMemRow row;
-  int16_t colId;
-  int16_t offset;
+  SMemRow   row;
+  int16_t   colId;
+  uint16_t  offset;
 
   bool isRow1DataRow = isDataRow(row1);
   bool isRow2DataRow = false;
@@ -4593,7 +4593,7 @@ static int32_t tsdbQueryTableList(STable* pTable, SArray* pRes, void* filterInfo
   return TSDB_CODE_SUCCESS;
 }
 
-void* getJsonTagValueElment(void* data, char* key, int32_t keyLen, char* dst, int16_t bytes){
+void* getJsonTagValueElment(void* data, char* key, int32_t keyLen, char* dst, uint16_t bytes){
   char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
   jsonKeyMd5(key, keyLen, keyMd5);
 
@@ -4625,7 +4625,7 @@ void* getJsonTagValueElment(void* data, char* key, int32_t keyLen, char* dst, in
   return result;
 }
 
-void getJsonTagValueAll(void* data, void* dst, int16_t bytes) {
+void getJsonTagValueAll(void* data, void* dst, uint16_t bytes) {
   char* json = parseTagDatatoJson(data);
   char* tagData = POINTER_SHIFT(dst, CHAR_BYTES);
   *(char*)dst = TSDB_DATA_TYPE_JSON;

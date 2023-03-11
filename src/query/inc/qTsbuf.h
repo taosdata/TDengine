@@ -110,7 +110,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf);
 
 STSBuf* tsBufClone(STSBuf* pTSBuf);
 
-STSGroupBlockInfo* tsBufGetGroupBlockInfo(STSBuf* pTSBuf, int32_t id);
+SArray* tsBufGetGroupBlockInfo(STSBuf* pTSBuf, int32_t id);
 
 void    tsBufFlush(STSBuf* pTSBuf);
 void    tsBufResetPos(STSBuf* pTSBuf);
@@ -135,6 +135,8 @@ int32_t tsBufGetNumOfGroup(STSBuf* pTSBuf);
 void tsBufGetGroupIdList(STSBuf* pTSBuf, int32_t* num, int32_t** id);
 
 int32_t dumpFileBlockByGroupId(STSBuf* pTSBuf, int32_t id, void* buf, int32_t* len, int32_t* numOfBlocks);
+
+int32_t dumpFileBlockByGroupIndex(STSBuf* pTSBuf, int32_t groupIndex, void* pBuf, int32_t* len, int32_t* numOfBlocks);
 
 STSElem tsBufFindElemStartPosByTag(STSBuf* pTSBuf, tVariant* pTag);
 

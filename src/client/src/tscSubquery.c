@@ -1631,6 +1631,8 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   SJoinSupporter* pSupporter = (SJoinSupporter*)param;
   int64_t handle = pSupporter->pObj;
 
+  tscDebug("***enter joinRetrieveFinalResCallback");
+
   SSqlObj* pParentSql = (SSqlObj*)taosAcquireRef(tscObjRef, handle);
   if (pParentSql == NULL) return;
 
@@ -1639,7 +1641,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   SSqlRes* pRes = &pSql->res;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
-
+  
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("0x%"PRIx64" abort query due to other subquery failure. code:%d, global code:%d", pSql->self, numOfRows, pParentSql->res.code);
     if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
@@ -1682,10 +1684,16 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
       numOfVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
     }
 
-    if ((++pTableMetaInfo->vgroupIndex) < numOfVgroups) {
+    tscDebug("**clauseLimit:%" PRId64 " numOfClauseTotal:%" PRId64 " vgIdx:%d numOfVgroups:%d", 
+      pParentSql->cmd.active->clauseLimit, pParentSql->res.numOfClauseTotal, pTableMetaInfo->vgroupIndex, numOfVgroups);
+
+    if ((++pTableMetaInfo->vgroupIndex) < numOfVgroups && (pParentSql->cmd.active->clauseLimit < 0 || pParentSql->cmd.active->clauseLimit > pParentSql->res.numOfClauseTotal)) {
       tscDebug("0x%"PRIx64" no result in current vnode anymore, try next vnode, vgIndex:%d", pSql->self, pTableMetaInfo->vgroupIndex);
       pSql->cmd.command = TSDB_SQL_SELECT;
       pSql->fp = tscJoinQueryCallback;
+      pSql->cmd.active->clauseLimit = pParentSql->cmd.active->clauseLimit;
+      pSql->cmd.active->limit.limit = pParentSql->cmd.active->clauseLimit - pParentSql->res.numOfClauseTotal;
+      pSql->cmd.active->limit.offset = pSql->res.offset;
 
       tscBuildAndSendRequest(pSql, NULL);
       goto _return;
@@ -1744,6 +1752,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
   bool    hasData = true;
   bool    reachLimit = false;
 
+  tscDebug("***enter tscFetchDatablockForSubquery");
   { pthread_mutex_lock(&pSql->subState.mutex);
 
   assert(pSql->subState.numOfSub >= 1);
@@ -1782,6 +1791,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
 
   // has data remains in client side, and continue to return data to app
   if (hasData) {
+    tscDebug("*hasData");
     tscBuildResFromSubqueries(pSql);
     return;
   }
@@ -1789,6 +1799,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
   // If at least one subquery is completed in current vnode, try the next vnode in case of multi-vnode
   // super table projection query.
   if (reachLimit) {
+    tscDebug("*reachLimit");
     pSql->res.completed = true;
     freeJoinSubqueryObj(pSql);
 
@@ -1847,8 +1858,11 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
 
       SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSub->cmd);
 
+      tscDebug("**nonorderedPrj:%d resRow:%d numOfRows:%d com:%d numOfClauseTotal:%"PRId64 " clauseLimit:%" PRId64, 
+      tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0), pSub->res.row, pSub->res.numOfRows,
+          pSub->res.completed, pSql->res.numOfClauseTotal, pSql->cmd.active->clauseLimit);
       if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && pSub->res.row >= pSub->res.numOfRows &&
-          pSub->res.completed) {
+          pSub->res.completed && (pSql->cmd.active->clauseLimit < 0 || pSql->res.numOfClauseTotal < pSql->cmd.active->clauseLimit)) {
         STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
         assert(pQueryInfo->numOfTables == 1);
 
@@ -1865,6 +1879,9 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
                    pTableMetaInfo->vgroupIndex);
           pSub->cmd.command = TSDB_SQL_SELECT;
           pSub->fp = tscJoinQueryCallback;
+          pSub->cmd.active->clauseLimit = pSql->cmd.active->clauseLimit;
+          pSub->cmd.active->limit.limit = pSql->cmd.active->clauseLimit - pSql->res.numOfClauseTotal;
+          pSub->cmd.active->limit.offset = pSub->res.offset;
 
           tscBuildAndSendRequest(pSub, NULL);
           tryNextVnode = true;
@@ -2131,6 +2148,8 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     // refactor as one method
     SQueryInfo *pNewQueryInfo = tscGetQueryInfo(&pNew->cmd);
     assert(pNewQueryInfo != NULL);
+
+    pNewQueryInfo->clauseLimit = -1;
 
     pSupporter->colList = pNewQueryInfo->colList;
     pNewQueryInfo->colList = NULL;
@@ -3027,6 +3046,11 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   }
 
   SSqlObj *pParentSql = trsupport->pParentSql;
+  if (pParentSql->signature != pParentSql) {
+    tscError("query 0x%"PRIx64" parent sql obj %p not valid. parent id: 0x%"PRIx64, pSql->self, pParentSql, pParentSql->self);
+    return;
+  }
+
   int32_t  subqueryIndex = trsupport->subqueryIndex;
   
   assert(pSql != NULL);
@@ -3133,6 +3157,11 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   int32_t           idx = trsupport->subqueryIndex;
   SSqlObj *         pParentSql = trsupport->pParentSql;
   tOrderDescriptor *pDesc = trsupport->pOrderDescriptor;
+
+  if (pParentSql->signature != pParentSql) {
+    tscError("query 0x%"PRIx64" parent sql obj %p not valid. parent id: 0x%"PRIx64, pSql->self, pParentSql, pParentSql->self);
+    return;
+  }
   
   SSubqueryState* pState = &pParentSql->subState;
   SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
@@ -3462,6 +3491,7 @@ static bool needRetryInsert(SSqlObj* pParentObj) {
 
     if (code != TSDB_CODE_TDB_TABLE_RECONFIGURE && code != TSDB_CODE_TDB_INVALID_TABLE_ID &&
         code != TSDB_CODE_VND_INVALID_VGROUP_ID && code != TSDB_CODE_RPC_NETWORK_UNAVAIL &&
+        code != TSDB_CODE_RPC_VGROUP_NOT_CONNECTED &&
         code != TSDB_CODE_APP_NOT_READY) {
       pParentObj->res.code = code;
       ret = false;
@@ -3747,7 +3777,7 @@ _error:
   return pRes->code;
 }
 
-static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t columnIndex, int16_t* bytes) {
+static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t columnIndex, uint16_t* bytes) {
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
   SInternalField* pInfo = (SInternalField*) TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, columnIndex);
@@ -3783,6 +3813,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   pthread_mutex_unlock(&pSql->subState.mutex); }
 
   if (numOfRes == 0) {  // no result any more, free all subquery objects
+    tscDebug("*******query complete");
     pSql->res.completed = true;
     freeJoinSubqueryObj(pSql);
     return;
@@ -3805,7 +3836,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   pRes->data = pFilePage->data;
   char* data = pRes->data;
 
-  int16_t bytes = 0;
+  uint16_t bytes = 0;
 
   tscRestoreFuncForSTableQuery(pQueryInfo);
   tscFieldInfoUpdateOffset(pQueryInfo);
@@ -3850,7 +3881,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   pthread_mutex_unlock(&pSql->subState.mutex); }
 
   pRes->numOfRows = numOfRes;
-  pRes->numOfClauseTotal += numOfRes;
+  //pRes->numOfClauseTotal += numOfRes;
 
   int32_t finalRowSize = 0;
   for(int32_t i = 0; i < tscNumOfFields(pQueryInfo); ++i) {
@@ -3867,6 +3898,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
 void tscBuildResFromSubqueries(SSqlObj *pSql) {
   SSqlRes* pRes = &pSql->res;
 
+  tscDebug("*enter tscBuildResFromSubqueries");
   if (pRes->code != TSDB_CODE_SUCCESS) {
     tscAsyncResultOnError(pSql);
     return;

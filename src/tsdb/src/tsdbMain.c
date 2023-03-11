@@ -233,7 +233,7 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
   ASSERT(pRCfg->tsdbId == pCfg->tsdbId);
   ASSERT(pRCfg->cacheBlockSize == pCfg->cacheBlockSize);
   ASSERT(pRCfg->daysPerFile == pCfg->daysPerFile);
-  ASSERT(pRCfg->minRowsPerFileBlock == pCfg->minRowsPerFileBlock);
+  // ASSERT(pRCfg->minRowsPerFileBlock == pCfg->minRowsPerFileBlock);
   ASSERT(pRCfg->maxRowsPerFileBlock == pCfg->maxRowsPerFileBlock);
   ASSERT(pRCfg->precision == pCfg->precision);
 
@@ -254,6 +254,9 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
     configChanged = true;
   }
   if (pRCfg->totalBlocks != pCfg->totalBlocks) {
+    configChanged = true;
+  }
+  if (pRCfg->minRowsPerFileBlock != pCfg->minRowsPerFileBlock) {
     configChanged = true;
   }
 
@@ -277,15 +280,16 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
   pSaveCfg->keep2 = pCfg->keep2;
   pSaveCfg->cacheLastRow = pCfg->cacheLastRow;
   pSaveCfg->totalBlocks = pCfg->totalBlocks;
+  pSaveCfg->minRowsPerFileBlock = pCfg->minRowsPerFileBlock;
 
-  tsdbInfo("vgId:%d old config: compression(%d), keep(%d,%d,%d), cacheLastRow(%d),totalBlocks(%d)",
+  tsdbInfo("vgId:%d old config: compression(%d),keep(%d,%d,%d),cacheLastRow(%d),totalBlocks(%d),minRows(%d)",
     REPO_ID(repo),
     pRCfg->compression, pRCfg->keep, pRCfg->keep1,pRCfg->keep2,
-    pRCfg->cacheLastRow, pRCfg->totalBlocks);
-  tsdbInfo("vgId:%d new config: compression(%d), keep(%d,%d,%d), cacheLastRow(%d),totalBlocks(%d)",
+    pRCfg->cacheLastRow, pRCfg->totalBlocks, pRCfg->minRowsPerFileBlock);
+  tsdbInfo("vgId:%d new config: compression(%d),keep(%d,%d,%d),cacheLastRow(%d),totalBlocks(%d),minRows(%d)",
     REPO_ID(repo),
     pSaveCfg->compression, pSaveCfg->keep,pSaveCfg->keep1, pSaveCfg->keep2,
-    pSaveCfg->cacheLastRow,pSaveCfg->totalBlocks);
+    pSaveCfg->cacheLastRow,pSaveCfg->totalBlocks,pSaveCfg->minRowsPerFileBlock);
 
   repo->config_changed = true;
 
@@ -641,6 +645,7 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     // tsdbFreeMemTable(pRepo->imem);
     tsem_destroy(&(pRepo->readyToCommit));
     pthread_mutex_destroy(&pRepo->mutex);
+    pthread_mutex_destroy(&pRepo->save_mutex);
     free(pRepo);
   }
 }

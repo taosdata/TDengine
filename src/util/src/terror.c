@@ -69,6 +69,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_APP_NOT_READY,                "Database not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               "Unable to resolve FQDN")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_VERSION,          "Invalid app version")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_SHORTCUT,                 "Shortcut")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_VGROUP_NOT_CONNECTED,     "Vgroup could not be connected")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_COM_OPS_NOT_SUPPORT,          "Operation not supported")
@@ -304,6 +305,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INCONSISTAN,              "File inconsistance in
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_TIME_CONDITION,   "One valid time range condition expected")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SYS_ERROR,                "System error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_RESULT_TOO_LARGE,         "result num is too large")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_RSS_THRESHOLD,            "Exceed Memory RSS threshold when creating query")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")

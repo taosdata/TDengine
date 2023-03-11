@@ -35,7 +35,7 @@ class TDTestCase:
             'CREATE TABLE if not exists dev_002 using st tags("dev")')
 
 
-        print("==============step2")    
+        print("==============step2")
         tdSql.query("show tables")
         tdSql.checkRows(1)
 

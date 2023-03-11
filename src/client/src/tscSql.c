@@ -21,6 +21,7 @@
 #include "tnote.h"
 #include "trpc.h"
 #include "tscLog.h"
+#include "tscBatchWrite.h"
 #include "tscSubquery.h"
 #include "tscUtil.h"
 #include "tsclient.h"
@@ -163,15 +164,30 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   pSql->fp        = fp;
   pSql->param     = param;
   pSql->cmd.command = TSDB_SQL_CONNECT;
-
+  
+  pObj->dispatcherManager = NULL;
+  if (tsWriteBatchSize > 1 && !tscEmbedded) {
+    pObj->dispatcherManager = createDispatcherManager(pObj, tsWriteBatchSize, tsWriteBatchTimeout, tsWriteBatchThreadLocal);
+    if (!pObj->dispatcherManager) {
+      terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      tscReleaseRpc(pRpcObj);
+      free(pSql);
+      free(pObj);
+      return NULL;
+    }
+  }
+  
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    if (pObj->dispatcherManager) {
+      destroyDispatcherManager(pObj->dispatcherManager);
+    }
     tscReleaseRpc(pRpcObj);
     free(pSql);
     free(pObj);
     return NULL;
   }
-
+  
   if (taos != NULL) {
     *taos = pObj;
   }

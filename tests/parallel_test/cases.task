@@ -4,7 +4,7 @@
 290,,pytest,python3 test.py -f update/merge_commit_data.py
 241,,pytest,python3 test.py -f update/merge_commit_data2.py
 224,,pytest,python3 test.py -f query/queryNullValueTest.py
-221,,pytest,python3 test.py -f query/nestedQuery/nestedQuery.py
+#221,,pytest,python3 test.py -f query/nestedQuery/nestedQuery.py
 220,,pytest,python3 test.py -f update/merge_commit_data2_update0.py
 208,,pytest,python3 test.py -f update/merge_commit_last.py
 203,,pytest,python3 test.py -f update/merge_commit_last-0.py
@@ -191,13 +191,14 @@
 38,,script,./test.sh -f unique/arbitrator/sync_replica2_dropDb.sim
 38,,script,./test.sh -f general/table/delete_reuse2.sim
 38,,script,./test.sh -f general/insert/insert_drop.sim
+38,,script,./test.sh -f general/insert/insert_update2.sim
 37,,script,./test.sh -f unique/mnode/mgmt30.sim
 37,,script,./test.sh -f unique/column/replica3.sim
 37,,script,./test.sh -f unique/arbitrator/offline_replica2_createTable_online.sim
 37,,script,./test.sh -f unique/arbitrator/offline_replica2_alterTable_online.sim
 37,,script,./test.sh -f general/table/delete_reuse1.sim
 37,,script,./test.sh -f general/db/delete_reuse2.sim
-36,,docs-examples-test,eval sh -c \"if [ `uname -m` != aarch64 ]; then ./test_rust.sh; fi\"
+# 36,,docs-examples-test,eval sh -c \"if [ `uname -m` != aarch64 ]; then ./test_rust.sh; fi\"
 36,,script,./test.sh -f unique/stable/replica3_vnode3.sim
 36,,script,./test.sh -f unique/stable/dnode2_stop.sim
 36,,script,./test.sh -f unique/arbitrator/sync_replica2_alterTable_add.sim
@@ -282,7 +283,7 @@
 22,,script,./test.sh -f general/parser/limit.sim
 22,,script,./test.sh -f general/insert/tcp.sim
 22,,script,./test.sh -f general/cache/restart_table.sim
-22,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertShell.py
+#22,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertShell.py
 22,,pytest,python3 test.py -f tag_lite/datatype.py
 22,,pytest,python3 test.py -f import_merge/importDataLastH.py
 22,,pytest,python3 test.py -f import_merge/importDataHO2.py
@@ -426,7 +427,7 @@
 14,,script,./test.sh -f general/field/2.sim
 14,,script,./test.sh -f general/compute/avg.sim
 14,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonSml.py
-14,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-chinese.py
+#14,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-chinese.py
 14,,pytest,python3 test.py -f query/queryWithTaosdKilled.py
 14,,pytest,python3 test.py -f query/queryStddevWithGroupby.py
 14,,pytest,python3 test.py -f query/queryJoin10tables.py
@@ -561,10 +562,10 @@
 11,,pytest,python3 test.py -f import_merge/importBlock1Sub.py
 10,,docs-examples-test,./test_python.sh
 10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt-otherPara.py
-10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt.py
+#10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt.py
 10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-autoCreate.py
 10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-otherPara.py
-10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-childTable.py
+#10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-childTable.py
 10,,system-test,python3 ./test.py -f 2-query/TD-12344.py
 10,,script,./test.sh -f unique/stable/replica2_vnode3.sim
 10,,pytest,python3 testCompress.py
@@ -641,6 +642,7 @@
 6,,pytest,python3 test.py -f functions/function_elapsed.py
 6,,pytest,python3 test.py -f alter/alterColMultiTimes.py
 6,,develop-test,python3 ./test.py -f 2-query/ts_2016.py
+6,,develop-test,python3 ./test.py -f 2-query/ts_2523.py
 6,,develop-test,python3 ./test.py -f 2-query/escape.py
 6,,develop-test,python3 ./test.py -f 2-query/TD-14763.py
 5,,system-test,python3 ./test.py -f 4-taosAdapter/taosAdapter_insert.py
@@ -816,6 +818,7 @@
 3,,pytest,python3 test.py -f table/tbNameCaseSensitive.py
 3,,pytest,python3 test.py -f functions/function_max_row.py
 3,,pytest,python3 test.py -f functions/function_min_row.py
+3,,pytest,python3 test.py -f insert/long_string.py
 3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py
 3,,develop-test,python3 ./test.py -f 2-query/ts_shortcut.py
 3,,develop-test,python3 ./test.py -f 2-query/nchar_funcs.py

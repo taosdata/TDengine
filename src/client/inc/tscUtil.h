@@ -141,9 +141,11 @@ int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_
 void tscDestroyBoundColumnInfo(SParsedDataColInfo* pColInfo);
 void doRetrieveSubqueryData(SSchedMsg *pMsg);
 
-SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, int16_t bytes,
+SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, uint16_t bytes,
                                    uint32_t offset);
 
+void destroySTableDataBlocksList(SArray* pDataBlocks);
+void destroySTableDataBlocks(STableDataBlocks* pDataBlocks);
 void*   tscDestroyBlockArrayList(SSqlObj* pSql, SArray* pDataBlockList);
 void*  tscDestroyUdfArrayList(SArray* pUdfList);
 void*   tscDestroyBlockHashTable(SSqlObj* pSql, SHashObj* pBlockHashTable, bool removeMeta);
@@ -205,7 +207,7 @@ bool tscIsInsertData(char* sqlstr);
 int32_t tscAllocPayloadFast(SSqlCmd *pCmd, size_t size);
 int32_t tscAllocPayload(SSqlCmd* pCmd, int size);
 
-TAOS_FIELD tscCreateField(int8_t type, const char* name, int16_t bytes);
+TAOS_FIELD tscCreateField(int8_t type, const char* name, uint16_t bytes);
 
 SInternalField* tscFieldInfoAppend(SFieldInfo* pFieldInfo, TAOS_FIELD* pField);
 SInternalField* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIELD* field);
@@ -231,15 +233,15 @@ void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes)
 int32_t   tscGetResRowLength(SArray* pExprList);
 
 SExprInfo* tscExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-    int16_t size, int16_t resColId, int32_t interSize, bool isTagCol);
+    uint16_t size, int16_t resColId, int32_t interSize, bool isTagCol);
 
 SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                         int16_t size, int16_t resColId, int32_t interSize, int32_t colType);
+                         uint16_t size, int16_t resColId, int32_t interSize, int32_t colType);
 
 void tscExprAddParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes);
 
 SExprInfo* tscExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                           int16_t size, int16_t resColId, int32_t interSize, bool isTagCol);
+                           uint16_t size, int16_t resColId, int32_t interSize, bool isTagCol);
 
 SExprInfo* tscExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
                            int32_t size);

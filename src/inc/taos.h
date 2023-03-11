@@ -60,13 +60,16 @@ typedef enum {
   TSDB_OPTION_TIMEZONE,
   TSDB_OPTION_CONFIGDIR,
   TSDB_OPTION_SHELL_ACTIVITY_TIMER,
-  TSDB_MAX_OPTIONS
+  TSDB_MAX_OPTIONS,
+  TSDB_WRITE_BATCH_SIZE,
+  TSDB_WRITE_BATCH_TIMEOUT,
+  TSDB_WRITE_BATCH_THREAD_LOCAL
 } TSDB_OPTION;
 
 typedef struct taosField {
   char     name[65];
   uint8_t  type;
-  int16_t  bytes;
+  uint16_t bytes;
 } TAOS_FIELD;
 
 typedef enum {

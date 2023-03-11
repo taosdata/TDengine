@@ -57,10 +57,10 @@ class TDTestCase:
         tdSql.checkData(0, 1, 2)
         tdSql.query('select mode(num) from d001')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, -32767)
         tdSql.query('select mode(dbool) from d001')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, False)
         tdSql.query('select mode(dtiny) from d001')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
@@ -87,7 +87,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
         tdSql.query('select mode(num),mode(voltage) from smode')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, 3276)
         tdSql.checkData(0, 1, 1)
         tdSql.query('select mode(dbool) from smode')
         tdSql.checkRows(1)
@@ -97,7 +97,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, None)
         tdSql.query('select mode(dfloat) from smode')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, 3.3232219219207764)
         tdSql.query('select mode(ddouble) from smode')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 4.982392323)
@@ -112,16 +112,16 @@ class TDTestCase:
         #group by column
         tdSql.query('select mode(num) from d002 group by dbinary')
         tdSql.checkRows(2)
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, 3276)
         tdSql.checkData(1, 0, None)
         tdSql.execute('insert into D002 values("2021-11-17 20:31:31", 1, 3276, true, NULL, 3.32322, 4.982392323, "你好吗", "sdf", 333)')
         tdSql.query('select mode(num) from d002 group by dbinary')
         tdSql.checkRows(2)
         tdSql.checkData(1, 0, 3276)
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, 3276)
         tdSql.query('select mode(dfloat) from d002 group by dbinary')
         tdSql.checkRows(2)
-        tdSql.checkData(1, 0, None)
+        tdSql.checkData(1, 0, 3.3232200145721436)
         tdSql.query('select mode(dchar) from d002 group by dbinary')
         tdSql.checkRows(2)
         tdSql.checkData(1, 0, "你好吗")
@@ -138,7 +138,7 @@ class TDTestCase:
         #group by tbname
         tdSql.query('select mode(dchar) from smode group by tbname')
         tdSql.checkRows(2)
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, "你好吗")
         tdSql.checkData(0, 1, "d001")
         tdSql.checkData(1, 0, "你好吗")
         tdSql.checkData(1, 1, "d002")
@@ -148,7 +148,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 4.982392323)
         tdSql.checkData(0, 1, "Beijing.haidian")
-        tdSql.checkData(1, 0, None)
+        tdSql.checkData(1, 0, 4.982392323)
         tdSql.checkData(1, 1, "Beijing.Chaoyang")
 
         #group by tag,column
@@ -169,7 +169,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, "你好吗")
         tdSql.checkData(0, 1, "d002")
-        tdSql.checkData(1, 0, None)
+        tdSql.checkData(1, 0, "你好吗")
         tdSql.checkData(1, 1, "d001")
 
         #where
@@ -178,7 +178,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 19)
         tdSql.query('select mode(voltage) from smode where num > 9')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, 19)
 
         #interval
         tdSql.query('select mode(voltage) from smode interval(1s)')
@@ -188,7 +188,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, "2021-01-01 00:00:00")
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(1, 0, "2022-01-01 00:00:00")
-        tdSql.checkData(1, 1, None)
+        tdSql.checkData(1, 1, 19)
         tdSql.query('select mode(voltage) from smode interval(1n)')
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, "2021-10-01 00:00:00")
@@ -198,7 +198,7 @@ class TDTestCase:
         tdSql.checkData(2, 0, "2021-12-01 00:00:00")
         tdSql.checkData(2, 1, 2)
         tdSql.checkData(3, 0, "2022-01-01 00:00:00")
-        tdSql.checkData(3, 1, None)
+        tdSql.checkData(3, 1, 19)
 
         tdSql.query('select mode(voltage) from smode where ts > "2021-09-01 00:00:00" and ts <"2022-02-02 00:00:00" interval(1n) fill(prev)')
         tdSql.checkRows(6)
@@ -207,7 +207,7 @@ class TDTestCase:
         tdSql.checkData(3, 0, "2021-12-01 00:00:00")
         tdSql.checkData(3, 1, 2)
         tdSql.checkData(5, 0, "2022-02-01 00:00:00")
-        tdSql.checkData(5, 1, 2)
+        tdSql.checkData(5, 1, 19)
 
         #session
         tdSql.query('select mode(voltage) from d002 session(ts,1w)')
@@ -222,7 +222,7 @@ class TDTestCase:
         #state_window
         tdSql.query('select mode(dfloat) from d002 state_window(voltage)')
         tdSql.checkRows(3)
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, 3.3232200145721436)
         tdSql.checkData(1, 0, None)
 
         #slimit/soffset
@@ -237,9 +237,9 @@ class TDTestCase:
 
         #having
         tdSql.query('select mode(ddouble) from smode group by location having mode(ddouble)>3')
-        tdSql.checkRows(1)
+        tdSql.checkRows(2)
         tdSql.checkData(0, 0, 4.982392323)
-        tdSql.checkData(0, 1, "Beijing.haidian")
+        tdSql.checkData(0, 1, "Beijing.Chaoyang")
 
         #subquery
         tdSql.query('select mode(ddouble) from (select * from smode where voltage = 1)')

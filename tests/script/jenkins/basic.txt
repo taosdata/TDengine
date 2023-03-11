@@ -25,6 +25,7 @@ cd ../../../debug; make
 # ./test.sh -f general/http/grafana.sim
 ./test.sh -f general/insert/basic.sim
 ./test.sh -f general/insert/insert_drop.sim
+./test.sh -f general/insert/insert_update2.sim
 ./test.sh -f general/insert/query_block1_memory.sim
 ./test.sh -f general/insert/query_block2_memory.sim
 ./test.sh -f general/insert/query_block1_file.sim
@@ -193,6 +194,7 @@ cd ../../../debug; make
 ./test.sh -f general/alter/insert2.sim
 ./test.sh -f general/alter/metrics.sim
 ./test.sh -f general/alter/table.sim
+./test.sh -f general/alter/column_width_commit.sim
 ./test.sh -f general/cache/new_metrics.sim
 ./test.sh -f general/cache/restart_metrics.sim
 ./test.sh -f general/cache/restart_table.sim

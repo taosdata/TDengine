@@ -41,6 +41,9 @@
 #define DNODE_INFO_LEN      128
 #define QUERY_ID_LEN        24
 #define CHECK_INTERVAL      1000
+#define AUDIT_MAX_RETRIES   10
+#define MAX_DDL_TYPE_LEN    32
+#define MAX_DDL_OBJ_LEN     512
 
 #define SQL_STR_FMT "\"%s\""
 
@@ -161,6 +164,7 @@ typedef struct {
 } SMonStat;
 
 static void *monHttpStatusHashTable;
+static void *auditConn;
 
 static SMonConn tsMonitor = {0};
 static SMonStat tsMonStat = {{0}};
@@ -175,15 +179,23 @@ static void  monSaveDisksInfo();
 static void  monSaveGrantsInfo();
 static void  monSaveHttpReqInfo();
 static void  monGetSysStats();
-static void *monThreadFunc(void *param);
+static void  *monThreadFunc(void *param);
+static void  *monAuditFunc(void *param);
 static void  monBuildMonitorSql(char *sql, int32_t cmd);
-static void monInitHttpStatusHashTable();
-static void monCleanupHttpStatusHashTable();
+static void  monInitHttpStatusHashTable();
+static void  monCleanupHttpStatusHashTable();
 
 extern int32_t (*monStartSystemFp)();
 extern void    (*monStopSystemFp)();
 extern void    (*monExecuteSQLFp)(char *sql);
 extern char *  strptime(const char *buf, const char *fmt, struct tm *tm); //make the compilation pass
+
+#ifdef _STORAGE
+  char *keepValue = "30,30,30";
+#else
+  char *keepValue = "30";
+#endif
+
 
 int32_t monInitSystem() {
   if (tsMonitor.ep[0] == 0) {
@@ -203,12 +215,20 @@ int32_t monInitSystem() {
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
   if (pthread_create(&tsMonitor.thread, &thAttr, monThreadFunc, NULL)) {
-    monError("failed to create thread to for monitor module, reason:%s", strerror(errno));
+    monError("failed to create thread for monitor module, reason:%s", strerror(errno));
+    return -1;
+  }
+  monDebug("monitor thread is launched");
+
+  pthread_t auditThread;
+  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_DETACHED);
+  if (pthread_create(&auditThread, &thAttr, monAuditFunc, NULL)) {
+    monError("failed to create audit thread, reason:%s", strerror(errno));
     return -1;
   }
 
+  monDebug("audit thread is launched");
   pthread_attr_destroy(&thAttr);
-  monDebug("monitor thread is launched");
 
   monStartSystemFp = monStartSystem;
   monStopSystemFp = monStopSystem;
@@ -248,6 +268,70 @@ SMonHttpStatus *monGetHttpStatusHashTableEntry(int32_t code) {
     return NULL;
   }
   return (SMonHttpStatus*)taosHashGet(monHttpStatusHashTable, &code, sizeof(int32_t));
+}
+
+static void *monAuditFunc(void *param) {
+  if (!tsEnableAudit) {
+    return NULL;
+  }
+
+  monDebug("starting to initialize audit database...");
+  setThreadName("audit");
+  taosMsleep(1000);
+
+  int32_t try = 0;
+  for (; try < AUDIT_MAX_RETRIES; ++try) {
+    auditConn = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
+    if (auditConn == NULL) {
+      monDebug("audit retry connect, tries: %d", try);
+      taosMsleep(1000);
+    } else {
+      monDebug("audit successfuly connect to database");
+      break;
+    }
+  }
+
+  if (try == AUDIT_MAX_RETRIES) {
+    monError("audit failed to connect to database, reason:%s", tstrerror(terrno));
+    return NULL;
+  }
+
+  // create database
+  char sql[512] = {0};
+  snprintf(sql, sizeof(sql),
+           "create database if not exists %s replica 1 days 10 keep %s cache %d "
+           "blocks %d precision 'us'",
+           tsAuditDbName, keepValue, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MIN_TOTAL_BLOCKS);
+
+  void *res = taos_query(auditConn, sql);
+  int32_t code = taos_errno(res);
+  taos_free_result(res);
+
+  if (code != 0) {
+    monError("failed to create database: %s, sql:%s, reason:%s", tsAuditDbName, sql, tstrerror(code));
+    return NULL;
+  }
+
+  // create table
+  memset(sql, 0, sizeof(sql));
+  snprintf(sql, sizeof(sql),
+           "create table if not exists %s.ddl(ts timestamp"
+           ", user_name binary(%d), ip_addr binary(%d), type binary(%d)"
+           ", object binary(%d), result binary(10)"
+           ")",
+           tsAuditDbName, TSDB_USER_LEN, IP_LEN_STR,
+           MAX_DDL_TYPE_LEN, MAX_DDL_OBJ_LEN);
+
+  res = taos_query(auditConn, sql);
+  code = taos_errno(res);
+  taos_free_result(res);
+
+  if (code != 0) {
+    monError("failed to create table: ddl, exec sql:%s, reason:%s", sql, tstrerror(code));
+    return NULL;
+  }
+
+  return NULL;
 }
 
 static void *monThreadFunc(void *param) {
@@ -334,12 +418,6 @@ static void *monThreadFunc(void *param) {
 
 static void monBuildMonitorSql(char *sql, int32_t cmd) {
   memset(sql, 0, SQL_LENGTH);
-
-#ifdef _STORAGE
-  char *keepValue = "30,30,30";
-#else
-  char *keepValue = "30";
-#endif
 
   if (cmd == MON_CMD_CREATE_DB) {
     snprintf(sql, SQL_LENGTH,
@@ -492,6 +570,11 @@ void monCleanupSystem() {
   monStopSystem();
   if (taosCheckPthreadValid(tsMonitor.thread)) {
     pthread_join(tsMonitor.thread, NULL);
+  }
+
+  if (auditConn != NULL) {
+    taos_close(tsMonitor.conn);
+    auditConn = NULL;
   }
 
   if (tsMonitor.conn != NULL) {
@@ -1323,6 +1406,116 @@ static void monExecSqlCb(void *param, TAOS_RES *result, int32_t code) {
   taos_free_result(result);
 }
 
+static bool monConvDDLType2Str(int8_t type, char *buf, int32_t len) {
+  if (buf == NULL) {
+    return false;
+  }
+
+  switch (type) {
+    case MON_DDL_CMD_CREATE_DATABASE: {
+      strncpy(buf, "CREATE DATABASE", len);
+      break;
+    }
+    case MON_DDL_CMD_CREATE_TABLE: {
+      strncpy(buf, "CREATE TABLE", len);
+      break;
+    }
+    case MON_DDL_CMD_CREATE_CHILD_TABLE: {
+      strncpy(buf, "CREATE CHILD TABLE", len);
+      break;
+    }
+    case MON_DDL_CMD_CREATE_SUPER_TABLE: {
+      strncpy(buf, "CREATE SUPER TABLE", len);
+      break;
+    }
+    case MON_DDL_CMD_DROP_DATABASE: {
+      strncpy(buf, "DROP DATABASE", len);
+      break;
+    }
+    case MON_DDL_CMD_DROP_TABLE: {
+      strncpy(buf, "DROP TABLE", len);
+      break;
+    }
+    case MON_DDL_CMD_DROP_CHILD_TABLE: {
+      strncpy(buf, "DROP CHILD TABLE", len);
+      break;
+    }
+    case MON_DDL_CMD_DROP_SUPER_TABLE: {
+      strncpy(buf, "DROP SUPER TABLE", len);
+      break;
+    }
+    case MON_DDL_CMD_DROP_COLUMN: {
+      strncpy(buf, "DROP COLUMN", len);
+      break;
+    }
+    case MON_DDL_CMD_DROP_TAG: {
+      strncpy(buf, "DROP TAG", len);
+      break;
+    }
+    case MON_DDL_CMD_ALTER_DATABASE: {
+      strncpy(buf, "ALTER DATABASE", len);
+      break;
+    }
+    case MON_DDL_CMD_ADD_COLUMN: {
+      strncpy(buf, "ADD COLUMN", len);
+      break;
+    }
+    case MON_DDL_CMD_ADD_TAG: {
+      strncpy(buf, "ADD TAG", len);
+      break;
+    }
+    case MON_DDL_CMD_MODIFY_COLUMN: {
+      strncpy(buf, "MODIFY COLUMN/TAG LENGTH", len);
+      break;
+    }
+    case MON_DDL_CMD_CHANGE_TAG: {
+      strncpy(buf, "CHANGE TAG NAME", len);
+      break;
+    }
+    default: {
+      return false;
+    }
+  }
+  return true;
+}
+
+void monSaveAuditLog(int8_t type, const char *user, const char *obj, bool result) {
+  if (tsEnableAudit == 0) { //audit not enabled
+    return;
+  }
+
+  char sql[1024] = {0};
+  char typeStr[64] = {0};
+
+  if (!monConvDDLType2Str(type, typeStr, (int32_t)sizeof(typeStr))) {
+    monError("unknown DDL type: %d ", type);
+    return;
+  }
+
+  snprintf(sql, 1023,
+          "insert into %s.ddl values(now, "
+          SQL_STR_FMT", "SQL_STR_FMT", "
+          SQL_STR_FMT", "SQL_STR_FMT", "
+          SQL_STR_FMT")",
+          tsAuditDbName,
+          (user != NULL) ? user : "NULL",
+          tsLocalEp,
+          typeStr,
+          (obj != NULL) ? obj : "NULL",
+          result ? "success" : "fail");
+
+  monDebug("save ddl info, sql:%s", sql);
+  void *res = taos_query(auditConn, sql);
+  int32_t code = taos_errno(res);
+  taos_free_result(res);
+
+  if (code != 0) {
+    monError("failed to save audit ddl info, reason:%s, sql:%s", tstrerror(code), sql);
+  } else {
+    monDebug("successfully save audit ddl info, sql:%s", sql);
+  }
+}
+
 void monSaveAcctLog(SAcctMonitorObj *pMon) {
   if (tsMonitor.state != MON_STATE_INITED) return;
 
@@ -1398,6 +1591,7 @@ void monSaveDnodeLog(int32_t level, const char *const format, ...) {
   monDebug("save dnode log, sql: %s", sql);
   taos_query_a(tsMonitor.conn, sql, monExecSqlCb, "log");
 }
+
 
 void monExecuteSQL(char *sql) {
   if (tsMonitor.state != MON_STATE_INITED) return;

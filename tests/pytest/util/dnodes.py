@@ -142,6 +142,7 @@ class TDDnode:
             "numOfMnodes": "3",
             "numOfThreadsPerCore": "2.0",
             "monitor": "0",
+            "audit": "0",
             "maxVnodeConnections": "30000",
             "maxMgmtConnections": "30000",
             "maxMeterConnections": "30000",

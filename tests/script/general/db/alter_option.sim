@@ -9,7 +9,7 @@ sleep 2000
 sql connect
 
 print ============= create database
-sql create database db cache 2 blocks 4 days 10 keep 20 minRows 300 maxRows 400 ctime 120 precision 'ms' comp 2 wal 1 replica 1
+sql create database db cache 2 blocks 4 days 10 keep 20 minRows 300 maxRows 1200 ctime 120 precision 'ms' comp 2 wal 1 replica 1
 sql show databases
 if $data00 != db then 
   return -1
@@ -182,9 +182,13 @@ sql_error alter database db blocks -1
 sql_error alter database db blocks 10001
 
 print ============== step minrows
+sql_error alter database db minrows 0
 sql_error alter database db minrows 1
-sql_error alter database db minrows 100
-sql_error alter database db minrows 1000
+sql_error alter database db minrows -1
+sql_error alter database db minrows 9
+sql_error alter database db minrows 1001
+sql alter database db minrows 100
+sql alter database db minrows 1000
 
 print ============== step maxrows
 sql_error alter database db maxrows 1

@@ -68,14 +68,14 @@ class TDTestCase:
         # TD-6006
         tdSql.error("select * from dev_001 where 'name' is not null")
         tdSql.error("select * from dev_001 where \"name\" = 'first'")
-        
+
         # TS-1577
         tdSql.query("show databases")
         rows = tdSql.queryRows
 
         for i in range(1000):
             tdSql.execute("create database test%d" % i)
-        
+
         tdSql.query("show databases")
         tdSql.checkRows(rows + 1000)
 

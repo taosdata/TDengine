@@ -78,6 +78,9 @@ int tsParseTime(SStrToken *pToken, int64_t *pTime, char **next, char *err, int16
     // do nothing
   } else if (pToken->type == TK_INTEGER) {
     useconds = taosStr2int64(pToken->z);
+    if (errno == ERANGE) {
+      return tscInvalidOperationMsg(err, "timestamp is out of range", pToken->z);
+    }
   } else {
     // strptime("2001-11-12 18:31:01", "%Y-%m-%d %H:%M:%S", &tm);
     if (taosParseTime(pToken->z, pTime, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
@@ -118,7 +121,7 @@ int tsParseTime(SStrToken *pToken, int64_t *pTime, char **next, char *err, int16
 
     char unit = 0;
     if (parseAbsoluteDuration(valueToken.z, valueToken.n, &interval, &unit, timePrec) != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
+      return tscInvalidOperationMsg(err, "invalid timestamp", pToken->z);
     }
 
     if (sToken.type == TK_PLUS) {
@@ -382,7 +385,7 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
       } else {
         int64_t temp;
         if (tsParseTime(pToken, &temp, str, msg, timePrec) != TSDB_CODE_SUCCESS) {
-          return tscInvalidOperationMsg(msg, "invalid timestamp", pToken->z);
+          return TSDB_CODE_TSC_INVALID_OPERATION;
         }
         
         *((int64_t *)payload) = temp;
@@ -400,6 +403,9 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
  * Do not employ sort operation is not involved if server time is used.
  */
 int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
+  if (isNull(start, TSDB_DATA_TYPE_TIMESTAMP)) {
+    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+  }
   // once the data block is disordered, we do NOT keep previous timestamp any more
   if (!pDataBlocks->ordered) {
     return TSDB_CODE_SUCCESS;
@@ -1569,7 +1575,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   if (pInsertParam->numOfParams > 0) {
     goto _clean;
   }
-
+  
   // merge according to vgId
   if (!TSDB_QUERY_HAS_TYPE(pInsertParam->insertType, TSDB_QUERY_TYPE_STMT_INSERT) && taosHashGetSize(pInsertParam->pTableBlockHashList) > 0) {
     if ((code = tscMergeTableDataBlocks(pSql, pInsertParam, true)) != TSDB_CODE_SUCCESS) {
@@ -1577,6 +1583,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     }
   }
 
+  pCmd->insertParam.numOfRows = totalNum;
   code = TSDB_CODE_SUCCESS;
   goto _clean;
 

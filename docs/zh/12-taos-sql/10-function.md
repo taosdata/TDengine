@@ -193,7 +193,7 @@ Query OK, 1 row(s) in set (0.000921s)
 SELECT MODE(field_name) FROM tb_name [WHERE clause];
 ```
 
-**功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，输出空。不能匹配标签、时间戳输出。
+**功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，则随机输出其中某个值。不能匹配标签、时间戳输出。
 
 **返回数据类型**：同应用的字段。
 
@@ -564,18 +564,22 @@ Query OK, 2 row(s) in set (0.000793s)
 ### PERCENTILE
 
 ```
-SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
+SELECT PERCENTILE(field_name, P [, P1] ...) FROM { tb_name } [WHERE clause];
 ```
 
 **功能说明**：统计表中某列的值百分比分位数。
 
-**返回数据类型**： 双精度浮点数 Double。
+**返回数据类型**：该函数最小参数个数为 2 个，最大参数个数为 11 个。可以最多同时返回 10 个百分比分位数。当参数个数为 2 时， 返回一个分位数，类型为DOUBLE，当参数个数大于 2 时，返回类型为VARCHAR, 格式为包含多个返回值的JSON数组。
 
 **应用字段**：不能应用在 timestamp、binary、nchar、bool 类型字段。
 
 **适用于**：表。
 
-**使用说明**：*P*值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX。
+**使用说明**：
+
+- *P*值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX。
+- 同时计算针对同一列的多个分位数时，建议使用一个PERCENTILE函数和多个参数的方式，能很大程度上降低查询的响应时间。
+  比如，使用查询SELECT percentile(col, 90, 95, 99) FROM table, 性能会优于SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table。
 
 **示例**：
 

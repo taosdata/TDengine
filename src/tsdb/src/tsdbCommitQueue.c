@@ -132,13 +132,16 @@ static void tsdbApplyRepoConfig(STsdbRepo *pRepo) {
   pRepo->config.keep2 = pRepo->save_config.keep2;
   pRepo->config.cacheLastRow = pRepo->save_config.cacheLastRow;
   pRepo->config.totalBlocks = pRepo->save_config.totalBlocks;
+  pRepo->config.minRowsPerFileBlock = pRepo->save_config.minRowsPerFileBlock;
 
   pthread_mutex_unlock(&pRepo->save_mutex);
 
-  tsdbInfo("vgId:%d apply new config: compression(%d), keep(%d,%d,%d), totalBlocks(%d), cacheLastRow(%d->%d),totalBlocks(%d->%d)",
-    REPO_ID(pRepo),
-    pSaveCfg->compression, pSaveCfg->keep,pSaveCfg->keep1, pSaveCfg->keep2,
-    pSaveCfg->totalBlocks, oldCfg.cacheLastRow, pSaveCfg->cacheLastRow, oldTotalBlocks, pSaveCfg->totalBlocks);
+  tsdbInfo(
+      "vgId:%d apply new config: "
+      "compression(%d),keep(%d,%d,%d),totalBlocks(%d),cacheLastRow(%d->%d),totalBlocks(%d->%d),minRows(%d->%d)",
+      REPO_ID(pRepo), pSaveCfg->compression, pSaveCfg->keep, pSaveCfg->keep1, pSaveCfg->keep2, pSaveCfg->totalBlocks,
+      oldCfg.cacheLastRow, pSaveCfg->cacheLastRow, oldTotalBlocks, pSaveCfg->totalBlocks, oldCfg.minRowsPerFileBlock,
+      pSaveCfg->minRowsPerFileBlock);
 
   int err = tsdbExpandPool(pRepo, oldTotalBlocks);
   if (!TAOS_SUCCEEDED(err)) {

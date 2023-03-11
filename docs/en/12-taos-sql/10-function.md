@@ -191,7 +191,7 @@ Query OK, 1 row(s) in set (0.000921s)
 SELECT MODE(field_name) FROM tb_name [WHERE clause];
 ```
 
-**Description**:The value which has the highest frequency of occurrence. NULL is returned if there are multiple values which have highest frequency of occurrence. It can't be used on timestamp column or tags.
+**Description**:The value which has the highest frequency of occurrence. One random value is returned if there are multiple values which have highest frequency of occurrence. It can't be used on timestamp column or tags.
 
 **Return value type**:Same as the data type of the column being operated upon
 
@@ -569,18 +569,23 @@ Query OK, 2 row(s) in set (0.000793s)
 ### PERCENTILE
 
 ```
-SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
+SELECT PERCENTILE(field_name, P [, P1] ...) FROM { tb_name } [WHERE clause];
 ```
 
 **Description**: The value whose rank in a specific column matches the specified percentage. If such a value matching the specified percentage doesn't exist in the column, an interpolation value will be returned.
 
-**Return value type**: Double precision floating point
+**Return value type**: This function takes 2 minumum and 11 maximum parameters, and it can simultaneously return 10 percentiles at most. If 2 parameters are given, a single percentile is returned and the value type is DOUBLE.
+                       If more than 2 parameters are given, the return value type is a VARCHAR string, the format of which is a JSON ARRAY containing all return values.
 
 **Applicable column types**: Data types except for timestamp, binary, nchar and bool
 
 **Applicable table types**: table
 
-**More explanations**: _P_ is in range [0,100], when _P_ is 0, the result is same as using function MIN; when _P_ is 100, the result is same as function MAX.
+**More explanations**:
+
+- _P_ is in range [0,100], when _P_ is 0, the result is same as using function MIN; when _P_ is 100, the result is same as function MAX.
+- When calculating multiple percentiles of a specific column, a single PERCENTILE function with multiple parameters is adviced, as this can largely reduce the query response time.
+  For example, using SELECT percentile(col, 90, 95, 99) FROM table will perform better than SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table.
 
 **Examples**:
 

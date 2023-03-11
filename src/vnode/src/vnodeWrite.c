@@ -161,6 +161,8 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 
   vTrace("vgId:%d, submit msg is processed", pVnode->vgId);
 
+  int64_t submitStartUs = taosGetTimestampUs();
+
   if (pVnode->dbType == TSDB_DB_TYPE_TOPIC && pVnode->role == TAOS_SYNC_ROLE_MASTER) {
     tpUpdateTs(pVnode->vgId, &pVnode->sequence, pCont);
   }
@@ -184,6 +186,11 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   if (pRsp) {
     atomic_fetch_add_64(&tsSubmitRowNum, ntohl(pRsp->numOfRows));
     atomic_fetch_add_64(&tsSubmitRowSucNum, ntohl(pRsp->affectedRows));
+  }
+
+  int64_t submitEndUs = taosGetTimestampUs();
+  if (submitEndUs - submitStartUs > 10 * 1000000) {
+    vWarn("vgId: %d, submit msg process takes more than 10s", pVnode->vgId);
   }
 
   return code;

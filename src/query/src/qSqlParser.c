@@ -1045,7 +1045,7 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
       } else {
         bytes = bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
       }
-      pField->bytes = (int16_t)bytes;
+      pField->bytes = (uint16_t)bytes;
     }
   } else if (i == TSDB_DATA_TYPE_BINARY) {
     /* for binary, the TOKENTYPE is the length of binary */
@@ -1060,7 +1060,7 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
         bytes += VARSTR_HEADER_SIZE;
       }
 
-      pField->bytes = (int16_t)bytes;
+      pField->bytes = (uint16_t)bytes;
     }
   } else {
     if (type->type > 0) {

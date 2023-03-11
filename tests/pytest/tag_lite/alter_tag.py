@@ -43,9 +43,9 @@ class TDTestCase:
         tdSql.checkData(0, 6, None)
         tdSql.checkData(1, 6, 'test')
 
-        # Test case for: https://jira.taosdata.com:18080/browse/TD-2423 
+        # Test case for: https://jira.taosdata.com:18080/browse/TD-2423
         tdSql.execute("create table stb(ts timestamp, col1 int, col2 nchar(20)) tags(tg1 int, tg2 binary(20), tg3 nchar(25))")
-        tdSql.execute("insert into tb1 using stb(tg1, tg3) tags(1, 'test1') values(now, 1, 'test1')")        
+        tdSql.execute("insert into tb1 using stb(tg1, tg3) tags(1, 'test1') values(now, 1, 'test1')")
         tdSql.query("select *, tg1, tg2, tg3 from tb1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 3, 1)
@@ -61,7 +61,7 @@ class TDTestCase:
 
         #Test case for TS-1285
         tdSql.execute("create table stb2(ts timestamp, c1 int) tags(t1 timestamp)")
-        tdSql.execute("insert into tb3 using stb2 tags('2022-01-01 18:26:50.224') values(now, 1)")        
+        tdSql.execute("insert into tb3 using stb2 tags('2022-01-01 18:26:50.224') values(now, 1)")
         tdSql.execute("alter table tb3 set tag t1='2022-03-03 18:26:50.224'")
         tdSql.query("select * from stb2")
         tdSql.checkData(0, 2, "2022-03-03 18:26:50.224")

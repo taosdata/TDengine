@@ -83,10 +83,10 @@ struct SSchema;
 #define TSDB_FUNC_SCALAR_NAME_MAX_LEN 16
 
 typedef struct {
-  int16_t type;
-  int16_t bytes;
-  int32_t numOfRows;
-  char* data;
+  int16_t  type;
+  uint16_t bytes;
+  int32_t  numOfRows;
+  char    *data;
 } tExprOperandInfo;
 
 typedef void (*_expr_scalar_function_t)(int16_t functionId, tExprOperandInfo* pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order);
@@ -149,9 +149,9 @@ typedef struct tExprNode {
 
     TAOS_FIELD        *pType;
   };
-  int16_t resultType;
-  int16_t resultBytes;
-  int32_t precision;
+  int16_t  resultType;
+  uint16_t resultBytes;
+  int32_t  precision;
 } tExprNode;
 
 typedef struct SExprTraverseSupp {

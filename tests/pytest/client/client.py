@@ -28,8 +28,8 @@ class TDTestCase:
         tdSql.prepare()
 
         ret = tdSql.query('select database()')
-        tdSql.checkData(0, 0, "db")        
-        
+        tdSql.checkData(0, 0, "db")
+
         ret = tdSql.query('select server_status()')
         tdSql.checkData(0, 0, 1)
 
@@ -59,10 +59,10 @@ class TDTestCase:
         if create_time-time_delta < role_time < create_time+time_delta:
             tdLog.info("role_time {} and create_time {} expected within range".format(role_time, create_time))
         else:
-            tdLog.exit("role_time {} and create_time {} not expected within range".format(role_time, create_time))    
+            tdLog.exit("role_time {} and create_time {} not expected within range".format(role_time, create_time))
 
         ret = tdSql.query('show vgroups')
-        tdSql.checkRows(0)        
+        tdSql.checkRows(0)
 
         tdSql.execute('create stable st (ts timestamp, f int) tags(t int)')
         tdSql.execute('create table ct1 using st tags(1)');
@@ -74,8 +74,8 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(0, 1, "leader")
-        
-        cmd = "taos -h 127.0.0.1 -s 'show databases'"        
+
+        cmd = "taos -h 127.0.0.1 -s 'show databases'"
         r = os.popen(cmd)
         text = r.read()
         r.close

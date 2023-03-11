@@ -222,7 +222,7 @@ static void resetSlotInfo(tMemBucket* pBucket) {
   }
 }
 
-tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval, double maxval) {
+tMemBucket *tMemBucketCreate(uint16_t nElemSize, int16_t dataType, double minval, double maxval) {
   tMemBucket *pBucket = (tMemBucket *)calloc(1, sizeof(tMemBucket));
   if (pBucket == NULL) {
     return NULL;
@@ -267,8 +267,8 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
     tMemBucketDestroy(pBucket);
     return NULL;
   }
-  
-  qDebug("MemBucket:%p, elem size:%d", pBucket, pBucket->bytes);
+
+  qDebug("MemBucket:%p, elem size:%" PRIu16, pBucket, pBucket->bytes);
   return pBucket;
 }
 

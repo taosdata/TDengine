@@ -27,6 +27,27 @@ extern "C" {
   monSaveDnodeLog(level, __VA_ARGS__); \
 }
 
+typedef enum {
+  // create
+  MON_DDL_CMD_CREATE_DATABASE,
+  MON_DDL_CMD_CREATE_TABLE,
+  MON_DDL_CMD_CREATE_CHILD_TABLE,
+  MON_DDL_CMD_CREATE_SUPER_TABLE,
+  // drop
+  MON_DDL_CMD_DROP_DATABASE,
+  MON_DDL_CMD_DROP_TABLE,
+  MON_DDL_CMD_DROP_CHILD_TABLE,
+  MON_DDL_CMD_DROP_SUPER_TABLE,
+  // alter
+  MON_DDL_CMD_ALTER_DATABASE,
+  MON_DDL_CMD_ADD_COLUMN,
+  MON_DDL_CMD_DROP_COLUMN,
+  MON_DDL_CMD_MODIFY_COLUMN,
+  MON_DDL_CMD_ADD_TAG,
+  MON_DDL_CMD_DROP_TAG,
+  MON_DDL_CMD_CHANGE_TAG,
+} EMonDDLCmdType;
+
 typedef struct {
   const char * name;
   int32_t code;
@@ -62,6 +83,7 @@ int32_t monInitSystem();
 int32_t monStartSystem();
 void    monStopSystem();
 void    monCleanupSystem();
+void    monSaveAuditLog(int8_t type, const char *user, const char *obj, bool result);
 void    monSaveAcctLog(SAcctMonitorObj *pMonObj);
 void    monSaveLog(int32_t level, const char *const format, ...);
 void    monSaveDnodeLog(int32_t level, const char *const format, ...);

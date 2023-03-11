@@ -30,7 +30,7 @@ static void destroyLuaEnv(lua_State *state);
 
 static void destroyScriptEnv(ScriptEnv *pEnv);
 
-static void luaValueToTaosType(lua_State *lua, char *interBuf, int32_t *numOfOutput, int16_t oType, int16_t oBytes);
+static void luaValueToTaosType(lua_State *lua, char *interBuf, int32_t *numOfOutput, int16_t oType, uint16_t oBytes);
 static void taosValueToLuaType(lua_State *lua, int32_t type, char *val);
 
 static bool hasBaseFuncDefinedInScript(lua_State *lua, const char *funcPrefix, int32_t len);
@@ -106,8 +106,8 @@ int taosLoadScriptInit(void* pInit) {
   lua_setglobal(lua, "global"); 
   return 0;
 }
-void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iBytes, int32_t numOfRows, 
-    int64_t *ptsList, int64_t key, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, int16_t oBytes) { 
+void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, uint16_t iBytes, int32_t numOfRows, 
+    int64_t *ptsList, int64_t key, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, uint16_t oBytes) { 
   ScriptCtx* pCtx = pInit;
   char funcName[MAX_FUNC_NAME+1] = {0}; // one-more-space-for-null-terminator
   int n = snprintf(funcName, sizeof(funcName), "%s_add", pCtx->funcName);
@@ -210,7 +210,7 @@ void taosLoadScriptDestroy(void *pInit) {
   destroyScriptCtx(pInit);
 }
 
-ScriptCtx* createScriptCtx(char *script, int8_t resType, int16_t resBytes) {
+ScriptCtx* createScriptCtx(char *script, int8_t resType, uint16_t resBytes) {
   ScriptCtx *pCtx = (ScriptCtx *)calloc(1, sizeof(ScriptCtx)); 
   pCtx->state = SCRIPT_STATE_INIT; 
   pCtx->pEnv  = getScriptEnvFromPool();  //  
@@ -248,7 +248,7 @@ void destroyScriptCtx(void *pCtx) {
   free(pCtx);
 }
 
-void luaValueToTaosType(lua_State *lua, char *interBuf, int32_t *numOfOutput, int16_t oType, int16_t oBytes) {
+void luaValueToTaosType(lua_State *lua, char *interBuf, int32_t *numOfOutput, int16_t oType, uint16_t oBytes) {
   int t = lua_type(lua,-1); 
   int32_t sz = 0;
   switch (t) {

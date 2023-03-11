@@ -50,8 +50,8 @@ class TDTestCase:
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
-    
-    
+
+
 
     def run(self):
 

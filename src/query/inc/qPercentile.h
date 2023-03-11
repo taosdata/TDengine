@@ -54,7 +54,7 @@ typedef int32_t (*__perc_hash_func_t)(struct tMemBucket *pBucket, const void *va
 typedef struct tMemBucket {
   int16_t       numOfSlots;
   int16_t       type;
-  int16_t       bytes;
+  uint16_t      bytes;
   int32_t       total;
   int32_t       elemPerPage;  // number of elements for each object
   int32_t       maxCapacity;  // maximum allowed number of elements that can be sort directly to get the result
@@ -68,7 +68,7 @@ typedef struct tMemBucket {
   __perc_hash_func_t   hashFunc;
 } tMemBucket;
 
-tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval, double maxval);
+tMemBucket *tMemBucketCreate(uint16_t nElemSize, int16_t dataType, double minval, double maxval);
 
 void tMemBucketDestroy(tMemBucket *pBucket);
 

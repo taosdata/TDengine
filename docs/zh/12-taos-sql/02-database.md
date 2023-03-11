@@ -20,20 +20,20 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
 3. 数据库名最大长度为 33；
 4. 一条 SQL 语句的最大长度为 65480 个字符；
 5. 创建数据库时可用的参数有：
-   - cache: [详细说明](/reference/config/#cache)
-   - blocks: [详细说明](/reference/config/#blocks)
-   - days: [详细说明](/reference/config/#days)
-   - keep: [详细说明](/reference/config/#keep)
-   - minRows: [详细说明](/reference/config/#minrows)
-   - maxRows: [详细说明](/reference/config/#maxrows)
-   - wal: [详细说明](/reference/config/#wallevel)
-   - fsync: [详细说明](/reference/config/#fsync)
-   - update: [详细说明](/reference/config/#update)
-   - cacheLast: [详细说明](/reference/config/#cachelast)
-   - replica: [详细说明](/reference/config/#replica)
-   - quorum: [详细说明](/reference/config/#quorum)
-   - comp: [详细说明](/reference/config/#comp)
-   - precision: [详细说明](/reference/config/#precision)
+   - cache: [详细说明](../../reference/config/#cache)
+   - blocks: [详细说明](../../reference/config/#blocks)
+   - days: [详细说明](../../reference/config/#days)
+   - keep: [详细说明](../../reference/config/#keep)
+   - minRows: [详细说明](../../reference/config/#minrows)
+   - maxRows: [详细说明](../../reference/config/#maxrows)
+   - wal: [详细说明](../../reference/config/#wallevel)
+   - fsync: [详细说明](../../reference/config/#fsync)
+   - update: [详细说明](../../reference/config/#update)
+   - cacheLast: [详细说明](../../reference/config/#cachelast)
+   - replica: [详细说明](../../reference/config/#replica)
+   - quorum: [详细说明](../../reference/config/#quorum)
+   - comp: [详细说明](../../reference/config/#comp)
+   - precision: [详细说明](../../reference/config/#precision)
 6. 请注意上面列出的所有参数都可以配置在配置文件 `taosd.cfg` 中作为创建数据库时使用的默认配置， `create database` 的参数中明确指定的会覆盖配置文件中的设置。
 
 :::
@@ -86,7 +86,7 @@ REPLICA 参数是指修改数据库副本数，取值范围 [1, 3]。在集群�
 ALTER DATABASE db_name KEEP 365;
 ```
 
-KEEP 参数是指修改数据文件保存的天数，缺省值为 3650，取值范围 [days, 365000]，必须大于或等于 days 参数值。
+KEEP 参数是指修改数据文件保存的天数，缺省值为 3650，取值范围 [days, 36500]，必须大于或等于 days 参数值。
 
 ```
 ALTER DATABASE db_name QUORUM 2;
