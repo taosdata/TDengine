@@ -25,13 +25,6 @@
 extern "C" {
 #endif
 
-// TODO remove it
-enum {
-  TMQ_CONF__RESET_OFFSET__NONE = -3,
-  TMQ_CONF__RESET_OFFSET__EARLIEAST = -2,
-  TMQ_CONF__RESET_OFFSET__LATEST = -1,
-};
-
 // clang-format off
 #define IS_META_MSG(x) ( \
      x == TDMT_VND_CREATE_STB     \
