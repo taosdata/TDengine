@@ -122,7 +122,7 @@ class TDTestQuery(TDCase):
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)
-                        #self.tdCreateData.explain_sql(sql2)#放到一起下面的sql过不去
+                        self.tdCreateData.explain_sql(sql2)#放到一起下面的sql过不去
                         sql= sql + sql2
                         
                         sql2 = "select %s from %s where  %s %s %s ;" %(func_0,self.table,qt_where,qt_like_match,qt_in_where) 
@@ -135,7 +135,7 @@ class TDTestQuery(TDCase):
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)
-                        #self.tdCreateData.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select * from (select %s from %s where %s %s %s );" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
@@ -149,7 +149,7 @@ class TDTestQuery(TDCase):
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)
-                        #self.tdCreateData.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where %s %s %s ;" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
