@@ -460,6 +460,8 @@ static int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
 
     // update the offset value.
     pVg->committedOffset = pVg->currentOffset;
+    tscDebug("consumer:0x%" PRIx64 " subKey:%s vgId:%d, commit offset success. ordinal:%d/%d", pTmq->consumerId,
+             pParam->pOffset->subKey, pParam->vgId, index + 1, numOfVgroups);
   }
 
   taosThreadMutexUnlock(&pParam->pTmq->lock);
