@@ -307,9 +307,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     }
 
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
-    groupId = calcGroupId(pInfo->keyBuf, len);
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
-                                          len, groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
+                                          len, pBlock->info.id.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
     }
@@ -326,9 +325,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
   if (num > 0) {
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
-    groupId = calcGroupId(pInfo->keyBuf, len);
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
-                                          len, groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
+                                          len, pBlock->info.id.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
     }
