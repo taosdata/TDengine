@@ -274,7 +274,7 @@ function run_thread() {
         # echo "$thread_no ${line} DONE"
         if [ $ret -eq 0 ]; then
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[32m success\e[0m"
-            flock -x $lock_file -c "echo \" ${case_info},success,${total_time}\" >>${success_case_file}"
+            flock -x $lock_file -c "echo \"${case_info}|success|${total_time}\" >>${success_case_file}"
         else
             if [ ! -z ${web_server} ]; then
                 flock -x $lock_file -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$test_log_dir/${case_file}.txt\" >>${failed_case_file}"
