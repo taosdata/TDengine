@@ -80,7 +80,6 @@ RET=$?
 echo "cmd exit code: $RET"
 md5sum /usr/lib/libtaos.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaos.so
-pip3 install taospy==2.7.3
 
 
 if [ $RET -ne 0 ]; then
