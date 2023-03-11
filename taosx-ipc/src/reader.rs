@@ -16,7 +16,7 @@ use taos_query::prelude::{ColumnView, Ty, Value};
 
 use crate::{
     ack::AckType,
-    constants::{__ATTRS__, __RECORDS__, __TABLE_NAME__},
+    constants::{__ATTRS__, __RECORDS__, __TABLE_NAME__, __TABLES__INDEX__},
     prelude::{IpcMetadata, LushMessageType},
 };
 
@@ -66,6 +66,12 @@ impl<R: Read> IpcReader<R> {
 
     pub fn ack(&self) -> AckType {
         self.metadata.ack()
+    }
+
+    fn parse_tables(&self, data: Arc<dyn Array>) -> Result<RecordBatch, ArrowError> {
+        let fields = data.as_any().downcast_ref::<ListArray>();
+
+        todo!()
     }
 }
 
@@ -591,6 +597,11 @@ impl LushMessageInsert {
 
     }
 }
+
+pub struct LushMessageTables {
+    tables: RecordBatch,
+}
+
 impl<R: Read> Iterator for IpcReader<R> {
     type Item = Result<Vec<LushMessageInsert>, ArrowError>;
 
@@ -606,7 +617,12 @@ impl<R: Read> Iterator for IpcReader<R> {
             let v: LushMessageType = unsafe { std::mem::transmute(v.value(0)) };
             match v {
                 LushMessageType::Table => todo!(),
-                LushMessageType::Children => todo!(),
+                LushMessageType::Children => {
+                    let tables = record.column(__TABLES__INDEX__);
+                    for i in 0..tables.len() {
+                        let tables = tables.slice(i, 1);
+                    }
+                }
                 LushMessageType::Insert => {
                     let attrs = record.column_by_name(__ATTRS__).unwrap();
                     let values = record.column_by_name(__RECORDS__).unwrap();

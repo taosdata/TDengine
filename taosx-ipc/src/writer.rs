@@ -380,6 +380,15 @@ impl IpcField {
             self.nullable,
         )
     }
+    pub fn to_arrow_field_with_dict(&self, dict_id: i64, dict_is_ordered: bool) -> Field {
+        Field::new_dict(
+            self.name.as_str(),
+            self.arrow_data_type.clone(),
+            self.nullable,
+            dict_id,
+            dict_is_ordered,
+        )
+    }
 }
 
 pub struct LushInsertBuilder<'a> {
@@ -731,8 +740,18 @@ impl LushMessageBuilder {
     }
 
     fn table_fields(&self) -> Vec<Field> {
-        let mut table_fields = vec![Field::new("__name__", DataType::Binary, true)];
-        table_fields.extend(self.tags.iter().map(IpcField::to_arrow_field));
+        let mut table_fields = vec![Field::new_dict(
+            "__name__",
+            DataType::Binary,
+            true,
+            1,
+            false,
+        )];
+        table_fields.extend(
+            self.tags
+                .iter()
+                .map(|f| f.to_arrow_field_with_dict(1, false)),
+        );
         table_fields
     }
 
