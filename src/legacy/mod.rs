@@ -1,5 +1,7 @@
 use std::{
     fmt::{Debug, Display},
+    io::Write,
+    path::{Path, PathBuf},
     str::FromStr,
     sync::{
         atomic::{AtomicU16, AtomicU32, AtomicU64, AtomicUsize, Ordering},
@@ -12,7 +14,10 @@ use anyhow::{bail, Context};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use taos::*;
-use tokio::sync::Semaphore;
+use tokio::{
+    fs::File,
+    sync::{Mutex, Semaphore},
+};
 
 use crate::{legacy::tasks::TablesHandle, utils::is_available_enterprise_edition, Action};
 
@@ -676,15 +681,39 @@ async fn sync_tables_only(
     let v1: String = from.query_one("SELECT server_version()").await?.unwrap();
     let v2: String = to.query_one("SELECT server_version()").await?.unwrap();
     let to_is_v3 = v2.starts_with('3');
+    let mut count = 0;
     if v1.starts_with('2') {
         let mut res = from.query("SHOW TABLES").await?;
         let tables: Vec<TableRecord> = res.deserialize().try_collect().await?;
         log::info!("There're {} tables to synchronize", tables.len());
         drop(res);
+        let total = tables.len();
         for row in tables {
-            sync_single_table(from, &row.table_name, to, &opts, &target_opts, to_is_v3)
-                .await
-                .map_err(Error::Any)?;
+            let sync_ok =
+                sync_single_table(from, &row.table_name, to, &opts, &target_opts, to_is_v3).await;
+            match sync_ok {
+                Ok(_) => {
+                    count += 1;
+                    log::info!(
+                        "synchronized {:.2}% of tables ({count} of {total})",
+                        count as f64 * 100.0 / total as f64,
+                    )
+                }
+                Err(err) => {
+                    log::error!(
+                        "synchronized table {} failed because: {}",
+                        row.table_name.as_str(),
+                        err
+                    );
+                    if let Some(path) = target_opts.fails_to.as_ref() {
+                        path.lock()
+                            .await
+                            .write_fmt(format_args!("{}\n", row.table_name.as_str()))?;
+                    } else {
+                        Err(err)?
+                    }
+                }
+            }
         }
     } else {
         //  get normal tables.
@@ -693,18 +722,36 @@ async fn sync_tables_only(
         log::info!("There're {} tables to synchronize", tables.len());
         drop(res);
 
-        let mut count = 0;
         for table in &tables {
-            sync_single_table(from, table.as_str(), to, &opts, &target_opts, to_is_v3)
-                .await
-                .map_err(Error::Any)?;
-            count += 1;
-            log::info!(
-                "synchronized {:.2}% of tables ({} of {})",
-                count as f64 * 100.0 / tables.len() as f64,
-                count,
-                tables.len(),
-            )
+            let sync_ok =
+                sync_single_table(from, table.as_str(), to, &opts, &target_opts, to_is_v3)
+                    .await
+                    .map_err(Error::Any);
+            match sync_ok {
+                Ok(_) => {
+                    count += 1;
+                    log::info!(
+                        "synchronized {:.2}% of tables ({} of {})",
+                        count as f64 * 100.0 / tables.len() as f64,
+                        count,
+                        tables.len(),
+                    )
+                }
+                Err(err) => {
+                    log::error!(
+                        "synchronized table {} failed because: {}",
+                        table.as_str(),
+                        err
+                    );
+                    if let Some(path) = target_opts.fails_to.as_ref() {
+                        path.lock()
+                            .await
+                            .write_fmt(format_args!("{}\n", table.as_str()))?;
+                    } else {
+                        Err(err)?
+                    }
+                }
+            }
         }
     }
     Ok(())
@@ -778,17 +825,39 @@ async fn sync_tables_only_with_workers(
         // let chunk = chunk.collect_vec();
         join_handles.push(tokio::spawn(async move {
             for table in chunk {
-                sync_single_table(&from, table.as_str(), &to, &opts, &target_opts, to_is_v3)
-                    .await
-                    .map_err(Error::Any)?;
-                let count = count.fetch_add(1, Ordering::SeqCst);
-                if count % dot == 0 {
-                    log::info!(
-                        "[{id}] synchronized {:.2}% of tables ({} of {})",
-                        count as f64 * 100.0 / total_tables as f64,
-                        count,
-                        total_tables,
-                    )
+                let sync_ok =
+                    sync_single_table(&from, table.as_str(), &to, &opts, &target_opts, to_is_v3)
+                        .await
+                        .map_err(Error::Any);
+
+                match sync_ok {
+                    Ok(_) => {
+                        let count = count.fetch_add(1, Ordering::SeqCst);
+                        if count % dot == 0 {
+                            log::info!(
+                                "[{id}] synchronized {:.2}% of tables ({} of {})",
+                                count as f64 * 100.0 / total_tables as f64,
+                                count,
+                                total_tables,
+                            )
+                        }
+                    }
+                    Err(err) => {
+                        log::error!(
+                            "synchronized table {} failed because: {}",
+                            table.as_str(),
+                            err
+                        );
+                        if let Some(path) = target_opts.fails_to.as_ref() {
+                            path.lock().await.write_fmt(format_args!(
+                                "{}\t{}\n",
+                                table.as_str(),
+                                err
+                            ))?;
+                        } else {
+                            Err(err)?
+                        }
+                    }
                 }
             }
             drop(permit);
@@ -944,6 +1013,7 @@ pub struct TargetOpts {
     interval: Option<Duration>,
     max_sql_length: Option<usize>,
     force_stmt: bool,
+    fails_to: Option<Arc<Mutex<std::fs::File>>>,
 }
 
 impl TargetOpts {
@@ -987,6 +1057,12 @@ impl TargetOpts {
         }
         if let Some(_) = dsn.remove("force-stmt") {
             opts.force_stmt = true;
+        }
+        if let Some(value) = dsn.remove("fails-to") {
+            let value = Path::new(&value);
+            let file = std::fs::File::create(&value)?;
+
+            opts.fails_to.replace(Arc::new(Mutex::new(file)));
         }
         Ok(opts)
     }
