@@ -1940,6 +1940,7 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
   }
 
   if (pInfo->algo != APERCT_ALGO_TDIGEST) {
+    buildHistogramInfo(pInfo);
     qDebug("%s after merge, total:%" PRId64 ", numOfEntry:%d, %p", __FUNCTION__, pInfo->pHisto->numOfElems,
            pInfo->pHisto->numOfEntries, pInfo->pHisto);
   }
@@ -2461,6 +2462,9 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
   int32_t numOfElems = 0;
 
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pCol, i)) {
+      continue;
+    }
     char*          data = colDataGetData(pCol, i);
     SFirstLastRes* pInputInfo = (SFirstLastRes*)varDataVal(data);
     int32_t        code = firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery, i);
@@ -5439,8 +5443,6 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
     pDistInfo->maxRows = p1.maxRows;
   }
   pDistInfo->numOfVgroups += (p1.numOfTables != 0 ? 1 : 0);
-
-  pDistInfo->numOfVgroups += (p1.numOfTables != 0 ? 1 : 0);
   for (int32_t i = 0; i < tListLen(pDistInfo->blockRowsHisto); ++i) {
     pDistInfo->blockRowsHisto[i] += p1.blockRowsHisto[i];
   }
@@ -5581,7 +5583,7 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t bucketRange = (pData->defMaxRows - pData->defMinRows) / numOfBuckets;
 
   for (int32_t i = 0; i < tListLen(pData->blockRowsHisto); ++i) {
-    len = sprintf(st + VARSTR_HEADER_SIZE, "%04d |", pData->defMinRows + bucketRange * i);
+    len = sprintf(st + VARSTR_HEADER_SIZE, "%04d |", pData->defMinRows + bucketRange * (i + 1));
 
     int32_t num = 0;
     if (pData->blockRowsHisto[i] > 0) {

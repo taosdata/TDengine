@@ -50,6 +50,7 @@ extern int32_t tsTagFilterResCacheSize;
 // queue & threads
 extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
+extern int32_t tsTimeToGetAvailableConn;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
 extern int32_t tsNumOfMnodeQueryThreads;
@@ -72,6 +73,10 @@ extern int32_t tsHeartbeatTimeout;
 
 // vnode
 extern int64_t tsVndCommitMaxIntervalMs;
+
+// mnode
+extern int64_t tsMndSdbWriteDelta;
+extern int64_t tsMndLogRetention;
 
 // monitor
 extern bool     tsEnableMonitor;

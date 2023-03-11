@@ -41,7 +41,8 @@ bool    tsPrintAuth = false;
 
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
-int32_t tsNumOfRpcSessions = 2000;
+int32_t tsNumOfRpcSessions = 10000;
+int32_t tsTimeToGetAvailableConn = 500000;
 int32_t tsNumOfCommitThreads = 2;
 int32_t tsNumOfTaskQueueThreads = 4;
 int32_t tsNumOfMnodeQueryThreads = 4;
@@ -55,6 +56,7 @@ int32_t tsNumOfQnodeQueryThreads = 4;
 int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeStreamThreads = 4;
 int32_t tsNumOfSnodeWriteThreads = 1;
+
 // sync raft
 int32_t tsElectInterval = 25 * 1000;
 int32_t tsHeartbeatInterval = 1000;
@@ -62,6 +64,10 @@ int32_t tsHeartbeatTimeout = 20 * 1000;
 
 // vnode
 int64_t tsVndCommitMaxIntervalMs = 600 * 1000;
+
+// mnode
+int64_t tsMndSdbWriteDelta = 200;
+int64_t tsMndLogRetention = 2000;
 
 // monitor
 bool     tsEnableMonitor = true;
@@ -326,6 +332,16 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, true) != 0) return -1;
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, true) != 0) return -1;
 
+  tsNumOfRpcThreads = tsNumOfCores / 2;
+  tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
+  if (cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, 0) != 0) return -1;
+
+  tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 100000);
+  if (cfgAddInt32(pCfg, "numOfRpcSessions", tsNumOfRpcSessions, 1, 100000, 0) != 0) return -1;
+
+  tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 10000000);
+  if (cfgAddInt32(pCfg, "timeToGetAvailableConn", tsTimeToGetAvailableConn, 20, 1000000, 0) != 0) return -1;
+
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
   if (tsNumOfTaskQueueThreads >= 10) {
@@ -397,6 +413,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
   if (cfgAddInt32(pCfg, "numOfRpcSessions", tsNumOfRpcSessions, 1, 100000, 0) != 0) return -1;
 
+  tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 1000000);
+  if (cfgAddInt32(pCfg, "timeToGetAvailableConn", tsNumOfRpcSessions, 20, 1000000, 0) != 0) return -1;
+
   tsNumOfCommitThreads = tsNumOfCores / 2;
   tsNumOfCommitThreads = TRANGE(tsNumOfCommitThreads, 2, 4);
   if (cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, 0) != 0) return -1;
@@ -445,6 +464,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "syncHeartbeatTimeout", tsHeartbeatTimeout, 10, 1000 * 60 * 24 * 2, 0) != 0) return -1;
 
   if (cfgAddInt64(pCfg, "vndCommitMaxInterval", tsVndCommitMaxIntervalMs, 1000, 1000 * 60 * 60, 0) != 0) return -1;
+
+  if (cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, 0) != 0) return -1;
+  if (cfgAddInt64(pCfg, "mndLogRetention", tsMndLogRetention, 500, 10000, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 200000, 0) != 0) return -1;
@@ -511,9 +533,15 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
 
   pItem = cfgGetItem(tsCfg, "numOfRpcSessions");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfRpcSessions = 2000;
     tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 10000);
     pItem->i32 = tsNumOfRpcSessions;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(tsCfg, "timeToGetAvailableConn");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    tsTimeToGetAvailableConn = TRANGE(tsTimeToGetAvailableConn, 20, 1000000);
+    pItem->i32 = tsTimeToGetAvailableConn;
     pItem->stype = stype;
   }
 
@@ -698,6 +726,11 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
 
   tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
+
+  tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;
+  tsNumOfRpcSessions = cfgGetItem(pCfg, "numOfRpcSessions")->i32;
+
+  tsTimeToGetAvailableConn = cfgGetItem(pCfg, "timeToGetAvailableConn")->i32;
   return 0;
 }
 
@@ -735,6 +768,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;
   tsNumOfRpcSessions = cfgGetItem(pCfg, "numOfRpcSessions")->i32;
+  tsTimeToGetAvailableConn = cfgGetItem(pCfg, "timeToGetAvailableConn")->i32;
+
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   tsNumOfMnodeReadThreads = cfgGetItem(pCfg, "numOfMnodeReadThreads")->i32;
   tsNumOfVnodeQueryThreads = cfgGetItem(pCfg, "numOfVnodeQueryThreads")->i32;
@@ -742,7 +777,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
   tsNumOfVnodeRsmaThreads = cfgGetItem(pCfg, "numOfVnodeRsmaThreads")->i32;
   tsNumOfQnodeQueryThreads = cfgGetItem(pCfg, "numOfQnodeQueryThreads")->i32;
-  //  tsNumOfQnodeFetchThreads = cfgGetItem(pCfg, "numOfQnodeFetchThreads")->i32;
+  //  tsNumOfQnodeFetchThreads = cfgGetItem(pCfg, "numOfQnodeFetchTereads")->i32;
   tsNumOfSnodeStreamThreads = cfgGetItem(pCfg, "numOfSnodeSharedThreads")->i32;
   tsNumOfSnodeWriteThreads = cfgGetItem(pCfg, "numOfSnodeUniqueThreads")->i32;
   tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
@@ -778,6 +813,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsHeartbeatTimeout = cfgGetItem(pCfg, "syncHeartbeatTimeout")->i32;
 
   tsVndCommitMaxIntervalMs = cfgGetItem(pCfg, "vndCommitMaxInterval")->i64;
+
+  tsMndSdbWriteDelta = cfgGetItem(pCfg, "mndSdbWriteDelta")->i64;
+  tsMndLogRetention = cfgGetItem(pCfg, "mndLogRetention")->i64;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));
@@ -1216,6 +1254,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32, false);
 
   if (taosMulModeMkDir(tsLogDir, 0777) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to create dir:%s since %s", tsLogDir, terrstr());
     cfgCleanup(pCfg);
     return -1;

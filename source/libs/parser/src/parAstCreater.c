@@ -1105,7 +1105,7 @@ SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, int32_t 
   return (SNode*)pStmt;
 }
 
-SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkDbName(pCxt, pDbName, false)) {
     return NULL;
@@ -1113,6 +1113,8 @@ SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   SCompactDatabaseStmt* pStmt = (SCompactDatabaseStmt*)nodesMakeNode(QUERY_NODE_COMPACT_DATABASE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  pStmt->pStart = pStart;
+  pStmt->pEnd = pEnd;
   return (SNode*)pStmt;
 }
 
@@ -1779,11 +1781,27 @@ SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt) {
   return pStmt;
 }
 
+static int32_t convertUdfLanguageType(SAstCreateContext* pCxt, const SToken* pLanguageToken, int8_t* pLanguage) {
+  if (TK_NK_NIL == pLanguageToken->type || 0 == strncasecmp(pLanguageToken->z + 1, "c", pLanguageToken->n - 2)) {
+    *pLanguage = TSDB_FUNC_SCRIPT_BIN_LIB;
+  } else if (0 == strncasecmp(pLanguageToken->z + 1, "python", pLanguageToken->n - 2)) {
+    *pLanguage = TSDB_FUNC_SCRIPT_PYTHON;
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "udf programming language supports c and python");
+  }
+  return pCxt->errCode;
+}
+
 SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool aggFunc, const SToken* pFuncName,
-                                const SToken* pLibPath, SDataType dataType, int32_t bufSize) {
+                                const SToken* pLibPath, SDataType dataType, int32_t bufSize, const SToken* pLanguage) {
   CHECK_PARSER_STATUS(pCxt);
   if (pLibPath->n <= 2) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    return NULL;
+  }
+  int8_t language = 0;
+  if (TSDB_CODE_SUCCESS != convertUdfLanguageType(pCxt, pLanguage, &language)) {
     return NULL;
   }
   SCreateFunctionStmt* pStmt = (SCreateFunctionStmt*)nodesMakeNode(QUERY_NODE_CREATE_FUNCTION_STMT);
@@ -1794,6 +1812,7 @@ SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool
   COPY_STRING_FORM_STR_TOKEN(pStmt->libraryPath, pLibPath);
   pStmt->outputDt = dataType;
   pStmt->bufSize = bufSize;
+  pStmt->language = language;
   return (SNode*)pStmt;
 }
 
@@ -1810,11 +1829,64 @@ SNode* createStreamOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   SStreamOptions* pOptions = (SStreamOptions*)nodesMakeNode(QUERY_NODE_STREAM_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
-  pOptions->triggerType = STREAM_TRIGGER_AT_ONCE;
+  pOptions->triggerType = STREAM_TRIGGER_WINDOW_CLOSE;
   pOptions->fillHistory = STREAM_DEFAULT_FILL_HISTORY;
   pOptions->ignoreExpired = STREAM_DEFAULT_IGNORE_EXPIRED;
   pOptions->ignoreUpdate = STREAM_DEFAULT_IGNORE_UPDATE;
   return (SNode*)pOptions;
+}
+
+static int8_t getTriggerType(uint32_t tokenType) {
+  switch (tokenType) {
+    case TK_AT_ONCE:
+      return STREAM_TRIGGER_AT_ONCE;
+    case TK_WINDOW_CLOSE:
+      return STREAM_TRIGGER_WINDOW_CLOSE;
+    case TK_MAX_DELAY:
+      return STREAM_TRIGGER_MAX_DELAY;
+    default:
+      break;
+  }
+  return STREAM_TRIGGER_WINDOW_CLOSE;
+}
+
+SNode* setStreamOptions(SAstCreateContext* pCxt, SNode* pOptions, EStreamOptionsSetFlag setflag, SToken* pToken,
+                        SNode* pNode) {
+  SStreamOptions* pStreamOptions = (SStreamOptions*)pOptions;
+  if (BIT_FLAG_TEST_MASK(setflag, pStreamOptions->setFlag)) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "stream options each item is only set once");
+    return pOptions;
+  }
+
+  switch (setflag) {
+    case SOPT_TRIGGER_TYPE_SET:
+      pStreamOptions->triggerType = getTriggerType(pToken->type);
+      if (STREAM_TRIGGER_MAX_DELAY == pStreamOptions->triggerType) {
+        pStreamOptions->pDelay = pNode;
+      }
+      break;
+    case SOPT_WATERMARK_SET:
+      pStreamOptions->pWatermark = pNode;
+      break;
+    case SOPT_DELETE_MARK_SET:
+      pStreamOptions->pDeleteMark = pNode;
+      break;
+    case SOPT_FILL_HISTORY_SET:
+      pStreamOptions->fillHistory = taosStr2Int8(pToken->z, NULL, 10);
+      break;
+    case SOPT_IGNORE_EXPIRED_SET:
+      pStreamOptions->ignoreExpired = taosStr2Int8(pToken->z, NULL, 10);
+      break;
+    case SOPT_IGNORE_UPDATE_SET:
+      pStreamOptions->ignoreUpdate = taosStr2Int8(pToken->z, NULL, 10);
+      break;
+    default:
+      break;
+  }
+  BIT_FLAG_SET_MASK(pStreamOptions->setFlag, setflag);
+
+  return pOptions;
 }
 
 SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pStreamName, SNode* pRealTable,

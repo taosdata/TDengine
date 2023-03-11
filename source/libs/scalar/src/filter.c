@@ -1631,12 +1631,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
           SValueNode *var = (SValueNode *)field->desc;
           SDataType  *dType = &var->node.resType;
-          // if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {
-          //   qDebug("VAL%d => [type:TS][val:[%" PRIi64 "] - [%" PRId64 "]]", i, *(int64_t *)field->data,
-          //          *(((int64_t *)field->data) + 1));
-          // } else {
           qDebug("VAL%d => [type:%d][val:%" PRIx64 "]", i, dType->type, var->datum.i);  // TODO
-          //}
         } else if (field->data) {
           qDebug("VAL%d => [type:NIL][val:NIL]", i);  // TODO
         }
@@ -1956,18 +1951,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
 
       fi->data = taosMemoryCalloc(1, bytes);
     } else {
-      if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {  // TIME RANGE
-        /*
-                fi->data = taosMemoryCalloc(dType->bytes, tDataTypes[type].bytes);
-                for (int32_t a = 0; a < dType->bytes; ++a) {
-                  int64_t *v = taosArrayGet(var->arr, a);
-                  assignVal((char *)fi->data + a * tDataTypes[type].bytes, (char *)v, 0, type);
-                }
-        */
-        continue;
-      } else {
-        fi->data = taosMemoryCalloc(1, sizeof(int64_t));
-      }
+      fi->data = taosMemoryCalloc(1, sizeof(int64_t));
     }
 
     if (dType->type == type) {

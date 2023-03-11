@@ -53,12 +53,12 @@ extern "C" {
 #define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ",       DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ",       DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
 
-#define dGFatal(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ", gtid:%s", __VA_ARGS__, buf);}
-#define dGError(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ", gtid:%s", __VA_ARGS__, buf);}
-#define dGWarn(param, ...)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn (param ", gtid:%s", __VA_ARGS__, buf);}
-#define dGInfo(param, ...)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo (param ", gtid:%s", __VA_ARGS__, buf);}
-#define dGDebug(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ", gtid:%s", __VA_ARGS__, buf);}
-#define dGTrace(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ", gtid:%s", __VA_ARGS__, buf);}
+#define dGFatal(param, ...) {if (dDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ", gtid:%s", __VA_ARGS__, buf);}}
+#define dGError(param, ...) {if (dDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ", gtid:%s", __VA_ARGS__, buf);}}
+#define dGWarn(param, ...)  {if (dDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn(param ", gtid:%s", __VA_ARGS__, buf);}}
+#define dGInfo(param, ...)  {if (dDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo(param ", gtid:%s", __VA_ARGS__, buf);}}
+#define dGDebug(param, ...) {if (dDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ", gtid:%s", __VA_ARGS__, buf);}}
+#define dGTrace(param, ...) {if (dDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ", gtid:%s", __VA_ARGS__, buf);}}
 
 // clang-format on
 
@@ -166,6 +166,7 @@ int32_t dmReadEps(SDnodeData *pData);
 int32_t dmWriteEps(SDnodeData *pData);
 void    dmUpdateEps(SDnodeData *pData, SArray *pDnodeEps);
 void    dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
+void    dmRotateMnodeEpSet(SDnodeData *pData);
 void    dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
 bool    dmUpdateDnodeInfo(void *pData, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port);

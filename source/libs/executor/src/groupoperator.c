@@ -383,7 +383,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
       break;
     }
 
-    int32_t code = getTableScanInfo(pOperator, &order, &scanFlag);
+    int32_t code = getTableScanInfo(pOperator, &order, &scanFlag, false);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
@@ -996,14 +996,14 @@ void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp*
       memset(tbName, 0, TSDB_TABLE_NAME_LEN);
       int32_t len = 0;
       if (colDataIsNull_s(pTbCol, pDestBlock->info.rows - 1)) {
-        len = TMIN(sizeof(TSDB_DATA_NULL_STR), TSDB_TABLE_NAME_LEN - 1);
-        memcpy(tbName, TSDB_DATA_NULL_STR, len);
+        len = 1;
+        tbName[0] = 0;
       } else {
         void* pData = colDataGetData(pTbCol, pDestBlock->info.rows - 1);
         len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN - 1);
         memcpy(tbName, varDataVal(pData), len);
+        streamStatePutParName(pState, groupId, tbName);
       }
-      streamStatePutParName(pState, groupId, tbName);
       memcpy(pTmpBlock->info.parTbName, tbName, len);
       pDestBlock->info.rows--;
     } else {

@@ -29,7 +29,7 @@ taos -C
 taos --dump-config
 ```
 
-# Configuration Parameters
+## Configuration Parameters
 
 :::note
 The parameters described in this document by the effect that they have on the system.
@@ -83,7 +83,7 @@ The parameters described in this document by the effect that they have on the sy
 | :------- | :----------- | :----------------------------------------------- | :--------------------------------------------------------------------------------------------- |
 | TCP | 6030 | Communication between client and server. In a multi-node cluster, communication between nodes. serverPort |
 | TCP      | 6041         | REST connection between client and server        | Prior to 2.4.0.0: serverPort+11; After 2.4.0.0 refer to [taosAdapter](/reference/taosadapter/) |
-| TCP      | 6043         | Service Port of TaosKeeper                       | The parameter of TaosKeeper |
+| TCP      | 6043         | Service Port of taosKeeper                       | The parameter of taosKeeper |
 | TCP      | 6044         | Data access port for StatsD                      | Configurable through taosAdapter parameters.
 | UDP      | 6045         | Data access for statsd                           | Configurable through taosAdapter parameters.
 | TCP      | 6060         | Port of Monitoring Service in Enterprise version | |
@@ -599,7 +599,7 @@ The charset that takes effect is UTF-8.
 | Applicable | Client only                                           |
 | Meaning     | Whether schemaless columns are consistently ordered, depat, discarded since 3.0.3.0|
 | Value Range     | 0: not consistent; 1: consistent.            |
-| Default   | 1                             |
+| Default   | 0                             |
 
 ## Compress Parameters
 

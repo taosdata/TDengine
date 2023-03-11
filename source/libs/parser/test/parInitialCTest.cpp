@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <fstream>
+
 #include "parTestUtil.h"
 
 using namespace std;
@@ -22,12 +24,16 @@ namespace ParserTest {
 class ParserInitialCTest : public ParserDdlTest {};
 
 /*
- * COMPACT DATABASE db_name
+ * COMPACT DATABASE db_name [START WITH start_time] [END WITH END_time]
  */
 TEST_F(ParserInitialCTest, compact) {
   SCompactDbReq expect = {0};
 
-  auto setCompactDbReq = [&](const char* pDb) { snprintf(expect.db, sizeof(expect.db), "0.%s", pDb); };
+  auto setCompactDbReq = [&](const char* pDb, int64_t start = INT64_MIN, int64_t end = INT64_MAX) {
+    snprintf(expect.db, sizeof(expect.db), "0.%s", pDb);
+    expect.timeRange.skey = start;
+    expect.timeRange.ekey = end;
+  };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_COMPACT_DATABASE_STMT);
@@ -35,10 +41,21 @@ TEST_F(ParserInitialCTest, compact) {
     SCompactDbReq req = {0};
     ASSERT_EQ(tDeserializeSCompactDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(std::string(req.db), std::string(expect.db));
+    ASSERT_EQ(req.timeRange.skey, expect.timeRange.skey);
+    ASSERT_EQ(req.timeRange.ekey, expect.timeRange.ekey);
   });
 
-  setCompactDbReq("wxy_db");
-  run("COMPACT DATABASE wxy_db");
+  setCompactDbReq("test");
+  run("COMPACT DATABASE test");
+
+  setCompactDbReq("test", 1678168883000, 1678255283000);
+  run("COMPACT DATABASE test START WITH '2023-03-07 14:01:23' END WITH '2023-03-08 14:01:23'");
+
+  setCompactDbReq("testus", 1673071283000000000);
+  run("COMPACT DATABASE testus START WITH TIMESTAMP '2023-01-07 14:01:23'");
+
+  setCompactDbReq("testus", INT64_MIN, 1675749683000000000);
+  run("COMPACT DATABASE testus END WITH 1675749683000000000");
 }
 
 /*
@@ -381,7 +398,8 @@ TEST_F(ParserInitialCTest, createDnode) {
 }
 
 /*
- * CREATE [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name AS library_path OUTPUTTYPE type_name [BUFSIZE value]
+ * CREATE [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name
+ *   AS library_path OUTPUTTYPE type_name [BUFSIZE value] [LANGUAGE value]
  */
 TEST_F(ParserInitialCTest, createFunction) {
   useDb("root", "test");
@@ -389,12 +407,13 @@ TEST_F(ParserInitialCTest, createFunction) {
   SCreateFuncReq expect = {0};
 
   auto setCreateFuncReq = [&](const char* pUdfName, int8_t outputType, int32_t outputBytes = 0,
-                              int8_t funcType = TSDB_FUNC_TYPE_SCALAR, int8_t igExists = 0, int32_t bufSize = 0) {
+                              int8_t funcType = TSDB_FUNC_TYPE_SCALAR, int8_t igExists = 0, int32_t bufSize = 0,
+                              int8_t language = TSDB_FUNC_SCRIPT_BIN_LIB) {
     memset(&expect, 0, sizeof(SCreateFuncReq));
     strcpy(expect.name, pUdfName);
     expect.igExists = igExists;
     expect.funcType = funcType;
-    expect.scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
+    expect.scriptType = language;
     expect.outputType = outputType;
     expect.outputLen = outputBytes > 0 ? outputBytes : tDataTypes[outputType].bytes;
     expect.bufSize = bufSize;
@@ -412,13 +431,25 @@ TEST_F(ParserInitialCTest, createFunction) {
     ASSERT_EQ(req.outputType, expect.outputType);
     ASSERT_EQ(req.outputLen, expect.outputLen);
     ASSERT_EQ(req.bufSize, expect.bufSize);
+
+    tFreeSCreateFuncReq(&req);
   });
 
-  setCreateFuncReq("udf1", TSDB_DATA_TYPE_INT);
-  // run("CREATE FUNCTION udf1 AS './build/lib/libudf1.so' OUTPUTTYPE INT");
+  struct udfFile {
+    udfFile(const std::string& filename) : path_(filename) {
+      std::ofstream file(filename, std::ios::binary);
+      file << 123 << "abc" << '\n';
+      file.close();
+    }
+    ~udfFile() { remove(path_.c_str()); }
+    std::string path_;
+  } udffile("udf");
 
-  setCreateFuncReq("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8);
-  // run("CREATE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS './build/lib/libudf2.so' OUTPUTTYPE DOUBLE BUFSIZE 8");
+  setCreateFuncReq("udf1", TSDB_DATA_TYPE_INT);
+  run("CREATE FUNCTION udf1 AS 'udf' OUTPUTTYPE INT");
+
+  setCreateFuncReq("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8, TSDB_FUNC_SCRIPT_PYTHON);
+  run("CREATE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS 'udf' OUTPUTTYPE DOUBLE BUFSIZE 8 LANGUAGE 'python'");
 }
 
 /*
@@ -781,16 +812,10 @@ TEST_F(ParserInitialCTest, createStream) {
     snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
     expect.igExists = igExists;
     expect.sql = taosStrdup(pSql);
-    expect.createStb = STREAM_CREATE_STABLE_TRUE;
-    expect.triggerType = STREAM_TRIGGER_AT_ONCE;
-    expect.maxDelay = 0;
-    expect.watermark = 0;
-    expect.fillHistory = STREAM_DEFAULT_FILL_HISTORY;
-    expect.igExpired = STREAM_DEFAULT_IGNORE_EXPIRED;
   };
 
   auto setStreamOptions =
-      [&](int8_t createStb = STREAM_CREATE_STABLE_TRUE, int8_t triggerType = STREAM_TRIGGER_AT_ONCE,
+      [&](int8_t createStb = STREAM_CREATE_STABLE_TRUE, int8_t triggerType = STREAM_TRIGGER_WINDOW_CLOSE,
           int64_t maxDelay = 0, int64_t watermark = 0, int8_t igExpired = STREAM_DEFAULT_IGNORE_EXPIRED,
           int8_t fillHistory = STREAM_DEFAULT_FILL_HISTORY, int8_t igUpdate = STREAM_DEFAULT_IGNORE_UPDATE) {
         expect.createStb = createStb;
@@ -852,6 +877,7 @@ TEST_F(ParserInitialCTest, createStream) {
   });
 
   setCreateStreamReq("s1", "test", "create stream s1 into st3 as select count(*) from t1 interval(10s)", "st3");
+  setStreamOptions();
   run("CREATE STREAM s1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 
@@ -872,6 +898,7 @@ TEST_F(ParserInitialCTest, createStream) {
                      "st3");
   addTag("tname", TSDB_DATA_TYPE_VARCHAR, 10 + VARSTR_HEADER_SIZE);
   addTag("id", TSDB_DATA_TYPE_INT);
+  setStreamOptions();
   run("CREATE STREAM s1 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tname)) "
       "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 PARTITION BY TBNAME tname, tag1 id INTERVAL(10S)");
   clearCreateStreamReq();

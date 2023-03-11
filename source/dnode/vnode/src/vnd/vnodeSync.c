@@ -292,7 +292,7 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
 
     code = vnodePreProcessWriteMsg(pVnode, pMsg);
     if (code != 0) {
-      vGError("vgId:%d, msg:%p failed to pre-process since %s", vgId, pMsg, terrstr());
+      vGError("vgId:%d, msg:%p failed to pre-process since %s", vgId, pMsg, tstrerror(code));
       if (terrno != 0) code = terrno;
       vnodeHandleProposeError(pVnode, pMsg, code);
       rpcFreeCont(pMsg->pCont);

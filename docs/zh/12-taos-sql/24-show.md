@@ -86,10 +86,10 @@ SHOW FUNCTIONS;
 
 显示用户定义的自定义函数。
 
-## SHOW LICENSE
+## SHOW LICENCES
 
 ```sql
-SHOW LICENSE;
+SHOW LICENCES;
 SHOW GRANTS;
 ```
 
@@ -204,7 +204,7 @@ Compression_Ratio: 数据压缩率 23.98%
 
 _block_dist: Total_Rows=[20000] Inmem_Rows=[0] MinRows=[3616] MaxRows=[4096] Average_Rows=[4000]
 
-Total_Rows:  统计表 d0 的所有行数 为20000 行（该数值仅供参考，不是精确的行数。获得精确的行数需要使用 count 函数）
+Total_Rows:  统计表 d0 的存储在磁盘上行数 20000 行（该数值仅供参考，不是精确的行数。获得精确的行数需要使用 count 函数）
 
 Inmem_Rows： 存储在写缓存中的数据行数（没有落盘），0 行表示内存缓存中没有数据
 
@@ -303,7 +303,7 @@ SHOW DNODE dnode_id VARIABLES;
 SHOW [db_name.]VGROUPS;
 ```
 
-显示当前系统中所有 VGROUP 或某个 db 的 VGROUPS 的信息。
+显示当前数据库中所有 VGROUP 的信息。
 
 ## SHOW VNODES
 

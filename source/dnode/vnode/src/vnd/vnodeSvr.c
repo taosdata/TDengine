@@ -211,6 +211,11 @@ static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
   SDecoder *pCoder = &(SDecoder){0};
 
+  if (taosHton64(((SSubmitReq2Msg *)pMsg->pCont)->version) != 1) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   tDecoderInit(pCoder, (uint8_t *)pMsg->pCont + sizeof(SSubmitReq2Msg), pMsg->contLen - sizeof(SSubmitReq2Msg));
 
   if (tStartDecode(pCoder) < 0) {
@@ -586,6 +591,7 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
   pMetaRsp->precision = pVnode->config.tsdbCfg.precision;
 }
 
+extern int32_t vnodeAsyncRentention(SVnode *pVnode, int64_t now);
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t     code = 0;
   SVTrimDbReq trimReq = {0};
@@ -599,11 +605,9 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
   vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
 
   // process
-  code = tsdbDoRetention(pVnode->pTsdb, trimReq.timestamp);
-  if (code) goto _exit;
-
-  code = smaDoRetention(pVnode->pSma, trimReq.timestamp);
-  if (code) goto _exit;
+  vnodeAsyncRentention(pVnode, trimReq.timestamp);
+  tsem_wait(&pVnode->canCommit);
+  tsem_post(&pVnode->canCommit);
 
 _exit:
   return code;
@@ -628,14 +632,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *p
     tqUpdateTbUidList(pVnode->pTq, tbUids, false);
   }
 
-#if 0
-  // process
-  ret = tsdbDoRetention(pVnode->pTsdb, ttlReq.timestamp);
-  if (ret) goto end;
-
-  ret = smaDoRetention(pVnode->pSma, ttlReq.timestamp);
-  if (ret) goto end;
-#endif
+  vnodeAsyncRentention(pVnode, ttlReq.timestamp);
 
 end:
   taosArrayDestroy(tbUids);
@@ -1219,6 +1216,49 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
     tDecoderClear(&dc);
   }
 
+  // scan
+  TSKEY now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
+  TSKEY minKey = now - tsTickPerMin[pVnode->config.tsdbCfg.precision] * pVnode->config.tsdbCfg.keep2;
+  TSKEY maxKey = tsMaxKeyByPrecision[pVnode->config.tsdbCfg.precision];
+  for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
+    SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
+
+    if (pSubmitTbData->pCreateTbReq && pSubmitTbData->pCreateTbReq->uid == 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+
+    if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      if (TARRAY_SIZE(pSubmitTbData->aCol) <= 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+
+      SColData *pColData = (SColData *)taosArrayGet(pSubmitTbData->aCol, 0);
+      TSKEY    *aKey = (TSKEY *)(pColData->pData);
+
+      for (int32_t iRow = 0; iRow < pColData->nVal; iRow++) {
+        if (aKey[iRow] < minKey || aKey[iRow] > maxKey || (iRow > 0 && aKey[iRow] <= aKey[iRow - 1])) {
+          code = TSDB_CODE_INVALID_MSG;
+          vError("vgId:%d %s failed since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(terrno), version);
+          goto _exit;
+        }
+      }
+
+    } else {
+      int32_t nRow = TARRAY_SIZE(pSubmitTbData->aRowP);
+      SRow  **aRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
+
+      for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+        if (aRow[iRow]->ts < minKey || aRow[iRow]->ts > maxKey || (iRow > 0 && aRow[iRow]->ts <= aRow[iRow - 1]->ts)) {
+          code = TSDB_CODE_INVALID_MSG;
+          vError("vgId:%d %s failed since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(terrno), version);
+          goto _exit;
+        }
+      }
+    }
+  }
+
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
 
@@ -1264,8 +1304,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
         goto _exit;
       }
 
-      for (int32_t i = 1; i < nColData; i++) {
-        if (aColData[i].nVal != aColData[0].nVal) {
+      for (int32_t j = 1; j < nColData; j++) {
+        if (aColData[j].nVal != aColData[0].nVal) {
           code = TSDB_CODE_INVALID_MSG;
           goto _exit;
         }
@@ -1299,8 +1339,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
       SVCreateTbRsp *pCreateTbRsp = taosArrayReserve(pSubmitRsp->aCreateTbRsp, 1);
 
       // create table
-      if (metaCreateTable(pVnode->pMeta, version, pSubmitTbData->pCreateTbReq, &pCreateTbRsp->pMeta) ==
-          0) {  // create table success
+      if (metaCreateTable(pVnode->pMeta, version, pSubmitTbData->pCreateTbReq, &pCreateTbRsp->pMeta) == 0) {
+        // create table success
 
         if (newTbUids == NULL &&
             (newTbUids = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(int64_t))) == NULL) {
@@ -1330,7 +1370,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
     pSubmitRsp->affectedRows += affectedRows;
   }
 
-  // update table uid list
+  // update the affected table uid list
   if (taosArrayGetSize(newTbUids) > 0) {
     vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode),
            (int32_t)taosArrayGetSize(newTbUids));
@@ -1632,17 +1672,14 @@ static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t version, void *p
   return TSDB_CODE_SUCCESS;
 }
 
+extern int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
+
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SCompactVnodeReq req = {0};
-  if (tDeserializeSCompactVnodeReq(pReq, len, &req) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return TSDB_CODE_INVALID_MSG;
-  }
-  vInfo("vgId:%d, compact msg will be processed, db:%s dbUid:%" PRId64 " compactStartTime:%" PRId64, TD_VID(pVnode),
-        req.db, req.dbUid, req.compactStartTime);
+  return vnodeProcessCompactVnodeReqImpl(pVnode, version, pReq, len, pRsp);
+}
 
-  vnodeAsyncCompact(pVnode);
-  vnodeBegin(pVnode);
-
+#ifndef TD_ENTERPRISE
+int32_t vnodeProcessCompactVnodeReqImpl(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   return 0;
 }
+#endif

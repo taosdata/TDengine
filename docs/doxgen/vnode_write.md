@@ -204,7 +204,7 @@ group vnodeProcessReqs()
                 s -> s:
                 note right
                 save the requests in log store
-                and wait for comfirmation or
+                and wait for confirmation or
                 other cases
                 end note
 
@@ -236,7 +236,7 @@ s -> s: syncAppendReqToLogStore()
 s -> v: walWrite()
 
 alt has meta req
-    <- s: comfirmation
+    <- s: confirmation
 else
     s -> v: vnodeApplyReqs()
 end

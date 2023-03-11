@@ -167,7 +167,7 @@ cmd ::= USE db_name(A).                                                         
 cmd ::= ALTER DATABASE db_name(A) alter_db_options(B).                            { pCxt->pRootNode = createAlterDatabaseStmt(pCxt, &A, B); }
 cmd ::= FLUSH DATABASE db_name(A).                                                { pCxt->pRootNode = createFlushDatabaseStmt(pCxt, &A); }
 cmd ::= TRIM DATABASE db_name(A) speed_opt(B).                                    { pCxt->pRootNode = createTrimDatabaseStmt(pCxt, &A, B); }
-cmd ::= COMPACT DATABASE db_name(A).                                              { pCxt->pRootNode = createCompactStmt(pCxt, &A); }
+cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C).                      { pCxt->pRootNode = createCompactStmt(pCxt, &A, B, C); }
 
 %type not_exists_opt                                                              { bool }
 %destructor not_exists_opt                                                        { }
@@ -258,6 +258,16 @@ retention(A) ::= NK_VARIABLE(B) NK_COLON NK_VARIABLE(C).                        
 %destructor speed_opt                                                             { }
 speed_opt(A) ::= .                                                                { A = 0; }
 speed_opt(A) ::= MAX_SPEED NK_INTEGER(B).                                         { A = taosStr2Int32(B.z, NULL, 10); }
+
+start_opt(A) ::= .                                                                { A = NULL; }
+start_opt(A) ::= START WITH NK_INTEGER(B).                                        { A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
+start_opt(A) ::= START WITH NK_STRING(B).                                         { A = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
+start_opt(A) ::= START WITH TIMESTAMP NK_STRING(B).                               { A = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
+
+end_opt(A) ::= .                                                                  { A = NULL; }
+end_opt(A) ::= END WITH NK_INTEGER(B).                                            { A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
+end_opt(A) ::= END WITH NK_STRING(B).                                             { A = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
+end_opt(A) ::= END WITH TIMESTAMP NK_STRING(B).                                   { A = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
 
 /************************************************ create/drop table/stable ********************************************/
 cmd ::= CREATE TABLE not_exists_opt(A) full_table_name(B)
@@ -531,7 +541,7 @@ explain_options(A) ::= explain_options(B) RATIO NK_FLOAT(C).                    
 
 /************************************************ create/drop function ************************************************/
 cmd ::= CREATE agg_func_opt(A) FUNCTION not_exists_opt(F) function_name(B) 
-  AS NK_STRING(C) OUTPUTTYPE type_name(D) bufsize_opt(E).                         { pCxt->pRootNode = createCreateFunctionStmt(pCxt, F, A, &B, &C, D, E); }
+  AS NK_STRING(C) OUTPUTTYPE type_name(D) bufsize_opt(E) language_opt(G).         { pCxt->pRootNode = createCreateFunctionStmt(pCxt, F, A, &B, &C, D, E, &G); }
 cmd ::= DROP FUNCTION exists_opt(B) function_name(A).                             { pCxt->pRootNode = createDropFunctionStmt(pCxt, B, &A); }
 
 %type agg_func_opt                                                                { bool }
@@ -543,6 +553,11 @@ agg_func_opt(A) ::= AGGREGATE.                                                  
 %destructor bufsize_opt                                                           { }
 bufsize_opt(A) ::= .                                                              { A = 0; }
 bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                         { A = taosStr2Int32(B.z, NULL, 10); }
+
+%type language_opt                                                                 { SToken }
+%destructor language_opt                                                           { }
+language_opt(A) ::= .                                                              { A = nil_token; }
+language_opt(A) ::= LANGUAGE NK_STRING(B).                                         { A = B; }
 
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A) stream_options(B) INTO
@@ -562,14 +577,14 @@ tag_def_or_ref_opt(A) ::= tags_def(B).                                          
 tag_def_or_ref_opt(A) ::= TAGS NK_LP col_name_list(B) NK_RP.                      { A = B; }
 
 stream_options(A) ::= .                                                           { A = createStreamOptions(pCxt); }
-stream_options(A) ::= stream_options(B) TRIGGER AT_ONCE.                          { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_AT_ONCE; A = B; }
-stream_options(A) ::= stream_options(B) TRIGGER WINDOW_CLOSE.                     { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_WINDOW_CLOSE; A = B; }
-stream_options(A) ::= stream_options(B) TRIGGER MAX_DELAY duration_literal(C).    { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_MAX_DELAY; ((SStreamOptions*)B)->pDelay = releaseRawExprNode(pCxt, C); A = B; }
-stream_options(A) ::= stream_options(B) WATERMARK duration_literal(C).            { ((SStreamOptions*)B)->pWatermark = releaseRawExprNode(pCxt, C); A = B; }
-stream_options(A) ::= stream_options(B) IGNORE EXPIRED NK_INTEGER(C).             { ((SStreamOptions*)B)->ignoreExpired = taosStr2Int8(C.z, NULL, 10); A = B; }
-stream_options(A) ::= stream_options(B) FILL_HISTORY NK_INTEGER(C).               { ((SStreamOptions*)B)->fillHistory = taosStr2Int8(C.z, NULL, 10); A = B; }
-stream_options(A) ::= stream_options(B) DELETE_MARK duration_literal(C).          { ((SStreamOptions*)B)->pDeleteMark = releaseRawExprNode(pCxt, C); A = B; }
-stream_options(A) ::= stream_options(B) IGNORE UPDATE NK_INTEGER(C).              { ((SStreamOptions*)B)->ignoreUpdate = taosStr2Int8(C.z, NULL, 10); A = B; }
+stream_options(A) ::= stream_options(B) TRIGGER AT_ONCE(C).                       { A = setStreamOptions(pCxt, B, SOPT_TRIGGER_TYPE_SET, &C, NULL); }
+stream_options(A) ::= stream_options(B) TRIGGER WINDOW_CLOSE(C).                  { A = setStreamOptions(pCxt, B, SOPT_TRIGGER_TYPE_SET, &C, NULL); }
+stream_options(A) ::= stream_options(B) TRIGGER MAX_DELAY(C) duration_literal(D). { A = setStreamOptions(pCxt, B, SOPT_TRIGGER_TYPE_SET, &C, releaseRawExprNode(pCxt, D)); }
+stream_options(A) ::= stream_options(B) WATERMARK duration_literal(C).            { A = setStreamOptions(pCxt, B, SOPT_WATERMARK_SET, NULL, releaseRawExprNode(pCxt, C)); }
+stream_options(A) ::= stream_options(B) IGNORE EXPIRED NK_INTEGER(C).             { A = setStreamOptions(pCxt, B, SOPT_IGNORE_EXPIRED_SET, &C, NULL); }
+stream_options(A) ::= stream_options(B) FILL_HISTORY NK_INTEGER(C).               { A = setStreamOptions(pCxt, B, SOPT_FILL_HISTORY_SET, &C, NULL); }
+stream_options(A) ::= stream_options(B) DELETE_MARK duration_literal(C).          { A = setStreamOptions(pCxt, B, SOPT_DELETE_MARK_SET, NULL, releaseRawExprNode(pCxt, C)); }
+stream_options(A) ::= stream_options(B) IGNORE UPDATE NK_INTEGER(C).              { A = setStreamOptions(pCxt, B, SOPT_IGNORE_UPDATE_SET, &C, NULL); }
 
 subtable_opt(A) ::= .                                                             { A = NULL; }
 subtable_opt(A) ::= SUBTABLE NK_LP expression(B) NK_RP.                           { A = releaseRawExprNode(pCxt, B); }

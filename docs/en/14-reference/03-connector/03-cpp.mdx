@@ -176,6 +176,14 @@ The base API is used to do things like create database connections and provide a
 
   Set the current default database to `db`.
 
+- `int taos_get_current_db(TAOS *taos, char *database, int len, int *required)`
+
+  - The variables database and len are applied by the user outside and allocated space. The current database name and length will be assigned to database and len.
+  - As long as the db name is not assigned to the database normally (including truncation), an error will be returned with the return value of -1, and then the user can use taos_errstr(NULL) to get error message.
+  - If database==NULL or len<=0, returns an error, the space required to store the db (including the last '\0') in the variable required
+  - If len is less than the space required to store the db (including the last '\0'), an error is returned. The truncated data assigned in the database ends with '\0'.
+  - If len is greater than or equal to the space required to store the db (including the last '\0'), return normal 0, and assign the db name ending with '\0' in the database.
+
 - `void taos_close(TAOS *taos)`
 
   Closes the connection, where `taos` is the handle returned by `taos_connect()`.
@@ -404,5 +412,17 @@ In addition to writing data using the SQL method or the parameter binding API, w
   Note that the timestamp resolution parameter only takes effect when the protocol type is `SML_LINE_PROTOCOL`.
   For OpenTSDB's text protocol, timestamp resolution follows its official resolution rules - time precision is confirmed by the number of characters contained in the timestamp.
 
-  **Supported Versions**
-  This feature interface is supported from version 2.3.0.0.
+  schemaless 其他相关的接口
+- `TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int64_t reqid)`
+- `TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision)`
+- `TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int64_t reqid)`
+- `TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl)`
+- `TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl, int64_t reqid)`
+- `TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl)`
+- `TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision, int32_t ttl, int64_t reqid)`
+
+  **Description**
+  - The above seven interfaces are extension interfaces, which are mainly used to pass ttl and reqid parameters, and can be used as needed.
+  - Withing _raw interfaces represent data through the passed parameters lines and len. In order to solve the problem that the original interface data contains '\0' and is truncated. The totalRows pointer returns the number of parsed data rows.
+  - Withing _ttl interfaces can pass the ttl parameter to control the ttl expiration time of the table.
+  - Withing _reqid interfaces can track the entire call chain by passing the reqid parameter.

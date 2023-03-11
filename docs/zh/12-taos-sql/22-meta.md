@@ -166,7 +166,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 7   |   vgroup_id   | INT          | vgroup id        |
 | 8   |      ttl      | INT          | 表的生命周期。需要注意，`ttl` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。     |
 | 9   | table_comment | BINARY(1024) | 表注释           |
-| 10  |     type      | BINARY(20)   | 表类型           |
+| 10  |     type      | BINARY(21)   | 表类型           |
 
 ## INS_TAGS
 
@@ -178,6 +178,20 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 4   |  tag_name   | BINARY(64)    | tag 的名称             |
 | 5   |  tag_type   | BINARY(64)    | tag 的类型             |
 | 6   |  tag_value  | BINARY(16384) | tag 的值               |
+
+## INS_COLUMNS
+
+| #   |  **列名**   | **数据类型**  | **说明**               |
+| --- | :---------: | ------------- | ---------------------- |
+| 1   | table_name  | BINARY(192)   | 表名                   |
+| 2   |   db_name   | BINARY(64)    | 该表所在的数据库的名称 |
+| 3   | table_type  | BINARY(21)    | 表类型       |
+| 4   |  col_name   | BINARY(64)    | 列 的名称             |
+| 5   |  col_type   | BINARY(32)    | 列 的类型             |
+| 6   |  col_length | INT           | 列 的长度               |
+| 7   |  col_precision | INT           | 列 的精度               |
+| 8   |  col_scale     | INT           | 列 的比例            |
+| 9   |  col_nullable  | INT           | 列 是否可以为空        |
 
 ## INS_USERS
 
@@ -274,9 +288,9 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 1   | stream_name  | BINARY(64)   | 流计算名称                              |
 | 2   | create_time  | TIMESTAMP    | 创建时间                                |
 | 3   |     sql      | BINARY(1024) | 创建流计算时提供的 SQL 语句             |
-| 4   |    status    | BIANRY(20)   | 流当前状态                              |
+| 4   |    status    | BINARY(20)   | 流当前状态                              |
 | 5   |  source_db   | BINARY(64)   | 源数据库                                |
-| 6   |  target_db   | BIANRY(64)   | 目的数据库                              |
+| 6   |  target_db   | BINARY(64)   | 目的数据库                              |
 | 7   | target_table | BINARY(192)  | 流计算写入的目标表                      |
 | 8   |  watermark   | BIGINT       | watermark，详见 SQL 手册流式计算。需要注意，`watermark` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。        |
 | 9   |   trigger    | INT          | 计算结果推送模式，详见 SQL 手册流式计算。需要注意，`trigger` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 |

@@ -124,6 +124,7 @@ static SKeyword keywordTable[] = {
     {"JSON",                 TK_JSON},
     {"KEEP",                 TK_KEEP},
     {"KILL",                 TK_KILL},
+    {"LANGUAGE",             TK_LANGUAGE},
     {"LAST",                 TK_LAST},
     {"LAST_ROW",             TK_LAST_ROW},
     {"LICENCES",             TK_LICENCES},

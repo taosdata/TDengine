@@ -180,7 +180,6 @@ int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
 int32_t tsdbFinishCommit(STsdb* pTsdb);
 int32_t tsdbRollbackCommit(STsdb* pTsdb);
-int32_t tsdbDoRetention(STsdb* pTsdb, int64_t now);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
@@ -458,9 +457,10 @@ struct SCommitInfo {
 };
 
 struct SCompactInfo {
-  SVnode* pVnode;
-  int32_t flag;
-  int64_t commitID;
+  SVnode*     pVnode;
+  int32_t     flag;
+  int64_t     commitID;
+  STimeWindow tw;
 };
 
 #ifdef __cplusplus

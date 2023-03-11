@@ -197,7 +197,7 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
     return -1;
   }
 
-  tqDebug("tq save %s(%d) handle consumer:0x%" PRIx64 "epoch:%d  vgId:%d", pHandle->subKey,
+  tqDebug("tq save %s(%d) handle consumer:0x%" PRIx64 " epoch:%d vgId:%d", pHandle->subKey,
           (int32_t)strlen(pHandle->subKey), pHandle->consumerId, pHandle->epoch, TD_VID(pTq->pVnode));
 
   void* buf = taosMemoryCalloc(1, vlen);
@@ -269,6 +269,7 @@ int32_t tqMetaDeleteHandle(STQ* pTq, const char* key) {
 }
 
 int32_t tqMetaRestoreHandle(STQ* pTq) {
+  int code = 0;
   TBC* pCur = NULL;
   if (tdbTbcOpen(pTq->pExecStore, &pCur, NULL) < 0) {
     return -1;
@@ -290,7 +291,8 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
 
     handle.pRef = walOpenRef(pTq->pVnode->pWal);
     if (handle.pRef == NULL) {
-      return -1;
+      code = -1;
+      goto end;
     }
     walRefVer(handle.pRef, handle.snapshotVer);
 
@@ -307,16 +309,21 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
           qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols, NULL);
       if (handle.execHandle.task == NULL) {
         tqError("cannot create exec task for %s", handle.subKey);
-        return -1;
+        code = -1;
+        goto end;
       }
       void* scanner = NULL;
       qExtractStreamScanner(handle.execHandle.task, &scanner);
       if (scanner == NULL) {
         tqError("cannot extract stream scanner for %s", handle.subKey);
+        code = -1;
+        goto end;
       }
       handle.execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
       if (handle.execHandle.pExecReader == NULL) {
         tqError("cannot extract exec reader for %s", handle.subKey);
+        code = -1;
+        goto end;
       }
     } else if (handle.execHandle.subType == TOPIC_SUB_TYPE__DB) {
       handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
@@ -347,8 +354,9 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     taosHashPut(pTq->pHandle, pKey, kLen, &handle, sizeof(STqHandle));
   }
 
+end:
   tdbFree(pKey);
   tdbFree(pVal);
   tdbTbcClose(pCur);
-  return 0;
+  return code;
 }

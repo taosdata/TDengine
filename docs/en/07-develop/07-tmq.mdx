@@ -7,6 +7,7 @@ title: Data Subscription
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import Java from "./_sub_java.mdx";
+import JavaWS from "./_sub_java_ws.mdx"
 import Python from "./_sub_python.mdx";
 import Go from "./_sub_go.mdx";
 import Rust from "./_sub_rust.mdx";
@@ -294,7 +295,7 @@ You configure the following parameters when creating a consumer:
 |      `enable.auto.commit`      | boolean | Commit automatically                                             | Specify `true` or `false`.                   |
 |   `auto.commit.interval.ms`    | integer | Interval for automatic commits, in milliseconds                           |
 | `enable.heartbeat.background`  | boolean | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time |                                             |
-| `experimental.snapshot.enable` | boolean | Specify whether to consume messages from the WAL or from TSBS                    |                                             |
+| `experimental.snapshot.enable` | boolean | Specify whether to consume messages from TSDB                    |                                             |
 |     `msg.with.table.name`      | boolean | Specify whether to deserialize table names from messages                                 |
 
 The method of specifying these parameters depends on the language used:
@@ -417,7 +418,7 @@ Python programs use the following parameters:
 | `enable.auto.commit` | string | Commit automatically | pecify `true` or `false` |
 | `auto.commit.interval.ms` | string | Interval for automatic commits, in milliseconds | |
 | `auto.offset.reset` | string | Initial offset for the consumer group | Specify `earliest`, `latest`, or `none`(default) |
-| `experimental.snapshot.enable` | string | Specify whether to consume messages from the WAL or from TSDB | Specify `true` or `false` |
+| `experimental.snapshot.enable` | string | Specify whether it's allowed to consume messages from the WAL or from TSDB | Specify `true` or `false` |
 | `enable.heartbeat.background` | string | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time | Specify `true` or `false` |
 
 </TabItem>
@@ -807,7 +808,14 @@ The following section shows sample code in various languages.
 </TabItem>
 
 <TabItem label="Java" value="java">
-    <Java />
+<Tabs defaultValue="native">
+<TabItem value="native" label="native connection">
+<Java />
+</TabItem>
+<TabItem value="ws" label="WebSocket connection">
+<JavaWS />
+</TabItem>
+</Tabs>
 </TabItem>
 
 <TabItem label="Go" value="Go">

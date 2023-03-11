@@ -4,7 +4,7 @@ sidebar_label: SHOW Statement
 description: This document describes how to use the SHOW statement in TDengine.
 ---
 
-`SHOW` command can be used to get brief system information. To get details about metatadata, information, and status in the system, please use `select` to query the tables in database `INFORMATION_SCHEMA`. 
+`SHOW` command can be used to get brief system information. To get details about metadata, information, and status in the system, please use `select` to query the tables in database `INFORMATION_SCHEMA`. 
 
 ## SHOW APPS
 
@@ -86,10 +86,10 @@ SHOW FUNCTIONS;
 
 Shows all user-defined functions in the system.
 
-## SHOW LICENSE
+## SHOW LICENCES
 
 ```sql
-SHOW LICENSE;
+SHOW LICENCES;
 SHOW GRANTS;
 ```
 
@@ -359,7 +359,7 @@ Shows the working configuration of the parameters that must be the same on each 
 SHOW [db_name.]VGROUPS;
 ```
 
-Shows information about all vgroups in the system or about the vgroups for a specified database.
+Shows information about all vgroups in the current database. 
 
 ## SHOW VNODES
 

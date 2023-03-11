@@ -2531,6 +2531,8 @@ int32_t tSerializeSCompactDbReq(void *buf, int32_t bufLen, SCompactDbReq *pReq) 
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->timeRange.skey) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->timeRange.ekey) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2544,6 +2546,8 @@ int32_t tDeserializeSCompactDbReq(void *buf, int32_t bufLen, SCompactDbReq *pReq
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->timeRange.skey) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->timeRange.ekey) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -2865,12 +2869,19 @@ int32_t tSerializeSDbCfgRsp(void *buf, int32_t bufLen, const SDbCfgRsp *pRsp) {
   if (tEncodeI32(&encoder, pRsp->minRows) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->maxRows) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->walFsyncPeriod) < 0) return -1;
+  if (tEncodeI16(&encoder, pRsp->hashPrefix) < 0) return -1;
+  if (tEncodeI16(&encoder, pRsp->hashSuffix) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->walLevel) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->precision) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->compression) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->replications) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->strict) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->cacheLast) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->tsdbPageSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->walRetentionPeriod) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->walRollPeriod) < 0) return -1;
+  if (tEncodeI64(&encoder, pRsp->walRetentionSize) < 0) return -1;
+  if (tEncodeI64(&encoder, pRsp->walSegmentSize) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->numOfRetensions) < 0) return -1;
   for (int32_t i = 0; i < pRsp->numOfRetensions; ++i) {
     SRetention *pRetension = taosArrayGet(pRsp->pRetensions, i);
@@ -2905,12 +2916,19 @@ int32_t tDeserializeSDbCfgRsp(void *buf, int32_t bufLen, SDbCfgRsp *pRsp) {
   if (tDecodeI32(&decoder, &pRsp->minRows) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->maxRows) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->walFsyncPeriod) < 0) return -1;
+  if (tDecodeI16(&decoder, &pRsp->hashPrefix) < 0) return -1;
+  if (tDecodeI16(&decoder, &pRsp->hashSuffix) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->walLevel) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->precision) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->compression) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->replications) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->strict) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->cacheLast) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->tsdbPageSize) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->walRetentionPeriod) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->walRollPeriod) < 0) return -1;
+  if (tDecodeI64(&decoder, &pRsp->walRetentionSize) < 0) return -1;
+  if (tDecodeI64(&decoder, &pRsp->walSegmentSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->numOfRetensions) < 0) return -1;
   if (pRsp->numOfRetensions > 0) {
     pRsp->pRetensions = taosArrayInit(pRsp->numOfRetensions, sizeof(SRetention));
@@ -3723,6 +3741,7 @@ int32_t tSerializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
   if (tEncodeCStrWithLen(&encoder, pReq->passwd, TSDB_PASSWORD_LEN) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->startTime) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->sVer) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3742,6 +3761,12 @@ int32_t tDeserializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->passwd) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->startTime) < 0) return -1;
+  // Check the client version from version 3.0.3.0
+  if (tDecodeIsEnd(&decoder)) {
+    tDecoderClear(&decoder);
+    return TSDB_CODE_VERSION_NOT_COMPATIBLE;
+  }
+  if (tDecodeCStrTo(&decoder, pReq->sVer) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4090,6 +4115,11 @@ int32_t tSerializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq *
   if (tEncodeI64(&encoder, pReq->dbUid) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->compactStartTime) < 0) return -1;
+
+  // 1.1 add tw.skey and tw.ekey
+  if (tEncodeI64(&encoder, pReq->tw.skey) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->tw.ekey) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4102,11 +4132,21 @@ int32_t tDeserializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
+
   if (tDecodeI64(&decoder, &pReq->dbUid) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->compactStartTime) < 0) return -1;
-  tEndDecode(&decoder);
 
+  // 1.1
+  if (tDecodeIsEnd(&decoder)) {
+    pReq->tw.skey = TSKEY_MIN;
+    pReq->tw.ekey = TSKEY_MAX;
+  } else {
+    if (tDecodeI64(&decoder, &pReq->tw.skey) < 0) return -1;
+    if (tDecodeI64(&decoder, &pReq->tw.ekey) < 0) return -1;
+  }
+
+  tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
 }
@@ -6570,7 +6610,7 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   } else if (pVal->type == TMQ_OFFSET__LOG) {
     snprintf(buf, maxLen, "offset(log) ver:%" PRId64, pVal->version);
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
-    snprintf(buf, maxLen, "offset(ss data) uid:%" PRId64 ", ts:%" PRId64, pVal->uid, pVal->ts);
+    snprintf(buf, maxLen, "offset(snapshot) uid:%" PRId64 " ts:%" PRId64, pVal->uid, pVal->ts);
   } else {
     ASSERT(0);
   }

@@ -21,7 +21,7 @@ part_list can be any scalar expression, such as a column, constant, scalar funct
 A PARTITION BY clause is processed as follows:
 
 - The PARTITION BY clause must occur after the WHERE clause
-- The PARTITION BY caluse partitions the data according to the specified dimentions, then perform computation on each partition. The performed computation is determined by the rest of the statement - a window clause, GROUP BY clause, or SELECT clause.
+- The PARTITION BY caluse partitions the data according to the specified dimensions, then perform computation on each partition. The performed computation is determined by the rest of the statement - a window clause, GROUP BY clause, or SELECT clause.
 - The PARTITION BY clause can be used together with a window clause or GROUP BY clause. In this case, the window or GROUP BY clause takes effect on every partition. For example, the following statement partitions the table by the location tag, performs downsampling over a 10 minute window, and returns the maximum value:
 
 ```sql
@@ -32,15 +32,15 @@ The most common usage of PARTITION BY is partitioning the data in subtables by t
 
 ## Windowed Queries
 
-Aggregation by time window is supported in TDengine. For example, in the case where temperature sensors report the temperature every seconds, the average temperature for every 10 minutes can be retrieved by performing a query with a time window. Window related clauses are used to divide the data set to be queried into subsets and then aggregation is performed across the subsets. There are three kinds of windows: time window, status window, and session window. There are two kinds of time windows: sliding window and flip time/tumbling window. The query syntax is as follows:
+Aggregation by time window is supported in TDengine. For example, in the case where temperature sensors report the temperature every seconds, the average temperature for every 10 minutes can be retrieved by performing a query with a time window. Window related clauses are used to divide the data set to be queried into subsets and then aggregation is performed across the subsets. There are four kinds of windows: time window, status window, session window, and event window. There are two kinds of time windows: sliding window and flip time/tumbling window. The syntax of window clause is as follows:
 
 ```sql
-SELECT select_list FROM tb_name
-  [WHERE where_condition]
-  [SESSION(ts_col, tol_val)]
-  [STATE_WINDOW(col)]
-  [INTERVAL(interval [, offset]) [SLIDING sliding]]
-  [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
+window_clause: {
+    SESSION(ts_col, tol_val)
+  | STATE_WINDOW(col)
+  | INTERVAL(interval [, offset]) [SLIDING sliding] [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+}
 ```
 
 The following restrictions apply:
@@ -105,7 +105,7 @@ SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 
 When using time windows, note the following:
 
-- The window length for aggregation depends on the value of INTERVAL. The minimum interval is 10 ms. You can configure a window as an offset from UTC 0:00. The offset cannot be smaler than the interval. You can use SLIDING to specify the length of time that the window moves forward. 
+- The window length for aggregation depends on the value of INTERVAL. The minimum interval is 10 ms. You can configure a window as an offset from UTC 0:00. The offset cannot be smaller than the interval. You can use SLIDING to specify the length of time that the window moves forward. 
 Please note that the `timezone` parameter should be configured to be the same value in the `taos.cfg` configuration file on client side and server side.
 - The result set is in ascending order of timestamp when you aggregate by time window.
 
@@ -145,6 +145,26 @@ If the time interval between two continuous rows are within the time interval sp
 
 SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 ```
+
+### Event Window
+
+Event window is determined according to the window start condition and the window close condition. The window is started when `start_trigger_condition` is evaluated to true, the window is closed when `end_trigger_condition` is evaluated to true. `start_trigger_condition` and `end_trigger_condition` can be any conditional expressions supported by TDengine and can include multiple columns.
+
+There may be only one row of data in an event window, when a row meets both the `start_trigger_condition` and the `end_trigger_condition`. 
+
+The window is treated as invalid or non-existing if the `end_trigger_condition` can't be met. There will be no output in case that a window can't be closed. 
+
+If the event window query is performed on a super table, TDengine consolidates all the data of all child tables into a single timeline then perform event window based query.
+
+If you want to perform event window based query on the result set of a sub-query, the result set of the sub-query should be arranged in the order of timestamp and include the column of timestamp.
+
+For example, the diagram below illustrates the event windows generated by the query below:
+
+```sql
+select _wstart, _wend, count(*) from t start with c1 > 0 end with c2 < 10 
+```
+
+![Event Window Illustration](./event_window.webp)
 
 ### Examples
 

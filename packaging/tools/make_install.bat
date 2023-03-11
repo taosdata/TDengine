@@ -70,6 +70,9 @@ if %Enterprise% == TRUE (
     if exist %binary_dir%\\build\\bin\\taosx.exe (
         copy %binary_dir%\\build\\bin\\taosx.exe %target_dir% > nul
     )
+    if exist %binary_dir%\\build\\bin\\taos-explorer.exe (
+        copy %binary_dir%\\build\\bin\\taos-explorer.exe %target_dir% > nul
+    )
     if exist %binary_dir%\\build\\bin\\tmq_sim.exe (
         copy %binary_dir%\\build\\bin\\tmq_sim.exe %target_dir% > nul
     )
@@ -90,6 +93,9 @@ if %Enterprise% == TRUE (
     )
     if exist %binary_dir%\\build\\bin\\create_table.exe (
         copy %binary_dir%\\build\\bin\\create_table.exe %target_dir% > nul
+    )
+    if exist %binary_dir%\\build\\bin\\*explorer.exe (
+        copy %binary_dir%\\build\\bin\\*explorer.exe %target_dir% > nul
     )
 )
     
