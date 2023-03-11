@@ -2219,6 +2219,10 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tEncodeI8(&encoder, pReq->cacheLast) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->replications) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->sstTrigger) < 0) return -1;
+
+  // 1st modification
+  if (tEncodeI32(&encoder, pReq->minRows) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2246,6 +2250,13 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tDecodeI8(&decoder, &pReq->cacheLast) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->replications) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->sstTrigger) < 0) return -1;
+
+  // 1st modification
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pReq->minRows) < 0) return -1;
+  } else {
+    pReq->minRows = -1;
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4115,6 +4126,11 @@ int32_t tSerializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq *
   if (tEncodeI64(&encoder, pReq->dbUid) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->compactStartTime) < 0) return -1;
+
+  // 1.1 add tw.skey and tw.ekey
+  if (tEncodeI64(&encoder, pReq->tw.skey) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->tw.ekey) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4127,11 +4143,21 @@ int32_t tDeserializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
+
   if (tDecodeI64(&decoder, &pReq->dbUid) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->compactStartTime) < 0) return -1;
-  tEndDecode(&decoder);
 
+  // 1.1
+  if (tDecodeIsEnd(&decoder)) {
+    pReq->tw.skey = TSKEY_MIN;
+    pReq->tw.ekey = TSKEY_MAX;
+  } else {
+    if (tDecodeI64(&decoder, &pReq->tw.skey) < 0) return -1;
+    if (tDecodeI64(&decoder, &pReq->tw.ekey) < 0) return -1;
+  }
+
+  tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
 }
@@ -4157,6 +4183,11 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
   for (int32_t i = 0; i < 8; ++i) {
     if (tEncodeI64(&encoder, pReq->reserved[i]) < 0) return -1;
   }
+
+  // 1st modification
+  if (tEncodeI16(&encoder, pReq->sttTrigger) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->minRows) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4184,6 +4215,15 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
   if (tDecodeI8(&decoder, &pReq->cacheLast) < 0) return -1;
   for (int32_t i = 0; i < 8; ++i) {
     if (tDecodeI64(&decoder, &pReq->reserved[i]) < 0) return -1;
+  }
+
+  // 1st modification
+  if (tDecodeIsEnd(&decoder)) {
+    pReq->sttTrigger = -1;
+    pReq->minRows = -1;
+  } else {
+    if (tDecodeI16(&decoder, &pReq->sttTrigger) < 0) return -1;
+    if (tDecodeI32(&decoder, &pReq->minRows) < 0) return -1;
   }
 
   tEndDecode(&decoder);

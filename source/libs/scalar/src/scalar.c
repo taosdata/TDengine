@@ -59,6 +59,8 @@ int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarPara
 
   pParam->columnData = pColumnData;
   pParam->colAlloced = true;
+  pParam->numOfRows = numOfRows;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -738,6 +740,10 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
     code = sclCreateColumnInfoData(&node->node.resType, rowNum, output);
     if (code != TSDB_CODE_SUCCESS) {
       SCL_ERR_JRET(code);
+    }
+
+    if (rowNum == 0) {
+      goto _return;
     }
 
     code = (*ffpSet.process)(params, paramNum, output);

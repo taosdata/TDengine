@@ -108,6 +108,7 @@ TEST_F(ParserInitialATest, alterDnode) {
  *   | REPLICA int_value                                         -- todo: enum 1, 3, default 1, unit replica
  *   | WAL_LEVEL int_value                                       -- enum 1, 2, default 1
  *   | STT_TRIGGER int_value                                     -- rang [1, 16], default 8
+ *   | MINROWS int_value                                         -- rang [10, 1000], default 100
  * }
  */
 TEST_F(ParserInitialATest, alterDatabase) {
@@ -133,6 +134,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
     expect.cacheLastSize = -1;
     expect.replications = -1;
     expect.sstTrigger = -1;
+    expect.minRows = -1;
   };
   auto setAlterDbBuffer = [&](int32_t buffer) { expect.buffer = buffer; };
   auto setAlterDbPageSize = [&](int32_t pageSize) { expect.pageSize = pageSize; };
@@ -150,6 +152,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
   auto setAlterDbCacheModel = [&](int8_t cacheModel) { expect.cacheLast = cacheModel; };
   auto setAlterDbReplica = [&](int8_t replications) { expect.replications = replications; };
   auto setAlterDbSttTrigger = [&](int8_t sstTrigger) { expect.sstTrigger = sstTrigger; };
+  auto setAlterDbMinRows = [&](int32_t minRows) { expect.minRows = minRows; };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_DATABASE_STMT);
@@ -170,6 +173,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
     ASSERT_EQ(req.cacheLast, expect.cacheLast);
     ASSERT_EQ(req.replications, expect.replications);
     ASSERT_EQ(req.sstTrigger, expect.sstTrigger);
+    ASSERT_EQ(req.minRows, expect.minRows);
   });
 
   const int32_t MINUTE_PER_DAY = MILLISECOND_PER_DAY / MILLISECOND_PER_MINUTE;
@@ -276,6 +280,15 @@ TEST_F(ParserInitialATest, alterDatabase) {
   run("ALTER DATABASE test STT_TRIGGER 4");
   setAlterDbSttTrigger(16);
   run("ALTER DATABASE test STT_TRIGGER 16");
+  clearAlterDbReq();
+
+  initAlterDb("test");
+  setAlterDbMinRows(10);
+  run("ALTER DATABASE test MINROWS 10");
+  setAlterDbMinRows(50);
+  run("ALTER DATABASE test MINROWS 50");
+  setAlterDbMinRows(1000);
+  run("ALTER DATABASE test MINROWS 1000");
   clearAlterDbReq();
 }
 

@@ -2044,8 +2044,8 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
           if (len >= size - 1) return dumpBuf;
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          // len += snprintf(dumpBuf + len, size - len, " %15lf |", *(double*)var);
-          // if (len >= size - 1) return dumpBuf;
+          len += snprintf(dumpBuf + len, size - len, " %15f |", *(double*)var);
+          if (len >= size - 1) return dumpBuf;
           break;
         case TSDB_DATA_TYPE_BOOL:
           len += snprintf(dumpBuf + len, size - len, " %15d |", *(bool*)var);

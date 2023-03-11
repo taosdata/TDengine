@@ -845,6 +845,7 @@ typedef struct {
   int8_t  cacheLast;
   int8_t  replications;
   int32_t sstTrigger;
+  int32_t minRows;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -1292,9 +1293,10 @@ int32_t tSerializeSDropIdxReq(void* buf, int32_t bufLen, SDropIndexReq* pReq);
 int32_t tDeserializeSDropIdxReq(void* buf, int32_t bufLen, SDropIndexReq* pReq);
 
 typedef struct {
-  int64_t dbUid;
-  char    db[TSDB_DB_FNAME_LEN];
-  int64_t compactStartTime;
+  int64_t     dbUid;
+  char        db[TSDB_DB_FNAME_LEN];
+  int64_t     compactStartTime;
+  STimeWindow tw;
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
@@ -1315,6 +1317,9 @@ typedef struct {
   int8_t  strict;
   int8_t  cacheLast;
   int64_t reserved[8];
+  // 1st modification
+  int16_t sttTrigger;
+  int32_t minRows;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
