@@ -277,6 +277,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   terrno = TSDB_CODE_SUCCESS;
 
   int32_t num = 0;
+  uint64_t groupId = 0;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (!pInfo->isInit) {
@@ -306,8 +307,9 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     }
 
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
+    groupId = calcGroupId(pInfo->keyBuf, len);
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
-                                          len, pBlock->info.id.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
+                                          len, groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
     }
@@ -324,8 +326,9 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
   if (num > 0) {
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
+    groupId = calcGroupId(pInfo->keyBuf, len);
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
-                                          len, pBlock->info.id.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
+                                          len, groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, TSDB_CODE_APP_ERROR);
     }
