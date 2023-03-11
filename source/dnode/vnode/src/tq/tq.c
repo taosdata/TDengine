@@ -933,8 +933,9 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
     pTask->tbSink.pTSchema =
         tBuildTSchema(pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols, version);
-    if(pTask->tbSink.pTSchema == NULL){
+    if(pTask->tbSink.pTSchema == NULL) {
       return -1;
+    }
   }
 
   streamSetupTrigger(pTask);
