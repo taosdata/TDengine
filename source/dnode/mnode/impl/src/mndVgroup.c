@@ -319,6 +319,8 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.walLevel = pDb->cfg.walLevel;
   alterReq.strict = pDb->cfg.strict;
   alterReq.cacheLast = pDb->cfg.cacheLast;
+  alterReq.sttTrigger = pDb->cfg.sstTrigger;
+  alterReq.minRows = pDb->cfg.minRows;
 
   mInfo("vgId:%d, build alter vnode config req", pVgroup->vgId);
   int32_t contLen = tSerializeSAlterVnodeConfigReq(NULL, 0, &alterReq);
