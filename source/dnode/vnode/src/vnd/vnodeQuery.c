@@ -128,7 +128,7 @@ _exit:
   rpcMsg.pCont = pRsp;
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;
-  rpcMsg.msgType = pMsg->msgType;
+  rpcMsg.msgType = pMsg->msgType + 1;
 
   if (code) {
     qError("get table %s meta failed cause of %s", infoReq.tbName, tstrerror(code));
@@ -247,7 +247,7 @@ _exit:
   rpcMsg.pCont = pRsp;
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;
-  rpcMsg.msgType = pMsg->msgType;
+  rpcMsg.msgType = pMsg->msgType + 1;
 
   if (code) {
     qError("get table %s cfg failed cause of %s", cfgReq.tbName, tstrerror(code));
@@ -328,7 +328,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     }
 
     rsp.msgIdx = req->msgIdx;
-    rsp.reqType = reqMsg.msgType;
+    rsp.reqType = reqMsg.msgType + 1;
     rsp.msgLen = reqMsg.contLen;
     rsp.rspCode = reqMsg.code;
     rsp.msg = reqMsg.pCont;
@@ -360,7 +360,7 @@ _exit:
   rspMsg.pCont = pRsp;
   rspMsg.contLen = rspSize;
   rspMsg.code = code;
-  rspMsg.msgType = pMsg->msgType;
+  rspMsg.msgType = pMsg->msgType + 1;
 
   if (code) {
     qError("vnd get batch meta failed cause of %s", tstrerror(code));
