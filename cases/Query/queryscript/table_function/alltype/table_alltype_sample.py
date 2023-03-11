@@ -247,7 +247,7 @@ class TDTestQuery(TDCase):
                         ts = 1600000000000 + random.randint(-100000000000,+100000000000)
                         interval_fill_ts_equal_and = ' ts >= %d and ts <= %d and ' %(ts,ts)  
                         
-                        for i in (1,2,3,4,22,41,42,43,44,45):           #,41,42,43,44,45        
+                        for i in (1,2,3,4,22,41,42,43,44,45):                 
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                                                         
@@ -336,7 +336,6 @@ class TDTestQuery(TDCase):
                             rows = self.tdSql.query(sql2).row_count 
                             # self.tdCreateData.data2in1('%s' %sql1 ,1,1000,1,2,'%s' %sql2 ,1,rows-1,1,2)
                             self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,rows-1,1,1,'%s' %sql2 ,1,rows-1,1,1)
-                            self.logger.info(sql2)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
@@ -348,7 +347,6 @@ class TDTestQuery(TDCase):
                             rows = self.tdSql.query(sql2).row_count 
                             # self.tdCreateData.data2in1('%s' %sql1 ,1,1000,1,2,'%s' %sql2 ,1,rows-1,1,2)
                             self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,rows-1,1,1,'%s' %sql2 ,1,rows-1,1,1)
-                            self.logger.info(sql2)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
@@ -357,7 +355,6 @@ class TDTestQuery(TDCase):
                             rows = self.tdSql.query(sql2).row_count 
                             # self.tdCreateData.data2in1('%s' %sql1 ,1,1000,1,2,'%s' %sql2 ,1,rows-1,1,2)
                             self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,rows-1,1,1,'%s' %sql2 ,1,rows-1,1,1)
-                            self.logger.info(sql2)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
@@ -366,7 +363,6 @@ class TDTestQuery(TDCase):
                             rows = self.tdSql.query(sql2).row_count 
                             # self.tdCreateData.data2in1('%s' %sql1 ,1,1000,1,2,'%s' %sql2 ,1,rows-1,1,2)
                             self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,rows-1,1,1,'%s' %sql2 ,1,rows-1,1,1)
-                            self.logger.info(sql2)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
