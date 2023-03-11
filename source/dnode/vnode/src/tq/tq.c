@@ -169,18 +169,6 @@ int32_t tqSendMetaPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq,
 int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
   SMqDataRsp* pRsp = &pPushEntry->dataRsp;
 
-#if 0
-  A(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
-  A(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
-
-  A(!pRsp->withSchema);
-  A(taosArrayGetSize(pRsp->blockSchema) == 0);
-
-  if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-    A(pRsp->rspOffset.version > pRsp->reqOffset.version);
-  }
-#endif
-
   int32_t len = 0;
   int32_t code = 0;
   tEncodeSize(tEncodeSMqDataRsp, pRsp, len, code);
@@ -224,22 +212,6 @@ int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
 }
 
 int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp) {
-#if 0
-  A(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
-  A(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
-
-  A(!pRsp->withSchema);
-  A(taosArrayGetSize(pRsp->blockSchema) == 0);
-
-  if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-    if (pRsp->blockNum > 0) {
-      A(pRsp->rspOffset.version > pRsp->reqOffset.version);
-    } else {
-      A(pRsp->rspOffset.version >= pRsp->reqOffset.version);
-    }
-  }
-#endif
-
   int32_t len = 0;
   int32_t code = 0;
   tEncodeSize(tEncodeSMqDataRsp, pRsp, len, code);
@@ -282,25 +254,6 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
 }
 
 int32_t tqSendTaosxRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const STaosxRsp* pRsp) {
-#if 0
-  A(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
-  A(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
-
-  if (pRsp->withSchema) {
-    A(taosArrayGetSize(pRsp->blockSchema) == pRsp->blockNum);
-  } else {
-    A(taosArrayGetSize(pRsp->blockSchema) == 0);
-  }
-
-  if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-    if (pRsp->blockNum > 0) {
-      A(pRsp->rspOffset.version > pRsp->reqOffset.version);
-    } else {
-      A(pRsp->rspOffset.version >= pRsp->reqOffset.version);
-    }
-  }
-#endif
-
   int32_t len = 0;
   int32_t code = 0;
   tEncodeSize(tEncodeSTaosxRsp, pRsp, len, code);
@@ -429,18 +382,6 @@ static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t su
   }
 
   pRsp->withTbName = 0;
-#if 0
-  pRsp->withTbName = pReq->withTbName;
-  if (pRsp->withTbName) {
-    pRsp->blockTbName = taosArrayInit(0, sizeof(void*));
-    if (pRsp->blockTbName == NULL) {
-      // TODO free
-      return -1;
-    }
-  }
-#endif
-
-  /*A(subType == TOPIC_SUB_TYPE__COLUMN);*/
   pRsp->withSchema = false;
 
   return 0;
@@ -992,7 +933,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
     pTask->tbSink.pTSchema =
         tBuildTSchema(pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols, version);
-    ASSERT(pTask->tbSink.pTSchema);
+    if(pTask->tbSink.pTSchema == NULL){
+      return -1;
   }
 
   streamSetupTrigger(pTask);
