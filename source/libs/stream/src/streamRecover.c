@@ -168,7 +168,7 @@ int32_t streamRestoreParam(SStreamTask* pTask) {
   return qStreamRestoreParam(exec);
 }
 int32_t streamSetStatusNormal(SStreamTask* pTask) {
-  pTask->taskStatus = TASK_STATUS__NORMAL;
+  atomic_store_8(&pTask->taskStatus, TASK_STATUS__NORMAL);
   return 0;
 }
 

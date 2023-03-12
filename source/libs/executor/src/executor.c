@@ -104,6 +104,12 @@ static void clearStreamBlock(SOperatorInfo* pOperator) {
   }
 }
 
+void resetTaskInfo(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  pTaskInfo->code = 0;
+  clearStreamBlock(pTaskInfo->pRoot);
+}
+
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     if (pOperator->numOfDownstream == 0) {
@@ -618,7 +624,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
     pTaskInfo->cost.start = taosGetTimestampUs();
   }
 
-  if (isTaskKilled(pTaskInfo) && pTaskInfo->code != TSDB_CODE_QRY_IN_EXEC) {
+  if (isTaskKilled(pTaskInfo)) {
     clearStreamBlock(pTaskInfo->pRoot);
     atomic_store_64(&pTaskInfo->owner, 0);
     qDebug("%s already killed, abort", GET_TASKID(pTaskInfo));
@@ -1102,11 +1108,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
       int32_t         numOfTables = tableListGetSize(pTaskInfo->pTableInfoList);
 
-#ifndef NDEBUG
-      qDebug("switch to next table %" PRId64 " (cursor %d), %" PRId64 " rows returned", uid,
-             pTableScanInfo->currentTable, pInfo->pTableScanOp->resultInfo.totalRows);
+      qDebug("switch to next table %" PRId64 " ts %" PRId64 "% "PRId64 " rows returned", uid, ts, pInfo->pTableScanOp->resultInfo.totalRows);
       pInfo->pTableScanOp->resultInfo.totalRows = 0;
-#endif
 
       bool found = false;
       for (int32_t i = 0; i < numOfTables; i++) {

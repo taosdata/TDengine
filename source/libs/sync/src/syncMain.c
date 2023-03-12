@@ -301,7 +301,7 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
       syncNodeRelease(pSyncNode);
       return 0;
     }
-    logRetention = TMAX(logRetention, lastApplyIndex - pSyncNode->minMatchIndex);
+    logRetention = TMAX(logRetention, lastApplyIndex - pSyncNode->minMatchIndex + logRetention);
   }
 
 _DEL_WAL:
@@ -1082,20 +1082,14 @@ void syncNodePreClose(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->pFsm != NULL);
   ASSERT(pSyncNode->pFsm->FpApplyQueueItems != NULL);
 
-  while (1) {
-    int32_t aqItems = pSyncNode->pFsm->FpApplyQueueItems(pSyncNode->pFsm);
-    sTrace("vgId:%d, pre close, %d items in apply queue", pSyncNode->vgId, aqItems);
-    if (aqItems == 0 || aqItems == -1) {
-      break;
-    }
-    taosMsleep(20);
-  }
-
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
 
   // stop heartbeat timer
   syncNodeStopHeartbeatTimer(pSyncNode);
+
+  // stop ping timer
+  syncNodeStopPingTimer(pSyncNode);
 
   // clean rsp
   syncRespCleanRsp(pSyncNode->pSyncRespMgr);
@@ -1120,10 +1114,11 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) return;
   sNInfo(pSyncNode, "sync close, node:%p", pSyncNode);
 
+  syncRespCleanRsp(pSyncNode->pSyncRespMgr);
+
   syncNodeStopPingTimer(pSyncNode);
   syncNodeStopElectTimer(pSyncNode);
   syncNodeStopHeartbeatTimer(pSyncNode);
-
   syncNodeLogReplMgrDestroy(pSyncNode);
 
   syncRespMgrDestroy(pSyncNode->pSyncRespMgr);

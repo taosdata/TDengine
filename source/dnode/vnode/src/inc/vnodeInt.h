@@ -460,9 +460,10 @@ struct SCommitInfo {
 };
 
 struct SCompactInfo {
-  SVnode* pVnode;
-  int32_t flag;
-  int64_t commitID;
+  SVnode*     pVnode;
+  int32_t     flag;
+  int64_t     commitID;
+  STimeWindow tw;
 };
 
 #ifdef __cplusplus

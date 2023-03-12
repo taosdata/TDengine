@@ -211,6 +211,11 @@ static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
   SDecoder *pCoder = &(SDecoder){0};
 
+  if (taosHton64(((SSubmitReq2Msg *)pMsg->pCont)->version) != 1) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   tDecoderInit(pCoder, (uint8_t *)pMsg->pCont + sizeof(SSubmitReq2Msg), pMsg->contLen - sizeof(SSubmitReq2Msg));
 
   if (tStartDecode(pCoder) < 0) {
@@ -1218,6 +1223,11 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
 
+    if (pSubmitTbData->pCreateTbReq && pSubmitTbData->pCreateTbReq->uid == 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+
     if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       if (TARRAY_SIZE(pSubmitTbData->aCol) <= 0) {
         code = TSDB_CODE_INVALID_MSG;
@@ -1531,6 +1541,14 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
     }
   }
 
+  if (req.sttTrigger != -1 && req.sttTrigger != pVnode->config.sttTrigger) {
+    pVnode->config.sttTrigger = req.sttTrigger;
+  }
+
+  if (req.minRows != -1 && req.minRows != pVnode->config.tsdbCfg.minRows) {
+    pVnode->config.tsdbCfg.minRows = req.minRows;
+  }
+
   if (walChanged) {
     walAlter(pVnode->pWal, &pVnode->config.walCfg);
   }
@@ -1646,7 +1664,7 @@ _err:
 }
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SDropIndexReq req = {0};
-  pRsp->msgType = TDMT_VND_CREATE_INDEX_RSP;
+  pRsp->msgType = TDMT_VND_DROP_INDEX_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
@@ -1655,6 +1673,7 @@ static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t version, void *p
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
+
   if (metaDropIndexFromSTable(pVnode->pMeta, version, &req) < 0) {
     pRsp->code = terrno;
     return -1;

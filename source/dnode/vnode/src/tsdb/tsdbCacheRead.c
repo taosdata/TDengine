@@ -38,15 +38,16 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
         *(int64_t*)p->buf = pColVal->ts;
         allNullRow = false;
       } else {
-        int32_t   slotId = slotIds[i];
-        SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
-
+        int32_t slotId = slotIds[i];
         // add check for null value, caused by the modification of table schema (new column added).
-        if (pColVal == NULL) {
+        if (slotId >= taosArrayGetSize(pRow)) {
           p->ts = 0;
           p->isNull = true;
+          colDataSetNULL(pColInfoData, numOfRows);
           continue;
         }
+
+        SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
 
         p->ts = pColVal->ts;
         p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
@@ -79,7 +80,12 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
         SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, 0);
         colDataSetVal(pColInfoData, numOfRows, (const char*)&pColVal->ts, false);
       } else {
-        int32_t   slotId = slotIds[i];
+        int32_t slotId = slotIds[i];
+        // add check for null value, caused by the modification of table schema (new column added).
+        if (slotId >= taosArrayGetSize(pRow)) {
+          colDataSetNULL(pColInfoData, numOfRows);
+          continue;
+        }
         SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
         SColVal*  pVal = &pColVal->colVal;
 
@@ -192,6 +198,8 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
 
   p->idstr = taosStrdup(idstr);
   taosThreadMutexInit(&p->readerMutex, NULL);
+
+  p->lastTs = INT64_MIN;
 
   *pReader = p;
   return TSDB_CODE_SUCCESS;
@@ -341,6 +349,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       }
 
       {
+        bool    hasNotNullRow = true;
+        int64_t minTs = INT64_MAX;
         for (int32_t k = 0; k < pr->numOfCols; ++k) {
           int32_t slotId = slotIds[k];
 
@@ -351,6 +361,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               hasRes = true;
               p->ts = pCol->ts;
               p->colVal = pCol->colVal;
+              minTs = pCol->ts;
 
               // only set value for last row query
               if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
@@ -367,11 +378,17 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
             if (pColVal->ts > p->ts) {
               if (!COL_VAL_IS_VALUE(&pColVal->colVal) && HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST)) {
+                if (!COL_VAL_IS_VALUE(&p->colVal)) {
+                  hasNotNullRow = false;
+                }
                 continue;
               }
 
               hasRes = true;
               p->ts = pColVal->ts;
+              if (pColVal->ts < minTs && HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST)) {
+                minTs = pColVal->ts;
+              }
 
               if (!IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
                 p->colVal = pColVal->colVal;
@@ -387,6 +404,10 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               }
             }
           }
+        }
+
+        if (hasNotNullRow) {
+          pr->lastTs = minTs;
         }
       }
 

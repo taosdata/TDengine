@@ -48,6 +48,15 @@
 
 int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg);
 
+int32_t syncNodeReplicateReset(SSyncNode* pNode, SRaftId* pDestId) {
+  SSyncLogBuffer* pBuf = pNode->pLogBuf;
+  taosThreadMutexLock(&pBuf->mutex);
+  SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, pDestId);
+  syncLogReplMgrReset(pMgr);
+  taosThreadMutexUnlock(&pBuf->mutex);
+  return 0;
+}
+
 int32_t syncNodeReplicate(SSyncNode* pNode) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
   taosThreadMutexLock(&pBuf->mutex);

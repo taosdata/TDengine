@@ -411,7 +411,9 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
       "Copyright (c) 2022 by %s, all rights reserved.\r\n\r\n";
   strcpy(shell.info.cusName, cusName);
   sprintf(shell.info.promptHeader, "%s> ", cusPrompt);
-  shell.info.promptContinue = TAOS_CONSOLE_PROMPT_CONTINUE;
+  char promptContinueFormat[32] = {0};
+  sprintf(promptContinueFormat, "%%%zus> ", strlen(cusPrompt));
+  sprintf(shell.info.promptContinue, promptContinueFormat, " ");
   shell.info.promptSize = strlen(shell.info.promptHeader);
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
            "version: %s compatible_version: %s\ngitinfo: %s\nbuildInfo: %s", version, compatible_version, gitinfo,
