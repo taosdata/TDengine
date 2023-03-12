@@ -78,7 +78,7 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
                                       int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup,
                                       SExecTaskInfo* pTaskInfo) {
   SResultRow* pResultRow = doSetResultOutBufByKey(pAggSup->pResultBuf, pResultRowInfo, (char*)&win->skey, TSDB_KEYSIZE,
-                                                  masterscan, tableGroupId, pTaskInfo, true, pAggSup);
+                                                  masterscan, tableGroupId, pTaskInfo, true, pAggSup, true);
 
   if (pResultRow == NULL) {
     *pResult = NULL;

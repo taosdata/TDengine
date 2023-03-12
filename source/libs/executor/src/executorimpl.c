@@ -195,10 +195,12 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
  */
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,
                                    int16_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
-                                   bool isIntervalQuery, SAggSupporter* pSup) {
+                                   bool isIntervalQuery, SAggSupporter* pSup, bool keepGroup) {
   SET_RES_WINDOW_KEY(pSup->keyBuf, pData, bytes, groupId);
-  *(uint64_t*)pSup->keyBuf = calcGroupId(pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
-
+  if (!keepGroup) {
+    *(uint64_t*)pSup->keyBuf = calcGroupId(pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
+  }
+  
   SResultRowPosition* p1 =
       (SResultRowPosition*)tSimpleHashGet(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
 
@@ -1035,7 +1037,7 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
   int32_t*        rowEntryInfoOffset = pOperator->exprSupp.rowEntryInfoOffset;
 
   SResultRow* pResultRow = doSetResultOutBufByKey(pAggInfo->aggSup.pResultBuf, pResultRowInfo, (char*)&groupId,
-                                                  sizeof(groupId), true, groupId, pTaskInfo, false, &pAggInfo->aggSup);
+                                                  sizeof(groupId), true, groupId, pTaskInfo, false, &pAggInfo->aggSup, true);
   /*
    * not assign result buffer yet, add new result buffer
    * all group belong to one result set, and each group result has different group id so set the id to be one
