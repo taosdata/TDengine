@@ -127,7 +127,8 @@ int32_t udfdCPluginUdfScalarProc(SUdfDataBlock *block, SUdfColumn *resultCol, vo
   if (ctx->scalarProcFunc) {
     return ctx->scalarProcFunc(block, resultCol);
   } else {
-    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
+    fnError("udfd c plugin scalar proc not implemented");
+    return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
   }
 }
 
@@ -136,7 +137,8 @@ int32_t udfdCPluginUdfAggStart(SUdfInterBuf *buf, void *udfCtx) {
   if (ctx->aggStartFunc) {
     return ctx->aggStartFunc(buf);
   } else {
-    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
+    fnError("udfd c plugin aggregation start not implemented");
+    return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
   }
   return 0;
 }
@@ -146,7 +148,8 @@ int32_t udfdCPluginUdfAggProc(SUdfDataBlock *block, SUdfInterBuf *interBuf, SUdf
   if (ctx->aggProcFunc) {
     return ctx->aggProcFunc(block, interBuf, newInterBuf);
   } else {
-    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
+    fnError("udfd c plugin aggregation process not implemented");
+    return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
   }
 }
 
@@ -156,7 +159,8 @@ int32_t udfdCPluginUdfAggMerge(SUdfInterBuf *inputBuf1, SUdfInterBuf *inputBuf2,
   if (ctx->aggMergeFunc) {
     return ctx->aggMergeFunc(inputBuf1, inputBuf2, outputBuf);
   } else {
-    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
+    fnError("udfd c plugin aggregation merge not implemented");
+    return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
   }
 }
 
@@ -165,7 +169,8 @@ int32_t udfdCPluginUdfAggFinish(SUdfInterBuf *buf, SUdfInterBuf *resultData, voi
   if (ctx->aggFinishFunc) {
     return ctx->aggFinishFunc(buf, resultData);
   } else {
-    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
+    fnError("udfd c plugin aggregation finish not implemented");
+    return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
   }
   return 0;
 }
@@ -618,7 +623,7 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   SUdfResponse rsp;
   rsp.seqNum = request->seqNum;
   rsp.type = request->type;
-  rsp.code = code;
+  rsp.code = (code != 0) ? TSDB_CODE_UDF_FUNC_EXEC_FAILURE : 0;
   rsp.setupRsp.udfHandle = (int64_t)(handle);
   rsp.setupRsp.outputType = udf->outputType;
   rsp.setupRsp.bytes = udf->outputLen;
@@ -701,7 +706,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
   rsp->seqNum = request->seqNum;
   rsp->type = request->type;
-  rsp->code = code;
+  rsp->code = (code != 0) ? TSDB_CODE_UDF_FUNC_EXEC_FAILURE : 0;
   subRsp->callType = call->callType;
 
   int32_t len = encodeUdfResponse(NULL, rsp);
