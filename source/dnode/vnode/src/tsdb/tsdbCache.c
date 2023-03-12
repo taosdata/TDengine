@@ -644,12 +644,9 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
     }
     case SFSLASTNEXTROW_BLOCKROW: {
       bool hasVal = false;
-      do {
-        state->row = tMergeTreeGetRow(&state->mergeTree);
-        *ppRow = &state->row;
-        hasVal = tMergeTreeNext(&state->mergeTree);
-      } while (TSDBROW_TS(&state->row) <= state->lastTs && hasVal);
-
+      state->row = tMergeTreeGetRow(&state->mergeTree);
+      *ppRow = &state->row;
+      hasVal = tMergeTreeNext(&state->mergeTree);
       if (TSDBROW_TS(&state->row) <= state->lastTs) {
         *pIgnoreEarlierTs = true;
         state->state = SFSLASTNEXTROW_FILESET;
