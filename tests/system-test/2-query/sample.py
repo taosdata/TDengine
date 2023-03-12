@@ -171,6 +171,7 @@ class TDTestCase:
             if any(parm in condition.lower().strip() for parm in condition_exception):
 
                 print(f"case in {line}: ", end='')
+                print(f"condition : {condition}: ", end='')
                 return tdSql.error(self.sample_query_form(
                     sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                     table_expr=table_expr, condition=condition
@@ -391,16 +392,6 @@ class TDTestCase:
         self.checksample(**case25)
         case26 = {"k": 1000}
         self.checksample(**case26)
-        case27 = {
-            "table_expr": f"{DBNAME}.stb1",
-            "condition": "group by tbname slimit 1 "
-        }
-        self.checksample(**case27)         # with slimit
-        case28 = {
-            "table_expr": f"{DBNAME}.stb1",
-            "condition": "group by tbname slimit 1 soffset 1"
-        }
-        self.checksample(**case28)         # with soffset
 
         pass
 

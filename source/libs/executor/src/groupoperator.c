@@ -474,6 +474,8 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode*
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   setOperatorInfo(pOperator, "GroupbyAggOperator", 0, true, OP_NOT_OPENED, pInfo, pTaskInfo);
 
+  pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
+
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregate, NULL, destroyGroupOperatorInfo,
                                          optrDefaultBufFn, NULL);
   code = appendDownstream(pOperator, &downstream, 1);
