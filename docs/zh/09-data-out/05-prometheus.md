@@ -10,15 +10,15 @@ Prometheus provides `remote_read` interface to leverage other database products 
 
 ## Install Prometheus
 
-Please refer to [Install Prometheus](https://docs.tdengine.com/cloud/data-in/prometheus#install-prometheus).
+Please refer to [Install Prometheus](https://docs.taosdata.com/cloud/data-in/prometheus#install-prometheus).
 
 ## Configure Prometheus
 
-Please refer to [Configure Prometheus](https://docs.tdengine.com/cloud/prometheus/#configure-prometheus).
+Please refer to [Configure Prometheus](https://docs.taosdata.com/cloud/prometheus/#configure-prometheus).
 
 ## Start Prometheus
 
-Please refer to [Start Prometheus](https://docs.tdengine.com/cloud/data-in/prometheus/#start-prometheus).
+Please refer to [Start Prometheus](https://docs.taosdata.com/cloud/data-in/prometheus/#start-prometheus).
 
 ## Verify Remote Read
 

@@ -68,4 +68,4 @@ select * from test.demo where ts >= '2022-05-10 18:24:15' and ts<='2022-05-12 18
 
 ## 创建报表和仪表盘
 
-使用交互式仪表盘和优美报表解锁您的 TDengine 数据能力，更多详情请参考[文档](https://docs.tdengine.com/third-party/google-data-studio/)
+使用交互式仪表盘和优美报表解锁您的 TDengine 数据能力，更多详情请参考[文档](https://docs.taosdata.com/third-party/google-data-studio/)

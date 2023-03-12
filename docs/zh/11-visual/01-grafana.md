@@ -49,6 +49,6 @@ sudo systemctl restart grafana-server.service
 
 ![验证 TDengine 数据源](./grafana/verifying-tdengine-datasource.webp)
 
-## Use Grafana
+## 使用 Grafana
 
-请创建一个新的仪表盘，或者导入存在的仪表盘来展示 TDengine 里面的数据。同时更多细节请参考[文档](https://docs.tdengine.com/third-party/grafana#create-dashboard)。
+请创建一个新的仪表盘，或者导入存在的仪表盘来展示 TDengine 里面的数据。同时更多细节请参考[文档](https://docs.taosdata.com/third-party/grafana#create-dashboard)。

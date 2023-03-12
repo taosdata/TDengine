@@ -45,7 +45,7 @@ export TDENGINE_CLOUD_TOKEN="<token>"
 {{#include docs/examples/thirdparty/gen-telegraf-conf.sh:null:nrc}}
 ```
 
-编辑”outputs.http“部分
+编辑”outputs.http“部分。
 
 ```toml
 {{#include docs/examples/thirdparty/telegraf-conf.toml:null:nrc}}
@@ -63,14 +63,14 @@ telegraf --config telegraf.conf
 
 ## 验证
 
-- 通过下面命令检查天气数据库"telegraf"被创建出来：
+- 通过下面命令检查 `weather` 数据库 `telegraf` 被创建出来：
 
 ```sql
 show databases;
 ```
 ![TDengine show telegraf databases](./telegraf-show-databases.webp)
 
-检查天气超级表 cpu 和 mem 被创建出来：
+检查 `weather` 超级表 cpu 和 mem 被创建出来：
 
 ```sql
 show telegraf.stables;
