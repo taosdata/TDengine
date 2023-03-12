@@ -330,15 +330,16 @@ int32_t tqSendTaosxRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, co
       .contLen = tlen,
       .code = 0,
   };
+
   tmsgSendRsp(&rsp);
 
   char buf1[80] = {0};
   char buf2[80] = {0};
   tFormatOffset(buf1, 80, &pRsp->reqOffset);
   tFormatOffset(buf2, 80, &pRsp->rspOffset);
-  tqDebug("taosx rsp, vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) send rsp, numOfBlks:%d, req:%s, rsp:%s",
-          TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
 
+  tqDebug("taosx rsp, vgId:%d, consumer:0x%" PRIx64 " (epoch %d) send rsp, numOfBlks:%d, req:%s, rsp:%s",
+          TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
   return 0;
 }
 
@@ -600,7 +601,7 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
 
     if (metaRsp.metaRspLen > 0) {
       code = tqSendMetaPollRsp(pTq, pMsg, pRequest, &metaRsp);
-      tqDebug("tmq poll: consumer:0x%" PRIx64 " subkey %s, vg %d, send meta offset type:%d,uid:%" PRId64
+      tqDebug("tmq poll: consumer:0x%" PRIx64 " subkey:%s vgId:%d, send meta offset type:%d,uid:%" PRId64
               ",version:%" PRId64,
               consumerId, pHandle->subKey, vgId, metaRsp.rspOffset.type, metaRsp.rspOffset.uid,
               metaRsp.rspOffset.version);
@@ -617,7 +618,7 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
       offset = taosxRsp.rspOffset;
     }
 
-    tqDebug("taosx poll: consumer:0x%" PRIx64 " subkey %s, vg %d, send data blockNum:%d, offset type:%d,uid:%" PRId64
+    tqDebug("taosx poll: consumer:0x%" PRIx64 " subkey:%s vgId:%d, send data blockNum:%d, offset type:%d,uid:%" PRId64
             ",version:%" PRId64,
             consumerId, pHandle->subKey, vgId, taosxRsp.blockNum, taosxRsp.rspOffset.type, taosxRsp.rspOffset.uid,
             taosxRsp.rspOffset.version);
@@ -637,7 +638,7 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
       // todo refactor: this is not correct.
       int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
       if (savedEpoch > pRequest->epoch) {
-        tqWarn("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, vg %d offset %" PRId64
+        tqWarn("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey:%s vgId:%d offset %" PRId64
                ", found new consumer epoch %d, discard req epoch %d",
                consumerId, pRequest->epoch, pHandle->subKey, vgId, fetchVer, savedEpoch, pRequest->epoch);
         break;
@@ -645,9 +646,7 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
 
       if (tqFetchLog(pTq, pHandle, &fetchVer, &pCkHead) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
-        if (tqSendTaosxRsp(pTq, pMsg, pRequest, &taosxRsp) < 0) {
-          code = -1;
-        }
+        code = tqSendTaosxRsp(pTq, pMsg, pRequest, &taosxRsp);
         tDeleteSTaosxRsp(&taosxRsp);
         taosMemoryFreeClear(pCkHead);
         return code;
@@ -669,11 +668,10 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
                   pRequest->subKey);
           return -1;
         }
-        if (taosxRsp.blockNum > 0 /* threshold */) {
+
+        if (taosxRsp.blockNum > 0) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
-          if (tqSendTaosxRsp(pTq, pMsg, pRequest, &taosxRsp) < 0) {
-            code = -1;
-          }
+          code = tqSendTaosxRsp(pTq, pMsg, pRequest, &taosxRsp);
           tDeleteSTaosxRsp(&taosxRsp);
           taosMemoryFreeClear(pCkHead);
           return code;
@@ -741,21 +739,18 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   taosRUnLockLatch(&pTq->pushLock);
 
   taosWLockLatch(&pTq->pushLock);
-  int32_t savedEpoch = pHandle->epoch;
-
   // 3. update the epoch value
-//  while (savedEpoch < reqEpoch) {
+  int32_t savedEpoch = pHandle->epoch;
+  if (savedEpoch < reqEpoch) {
     tqDebug("tmq poll: consumer:0x%" PRIx64 " epoch update from %d to %d by poll req", consumerId, savedEpoch, reqEpoch);
     pHandle->epoch = reqEpoch;
-//    savedEpoch = atomic_val_compare_exchange_32(&pHandle->epoch, savedEpoch, reqEpoch);
-//  }
-
+  }
   taosWUnLockLatch(&pTq->pushLock);
 
   char buf[80];
   tFormatOffset(buf, 80, &reqOffset);
-  tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s", consumerId,
-          req.epoch, pHandle->subKey, vgId, buf);
+  tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s, reqId:0x%" PRIx64,
+          consumerId, req.epoch, pHandle->subKey, vgId, buf, req.reqId);
 
   return extractDataForMq(pTq, pHandle, &req, pMsg);
 }

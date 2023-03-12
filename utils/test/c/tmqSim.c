@@ -386,7 +386,7 @@ void addRowsToVgroupId(SThreadInfo* pInfo, int32_t vgroupId, int32_t rows) {
   pInfo->rowsOfPerVgroups[pInfo->numOfVgroups][1] += rows;
   pInfo->numOfVgroups++;
 
-  taosFprintfFile(g_fp, "consume id %d, add one new vogroup id: %d\n", pInfo->consumerId, vgroupId);
+  taosFprintfFile(g_fp, "consume id %d, add new vgroupId:%d\n", pInfo->consumerId, vgroupId);
   if (pInfo->numOfVgroups > MAX_VGROUP_CNT) {
     taosFprintfFile(g_fp, "====consume id %d, vgroup num %d over than 32. new vgroupId: %d\n", pInfo->consumerId,
                     pInfo->numOfVgroups, vgroupId);
@@ -578,18 +578,25 @@ static int32_t data_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
   char    buf[1024];
   int32_t totalRows = 0;
 
-  // printf("topic: %s\n", tmq_get_topic_name(msg));
   int32_t     vgroupId = tmq_get_vgroup_id(msg);
   const char* dbName = tmq_get_db_name(msg);
 
   taosFprintfFile(g_fp, "consumerId: %d, msg index:%d\n", pInfo->consumerId, msgIndex);
-  taosFprintfFile(g_fp, "dbName: %s, topic: %s, vgroupId: %d\n", dbName != NULL ? dbName : "invalid table",
-                  tmq_get_topic_name(msg), vgroupId);
+  int32_t index = 0;
+  for (index = 0; index < pInfo->numOfVgroups; index++) {
+    if (vgroupId == pInfo->rowsOfPerVgroups[index][0]) {
+      break;
+    }
+  }
+
+  taosFprintfFile(g_fp, "dbName: %s, topic: %s, vgroupId:%d, currentRows:%d\n", dbName != NULL ? dbName : "invalid table",
+                  tmq_get_topic_name(msg), vgroupId, pInfo->rowsOfPerVgroups[index][1]);
 
   while (1) {
     TAOS_ROW row = taos_fetch_row(msg);
-
-    if (row == NULL) break;
+    if (row == NULL) {
+      break;
+    }
 
     TAOS_FIELD* fields = taos_fetch_fields(msg);
     int32_t     numOfFields = taos_field_count(msg);
@@ -607,7 +614,6 @@ static int32_t data_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
 #endif
 
     dumpToFileForCheck(pInfo->pConsumeRowsFile, row, fields, length, numOfFields, precision);
-
     taos_print_row(buf, row, fields, numOfFields);
 
     if (0 != g_stConfInfo.showRowFlag) {
@@ -621,7 +627,6 @@ static int32_t data_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
   }
 
   addRowsToVgroupId(pInfo, vgroupId, totalRows);
-
   return totalRows;
 }
 
@@ -817,7 +822,6 @@ void loop_consume(SThreadInfo* pInfo) {
       }
 
       taos_free_result(tmqMsg);
-
       totalMsgs++;
 
       int64_t currentPrintTime = taosGetTimestampMs();
