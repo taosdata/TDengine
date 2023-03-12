@@ -649,8 +649,8 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
       hasVal = tMergeTreeNext(&state->mergeTree);
       if (TSDBROW_TS(&state->row) <= state->lastTs) {
         *pIgnoreEarlierTs = true;
-        state->state = SFSLASTNEXTROW_FILESET;
-        goto _next_fileset;
+        *ppRow = NULL;
+        return code;
       }
 
       *pIgnoreEarlierTs = false;
@@ -832,7 +832,13 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
         tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetDataBlk);
         if (block.maxKey.ts <= state->lastTs) {
           *pIgnoreEarlierTs = true;
-          goto _next_fileset;
+          if (state->pBlockData) {
+            tBlockDataDestroy(state->pBlockData);
+            state->pBlockData = NULL;
+          }
+
+          *ppRow = NULL;
+          return code;
         }
         *pIgnoreEarlierTs = false;
         tBlockDataReset(state->pBlockData);
