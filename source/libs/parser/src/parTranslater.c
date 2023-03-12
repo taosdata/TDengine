@@ -2500,9 +2500,8 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
       STempTableNode* pTempTable = (STempTableNode*)pTable;
       code = translateSubquery(pCxt, pTempTable->pSubquery);
       if (TSDB_CODE_SUCCESS == code) {
-        if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) && 
-           ((SSelectStmt*)pTempTable->pSubquery)->isEmptyResult &&
-           isSelectStmt(pCxt->pCurrStmt)) {
+        if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) &&
+            ((SSelectStmt*)pTempTable->pSubquery)->isEmptyResult && isSelectStmt(pCxt->pCurrStmt)) {
           ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
         }
 
@@ -2934,6 +2933,9 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateFillValues(pCxt, pSelect);
+  }
+  if (NULL == pSelect->pProjectionList || 0 >= pSelect->pProjectionList->length) {
+    code = TSDB_CODE_PAR_INVALID_SELECTED_EXPR;
   }
   return code;
 }
@@ -4251,6 +4253,7 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->cacheLastSize = pStmt->pOptions->cacheLastSize;
   pReq->replications = pStmt->pOptions->replica;
   pReq->sstTrigger = pStmt->pOptions->sstTrigger;
+  pReq->minRows = pStmt->pOptions->minRowsPerBlock;
   return;
 }
 
@@ -5570,7 +5573,8 @@ static int32_t checkCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* pStmt
 
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt->pQuery)) {
     SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
-    if (!pSelect->isDistinct && QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable) &&
+    if (!pSelect->isDistinct &&
+        (NULL != pSelect->pFromTable && QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable)) &&
         NULL == pSelect->pGroupByList && NULL == pSelect->pLimit && NULL == pSelect->pSlimit &&
         NULL == pSelect->pOrderByList && NULL == pSelect->pPartitionByList) {
       return TSDB_CODE_SUCCESS;

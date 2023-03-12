@@ -1462,7 +1462,7 @@ SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
 }
 
 void nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc) {
-  if (NULL == pTarget || NULL == pPos || NULL == pSrc) {
+  if (NULL == pTarget || NULL == pPos || NULL == pSrc || NULL == pSrc->pHead) {
     return;
   }
 

@@ -1216,6 +1216,12 @@ static int32_t smlParseLineBottom(SSmlHandle *info) {
 static int32_t smlInsertData(SSmlHandle *info) {
   int32_t code = TSDB_CODE_SUCCESS;
 
+  if(info->pRequest->dbList == NULL){
+    info->pRequest->dbList = taosArrayInit(1, TSDB_DB_FNAME_LEN);
+  }
+  void* data = taosArrayReserve(info->pRequest->dbList, 1);
+  memcpy(data, info->pRequest->pDb, TSDB_DB_FNAME_LEN > strlen(info->pRequest->pDb) ? strlen(info->pRequest->pDb) : TSDB_DB_FNAME_LEN);
+
   SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashIterate(info->childTables, NULL);
   while (oneTable) {
     SSmlTableInfo *tableData = *oneTable;
@@ -1223,6 +1229,11 @@ static int32_t smlInsertData(SSmlHandle *info) {
     SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
     tstrncpy(pName.dbname, info->pRequest->pDb, sizeof(pName.dbname));
     memcpy(pName.tname, tableData->childTableName, strlen(tableData->childTableName));
+
+    if(info->pRequest->tableList == NULL){
+      info->pRequest->tableList = taosArrayInit(1, sizeof(SName));
+    }
+    taosArrayPush(info->pRequest->tableList, &pName);
 
     SRequestConnInfo conn = {0};
     conn.pTrans = info->taos->pAppInfo->pTransporter;
@@ -1425,6 +1436,7 @@ static int smlProcess(SSmlHandle *info, char *lines[], char *rawLine, char *rawL
   do {
     code = smlModifyDBSchemas(info);
     if (code == 0) break;
+    taosMsleep(200);
   } while (retryNum++ < taosHashGetSize(info->superTables) * MAX_RETRY_TIMES);
 
   if (code != 0) {
@@ -1449,61 +1461,74 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
+  SRequestObj *request = NULL;
+  SSmlHandle *info = NULL;
+  while(1){
+    request = (SRequestObj *)createRequest(*(int64_t *)taos, TSDB_SQL_INSERT, reqid);
+    if (request == NULL) {
+      uError("SML:taos_schemaless_insert error request is null");
+      return NULL;
+    }
 
-  SRequestObj *request = (SRequestObj *)createRequest(*(int64_t *)taos, TSDB_SQL_INSERT, reqid);
-  if (request == NULL) {
-    uError("SML:taos_schemaless_insert error request is null");
-    return NULL;
+    info = smlBuildSmlInfo(taos);
+    if (info == NULL) {
+      request->code = TSDB_CODE_OUT_OF_MEMORY;
+      uError("SML:taos_schemaless_insert error SSmlHandle is null");
+      return (TAOS_RES *)request;
+    }
+    info->pRequest = request;
+    info->isRawLine = rawLine != NULL;
+    info->ttl = ttl;
+    info->precision = precision;
+    info->protocol = (TSDB_SML_PROTOCOL_TYPE)protocol;
+    info->msgBuf.buf = info->pRequest->msgBuf;
+    info->msgBuf.len = ERROR_MSG_BUF_DEFAULT_SIZE;
+    info->lineNum = numLines;
+
+    SSmlMsgBuf msg = {ERROR_MSG_BUF_DEFAULT_SIZE, request->msgBuf};
+    if (request->pDb == NULL) {
+      request->code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+      smlBuildInvalidDataMsg(&msg, "Database not specified", NULL);
+      goto end;
+    }
+
+    if (protocol < TSDB_SML_LINE_PROTOCOL || protocol > TSDB_SML_JSON_PROTOCOL) {
+      request->code = TSDB_CODE_SML_INVALID_PROTOCOL_TYPE;
+      smlBuildInvalidDataMsg(&msg, "protocol invalidate", NULL);
+      goto end;
+    }
+
+    if (protocol == TSDB_SML_LINE_PROTOCOL &&
+        (precision < TSDB_SML_TIMESTAMP_NOT_CONFIGURED || precision > TSDB_SML_TIMESTAMP_NANO_SECONDS)) {
+      request->code = TSDB_CODE_SML_INVALID_PRECISION_TYPE;
+      smlBuildInvalidDataMsg(&msg, "precision invalidate for line protocol", NULL);
+      goto end;
+    }
+
+    if (protocol == TSDB_SML_JSON_PROTOCOL) {
+      numLines = 1;
+    } else if (numLines <= 0) {
+      request->code = TSDB_CODE_SML_INVALID_DATA;
+      smlBuildInvalidDataMsg(&msg, "line num is invalid", NULL);
+      goto end;
+    }
+
+    code = smlProcess(info, lines, rawLine, rawLineEnd, numLines);
+    request->code = code;
+    info->cost.endTime = taosGetTimestampUs();
+    info->cost.code = code;
+    smlPrintStatisticInfo(info);
+    if(code == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER || code == TSDB_CODE_SDB_OBJ_CREATING){
+      refreshMeta(request->pTscObj, request);
+      uInfo("SML:%"PRIx64" ver is old retry or object is creating code:%d", info->id, code);
+      smlDestroyInfo(info);
+      info = NULL;
+      taos_free_result(request);
+      request = NULL;
+      continue;
+    }
+    break;
   }
-
-  SSmlHandle *info = smlBuildSmlInfo(taos);
-  if (info == NULL) {
-    request->code = TSDB_CODE_OUT_OF_MEMORY;
-    uError("SML:taos_schemaless_insert error SSmlHandle is null");
-    return (TAOS_RES *)request;
-  }
-  info->pRequest = request;
-  info->isRawLine = rawLine != NULL;
-  info->ttl = ttl;
-  info->precision = precision;
-  info->protocol = (TSDB_SML_PROTOCOL_TYPE)protocol;
-  info->msgBuf.buf = info->pRequest->msgBuf;
-  info->msgBuf.len = ERROR_MSG_BUF_DEFAULT_SIZE;
-  info->lineNum = numLines;
-
-  SSmlMsgBuf msg = {ERROR_MSG_BUF_DEFAULT_SIZE, request->msgBuf};
-  if (request->pDb == NULL) {
-    request->code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
-    smlBuildInvalidDataMsg(&msg, "Database not specified", NULL);
-    goto end;
-  }
-
-  if (protocol < TSDB_SML_LINE_PROTOCOL || protocol > TSDB_SML_JSON_PROTOCOL) {
-    request->code = TSDB_CODE_SML_INVALID_PROTOCOL_TYPE;
-    smlBuildInvalidDataMsg(&msg, "protocol invalidate", NULL);
-    goto end;
-  }
-
-  if (protocol == TSDB_SML_LINE_PROTOCOL &&
-      (precision < TSDB_SML_TIMESTAMP_NOT_CONFIGURED || precision > TSDB_SML_TIMESTAMP_NANO_SECONDS)) {
-    request->code = TSDB_CODE_SML_INVALID_PRECISION_TYPE;
-    smlBuildInvalidDataMsg(&msg, "precision invalidate for line protocol", NULL);
-    goto end;
-  }
-
-  if (protocol == TSDB_SML_JSON_PROTOCOL) {
-    numLines = 1;
-  } else if (numLines <= 0) {
-    request->code = TSDB_CODE_SML_INVALID_DATA;
-    smlBuildInvalidDataMsg(&msg, "line num is invalid", NULL);
-    goto end;
-  }
-
-  code = smlProcess(info, lines, rawLine, rawLineEnd, numLines);
-  request->code = code;
-  info->cost.endTime = taosGetTimestampUs();
-  info->cost.code = code;
-  smlPrintStatisticInfo(info);
 
 end:
   smlDestroyInfo(info);

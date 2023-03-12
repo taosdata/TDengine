@@ -198,7 +198,7 @@ static int32_t tsdbSnapCmprData(STsdbSnapReader* pReader, uint8_t** ppData) {
   ASSERT(pReader->bData.nRow);
 
   int32_t aBufN[5] = {0};
-  code = tCmprBlockData(&pReader->bData, TWO_STAGE_COMP, NULL, NULL, pReader->aBuf, aBufN);
+  code = tCmprBlockData(&pReader->bData, NO_COMPRESSION, NULL, NULL, pReader->aBuf, aBufN);
   if (code) goto _exit;
 
   int32_t size = aBufN[0] + aBufN[1] + aBufN[2] + aBufN[3];
@@ -276,7 +276,7 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* pReader, uint8_t** pp
       code = tsdbSnapReadNextRow(pReader, &pRowInfo);
       TSDB_CHECK_CODE(code, lino, _exit);
 
-      if (pReader->bData.nRow >= 4096) break;
+      if (pReader->bData.nRow >= 81920) break;
     } while (pRowInfo);
 
     ASSERT(pReader->bData.nRow > 0);
