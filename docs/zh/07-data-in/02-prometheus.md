@@ -12,11 +12,11 @@ Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数�
 
 ## 前置条件
 
-登录到 TDengine Cloud ，在左边的菜单点击”数据浏览器“，然后再点击”数据库“标签旁边的”+“按钮添加一个名称是”prometheus_data“使用默认参数的数据库。然后执行 `show databases` SQL确认数据库确实被成功创建出来。
+登录到 TDengine Cloud，在左边的菜单点击”数据浏览器“，然后再点击”数据库“标签旁边的”+“按钮添加一个名称是”prometheus_data“使用默认参数的数据库。然后执行 `show databases` SQL确认数据库确实被成功创建出来。
 
 ## 安装 Prometheus
 
-假设您使用的是 amd64 架构的 Linux 操作系统:
+假设您使用的是 amd64 架构的 Linux 操作系统：
 1. 下载
     ```
     wget https://github.com/prometheus/prometheus/releases/download/v2.37.0/prometheus-2.37.0.linux-amd64.tar.gz
@@ -62,8 +62,7 @@ remote_read:
 
 ## 验证远程写入
 
-Log in TDengine Cloud, click "Explorer" on the left navigation bar. You will see metrics collected by prometheus.
-登录 TDengine Cloud ，然后点击左边导航栏的”数据浏览器“。您就会看见由 Prometheus 收集的指标数据。
+登录 TDengine Cloud，然后点击左边导航栏的”数据浏览器“。您就会看见由 Prometheus 收集的指标数据。
 ![TDengine prometheus remote_write result](prometheus_data.webp)
 
 :::note
