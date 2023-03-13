@@ -11,45 +11,42 @@
 
 # -*- coding: utf-8 -*-
 
-from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
-import taos
+import os
+import random
+import socket
+import string
+import subprocess
 import sys
 import time
-import os
-import socket
-import subprocess
-import random
-import string
-import random
+from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 
-
-from util.log import *
-from util.sql import *
+import taos
 from util.cases import *
 from util.common import *
+from util.dnodes import *
+from util.dnodes import TDDnode, TDDnodes
+from util.log import *
+from util.sql import *
 from util.sqlset import *
 
-from util.dnodes import *
-from util.dnodes import TDDnodes
-from util.dnodes import TDDnode
 
 #
 # --------------    util   --------------------------
 #
 def pathSize(path):
-    
+
     total_size = 0
     for dirpath, dirnames, filenames in os.walk(path):
         for i in filenames:
-            #use join to concatenate all the components of path
+            # use join to concatenate all the components of path
             f = os.path.join(dirpath, i)
-            #use getsize to generate size in bytes and add it to the total size
+            # use getsize to generate size in bytes and add it to the total size
             total_size += os.path.getsize(f)
-            #print(dirpath)
+            # print(dirpath)
 
-    print(" %s  %.02f MB"%(path, total_size/1024/1024))
+    print(" %s  %.02f MB" % (path, total_size/1024/1024))
     return total_size
-    
+
     '''
     total = 0
     with os.scandir(path) as it:
@@ -67,23 +64,26 @@ def pathSize(path):
 # ---------------    cluster  ------------------------
 #
 
+
 class MyDnodes(TDDnodes):
-    def __init__(self ,dnodes_lists):
-        super(MyDnodes,self).__init__()
+    def __init__(self, dnodes_lists):
+        super(MyDnodes, self).__init__()
         self.dnodes = dnodes_lists  # dnode must be TDDnode instance
         self.simDeployed = False
 
+
 class TagCluster:
     noConn = True
+
     def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         self.TDDnodes = None
         self.depoly_cluster(5)
         self.master_dnode = self.TDDnodes.dnodes[0]
-        self.host=self.master_dnode.cfgDict["fqdn"]
-        conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
+        self.host = self.master_dnode.cfgDict["fqdn"]
+        conn1 = taos.connect(
+            self.master_dnode.cfgDict["fqdn"], config=self.master_dnode.cfgDir)
         tdSql.init(conn1.cursor())
-
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -101,8 +101,7 @@ class TagCluster:
                     break
         return buildPath
 
-
-    def depoly_cluster(self ,dnodes_nums):
+    def depoly_cluster(self, dnodes_nums):
 
         testCluster = False
         valgrind = 0
@@ -126,7 +125,7 @@ class TagCluster:
         self.TDDnodes.setAsan(tdDnodes.getAsan())
         self.TDDnodes.stopAll()
         for dnode in self.TDDnodes.dnodes:
-            self.TDDnodes.deploy(dnode.index,{})
+            self.TDDnodes.deploy(dnode.index, {})
 
         for dnode in self.TDDnodes.dnodes:
             self.TDDnodes.starttaosd(dnode.index)
@@ -136,7 +135,8 @@ class TagCluster:
         sql = ""
         for dnode in self.TDDnodes.dnodes[1:]:
             # print(dnode.cfgDict)
-            dnode_id = dnode.cfgDict["fqdn"] +  ":" +dnode.cfgDict["serverPort"]
+            dnode_id = dnode.cfgDict["fqdn"] + \
+                ":" + dnode.cfgDict["serverPort"]
             if dnode_first_host == "":
                 dnode_first_host = dnode.cfgDict["firstEp"].split(":")[0]
                 dnode_first_port = dnode.cfgDict["firstEp"].split(":")[-1]
@@ -145,18 +145,17 @@ class TagCluster:
         cmd = f"{self.getBuildPath()}/build/bin/taos -h {dnode_first_host} -P {dnode_first_port} -s "
         cmd += f'"{sql}"'
         print(cmd)
-        os.system(cmd) 
+        os.system(cmd)
 
         time.sleep(2)
         tdLog.info(" create cluster done! ")
-
 
     def getConnection(self, dnode):
         host = dnode.cfgDict["fqdn"]
         port = dnode.cfgDict["serverPort"]
         config_dir = dnode.cfgDir
         return taos.connect(host=host, port=int(port), config=config_dir)
-        
+
     def run(self):
         tdLog.info(" create cluster ok.")
 
@@ -168,22 +167,22 @@ class TagCluster:
 class PerfDB:
     def __init__(self):
         self.sqls = []
-        self.spends= []
-    
+        self.spends = []
+
     # execute
     def execute(self, sql):
-        print(f"  perfdb execute {sql}")   
+        print(f"  perfdb execute {sql}")
         stime = time.time()
         ret = tdSql.execute(sql, 1)
         spend = time.time() - stime
-        
+
         self.sqls.append(sql)
         self.spends.append(spend)
         return ret
 
     # query
     def query(self, sql):
-        print(f"  perfdb query {sql}")   
+        print(f"  perfdb query {sql}")
         start = time.time()
         ret = tdSql.query(sql, None, 1)
         spend = time.time() - start
@@ -203,9 +202,9 @@ class TDTestCase:
         self.tagCluster = TagCluster()
         self.tagCluster.init(conn, logSql, replicaVar)
         self.lenBinary = 64
-        self.lenNchar  = 32
-        
-        # column 
+        self.lenNchar = 32
+
+        # column
         self.column_dict = {
             'ts': 'timestamp',
             'col1': 'tinyint',
@@ -252,14 +251,14 @@ class TDTestCase:
 
     # query
     def query(self, sql):
-        return self.dbs[self.cur].query(sql)   
-    
-    def set_stb_sql(self,stbname,column_dict,tag_dict):
+        return self.dbs[self.cur].query(sql)
+
+    def set_stb_sql(self, stbname, column_dict, tag_dict):
         column_sql = ''
         tag_sql = ''
-        for k,v in column_dict.items():
+        for k, v in column_dict.items():
             column_sql += f"{k} {v}, "
-        for k,v in tag_dict.items():
+        for k, v in tag_dict.items():
             tag_sql += f"{k} {v}, "
         create_stb_sql = f'create stable {stbname} ({column_sql[:-2]}) tags ({tag_sql[:-2]})'
         return create_stb_sql
@@ -268,37 +267,41 @@ class TDTestCase:
     def create_database(self, dbname, vgroups, replica):
         sql = f'create database {dbname} vgroups {vgroups} replica {replica}'
         tdSql.execute(sql)
-        #tdSql.execute(sql)
+        # tdSql.execute(sql)
         tdSql.execute(f'use {dbname}')
-    
+
     # create stable and child tables
     def create_table(self, stbname, tbname, count):
         # create stable
-        create_table_sql = self.set_stb_sql(stbname, self.column_dict, self.tag_dict)
+        create_table_sql = self.set_stb_sql(
+            stbname, self.column_dict, self.tag_dict)
         tdSql.execute(create_table_sql)
 
         # create child table
         tdLog.info(f" start create {count} child tables.")
-        for i in range(count):
-            ti = i % 128
-            binTxt = self.random_string(self.lenBinary)
-            tags = f'{ti},{ti},{i},{i},{ti},{ti},{i},{i},{i}.000{i},{i}.000{i},true,"{binTxt}","nch{i}",now'
-            sql  = f'create table {tbname}{i} using {stbname} tags({tags})'
-            tdSql.execute(sql)
-            if i > 0 and i % 1000 == 0:
-                tdLog.info(f"  child table count = {i}")
+        batchSql = ""
+        batchSize = 5000
+        for i in range(int(count/batchSize)):
+            batchSql = "create table"
+            for j in range(batchSize):
+                ti = (i * batchSize + j) % 128
+                binTxt = self.random_string(self.lenBinary)
+                idx = i * batchSize + j
+                tags = f'{ti},{ti},{idx},{idx},{ti},{ti},{idx},{idx},{idx}.000{idx},{idx}.000{idx},true,"{binTxt}","nch{idx}",now'
+                sql = f'{tbname}{idx} using {stbname} tags({tags})'
+                batchSql = batchSql + " " + sql
+            tdSql.execute(batchSql)
+            tdLog.info(f"  child table count = {i * batchSize}")
 
-        tdLog.info(f" end create {count} child tables.")
-    
-    
     # create stable and child tables
+
     def create_tagidx(self, stbname):
         cnt = -1
         for key in self.tag_dict.keys():
             # first tag have default index, so skip
             if cnt == -1:
                 cnt = 0
-                continue; 
+                continue
             sql = f'create index idx_{key} on {stbname} ({key})'
             tdLog.info(f"  sql={sql}")
             tdSql.execute(sql)
@@ -309,11 +312,11 @@ class TDTestCase:
     def insert_data(self, tbname):
         # d1 insert 3 rows
         for i in range(3):
-            sql = f'insert into {tbname}1(ts,col1) values(now+{i}s,{i});' 
+            sql = f'insert into {tbname}1(ts,col1) values(now+{i}s,{i});'
             tdSql.execute(sql)
         # d20 insert 4
         for i in range(4):
-            sql = f'insert into {tbname}20(ts,col1) values(now+{i}s,{i});' 
+            sql = f'insert into {tbname}20(ts,col1) values(now+{i}s,{i});'
             tdSql.execute(sql)
 
     # check show indexs
@@ -376,17 +379,17 @@ class TDTestCase:
         self.query(sql)
         tdSql.checkRows(4)
 
-
     # drop child table
+
     def drop_tables(self, tbname, count):
         # table d1 and d20 have verify data , so can not drop
         start = random.randint(21, count/2)
-        end   = random.randint(count/2 + 1, count - 1)
+        end = random.randint(count/2 + 1, count - 1)
         for i in range(start, end):
             sql = f'drop table {tbname}{i}'
             tdSql.execute(sql)
-        cnt = end - start + 1    
-        tdLog.info(f' drop table from {start} to {end} count={cnt}')     
+        cnt = end - start + 1
+        tdLog.info(f' drop table from {start} to {end} count={cnt}')
 
     # drop tag index
     def drop_tagidx(self, dbname, stbname):
@@ -396,11 +399,11 @@ class TDTestCase:
             # first tag have default index, so skip
             if cnt == -1:
                 cnt = 0
-                continue; 
+                continue
             sql = f'drop index idx_{key}'
             tdSql.execute(sql)
             cnt += 1
-        
+
         # check idx result is 0
         sql = f'select index_name,column_name from information_schema.ins_indexes where db_name="{dbname}"'
         tdSql.query(sql)
@@ -408,17 +411,19 @@ class TDTestCase:
         tdLog.info(f' drop {cnt} tag indexs ok.')
 
     # show performance
-    def show_performance(self, count) :
-        db = self.dbs[0] 
+    def show_performance(self, count):
+        db = self.dbs[0]
         db1 = self.dbs[1]
         cnt = len(db.sqls)
         cnt1 = len(db1.sqls)
-        if  cnt != len(db1.sqls):
-            tdLog.info(f"  datebase sql count not equal. cnt={cnt}  cnt1={cnt1}\n")
+        if cnt != len(db1.sqls):
+            tdLog.info(
+                f"  datebase sql count not equal. cnt={cnt}  cnt1={cnt1}\n")
             return False
 
         tdLog.info(f" database sql cnt ={cnt}")
-        print(f"  ----------------- performance (child tables = {count})--------------------")
+        print(
+            f"  ----------------- performance (child tables = {count})--------------------")
         print("   No  time(index) time(no-index) diff(col3-col2) rate(col2/col3)  sql")
         for i in range(cnt):
             key = db.sqls[i]
@@ -427,12 +432,13 @@ class TDTestCase:
             value1 = db1.spends[i]
             diff = value1 - value
             rate = value/value1*100
-            print("   %d   %.3fs      %.3fs          %.3fs         %d%%          %s"%(i+1, value, value1, diff, rate, key))
+            print("   %d   %.3fs      %.3fs          %.3fs         %d%%          %s" % (
+                i+1, value, value1, diff, rate, key))
         print("  --------------------- end ------------------------")
-        return True 
-    
+        return True
+
     def show_diskspace(self):
-        #calc
+        # calc
         selfPath = os.path.dirname(os.path.realpath(__file__))
         projPath = ""
         if ("community" in selfPath):
@@ -451,43 +457,41 @@ class TDTestCase:
         idx_size = vnode2_size + vnode3_size
         noidx_size = vnode4_size + vnode5_size
 
-        print("  index    = %.02f M"%(idx_size/1024/1024))
-        print("  no-index = %.02f M"%(noidx_size/1024/1024))
-        print("  index/no-index = %.2f multiple"%(idx_size/noidx_size))
+        print("  index    = %.02f M" % (idx_size/1024/1024))
+        print("  no-index = %.02f M" % (noidx_size/1024/1024))
+        print("  index/no-index = %.2f multiple" % (idx_size/noidx_size))
 
         print("  -------------------- end ------------------------")
 
-
-
-
     # main
+
     def testdb(self, dbname, stable, tbname, count, createidx):
         # cur
         if createidx:
             self.cur = 0
-        else :
+        else:
             self.cur = 1
 
-        # do 
+        # do
         self.create_database(dbname, 2, 1)
         self.create_table(stable, tbname, count)
-        if(createidx):
-           self.create_tagidx(stable)
+        if (createidx):
+            self.create_tagidx(stable)
         self.insert_data(tbname)
-        if(createidx):
-           self.show_tagidx(dbname,stable)
+        if (createidx):
+            self.show_tagidx(dbname, stable)
         self.query_tagidx(stable)
-        #self.drop_tables(tbname, count)
-        #if(createidx):
+        # self.drop_tables(tbname, count)
+        # if(createidx):
         #   self.drop_tagidx(dbname, stable)
         # query after delete , expect no crash
-        #self.query_tagidx(stable)
+        # self.query_tagidx(stable)
         tdSql.execute(f'flush database {dbname}')
 
     # run
     def run(self):
         self.tagCluster.run()
-        
+
         # var
         dbname = "tagindex"
         dbname1 = dbname + "1"
@@ -511,10 +515,10 @@ class TDTestCase:
 
         self.show_diskspace()
 
-
     def stop(self):
         self.tagCluster.stop()
         tdLog.success("%s successfully executed" % __file__)
+
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

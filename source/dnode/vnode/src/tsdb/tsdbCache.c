@@ -506,6 +506,11 @@ static int32_t getTableDelData(STbData *pMem, STbData *pIMem, SDelFReader *pDelR
                                SArray *aDelData) {
   int32_t code = 0;
 
+  if (pDelIdx) {
+    code = getTableDelDataFromDelIdx(pDelReader, pDelIdx, aDelData);
+    if (code) goto _err;
+  }
+
   if (pMem) {
     code = getTableDelDataFromTbData(pMem, aDelData);
     if (code) goto _err;
@@ -513,11 +518,6 @@ static int32_t getTableDelData(STbData *pMem, STbData *pIMem, SDelFReader *pDelR
 
   if (pIMem) {
     code = getTableDelDataFromTbData(pIMem, aDelData);
-    if (code) goto _err;
-  }
-
-  if (pDelIdx) {
-    code = getTableDelDataFromDelIdx(pDelReader, pDelIdx, aDelData);
     if (code) goto _err;
   }
 
