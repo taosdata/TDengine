@@ -65,7 +65,7 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 <Tabs defaultValue="linux" groupId="sys">
 <TabItem value="linux" label="在 Linux 上面建立连接">
 
-To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
+如果您已经设置了环境变量，您只需要立即执行 `taos` 命令就可以访问 TDengine Cloud 实例。
 
 ```
 taos

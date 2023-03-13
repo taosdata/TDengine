@@ -26,8 +26,6 @@ TDengine Cloud 为用户提供了一个列表页来管理您的组织。在这�
 
 ## 转移组织所有者
 
-If you select the organization in the left header and you are the owner of it, the same organization line will show you the **Transfer Organization Owner** aciton icon. Then click the icon will show you the **Transfer Organization Owner** dialog. In the opened dialog, you can select another active user of the organization. Then the selected active user will receive a notification email about the tranformation operation.
-
 如果您选择了左上角组织选择框里面的组织，并且你是该组织的所有者，在组织列表页面的同一组织行将显示**转移组织所有者**图标。然后点击该图标将显示**转移组织所有者**对话框。在打开的对话框中，您可以选择该组织的另一个活跃的用户，点击确定以后，被选中的活跃用户将收到一封关于转移操作的通知邮件。
 
 ![转移组织所有者](./images/orgtransfer.webp)
