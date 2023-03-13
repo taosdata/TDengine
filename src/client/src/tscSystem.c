@@ -282,13 +282,14 @@ void taos_cleanup(void) {
     #endif
   }
 
-  int32_t id = tscObjRef;
-  tscObjRef = -1;
-  taosCloseRef(id);
 
   void* p = tscQhandle;
   tscQhandle = NULL;
   taosCleanUpScheduler(p);
+
+  int32_t id = tscObjRef;
+  tscObjRef = -1;
+  taosCloseRef(id);
 
   id = tscRefId;
   tscRefId = -1;

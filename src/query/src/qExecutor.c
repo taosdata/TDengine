@@ -52,6 +52,7 @@ enum {
   TS_JOIN_TS_EQUAL = 0,
   TS_JOIN_TS_NOT_EQUALS = 1,
   TS_JOIN_TAG_NOT_EQUALS = 2,
+  TS_JOIN_BLOCK_IGNORE = 3,
 };
 
 typedef enum SResultTsInterpType {
@@ -1322,6 +1323,7 @@ static void doSetInputDataBlockInfo(SOperatorInfo* pOperator, SQLFunctionCtx* pC
     pCtx[i].order = order;
     pCtx[i].size = pBlock->info.rows;
     pCtx[i].currentStage = (uint8_t)pOperator->pRuntimeEnv->scanFlag;
+    pCtx[i].hasColDataInput = false;
 
     setBlockStatisInfo(&pCtx[i], pBlock, &pOperator->pExpr[i].base.colInfo);
   }
@@ -1349,6 +1351,7 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
     pCtx[i].order = order;
     pCtx[i].size = pBlock->info.rows;
     pCtx[i].currentStage = (uint8_t)pOperator->pRuntimeEnv->scanFlag;
+    pCtx[i].hasColDataInput = (pBlock->pDataBlock != NULL);
 
     setBlockStatisInfo(&pCtx[i], pBlock, &pOperator->pExpr[i].base.colInfo);
 
@@ -2129,6 +2132,9 @@ static bool functionNeedToExecute(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx*
   }
 
   if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_FIRST) {
+    if (pCtx->hasColDataInput == false) {
+      return false;
+    }
     // if param[2] is set value, input data come from client, order is no relation with pQueryAttr->order, so always
     // return true
     if (pCtx->param[2].nType == TSDB_DATA_TYPE_INT) return true;
@@ -2137,6 +2143,9 @@ static bool functionNeedToExecute(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx*
 
   // denote the order type
   if ((functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_LAST)) {
+    if (pCtx->hasColDataInput == false) {
+      return false;
+    }
     // if param[2] is set value, input data come from client, order is no relation with pQueryAttr->order, so always
     // return true
     if (pCtx->param[2].nType == TSDB_DATA_TYPE_INT) return true;
@@ -2259,6 +2268,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     } else {
       pCtx->inputBytes = pSqlExpr->colBytes;
     }
+    pCtx->hasColDataInput = false;
 
     pCtx->ptsOutputBuf = NULL;
 
@@ -3222,13 +3232,13 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv* pRuntimeEnv, TSKEY key, tVariant
     if (key < elem.ts) {
       return TS_JOIN_TS_NOT_EQUALS;
     } else if (key > elem.ts) {
-      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_INCONSISTAN);
+      return TS_JOIN_BLOCK_IGNORE;
     }
   } else {
     if (key > elem.ts) {
       return TS_JOIN_TS_NOT_EQUALS;
     } else if (key < elem.ts) {
-      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_INCONSISTAN);
+      return TS_JOIN_BLOCK_IGNORE;
     }
   }
 
@@ -3413,6 +3423,9 @@ void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock
       } else if (ret == TS_JOIN_TS_NOT_EQUALS) {
         all = false;
         continue;
+      } else if (ret == TS_JOIN_BLOCK_IGNORE) {
+        all = false;
+        break;
       } else {
         assert(ret == TS_JOIN_TS_EQUAL);
         p[offset] = true;
@@ -4542,9 +4555,9 @@ int32_t setTimestampListJoinInfo(SQueryRuntimeEnv* pRuntimeEnv, tVariant* pTag, 
     if (!tsBufIsValidElem(&elem)) {
       if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR ||
           pTag->nType == TSDB_DATA_TYPE_JSON) {
-        qError("QInfo:0x%" PRIx64 " failed to find tag:%s in ts_comp", GET_QID(pRuntimeEnv), pTag->pz);
+        qDebug("QInfo:0x%" PRIx64 " tag not found in:%s in ts_comp", GET_QID(pRuntimeEnv), pTag->pz);
       } else {
-        qError("QInfo:0x%" PRIx64 " failed to find tag:%" PRId64 " in ts_comp", GET_QID(pRuntimeEnv), pTag->i64);
+        qDebug("QInfo:0x%" PRIx64 " tag not found in:%" PRId64 " in ts_comp", GET_QID(pRuntimeEnv), pTag->i64);
       }
 
       return -1;
@@ -4966,8 +4979,10 @@ static void doOperatorExecProfOnce(SOperatorStackItem* item, SQueryProfEvent* ev
 }
 
 void calculateOperatorProfResults(SQInfo* pQInfo) {
-  if (pQInfo->summary.queryProfEvents == NULL) {
-    qDebug("QInfo:0x%" PRIx64 " query prof events array is null", pQInfo->qId);
+  if (pQInfo->summary.queryProfEvents == NULL ||
+      pQInfo->summary.queryProfEvents->pData == NULL ||
+      pQInfo->summary.queryProfEvents->size == 0) {
+    qDebug("QInfo:0x%" PRIx64 " query prof events array is null or array data invalid", pQInfo->qId);
     return;
   }
 
@@ -9764,7 +9779,13 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
       }
     }
 
-    int32_t param = (int32_t)pExprs[i].base.param[0].i64;
+    int32_t param;
+    if (pExprs[i].base.functionId != TSDB_FUNC_PERCT) {
+      param = (int32_t)pExprs[i].base.param[0].i64;
+    } else {
+      param = pExprs[i].base.numOfParams;
+    }
+
     if (pExprs[i].base.functionId > 0 && pExprs[i].base.functionId != TSDB_FUNC_SCALAR_EXPR &&
         !isTimeWindowFunction(pExprs[i].base.functionId) &&
         (type != pExprs[i].base.colType || bytes != pExprs[i].base.colBytes)) {

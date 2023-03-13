@@ -2780,7 +2780,7 @@ void tscExprAddParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t byt
   tVariantCreateFromBinary(&pExpr->param[pExpr->numOfParams], argument, bytes, type);
   pExpr->numOfParams += 1;
 
-  assert(pExpr->numOfParams <= 3);
+  assert(pExpr->numOfParams <= 10);
 }
 
 SExprInfo* tscExprGet(SQueryInfo* pQueryInfo, int32_t idx) {
@@ -4561,7 +4561,9 @@ int32_t tscErrorMsgWithCode(int32_t code, char* dstBuffer, const char* errMsg, c
 
 bool tscHasReachLimitation(SQueryInfo* pQueryInfo, SSqlRes* pRes) {
   assert(pQueryInfo != NULL && pQueryInfo->clauseLimit != 0);
-  return (pQueryInfo->clauseLimit > 0 && pRes->numOfClauseTotal >= pQueryInfo->clauseLimit);
+  bool reachLimit = (pQueryInfo->clauseLimit > 0 && pRes->numOfClauseTotal >= pQueryInfo->clauseLimit);
+  tscDebug("reachLimit:%d, limit:%" PRId64 " total:%" PRId64, reachLimit, pQueryInfo->clauseLimit, pRes->numOfClauseTotal);
+  return reachLimit;
 }
 
 char* tscGetErrorMsgPayload(SSqlCmd* pCmd) { return pCmd->payload; }

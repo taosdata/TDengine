@@ -26,7 +26,7 @@ In TDengine, the data types below can be used when specifying a column or tag.
 | 3   |  BIGINT   | 8         | Long integer, the value range is [-2^63+1, 2^63-1], while -2^63 is treated as NULL |
 | 4   |   FLOAT   | 4         | Floating point number, the effective number of digits is 6-7, the value range is [-3.4E38, 3.4E38]  |
 | 5   |  DOUBLE   | 8         | Double precision floating point number, the effective number of digits is 15-16, the value range is [-1.7E308, 1.7E308]  |
-| 6   |  BINARY   | User Defined | Single-byte string for ASCII visible characters. Length must be specified when defining a column or tag of binary type. The string length can be up to  16374 bytes. The string value must be quoted with single quotes. The literal single quote inside the string must be preceded with back slash like `\'` |
+| 6   |  BINARY   | User Defined | Single-byte string for ASCII visible characters. Length must be specified when defining a column or tag of binary type. The string length can be up to  16374 bytes (65517 bytes since version 2.6.0.34). The string value must be quoted with single quotes. The literal single quote inside the string must be preceded with back slash like `\'` |
 | 7   | SMALLINT  | 2         | Short integer, the value range is [-32767, 32767], while -32768 is treated as NULL  |
 | 8   |  TINYINT  | 1         | Single-byte integer, the value range is [-127, 127], while -128 is treated as NULL |
 | 9   |   BOOL    | 1         | Bool, the value range is {true, false}   |
