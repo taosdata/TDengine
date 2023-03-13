@@ -1843,11 +1843,11 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
 
         if (pollRspWrapper->taosxRsp.blockNum == 0) {
-          taosFreeQitem(pollRspWrapper);
           rspWrapper = NULL;
           tscDebug("consumer:0x%" PRIx64 " taosx empty block received, vgId:%d, reqId:0x%" PRIx64, tmq->consumerId, pVg->vgId,
                    pollRspWrapper->reqId);
           pVg->vgIgnoreCnt = VG_POLL_IGNORE_TICK;
+          taosFreeQitem(pollRspWrapper);
           continue;
         }
 
@@ -1859,12 +1859,13 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
           pRsp = tmqBuildTaosxRspFromWrapper(pollRspWrapper);
         }
 
-        taosFreeQitem(pollRspWrapper);
 
         char buf[80];
         tFormatOffset(buf, 80, &pVg->currentOffset);
         tscDebug("consumer:0x%" PRIx64 " process taosx poll rsp, vgId:%d, offset:%s, blocks:%d, reqId:0x%"PRIx64, tmq->consumerId, pVg->vgId,
                  buf, pollRspWrapper->dataRsp.blockNum, pollRspWrapper->reqId);
+
+        taosFreeQitem(pollRspWrapper);
         return pRsp;
 
       } else {
