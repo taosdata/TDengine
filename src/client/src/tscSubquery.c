@@ -3320,7 +3320,17 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_NO_DISKSPACE);
       return;
     }
-    
+
+    SColumnModel *pModelDesc = pDesc->pColumnModel;
+    SColumnModel *pModelMemBuf = trsupport->pExtMemBuffer[idx]->pColumnModel;
+    if (pModelDesc->capacity != pModelMemBuf->capacity ||
+        pModelDesc->numOfCols != pModelMemBuf->numOfCols ||
+        pModelDesc->rowSize != pModelMemBuf->rowSize) {
+      tscError("extBuf column model is not consistent with descriptor column model");
+      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_QRY_APP_ERROR);
+      return;
+    }
+
     int32_t ret = saveToBuffer(trsupport->pExtMemBuffer[idx], pDesc, trsupport->localBuffer, pRes->data,
                                pRes->numOfRows, pQueryInfo->groupbyExpr.orderType);
     if (ret != 0) { // set no disk space error info, and abort retry
