@@ -898,7 +898,86 @@ TEST(clientCase, update_test) {
   }
 }
 
-TEST(clientCase, subscription_test) {
+TEST(clientCase, sub_db_test) {
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(pConn, nullptr);
+
+  //  TAOS_RES* pRes = taos_query(pConn, "create topic topic_t1 as select * from t1");
+  //  if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
+  //    printf("failed to create topic, code:%s", taos_errstr(pRes));
+  //    taos_free_result(pRes);
+  //    return;
+  //  }
+
+  tmq_conf_t* conf = tmq_conf_new();
+  tmq_conf_set(conf, "enable.auto.commit", "true");
+  tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
+  tmq_conf_set(conf, "group.id", "cgrpNamedb");
+  tmq_conf_set(conf, "td.connect.user", "root");
+  tmq_conf_set(conf, "td.connect.pass", "taosdata");
+  tmq_conf_set(conf, "auto.offset.reset", "earliest");
+  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
+  tmq_conf_set(conf, "msg.with.table.name", "true");
+  tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
+
+  tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
+  tmq_conf_destroy(conf);
+
+  // 创建订阅 topics 列表
+  tmq_list_t* topicList = tmq_list_new();
+  tmq_list_append(topicList, "topic_db1");
+
+  // 启动订阅
+  tmq_subscribe(tmq, topicList);
+  tmq_list_destroy(topicList);
+
+  TAOS_FIELD* fields = NULL;
+  int32_t     numOfFields = 0;
+  int32_t     precision = 0;
+  int32_t     totalRows = 0;
+  int32_t     msgCnt = 0;
+  int32_t     timeout = 5000;
+
+  int32_t count = 0;
+
+  while (1) {
+    TAOS_RES* pRes = tmq_consumer_poll(tmq, timeout);
+    if (pRes) {
+      char    buf[1024];
+      int32_t rows = 0;
+
+      const char* topicName = tmq_get_topic_name(pRes);
+      const char* dbName = tmq_get_db_name(pRes);
+      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
+
+      printf("topic: %s\n", topicName);
+      printf("db: %s\n", dbName);
+      printf("vgroup id: %d\n", vgroupId);
+
+      if (count ++ > 200) {
+        tmq_unsubscribe(tmq);
+        break;
+      }
+
+      while (1) {
+        TAOS_ROW row = taos_fetch_row(pRes);
+        if (row == NULL) break;
+
+        fields = taos_fetch_fields(pRes);
+        numOfFields = taos_field_count(pRes);
+        precision = taos_result_precision(pRes);
+        rows++;
+        taos_print_row(buf, row, fields, numOfFields);
+        printf("precision: %d, row content: %s\n", precision, buf);
+      }
+    }
+//      return rows;
+  }
+
+  fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
+}
+
+TEST(clientCase, sub_tb_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 

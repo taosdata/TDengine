@@ -24,6 +24,8 @@
 #include "tref.h"
 #include "ttimer.h"
 
+#define VG_POLL_IGNORE_TICK 100
+
 struct SMqMgmt {
   int8_t  inited;
   tmr_h   timer;
@@ -126,16 +128,14 @@ enum {
 };
 
 typedef struct {
-  // statistics
-  int64_t pollCnt;
-  // offset
+  int64_t      pollCnt;
   STqOffsetVal committedOffset;
   STqOffsetVal currentOffset;
-  // connection info
-  int32_t vgId;
-  int32_t vgStatus;
-  int32_t vgSkipCnt;
-  SEpSet  epSet;
+  int32_t      vgId;
+  int32_t      vgStatus;
+  int32_t      vgSkipCnt;
+  int32_t      vgIgnoreCnt; // once empty block is received, idle for ignoreCnt then start to poll data
+  SEpSet       epSet;
 } SMqClientVg;
 
 typedef struct {
@@ -1347,14 +1347,17 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tDecodeSTaosxRsp(&decoder, &pRspWrapper->taosxRsp);
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->taosxRsp, pMsg->pData, sizeof(SMqRspHead));
+  } else { // invalid rspType
+    tscError("consumer:0x%"PRIx64" invalid rsp msg received, type:%d ignored", tmq->consumerId, rspType);
   }
 
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   taosWriteQitem(tmq->mqueue, pRspWrapper);
 
-  tscDebug("consumer:0x%" PRIx64 ", put poll res into mqueue, total in queue:%d, reqId:0x%" PRIx64, tmq->consumerId,
-           tmq->mqueue->numOfItems, requestId);
+  tscDebug("consumer:0x%" PRIx64 " put poll res into mqueue, type:%d, vgId:%d, total in queue:%d, reqId:0x%" PRIx64,
+           tmq->consumerId, rspType, vgId, tmq->mqueue->numOfItems, requestId);
+
   tsem_post(&tmq->rspSem);
   return 0;
 
@@ -1400,6 +1403,7 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
         .epSet = pVgEp->epSet,
         .vgStatus = TMQ_VG_STATUS__IDLE,
         .vgSkipCnt = 0,
+        .vgIgnoreCnt = 0,
     };
 
     taosArrayPush(pTopic->vgs, &clientVg);
@@ -1700,6 +1704,13 @@ static int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
 
     for (int j = 0; j < numOfVg; j++) {
       SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
+      if (pVg->vgIgnoreCnt > 0) {
+        pVg->vgIgnoreCnt -= 1;
+        tscTrace("consumer:0x%" PRIx64 " epoch %d, vgId:%d idle for %d tick before poll", tmq->consumerId, tmq->epoch,
+                 pVg->vgId, pVg->vgIgnoreCnt);
+        continue;
+      }
+
       int32_t      vgStatus = atomic_val_compare_exchange_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE, TMQ_VG_STATUS__WAIT);
       if (vgStatus == TMQ_VG_STATUS__WAIT) {
         int32_t vgSkipCnt = atomic_add_fetch_32(&pVg->vgSkipCnt, 1);
@@ -1810,8 +1821,6 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
       if (pollRspWrapper->metaRsp.head.epoch == consumerEpoch) {
         SMqClientVg* pVg = pollRspWrapper->vgHandle;
-        /*printf("vgId:%d, offset %" PRId64 " up to %" PRId64 "\n", pVg->vgId, pVg->currentOffset,
-         * rspMsg->msg.rspOffset);*/
         pVg->currentOffset = pollRspWrapper->metaRsp.rspOffset;
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
         // build rsp
@@ -1836,9 +1845,9 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         if (pollRspWrapper->taosxRsp.blockNum == 0) {
           taosFreeQitem(pollRspWrapper);
           rspWrapper = NULL;
-
           tscDebug("consumer:0x%" PRIx64 " taosx empty block received, vgId:%d, reqId:0x%" PRIx64, tmq->consumerId, pVg->vgId,
                    pollRspWrapper->reqId);
+          pVg->vgIgnoreCnt = VG_POLL_IGNORE_TICK;
           continue;
         }
 

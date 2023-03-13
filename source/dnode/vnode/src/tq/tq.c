@@ -68,7 +68,13 @@ static void destroySTqHandle(void* data) {
 
 static void tqPushEntryFree(void* data) {
   STqPushEntry* p = *(void**)data;
-  tDeleteSMqDataRsp(&p->dataRsp);
+  if (p->pDataRsp->head.mqMsgType == TMQ_MSG_TYPE__POLL_RSP) {
+    tDeleteSMqDataRsp(p->pDataRsp);
+  } else if (p->pDataRsp->head.mqMsgType == TMQ_MSG_TYPE__TAOSX_RSP) {
+    tDeleteSTaosxRsp((STaosxRsp*)p->pDataRsp);
+  }
+
+  taosMemoryFree(p->pDataRsp);
   taosMemoryFree(p);
 }
 
@@ -166,8 +172,57 @@ int32_t tqSendMetaPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq,
   return 0;
 }
 
+static int32_t doSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch,
+                             int64_t consumerId, int32_t type) {
+  int32_t len = 0;
+  int32_t code = 0;
+
+  if (type == TMQ_MSG_TYPE__POLL_RSP) {
+    tEncodeSize(tEncodeSMqDataRsp, pRsp, len, code);
+  } else if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
+    tEncodeSize(tEncodeSTaosxRsp, (STaosxRsp*)pRsp, len, code);
+  }
+
+  if (code < 0) {
+    return -1;
+  }
+
+  int32_t tlen = sizeof(SMqRspHead) + len;
+  void*   buf = rpcMallocCont(tlen);
+  if (buf == NULL) {
+    return -1;
+  }
+
+  ((SMqRspHead*)buf)->mqMsgType = type;
+  ((SMqRspHead*)buf)->epoch = epoch;
+  ((SMqRspHead*)buf)->consumerId = consumerId;
+
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, abuf, len);
+
+  if (type == TMQ_MSG_TYPE__POLL_RSP) {
+    tEncodeSMqDataRsp(&encoder, pRsp);
+  } else if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
+    tEncodeSTaosxRsp(&encoder, (STaosxRsp*) pRsp);
+  }
+
+  tEncoderClear(&encoder);
+
+  SRpcMsg rsp = {
+      .info = *pRpcHandleInfo,
+      .pCont = buf,
+      .contLen = tlen,
+      .code = 0,
+  };
+
+  tmsgSendRsp(&rsp);
+  return 0;
+}
+
 int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
-  SMqDataRsp* pRsp = &pPushEntry->dataRsp;
+  SMqDataRsp* pRsp = pPushEntry->pDataRsp;
 
 #if 0
   A(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
@@ -181,37 +236,40 @@ int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
   }
 #endif
 
-  int32_t len = 0;
-  int32_t code = 0;
-  tEncodeSize(tEncodeSMqDataRsp, pRsp, len, code);
+//  int32_t len = 0;
+//  int32_t code = 0;
+//  tEncodeSize(tEncodeSMqDataRsp, pRsp, len, code);
+//  if (code < 0) {
+//    return -1;
+//  }
+//
+//  int32_t tlen = sizeof(SMqRspHead) + len;
+//  void*   buf = rpcMallocCont(tlen);
+//  if (buf == NULL) {
+//    return -1;
+//  }
+//
+//  memcpy(buf, &pPushEntry->dataRsp.head, sizeof(SMqRspHead));
+//
+//  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
+//
+//  SEncoder encoder = {0};
+//  tEncoderInit(&encoder, abuf, len);
+//  tEncodeSMqDataRsp(&encoder, pRsp);
+//  tEncoderClear(&encoder);
+//
+//  SRpcMsg rsp = {
+//      .info = pPushEntry->pInfo,
+//      .pCont = buf,
+//      .contLen = tlen,
+//      .code = 0,
+//  };
+//
+//  tmsgSendRsp(&rsp);
+//
 
-  if (code < 0) {
-    return -1;
-  }
-
-  int32_t tlen = sizeof(SMqRspHead) + len;
-  void*   buf = rpcMallocCont(tlen);
-  if (buf == NULL) {
-    return -1;
-  }
-
-  memcpy(buf, &pPushEntry->dataRsp.head, sizeof(SMqRspHead));
-
-  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
-
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, abuf, len);
-  tEncodeSMqDataRsp(&encoder, pRsp);
-  tEncoderClear(&encoder);
-
-  SRpcMsg rsp = {
-      .info = pPushEntry->pInfo,
-      .pCont = buf,
-      .contLen = tlen,
-      .code = 0,
-  };
-
-  tmsgSendRsp(&rsp);
+  SMqRspHead* pHeader = &pPushEntry->pDataRsp->head;
+  doSendDataRsp(&pPushEntry->info, pRsp, pHeader->epoch, pHeader->consumerId, pHeader->mqMsgType);
 
   char buf1[80] = {0};
   char buf2[80] = {0};
@@ -219,11 +277,10 @@ int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
   tFormatOffset(buf2, tListLen(buf2), &pRsp->rspOffset);
   tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) push rsp, block num: %d, req:%s, rsp:%s",
           TD_VID(pTq->pVnode), pRsp->head.consumerId, pRsp->head.epoch, pRsp->blockNum, buf1, buf2);
-
   return 0;
 }
 
-int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp) {
+int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp, int32_t type) {
 #if 0
   A(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
   A(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
@@ -240,108 +297,126 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   }
 #endif
 
-  int32_t len = 0;
-  int32_t code = 0;
-  tEncodeSize(tEncodeSMqDataRsp, pRsp, len, code);
-  if (code < 0) {
-    return -1;
-  }
-  int32_t tlen = sizeof(SMqRspHead) + len;
-  void*   buf = rpcMallocCont(tlen);
-  if (buf == NULL) {
-    return -1;
-  }
-
-  ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
-  ((SMqRspHead*)buf)->epoch = pReq->epoch;
-  ((SMqRspHead*)buf)->consumerId = pReq->consumerId;
-
-  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
-
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, abuf, len);
-  tEncodeSMqDataRsp(&encoder, pRsp);
-  tEncoderClear(&encoder);
-
-  SRpcMsg rsp = {
-      .info = pMsg->info,
-      .pCont = buf,
-      .contLen = tlen,
-      .code = 0,
-  };
-  tmsgSendRsp(&rsp);
-
-  char buf1[80] = {0};
-  char buf2[80] = {0};
-  tFormatOffset(buf1, 80, &pRsp->reqOffset);
-  tFormatOffset(buf2, 80, &pRsp->rspOffset);
-  tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d), block num:%d, req:%s, rsp:%s",
-          TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
-
-  return 0;
-}
-
-int32_t tqSendTaosxRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const STaosxRsp* pRsp) {
-#if 0
-  A(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
-  A(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
-
-  if (pRsp->withSchema) {
-    A(taosArrayGetSize(pRsp->blockSchema) == pRsp->blockNum);
-  } else {
-    A(taosArrayGetSize(pRsp->blockSchema) == 0);
-  }
-
-  if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-    if (pRsp->blockNum > 0) {
-      A(pRsp->rspOffset.version > pRsp->reqOffset.version);
-    } else {
-      A(pRsp->rspOffset.version >= pRsp->reqOffset.version);
-    }
-  }
-#endif
-
-  int32_t len = 0;
-  int32_t code = 0;
-  tEncodeSize(tEncodeSTaosxRsp, pRsp, len, code);
-  if (code < 0) {
-    return -1;
-  }
-  int32_t tlen = sizeof(SMqRspHead) + len;
-  void*   buf = rpcMallocCont(tlen);
-  if (buf == NULL) {
-    return -1;
-  }
-
-  ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__TAOSX_RSP;
-  ((SMqRspHead*)buf)->epoch = pReq->epoch;
-  ((SMqRspHead*)buf)->consumerId = pReq->consumerId;
-
-  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
-
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, abuf, len);
-  tEncodeSTaosxRsp(&encoder, pRsp);
-  tEncoderClear(&encoder);
-
-  SRpcMsg rsp = {
-      .info = pMsg->info,
-      .pCont = buf,
-      .contLen = tlen,
-      .code = 0,
-  };
-
-  tmsgSendRsp(&rsp);
+//  int32_t len = 0;
+//  int32_t code = 0;
+//
+//  if (type == TMQ_MSG_TYPE__POLL_RSP) {
+//    tEncodeSize(tEncodeSMqDataRsp, pRsp, len, code);
+//  } else if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
+//    tEncodeSize(tEncodeSTaosxRsp, (STaosxRsp*)pRsp, len, code);
+//  }
+//
+//  if (code < 0) {
+//    return -1;
+//  }
+//
+//  int32_t tlen = sizeof(SMqRspHead) + len;
+//  void*   buf = rpcMallocCont(tlen);
+//  if (buf == NULL) {
+//    return -1;
+//  }
+//
+//  ((SMqRspHead*)buf)->mqMsgType = type;
+//  ((SMqRspHead*)buf)->epoch = pReq->epoch;
+//  ((SMqRspHead*)buf)->consumerId = pReq->consumerId;
+//
+//  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
+//
+//  SEncoder encoder = {0};
+//  tEncoderInit(&encoder, abuf, len);
+//
+//  if (type == TMQ_MSG_TYPE__POLL_RSP) {
+//    tEncodeSMqDataRsp(&encoder, pRsp);
+//  } else if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
+//    tEncodeSTaosxRsp(&encoder, (STaosxRsp*) pRsp);
+//  }
+//
+//  tEncoderClear(&encoder);
+//
+//  SRpcMsg rsp = {
+//      .info = pMsg->info,
+//      .pCont = buf,
+//      .contLen = tlen,
+//      .code = 0,
+//  };
+//
+//  tmsgSendRsp(&rsp);
+  doSendDataRsp(&pMsg->info, pRsp, pReq->epoch, pReq->consumerId, type);
 
   char buf1[80] = {0};
   char buf2[80] = {0};
   tFormatOffset(buf1, 80, &pRsp->reqOffset);
   tFormatOffset(buf2, 80, &pRsp->rspOffset);
 
-  tqDebug("taosx rsp, vgId:%d, consumer:0x%" PRIx64 " (epoch %d) send rsp, numOfBlks:%d, req:%s, rsp:%s",
+  tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s",
           TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
+
   return 0;
 }
+
+//int32_t tqSendTaosxRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const STaosxRsp* pRsp) {
+//#if 0
+//  A(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
+//  A(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
+//
+//  if (pRsp->withSchema) {
+//    A(taosArrayGetSize(pRsp->blockSchema) == pRsp->blockNum);
+//  } else {
+//    A(taosArrayGetSize(pRsp->blockSchema) == 0);
+//  }
+//
+//  if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
+//    if (pRsp->blockNum > 0) {
+//      A(pRsp->rspOffset.version > pRsp->reqOffset.version);
+//    } else {
+//      A(pRsp->rspOffset.version >= pRsp->reqOffset.version);
+//    }
+//  }
+//#endif
+//
+//  int32_t len = 0;
+//  int32_t code = 0;
+//  tEncodeSize(tEncodeSTaosxRsp, pRsp, len, code);
+//  if (code < 0) {
+//    return -1;
+//  }
+//
+//  int32_t tlen = sizeof(SMqRspHead) + len;
+//  void*   buf = rpcMallocCont(tlen);
+//  if (buf == NULL) {
+//    terrno = TSDB_CODE_OUT_OF_MEMORY;
+//    return -1;
+//  }
+//
+//  ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__TAOSX_RSP;
+//  ((SMqRspHead*)buf)->epoch = pReq->epoch;
+//  ((SMqRspHead*)buf)->consumerId = pReq->consumerId;
+//
+//  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
+//
+//  SEncoder encoder = {0};
+//  tEncoderInit(&encoder, abuf, len);
+//  tEncodeSTaosxRsp(&encoder, pRsp);
+//  tEncoderClear(&encoder);
+//
+//  SRpcMsg rsp = {
+//      .info = pMsg->info,
+//      .pCont = buf,
+//      .contLen = tlen,
+//      .code = 0,
+//  };
+//
+//  tmsgSendRsp(&rsp);
+//
+//  char buf1[80] = {0};
+//  char buf2[80] = {0};
+//  tFormatOffset(buf1, 80, &pRsp->reqOffset);
+//  tFormatOffset(buf2, 80, &pRsp->rspOffset);
+//
+//  tqDebug("taosx rsp, vgId:%d, consumer:0x%" PRIx64 " (epoch %d) send rsp, numOfBlks:%d, req:%s, rsp:%s",
+//          TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
+//  return 0;
+//}
 
 static FORCE_INLINE bool tqOffsetLessOrEqual(const STqOffset* pLeft, const STqOffset* pRight) {
   return pLeft->val.type == TMQ_OFFSET__LOG && pRight->val.type == TMQ_OFFSET__LOG &&
@@ -441,9 +516,7 @@ static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t su
   }
 #endif
 
-  /*A(subType == TOPIC_SUB_TYPE__COLUMN);*/
   pRsp->withSchema = false;
-
   return 0;
 }
 
@@ -506,7 +579,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
         tqOffsetResetToLog(&dataRsp.rspOffset, walGetLastVer(pTq->pVnode->pWal));
         tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, offset reset to %" PRId64, consumerId,
                 pHandle->subKey, TD_VID(pTq->pVnode), dataRsp.rspOffset.version);
-        int32_t code = tqSendDataRsp(pTq, pMsg, pRequest, &dataRsp);
+        int32_t code = tqSendDataRsp(pTq, pMsg, pRequest, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
         tDeleteSMqDataRsp(&dataRsp);
 
         *pBlockReturned = true;
@@ -515,7 +588,8 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
         STaosxRsp taosxRsp = {0};
         tqInitTaosxRsp(&taosxRsp, pRequest);
         tqOffsetResetToLog(&taosxRsp.rspOffset, walGetLastVer(pTq->pVnode->pWal));
-        int32_t code = tqSendTaosxRsp(pTq, pMsg, pRequest, &taosxRsp);
+        int32_t code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
+//        int32_t code = tqSendTaosxRsp(pTq, pMsg, pRequest, &taosxRsp);
         tDeleteSTaosxRsp(&taosxRsp);
 
         *pBlockReturned = true;
@@ -570,13 +644,13 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
     // till now, all data has been transferred to consumer, new data needs to push client once arrived.
     if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
         dataRsp.reqOffset.version == dataRsp.rspOffset.version && pHandle->consumerId == pRequest->consumerId) {
-      code = tqRegisterPushEntry(pTq, pHandle, pRequest, pMsg, &dataRsp);
+      code = tqRegisterPushEntry(pTq, pHandle, pRequest, pMsg, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
       taosWUnLockLatch(&pTq->pushLock);
       return code;
     }
 
     taosWUnLockLatch(&pTq->pushLock);
-    code = tqSendDataRsp(pTq, pMsg, pRequest, &dataRsp);
+    code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_RSP);
 
     // NOTE: this pHandle->consumerId may have been changed already.
     tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, offset type:%d, uid/version:%" PRId64
@@ -611,7 +685,7 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
     }
 
     if (taosxRsp.blockNum > 0) {
-      code = tqSendTaosxRsp(pTq, pMsg, pRequest, &taosxRsp);
+      code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
       tDeleteSTaosxRsp(&taosxRsp);
       return code;
     } else {
@@ -622,13 +696,14 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
             ",version:%" PRId64,
             consumerId, pHandle->subKey, vgId, taosxRsp.blockNum, taosxRsp.rspOffset.type, taosxRsp.rspOffset.uid,
             taosxRsp.rspOffset.version);
-  }
+  } else {
 
-  if (offset.type == TMQ_OFFSET__LOG) {
+//  if (offset.type == TMQ_OFFSET__LOG) {
     int64_t fetchVer = offset.version + 1;
     pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
     if (pCkHead == NULL) {
       tDeleteSTaosxRsp(&taosxRsp);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
 
@@ -646,14 +721,18 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
 
       if (tqFetchLog(pTq, pHandle, &fetchVer, &pCkHead) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
-        code = tqSendTaosxRsp(pTq, pMsg, pRequest, &taosxRsp);
-        tDeleteSTaosxRsp(&taosxRsp);
-        taosMemoryFreeClear(pCkHead);
-        return code;
+//        if (terrno == 0) {  // failed to seek to given ver, but no errors happen.
+//          code = tqRegisterPushEntry(pTq, pHandle, pRequest, pMsg, (SMqDataRsp*) &taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
+//          return code;
+//        } else { // error happens, return to consumers
+          code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
+          tDeleteSTaosxRsp(&taosxRsp);
+          taosMemoryFreeClear(pCkHead);
+          return code;
+//        }
       }
 
       SWalCont* pHead = &pCkHead->head;
-
       tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d) iter log, vgId:%d offset %" PRId64 " msgType %d", consumerId,
               pRequest->epoch, vgId, fetchVer, pHead->msgType);
 
@@ -663,6 +742,7 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
             .msgLen = pHead->bodyLen - sizeof(SSubmitReq2Msg),
             .ver = pHead->version,
         };
+
         if (tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp) < 0) {
           tqError("tmq poll: tqTaosxScanLog error %" PRId64 ", in vgId:%d, subkey %s", consumerId, vgId,
                   pRequest->subKey);
@@ -671,7 +751,7 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
 
         if (taosxRsp.blockNum > 0) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
-          code = tqSendTaosxRsp(pTq, pMsg, pRequest, &taosxRsp);
+          code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
           tDeleteSTaosxRsp(&taosxRsp);
           taosMemoryFreeClear(pCkHead);
           return code;
@@ -1027,15 +1107,15 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->tbSink.vnode = pTq->pVnode;
     pTask->tbSink.tbSinkFunc = tqSinkToTablePipeline2;
 
-    int32_t version = 1;
+    int32_t ver1 = 1;
     SMetaInfo info = {0};
     int32_t code = metaGetInfo(pTq->pVnode->pMeta, pTask->tbSink.stbUid, &info, NULL);
     if (code == TSDB_CODE_SUCCESS) {
-      version = info.skmVer;
+      ver1 = info.skmVer;
     }
 
     pTask->tbSink.pTSchema =
-        tBuildTSchema(pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols, version);
+        tBuildTSchema(pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols, ver1);
     ASSERT(pTask->tbSink.pTSchema);
   }
 

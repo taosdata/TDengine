@@ -221,12 +221,12 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols, SSchemaWrapper** pSchema) {
   if (msg == NULL) {
     // create raw scan
-
     SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
     if (NULL == pTaskInfo) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
+
     setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
 
     pTaskInfo->cost.created = taosGetTimestampUs();

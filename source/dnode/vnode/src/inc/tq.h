@@ -103,9 +103,9 @@ typedef struct {
 } STqHandle;
 
 typedef struct {
-  SMqDataRsp     dataRsp;
+  SMqDataRsp*    pDataRsp;
   char           subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  SRpcHandleInfo pInfo;
+  SRpcHandleInfo info;
 } STqPushEntry;
 
 struct STQ {
@@ -147,7 +147,7 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
 int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp);
 // int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp* pRsp);
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
-int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp);
+int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp, int32_t type);
 int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry);
 
 // tqMeta

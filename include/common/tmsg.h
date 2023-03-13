@@ -3185,6 +3185,7 @@ typedef struct {
   SArray*      blockData;
   SArray*      blockTbName;
   SArray*      blockSchema;
+  // the following attributes are extended from SMqDataRsp
   int32_t      createTableNum;
   SArray*      createTableLen;
   SArray*      createTableReq;

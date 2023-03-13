@@ -6822,8 +6822,7 @@ int32_t tDecodeSMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
 }
 
 void tDeleteSMqDataRsp(SMqDataRsp *pRsp) {
-  taosArrayDestroy(pRsp->blockDataLen);
-  pRsp->blockDataLen = NULL;
+  pRsp->blockDataLen = taosArrayDestroy(pRsp->blockDataLen);;
   taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
   pRsp->blockData = NULL;
   taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSSchemaWrapper);
