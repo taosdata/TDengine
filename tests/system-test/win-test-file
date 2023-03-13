@@ -1,3 +1,4 @@
+python3 ./test.py -f 1-insert/database_pre_suf.py
 python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 python3 ./test.py -f 0-others/taosShell.py
 python3 ./test.py -f 0-others/taosShellError.py
@@ -32,7 +33,6 @@ python3 ./test.py -f 1-insert/table_param_ttl.py
 python3 ./test.py -f 1-insert/table_param_ttl.py -R
 python3 ./test.py -f 1-insert/update_data_muti_rows.py
 python3 ./test.py -f 1-insert/db_tb_name_check.py
-python3 ./test.py -f 1-insert/database_pre_suf.py
 python3 ./test.py -f 1-insert/InsertFuturets.py
 python3 ./test.py -f 0-others/show.py
 python3 ./test.py -f 0-others/information_schema.py
