@@ -450,6 +450,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/database_pre_suf.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 4
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
@@ -847,7 +849,6 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 2
-
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py -Q 2
@@ -883,6 +884,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 3
@@ -1075,13 +1081,6 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_data.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/odbc.py
