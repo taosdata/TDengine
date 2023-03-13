@@ -735,9 +735,7 @@ void build_consumer(SThreadInfo* pInfo) {
   }
 
   pInfo->tmq = tmq_consumer_new(conf, NULL, 0);
-
   tmq_conf_destroy(conf);
-
   return;
 }
 
