@@ -248,11 +248,11 @@ NULLS 语法用来指定 NULL 值在排序中输出的位置。NULLS LAST 是升
 
 LIMIT 控制输出条数，OFFSET 指定从第几条之后开始输出。LIMIT/OFFSET 对结果集的执行顺序在 ORDER BY 之后。LIMIT 5 OFFSET 2 可以简写为 LIMIT 2, 5，都输出第 3 行到第 7 行数据。
 
-在有 PARTITION BY 子句时，LIMIT 控制的是每个切分的分片中的输出，而不是总的结果集输出。
+在有 PARTITION BY/GROUP BY 子句时，LIMIT 控制的是每个切分的分片中的输出，而不是总的结果集输出。
 
 ## SLIMIT
 
-SLIMIT 和 PARTITION BY 子句一起使用，用来控制输出的分片的数量。SLIMIT 5 SOFFSET 2 可以简写为 SLIMIT 2, 5，都表示输出第 3 个到第 7 个分片。
+SLIMIT 和 PARTITION BY/GROUP BY 子句一起使用，用来控制输出的分片的数量。SLIMIT 5 SOFFSET 2 可以简写为 SLIMIT 2, 5，都表示输出第 3 个到第 7 个分片。
 
 需要注意，如果有 ORDER BY 子句，则输出只有一个分片。
 

@@ -178,6 +178,7 @@
 ,,y,script,./test.sh -f tsim/parser/top_groupby.sim
 ,,y,script,./test.sh -f tsim/parser/topbot.sim
 ,,y,script,./test.sh -f tsim/parser/union_sysinfo.sim
+,,y,script,./test.sh -f tsim/parser/slimit_limit.sim
 ,,y,script,./test.sh -f tsim/query/tagLikeFilter.sim
 ,,y,script,./test.sh -f tsim/query/charScalarFunction.sim
 ,,y,script,./test.sh -f tsim/query/explain.sim

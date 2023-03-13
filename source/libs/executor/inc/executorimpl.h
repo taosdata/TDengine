@@ -750,7 +750,7 @@ void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,
                                    int16_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
-                                   bool isIntervalQuery, SAggSupporter* pSup);
+                                   bool isIntervalQuery, SAggSupporter* pSup, bool keepGroup);
 // operator creater functions
 // clang-format off
 SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo);
