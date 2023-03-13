@@ -408,6 +408,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
         if (hasNotNullRow) {
           pr->lastTs = minTs;
+          tsdbInfo("%p have cache read %d tables", pr, i + 1);
         }
       }
 
@@ -418,6 +419,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       saveOneRow(pLastCols, pResBlock, pr, slotIds, pRes, pr->idstr);
     }
 
+    tsdbInfo("have cached %d tables", taosLRUCacheGetElems(lruCache));
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
     for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];

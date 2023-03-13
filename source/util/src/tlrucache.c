@@ -580,6 +580,16 @@ static size_t taosLRUCacheShardGetUsage(SLRUCacheShard *shard) {
   return usage;
 }
 
+static int32_t taosLRUCacheShardGetElems(SLRUCacheShard *shard) {
+  int32_t elems = 0;
+
+  taosThreadMutexLock(&shard->mutex);
+  elems = shard->table.elems;
+  taosThreadMutexUnlock(&shard->mutex);
+
+  return elems;
+}
+
 static size_t taosLRUCacheShardGetPinnedUsage(SLRUCacheShard *shard) {
   size_t usage = 0;
 
@@ -753,6 +763,16 @@ size_t taosLRUCacheGetUsage(SLRUCache *cache) {
   }
 
   return usage;
+}
+
+int32_t taosLRUCacheGetElems(SLRUCache *cache) {
+  int32_t elems = 0;
+
+  for (int i = 0; i < cache->numShards; ++i) {
+    elems += taosLRUCacheShardGetElems(&cache->shards[i]);
+  }
+
+  return elems;
 }
 
 size_t taosLRUCacheGetPinnedUsage(SLRUCache *cache) {

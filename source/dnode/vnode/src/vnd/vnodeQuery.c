@@ -382,6 +382,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->syncRestore = state.restored;
   pLoad->syncCanRead = state.canRead;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
+  pLoad->numOfCacheTables = tsdbCacheGetElems(pVnode);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
   pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);
   pLoad->totalStorage = (int64_t)3 * 1073741824;

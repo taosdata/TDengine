@@ -55,6 +55,8 @@ void *taosLRUCacheValue(SLRUCache *cache, LRUHandle *handle);
 size_t taosLRUCacheGetUsage(SLRUCache *cache);
 size_t taosLRUCacheGetPinnedUsage(SLRUCache *cache);
 
+int32_t taosLRUCacheGetElems(SLRUCache *cache);
+
 void   taosLRUCacheSetCapacity(SLRUCache *cache, size_t capacity);
 size_t taosLRUCacheGetCapacity(SLRUCache *cache);
 
