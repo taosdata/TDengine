@@ -194,6 +194,7 @@ static char* processCreateStb(SMqMetaRsp* metaRsp) {
   SDecoder       coder;
   char*          string = NULL;
 
+  uDebug("processCreateStb called");
   // decode and process req
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
@@ -203,7 +204,7 @@ static char* processCreateStb(SMqMetaRsp* metaRsp) {
     goto _err;
   }
   string = buildCreateTableJson(&req.schemaRow, &req.schemaTag, req.name, req.suid, TSDB_SUPER_TABLE);
-
+  uDebug("processCreateStb %s", string);
 _err:
   tDecoderClear(&coder);
   return string;
@@ -213,6 +214,7 @@ static char* processAlterStb(SMqMetaRsp* metaRsp) {
   SVCreateStbReq req = {0};
   SDecoder       coder;
   char*          string = NULL;
+  uDebug("processAlterStb called");
 
   // decode and process req
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
@@ -223,6 +225,7 @@ static char* processAlterStb(SMqMetaRsp* metaRsp) {
     goto _err;
   }
   string = buildAlterSTableJson(req.alterOriData, req.alterOriDataLen);
+  uDebug("processAlterStb %s", string);
 
 _err:
   tDecoderClear(&coder);
@@ -346,6 +349,7 @@ static char* processCreateTable(SMqMetaRsp* metaRsp) {
   SVCreateTbReq*     pCreateReq;
   char*              string = NULL;
   // decode
+  uDebug("processCreateTable called");
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
@@ -359,9 +363,9 @@ static char* processCreateTable(SMqMetaRsp* metaRsp) {
     if (pCreateReq->type == TSDB_CHILD_TABLE) {
       string = buildCreateCTableJson(req.pReqs, req.nReqs);
     } else if (pCreateReq->type == TSDB_NORMAL_TABLE) {
-      string =
-          buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE);
+      string = buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE);
     }
+    uDebug("processCreateTable :%s", string);
   }
 
 _exit:
@@ -377,6 +381,7 @@ _exit:
 }
 
 static char* processAutoCreateTable(STaosxRsp* rsp) {
+  uDebug("processAutoCreateTable called");
   if (rsp->createTableNum <= 0) {
     uError("WriteRaw:processAutoCreateTable rsp->createTableNum <= 0");
     goto _exit;
@@ -402,7 +407,7 @@ static char* processAutoCreateTable(STaosxRsp* rsp) {
     }
   }
   string = buildCreateCTableJson(pCreateReq, rsp->createTableNum);
-
+  uDebug("processAutoCreateTable :%s", string);
 _exit:
   for (int i = 0; i < rsp->createTableNum; i++) {
     tDecoderClear(&decoder[i]);
@@ -422,6 +427,7 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
   char*        string = NULL;
   cJSON*       json = NULL;
 
+  uDebug("processAlterTable called");
   // decode
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
@@ -527,6 +533,7 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
       break;
   }
   string = cJSON_PrintUnformatted(json);
+  uDebug("processAlterTable :%s", string);
 
 _exit:
   cJSON_Delete(json);
@@ -539,6 +546,7 @@ static char* processDropSTable(SMqMetaRsp* metaRsp) {
   SVDropStbReq req = {0};
   char*        string = NULL;
   cJSON*       json = NULL;
+  uDebug("processDropSTable called");
 
   // decode
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
@@ -560,7 +568,7 @@ static char* processDropSTable(SMqMetaRsp* metaRsp) {
   cJSON_AddItemToObject(json, "tableName", tableName);
 
   string = cJSON_PrintUnformatted(json);
-
+  uDebug("processDropSTable :%s", string);
 _exit:
   cJSON_Delete(json);
   tDecoderClear(&decoder);
@@ -573,6 +581,7 @@ static char* processDeleteTable(SMqMetaRsp* metaRsp) {
   cJSON*     json = NULL;
   char*      string = NULL;
 
+  uDebug("processDeleteTable called");
   // decode and process req
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
@@ -599,7 +608,7 @@ static char* processDeleteTable(SMqMetaRsp* metaRsp) {
   cJSON_AddItemToObject(json, "sql", sqlJson);
 
   string = cJSON_PrintUnformatted(json);
-
+  uDebug("processDeleteTable :%s", string);
 _exit:
   cJSON_Delete(json);
   tDecoderClear(&coder);
@@ -612,6 +621,7 @@ static char* processDropTable(SMqMetaRsp* metaRsp) {
   char*            string = NULL;
   cJSON*           json = NULL;
 
+  uDebug("processDropTable called");
   // decode
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
@@ -641,7 +651,7 @@ static char* processDropTable(SMqMetaRsp* metaRsp) {
   cJSON_AddItemToObject(json, "tableNameList", tableNameList);
 
   string = cJSON_PrintUnformatted(json);
-
+  uDebug("processDropTable :%s", string);
 _exit:
   cJSON_Delete(json);
   tDecoderClear(&decoder);
@@ -1745,6 +1755,7 @@ end:
 }
 
 char* tmq_get_json_meta(TAOS_RES* res) {
+  uDebug("tmq_get_json_meta called");
   if (!TD_RES_TMQ_META(res) && !TD_RES_TMQ_METADATA(res)) {
     return NULL;
   }
@@ -1844,7 +1855,7 @@ void tmq_free_raw(tmq_raw_data raw) {
 }
 
 int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
-  uDebug("tmq_write_raw");
+  uDebug("tmq_write_raw called");
   if (!taos) {
     return TSDB_CODE_INVALID_PARA;
   }
