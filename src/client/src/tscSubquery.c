@@ -3352,8 +3352,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
 
     SColumnModel *pModelDesc = pDesc->pColumnModel;
     SColumnModel *pModelMemBuf = trsupport->pExtMemBuffer[idx]->pColumnModel;
-    if (pModelDesc->capacity != pModelMemBuf->capacity ||
-        pModelDesc->numOfCols != pModelMemBuf->numOfCols ||
+    if (pModelDesc->numOfCols != pModelMemBuf->numOfCols ||
         pModelDesc->rowSize != pModelMemBuf->rowSize) {
       tscError("extBuf column model is not consistent with descriptor column model");
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_QRY_APP_ERROR);
