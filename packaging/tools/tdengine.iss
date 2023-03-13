@@ -64,8 +64,8 @@ Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; DestName: "{#CusPrompt
 
 
 [run]
-Filename: {sys}\sc.exe; Parameters: "create taosd start= DEMAND binPath= ""C:\\{#CusName}\\taosd.exe --win_service""" ; Flags: runhidden
-Filename: {sys}\sc.exe; Parameters: "create taosadapter start= DEMAND binPath= ""C:\\{#CusName}\\taosadapter.exe""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taosd start= DEMAND binPath= ""C:\\TDengine\\taosd.exe --win_service""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taosadapter start= DEMAND binPath= ""C:\\TDengine\\taosadapter.exe""" ; Flags: runhidden
 
 [UninstallRun]
 RunOnceId: "stoptaosd"; Filename: {sys}\sc.exe; Parameters: "stop taosd" ; Flags: runhidden
