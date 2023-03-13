@@ -637,6 +637,11 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
       state->pMergeTree = &state->mergeTree;
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
+        if (tMergeTreeIgnoreEarlierTs(&state->mergeTree)) {
+          *pIgnoreEarlierTs = true;
+          *ppRow = NULL;
+          return code;
+        }
         state->state = SFSLASTNEXTROW_FILESET;
         goto _next_fileset;
       }

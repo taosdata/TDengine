@@ -29,6 +29,7 @@ struct SLDataIter {
   STimeWindow        timeWindow;
   SVersionRange      verRange;
   SSttBlockLoadInfo *pBlockLoadInfo;
+  bool               ignoreEarlierTs;
 };
 
 SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols,
@@ -351,6 +352,7 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
     if (backward && ((strictTimeRange && (*pIter)->pSttBlk->maxKey <= (*pIter)->timeWindow.skey) ||
                      (!strictTimeRange && (*pIter)->pSttBlk->maxKey < (*pIter)->timeWindow.skey))) {
       (*pIter)->pSttBlk = NULL;
+      (*pIter)->ignoreEarlierTs = true;
     }
   }
 
@@ -581,6 +583,7 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
 
   pMTree->pLoadInfo = pBlockLoadInfo;
   pMTree->destroyLoadInfo = destroyLoadInfo;
+  pMTree->ignoreEarlierTs = false;
 
   for (int32_t i = 0; i < pFReader->pSet->nSttF; ++i) {  // open all last file
     struct SLDataIter *pIter = NULL;
@@ -595,6 +598,9 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
       taosArrayPush(pMTree->pIterList, &pIter);
       tMergeTreeAddIter(pMTree, pIter);
     } else {
+      if (!pMTree->ignoreEarlierTs) {
+        pMTree->ignoreEarlierTs = pIter->ignoreEarlierTs;
+      }
       tLDataIterClose(pIter);
     }
   }
@@ -607,6 +613,8 @@ _end:
 }
 
 void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter) { tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pIter); }
+
+bool tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree) { return pMTree->ignoreEarlierTs; }
 
 bool tMergeTreeNext(SMergeTree *pMTree) {
   int32_t code = TSDB_CODE_SUCCESS;
