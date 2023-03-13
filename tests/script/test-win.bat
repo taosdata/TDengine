@@ -2,57 +2,29 @@
 SETLOCAL EnableDelayedExpansion
 for /F "tokens=1,2 delims=#" %%a in ('"prompt #$H#$E# & echo on & for %%b in (1) do     rem"') do (  set "DEL=%%a")
 set /a a=0
-if "%1" == "full" (
-    echo Windows Taosd Full Test
-    set /a exitNum=0
-    del /Q /F failed.txt
-    set caseFile="win-test-file"
-    if not "%2" == "" (
-        set caseFile="%2"
-    )
-    for /F "usebackq tokens=*" %%i in (!caseFile!) do (
-        call :CheckSkipCase %%i
-        if !skipCase! == false (
-            set line=%%i
-            if "!line:~,7!" == "python3" (
-                set /a a+=1
-                echo !a! Processing %%i
-                call :GetTimeSeconds !time!
-                set time1=!_timeTemp!
-                echo Start at !time!
-                call %%i ARG1 > result_!a!.txt 2>error_!a!.txt || set errorlevel=8
-                if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && set /a exitNum=8 && echo %%i >>failed.txt ) else ( call :colorEcho 0a "Success" &echo. )
-            )
+echo Windows Taosd Full Test
+set /a exitNum=0
+rm -rf failed.txt
+set caseFile="win-test-file"
+if not "%2" == "" (
+    set caseFile="%2"
+)
+for /F "usebackq tokens=*" %%i in (!caseFile!) do (
+    set line=%%i
+    call :CheckSkipCase %%i
+    if !skipCase! == false (
+        if "!line:~,9!" == "./test.sh" (
+            set /a a+=1
+            echo !a! Processing %%i
+            call :GetTimeSeconds !time!
+            set time1=!_timeTemp!
+            echo Start at !time!
+            call !line:./test.sh=wtest.bat! > result_!a!.txt 2>error_!a!.txt || set /a errorlevel=8
+            if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && set /a exitNum=8 && echo %%i >>failed.txt ) else ( call :colorEcho 0a "Success" &echo. )
         )
     )
-    exit /b !exitNum!
 )
-echo Windows Taosd Test
-for /F "usebackq tokens=*" %%i in (win-test-file) do (
-    for /f "tokens=1* delims= " %%a in ("%%i") do if not "%%a" == "@REM" (
-        set /a a+=1
-        set timeNow=!time!
-        echo !a! Processing %%i
-        call :GetTimeSeconds !timeNow!
-        set time1=!_timeTemp!
-        echo Start at !timeNow!
-        call %%i ARG1 > result_!a!.txt 2>error_!a!.txt || set errorlevel=8
-        if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && echo result: && cat result_!a!.txt && echo error: && cat error_!a!.txt && exit /b 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
-    )
-)
-@REM echo Linux Taosd Test
-@REM for /F "usebackq tokens=*" %%i in (simpletest.bat) do (
-@REM     for /f "tokens=1* delims= " %%a in ("%%i") do if not "%%a" == "@REM" (
-@REM         set /a a+=1
-@REM         echo !a! Processing %%i
-@REM         call :GetTimeSeconds !time!
-@REM         set time1=!_timeTemp!
-@REM         echo Start at !time!
-@REM         call %%i ARG1 -m %1 > result_!a!.txt 2>error_!a!.txt
-@REM         if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && echo result: && cat result_!a!.txt && echo error: && cat error_!a!.txt && exit 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
-@REM     )
-@REM )
-exit /b
+exit /b !exitNum!
 
 :colorEcho
 set timeNow=%time%
@@ -90,7 +62,6 @@ goto :eof
 
 :CheckSkipCase
 set skipCase=false
-if "%*" == "python3 ./test.py -f 1-insert/insertWithMoreVgroup.py" ( set skipCase=false )
-if "%*" == "python3 ./test.py -f 2-query/queryQnode.py" ( set skipCase=false )
-echo %* | grep "\-R" && set skipCase=true
+@REM if "%*" == "./test.sh -f tsim/query/scalarFunction.sim" ( set skipCase=true )
+echo %* | grep valgrind && set skipCase=true
 :goto eof
