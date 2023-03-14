@@ -3351,10 +3351,14 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     }
 
     SColumnModel *pModelDesc = pDesc->pColumnModel;
+    if (pModelDesc == NULL) {
+      tscError("0x%"PRIx64" sub:0x%"PRIx64" column model has been freed", pParentSql->self, pSql->self);
+      tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_QRY_APP_ERROR);
+    }
     SColumnModel *pModelMemBuf = trsupport->pExtMemBuffer[idx]->pColumnModel;
     if (pModelDesc->numOfCols != pModelMemBuf->numOfCols ||
         pModelDesc->rowSize != pModelMemBuf->rowSize) {
-      tscError("extBuf column model is not consistent with descriptor column model");
+      tscError("0x%"PRIx64" sub:0x%"PRIx64 "extBuf column model is not consistent with descriptor column model", pParentSql->self, pSql->self);
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_QRY_APP_ERROR);
       return;
     }
