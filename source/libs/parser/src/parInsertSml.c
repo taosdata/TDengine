@@ -345,6 +345,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
         }
         if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)pUcs4, pColSchema->bytes - VARSTR_HEADER_SIZE, &len)) {
           if (errno == E2BIG) {
+            uError("sml bind taosMbsToUcs4 error, kv length:%d, bytes:%d", (int)kv->length, pColSchema->bytes);
             buildInvalidOperationMsg(&pBuf, "value too long");
             ret = TSDB_CODE_PAR_VALUE_TOO_LONG;
             goto end;
