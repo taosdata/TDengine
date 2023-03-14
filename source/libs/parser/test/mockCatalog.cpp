@@ -226,6 +226,7 @@ void generateDatabases(MockCatalogService* mcs) {
   generateTestTables(g_mockCatalogService.get(), "cache_db");
   generateTestStables(g_mockCatalogService.get(), "cache_db");
   mcs->createDatabase("rollup_db", true);
+  mcs->createDatabase("testus", false, 0, TSDB_TIME_PRECISION_NANO);
 }
 
 }  // namespace
@@ -252,7 +253,8 @@ int32_t __catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableNam
   return code;
 }
 
-int32_t __catalogGetCachedTableVgMeta(SCatalog* pCtg, const SName* pTableName,          SVgroupInfo* pVgroup, STableMeta** pTableMeta) {
+int32_t __catalogGetCachedTableVgMeta(SCatalog* pCtg, const SName* pTableName, SVgroupInfo* pVgroup,
+                                      STableMeta** pTableMeta) {
   int32_t code = g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta, true);
   if (code) return code;
   code = g_mockCatalogService->catalogGetTableHashVgroup(pTableName, pVgroup, true);

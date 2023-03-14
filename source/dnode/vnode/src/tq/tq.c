@@ -169,18 +169,6 @@ int32_t tqSendMetaPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq,
 int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
   SMqDataRsp* pRsp = &pPushEntry->dataRsp;
 
-#if 0
-  A(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
-  A(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
-
-  A(!pRsp->withSchema);
-  A(taosArrayGetSize(pRsp->blockSchema) == 0);
-
-  if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-    A(pRsp->rspOffset.version > pRsp->reqOffset.version);
-  }
-#endif
-
   int32_t len = 0;
   int32_t code = 0;
   tEncodeSize(tEncodeSMqDataRsp, pRsp, len, code);
@@ -224,22 +212,6 @@ int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
 }
 
 int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp) {
-#if 0
-  A(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
-  A(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
-
-  A(!pRsp->withSchema);
-  A(taosArrayGetSize(pRsp->blockSchema) == 0);
-
-  if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-    if (pRsp->blockNum > 0) {
-      A(pRsp->rspOffset.version > pRsp->reqOffset.version);
-    } else {
-      A(pRsp->rspOffset.version >= pRsp->reqOffset.version);
-    }
-  }
-#endif
-
   int32_t len = 0;
   int32_t code = 0;
   tEncodeSize(tEncodeSMqDataRsp, pRsp, len, code);
@@ -282,25 +254,6 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
 }
 
 int32_t tqSendTaosxRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const STaosxRsp* pRsp) {
-#if 0
-  A(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
-  A(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
-
-  if (pRsp->withSchema) {
-    A(taosArrayGetSize(pRsp->blockSchema) == pRsp->blockNum);
-  } else {
-    A(taosArrayGetSize(pRsp->blockSchema) == 0);
-  }
-
-  if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-    if (pRsp->blockNum > 0) {
-      A(pRsp->rspOffset.version > pRsp->reqOffset.version);
-    } else {
-      A(pRsp->rspOffset.version >= pRsp->reqOffset.version);
-    }
-  }
-#endif
-
   int32_t len = 0;
   int32_t code = 0;
   tEncodeSize(tEncodeSTaosxRsp, pRsp, len, code);
@@ -429,18 +382,6 @@ static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t su
   }
 
   pRsp->withTbName = 0;
-#if 0
-  pRsp->withTbName = pReq->withTbName;
-  if (pRsp->withTbName) {
-    pRsp->blockTbName = taosArrayInit(0, sizeof(void*));
-    if (pRsp->blockTbName == NULL) {
-      // TODO free
-      return -1;
-    }
-  }
-#endif
-
-  /*A(subType == TOPIC_SUB_TYPE__COLUMN);*/
   pRsp->withSchema = false;
 
   return 0;
@@ -488,7 +429,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // 2. check rebalance
   if (pHandle->consumerId != consumerId) {
-    tqError("tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+    tqDebug("ERROR tmq poll: consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
             consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->consumerId);
     terrno = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
     return -1;
@@ -822,6 +763,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     pHandle = &tqHandle;
     /*taosInitRWLatch(&pExec->lock);*/
 
+    uint64_t oldConsumerId = pHandle->consumerId;
     memcpy(pHandle->subKey, req.subKey, TSDB_SUBSCRIBE_KEY_LEN);
     pHandle->consumerId = req.newConsumerId;
     pHandle->epoch = -1;
@@ -884,13 +826,16 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
                        (SSnapContext**)(&handle.sContext));
       pHandle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &handle, NULL, NULL);
     }
+
     taosHashPut(pTq->pHandle, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
-    tqDebug("try to persist handle %s consumer:0x%" PRIx64, req.subKey, pHandle->consumerId);
+    tqDebug("try to persist handle %s consumer:0x%" PRIx64" , old consumer:0x%"PRIx64, req.subKey, pHandle->consumerId,
+            oldConsumerId);
     if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
       return -1;
     }
   } else {
     // TODO handle qmsg and exec modification
+    tqInfo("update the consumer info, old consumer id:0x%"PRIx64", new Id:0x%"PRIx64, pHandle->consumerId, req.newConsumerId);
     atomic_store_32(&pHandle->epoch, -1);
     atomic_store_64(&pHandle->consumerId, req.newConsumerId);
     atomic_add_fetch_32(&pHandle->epoch, 1);
@@ -898,6 +843,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       qStreamCloseTsdbReader(pHandle->execHandle.task);
     }
+
     if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
       return -1;
     }
@@ -978,12 +924,18 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->tbSink.vnode = pTq->pVnode;
     pTask->tbSink.tbSinkFunc = tqSinkToTablePipeline2;
 
-    /*A(pTask->tbSink.pSchemaWrapper);*/
-    /*A(pTask->tbSink.pSchemaWrapper->pSchema);*/
+    int32_t version = 1;
+    SMetaInfo info = {0};
+    int32_t code = metaGetInfo(pTq->pVnode->pMeta, pTask->tbSink.stbUid, &info, NULL);
+    if (code == TSDB_CODE_SUCCESS) {
+      version = info.skmVer;
+    }
 
     pTask->tbSink.pTSchema =
-        tBuildTSchema(pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols, 1);
-    ASSERT(pTask->tbSink.pTSchema);
+        tBuildTSchema(pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols, version);
+    if(pTask->tbSink.pTSchema == NULL) {
+      return -1;
+    }
   }
 
   streamSetupTrigger(pTask);

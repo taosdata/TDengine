@@ -337,7 +337,11 @@ SUserObj *mndAcquireUser(SMnode *pMnode, const char *userName) {
   SSdb     *pSdb = pMnode->pSdb;
   SUserObj *pUser = sdbAcquire(pSdb, SDB_USER, userName);
   if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_USER_NOT_EXIST;
+    if (terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
+      terrno = TSDB_CODE_MND_USER_NOT_EXIST;
+    } else {
+      terrno = TSDB_CODE_MND_USER_NOT_AVAILABLE;
+    }
   }
   return pUser;
 }

@@ -380,11 +380,13 @@ static int32_t mndInitSdb(SMnode *pMnode) {
 }
 
 static int32_t mndOpenSdb(SMnode *pMnode) {
+  int32_t code = 0;
   if (!pMnode->deploy) {
-    return sdbReadFile(pMnode->pSdb);
-  } else {
-    return 0;
+    code = sdbReadFile(pMnode->pSdb);
   }
+
+  atomic_store_64(&pMnode->applied, pMnode->pSdb->commitIndex);
+  return code;
 }
 
 static void mndCleanupSdb(SMnode *pMnode) {
@@ -706,7 +708,9 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
   } else if (code == 0) {
     mGTrace("msg:%p, successfully processed", pMsg);
   } else {
-    code = terrno;
+    if (code == -1) {
+      code = terrno;
+    }
     mGError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, tstrerror(code), pMsg->info.ahandle,
             TMSG_INFO(pMsg->msgType));
   }

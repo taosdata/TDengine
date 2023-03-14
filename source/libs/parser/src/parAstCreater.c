@@ -1105,7 +1105,7 @@ SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, int32_t 
   return (SNode*)pStmt;
 }
 
-SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkDbName(pCxt, pDbName, false)) {
     return NULL;
@@ -1113,6 +1113,8 @@ SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   SCompactDatabaseStmt* pStmt = (SCompactDatabaseStmt*)nodesMakeNode(QUERY_NODE_COMPACT_DATABASE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  pStmt->pStart = pStart;
+  pStmt->pEnd = pEnd;
   return (SNode*)pStmt;
 }
 

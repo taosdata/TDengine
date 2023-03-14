@@ -121,7 +121,8 @@ enum {
   STREAM_RECOVER_STEP__NONE = 0,
   STREAM_RECOVER_STEP__PREPARE1,
   STREAM_RECOVER_STEP__PREPARE2,
-  STREAM_RECOVER_STEP__SCAN,
+  STREAM_RECOVER_STEP__SCAN1,
+  STREAM_RECOVER_STEP__SCAN2,
 };
 
 typedef struct {
@@ -749,7 +750,7 @@ void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,
                                    int16_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
-                                   bool isIntervalQuery, SAggSupporter* pSup);
+                                   bool isIntervalQuery, SAggSupporter* pSup, bool keepGroup);
 // operator creater functions
 // clang-format off
 SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo);

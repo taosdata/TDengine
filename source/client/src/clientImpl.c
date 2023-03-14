@@ -1307,6 +1307,7 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
   tstrncpy(connectReq.app, appInfo.appName, sizeof(connectReq.app));
   tstrncpy(connectReq.user, pObj->user, sizeof(connectReq.user));
   tstrncpy(connectReq.passwd, pObj->pass, sizeof(connectReq.passwd));
+  tstrncpy(connectReq.sVer, version, sizeof(connectReq.sVer));
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = taosMemoryMalloc(contLen);
