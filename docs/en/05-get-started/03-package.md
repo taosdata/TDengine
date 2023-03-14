@@ -188,7 +188,7 @@ You can use the TDengine CLI to monitor your TDengine deployment and execute ad 
 
 <TabItem label="Windows" value="windows">
 
-After the installation is complete, run `C:\TDengine\taosd.exe` to start TDengine Server.
+After the installation is complete, please run `sc start taosd` or run `C:\TDengine\taosd.exe` with administrator privilege to start TDengine Server.
 
 ## Command Line Interface (CLI)
 
