@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Result, Context};
 use taos::*;
 
 use taosx::{
@@ -108,7 +108,7 @@ impl Cli {
                             sleep *= 2;
                             continue;
                         }
-                        Err(err) => Err(err)?,
+                        Err(err) => Err(err).with_context(|| format!("tmq to td task exec error"))?,
                     }
                 }
             }
@@ -131,7 +131,7 @@ impl Cli {
                             sleep *= 2;
                             continue;
                         }
-                        Err(err) => Err(err)?,
+                        Err(err) => Err(err).with_context(|| format!("tmq to local task exec error"))?,
                     }
                 }
             }
