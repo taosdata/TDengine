@@ -845,6 +845,7 @@ typedef struct {
   int8_t  cacheLast;
   int8_t  replications;
   int32_t sstTrigger;
+  int32_t minRows;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -1135,6 +1136,7 @@ typedef struct {
   int64_t numOfInsertSuccessReqs;
   int64_t numOfBatchInsertReqs;
   int64_t numOfBatchInsertSuccessReqs;
+  int32_t numOfCachedTables;
 } SVnodeLoad;
 
 typedef struct {
@@ -1316,6 +1318,9 @@ typedef struct {
   int8_t  strict;
   int8_t  cacheLast;
   int64_t reserved[8];
+  // 1st modification
+  int16_t sttTrigger;
+  int32_t minRows;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);

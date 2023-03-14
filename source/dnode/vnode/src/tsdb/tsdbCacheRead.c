@@ -199,6 +199,8 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   p->idstr = taosStrdup(idstr);
   taosThreadMutexInit(&p->readerMutex, NULL);
 
+  p->lastTs = INT64_MIN;
+
   *pReader = p;
   return TSDB_CODE_SUCCESS;
 }
@@ -330,6 +332,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   // retrieve the only one last row of all tables in the uid list.
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
+    int64_t st = taosGetTimestampUs();
     for (int32_t i = 0; i < pr->numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];
 
@@ -347,6 +350,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       }
 
       {
+        bool    hasNotNullRow = true;
+        int64_t minTs = INT64_MAX;
         for (int32_t k = 0; k < pr->numOfCols; ++k) {
           int32_t slotId = slotIds[k];
 
@@ -357,6 +362,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               hasRes = true;
               p->ts = pCol->ts;
               p->colVal = pCol->colVal;
+              minTs = pCol->ts;
 
               // only set value for last row query
               if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
@@ -373,11 +379,17 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
             if (pColVal->ts > p->ts) {
               if (!COL_VAL_IS_VALUE(&pColVal->colVal) && HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST)) {
+                if (!COL_VAL_IS_VALUE(&p->colVal)) {
+                  hasNotNullRow = false;
+                }
                 continue;
               }
 
               hasRes = true;
               p->ts = pColVal->ts;
+              if (pColVal->ts < minTs && HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST)) {
+                minTs = pColVal->ts;
+              }
 
               if (!IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
                 p->colVal = pColVal->colVal;
@@ -394,6 +406,13 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
             }
           }
         }
+
+        if (hasNotNullRow) {
+          double cost = (taosGetTimestampUs() - st) / 1000.0;
+          if (cost > tsCacheLazyLoadThreshold) {
+            pr->lastTs = minTs;
+          }
+        }
       }
 
       tsdbCacheRelease(lruCache, h);
@@ -402,7 +421,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     if (hasRes) {
       saveOneRow(pLastCols, pResBlock, pr, slotIds, pRes, pr->idstr);
     }
-
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
     for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];

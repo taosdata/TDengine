@@ -725,6 +725,18 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     terrno = 0;
   }
 
+  if (pAlter->sstTrigger > 0 && pAlter->sstTrigger != pDb->cfg.sstTrigger) {
+    pDb->cfg.sstTrigger = pAlter->sstTrigger;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
+  if (pAlter->minRows > 0 && pAlter->minRows != pDb->cfg.minRows) {
+    pDb->cfg.minRows = pAlter->minRows;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
   return terrno;
 }
 

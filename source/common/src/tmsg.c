@@ -1070,7 +1070,8 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tEncodeI64(&encoder, pload->totalStorage) < 0) return -1;
     if (tEncodeI64(&encoder, pload->compStorage) < 0) return -1;
     if (tEncodeI64(&encoder, pload->pointsWritten) < 0) return -1;
-    if (tEncodeI64(&encoder, reserved) < 0) return -1;
+    if (tEncodeI32(&encoder, pload->numOfCachedTables) < 0) return -1;
+    if (tEncodeI32(&encoder, reserved) < 0) return -1;
     if (tEncodeI64(&encoder, reserved) < 0) return -1;
     if (tEncodeI64(&encoder, reserved) < 0) return -1;
   }
@@ -1148,7 +1149,8 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tDecodeI64(&decoder, &vload.totalStorage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.compStorage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.pointsWritten) < 0) return -1;
-    if (tDecodeI64(&decoder, &reserved) < 0) return -1;
+    if (tDecodeI32(&decoder, &vload.numOfCachedTables) < 0) return -1;
+    if (tDecodeI32(&decoder, (int32_t*)&reserved) < 0) return -1;
     if (tDecodeI64(&decoder, &reserved) < 0) return -1;
     if (tDecodeI64(&decoder, &reserved) < 0) return -1;
     if (taosArrayPush(pReq->pVloads, &vload) == NULL) {
@@ -2219,6 +2221,10 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tEncodeI8(&encoder, pReq->cacheLast) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->replications) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->sstTrigger) < 0) return -1;
+
+  // 1st modification
+  if (tEncodeI32(&encoder, pReq->minRows) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2246,6 +2252,13 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tDecodeI8(&decoder, &pReq->cacheLast) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->replications) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->sstTrigger) < 0) return -1;
+
+  // 1st modification
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pReq->minRows) < 0) return -1;
+  } else {
+    pReq->minRows = -1;
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4172,6 +4185,11 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
   for (int32_t i = 0; i < 8; ++i) {
     if (tEncodeI64(&encoder, pReq->reserved[i]) < 0) return -1;
   }
+
+  // 1st modification
+  if (tEncodeI16(&encoder, pReq->sttTrigger) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->minRows) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4199,6 +4217,15 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
   if (tDecodeI8(&decoder, &pReq->cacheLast) < 0) return -1;
   for (int32_t i = 0; i < 8; ++i) {
     if (tDecodeI64(&decoder, &pReq->reserved[i]) < 0) return -1;
+  }
+
+  // 1st modification
+  if (tDecodeIsEnd(&decoder)) {
+    pReq->sttTrigger = -1;
+    pReq->minRows = -1;
+  } else {
+    if (tDecodeI16(&decoder, &pReq->sttTrigger) < 0) return -1;
+    if (tDecodeI32(&decoder, &pReq->minRows) < 0) return -1;
   }
 
   tEndDecode(&decoder);

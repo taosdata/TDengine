@@ -506,6 +506,11 @@ static int32_t getTableDelData(STbData *pMem, STbData *pIMem, SDelFReader *pDelR
                                SArray *aDelData) {
   int32_t code = 0;
 
+  if (pDelIdx) {
+    code = getTableDelDataFromDelIdx(pDelReader, pDelIdx, aDelData);
+    if (code) goto _err;
+  }
+
   if (pMem) {
     code = getTableDelDataFromTbData(pMem, aDelData);
     if (code) goto _err;
@@ -513,11 +518,6 @@ static int32_t getTableDelData(STbData *pMem, STbData *pIMem, SDelFReader *pDelR
 
   if (pIMem) {
     code = getTableDelDataFromTbData(pIMem, aDelData);
-    if (code) goto _err;
-  }
-
-  if (pDelIdx) {
-    code = getTableDelDataFromDelIdx(pDelReader, pDelIdx, aDelData);
     if (code) goto _err;
   }
 
@@ -593,9 +593,10 @@ typedef struct {
   SMergeTree         mergeTree;
   SMergeTree        *pMergeTree;
   SSttBlockLoadInfo *pLoadInfo;
+  int64_t            lastTs;
 } SFSLastNextRowIter;
 
-static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
+static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlierTs) {
   SFSLastNextRowIter *state = (SFSLastNextRowIter *)iter;
   int32_t             code = 0;
 
@@ -631,25 +632,39 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       }
 
       tMergeTreeOpen(&state->mergeTree, 1, *state->pDataFReader, state->suid, state->uid,
-                     &(STimeWindow){.skey = TSKEY_MIN, .ekey = TSKEY_MAX},
-                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, state->pLoadInfo, false, NULL);
+                     &(STimeWindow){.skey = state->lastTs, .ekey = TSKEY_MAX},
+                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, state->pLoadInfo, false, NULL, true);
       state->pMergeTree = &state->mergeTree;
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
+        if (tMergeTreeIgnoreEarlierTs(&state->mergeTree)) {
+          *pIgnoreEarlierTs = true;
+          *ppRow = NULL;
+          return code;
+        }
         state->state = SFSLASTNEXTROW_FILESET;
         goto _next_fileset;
       }
       state->state = SFSLASTNEXTROW_BLOCKROW;
     }
-    case SFSLASTNEXTROW_BLOCKROW:
+    case SFSLASTNEXTROW_BLOCKROW: {
+      bool hasVal = false;
       state->row = tMergeTreeGetRow(&state->mergeTree);
       *ppRow = &state->row;
-      bool hasVal = tMergeTreeNext(&state->mergeTree);
+      hasVal = tMergeTreeNext(&state->mergeTree);
+      if (TSDBROW_TS(&state->row) <= state->lastTs) {
+        *pIgnoreEarlierTs = true;
+        *ppRow = NULL;
+        return code;
+      }
+
+      *pIgnoreEarlierTs = false;
       if (!hasVal) {
         state->state = SFSLASTNEXTROW_FILESET;
       }
 
       return code;
+    }
     default:
       ASSERT(0);
       break;
@@ -722,9 +737,10 @@ typedef struct SFSNextRowIter {
   int32_t            iRow;
   TSDBROW            row;
   SSttBlockLoadInfo *pLoadInfo;
+  int64_t            lastTs;
 } SFSNextRowIter;
 
-static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
+static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlierTs) {
   SFSNextRowIter *state = (SFSNextRowIter *)iter;
   int32_t         code = 0;
 
@@ -816,12 +832,20 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
         SDataBlk block = {0};
 
         tDataBlkReset(&block);
-        // tBlockDataReset(&state->blockData);
         tBlockDataReset(state->pBlockData);
 
         tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetDataBlk);
-        /* code = tsdbReadBlockData(state->pDataFReader, &state->blockIdx, &block, &state->blockData, NULL, NULL);
-         */
+        if (block.maxKey.ts <= state->lastTs) {
+          *pIgnoreEarlierTs = true;
+          if (state->pBlockData) {
+            tBlockDataDestroy(state->pBlockData);
+            state->pBlockData = NULL;
+          }
+
+          *ppRow = NULL;
+          return code;
+        }
+        *pIgnoreEarlierTs = false;
         tBlockDataReset(state->pBlockData);
         TABLEID tid = {.suid = state->suid, .uid = state->uid};
         code = tBlockDataInit(state->pBlockData, &tid, state->pTSchema, NULL, 0);
@@ -931,16 +955,23 @@ typedef struct SMemNextRowIter {
   SMEMNEXTROWSTATES state;
   STbData          *pMem;  // [input]
   STbDataIter       iter;  // mem buffer skip list iterator
+  int64_t           lastTs;
   // bool              iterOpened;
   // TSDBROW          *curRow;
 } SMemNextRowIter;
 
-static int32_t getNextRowFromMem(void *iter, TSDBROW **ppRow) {
+static int32_t getNextRowFromMem(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlierTs) {
   SMemNextRowIter *state = (SMemNextRowIter *)iter;
   int32_t          code = 0;
+  *pIgnoreEarlierTs = false;
   switch (state->state) {
     case SMEMNEXTROW_ENTER: {
       if (state->pMem != NULL) {
+        if (state->pMem->maxKey <= state->lastTs) {
+          *ppRow = NULL;
+          *pIgnoreEarlierTs = true;
+          return code;
+        }
         tsdbTbDataIterOpen(state->pMem, NULL, 1, &state->iter);
 
         TSDBROW *pMemRow = tsdbTbDataIterGet(&state->iter);
@@ -1041,13 +1072,14 @@ static bool tsdbKeyDeleted(TSDBKEY *key, SArray *pSkyline, int64_t *iSkyline) {
   return deleted;
 }
 
-typedef int32_t (*_next_row_fn_t)(void *iter, TSDBROW **ppRow);
+typedef int32_t (*_next_row_fn_t)(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlierTs);
 typedef int32_t (*_next_row_clear_fn_t)(void *iter);
 
 typedef struct {
   TSDBROW             *pRow;
   bool                 stop;
   bool                 next;
+  bool                 ignoreEarlierTs;
   void                *iter;
   _next_row_fn_t       nextRowFn;
   _next_row_clear_fn_t nextRowClearFn;
@@ -1070,7 +1102,7 @@ typedef struct {
 
 static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTsdb, STSchema *pTSchema, tb_uid_t suid,
                                SSttBlockLoadInfo *pLoadInfo, STsdbReadSnap *pReadSnap, SDataFReader **pDataFReader,
-                               SDataFReader **pDataFReaderLast) {
+                               SDataFReader **pDataFReaderLast, int64_t lastTs) {
   int code = 0;
 
   STbData *pMem = NULL;
@@ -1131,6 +1163,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
   pIter->fsLastState.uid = uid;
   pIter->fsLastState.pLoadInfo = pLoadInfo;
   pIter->fsLastState.pDataFReader = pDataFReaderLast;
+  pIter->fsLastState.lastTs = lastTs;
 
   pIter->fsState.state = SFSNEXTROW_FS;
   pIter->fsState.pTsdb = pTsdb;
@@ -1141,17 +1174,19 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
   pIter->fsState.uid = uid;
   pIter->fsState.pLoadInfo = pLoadInfo;
   pIter->fsState.pDataFReader = pDataFReader;
+  pIter->fsState.lastTs = lastTs;
 
-  pIter->input[0] = (TsdbNextRowState){&pIter->memRow, true, false, &pIter->memState, getNextRowFromMem, NULL};
-  pIter->input[1] = (TsdbNextRowState){&pIter->imemRow, true, false, &pIter->imemState, getNextRowFromMem, NULL};
-  pIter->input[2] = (TsdbNextRowState){&pIter->fsLastRow,     false, true, &pIter->fsLastState, getNextRowFromFSLast,
-                                       clearNextRowFromFSLast};
+  pIter->input[0] = (TsdbNextRowState){&pIter->memRow, true, false, false, &pIter->memState, getNextRowFromMem, NULL};
+  pIter->input[1] = (TsdbNextRowState){&pIter->imemRow, true, false, false, &pIter->imemState, getNextRowFromMem, NULL};
+  pIter->input[2] = (TsdbNextRowState){
+      &pIter->fsLastRow, false, true, false, &pIter->fsLastState, getNextRowFromFSLast, clearNextRowFromFSLast};
   pIter->input[3] =
-      (TsdbNextRowState){&pIter->fsRow, false, true, &pIter->fsState, getNextRowFromFS, clearNextRowFromFS};
+      (TsdbNextRowState){&pIter->fsRow, false, true, false, &pIter->fsState, getNextRowFromFS, clearNextRowFromFS};
 
   if (pMem) {
     pIter->memState.pMem = pMem;
     pIter->memState.state = SMEMNEXTROW_ENTER;
+    pIter->memState.lastTs = lastTs;
     pIter->input[0].stop = false;
     pIter->input[0].next = true;
   }
@@ -1159,6 +1194,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
   if (pIMem) {
     pIter->imemState.pMem = pIMem;
     pIter->imemState.state = SMEMNEXTROW_ENTER;
+    pIter->imemState.lastTs = lastTs;
     pIter->input[1].stop = false;
     pIter->input[1].next = true;
   }
@@ -1186,12 +1222,12 @@ _err:
 }
 
 // iterate next row non deleted backward ts, version (from high to low)
-static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow) {
+static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow, bool *pIgnoreEarlierTs) {
   int code = 0;
   for (;;) {
     for (int i = 0; i < 4; ++i) {
       if (pIter->input[i].next && !pIter->input[i].stop) {
-        code = pIter->input[i].nextRowFn(pIter->input[i].iter, &pIter->input[i].pRow);
+        code = pIter->input[i].nextRowFn(pIter->input[i].iter, &pIter->input[i].pRow, &pIter->input[i].ignoreEarlierTs);
         if (code) goto _err;
 
         if (pIter->input[i].pRow == NULL) {
@@ -1203,6 +1239,8 @@ static int32_t nextRowIterGet(CacheNextRowIter *pIter, TSDBROW **ppRow) {
 
     if (pIter->input[0].stop && pIter->input[1].stop && pIter->input[2].stop && pIter->input[3].stop) {
       *ppRow = NULL;
+      *pIgnoreEarlierTs = (pIter->input[0].ignoreEarlierTs || pIter->input[1].ignoreEarlierTs ||
+                           pIter->input[2].ignoreEarlierTs || pIter->input[3].ignoreEarlierTs);
       return code;
     }
 
@@ -1303,6 +1341,7 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
   int16_t   noneCol = 0;
   bool      setNoneCol = false;
   bool      hasRow = false;
+  bool      ignoreEarlierTs = false;
   SArray   *pColArray = NULL;
   SColVal  *pColVal = &(SColVal){0};
 
@@ -1315,11 +1354,11 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
 
   CacheNextRowIter iter = {0};
   nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLoadInfo, pr->pReadSnap, &pr->pDataFReader,
-                  &pr->pDataFReaderLast);
+                  &pr->pDataFReaderLast, pr->lastTs);
 
   do {
     TSDBROW *pRow = NULL;
-    nextRowIterGet(&iter, &pRow);
+    nextRowIterGet(&iter, &pRow, &ignoreEarlierTs);
 
     if (!pRow) {
       break;
@@ -1419,7 +1458,12 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
   // taosArrayDestroy(pColArray);
   //} else {
   if (!hasRow) {
-    taosArrayClear(pColArray);
+    if (ignoreEarlierTs) {
+      taosArrayDestroy(pColArray);
+      pColArray = NULL;
+    } else {
+      taosArrayClear(pColArray);
+    }
   }
   *ppColArray = pColArray;
   //}
@@ -1441,6 +1485,7 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
   int16_t   noneCol = 0;
   bool      setNoneCol = false;
   bool      hasRow = false;
+  bool      ignoreEarlierTs = false;
   SArray   *pColArray = NULL;
   SColVal  *pColVal = &(SColVal){0};
 
@@ -1453,11 +1498,11 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
 
   CacheNextRowIter iter = {0};
   nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLoadInfo, pr->pReadSnap, &pr->pDataFReader,
-                  &pr->pDataFReaderLast);
+                  &pr->pDataFReaderLast, pr->lastTs);
 
   do {
     TSDBROW *pRow = NULL;
-    nextRowIterGet(&iter, &pRow);
+    nextRowIterGet(&iter, &pRow, &ignoreEarlierTs);
 
     if (!pRow) {
       break;
@@ -1557,7 +1602,12 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
   // taosArrayDestroy(pColArray);
   //} else {
   if (!hasRow) {
-    taosArrayClear(pColArray);
+    if (ignoreEarlierTs) {
+      taosArrayDestroy(pColArray);
+      pColArray = NULL;
+    } else {
+      taosArrayClear(pColArray);
+    }
   }
   *ppLastArray = pColArray;
   //}
@@ -1591,8 +1641,8 @@ int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *
       SArray *pArray = NULL;
       bool    dup = false;  // which is always false for now
       code = mergeLastRow(uid, pTsdb, &dup, &pArray, pr);
-      // if table's empty or error, set handle NULL and return
-      if (code < 0 /* || pArray == NULL*/) {
+      // if table's empty or error or ignore ignore earlier ts, set handle NULL and return
+      if (code < 0 || pArray == NULL) {
         if (!dup && pArray) {
           taosArrayDestroy(pArray);
         }
@@ -1635,8 +1685,8 @@ int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr,
     if (!h) {
       SArray *pLastArray = NULL;
       code = mergeLast(uid, pTsdb, &pLastArray, pr);
-      // if table's empty or error, set handle NULL and return
-      if (code < 0 /* || pLastArray == NULL*/) {
+      // if table's empty or error or ignore ignore earlier ts, set handle NULL and return
+      if (code < 0 || pLastArray == NULL) {
         taosThreadMutexUnlock(&pTsdb->lruMutex);
 
         *handle = NULL;
@@ -1680,6 +1730,15 @@ size_t tsdbCacheGetUsage(SVnode *pVnode) {
   }
 
   return usage;
+}
+
+int32_t tsdbCacheGetElems(SVnode *pVnode) {
+  int32_t elems = 0;
+  if (pVnode->pTsdb != NULL) {
+    elems = taosLRUCacheGetElems(pVnode->pTsdb->lruCache);
+  }
+
+  return elems;
 }
 
 static void getBICacheKey(int32_t fid, int64_t commitID, char *key, int *len) {

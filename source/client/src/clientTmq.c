@@ -1243,7 +1243,6 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
       /*pRspWrapper->vgHandle = pVg;*/
       /*pRspWrapper->topicHandle = pTopic;*/
       taosWriteQitem(tmq->mqueue, pRspWrapper);
-      tsem_post(&tmq->rspSem);
     }
 
     goto CREATE_MSG_FAIL;
@@ -1923,7 +1922,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     return NULL;
   }
 
-  if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__RECOVER) {
+  while (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__RECOVER) {
     int32_t retryCnt = 0;
     while (TSDB_CODE_MND_CONSUMER_NOT_READY == tmqAskEp(tmq, false)) {
       if (retryCnt++ > 40) {
