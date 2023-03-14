@@ -2324,7 +2324,7 @@ class TDTestQuery(TDCase):
                 
     def rm_sql_2_1(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        self.tdCreateData.drop_db("%s" % self.db_2) 
+        self.tdCreateData.drop_db("%s" % self.db_2_1) 
          
     def rm_sql_3(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
