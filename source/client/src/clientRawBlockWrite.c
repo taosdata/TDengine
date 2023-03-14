@@ -789,6 +789,11 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
   toName(pRequest->pTscObj->acctId, pRequest->pDb, req.name, &pName);
   STableMeta *pTableMeta = NULL;
   code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST){
+    code = TSDB_CODE_SUCCESS;
+    taosMemoryFreeClear(pTableMeta);
+    goto end;
+  }
   if (code != TSDB_CODE_SUCCESS) {
     uError("taosCreateTable:catalogGetTableMeta failed. table name: %s", req.name);
     goto end;
@@ -1073,6 +1078,11 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
 
     STableMeta *pTableMeta = NULL;
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST){
+      code = TSDB_CODE_SUCCESS;
+      taosMemoryFreeClear(pTableMeta);
+      continue;
+    }
     if (code != TSDB_CODE_SUCCESS) {
       uError("taosDropTable:catalogGetTableMeta failed. table name: %s", pDropReq->name);
       goto end;
@@ -1096,6 +1106,9 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
     }
   }
 
+  if (taosHashGetSize(pVgroupHashmap) == 0){
+    goto end;
+  }
   SArray* pBufArray = serializeVgroupsDropTableBatch(pVgroupHashmap);
   if (NULL == pBufArray) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1736,6 +1749,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     if (pCreateReqDst) {
       pTableMeta->vgId = vg.vgId;
       pTableMeta->uid = pCreateReqDst->uid;
+      pCreateReqDst->ctb.suid = pTableMeta->suid;
     }
     void* hData = taosHashGet(pVgHash, &vg.vgId, sizeof(vg.vgId));
     if (hData == NULL) {
