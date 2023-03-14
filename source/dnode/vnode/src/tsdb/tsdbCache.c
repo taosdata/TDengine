@@ -632,11 +632,16 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
       }
 
       tMergeTreeOpen(&state->mergeTree, 1, *state->pDataFReader, state->suid, state->uid,
-                     &(STimeWindow){.skey = TSKEY_MIN, .ekey = TSKEY_MAX},
-                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, state->pLoadInfo, false, NULL);
+                     &(STimeWindow){.skey = state->lastTs, .ekey = TSKEY_MAX},
+                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, state->pLoadInfo, false, NULL, true);
       state->pMergeTree = &state->mergeTree;
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
+        if (tMergeTreeIgnoreEarlierTs(&state->mergeTree)) {
+          *pIgnoreEarlierTs = true;
+          *ppRow = NULL;
+          return code;
+        }
         state->state = SFSLASTNEXTROW_FILESET;
         goto _next_fileset;
       }
@@ -644,16 +649,13 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
     }
     case SFSLASTNEXTROW_BLOCKROW: {
       bool hasVal = false;
-      do {
-        state->row = tMergeTreeGetRow(&state->mergeTree);
-        *ppRow = &state->row;
-        hasVal = tMergeTreeNext(&state->mergeTree);
-      } while (TSDBROW_TS(&state->row) <= state->lastTs && hasVal);
-
+      state->row = tMergeTreeGetRow(&state->mergeTree);
+      *ppRow = &state->row;
+      hasVal = tMergeTreeNext(&state->mergeTree);
       if (TSDBROW_TS(&state->row) <= state->lastTs) {
         *pIgnoreEarlierTs = true;
-        state->state = SFSLASTNEXTROW_FILESET;
-        goto _next_fileset;
+        *ppRow = NULL;
+        return code;
       }
 
       *pIgnoreEarlierTs = false;
@@ -835,7 +837,13 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
         tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetDataBlk);
         if (block.maxKey.ts <= state->lastTs) {
           *pIgnoreEarlierTs = true;
-          goto _next_fileset;
+          if (state->pBlockData) {
+            tBlockDataDestroy(state->pBlockData);
+            state->pBlockData = NULL;
+          }
+
+          *ppRow = NULL;
+          return code;
         }
         *pIgnoreEarlierTs = false;
         tBlockDataReset(state->pBlockData);
@@ -1722,6 +1730,15 @@ size_t tsdbCacheGetUsage(SVnode *pVnode) {
   }
 
   return usage;
+}
+
+int32_t tsdbCacheGetElems(SVnode *pVnode) {
+  int32_t elems = 0;
+  if (pVnode->pTsdb != NULL) {
+    elems = taosLRUCacheGetElems(pVnode->pTsdb->lruCache);
+  }
+
+  return elems;
 }
 
 static void getBICacheKey(int32_t fid, int64_t commitID, char *key, int *len) {
