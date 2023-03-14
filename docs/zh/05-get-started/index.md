@@ -30,7 +30,7 @@ import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 <td style={{padding:'1em 3em',border:0}}><img src={official_account} alt="TDengine 微信公众号" width="200" /></td>
 </tr>
 <tr align="center">
-<td style={{padding:'1em 3em',border:0}}>加入“物联网大数据技术群”<br/>与大家进行技术交流</td>
+<td style={{padding:'1em 3em',border:0}}>加入 TDengine 微信群<br/>了解学习最新物联网技术</td>
 <td style={{padding:'1em 3em',border:0}}>关注 TDengine 视频号<br/>收看技术直播与教学视频</td>
 <td style={{padding:'1em 3em',border:0}}>关注 TDengine 公众号<br/>阅读技术文章与行业案例</td>
 </tr>
