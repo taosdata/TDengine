@@ -707,7 +707,10 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
           sourceIdx++;
           targetIdx++;
         } else {
-          ASSERT(0);
+          for (int32_t i = 0; i < pCol->nVal; i++) {
+            colDataSetNULL(pColData, i);
+          }
+          targetIdx++;
         }
       }
     } else {
@@ -749,7 +752,8 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
               sourceIdx++;
               break;
             } else {
-              ASSERT(0);
+              colDataSetNULL(pColData, i);
+              break;
             }
           }
         }
