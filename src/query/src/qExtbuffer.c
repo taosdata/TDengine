@@ -1254,6 +1254,7 @@ void tOrderDescDestroy(tOrderDescriptor *pDesc) {
   }
 
   destroyColumnModel(pDesc->pColumnModel);
+  pDesc->pColumnModel = NULL;
   tfree(pDesc);
 }
 
