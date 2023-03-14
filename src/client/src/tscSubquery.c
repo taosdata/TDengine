@@ -3354,6 +3354,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     if (pModelDesc == NULL) {
       tscError("0x%"PRIx64" sub:0x%"PRIx64" column model has been freed", pParentSql->self, pSql->self);
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_QRY_APP_ERROR);
+      return;
     }
     SColumnModel *pModelMemBuf = trsupport->pExtMemBuffer[idx]->pColumnModel;
     if (pModelDesc->numOfCols != pModelMemBuf->numOfCols ||

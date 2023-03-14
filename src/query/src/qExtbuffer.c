@@ -1253,6 +1253,7 @@ void tOrderDescDestroy(tOrderDescriptor *pDesc) {
     return;
   }
 
+  qDebug("free column model %p of descriptor %p", pDesc->pColumnModel, pDesc);
   destroyColumnModel(pDesc->pColumnModel);
   pDesc->pColumnModel = NULL;
   tfree(pDesc);
