@@ -113,7 +113,10 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     return -1;
   }
 
-  ASSERT(!(pRsp->withTbName || pRsp->withSchema));
+  if(pRsp->withTbName || pRsp->withSchema){
+    tqError("get column should not with meta:%d,%d", pRsp->withTbName, pRsp->withSchema);
+    return -1;
+  }
   return 0;
 }
 

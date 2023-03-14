@@ -265,7 +265,9 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
             .msgLen = len,
             .ver = ver,
         };
-        qStreamSetScanMemData(task, submit);
+        if(qStreamSetScanMemData(task, submit) != 0){
+          continue;
+        }
 
         // here start to scan submit block to extract the subscribed data
         while (1) {
