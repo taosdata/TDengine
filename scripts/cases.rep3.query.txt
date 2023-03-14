@@ -85,6 +85,7 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/al
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_first_3.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_last_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_last_2.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_last_2_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_last_3.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_last_row_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_last_row_2.py --keep --containers
@@ -144,7 +145,9 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/n
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_max_min_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_max_min_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_diff.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_top_bottom.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/split/table_numeric_top_bottom_1.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/split/table_numeric_top_bottom_2.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/split/table_numeric_top_bottom_3.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_state.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_interval.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_csum.py --keep --containers
@@ -153,7 +156,8 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/nu
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_diff.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_avg.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_sum.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_max_min.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/split/table_numeric_max_min_1.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/split/table_numeric_max_min_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/numeric/table_numeric_spread.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/math/stable_math_sin_cos_tan.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/math/stable_math_sqrt.py --keep --containers
