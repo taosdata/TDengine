@@ -314,7 +314,7 @@ pub async fn tmq_to_td(
     let target_database = to.subject.take();
     let target = TaosBuilder::from_dsn(&to)?.pool()?;
 
-    let target_taos = target.get()?;
+    let target_taos = target.get_timeout(Duration::from_secs(5))?;
 
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
     {
@@ -461,7 +461,14 @@ pub async fn tmq_to_td(
             let consumer = consumers.pop().unwrap();
             let taos = target.get()?;
             // taos.exec(format!("use `{target_database}`")).await?;
-            let table = topic.table.as_ref().map(|t| t.table.clone());
+            let mut table = topic.table.as_ref().map(|t| t.table.clone());
+            if topic.is_query() {
+                if let Some(name) = topic.use_table_name.as_ref() {
+                    table.replace(name.to_string());
+                } else if table.is_none() {
+                    table.replace(topic.name.clone());
+                }
+            }
             let actions = actions.to_vec();
             let cancellation = cancel.clone();
             let metrics = metrics.clone();

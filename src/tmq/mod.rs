@@ -20,6 +20,43 @@ pub(crate) struct TopicTable {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TopicType {
+    Database,
+    DatabaseWithMeta,
+    Stable,
+    StableWithMeta,
+    Query,
+}
+
+impl TopicType {
+    fn from_sql(sql: &str) -> Self {
+        let sql = sql.to_lowercase();
+
+        let with_meta = sql.contains("with meta");
+        if sql.contains("as database") {
+            if with_meta {
+                Self::DatabaseWithMeta
+            } else {
+                Self::Database
+            }
+        } else if sql.contains("as stable") {
+            if with_meta {
+                Self::StableWithMeta
+            } else {
+                Self::Stable
+            }
+        } else {
+            debug_assert!(sql.contains("as select"));
+            Self::Query
+        }
+    }
+    fn is_query(&self) -> bool {
+        matches!(self, TopicType::Query)
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct Topic {
     pub(crate) name: String,
     pub(crate) database: String,
@@ -27,6 +64,14 @@ pub(crate) struct Topic {
     pub(crate) database_sql: Option<String>,
     #[serde(flatten)]
     pub(crate) table: Option<TopicTable>,
+    pub(crate) topic_type: TopicType,
+    pub(crate) use_table_name: Option<String>,
+}
+
+impl Topic {
+    pub fn is_query(&self) -> bool {
+        matches!(self.topic_type, TopicType::Query)
+    }
 }
 
 #[derive(Debug)]
@@ -184,6 +229,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
     ))?;
     // dbg!(&from, &database);
     let use_topic_name = from.remove("use.topic.name");
+    let use_table_name = from.remove("use.table.name");
 
     let builder = TaosBuilder::from_dsn(&from)?;
     let source = builder.build()?;
@@ -239,6 +285,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                 database_sql,
                 vgroups,
                 table: None,
+                use_table_name: None,
+                topic_type: TopicType::DatabaseWithMeta,
             }],
         ));
     }
@@ -281,6 +329,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                     database_sql,
                     vgroups,
                     table: None,
+                    use_table_name: None,
+                    topic_type: TopicType::from_sql(&topic.sql()),
                 }],
             ))
         } else if source
@@ -323,6 +373,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                     database_sql,
                     vgroups,
                     table: None,
+                    use_table_name: None,
+                    topic_type: TopicType::DatabaseWithMeta,
                 }],
             ))
         } else if topic.contains('.') {
@@ -379,6 +431,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                                 database_sql,
                                 vgroups,
                                 table: None,
+                                use_table_name: None,
+                                topic_type: TopicType::StableWithMeta,
                             }],
                         ));
                     } else {
@@ -420,6 +474,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                                 database_sql,
                                 vgroups,
                                 table: None,
+                                use_table_name: None,
+                                topic_type: TopicType::StableWithMeta,
                             }],
                         ));
                     }
@@ -494,6 +550,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                                 database_sql,
                                 vgroups,
                                 table: Some(topic_table),
+                                use_table_name,
+                                topic_type: TopicType::StableWithMeta,
                             }],
                         ));
                     } else {
@@ -558,6 +616,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                                 database_sql,
                                 vgroups,
                                 table: Some(topic_table),
+                                use_table_name,
+                                topic_type: TopicType::Query,
                             }],
                         ));
                     }
@@ -601,12 +661,16 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                 _ => unreachable!(),
             };
 
+            let topic_type = TopicType::from_sql(topic.sql());
+
             out.push(Topic {
                 name: topic.name().to_string(),
                 database: topic.db_name().to_string(),
                 database_sql,
                 vgroups,
                 table: None,
+                use_table_name: use_table_name.clone(),
+                topic_type,
             });
         }
         if topics.len() == out.len() {
@@ -649,6 +713,8 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                         database_sql,
                         vgroups,
                         table: None,
+                        topic_type: TopicType::DatabaseWithMeta,
+                        use_table_name: None,
                     });
                 }
             }

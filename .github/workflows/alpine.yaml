@@ -1,0 +1,51 @@
+name: Alpine
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  alpine:
+    name: Alpine
+    runs-on: ubuntu-latest
+    container: docker.io/frolvlad/alpine-rust
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install compiler
+        run: |
+          apk add autoconf make automake cmake gcc g++ openssl-dev tar
+
+      - uses: actions/cache@v3
+        name: Cargo Caches
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: alpine-cargo
+
+      - uses: actions/cache@v3
+        name: Target Caches
+        with:
+          path: |
+            target
+          key: alpine-target
+
+      - name: Build taosX
+        run: |
+          cargo build --release --no-default-features --features optin --features rustls
+          strip target/release/taosx
+          mv target/release/taosx target/release/taosx-amd64-musl
+
+      # - name: Upload artifacts
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: taosx
+      #     path: target/release/taosx-amd64-musl
