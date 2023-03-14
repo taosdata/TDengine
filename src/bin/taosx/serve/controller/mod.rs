@@ -6,20 +6,15 @@ use std::{
     time::{Duration, Instant},
 };
 
-use actix_web::{
-    delete, get, patch, post,
-    web::{Data, Path, Query},
-    HttpResponse, Responder,
-};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
-use taos::{AsyncQueryable, Code, Dsn, TBuilder, TaosBuilder};
+use taos::{AsyncQueryable, Dsn, TBuilder, TaosBuilder};
 use taosx::TaskOpts;
 use tokio::{runtime::Runtime, sync::RwLock};
-use tokio_cron_scheduler::{Job, JobScheduler, JobToRun};
+use tokio_cron_scheduler::{Job, JobScheduler};
 use tokio_util::sync::CancellationToken;
 use utoipa::*;
 
@@ -176,7 +171,7 @@ pub(super) async fn start_all_with_schedule(controller: Arc<TaskController>) -> 
                 }
                 Err(err) => {
                     log::error!("Scheduler task error: {err:?}, task:{task:?}");
-                    Err(err)?;
+                    Err(err).with_context(|| format!("Schedule task error, task:{:?}", task))?;
                 }
             }
         }
@@ -231,7 +226,7 @@ impl TaskControllerRef {
                     }
                     Err(err) => {
                         log::error!("Scheduler task error: {err:?}, task:{task:?}");
-                        Err(err)?;
+                        Err(err).with_context(|| format!("Schedule task error, task:{:?}", task))?;
                     }
                 }
             }

@@ -397,7 +397,7 @@ async fn sync_super_table_schema_with_subs(
         if err.to_string().contains("0x000B") {
             from.exec(format!("desc `{name}`")).await?;
         } else {
-            Err(err)?;
+            Err(err).with_context(|| format!("sql: [{}] exec error", &sql))?;
         }
     }
     if let Some(duration) = target_opts.interval {
@@ -559,7 +559,7 @@ async fn sync_normal_table_schema(from: &Taos, name: &str, to: &Taos) -> anyhow:
         .await
     {
         if !err.to_string().contains("[0x000B]") {
-            Err(err)?;
+            Err(err).with_context(|| format!("normal table create error, sql: [{sql}]"))?;
         }
     }
     Ok(())
@@ -710,7 +710,7 @@ async fn sync_tables_only(
                             .await
                             .write_fmt(format_args!("{}\n", row.table_name.as_str()))?;
                     } else {
-                        Err(err)?
+                        Err(err).with_context(|| format!("synchronized table [{}] failed ", row.table_name.as_str()))?
                     }
                 }
             }
@@ -748,7 +748,7 @@ async fn sync_tables_only(
                             .await
                             .write_fmt(format_args!("{}\n", table.as_str()))?;
                     } else {
-                        Err(err)?
+                        Err(err).with_context(|| format!("synchronized table {} failed", table.as_str()))?
                     }
                 }
             }
@@ -855,7 +855,7 @@ async fn sync_tables_only_with_workers(
                                 err
                             ))?;
                         } else {
-                            Err(err)?
+                            Err(err).with_context(|| format!("synchronized table {} failed", table.as_str()))?
                         }
                     }
                 }
