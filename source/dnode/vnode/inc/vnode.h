@@ -198,9 +198,10 @@ int32_t tsdbRetrieveCacheRows(void *pReader, SSDataBlock *pResBlock, const int32
 void   *tsdbCacherowsReaderClose(void *pReader);
 int32_t tsdbGetTableSchema(SVnode *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
 
-void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
-size_t tsdbCacheGetCapacity(SVnode *pVnode);
-size_t tsdbCacheGetUsage(SVnode *pVnode);
+void    tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
+size_t  tsdbCacheGetCapacity(SVnode *pVnode);
+size_t  tsdbCacheGetUsage(SVnode *pVnode);
+int32_t tsdbCacheGetElems(SVnode *pVnode);
 
 // tq
 typedef struct SMetaTableInfo {
@@ -264,7 +265,7 @@ int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList);
 int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *tbUidList);
 int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
-int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char* id);
+int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char *id);
 int32_t tqNextBlock(STqReader *pReader, SFetchRet *ret);
 
 int32_t tqReaderSetSubmitReq2(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);

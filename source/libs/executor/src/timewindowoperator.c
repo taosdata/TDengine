@@ -939,7 +939,6 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
   int32_t forwardRows =
       getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, pInfo->inputOrder);
-  ASSERT(forwardRows > 0);
 
   // prev time window not interpolation yet.
   if (pInfo->timeWindowInterpo) {
