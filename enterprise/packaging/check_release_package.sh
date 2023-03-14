@@ -309,7 +309,7 @@ TestArm64(){
         sudo tar -zxvf  ${PKG_NAME_COM_ARM64}
         cd ${FOLDER_NAME}
         sudo ./install.sh -e no
-        tar -zxvf taos.tar.gz
+        tar -zxvf package.tar.gz
         cd bin
 
         StartTaosd
@@ -326,7 +326,7 @@ TestArm64(){
         sudo tar -zxvf  ${PKG_NAME_ENT_ARM64}
         cd ${FOLDER_NAME_ENT}
         sudo ./install.sh -e no
-        tar -zxvf taos.tar.gz
+        tar -zxvf package.tar.gz
         cd bin
 
         StartTaosd
@@ -351,7 +351,7 @@ TestX64(){
         sudo tar -zxvf  ${PKG_NAME_COM_X64}
         cd ${FOLDER_NAME}
         sudo ./install.sh -e no
-        tar -zxvf taos.tar.gz
+        tar -zxvf package.tar.gz
         cd bin
 
         StartTaosd
