@@ -283,7 +283,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
   tdbTbcMoveToFirst(pCur);
 
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
-    STqHandle handle;
+    STqHandle handle = {0};
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     tDecodeSTqHandle(&decoder, &handle);
     tDecoderClear(&decoder);
