@@ -182,6 +182,9 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
     case TDMT_SYNC_TIMEOUT:
       code = syncNodeOnTimeout(pSyncNode, pMsg);
       break;
+    case TDMT_SYNC_TIMEOUT_ELECTION:
+      code = syncNodeOnTimeout(pSyncNode, pMsg);
+      break;
     case TDMT_SYNC_CLIENT_REQUEST:
       code = syncNodeOnClientRequest(pSyncNode, pMsg, NULL);
       break;
