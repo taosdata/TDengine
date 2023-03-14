@@ -751,7 +751,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     while (1) {
       SSDataBlock* result = doGroupedTableScan(pOperator);
-      if (result) {
+      if (result || (pOperator->status == OP_EXEC_DONE)) {
         return result;
       }
 
@@ -985,6 +985,7 @@ void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin) {
   pTableScanInfo->scanTimes = 0;
   pTableScanInfo->currentGroupId = -1;
   tsdbReaderClose(pTableScanInfo->base.dataReader);
+  qDebug("1");
   pTableScanInfo->base.dataReader = NULL;
 }
 
@@ -1143,6 +1144,7 @@ static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32
       pInfo->updateWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
       tsdbReaderClose(pTableScanInfo->base.dataReader);
+      qDebug("2");
       pTableScanInfo->base.dataReader = NULL;
       return NULL;
     }
@@ -1616,6 +1618,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       if (!pTaskInfo->streamInfo.returned) {
         STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
         tsdbReaderClose(pTSInfo->base.dataReader);
+        qDebug("3");
         pTSInfo->base.dataReader = NULL;
         tqOffsetResetToLog(&pTaskInfo->streamInfo.prepareStatus, pTaskInfo->streamInfo.snapshotVer);
         qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", pTaskInfo->streamInfo.snapshotVer + 1);
@@ -1767,6 +1770,8 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
     /*resetTableScanInfo(pTSInfo, pWin);*/
     tsdbReaderClose(pTSInfo->base.dataReader);
+    qDebug("4");
+
     pTSInfo->base.dataReader = NULL;
     pInfo->pTableScanOp->status = OP_OPENED;
 
@@ -1837,6 +1842,8 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__NONE;
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
     tsdbReaderClose(pTSInfo->base.dataReader);
+    qDebug("5");
+
     pTSInfo->base.dataReader = NULL;
 
     pTSInfo->base.cond.startVersion = -1;
@@ -2634,6 +2641,8 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     pInfo->base.dataReader = NULL;
     return pBlock;
   }
+
+  qDebug("8");
 
   tsdbReaderClose(pInfo->base.dataReader);
   pInfo->base.dataReader = NULL;
