@@ -538,11 +538,6 @@ static int32_t doSendCommitMsg(tmq_t* tmq, SMqClientVg* pVg, const char* pTopicN
       .handle = NULL,
   };
 
-  SEp* pEp = GET_ACTIVE_EP(&pVg->epSet);
-  tscDebug("consumer:0x%" PRIx64 " topic:%s on vgId:%d offset:%" PRId64 " prev:%" PRId64 ", ep:%s:%d, ordinal:%d/%d",
-           tmq->consumerId, pOffset->subKey, pVg->vgId, pOffset->val.version, pVg->committedOffset.version, pEp->fqdn,
-           pEp->port, index + 1, totalVgroups);
-
   pMsgSendInfo->requestId = generateRequestId();
   pMsgSendInfo->requestObjRefId = 0;
   pMsgSendInfo->param = pParam;
@@ -552,6 +547,12 @@ static int32_t doSendCommitMsg(tmq_t* tmq, SMqClientVg* pVg, const char* pTopicN
 
   atomic_add_fetch_32(&pParamSet->waitingRspNum, 1);
   atomic_add_fetch_32(&pParamSet->totalRspNum, 1);
+
+  SEp* pEp = GET_ACTIVE_EP(&pVg->epSet);
+  tscDebug("consumer:0x%" PRIx64 " topic:%s on vgId:%d send offset:%" PRId64 " prev:%" PRId64
+           ", ep:%s:%d, ordinal:%d/%d, req:0x%" PRIx64,
+           tmq->consumerId, pOffset->subKey, pVg->vgId, pOffset->val.version, pVg->committedOffset.version, pEp->fqdn,
+           pEp->port, index + 1, totalVgroups, pMsgSendInfo->requestId);
 
   int64_t transporterId = 0;
   asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, pMsgSendInfo);
@@ -627,11 +628,11 @@ HANDLE_RSP:
   }
 
   if (!async) {
+    taosThreadMutexUnlock(&tmq->lock);
     tsem_wait(&pParamSet->rspSem);
     code = pParamSet->rspErr;
     tsem_destroy(&pParamSet->rspSem);
     taosMemoryFree(pParamSet);
-    taosThreadMutexUnlock(&tmq->lock);
     return code;
   } else {
     code = 0;
@@ -736,7 +737,7 @@ static int32_t tmqCommitConsumerImpl(tmq_t* tmq, int8_t automatic, int8_t async,
 
 static int32_t tmqCommitInner(tmq_t* tmq, const TAOS_RES* msg, int8_t automatic, int8_t async, tmq_commit_cb* userCb,
                               void* userParam) {
-  if (msg) { // user invoked commit?
+  if (msg) { // user invoked commit
     return tmqCommitMsgImpl(tmq, msg, async, userCb, userParam);
   } else {  // this for auto commit
     return tmqCommitConsumerImpl(tmq, automatic, async, userCb, userParam);
