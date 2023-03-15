@@ -1662,17 +1662,15 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
     if (ignoreEarlierTs) {
       taosArrayDestroy(pColArray);
       pColArray = NULL;
-      taosArrayDestroy(aColArray);
-      aColArray = NULL;
     } else {
       taosArrayClear(pColArray);
-      taosArrayClear(aColArray);
     }
   }
   *ppLastArray = pColArray;
   //}
 
   nextRowIterClose(&iter);
+  taosArrayDestroy(aColArray);
   // taosMemoryFreeClear(pTSchema);
   return code;
 
