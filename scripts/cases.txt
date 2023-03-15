@@ -86,6 +86,7 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltyp
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_first_3.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_last_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_last_2.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_last_2_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_last_2_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_last_3.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/split/table_alltype_last_row_1.py --keep --containers
