@@ -79,43 +79,33 @@ typedef struct {
 } STqExecDb;
 
 typedef struct {
-  int8_t subType;
-
-  STqReader*  pExecReader;
-  qTaskInfo_t task;
+  int8_t       subType;
+  STqReader*   pExecReader;
+  qTaskInfo_t  task;
   union {
     STqExecCol execCol;
     STqExecTb  execTb;
     STqExecDb  execDb;
   };
-  int32_t numOfCols;  // number of out pout column, temporarily used
+  int32_t      numOfCols;  // number of out pout column, temporarily used
 } STqExecHandle;
 
 typedef struct {
-  // info
-  char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int64_t consumerId;
-  int32_t epoch;
-  int8_t  fetchMeta;
-
-  int64_t snapshotVer;
-
-  SWalReader* pWalReader;
-
-  SWalRef* pRef;
-
-  // push
-  STqPushHandle pushHandle;
-
-  // exec
-  STqExecHandle execHandle;
-
+  char          subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t       consumerId;
+  int32_t       epoch;
+  int8_t        fetchMeta;
+  int64_t       snapshotVer;
+  SWalReader*   pWalReader;
+  SWalRef*      pRef;
+  STqPushHandle pushHandle;    // push
+  STqExecHandle execHandle;    // exec
 } STqHandle;
 
 typedef struct {
-  SMqDataRsp     dataRsp;
+  SMqDataRsp*    pDataRsp;
   char           subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  SRpcHandleInfo pInfo;
+  SRpcHandleInfo info;
 } STqPushEntry;
 
 struct STQ {
@@ -151,13 +141,13 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
 // tqRead
 int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* offset);
 int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset);
-int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum);
+int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum);
 
 // tqExec
 int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp);
 // int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp* pRsp);
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
-int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp);
+int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp, int32_t type);
 int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry);
 
 // tqMeta
