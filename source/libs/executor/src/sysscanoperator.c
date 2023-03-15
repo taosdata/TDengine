@@ -436,7 +436,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   int32_t numOfRows = 0;
 
   SSDataBlock* dataBlock = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_COLS);
-  blockDataEnsureCapacity(dataBlock, pOperator->resultInfo.capacity + TSDB_MAX_COLUMNS);
+  blockDataEnsureCapacity(dataBlock, pOperator->resultInfo.capacity);
 
   const char* db = NULL;
   int32_t     vgId = 0;
