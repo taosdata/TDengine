@@ -345,7 +345,7 @@ int32_t ctgdGetOneHandle(SCatalog **pHandle) {
 
 int32_t ctgdGetStatNum(char *option, void *res) {
   if (0 == strcasecmp(option, "runtime.numOfOpDequeue")) {
-    *(uint64_t *)res = atomic_load_64(&gCtgMgmt.stat.runtime.numOfOpDequeue);
+    *(uint64_t *)res = atomic_load_64(&gCtgMgmt.statInfo.runtime.numOfOpDequeue);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -516,6 +516,27 @@ void ctgdShowClusterCache(SCatalog *pCtg) {
 
   ctgDebug("## cluster 0x%" PRIx64 " %p cache Info END ##", pCtg->clusterId, pCtg);
 }
+
+int32_t ctgdShowStatInfo(void) {
+  if (!gCTGDebug.statEnable) {
+    return TSDB_CODE_CTG_OUT_OF_SERVICE;
+  }
+
+  CTG_API_ENTER();
+
+  SCtgCacheStat cache;
+  ctgGetGlobalCacheStat(&cache);
+
+  qDebug("## Global Stat Info %s ##", "begin");
+  qDebug("##            \t%s \t%s \t%s ##", "Num", "Hit", "Nhit");
+  for (int32_t i = 0; i < CTG_CI_MAX_VALUE; ++i) {
+    qDebug("#  %s \t%" PRIu64 " \t%" PRIu64 " \t%" PRIu64 " #", gCtgStatItem[i].name, cache.cacheNum[i], cache.cacheHit[i], cache.cacheNHit[i]);
+  }
+  qDebug("## Global Stat Info %s ##", "end");
+
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
 
 int32_t ctgdShowCacheInfo(void) {
   if (!gCTGDebug.cacheEnable) {
