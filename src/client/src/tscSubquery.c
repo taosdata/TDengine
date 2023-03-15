@@ -2046,6 +2046,19 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
       goto _return;
     }
 
+    SSqlObj *rootObj = pSql->rootObj;
+    if (rootObj->needUpdateMeta) {
+      rootObj->needUpdateMeta = false;
+      
+      if (pSql->retry < pSql->maxRetry) {
+        tscRenewTableMeta(pSql);
+      } else {
+        tscAsyncResultOnError(pParentSql);
+      }
+      
+      goto _return;
+    }
+
     if (!tscReparseSql(pParentSql->rootObj, pParentSql->res.code)) {
       goto _return;
     }
@@ -2598,6 +2611,16 @@ void tscFirstRoundCallback(void* param, TAOS_RES* tres, int code) {
   SSqlObj* pSql = (SSqlObj*) tres;
   int32_t c = taos_errno(pSql);
 
+  SSqlObj *rootObj = pSql->rootObj;
+  if (rootObj->res.code && rootObj->needUpdateMeta) {
+    rootObj->needUpdateMeta = false;
+    
+    if (pSql->retry < pSql->maxRetry) {
+      tscRenewTableMeta(pSql);
+      return;
+    }
+  }
+
   if (c != TSDB_CODE_SUCCESS) {
     SSqlObj* parent = pSup->pParent;
 
@@ -3105,6 +3128,16 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   tscDestroyGlobalMergerEnv(trsupport->pExtMemBuffer, trsupport->pOrderDescriptor, pState->numOfSub);
   tscFreeRetrieveSup(&pSql->param);
 
+  SSqlObj *rootObj = pSql->rootObj;
+  if (rootObj->needUpdateMeta) {
+    rootObj->needUpdateMeta = false;
+    
+    if (pSql->retry < pSql->maxRetry) {
+      tscRenewTableMeta(pSql);
+      return;
+    }
+  }
+
   // in case of second stage join subquery, invoke its callback function instead of regular QueueAsyncRes
   SQueryInfo *pQueryInfo = tscGetQueryInfo(&pParentSql->cmd);
 
@@ -3206,7 +3239,19 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
     tscFreeRetrieveSup(&pSql->param);
     return;
   }  
-  
+
+  tscFreeRetrieveSup(&pSql->param);
+
+  SSqlObj *rootObj = pSql->rootObj;
+  if (rootObj->needUpdateMeta) {
+    rootObj->needUpdateMeta = false;
+    
+    if (pSql->retry < pSql->maxRetry) {
+      tscRenewTableMeta(pSql);
+      return;
+    }
+  }
+
   // all sub-queries are returned, start to local merge process
   pDesc->pColumnModel->capacity = trsupport->pExtMemBuffer[idx]->numOfElemsPerPage;
   
@@ -3231,8 +3276,6 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   pParentSql->res.precision = pSql->res.precision;
   pParentSql->res.numOfRows = 0;
   pParentSql->res.row = 0;
-
-  tscFreeRetrieveSup(&pSql->param);
 
   // set the command flag must be after the semaphore been correctly set.
   if (pParentSql->cmd.command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {

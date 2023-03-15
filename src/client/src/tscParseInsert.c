@@ -1736,6 +1736,16 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
       goto _error;
     }
   } else if (code != TSDB_CODE_SUCCESS) {
+    SSqlObj *rootObj = pSql->rootObj;
+    if (rootObj->res.code && rootObj->needUpdateMeta) {
+      rootObj->needUpdateMeta = false;
+      
+      if (pSql->retry < pSql->maxRetry) {
+        tscRenewTableMeta(pSql);
+        return;
+      }
+    }
+
     goto _error;
   }
 

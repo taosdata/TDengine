@@ -532,6 +532,20 @@ bool shouldRewTableMeta(SSqlObj* pSql, SRpcMsg* rpcMsg) {
   return true;
 }
 
+int tscHandleRenewTableMeta(SSqlObj *pSql) {
+  SSqlObj *rootObj = pSql->rootObj;
+  
+  if (rootObj == pSql) {
+    return tscRenewTableMeta(pSql);
+  }
+
+  rootObj->res.code = pSql->res.code;
+  rootObj->needUpdateMeta = true;
+  
+  return rootObj->res.code;
+}
+
+
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   TSDB_CACHE_PTR_TYPE handle = (TSDB_CACHE_PTR_TYPE) rpcMsg->ahandle;
   SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, handle);
@@ -611,7 +625,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
       }
 
       pSql->retryReason = rpcMsg->code;
-      rpcMsg->code = tscRenewTableMeta(pSql);
+      rpcMsg->code = tscHandleRenewTableMeta(pSql);
       // if there is an error occurring, proceed to the following error handling procedure.
       if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
         taosReleaseRef(tscObjRef, handle);
@@ -3425,7 +3439,8 @@ int tscRenewTableMeta(SSqlObj *pSql) {
   SSqlObj *rootSql = pSql->rootObj;
   tscFreeSubobj(rootSql);
   tscResetSqlCmd(&rootSql->cmd, true, rootSql->self);
-
+  rootSql->res.code = 0;
+  
   code = getMultiTableMetaFromMnode(rootSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
   taosArrayDestroyEx(&pNameList, freeElem);
   taosArrayDestroyEx(&vgroupList, freeElem);
