@@ -61,13 +61,14 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 - -c CONFIGDIR: 指定配置文件目录，Linux 环境下默认为 `/etc/taos`，该目录下的配置文件默认名称为 `taos.cfg`
 - -C: 打印 -c 指定的目录中 `taos.cfg` 的配置参数
 - -d DATABASE: 指定连接到服务端时使用的数据库
+- -E dsn: 使用 WebSocket DSN 连接云服务或者提供 WebSocket 连接的服务端
 - -f FILE: 以非交互模式执行 SQL 脚本文件。文件中一个 SQL 语句只能占一行
 - -k: 测试服务端运行状态，0: unavailable，1: network ok，2: service ok，3: service degraded，4: exiting
 - -l PKTLEN: 网络测试时使用的测试包大小
 - -n NETROLE: 网络连接测试时的测试范围，默认为 `client`, 可选值为 `client`、`server`
 - -N PKTNUM: 网络测试时使用的测试包数量
 - -r: 将时间输出出无符号 64 位整数类型(即 C 语音中 uint64_t)
-- -R: 使用 http（WebSocket）模式连接服务端
+- -R: 使用 RESTful 模式连接服务端
 - -s COMMAND: 以非交互模式执行的 SQL 命令
 - -t: 测试服务端启动状态，状态同-k
 - -w DISPLAYWIDTH: 客户端列显示宽度
