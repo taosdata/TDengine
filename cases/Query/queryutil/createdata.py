@@ -234,7 +234,7 @@ class TDCreateData():
     
     def alter_cachemodel(self,database):
         i = random.randint(0,5)
-        cachesize = random.randint(1,5000)
+        cachesize = random.randint(1,666)
         if i ==0:
             self.logger.info("======this case test cachemodel none =========")
             #sql = "alter database last_60w cachemodel 'both' cachesize 600;"
