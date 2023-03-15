@@ -252,7 +252,17 @@ class TDSql:
 
 
     def checkData(self, row, col, data):
+        if row >= self.queryRows:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, row+1, self.queryRows)
+            tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+        if col >= self.queryCols:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, col+1, self.queryCols)
+            tdLog.exit("%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args)   
+      
         self.checkRowCol(row, col)
+
         if self.queryResult[row][col] != data:
             if self.cursor.istype(col, "TIMESTAMP"):
                 # suppose user want to check nanosecond timestamp if a longer data passed`` 
@@ -281,7 +291,9 @@ class TDSql:
                     elif len(str(data)) == 19 :
                         unitTime = 'ns'   
                     else:
-                        tdLog.exit("expect timeStamp type is wrong")
+                        caller = inspect.getframeinfo(inspect.stack()[1][0])
+                        args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+                        tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
                     resultData = pd.to_datetime(_locaTzTimeStamp(data),unit=unitTime) 
                     if resultData == self.queryResult[row][col] :
                         tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{resultData}")
