@@ -60,6 +60,7 @@ class TDTestQuery(TDCase):
     db = "table_last"
     db_1 = "table_last_1"
     db_2 = "table_last_2"
+    db_2_1 = "table_last_2_1"
     db_2_2 = "table_last_2_2"
     db_3 = "table_last_3"
     
@@ -1301,7 +1302,7 @@ class TDTestQuery(TDCase):
         
     def right_case_2_interval_2(self):
         self.logger.info("\n==========================right case 2==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_2)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db_2_1)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -1311,8 +1312,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_tbname_all(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                                                    
-                cur1.execute('use %s;' %self.db_2)   
-                self.tdSql.execute('use %s;' %self.db_2)      
+                cur1.execute('use %s;' %self.db_2_1)   
+                self.tdSql.execute('use %s;' %self.db_2_1)      
 
                 self.logger.info("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
                                             
@@ -1371,15 +1372,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s order by ts desc;'  % (func,self.table,interval_fill,time_window_new)                                                
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2_1,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts desc);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2_1,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2_1,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s ) order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1421,15 +1422,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s order by ts desc;'  % (func,self.table,interval_fill_f,time_window_new)                                                
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2_1,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts desc);" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2_1,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_f_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2,sql1,sql2)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db_2_1,sql1,sql2)
                             sql= sql + sql2
                                     
                         for i in (11,12,13,14,15,16,17,18,19,20,50,51,52,53,54,55,56,57,58,59,):                        
@@ -2161,6 +2162,10 @@ class TDTestQuery(TDCase):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
         self.tdCreateData.drop_db("%s" % self.db_2) 
                 
+    def rm_sql_2_1(self):
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        self.tdCreateData.drop_db("%s" % self.db_2_1) 
+                
     def rm_sql_2_2(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
         self.tdCreateData.drop_db("%s" % self.db_2_2) 
@@ -2190,12 +2195,18 @@ class TDTestQuery(TDCase):
         self.right_case_2()
         self.right_case_2_tbname()
         self.right_case_2_tbname_groupby()
-        self.right_case_2_interval_2()
+        #self.right_case_2_interval_2()
         self.right_case_2_interval_tbname()
         self.rm_sql_2()
         endTime2 = time.time()       
         self.logger.info("total time2 %d s" % (endTime2 - startTime2))
     
+        startTime2 = time.time()
+        self.data_create(self.db_2_1)
+        self.right_case_2_interval_2()
+        self.rm_sql_2_1()
+        endTime2 = time.time()  
+            
         startTime2 = time.time()
         self.data_create(self.db_2_2)
         self.right_case_2_interval()

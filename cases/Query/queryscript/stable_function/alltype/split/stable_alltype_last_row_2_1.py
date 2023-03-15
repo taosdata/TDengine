@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-from Query.queryscript.table_function.alltype.table_alltype_last import *
+from Query.queryscript.stable_function.alltype.stable_alltype_last_row import *
 
 class TDTestQuery(TDTestQuery):
         
@@ -25,7 +25,7 @@ class TDTestQuery(TDTestQuery):
 
     def desc(self) -> str:
         case_description = '''
-        case1:# support all table, support all data type  [hanshu = ['LAST']]
+        case1:# support all table, support all data type  [hanshu = ['LAST_ROW']]
         case2:
         '''
         return case_description
@@ -34,7 +34,7 @@ class TDTestQuery(TDTestQuery):
         startTime = time.time() 
         
         #self.data_create(self.db)
-         
+          
         # startTime1 = time.time()
         # self.data_create(self.db_1)
         # self.right_case_1()
@@ -46,32 +46,26 @@ class TDTestQuery(TDTestQuery):
         # endTime1 = time.time()       
         # self.logger.info("total time1 %d s" % (endTime1 - startTime1))
     
-        # startTime2 = time.time()
+        startTime2 = time.time()
         # self.data_create(self.db_2)
         # self.right_case_2()
         # self.right_case_2_tbname()
         # self.right_case_2_tbname_groupby()
-        # #self.right_case_2_interval_2()
         # self.right_case_2_interval_tbname()
         # self.rm_sql_2()
-        # endTime2 = time.time()       
-        # self.logger.info("total time2 %d s" % (endTime2 - startTime2))
-    
-        # startTime2 = time.time()
-        # self.data_create(self.db_2_1)
+        
+        self.data_create(self.db_2_1)
+        self.right_case_2_interval_1()
+        self.rm_sql_2_1()
+        
+        # self.data_create(self.db_2_2)
         # self.right_case_2_interval_2()
-        # self.rm_sql_2_1()
-        # endTime2 = time.time()  
-            
-        startTime2 = time.time()
-        self.data_create(self.db_2_2)
-        self.right_case_2_interval()
-        self.rm_sql_2_2()
+        # self.rm_sql_2_2()
         endTime2 = time.time()       
         self.logger.info("total time2 %d s" % (endTime2 - startTime2))
         
         # startTime3 = time.time()
-        # self.data_create(self.db_3)
+        # self.data_create(self.db_3) 
         # self.right_case_3()
         # self.right_case_3_tbname()
         # self.right_case_3_tbname_groupby()
@@ -84,6 +78,8 @@ class TDTestQuery(TDTestQuery):
         endTime = time.time()
         #self.rm_sql()
         self.logger.info("total time %ds" % (endTime - startTime))
+        
+        startTime = time.time() 
         
 
 
