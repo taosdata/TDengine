@@ -220,19 +220,27 @@ async fn sync_single_table(
     target_is_v3: bool,
 ) -> anyhow::Result<()> {
     let (table, sql) = if opts.select_from_stable {
-        let stable = stable.expect("use `stable.table` format");
-        let stable_schema = from.describe(stable).await?;
-        let fields = stable_schema
-            .iter()
-            .filter(|f| !f.is_tag())
-            .map(|f| format!("`{}`", f.field()))
-            .join(",");
-        let sql = if opts.is_none() {
-            format!("SELECT {fields} FROM `{stable}` WHERE tbname = '{table}'")
+        if let Some(stable) = stable {
+            let stable_schema = from.describe(stable).await?;
+            let fields = stable_schema
+                .iter()
+                .filter(|f| !f.is_tag())
+                .map(|f| format!("`{}`", f.field()))
+                .join(",");
+            let sql = if opts.is_none() {
+                format!("SELECT {fields} FROM `{stable}` WHERE tbname = '{table}'")
+            } else {
+                format!("SELECT {fields} FROM `{stable}` WHERE tbname = '{table}' AND {opts}")
+            };
+            (table, sql)
         } else {
-            format!("SELECT {fields} FROM `{stable}` WHERE tbname = '{table}' AND {opts}")
-        };
-        (table, sql)
+            let sql = if opts.is_none() {
+                format!("SELECT * FROM `{table}`")
+            } else {
+                format!("SELECT * FROM `{table}` WHERE {opts}")
+            };
+            (table, sql)
+        }
     } else {
         let sql = if opts.is_none() {
             format!("SELECT * FROM `{table}`")
@@ -463,7 +471,7 @@ async fn sync_super_table_schema_with_subs(
     if tables > 0 {
         log::debug!("create child tables with sql length {}", sql.len());
         to.exec(&sql).await?;
-        log::info!("Finally created {} tables", tables);
+        log::info!("Finally created {} tables in stable {}", tables, name);
     }
 
     Ok(())
@@ -560,9 +568,11 @@ async fn sync_super_table_schema(
 }
 
 async fn sync_normal_table_schema(from: &Taos, name: &str, to: &Taos) -> anyhow::Result<()> {
+    log::info!("Sync normal table schema of {name}");
     let (_, sql): ((), String) = from
         .query_one(format!("show create table `{name}`"))
-        .await?
+        .await
+        .context("Show create table error")?
         .unwrap();
     // todo: here will produce error: [0x000B] Unable to establish connection
     if let Err(err) = to
@@ -599,6 +609,7 @@ impl TableRecord {
     }
 }
 
+#[async_backtrace::framed]
 async fn sync_schema(
     from: &Taos,
     to: &Taos,
@@ -612,29 +623,50 @@ async fn sync_schema(
         .context("Get server version of source error")?
         .unwrap();
     let is_v3 = if v1.starts_with("2") { false } else { true };
-    if opts.query.select_from_stable {
-        for table in opts.tables.unwrap() {
-            log::info!("Sync table schema for `{}`", table);
-            let (stable, table) = table.split_once('.').expect("use `stable.table` format");
-            sync_super_table_schema_with_subs(from, &stable, &[table], to, 1, &target_opts, is_v3)
-                .await
-                .context("Sync table schema error")?;
+    // if opts.query.select_from_stable {
+    let chunk_size = 800_000 / (64 + 2);
+    let chunks = todo
+        .tables
+        .iter()
+        .group_by(|(stable, _)| stable.as_deref().map(|s| s.as_str()))
+        .into_iter()
+        .flat_map(|(stable, group)| {
+            if let Some(stable) = stable {
+                group
+                    .map(|(_, table)| table.as_str())
+                    .chunks(chunk_size)
+                    .into_iter()
+                    .map(|chunk| (Some(stable), chunk.collect_vec()))
+                    .collect_vec()
+            } else {
+                vec![(None, group.map(|(_, table)| table.as_str()).collect_vec())]
+            }
+        })
+        .collect_vec();
+    for (stable, tables) in chunks {
+        dbg!(&stable, &tables);
+        if let Some(stable) = stable {
+            sync_super_table_schema_with_subs(
+                from,
+                &stable,
+                &tables,
+                to,
+                tables.len(),
+                &target_opts,
+                is_v3,
+            )
+            .await
+            .context("Sync table schema error")?;
+        } else {
+            for table in tables {
+                sync_normal_table_schema(from, &table, to).await?;
+            }
         }
-        log::info!("Synchronized table schema");
-        return Ok(());
-    }
-
-    for stable in &todo.stables {
-        sync_super_table_schema(from, &stable, to, &target_opts, is_v3).await?;
-    }
-
-    for (_, table) in todo.tables.iter().filter(|(s, _)| s.is_some()) {
-        sync_normal_table_schema(from, &table, to).await?;
     }
     Ok(())
 }
 
-async fn sync_tables_only(
+async fn _sync_tables_only(
     from: &Taos,
     to: &Taos,
     opts: QueryOpts,
@@ -680,7 +712,9 @@ async fn sync_tables_only(
                             .await
                             .write_fmt(format_args!("{}\n", row.table_name.as_str()))?;
                     } else {
-                        Err(err).with_context(|| format!("synchronized table [{}] failed ", row.table_name.as_str()))?
+                        Err(err).with_context(|| {
+                            format!("synchronized table [{}] failed ", row.table_name.as_str())
+                        })?
                     }
                 }
             }
@@ -725,7 +759,9 @@ async fn sync_tables_only(
                             .await
                             .write_fmt(format_args!("{}\n", table.as_str()))?;
                     } else {
-                        Err(err).with_context(|| format!("synchronized table {} failed", table.as_str()))?
+                        Err(err).with_context(|| {
+                            format!("synchronized table {} failed", table.as_str())
+                        })?
                     }
                 }
             }
@@ -989,7 +1025,9 @@ async fn _sync_tables_only_with_workers(
                                 err
                             ))?;
                         } else {
-                            Err(err).with_context(|| format!("synchronized table {} failed", table.as_str()))?
+                            Err(err).with_context(|| {
+                                format!("synchronized table {} failed", table.as_str())
+                            })?
                         }
                     }
                 }
@@ -1093,34 +1131,43 @@ impl SourceOpts {
         }
 
         if let Some(value) = dsn.remove("tables") {
-            let tables: Vec<_> = value
+            let (files, mut tables): (Vec<_>, Vec<_>) = value
                 .split(",")
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
-                .collect();
+                .partition(|v| v.starts_with('@'));
 
-            if let Some(value) = dsn.remove("select-from-stable") {
-                for table in &tables {
-                    if !table.contains('.') {
-                        bail!("when `select-from-stable` is enabled, the `tables` should be formatted at `stable_name.table_name`")
-                    }
-                }
-                opts.query.select_from_stable = value != "false";
+            for file in files {
+                let f = std::fs::File::open(&file[1..])?;
+                let buf = std::io::BufReader::new(f);
+                use std::io::prelude::*;
+                tables.extend(buf.lines().filter_map(|l| l.ok()));
             }
+
             if tables.len() > 0 {
                 opts.tables = Some(tables);
             }
         }
+        if let Some(value) = dsn.remove("select-from-stable") {
+            opts.query.select_from_stable = value != "false";
+        }
         if let Some(value) = dsn.remove("stables") {
-            let stables: Vec<_> = value
+            let (files, mut tables): (Vec<_>, Vec<_>) = value
                 .split(",")
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
-                .collect();
-            if stables.len() > 0 {
-                opts.stables = Some(stables);
+                .partition(|v| v.starts_with('@'));
+
+            for file in files {
+                let f = std::fs::File::open(&file[1..])?;
+                let buf = std::io::BufReader::new(f);
+                use std::io::prelude::*;
+                tables.extend(buf.lines().filter_map(|l| l.ok()));
+            }
+            if tables.len() > 0 {
+                opts.stables = Some(tables);
             }
         }
         opts.table = TableOpts::from_params(dsn)?;
@@ -1246,6 +1293,7 @@ pub struct LegacyTodo {
     tables: Vec<(Option<Arc<String>>, String)>,
 }
 
+#[async_backtrace::framed]
 pub async fn parse_todo_list(pool: &TaosBuilder, opts: &SourceOpts) -> anyhow::Result<LegacyTodo> {
     // let version =
     let taos = pool
@@ -1298,40 +1346,11 @@ pub async fn parse_todo_list(pool: &TaosBuilder, opts: &SourceOpts) -> anyhow::R
         );
 
         Ok(LegacyTodo { stables, tables })
-    } else if opts.query.select_from_stable {
-        let mut stable_set = BTreeMap::new();
-        let mut stables = vec![];
-
-        let tables: Vec<_> = opts
-            .tables
-            .as_ref()
-            .unwrap()
-            .iter()
-            .map(|s| {
-                let (stable_name, table) = s.split_once('.').unwrap();
-                if stable_set.contains_key(stable_name) {
-                    let stable: &Arc<String> = stable_set.get(stable_name).unwrap();
-                    (Some(stable.clone()), table.to_string())
-                } else {
-                    let stable = Arc::new(stable_name.to_string());
-                    stables.push(stable.clone());
-                    stable_set.insert(stable_name, stable.clone());
-                    (Some(stable.clone()), table.to_string())
-                }
-            })
-            .collect();
-
-        log::info!(
-            "Try to synchronize {} tables in {} stables",
-            tables.len(),
-            stables.len()
-        );
-        Ok(LegacyTodo { stables, tables })
     } else if let Some(tables) = opts.tables.as_ref() {
         let mut stable_set = BTreeMap::new();
         let mut stables = vec![];
 
-        let tables: Vec<_> = tables
+        let mut tables: Vec<_> = tables
             .iter()
             .map(|s| {
                 if let Some((stable_name, table)) = s.split_once('.') {
@@ -1349,6 +1368,35 @@ pub async fn parse_todo_list(pool: &TaosBuilder, opts: &SourceOpts) -> anyhow::R
                 }
             })
             .collect();
+
+        for (stable, table) in &mut tables.iter_mut().filter(|(s, _)| s.is_none()) {
+            if is_v2 {
+                let table_record: Option<TableRecord> = taos
+                    .query_one(format!("show tables like '{table}'"))
+                    .await?;
+                if let Some(record) = table_record {
+                    *stable = record.stable_name.map(Arc::new);
+                } else {
+                    log::warn!("Table todo not found: {table}");
+                }
+            } else {
+                let database: String = taos.query_one("SELECT database()").await?.unwrap();
+                // note!: to make sure the information_schema is updated.
+                taos.exec("use information_schema").await?;
+                taos.exec(format!("use `{database}`")).await?;
+                if let Some(stable_name) = taos.query_one::<_, Option<String>>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{table}'")).await? {
+                    if let Some(stable_name) = stable_name {
+                        if let Some(arc) = stable_set.get(stable_name.as_str()) {
+                            stable.replace(arc.clone());
+                        } else {
+                            stable.replace(Arc::new(stable_name));
+                        }
+                    }
+                } else {
+                    log::warn!("Table todo not found: {table}");
+                }
+            }
+        }
         log::info!(
             "Try to synchronize {} tables in {} stables",
             tables.len(),
@@ -1370,23 +1418,6 @@ pub async fn parse_todo_list(pool: &TaosBuilder, opts: &SourceOpts) -> anyhow::R
             let mut stable_set: BTreeMap<String, Arc<String>> = BTreeMap::new();
             stable_set.extend(stables.iter().map(|s| (s.to_string(), s.clone())));
 
-            // let mut tables = vec![];
-
-            // for stable in &stables {
-            //     tables.extend(
-            //         taos.query(format!("select tbname from {stable}"))
-            //             .await
-            //             .context("[reader] Select tbname from stable")?
-            //             .deserialize::<String>()
-            //             .map_ok(|table| (Some(stable.clone()), table))
-            //             .try_collect::<Vec<_>>()
-            //             .await
-            //             .context("[reader] deserialize tbname to string")?,
-            //     );
-            // }
-
-            // todo(@linhe.huo): ordinary tables should be filtered out.
-            // taos.query("show tables")
             let mut stable_set: BTreeMap<String, Arc<String>> = BTreeMap::new();
 
             let tables: Vec<_> = taos
@@ -1424,6 +1455,11 @@ pub async fn parse_todo_list(pool: &TaosBuilder, opts: &SourceOpts) -> anyhow::R
             );
             Ok(LegacyTodo { stables, tables })
         } else {
+            let database: String = taos.query_one("SELECT database()").await?.unwrap();
+            // note!: to make sure the information_schema is updated.
+            taos.exec("use information_schema").await?;
+            taos.exec(format!("use `{database}`")).await?;
+
             // let mut stables = vec![];
             let mut stables: Vec<Arc<String>> = taos
                 .query("show stables")
@@ -1435,11 +1471,6 @@ pub async fn parse_todo_list(pool: &TaosBuilder, opts: &SourceOpts) -> anyhow::R
                 .context("Deserialize stable list from source error")?;
             let mut stable_set: BTreeMap<String, Arc<String>> = BTreeMap::new();
             stable_set.extend(stables.iter().map(|s| (s.to_string(), s.clone())));
-
-            let database: String = taos.query_one("SELECT database()").await?.unwrap();
-            // note!: to make sure the information_schema is updated.
-            taos.exec("use information_schema").await?;
-            taos.exec(format!("use `{database}`")).await?;
 
             // get stable list.
             let mut res = taos
@@ -1498,11 +1529,12 @@ pub async fn legacy_to_taos(
 
     let to_builder = TaosBuilder::from_dsn(&to)?;
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !is_available_enterprise_edition(&from_builder).await && !is_available_enterprise_edition(&to_builder).await
+    if !is_available_enterprise_edition(&from_builder).await
+        && !is_available_enterprise_edition(&to_builder).await
     {
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }
-    
+
     let source_taos = from_builder.build()?;
     if target_opts.assert {
         // use take there to avoid [Error: [0x0383] Invalid database name] when execute sql with no database
@@ -1511,42 +1543,53 @@ pub async fn legacy_to_taos(
             if target.exec(format!("use `{db}`")).await.is_err() {
                 if let Some(database_options) = target_opts.database_options.clone() {
                     target
-                    .exec(format!(
-                        "create database if not exists `{db}` {}",
-                        database_options
-                    ))
-                    .await?;
+                        .exec(format!(
+                            "create database if not exists `{db}` {}",
+                            database_options
+                        ))
+                        .await?;
                 } else {
                     // param mapping
                     let (_, sql): ((), String) = source_taos
                         .query_one(format!("show create database `{}`", from_database.clone()))
                         .await?
                         .unwrap();
-                    let from_version: String = source_taos.query_one("select server_version()").await?.unwrap();
-                    let to_version: String = target.query_one("select server_version()").await?.unwrap();
-                    
+                    let from_version: String = source_taos
+                        .query_one("select server_version()")
+                        .await?
+                        .unwrap();
+                    let to_version: String =
+                        target.query_one("select server_version()").await?.unwrap();
+
                     let option_iter: Vec<&str> = sql.split(' ').collect();
                     let mut option_str = String::new();
                     for (i, s) in option_iter.iter().enumerate() {
-                        if i > 2 { // ignore create database `dbname`
+                        if i > 2 {
+                            // ignore create database `dbname`
                             option_str.push_str(s);
                             option_str.push_str(" ");
                         }
                     }
-                    let ultimate_database_option = if from_version.starts_with("2") && to_version.starts_with("3") {
-                        database_options_2to3(option_str.as_str()).unwrap()
-                    } else if from_version.starts_with("3") && to_version.starts_with("2") {
-                        database_options_3to2(option_str.as_str()).unwrap()
-                    } else {
-                        // same version or version out of consider
-                        option_str.clone()
-                    };
-                    log::info!("original data option:{}, ultimate database option: {}", option_str, ultimate_database_option);
-                    target.exec(format!(
-                        "create database if not exists `{db}` {}",
+                    let ultimate_database_option =
+                        if from_version.starts_with("2") && to_version.starts_with("3") {
+                            database_options_2to3(option_str.as_str()).unwrap()
+                        } else if from_version.starts_with("3") && to_version.starts_with("2") {
+                            database_options_3to2(option_str.as_str()).unwrap()
+                        } else {
+                            // same version or version out of consider
+                            option_str.clone()
+                        };
+                    log::info!(
+                        "original data option:{}, ultimate database option: {}",
+                        option_str,
                         ultimate_database_option
-                    ))
-                    .await?;
+                    );
+                    target
+                        .exec(format!(
+                            "create database if not exists `{db}` {}",
+                            ultimate_database_option
+                        ))
+                        .await?;
                 }
             };
             to.subject = Some(db);
@@ -1555,14 +1598,17 @@ pub async fn legacy_to_taos(
         }
     }
     let (_, from_database_create_sql): ((), String) = source_taos
-            .query_one(format!("show create database `{}`", from_database))
-            .await?
-            .unwrap();
+        .query_one(format!("show create database `{}`", from_database))
+        .await?
+        .unwrap();
     let target = TaosBuilder::from_dsn(&to)?.build()?;
     let (_, to_database_create_sql): ((), String) = target
-            .query_one(format!("show create database `{}`", to.subject.clone().unwrap()))
-            .await?
-            .unwrap();
+        .query_one(format!(
+            "show create database `{}`",
+            to.subject.clone().unwrap()
+        ))
+        .await?
+        .unwrap();
     if get_precision(from_database_create_sql) != get_precision(to_database_create_sql) {
         anyhow::bail!("from and to databases have different precision");
     }
@@ -1726,8 +1772,49 @@ fn database_options_2to3(options: &str) -> Option<String> {
     let mut result = String::new();
     let vec: Vec<&str> = options.split(" ").collect();
     let mut index = 0;
-    let options_2 = vec!["CACHE", "BLOCKS", "DAYS", "KEEP", "MINROWS", "MAXROWS", "WAL", "FSYNC", "UPDATE", "CACHELAST", "REPLICA", "QUORUM", "COMP", "PRECISION"];
-    let options_3 = vec!["BUFFER", "DURATION", "KEEP", "MINROWS", "MAXROWS", "WAL_LEVEL", "WAL_FSYNC_PERIOD", "CACHEMODEL", "CACHESIZE", "REPLICA", "COMP", "PRECISION", "PAGES", "PAGESIZE", "RETENTIONS", "VGROUPS", "SINGLE_STABLE", "STT_TRIGGER", "TABLE_PREFIX", "TABLE_SUFFIX", "TSDB_PAGESIZE", "WAL_RETENTION_PERIOD", "WAL_RETENTION_SIZE", "WAL_ROLL_PERIOD", "WAL_SEGMENT_SIZE"];
+    let options_2 = vec![
+        "CACHE",
+        "BLOCKS",
+        "DAYS",
+        "KEEP",
+        "MINROWS",
+        "MAXROWS",
+        "WAL",
+        "FSYNC",
+        "UPDATE",
+        "CACHELAST",
+        "REPLICA",
+        "QUORUM",
+        "COMP",
+        "PRECISION",
+    ];
+    let options_3 = vec![
+        "BUFFER",
+        "DURATION",
+        "KEEP",
+        "MINROWS",
+        "MAXROWS",
+        "WAL_LEVEL",
+        "WAL_FSYNC_PERIOD",
+        "CACHEMODEL",
+        "CACHESIZE",
+        "REPLICA",
+        "COMP",
+        "PRECISION",
+        "PAGES",
+        "PAGESIZE",
+        "RETENTIONS",
+        "VGROUPS",
+        "SINGLE_STABLE",
+        "STT_TRIGGER",
+        "TABLE_PREFIX",
+        "TABLE_SUFFIX",
+        "TSDB_PAGESIZE",
+        "WAL_RETENTION_PERIOD",
+        "WAL_RETENTION_SIZE",
+        "WAL_ROLL_PERIOD",
+        "WAL_SEGMENT_SIZE",
+    ];
     let mut cache = 0;
     let mut blocks = 0;
     while index < vec.len() {
@@ -1735,7 +1822,8 @@ fn database_options_2to3(options: &str) -> Option<String> {
             index += 1;
             if index < vec.len()
                 && !options_2.contains(&vec[index])
-                && !options_3.contains(&vec[index]) // 是一个值
+                && !options_3.contains(&vec[index])
+            // 是一个值
             {
                 if "CACHE".eq_ignore_ascii_case(&vec[index - 1]) {
                     let cache_result = String::from(vec[index]).parse::<u32>();
@@ -1759,10 +1847,10 @@ fn database_options_2to3(options: &str) -> Option<String> {
         }
         index += 1;
     }
-    if cache == 0  && blocks != 0{
+    if cache == 0 && blocks != 0 {
         cache = 1;
     }
-    if blocks == 0 && cache != 0{
+    if blocks == 0 && cache != 0 {
         blocks = 1;
     }
     if cache != 0 && blocks != 0 {
@@ -1778,7 +1866,7 @@ fn process_option2to3_pair(option: &str, option_value: &str) -> String {
             let mut new_option = String::from(" DURATION ");
             new_option.push_str(option_value);
             new_option
-        },
+        }
         "CACHELAST" => {
             let mut new_option = String::from(" CACHEMODEL ");
             let parse_result = String::from(option_value).parse::<u32>();
@@ -1795,20 +1883,20 @@ fn process_option2to3_pair(option: &str, option_value: &str) -> String {
                 new_option.push_str(option_value);
             }
             new_option
-        },
+        }
         "KEEP" | "MINROWS" | "MAXROWS" | "REPLICA" | "COMP" | "PRECISION" => {
             same_option(option, option_value)
-        },
+        }
         "WAL" => {
             let mut new_option = String::from(" WAL_LEVEL ");
             new_option.push_str(option_value);
             new_option
-        },
+        }
         "FSYNC" => {
             let mut new_option = String::from(" WAL_FSYNC_PERIOD ");
             new_option.push_str(option_value);
             new_option
-        },
+        }
         // ignore
         "UPDATE" | "QUORUM" | "CACHE" | "BLOCKS" => String::new(),
         _ => String::new(),
@@ -1829,8 +1917,49 @@ fn same_option(option: &str, option_value: &str) -> String {
 fn database_options_3to2(options: &str) -> Option<String> {
     let mut result = String::new();
     let vec: Vec<&str> = options.split(" ").collect();
-    let options_2 = vec!["CACHE", "BLOCKS", "DAYS", "KEEP", "MINROWS", "MAXROWS", "WAL", "FSYNC", "UPDATE", "CACHELAST", "REPLICA", "QUORUM", "COMP", "PRECISION"];
-    let options_3 = vec!["BUFFER", "DURATION", "KEEP", "MINROWS", "MAXROWS", "WAL_LEVEL", "WAL_FSYNC_PERIOD", "CACHEMODEL", "CACHESIZE", "REPLICA", "COMP", "PRECISION", "PAGES", "PAGESIZE", "RETENTIONS", "VGROUPS", "SINGLE_STABLE", "STT_TRIGGER", "TABLE_PREFIX", "TABLE_SUFFIX", "TSDB_PAGESIZE", "WAL_RETENTION_PERIOD", "WAL_RETENTION_SIZE", "WAL_ROLL_PERIOD", "WAL_SEGMENT_SIZE"];
+    let options_2 = vec![
+        "CACHE",
+        "BLOCKS",
+        "DAYS",
+        "KEEP",
+        "MINROWS",
+        "MAXROWS",
+        "WAL",
+        "FSYNC",
+        "UPDATE",
+        "CACHELAST",
+        "REPLICA",
+        "QUORUM",
+        "COMP",
+        "PRECISION",
+    ];
+    let options_3 = vec![
+        "BUFFER",
+        "DURATION",
+        "KEEP",
+        "MINROWS",
+        "MAXROWS",
+        "WAL_LEVEL",
+        "WAL_FSYNC_PERIOD",
+        "CACHEMODEL",
+        "CACHESIZE",
+        "REPLICA",
+        "COMP",
+        "PRECISION",
+        "PAGES",
+        "PAGESIZE",
+        "RETENTIONS",
+        "VGROUPS",
+        "SINGLE_STABLE",
+        "STT_TRIGGER",
+        "TABLE_PREFIX",
+        "TABLE_SUFFIX",
+        "TSDB_PAGESIZE",
+        "WAL_RETENTION_PERIOD",
+        "WAL_RETENTION_SIZE",
+        "WAL_ROLL_PERIOD",
+        "WAL_SEGMENT_SIZE",
+    ];
     // let map :HashMap<String, String>= HashMap::new();
     let mut index = 0;
     while index < vec.len() {
@@ -1838,7 +1967,8 @@ fn database_options_3to2(options: &str) -> Option<String> {
             index += 1;
             if index < vec.len()
                 && !options_2.contains(&vec[index])
-                && !options_3.contains(&vec[index]) // 是一个值
+                && !options_3.contains(&vec[index])
+            // 是一个值
             {
                 result.push_str(&process_option_pair(&vec[index - 1], &vec[index]));
             } else {
@@ -1869,7 +1999,7 @@ fn process_option_pair<'a>(option: &str, option_value: &str) -> String {
                 println!("option_value not a number");
                 same_option(option, option_value)
             }
-        },
+        }
         "DURATION" => {
             let mut new_option = String::from(" DAYS ");
             new_option.push_str(&process_unit_value(option_value));
@@ -1882,20 +2012,20 @@ fn process_option_pair<'a>(option: &str, option_value: &str) -> String {
                 new_option.push_str(&process_unit_value(value_array.get(0).unwrap()));
             }
             new_option
-        },
+        }
         "MINROWS" | "MAXROWS" | "REPLICA" | "COMP" | "PRECISION" => {
             same_option(option, option_value)
-        },
+        }
         "WAL_LEVEL" => {
             let mut new_option = String::from(" WAL ");
             new_option.push_str(option_value);
             new_option
-        },
+        }
         "WAL_FSYNC_PERIOD" => {
             let mut new_option = String::from(" FSYNC ");
             new_option.push_str(option_value);
             new_option
-        },
+        }
         "CACHEMODEL" => {
             let mut new_option = String::from(" CACHELAST ");
             match option_value {
@@ -1906,12 +2036,21 @@ fn process_option_pair<'a>(option: &str, option_value: &str) -> String {
                 _ => new_option.push_str(""),
             }
             new_option
-        },
+        }
         // ignore
-        "CACHESIZE" | "PAGES" | "PAGESIZE" | "RETENTIONS" | "VGROUPS" |
-        "SINGLE_STABLE" | "TABLE_PREFIX" | "TABLE_SUFFIX" | "TSDB_PAGESIZE" | 
-        "WAL_RETENTION_PERIOD" | "WAL_RETENTION_SIZE" | "WAL_ROLL_PERIOD" | 
-        "WAL_SEGMENT_SIZE" => String::new(),
+        "CACHESIZE"
+        | "PAGES"
+        | "PAGESIZE"
+        | "RETENTIONS"
+        | "VGROUPS"
+        | "SINGLE_STABLE"
+        | "TABLE_PREFIX"
+        | "TABLE_SUFFIX"
+        | "TSDB_PAGESIZE"
+        | "WAL_RETENTION_PERIOD"
+        | "WAL_RETENTION_SIZE"
+        | "WAL_ROLL_PERIOD"
+        | "WAL_SEGMENT_SIZE" => String::new(),
         _ => String::new(),
     }
 }
@@ -1923,9 +2062,7 @@ fn process_unit_value(option_value: &str) -> String {
         unit = &option_value[option_len - 1..option_len];
     }
     match unit {
-        "d" => {
-            String::from(option_value)
-        },
+        "d" => String::from(option_value),
         "m" => {
             let minutes_str = &option_value[0..option_len - 1];
             let minutes: u32 = minutes_str.parse().expect("need a number");
@@ -1939,9 +2076,7 @@ fn process_unit_value(option_value: &str) -> String {
             let days = hours / 24;
             days.to_string()
         }
-        _ => {
-            String::from(option_value)
-        }
+        _ => String::from(option_value),
     }
 }
 
@@ -2002,7 +2137,10 @@ mod tests {
         let option2_2 = "REPLICA 1 QUORUM 1";
         assert_eq!(" REPLICA 1", database_options_2to3(option2_2).unwrap());
         let option2_3 = "REPLICA QUORUM DAYS 10 KEEP";
-        assert_eq!(" REPLICA DURATION 10 KEEP", database_options_2to3(option2_3).unwrap());
+        assert_eq!(
+            " REPLICA DURATION 10 KEEP",
+            database_options_2to3(option2_3).unwrap()
+        );
     }
 
     #[test]
@@ -2010,7 +2148,10 @@ mod tests {
         let options3_1 = "BUFFER 256 CACHESIZE 1 CACHEMODEL 'none' COMP 2 DURATION 14400m WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 STT_TRIGGER 1 KEEP 5256000m,5256000m,5256000m PAGES 256 PAGESIZE 4 PRECISION 'ms' REPLICA 1 WAL_LEVEL 1 VGROUPS 2 SINGLE_STABLE 0";
         assert_eq!(" CACHE 16 BLOCKS 16 CACHELAST 0 COMP 2 DAYS 10 FSYNC 3000 MAXROWS 4096 MINROWS 100 KEEP 3650 PRECISION 'ms' REPLICA 1 WAL 1", database_options_3to2(options3_1).unwrap());
         let option3_2 = "BUFFER CACHESIZE 1 CACHEMODEL";
-        assert_eq!(" BUFFER CACHELAST ", database_options_3to2(option3_2).unwrap());
+        assert_eq!(
+            " BUFFER CACHELAST ",
+            database_options_3to2(option3_2).unwrap()
+        );
     }
 
     #[test]
