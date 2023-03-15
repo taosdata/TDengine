@@ -59,7 +59,7 @@
 
 #ifdef WEBSOCKET
 #define SHELL_DSN      "The dsn to use when connecting to cloud server."
-#define SHELL_REST     "Use restful mode when connecting."
+#define SHELL_HTTP     "Use http(WebSocket) mode when connecting."
 #define SHELL_TIMEOUT  "Set the timeout for websocket query in seconds, default is 10."
 #endif
 
@@ -87,7 +87,7 @@ void shellPrintHelp() {
   printf("%s%s%s%s\r\n", indent, "-u,", indent, SHELL_USER);
 #ifdef WEBSOCKET
   printf("%s%s%s%s\r\n", indent, "-E,", indent, SHELL_DSN);
-  printf("%s%s%s%s\r\n", indent, "-R,", indent, SHELL_REST);
+  printf("%s%s%s%s\r\n", indent, "-R,", indent, SHELL_HTTP);
   printf("%s%s%s%s\r\n", indent, "-T,", indent, SHELL_TIMEOUT);
 #endif
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
@@ -126,7 +126,7 @@ static struct argp_option shellOptions[] = {
     {"pktlen", 'l', "PKTLEN", 0, SHELL_PKT_LEN},
 #ifdef WEBSOCKET
     {"dsn", 'E', "DSN", 0, SHELL_DSN},
-    {"restful", 'R', 0, 0, SHELL_REST},
+    {"http", 'R', 0, 0, SHELL_HTTP},
 	  {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
 #endif
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
