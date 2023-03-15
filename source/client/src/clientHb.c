@@ -303,8 +303,12 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
 }
 
 static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
+  if (0 == atomic_load_8(&clientHbMgr.inited)) {
+    goto _return;
+  }
+
   static int32_t    emptyRspNum = 0;
-  char             *key = (char *)param;
+  int32_t idx = *(int32_t *)param;
   SClientHbBatchRsp pRsp = {0};
   if (TSDB_CODE_SUCCESS == code) {
     tDeserializeSClientHbBatchRsp(pMsg->pData, pMsg->len, &pRsp);
@@ -319,22 +323,24 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   int32_t rspNum = taosArrayGetSize(pRsp.rsps);
 
-  taosThreadMutexLock(&appInfo.mutex);
+  taosThreadMutexLock(&clientHbMgr.lock);
 
-  SAppInstInfo **pInst = taosHashGet(appInfo.pInstMap, key, strlen(key));
-  if (pInst == NULL || NULL == *pInst) {
-    taosThreadMutexUnlock(&appInfo.mutex);
-    tscError("cluster not exist, key:%s", key);
+  SAppHbMgr *pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, idx);
+  if (pAppHbMgr == NULL) {
+    taosThreadMutexUnlock(&clientHbMgr.lock);
+    tscError("appHbMgr not exist, idx:%d", idx);
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
     tFreeClientHbBatchRsp(&pRsp);
     return -1;
   }
 
+  SAppInstInfo *pInst = pAppHbMgr->pAppInstInfo;
+
   if (code != 0) {
-    (*pInst)->onlineDnodes = ((*pInst)->totalDnodes ? 0 : -1);
-    tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), (*pInst)->onlineDnodes,
-             (*pInst)->totalDnodes);
+    pInst->onlineDnodes = pInst->totalDnodes ? 0 : -1;
+    tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), pInst->onlineDnodes,
+             pInst->totalDnodes);
   }
 
   if (rspNum) {
@@ -346,15 +352,17 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   for (int32_t i = 0; i < rspNum; ++i) {
     SClientHbRsp *rsp = taosArrayGet(pRsp.rsps, i);
-    code = (*clientHbMgr.rspHandle[rsp->connKey.connType])((*pInst)->pAppHbMgr, rsp);
+    code = (*clientHbMgr.rspHandle[rsp->connKey.connType])(pAppHbMgr, rsp);
     if (code) {
       break;
     }
   }
 
-  taosThreadMutexUnlock(&appInfo.mutex);
+  taosThreadMutexUnlock(&clientHbMgr.lock);
 
   tFreeClientHbBatchRsp(&pRsp);
+
+_return:
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   return code;
@@ -788,7 +796,8 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgInfo.pData = buf;
       pInfo->msgInfo.len = tlen;
       pInfo->msgType = TDMT_MND_HEARTBEAT;
-      pInfo->param = taosStrdup(pAppHbMgr->key);
+      pInfo->param = taosMemoryMalloc(sizeof(int32_t));
+      *(int32_t *)pInfo->param = i;
       pInfo->paramFreeFp = taosMemoryFree;
       pInfo->requestId = generateRequestId();
       pInfo->requestObjRefId = 0;
@@ -874,6 +883,7 @@ SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
 
   taosThreadMutexLock(&clientHbMgr.lock);
   taosArrayPush(clientHbMgr.appHbMgrs, &pAppHbMgr);
+  pAppHbMgr->idx = taosArrayGetSize(clientHbMgr.appHbMgrs) - 1;
   taosThreadMutexUnlock(&clientHbMgr.lock);
 
   return pAppHbMgr;

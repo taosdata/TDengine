@@ -1223,7 +1223,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
         // node id
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        int32_t nodeId = TMAX(pTask->nodeId, 0);
+        int64_t nodeId = TMAX(pTask->nodeId, 0);
         colDataSetVal(pColInfo, numOfRows, (const char *)&nodeId, false);
 
         // level

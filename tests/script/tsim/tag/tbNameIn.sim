@@ -99,4 +99,14 @@ if $rows != 7 then
   return -1
 endi
 
+sql select * from st1 where tbname in('tb1') and tbname in ('tb2');
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from st1 where tbname in ('tb1') and tbname != 'tb1';
+if $rows != 0 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

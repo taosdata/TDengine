@@ -179,6 +179,20 @@ Provides information about standard tables and subtables.
 | 5   |  tag_type   | BINARY(64)    | Tag type             |
 | 6   |  tag_value  | BINARY(16384) | Tag value               |
 
+## INS_COLUMNS
+
+| #   |  **列名**   | **数据类型**  | **说明**               |
+| --- | :---------: | ------------- | ---------------------- |
+| 1   | table_name  | BINARY(192)   | Table name                   |
+| 2   |   db_name   | BINARY(64)    | Database name |
+| 3   | table_type  | BINARY(21)    | Table type       |
+| 4   |  col_name   | BINARY(64)    | Column name             |
+| 5   |  col_type   | BINARY(32)    | Column type             |
+| 6   |  col_length | INT           | Column length               |
+| 7   |  col_precision | INT           | Column precision               |
+| 8   |  col_scale     | INT           | Column scale            |
+| 9   |  col_nullable  | INT           | Column nullable        |
+
 ## INS_USERS
 
 Provides information about TDengine users.

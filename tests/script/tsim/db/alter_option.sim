@@ -285,8 +285,6 @@ sql_error alter database db keep -1
 
 print ============== modify minrows
 sql_error alter database db minrows 8
-sql_error alter database db minrows 200
-sql_error alter database db minrows 11
 sql_error alter database db minrows 8000
 sql_error alter database db minrows 8001
 

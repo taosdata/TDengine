@@ -16,7 +16,7 @@ sql drop database if exists test;
 sql create database test  vgroups 1;
 sql use test;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams0 trigger at_once into streamt as select  _wstart c1, count(*) c2, max(b) c3 from t1 state_window(a);
+sql create stream streams0 trigger at_once IGNORE EXPIRED 0 into streamt as select  _wstart c1, count(*) c2, max(b) c3 from t1 state_window(a);
 
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sleep 200
@@ -197,8 +197,8 @@ sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 
-print create stream streams4 trigger at_once  into streamt4 as select  _wstart, count(*) c1 from st partition by tbname state_window(c);
-sql create stream streams4 trigger at_once  into streamt4 as select  _wstart, count(*) c1 from st partition by tbname state_window(c);
+print create stream streams4 trigger at_once IGNORE EXPIRED 0  into streamt4 as select  _wstart, count(*) c1 from st partition by tbname state_window(c);
+sql create stream streams4 trigger at_once IGNORE EXPIRED 0 into streamt4 as select  _wstart, count(*) c1 from st partition by tbname state_window(c);
 
 sql insert into t1 values(1648791210000,1,2,1);
 sql insert into t1 values(1648791220000,2,2,2);
