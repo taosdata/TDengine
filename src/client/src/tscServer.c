@@ -676,9 +676,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   if (pRes->code == TSDB_CODE_SUCCESS && pCmd->command < TSDB_SQL_MAX && tscProcessMsgRsp[pCmd->command]) {
-    if (pSql->rootObj == NULL ||
-        ((pSql->rootObj->renewingTableMeta == true && pSql->rootObj->renewTableMetaSql == pSql) ||
-        pSql->rootObj->renewingTableMeta == false))
+    if (pSql->rootObj == NULL || pSql->rootObj->renewingTableMeta == false)
       rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
 
@@ -694,9 +692,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
       tscAllocPayload(pCmd, TSDB_FQDN_LEN + 64);
       tscSetFqdnErrorMsg(pSql, pEpSet);
     }
-    if (pSql->rootObj == NULL ||
-        ((pSql->rootObj->renewingTableMeta == true && pSql->rootObj->renewTableMetaSql == pSql) ||
-         pSql->rootObj->renewingTableMeta == false))
+    if (pSql->rootObj == NULL || pSql->rootObj->renewingTableMeta == false)
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
 
@@ -3182,14 +3178,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
     tscError("0x%"PRIx64" failed to allocate sqlobj to get multiple table meta", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-
-  if (pSql->rootObj != NULL) {
-    pthread_mutex_lock(&pSql->rootObj->renewTableMetaLock);
-    if (pSql->rootObj->renewingTableMeta) {
-      pSql->rootObj->renewTableMetaSql = pNew;
-    }
-    pthread_mutex_unlock(&pSql->rootObj->renewTableMetaLock);
-  }
+  
   pNew->pTscObj     = pSql->pTscObj;
   pNew->signature   = pNew;
   pNew->cmd.command = TSDB_SQL_MULTI_META;

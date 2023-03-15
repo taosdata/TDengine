@@ -780,7 +780,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
     pthread_mutex_lock(&pSql->rootObj->renewTableMetaLock);
     pSql->rootObj->renewingTableMeta = false;
-    pSql->rootObj->renewTableMetaSql = NULL;
     pthread_mutex_unlock(&pSql->rootObj->renewTableMetaLock);
 
     taosReleaseRef(tscObjRef, pSql->self);
@@ -797,7 +796,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
     pthread_mutex_lock(&pSql->rootObj->renewTableMetaLock);
     pSql->rootObj->renewingTableMeta = false;
-    pSql->rootObj->renewTableMetaSql = NULL;
     pthread_mutex_unlock(&pSql->rootObj->renewTableMetaLock);
 
     taosReleaseRef(tscObjRef, pSql->self);
@@ -810,7 +808,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
   pthread_mutex_lock(&pSql->rootObj->renewTableMetaLock);
   pSql->rootObj->renewingTableMeta = false;
-  pSql->rootObj->renewTableMetaSql = NULL;
   pthread_mutex_unlock(&pSql->rootObj->renewTableMetaLock);
 
   taosReleaseRef(tscObjRef, pSql->self);

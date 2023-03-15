@@ -409,7 +409,6 @@ typedef struct SSqlObj {
 
   pthread_mutex_t  renewTableMetaLock;
   bool             renewingTableMeta;
-  struct SSqlObj  *renewTableMetaSql;
 } SSqlObj;
 
 typedef struct SSqlStream {
