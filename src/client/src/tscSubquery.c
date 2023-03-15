@@ -3510,7 +3510,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
   if (taos_errno(tres) != TSDB_CODE_SUCCESS) {
     SSqlObj* pSql = (SSqlObj*) tres;
     assert(pSql != NULL && pSql->res.code == numOfRows);
-    
+
     pParentObj->res.code = pSql->res.code;
 
     // set the flag in the parent sqlObj
@@ -3518,9 +3518,9 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
       pParentObj->cmd.insertParam.schemaAttached = 1;
     }
   }
-  
+
   if (!subAndCheckDone(tres, pParentObj, pSupporter->idx)) {
-    // concurrency problem, other thread already release pParentObj 
+    // concurrency problem, other thread already release pParentObj
     //tscDebug("0x%"PRIx64" insert:%p,%d completed, total:%d", pParentObj->self, tres, suppIdx, pParentObj->subState.numOfSub);
     return;
   }
@@ -3577,6 +3577,13 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     }
 
     pParentObj->res.code = TSDB_CODE_SUCCESS;
+    if (TSDB_QUERY_HAS_TYPE(pParentObj->cmd.insertParam.insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
+      tscRestoreTableDataBlocks(&pParentObj->cmd.insertParam);
+      tscMergeTableDataBlocks(pParentObj, &pParentObj->cmd.insertParam, false);
+      tscHandleMultivnodeInsert(pParentObj);
+      return;
+    }
+
     tscResetSqlCmd(&pParentObj->cmd, false, pParentObj->self);
 
     // in case of insert, redo parsing the sql string and build new submit data block for two reasons:
