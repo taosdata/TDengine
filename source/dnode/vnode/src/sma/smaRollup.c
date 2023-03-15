@@ -1352,7 +1352,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   }
 
   if (!(pStat = (SRSmaStat *)tdAcquireSmaRef(smaMgmt.rsetId, pRSmaRef->refId))) {
-    smaDebug("rsma fetch task not start since rsma stat already destroyed, rsetId:%d refId:%" PRIi64 ")",
+    smaWarn("rsma fetch task not start since rsma stat already destroyed, rsetId:%d refId:%" PRIi64 ")",
              smaMgmt.rsetId, pRSmaRef->refId);  // pRSmaRef freed in taosHashRemove
     taosHashRemove(smaMgmt.refHash, &param, POINTER_BYTES);
     return;

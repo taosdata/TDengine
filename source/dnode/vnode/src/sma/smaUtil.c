@@ -17,20 +17,24 @@
 
 #define TD_QTASKINFO_FNAME_PREFIX "main.tdb"
 
+#if 0
 void tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t suid, int8_t level, int64_t version, char *outputName) {
   tdRSmaGetFileName(vgId, NULL, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, suid, level, version, outputName);
 }
+#endif
 
 void tdRSmaQTaskInfoGetFullName(int32_t vgId, int64_t suid, int8_t level, int64_t version, const char *path,
                                 char *outputName) {
   tdRSmaGetFileName(vgId, path, VNODE_RSMA_DIR, TD_QTASKINFO_FNAME_PREFIX, suid, level, version, outputName);
 }
 
+#if 0
 void tdRSmaQTaskInfoGetFullPath(int32_t vgId, int8_t level, const char *path, char *outputName) {
   tdRSmaGetDirName(vgId, path, VNODE_RSMA_DIR, true, outputName);
   int32_t rsmaLen = strlen(outputName);
   snprintf(outputName + rsmaLen, TSDB_FILENAME_LEN - rsmaLen, "%" PRIi8, level);
 }
+#endif
 
 void tdRSmaQTaskInfoGetFullPathEx(int32_t vgId, tb_uid_t suid, int8_t level, const char *path, char *outputName) {
   tdRSmaGetDirName(vgId, path, VNODE_RSMA_DIR, true, outputName);
@@ -60,6 +64,7 @@ void tdRSmaGetFileName(int32_t vgId, const char *pdname, const char *dname, cons
       }
     }
   } else {
+#if 0
     if (version >= 0) {
       if (pdname) {
         snprintf(outputName, TSDB_FILENAME_LEN, "%s%svnode%svnode%d%s%s%sv%d%s%" PRIi64, pdname, TD_DIRSEP, TD_DIRSEP,
@@ -77,6 +82,7 @@ void tdRSmaGetFileName(int32_t vgId, const char *pdname, const char *dname, cons
                  TD_DIRSEP, vgId, fname);
       }
     }
+#endif
   }
 }
 
@@ -90,31 +96,24 @@ void tdRSmaGetDirName(int32_t vgId, const char *pdname, const char *dname, bool 
                dname);
     }
   } else {
+#if 0
     if (endWithSep) {
       snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s%s", TD_DIRSEP, vgId, TD_DIRSEP, dname, TD_DIRSEP);
     } else {
       snprintf(outputName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s", TD_DIRSEP, vgId, TD_DIRSEP, dname);
     }
+#endif
   }
 }
 
 // smaXXXUtil ================
-void *tdAcquireSmaRef(int32_t rsetId, int64_t refId) {
-  void *pResult = taosAcquireRef(rsetId, refId);
-  if (!pResult) {
-    smaWarn("rsma acquire ref for rsetId:%d refId:%" PRIi64 " failed since %s", rsetId, refId, terrstr());
-  } else {
-    smaTrace("rsma acquire ref for rsetId:%d refId:%" PRIi64 " success", rsetId, refId);
-  }
-  return pResult;
-}
+void *tdAcquireSmaRef(int32_t rsetId, int64_t refId) { return taosAcquireRef(rsetId, refId); }
 
 int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId) {
   if (taosReleaseRef(rsetId, refId) < 0) {
     smaWarn("rsma release ref for rsetId:%d refId:%" PRIi64 " failed since %s", rsetId, refId, terrstr());
     return TSDB_CODE_FAILED;
   }
-  smaTrace("rsma release ref for rsetId:%d refId:%" PRIi64 " success", rsetId, refId);
 
   return TSDB_CODE_SUCCESS;
 }
