@@ -3180,7 +3180,7 @@ static SSDataBlock* buildSysDbTableCount(SOperatorInfo* pOperator, STableCountSc
   size_t perfdbTableNum;
   getPerfDbMeta(NULL, &perfdbTableNum);
 
-  if (pSupp->groupByDbName) {
+  if (pSupp->groupByDbName || pSupp->groupByStbName) {
     buildSysDbGroupedTableCount(pOperator, pInfo, pSupp, pRes, infodbTableNum, perfdbTableNum);
     return (pRes->info.rows > 0) ? pRes : NULL;
   } else {
@@ -3205,11 +3205,23 @@ static void buildSysDbGroupedTableCount(SOperatorInfo* pOperator, STableCountSca
                                         STableCountScanSupp* pSupp, SSDataBlock* pRes, size_t infodbTableNum,
                                         size_t perfdbTableNum) {
   if (pInfo->currGrpIdx == 0) {
-    uint64_t groupId = calcGroupId(TSDB_INFORMATION_SCHEMA_DB, strlen(TSDB_INFORMATION_SCHEMA_DB));
+    uint64_t groupId = 0;
+    if (pSupp->groupByDbName) {
+      groupId = calcGroupId(TSDB_INFORMATION_SCHEMA_DB, strlen(TSDB_INFORMATION_SCHEMA_DB));
+    } else {
+      groupId = calcGroupId("", 0);
+    }
+    
     pRes->info.id.groupId = groupId;
     fillTableCountScanDataBlock(pSupp, TSDB_INFORMATION_SCHEMA_DB, "", infodbTableNum, pRes);
   } else if (pInfo->currGrpIdx == 1) {
-    uint64_t groupId = calcGroupId(TSDB_PERFORMANCE_SCHEMA_DB, strlen(TSDB_PERFORMANCE_SCHEMA_DB));
+    uint64_t groupId = 0;
+    if (pSupp->groupByDbName) {
+      groupId = calcGroupId(TSDB_PERFORMANCE_SCHEMA_DB, strlen(TSDB_PERFORMANCE_SCHEMA_DB));
+    } else {
+      groupId = calcGroupId("", 0);
+    }
+
     pRes->info.id.groupId = groupId;
     fillTableCountScanDataBlock(pSupp, TSDB_PERFORMANCE_SCHEMA_DB, "", perfdbTableNum, pRes);
   } else {
@@ -3247,7 +3259,7 @@ static SSDataBlock* buildVnodeDbTableCount(SOperatorInfo* pOperator, STableCount
   tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
   tNameGetDbName(&sn, dbName);
 
-  if (pSupp->groupByDbName) {
+  if (pSupp->groupByDbName || pSupp->groupByStbName) {
     buildVnodeGroupedTableCount(pOperator, pInfo, pSupp, pRes, vgId, dbName);
   } else {
     buildVnodeFilteredTbCount(pOperator, pInfo, pSupp, pRes, dbName);
@@ -3308,7 +3320,10 @@ static void buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanO
 static void buildVnodeGroupedNtbTableCount(STableCountScanOperatorInfo* pInfo, STableCountScanSupp* pSupp,
                                            SSDataBlock* pRes, char* dbName) {
   char fullStbName[TSDB_TABLE_FNAME_LEN] = {0};
-  snprintf(fullStbName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbName, "");
+  if (pSupp->groupByDbName) {
+    snprintf(fullStbName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbName, "");
+  }
+  
   uint64_t groupId = calcGroupId(fullStbName, strlen(fullStbName));
   pRes->info.id.groupId = groupId;
   int64_t ntbNum = metaGetNtbNum(pInfo->readHandle.meta);
@@ -3323,7 +3338,12 @@ static void buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo, S
   metaGetTableSzNameByUid(pInfo->readHandle.meta, stbUid, stbName);
 
   char fullStbName[TSDB_TABLE_FNAME_LEN] = {0};
-  snprintf(fullStbName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbName, stbName);
+  if (pSupp->groupByDbName) {
+    snprintf(fullStbName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbName, stbName);
+  } else {
+    snprintf(fullStbName, TSDB_TABLE_FNAME_LEN, "%s", stbName);
+  }
+  
   uint64_t groupId = calcGroupId(fullStbName, strlen(fullStbName));
   pRes->info.id.groupId = groupId;
 
