@@ -67,6 +67,7 @@ And many more parameters.
 - -n NETROLE: test scope for network connection test, default is `client`. The value can be `client` or `server`.
 - -N PKTNUM: Number of packets used for network testing
 - -r: output the timestamp format as unsigned 64-bits integer (uint64_t in C language)
+- -R: Use http(WebSocket) mode when connecting
 - -s COMMAND: execute SQL commands in non-interactive mode
 - -t: Test the boot status of the server. The statuses of -k apply.
 - -w DISPLAYWIDTH: Specify the number of columns of the server display.
