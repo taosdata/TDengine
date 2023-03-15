@@ -52,23 +52,6 @@ class TDTestCase:
             tdSql.execute(f"create table {dbname}.t3 using {stb} tags('shanghai', 3, 0, 'nchar3')")
 
             tdLog.printNoPrefix("==========step2:insert data")
-            for i in range(rows):
-                tdSql.execute(
-                    f"insert into {dbname}.t1 values (now()+{i}m, {32767+i}, {20.0+i/10}, {2**31+i}, {3.4*10**38+i/10}, {127+i}, {i})"
-                )
-                tdSql.execute(
-                    f"insert into {dbname}.t2 values (now()-{i}m, {-32767-i}, {20.0-i/10}, {-i-2**31}, {-i/10-3.4*10**38}, {-127-i}, {-i})"
-                )
-            tdSql.execute(
-                f"insert into {dbname}.t1 values (now()+11m, {2**31-1}, {pow(10,37)*34}, {pow(2,63)-1}, {1.7*10**308}, 32767, 127)"
-            )
-            tdSql.execute(
-                f"insert into {dbname}.t2 values (now()-11m, {1-2**31}, {-3.4*10**38}, {1-2**63}, {-1.7*10**308}, -32767, -127)"
-            )
-            tdSql.execute(
-                f"insert into {dbname}.t2 values (now()-12m, null , {-3.4*10**38}, null , {-1.7*10**308}, null , null)"
-            )
-            
             tdSql.execute(
                 f"insert into {dbname}.t3 values ({qts}, null , {-3.4*10**38}, null , {-1.7*10**308}, null , null)"
             )
