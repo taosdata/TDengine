@@ -166,7 +166,8 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
     code = reserveDnodeRequiredInCache(pCxt->pMetaCache);
   }
   if (TSDB_CODE_SUCCESS == code &&
-      (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS) || 0 == strcmp(pTable, TSDB_INS_TABLE_TABLES) || 0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) &&
+      (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS) || 0 == strcmp(pTable, TSDB_INS_TABLE_TABLES) ||
+       0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) &&
       QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
     code = collectMetaKeyFromInsTags(pCxt);
   }
@@ -605,6 +606,10 @@ static int32_t collectMetaKeyFromShowSubscriptions(SCollectMetaKeyCxt* pCxt, SSh
                                  pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromCompactDatabase(SCollectMetaKeyCxt* pCxt, SCompactDatabaseStmt* pStmt) {
+  return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
   pCxt->pStmt = pStmt;
   switch (nodeType(pStmt)) {
@@ -636,6 +641,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromExplain(pCxt, (SExplainStmt*)pStmt);
     case QUERY_NODE_DESCRIBE_STMT:
       return collectMetaKeyFromDescribe(pCxt, (SDescribeStmt*)pStmt);
+    case QUERY_NODE_COMPACT_DATABASE_STMT:
+      return collectMetaKeyFromCompactDatabase(pCxt, (SCompactDatabaseStmt*)pStmt);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return collectMetaKeyFromCreateStream(pCxt, (SCreateStreamStmt*)pStmt);
     case QUERY_NODE_SHOW_DNODES_STMT:

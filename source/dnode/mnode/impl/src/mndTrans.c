@@ -460,6 +460,8 @@ static const char *mndTransStr(ETrnStage stage) {
       return "commitAction";
     case TRN_STAGE_FINISHED:
       return "finished";
+    case TRN_STAGE_PRE_FINISH:
+      return "pre-finish";
     default:
       return "invalid";
   }
@@ -503,14 +505,15 @@ static TransCbFp mndTransGetCbFp(ETrnFunc ftype) {
 }
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
-  mTrace("trans:%d, perform insert action, row:%p stage:%s", pTrans->id, pTrans, mndTransStr(pTrans->stage));
+  mInfo("trans:%d, perform insert action, row:%p stage:%s, callfunc:1, startFunc:%d", pTrans->id, pTrans, mndTransStr(pTrans->stage),
+      pTrans->startFunc);
 
   if (pTrans->startFunc > 0) {
     TransCbFp fp = mndTransGetCbFp(pTrans->startFunc);
     if (fp) {
       (*fp)(pSdb->pMnode, pTrans->param, pTrans->paramLen);
     }
-    pTrans->startFunc = 0;
+    // pTrans->startFunc = 0;
   }
 
   return 0;
@@ -546,14 +549,15 @@ static void mndTransDropData(STrans *pTrans) {
 }
 
 static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans, bool callFunc) {
-  mTrace("trans:%d, perform delete action, row:%p stage:%s callfunc:%d", pTrans->id, pTrans, mndTransStr(pTrans->stage),
-         callFunc);
+  mInfo("trans:%d, perform delete action, row:%p stage:%s callfunc:%d, stopFunc:%d", pTrans->id, pTrans,
+        mndTransStr(pTrans->stage), callFunc, pTrans->stopFunc);
+
   if (pTrans->stopFunc > 0 && callFunc) {
     TransCbFp fp = mndTransGetCbFp(pTrans->stopFunc);
     if (fp) {
       (*fp)(pSdb->pMnode, pTrans->param, pTrans->paramLen);
     }
-    pTrans->stopFunc = 0;
+    // pTrans->stopFunc = 0;
   }
 
   mndTransDropData(pTrans);
@@ -572,7 +576,7 @@ static void mndTransUpdateActions(SArray *pOldArray, SArray *pNewArray) {
 }
 
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
-  mTrace("trans:%d, perform update action, old row:%p stage:%s create:%" PRId64 ", new row:%p stage:%s create:%" PRId64,
+  mInfo("trans:%d, perform update action, old row:%p stage:%s create:%" PRId64 ", new row:%p stage:%s create:%" PRId64,
          pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage),
          pNew->createdTime);
 
@@ -598,8 +602,13 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
   }
 
   if (pOld->stage == TRN_STAGE_ROLLBACK) {
-    pOld->stage = TRN_STAGE_REDO_ACTION;
+    pOld->stage = TRN_STAGE_UNDO_ACTION;
     mTrace("trans:%d, stage from rollback to undoAction since perform update action", pNew->id);
+  }
+
+  if (pOld->stage == TRN_STAGE_PRE_FINISH) {
+    pOld->stage = TRN_STAGE_FINISHED;
+    mTrace("trans:%d, stage from pre-finish to finished since perform update action", pNew->id);
   }
 
   return 0;
@@ -866,6 +875,7 @@ int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans) {
     }
   }
 
+
   if (mndCheckTransConflict(pMnode, pTrans)) {
     terrno = TSDB_CODE_MND_TRANS_CONFLICT;
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -928,6 +938,16 @@ static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
     return -1;
   }
   mInfo("trans:%d, rollback finished", pTrans->id);
+  return 0;
+}
+
+static int32_t mndTransPreFinish(SMnode *pMnode, STrans *pTrans) {
+  mInfo("trans:%d, pre-finish transaction", pTrans->id);
+  if (mndTransSync(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to pre-finish since %s", pTrans->id, terrstr());
+    return -1;
+  }
+  mInfo("trans:%d, pre-finish finished", pTrans->id);
   return 0;
 }
 
@@ -1437,7 +1457,7 @@ static bool mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans) {
 
   if (code == 0) {
     pTrans->code = 0;
-    pTrans->stage = TRN_STAGE_FINISHED;
+    pTrans->stage = TRN_STAGE_FINISHED; // TRN_STAGE_PRE_FINISH is not necessary
     mInfo("trans:%d, stage from commitAction to finished", pTrans->id);
     continueExec = true;
   } else {
@@ -1455,8 +1475,8 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
   int32_t code = mndTransExecuteUndoActions(pMnode, pTrans);
 
   if (code == 0) {
-    pTrans->stage = TRN_STAGE_FINISHED;
-    mInfo("trans:%d, stage from undoAction to finished", pTrans->id);
+    pTrans->stage = TRN_STAGE_PRE_FINISH;
+    mInfo("trans:%d, stage from undoAction to pre-finish", pTrans->id);
     continueExec = true;
   } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
     mInfo("trans:%d, stage keep on undoAction since %s", pTrans->id, tstrerror(code));
@@ -1483,6 +1503,25 @@ static bool mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans) {
   } else {
     pTrans->failedTimes++;
     mError("trans:%d, stage keep on rollback since %s, failedTimes:%d", pTrans->id, terrstr(), pTrans->failedTimes);
+    continueExec = false;
+  }
+
+  return continueExec;
+}
+
+static bool mndTransPerfromPreFinishedStage(SMnode *pMnode, STrans *pTrans) {
+  if (mndCannotExecuteTransAction(pMnode)) return false;
+
+  bool    continueExec = true;
+  int32_t code = mndTransPreFinish(pMnode, pTrans);
+
+  if (code == 0) {
+    pTrans->stage = TRN_STAGE_FINISHED;
+    mInfo("trans:%d, stage from pre-finish to finish", pTrans->id);
+    continueExec = true;
+  } else {
+    pTrans->failedTimes++;
+    mError("trans:%d, stage keep on pre-finish since %s, failedTimes:%d", pTrans->id, terrstr(), pTrans->failedTimes);
     continueExec = false;
   }
 
@@ -1544,6 +1583,14 @@ void mndTransExecute(SMnode *pMnode, STrans *pTrans, bool isLeader) {
         break;
       case TRN_STAGE_UNDO_ACTION:
         continueExec = mndTransPerformUndoActionStage(pMnode, pTrans);
+        break;
+      case TRN_STAGE_PRE_FINISH:
+        if (isLeader) {
+          continueExec = mndTransPerfromPreFinishedStage(pMnode, pTrans);
+        } else {
+          mInfo("trans:%d, can not pre-finish since not leader", pTrans->id);
+          continueExec = false;
+        }
         break;
       case TRN_STAGE_FINISHED:
         continueExec = mndTransPerfromFinishedStage(pMnode, pTrans);
@@ -1645,8 +1692,6 @@ void mndTransPullup(SMnode *pMnode) {
     }
     mndReleaseTrans(pMnode, pTrans);
   }
-
-  sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
   taosArrayDestroy(pArray);
 }
 

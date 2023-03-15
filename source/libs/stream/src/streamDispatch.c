@@ -278,6 +278,7 @@ int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecov
   msg.contLen = tlen + sizeof(SMsgHead);
   msg.pCont = buf;
   msg.msgType = TDMT_STREAM_RECOVER_FINISH;
+  msg.info.noResp = 1;
 
   tmsgSendReq(pEpSet, &msg);
 
@@ -522,4 +523,3 @@ FREE:
   taosFreeQitem(pBlock);
   return code;
 }
-

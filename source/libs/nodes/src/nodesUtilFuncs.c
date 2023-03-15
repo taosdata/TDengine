@@ -963,8 +963,6 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
-    case QUERY_NODE_SHOW_DB_ALIVE_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
@@ -1464,7 +1462,7 @@ SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
 }
 
 void nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc) {
-  if (NULL == pTarget || NULL == pPos || NULL == pSrc) {
+  if (NULL == pTarget || NULL == pPos || NULL == pSrc || NULL == pSrc->pHead) {
     return;
   }
 

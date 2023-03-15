@@ -41,7 +41,7 @@ CREATE AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE output_type [
   ```sql
   CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 8;
   ```
-关于如何开发自定义函数，请参考 [UDF使用说明](../../develop/udf)。
+关于如何开发自定义函数，请参考 [UDF使用说明](/develop/udf)。
 
 ## 管理 UDF
 

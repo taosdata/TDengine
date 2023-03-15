@@ -264,7 +264,7 @@ int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList);
 int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *tbUidList);
 int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
-int32_t tqSeekVer(STqReader *pReader, int64_t ver);
+int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char* id);
 int32_t tqNextBlock(STqReader *pReader, SFetchRet *ret);
 
 int32_t tqReaderSetSubmitReq2(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);

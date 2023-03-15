@@ -472,10 +472,7 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
 
   taosThreadMutexLock(&pSdb->filelock);
   if (pSdb->pWal != NULL) {
-    // code = walBeginSnapshot(pSdb->pWal, pSdb->applyIndex, 0);
-    if (pSdb->sync == 0) {
-      code = 0;
-    } else {
+    if (pSdb->sync > 0) {
       code = syncBeginSnapshot(pSdb->sync, pSdb->applyIndex);
     }
   }
@@ -484,11 +481,7 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
   }
   if (code == 0) {
     if (pSdb->pWal != NULL) {
-      // code = walEndSnapshot(pSdb->pWal);
-
-      if (pSdb->sync == 0) {
-        code = 0;
-      } else {
+      if (pSdb->sync > 0) {
         code = syncEndSnapshot(pSdb->sync);
       }
     }

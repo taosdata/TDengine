@@ -15,7 +15,7 @@ print $data00 $data01 $data02
 
 sql use test
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams1 trigger window_close  into streamt as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);
+sql create stream streams1 trigger window_close IGNORE EXPIRED 0 into streamt as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);
 
 sql insert into t1 values(1648791213001,1,2,3,1.0);
 sleep 300

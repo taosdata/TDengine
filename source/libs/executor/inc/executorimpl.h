@@ -121,7 +121,8 @@ enum {
   STREAM_RECOVER_STEP__NONE = 0,
   STREAM_RECOVER_STEP__PREPARE1,
   STREAM_RECOVER_STEP__PREPARE2,
-  STREAM_RECOVER_STEP__SCAN,
+  STREAM_RECOVER_STEP__SCAN1,
+  STREAM_RECOVER_STEP__SCAN2,
 };
 
 typedef struct {
@@ -881,6 +882,7 @@ SExprInfo*   createExpr(SNodeList* pNodeList, int32_t* numOfExprs);
 void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
                               SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo);
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset);
+void doClearBufferedBlocks(SStreamScanInfo* pInfo);
 
 #ifdef __cplusplus
 }

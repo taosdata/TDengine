@@ -1197,16 +1197,11 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
     }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      // expand the result datablock capacity
-      if (pRow->numOfRows > pBlock->info.capacity) {
-        blockDataEnsureCapacity(pBlock, pRow->numOfRows);
-        qDebug("datablock capacity not sufficient, expand to requried:%d, current capacity:%d, %s", pRow->numOfRows,
-               pBlock->info.capacity, GET_TASKID(pTaskInfo));
+      blockDataEnsureCapacity(pBlock, pBlock->info.rows + pRow->numOfRows);
+      qDebug("datablock capacity not sufficient, expand to required:%d, current capacity:%d, %s",
+             (pRow->numOfRows+pBlock->info.rows),
+             pBlock->info.capacity, GET_TASKID(pTaskInfo));
         // todo set the pOperator->resultInfo size
-      } else {
-        releaseBufPage(pBuf, page);
-        break;
-      }
     }
 
     pGroupResInfo->index += 1;

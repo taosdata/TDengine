@@ -11,7 +11,7 @@ sql drop database if exists test;
 sql create database test  vgroups 1;
 sql use test;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams0 trigger at_once into streamt as select  _wstart c1, count(*) c2, max(a) c3, _group_key(a) c4 from t1 partition by a state_window(b);
+sql create stream streams0 trigger at_once IGNORE EXPIRED 0 into streamt as select  _wstart c1, count(*) c2, max(a) c3, _group_key(a) c4 from t1 partition by a state_window(b);
 
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
@@ -191,7 +191,7 @@ sql drop database if exists test1;
 sql create database test1  vgroups 1;
 sql use test1;
 sql create table t1(ts timestamp, a int, b int , c int, d int);
-sql create stream streams1 trigger at_once into streamt1 as select  _wstart c1, count(*) c2, max(d) c3, _group_key(a+b) c4 from t1 partition by a+b state_window(c);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 into streamt1 as select  _wstart c1, count(*) c2, max(d) c3, _group_key(a+b) c4 from t1 partition by a+b state_window(c);
 
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
