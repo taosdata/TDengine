@@ -778,6 +778,11 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       executeQuery(pSql, pQueryInfo1);
     }
 
+    pthread_mutex_lock(&pSql->rootObj->renewTableMetaLock);
+    pSql->rootObj->renewingTableMeta = false;
+    pSql->rootObj->renewTableMetaSql = NULL;
+    pthread_mutex_unlock(&pSql->rootObj->renewTableMetaLock);
+
     taosReleaseRef(tscObjRef, pSql->self);
     return;
   } else {  // stream computing
@@ -789,6 +794,12 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     }
 
     (*pSql->fp)(pSql->param, pSql, code);
+
+    pthread_mutex_lock(&pSql->rootObj->renewTableMetaLock);
+    pSql->renewingTableMeta = false;
+    pSql->rootObj->renewTableMetaSql = NULL;
+    pthread_mutex_unlock(&pSql->rootObj->renewTableMetaLock);
+
     taosReleaseRef(tscObjRef, pSql->self);
     return;
   }
@@ -796,6 +807,12 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   _error:
   pRes->code = code;
   tscAsyncResultOnError(pSql);
+
+  pthread_mutex_lock(&pSql->rootObj->renewTableMetaLock);
+  pSql->renewingTableMeta = false;
+  pSql->rootObj->renewTableMetaSql = NULL;
+  pthread_mutex_unlock(&pSql->rootObj->renewTableMetaLock);
+
   taosReleaseRef(tscObjRef, pSql->self);
 }
 

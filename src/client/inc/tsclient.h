@@ -406,6 +406,10 @@ typedef struct SSqlObj {
   int64_t          lastAlive;
   void *           pPrevContext;
   bool             enableBatch;
+
+  pthread_mutex_t  renewTableMetaLock;
+  bool             renewingTableMeta;
+  struct SSqlObj  *renewTableMetaSql;
 } SSqlObj;
 
 typedef struct SSqlStream {

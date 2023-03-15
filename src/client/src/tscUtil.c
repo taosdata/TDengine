@@ -1754,7 +1754,9 @@ SSqlObj* tscAllocSqlObj() {
     int rc = tsem_init(&pNew->rspSem, 0, 0);
     assert(rc == 0 && "tsem_init failure");
     rc = pthread_mutex_init(&pNew->subState.mutex, NULL);
-    assert(rc == 0 && "pthread_mutex_init failure");
+    assert(rc == 0 && "pthread_mutex_init failure for sub state");
+    rc = pthread_mutex_init(&pNew->renewTableMetaLock, NULL);
+    assert(rc == 0 && "pthread_mutex_init failure for table meta renew");
     return pNew;
 }
 
