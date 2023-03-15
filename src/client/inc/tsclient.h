@@ -406,6 +406,7 @@ typedef struct SSqlObj {
   int64_t          lastAlive;
   void *           pPrevContext;
   bool             enableBatch;
+  bool             needUpdateMeta;
 } SSqlObj;
 
 typedef struct SSqlStream {
