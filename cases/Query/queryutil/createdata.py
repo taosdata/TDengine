@@ -224,6 +224,35 @@ class TDCreateData():
         self.tdSql.checkData(0,0,3*self.num_random*n)
         self.tdSql.query("select count(*) from regular_table_1;")
         self.tdSql.checkData(0,0,self.num_random*n)
+        
+        self.alter_cachemodel(database)
+        
+        self.tdSql.query("select count(*) from stable_1;")
+        self.tdSql.checkData(0,0,3*self.num_random*n)
+        self.tdSql.query("select count(*) from regular_table_1;")
+        self.tdSql.checkData(0,0,self.num_random*n)
+    
+    def alter_cachemodel(self,database):
+        i = random.randint(0,5)
+        cachesize = random.randint(1,65535)
+        if i ==0:
+            self.logger.info("======this case test cachemodel none =========")
+            #sql = "alter database last_60w cachemodel 'both' cachesize 600;"
+            #self.tdSql.execute("flush database %s;" %database)   
+            #self.tdSql.query(sql1,queryTimes=1)    
+        elif i ==1:
+            self.logger.info("======this case test cachemodel last_row =========")
+            sql = "alter database %s cachemodel 'last_row' cachesize %d;"  %(database,cachesize)
+            self.tdSql.query(sql,queryTimes=1)  
+        elif i ==2:
+            self.logger.info("======this case test cachemodel last_value =========")
+            sql = "alter database %s cachemodel 'last_value' cachesize %d;"  %(database,cachesize)
+            self.tdSql.query(sql,queryTimes=1)
+        else:
+            self.logger.info("======this case test cachemodel both =========")
+            sql = "alter database %s cachemodel 'both' cachesize %d;"  %(database,cachesize)
+            self.tdSql.query(sql,queryTimes=1)
+        
 
     def dropandcreateDB_tsbs(self,database,n):
         self.ts = 1630000000000
@@ -407,6 +436,13 @@ class TDCreateData():
         self.tdSql.query("select count(*) from regular_table_1;")
         self.tdSql.checkData(0,0,self.num_random*n)
         
+        self.alter_cachemodel(database)
+        
+        self.tdSql.query("select count(*) from stable_1;")
+        self.tdSql.checkData(0,0,3*self.num_random*n)
+        self.tdSql.query("select count(*) from regular_table_1;")
+        self.tdSql.checkData(0,0,self.num_random*n)
+        
     def dropandcreateDB_random_diff(self,database,n):
         self.ts = 1630000000000
         self.num_random = 100
@@ -523,6 +559,13 @@ class TDCreateData():
         elif i ==1:
             self.logger.info("===!!!===this case test not use flush database =====!!!====")
 
+        self.tdSql.query("select count(*) from stable_1;")
+        self.tdSql.checkData(0,0,3*self.num_random*n)
+        self.tdSql.query("select count(*) from regular_table_1;")
+        self.tdSql.checkData(0,0,self.num_random*n)
+        
+        self.alter_cachemodel(database)
+        
         self.tdSql.query("select count(*) from stable_1;")
         self.tdSql.checkData(0,0,3*self.num_random*n)
         self.tdSql.query("select count(*) from regular_table_1;")
@@ -702,6 +745,13 @@ class TDCreateData():
         self.tdSql.query("select count(*) from regular_table_1;")
         self.tdSql.checkData(0,0,self.num_random*n)
         
+        self.alter_cachemodel(database)
+        
+        self.tdSql.query("select count(*) from stable_1;")
+        self.tdSql.checkData(0,0,3*self.num_random*n)
+        self.tdSql.query("select count(*) from regular_table_1;")
+        self.tdSql.checkData(0,0,self.num_random*n)
+        
                                
     def dropandcreateDB_null(self,database,n):
         self.num_null = 100
@@ -774,6 +824,13 @@ class TDCreateData():
         elif i ==1:
             self.logger.info("===!!!===this case test not use flush database =====!!!====")
 
+        self.tdSql.query("select count(*) from stable_1;")
+        self.tdSql.checkData(0,0,570)
+        self.tdSql.query("select count(*) from regular_table_1;")
+        self.tdSql.checkData(0,0,190)
+        
+        self.alter_cachemodel(database)
+        
         self.tdSql.query("select count(*) from stable_1;")
         self.tdSql.checkData(0,0,570)
         self.tdSql.query("select count(*) from regular_table_1;")
