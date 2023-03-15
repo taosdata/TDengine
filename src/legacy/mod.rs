@@ -220,19 +220,27 @@ async fn sync_single_table(
     target_is_v3: bool,
 ) -> anyhow::Result<()> {
     let (table, sql) = if opts.select_from_stable {
-        let stable = stable.expect("use `stable.table` format");
-        let stable_schema = from.describe(stable).await?;
-        let fields = stable_schema
-            .iter()
-            .filter(|f| !f.is_tag())
-            .map(|f| format!("`{}`", f.field()))
-            .join(",");
-        let sql = if opts.is_none() {
-            format!("SELECT {fields} FROM `{stable}` WHERE tbname = '{table}'")
+        if let Some(stable) = stable {
+            let stable_schema = from.describe(stable).await?;
+            let fields = stable_schema
+                .iter()
+                .filter(|f| !f.is_tag())
+                .map(|f| format!("`{}`", f.field()))
+                .join(",");
+            let sql = if opts.is_none() {
+                format!("SELECT {fields} FROM `{stable}` WHERE tbname = '{table}'")
+            } else {
+                format!("SELECT {fields} FROM `{stable}` WHERE tbname = '{table}' AND {opts}")
+            };
+            (table, sql)
         } else {
-            format!("SELECT {fields} FROM `{stable}` WHERE tbname = '{table}' AND {opts}")
-        };
-        (table, sql)
+            let sql = if opts.is_none() {
+                format!("SELECT * FROM `{table}`")
+            } else {
+                format!("SELECT * FROM `{table}` WHERE {opts}")
+            };
+            (table, sql)
+        }
     } else {
         let sql = if opts.is_none() {
             format!("SELECT * FROM `{table}`")
@@ -463,7 +471,7 @@ async fn sync_super_table_schema_with_subs(
     if tables > 0 {
         log::debug!("create child tables with sql length {}", sql.len());
         to.exec(&sql).await?;
-        log::info!("Finally created {} tables", tables);
+        log::info!("Finally created {} tables in stable {}", tables, name);
     }
 
     Ok(())
@@ -560,9 +568,11 @@ async fn sync_super_table_schema(
 }
 
 async fn sync_normal_table_schema(from: &Taos, name: &str, to: &Taos) -> anyhow::Result<()> {
+    log::info!("Sync normal table schema of {name}");
     let (_, sql): ((), String) = from
         .query_one(format!("show create table `{name}`"))
-        .await?
+        .await
+        .context("Show create table error")?
         .unwrap();
     // todo: here will produce error: [0x000B] Unable to establish connection
     if let Err(err) = to
@@ -599,6 +609,7 @@ impl TableRecord {
     }
 }
 
+#[async_backtrace::framed]
 async fn sync_schema(
     from: &Taos,
     to: &Taos,
@@ -612,29 +623,50 @@ async fn sync_schema(
         .context("Get server version of source error")?
         .unwrap();
     let is_v3 = if v1.starts_with("2") { false } else { true };
-    if opts.query.select_from_stable {
-        for table in opts.tables.unwrap() {
-            log::info!("Sync table schema for `{}`", table);
-            let (stable, table) = table.split_once('.').expect("use `stable.table` format");
-            sync_super_table_schema_with_subs(from, &stable, &[table], to, 1, &target_opts, is_v3)
-                .await
-                .context("Sync table schema error")?;
+    // if opts.query.select_from_stable {
+    let chunk_size = 800_000 / (64 + 2);
+    let chunks = todo
+        .tables
+        .iter()
+        .group_by(|(stable, _)| stable.as_deref().map(|s| s.as_str()))
+        .into_iter()
+        .flat_map(|(stable, group)| {
+            if let Some(stable) = stable {
+                group
+                    .map(|(_, table)| table.as_str())
+                    .chunks(chunk_size)
+                    .into_iter()
+                    .map(|chunk| (Some(stable), chunk.collect_vec()))
+                    .collect_vec()
+            } else {
+                vec![(None, group.map(|(_, table)| table.as_str()).collect_vec())]
+            }
+        })
+        .collect_vec();
+    for (stable, tables) in chunks {
+        dbg!(&stable, &tables);
+        if let Some(stable) = stable {
+            sync_super_table_schema_with_subs(
+                from,
+                &stable,
+                &tables,
+                to,
+                tables.len(),
+                &target_opts,
+                is_v3,
+            )
+            .await
+            .context("Sync table schema error")?;
+        } else {
+            for table in tables {
+                sync_normal_table_schema(from, &table, to).await?;
+            }
         }
-        log::info!("Synchronized table schema");
-        return Ok(());
-    }
-
-    for stable in &todo.stables {
-        sync_super_table_schema(from, &stable, to, &target_opts, is_v3).await?;
-    }
-
-    for (_, table) in todo.tables.iter().filter(|(s, _)| s.is_some()) {
-        sync_normal_table_schema(from, &table, to).await?;
     }
     Ok(())
 }
 
-async fn sync_tables_only(
+async fn _sync_tables_only(
     from: &Taos,
     to: &Taos,
     opts: QueryOpts,
@@ -680,7 +712,9 @@ async fn sync_tables_only(
                             .await
                             .write_fmt(format_args!("{}\n", row.table_name.as_str()))?;
                     } else {
-                        Err(err).with_context(|| format!("synchronized table [{}] failed ", row.table_name.as_str()))?
+                        Err(err).with_context(|| {
+                            format!("synchronized table [{}] failed ", row.table_name.as_str())
+                        })?
                     }
                 }
             }
@@ -725,7 +759,9 @@ async fn sync_tables_only(
                             .await
                             .write_fmt(format_args!("{}\n", table.as_str()))?;
                     } else {
-                        Err(err).with_context(|| format!("synchronized table {} failed", table.as_str()))?
+                        Err(err).with_context(|| {
+                            format!("synchronized table {} failed", table.as_str())
+                        })?
                     }
                 }
             }
@@ -989,7 +1025,9 @@ async fn _sync_tables_only_with_workers(
                                 err
                             ))?;
                         } else {
-                            Err(err).with_context(|| format!("synchronized table {} failed", table.as_str()))?
+                            Err(err).with_context(|| {
+                                format!("synchronized table {} failed", table.as_str())
+                            })?
                         }
                     }
                 }
@@ -1093,34 +1131,43 @@ impl SourceOpts {
         }
 
         if let Some(value) = dsn.remove("tables") {
-            let tables: Vec<_> = value
+            let (files, mut tables): (Vec<_>, Vec<_>) = value
                 .split(",")
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
-                .collect();
+                .partition(|v| v.starts_with('@'));
 
-            if let Some(value) = dsn.remove("select-from-stable") {
-                for table in &tables {
-                    if !table.contains('.') {
-                        bail!("when `select-from-stable` is enabled, the `tables` should be formatted at `stable_name.table_name`")
-                    }
-                }
-                opts.query.select_from_stable = value != "false";
+            for file in files {
+                let f = std::fs::File::open(&file[1..])?;
+                let buf = std::io::BufReader::new(f);
+                use std::io::prelude::*;
+                tables.extend(buf.lines().filter_map(|l| l.ok()));
             }
+
             if tables.len() > 0 {
                 opts.tables = Some(tables);
             }
         }
+        if let Some(value) = dsn.remove("select-from-stable") {
+            opts.query.select_from_stable = value != "false";
+        }
         if let Some(value) = dsn.remove("stables") {
-            let stables: Vec<_> = value
+            let (files, mut tables): (Vec<_>, Vec<_>) = value
                 .split(",")
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
-                .collect();
-            if stables.len() > 0 {
-                opts.stables = Some(stables);
+                .partition(|v| v.starts_with('@'));
+
+            for file in files {
+                let f = std::fs::File::open(&file[1..])?;
+                let buf = std::io::BufReader::new(f);
+                use std::io::prelude::*;
+                tables.extend(buf.lines().filter_map(|l| l.ok()));
+            }
+            if tables.len() > 0 {
+                opts.stables = Some(tables);
             }
         }
         opts.table = TableOpts::from_params(dsn)?;
@@ -1246,6 +1293,7 @@ pub struct LegacyTodo {
     tables: Vec<(Option<Arc<String>>, String)>,
 }
 
+#[async_backtrace::framed]
 pub async fn parse_todo_list(pool: &TaosBuilder, opts: &SourceOpts) -> anyhow::Result<LegacyTodo> {
     // let version =
     let taos = pool
@@ -1298,40 +1346,11 @@ pub async fn parse_todo_list(pool: &TaosBuilder, opts: &SourceOpts) -> anyhow::R
         );
 
         Ok(LegacyTodo { stables, tables })
-    } else if opts.query.select_from_stable {
-        let mut stable_set = BTreeMap::new();
-        let mut stables = vec![];
-
-        let tables: Vec<_> = opts
-            .tables
-            .as_ref()
-            .unwrap()
-            .iter()
-            .map(|s| {
-                let (stable_name, table) = s.split_once('.').unwrap();
-                if stable_set.contains_key(stable_name) {
-                    let stable: &Arc<String> = stable_set.get(stable_name).unwrap();
-                    (Some(stable.clone()), table.to_string())
-                } else {
-                    let stable = Arc::new(stable_name.to_string());
-                    stables.push(stable.clone());
-                    stable_set.insert(stable_name, stable.clone());
-                    (Some(stable.clone()), table.to_string())
-                }
-            })
-            .collect();
-
-        log::info!(
-            "Try to synchronize {} tables in {} stables",
-            tables.len(),
-            stables.len()
-        );
-        Ok(LegacyTodo { stables, tables })
     } else if let Some(tables) = opts.tables.as_ref() {
         let mut stable_set = BTreeMap::new();
         let mut stables = vec![];
 
-        let tables: Vec<_> = tables
+        let mut tables: Vec<_> = tables
             .iter()
             .map(|s| {
                 if let Some((stable_name, table)) = s.split_once('.') {
@@ -1349,6 +1368,35 @@ pub async fn parse_todo_list(pool: &TaosBuilder, opts: &SourceOpts) -> anyhow::R
                 }
             })
             .collect();
+
+        for (stable, table) in &mut tables.iter_mut().filter(|(s, _)| s.is_none()) {
+            if is_v2 {
+                let table_record: Option<TableRecord> = taos
+                    .query_one(format!("show tables like '{table}'"))
+                    .await?;
+                if let Some(record) = table_record {
+                    *stable = record.stable_name.map(Arc::new);
+                } else {
+                    log::warn!("Table todo not found: {table}");
+                }
+            } else {
+                let database: String = taos.query_one("SELECT database()").await?.unwrap();
+                // note!: to make sure the information_schema is updated.
+                taos.exec("use information_schema").await?;
+                taos.exec(format!("use `{database}`")).await?;
+                if let Some(stable_name) = taos.query_one::<_, Option<String>>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{table}'")).await? {
+                    if let Some(stable_name) = stable_name {
+                        if let Some(arc) = stable_set.get(stable_name.as_str()) {
+                            stable.replace(arc.clone());
+                        } else {
+                            stable.replace(Arc::new(stable_name));
+                        }
+                    }
+                } else {
+                    log::warn!("Table todo not found: {table}");
+                }
+            }
+        }
         log::info!(
             "Try to synchronize {} tables in {} stables",
             tables.len(),
@@ -1370,23 +1418,6 @@ pub async fn parse_todo_list(pool: &TaosBuilder, opts: &SourceOpts) -> anyhow::R
             let mut stable_set: BTreeMap<String, Arc<String>> = BTreeMap::new();
             stable_set.extend(stables.iter().map(|s| (s.to_string(), s.clone())));
 
-            // let mut tables = vec![];
-
-            // for stable in &stables {
-            //     tables.extend(
-            //         taos.query(format!("select tbname from {stable}"))
-            //             .await
-            //             .context("[reader] Select tbname from stable")?
-            //             .deserialize::<String>()
-            //             .map_ok(|table| (Some(stable.clone()), table))
-            //             .try_collect::<Vec<_>>()
-            //             .await
-            //             .context("[reader] deserialize tbname to string")?,
-            //     );
-            // }
-
-            // todo(@linhe.huo): ordinary tables should be filtered out.
-            // taos.query("show tables")
             let mut stable_set: BTreeMap<String, Arc<String>> = BTreeMap::new();
 
             let tables: Vec<_> = taos
@@ -1424,6 +1455,11 @@ pub async fn parse_todo_list(pool: &TaosBuilder, opts: &SourceOpts) -> anyhow::R
             );
             Ok(LegacyTodo { stables, tables })
         } else {
+            let database: String = taos.query_one("SELECT database()").await?.unwrap();
+            // note!: to make sure the information_schema is updated.
+            taos.exec("use information_schema").await?;
+            taos.exec(format!("use `{database}`")).await?;
+
             // let mut stables = vec![];
             let mut stables: Vec<Arc<String>> = taos
                 .query("show stables")
@@ -1435,11 +1471,6 @@ pub async fn parse_todo_list(pool: &TaosBuilder, opts: &SourceOpts) -> anyhow::R
                 .context("Deserialize stable list from source error")?;
             let mut stable_set: BTreeMap<String, Arc<String>> = BTreeMap::new();
             stable_set.extend(stables.iter().map(|s| (s.to_string(), s.clone())));
-
-            let database: String = taos.query_one("SELECT database()").await?.unwrap();
-            // note!: to make sure the information_schema is updated.
-            taos.exec("use information_schema").await?;
-            taos.exec(format!("use `{database}`")).await?;
 
             // get stable list.
             let mut res = taos
@@ -1570,7 +1601,6 @@ pub async fn legacy_to_taos(
         .query_one(format!("show create database `{}`", from_database))
         .await?
         .unwrap();
-
     let target = TaosBuilder::from_dsn(&to)?.build()?;
     let (_, to_database_create_sql): ((), String) = target
         .query_one(format!(
