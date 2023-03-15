@@ -20,6 +20,7 @@ async fn write_data(
     target_is_v3: bool,
     metrics: &TmqMetrics,
 ) -> Result<u64> {
+    log::debug!("[{id}] start writing data");
     metrics
         .messages_of_data
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -157,6 +158,10 @@ async fn write_data(
             );
         }
     }
+    log::debug!(
+        "[{id}] end writing data, current records {}",
+        metrics.records.load(std::sync::atomic::Ordering::SeqCst)
+    );
     Ok(0)
 }
 
@@ -168,9 +173,12 @@ async fn write_meta(
     target_is_v3: bool,
     metrics: &TmqMetrics,
 ) -> Result<()> {
-    metrics
+    let order = std::sync::atomic::Ordering::SeqCst;
+
+    let cur = metrics
         .messages_of_meta
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    log::debug!("[{id}] start writing meta {cur}");
     // log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
     if actions.is_empty() {
         if target_is_v3 {
@@ -214,6 +222,7 @@ async fn write_meta(
             }
         }
     }
+    log::debug!("[{id}] end writing meta {cur}");
     Ok(())
 }
 
@@ -258,7 +267,9 @@ async fn sync(
                         }
                         MessageSet::MetaData(meta, data) => {
                             write_meta(id, taos, &actions, &meta, target_is_v3, &metrics).await?;
-                            write_data(id, &mut rows, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await?;
+                            if !actions.is_empty() {
+                                write_data(id, &mut rows, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await?;
+                            }
                         }
                     }
                     consumer.commit(offset).await?;
