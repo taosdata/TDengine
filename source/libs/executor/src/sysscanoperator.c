@@ -436,7 +436,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   int32_t numOfRows = 0;
 
   SSDataBlock* dataBlock = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_COLS);
-  blockDataEnsureCapacity(dataBlock, pOperator->resultInfo.capacity);
+  blockDataEnsureCapacity(dataBlock, pOperator->resultInfo.capacity + TSDB_MAX_COLUMNS);
 
   const char* db = NULL;
   int32_t     vgId = 0;
@@ -562,15 +562,17 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       continue;
     }
 
-    sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, dataBlock, tableName, schemaRow, typeName);
-
-    if (numOfRows >= pOperator->resultInfo.capacity) {
+    if ((numOfRows + schemaRow->nCols) > pOperator->resultInfo.capacity) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
       numOfRows = 0;
+
+      metaTbCursorPrev(pInfo->pCur);
 
       if (pInfo->pRes->info.rows > 0) {
         break;
       }
+    } else {
+      sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, dataBlock, tableName, schemaRow, typeName);
     }
   }
 
