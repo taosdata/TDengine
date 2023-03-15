@@ -677,7 +677,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   if (pRes->code == TSDB_CODE_SUCCESS && pCmd->command < TSDB_SQL_MAX && tscProcessMsgRsp[pCmd->command]) {
     if ((pSql->rootObj->renewingTableMeta == true && pSql->rootObj->renewTableMetaSql == pSql) ||
-        pSql->rootObj->renewingTableMeta == false) 
+        pSql->rootObj->renewingTableMeta == false)
       rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
 
