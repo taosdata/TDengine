@@ -184,7 +184,7 @@ impl TableHandler {
             let target_opts = self.target_opts.clone();
             log::debug!("spawn sync task for range: {:?}", opts.time_range);
             let h = tokio::spawn(async move {
-                sync_single_table(&from, &table, &to, &opts, &target_opts, target_is_v3).await
+                sync_single_table(&from, None,&table, &to, &opts, &target_opts, target_is_v3).await
             });
             self.handles.push(h);
         }
@@ -207,7 +207,7 @@ impl TableHandler {
             log::debug!("spawn sync task for range: {:?}", opts.time_range);
             let target_opts = self.target_opts.clone();
             let h = tokio::spawn(async move {
-                sync_single_table(&from, &table, &to, &opts, &target_opts, target_is_v3).await
+                sync_single_table(&from, None, &table, &to, &opts, &target_opts, target_is_v3).await
             });
             self.handles.push(h);
             start = end;
