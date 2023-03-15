@@ -169,7 +169,7 @@ IF(TD_BULID_TAOSX)
             COMMAND git stash && git checkout main && git pull
             BUILD_COMMAND
             COMMAND git stash && git checkout main && git pull
-            COMMAND set LIBPATH=$ENV{LIBRARY_PATH} && cargo build --release
+            COMMAND set LIBPATH=$ENV{LIBRARY_PATH} && set LIB=$ENV{LIBRARY_PATH} && cargo build --release
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taosx.exe ${CMAKE_BINARY_DIR}/build/bin
         )
