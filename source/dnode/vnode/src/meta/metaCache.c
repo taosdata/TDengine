@@ -455,6 +455,20 @@ static int checkAllEntriesInCache(const STagFilterResEntry* pEntry, SArray* pInv
   return 0;
 }
 
+static FORCE_INLINE void setMD5DigestInKey(uint64_t* pBuf, const char* key, int32_t keyLen) {
+//  ASSERT(keyLen == sizeof(int64_t) * 2);
+  memcpy(&pBuf[2], key, keyLen);
+}
+
+// the format of key:
+// hash table address(8bytes) + suid(8bytes) + MD5 digest(16bytes)
+static void initCacheKey(uint64_t* buf, const SHashObj* pHashMap, uint64_t suid, const char* key, int32_t keyLen) {
+  buf[0] = (uint64_t) pHashMap;
+  buf[1] = suid;
+  setMD5DigestInKey(buf, key, keyLen);
+  ASSERT(keyLen == sizeof(uint64_t) * 2);
+}
+
 int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pKey, int32_t keyLen, SArray* pList1,
                                   bool* acquireRes) {
   int32_t vgId = TD_VID(pMeta->pVnode);
@@ -466,9 +480,7 @@ int32_t metaGetCachedTableUidList(SMeta* pMeta, tb_uid_t suid, const uint8_t* pK
 
   *acquireRes = 0;
   uint64_t key[4];
-  key[0] = (uint64_t)pTableMap;
-  key[1] = suid;
-  memcpy(&key[2], pKey, keyLen);
+  initCacheKey(key, pTableMap, suid, (const char*)pKey, keyLen);
 
   taosThreadMutexLock(pLock);
   pMeta->pCache->sTagFilterResCache.accTimes += 1;
@@ -557,20 +569,6 @@ static int32_t addNewEntry(SHashObj* pTableEntry, const void* pKey, int32_t keyL
   taosHashPut(pTableEntry, &suid, sizeof(uint64_t), &p, POINTER_BYTES);
   tdListAppend(&p->list, pKey);
   return 0;
-}
-
-static FORCE_INLINE void setMD5DigestInKey(uint64_t* pBuf, const char* key, int32_t keyLen) {
-//  ASSERT(keyLen == sizeof(int64_t) * 2);
-  memcpy(&pBuf[2], key, keyLen);
-}
-
-// the format of key:
-// hash table address(8bytes) + suid(8bytes) + MD5 digest(16bytes)
-static void initCacheKey(uint64_t* buf, const SHashObj* pHashMap, uint64_t suid, const char* key, int32_t keyLen) {
-  buf[0] = (uint64_t) pHashMap;
-  buf[1] = suid;
-  setMD5DigestInKey(buf, key, keyLen);
-  ASSERT(keyLen == sizeof(uint64_t) * 2);
 }
 
 // check both the payload size and selectivity ratio
