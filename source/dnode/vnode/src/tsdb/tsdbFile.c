@@ -92,11 +92,11 @@ static int32_t tGetSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
 }
 
 // EXPOSED APIS ==================================================
-static char* getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t commitId, char fname[]) {
-  const char* p1 = tfsGetDiskPath(pTsdb->pVnode->pTfs, did);
-  int32_t len = strlen(p1);
+static char *getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t commitId, char fname[]) {
+  const char *p1 = tfsGetDiskPath(pTsdb->pVnode->pTfs, did);
+  int32_t     len = strlen(p1);
 
-  char* p = memcpy(fname, p1, len);
+  char *p = memcpy(fname, p1, len);
   p += len;
 
   *(p++) = TD_DIRSEP[0];
@@ -121,25 +121,25 @@ static char* getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t 
 }
 
 void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF, char fname[]) {
-  char* p = getFileNamePrefix(pTsdb, did, fid, pHeadF->commitID, fname);
+  char *p = getFileNamePrefix(pTsdb, did, fid, pHeadF->commitID, fname);
   memcpy(p, ".head", 5);
   p[5] = 0;
 }
 
 void tsdbDataFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SDataFile *pDataF, char fname[]) {
-  char* p = getFileNamePrefix(pTsdb, did, fid, pDataF->commitID, fname);
+  char *p = getFileNamePrefix(pTsdb, did, fid, pDataF->commitID, fname);
   memcpy(p, ".data", 5);
   p[5] = 0;
 }
 
 void tsdbSttFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSttFile *pSttF, char fname[]) {
-  char* p = getFileNamePrefix(pTsdb, did, fid, pSttF->commitID, fname);
+  char *p = getFileNamePrefix(pTsdb, did, fid, pSttF->commitID, fname);
   memcpy(p, ".stt", 4);
   p[4] = 0;
 }
 
 void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, char fname[]) {
-  char* p = getFileNamePrefix(pTsdb, did, fid, pSmaF->commitID, fname);
+  char *p = getFileNamePrefix(pTsdb, did, fid, pSmaF->commitID, fname);
   memcpy(p, ".sma", 4);
   p[4] = 0;
 }
@@ -280,6 +280,272 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
   return n;
 }
 
+static int32_t tDiskIdToJson(const SDiskID *pDiskId, cJSON *pJson) {
+  int32_t code = 0;
+  int32_t lino;
+
+  if (pJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "level", pDiskId->level), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "id", pDiskId->id), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+
+_exit:
+  return code;
+}
+static int32_t tJsonToDiskId(const cJSON *pJson, SDiskID *pDiskId) {
+  int32_t code = 0;
+  int32_t lino;
+
+  const cJSON *pItem;
+
+  // level
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "level")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  pDiskId->level = (int32_t)pItem->valuedouble;
+
+  // id
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "id")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  pDiskId->id = (int32_t)pItem->valuedouble;
+
+_exit:
+  return code;
+}
+
+static int32_t tHeadFileToJson(const SHeadFile *pHeadF, cJSON *pJson) {
+  int32_t code = 0;
+  int32_t lino;
+
+  if (pJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "commit id", pHeadF->commitID), code, lino, _exit,
+                  TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "size", pHeadF->size), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "offset", pHeadF->offset), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+
+_exit:
+  return code;
+}
+
+static int32_t tJsonToHeadFile(const cJSON *pJson, SHeadFile *pHeadF) {
+  int32_t code = 0;
+  int32_t lino;
+
+  const cJSON *pItem;
+
+  // commit id
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "commit id")), code, lino, _exit,
+             TSDB_CODE_FILE_CORRUPTED);
+  pHeadF->commitID = (int64_t)pItem->valuedouble;
+
+  // size
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "size")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  pHeadF->size = (int64_t)pItem->valuedouble;
+
+  // offset
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "offset")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  pHeadF->offset = (int64_t)pItem->valuedouble;
+
+_exit:
+  return code;
+}
+
+static int32_t tDataFileToJson(const SDataFile *pDataF, cJSON *pJson) {
+  int32_t code = 0;
+  int32_t lino;
+
+  if (pJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "commit id", pDataF->commitID), code, lino, _exit,
+                  TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "size", pDataF->size), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+
+_exit:
+  return code;
+}
+
+static int32_t tJsonToDataFile(const cJSON *pJson, SDataFile *pDataF) {
+  int32_t code = 0;
+  int32_t lino;
+
+  const cJSON *pItem;
+
+  // commit id
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "commit id")), code, lino, _exit,
+             TSDB_CODE_FILE_CORRUPTED);
+  pDataF->commitID = (int64_t)pItem->valuedouble;
+
+  // size
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "size")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  pDataF->size = (int64_t)pItem->valuedouble;
+
+_exit:
+  return code;
+}
+
+static int32_t tSmaFileToJson(const SSmaFile *pSmaF, cJSON *pJson) {
+  int32_t code = 0;
+  int32_t lino;
+
+  if (pJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "commit id", pSmaF->commitID), code, lino, _exit,
+                  TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "size", pSmaF->size), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+
+_exit:
+  return code;
+}
+
+static int32_t tJsonToSmaFile(const cJSON *pJson, SSmaFile *pSmaF) {
+  int32_t code = 0;
+  int32_t lino;
+
+  // commit id
+  const cJSON *pItem;
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "commit id")), code, lino, _exit,
+             TSDB_CODE_FILE_CORRUPTED);
+  pSmaF->commitID = (int64_t)pItem->valuedouble;
+
+  // size
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "size")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  pSmaF->size = (int64_t)pItem->valuedouble;
+
+_exit:
+  return code;
+}
+
+static int32_t tSttFileToJson(const SSttFile *pSttF, cJSON *pJson) {
+  int32_t code = 0;
+  int32_t lino;
+
+  if (pJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "commit id", pSttF->commitID), code, lino, _exit,
+                  TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "size", pSttF->size), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "offset", pSttF->offset), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+
+_exit:
+  return code;
+}
+
+static int32_t tJsonToSttFile(const cJSON *pJson, SSttFile *pSttF) {
+  int32_t code = 0;
+  int32_t lino;
+
+  const cJSON *pItem;
+
+  // commit id
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "commit id")), code, lino, _exit,
+             TSDB_CODE_FILE_CORRUPTED);
+  pSttF->commitID = (int64_t)pItem->valuedouble;
+
+  // size
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "size")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  pSttF->size = (int64_t)pItem->valuedouble;
+
+  // offset
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "offset")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  pSttF->offset = (int64_t)pItem->valuedouble;
+
+_exit:
+  return code;
+}
+
+int32_t tsdbDFileSetToJson(const SDFileSet *pSet, cJSON *pJson) {
+  int32_t code = 0;
+  int32_t lino;
+
+  if (pJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  code = tDiskIdToJson(&pSet->diskId, cJSON_AddObjectToObject(pJson, "disk id"));
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "fid", pSet->fid), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+
+  // head
+  code = tHeadFileToJson(pSet->pHeadF, cJSON_AddObjectToObject(pJson, "head"));
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // data
+  code = tDataFileToJson(pSet->pDataF, cJSON_AddObjectToObject(pJson, "data"));
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // sma
+  code = tSmaFileToJson(pSet->pSmaF, cJSON_AddObjectToObject(pJson, "sma"));
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // stt array
+  cJSON *aSttJson = cJSON_AddArrayToObject(pJson, "stt");
+  TSDB_CHECK_NULL(aSttJson, code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+  for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
+    cJSON *pSttJson = cJSON_CreateObject();
+    TSDB_CHECK_NULL(pSttJson, code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+
+    cJSON_AddItemToArray(aSttJson, pSttJson);
+
+    code = tSttFileToJson(pSet->aSttF[iStt], pSttJson);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+_exit:
+  return code;
+}
+
+int32_t tsdbJsonToDFileSet(const cJSON *pJson, SDFileSet *pSet) {
+  int32_t code = 0;
+  int32_t lino;
+
+  const cJSON *pItem;
+  // disk id
+  TSDB_CHECK(cJSON_IsObject(pItem = cJSON_GetObjectItem(pJson, "disk id")), code, lino, _exit,
+             TSDB_CODE_FILE_CORRUPTED);
+  code = tJsonToDiskId(pItem, &pSet->diskId);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  // fid
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "fid")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  pSet->fid = (int32_t)pItem->valuedouble;
+
+  // head
+  TSDB_CHECK(cJSON_IsObject(pItem = cJSON_GetObjectItem(pJson, "head")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  TSDB_CHECK_NULL(pSet->pHeadF = (SHeadFile *)taosMemoryMalloc(sizeof(SHeadFile)), code, lino, _exit,
+                  TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_CODE(code = tJsonToHeadFile(pItem, pSet->pHeadF), lino, _exit);
+  pSet->pHeadF->nRef = 1;
+
+  // data
+  TSDB_CHECK(cJSON_IsObject(pItem = cJSON_GetObjectItem(pJson, "data")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  TSDB_CHECK_NULL(pSet->pDataF = (SDataFile *)taosMemoryMalloc(sizeof(SDataFile)), code, lino, _exit,
+                  TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_CODE(code = tJsonToDataFile(pItem, pSet->pDataF), lino, _exit);
+  pSet->pDataF->nRef = 1;
+
+  // sma
+  TSDB_CHECK(cJSON_IsObject(pItem = cJSON_GetObjectItem(pJson, "sma")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  TSDB_CHECK_NULL(pSet->pSmaF = (SSmaFile *)taosMemoryMalloc(sizeof(SSmaFile)), code, lino, _exit,
+                  TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_CODE(code = tJsonToSmaFile(pItem, pSet->pSmaF), lino, _exit);
+  pSet->pSmaF->nRef = 1;
+
+  // stt array
+  const cJSON *element;
+  pSet->nSttF = 0;
+  TSDB_CHECK(cJSON_IsArray(pItem = cJSON_GetObjectItem(pJson, "stt")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  cJSON_ArrayForEach(element, pItem) {
+    TSDB_CHECK(cJSON_IsObject(element), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+
+    pSet->aSttF[pSet->nSttF] = (SSttFile *)taosMemoryMalloc(sizeof(SSttFile));
+    TSDB_CHECK_NULL(pSet->aSttF[pSet->nSttF], code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+    TSDB_CHECK_CODE(code = tJsonToSttFile(element, pSet->aSttF[pSet->nSttF]), lino, _exit);
+    pSet->aSttF[pSet->nSttF]->nRef = 1;
+    pSet->nSttF++;
+  }
+
+_exit:
+  if (code) tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
 // SDelFile ===============================================
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]) {
   snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%dver%" PRId64 "%s", tfsGetPrimaryPath(pTsdb->pVnode->pTfs),
@@ -304,4 +570,43 @@ int32_t tGetDelFile(uint8_t *p, SDelFile *pDelFile) {
   n += tGetI64v(p + n, &pDelFile->offset);
 
   return n;
+}
+
+int32_t tsdbDelFileToJson(const SDelFile *pDelFile, cJSON *pJson) {
+  if (pJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  int32_t code = 0;
+  int32_t lino;
+
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "commit id", pDelFile->commitID), code, lino, _exit,
+                  TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "size", pDelFile->size), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
+  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "offset", pDelFile->offset), code, lino, _exit,
+                  TSDB_CODE_OUT_OF_MEMORY);
+
+_exit:
+  return code;
+}
+
+int32_t tsdbJsonToDelFile(const cJSON *pJson, SDelFile *pDelFile) {
+  int32_t code = 0;
+  int32_t lino;
+
+  const cJSON *pItem;
+
+  // commit id
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "commit id")), code, lino, _exit,
+             TSDB_CODE_FILE_CORRUPTED);
+  pDelFile->commitID = cJSON_GetNumberValue(pItem);
+
+  // size
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "size")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  pDelFile->size = cJSON_GetNumberValue(pItem);
+
+  // offset
+  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "offset")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
+  pDelFile->offset = cJSON_GetNumberValue(pItem);
+
+_exit:
+  return code;
 }
