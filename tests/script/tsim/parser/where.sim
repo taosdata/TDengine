@@ -315,7 +315,7 @@ if $row != 100 then
 endi
 
 sql select * from wh_mt0 where c3 is null and tbname in ('test_null_filter');
-if $rows != 1000 then
+if $rows != 10000 then
   return -1
 endi
 
