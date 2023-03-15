@@ -3240,14 +3240,13 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
     return;
   }  
 
-  tscFreeRetrieveSup(&pSql->param);
-
   SSqlObj *rootObj = pSql->rootObj;
   if (rootObj->needUpdateMeta) {
     rootObj->needUpdateMeta = false;
     
     if (pSql->retry < pSql->maxRetry) {
       tscRenewTableMeta(pSql);
+      tscFreeRetrieveSup(&pSql->param);
       return;
     }
   }
@@ -3276,6 +3275,8 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   pParentSql->res.precision = pSql->res.precision;
   pParentSql->res.numOfRows = 0;
   pParentSql->res.row = 0;
+
+  tscFreeRetrieveSup(&pSql->param);
 
   // set the command flag must be after the semaphore been correctly set.
   if (pParentSql->cmd.command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
@@ -3397,6 +3398,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     if (pModelDesc == NULL) {
       tscError("0x%"PRIx64" sub:0x%"PRIx64" column model has been freed", pParentSql->self, pSql->self);
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_QRY_APP_ERROR);
+      return;
     }
     SColumnModel *pModelMemBuf = trsupport->pExtMemBuffer[idx]->pColumnModel;
     if (pModelDesc->numOfCols != pModelMemBuf->numOfCols ||
