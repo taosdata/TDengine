@@ -101,7 +101,7 @@ void mndRebCntDec() {
     int32_t newVal = val - 1;
     int32_t oldVal = atomic_val_compare_exchange_32(&mqRebInExecCnt, val, newVal);
     if (oldVal == val) {
-      mInfo("rebalance trans end, rebalance counter:%d", newVal);
+      mDebug("rebalance trans end, rebalance counter:%d", newVal);
       break;
     }
   }
