@@ -853,7 +853,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
         *pIgnoreEarlierTs = false;
         tBlockDataReset(state->pBlockData);
         TABLEID tid = {.suid = state->suid, .uid = state->uid};
-        code = tBlockDataInit(state->pBlockData, &tid, state->pTSchema, NULL, 0);
+        code = tBlockDataInit(state->pBlockData, &tid, state->pTSchema, aCols, nCols);
         if (code) goto _err;
 
         code = tsdbReadDataBlock(*state->pDataFReader, &block, state->pBlockData);
@@ -1545,6 +1545,9 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  for (int i = 1; i < pTSchema->numOfCols; ++i) {
+    taosArrayPush(aColArray, &pTSchema->columns[i].colId);
+  }
 
   TSKEY lastRowTs = TSKEY_MAX;
 
@@ -1600,11 +1603,13 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
         }
 
         if (!COL_VAL_IS_VALUE(pColVal)) {
-          taosArrayPush(aColArray, &pColVal->cid);
           if (!setNoneCol) {
             noneCol = iCol;
             setNoneCol = true;
           }
+        } else {
+          int32_t aColIndex = taosArraySearchIdx(aColArray, &pColVal->cid, compareInt16Val, TD_EQ);
+          taosArrayRemove(aColArray, aColIndex);
         }
       }
       if (!setNoneCol) {
