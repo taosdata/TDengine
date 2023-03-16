@@ -217,12 +217,14 @@ int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
 
   tmsgSendRsp(&rsp);
 
-  char buf1[80] = {0};
-  char buf2[80] = {0};
-  tFormatOffset(buf1, tListLen(buf1), &pRsp->reqOffset);
-  tFormatOffset(buf2, tListLen(buf2), &pRsp->rspOffset);
-  tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) push rsp, block num: %d, req:%s, rsp:%s",
-          TD_VID(pTq->pVnode), pRsp->head.consumerId, pRsp->head.epoch, pRsp->blockNum, buf1, buf2);
+  if (tqDebugFlag & DEBUG_DEBUG) {
+    char buf1[80] = {0};
+    char buf2[80] = {0};
+    tFormatOffset(buf1, tListLen(buf1), &pRsp->reqOffset);
+    tFormatOffset(buf2, tListLen(buf2), &pRsp->rspOffset);
+    tqDebug("vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) push rsp, block num: %d, req:%s, rsp:%s",
+            TD_VID(pTq->pVnode), pRsp->head.consumerId, pRsp->head.epoch, pRsp->blockNum, buf1, buf2);
+  }
 
   return 0;
 }
@@ -275,13 +277,14 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   };
   tmsgSendRsp(&rsp);
 
-  char buf1[80] = {0};
-  char buf2[80] = {0};
-  tFormatOffset(buf1, 80, &pRsp->reqOffset);
-  tFormatOffset(buf2, 80, &pRsp->rspOffset);
-  tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d), block num:%d, req:%s, rsp:%s", TD_VID(pTq->pVnode),
-          pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
-
+  if (tqDebugFlag & DEBUG_DEBUG) {
+    char buf1[80] = {0};
+    char buf2[80] = {0};
+    tFormatOffset(buf1, 80, &pRsp->reqOffset);
+    tFormatOffset(buf2, 80, &pRsp->rspOffset);
+    tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d), block num:%d, req:%s, rsp:%s", TD_VID(pTq->pVnode),
+            pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
+  }
   return 0;
 }
 
@@ -336,12 +339,14 @@ int32_t tqSendTaosxRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, co
   };
   tmsgSendRsp(&rsp);
 
-  char buf1[80] = {0};
-  char buf2[80] = {0};
-  tFormatOffset(buf1, 80, &pRsp->reqOffset);
-  tFormatOffset(buf2, 80, &pRsp->rspOffset);
-  tqDebug("taosx rsp, vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) send rsp, numOfBlks:%d, req:%s, rsp:%s",
-          TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
+  if (tqDebugFlag & DEBUG_DEBUG) {
+    char buf1[80] = {0};
+    char buf2[80] = {0};
+    tFormatOffset(buf1, 80, &pRsp->reqOffset);
+    tFormatOffset(buf2, 80, &pRsp->rspOffset);
+    tqDebug("taosx rsp, vgId:%d, from consumer:0x%" PRIx64 " (epoch %d) send rsp, numOfBlks:%d, req:%s, rsp:%s",
+            TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
+  }
 
   return 0;
 }
