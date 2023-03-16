@@ -1238,6 +1238,7 @@ static int insertStmtExecute(STscStmt* stmt) {
     while (pSql->retry < pSql->maxRetry) {
       if (pSql->res.code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
         pSql->retry += 1;
+        pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pSql, pCmd->insertParam.pDataBlocks);
 
         code = insertStmtExecuteImpl(stmt, pTableMetaInfo, true);
         if (code != TSDB_CODE_SUCCESS) {
