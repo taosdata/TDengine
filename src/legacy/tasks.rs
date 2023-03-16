@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use chrono::Utc;
 use taos::*;
@@ -7,7 +7,7 @@ use tokio_util::sync::CancellationToken;
 
 use anyhow::Result;
 
-use crate::{TargetOpts, TimeRange};
+use crate::{LegacyMetrics, TargetOpts, TimeRange};
 
 use super::{sync_single_table, TableRecord};
 
@@ -19,6 +19,7 @@ pub struct TablesHandle {
     opts: TableOpts,
     handles: HashMap<String, JoinHandle<Result<()>>>,
     cancellation: Option<CancellationToken>,
+    metrics: Arc<LegacyMetrics>,
 }
 
 impl Drop for TablesHandle {
@@ -33,6 +34,7 @@ impl TablesHandle {
         target: TaosPool,
         opts: TableOpts,
         target_opts: TargetOpts,
+        metrics: Arc<LegacyMetrics>,
     ) -> Result<Self> {
         // let source = source.pool()?;
         // let target = target.pool()?;
@@ -48,6 +50,7 @@ impl TablesHandle {
             target_opts,
             target_is_v3,
             opts,
+            metrics,
             handles: Default::default(),
             cancellation: Some(CancellationToken::new()),
         })
@@ -62,6 +65,7 @@ impl TablesHandle {
             table: table.clone(),
             handles: Default::default(),
             cancellation: CancellationToken::new(),
+            metrics: self.metrics.clone(),
         };
         let handle = tokio::spawn(async move { handle.run().await });
         self.handles.insert(table, handle);
@@ -156,6 +160,7 @@ pub struct TableHandler {
     table: String,
     opts: TableOpts,
     handles: Vec<JoinHandle<Result<()>>>,
+    metrics: Arc<LegacyMetrics>,
     cancellation: CancellationToken,
 }
 
@@ -183,8 +188,19 @@ impl TableHandler {
             let table = self.table.clone();
             let target_opts = self.target_opts.clone();
             log::debug!("spawn sync task for range: {:?}", opts.time_range);
+            let metrics = self.metrics.clone();
             let h = tokio::spawn(async move {
-                sync_single_table(&from, None,&table, &to, &opts, &target_opts, target_is_v3).await
+                sync_single_table(
+                    &from,
+                    None,
+                    &table,
+                    &to,
+                    &opts,
+                    &target_opts,
+                    target_is_v3,
+                    &metrics,
+                )
+                .await
             });
             self.handles.push(h);
         }
@@ -206,8 +222,19 @@ impl TableHandler {
             };
             log::debug!("spawn sync task for range: {:?}", opts.time_range);
             let target_opts = self.target_opts.clone();
+            let metrics = self.metrics.clone();
             let h = tokio::spawn(async move {
-                sync_single_table(&from, None, &table, &to, &opts, &target_opts, target_is_v3).await
+                sync_single_table(
+                    &from,
+                    None,
+                    &table,
+                    &to,
+                    &opts,
+                    &target_opts,
+                    target_is_v3,
+                    &metrics,
+                )
+                .await
             });
             self.handles.push(h);
             start = end;
@@ -256,8 +283,14 @@ mod tests {
         opts.restro(Duration::from_secs(60))
             .excursion(Duration::from_secs(2));
 
-        let mut tables_handle =
-            TablesHandle::new(source.pool()?, target.pool()?, opts, target_opts).await?;
+        let mut tables_handle = TablesHandle::new(
+            source.pool()?,
+            target.pool()?,
+            opts,
+            target_opts,
+            Arc::new(Default::default()),
+        )
+        .await?;
         tables_handle.spawn().await?;
 
         let sleep = tokio::time::sleep(Duration::from_secs(10));
@@ -316,6 +349,7 @@ mod tests {
             opts,
             handles: Default::default(),
             cancellation: CancellationToken::new(),
+            metrics: Default::default(),
         };
 
         let sleep = tokio::time::sleep(Duration::from_secs(10));
