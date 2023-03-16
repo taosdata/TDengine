@@ -190,7 +190,7 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
 
   while (1) {
     if (walFetchHead(pHandle->pWalReader, offset, *ppCkHead) < 0) {
-      tqDebug("tmq poll: consumer:%" PRId64 ", (epoch %d) vgId:%d offset %" PRId64 ", no more log to return",
+      tqDebug("tmq poll: consumer:%" PRIx64 ", (epoch %d) vgId:%d offset %" PRId64 ", no more log to return",
               pHandle->consumerId, pHandle->epoch, TD_VID(pTq->pVnode), offset);
       *fetchOffset = offset - 1;
       code = -1;
