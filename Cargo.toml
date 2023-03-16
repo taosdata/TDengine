@@ -60,7 +60,7 @@ tracing = "0.1"
 tokio-cron-scheduler = "0.9.4"
 
 [dependencies.taos]
-version = "0.5.0"
+version = "0.5.3"
 default-features = false
 features = ["ws", "r2d2"]
 
