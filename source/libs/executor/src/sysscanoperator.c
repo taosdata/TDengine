@@ -562,15 +562,17 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       continue;
     }
 
-    sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, dataBlock, tableName, schemaRow, typeName);
-
-    if (numOfRows >= pOperator->resultInfo.capacity) {
+    if ((numOfRows + schemaRow->nCols) > pOperator->resultInfo.capacity) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
       numOfRows = 0;
+
+      metaTbCursorPrev(pInfo->pCur);
 
       if (pInfo->pRes->info.rows > 0) {
         break;
       }
+    } else {
+      sysTableUserColsFillOneTableCols(pInfo, dbname, &numOfRows, dataBlock, tableName, schemaRow, typeName);
     }
   }
 
