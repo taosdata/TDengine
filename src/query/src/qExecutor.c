@@ -52,6 +52,7 @@ enum {
   TS_JOIN_TS_EQUAL = 0,
   TS_JOIN_TS_NOT_EQUALS = 1,
   TS_JOIN_TAG_NOT_EQUALS = 2,
+  TS_JOIN_BLOCK_IGNORE = 3,
 };
 
 typedef enum SResultTsInterpType {
@@ -3231,13 +3232,13 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv* pRuntimeEnv, TSKEY key, tVariant
     if (key < elem.ts) {
       return TS_JOIN_TS_NOT_EQUALS;
     } else if (key > elem.ts) {
-      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_INCONSISTAN);
+      return TS_JOIN_BLOCK_IGNORE;
     }
   } else {
     if (key > elem.ts) {
       return TS_JOIN_TS_NOT_EQUALS;
     } else if (key < elem.ts) {
-      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_INCONSISTAN);
+      return TS_JOIN_BLOCK_IGNORE;
     }
   }
 
@@ -3422,6 +3423,9 @@ void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock
       } else if (ret == TS_JOIN_TS_NOT_EQUALS) {
         all = false;
         continue;
+      } else if (ret == TS_JOIN_BLOCK_IGNORE) {
+        all = false;
+        break;
       } else {
         assert(ret == TS_JOIN_TS_EQUAL);
         p[offset] = true;
@@ -4551,9 +4555,9 @@ int32_t setTimestampListJoinInfo(SQueryRuntimeEnv* pRuntimeEnv, tVariant* pTag, 
     if (!tsBufIsValidElem(&elem)) {
       if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR ||
           pTag->nType == TSDB_DATA_TYPE_JSON) {
-        qError("QInfo:0x%" PRIx64 " failed to find tag:%s in ts_comp", GET_QID(pRuntimeEnv), pTag->pz);
+        qDebug("QInfo:0x%" PRIx64 " tag not found in:%s in ts_comp", GET_QID(pRuntimeEnv), pTag->pz);
       } else {
-        qError("QInfo:0x%" PRIx64 " failed to find tag:%" PRId64 " in ts_comp", GET_QID(pRuntimeEnv), pTag->i64);
+        qDebug("QInfo:0x%" PRIx64 " tag not found in:%" PRId64 " in ts_comp", GET_QID(pRuntimeEnv), pTag->i64);
       }
 
       return -1;

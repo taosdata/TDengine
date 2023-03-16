@@ -78,7 +78,7 @@ Development: false
 ### 从源码安装
 
 ```
-git clone https://github.com:taosdata/kafka-connect-tdengine.git
+git clone --branch master https://github.com:taosdata/kafka-connect-tdengine.git
 cd kafka-connect-tdengine
 mvn clean package
 unzip -d $CONFLUENT_HOME/share/java/ target/components/packages/taosdata-kafka-connect-tdengine-*.zip
