@@ -1179,7 +1179,7 @@ static int doSmlInsertOneDataPoint(TAOS* taos, TAOS_SML_DATA_POINT* point, SSmlL
     sqlLen += retLen;
   }
   --sqlLen;
-  retLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ") values (");
+  retLen = snprintf(sql + sqlLen, freeBytes - sqlLen, ") values (");
   if (retLen >= freeBytes - sqlLen) {
     tscError("SML:0x%" PRIx64 " no free space for building sql", info->id);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
