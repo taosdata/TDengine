@@ -2,8 +2,8 @@
   <div class="page-wrapper profile">
     <MainContentHeader :title="$t('setting.profile')"> </MainContentHeader>
     <section class="content">
-      <ChangePass @close="isPassword = false" class="formStyle" :class="{ edit: isPassword }" v-if="isPassword" />
-      <el-form
+      <ChangePass @close="isPassword = false" class="formStyle" :class="{ edit: isPassword }" />
+      <!-- <el-form
         v-else
         ref="userInfo"
         :model="userInfo"
@@ -58,7 +58,7 @@
             <el-button v-if="isEdit" plain @click="cancel">{{ $t("cancel") }}</el-button>
           </div>
         </el-form-item>
-      </el-form>
+      </el-form> -->
     </section>
   </div>
 </template>
@@ -198,22 +198,22 @@
       },
     },
     watch: {
-      "$store.state.app.userInfo": {
-        handler(newval) {
-          // 此处避免修改全局的信息
-          Object.keys(this.userInfo).forEach(item => {
-            this.userInfo[item] = newval[item] || "";
-          });
-          // this.userInfo.company_detailed_street = newval.address.detailed_street;
-          this.userInfo.company_name = newval.company?.company_name;
-          // this.userInfo.hasDemoData = true;
-          // this.userInfo.industry_code = newval.address.industry_code;
-          // TODO: 添加密码和确认密码
-          this.email = newval.email;
-        },
-        deep: true,
-        immediate: true,
-      },
+      // "$store.state.app.userInfo": {
+      //   handler(newval) {
+      //     // 此处避免修改全局的信息
+      //     Object.keys(this.userInfo).forEach(item => {
+      //       this.userInfo[item] = newval[item] || "";
+      //     });
+      //     // this.userInfo.company_detailed_street = newval.address.detailed_street;
+      //     this.userInfo.company_name = newval.company?.company_name;
+      //     // this.userInfo.hasDemoData = true;
+      //     // this.userInfo.industry_code = newval.address.industry_code;
+      //     // TODO: 添加密码和确认密码
+      //     this.email = newval.email;
+      //   },
+      //   deep: true,
+      //   immediate: true,
+      // },
     },
     methods: {
       updateUserInfo() {

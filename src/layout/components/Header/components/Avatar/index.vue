@@ -5,13 +5,13 @@
         <span>{{ user }}</span>
       </div>
       <el-dropdown-menu slot="dropdown">
-        <!-- <el-dropdown-item>
+        <el-dropdown-item>
           <router-link class="drop-block" to="/profile">
-            <Icon name="setting" class="dropdown_icon"></Icon>
+            <Icon name="profile" class="dropdown_icon"></Icon>
             {{ $t("setting.profile") }}
           </router-link>
         </el-dropdown-item>
-        <el-dropdown-item v-if="hasActivity">
+        <!-- <el-dropdown-item v-if="hasActivity">
           <router-link class="drop-block" to="/activity">
             <Icon name="activity" class="dropdown_icon"></Icon>
             {{ $t("route.activity") }}</router-link
@@ -73,6 +73,8 @@
         localStorage.removeItem('documentWebsite')
         localStorage.removeItem('supportWebsite')
         localStorage.removeItem('TDengine-Token')
+        sessionStorage.removeItem('username')
+        sessionStorage.removeItem('pwd')
         this.$store.dispatch("app/logout");
         this.$router.push({
           path:'/login'

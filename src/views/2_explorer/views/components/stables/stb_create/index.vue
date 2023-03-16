@@ -107,7 +107,7 @@
                   handleChange(newVal, oldVal, column.type, index)
               "
               :min="1"
-              :max="column.type == 'VARCHAR' ? 16382 : 4095"
+              :max="column.type == 'VARCHAR' ? 16374 : 4093"
               label="Length"
               controls-position="right"
               class="custom-length"
@@ -138,7 +138,7 @@
               </template>
             </el-input>
           </div>
-          <!-- 添加用的column -->
+          <!-- 编辑用的column -->
           <div class="flexCenter input_row" v-if="currentEdit == 'column'">
             <el-select
               v-model="currentData.type"
@@ -153,6 +153,23 @@
                 v-bind="item"
               ></el-option>
             </el-select>
+            <el-input-number
+              v-if="currentData.type == 'VARCHAR' || currentData.type == 'NCHAR'"
+              :value="
+                currentData.type == 'VARCHAR'
+                  ? currentData.varcharLength
+                  : currentData.ncharLength
+              "
+              @change="
+                (newVal, oldVal) =>
+                  handleEdit(newVal, currentData.type)
+              "
+              :min="1"
+              :max="currentData.type == 'VARCHAR' ? 16374 : 4093"
+              label="Length"
+              controls-position="right"
+              class="custom-length"
+            ></el-input-number>
             <el-input
               size="small"
               v-model="currentData.field"
@@ -222,7 +239,7 @@
                   : tag.ncharLength"
               @change="(newVal,oldVal)=>tagLengthChange(newVal,oldVal,tag.type,index)"
               :min="1"
-              :max="tag.type == 'VARCHAR' ? 16382 : 4096"
+              :max="tag.type == 'VARCHAR' ? 16374 : 4093"
               label="Length"
               controls-position="right"
               class="custom-length"
@@ -253,7 +270,7 @@
               </template>
             </el-input>
           </div>
-          <!-- 添加用的tag -->
+          <!-- 编辑用的tag -->
           <div
             class="flexCenter input_row"
             v-if="currentEdit == 'tag' && isEdit && !addTagDisabled"
@@ -271,6 +288,23 @@
                 v-bind="item"
               ></el-option>
             </el-select>
+            <el-input-number
+              v-if="currentData.type == 'VARCHAR' || currentData.type == 'NCHAR'"
+              :value="
+                currentData.type == 'VARCHAR'
+                  ? currentData.varcharLength
+                  : currentData.ncharLength
+              "
+              @change="
+                (newVal, oldVal) =>
+                  handleTagEdit(newVal, currentData.type)
+              "
+              :min="1"
+              :max="currentData.type == 'VARCHAR' ? 16374 : 4093"
+              label="Length"
+              controls-position="right"
+              class="custom-length"
+            ></el-input-number>
             <el-input
               size="small"
               v-model="currentData.field"
@@ -416,6 +450,23 @@ export default {
     },
   },
   methods: {
+    handleTagEdit(newVal,type){
+      if (type === "VARCHAR") {
+        this.$set(this.currentData, "varcharLength", newVal);
+      }
+      if (type === "NCHAR") {
+        this.$set(this.currentData, "ncharLength", newVal);
+      }
+    },
+    //编辑列用
+    handleEdit(newVal, type){
+      if (type === "VARCHAR") {
+        this.$set(this.currentData, "varcharLength", newVal);
+      }
+      if (type === "NCHAR") {
+        this.$set(this.currentData, "ncharLength", newVal);
+      }
+    },
     //columns的自定义varchar/nchar长度
     handleChange(newVal, oldVal, type, index) {
       if (type === "VARCHAR") {
@@ -607,7 +658,8 @@ export default {
       let params = {
         operation: "add " + this.currentEdit,
         first_field: this.currentData.field,
-        second_field: this.currentData.type,
+        second_field: this.currentData.type=='VARCHAR'?`VARCHAR(${this.currentData.varcharLength})`:this.currentData.type=='NCHAR'?
+        `NCHAR(${this.currentData.ncharLength})`:this.currentData.type,
       };
       this.currentData = {};
       this.currentEdit = "";

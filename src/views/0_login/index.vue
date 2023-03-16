@@ -48,8 +48,8 @@
                     loading="lazy"
                     class="ls-is-cached rl-lazyloaded"
                   /> -->
-                  <!-- <img src="https://62edbda222ff1144494a0b29.cdn.rabbitloader.com/62edbda222ff1144494a0b29/rls.s-nw-a28/wp-content/uploads/2022/09/26.03-7-language-menu.png" alt="" width="100"> -->
-                <!-- </a>
+              <!-- <img src="https://62edbda222ff1144494a0b29.cdn.rabbitloader.com/62edbda222ff1144494a0b29/rls.s-nw-a28/wp-content/uploads/2022/09/26.03-7-language-menu.png" alt="" width="100"> -->
+              <!-- </a>
               </li> -->
             </ul>
           </nav>
@@ -181,13 +181,15 @@
   </div>
 </template>
 <script>
-import {request} from '@/utils/request'
+import { request } from "@/utils/request";
 import { DbBase64 } from "../../utils/dbBase64";
+import { deleteCookieItem } from "@/utils/index";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
 import { getUrls, fetchApiByCluster } from "@/api/explorer/login";
+import {encrypt} from '@/utils/index'
 export default {
   name: "Login",
   components: {
@@ -208,7 +210,7 @@ export default {
       }
     };
     return {
-      oemName:process.env.VUE_APP_CUS_NAME,
+      oemName: process.env.VUE_APP_CUS_NAME,
       loading: false,
       earch: require("@/assets/earth.webp"),
       hidden: false,
@@ -241,16 +243,19 @@ export default {
         ],
       },
       dataJson,
+      encryptedPwd:'',
+      decryptPwd:''
     };
   },
   methods: {
+   
     getClusterUrl() {
       localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
       this.$store.commit(
         "app/SET_CLUSTER_URL",
         this.dynamicValidateForm.cluster
       );
-      request.defaults.baseURL=this.dynamicValidateForm.cluster
+      request.defaults.baseURL = this.dynamicValidateForm.cluster;
     },
     submitForm(formName) {
       let reg =
@@ -265,6 +270,7 @@ export default {
       this.$refs[formName].validate((valid) => {
         if (valid) {
           this.loading = true;
+          this.encryptedPwd= encrypt(this.dynamicValidateForm.password)
           setTimeout(() => {
             this.login();
           }, 1000);
@@ -305,30 +311,31 @@ export default {
         );
       this.$store.commit("app/SET_TOKEN", token);
       sessionStorage.setItem("username", this.dynamicValidateForm.username);
-      sessionStorage.setItem("pwd", this.dynamicValidateForm.password);
+      sessionStorage.setItem("pwd", this.encryptedPwd);
+
       this.$store.commit("app/SAVE_LOGIN_INFO", {
         username: this.dynamicValidateForm.username,
         pwd: this.dynamicValidateForm.password,
       });
-      request.defaults.baseURL=this.dynamicValidateForm.cluster
+      request.defaults.baseURL = this.dynamicValidateForm.cluster;
       try {
         await fetchApiByCluster(
           this.dynamicValidateForm.cluster,
           token,
           "select server_version()"
         ).then((res) => {
-          if (res) {
+          if (res && res.code == 0 && !res.desc) {
             localStorage.setItem("TDengine-Token", token);
             this.getClusterID();
             this.getUserAuthority();
           } else {
-            Message.error("Faild to fetch,wrong cluster url!");
+            Message.error(res.desc);
           }
         });
         this.loading = false;
       } catch (error) {
         this.loading = false;
-        this.deleteCookieItem();
+        deleteCookieItem();
         Message.error("Faild to fetch,wrong cluster url!");
       }
     },
@@ -377,27 +384,27 @@ export default {
       }
     },
     //删除cookie某一项目
-    deleteCookieItem() {
-      var cookieItems = document.cookie.split(";");
-      for (var i = 0; i < cookieItems.length; i++) {
-        var item = cookieItems[i];
-        while (item.charAt(0) === " ") {
-          item = item.substring(1);
-        }
-        if (item.indexOf("TDengine-Token=") === 0) {
-          document.cookie =
-            encodeURIComponent(item.split("=")[0]) +
-            "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-          break;
-        }
-      }
-    },
+    // deleteCookieItem() {
+    //   var cookieItems = document.cookie.split(";");
+    //   for (var i = 0; i < cookieItems.length; i++) {
+    //     var item = cookieItems[i];
+    //     while (item.charAt(0) === " ") {
+    //       item = item.substring(1);
+    //     }
+    //     if (item.indexOf("TDengine-Token=") === 0) {
+    //       document.cookie =
+    //         encodeURIComponent(item.split("=")[0]) +
+    //         "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    //       break;
+    //     }
+    //   }
+    // },
   },
   created() {
     console.log(process.env, "env---===");
     this.getClusterAndDashboardUrl();
-    localStorage.setItem('supportWebsite',this.dataJson.supportWebsite)
-    localStorage.setItem('documentWebsite',this.dataJson.documentWebsite)
+    localStorage.setItem("supportWebsite", this.dataJson.supportWebsite);
+    localStorage.setItem("documentWebsite", this.dataJson.documentWebsite);
   },
 };
 </script>

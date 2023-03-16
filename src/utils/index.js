@@ -4,6 +4,7 @@ import { marked } from "marked";
 import moment from "moment";
 import { Message } from "element-ui";
 import { $bus } from "@/const";
+import CryptoJS from "crypto-js";
 let path = require("path");
 export function debounce(func, wait, immediate) {
   let timeout, args, context, timestamp, result;
@@ -271,4 +272,33 @@ export function OpenNewTab(url) {
   const e = new MouseEvent("click");
   e.stopPropagation();
   a.dispatchEvent(e);
+}
+
+ //删除cookie某一项目
+ export function deleteCookieItem() {
+  var cookieItems = document.cookie.split(";");
+  for (var i = 0; i < cookieItems.length; i++) {
+    var item = cookieItems[i];
+    while (item.charAt(0) === " ") {
+      item = item.substring(1);
+    }
+    if (item.indexOf("TDengine-Token=") === 0) {
+      document.cookie =
+        encodeURIComponent(item.split("=")[0]) +
+        "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      break;
+    }
+  }
+}
+
+ //加密
+export function encrypt(data) {
+  let encryptedData = CryptoJS.AES.encrypt(data, 'pwd').toString(); // 使用AES算法加密数据
+  return encryptedData;
+}
+//解密
+export function decrypt(encryptedData) {
+  let decryptedMessage = CryptoJS.AES.decrypt(encryptedData,'pwd').toString(CryptoJS.enc.Utf8); // 使用AES算法解密数据
+
+  return decryptedMessage;
 }
