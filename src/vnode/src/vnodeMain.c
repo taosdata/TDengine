@@ -646,8 +646,39 @@ void vnodeAddWait(void* vparam, pthread_t* pthread, tsem_t* psem, void* param) {
   waitThread.param       = param;
 
   // append
+  tsem_wait(&pVnode->semWait);
   tdListAppend(pVnode->waitThreads, &waitThread);
-  vDebug("vgId:%d :SDEL add wait thread %p wait list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
+  tsem_post(&pVnode->semWait);
+  vInfo("vgId:%d :SDEL add ok. pWrite=%p list count=%d", pVnode->vgId, param, listNEles(pVnode->waitThreads));
+}
+
+// vnode set wait pthread
+void vnodeSetWait(void* vparam, pthread_t* pthread, void* param) {
+    SVnodeObj* pVnode = (SVnodeObj* )vparam;
+    SListIter iter = {0};
+    bool found = false;
+
+    tsem_wait(&pVnode->semWait);
+    tdListInitIter(pVnode->waitThreads, &iter, TD_LIST_FORWARD);
+    
+    while (1) {
+      SListNode* pNode = tdListNext(&iter);
+      if (pNode == NULL)
+        break;
+
+      SWaitThread * pWaitThread = (SWaitThread *)pNode->data;
+      if (pWaitThread->param == param) {
+        // found
+        pWaitThread->pthread = pthread; 
+        found = true;
+        break;
+      }
+    }
+
+    tsem_post(&pVnode->semWait);
+    if(!found) {
+      vInfo("vgId:%d :SDEL vnodeSetWait no found. maybe thread finished. pWrite=%p", pVnode->vgId, param);
+    }
 }
 
 // called in wait thread
@@ -687,9 +718,4 @@ bool vnodeWaitTooMany(void* vparam) {
   }
 
   return false;
-}
-
-tsem_t* vnodeSemWait(void* vparam) {
-  SVnodeObj* pVnode = (SVnodeObj* )vparam;
-  return &pVnode->semWait;
 }
