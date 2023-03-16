@@ -3568,6 +3568,8 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
 
     pParentObj->res.code = TSDB_CODE_SUCCESS;
     if (TSDB_QUERY_HAS_TYPE(pParentObj->cmd.insertParam.insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
+      tscDebug("0x%"PRIx64" re-try stmt with same submit data, retry:%d", pParentObj->self, pParentObj->retry);
+      pParentObj->retry++;
       tscRestoreTableDataBlocks(&pParentObj->cmd.insertParam);
       tscMergeTableDataBlocks(pParentObj, &pParentObj->cmd.insertParam, false);
       tscHandleMultivnodeInsert(pParentObj);
