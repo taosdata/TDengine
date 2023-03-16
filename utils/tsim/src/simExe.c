@@ -37,15 +37,15 @@ void simLogSql(char *sql, bool useSharp) {
 
 char *simParseHostName(char *varName) {
   static char hostName[140];
-#ifdef WINDOWS
-  hostName[0] = '\"';
-  taosGetFqdn(&hostName[1]);
-  int strEndIndex = strlen(hostName);
-  hostName[strEndIndex] = '\"';
-  hostName[strEndIndex + 1] = '\0';
-#else
+//#ifdef WINDOWS
+//  hostName[0] = '\"';
+//  taosGetFqdn(&hostName[1]);
+//  int strEndIndex = strlen(hostName);
+//  hostName[strEndIndex] = '\"';
+//  hostName[strEndIndex + 1] = '\0';
+//#else
   sprintf(hostName, "%s", "localhost");
-#endif
+//#endif
   return hostName;
 }
 
@@ -376,6 +376,20 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   return true;
 }
 
+void simReplaceDirSep (char *buf){
+#ifdef WINDOWS
+  int i=0;
+  while(buf[i] != '\0')
+  {
+      if(buf[i] == '/')
+      {
+          buf[i] = '\\';
+      }
+      i++;
+  }
+#endif
+}
+
 bool simReplaceStr(char *buf, char *src, char *dst) {
   bool  replaced = false;
   char *begin = strstr(buf, src);
@@ -407,9 +421,10 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   sprintf(buf, "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
 #else
-  sprintf(buf, "%s", simScriptDir);
+  sprintf(buf, "cd %s && ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
   simReplaceStr(buf, ".sh", ".bat");
+  simReplaceDirSep(buf);
 #endif
 
   if (useValgrind) {
@@ -471,6 +486,8 @@ bool simExecuteSystemContentCmd(SScript *script, char *option) {
 #ifdef WINDOWS
   sprintf(buf, "cd %s && ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
+  simReplaceStr(buf, ".sh", ".bat");
+  simReplaceDirSep(buf);
   sprintf(buf1, "%s > %s 2>nul", buf, filename);
 #else
   sprintf(buf, "cd %s; ", simScriptDir);
