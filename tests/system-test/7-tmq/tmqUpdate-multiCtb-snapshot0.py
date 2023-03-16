@@ -128,7 +128,7 @@ class TDTestCase:
         ifManualCommit = 1
         keyList        = 'group.id:cgrp1,\
                         enable.auto.commit:true,\
-                        auto.commit.interval.ms:1000,\
+                        auto.commit.interval.ms:200,\
                         auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
