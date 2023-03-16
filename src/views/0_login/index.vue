@@ -243,8 +243,7 @@ export default {
         ],
       },
       dataJson,
-      encryptedPwd:'',
-      decryptPwd:''
+      encryptedPwd:''
     };
   },
   methods: {
@@ -401,7 +400,6 @@ export default {
     // },
   },
   created() {
-    console.log(process.env, "env---===");
     this.getClusterAndDashboardUrl();
     localStorage.setItem("supportWebsite", this.dataJson.supportWebsite);
     localStorage.setItem("documentWebsite", this.dataJson.documentWebsite);
