@@ -183,7 +183,7 @@ end:
   return tbSuid == realTbSuid;
 }
 
-int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead) {
+int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead) {
   int32_t code = 0;
   taosThreadMutexLock(&pHandle->pWalReader->mutex);
   int64_t offset = *fetchOffset;
