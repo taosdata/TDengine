@@ -359,6 +359,7 @@ typedef struct {
   int8_t    replica;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
   void*     pTsma;
+  int32_t   numOfCachedTables;
 } SVgObj;
 
 typedef struct {

@@ -98,7 +98,8 @@ extern char    *tsSvrCrashReportUri;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
-extern int64_t tsQueryBufferSizeBytes;  // maximum allowed usage buffer size in byte for each data node
+extern int64_t tsQueryBufferSizeBytes;    // maximum allowed usage buffer size in byte for each data node
+extern int32_t tsCacheLazyLoadThreshold;  // cost threshold for last/last_row loading cache as much as possible
 
 // query client
 extern int32_t tsQueryPolicy;
@@ -145,10 +146,10 @@ extern char tsUdfdResFuncs[];
 extern char tsUdfdLdLibPath[];
 
 // schemaless
-extern char    tsSmlChildTableName[];
-extern char    tsSmlTagName[];
-//extern bool    tsSmlDataFormat;
-//extern int32_t tsSmlBatchSize;
+extern char tsSmlChildTableName[];
+extern char tsSmlTagName[];
+// extern bool    tsSmlDataFormat;
+// extern int32_t tsSmlBatchSize;
 
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;

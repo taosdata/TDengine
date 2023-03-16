@@ -21,6 +21,7 @@
 
 #include "tudf.h"
 #include "tudfInt.h"
+#include "version.h"
 
 #include "tdatablock.h"
 #include "tdataformat.h"
@@ -527,6 +528,7 @@ int32_t udfdConnectToMnode() {
   tstrncpy(connReq.passwd, pass, sizeof(connReq.passwd));
   connReq.pid = taosGetPId();
   connReq.startTime = taosGetTimestampMs();
+  strcpy(connReq.sVer, version);
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connReq);
   void   *pReq = rpcMallocCont(contLen);
