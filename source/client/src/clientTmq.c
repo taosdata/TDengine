@@ -1943,7 +1943,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
       return NULL;
     }
 
-    if (timeout != -1) {
+    if (timeout > 0) {
       int64_t currentTime = taosGetTimestampMs();
       int64_t elapsedTime = currentTime - startTime;
       if (elapsedTime > timeout) {
