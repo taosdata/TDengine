@@ -63,6 +63,7 @@ dotenv = "0.15.0"
 tracing = "0.1"
 
 tokio-cron-scheduler = "0.9.4"
+serde_with = "2.3.1"
 
 [dependencies.taos]
 version = "0.5.3"
