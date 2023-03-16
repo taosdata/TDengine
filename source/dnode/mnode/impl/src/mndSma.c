@@ -470,6 +470,7 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
     return -1;
   }
 
+  action.mTraceId = pTrans->mTraceId;
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_CREATE_VNODE;
@@ -692,6 +693,8 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
   SStreamObj    *pStream = NULL;
   SDbObj        *pDb = NULL;
   SMCreateSmaReq createReq = {0};
+
+  int64_t mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
 
   if (tDeserializeSMCreateSmaReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
