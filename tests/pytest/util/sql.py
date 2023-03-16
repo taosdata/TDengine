@@ -23,7 +23,7 @@ import pandas as pd
 from util.log import *
 from util.constant import *
 
-from datetime import datetime, timedelta,timezone
+# from datetime import timezone
 from tzlocal import get_localzone
 import pytz
 import time
@@ -33,7 +33,7 @@ def _locaTzTimeStamp(utctimestamp):
     temptz = str(tz)
     localtz = pytz.timezone(temptz)
     defUtctimestamp=1035640800
-    local_dt = datetime(2002, 10, 27, 6, 0, 0, tzinfo=localtz)
+    local_dt = datetime.datetime(2002, 10, 27, 6, 0, 0, tzinfo=localtz)
     defLocaltimestamp = time.mktime(local_dt.timetuple())
     deltaTzTime = int(defLocaltimestamp)-int(defUtctimestamp)
     temp = int(str(utctimestamp)[0:10])
@@ -48,11 +48,11 @@ def _locaTzTimeStamp(utctimestamp):
 
 def _parse_datetime(timestr):
     try:
-        return datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S.%f')
+        return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S.%f')
     except ValueError:
         pass
     try:
-        return datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S')
+        return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S')
     except ValueError:
         pass
 
@@ -270,14 +270,16 @@ class TDSql:
                     if (len(data) >= 28):
                         resultData = _locaTzTimeStamp(self.queryResult[row][col])
                         if pd.to_datetime(resultData) == pd.to_datetime(data):
-                            tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{pd.to_datetime(resultData)} == expect:{data}")
+                            # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{pd.to_datetime(resultData)} == expect:{data}")
+                            tdLog.info("check successfully")
                         else:
                             caller = inspect.getframeinfo(inspect.stack()[1][0])
                             args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
                             tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)                        
                     else:
                         if self.queryResult[row][col] == _parse_datetime(data):
-                            tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                            # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                            tdLog.info("check successfully")
                         else:
                             caller = inspect.getframeinfo(inspect.stack()[1][0])
                             args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
@@ -296,7 +298,8 @@ class TDSql:
                         tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
                     resultData = pd.to_datetime(_locaTzTimeStamp(data),unit=unitTime) 
                     if resultData == self.queryResult[row][col] :
-                        tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{resultData}")
+                        # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{resultData}")
+                        tdLog.info("check successfully")
                     else:
                         caller = inspect.getframeinfo(inspect.stack()[1][0])
                         args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
@@ -309,14 +312,18 @@ class TDSql:
                   
 
             if str(self.queryResult[row][col]) == str(data):
-                tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                tdLog.info("check successfully")
                 return
 
             elif isinstance(data, float):
                 if abs(data) >= 1 and abs((self.queryResult[row][col] - data) / data) <= 0.000001:
-                    tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                    # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                    tdLog.info("check successfully")
                 elif abs(data) < 1 and abs(self.queryResult[row][col] - data) <= 0.000001:
-                    tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                    # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                    tdLog.info("check successfully")
+
                 else:
                     caller = inspect.getframeinfo(inspect.stack()[1][0])
                     args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
@@ -326,8 +333,7 @@ class TDSql:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
                 args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
                 tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
-
-        tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+        tdLog.info("check successfully")
 
     # return true or false replace exit, no print out
     def checkRowColNoExit(self, row, col):
