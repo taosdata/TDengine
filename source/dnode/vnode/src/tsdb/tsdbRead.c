@@ -390,8 +390,10 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf
 
   pUidList->tableUidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
   if (pUidList->tableUidList == NULL) {
+    taosHashCleanup(pTableMap);
     return NULL;
   }
+
   pUidList->currentIndex = 0;
 
   for (int32_t j = 0; j < numOfTables; ++j) {
@@ -4763,7 +4765,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   pTableBlockInfo->defMinRows = pc->minRows;
   pTableBlockInfo->defMaxRows = pc->maxRows;
 
-  int32_t bucketRange = ceil((pc->maxRows - pc->minRows) / numOfBucket);
+  int32_t bucketRange = ceil(((double)(pc->maxRows - pc->minRows)) / numOfBucket);
 
   pTableBlockInfo->numOfFiles += 1;
 

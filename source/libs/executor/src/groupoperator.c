@@ -173,8 +173,13 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
   size_t numOfGroupCols = taosArrayGetSize(pGroupCols);
 
   for (int32_t i = 0; i < numOfGroupCols; ++i) {
-    SColumn*         pCol = taosArrayGet(pGroupCols, i);
+    SColumn*         pCol = (SColumn*) taosArrayGet(pGroupCols, i);
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
+
+    // valid range check. todo: return error code.
+    if (pCol->slotId > taosArrayGetSize(pBlock->pDataBlock)) {
+      continue;
+    }
 
     if (pBlock->pBlockAgg != NULL) {
       pColAgg = pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?

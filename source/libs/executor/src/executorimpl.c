@@ -2344,6 +2344,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     pOptr = createEventwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else {
     terrno = TSDB_CODE_INVALID_PARA;
+    taosMemoryFree(ops);
     return NULL;
   }
 
