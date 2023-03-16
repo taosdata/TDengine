@@ -431,7 +431,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
 int tscSendMsgToServer(SSqlObj *pSql) {
   STscObj* pObj = pSql->pTscObj;
   SSqlCmd* pCmd = &pSql->cmd;
-  
+
   char *pMsg = rpcMallocCont(pCmd->payloadLen);
   if (NULL == pMsg) {
     tscError("0x%"PRIx64" msg:%s malloc failed", pSql->self, taosMsg[pSql->cmd.msgType]);

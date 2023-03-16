@@ -2211,16 +2211,31 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
   return result;
 }
 
+int32_t tscRestoreTableDataBlocks(SInsertStatementParam *pInsertParam) {
+  STableDataBlocks** iter = taosHashIterate(pInsertParam->pTableBlockHashList, NULL);
+  while (iter) {
+    STableDataBlocks* pOneTableBlock = *iter;
+    SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
+    pBlocks->tid = htonl(pBlocks->tid);
+    pBlocks->uid = htobe64(pBlocks->uid);
+    pBlocks->sversion = htonl(pBlocks->sversion);
+    pBlocks->numOfRows = htons(pBlocks->numOfRows);
+    iter = taosHashIterate(pInsertParam->pTableBlockHashList, iter);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tscMergeTableDataBlocks(SSqlObj *pSql, SInsertStatementParam *pInsertParam, bool freeBlockMap) {
   const int INSERT_HEAD_SIZE = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
   int       code = 0;
   bool      isRawPayload = IS_RAW_PAYLOAD(pInsertParam->payloadType);
   size_t    initialSize = taosHashGetSize(pInsertParam->pTableBlockHashList);
   initialSize = initialSize > 128 ? 128 : initialSize;
-  
+
   void*     pVnodeDataBlockHashList = taosHashInit(initialSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   SArray*   pVnodeDataBlockList = taosArrayInit(8, POINTER_BYTES);
-  
+
   // alloc table name list.
   size_t numOfTables = taosHashGetSize(pInsertParam->pTableBlockHashList);
   if (pInsertParam->pTableNameList) {
@@ -2228,7 +2243,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj *pSql, SInsertStatementParam *pInsertPar
   }
   pInsertParam->pTableNameList = calloc(numOfTables, sizeof(SName*));
   pInsertParam->numOfTables = (int32_t) numOfTables;
-  
+
   size_t tail = 0;
   SBlockKeyInfo blkKeyInfo = {0};  // share by pOneTableBlock
   STableDataBlocks** iter = taosHashIterate(pInsertParam->pTableBlockHashList, NULL);
@@ -2236,10 +2251,10 @@ int32_t tscMergeTableDataBlocks(SSqlObj *pSql, SInsertStatementParam *pInsertPar
     STableDataBlocks* pOneTableBlock = *iter;
     SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
     iter = taosHashIterate(pInsertParam->pTableBlockHashList, iter);
-    
+
     // extract table name list.
     pInsertParam->pTableNameList[tail++] = tNameDup(&pOneTableBlock->tableName);
-    
+
     if (pBlocks->numOfRows > 0) {
       // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
       int32_t           expandSize = isRawPayload ? getRowExpandSize(pOneTableBlock->pTableMeta) : 0;
@@ -2320,17 +2335,15 @@ int32_t tscMergeTableDataBlocks(SSqlObj *pSql, SInsertStatementParam *pInsertPar
       // the length does not include the SSubmitBlk structure
       pBlocks->dataLen = htonl(finalLen);
       dataBuf->numOfTables += 1;
-
-      pBlocks->numOfRows = 0;
     } else {
       tscDebug("0x%"PRIx64" table %s data block is empty", pInsertParam->objectId, pOneTableBlock->tableName.tname);
     }
-    
+
     if (freeBlockMap) {
       tscDestroyDataBlock(pSql, pOneTableBlock, false);
     }
   }
-  
+
   if (freeBlockMap) {
     taosHashCleanup(pInsertParam->pTableBlockHashList);
     pInsertParam->pTableBlockHashList = NULL;
@@ -2355,7 +2368,7 @@ void tscCloseTscObj(void *param) {
   tscReleaseRpc(pObj->pRpcObj);
   pthread_mutex_destroy(&pObj->mutex);
   tscReleaseClusterInfo(pObj->clusterId);
-  
+
   destroyDispatcherManager(pObj->dispatcherManager);
   pObj->dispatcherManager = NULL;
 
