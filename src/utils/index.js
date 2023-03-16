@@ -4,6 +4,7 @@ import { marked } from "marked";
 import moment from "moment";
 import { Message } from "element-ui";
 import { $bus } from "@/const";
+import CryptoJS from "crypto-js";
 let path = require("path");
 export function debounce(func, wait, immediate) {
   let timeout, args, context, timestamp, result;
@@ -288,4 +289,16 @@ export function OpenNewTab(url) {
       break;
     }
   }
+}
+
+ //加密
+export function encrypt(data) {
+  let encryptedData = CryptoJS.AES.encrypt(data, 'pwd').toString(); // 使用AES算法加密数据
+  return encryptedData;
+}
+//解密
+export function decrypt(encryptedData) {
+  let decryptedMessage = CryptoJS.AES.decrypt(encryptedData,'pwd').toString(CryptoJS.enc.Utf8); // 使用AES算法解密数据
+
+  return decryptedMessage;
 }

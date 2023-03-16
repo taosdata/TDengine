@@ -317,6 +317,7 @@ import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
+import {decrypt} from '@/utils/index'
 export default {
   name: "DbSourceUI",
   props: {
@@ -341,6 +342,7 @@ export default {
   },
   data() {
     return {
+      decryptPwd:'',//解密的密码
       //   dbsource,
       disable: false,
       address: "",
@@ -420,9 +422,10 @@ export default {
             return;
           }
         }
+        this.decryptPwd=decrypt(sessionStorage.getItem("pwd"))
         dns += `://${sessionStorage.getItem(
           "username"
-        )}:${sessionStorage.getItem("pwd")}@${
+        )}:${this.decryptPwd}@${
           data.options.host.value ? data.options.host.value : ""
         }
         `;
