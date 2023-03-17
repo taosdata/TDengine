@@ -668,7 +668,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
         *pIgnoreEarlierTs = false;
         if (!hasVal) {
           state->state = SFSLASTNEXTROW_FILESET;
-          goto _next_fileset;
+          break;
         }
 
         if (checkRemainingRow) {
