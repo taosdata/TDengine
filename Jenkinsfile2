@@ -34,20 +34,21 @@ def sync_source() {
         } else if (env.CHANGE_TARGET == '2.4') {
             sh '''
                 cd ${WKC}
-                git clean -fxd
+                git clean -f
                 git checkout -f   2.4
             '''
         } else if (env.CHANGE_TARGET == '2.6') {
             sh '''
                 cd ${WKC}
-                git clean -fxd
+                git clean -f
                 git checkout -f   2.6
             '''
         } else {
             sh '''
                 cd ${WKC}
-                git clean -fxd
+                git clean -f
                 git checkout  -f 2.6
+                git fetch
             '''
         }
     }
@@ -85,6 +86,7 @@ def sync_source() {
             sh '''
                 cd ${WK}
                 git checkout -f 2.6
+                git fetch
             '''
         }
     }
@@ -231,10 +233,12 @@ def pre_test_win(){
             bat '''
                 cd %WIN_INTERNAL_ROOT%
                 git checkout -f  2.6
+                git fetch
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
                 git checkout -f 2.6
+                git fetch
             '''
         }
     }
