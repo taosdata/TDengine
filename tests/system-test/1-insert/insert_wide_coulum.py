@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.autogen import *
 import threading
 import random
 import string
 import time
+
+from util.log import *
+from util.cases import *
+from util.sql import *
 
 
 class TDTestCase:
