@@ -48,6 +48,7 @@ def sync_source() {
                 cd ${WKC}
                 git clean -f
                 git checkout  -f 2.6
+                git remote prune origin
                 git fetch
             '''
         }
@@ -86,6 +87,7 @@ def sync_source() {
             sh '''
                 cd ${WK}
                 git checkout -f 2.6
+                git remote prune origin
                 git fetch
             '''
         }
@@ -233,11 +235,13 @@ def pre_test_win(){
             bat '''
                 cd %WIN_INTERNAL_ROOT%
                 git checkout -f  2.6
+                git remote prune origin
                 git fetch
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
                 git checkout -f 2.6
+                git remote prune origin
                 git fetch
             '''
         }
