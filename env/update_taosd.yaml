@@ -9,7 +9,7 @@ settings:
         - endpoint: u1-60:6030
           config_dir: /etc/taos
           code_dir: /root/TDengine
-          update_branch: main
+          update_branch: 1db4619fdc50448c287d310732663486504a79af
           config: # will write into taos.cfg
             dataDir: /var/lib/taos
             logDir: /var/log/taos
