@@ -107,7 +107,6 @@ class TDTestCase:
         for i in range (5):
             self.stb4096 = 'create table db2.stb%d (ts timestamp' % (i)
             for j in range (4094 - i):
-            # for j in range (499):
                 self.stb4096 += ', c%d int' % (j)
             self.stb4096 += ') tags (t1 int)'
             tdSql.execute(self.stb4096)
@@ -125,7 +124,7 @@ class TDTestCase:
             self.ntb4096 += ')'
             tdSql.execute(self.ntb4096)
         tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="NORMAL_TABLE"')
-        tdSql.checkEqual(204700,len(tdSql.queryResult))
+        tdSql.checkEqual(20470,len(tdSql.queryResult))
 
     def run(self):
         self.prepare_data()

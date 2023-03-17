@@ -547,21 +547,21 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       if (schema != NULL) {
         schemaRow = *(SSchemaWrapper**)schema;
       } else {
-        SMetaReader metaReader = {0};
-        metaReaderInit(&metaReader, pInfo->readHandle.meta, 0);
-        int code = metaGetTableEntryByUid(&metaReader, suid);
+        SMetaReader smrSuperTable = {0};
+        metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, 0);
+        int code = metaGetTableEntryByUid(&smrSuperTable, suid);
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by metaGetTableEntryByName, therefore, return directly
           qError("sysTableScanUserCols get meta by suid:%" PRId64 " error, code:%d", suid, code);
-          metaReaderClear(&metaReader);
+          metaReaderClear(&smrSuperTable);
           blockDataDestroy(dataBlock);
           pInfo->loadInfo.totalRows = 0;
           return NULL;
         }
-        SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&metaReader.me.stbEntry.schemaRow);
+        SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
         taosHashPut(pInfo->pSchema, &suid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
         schemaRow = schemaWrapper;
-        metaReaderClear(&metaReader);
+        metaReaderClear(&smrSuperTable);
       }
     } else if (pInfo->pCur->mr.me.type == TSDB_NORMAL_TABLE) {
       qDebug("sysTableScanUserCols cursor get normal table");
