@@ -28,7 +28,6 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operTy
   SUserObj *pUser = mndAcquireUser(pMnode, user);
 
   if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
     code = -1;
     goto _OVER;
   }
