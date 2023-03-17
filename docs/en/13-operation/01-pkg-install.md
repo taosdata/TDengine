@@ -114,6 +114,16 @@ taos tools is uninstalled successfully!
 <TabItem label="Windows uninstall" value="windows">
 Run C:\TDengine\unins000.exe to uninstall TDengine on a Windows system.
 </TabItem>
+<TabItem label="Mac uninstall" value="mac">
+
+TDengine can be uninstalled as below:
+
+```
+$ rmtaos
+TDengine is removed successfully!
+```
+
+</TabItem>
 </Tabs>
 
 :::info
