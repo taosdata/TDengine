@@ -63,12 +63,11 @@ dotenv = "0.15.0"
 tracing = "0.1"
 
 futures-util = "0.3"
-rayon = "1.7"
 serde_with = "2.3.1"
 tokio-cron-scheduler = "0.9.4"
 
 [dependencies.taos]
-version = "0.5.3"
+version = "0.5.7"
 default-features = false
 features = ["ws", "r2d2"]
 
@@ -91,9 +90,12 @@ disable-enterprise-only-validation = []
 [profile.sanitizer]
 inherits = "dev"
 
+[profile.release]
+
 [profile.min]
 inherits = "release"
 codegen-units = 1
 opt-level = "z"
 strip = true
 lto = true
+debug = 1

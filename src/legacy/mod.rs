@@ -530,7 +530,7 @@ async fn sync_super_table_schema_with_subs(
                     {
                         // exists
                         for ((name, source), value) in row.zip(&tag_values[1..]) {
-                            if source != value {
+                            if source != *value {
                                 to.exec(format!(
                                     "alter table `{child}` set tag `{name}` = {}",
                                     source.to_value().to_sql_value()
