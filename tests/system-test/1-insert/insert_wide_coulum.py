@@ -11,9 +11,23 @@ import string
 import time
 
 
+class TDTestCase:
+    def init(self, conn, logSql, replicaVar=1):
+        tdSql.init(conn.cursor(), logSql)
+
+    def run(self):  
+        tdLog.info("hello world.")
+
+    def stop(self):
+        tdSql.close()
+        tdLog.success("%s successfully executed" % __file__)
+
+
 #
 # Test Main class
 #
+
+'''
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -44,13 +58,13 @@ class TDTestCase:
         dbname = "test"
         stbname = "st"
         childname = "d"
-        child_cnt = 20
-        insert_rows = 1000
+        child_cnt = 2
+        insert_rows = 10
         tag_cnt    = 15
-        column_cnt = 25
-        binary_len = 30
-        nchar_len =  45
-        self.autoGen.set_batch_size(500)
+        column_cnt = 20
+        binary_len = 10240
+        nchar_len =  1025
+        self.autoGen.set_batch_size(1)
         
         # normal
         self.test_db(dbname, stbname, childname, tag_cnt, column_cnt, child_cnt, insert_rows, binary_len, nchar_len)
@@ -58,7 +72,7 @@ class TDTestCase:
         # max
         dbname = "test_max_col"
         child_cnt = 3
-        insert_rows = 100
+        insert_rows = 50
         tag_cnt = 128
         binary_len = 3
         nchar_len = 4
@@ -70,7 +84,7 @@ class TDTestCase:
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
+'''
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

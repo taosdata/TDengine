@@ -112,11 +112,6 @@ class AutoGen:
         sql = f"create table {stbname} (ts timestamp, {cols}) tags({tags})"
         tdSql.execute(sql)
 
-        # create stream 
-        sql = f"create stream m_{stbname} fill_history 1 into st_{stbname} as select count(*) from {stbname} interval(100a);"
-        tdLog.info(f" create stable {stbname} ok. column={column_cnt} tag={tag_cnt} ")
-
-
     # create child table 
     def create_child(self, stbname, prename, cnt):
         self.child_cnt = cnt
