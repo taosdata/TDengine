@@ -2114,13 +2114,13 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     if (pSelect->selectFuncNum > 1 || pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) {
-      return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->aliasName);
+      return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
     } else {
       return rewriteColToSelectValFunc(pCxt, pNode);
     }
   }
   if (isVectorFunc(*pNode) && isDistinctOrderBy(pCxt)) {
-    return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->aliasName);
+    return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
   }
   return DEAL_RES_CONTINUE;
 }
