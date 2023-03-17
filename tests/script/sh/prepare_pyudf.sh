@@ -1,3 +1,4 @@
+#!/bin/bash
 set +e
 
 FILE=/usr/local/lib/libtaospyudf.so
