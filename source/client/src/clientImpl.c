@@ -1132,11 +1132,6 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       pRequest->body.queryFp(pRequest->body.param, pRequest, -1);
       break;
   }
-
-  // TODO weired responding code?
-  if (TSDB_CODE_SUCCESS != code) {
-    pRequest->code = terrno;
-  }
 }
 
 int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
