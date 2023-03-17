@@ -212,6 +212,19 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
     uError("failed to create dataDir:%s", tsDataDir);
     return -1;
   }
+
+  pItem = cfgGetItem(pCfg, "walDataDir");
+  if (pItem != NULL && pItem->str[0] != 0) {
+    memset(tsWalDataDir, 0, PATH_MAX);
+    tstrncpy(tsWalDataDir, pItem->str, PATH_MAX);
+    if (taosMulMkDir(tsWalDataDir) != 0) {
+      uError("failed to create walDataDir:%s", tsWalDataDir);
+      return -1;
+    }
+  } else {
+    tstrncpy(tsWalDataDir, tsDataDir, PATH_MAX); // make wal data dir and data dir the same path
+  }
+
   return 0;
 }
 #else
@@ -390,6 +403,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
 
 static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddDir(pCfg, "dataDir", tsDataDir, 0) != 0) return -1;
+  if (cfgAddDir(pCfg, "walDataDir", tsWalDataDir, 0) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, 0) != 0) return -1;
 
   tsNumOfSupportVnodes = tsNumOfCores * 2;

@@ -45,6 +45,7 @@ extern char            tsTagFilterCache;
 
 extern char configDir[];
 extern char tsDataDir[];
+extern char tsWalDataDir[];
 extern char tsLogDir[];
 extern char tsTempDir[];
 

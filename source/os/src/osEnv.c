@@ -18,6 +18,7 @@
 
 char            configDir[PATH_MAX] = {0};
 char            tsDataDir[PATH_MAX] = {0};
+char            tsWalDataDir[PATH_MAX] = {0};
 char            tsLogDir[PATH_MAX] = {0};
 char            tsTempDir[PATH_MAX] = {0};
 SDiskSpace      tsDataSpace = {0};
@@ -85,6 +86,9 @@ void osUpdate() {
   }
   if (tsDataDir[0] != 0) {
     taosGetDiskSize(tsDataDir, &tsDataSpace.size);
+  }
+  if (tsWalDataDir[0] != 0) {
+    taosGetDiskSize(tsWalDataDir, &tsDataSpace.size);
   }
   if (tsTempDir[0] != 0) {
     taosGetDiskSize(tsTempDir, &tsTempSpace.size);

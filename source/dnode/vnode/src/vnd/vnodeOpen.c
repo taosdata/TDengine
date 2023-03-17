@@ -38,6 +38,13 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
     }
     snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
   }
+  if (strcmp(tsWalDataDir, tsDataDir) != 0) {
+    char dir2[TSDB_FILENAME_LEN] = {0};
+    snprintf(dir2, TSDB_FILENAME_LEN, "%s%s%s", tsWalDataDir, TD_DIRSEP, path);
+    if (taosMkDir(dir2)) {
+      return TAOS_SYSTEM_ERROR(errno);
+    }
+  }
 
   if (pCfg) {
     info.config = *pCfg;
@@ -221,6 +228,12 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
 void vnodeDestroy(const char *path, STfs *pTfs) {
   vInfo("path:%s is removed while destroy vnode", path);
   tfsRmdir(pTfs, path);
+  if (strcmp(tsWalDataDir, tsDataDir) != 0) {
+    char dir2[TSDB_FILENAME_LEN] = {0};
+    snprintf(dir2, TSDB_FILENAME_LEN, "%s%s%s", tsWalDataDir, TD_DIRSEP, path);
+    vInfo("wal path:%s is removed while destroy vnode", dir2);
+    taosRemoveDir(dir2);
+  }
 }
 
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
@@ -315,7 +328,12 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   }
 
   // open wal
-  sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
+  //sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
+  sprintf(tdir, "%s%s%s%s%s", tsWalDataDir, TD_DIRSEP, path, TD_DIRSEP, VNODE_WAL_DIR);
+  if (taosMulMkDir(tdir) != 0) {
+    vError("vgId:%d, failed to create vnode wal dir since %s. wal:%s", TD_VID(pVnode), tstrerror(terrno), tdir);
+    goto _err;
+  }
   taosRealPath(tdir, NULL, sizeof(tdir));
 
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
