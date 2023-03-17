@@ -150,9 +150,9 @@ There are two aspects in upgrade operation: upgrade installation package and upg
 
 To upgrade a package, follow the steps mentioned previously to first uninstall the old version then install the new version.
 
-Upgrading a running server is much more complex. First please check the version number of the old version and the new version. The version number of TDengine consists of 4 sections, only if the first 3 sections match can the old version be upgraded to the new version. The steps of upgrading a running server are as below:
+Upgrading a running server is much more complex. First please check the version number of the old version and the new version. The version number of TDengine consists of 4 sections, only if the first 2 sections match can the old version be upgraded to the new version. The steps of upgrading a running server are as below:
 - Stop inserting data
-- Make sure all data is persisted to disk
+- Make sure all data is persisted to disk, please use command `flush database`
 - Stop the cluster of TDengine
 - Uninstall old version and install new version
 - Start the cluster of TDengine
