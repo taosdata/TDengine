@@ -114,6 +114,10 @@ class TDTestCase:
                 tdSql.execute("create table db2.ctb_%d_%dc using db2.stb%d tags(%d)" %(i,k,i,k))
         tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="SUPER_TABLE"')
         tdSql.checkEqual(20465,len(tdSql.queryResult))
+        tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="SUPER_TABLE"')
+        tdSql.checkEqual(20465,len(tdSql.queryResult))
+        tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="CHILD_TABLE"')
+        tdSql.checkEqual(204650,len(tdSql.queryResult))
         tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="CHILD_TABLE"')
         tdSql.checkEqual(204650,len(tdSql.queryResult))
 
@@ -123,6 +127,8 @@ class TDTestCase:
                 self.ntb4096 += ', c%d binary(10)' % (j)
             self.ntb4096 += ')'
             tdSql.execute(self.ntb4096)
+        tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="NORMAL_TABLE"')
+        tdSql.checkEqual(20470,len(tdSql.queryResult))
         tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="NORMAL_TABLE"')
         tdSql.checkEqual(20470,len(tdSql.queryResult))
 
