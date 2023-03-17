@@ -248,10 +248,12 @@ def pre_test_win(){
     }
     bat '''
         cd %WIN_INTERNAL_ROOT%
+        git remote prune origin 
         git pull    
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%
+        git remote prune origin 
         git pull  
     '''
     bat '''
