@@ -361,8 +361,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_fetchRawBlockImp(
 
   TAOS_RES *tres = (TAOS_RES *)res;
 
-  void   *data;
-  int32_t numOfRows;
+  void   *data = NULL;
+  int32_t numOfRows = 0;
   int     error_code = taos_fetch_raw_block(tres, &numOfRows, &data);
   if (numOfRows == 0) {
     if (error_code == JNI_SUCCESS) {

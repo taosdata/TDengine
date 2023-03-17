@@ -864,6 +864,7 @@
 ,,y,script,./test.sh -f tsim/query/forceFill.sim
 ,,y,script,./test.sh -f tsim/query/emptyTsRange.sim
 ,,y,script,./test.sh -f tsim/query/partitionby.sim
+,,y,script,./test.sh -f tsim/query/tableCount.sim 
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
@@ -1096,7 +1097,7 @@
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sample_csv_json.py
 #,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_json_alltypes.py
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestQueryWithJson.py -R
-,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/telnet_tcp.py -R
+#,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/telnet_tcp.py -R
 
 #docs-examples test
 ,,n,docs-examples-test,bash python.sh

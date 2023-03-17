@@ -101,10 +101,18 @@ class TDTestCase:
                 tdSql.checkEqual(i[1],len(self.perf_list))
             elif i[0].lower() == self.dbname:
                 tdSql.checkEqual(i[1],self.tbnum+1)
+    def ins_columns_check(self):
+        tdSql.execute('create database db2 vgroups 2 replica 1')
+        tdSql.execute('create table db2.stb2 (ts timestamp,c0 int,c1 int, c2 double, c3 float, c4 binary(1000), c5 nchar(100),c7 bigint, c8 bool, c9 smallint) tags(t0 int)')
+        for i in range(2000):
+            tdSql.execute("create table db2.ctb%d using db2.stb2 tags(%d)" %(i,i))
+        tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type="CHILD_TABLE"')
+        tdSql.checkEqual(20000,len(tdSql.queryResult))
+        print("number of ins_columns of child table in db2 is %s" % len(tdSql.queryResult))
     def run(self):
         self.prepare_data()
         self.count_check()
-
+        self.ins_columns_check()
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
