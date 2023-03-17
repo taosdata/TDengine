@@ -173,8 +173,13 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
   size_t numOfGroupCols = taosArrayGetSize(pGroupCols);
 
   for (int32_t i = 0; i < numOfGroupCols; ++i) {
-    SColumn*         pCol = taosArrayGet(pGroupCols, i);
+    SColumn*         pCol = (SColumn*) taosArrayGet(pGroupCols, i);
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
+
+    // valid range check. todo: return error code.
+    if (pCol->slotId > taosArrayGetSize(pBlock->pDataBlock)) {
+      continue;
+    }
 
     if (pBlock->pBlockAgg != NULL) {
       pColAgg = pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?
@@ -999,14 +1004,14 @@ void appendCreateTableRow(SStreamState* pState, SExprSupp* pTableSup, SExprSupp*
       memset(tbName, 0, TSDB_TABLE_NAME_LEN);
       int32_t len = 0;
       if (colDataIsNull_s(pTbCol, pDestBlock->info.rows - 1)) {
-        len = TMIN(sizeof(TSDB_DATA_NULL_STR), TSDB_TABLE_NAME_LEN - 1);
-        memcpy(tbName, TSDB_DATA_NULL_STR, len);
+        len = 1;
+        tbName[0] = 0;
       } else {
         void* pData = colDataGetData(pTbCol, pDestBlock->info.rows - 1);
         len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN - 1);
         memcpy(tbName, varDataVal(pData), len);
+        streamStatePutParName(pState, groupId, tbName);
       }
-      streamStatePutParName(pState, groupId, tbName);
       memcpy(pTmpBlock->info.parTbName, tbName, len);
       pDestBlock->info.rows--;
     } else {

@@ -820,6 +820,7 @@ static SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTa
   int32_t code = blockDataEnsureCapacity(pResBlock, numOfTables);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
+    taosMemoryFree(pResBlock);
     return NULL;
   }
 
