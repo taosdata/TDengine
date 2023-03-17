@@ -11,6 +11,7 @@ sql connect
 
 print ======== step1 udf
 system sh/compile_udf.sh
+system sh/prepare_pyudf.sh
 system mkdir -p /tmp/pyudf
 system cp sh/pybitand.py /tmp/pyudf/
 system cp sh/pyl2norm.py /tmp/pyudf/
