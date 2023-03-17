@@ -16,7 +16,7 @@ from taostest.util.common import TDCom
 import taos
 from datetime import datetime
 
-class TestNumericBoundary(TDCase):
+class TestTs2912(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.lines1 = [('d1001', '2018-10-03 14:38:05.000', 10.30000, 219, "aa", 'California.SanFrancisco', 2),
