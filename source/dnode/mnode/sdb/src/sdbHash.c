@@ -390,6 +390,31 @@ void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
   return ppRow;
 }
 
+void sdbGet(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
+  *ppObj = NULL;
+
+  SHashObj *hash = sdbGetHash(pSdb, type);
+  if (hash == NULL) return;
+
+  size_t keyLen = 0;
+  void  *pKey = taosHashGetKey(pIter, &keyLen);
+
+  sdbReadLock(pSdb, type);
+
+  SSdbRow **ppRow = (SSdbRow **)taosHashGet(hash, pKey, keyLen);
+  if (ppRow != NULL) {
+    SSdbRow *pRow = *ppRow;
+    if (pRow == NULL || pRow->status != SDB_STATUS_READY) {
+      sdbUnLock(pSdb, type);
+      return;
+    }
+    atomic_add_fetch_32(&pRow->refCount, 1);
+    *ppObj = pRow->pObj;
+  }
+
+  sdbUnLock(pSdb, type);
+}
+
 void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status, bool lock) {
   *ppObj = NULL;
 
