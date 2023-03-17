@@ -81,7 +81,12 @@ pip3 list|grep taospy
 pip3 uninstall taospy -y
 pip3 install taospy==2.7.6
 
+apt install -y python3 python3-dev python3-venv
+/usr/bin/python3 -m venv /udfenv
+source /udfenv/bin/activate
 pip3 install taospyudf
+ldconfig
+deactivate
 
 $TIMEOUT_CMD $cmd
 RET=$?
