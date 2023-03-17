@@ -147,7 +147,6 @@ taos tools is uninstalled successfully!
 </TabItem>
 
 <TabItem label="Mac 卸载" value="mac">
-
 卸载 TDengine 命令如下:
 
 ```
