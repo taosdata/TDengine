@@ -1269,7 +1269,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
     // use tablemeta of stable to save vgid and uid of child table
     (*pMeta)->tableMeta->vgId = vg.vgId;
     (*pMeta)->tableMeta->uid = tableData->uid;  // one table merge data block together according uid
-    uDebug("SML:0x%" PRIx64 " smlInsertData table:%s, uid:%" PRIu64 ", format:%d, code:%d,%s", info->id, pName.tname, tableData->uid, info->dataFormat);
+    uDebug("SML:0x%" PRIx64 " smlInsertData table:%s, uid:%" PRIu64 ", format:%d", info->id, pName.tname, tableData->uid, info->dataFormat);
 
     code = smlBindData(info->pQuery, info->dataFormat, tableData->tags, (*pMeta)->cols, tableData->cols,
                        (*pMeta)->tableMeta, tableData->childTableName, tableData->sTableName, tableData->sTableNameLen,
