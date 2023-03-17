@@ -231,6 +231,7 @@ export default {
     udf:"UDF",
     settings:"Settings",
     programming:"Programming",
+    healthreport:'Health Report',
     backup:"Backup",
     admin:"Admin",
     cluster:'Cluster'
@@ -940,4 +941,18 @@ export default {
     messageTemp: `<h1>You succesfully contacted sales</h1><p>Your Message:</p><p>{msg}</p>`,
     toCompanyMegTemp: `<h1>{name} wishes to contact sales</h1><p>Email: {email}</p><p>Phone: {phone}</p><p>Company: {company}</p><p>Their message:</p><p>{message}</p>`,
   },
+  health:{
+    expire_time:'Expire Time',
+    uptime:'Uptime',
+    version:'Version',
+    cpu_avg:'CPU AVG',
+    cpu_o99:'CPU O99',
+    cpu_p90:'CPU P90',
+    mem_avg:'Memory AVG',
+    mem_o99:'Memory O99',
+    mem_p90:'Memory P90',
+    'max(disk_engine)':'Max(Disk Engine)',
+    "last(disk_engine)":'Last(Disk Engine)',
+    'elapsed(ts, 1m)':'Elasped(ts,1m)'
+  }
 };

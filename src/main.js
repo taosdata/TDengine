@@ -20,9 +20,11 @@ import { BusOnAndAutoOff } from "@/utils";
 import "./permission";
 import mavonEditor from 'mavon-editor'
 import 'mavon-editor/dist/css/index.css'
+import LinkTab from "@/components/LinkTab";
 Vue.use(mavonEditor)
 Vue.use(directive);
 Vue.use(LazyLoad);
+Vue.component("LinkTab", LinkTab);
 Vue.component("MainContentHeader", MainContentHeader);
 Vue.component("Icon", Icon);
 Vue.component("CopyText", CopyText);

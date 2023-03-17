@@ -258,7 +258,8 @@ export default {
     },
     submitForm(formName) {
       let reg =
-        /^(http|https):\/\/([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*/;
+        /^(https?:\/\/)?([\da-z.-]+)(\.([a-z.]{2,6}))?(:[\d]{1,5})?([\/\w.-]*)*\/?$/;
+        
       if (
         this.dynamicValidateForm.cluster &&
         !reg.test(this.dynamicValidateForm.cluster)

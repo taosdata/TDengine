@@ -86,7 +86,8 @@
       "vue/no-unused-components": "off",
       "no-useless-escape": "off",
       "no-unreachable": "off",
-      "no-case-declarations": "off"
+      "no-case-declarations": "off",
+      "vue/comment-directive":"off"
     },
     "ignorePatterns": [
       "/WebSocket/**"
