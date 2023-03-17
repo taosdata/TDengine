@@ -133,6 +133,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   showObj.id = showId;
   showObj.pMnode = pMnode;
   showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
+  showObj.resume = false;
   memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
   strncpy(showObj.filterTb, pReq->filterTb, TSDB_TABLE_NAME_LEN);
 
@@ -324,7 +325,8 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = size;
 
-  if (rowsRead == 0 || ((rowsRead < rowsToRead) && !pShow->pIter)) {
+  // if (rowsRead == 0 || ((rowsRead < rowsToRead) && !pShow->resume)) {
+  if (rowsRead == 0 || rowsRead < rowsToRead) {
     pRsp->completed = 1;
     mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
     mndReleaseShowObj(pShow, true);

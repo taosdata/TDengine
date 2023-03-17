@@ -3113,7 +3113,8 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
   char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   STR_TO_VARSTR(typeName, "SUPER_TABLE");
-  bool fetch = pShow->pIter ? false : true;
+  bool fetch = pShow->resume ? false : true;
+  pShow->resume = false;
   while (numOfRows < rows) {
     if (fetch) {
       pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
@@ -3138,6 +3139,7 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     }
 
     if ((numOfRows + pStb->numOfColumns) > rows) {
+      pShow->resume = true;
       if (numOfRows == 0) {
         mError("mndRetrieveStbCol failed to get stable cols since buf:%d less than result:%d, stable name:%s, db:%s",
                rows, pStb->numOfColumns, pStb->name, pStb->db);

@@ -457,6 +457,7 @@ typedef struct {
   void*          pIter;
   SMnode*        pMnode;
   STableMetaRsp* pMeta;
+  bool           resume;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
   char           filterTb[TSDB_TABLE_NAME_LEN];
