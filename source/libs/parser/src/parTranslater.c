@@ -1344,7 +1344,7 @@ static int32_t rewriteCountNotNullValue(STranslateContext* pCxt, SFunctionNode* 
   SValueNode* pValue = (SValueNode*)nodesListGetNode(pCount->pParameterList, 0);
   STableNode*  pTable = NULL;
   int32_t      code = findTable(pCxt, NULL, &pTable);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
     if (NULL == pCol) {
       code = TSDB_CODE_OUT_OF_MEMORY;
