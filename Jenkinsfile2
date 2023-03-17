@@ -47,7 +47,7 @@ def sync_source() {
             sh '''
                 cd ${WKC}
                 git clean -fxd
-                git checkout  -f   develop
+                git checkout  -f 2.6
             '''
         }
     }
@@ -84,7 +84,7 @@ def sync_source() {
         } else {
             sh '''
                 cd ${WK}
-                git checkout develop
+                git checkout -f 2.6
             '''
         }
     }
@@ -230,11 +230,11 @@ def pre_test_win(){
         } else {
             bat '''
                 cd %WIN_INTERNAL_ROOT%
-                git checkout -f  develop
+                git checkout -f  2.6
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
-                git checkout -f develop
+                git checkout -f 2.6
             '''
         }
     }
