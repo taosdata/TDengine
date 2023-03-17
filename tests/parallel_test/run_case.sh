@@ -73,7 +73,7 @@ md5sum /home/TDinternal/debug/build/lib/libtaos.so
 #define taospy 2.7.6
 pip3 list|grep taospy
 pip3 uninstall taospy -y
-pip3 install git+https://github.com/taosdata/taos-connector-python.git@fix/adamji/schemaless_insert
+pip3 install git+https://github.com/taosdata/taos-connector-python.git@enh/adamji/TD-19401-support-schemaless-raw
 
 $TIMEOUT_CMD $cmd
 RET=$?
