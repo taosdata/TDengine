@@ -133,7 +133,6 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   showObj.id = showId;
   showObj.pMnode = pMnode;
   showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
-  showObj.resume = false;
   memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
   strncpy(showObj.filterTb, pReq->filterTb, TSDB_TABLE_NAME_LEN);
 
