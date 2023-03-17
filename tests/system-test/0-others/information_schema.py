@@ -101,47 +101,36 @@ class TDTestCase:
                 tdSql.checkEqual(i[1],len(self.perf_list))
             elif i[0].lower() == self.dbname:
                 tdSql.checkEqual(i[1],self.tbnum+1)
-    # def ins_columns_check(self):
-    #     tdSql.execute('drop database if exists db2')
-    #     tdSql.execute('create database if not exists db2 vgroups 2 replica 1')
-    #     tdSql.execute('create table db2.stb2 (ts timestamp,c0 int,c1 int, c2 double, c3 float, c4 binary(1000), c5 nchar(100),c7 bigint, c8 bool, c9 smallint) tags(t0 int)')
-    #     for i in range(2000):
-    #         tdSql.execute("create table db2.ctb%d using db2.stb2 tags(%d)" %(i,i))
-    #     tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type="CHILD_TABLE"')
-    #     tdSql.checkEqual(20000,len(tdSql.queryResult))
-    #     print("number of ins_columns of child table in db2 is %s" % len(tdSql.queryResult))
-    # def ins_columns_check(self):
-    #     tdSql.execute('drop database if exists db2')
-    #     tdSql.execute('create database if not exists db2 vgroups 1 replica 1')
-    #     for i in range (5):
-    #         self.stb4096 = 'create table db2.stb%d (ts timestamp' % (i)
-    #         for j in range (4094 - i):
-    #         # for j in range (499):
-    #             self.stb4096 += ', c%d int' % (j)
-    #         self.stb4096 += ') tags (t1 int)'
-    #         tdSql.execute(self.stb4096)
-    #         # print ("stb sql is %s" % (self.stb4096))
-    #         for k in range(10):
-    #             tdSql.execute("create table db2.ctb_%d_%dc using db2.stb%d tags(%d)" %(i,k,i,k))
-    #     tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="SUPER_TABLE"')
-    #     tdSql.checkEqual(20465,len(tdSql.queryResult))
-    #     tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="CHILD_TABLE"')
-    #     tdSql.checkEqual(20465,len(tdSql.queryResult))
+    def ins_columns_check(self):
+        tdSql.execute('drop database if exists db2')
+        tdSql.execute('create database if not exists db2 vgroups 1 replica 1')
+        for i in range (5):
+            self.stb4096 = 'create table db2.stb%d (ts timestamp' % (i)
+            for j in range (4094 - i):
+            # for j in range (499):
+                self.stb4096 += ', c%d int' % (j)
+            self.stb4096 += ') tags (t1 int)'
+            tdSql.execute(self.stb4096)
+            for k in range(10):
+                tdSql.execute("create table db2.ctb_%d_%dc using db2.stb%d tags(%d)" %(i,k,i,k))
+        tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="SUPER_TABLE"')
+        tdSql.checkEqual(20465,len(tdSql.queryResult))
+        tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="CHILD_TABLE"')
+        tdSql.checkEqual(204650,len(tdSql.queryResult))
 
-        # for j in range (5):
-        #     self.ntb4096 = 'create table db2.ntb%d (ts timestamp' % (j)
-        #     for i in range (4095 - j):
-        #         self.ntb4096 += ', c%d binary(10)' % (i)
-        #     self.ntb4096 += ')'
-        #     tdSql.execute(self.ntb4096)
-        #     # print ("ntb sql is %s" % (self.ntb4096))
-        # tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="NORMAL_TABLE"')
-        # tdSql.checkEqual(20000,len(tdSql.queryResult))
+        for i in range (5):
+            self.ntb4096 = 'create table db2.ntb%d (ts timestamp' % (i)
+            for j in range (4095 - i):
+                self.ntb4096 += ', c%d binary(10)' % (j)
+            self.ntb4096 += ')'
+            tdSql.execute(self.ntb4096)
+        tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="NORMAL_TABLE"')
+        tdSql.checkEqual(204700,len(tdSql.queryResult))
 
     def run(self):
         self.prepare_data()
         self.count_check()
-        # self.ins_columns_check()
+        self.ins_columns_check()
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

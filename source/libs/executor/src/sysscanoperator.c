@@ -57,6 +57,7 @@ typedef struct SSysTableScanInfo {
   const char*            pUser;
   bool                   sysInfo;
   bool                   showRewrite;
+  bool                   resume;
   SNode*                 pCondition;  // db_name filter condition, to discard data that are not in current database
   SMTbCursor*            pCur;        // cursor for iterate the local table meta store.
   SSysTableIndex*        pIdx;        // idx for local table meta
@@ -520,12 +521,15 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     taosHashSetFreeFp(pInfo->pSchema, tDeleteSSchemaWrapperForHash);
   }
 
-  while ((ret = metaTbCursorNext(pInfo->pCur, TSDB_TABLE_MAX)) == 0) {
+  int32_t resume = pInfo->resume;
+  pInfo->resume = false;
+  while (resume || ((ret = metaTbCursorNext(pInfo->pCur, TSDB_TABLE_MAX)) == 0)) {
     char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
     SSchemaWrapper* schemaRow = NULL;
 
+    if (resume) resume = false;
     if (pInfo->pCur->mr.me.type == TSDB_SUPER_TABLE) {
       qDebug("sysTableScanUserCols cursor get super table");
       void* schema = taosHashGet(pInfo->pSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t));
@@ -572,7 +576,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     if ((numOfRows + schemaRow->nCols) > pOperator->resultInfo.capacity) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo);
       numOfRows = 0;
-      metaTbCursorPrev(pInfo->pCur);
+      pInfo->resume = true;
 
       if (pInfo->pRes->info.rows > 0) {
         break;
