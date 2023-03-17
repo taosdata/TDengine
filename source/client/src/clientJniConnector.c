@@ -55,7 +55,7 @@ jclass    g_tmqClass;
 jmethodID g_createConsumerErrorCallback;
 jmethodID g_topicListCallback;
 
-jclass    g_consumerClass;
+jclass g_consumerClass;
 // deprecated
 jmethodID g_commitCallback;
 
@@ -575,7 +575,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchBlockImp(JNI
   TAOS_RES *tres = (TAOS_RES *)res;
 
   int32_t numOfFields = taos_num_fields(tres);
-  if(numOfFields <= 0){
+  if (numOfFields <= 0) {
     jniError("jobj:%p, conn:%p, query interrupted. taos_num_fields error code:%d, msg:%s", jobj, tscon, numOfFields,
              taos_errstr(tres));
     return JNI_RESULT_SET_NULL;
@@ -1034,6 +1034,273 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsert
     return JNI_OUT_OF_MEMORY;
   }
   return (jlong)tres;
+}
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertWithReqId(
+    JNIEnv *env, jobject jobj, jlong conn, jobjectArray lines, jint protocol, jint precision, jlong reqId) {
+  TAOS *taos = (TAOS *)conn;
+  if (taos == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  int    numLines = (*env)->GetArrayLength(env, lines);
+  char **c_lines = taosMemoryCalloc(numLines, sizeof(char *));
+  if (c_lines == NULL) {
+    jniError("c_lines:%p, alloc memory failed", c_lines);
+    return JNI_OUT_OF_MEMORY;
+  }
+
+  for (int i = 0; i < numLines; ++i) {
+    jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
+    c_lines[i] = (char *)(*env)->GetStringUTFChars(env, line, 0);
+  }
+
+  TAOS_RES *tres = taos_schemaless_insert_with_reqid(taos, c_lines, numLines, protocol, precision, reqId);
+
+  for (int i = 0; i < numLines; ++i) {
+    jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
+    (*env)->ReleaseStringUTFChars(env, line, c_lines[i]);
+  }
+
+  taosMemoryFreeClear(c_lines);
+
+  if (tres == NULL) {
+    jniError("execute schemaless insert with reqId result is NULL");
+    return JNI_OUT_OF_MEMORY;
+  }
+  return (jlong)tres;
+}
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertWithTtl(JNIEnv *env, jobject jobj,
+                                                                                        jlong conn, jobjectArray lines,
+                                                                                        jint protocol, jint precision,
+                                                                                        jint ttl) {
+  TAOS *taos = (TAOS *)conn;
+  if (taos == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  int    numLines = (*env)->GetArrayLength(env, lines);
+  char **c_lines = taosMemoryCalloc(numLines, sizeof(char *));
+  if (c_lines == NULL) {
+    jniError("c_lines:%p, alloc memory failed", c_lines);
+    return JNI_OUT_OF_MEMORY;
+  }
+
+  for (int i = 0; i < numLines; ++i) {
+    jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
+    c_lines[i] = (char *)(*env)->GetStringUTFChars(env, line, 0);
+  }
+
+  TAOS_RES *tres = taos_schemaless_insert_ttl(taos, c_lines, numLines, protocol, precision, ttl);
+
+  for (int i = 0; i < numLines; ++i) {
+    jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
+    (*env)->ReleaseStringUTFChars(env, line, c_lines[i]);
+  }
+
+  taosMemoryFreeClear(c_lines);
+
+  if (tres == NULL) {
+    jniError("execute schemaless insert with ttl result is NULL");
+    return JNI_OUT_OF_MEMORY;
+  }
+  return (jlong)tres;
+}
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertWithTtlAndReqId(
+    JNIEnv *env, jobject jobj, jlong conn, jobjectArray lines, jint protocol, jint precision, jint ttl, jlong reqId) {
+  TAOS *taos = (TAOS *)conn;
+  if (taos == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  int    numLines = (*env)->GetArrayLength(env, lines);
+  char **c_lines = taosMemoryCalloc(numLines, sizeof(char *));
+  if (c_lines == NULL) {
+    jniError("c_lines:%p, alloc memory failed", c_lines);
+    return JNI_OUT_OF_MEMORY;
+  }
+
+  for (int i = 0; i < numLines; ++i) {
+    jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
+    c_lines[i] = (char *)(*env)->GetStringUTFChars(env, line, 0);
+  }
+
+  TAOS_RES *tres = taos_schemaless_insert_ttl_with_reqid(taos, c_lines, numLines, protocol, precision, ttl, reqId);
+
+  for (int i = 0; i < numLines; ++i) {
+    jstring line = (jstring)((*env)->GetObjectArrayElement(env, lines, i));
+    (*env)->ReleaseStringUTFChars(env, line, c_lines[i]);
+  }
+
+  taosMemoryFreeClear(c_lines);
+
+  if (tres == NULL) {
+    jniError("execute schemaless insert with TTL and reqId result is NULL");
+    return JNI_OUT_OF_MEMORY;
+  }
+  return (jlong)tres;
+}
+
+JNIEXPORT jobject createSchemalessResp(JNIEnv *env, int totalRows, int code, const char *msg) {
+  // find class
+  jclass schemaless_clazz = (*env)->FindClass(env, "com/taosdata/jdbc/SchemalessResp");
+  // find methods
+  jmethodID init_method = (*env)->GetMethodID(env, schemaless_clazz, "<init>", "()V");
+  jmethodID setCode_method = (*env)->GetMethodID(env, schemaless_clazz, "setCode", "(I)V");
+  jmethodID setMsg_method = (*env)->GetMethodID(env, schemaless_clazz, "setMsg", "(Ljava/lang/String;)V");
+  jmethodID setTotalRows_method = (*env)->GetMethodID(env, schemaless_clazz, "setTotalRows", "(I)V");
+  // new schemaless
+  jobject schemaless_obj = (*env)->NewObject(env, schemaless_clazz, init_method);
+  // set code
+  (*env)->CallVoidMethod(env, schemaless_obj, setCode_method, code);
+  // set totalRows
+  (*env)->CallVoidMethod(env, schemaless_obj, setTotalRows_method, totalRows);
+  // set message
+  jstring message = (*env)->NewStringUTF(env, msg);
+  (*env)->CallVoidMethod(env, schemaless_obj, setMsg_method, message);
+
+  return schemaless_obj;
+}
+
+JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertRaw(JNIEnv *env, jobject jobj,
+                                                                                      jlong conn, jstring data,
+                                                                                      jint protocol, jint precision) {
+  TAOS *taos = (TAOS *)conn;
+  if (taos == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    char *msg = "JNI connection is NULL";
+    return createSchemalessResp(env, 0, JNI_CONNECTION_NULL, msg);
+  }
+
+  char     *line = (char *)(*env)->GetStringUTFChars(env, data, NULL);
+  jint      len = (*env)->GetStringUTFLength(env, data);
+  int32_t   totalRows;
+  TAOS_RES *tres = taos_schemaless_insert_raw(taos, line, len, &totalRows, protocol, precision);
+
+  (*env)->ReleaseStringUTFChars(env, data, line);
+
+  if (tres == NULL) {
+    jniError("jobj:%p, schemaless raw insert failed", jobj);
+    char *msg = "JNI schemaless raw insert return null";
+    return createSchemalessResp(env, 0, JNI_TDENGINE_ERROR, msg);
+  }
+
+  int code = taos_errno(tres);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, taos, tstrerror(code), taos_errstr(tres));
+    taos_free_result(tres);
+    return createSchemalessResp(env, 0, code, taos_errstr(tres));
+  }
+  taos_free_result(tres);
+
+  return createSchemalessResp(env, totalRows, JNI_SUCCESS, NULL);
+}
+
+JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertRawWithReqId(
+    JNIEnv *env, jobject jobj, jlong conn, jstring data, jint protocol, jint precision, jlong reqId) {
+  TAOS *taos = (TAOS *)conn;
+  if (taos == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    char *msg = "JNI connection is NULL";
+    return createSchemalessResp(env, 0, JNI_CONNECTION_NULL, msg);
+  }
+
+  char     *line = (char *)(*env)->GetStringUTFChars(env, data, NULL);
+  jint      len = (*env)->GetStringUTFLength(env, data);
+  int32_t   totalRows;
+  TAOS_RES *tres = taos_schemaless_insert_raw_with_reqid(taos, line, len, &totalRows, protocol, precision, reqId);
+
+  (*env)->ReleaseStringUTFChars(env, data, line);
+
+  if (tres == NULL) {
+    jniError("jobj:%p, schemaless raw insert with ReqId failed", jobj);
+    char *msg = "JNI schemaless raw insert with ReqId return null";
+    return createSchemalessResp(env, 0, JNI_TDENGINE_ERROR, msg);
+  }
+
+  int code = taos_errno(tres);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, taos, tstrerror(code), taos_errstr(tres));
+    taos_free_result(tres);
+    return createSchemalessResp(env, 0, code, taos_errstr(tres));
+  }
+  taos_free_result(tres);
+
+  return createSchemalessResp(env, totalRows, JNI_SUCCESS, NULL);
+}
+
+JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertRawWithTtl(JNIEnv *env, jobject jobj,
+                                                                                             jlong conn, jstring data,
+                                                                                             jint protocol,
+                                                                                             jint precision, jint ttl) {
+  TAOS *taos = (TAOS *)conn;
+  if (taos == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    char *msg = "JNI connection is NULL";
+    return createSchemalessResp(env, 0, JNI_CONNECTION_NULL, msg);
+  }
+
+  char     *line = (char *)(*env)->GetStringUTFChars(env, data, NULL);
+  jint      len = (*env)->GetStringUTFLength(env, data);
+  int32_t   totalRows;
+  TAOS_RES *tres = taos_schemaless_insert_raw_ttl(taos, line, len, &totalRows, protocol, precision, ttl);
+
+  (*env)->ReleaseStringUTFChars(env, data, line);
+
+  if (tres == NULL) {
+    jniError("jobj:%p, schemaless raw insert with ttl failed", jobj);
+    char *msg = "JNI schemaless raw insert with ttl return null";
+    return createSchemalessResp(env, 0, JNI_TDENGINE_ERROR, msg);
+  }
+
+  int code = taos_errno(tres);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, taos, tstrerror(code), taos_errstr(tres));
+    taos_free_result(tres);
+    return createSchemalessResp(env, 0, code, taos_errstr(tres));
+  }
+  taos_free_result(tres);
+
+  return createSchemalessResp(env, totalRows, JNI_SUCCESS, NULL);
+}
+
+JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsertRawWithTtlAndReqId(
+    JNIEnv *env, jobject jobj, jlong conn, jstring data, jint protocol, jint precision, jint ttl, jlong reqId) {
+  TAOS *taos = (TAOS *)conn;
+  if (taos == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    char *msg = "JNI connection is NULL";
+    return createSchemalessResp(env, 0, JNI_CONNECTION_NULL, msg);
+  }
+
+  char     *line = (char *)(*env)->GetStringUTFChars(env, data, NULL);
+  jint      len = (*env)->GetStringUTFLength(env, data);
+  int32_t   totalRows;
+  TAOS_RES *tres =
+      taos_schemaless_insert_raw_ttl_with_reqid(taos, line, len, &totalRows, protocol, precision, ttl, reqId);
+
+  (*env)->ReleaseStringUTFChars(env, data, line);
+
+  if (tres == NULL) {
+    jniError("jobj:%p, schemaless raw insert with ttl and reqId failed", jobj);
+    char *msg = "JNI schemaless raw insert with ttl and reqId return null";
+    return createSchemalessResp(env, 0, JNI_TDENGINE_ERROR, taos_errstr(tres));
+  }
+
+  int code = taos_errno(tres);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, taos, tstrerror(code), taos_errstr(tres));
+    taos_free_result(tres);
+    return createSchemalessResp(env, 0, code, taos_errstr(tres));
+  }
+  taos_free_result(tres);
+
+  return createSchemalessResp(env, totalRows, JNI_SUCCESS, NULL);
 }
 
 // TABLE_VG_ID_FID_CACHE cache resp object for getTableVgID
