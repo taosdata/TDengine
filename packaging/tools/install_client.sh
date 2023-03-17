@@ -17,7 +17,7 @@ serverName="taosd"
 clientName="taos"
 uninstallScript="rmtaos"
 configFile="taos.cfg"
-tarName="taos.tar.gz"
+tarName="package.tar.gz"
 
 osType=Linux
 pagMode=full
