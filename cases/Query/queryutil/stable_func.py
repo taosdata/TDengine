@@ -584,7 +584,7 @@ class TDFunction():
         time_units = ['nums','numm','numh','numd']      
         time_interval = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")  
         
-        time_num = random.randint(0, 1000)  
+        time_num = random.randint(1, 1000)  
         int_derivative = int_cloumn_state.replace("time_interval","%s" %time_interval).replace("num","%d" %time_num)   
                     
         return int_derivative
@@ -599,7 +599,7 @@ class TDFunction():
         time_units = ['nums','numm','numh','numd']      
         time_interval = str(random.sample(time_units,1)).replace("[","").replace("]","").replace("'","")  
         
-        time_num = random.randint(0, 1000)  
+        time_num = random.randint(1, 1000)  
         int_derivative = int_cloumn_state.replace("time_interval","%s" %time_interval).replace("num","%d" %time_num)   
                     
         return int_derivative
