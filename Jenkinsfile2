@@ -34,20 +34,22 @@ def sync_source() {
         } else if (env.CHANGE_TARGET == '2.4') {
             sh '''
                 cd ${WKC}
-                git clean -fxd
+                git clean -f
                 git checkout -f   2.4
             '''
         } else if (env.CHANGE_TARGET == '2.6') {
             sh '''
                 cd ${WKC}
-                git clean -fxd
+                git clean -f
                 git checkout -f   2.6
             '''
         } else {
             sh '''
                 cd ${WKC}
-                git clean -fxd
-                git checkout  -f   develop
+                git clean -f
+                git checkout  -f 2.6
+                git remote prune origin
+                git fetch
             '''
         }
     }
@@ -84,7 +86,9 @@ def sync_source() {
         } else {
             sh '''
                 cd ${WK}
-                git checkout develop
+                git checkout -f 2.6
+                git remote prune origin
+                git fetch
             '''
         }
     }
@@ -230,22 +234,27 @@ def pre_test_win(){
         } else {
             bat '''
                 cd %WIN_INTERNAL_ROOT%
-                git checkout -f  develop
+                git checkout -f  2.6
+                git remote prune origin
+                git fetch
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
-                git checkout -f develop
+                git checkout -f 2.6
+                git remote prune origin
+                git fetch
             '''
         }
     }
     bat '''
         cd %WIN_INTERNAL_ROOT%
-        git pull  origin  ''' + env.CHANGE_TARGET + '''
+        git remote prune origin 
+        git pull    
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%
-        git remote prune origin
-        git pull  origin  ''' + env.CHANGE_TARGET + '''
+        git remote prune origin 
+        git pull  
     '''
     bat '''
         cd %WIN_INTERNAL_ROOT%
