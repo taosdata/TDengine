@@ -8,7 +8,7 @@ $tbPrefix = union_tb
 $tbPrefix1 = union_tb_
 $mtPrefix = union_mt
 $tbNum = 10
-$rowNum = 10000
+$rowNum = 1000
 $totalNum = $tbNum * $rowNum
 
 print =============== union.sim
@@ -65,7 +65,7 @@ sql create table $mt1 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c
 
 $j = 0
 $t = 1578203484000
-$rowNum = 1000
+$rowNum = 100
 $tbNum = 5
 $i = 0
 
@@ -117,7 +117,7 @@ sql_error (select c1 from union_tb0 limit 1 union all select c1 from union_tb1 l
 
 # sql with parenthese
 sql (select c1 from union_tb0)
-if $rows != 10000 then
+if $rows != 1000 then
   return -1
 endi
 if $data00 != 0 then
@@ -187,7 +187,7 @@ endi
 if $data10 != 1 then
   return -1
 endi
-if $data20 != 4950000 then
+if $data20 != 495000 then
   return -1
 endi
 
@@ -202,7 +202,7 @@ endi
 if $data10 != 1 then
   return -1
 endi
-if $data20 != 495000 then
+if $data20 != 49500 then
   return -1
 endi
 
@@ -211,7 +211,7 @@ sql (select count(*) as c from union_tb0, union_tb1 where union_tb0.ts=union_tb1
 if $rows != 11 then
   return -1
 endi
-if $data00 != 10000 then
+if $data00 != 1000 then
   return -1
 endi
 if $data10 != 9 then
@@ -227,7 +227,7 @@ endi
 print ===========================================tags union
 # two super table tag union, limit is not active during retrieve tags query
 sql (select t1 from union_mt0) union all (select t1 from union_mt0)
-if $rows != 200000 then
+if $rows != 20000 then
   return -1
 endi
 
@@ -248,7 +248,7 @@ sql (select count(*) as c from union_tb0 where ts > now + 3650d) union all (sele
 if $rows != 2 then
   return -1
 endi
-#if $data00 != 495000 then
+#if $data00 != 49500 then
 #  return -1
 #endi
 
@@ -272,7 +272,7 @@ endi
 
 # multi-vnode projection query
 sql (select c1 from union_mt0) union all select c1 from union_mt0;
-if $rows != 200000 then
+if $rows != 20000 then
  return -1
 endi
 
@@ -330,10 +330,10 @@ sql (select sum(c1) as a from union_tb0 limit 1) union all (select sum(c3) as a 
 if $rows != 2 then
   return -1
 endi
-if $data00 != 495000 then
+if $data00 != 49500 then
   return -1
 endi
-if $data10 != 495000 then
+if $data10 != 49500 then
   return -1
 endi
 

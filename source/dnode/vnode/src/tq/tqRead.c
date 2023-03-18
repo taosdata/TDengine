@@ -183,14 +183,15 @@ end:
   return tbSuid == realTbSuid;
 }
 
-int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead) {
+int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead) {
   int32_t code = 0;
+
   taosThreadMutexLock(&pHandle->pWalReader->mutex);
   int64_t offset = *fetchOffset;
 
   while (1) {
     if (walFetchHead(pHandle->pWalReader, offset, *ppCkHead) < 0) {
-      tqDebug("tmq poll: consumer:%" PRId64 ", (epoch %d) vgId:%d offset %" PRId64 ", no more log to return",
+      tqDebug("tmq poll: consumer:0x%" PRIx64 ", (epoch %d) vgId:%d offset %" PRId64 ", no more log to return",
               pHandle->consumerId, pHandle->epoch, TD_VID(pTq->pVnode), offset);
       *fetchOffset = offset - 1;
       code = -1;
@@ -241,6 +242,7 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
       offset++;
     }
   }
+
 END:
   taosThreadMutexUnlock(&pHandle->pWalReader->mutex);
   return code;
@@ -294,7 +296,7 @@ int32_t tqSeekVer(STqReader* pReader, int64_t ver, const char* id) {
   // todo set the correct vgId
   tqDebug("tmq poll: wal seek to version:%"PRId64" %s", ver, id);
   if (walReadSeekVer(pReader->pWalReader, ver) < 0) {
-    tqError("tmq poll: wal reader failed to seek to ver:%"PRId64" code:%s, %s", ver, tstrerror(terrno), id);
+    tqDebug("tmq poll: wal reader failed to seek to ver:%"PRId64" code:%s, %s", ver, tstrerror(terrno), id);
     return -1;
   } else {
     tqDebug("tmq poll: wal reader seek to ver:%"PRId64" %s", ver, id);

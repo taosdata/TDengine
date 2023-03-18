@@ -21,6 +21,8 @@
 extern SCatalogMgmt gCtgMgmt;
 SCtgDebug           gCTGDebug = {0};
 
+#if 0
+
 void ctgdUserCallback(SMetaData *pResult, void *param, int32_t code) {
   taosMemoryFree(param);
 
@@ -224,6 +226,7 @@ _return:
 
   CTG_RET(code);
 }
+#endif
 
 int32_t ctgdEnableDebug(char *option, bool enable) {
   if (0 == strcasecmp(option, "lock")) {

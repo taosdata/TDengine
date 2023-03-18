@@ -123,8 +123,9 @@ class TDTestCase:
         pre_insert = "insert into "
         sql = pre_insert
 
-        t = time.time()
-        startTs = int(round(t * 1000))
+        # t = 1678609778776 #time.time()
+        t = 1600000000000
+        startTs = t #int(round(t * 1000))
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
             sql += " %s_%d values "%(stbName,i)
