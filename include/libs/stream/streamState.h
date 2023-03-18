@@ -14,6 +14,8 @@
  */
 
 #include "tdatablock.h"
+
+#include "rocksdb/c.h"
 #include "tdbInt.h"
 
 #ifdef __cplusplus
@@ -29,14 +31,18 @@ typedef bool (*state_key_cmpr_fn)(void* pKey1, void* pKey2);
 
 typedef struct STdbState {
   SStreamTask* pOwner;
-  TDB*         db;
-  TTB*         pStateDb;
-  TTB*         pFuncStateDb;
-  TTB*         pFillStateDb;  // todo refactor
-  TTB*         pSessionStateDb;
-  TTB*         pParNameDb;
-  TTB*         pParTagDb;
-  TXN*         txn;
+
+  rocksdb_t* rocksdb;
+
+  TDB* db;
+  TTB* pStateDb;
+  TTB* pFuncStateDb;
+  TTB* pFillStateDb;  // todo refactor
+  TTB* pSessionStateDb;
+  TTB* pParNameDb;
+  TTB* pParTagDb;
+  TXN* txn;
+
 } STdbState;
 
 // incremental state storage
