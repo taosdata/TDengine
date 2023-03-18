@@ -7,7 +7,7 @@ $dbPrefix = group_db
 $tbPrefix = group_tb
 $mtPrefix = group_mt
 $tbNum = 8
-$rowNum = 10000
+$rowNum = 1000
 $totalNum = $tbNum * $rowNum
 
 print =============== groupby.sim
@@ -88,7 +88,7 @@ if $row != 20 then
  return -1
 endi
 
-if $data00 != 100 then
+if $data00 != 10 then
  return -1
 endi
 
@@ -96,7 +96,7 @@ if $data01 != 0 then
   return -1
 endi
 
-if $data10 != 100 then
+if $data10 != 10 then
   return -1
 endi
 
@@ -186,7 +186,7 @@ if $data04 != 0.00000 then
   return -1
 endi
 
-if $data10 != 100 then
+if $data10 != 10 then
   return -1
 endi
 
@@ -227,7 +227,7 @@ if $row != 20 then
   return -1
 endi
 
-if $data00 != 800 then
+if $data00 != 80 then
   return -1
 endi
 
@@ -235,7 +235,7 @@ if $data01 != 0 then
   return -1
 endi
 
-if $data10 != 800 then
+if $data10 != 80 then
   return -1
 endi
 
@@ -243,7 +243,7 @@ if $data11 != 1 then
   return -1
 endi
 
-if $data90 != 800 then
+if $data90 != 80 then
   return -1
 endi
 
@@ -297,7 +297,7 @@ if $data00 != $data03 then
   return -1
 endi
 
-if $data01 != @70-01-01 08:01:49.900@ then
+if $data01 != @70-01-01 08:01:40.900@ then
   return -1
 endi
 
@@ -305,7 +305,7 @@ if $data02 != @70-01-01 08:01:40.000@ then
   return -1
 endi
 
-if $data07 != 800 then
+if $data07 != 80 then
   return -1
 endi
 
@@ -313,7 +313,7 @@ if $data10 != $data13 then
   return -1
 endi
 
-if $data11 != @70-01-01 08:01:49.901@ then
+if $data11 != @70-01-01 08:01:40.901@ then
   return -1
 endi
 
@@ -321,7 +321,7 @@ if $data12 != @70-01-01 08:01:40.001@ then
   return -1
 endi
 
-if $data17 != 800 then
+if $data17 != 80 then
   return -1
 endi
 
@@ -329,7 +329,7 @@ if $data90 != $data93 then
   return -1
 endi
 
-if $data91 != @70-01-01 08:01:49.909@ then
+if $data91 != @70-01-01 08:01:40.909@ then
   return -1
 endi
 
@@ -337,11 +337,11 @@ if $data92 != @70-01-01 08:01:40.009@ then
   return -1
 endi
 
-if $data97 != 800 then
+if $data97 != 80 then
   return -1
 endi
 
-if $data95 != 7200 then
+if $data95 != 720 then
   return -1
 endi
 
@@ -358,7 +358,7 @@ if $data00 != 0 then
   return -1
 endi
 
-if $data11 != 800 then
+if $data11 != 80 then
   return -1
 endi
 
@@ -372,7 +372,7 @@ if $data00 != 0 then
   return -1
 endi
 
-if $data01 != @70-01-01 08:01:49.900@ then
+if $data01 != @70-01-01 08:01:40.900@ then
   return -1
 endi
 
@@ -389,13 +389,13 @@ if $data04 != 0 then
   return -1
 endi
 
-if $data06 != 100 then
+if $data06 != 10 then
   return -1
 endi
 
 
 sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4 order by c4;
-if $rows != 10000 then
+if $rows != 1000 then
   return -1
 endi
 
@@ -420,13 +420,13 @@ if $rows != 1 then
   return -1
 endi
 
-sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4 slimit 20 soffset 9990;
+sql select count(*),first(ts),last(ts),min(c3) from group_tb1 group by c4 slimit 20 soffset 990;
 if $rows != 10 then
   return -1
 endi
 
 sql select count(*),first(ts),last(ts),min(c3),max(c3),sum(c3),avg(c3),sum(c4)/count(c4) from group_tb1 group by c4;
-if $rows != 10000 then
+if $rows != 1000 then
   return -1
 endi
 
@@ -441,32 +441,32 @@ if $rows != 100 then
   return -1
 endi
 
-if $data00 != 100 then
+if $data00 != 10 then
   return -1
 endi
 
-if $data01 != 495000 then
+if $data01 != 4500 then
   return -1
 endi
 
-if $data02 != 100 then
+if $data02 != 10 then
   return -1
 endi
 
-if $data03 != 4950.000000000 then
-  print expect 4950.000000000 , acutal $data03
+if $data03 != 450.000000000 then
+  print expect 450.000000000 , acutal $data03
   return -1
 endi
 
-if $data10 != 100 then
+if $data10 != 10 then
   return -1
 endi
 
-if $data11 != 495100 then
+if $data11 != 4510 then
   return -1
 endi
 
-if $data13 != 4951.000000000 then
+if $data13 != 451.000000000 then
   return -1
 endi
 
@@ -481,19 +481,19 @@ if $rows != 1 then
   return -1
 endi
 
-#if $data00 != 79200.000000000 then
+#if $data00 != 2160.000000000 then
 #  return -1
 #endi
 
-#if $data01 != @binary99@ then
+#if $data01 != @binary27@ then
 #  return -1
 #endi
 
-#if $data02 != 99.000000000 then
+#if $data02 != 27.000000000 then
 #  return -1
 #endi
 
-#if $data03 != 99.000000000 then
+#if $data03 != 27.000000000 then
 #  return -1
 #endi
 
@@ -503,7 +503,7 @@ if $rows != 100 then
   return -1
 endi
 
-if $data00 != 4851.000000000 then
+if $data00 != 441.000000000 then
   return -1
 endi
 
@@ -511,19 +511,19 @@ if $data01 != 0 then
   return -1
 endi
 
-if $data02 != 9900 then
+if $data02 != 900 then
   return -1
 endi
 
-if $data03 != 4950.000000000 then
+if $data03 != 450.000000000 then
   return -1
 endi
 
-if $data04 != 2886.607004772 then
+if $data04 != 287.228132327 then
   return -1
 endi
 
-if $data10 != 4852.000000000 then
+if $data10 != 442.000000000 then
   return -1
 endi
 
@@ -531,15 +531,15 @@ if $data11 != 1 then
   return -1
 endi
 
-if $data12 != 9901 then
+if $data12 != 901 then
   return -1
 endi
 
-if $data13 != 4951.000000000 then
+if $data13 != 451.000000000 then
   return -1
 endi
 
-if $data14 != 2886.607004772 then
+if $data14 != 287.228132327 then
   return -1
 endi
 

@@ -285,12 +285,12 @@ sql_error alter database db keep -1
 
 print ============== modify minrows
 sql_error alter database db minrows 8
-sql_error alter database db minrows 8000
-sql_error alter database db minrows 8001
+sql_error alter database db minrows 8000000
+sql_error alter database db minrows 8001000
 
 print ============== modify maxrows
-sql_error alter database db maxrows 1000
-sql_error alter database db maxrows 2000
+sql_error alter database db maxrows 10000001
+sql_error alter database db maxrows 20000000
 sql_error alter database db maxrows 11  # equal minrows
 sql_error alter database db maxrows 10  # little than minrows
 
