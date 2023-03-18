@@ -371,7 +371,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   if(statusReq.clusterId != 0 && statusReq.clusterId != clusterid)
   {
     int32_t err = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
-    mWarn("dnode:%d, %s, its clusterid:%ld differ from current cluster:%ld, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, statusReq.clusterId, clusterid, err);
+    mWarn("dnode:%d, %s, its clusterid:%" PRId64 " differ from current cluster:%" PRId64 ", code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, statusReq.clusterId, clusterid, err);
     code = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
     goto _OVER;
   }
