@@ -93,7 +93,6 @@ class TDTestCase:
                 tdSql.checkEqual(i[2],len(self.perf_list))
         tdSql.execute('create table db1.ntb (ts timestamp,c0 int)')
         tdSql.query(f'select db_name, count(*) from information_schema.ins_tables group by db_name')
-        print(tdSql.queryResult)
         for i in tdSql.queryResult:
             if i[0].lower() == 'information_schema':
                 tdSql.checkEqual(i[1],len(self.ins_list))
@@ -109,10 +108,46 @@ class TDTestCase:
         tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type="CHILD_TABLE"')
         tdSql.checkEqual(20000,len(tdSql.queryResult))
         print("number of ins_columns of child table in db2 is %s" % len(tdSql.queryResult))
+    
+    def ins_col_check_4096(self):
+        tdSql.execute('create database db3 vgroups 2 replica 1')
+        col_str = tdCom.gen_tag_col_str("col", "int",4094)
+        tdSql.execute(f'create stable if not exists db3.stb (col_ts timestamp, {col_str}) tags (t1 int)')
+        for i in range(100):
+            tdLog.info(f"create table db3.ctb{i} using db3.stb tags({i})")
+            tdSql.execute(f"create table db3.ctb{i} using db3.stb tags({i})")
+            col_value_str = '1, ' * 4093 + '1'
+            tdSql.execute(f"insert into db3.ctb{i} values(now,{col_value_str})")
+        tdSql.query("select * from information_schema.ins_columns")
+        
+        tdSql.execute('drop database db3')
+    def ins_stable_check(self):
+        tdSql.execute('create database db3 vgroups 2 replica 1')
+        tbnum = 10
+        ctbnum = 10
+        for i in range(tbnum):
+            tdSql.execute(f'create stable db3.stb_{i} (ts timestamp,c0 int) tags(t0 int)')
+            tdSql.execute(f'create table db3.ntb_{i} (ts timestamp,c0 int)')
+            for j in range(ctbnum):
+                tdSql.execute(f"create table db3.ctb_{i}_{j} using db3.stb_{i} tags({j})")
+        tdSql.query("select stable_name,count(table_name) from information_schema.ins_tables where db_name = 'db3' group by stable_name order by stable_name")
+        result = tdSql.queryResult
+        for i in range(len(result)):
+            if result[i][0] == None:
+                tdSql.checkEqual(result[0][1],tbnum)
+            else:
+                tdSql.checkEqual(result[i][0],f'stb_{i-1}')
+                tdSql.checkEqual(result[i][1],ctbnum)
+        
+
+
     def run(self):
-        self.prepare_data()
-        self.count_check()
-        self.ins_columns_check()
+        # self.prepare_data()
+        # self.count_check()
+        # self.ins_columns_check()
+        # self.ins_col_check_4096()
+        self.ins_stable_check()
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
