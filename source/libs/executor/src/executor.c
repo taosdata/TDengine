@@ -221,12 +221,12 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols, SSchemaWrapper** pSchema) {
   if (msg == NULL) {
     // create raw scan
-
     SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
     if (NULL == pTaskInfo) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
+
     setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
 
     pTaskInfo->cost.created = taosGetTimestampUs();
@@ -715,7 +715,6 @@ void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
 
 int32_t qAsyncKillTask(qTaskInfo_t qinfo, int32_t rspCode) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qinfo;
-
   if (pTaskInfo == NULL) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
@@ -723,7 +722,6 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo, int32_t rspCode) {
   qDebug("%s execTask async killed", GET_TASKID(pTaskInfo));
 
   setTaskKilled(pTaskInfo, rspCode);
-
   qStopTaskOperators(pTaskInfo);
 
   return TSDB_CODE_SUCCESS;

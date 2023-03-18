@@ -380,11 +380,13 @@ static int32_t mndInitSdb(SMnode *pMnode) {
 }
 
 static int32_t mndOpenSdb(SMnode *pMnode) {
+  int32_t code = 0;
   if (!pMnode->deploy) {
-    return sdbReadFile(pMnode->pSdb);
-  } else {
-    return 0;
+    code = sdbReadFile(pMnode->pSdb);
   }
+
+  atomic_store_64(&pMnode->applied, pMnode->pSdb->commitIndex);
+  return code;
 }
 
 static void mndCleanupSdb(SMnode *pMnode) {

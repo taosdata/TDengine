@@ -315,11 +315,11 @@ static int32_t ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables) 
   }
 
   if (pBuf->numOfTables > 0) {
-    STableBlockScanInfo **p = (STableBlockScanInfo**)taosArrayPop(pBuf->pData);
+    STableBlockScanInfo** p = (STableBlockScanInfo**)taosArrayPop(pBuf->pData);
     taosMemoryFree(*p);
     pBuf->numOfTables /= pBuf->numPerBucket;
   }
-  
+
   int32_t num = (numOfTables - pBuf->numOfTables) / pBuf->numPerBucket;
   int32_t remainder = (numOfTables - pBuf->numOfTables) % pBuf->numPerBucket;
   if (pBuf->pData == NULL) {
@@ -390,8 +390,10 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf
 
   pUidList->tableUidList = taosMemoryMalloc(numOfTables * sizeof(uint64_t));
   if (pUidList->tableUidList == NULL) {
+    taosHashCleanup(pTableMap);
     return NULL;
   }
+
   pUidList->currentIndex = 0;
 
   for (int32_t j = 0; j < numOfTables; ++j) {
@@ -919,7 +921,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       pBlockNum->numOfBlocks += 1;
     }
 
-    if ((pScanInfo->pBlockList != NULL )&& (taosArrayGetSize(pScanInfo->pBlockList) > 0)) {
+    if ((pScanInfo->pBlockList != NULL) && (taosArrayGetSize(pScanInfo->pBlockList) > 0)) {
       numOfQTable += 1;
     }
   }
@@ -1798,7 +1800,7 @@ static bool nextRowFromLastBlocks(SLastBlockReader* pLastBlockReader, STableBloc
 
   while (1) {
     bool hasVal = tMergeTreeNext(&pLastBlockReader->mergeTree);
-    if (!hasVal) { // the next value will be the accessed key in stt
+    if (!hasVal) {  // the next value will be the accessed key in stt
       pScanInfo->lastKeyInStt += step;
       return false;
     }
@@ -2481,7 +2483,7 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
             pScanInfo->uid, pReader->idStr);
   int32_t code = tMergeTreeOpen(&pLBlockReader->mergeTree, (pLBlockReader->order == TSDB_ORDER_DESC),
                                 pReader->pFileReader, pReader->suid, pScanInfo->uid, &w, &pLBlockReader->verRange,
-                                pLBlockReader->pInfo, false, pReader->idStr);
+                                pLBlockReader->pInfo, false, pReader->idStr, false);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }
@@ -3512,7 +3514,7 @@ static int32_t checkForNeighborFileBlock(STsdbReader* pReader, STableBlockScanIn
                                          CHECK_FILEBLOCK_STATE* state) {
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
   SBlockData*         pBlockData = &pReader->status.fileBlockData;
-  bool    asc = ASCENDING_TRAVERSE(pReader->order);
+  bool                asc = ASCENDING_TRAVERSE(pReader->order);
 
   *state = CHECK_FILEBLOCK_QUIT;
   int32_t step = ASCENDING_TRAVERSE(pReader->order) ? 1 : -1;
@@ -3927,7 +3929,8 @@ int32_t tsdbSetTableList(STsdbReader* pReader, const void* pTableList, int32_t n
     if (code) {
       return code;
     }
-    pReader->status.uidList.tableUidList = (uint64_t*)taosMemoryRealloc(pReader->status.uidList.tableUidList, sizeof(uint64_t) * num);
+    pReader->status.uidList.tableUidList =
+        (uint64_t*)taosMemoryRealloc(pReader->status.uidList.tableUidList, sizeof(uint64_t) * num);
   }
 
   taosHashClear(pReader->status.pTableMap);
@@ -4547,6 +4550,8 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, 
     return TSDB_CODE_SUCCESS;
   }
 
+  int64_t st = taosGetTimestampUs();
+
   SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
   if (tDataBlkHasSma(pBlock)) {
     code = tsdbReadBlockSma(pReader->pFileReader, pBlock, pSup->pColAgg);
@@ -4607,6 +4612,9 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, 
 
   *pBlockSMA = pResBlock->pBlockAgg;
   pReader->cost.smaDataLoad += 1;
+
+  double elapsedTime = (taosGetTimestampUs() - st) / 1000.0;
+  pReader->cost.smaLoadTime += elapsedTime;
 
   tsdbDebug("vgId:%d, succeed to load block SMA for uid %" PRIu64 ", %s", 0, pFBlock->uid, pReader->idStr);
   return code;
@@ -4762,7 +4770,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   pTableBlockInfo->defMinRows = pc->minRows;
   pTableBlockInfo->defMaxRows = pc->maxRows;
 
-  int32_t bucketRange = ceil((pc->maxRows - pc->minRows) / numOfBucket);
+  int32_t bucketRange = ceil(((double)(pc->maxRows - pc->minRows)) / numOfBucket);
 
   pTableBlockInfo->numOfFiles += 1;
 

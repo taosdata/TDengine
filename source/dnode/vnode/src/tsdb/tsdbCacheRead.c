@@ -118,7 +118,6 @@ static int32_t setTableSchema(SCacheRowsReader* p, uint64_t suid, const char* id
   if (suid != 0) {
     p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, suid, -1, 1);
     if (p->pSchema == NULL) {
-      taosMemoryFree(p);
       tsdbWarn("stable:%" PRIu64 " has been dropped, failed to retrieve cached rows, %s", suid, idstr);
       return TSDB_CODE_PAR_TABLE_NOT_EXIST;
     }
@@ -332,6 +331,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   // retrieve the only one last row of all tables in the uid list.
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
+    int64_t st = taosGetTimestampUs();
     for (int32_t i = 0; i < pr->numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];
 
@@ -407,7 +407,10 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         }
 
         if (hasNotNullRow) {
-          pr->lastTs = minTs;
+          double cost = (taosGetTimestampUs() - st) / 1000.0;
+          if (cost > tsCacheLazyLoadThreshold) {
+            pr->lastTs = minTs;
+          }
         }
       }
 
@@ -417,7 +420,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     if (hasRes) {
       saveOneRow(pLastCols, pResBlock, pr, slotIds, pRes, pr->idstr);
     }
-
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
     for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];

@@ -751,7 +751,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     while (1) {
       SSDataBlock* result = doGroupedTableScan(pOperator);
-      if (result) {
+      if (result || (pOperator->status == OP_EXEC_DONE)) {
         return result;
       }
 
@@ -986,6 +986,7 @@ void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin) {
   pTableScanInfo->scanTimes = 0;
   pTableScanInfo->currentGroupId = -1;
   tsdbReaderClose(pTableScanInfo->base.dataReader);
+  qDebug("1");
   pTableScanInfo->base.dataReader = NULL;
 }
 
@@ -1144,6 +1145,7 @@ static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32
       pInfo->updateWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
       tsdbReaderClose(pTableScanInfo->base.dataReader);
+      qDebug("2");
       pTableScanInfo->base.dataReader = NULL;
       return NULL;
     }
@@ -1606,22 +1608,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
              pResult->info.window.skey, pResult->info.window.ekey, pInfo->tqReader->pWalReader->curVersion);
       tqOffsetResetToData(&pTaskInfo->streamInfo.currentOffset, pResult->info.id.uid, pResult->info.window.ekey);
       return pResult;
-<<<<<<< Updated upstream
-    } else {
-      if (!pTaskInfo->streamInfo.returned) {
-        STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
-        tsdbReaderClose(pTSInfo->base.dataReader);
-        pTSInfo->base.dataReader = NULL;
-        tqOffsetResetToLog(&pTaskInfo->streamInfo.prepareStatus, pTaskInfo->streamInfo.snapshotVer);
-        qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", pTaskInfo->streamInfo.snapshotVer + 1);
-        if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1, pTaskInfo->id.str) < 0) {
-          tqOffsetResetToLog(&pTaskInfo->streamInfo.lastStatus, pTaskInfo->streamInfo.snapshotVer);
-          return NULL;
-        }
-      } else {
-        return NULL;
-      }
-=======
     }
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
     tsdbReaderClose(pTSInfo->base.dataReader);
@@ -1630,7 +1616,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", pTaskInfo->streamInfo.snapshotVer + 1);
     if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1, pTaskInfo->id.str) < 0) {
       return NULL;
->>>>>>> Stashed changes
     }
   }
 
@@ -1752,6 +1737,8 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
     /*resetTableScanInfo(pTSInfo, pWin);*/
     tsdbReaderClose(pTSInfo->base.dataReader);
+    qDebug("4");
+
     pTSInfo->base.dataReader = NULL;
     pInfo->pTableScanOp->status = OP_OPENED;
 
@@ -1822,6 +1809,8 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__NONE;
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
     tsdbReaderClose(pTSInfo->base.dataReader);
+    qDebug("5");
+
     pTSInfo->base.dataReader = NULL;
 
     pTSInfo->base.cond.startVersion = -1;
@@ -2609,6 +2598,8 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     return pBlock;
   }
 
+  qDebug("8");
+
   tsdbReaderClose(pInfo->base.dataReader);
   pInfo->base.dataReader = NULL;
   return NULL;
@@ -3154,7 +3145,7 @@ static SSDataBlock* buildSysDbTableCount(SOperatorInfo* pOperator, STableCountSc
   size_t perfdbTableNum;
   getPerfDbMeta(NULL, &perfdbTableNum);
 
-  if (pSupp->groupByDbName) {
+  if (pSupp->groupByDbName || pSupp->groupByStbName) {
     buildSysDbGroupedTableCount(pOperator, pInfo, pSupp, pRes, infodbTableNum, perfdbTableNum);
     return (pRes->info.rows > 0) ? pRes : NULL;
   } else {
@@ -3179,11 +3170,23 @@ static void buildSysDbGroupedTableCount(SOperatorInfo* pOperator, STableCountSca
                                         STableCountScanSupp* pSupp, SSDataBlock* pRes, size_t infodbTableNum,
                                         size_t perfdbTableNum) {
   if (pInfo->currGrpIdx == 0) {
-    uint64_t groupId = calcGroupId(TSDB_INFORMATION_SCHEMA_DB, strlen(TSDB_INFORMATION_SCHEMA_DB));
+    uint64_t groupId = 0;
+    if (pSupp->groupByDbName) {
+      groupId = calcGroupId(TSDB_INFORMATION_SCHEMA_DB, strlen(TSDB_INFORMATION_SCHEMA_DB));
+    } else {
+      groupId = calcGroupId("", 0);
+    }
+    
     pRes->info.id.groupId = groupId;
     fillTableCountScanDataBlock(pSupp, TSDB_INFORMATION_SCHEMA_DB, "", infodbTableNum, pRes);
   } else if (pInfo->currGrpIdx == 1) {
-    uint64_t groupId = calcGroupId(TSDB_PERFORMANCE_SCHEMA_DB, strlen(TSDB_PERFORMANCE_SCHEMA_DB));
+    uint64_t groupId = 0;
+    if (pSupp->groupByDbName) {
+      groupId = calcGroupId(TSDB_PERFORMANCE_SCHEMA_DB, strlen(TSDB_PERFORMANCE_SCHEMA_DB));
+    } else {
+      groupId = calcGroupId("", 0);
+    }
+
     pRes->info.id.groupId = groupId;
     fillTableCountScanDataBlock(pSupp, TSDB_PERFORMANCE_SCHEMA_DB, "", perfdbTableNum, pRes);
   } else {
@@ -3221,7 +3224,7 @@ static SSDataBlock* buildVnodeDbTableCount(SOperatorInfo* pOperator, STableCount
   tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
   tNameGetDbName(&sn, dbName);
 
-  if (pSupp->groupByDbName) {
+  if (pSupp->groupByDbName || pSupp->groupByStbName) {
     buildVnodeGroupedTableCount(pOperator, pInfo, pSupp, pRes, vgId, dbName);
   } else {
     buildVnodeFilteredTbCount(pOperator, pInfo, pSupp, pRes, dbName);
@@ -3282,7 +3285,10 @@ static void buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanO
 static void buildVnodeGroupedNtbTableCount(STableCountScanOperatorInfo* pInfo, STableCountScanSupp* pSupp,
                                            SSDataBlock* pRes, char* dbName) {
   char fullStbName[TSDB_TABLE_FNAME_LEN] = {0};
-  snprintf(fullStbName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbName, "");
+  if (pSupp->groupByDbName) {
+    snprintf(fullStbName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbName, "");
+  }
+  
   uint64_t groupId = calcGroupId(fullStbName, strlen(fullStbName));
   pRes->info.id.groupId = groupId;
   int64_t ntbNum = metaGetNtbNum(pInfo->readHandle.meta);
@@ -3297,7 +3303,12 @@ static void buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo, S
   metaGetTableSzNameByUid(pInfo->readHandle.meta, stbUid, stbName);
 
   char fullStbName[TSDB_TABLE_FNAME_LEN] = {0};
-  snprintf(fullStbName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbName, stbName);
+  if (pSupp->groupByDbName) {
+    snprintf(fullStbName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbName, stbName);
+  } else {
+    snprintf(fullStbName, TSDB_TABLE_FNAME_LEN, "%s", stbName);
+  }
+  
   uint64_t groupId = calcGroupId(fullStbName, strlen(fullStbName));
   pRes->info.id.groupId = groupId;
 

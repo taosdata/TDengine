@@ -195,9 +195,12 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
  */
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,
                                    int16_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
-                                   bool isIntervalQuery, SAggSupporter* pSup) {
+                                   bool isIntervalQuery, SAggSupporter* pSup, bool keepGroup) {
   SET_RES_WINDOW_KEY(pSup->keyBuf, pData, bytes, groupId);
-
+  if (!keepGroup) {
+    *(uint64_t*)pSup->keyBuf = calcGroupId(pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
+  }
+  
   SResultRowPosition* p1 =
       (SResultRowPosition*)tSimpleHashGet(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
 
@@ -1034,7 +1037,7 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
   int32_t*        rowEntryInfoOffset = pOperator->exprSupp.rowEntryInfoOffset;
 
   SResultRow* pResultRow = doSetResultOutBufByKey(pAggInfo->aggSup.pResultBuf, pResultRowInfo, (char*)&groupId,
-                                                  sizeof(groupId), true, groupId, pTaskInfo, false, &pAggInfo->aggSup);
+                                                  sizeof(groupId), true, groupId, pTaskInfo, false, &pAggInfo->aggSup, true);
   /*
    * not assign result buffer yet, add new result buffer
    * all group belong to one result set, and each group result has different group id so set the id to be one
@@ -2341,6 +2344,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     pOptr = createEventwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else {
     terrno = TSDB_CODE_INVALID_PARA;
+    taosMemoryFree(ops);
     return NULL;
   }
 
@@ -2771,29 +2775,37 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
 }
 
 void qStreamCloseTsdbReader(void* task) {
-  if (task == NULL) return;
+  if (task == NULL) {
+    return;
+  }
+
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)task;
   SOperatorInfo* pOp = pTaskInfo->pRoot;
-<<<<<<< Updated upstream
-  qDebug("stream close tsdb reader, reset status uid %" PRId64 " ts %" PRId64, pTaskInfo->streamInfo.lastStatus.uid,
-         pTaskInfo->streamInfo.lastStatus.ts);
-  pTaskInfo->streamInfo.lastStatus = (STqOffsetVal){0};
-=======
 
   qDebug("stream close tsdb reader, reset status uid:%" PRId64 " ts:%" PRId64, pTaskInfo->streamInfo.currentOffset.uid,
          pTaskInfo->streamInfo.currentOffset.ts);
 
   // todo refactor, other thread may already use this read to extract data.
   pTaskInfo->streamInfo.currentOffset = (STqOffsetVal){0};
->>>>>>> Stashed changes
   while (pOp->numOfDownstream == 1 && pOp->pDownstream[0]) {
     SOperatorInfo* pDownstreamOp = pOp->pDownstream[0];
     if (pDownstreamOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
       SStreamScanInfo* pInfo = pDownstreamOp->info;
       if (pInfo->pTableScanOp) {
         STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+
+        setOperatorCompleted(pInfo->pTableScanOp);
+        while(pTaskInfo->owner != 0) {
+          taosMsleep(100);
+          qDebug("wait for the reader stopping");
+        }
+
         tsdbReaderClose(pTSInfo->base.dataReader);
         pTSInfo->base.dataReader = NULL;
+
+        // restore the status, todo refactor.
+        pInfo->pTableScanOp->status = OP_OPENED;
+        pTaskInfo->status = TASK_NOT_COMPLETED;
         return;
       }
     }

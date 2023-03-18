@@ -214,7 +214,6 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     if (pPage == NULL) {
       taosArrayDestroy(pPageIdList);
       blockDataDestroy(p);
-      taosArrayDestroy(pPageIdList);
       return terrno;
     }
 

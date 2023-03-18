@@ -1085,6 +1085,10 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     tscDebug("0x%" PRIx64 " plan not executed, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
              pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
+    if (TSDB_CODE_SUCCESS != code) {
+      pRequest->code = terrno;
+    }
+
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   }
 
@@ -1131,11 +1135,6 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
     default:
       pRequest->body.queryFp(pRequest->body.param, pRequest, -1);
       break;
-  }
-
-  // TODO weired responding code?
-  if (TSDB_CODE_SUCCESS != code) {
-    pRequest->code = terrno;
   }
 }
 
