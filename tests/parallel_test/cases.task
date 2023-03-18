@@ -177,6 +177,7 @@
 ,,y,script,./test.sh -f tsim/query/scalarNull.sim
 ,,y,script,./test.sh -f tsim/query/session.sim
 ,,y,script,./test.sh -f tsim/query/udf.sim
+,,n,script,./test.sh -f tsim/query/udfpy.sim
 ,,y,script,./test.sh -f tsim/query/udf_with_const.sim
 ,,y,script,./test.sh -f tsim/query/sys_tbname.sim
 ,,y,script,./test.sh -f tsim/query/groupby.sim
