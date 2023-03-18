@@ -677,6 +677,11 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
 _return:
   for (int i = 0; i < nParam; i++) sifFreeParam(&params[i]);
   taosMemoryFree(params);
+  if (code != 0) {
+    output->status = SFLT_NOT_INDEX;
+  } else {
+    output->status = SFLT_COARSE_INDEX;
+  }
   return code;
 }
 
@@ -717,7 +722,7 @@ _return:
 
 static EDealRes sifWalkFunction(SNode *pNode, void *context) {
   SFunctionNode *node = (SFunctionNode *)pNode;
-  SIFParam       output = {.result = taosArrayInit(8, sizeof(uint64_t))};
+  SIFParam       output = {.result = taosArrayInit(8, sizeof(uint64_t)), .status = SFLT_COARSE_INDEX};
 
   SIFCtx *ctx = context;
   ctx->code = sifExecFunction(node, ctx, &output);
@@ -735,7 +740,7 @@ static EDealRes sifWalkFunction(SNode *pNode, void *context) {
 static EDealRes sifWalkLogic(SNode *pNode, void *context) {
   SLogicConditionNode *node = (SLogicConditionNode *)pNode;
 
-  SIFParam output = {.result = taosArrayInit(8, sizeof(uint64_t))};
+  SIFParam output = {.result = taosArrayInit(8, sizeof(uint64_t)), .status = SFLT_COARSE_INDEX};
 
   SIFCtx *ctx = context;
   ctx->code = sifExecLogic(node, ctx, &output);
@@ -831,6 +836,7 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
     if (res->result != NULL) {
       taosArrayAddAll(pDst->result, res->result);
     }
+    pDst->status = res->status;
 
     sifFreeParam(res);
     taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
@@ -887,16 +893,20 @@ int32_t doFilterTag(SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result, 
   SFilterInfo *filter = NULL;
 
   SArray  *output = taosArrayInit(8, sizeof(uint64_t));
-  SIFParam param = {.arg = *metaArg, .result = output};
+  SIFParam param = {.arg = *metaArg, .result = output, .status = SFLT_NOT_INDEX};
   int32_t  code = sifCalculate((SNode *)pFilterNode, &param);
   if (code != 0) {
     sifFreeParam(&param);
     return code;
   }
+  if (param.status == SFLT_NOT_INDEX) {
+    *status = param.status;
+  } else {
+    *status = st;
+  }
 
   taosArrayAddAll(result, param.result);
   sifFreeParam(&param);
-  *status = st;
   return TSDB_CODE_SUCCESS;
 }
 
