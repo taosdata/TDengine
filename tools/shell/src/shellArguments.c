@@ -60,7 +60,7 @@
 #ifdef WEBSOCKET
 #define SHELL_DSN      "The dsn to use when connecting to cloud server."
 #define SHELL_REST     "Use restful mode when connecting."
-#define SHELL_TIMEOUT  "Set the timeout for websocket query in seconds, default is 10."
+#define SHELL_TIMEOUT  "Set the timeout for websocket query in seconds, default is 30."
 #endif
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg);
@@ -127,7 +127,7 @@ static struct argp_option shellOptions[] = {
 #ifdef WEBSOCKET
     {"dsn", 'E', "DSN", 0, SHELL_DSN},
     {"restful", 'R', 0, 0, SHELL_REST},
-	  {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
+    {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
 #endif
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {0},
@@ -223,9 +223,9 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       pArgs->dsn = arg;
       pArgs->cloud = true;
       break;
-	case 'T':
-	  pArgs->timeout = atoi(arg);
-	  break;
+    case 'T':
+      pArgs->timeout = atoi(arg);
+      break;
 #endif
     case 'V':
       pArgs->is_version = true;
@@ -246,7 +246,8 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
   SShellArgs *pArgs = &shell.args;
 
   for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 || strcmp(argv[i], "-?") == 0 || strcmp(argv[i], "/?") == 0) {
+    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0
+            || strcmp(argv[i], "-?") == 0 || strcmp(argv[i], "/?") == 0) {
       shellParseSingleOpt('?', NULL);
       return 0;
     }
@@ -262,12 +263,14 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       return -1;
     }
 
-    if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u' || key[1] == 'a' || key[1] == 'c' || key[1] == 's' ||
-        key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N' 
+    if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u'
+            || key[1] == 'a' || key[1] == 'c' || key[1] == 's'
+            || key[1] == 'f' || key[1] == 'd' || key[1] == 'w'
+            || key[1] == 'n' || key[1] == 'l' || key[1] == 'N'
 #ifdef WEBSOCKET
-	   || key[1] == 'E' || key[1] == 'T'
+        || key[1] == 'E' || key[1] == 'T'
 #endif
-		) {
+    ) {
       if (i + 1 >= argc) {
         fprintf(stderr, "option %s requires an argument\r\n", key);
         return -1;
@@ -279,12 +282,14 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       }
       shellParseSingleOpt(key[1], val);
       i++;
-    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || 
-               key[1] == 't' || key[1] == 'V' || key[1] == '?' || key[1] == 1
+    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C'
+                || key[1] == 'r' || key[1] == 'k'
+                || key[1] == 't' || key[1] == 'V'
+                || key[1] == '?' || key[1] == 1
 #ifdef WEBSOCKET
-			   ||key[1] == 'R'
+            ||key[1] == 'R'
 #endif
-			   ) {
+    ) {
       shellParseSingleOpt(key[1], NULL);
     } else {
       fprintf(stderr, "invalid option %s\r\n", key);
@@ -406,7 +411,7 @@ static int32_t shellCheckArgs() {
 
 int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
-  shell.info.clientVersion = 
+  shell.info.clientVersion =
       "Welcome to the %s Command Line Interface, Client Version:%s\r\n"
       "Copyright (c) 2022 by %s, all rights reserved.\r\n\r\n";
   strcpy(shell.info.cusName, cusName);
