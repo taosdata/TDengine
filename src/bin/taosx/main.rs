@@ -14,6 +14,13 @@ use jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
+#[cfg(feature = "mimalloc")]
+use mimalloc::MiMalloc;
+
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 shadow!(build);
 
 const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
@@ -63,6 +70,20 @@ pub(crate) struct GlobalOpts {
     /// We'll warn you various kind of risks before really running a task.
     #[clap(short, long, global = true)]
     yes_i_really_mean_it: bool,
+}
+
+impl GlobalOpts {
+    pub fn executor_worker_threads(&self) -> usize {
+        let min = std::thread::available_parallelism()
+            .map(|v| v.get() * 2)
+            .unwrap_or(16);
+
+        if self.jobs > min {
+            self.jobs
+        } else {
+            min
+        }
+    }
 }
 
 #[derive(Subcommand, Debug)]
@@ -151,8 +172,10 @@ fn main() -> Result<()> {
         .thread_name("taosx-runner")
         .enable_all()
         .build()?;
+
     if let Some(cmd) = args.commands {
         let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(args.globals.executor_worker_threads())
             .max_blocking_threads(1024)
             .thread_name("taosx")
             .enable_all()
@@ -165,6 +188,7 @@ fn main() -> Result<()> {
     } else {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .max_blocking_threads(1024)
+            .worker_threads(args.globals.executor_worker_threads())
             .thread_name("taosx")
             .worker_threads(
                 std::thread::available_parallelism()
