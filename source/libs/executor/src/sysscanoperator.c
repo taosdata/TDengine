@@ -521,6 +521,14 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
     taosHashSetFreeFp(pInfo->pSchema, tDeleteSSchemaWrapperForHash);
   }
 
+  if (!pInfo->pCur || !pInfo->pSchema) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    qError("sysTableScanUserCols failed since %s", terrstr(terrno));
+    blockDataDestroy(dataBlock);
+    pInfo->loadInfo.totalRows = 0;
+    return NULL;
+  }
+
   int32_t resume = pInfo->resume;
   pInfo->resume = false;
   while (resume || ((ret = metaTbCursorNext(pInfo->pCur, TSDB_TABLE_MAX)) == 0)) {
