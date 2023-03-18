@@ -1277,6 +1277,9 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     if (schema->colId == param->cid && param->type == schema->type && IS_IDX_ON(schema)) {
       ret = 0;
     }
+    if (i == 0) {
+      ret = 0;
+    }
   }
   if (ret != 0) {
     goto END;

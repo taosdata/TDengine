@@ -836,7 +836,7 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
     if (res->result != NULL) {
       taosArrayAddAll(pDst->result, res->result);
     }
-    if (res == SFLT_NOT_INDEX) pDst->status = res->status;
+    pDst->status = res->status;
 
     sifFreeParam(res);
     taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
