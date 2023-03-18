@@ -25,6 +25,7 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "tmisce.h"
+#include "mndCluster.h"
 
 #define TSDB_DNODE_VER_NUMBER   1
 #define TSDB_DNODE_RESERVE_SIZE 64
@@ -363,6 +364,15 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   if (tDeserializeSStatusReq(pReq->pCont, pReq->contLen, &statusReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  int64_t clusterid = mndGetClusterId(pMnode);
+  if(statusReq.clusterId != 0 && statusReq.clusterId != clusterid)
+  {
+    int32_t err = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
+    mWarn("dnode:%d, %s, its clusterid:%ld differ from current cluster:%ld, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, statusReq.clusterId, clusterid, err);
+    code = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
     goto _OVER;
   }
 
