@@ -324,7 +324,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = size;
 
-  if (rowsRead == 0 || ((rowsRead < rowsToRead) && !pShow->resume)) {
+  if (rowsRead == 0 || ((rowsRead < rowsToRead) && !pShow->restore)) {
     pRsp->completed = 1;
     mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
     mndReleaseShowObj(pShow, true);
