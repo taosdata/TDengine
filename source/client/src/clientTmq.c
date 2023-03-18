@@ -1335,10 +1335,10 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->dataRsp, pMsg->pData, sizeof(SMqRspHead));
 
-    tscDebug("consumer:0x%" PRIx64 " recv poll rsp, vgId:%d, req:%" PRId64 ", rsp:%" PRId64
-             " type %d, reqId:0x%" PRIx64,
-             tmq->consumerId, vgId, pRspWrapper->dataRsp.reqOffset.version, pRspWrapper->dataRsp.rspOffset.version, rspType, requestId);
-
+    char buf[80];
+    tFormatOffset(buf, 80, &pRspWrapper->dataRsp.rspOffset);
+    tscDebug("consumer:0x%" PRIx64 " recv poll rsp, vgId:%d, req:%" PRId64 ", rsp:%s type %d, reqId:0x%" PRIx64,
+             tmq->consumerId, vgId, pRspWrapper->dataRsp.reqOffset.version, buf, rspType, requestId);
   } else if (rspType == TMQ_MSG_TYPE__POLL_META_RSP) {
     SDecoder decoder;
     tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
@@ -1996,6 +1996,8 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
 }
 
 int32_t tmq_consumer_close(tmq_t* tmq) {
+  tscDebug("consumer:0x%" PRIx64" start to close consumer, status:%d", tmq->consumerId, tmq->status);
+
   if (tmq->status == TMQ_CONSUMER_STATUS__READY) {
     int32_t rsp = tmq_commit_sync(tmq, NULL);
     if (rsp != 0) {
