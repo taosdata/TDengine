@@ -111,23 +111,62 @@ void qwtInitLogFile() {
 }
 
 void qwtBuildQueryReqMsg(SRpcMsg *queryRpc) {
-  qwtqueryMsg.queryId = htobe64(atomic_add_fetch_64(&qwtTestQueryId, 1));
-  qwtqueryMsg.sId = htobe64(1);
-  qwtqueryMsg.taskId = htobe64(1);
-  qwtqueryMsg.msgLen = htonl(100);
-  qwtqueryMsg.sqlLen = 0;
+  qwtqueryMsg.queryId = atomic_add_fetch_64(&qwtTestQueryId, 1);
+  qwtqueryMsg.sId = 1;
+  qwtqueryMsg.taskId = 1;
+  qwtqueryMsg.sql = "fake sql";
+  qwtqueryMsg.sqlLen = strlen(qwtqueryMsg.sql);
+  qwtqueryMsg.msg = "fake msg";
+  qwtqueryMsg.msgLen = strlen(qwtqueryMsg.msg);
+  
+  int32_t msgSize = tSerializeSSubQueryMsg(NULL, 0, &qwtqueryMsg);
+  if (msgSize < 0) {
+    printf("tSerializeSSubQueryMsg get size, msgSize:%d\n", msgSize);
+    return;
+  }
+  
+  char *msg = (char *)taosMemoryCalloc(1, msgSize);
+  if (NULL == msg) {
+    printf("calloc %d failed\n", msgSize);
+    return;
+  }
+  
+  if (tSerializeSSubQueryMsg(msg, msgSize, &qwtqueryMsg) < 0) {
+    printf("tSerializeSSubQueryMsg failed, msgSize:%d\n", msgSize);
+    taosMemoryFree(msg);
+    return;
+  }
+  
   queryRpc->msgType = TDMT_SCH_QUERY;
-  queryRpc->pCont = &qwtqueryMsg;
-  queryRpc->contLen = sizeof(SSubQueryMsg) + 100;
+  queryRpc->pCont = msg;
+  queryRpc->contLen = msgSize;
 }
 
 void qwtBuildFetchReqMsg(SResFetchReq *fetchMsg, SRpcMsg *fetchRpc) {
-  fetchMsg->sId = htobe64(1);
-  fetchMsg->queryId = htobe64(atomic_load_64(&qwtTestQueryId));
-  fetchMsg->taskId = htobe64(1);
+  fetchMsg->sId = 1;
+  fetchMsg->queryId = atomic_load_64(&qwtTestQueryId);
+  fetchMsg->taskId = 1;
+
+  int32_t msgSize = tSerializeSResFetchReq(NULL, 0, fetchMsg);
+  if (msgSize < 0) {
+    printf("tSerializeSResFetchReq get size, msgSize:%d\n", msgSize);
+    return;
+  }
+  
+  char *msg = (char *)taosMemoryCalloc(1, msgSize);
+  if (NULL == msg) {
+    printf("calloc %d failed\n", msgSize);
+    return;
+  }
+  
+  if (tSerializeSResFetchReq(msg, msgSize, fetchMsg) < 0) {
+    printf("tSerializeSResFetchReq %d failed\n", msgSize);
+    return;
+  }
+  
   fetchRpc->msgType = TDMT_SCH_FETCH;
-  fetchRpc->pCont = fetchMsg;
-  fetchRpc->contLen = sizeof(SResFetchReq);
+  fetchRpc->pCont = msg;
+  fetchRpc->contLen = msgSize;
 }
 
 void qwtBuildDropReqMsg(STaskDropReq *dropMsg, SRpcMsg *dropRpc) {
@@ -216,6 +255,9 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
       if (pRsp->code) {
         qwtBuildDropReqMsg(&qwtdropMsg, &qwtdropRpc);
         qwtPutReqToFetchQueue((void *)0x1, &qwtdropRpc);
+      } else {
+        qwtBuildFetchReqMsg(&qwtfetchMsg, &qwtfetchRpc);
+        qwtPutReqToFetchQueue((void *)0x1, &qwtfetchRpc);
       }
 
       rpcFreeCont(rsp);
@@ -242,7 +284,6 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
       STaskDropRsp *rsp = (STaskDropRsp *)pRsp->pCont;
       rpcFreeCont(rsp);
 
-      qwtTestCaseFinished = true;
       break;
     }
   }
@@ -401,6 +442,8 @@ int32_t qwtGetDataBlock(DataSinkHandle handle, SOutputData *pOutput) {
 }
 
 void qwtDestroyDataSinker(DataSinkHandle handle) {}
+
+void qwttmsgRegisterBrokenLinkArg(SRpcMsg* pMsg) { }
 
 void stubSetStringToPlan() {
   static Stub stub;
@@ -622,6 +665,26 @@ void stubSetGetDataBlock() {
   }
 }
 
+void stubSettmsgRegisterBrokenLinkArg() {
+  static Stub stub;
+  stub.set(tmsgRegisterBrokenLinkArg, qwttmsgRegisterBrokenLinkArg);
+  {
+#ifdef WINDOWS
+    AddrAny                       any;
+    std::map<std::string, void *> result;
+    any.get_func_addr("tmsgRegisterBrokenLinkArg", result);
+#endif
+#ifdef LINUX
+    AddrAny                       any("libtransport.so");
+    std::map<std::string, void *> result;
+    any.get_global_func_addr_dynsym("^tmsgRegisterBrokenLinkArg", result);
+#endif
+    for (const auto &f : result) {
+      stub.set(f.second, qwttmsgRegisterBrokenLinkArg);
+    }
+  }
+}
+
 void *queryThread(void *param) {
   SRpcMsg  queryRpc = {0};
   int32_t  code = 0;
@@ -631,6 +694,10 @@ void *queryThread(void *param) {
 
   while (!qwtTestStop) {
     qwtBuildQueryReqMsg(&queryRpc);
+
+    code = qWorkerPreprocessQueryMsg(mgmt, &queryRpc, false);
+    assert(code == 0);
+
     qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc, 0);
     if (qwtTestEnableSleep) {
       taosUsleep(taosRand() % 5);
@@ -654,6 +721,7 @@ void *fetchThread(void *param) {
   while (!qwtTestStop) {
     qwtBuildFetchReqMsg(&fetchMsg, &fetchRpc);
     code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc, 0);
+    taosMemoryFree(fetchRpc.pCont);
     if (qwtTestEnableSleep) {
       taosUsleep(taosRand() % 5);
     }
@@ -720,6 +788,7 @@ void *queryQueueThread(void *param) {
   void    *mockPointer = (void *)0x1;
   SRpcMsg *queryRpc = NULL;
   void    *mgmt = param;
+  int32_t  code = 0;
 
   while (true) {
     tsem_wait(&qwtTestQuerySem);
@@ -752,9 +821,15 @@ void *queryQueueThread(void *param) {
     }
 
     if (TDMT_SCH_QUERY == queryRpc->msgType) {
-      qWorkerProcessQueryMsg(mockPointer, mgmt, queryRpc, 0);
+      code = qWorkerPreprocessQueryMsg(mgmt, queryRpc, false);
+      assert(code == 0);
+      
+      code = qWorkerProcessQueryMsg(mockPointer, mgmt, queryRpc, 0);      
+      taosMemoryFree(queryRpc->pCont);
+      assert(code == 0);
     } else if (TDMT_SCH_QUERY_CONTINUE == queryRpc->msgType) {
-      qWorkerProcessCQueryMsg(mockPointer, mgmt, queryRpc, 0);
+      code = qWorkerProcessCQueryMsg(mockPointer, mgmt, queryRpc, 0);
+      assert(code == 0);
     } else {
       printf("unknown msg in query queue, type:%d\n", queryRpc->msgType);
       assert(0);
@@ -776,6 +851,7 @@ void *fetchQueueThread(void *param) {
   void    *mockPointer = (void *)0x1;
   SRpcMsg *fetchRpc = NULL;
   void    *mgmt = param;
+  int32_t  code = 0;
 
   while (true) {
     tsem_wait(&qwtTestFetchSem);
@@ -810,13 +886,17 @@ void *fetchQueueThread(void *param) {
     switch (fetchRpc->msgType) {
       case TDMT_SCH_FETCH:
       case TDMT_SCH_MERGE_FETCH:
-        qWorkerProcessFetchMsg(mockPointer, mgmt, fetchRpc, 0);
+        code = qWorkerProcessFetchMsg(mockPointer, mgmt, fetchRpc, 0);        
+        taosMemoryFree(fetchRpc->pCont);
+        assert(code == 0);
         break;
       case TDMT_SCH_CANCEL_TASK:
         //qWorkerProcessCancelMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
       case TDMT_SCH_DROP_TASK:
-        qWorkerProcessDropMsg(mockPointer, mgmt, fetchRpc, 0);
+        code = qWorkerProcessDropMsg(mockPointer, mgmt, fetchRpc, 0);
+        assert(code == 0);
+        qwtTestCaseFinished = true;
         break;
       default:
         printf("unknown msg type:%d in fetch queue", fetchRpc->msgType);
@@ -863,6 +943,7 @@ TEST(seqTest, normalCase) {
   stubSetEndPut();
   stubSetPutDataBlock();
   stubSetGetDataBlock();
+  stubSettmsgRegisterBrokenLinkArg();
 
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
@@ -870,14 +951,19 @@ TEST(seqTest, normalCase) {
   code = qWorkerInit(NODE_TYPE_VNODE, 1, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
+  code = qWorkerPreprocessQueryMsg(mgmt, &queryRpc, false);
+  ASSERT_EQ(code, 0);
+
   code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc, 0);
   ASSERT_EQ(code, 0);
+  taosMemoryFree(queryRpc.pCont);
 
   // code = qWorkerProcessReadyMsg(mockPointer, mgmt, &readyRpc);
   // ASSERT_EQ(code, 0);
 
   code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc, 0);
   ASSERT_EQ(code, 0);
+  taosMemoryFree(fetchRpc.pCont);
 
   code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc, 0);
   ASSERT_EQ(code, 0);
@@ -899,6 +985,7 @@ TEST(seqTest, cancelFirst) {
 
   stubSetStringToPlan();
   stubSetRpcSendResponse();
+  stubSettmsgRegisterBrokenLinkArg();
 
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
@@ -906,11 +993,15 @@ TEST(seqTest, cancelFirst) {
   code = qWorkerInit(NODE_TYPE_VNODE, 1, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
+  code = qWorkerPreprocessQueryMsg(mgmt, &queryRpc, false);
+  assert(code == 0);
+
   code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc, 0);
   ASSERT_EQ(code, 0);
 
   code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc, 0);
-  ASSERT_TRUE(0 != code);
+  ASSERT_EQ(code, 0);
+  taosMemoryFree(queryRpc.pCont);
 
   qWorkerDestroy(&mgmt);
 }
@@ -934,6 +1025,7 @@ TEST(seqTest, randCase) {
   stubSetStringToPlan();
   stubSetRpcSendResponse();
   stubSetCreateExecTask();
+  stubSettmsgRegisterBrokenLinkArg();
 
   taosSeedRand(taosGetTimestampSec());
 
@@ -951,7 +1043,12 @@ TEST(seqTest, randCase) {
     if (r >= 0 && r < maxr / 5) {
       printf("Query,%d\n", t++);
       qwtBuildQueryReqMsg(&queryRpc);
-      code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc, 0);
+
+      code = qWorkerPreprocessQueryMsg(mgmt, &queryRpc, false);
+      assert(code == 0);
+
+      code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc, 0);      
+      taosMemoryFree(queryRpc.pCont);
     } else if (r >= maxr / 5 && r < maxr * 2 / 5) {
       // printf("Ready,%d\n", t++);
       // qwtBuildReadyReqMsg(&readyMsg, &readyRpc);
@@ -963,6 +1060,7 @@ TEST(seqTest, randCase) {
       printf("Fetch,%d\n", t++);
       qwtBuildFetchReqMsg(&fetchMsg, &fetchRpc);
       code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc, 0);
+      taosMemoryFree(fetchRpc.pCont);
       if (qwtTestEnableSleep) {
         taosUsleep(1);
       }
@@ -1005,6 +1103,7 @@ TEST(seqTest, multithreadRand) {
   stubSetEndPut();
   stubSetPutDataBlock();
   stubSetGetDataBlock();
+  stubSettmsgRegisterBrokenLinkArg();
 
   taosSeedRand(taosGetTimestampSec());
 
@@ -1066,6 +1165,7 @@ TEST(rcTest, shortExecshortDelay) {
   stubSetEndPut();
   stubSetPutDataBlock();
   stubSetGetDataBlock();
+  stubSettmsgRegisterBrokenLinkArg();
 
   taosSeedRand(taosGetTimestampSec());
   qwtTestStop = false;
@@ -1149,6 +1249,7 @@ TEST(rcTest, longExecshortDelay) {
   stubSetEndPut();
   stubSetPutDataBlock();
   stubSetGetDataBlock();
+  stubSettmsgRegisterBrokenLinkArg();
 
   taosSeedRand(taosGetTimestampSec());
   qwtTestStop = false;
@@ -1232,6 +1333,7 @@ TEST(rcTest, shortExeclongDelay) {
   stubSetEndPut();
   stubSetPutDataBlock();
   stubSetGetDataBlock();
+  stubSettmsgRegisterBrokenLinkArg();
 
   taosSeedRand(taosGetTimestampSec());
   qwtTestStop = false;
@@ -1315,6 +1417,7 @@ TEST(rcTest, dropTest) {
   stubSetEndPut();
   stubSetPutDataBlock();
   stubSetGetDataBlock();
+  stubSettmsgRegisterBrokenLinkArg();
 
   taosSeedRand(taosGetTimestampSec());
 
@@ -1349,6 +1452,64 @@ TEST(rcTest, dropTest) {
 
   qWorkerDestroy(&mgmt);
 }
+
+TEST(rcTest, dbgTest) {
+  void   *mgmt = NULL;
+  int32_t code = 0;
+  void   *mockPointer = (void *)0x1;
+  SRpcMsg queryRpc = {0};
+  SRpcMsg fetchRpc = {0};
+  SRpcMsg dropRpc = {0};
+
+  qwtInitLogFile();
+
+  qwtBuildQueryReqMsg(&queryRpc);
+  qwtBuildFetchReqMsg(&qwtfetchMsg, &fetchRpc);
+  qwtBuildDropReqMsg(&qwtdropMsg, &dropRpc);
+
+  stubSetStringToPlan();
+  stubSetRpcSendResponse();
+  stubSetExecTask();
+  stubSetCreateExecTask();
+  stubSetAsyncKillTask();
+  stubSetDestroyTask();
+  stubSetDestroyDataSinker();
+  stubSetGetDataLength();
+  stubSetEndPut();
+  stubSetPutDataBlock();
+  stubSetGetDataBlock();
+  stubSettmsgRegisterBrokenLinkArg();
+
+  qWorkerDbgEnableDebug("lock");
+  qWorkerDbgEnableDebug("status");
+  qWorkerDbgEnableDebug("dump");
+  qWorkerDbgEnableDebug("sleep");
+  qWorkerDbgEnableDebug("dead");
+  qWorkerDbgEnableDebug("redirect");
+  qWorkerDbgEnableDebug("forceStop");
+
+  SMsgCb msgCb = {0};
+  msgCb.mgmt = (void *)mockPointer;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, &mgmt, &msgCb);
+
+  code = qWorkerPreprocessQueryMsg(mgmt, &queryRpc, false);
+  assert(code == 0);
+
+  code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc, 0);
+  taosMemoryFree(queryRpc.pCont);
+
+  // code = qWorkerProcessReadyMsg(mockPointer, mgmt, &readyRpc);
+  // ASSERT_EQ(code, 0);
+
+  code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc, 0);
+  taosMemoryFree(fetchRpc.pCont);
+
+  code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc, 0);
+
+  qWorkerDestroy(&mgmt);
+}
+
 
 int main(int argc, char **argv) {
   taosSeedRand(taosGetTimestampSec());

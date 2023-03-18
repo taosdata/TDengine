@@ -16,4 +16,17 @@ IF(NOT TD_DARWIN)
                 PUBLIC "${TD_SOURCE_DIR}/include/libs/qworker/"
                 PRIVATE "${TD_SOURCE_DIR}/source/libs/qworker/inc"
         )
+
+        if(${BUILD_WINGETOPT})
+            target_include_directories(
+                qworkerTest
+                PUBLIC "${TD_SOURCE_DIR}/contrib/wingetopt/src"
+            )
+            target_link_libraries(qworkerTest PUBLIC wingetopt)
+        endif()
+
+        add_test(
+            NAME qworkerTest
+            COMMAND qworkerTest
+        )
 ENDIF()
