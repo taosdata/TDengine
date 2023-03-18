@@ -20,6 +20,7 @@ import time
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.autogen import *
 
 
 #
