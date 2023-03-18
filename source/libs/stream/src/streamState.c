@@ -134,8 +134,9 @@ int         streamInitBackend(SStreamState* pState, char* path) {
 
   rocksdb_column_family_handle_t* cf1 = rocksdb_create_column_family(db, dbOpts1, "cmp1", &err);
   rocksdb_column_family_handle_t* cf2 = rocksdb_create_column_family(db, dbOpts2, "cmp2", &err);
+  re
 
-  return 0;
+      return 0;
 }
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
