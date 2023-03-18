@@ -2041,7 +2041,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag) {
   if (!pBlock || pBlock->info.rows == 0) {
-    qDebug("===stream===printDataBlock: Block is Null or Empty");
+    qDebug("===stream===%s: Block is Null or Empty", flag);
     return;
   }
   char* pBuf = NULL;
