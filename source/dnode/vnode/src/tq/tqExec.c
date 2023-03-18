@@ -65,18 +65,8 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   qTaskInfo_t task = pExec->task;
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-    tqDebug("prepare scan failed, return");
-    if (pOffset->type == TMQ_OFFSET__LOG) {
-      pRsp->rspOffset = *pOffset;
-      return 0;
-    } else {
-      tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
-      if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-        tqDebug("prepare scan failed, return");
-        pRsp->rspOffset = *pOffset;
-        return 0;
-      }
-    }
+    tqError("prepare scan failed, return");
+    return -1;
   }
 
   int32_t rowCnt = 0;
@@ -103,20 +93,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     }
   }
 
-  if (qStreamExtractOffset(task, &pRsp->rspOffset) < 0) {
-    return -1;
-  }
-
-  if (pRsp->rspOffset.type == 0) {
-    tqError("expected rsp offset: type %d %" PRId64 " %" PRId64 " %" PRId64, pRsp->rspOffset.type, pRsp->rspOffset.ts,
-            pRsp->rspOffset.uid, pRsp->rspOffset.version);
-    return -1;
-  }
-
-  if(pRsp->withTbName || pRsp->withSchema){
-    tqError("get column should not with meta:%d,%d", pRsp->withTbName, pRsp->withSchema);
-    return -1;
-  }
+  qStreamExtractOffset(task, &pRsp->rspOffset);
   return 0;
 }
 
@@ -125,18 +102,8 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
   qTaskInfo_t          task = pExec->task;
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-    tqDebug("prepare scan failed, return");
-    if (pOffset->type == TMQ_OFFSET__LOG) {
-      pRsp->rspOffset = *pOffset;
-      return 0;
-    } else {
-      tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
-      if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-        tqDebug("prepare scan failed, return");
-        pRsp->rspOffset = *pOffset;
-        return 0;
-      }
-    }
+    tqDebug("tqScanTaosx prepare scan failed, return");
+    return -1;
   }
 
   int32_t rowCnt = 0;
@@ -183,9 +150,6 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
     }
 
     if (pDataBlock == NULL && pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-      if (qStreamExtractPrepareUid(task) != 0) {
-        continue;
-      }
       tqDebug("tmqsnap vgId: %d, tsdb consume over, switch to wal, ver %" PRId64, TD_VID(pTq->pVnode),
               pHandle->snapshotVer + 1);
       break;
@@ -198,27 +162,16 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
 
     SMqMetaRsp* tmp = qStreamExtractMetaMsg(task);
     if (tmp->rspOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
-      tqOffsetResetToData(pOffset, tmp->rspOffset.uid, tmp->rspOffset.ts);
-      qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
-      tmp->rspOffset.type = TMQ_OFFSET__SNAPSHOT_META;
       tqDebug("tmqsnap task exec change to get data");
       continue;
     }
 
     *pMetaRsp = *tmp;
     tqDebug("tmqsnap task exec exited, get meta");
-
-    tqDebug("task exec exited");
     break;
   }
 
   qStreamExtractOffset(task, &pRsp->rspOffset);
-
-  if (pRsp->rspOffset.type == 0) {
-    tqError("expected rsp offset: type %d %" PRId64 " %" PRId64 " %" PRId64, pRsp->rspOffset.type, pRsp->rspOffset.ts,
-            pRsp->rspOffset.uid, pRsp->rspOffset.version);
-    return -1;
-  }
 
   return 0;
 }
@@ -232,14 +185,8 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
 
   if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
     STqReader* pReader = pExec->pExecReader;
-    /*tqReaderSetDataMsg(pReader, pReq, 0);*/
     tqReaderSetSubmitReq2(pReader, submit.msgStr, submit.msgLen, submit.ver);
     while (tqNextDataBlock2(pReader)) {
-      /*SSDataBlock block = {0};*/
-      /*if (tqRetrieveDataBlock(&block, pReader) < 0) {*/
-      /*if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;*/
-      /*}*/
-
       taosArrayClear(pBlocks);
       taosArrayClear(pSchemas);
       SSubmitTbData* pSubmitTbDataRet = NULL;

@@ -673,9 +673,9 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     // todo refactor
     /*pTableScanInfo->lastStatus.uid = pBlock->info.id.uid;*/
     /*pTableScanInfo->lastStatus.ts = pBlock->info.window.ekey;*/
-    pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__SNAPSHOT_DATA;
-    pTaskInfo->streamInfo.lastStatus.uid = pBlock->info.id.uid;
-    pTaskInfo->streamInfo.lastStatus.ts = pBlock->info.window.ekey;
+//    pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__SNAPSHOT_DATA;
+//    pTaskInfo->streamInfo.lastStatus.uid = pBlock->info.id.uid;
+//    pTaskInfo->streamInfo.lastStatus.ts = pBlock->info.window.ekey;
 
     ASSERT(pBlock->info.id.uid != 0);
     return pBlock;
@@ -853,9 +853,11 @@ static void destroyTableScanOperatorInfo(void* param) {
 
 SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                            SExecTaskInfo* pTaskInfo) {
+  int32_t code = 0;
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
@@ -863,8 +865,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   SDataBlockDescNode* pDescNode = pScanNode->node.pOutputDataBlockDesc;
 
   int32_t numOfCols = 0;
-  int32_t code =
-      extractColMatchInfo(pScanNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID, &pInfo->base.matchInfo);
+  code = extractColMatchInfo(pScanNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID, &pInfo->base.matchInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -1567,17 +1568,10 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
 
   if (pTaskInfo->streamInfo.submit.msgStr != NULL) {
     if (pInfo->tqReader->msg2.msgStr == NULL) {
-      /*pInfo->tqReader->pMsg = pTaskInfo->streamInfo.pReq;*/
-
-      /*const SSubmitReq* pSubmit = pInfo->tqReader->pMsg;*/
-      /*if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {*/
-      /*void* msgStr = pTaskInfo->streamInfo.*/
       SPackedData submit = pTaskInfo->streamInfo.submit;
       if (tqReaderSetSubmitReq2(pInfo->tqReader, submit.msgStr, submit.msgLen, submit.ver) < 0) {
         qError("submit msg messed up when initing stream submit block %p", submit.msgStr);
-        pInfo->tqReader->msg2 = (SPackedData){0};
-        pInfo->tqReader->setMsg = 0;
-        ASSERT(0);
+        return NULL;
       }
     }
 
@@ -1605,13 +1599,14 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     return NULL;
   }
 
-  if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
+  if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
       qDebug("queue scan tsdb return %d rows min:%" PRId64 " max:%" PRId64 " wal curVersion:%" PRId64, pResult->info.rows,
              pResult->info.window.skey, pResult->info.window.ekey, pInfo->tqReader->pWalReader->curVersion);
-      pTaskInfo->streamInfo.returned = 1;
+      tqOffsetResetToData(&pTaskInfo->streamInfo.currentOffset, pResult->info.id.uid, pResult->info.window.ekey);
       return pResult;
+<<<<<<< Updated upstream
     } else {
       if (!pTaskInfo->streamInfo.returned) {
         STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
@@ -1626,45 +1621,35 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       } else {
         return NULL;
       }
+=======
+    }
+    STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+    tsdbReaderClose(pTSInfo->base.dataReader);
+    pTSInfo->base.dataReader = NULL;
+    tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pTaskInfo->streamInfo.snapshotVer);
+    qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", pTaskInfo->streamInfo.snapshotVer + 1);
+    if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1, pTaskInfo->id.str) < 0) {
+      return NULL;
+>>>>>>> Stashed changes
     }
   }
 
-  if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__LOG) {
+  if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__LOG) {
     while (1) {
       SFetchRet ret = {0};
-      if (tqNextBlock(pInfo->tqReader, &ret) < 0) {
-        // if the end is reached, terrno is 0
-        if (terrno != 0) {
-          qError("failed to get next log block since %s", terrstr());
-        }
-      }
+      tqNextBlock(pInfo->tqReader, &ret);
+      pTaskInfo->streamInfo.currentOffset = ret.offset;
 
       if (ret.fetchType == FETCH_TYPE__DATA) {
         blockDataCleanup(pInfo->pRes);
         setBlockIntoRes(pInfo, &ret.data, true);
-        if (pInfo->pRes->info.rows > 0) {
-          pOperator->status = OP_EXEC_RECV;
-          qDebug("queue scan log return %d rows", pInfo->pRes->info.rows);
-          return pInfo->pRes;
-        }
-      } else if (ret.fetchType == FETCH_TYPE__META) {
-        qError("unexpected ret.fetchType:%d", ret.fetchType);
-        continue;
-        //        pTaskInfo->streamInfo.lastStatus = ret.offset;
-        //        pTaskInfo->streamInfo.metaBlk = ret.meta;
-        //        return NULL;
-      } else if (ret.fetchType == FETCH_TYPE__NONE ||
-                 (ret.fetchType == FETCH_TYPE__SEP && pOperator->status == OP_EXEC_RECV)) {
-        pTaskInfo->streamInfo.lastStatus = ret.offset;
-        char formatBuf[80];
-        tFormatOffset(formatBuf, 80, &ret.offset);
-        qDebug("queue scan log return null, offset %s", formatBuf);
-        pOperator->status = OP_OPENED;
-        return NULL;
+        qDebug("queue scan log return %d rows", pInfo->pRes->info.rows);
+        return pInfo->pRes;
       }
+      return NULL;
     }
   } else {
-    qError("unexpected streamInfo prepare type: %d", pTaskInfo->streamInfo.prepareStatus.type);
+    qError("unexpected streamInfo prepare type: %d", pTaskInfo->streamInfo.currentOffset.type);
     return NULL;
   }
 }
@@ -2094,7 +2079,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
   pTaskInfo->streamInfo.metaRsp.metaRsp = NULL;
 
   qDebug("tmqsnap doRawScan called");
-  if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
+  if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     if (pInfo->dataReader && tsdbNextDataBlock(pInfo->dataReader)) {
       if (isTaskKilled(pTaskInfo)) {
         tsdbReleaseDataBlock(pInfo->dataReader);
@@ -2107,28 +2092,22 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
       }
 
       qDebug("tmqsnap doRawScan get data uid:%" PRId64 "", pBlock->info.id.uid);
-      pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__SNAPSHOT_DATA;
-      pTaskInfo->streamInfo.lastStatus.uid = pBlock->info.id.uid;
-      pTaskInfo->streamInfo.lastStatus.ts = pBlock->info.window.ekey;
+      tqOffsetResetToData(&pTaskInfo->streamInfo.currentOffset, pBlock->info.id.uid, pBlock->info.window.ekey);
       return pBlock;
     }
 
     SMetaTableInfo mtInfo = getUidfromSnapShot(pInfo->sContext);
     if (mtInfo.uid == 0) {  // read snapshot done, change to get data from wal
       qDebug("tmqsnap read snapshot done, change to get data from wal");
-      pTaskInfo->streamInfo.prepareStatus.uid = mtInfo.uid;
-      pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__LOG;
-      pTaskInfo->streamInfo.lastStatus.version = pInfo->sContext->snapVersion;
+      tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pInfo->sContext->snapVersion);
     } else {
-      pTaskInfo->streamInfo.prepareStatus.uid = mtInfo.uid;
-      pTaskInfo->streamInfo.prepareStatus.ts = INT64_MIN;
+      tqOffsetResetToData(&pTaskInfo->streamInfo.currentOffset, mtInfo.uid, INT64_MIN);
       qDebug("tmqsnap change get data uid:%" PRId64 "", mtInfo.uid);
-      qStreamPrepareScan(pTaskInfo, &pTaskInfo->streamInfo.prepareStatus, pInfo->sContext->subType);
     }
     tDeleteSSchemaWrapper(mtInfo.schema);
     qDebug("tmqsnap stream scan tsdb return null");
     return NULL;
-  } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_META) {
+  } else if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_META) {
     SSnapContext* sContext = pInfo->sContext;
     void*         data = NULL;
     int32_t       dataLen = 0;
@@ -2141,15 +2120,11 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
     }
 
     if (!sContext->queryMetaOrData) {  // change to get data next poll request
-      pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__SNAPSHOT_META;
-      pTaskInfo->streamInfo.lastStatus.uid = uid;
-      pTaskInfo->streamInfo.metaRsp.rspOffset.type = TMQ_OFFSET__SNAPSHOT_DATA;
-      pTaskInfo->streamInfo.metaRsp.rspOffset.uid = 0;
-      pTaskInfo->streamInfo.metaRsp.rspOffset.ts = INT64_MIN;
+      tqOffsetResetToData(&pTaskInfo->streamInfo.currentOffset, 0, INT64_MIN);
+      pTaskInfo->streamInfo.metaRsp.rspOffset = pTaskInfo->streamInfo.currentOffset;
     } else {
-      pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__SNAPSHOT_META;
-      pTaskInfo->streamInfo.lastStatus.uid = uid;
-      pTaskInfo->streamInfo.metaRsp.rspOffset = pTaskInfo->streamInfo.lastStatus;
+      tqOffsetResetToMeta(&pTaskInfo->streamInfo.currentOffset, uid);
+      pTaskInfo->streamInfo.metaRsp.rspOffset = pTaskInfo->streamInfo.currentOffset;
       pTaskInfo->streamInfo.metaRsp.resMsgType = type;
       pTaskInfo->streamInfo.metaRsp.metaRspLen = dataLen;
       pTaskInfo->streamInfo.metaRsp.metaRsp = data;
@@ -2351,7 +2326,6 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     if (pHandle->initTableReader) {
       pTSInfo->scanMode = TABLE_SCAN__TABLE_ORDER;
       pTSInfo->base.dataReader = NULL;
-      pTaskInfo->streamInfo.lastStatus.uid = -1;
     }
 
     if (pHandle->initTqReader) {

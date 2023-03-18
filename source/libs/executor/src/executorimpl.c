@@ -2774,9 +2774,18 @@ void qStreamCloseTsdbReader(void* task) {
   if (task == NULL) return;
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)task;
   SOperatorInfo* pOp = pTaskInfo->pRoot;
+<<<<<<< Updated upstream
   qDebug("stream close tsdb reader, reset status uid %" PRId64 " ts %" PRId64, pTaskInfo->streamInfo.lastStatus.uid,
          pTaskInfo->streamInfo.lastStatus.ts);
   pTaskInfo->streamInfo.lastStatus = (STqOffsetVal){0};
+=======
+
+  qDebug("stream close tsdb reader, reset status uid:%" PRId64 " ts:%" PRId64, pTaskInfo->streamInfo.currentOffset.uid,
+         pTaskInfo->streamInfo.currentOffset.ts);
+
+  // todo refactor, other thread may already use this read to extract data.
+  pTaskInfo->streamInfo.currentOffset = (STqOffsetVal){0};
+>>>>>>> Stashed changes
   while (pOp->numOfDownstream == 1 && pOp->pDownstream[0]) {
     SOperatorInfo* pDownstreamOp = pOp->pDownstream[0];
     if (pDownstreamOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
