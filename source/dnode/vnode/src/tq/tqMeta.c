@@ -274,6 +274,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     return -1;
   }
 
+  int32_t  vgId = TD_VID(pTq->pVnode);
   void*    pKey = NULL;
   int      kLen = 0;
   void*    pVal = NULL;
@@ -304,7 +305,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
 
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       handle.execHandle.task =
-          qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols, NULL);
+          qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, vgId, &handle.execHandle.numOfCols, NULL);
       if (handle.execHandle.task == NULL) {
         tqError("cannot create exec task for %s", handle.subKey);
         return -1;
@@ -324,7 +325,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
 
       buildSnapContext(reader.meta, reader.version, 0, handle.execHandle.subType, handle.fetchMeta,
                        (SSnapContext**)(&reader.sContext));
-      handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, NULL, NULL);
+      handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, NULL);
     } else if (handle.execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
       handle.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
 
@@ -341,7 +342,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
 
       buildSnapContext(reader.meta, reader.version, handle.execHandle.execTb.suid, handle.execHandle.subType,
                        handle.fetchMeta, (SSnapContext**)(&reader.sContext));
-      handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, NULL, NULL);
+      handle.execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, NULL);
     }
     tqDebug("tq restore %s consumer %" PRId64 " vgId:%d", handle.subKey, handle.consumerId, TD_VID(pTq->pVnode));
     taosHashPut(pTq->pHandle, pKey, kLen, &handle, sizeof(STqHandle));

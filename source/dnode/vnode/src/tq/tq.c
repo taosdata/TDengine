@@ -906,7 +906,10 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   SMqRebVgReq req = {0};
   tDecodeSMqRebVgReq(msg, &req);
 
-  tqDebug("vgId:%d, tq process sub req %s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
+  SVnode* pVnode = pTq->pVnode;
+  int32_t vgId = TD_VID(pVnode);
+
+  tqDebug("vgId:%d, tq process sub req %s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pVnode->config.vgId, req.subKey,
           req.oldConsumerId, req.newConsumerId);
 
   STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
@@ -935,7 +938,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     pHandle->fetchMeta = req.withMeta;
 
     // TODO version should be assigned and refed during preprocess
-    SWalRef* pRef = walRefCommittedVer(pTq->pVnode->pWal);
+    SWalRef* pRef = walRefCommittedVer(pVnode->pWal);
     if (pRef == NULL) {
       taosMemoryFree(req.qmsg);
       return -1;
@@ -945,8 +948,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     pHandle->pRef = pRef;
 
     SReadHandle handle = {
-        .meta = pTq->pVnode->pMeta,
-        .vnode = pTq->pVnode,
+        .meta = pVnode->pMeta,
+        .vnode = pVnode,
         .initTableReader = true,
         .initTqReader = true,
         .version = ver,
@@ -959,38 +962,38 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       req.qmsg = NULL;
 
       pHandle->execHandle.task =
-          qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, &pHandle->execHandle.numOfCols, NULL);
+          qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, vgId, &pHandle->execHandle.numOfCols, NULL);
       void* scanner = NULL;
       qExtractStreamScanner(pHandle->execHandle.task, &scanner);
       pHandle->execHandle.pExecReader = qExtractReaderFromStreamScanner(scanner);
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
-      pHandle->pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
-      pHandle->execHandle.pExecReader = tqOpenReader(pTq->pVnode);
+      pHandle->pWalReader = walOpenReader(pVnode->pWal, NULL);
+      pHandle->execHandle.pExecReader = tqOpenReader(pVnode);
 
       pHandle->execHandle.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       buildSnapContext(handle.meta, handle.version, 0, pHandle->execHandle.subType, pHandle->fetchMeta,
                        (SSnapContext**)(&handle.sContext));
 
-      pHandle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &handle, NULL, NULL);
+      pHandle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &handle, vgId, NULL, NULL);
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
-      pHandle->pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
+      pHandle->pWalReader = walOpenReader(pVnode->pWal, NULL);
       pHandle->execHandle.execTb.suid = req.suid;
 
       SArray* tbUidList = taosArrayInit(0, sizeof(int64_t));
-      vnodeGetCtbIdList(pTq->pVnode, req.suid, tbUidList);
-      tqDebug("vgId:%d, tq try to get all ctb, suid:%" PRId64, pTq->pVnode->config.vgId, req.suid);
+      vnodeGetCtbIdList(pVnode, req.suid, tbUidList);
+      tqDebug("vgId:%d, tq try to get all ctb, suid:%" PRId64, pVnode->config.vgId, req.suid);
       for (int32_t i = 0; i < taosArrayGetSize(tbUidList); i++) {
         int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
-        tqDebug("vgId:%d, idx %d, uid:%" PRId64, TD_VID(pTq->pVnode), i, tbUid);
+        tqDebug("vgId:%d, idx %d, uid:%" PRId64, vgId, i, tbUid);
       }
-      pHandle->execHandle.pExecReader = tqOpenReader(pTq->pVnode);
+      pHandle->execHandle.pExecReader = tqOpenReader(pVnode);
       tqReaderSetTbUidList(pHandle->execHandle.pExecReader, tbUidList);
       taosArrayDestroy(tbUidList);
 
       buildSnapContext(handle.meta, handle.version, req.suid, pHandle->execHandle.subType, pHandle->fetchMeta,
                        (SSnapContext**)(&handle.sContext));
-      pHandle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &handle, NULL, NULL);
+      pHandle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &handle, vgId, NULL, NULL);
     }
 
     taosHashPut(pTq->pHandle, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
@@ -1043,6 +1046,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   }
 #endif
 
+  int32_t vgId = TD_VID(pTq->pVnode);
   pTask->refCnt = 1;
   pTask->schedStatus = TASK_SCHED_STATUS__INACTIVE;
 
@@ -1055,9 +1059,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
-
   pTask->pMsgCb = &pTq->pVnode->msgCb;
-
   pTask->startVer = ver;
 
   // expand executor
@@ -1077,7 +1079,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
         .initTqReader = 1,
         .pStateBackend = pTask->pState,
     };
-    pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
+
+    pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle, vgId);
     if (pTask->exec.executor == NULL) {
       return -1;
     }
@@ -1092,7 +1095,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
         .numOfVgroups = (int32_t)taosArrayGetSize(pTask->childEpInfo),
         .pStateBackend = pTask->pState,
     };
-    pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle);
+
+    pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle, vgId);
     if (pTask->exec.executor == NULL) {
       return -1;
     }
@@ -1122,9 +1126,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   }
 
   streamSetupTrigger(pTask);
-
-  tqInfo("expand stream task on vg %d, task id %d, child id %d, level %d", TD_VID(pTq->pVnode), pTask->taskId,
-         pTask->selfChildId, pTask->taskLevel);
+  tqInfo("expand stream task on vg %d, task id %d, child id %d, level %d", vgId, pTask->taskId, pTask->selfChildId, pTask->taskLevel);
   return 0;
 }
 
