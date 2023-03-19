@@ -1842,8 +1842,10 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         } else {  // build rsp
           int64_t numOfRows = 0;
           SMqRspObj* pRsp = tmqBuildRspFromWrapper(pollRspWrapper, pVg, &numOfRows);
-          tscDebug("consumer:0x%" PRIx64 " process poll rsp, vgId:%d, offset:%s, blocks:%d, rows:%"PRId64" reqId:0x%" PRIx64,
-                   tmq->consumerId, pVg->vgId, buf, pDataRsp->blockNum, numOfRows, pollRspWrapper->reqId);
+          tscDebug("consumer:0x%" PRIx64 " process poll rsp, vgId:%d, offset:%s, blocks:%d, rows:%" PRId64
+                   ", vg total:%" PRId64 " reqId:0x%" PRIx64,
+                   tmq->consumerId, pVg->vgId, buf, pDataRsp->blockNum, numOfRows, pVg->numOfRows,
+                   pollRspWrapper->reqId);
 
           tmq->totalRows += numOfRows;
           taosFreeQitem(pollRspWrapper);
@@ -1908,8 +1910,10 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
         char buf[80];
         tFormatOffset(buf, 80, &pVg->currentOffset);
-        tscDebug("consumer:0x%" PRIx64 " process taosx poll rsp, vgId:%d, offset:%s, blocks:%d, reqId:0x%"PRIx64, tmq->consumerId, pVg->vgId,
-                 buf, pollRspWrapper->dataRsp.blockNum, pollRspWrapper->reqId);
+        tscDebug("consumer:0x%" PRIx64 " process taosx poll rsp, vgId:%d, offset:%s, blocks:%d, rows:%" PRId64
+                 ", vg total:%" PRId64 " reqId:0x%" PRIx64,
+                 tmq->consumerId, pVg->vgId, buf, pollRspWrapper->dataRsp.blockNum, numOfRows, pVg->numOfRows,
+                 pollRspWrapper->reqId);
 
         taosFreeQitem(pollRspWrapper);
         return pRsp;
