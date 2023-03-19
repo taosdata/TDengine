@@ -332,6 +332,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   // retrieve the only one last row of all tables in the uid list.
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
     int64_t st = taosGetTimestampUs();
+    int64_t totalMinTs = INT64_MAX;
     for (int32_t i = 0; i < pr->numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = &pr->pTableList[i];
 
@@ -407,9 +408,12 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         }
 
         if (hasNotNullRow) {
+          if (totalMinTs > minTs) {
+            totalMinTs = minTs;
+          }
           double cost = (taosGetTimestampUs() - st) / 1000.0;
           if (cost > tsCacheLazyLoadThreshold) {
-            pr->lastTs = minTs;
+            pr->lastTs = totalMinTs;
           }
         }
       }
