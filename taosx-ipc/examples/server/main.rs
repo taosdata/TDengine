@@ -5,6 +5,7 @@ use std::{
 };
 use taos::{AsyncQueryable, Bindable, Dsn, Itertools, Stmt, TBuilder, TaosBuilder};
 use taosx_ipc::ack::{AckWriter, AckWriterBuilder};
+use tokio::runtime::Runtime;
 use tracing::{info, instrument};
 
 use taosx_ipc::prelude::*;
@@ -33,7 +34,7 @@ fn ipc_test<R: Read, W: Write>(
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
 ) -> anyhow::Result<()> {
-    let dsn = std::env::var("TAOSX_TARGET").unwrap_or("taos:///test".to_string());
+    let dsn = std::env::var("TAOSX_TARGET").unwrap_or("taos+ws://127.0.0.1:6041/test3".to_string());
     let mut dsn: Dsn = dsn.parse()?;
     let builder = TaosBuilder::from_dsn(&dsn).unwrap();
 
@@ -52,44 +53,58 @@ fn ipc_test<R: Read, W: Write>(
 
     let metadata = ipc_reader.metadata();
     dbg!(metadata);
+    let rt = Runtime::new().unwrap();
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
         info!("{sql}");
-        taos.exec_sync(&sql).unwrap();
+        rt.block_on(taos.exec(&sql))?;
+        // taos.exec_sync(&sql).unwrap();
     }
     let columns = ipc_reader.columns();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
 
     let mut records = 0;
-
-    let mut stmt = Stmt::init(&taos)?;
-    info!("init stmt");
-    let sql = format!("insert into ? ({names}) values({marks})");
-    info!("prepare with sql: {sql}");
-    stmt.prepare(&sql).unwrap();
-    info!("prepare");
+    
     for record in ipc_reader {
-        dbg!(&record);
         if let Ok(record) = record {
             for record in record {
                 records += record.num_rows();
-                let data = record.to_column_views();
-
-                if let Err(err) = stmt.set_tbname(record.table()) {
-                    tracing::warn!("table name `{}` error {err}", record.table());
-                    if let Some(tb) = record.meta_sql() {
-                        info!("sql: {tb}");
-                        taos.exec_sync(&tb).unwrap();
-                        stmt.set_tbname(record.table()).unwrap();
+                // let data = record.to_column_views();
+                let map_data = record.to_column_views_group_by_tablename();
+                dbg!(&map_data);
+                for (k, v) in &map_data {
+                    let (table_name, data_vec);
+                    match &k {
+                        None => {
+                            table_name = record.table();
+                            data_vec = v;
+                        }
+                        Some(t) => {
+                            table_name = t;
+                            data_vec = v;
+                        },
                     }
+                    let mut stmt = Stmt::init(&taos)?;
+                    info!("init stmt");
+                    let sql = format!("insert into ? ({names}) values({marks})");
+                    info!("prepare with sql: {sql}");
+                    stmt.prepare(&sql).unwrap();
+                    info!("prepare");
+                    if let Err(err) = stmt.set_tbname(table_name) {
+                        tracing::warn!("table name `{}` error {err}", table_name);
+                        if let Some(tb) = record.meta_sql(Some(String::from(table_name))) {
+                            info!("sql: {tb}");
+                            // taos.exec_sync(&tb).unwrap();
+                            rt.block_on(taos.exec(&tb))?;
+                            stmt.set_tbname(table_name).unwrap();
+                        }
+                    }
+                    stmt.bind(data_vec.as_slice()).unwrap();
+                    stmt.add_batch().unwrap();
+                    let n = stmt.execute().unwrap();
+                    drop(stmt);
+                    info!("written:[{table_name}] : [{n}] records");
                 }
-                dbg!(&data);
-                stmt.bind(data.as_slice()).unwrap();
-                stmt.add_batch().unwrap();
-                let n = stmt.execute().unwrap();
-                info!("written {n} records");
-                dbg!(&record);
-                dbg!(&records);
             }
             ipc_ack_writer.write_ok().unwrap();
         }

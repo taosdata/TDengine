@@ -8,15 +8,13 @@ use std::{
 
 use arrow::{
     array::{
-        make_builder, ArrayBuilder, ArrayData, ArrayRef, BinaryArray, BinaryBuilder,
-        BooleanBuilder, Int16Builder, Int32Builder, Int8Builder, ListBuilder, NullArray,
-        StringBuilder, StructArray, StructBuilder, TimestampMicrosecondBuilder,
+        make_builder, ArrayRef, BinaryBuilder,
+        ListBuilder, StringBuilder, StructBuilder, TimestampMicrosecondBuilder,
         TimestampMillisecondBuilder, TimestampNanosecondBuilder, TimestampSecondBuilder,
         UInt8Array,
     },
     datatypes::{DataType, Field, Schema, TimeUnit},
     error::ArrowError,
-    ipc::BoolBuilder,
     record_batch::RecordBatch,
 };
 
@@ -26,7 +24,7 @@ use taos_query::prelude::Itertools;
 
 use crate::{
     ack::AckType,
-    constants::{__ATTRS__, __RECORDS__, __TABLES__, __TYPE__},
+    constants::{__ATTRS__, __RECORDS__, __TABLES__, __TYPE__, __TABLE_NAME__},
 };
 
 #[derive(Debug, Clone)]
@@ -412,7 +410,8 @@ impl LushMessageInit {
         let columns = self
             .columns
             .iter()
-            .map(|f| format!("`{}` {}", f.name, f.r#type.sql_repr()))
+            .filter(|f| f.name != __TABLE_NAME__)
+            .map(|f| { format!("`{}` {}", f.name, f.r#type.sql_repr()) })
             .join(",");
         if self.tags.len() > 0 {
             let tags = self
