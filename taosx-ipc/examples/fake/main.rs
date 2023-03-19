@@ -31,6 +31,12 @@ async fn main() -> Result<()> {
                     ArrowDataType::Binary,
                     IpcDataType::VarChar(100),
                 ),
+                IpcField::new(
+                    "__table_name__",
+                    false,
+                    ArrowDataType::Binary,
+                    IpcDataType::VarChar(100),
+                ),
             ],
             vec![
                 IpcField::new("t1", false, ArrowDataType::Boolean, IpcDataType::Bool),
@@ -103,6 +109,88 @@ async fn main() -> Result<()> {
             .field_builder::<BinaryBuilder>(3)
             .unwrap()
             .append_value("中文".as_bytes());
+        builder
+            .field_builder::<BinaryBuilder>(4)
+            .unwrap()
+            .append_value("d1001".as_bytes());
+
+        let builder = insert.columns_builder();
+
+        builder.append(true);
+
+        builder
+            .field_builder::<TimestampMillisecondBuilder>(0)
+            .unwrap()
+            .append_value(ms + 1000);
+
+        builder
+            .field_builder::<Int32Builder>(1)
+            .unwrap()
+            .append_value(101i32);
+        builder
+            .field_builder::<Float64Builder>(2)
+            .unwrap()
+            .append_value(101.);
+        builder
+            .field_builder::<BinaryBuilder>(3)
+            .unwrap()
+            .append_value("中文0".as_bytes());
+        builder
+            .field_builder::<BinaryBuilder>(4)
+            .unwrap()
+            .append_value("d1002".as_bytes());
+
+        let builder = insert.columns_builder();
+
+        builder.append(true);
+
+        builder
+            .field_builder::<TimestampMillisecondBuilder>(0)
+            .unwrap()
+            .append_value(ms + 2000);
+
+        builder
+            .field_builder::<Int32Builder>(1)
+            .unwrap()
+            .append_value(102i32);
+        builder
+            .field_builder::<Float64Builder>(2)
+            .unwrap()
+            .append_value(102.);
+        builder
+            .field_builder::<BinaryBuilder>(3)
+            .unwrap()
+            .append_value("中文2".as_bytes());
+        builder
+            .field_builder::<BinaryBuilder>(4)
+            .unwrap()
+            .append_value("d1001".as_bytes());
+
+        let builder = insert.columns_builder();
+
+        builder.append(true);
+
+        builder
+            .field_builder::<TimestampMillisecondBuilder>(0)
+            .unwrap()
+            .append_value(ms + 3000);
+
+        builder
+            .field_builder::<Int32Builder>(1)
+            .unwrap()
+            .append_value(103i32);
+        builder
+            .field_builder::<Float64Builder>(2)
+            .unwrap()
+            .append_value(103.);
+        builder
+            .field_builder::<BinaryBuilder>(3)
+            .unwrap()
+            .append_value("中文3".as_bytes());
+        builder
+            .field_builder::<BinaryBuilder>(4)
+            .unwrap()
+            .append_value("d1003".as_bytes());
 
         let batch = insert.build()?;
         writer.write(&batch)?;
