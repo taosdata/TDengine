@@ -658,6 +658,9 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
         bool hasVal = false;
         state->row = tMergeTreeGetRow(&state->mergeTree);
         *ppRow = &state->row;
+        if (nCols != state->pLoadInfo->numOfCols) {
+          state->pLoadInfo->numOfCols = nCols;
+        }
         hasVal = tMergeTreeNext(&state->mergeTree);
         if (TSDBROW_TS(&state->row) <= state->lastTs) {
           *pIgnoreEarlierTs = true;
