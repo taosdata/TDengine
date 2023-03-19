@@ -9,6 +9,7 @@ pub(crate) mod constants {
     pub const __TABLES__: &str = "__tables__";
     pub const __ATTRS__: &'static str = "__attrs__";
     pub const __RECORDS__: &'static str = "__records__";
+    pub const __TABLE_NAME__: &'static str = "__table_name__";
 }
 
 pub mod prelude {
