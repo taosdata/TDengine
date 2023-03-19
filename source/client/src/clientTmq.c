@@ -1835,8 +1835,8 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         char buf[80];
         tFormatOffset(buf, 80, &pDataRsp->rspOffset);
         if (pDataRsp->blockNum == 0) {
-          tscDebug("consumer:0x%" PRIx64 " empty block received, vgId:%d, offset:%s, reqId:0x%" PRIx64, tmq->consumerId,
-                   pVg->vgId, buf, pollRspWrapper->reqId);
+          tscDebug("consumer:0x%" PRIx64 " empty block received, vgId:%d, offset:%s, vg total:%"PRId64" reqId:0x%" PRIx64, tmq->consumerId,
+                   pVg->vgId, buf, pVg->numOfRows, pollRspWrapper->reqId);
           pRspWrapper = tmqFreeRspWrapper(pRspWrapper);
           taosFreeQitem(pollRspWrapper);
         } else {  // build rsp
@@ -1887,8 +1887,8 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
 
         if (pollRspWrapper->taosxRsp.blockNum == 0) {
-          tscDebug("consumer:0x%" PRIx64 " taosx empty block received, vgId:%d, reqId:0x%" PRIx64, tmq->consumerId, pVg->vgId,
-                   pollRspWrapper->reqId);
+          tscDebug("consumer:0x%" PRIx64 " taosx empty block received, vgId:%d, vg total:%" PRId64 " reqId:0x%" PRIx64,
+                   tmq->consumerId, pVg->vgId, pVg->numOfRows, pollRspWrapper->reqId);
           pVg->emptyBlockReceiveTs = taosGetTimestampMs();
           pRspWrapper = tmqFreeRspWrapper(pRspWrapper);
           taosFreeQitem(pollRspWrapper);
