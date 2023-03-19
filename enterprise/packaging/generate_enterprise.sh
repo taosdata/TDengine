@@ -121,14 +121,14 @@ set -e
 prefix=$(echo $server_tar |grep -Eo ".*-enterprise-server-[^\-]+")
 tar xf $server_tar
 [ -d "$prefix/taos" ] || mkdir $prefix/taos
-tar xf $prefix/taos.tar.gz -C $prefix/taos/
+tar xf $prefix/package.tar.gz -C $prefix/taos/
 cp -f $taoskeeper_binary $prefix/taos/bin/
 cp -f $(dirname $taoskeeper_binary)/taoskeeper.service $prefix/taos/cfg/
 cp -f $(dirname $taoskeeper_binary)/config/keeper.toml $prefix/taos/cfg/
 cat $scriptDir/remove_taoskeeper.sh >> $prefix/taos/bin/remove.sh
 cat $scriptDir/install_taoskeeper.sh >> $prefix/install.sh
-cd $prefix/taos && tar acf ../taos.tar.gz ./ && cd ../../
-rm -rf $prefix/taos $prefix/taos.tar
+cd $prefix/taos && tar acf ../package.tar.gz ./ && cd ../../
+rm -rf $prefix/taos
 tar acf $server_tar $prefix
 echo "append taoskeeper to enterprise server package"
 rm -rf $prefix/
