@@ -427,7 +427,7 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf
   return pTableMap;
 }
 
-static void resetAllDataBlockScanInfo(SHashObj* pTableMap, int64_t ts) {
+static void resetAllDataBlockScanInfo(SHashObj* pTableMap, int64_t ts, int32_t step) {
   STableBlockScanInfo** p = NULL;
   while ((p = taosHashIterate(pTableMap, p)) != NULL) {
     STableBlockScanInfo* pInfo = *(STableBlockScanInfo**)p;
@@ -446,6 +446,7 @@ static void resetAllDataBlockScanInfo(SHashObj* pTableMap, int64_t ts) {
 
     pInfo->delSkyline = taosArrayDestroy(pInfo->delSkyline);
     pInfo->lastKey = ts;
+    pInfo->lastKeyInStt = ts + step;
   }
 }
 
@@ -2471,7 +2472,6 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
   initMemDataIterator(pScanInfo, pReader);
   pLBlockReader->uid = pScanInfo->uid;
 
-  int32_t     step = ASCENDING_TRAVERSE(pLBlockReader->order) ? 1 : -1;
   STimeWindow w = pLBlockReader->window;
   if (ASCENDING_TRAVERSE(pLBlockReader->order)) {
     w.skey = pScanInfo->lastKeyInStt;
@@ -4457,8 +4457,9 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
 
   if (pReader->step == EXTERNAL_ROWS_PREV) {
     // prepare for the main scan
-    int32_t code = doOpenReaderImpl(pReader);
-    resetAllDataBlockScanInfo(pReader->status.pTableMap, pReader->innerReader[0]->window.ekey);
+    code = doOpenReaderImpl(pReader);
+    int32_t step = 1;
+    resetAllDataBlockScanInfo(pReader->status.pTableMap, pReader->innerReader[0]->window.ekey, step);
 
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -4479,8 +4480,9 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
 
   if (pReader->step == EXTERNAL_ROWS_MAIN && pReader->innerReader[1] != NULL) {
     // prepare for the next row scan
-    int32_t code = doOpenReaderImpl(pReader->innerReader[1]);
-    resetAllDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->window.ekey);
+    int32_t step = -1;
+    code = doOpenReaderImpl(pReader->innerReader[1]);
+    resetAllDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->window.ekey, step);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -4678,15 +4680,12 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   }
 
   if (isEmptyQueryTimeWindow(&pReader->window) || pReader->pReadSnap == NULL) {
-    tsdbDebug("tsdb reader reset return %p", pReader->pReadSnap);
-
+    tsdbDebug("tsdb reader reset return %p, %s", pReader->pReadSnap, pReader->idStr);
     tsdbReleaseReader(pReader);
-
     return TSDB_CODE_SUCCESS;
   }
 
   SReaderStatus* pStatus = &pReader->status;
-
   SDataBlockIter* pBlockIter = &pStatus->blockIter;
 
   pReader->order = pCond->order;
@@ -4707,8 +4706,10 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   resetDataBlockIterator(pBlockIter, pReader->order);
   resetTableListIndex(&pReader->status);
 
-  int64_t ts = ASCENDING_TRAVERSE(pReader->order) ? pReader->window.skey - 1 : pReader->window.ekey + 1;
-  resetAllDataBlockScanInfo(pStatus->pTableMap, ts);
+  bool asc = ASCENDING_TRAVERSE(pReader->order);
+  int32_t step = asc? 1:-1;
+  int64_t ts = asc? pReader->window.skey - 1 : pReader->window.ekey + 1;
+  resetAllDataBlockScanInfo(pStatus->pTableMap, ts, step);
 
   int32_t code = 0;
 
@@ -4723,7 +4724,6 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
                 numOfTables, pReader->window.skey, pReader->window.ekey, pReader->idStr);
 
       tsdbReleaseReader(pReader);
-
       return code;
     }
   }
