@@ -80,6 +80,14 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t v
  */
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols, SSchemaWrapper** pSchema);
 
+/**
+ * set the task Id, usually used by message queue process
+ * @param tinfo
+ * @param taskId
+ * @param queryId
+ */
+void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
+
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
 /**
  * Set multiple input data blocks for the stream scan.

@@ -1959,7 +1959,7 @@ void destroyAggOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static char* buildTaskId(uint64_t taskId, uint64_t queryId) {
+char* buildTaskId(uint64_t taskId, uint64_t queryId) {
   char* p = taosMemoryMalloc(64);
 
   int32_t offset = 6;
@@ -1971,7 +1971,6 @@ static char* buildTaskId(uint64_t taskId, uint64_t queryId) {
   offset += tintToHex(queryId, &p[offset]);
 
   p[offset] = 0;
-
   return p;
 }
 

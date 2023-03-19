@@ -1855,14 +1855,15 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
           tscDebug("consumer:0x%" PRIx64 " process poll rsp, vgId:%d, offset:%s, blocks:%d, rows:%" PRId64
                    " vg total:%" PRId64 " total:%" PRId64 ", reqId:0x%" PRIx64,
-                   tmq->consumerId, pVg->vgId, buf, pDataRsp->blockNum, numOfRows, tmq->totalRows, pVg->numOfRows,
+                   tmq->consumerId, pVg->vgId, buf, pDataRsp->blockNum, numOfRows, pVg->numOfRows, tmq->totalRows,
                    pollRspWrapper->reqId);
           taosFreeQitem(pollRspWrapper);
           return pRsp;
         }
       } else {
-        tscDebug("consumer:0x%" PRIx64 " msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
-                 tmq->consumerId, pDataRsp->head.epoch, consumerEpoch);
+        SMqClientVg* pVg = pollRspWrapper->vgHandle;
+        tscDebug("consumer:0x%" PRIx64 " vgId:%d msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
+                 tmq->consumerId, pVg->vgId, pDataRsp->head.epoch, consumerEpoch);
         pRspWrapper = tmqFreeRspWrapper(pRspWrapper);
         taosFreeQitem(pollRspWrapper);
       }
@@ -1881,8 +1882,8 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         taosFreeQitem(pollRspWrapper);
         return pRsp;
       } else {
-        tscDebug("consumer:0x%" PRIx64 " msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
-                 tmq->consumerId, pollRspWrapper->metaRsp.head.epoch, consumerEpoch);
+        tscDebug("consumer:0x%" PRIx64 " vgId:%d msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
+                 tmq->consumerId, pollRspWrapper->vgHandle->vgId, pollRspWrapper->metaRsp.head.epoch, consumerEpoch);
         pRspWrapper = tmqFreeRspWrapper(pRspWrapper);
         taosFreeQitem(pollRspWrapper);
       }
@@ -1928,8 +1929,8 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
         return pRsp;
 
       } else {
-        tscDebug("consumer:0x%" PRIx64 " msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
-                 tmq->consumerId, pollRspWrapper->taosxRsp.head.epoch, consumerEpoch);
+        tscDebug("consumer:0x%" PRIx64 " vgId:%d msg discard since epoch mismatch: msg epoch %d, consumer epoch %d",
+                 tmq->consumerId, pollRspWrapper->vgHandle->vgId, pollRspWrapper->taosxRsp.head.epoch, consumerEpoch);
         pRspWrapper = tmqFreeRspWrapper(pRspWrapper);
         taosFreeQitem(pollRspWrapper);
       }

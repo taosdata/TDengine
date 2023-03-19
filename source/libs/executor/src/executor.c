@@ -159,6 +159,14 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
   }
 }
 
+void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
+  SExecTaskInfo* pTaskInfo = tinfo;
+  pTaskInfo->id.queryId = queryId;
+
+  taosMemoryFreeClear(pTaskInfo->id.str);
+  pTaskInfo->id.str = buildTaskId(taskId, queryId);
+}
+
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   if (tinfo == NULL) {
     return TSDB_CODE_APP_ERROR;
@@ -1099,7 +1107,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
       int32_t         numOfTables = tableListGetSize(pTaskInfo->pTableInfoList);
 
-      qDebug("switch to next table %" PRId64 " ts %" PRId64 "% "PRId64 " rows returned", uid, ts, pInfo->pTableScanOp->resultInfo.totalRows);
+      qDebug("switch to table uid:%" PRId64 " ts:%" PRId64 "% "PRId64 " rows returned", uid, ts, pInfo->pTableScanOp->resultInfo.totalRows);
       pInfo->pTableScanOp->resultInfo.totalRows = 0;
 
       bool found = false;
@@ -1138,7 +1146,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       pTableScanInfo->base.cond.twindows.skey = oldSkey;
       pTableScanInfo->scanTimes = 0;
 
-      qDebug("tsdb reader offset seek to uid %" PRId64 " ts %" PRId64 ", table cur set to %d , all table num %d", uid,
+      qDebug("tsdb reader offset seek snapshot to uid:%" PRId64 " ts %" PRId64 ", table cur set to %d , all table num %d", uid,
              ts, pTableScanInfo->currentTable, numOfTables);
     } else {
       qError("invalid pOffset->type:%d", pOffset->type);

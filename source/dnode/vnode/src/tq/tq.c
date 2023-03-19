@@ -639,6 +639,8 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
 
     // lock
     taosWLockLatch(&pTq->pushLock);
+
+    qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
     code = tqScanData(pTq, pHandle, &dataRsp, &offset);
 
     // till now, all data has been transferred to consumer, new data needs to push client once arrived.
