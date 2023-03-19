@@ -408,7 +408,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         }
 
         if (hasNotNullRow) {
-          if (INT64_MAX == totalLastTs || totalLastTs < singleTableLastTs) {
+          if (INT64_MAX == totalLastTs || (INT64_MAX != singleTableLastTs && totalLastTs < singleTableLastTs)) {
             totalLastTs = singleTableLastTs;
           }
           double cost = (taosGetTimestampUs() - st) / 1000.0;
