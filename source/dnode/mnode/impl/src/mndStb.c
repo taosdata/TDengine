@@ -3114,19 +3114,12 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   STR_TO_VARSTR(typeName, "SUPER_TABLE");
   while (numOfRows < rows) {
-    void *prevIter = pShow->pIter;
     pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
     if (pShow->pIter == NULL) break;
 
     if (pDb != NULL && pStb->dbUid != pDb->uid) {
       sdbRelease(pSdb, pStb);
       continue;
-    }
-
-    if ((numOfRows + pStb->numOfColumns) > rows) {
-      pShow->pIter = prevIter;
-      sdbRelease(pSdb, pStb);
-      break;
     }
 
     SName name = {0};
