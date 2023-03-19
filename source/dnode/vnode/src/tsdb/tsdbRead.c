@@ -4990,3 +4990,9 @@ void tsdbUntakeReadSnap(STsdbReader* pReader, STsdbReadSnap* pSnap, bool proacti
   }
   tsdbTrace("vgId:%d, untake read snapshot", TD_VID(pTsdb->pVnode));
 }
+
+// if failed, do nothing
+void tsdbReaderSetId(STsdbReader* pReader, const char* idstr) {
+  taosMemoryFreeClear(pReader->idStr);
+  pReader->idStr = taosStrdup(idstr);
+}

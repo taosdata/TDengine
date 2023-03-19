@@ -159,12 +159,28 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
   }
 }
 
+void doSetTaskId(SOperatorInfo* pOperator) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    SStreamScanInfo* pStreamScanInfo = pOperator->info;
+    STableScanInfo*  pScanInfo = pStreamScanInfo->pTableScanOp->info;
+    if (pScanInfo->base.dataReader != NULL) {
+      tsdbReaderSetId(pScanInfo->base.dataReader, pTaskInfo->id.str);
+    }
+  } else {
+    doSetTaskId(pOperator->pDownstream[0]);
+  }
+}
+
 void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
   SExecTaskInfo* pTaskInfo = tinfo;
   pTaskInfo->id.queryId = queryId;
 
   taosMemoryFreeClear(pTaskInfo->id.str);
   pTaskInfo->id.str = buildTaskId(taskId, queryId);
+
+  // set the idstr for tsdbReader
+  doSetTaskId(pTaskInfo->pRoot);
 }
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
