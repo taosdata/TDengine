@@ -282,7 +282,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
         .initTqReader = 1,
         .pStateBackend = pStreamState,
     };
-    pRSmaInfo->taskInfo[idx] = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle);
+    pRSmaInfo->taskInfo[idx] = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle, TD_VID(pVnode));
     if (!pRSmaInfo->taskInfo[idx]) {
       terrno = TSDB_CODE_RSMA_QTASKINFO_CREATE;
       return TSDB_CODE_FAILED;
@@ -864,7 +864,7 @@ static int32_t tdCloneQTaskInfo(SSma *pSma, qTaskInfo_t dstTaskInfo, qTaskInfo_t
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  dstTaskInfo = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle);
+  dstTaskInfo = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle, TD_VID(pVnode));
   if (!dstTaskInfo) {
     code = TSDB_CODE_RSMA_QTASKINFO_CREATE;
     TSDB_CHECK_CODE(code, lino, _exit);

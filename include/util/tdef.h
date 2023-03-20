@@ -248,7 +248,7 @@ typedef enum ELogicConditionType {
 #define TSDB_AUTH_LEN          16
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129
-#define TSDB_VERSION_LEN       12
+#define TSDB_VERSION_LEN       32
 #define TSDB_LABEL_LEN         8
 #define TSDB_JOB_STATUS_LEN    32
 

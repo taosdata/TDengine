@@ -292,6 +292,7 @@ static int32_t smlParseTagKv(SSmlHandle *info, char **sql, char *sqlEnd, SSmlLin
     info->currSTableMeta->uid = tinfo->uid;
     tinfo->tableDataCtx = smlInitTableDataCtx(info->pQuery, info->currSTableMeta);
     if (tinfo->tableDataCtx == NULL) {
+      smlDestroyTableInfo(info, tinfo);
       smlBuildInvalidDataMsg(&info->msgBuf, "smlInitTableDataCtx error", NULL);
       return TSDB_CODE_SML_INVALID_DATA;
     }
