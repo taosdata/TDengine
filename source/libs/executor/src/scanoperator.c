@@ -1623,13 +1623,14 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     while (1) {
       SFetchRet ret = {0};
       tqNextBlock(pInfo->tqReader, &ret);
-      pTaskInfo->streamInfo.currentOffset = ret.offset;
 
       if (ret.fetchType == FETCH_TYPE__DATA) {
         blockDataCleanup(pInfo->pRes);
         setBlockIntoRes(pInfo, &ret.data, true);
         qDebug("queue scan log return %d rows", pInfo->pRes->info.rows);
         return pInfo->pRes;
+      }else{
+        pTaskInfo->streamInfo.currentOffset = ret.offset;
       }
       return NULL;
     }

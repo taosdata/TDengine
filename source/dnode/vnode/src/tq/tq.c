@@ -336,17 +336,6 @@ static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t su
   }
 
   pRsp->withTbName = 0;
-#if 0
-  pRsp->withTbName = pReq->withTbName;
-  if (pRsp->withTbName) {
-    pRsp->blockTbName = taosArrayInit(0, sizeof(void*));
-    if (pRsp->blockTbName == NULL) {
-      // TODO free
-      return -1;
-    }
-  }
-#endif
-
   pRsp->withSchema = false;
   return 0;
 }
