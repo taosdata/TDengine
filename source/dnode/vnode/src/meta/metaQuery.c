@@ -1271,13 +1271,10 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
     ret = -1;
     goto END;
   }
-
+  ret = -1;
   for (int i = 0; i < oStbEntry.stbEntry.schemaTag.nCols; i++) {
     SSchema *schema = oStbEntry.stbEntry.schemaTag.pSchema + i;
-    if (schema->colId == param->cid && param->type == schema->type && IS_IDX_ON(schema)) {
-      ret = 0;
-    }
-    if (i == 0) {
+    if (schema->colId == param->cid && param->type == schema->type && (IS_IDX_ON(schema) || i == 0)) {
       ret = 0;
     }
   }
@@ -1286,7 +1283,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   }
 
   ret = tdbTbcOpen(pMeta->pTagIdx, &pCursor->pCur, NULL);
-  if (ret < 0) {
+  if (ret != 0) {
     goto END;
   }
 
@@ -1307,6 +1304,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
         maxSize = 4 * nTagData + 1;
         buf = taosMemoryCalloc(1, maxSize);
         if (false == taosMbsToUcs4(tagData, nTagData, (TdUcs4 *)buf, maxSize, &maxSize)) {
+          ret = -1;
           goto END;
         }
 
@@ -1324,8 +1322,10 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   if (ret != 0) {
     goto END;
   }
+
   int cmp = 0;
-  if (tdbTbcMoveTo(pCursor->pCur, pKey, nKey, &cmp) < 0) {
+  ret = tdbTbcMoveTo(pCursor->pCur, pKey, nKey, &cmp);
+  if (ret != 0) {
     goto END;
   }
 
