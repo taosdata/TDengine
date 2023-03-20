@@ -117,7 +117,7 @@ class TDTestCase:
             tdLog.info(f"create table db3.ctb{i} using db3.stb tags({i})")
             tdSql.execute(f"create table db3.ctb{i} using db3.stb tags({i})")
             col_value_str = '1, ' * 4093 + '1'
-            tdSql.execute(f"insert into db3.ctb{i} values(now,{col_value_str})")
+            tdSql.execute(f"insert into db3.ctb{i} values(now,{col_value_str})(now+1s,{col_value_str})(now+2s,{col_value_str})")
         tdSql.query("select * from information_schema.ins_columns")
         
         tdSql.execute('drop database db3')
@@ -142,9 +142,9 @@ class TDTestCase:
 
 
     def run(self):
-        # self.prepare_data()
-        # self.count_check()
-        # self.ins_columns_check()
+        self.prepare_data()
+        self.count_check()
+        self.ins_columns_check()
         # self.ins_col_check_4096()
         self.ins_stable_check()
 
