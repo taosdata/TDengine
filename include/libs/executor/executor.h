@@ -198,6 +198,8 @@ int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit);
 
 void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
+int64_t qStreamExtractOffsetUid(qTaskInfo_t tinfo);
+
 SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
 
 const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);

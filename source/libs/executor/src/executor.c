@@ -993,6 +993,11 @@ SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
   return &pTaskInfo->streamInfo.metaRsp;
 }
 
+int64_t qStreamExtractOffsetUid(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  return pTaskInfo->streamInfo.currentOffset.uid;
+}
+
 void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   memcpy(pOffset, &pTaskInfo->streamInfo.currentOffset, sizeof(STqOffsetVal));
