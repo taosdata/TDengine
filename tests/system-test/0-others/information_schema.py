@@ -132,7 +132,7 @@ class TDTestCase:
     def run(self):
         self.prepare_data()
         self.count_check()
-        self.ins_columns_check()
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

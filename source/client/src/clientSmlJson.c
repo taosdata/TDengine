@@ -1237,10 +1237,12 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
       if (cnt >= payloadNum) {
         payloadNum = payloadNum << 1;
         void *tmp = taosMemoryRealloc(info->lines, payloadNum * sizeof(SSmlLineInfo));
-        if (tmp != NULL) {
-          info->lines = (SSmlLineInfo *)tmp;
-          memset(info->lines + cnt, 0, (payloadNum - cnt) * sizeof(SSmlLineInfo));
+        if (tmp == NULL) {
+          ret = TSDB_CODE_OUT_OF_MEMORY;
+          return ret;
         }
+        info->lines = (SSmlLineInfo *)tmp;
+        memset(info->lines + cnt, 0, (payloadNum - cnt) * sizeof(SSmlLineInfo));
       }
       ret = smlParseJSONString(info, &dataPointStart, info->lines + cnt);
       if ((info->lines + cnt)->measure == NULL) break;

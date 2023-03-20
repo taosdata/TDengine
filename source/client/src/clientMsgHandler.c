@@ -506,6 +506,9 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
       code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, true);
     }
 
+    if(code != 0){
+      taosMemoryFree(pRes);
+    }
     tFreeSShowVariablesRsp(&rsp);
   }
 
