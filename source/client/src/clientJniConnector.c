@@ -372,7 +372,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryWith
     // todo handle error
   }
 
-  TAOS_RES *tres = taos_query_a_with_reqid(tscon, str, reqId);
+  TAOS_RES *tres = taos_query_with_reqid(tscon, str, reqId);
   int32_t   code = taos_errno(tres);
 
   if (code != TSDB_CODE_SUCCESS) {
