@@ -312,7 +312,6 @@ void sdbReleaseLock(SSdb *pSdb, void *pObj, bool lock);
  */
 void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj);
 void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status, bool lock);
-void  sdbGet(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj);
 
 /**
  * @brief Cancel a traversal
