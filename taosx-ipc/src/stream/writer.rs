@@ -8,23 +8,23 @@ use std::{
 
 use arrow::{
     array::{
-        make_builder, ArrayRef, BinaryBuilder,
+        make_builder, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanArray, BooleanBuilder,
         ListBuilder, StringBuilder, StructBuilder, TimestampMicrosecondBuilder,
         TimestampMillisecondBuilder, TimestampNanosecondBuilder, TimestampSecondBuilder,
         UInt8Array,
     },
-    datatypes::{DataType, Field, Schema, TimeUnit},
+    datatypes::{ByteArrayType, DataType, Field, Schema, TimeUnit},
     error::ArrowError,
     record_batch::RecordBatch,
 };
 
 pub use arrow::datatypes::DataType as ArrowDataType;
 use serde::{de::Visitor, Deserialize, Serialize};
-use taos_query::prelude::Itertools;
+use taos_query::prelude::{Itertools, Value};
 
 use crate::{
     ack::AckType,
-    constants::{__ATTRS__, __RECORDS__, __TABLES__, __TYPE__, __TABLE_NAME__},
+    constants::{__ATTRS__, __RECORDS__, __TABLES__, __TABLE_NAME__, __TYPE__},
 };
 
 #[derive(Debug, Clone)]
@@ -414,13 +414,187 @@ pub struct LushMessageInit {
     tags: Vec<LushField>,
 }
 
+pub struct ChildTablesBuilder {
+    fields: Vec<Field>,
+    builder: ListBuilder<StructBuilder>,
+    name: Option<String>,
+    tag_index: usize,
+}
+
+impl ChildTablesBuilder {
+    pub fn create_table_with_tags(&mut self, name: &str, tags: &[Value]) -> &mut Self {
+        self
+    }
+
+    pub fn next_table(&mut self, name: &str) -> &mut Self {
+        self.builder.append(true);
+        self.builder
+            .values()
+            .field_builder::<BinaryBuilder>(0)
+            .unwrap()
+            .append_value(name);
+        self.tag_index = 0;
+        self
+    }
+
+    pub fn append(&mut self, tag_value: &dyn Any) -> &mut Self {
+        // self.builder.values_ref()
+        let dt = self.fields[self.tag_index].data_type();
+        let idx = self.tag_index + 1;
+        // self.tag_index += 1;
+        macro_rules! primitive_append {
+            ($a:ident, $t:ident) => {{
+                let v = tag_value.downcast_ref::<$t>().unwrap();
+                let b = self
+                    .builder
+                    .values()
+                    .field_builder::<arrow::array::$a>(idx)
+                    .unwrap();
+                b.append_value(*v);
+            }};
+        }
+        match dt {
+            ArrowDataType::Null => todo!(),
+            ArrowDataType::Boolean => primitive_append!(BooleanBuilder, bool),
+            ArrowDataType::Int8 => primitive_append!(Int8Builder, i8),
+            ArrowDataType::Int16 => primitive_append!(Int16Builder, i16),
+            ArrowDataType::Int32 => primitive_append!(Int32Builder, i32),
+            ArrowDataType::Int64 => primitive_append!(Int64Builder, i64),
+            ArrowDataType::UInt8 => primitive_append!(UInt8Builder, u8),
+            ArrowDataType::UInt16 => primitive_append!(UInt16Builder, u16),
+            ArrowDataType::UInt32 => primitive_append!(UInt32Builder, u32),
+            ArrowDataType::UInt64 => primitive_append!(UInt64Builder, u64),
+            ArrowDataType::Float16 => primitive_append!(Float32Builder, f32),
+            ArrowDataType::Float32 => primitive_append!(Float32Builder, f32),
+            ArrowDataType::Float64 => primitive_append!(Float64Builder, f64),
+            ArrowDataType::Timestamp(unit, _) => {
+                let v = tag_value.downcast_ref::<i64>().unwrap();
+                match unit {
+                    TimeUnit::Microsecond => {
+                        let b = self
+                            .builder
+                            .values()
+                            .field_builder::<TimestampMicrosecondBuilder>(idx)
+                            .unwrap();
+                        b.append_value(*v);
+                    }
+                    TimeUnit::Second => {
+                        let b = self
+                            .builder
+                            .values()
+                            .field_builder::<TimestampSecondBuilder>(idx)
+                            .unwrap();
+                        b.append_value(*v);
+                    }
+                    TimeUnit::Millisecond => {
+                        let b = self
+                            .builder
+                            .values()
+                            .field_builder::<TimestampMillisecondBuilder>(idx)
+                            .unwrap();
+                        b.append_value(*v);
+                    }
+                    TimeUnit::Nanosecond => {
+                        let b = self
+                            .builder
+                            .values()
+                            .field_builder::<TimestampNanosecondBuilder>(idx)
+                            .unwrap();
+                        b.append_value(*v);
+                    }
+                }
+            }
+            ArrowDataType::Binary => {
+                let b = self
+                    .builder
+                    .values()
+                    .field_builder::<BinaryBuilder>(idx)
+                    .unwrap();
+                match tag_value.type_id() {
+                    t if t == TypeId::of::<&str>() => {
+                        b.append_value(tag_value.downcast_ref::<&str>().unwrap())
+                    }
+                    t if t == TypeId::of::<&&str>() => {
+                        b.append_value(tag_value.downcast_ref::<&&str>().unwrap())
+                    }
+                    t if t == TypeId::of::<String>() => {
+                        b.append_value(tag_value.downcast_ref::<String>().unwrap())
+                    }
+                    t if t == TypeId::of::<&String>() => {
+                        b.append_value(tag_value.downcast_ref::<&String>().unwrap())
+                    }
+                    t if t == TypeId::of::<&&String>() => {
+                        b.append_value(tag_value.downcast_ref::<&&String>().unwrap())
+                    }
+                    t if t == TypeId::of::<[u8]>() => {
+                        b.append_value(tag_value.downcast_ref::<&[u8]>().unwrap())
+                    }
+                    t => panic!("Unsupported binary input type: {t:?}, {tag_value:?}"),
+                }
+            }
+            ArrowDataType::Utf8 => {
+                // let v = tag_value.downcast::<String>().unwrap();
+                let b = self
+                    .builder
+                    .values()
+                    .field_builder::<StringBuilder>(idx)
+                    .unwrap();
+
+                match tag_value.type_id() {
+                    t if t == TypeId::of::<&str>() => {
+                        b.append_value(tag_value.downcast_ref::<&str>().unwrap())
+                    }
+                    t if t == TypeId::of::<&&str>() => {
+                        b.append_value(tag_value.downcast_ref::<&&str>().unwrap())
+                    }
+                    t if t == TypeId::of::<String>() => {
+                        b.append_value(tag_value.downcast_ref::<String>().unwrap())
+                    }
+                    t if t == TypeId::of::<&String>() => {
+                        b.append_value(tag_value.downcast_ref::<&String>().unwrap())
+                    }
+                    t if t == TypeId::of::<&&String>() => {
+                        b.append_value(tag_value.downcast_ref::<&&String>().unwrap())
+                    }
+                    t if t == TypeId::of::<Box<[u8]>>() => b.append_value({
+                        std::str::from_utf8(tag_value.downcast_ref::<&[u8]>().unwrap()).unwrap()
+                    }),
+                    t => panic!("Unsupported binary input type: {t:?}, {tag_value:?}"),
+                }
+            }
+            ArrowDataType::Date32 => todo!(),
+            ArrowDataType::Date64 => todo!(),
+            ArrowDataType::Time32(_) => todo!(),
+            ArrowDataType::Time64(_) => todo!(),
+            ArrowDataType::Duration(_) => todo!(),
+            ArrowDataType::Interval(_) => todo!(),
+            ArrowDataType::FixedSizeBinary(_) => todo!(),
+            ArrowDataType::LargeBinary => todo!(),
+            ArrowDataType::LargeUtf8 => todo!(),
+            ArrowDataType::List(_) => todo!(),
+            ArrowDataType::FixedSizeList(_, _) => todo!(),
+            ArrowDataType::LargeList(_) => todo!(),
+            ArrowDataType::Struct(_) => todo!(),
+            ArrowDataType::Union(_, _, _) => todo!(),
+            ArrowDataType::Dictionary(_, _) => todo!(),
+            ArrowDataType::Decimal128(_, _) => todo!(),
+            ArrowDataType::Decimal256(_, _) => todo!(),
+            ArrowDataType::Map(_, _) => todo!(),
+            ArrowDataType::RunEndEncoded(_, _) => todo!(),
+        };
+        self.tag_index += 1;
+
+        self
+    }
+}
+
 impl LushMessageInit {
     pub fn to_sql_string(&self) -> String {
         let columns = self
             .columns
             .iter()
             .filter(|f| f.name != __TABLE_NAME__)
-            .map(|f| { format!("`{}` {}", f.name, f.r#type.sql_repr()) })
+            .map(|f| format!("`{}` {}", f.name, f.r#type.sql_repr()))
             .join(",");
         if self.tags.len() > 0 {
             let tags = self
@@ -438,12 +612,15 @@ impl LushMessageInit {
     }
 }
 impl<'a> LushInsertBuilder<'a> {
+    /// Specify which table to insert into, it could be None to use the table name set in `init`
+    /// as normal table or last `name` field for child table.
     pub fn table(&mut self, table: impl Into<String>) -> &mut Self {
         let table = table.into();
         self.table.replace(table.into());
         self
     }
 
+    /// Set anther stable if it could use consist schema with which initialized in `init` metadata.
     pub fn using(&mut self, stable: impl Into<String>) -> &mut Self {
         debug_assert!(self.table.is_some());
         let stable = stable.into();
@@ -457,6 +634,9 @@ impl<'a> LushInsertBuilder<'a> {
             .unwrap()
     }
 
+    /// Build a record batch with ordered tag values set at `init` metadata.
+    ///
+    /// Call it multiple times in order to add each tags declared in the `init` metadata.
     pub fn with_tag(&mut self, tag_value: Box<dyn Any>) -> &mut Self {
         debug_assert!(self.using.is_some());
         let idx = self.tag_idx;
@@ -599,6 +779,9 @@ impl<'a> LushInsertBuilder<'a> {
         self
     }
 
+    /// A struct builder to columns.
+    ///
+    /// Get the field builder by id or by name to add records in one batch.
     pub fn columns_builder(&mut self) -> &mut StructBuilder {
         self.columns_builder.values()
     }
@@ -641,6 +824,7 @@ impl<'a> LushInsertBuilder<'a> {
         }
     }
 
+    /// Build the record batch and clear the cache, so that you can reuse the builder.
     pub fn build(&mut self) -> Result<RecordBatch, ArrowError> {
         self.columns_builder.append(true);
 
@@ -717,6 +901,23 @@ impl LushMessageBuilder {
         self.metadata.init.replace(init);
         // let init =
         self
+    }
+
+    fn child_tables_builder(&self) -> ChildTablesBuilder {
+        let fields = self.tag_fields();
+        let field_builders = fields
+            .iter()
+            .map(|f| make_builder(f.data_type(), 1))
+            .collect_vec();
+
+        let values_builder = StructBuilder::new(fields.clone(), field_builders);
+        let builder = ListBuilder::new(values_builder);
+        ChildTablesBuilder {
+            fields,
+            builder,
+            name: None,
+            tag_index: 0,
+        }
     }
 
     fn create_fields(&self) -> Vec<Field> {

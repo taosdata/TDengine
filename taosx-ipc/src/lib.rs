@@ -1,8 +1,6 @@
 pub mod ack;
 
-pub mod writer;
-
-pub mod reader;
+pub mod stream;
 
 pub(crate) mod constants {
     pub const __TYPE__: &str = "__type__";
@@ -14,6 +12,6 @@ pub(crate) mod constants {
 }
 
 pub mod prelude {
-    pub use crate::reader::*;
-    pub use crate::writer::*;
+    pub use crate::stream::reader::*;
+    pub use crate::stream::writer::*;
 }

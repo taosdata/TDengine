@@ -20,16 +20,6 @@ use crate::{
     prelude::{IpcMetadata, LushMessageType},
 };
 
-// pub struct IpcReaderBuilder {
-
-// }
-
-// impl IpcReaderBuilder {
-// 		pub fn new(schema: &Schema) -> Self {
-
-// 		}
-// }
-
 pub struct IpcReader<R: Read> {
     metadata: IpcMetadata,
     schema: Arc<Schema>,
@@ -72,9 +62,10 @@ impl<R: Read> IpcReader<R> {
         self.metadata.ack()
     }
 
-    fn parse_tables(&self, data: Arc<dyn Array>) -> Result<RecordBatch, ArrowError> {
-        let fields = data.as_any().downcast_ref::<ListArray>();
+    pub fn lush_message_iter(&self) {}
 
+    fn parse_tables(&self, arrow: Arc<dyn Array>) -> Result<RecordBatch, ArrowError> {
+        let fields = arrow.as_any().downcast_ref::<ListArray>();
         todo!()
     }
 }
@@ -601,6 +592,15 @@ impl LushMessageInsert {
     }
 }
 
+#[derive(Debug)]
+pub struct LushMessageTable {
+
+}
+pub enum LushMessage {
+    Table(LushMessageTable),
+    Children(LushMessageTables),
+    Insert(LushMessageInsert),
+}
 pub struct LushMessageTables {
     tables: RecordBatch,
 }

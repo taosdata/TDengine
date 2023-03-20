@@ -8,7 +8,7 @@ use arrow::{
     ipc::writer::StreamWriter,
 };
 
-use taosx_ipc::writer::*;
+use taosx_ipc::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
