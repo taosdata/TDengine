@@ -52,7 +52,7 @@ class TestMinrows(TDCase):
         
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            kv_dict = {test_param: param_value}
+            kv_dict = {test_param: param_value,"maxrows": self.tdCom.Boundary.DB_PARAM_MAXROWS_CONFIG['boundary'][-1]}
             self.tdCom.createDb(dbname, **kv_dict)
             self.tdSql.query('select * from information_schema.ins_databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
