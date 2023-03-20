@@ -3121,8 +3121,7 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       if (pShow->pIter == NULL) break;
     } else {
       fetch = true;
-      size_t keyLen = 0;
-      void  *pKey = taosHashGetKey(pShow->pIter, &keyLen);
+      void  *pKey = taosHashGetKey(pShow->pIter, NULL);
       pStb = sdbAcquire(pSdb, SDB_STB, pKey);
       if (!pStb) continue;
     }
