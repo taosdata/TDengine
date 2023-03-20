@@ -1,3 +1,4 @@
 # .NET Core build folders
 bin/
 obj/
+dotnet.arrow.zstd

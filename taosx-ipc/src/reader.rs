@@ -673,16 +673,24 @@ impl<R: Read> Iterator for IpcReader<R> {
 
 #[test]
 fn file_reader() -> anyhow::Result<()> {
-    // let file = include_bytes!("../examples/dotnet/dotnet.arrow");
     use std::io::prelude::*;
-    let mut file = std::fs::File::open("./examples/dotnet/dotnet.arrow").unwrap();
-    // let stream = arrow::ipc::reader::StreamReader::try_new(file.as_slice(), None).unwrap();
-    let stream = IpcReader::new(file).unwrap();
 
-    dbg!(stream.metadata());
-    dbg!(&stream.schema);
+    #[cfg(not(target_os = "windows"))]
+    let stream = std::os::unix::net::UnixStream::connect("../taosx.sock")?;
+    #[cfg(target_os = "windows")]
+    let stream = std::net::TcpStream::connect("127.0.0.1:6051")?;
 
-    for records in stream {
+    let mut file = std::fs::File::open("./examples/dotnet/dotnet.arrow.zstd")?;
+    let mut bytes = vec![];
+    file.read_to_end(&mut bytes)?;
+    let zin = zstd::decode_all(bytes.as_slice())?;
+
+    let reader = IpcReader::new(zin.as_slice()).unwrap();
+
+    dbg!(reader.metadata());
+    dbg!(&reader.schema);
+
+    for records in reader {
         dbg!(&records);
         let records = records.unwrap();
         for record in records {
@@ -691,13 +699,6 @@ fn file_reader() -> anyhow::Result<()> {
         }
     }
 
-    #[cfg(not(target_os = "windows"))]
-    let stream = std::os::unix::net::UnixStream::connect("../taosx.sock")?;
-    #[cfg(target_os = "windows")]
-    let stream = std::net::TcpStream::connect("127.0.0.1:6051")?;
-
-    let zin = zstd::decode_all(include_bytes!("../examples/dotnet/dotnet.arrow.zstd").as_slice())?;
-
-    (&stream).write_all(&zin).unwrap();
+    (&stream).write_all(zin.as_slice()).unwrap();
     Ok(())
 }
