@@ -227,7 +227,7 @@ typedef struct SSnapContext {
   SArray   *idList;
   int32_t   index;
   bool      withMeta;
-  bool      queryMetaOrData;  // true-get meta, false-get data
+  bool      queryMeta;  // true-get meta, false-get data
 } SSnapContext;
 
 typedef struct STqReader {

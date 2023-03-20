@@ -2109,9 +2109,8 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
       return NULL;
     }
 
-    if (!sContext->queryMetaOrData) {  // change to get data next poll request
-      tqOffsetResetToData(&pTaskInfo->streamInfo.currentOffset, 0, INT64_MIN);
-      pTaskInfo->streamInfo.metaRsp.rspOffset = pTaskInfo->streamInfo.currentOffset;
+    if (!sContext->queryMeta) {  // change to get data next poll request
+      tqOffsetResetToData(&pTaskInfo->streamInfo.metaRsp.rspOffset, 0, INT64_MIN);
     } else {
       tqOffsetResetToMeta(&pTaskInfo->streamInfo.currentOffset, uid);
       pTaskInfo->streamInfo.metaRsp.rspOffset = pTaskInfo->streamInfo.currentOffset;

@@ -169,6 +169,9 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
 
     SMqMetaRsp* tmp = qStreamExtractMetaMsg(task);
     if (tmp->rspOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
+      *pOffset = tmp->rspOffset;
+      qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
+      tmp->rspOffset.type = TMQ_OFFSET__SNAPSHOT_META;
       tqDebug("tmqsnap task exec change to get data");
       continue;
     }
