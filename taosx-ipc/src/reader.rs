@@ -1,10 +1,10 @@
-use std::{io::Read, sync::Arc, collections::HashMap};
+use std::{collections::HashMap, io::Read, sync::Arc};
 
 use arrow::{
     array::{
-        Array, BinaryArray, BooleanArray, Float16Array, Float32Array,
-        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, ListArray, StringArray,
-        StructArray, TimestampMillisecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        Array, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array, Int16Array,
+        Int32Array, Int64Array, Int8Array, ListArray, StringArray, StructArray,
+        TimestampMillisecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
     datatypes::{DataType, Schema},
     error::ArrowError,
@@ -57,7 +57,11 @@ impl<R: Read> IpcReader<R> {
         let t = f.data_type();
         if let DataType::List(f) = t {
             if let DataType::Struct(fields) = f.data_type() {
-                return fields.iter().filter(|f| f.name() != __TABLE_NAME__).map(|f| f.name()).collect();
+                return fields
+                    .iter()
+                    .filter(|f| f.name() != __TABLE_NAME__)
+                    .map(|f| f.name())
+                    .collect();
             }
         }
 
@@ -327,7 +331,7 @@ impl LushMessageInsert {
                     DataType::Null => todo!(),
                     DataType::Boolean => {
                         let a = column.as_any().downcast_ref::<BooleanArray>().unwrap();
-    
+
                         ColumnView::from_bools(
                             (0..a.len())
                                 .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
@@ -502,7 +506,7 @@ impl LushMessageInsert {
                     DataType::Interval(_) => todo!(),
                     DataType::Binary => {
                         let a = column.as_any().downcast_ref::<BinaryArray>().unwrap();
-    
+
                         ColumnView::from_varchar::<&str, _, _, _>(
                             (0..a.len())
                                 .map(|i| {
@@ -537,7 +541,7 @@ impl LushMessageInsert {
                     DataType::Map(_, _) => todo!(),
                     DataType::RunEndEncoded(_, _) => todo!(),
                 }
-            } )
+            })
             .collect()
     }
 
@@ -553,7 +557,7 @@ impl LushMessageInsert {
         match index {
             None => {
                 map.insert(None, data);
-            },
+            }
             Some(i) => {
                 let c = data.get(i).unwrap();
                 for (j, bv) in c.into_iter().enumerate() {
@@ -568,7 +572,7 @@ impl LushMessageInsert {
                                 l.push(cv.slice(j..j + 1).unwrap());
                             }
                             map.insert(Some(bv.to_string().unwrap()), l);
-                        },
+                        }
                         Some(c) => {
                             dbg!(&c);
                             let mut data_i = 0;
@@ -591,10 +595,9 @@ impl LushMessageInsert {
                         }
                     }
                 }
-            },
+            }
         }
         map
-
     }
 }
 
@@ -647,7 +650,7 @@ impl<R: Read> Iterator for IpcReader<R> {
                     } else {
                         let values = record.column_by_name(__RECORDS__).unwrap();
 
-                        debug_assert!(values.len() == 1);
+                        // debug_assert!(values.len() == 1);
 
                         let mut message = Vec::with_capacity(values.len());
                         for i in 0..values.len() {
@@ -669,7 +672,7 @@ impl<R: Read> Iterator for IpcReader<R> {
 }
 
 #[test]
-fn file_reader() {
+fn file_reader() -> anyhow::Result<()> {
     // let file = include_bytes!("../examples/dotnet/dotnet.arrow");
     use std::io::prelude::*;
     let mut file = std::fs::File::open("./examples/dotnet/dotnet.arrow").unwrap();
@@ -679,7 +682,22 @@ fn file_reader() {
     dbg!(stream.metadata());
     dbg!(&stream.schema);
 
-    for message in stream {
-        dbg!(&message);
+    for records in stream {
+        dbg!(&records);
+        let records = records.unwrap();
+        for record in records {
+            let map_data = record.to_column_views_group_by_tablename();
+            dbg!(&map_data);
+        }
     }
+
+    #[cfg(not(target_os = "windows"))]
+    let stream = std::os::unix::net::UnixStream::connect("../taosx.sock")?;
+    #[cfg(target_os = "windows")]
+    let stream = std::net::TcpStream::connect("127.0.0.1:6051")?;
+
+    let zin = zstd::decode_all(include_bytes!("../examples/dotnet/dotnet.arrow.zstd").as_slice())?;
+
+    (&stream).write_all(&zin).unwrap();
+    Ok(())
 }

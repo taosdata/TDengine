@@ -15,6 +15,7 @@ shadow-rs = "0.21.0"
 taos-query = "0.5.0"
 thiserror = "1.0.38"
 tracing = "0.1"
+zstd = "0.12.1"
 
 [dev-dependencies]
 actix-web = "4"

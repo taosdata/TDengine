@@ -64,7 +64,7 @@ fn ipc_test<R: Read, W: Write>(
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
 
     let mut records = 0;
-    
+
     for record in ipc_reader {
         if let Ok(record) = record {
             for record in record {
@@ -72,38 +72,37 @@ fn ipc_test<R: Read, W: Write>(
                 // let data = record.to_column_views();
                 let map_data = record.to_column_views_group_by_tablename();
                 dbg!(&map_data);
-                for (k, v) in &map_data {
-                    let (table_name, data_vec);
-                    match &k {
-                        None => {
-                            table_name = record.table();
-                            data_vec = v;
-                        }
-                        Some(t) => {
-                            table_name = t;
-                            data_vec = v;
-                        },
-                    }
+                for (k, data_vec) in &map_data {
+                    let table_name = k.as_deref().or(record.table());
                     let mut stmt = Stmt::init(&taos)?;
                     info!("init stmt");
                     let sql = format!("insert into ? ({names}) values({marks})");
                     info!("prepare with sql: {sql}");
                     stmt.prepare(&sql).unwrap();
                     info!("prepare");
-                    if let Err(err) = stmt.set_tbname(table_name) {
-                        tracing::warn!("table name `{}` error {err}", table_name);
-                        if let Some(tb) = record.meta_sql(Some(String::from(table_name))) {
-                            info!("sql: {tb}");
-                            // taos.exec_sync(&tb).unwrap();
-                            rt.block_on(taos.exec(&tb))?;
-                            stmt.set_tbname(table_name).unwrap();
+                    if let Some(table_name) = table_name {
+                        if let Err(err) = stmt.set_tbname(table_name) {
+                            tracing::warn!("table name `{}` error {err}", table_name);
+                            if let Some(tb) = record.meta_sql(Some(String::from(table_name))) {
+                                info!("sql: {tb}");
+                                // taos.exec_sync(&tb).unwrap();
+                                rt.block_on(taos.exec(&tb))?;
+                                stmt.set_tbname(table_name).unwrap();
+                            }
                         }
+                        stmt.bind(data_vec.as_slice()).unwrap();
+                        stmt.add_batch().unwrap();
+                        let n = stmt.execute().unwrap();
+
+                        info!("written [{n}] records for table {table_name}");
+                    } else {
+                        stmt.bind(data_vec.as_slice()).unwrap();
+                        stmt.add_batch().unwrap();
+                        let n = stmt.execute().unwrap();
+
+                        info!("written : [{n}] records");
                     }
-                    stmt.bind(data_vec.as_slice()).unwrap();
-                    stmt.add_batch().unwrap();
-                    let n = stmt.execute().unwrap();
                     drop(stmt);
-                    info!("written:[{table_name}] : [{n}] records");
                 }
             }
             ipc_ack_writer.write_ok().unwrap();

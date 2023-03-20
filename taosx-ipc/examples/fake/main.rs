@@ -196,7 +196,7 @@ async fn main() -> Result<()> {
         writer.write(&batch)?;
 
         records += batch.num_rows();
-        println!("written {} rows", records);
+        println!("written {} record batch", records);
         if records >= 1 {
             break;
         }
