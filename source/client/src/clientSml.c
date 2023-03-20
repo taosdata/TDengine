@@ -1488,6 +1488,7 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
   }
   SRequestObj *request = NULL;
   SSmlHandle *info = NULL;
+  int cnt = 0;
   while(1){
     request = (SRequestObj *)createRequest(*(int64_t *)taos, TSDB_SQL_INSERT, reqid);
     if (request == NULL) {
@@ -1544,8 +1545,13 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
     info->cost.code = code;
     if(code == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER || code == TSDB_CODE_SDB_OBJ_CREATING
         || code == TSDB_CODE_PAR_VALUE_TOO_LONG || code == TSDB_CODE_MND_TRANS_CONFLICT){
+      if(cnt++ >= 10){
+        uInfo("SML:%"PRIx64" retry:%d/10 end code:%d, msg:%s", info->id, cnt, code, tstrerror(code));
+        break;
+      }
+      taosMsleep(100);
       refreshMeta(request->pTscObj, request);
-      uInfo("SML:%"PRIx64" ver is old retry or object is creating code:%d, msg:%s", info->id, code, tstrerror(code));
+      uInfo("SML:%"PRIx64" retry:%d/10,ver is old retry or object is creating code:%d, msg:%s", info->id, cnt, code, tstrerror(code));
       smlDestroyInfo(info);
       info = NULL;
       taos_free_result(request);
