@@ -2091,7 +2091,9 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
       qDebug("tmqsnap read snapshot done, change to get data from wal");
       tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pInfo->sContext->snapVersion);
     } else {
-      tqOffsetResetToData(&pTaskInfo->streamInfo.currentOffset, mtInfo.uid, INT64_MIN);
+      STqOffsetVal offset = {0};
+      tqOffsetResetToData(&offset, mtInfo.uid, INT64_MIN);
+      qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
       qDebug("tmqsnap change get data uid:%" PRId64 "", mtInfo.uid);
     }
     tDeleteSSchemaWrapper(mtInfo.schema);
