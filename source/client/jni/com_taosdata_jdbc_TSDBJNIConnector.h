@@ -77,6 +77,14 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    executeQueryWithReqId
+ * Signature: ([BJJ)I
+ */
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryWithReqId(JNIEnv *, jobject, jbyteArray,
+                                                                                      jlong, jlong);
+
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
  * Method:    getErrCodeImp
  * Signature: (J)I
  */
@@ -185,6 +193,14 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_validateCreateTab
  * Signature: ([BJ)I
  */
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_prepareStmtImp(JNIEnv *, jobject, jbyteArray, jlong);
+
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    prepareStmtWithReqId
+ * Signature: ([BJJ)I
+ */
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_prepareStmtWithReqId(JNIEnv *, jobject, jbyteArray,
+                                                                                     jlong, jlong);
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector

@@ -345,6 +345,51 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(
   return (jlong)tres;
 }
 
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryWithReqId(JNIEnv *env, jobject jobj,
+                                                                                      jbyteArray jsql, jlong con,
+                                                                                      jlong reqId) {
+  TAOS *tscon = (TAOS *)con;
+  if (tscon == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  if (jsql == NULL) {
+    jniError("jobj:%p, conn:%p, empty sql string", jobj, tscon);
+    return JNI_SQL_NULL;
+  }
+
+  jsize len = (*env)->GetArrayLength(env, jsql);
+
+  char *str = (char *)taosMemoryCalloc(1, sizeof(char) * (len + 1));
+  if (str == NULL) {
+    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tscon);
+    return JNI_OUT_OF_MEMORY;
+  }
+
+  (*env)->GetByteArrayRegion(env, jsql, 0, len, (jbyte *)str);
+  if ((*env)->ExceptionCheck(env)) {
+    // todo handle error
+  }
+
+  TAOS_RES *tres = taos_query_a_with_reqid(tscon, str, reqId);
+  int32_t   code = taos_errno(tres);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, tscon, tstrerror(code), taos_errstr(tres));
+  } else {
+    if (taos_is_update_query(tres)) {
+      int32_t affectRows = taos_affected_rows(tres);
+      jniDebug("jobj:%p, conn:%p, code:%s, affect rows:%d", jobj, tscon, tstrerror(code), affectRows);
+    } else {
+      jniDebug("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+    }
+  }
+
+  taosMemoryFreeClear(str);
+  return (jlong)tres;
+}
+
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getErrCodeImp(JNIEnv *env, jobject jobj, jlong con,
                                                                              jlong tres) {
   int32_t code = check_for_params(jobj, con, tres);
@@ -705,6 +750,44 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_prepareStmtImp(J
   taosMemoryFreeClear(str);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("prepareStmt jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+    return JNI_TDENGINE_ERROR;
+  }
+
+  return (jlong)pStmt;
+}
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_prepareStmtImp(JNIEnv *env, jobject jobj,
+                                                                               jbyteArray jsql, jlong con,
+                                                                               jlong reqId) {
+  TAOS *tscon = (TAOS *)con;
+  if (tscon == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  if (jsql == NULL) {
+    jniError("jobj:%p, conn:%p, empty sql string", jobj, tscon);
+    return JNI_SQL_NULL;
+  }
+
+  jsize len = (*env)->GetArrayLength(env, jsql);
+
+  char *str = (char *)taosMemoryCalloc(1, sizeof(char) * (len + 1));
+  if (str == NULL) {
+    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tscon);
+    return JNI_OUT_OF_MEMORY;
+  }
+
+  (*env)->GetByteArrayRegion(env, jsql, 0, len, (jbyte *)str);
+  if ((*env)->ExceptionCheck(env)) {
+    // todo handle error
+  }
+
+  TAOS_STMT *pStmt = taos_stmt_init_with_reqid(tscon, reqId);
+  int32_t    code = taos_stmt_prepare(pStmt, str, len);
+  taosMemoryFreeClear(str);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("prepareStmtWithReqId jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
     return JNI_TDENGINE_ERROR;
   }
 
