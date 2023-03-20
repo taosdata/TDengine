@@ -91,12 +91,6 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   int32_t          ret = 0;
   SyncRequestVote* pMsg = pRpcMsg->pCont;
 
-  if(CID(&(pMsg->srcId)) != CID(&(ths->myRaftId)))
-  {
-    sWarn("vgId:%d, drop RequestVote msg from dnode:%d, because it come from another cluster:%d, differ from current cluster:%d", ths->vgId, DID(&(pMsg->srcId)), CID(&(pMsg->srcId)) , CID(&(ths->myRaftId)));
-    return -1;
-  }
-
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
     syncLogRecvRequestVote(ths, pMsg, -1, "not in my config");
