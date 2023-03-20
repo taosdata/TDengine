@@ -580,7 +580,10 @@ static int32_t tmqCommitMsgImpl(tmq_t* tmq, const TAOS_RES* msg, int8_t async, t
   int32_t code = -1;
 
   taosThreadMutexLock(&tmq->lock);
-  for (int32_t i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
+  int32_t numOfTopics = taosArrayGetSize(tmq->clientTopics);
+
+  tscDebug("consumer:0x%" PRIx64 " user invoked commit offset for %d", tmq->consumerId, numOfTopics);
+  for (int32_t i = 0; i < numOfTopics; i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
     if (strcmp(pTopic->topicName, topic) != 0) {
       continue;

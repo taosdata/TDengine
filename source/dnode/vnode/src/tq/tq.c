@@ -296,51 +296,6 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
     }
   }
 #endif
-
-//  int32_t len = 0;
-//  int32_t code = 0;
-//
-//  if (type == TMQ_MSG_TYPE__POLL_RSP) {
-//    tEncodeSize(tEncodeSMqDataRsp, pRsp, len, code);
-//  } else if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
-//    tEncodeSize(tEncodeSTaosxRsp, (STaosxRsp*)pRsp, len, code);
-//  }
-//
-//  if (code < 0) {
-//    return -1;
-//  }
-//
-//  int32_t tlen = sizeof(SMqRspHead) + len;
-//  void*   buf = rpcMallocCont(tlen);
-//  if (buf == NULL) {
-//    return -1;
-//  }
-//
-//  ((SMqRspHead*)buf)->mqMsgType = type;
-//  ((SMqRspHead*)buf)->epoch = pReq->epoch;
-//  ((SMqRspHead*)buf)->consumerId = pReq->consumerId;
-//
-//  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
-//
-//  SEncoder encoder = {0};
-//  tEncoderInit(&encoder, abuf, len);
-//
-//  if (type == TMQ_MSG_TYPE__POLL_RSP) {
-//    tEncodeSMqDataRsp(&encoder, pRsp);
-//  } else if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
-//    tEncodeSTaosxRsp(&encoder, (STaosxRsp*) pRsp);
-//  }
-//
-//  tEncoderClear(&encoder);
-//
-//  SRpcMsg rsp = {
-//      .info = pMsg->info,
-//      .pCont = buf,
-//      .contLen = tlen,
-//      .code = 0,
-//  };
-//
-//  tmsgSendRsp(&rsp);
   doSendDataRsp(&pMsg->info, pRsp, pReq->epoch, pReq->consumerId, type);
 
   char buf1[80] = {0};
@@ -348,8 +303,8 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   tFormatOffset(buf1, 80, &pRsp->reqOffset);
   tFormatOffset(buf2, 80, &pRsp->rspOffset);
 
-  tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s",
-          TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
+  tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s, reqId:0x%"PRIx64,
+          TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2, pReq->reqId);
 
   return 0;
 }
