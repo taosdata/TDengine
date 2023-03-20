@@ -16,7 +16,7 @@ use taos_query::prelude::{ColumnView, Ty, Value};
 
 use crate::{
     ack::AckType,
-    constants::{__ATTRS__, __RECORDS__, __TABLE_NAME__, __TABLES__INDEX__},
+    constants::{__ATTRS__, __RECORDS__, __TABLES__INDEX__, __TABLE_NAME__, __TYPE__},
     prelude::{IpcMetadata, LushMessageType},
 };
 
@@ -275,7 +275,7 @@ impl From<Arc<dyn Array>> for LushInsertAttrs {
 
 #[derive(Debug)]
 pub struct LushMessageInsert {
-    attrs: LushInsertAttrs,
+    attrs: Option<LushInsertAttrs>,
     records: LushInsertRecords,
 }
 
@@ -285,11 +285,11 @@ impl LushMessageInsert {
     }
 
     pub fn meta_sql(&self, table_name: Option<String>) -> Option<String> {
-        self.attrs.to_sql(table_name)
+        self.attrs.as_ref().and_then(|attr| attr.to_sql(table_name))
     }
 
-    pub fn table(&self) -> &str {
-        &self.attrs.name
+    pub fn table(&self) -> Option<&str> {
+        self.attrs.as_ref().map(|attr| attr.name.as_str())
     }
 
     pub fn to_column_views(&self) -> Vec<ColumnView> {
@@ -607,10 +607,12 @@ impl<R: Read> Iterator for IpcReader<R> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let res = self.reader.next()?;
+        dbg!(&res);
 
         if let Ok(record) = res {
             let v = record
-                .column(0)
+                .column_by_name(__TYPE__)
+                .expect("the lush message stream should contains __type__ field")
                 .as_any()
                 .downcast_ref::<UInt8Array>()
                 .unwrap();
@@ -624,23 +626,60 @@ impl<R: Read> Iterator for IpcReader<R> {
                     }
                 }
                 LushMessageType::Insert => {
-                    let attrs = record.column_by_name(__ATTRS__).unwrap();
-                    let values = record.column_by_name(__RECORDS__).unwrap();
-                    assert_eq!(attrs.len(), values.len());
+                    if let Some(attrs) = record.column_by_name(__ATTRS__) {
+                        let values = record.column_by_name(__RECORDS__).unwrap();
+                        assert_eq!(attrs.len(), values.len());
 
-                    debug_assert!(values.len() == 1);
+                        debug_assert!(values.len() == 1);
 
-                    let mut message = Vec::with_capacity(values.len());
-                    for i in 0..values.len() {
-                        let attrs: LushInsertAttrs = attrs.slice(i, 1).into();
-                        let records: LushInsertRecords = values.slice(i, 1).into();
-                        let i = LushMessageInsert { attrs, records };
-                        message.push(i);
+                        let mut message = Vec::with_capacity(values.len());
+                        for i in 0..values.len() {
+                            let attrs: LushInsertAttrs = attrs.slice(i, 1).into();
+                            let records: LushInsertRecords = values.slice(i, 1).into();
+                            dbg!(&records);
+                            let i = LushMessageInsert {
+                                attrs: Some(attrs),
+                                records,
+                            };
+                            message.push(i);
+                        }
+                        return Some(Ok(message));
+                    } else {
+                        let values = record.column_by_name(__RECORDS__).unwrap();
+
+                        debug_assert!(values.len() == 1);
+
+                        let mut message = Vec::with_capacity(values.len());
+                        for i in 0..values.len() {
+                            let records: LushInsertRecords = values.slice(i, 1).into();
+                            dbg!(&records);
+                            let i = LushMessageInsert {
+                                attrs: None,
+                                records,
+                            };
+                            message.push(i);
+                        }
+                        return Some(Ok(message));
                     }
-                    return Some(Ok(message));
                 }
             }
         }
         None
+    }
+}
+
+#[test]
+fn file_reader() {
+    // let file = include_bytes!("../examples/dotnet/dotnet.arrow");
+    use std::io::prelude::*;
+    let mut file = std::fs::File::open("./examples/dotnet/dotnet.arrow").unwrap();
+    // let stream = arrow::ipc::reader::StreamReader::try_new(file.as_slice(), None).unwrap();
+    let stream = IpcReader::new(file).unwrap();
+
+    dbg!(stream.metadata());
+    dbg!(&stream.schema);
+
+    for message in stream {
+        dbg!(&message);
     }
 }
