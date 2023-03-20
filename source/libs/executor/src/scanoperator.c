@@ -2087,17 +2087,16 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
     }
 
     SMetaTableInfo mtInfo = getUidfromSnapShot(pInfo->sContext);
+    STqOffsetVal offset = {0};
     if (mtInfo.uid == 0) {  // read snapshot done, change to get data from wal
       qDebug("tmqsnap read snapshot done, change to get data from wal");
-      tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pInfo->sContext->snapVersion);
+      tqOffsetResetToLog(&offset, pInfo->sContext->snapVersion);
     } else {
-      STqOffsetVal offset = {0};
       tqOffsetResetToData(&offset, mtInfo.uid, INT64_MIN);
-      qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
       qDebug("tmqsnap change get data uid:%" PRId64 "", mtInfo.uid);
     }
+    qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
     tDeleteSSchemaWrapper(mtInfo.schema);
-    qDebug("tmqsnap stream scan tsdb return null");
     return NULL;
   } else if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_META) {
     SSnapContext* sContext = pInfo->sContext;
@@ -2112,10 +2111,11 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
     }
 
     if (!sContext->queryMeta) {  // change to get data next poll request
-      tqOffsetResetToData(&pTaskInfo->streamInfo.metaRsp.rspOffset, 0, INT64_MIN);
+      STqOffsetVal offset = {0};
+      tqOffsetResetToData(&offset, 0, INT64_MIN);
+      qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
     } else {
       tqOffsetResetToMeta(&pTaskInfo->streamInfo.currentOffset, uid);
-      pTaskInfo->streamInfo.metaRsp.rspOffset = pTaskInfo->streamInfo.currentOffset;
       pTaskInfo->streamInfo.metaRsp.resMsgType = type;
       pTaskInfo->streamInfo.metaRsp.metaRspLen = dataLen;
       pTaskInfo->streamInfo.metaRsp.metaRsp = data;
