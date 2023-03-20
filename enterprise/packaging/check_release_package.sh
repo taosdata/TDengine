@@ -275,7 +275,7 @@ CleanEnv(){
         sudo rm -rf /var/lib/taos/*
     fi
 
-    print "try to remove unziped folder"
+    print "try to remove unzipped folder"
 
     # community
     if [ -d ${PKG_HOME}/community/${FOLDER_NAME} ]
@@ -367,7 +367,7 @@ TestX64(){
         sudo tar -zxvf  ${PKG_NAME_ENT_X64}
         cd ${FOLDER_NAME_ENT}
         sudo ./install.sh -e no
-        tar -zxvf taos.tar.gz
+        tar -zxvf package.tar.gz
         cd bin
 
         StartTaosd
@@ -392,7 +392,7 @@ TestMips64(){
         sudo tar -zxvf  ${PKG_NAME_COM_MIPS64}
         cd ${FOLDER_NAME}
         sudo ./install.sh -e no
-        tar -zxvf taos.tar.gz
+        tar -zxvf package.tar.gz
         cd bin
 
         StartTaosd
@@ -402,7 +402,7 @@ TestMips64(){
     fi
     if [ "${MODE}" = "cluster" -o "${MODE}" = "all" ]
     then
-        print "${YELLOW}Currenly MIPS enterprise package ${PKG_NAME_ENT_MIPS64} in not supported, skip....${RES}"
+        print "${YELLOW}Currently MIPS enterprise package ${PKG_NAME_ENT_MIPS64} in not supported, skip....${RES}"
     fi
 }
 # TestDarwinX64(){}
