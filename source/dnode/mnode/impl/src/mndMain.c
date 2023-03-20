@@ -864,7 +864,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   }
 
   // grant info
-  pGrantInfo->expire_time = (pMnode->grant.expireTimeMS - ms) / 86400000.0f;
+  pGrantInfo->expire_time = (pMnode->grant.expireTimeMS - ms) / 1000;
   pGrantInfo->timeseries_total = pMnode->grant.timeseriesAllowed;
   if (pMnode->grant.expireTimeMS == 0) {
     pGrantInfo->expire_time = INT32_MAX;
