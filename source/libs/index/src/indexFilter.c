@@ -634,7 +634,7 @@ static FORCE_INLINE int32_t sifGetOperFn(int32_t funcId, sif_func_t *func, SIdxF
 }
 
 static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
-  int32_t code = 0;
+  int32_t code = -1;
   if (sifValidOp(node->opType) < 0) {
     code = TSDB_CODE_QRY_INVALID_INPUT;
     ctx->code = code;
@@ -654,7 +654,7 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   SIFParam *params = NULL;
   SIF_ERR_RET(sifInitOperParams(&params, node, ctx));
 
-  if (params[0].status == SFLT_NOT_INDEX && (nParam > 1 && params[1].status == SFLT_NOT_INDEX)) {
+  if (params[0].status == SFLT_NOT_INDEX || (nParam > 1 && params[1].status == SFLT_NOT_INDEX)) {
     output->status = SFLT_NOT_INDEX;
     goto _return;
   }
@@ -664,6 +664,7 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   sif_func_t operFn = sifNullFunc;
 
   if (!ctx->noExec) {
+    code = 0;
     SIF_ERR_JRET(sifGetOperFn(node->opType, &operFn, &output->status));
     SIF_ERR_JRET(operFn(&params[0], nParam > 1 ? &params[1] : NULL, output));
   } else {
@@ -672,6 +673,7 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
       output->status = SFLT_NOT_INDEX;
       goto _return;
     }
+    code = 0;
     SIF_ERR_JRET(sifGetOperFn(node->opType, &operFn, &output->status));
   }
 _return:
