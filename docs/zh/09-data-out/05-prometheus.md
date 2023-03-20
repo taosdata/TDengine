@@ -1,30 +1,32 @@
 ---
 sidebar_label: Prometheus
-title: Prometheus remote read
-description: Prometheus remote_read from TDengine cloud server
+title: Prometheus 远程读取
+description: Prometheus 从 TDengine Cloud 远程读取   
 ---
 
-Prometheus is a widespread open-source monitoring and alerting system. Prometheus joined the Cloud Native Computing Foundation (CNCF) in 2016 as the second incubated project after Kubernetes, which has a very active developer and user community.
+Prometheus 是一款流行的开源监控告警系统。Prometheus 于2016年加入了 Cloud Native Computing Foundation （云原生云计算基金会，简称 CNCF），成为继 Kubernetes 之后的第二个托管项目，该项目拥有非常活跃的开发人员和用户社区。
 
-Prometheus provides `remote_read` interface to leverage other database products as its storage engine. To enable users of the Prometheus ecosystem to take advantage of TDengine's efficient querying, TDengine also provides support for this interface so that data stored in TDengine can be queried via the `remote_read` interface, taking full advantage of TDengine's efficient query performance and clustering capabilities for time-series data.
+Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数据库产品作为它的存储引擎。为了让 Prometheus 生态圈的用户能够利用 TDengine 的高效写入和查询，TDengine 也提供了对这两个接口的支持。
 
-## Install Prometheus
+通过适当的配置， Prometheus 的数据可以通过 `remote_write` 接口存储到 TDengine 中，也可以通过 `remote_read` 接口来查询存储在 TDengine 中的数据，充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
 
-Please refer to [Install Prometheus](https://docs.taosdata.com/cloud/data-in/prometheus#install-prometheus).
+## 安装 Prometheus
 
-## Configure Prometheus
+请参考 [安装 Prometheus](https://docs.taosdata.com/cloud/data-in/prometheus#install-prometheus).
 
-Please refer to [Configure Prometheus](https://docs.taosdata.com/cloud/prometheus/#configure-prometheus).
+## 配置 Prometheus
 
-## Start Prometheus
+请参考 [配置 Prometheus](https://docs.taosdata.com/cloud/prometheus/#configure-prometheus).
 
-Please refer to [Start Prometheus](https://docs.taosdata.com/cloud/data-in/prometheus/#start-prometheus).
+## 开始 Prometheus
 
-## Verify Remote Read
+请参考 [开始 Prometheus](https://docs.taosdata.com/cloud/data-in/prometheus/#start-prometheus).
 
-Lets retrieve some metrics from TDengine Cloud via prometheus web server. Browse to <http://localhost:9090/graph> and use the "Graph" tab.
+## 验证远程读取
 
-Enter the following expression to graph the per-second rate of chunks being created in the self-scraped Prometheus:
+通过 Prometheus 服务器可以获取 TDengine Cloud 上面的多个指标。请在浏览器打开 <http://localhost:9090/graph> 并点击 “Graph” 标签页。
+
+输入下面的表达式来画出 Prometheus 每秒在创建数据块数量的趋势图：
 
 ```
 rate(prometheus_tsdb_head_chunks_created_total[1m])
