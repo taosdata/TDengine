@@ -179,6 +179,14 @@ TRIM DATABASE db_name;
 
 The preceding SQL statement deletes data that has expired and orders the remaining data in accordance with the storage configuration.
 
+## Flush Data
+
+```sql
+FLUSH DATABASE db_name;
+```
+
+Flush data from memory onto disk. Before shutting down a node, executing this command can avoid data restore after restarting and speed up the startup process.
+
 ## Redistribute Vgroup
 
 ```sql
