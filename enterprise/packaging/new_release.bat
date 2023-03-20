@@ -106,6 +106,9 @@ if "%verType%" == "cluster" (
     xcopy /S %examples_dir%\go  %install_dir%\examples\go\*
     xcopy /S %examples_dir%\nodejs  %install_dir%\examples\nodejs\*
     xcopy /S %examples_dir%\C#  %install_dir%\examples\C#\*
+    md %install_dir%\examples\taosbenchmark-json
+    xcopy /S %internal_dir%\community\tools\taos-tools\example %install_dir%\examples\taosbenchmark-json\*
+	install_bin
 )
 cd %package_dir%
 if "%cusName%" == "TDengine" (

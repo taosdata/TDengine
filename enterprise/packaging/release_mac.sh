@@ -123,6 +123,9 @@ sudo rm -rf /opt/tdengine/log
 sudo mkdir -p /opt/tdengine/service
 sudo cp $communityDir/packaging/tools/{logo.png,TDengine,com.taosdata.*} /opt/tdengine/service/
 
+sudo mkdir -p /opt/tdengine/examples/taosbenchmark-json
+sudo cp $communityDir/tools/taos-tools/example/* /opt/tdengine/examples/taosbenchmark-json
+
 sudo cp -f $taoskeeper_binary /opt/tdengine/bin/
 sudo cp -f $(dirname $taoskeeper_binary)/taoskeeper.service /opt/tdengine/cfg/
 sudo cp -f $(dirname $taoskeeper_binary)/config/keeper.toml /opt/tdengine/cfg/
