@@ -530,7 +530,7 @@ function install_service_on_sysvinit() {
 function clean_service_on_systemd() {
     taosd_service_config="${service_config_dir}/taosd.service"
 
-    # taosd service already is stoped before install in preinst script
+    # taosd service already is stopped before install in preinst script
     #if systemctl is-active --quiet taosd; then
     #    echo "TDengine is running, stopping it..."
     #    ${csudo}systemctl stop taosd &> /dev/null || echo &> /dev/null

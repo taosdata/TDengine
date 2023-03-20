@@ -174,6 +174,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid usage of RANGE clause, EVERY clause or FILL clause";
     case TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN:
       return "No valid function in window query";
+    case TSDB_CODE_PAR_INVALID_OPTR_USAGE:
+      return "Invalid usage of expr: %s";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
