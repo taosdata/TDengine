@@ -210,9 +210,9 @@ static void grantSetClusterInfo(SMnode *pMnode) {
   if (strncmp(tsVersionName, GRANT_VERSION, 16) != 0) {
     strncpy(tsVersionName, GRANT_VERSION, 16);
   }
-  if (tsExpireTime != (int64_t)grantStatus.expireTimeSec * 1000) {
-    tsExpireTime = (int64_t)grantStatus.expireTimeSec * 1000;
-  }
+  COMPARE_SET_VAL(tsExpireTime, (int64_t)grantStatus.expireTimeSec * 1000, !=);
+  COMPARE_SET_VAL(pMnode->grant.expireTimeMS, tsExpireTime, !=);
+  COMPARE_SET_VAL(pMnode->grant.timeseriesAllowed, (int64_t)grantStatus.limitTimeSeries, !=);
 }
 
 static FORCE_INLINE void grantSetClusterIdEx(int64_t clusterId) {
