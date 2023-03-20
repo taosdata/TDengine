@@ -32,7 +32,13 @@ typedef bool (*state_key_cmpr_fn)(void* pKey1, void* pKey2);
 typedef struct STdbState {
   SStreamTask* pOwner;
 
-  rocksdb_t* rocksdb;
+  rocksdb_t*                       rocksdb;
+  rocksdb_column_family_handle_t** pHandle;
+  // rocksdb_column_family_handle_t*  fillStateDB;
+  // rocksdb_column_family_handle_t*  sessStateDB;
+  // rocksdb_column_family_handle_t*  funcStateDB;
+  // rocksdb_column_family_handle_t*  parnameStateDB;
+  // rocksdb_column_family_handle_t*  partagStateDB;
 
   TDB* db;
   TTB* pStateDb;
