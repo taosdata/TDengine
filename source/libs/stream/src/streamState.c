@@ -108,6 +108,13 @@ static inline int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, 
   return 0;
 }
 
+//
+//
+//  |--groupid--|---ts------|--opNum----|
+//  |--uint64_t-|-uint64_t--|--int64_t--|
+//
+//
+//
 int         compareState(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen) { return -1; }
 const char* compareStateName(void* name) { return NULL; }
 int         streamInitBackend(SStreamState* pState, char* path) {
@@ -134,9 +141,11 @@ int         streamInitBackend(SStreamState* pState, char* path) {
 
   rocksdb_column_family_handle_t* cf1 = rocksdb_create_column_family(db, dbOpts1, "cmp1", &err);
   rocksdb_column_family_handle_t* cf2 = rocksdb_create_column_family(db, dbOpts2, "cmp2", &err);
-  re
 
-      return 0;
+  rocksdb_writebatch_t* wp = rocksdb_writeoptions_create();
+  rocksdb_put_cf(db, wp, cf1, NULL, 0, NULL, 0, &err);
+
+  return 0;
 }
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
