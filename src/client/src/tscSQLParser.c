@@ -1823,7 +1823,6 @@ int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
 
 int32_t validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   const char* msg1 = "too many columns";
-  const char* msg3 = "column length too long";
   const char* msg4 = "invalid data type";
   const char* msg5 = "invalid column name or length";
   const char* msg6 = "invalid column length";
@@ -1863,9 +1862,11 @@ int32_t validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   }
 
   // length less than TSDB_MAX_BYTES_PER_ROW
-  if (nLen + pColField->bytes + (IS_VAR_DATA_TYPE(pColField->type) ? sizeof(VarDataOffsetT) : 0) >
-      TSDB_MAX_BYTES_PER_ROW) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+  int32_t totalLength = nLen + pColField->bytes + (IS_VAR_DATA_TYPE(pColField->type) ? sizeof(VarDataOffsetT) : 0);
+  if (totalLength > TSDB_MAX_BYTES_PER_ROW) {
+    char errMsg[64];
+    sprintf(errMsg, "(%d > %d)", totalLength, TSDB_MAX_BYTES_PER_ROW);
+    return tscErrorMsgWithCode(TSDB_CODE_TSC_EXCEED_ROW_BYTES, tscGetErrorMsgPayload(pCmd), errMsg, NULL);
   }
 
   // field name must be unique
