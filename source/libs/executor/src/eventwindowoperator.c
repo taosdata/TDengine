@@ -29,7 +29,7 @@ typedef struct SEventWindowOperatorInfo {
   SWindowRowsSup     winSup;
   int32_t            tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp twAggSup;
-  uint64_t           groupId;   // current group id, used to identify the data block from different groups
+  uint64_t           groupId;  // current group id, used to identify the data block from different groups
   SFilterInfo*       pStartCondInfo;
   SFilterInfo*       pEndCondInfo;
   bool               inWindow;
@@ -310,6 +310,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
                                  pSup->rowEntryInfoOffset, pTaskInfo);
 
         pRes->info.rows += pInfo->pRow->numOfRows;
+        pInfo->pRow->numOfRows = 0;
 
         pInfo->inWindow = false;
         rowIndex += 1;

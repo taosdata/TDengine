@@ -84,7 +84,7 @@ You can configure smlChildTableName in taos.cfg to specify table names, for exam
 
 :::tip
 All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed
-16KB. See [TDengine SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
+48KB, and the total length of tag value cannot exceed 16KB. See [TDengine SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
 
 :::
 

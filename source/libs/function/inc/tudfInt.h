@@ -41,7 +41,7 @@ typedef struct SUdfSetupRequest {
 typedef struct SUdfSetupResponse {
   int64_t udfHandle;
   int8_t  outputType;
-  int32_t outputLen;
+  int32_t bytes;
   int32_t bufSize;
 } SUdfSetupResponse;
 

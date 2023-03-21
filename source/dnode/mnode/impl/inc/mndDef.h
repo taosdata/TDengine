@@ -108,7 +108,8 @@ typedef enum {
   TRN_STAGE_UNDO_ACTION = 3,
   TRN_STAGE_COMMIT = 4,
   TRN_STAGE_COMMIT_ACTION = 5,
-  TRN_STAGE_FINISHED = 6
+  TRN_STAGE_FINISHED = 6,
+  TRN_STAGE_PRE_FINISH = 7
 } ETrnStage;
 
 typedef enum {
@@ -175,6 +176,7 @@ typedef struct {
   char        opername[TSDB_TRANS_OPER_LEN];
   SArray*     pRpcArray;
   SRWLatch    lockRpcArray;
+  int64_t     mTraceId;
 } STrans;
 
 typedef struct {
@@ -542,7 +544,7 @@ void*           tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer
 
 typedef struct {
   int32_t vgId;
-  char*   qmsg;
+  char*   qmsg;  // SubPlanToString
   SEpSet  epSet;
 } SMqVgEp;
 

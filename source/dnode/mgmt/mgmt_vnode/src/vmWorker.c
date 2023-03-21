@@ -192,8 +192,8 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       taosWriteQitem(pVnode->pFetchQ, pMsg);
       break;
     case WRITE_QUEUE:
-      if (!osDataSpaceAvailable()) {
-        terrno = TSDB_CODE_NO_DISKSPACE;
+      if (!osDataSpaceSufficient()) {
+        terrno = TSDB_CODE_NO_ENOUGH_DISKSPACE;
         code = terrno;
         dError("vgId:%d, msg:%p put into vnode-write queue failed since %s", pVnode->vgId, pMsg, terrstr(code));
         break;

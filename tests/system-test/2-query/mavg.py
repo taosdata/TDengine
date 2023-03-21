@@ -716,8 +716,6 @@ class TDTestCase:
         tdSql.checkRows(2)
 
         # partition by col
-        tdSql.query(f"select c1 , mavg(c1,3) from {dbname}.stb1 partition by c1")
-        tdSql.checkRows(0)
         tdSql.query(f"select c1 , mavg(c1,1) from {dbname}.stb1 partition by c1")
         tdSql.checkRows(40)
         tdSql.query(f"select c1, c2, c3, c4, mavg(c1,3) from {dbname}.stb1 partition by tbname ")

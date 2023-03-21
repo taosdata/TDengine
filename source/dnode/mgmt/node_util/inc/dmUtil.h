@@ -166,6 +166,7 @@ int32_t dmReadEps(SDnodeData *pData);
 int32_t dmWriteEps(SDnodeData *pData);
 void    dmUpdateEps(SDnodeData *pData, SArray *pDnodeEps);
 void    dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
+void    dmRotateMnodeEpSet(SDnodeData *pData);
 void    dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
 bool    dmUpdateDnodeInfo(void *pData, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port);

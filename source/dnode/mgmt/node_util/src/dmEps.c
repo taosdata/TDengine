@@ -325,6 +325,28 @@ void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
   taosThreadRwlockUnlock(&pData->lock);
 }
 
+static FORCE_INLINE void dmSwapEps(SEp *epLhs, SEp *epRhs) {
+  SEp epTmp;
+
+  epTmp.port = epLhs->port;
+  tstrncpy(epTmp.fqdn, epLhs->fqdn, tListLen(epTmp.fqdn));
+
+  epLhs->port = epRhs->port;
+  tstrncpy(epLhs->fqdn, epRhs->fqdn, tListLen(epLhs->fqdn));
+
+  epRhs->port = epTmp.port;
+  tstrncpy(epRhs->fqdn, epTmp.fqdn, tListLen(epRhs->fqdn));
+}
+
+void dmRotateMnodeEpSet(SDnodeData *pData) {
+  taosThreadRwlockRdlock(&pData->lock);
+  SEpSet *pEpSet = &pData->mnodeEps;
+  for (int i = 1; i < pEpSet->numOfEps; i++) {
+    dmSwapEps(&pEpSet->eps[i - 1], &pEpSet->eps[i]);
+  }
+  taosThreadRwlockUnlock(&pData->lock);
+}
+
 void dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet) {
   dmGetMnodeEpSet(pData, pEpSet);
   dTrace("msg is redirected, handle:%p num:%d use:%d", pMsg->info.handle, pEpSet->numOfEps, pEpSet->inUse);

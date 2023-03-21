@@ -83,7 +83,7 @@ typedef struct {
   const char *clientVersion;
   char cusName[32];
   char promptHeader[32];
-  const char* promptContinue;
+  char promptContinue[32];
   const char* osname;
   int32_t     promptSize;
   char        programVersion[256];

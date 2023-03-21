@@ -179,6 +179,14 @@ TRIM DATABASE db_name;
 
 删除过期数据，并根据多级存储的配置归整数据。
 
+## 落盘内存数据
+
+```sql
+FLUSH DATABASE db_name;
+```
+
+落盘内存中的数据。在关闭节点之前，执行这条命令可以避免重启后的数据回放，加速启动过程。
+
 ## 调整VGROUP中VNODE的分布
 
 ```sql
@@ -194,3 +202,11 @@ BALANCE VGROUP
 ```
 
 自动调整集群所有vgroup中的vnode分布，相当于在vnode级别对集群进行数据的负载均衡操作。
+
+## 查看数据库工作状态
+
+```sql
+SHOW db_name.ALIVE;
+```
+
+查询数据库 db_name 的可用状态，返回值 0：不可用 1：完全可用 2：部分可用（即数据库包含的 VNODE 部分节点可用，部分节点不可用）

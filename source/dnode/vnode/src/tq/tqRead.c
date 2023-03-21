@@ -290,14 +290,14 @@ void tqCloseReader(STqReader* pReader) {
   taosMemoryFree(pReader);
 }
 
-int32_t tqSeekVer(STqReader* pReader, int64_t ver) {
+int32_t tqSeekVer(STqReader* pReader, int64_t ver, const char* id) {
   // todo set the correct vgId
-  tqDebug("tmq poll: vgId:%d wal seek to version:%"PRId64, 0, ver);
+  tqDebug("tmq poll: wal seek to version:%"PRId64" %s", ver, id);
   if (walReadSeekVer(pReader->pWalReader, ver) < 0) {
-    tqError("tmq poll: wal reader failed to seek to ver:%"PRId64, ver);
+    tqError("tmq poll: wal reader failed to seek to ver:%"PRId64" code:%s, %s", ver, tstrerror(terrno), id);
     return -1;
   } else {
-    tqDebug("tmq poll: wal reader seek to ver:%"PRId64, ver);
+    tqDebug("tmq poll: wal reader seek to ver:%"PRId64" %s", ver, id);
     return 0;
   }
 }
@@ -307,36 +307,26 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
 
   while (1) {
     if (!fromProcessedMsg) {
-      SWalReader* pWalReader = pReader->pWalReader;
-
-      if (walNextValidMsg(pWalReader) < 0) {
-        pReader->ver = pWalReader->curVersion - (pWalReader->curInvalid | pWalReader->curStopped);
+      if (walNextValidMsg(pReader->pWalReader) < 0) {
+//        pReader->ver = pReader->pWalReader->curVersion - pReader->pWalReader->curStopped;
+        if(pReader->pWalReader->curInvalid == 0){
+          pReader->ver = pReader->pWalReader->curVersion - pReader->pWalReader->curStopped;
+        }else{
+          pReader->ver = walGetLastVer(pReader->pWalReader->pWal);
+        }
         ret->offset.type = TMQ_OFFSET__LOG;
+
         ret->offset.version = pReader->ver;
         ret->fetchType = FETCH_TYPE__NONE;
-        tqDebug("return offset %" PRId64 ", no more valid", ret->offset.version);
+        tqDebug("return offset %" PRId64 ", no more valid msg in wal", ret->offset.version);
         return -1;
       }
 
-      void*   body = POINTER_SHIFT(pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
-      int32_t bodyLen = pWalReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
-      int64_t ver = pWalReader->pHead->head.version;
+      void*   body = POINTER_SHIFT(pReader->pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
+      int32_t bodyLen = pReader->pWalReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
+      int64_t ver = pReader->pWalReader->pHead->head.version;
 
-      tqDebug("tmq poll: extract submit msg from wal, version:%"PRId64" len:%d", ver, bodyLen);
-
-#if 0
-      if (pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
-        // TODO do filter
-        ret->fetchType = FETCH_TYPE__META;
-        ret->meta = pWalReader->pHead->head.body;
-        return 0;
-      } else {
-#endif
       tqReaderSetSubmitReq2(pReader, body, bodyLen, ver);
-      /*tqReaderSetDataMsg(pReader, body, pWalReader->pHead->head.version);*/
-#if 0
-      }
-#endif
     }
 
     while (tqNextDataBlock2(pReader)) {

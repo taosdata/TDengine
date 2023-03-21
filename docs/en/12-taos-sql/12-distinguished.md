@@ -75,6 +75,16 @@ These pseudocolumns occur after the aggregation clause.
 5. LINEAR：Fill with the closest non-NULL value, `FILL(LINEAR)`
 6. NEXT：Fill with the next non-NULL value, `FILL(NEXT)`
 
+In the above filling modes, except for `NONE` mode, the `fill` clause will be ignored if there is no data in the defined time range, i.e. no data would be filled and the query result would be empty. This behavior is reasonable when the filling mode is `PREV`, `NEXT`, `LINEAR`, because filling can't be performed if there is not any data. For filling modes `NULL` and `VALUE`, however, filling can be performed even though there is not any data, filling or not depends on the choice of user's application.  To accomplish the need of this force filling behavior and not break the behavior of existing filling modes, TDengine added two new filling modes since version 3.0.3.0. 
+
+1. NULL_F: Fill `NULL` by force
+2. VALUE_F: Fill `VALUE` by force
+
+The detailed beaviors of `NULL`, `NULL_F`, `VALUE`, and VALUE_F are described below：
+- When used with `INTERVAL`: `NULL_F` and `VALUE_F` are filling by force；`NULL` and `VALUE`  don't fill by force. The behavior of each filling mode is exactly same as what the name suggests.
+- When used with `INTERVAL` in stream processing: `NULL_F` and `NULL` are same, i.e. don't fill by force; `VALUE_F` and `VALUE` and same, i.e. don't fill by force. It's suggested that there is no filling by force in stream processing.
+- When used with `INTERP`: `NULL` and `NULL_F` and same, i.e. filling by force; `VALUE` and `VALUE_F` are same, i.e. filling by force. It's suggested that there is always filling by force when used with `INTERP`.
+
 :::info
 
 1. A huge volume of interpolation output may be returned using `FILL`, so it's recommended to specify the time range when using `FILL`. The maximum number of interpolation values that can be returned in a single query is 10,000,000.
