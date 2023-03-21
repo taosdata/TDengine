@@ -573,9 +573,9 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
     if (metaRsp.metaRspLen > 0) {
       code = tqSendMetaPollRsp(pTq, pMsg, pRequest, &metaRsp);
       tqDebug("tmq poll: consumer:0x%" PRIx64 " subkey:%s vgId:%d, send meta offset type:%d,uid:%" PRId64
-              ",version:%" PRId64,
+              ",ts:%" PRId64,
               consumerId, pHandle->subKey, vgId, metaRsp.rspOffset.type, metaRsp.rspOffset.uid,
-              metaRsp.rspOffset.version);
+              metaRsp.rspOffset.ts);
       taosMemoryFree(metaRsp.metaRsp);
       tDeleteSTaosxRsp(&taosxRsp);
       return code;
