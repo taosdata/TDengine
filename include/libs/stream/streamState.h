@@ -34,6 +34,8 @@ typedef struct STdbState {
 
   rocksdb_t*                       rocksdb;
   rocksdb_column_family_handle_t** pHandle;
+  rocksdb_writeoptions_t*          wopts;
+  rocksdb_readoptions_t*           ropts;
   // rocksdb_column_family_handle_t*  fillStateDB;
   // rocksdb_column_family_handle_t*  sessStateDB;
   // rocksdb_column_family_handle_t*  funcStateDB;
@@ -65,6 +67,8 @@ int32_t       streamStateAbort(SStreamState* pState);
 void          streamStateDestroy(SStreamState* pState);
 
 typedef struct {
+  rocksdb_iterator_t* iter;
+
   TBC*    pCur;
   int64_t number;
 } SStreamStateCur;
@@ -124,6 +128,23 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
 int32_t streamStatePutParTag(SStreamState* pState, int64_t groupId, const void* tag, int32_t tagLen);
 int32_t streamStateGetParTag(SStreamState* pState, int64_t groupId, void** tagVal, int32_t* tagLen);
 
+/***compare func **/
+
+// todo refactor
+typedef struct SStateKey {
+  SWinKey key;
+  int64_t opNum;
+} SStateKey;
+
+typedef struct SStateSessionKey {
+  SSessionKey key;
+  int64_t     opNum;
+} SStateSessionKey;
+
+int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2);
+int sessionWinKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2);
+int stateSessionKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2);
+int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2);
 #if 0
 char* streamStateSessionDump(SStreamState* pState);
 char* streamStateIntervalDump(SStreamState* pState);

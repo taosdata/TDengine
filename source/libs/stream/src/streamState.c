@@ -25,18 +25,7 @@
 #include "tcompare.h"
 #include "ttimer.h"
 
-// todo refactor
-typedef struct SStateKey {
-  SWinKey key;
-  int64_t opNum;
-} SStateKey;
-
-typedef struct SStateSessionKey {
-  SSessionKey key;
-  int64_t     opNum;
-} SStateSessionKey;
-
-static inline int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
+int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
   if (pWin1->groupId > pWin2->groupId) {
     return 1;
   } else if (pWin1->groupId < pWin2->groupId) {
@@ -52,7 +41,7 @@ static inline int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKe
   return 0;
 }
 
-static inline int sessionWinKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
+int sessionWinKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
   if (pWin1->groupId > pWin2->groupId) {
     return 1;
   } else if (pWin1->groupId < pWin2->groupId) {
@@ -74,7 +63,7 @@ static inline int sessionWinKeyCmpr(const SSessionKey* pWin1, const SSessionKey*
   return 0;
 }
 
-static inline int stateSessionKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
+int stateSessionKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   SStateSessionKey* pWin1 = (SStateSessionKey*)pKey1;
   SStateSessionKey* pWin2 = (SStateSessionKey*)pKey2;
 
@@ -87,7 +76,7 @@ static inline int stateSessionKeyCmpr(const void* pKey1, int kLen1, const void* 
   return sessionWinKeyCmpr(&pWin1->key, &pWin2->key);
 }
 
-static inline int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
+int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   SStateKey* pWin1 = (SStateKey*)pKey1;
   SStateKey* pWin2 = (SStateKey*)pKey2;
 
@@ -110,191 +99,6 @@ static inline int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, 
   }
 
   return 0;
-}
-
-//
-//  SStateKey
-//  |--groupid--|---ts------|--opNum----|
-//  |--uint64_t-|-uint64_t--|--int64_t--|
-//
-//
-//
-int stateKeyDBComp(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen) {
-  SStateKey key1, key2;
-  memset(&key1, 0, sizeof(key1));
-  memset(&key2, 0, sizeof(key2));
-
-  char* p1 = (char*)aBuf;
-  char* p2 = (char*)bBuf;
-
-  p1 = taosDecodeFixedU64(p1, &key1.key.groupId);
-  p2 = taosDecodeFixedU64(p2, &key2.key.groupId);
-
-  p1 = taosDecodeFixedI64(p1, &key1.key.ts);
-  p2 = taosDecodeFixedI64(p2, &key2.key.ts);
-
-  taosDecodeFixedI64(p1, &key1.opNum);
-  taosDecodeFixedI64(p2, &key2.opNum);
-
-  return stateKeyCmpr(&key1, sizeof(key1), &key2, sizeof(key2));
-}
-
-int stateKeySerial(SStateKey* key, char* buf) {
-  int len = 0;
-  len += taosEncodeFixedU64((void**)&buf, key->key.groupId);
-  len += taosEncodeFixedI64((void**)&buf, key->key.ts);
-  len += taosEncodeFixedU64((void**)&buf, key->opNum);
-  return len;
-}
-
-//
-// SStateSessionKey
-//  |-----------SSessionKey----------|
-//  |-----STimeWindow-----|
-//  |---skey--|---ekey----|--groupId-|--opNum--|
-//  |---int64-|--int64_t--|--uint64--|--int64_t|
-// |
-//
-int stateSessionKeyDBComp(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen) {
-  SStateSessionKey w1, w2;
-  memset(&w1, 0, sizeof(w1));
-  memset(&w2, 0, sizeof(w2));
-
-  char* p1 = (char*)aBuf;
-  char* p2 = (char*)bBuf;
-
-  p1 = taosDecodeFixedI64(p1, &w1.key.win.skey);
-  p2 = taosDecodeFixedI64(p2, &w2.key.win.skey);
-
-  p1 = taosDecodeFixedI64(p1, &w1.key.win.ekey);
-  p2 = taosDecodeFixedI64(p2, &w2.key.win.ekey);
-
-  p1 = taosDecodeFixedU64(p1, &w1.key.groupId);
-  p2 = taosDecodeFixedU64(p2, &w2.key.groupId);
-
-  p1 = taosDecodeFixedI64(p1, &w1.opNum);
-  p2 = taosDecodeFixedI64(p2, &w2.opNum);
-
-  return stateSessionKeyCmpr(&w1, sizeof(w1), &w2, sizeof(w2));
-}
-int stateSessionKeySerial(SStateSessionKey* sess, char* buf) {
-  int len = 0;
-  len += taosEncodeFixedI64((void**)&buf, sess->key.win.skey);
-  len += taosEncodeFixedI64((void**)&buf, sess->key.win.ekey);
-  len += taosEncodeFixedU64((void**)&buf, sess->key.groupId);
-  len += taosEncodeFixedI64((void**)&buf, sess->opNum);
-  return len;
-}
-
-/**
- *  SWinKey
- *  |------groupId------|-----ts------|
- *  |------uint64-------|----int64----|
- */
-int winKeyDBComp(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen) {
-  SWinKey w1, w2;
-  memset(&w1, 0, sizeof(w1));
-  memset(&w2, 0, sizeof(w2));
-
-  char* p1 = (char*)aBuf;
-  char* p2 = (char*)bBuf;
-
-  p1 = taosDecodeFixedU64(p1, &w1.groupId);
-  p2 = taosDecodeFixedU64(p2, &w2.groupId);
-
-  p1 = taosDecodeFixedI64(p1, &w1.ts);
-  p2 = taosDecodeFixedI64(p2, &w2.ts);
-
-  return winKeyCmpr(&w1, sizeof(w1), &w2, sizeof(w2));
-}
-
-int winKeySerial(SWinKey* key, char* buf) {
-  int len = 0;
-  len += taosEncodeFixedU64((void**)&buf, key->groupId);
-  len += taosEncodeFixedI64((void**)&buf, key->ts);
-  return len;
-}
-
-/*
- * STupleKey
- * |---groupId---|---ts---|---exprIdx---|
- * |---uint64--|---int64--|---int32-----|
- */
-int tupleKeyDBComp(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen) {
-  STupleKey w1, w2;
-  memset(&w1, 0, sizeof(w1));
-  memset(&w2, 0, sizeof(w2));
-
-  char* p1 = (char*)aBuf;
-  char* p2 = (char*)bBuf;
-
-  p1 = taosDecodeFixedU64(p1, &w1.groupId);
-  p2 = taosDecodeFixedU64(p2, &w2.groupId);
-
-  p1 = taosDecodeFixedI64(p1, &w1.ts);
-  p2 = taosDecodeFixedI64(p2, &w2.ts);
-
-  p1 = taosDecodeFixedI32(p1, &w1.exprIdx);
-  p2 = taosDecodeFixedI32(p2, &w2.exprIdx);
-
-  return STupleKeyCmpr(&w1, sizeof(w1), &w2, sizeof(w2));
-}
-
-int tupleKeySerial(STupleKey* key, char* buf) {
-  int len = 0;
-  len += taosEncodeFixedU64((void**)&buf, key->groupId);
-  len += taosEncodeFixedI64((void**)&buf, key->ts);
-  len += taosEncodeFixedI32((void**)&buf, key->exprIdx);
-  return len;
-}
-
-const char* cfName[] = {"default", "fill", "sess", "func", "parname", "partag"};
-
-const char* compareStateName(void* name) { return NULL; }
-int         streamInitBackend(SStreamState* pState, char* path) {
-  rocksdb_options_t* opts = rocksdb_options_create();
-  rocksdb_options_increase_parallelism(opts, 4);
-  rocksdb_options_optimize_level_style_compaction(opts, 0);
-  // create the DB if it's not already present
-  rocksdb_options_set_create_if_missing(opts, 1);
-  rocksdb_options_set_create_missing_column_families(opts, 1);
-
-  char* err = NULL;
-  int   cfLen = sizeof(cfName) / sizeof(cfName[0]);
-
-  const rocksdb_options_t** cfOpt = taosMemoryCalloc(cfLen, sizeof(rocksdb_options_t*));
-  for (int i = 0; i < cfLen; i++) {
-    cfOpt[i] = rocksdb_options_create_copy(opts);
-  }
-
-  rocksdb_comparator_t* fillCompare = rocksdb_comparator_create(NULL, NULL, stateKeyDBComp, compareStateName);
-  rocksdb_options_set_comparator((rocksdb_options_t*)cfOpt[1], fillCompare);
-
-  rocksdb_comparator_t* sessCompare = rocksdb_comparator_create(NULL, NULL, stateKeyDBComp, compareStateName);
-  rocksdb_options_set_comparator((rocksdb_options_t*)cfOpt[2], sessCompare);
-
-  rocksdb_comparator_t* funcCompare = rocksdb_comparator_create(NULL, NULL, stateKeyDBComp, compareStateName);
-  rocksdb_options_set_comparator((rocksdb_options_t*)cfOpt[3], funcCompare);
-
-  rocksdb_comparator_t* parnameCompare = rocksdb_comparator_create(NULL, NULL, stateKeyDBComp, compareStateName);
-  rocksdb_options_set_comparator((rocksdb_options_t*)cfOpt[4], parnameCompare);
-
-  rocksdb_comparator_t* partagCompare = rocksdb_comparator_create(NULL, NULL, stateKeyDBComp, compareStateName);
-  rocksdb_options_set_comparator((rocksdb_options_t*)cfOpt[5], partagCompare);
-
-  rocksdb_column_family_handle_t** cfHandle = taosMemoryMalloc(cfLen * sizeof(rocksdb_column_family_handle_t*));
-  rocksdb_t* db = rocksdb_open_column_families(opts, "rocksdb", cfLen, cfName, cfOpt, cfHandle, &err);
-
-  pState->pTdbState->rocksdb = db;
-  pState->pTdbState->pHandle = cfHandle;
-  return 0;
-}
-void streamCleanBackend(SStreamState* pState) {
-  int cfLen = sizeof(cfName) / sizeof(cfName[0]);
-  for (int i = 0; i < cfLen; i++) {
-    rocksdb_column_family_handle_destroy(pState->pTdbState->pHandle[i]);
-  }
-  rocksdb_close(pState->pTdbState->rocksdb);
 }
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {
@@ -407,7 +211,7 @@ _err:
 
 void streamStateClose(SStreamState* pState) {
 #ifdef USE_ROCKSDB
-
+  streamCleanBackend(pState);
 #else
   tdbCommit(pState->pTdbState->db, pState->pTdbState->txn);
   tdbPostCommit(pState->pTdbState->db, pState->pTdbState->txn);
@@ -744,6 +548,7 @@ void streamStateFreeCur(SStreamStateCur* pCur) {
     return;
   }
   tdbTbcClose(pCur->pCur);
+  rocksdb_iter_destroy(pCur->iter);
   taosMemoryFree(pCur);
 }
 

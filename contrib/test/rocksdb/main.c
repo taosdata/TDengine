@@ -10,32 +10,48 @@
 const char DBPath[] = "rocksdb_c_simple_example";
 const char DBBackupPath[] = "/tmp/rocksdb_c_simple_example_backup";
 
+static const int32_t endian_test_var = 1;
+#define IS_LITTLE_ENDIAN() (*(uint8_t *)(&endian_test_var) != 0)
+#define TD_RT_ENDIAN()     (IS_LITTLE_ENDIAN() ? TD_LITTLE_ENDIAN : TD_BIG_ENDIAN)
+
 #define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
-static int32_t taosEncodeFixedU64(void **buf, uint64_t value) {
-  if (buf != NULL) {
-    ((uint8_t *)(*buf))[0] = value & 0xff;
-    ((uint8_t *)(*buf))[1] = (value >> 8) & 0xff;
-    ((uint8_t *)(*buf))[2] = (value >> 16) & 0xff;
-    ((uint8_t *)(*buf))[3] = (value >> 24) & 0xff;
-    ((uint8_t *)(*buf))[4] = (value >> 32) & 0xff;
-    ((uint8_t *)(*buf))[5] = (value >> 40) & 0xff;
-    ((uint8_t *)(*buf))[6] = (value >> 48) & 0xff;
-    ((uint8_t *)(*buf))[7] = (value >> 56) & 0xff;
-    *buf = POINTER_SHIFT(*buf, sizeof(value));
+static void *taosDecodeFixedU64(const void *buf, uint64_t *value) {
+  if (IS_LITTLE_ENDIAN()) {
+    memcpy(value, buf, sizeof(*value));
+  } else {
+    ((uint8_t *)value)[7] = ((uint8_t *)buf)[0];
+    ((uint8_t *)value)[6] = ((uint8_t *)buf)[1];
+    ((uint8_t *)value)[5] = ((uint8_t *)buf)[2];
+    ((uint8_t *)value)[4] = ((uint8_t *)buf)[3];
+    ((uint8_t *)value)[3] = ((uint8_t *)buf)[4];
+    ((uint8_t *)value)[2] = ((uint8_t *)buf)[5];
+    ((uint8_t *)value)[1] = ((uint8_t *)buf)[6];
+    ((uint8_t *)value)[0] = ((uint8_t *)buf)[7];
   }
-  return (int32_t)sizeof(value);
+
+  return POINTER_SHIFT(buf, sizeof(*value));
 }
 
-static void *taosDecodeFixedU64(const void *buf, uint64_t *value) {
-  ((uint8_t *)value)[7] = ((uint8_t *)buf)[0];
-  ((uint8_t *)value)[6] = ((uint8_t *)buf)[1];
-  ((uint8_t *)value)[5] = ((uint8_t *)buf)[2];
-  ((uint8_t *)value)[4] = ((uint8_t *)buf)[3];
-  ((uint8_t *)value)[3] = ((uint8_t *)buf)[4];
-  ((uint8_t *)value)[2] = ((uint8_t *)buf)[5];
-  ((uint8_t *)value)[1] = ((uint8_t *)buf)[6];
-  ((uint8_t *)value)[0] = ((uint8_t *)buf)[7];
-  return POINTER_SHIFT(buf, sizeof(*value));
+// ---- Fixed U64
+static int32_t taosEncodeFixedU64(void **buf, uint64_t value) {
+  if (buf != NULL) {
+    if (IS_LITTLE_ENDIAN()) {
+      memcpy(*buf, &value, sizeof(value));
+    } else {
+      ((uint8_t *)(*buf))[0] = value & 0xff;
+      ((uint8_t *)(*buf))[1] = (value >> 8) & 0xff;
+      ((uint8_t *)(*buf))[2] = (value >> 16) & 0xff;
+      ((uint8_t *)(*buf))[3] = (value >> 24) & 0xff;
+      ((uint8_t *)(*buf))[4] = (value >> 32) & 0xff;
+      ((uint8_t *)(*buf))[5] = (value >> 40) & 0xff;
+      ((uint8_t *)(*buf))[6] = (value >> 48) & 0xff;
+      ((uint8_t *)(*buf))[7] = (value >> 56) & 0xff;
+    }
+
+    *buf = POINTER_SHIFT(*buf, sizeof(value));
+  }
+
+  return (int32_t)sizeof(value);
 }
 
 typedef struct KV {
@@ -45,8 +61,6 @@ typedef struct KV {
 
 int kvSerial(KV *kv, char *buf) {
   int len = 0;
-  buf[0] = 'a';
-  buf += 1;
   len += taosEncodeFixedU64((void **)&buf, kv->k1);
   len += taosEncodeFixedU64((void **)&buf, kv->k2);
   return len;
@@ -60,8 +74,8 @@ int         kvDBComp(void *state, const char *aBuf, size_t aLen, const char *bBu
 
   char *p1 = (char *)aBuf;
   char *p2 = (char *)bBuf;
-  p1 += 1;
-  p2 += 1;
+  // p1 += 1;
+  // p2 += 1;
 
   p1 = taosDecodeFixedU64(p1, &w1.k1);
   p2 = taosDecodeFixedU64(p2, &w2.k1);
@@ -84,7 +98,7 @@ int         kvDBComp(void *state, const char *aBuf, size_t aLen, const char *bBu
 }
 int kvDeserial(KV *kv, char *buf) {
   char *p1 = (char *)buf;
-  p1 += 1;
+  // p1 += 1;
   p1 = taosDecodeFixedU64(p1, &kv->k1);
   p1 = taosDecodeFixedU64(p1, &kv->k2);
 
@@ -107,11 +121,15 @@ int main(int argc, char const *argv[]) {
 
   const rocksdb_options_t **cfOpt = malloc(len * sizeof(rocksdb_options_t *));
   for (int i = 0; i < len; i++) {
-    cfOpt[i] = opt;
+    cfOpt[i] = rocksdb_options_create_copy(opt);
+    if (i != 0) {
+      rocksdb_comparator_t *comp = rocksdb_comparator_create(NULL, NULL, kvDBComp, kvDBName);
+      rocksdb_options_set_comparator((rocksdb_options_t *)cfOpt[i], comp);
+    }
   }
 
   rocksdb_column_family_handle_t **cfHandle = malloc(len * sizeof(rocksdb_column_family_handle_t *));
-  db = rocksdb_open_column_families(opt, "test", len, cfName, cfOpt, cfHandle, &err);
+  db = rocksdb_open_column_families(opt, path, len, cfName, cfOpt, cfHandle, &err);
 
   {
     rocksdb_readoptions_t *rOpt = rocksdb_readoptions_create();
@@ -119,10 +137,6 @@ int main(int argc, char const *argv[]) {
 
     char *v = rocksdb_get_cf(db, rOpt, cfHandle[0], "key", strlen("key"), &vlen, &err);
     printf("Get value %s, and len = %d\n", v, (int)vlen);
-
-    char *v1 = rocksdb_get_cf(db, rOpt, cfHandle[1], "key", strlen("key"), &vlen, &err);
-    printf("Get value %s, and len = %d\n", v1, (int)vlen);
-    rocksdb_readoptions_destroy(rOpt);
   }
 
   rocksdb_writeoptions_t *wOpt = rocksdb_writeoptions_create();
@@ -132,6 +146,40 @@ int main(int argc, char const *argv[]) {
 
   rocksdb_readoptions_t *rOpt = rocksdb_readoptions_create();
   size_t                 vlen = 0;
+
+  {
+    rocksdb_writeoptions_t *wOpt = rocksdb_writeoptions_create();
+    rocksdb_writebatch_t   *wBatch = rocksdb_writebatch_create();
+    for (int i = 0; i < 100; i++) {
+      char buf[128] = {0};
+      KV   kv = {.k1 = (100 - i) % 26, .k2 = i % 26};
+      kvSerial(&kv, buf);
+      rocksdb_writebatch_put_cf(wBatch, cfHandle[1], buf, sizeof(kv), "value", strlen("value"));
+    }
+    rocksdb_write(db, wOpt, wBatch, &err);
+  }
+  {
+    char buf[128] = {0};
+    KV   kv = {.k1 = 0, .k2 = 0};
+    kvSerial(&kv, buf);
+    char *v = rocksdb_get_cf(db, rOpt, cfHandle[1], buf, sizeof(kv), &vlen, &err);
+    printf("Get value %s, and len = %d, xxxx\n", v, (int)vlen);
+    rocksdb_iterator_t *iter = rocksdb_create_iterator_cf(db, rOpt, cfHandle[1]);
+    rocksdb_iter_seek_to_first(iter);
+    int i = 0;
+    while (rocksdb_iter_valid(iter)) {
+      size_t      klen, vlen;
+      const char *key = rocksdb_iter_key(iter, &klen);
+      const char *value = rocksdb_iter_value(iter, &vlen);
+      KV          kv;
+      kvDeserial(&kv, (char *)key);
+      printf("kv1: %d\t kv2: %d, len:%d, value = %s\n", (int)(kv.k1), (int)(kv.k2), (int)(klen), value);
+      i++;
+      rocksdb_iter_next(iter);
+    }
+    rocksdb_iter_destroy(iter);
+    printf("iterator count %d\n", i);
+  }
 
   char *v = rocksdb_get_cf(db, rOpt, cfHandle[0], "key", strlen("key"), &vlen, &err);
   printf("Get value %s, and len = %d\n", v, (int)vlen);
