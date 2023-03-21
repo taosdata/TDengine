@@ -737,6 +737,20 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     terrno = 0;
   }
 
+  if (pAlter->walRetentionPeriod > TSDB_DB_MIN_WAL_RETENTION_PERIOD &&
+      pAlter->walRetentionPeriod != pDb->cfg.walRetentionPeriod) {
+    pDb->cfg.walRetentionPeriod = pAlter->walRetentionPeriod;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
+  if (pAlter->walRetentionSize > TSDB_DB_MIN_WAL_RETENTION_SIZE &&
+      pAlter->walRetentionSize != pDb->cfg.walRetentionSize) {
+    pDb->cfg.walRetentionSize = pAlter->walRetentionSize;
+    pDb->vgVersion++;
+    terrno = 0;
+  }
+
   return terrno;
 }
 

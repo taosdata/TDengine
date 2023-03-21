@@ -4254,6 +4254,8 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->replications = pStmt->pOptions->replica;
   pReq->sstTrigger = pStmt->pOptions->sstTrigger;
   pReq->minRows = pStmt->pOptions->minRowsPerBlock;
+  pReq->walRetentionPeriod = pStmt->pOptions->walRetentionPeriod;
+  pReq->walRetentionSize = pStmt->pOptions->walRetentionSize;
   return;
 }
 
