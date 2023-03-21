@@ -759,6 +759,8 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   pClusterInfo->connections_total = mndGetNumOfConnections(pMnode);
   pClusterInfo->dbs_total = sdbGetSize(pSdb, SDB_DB);
   pClusterInfo->stbs_total = sdbGetSize(pSdb, SDB_STB);
+  pClusterInfo->topics_toal = sdbGetSize(pSdb, SDB_TOPIC);
+  pClusterInfo->streams_total = sdbGetSize(pSdb, SDB_STREAM);
 
   void *pIter = NULL;
   while (1) {

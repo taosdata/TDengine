@@ -505,8 +505,8 @@ static TransCbFp mndTransGetCbFp(ETrnFunc ftype) {
 }
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
-  mInfo("trans:%d, perform insert action, row:%p stage:%s, callfunc:1, startFunc:%d", pTrans->id, pTrans, mndTransStr(pTrans->stage),
-      pTrans->startFunc);
+  mInfo("trans:%d, perform insert action, row:%p stage:%s, callfunc:1, startFunc:%d", pTrans->id, pTrans,
+        mndTransStr(pTrans->stage), pTrans->startFunc);
 
   if (pTrans->startFunc > 0) {
     TransCbFp fp = mndTransGetCbFp(pTrans->startFunc);
@@ -577,8 +577,7 @@ static void mndTransUpdateActions(SArray *pOldArray, SArray *pNewArray) {
 
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
   mInfo("trans:%d, perform update action, old row:%p stage:%s create:%" PRId64 ", new row:%p stage:%s create:%" PRId64,
-         pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage),
-         pNew->createdTime);
+        pOld->id, pOld, mndTransStr(pOld->stage), pOld->createdTime, pNew, mndTransStr(pNew->stage), pNew->createdTime);
 
   if (pOld->createdTime != pNew->createdTime) {
     mError("trans:%d, failed to perform update action since createTime not match, old row:%p stage:%s create:%" PRId64
@@ -650,6 +649,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   pTrans->undoActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->commitActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->pRpcArray = taosArrayInit(1, sizeof(SRpcHandleInfo));
+  pTrans->mTraceId = pReq ? TRACE_GET_ROOTID(&pReq->info.traceId) : 0;
   taosInitRWLatch(&pTrans->lockRpcArray);
 
   if (pTrans->redoActions == NULL || pTrans->undoActions == NULL || pTrans->commitActions == NULL ||
@@ -706,7 +706,8 @@ static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction) {
 }
 
 int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw) {
-  STransAction action = {.stage = TRN_STAGE_REDO_ACTION, .actionType = TRANS_ACTION_RAW, .pRaw = pRaw};
+  STransAction action = {
+      .stage = TRN_STAGE_REDO_ACTION, .actionType = TRANS_ACTION_RAW, .pRaw = pRaw, .mTraceId = pTrans->mTraceId};
   return mndTransAppendAction(pTrans->redoActions, &action);
 }
 
@@ -728,6 +729,7 @@ int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw) {
 int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction) {
   pAction->stage = TRN_STAGE_REDO_ACTION;
   pAction->actionType = TRANS_ACTION_MSG;
+  pAction->mTraceId = pTrans->mTraceId;
   return mndTransAppendAction(pTrans->redoActions, pAction);
 }
 
@@ -875,7 +877,6 @@ int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans) {
     }
   }
 
-
   if (mndCheckTransConflict(pMnode, pTrans)) {
     terrno = TSDB_CODE_MND_TRANS_CONFLICT;
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -912,6 +913,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   pNew->pRpcArray = pTrans->pRpcArray;
   pNew->rpcRsp = pTrans->rpcRsp;
   pNew->rpcRspLen = pTrans->rpcRspLen;
+  pNew->mTraceId = pTrans->mTraceId;
   pTrans->pRpcArray = NULL;
   pTrans->rpcRsp = NULL;
   pTrans->rpcRspLen = 0;
@@ -1167,6 +1169,8 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+  rpcMsg.info.traceId.rootId = pTrans->mTraceId;
+
   memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
 
   char    detail[1024] = {0};
@@ -1457,7 +1461,7 @@ static bool mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans) {
 
   if (code == 0) {
     pTrans->code = 0;
-    pTrans->stage = TRN_STAGE_FINISHED; // TRN_STAGE_PRE_FINISH is not necessary
+    pTrans->stage = TRN_STAGE_FINISHED;  // TRN_STAGE_PRE_FINISH is not necessary
     mInfo("trans:%d, stage from commitAction to finished", pTrans->id);
     continueExec = true;
   } else {

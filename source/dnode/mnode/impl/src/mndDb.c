@@ -1417,7 +1417,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
   return 0;
 }
 
-static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
+static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb, SRpcMsg *pReq) {
   SSdb       *pSdb = pMnode->pSdb;
   SVgObj     *pVgroup = NULL;
   void       *pIter = NULL;
@@ -1439,7 +1439,7 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
     pHead->vgId = htonl(pVgroup->vgId);
     tSerializeSVTrimDbReq((char *)pHead + sizeof(SMsgHead), contLen, &trimReq);
 
-    SRpcMsg rpcMsg = {.msgType = TDMT_VND_TRIM, .pCont = pHead, .contLen = contLen};
+    SRpcMsg rpcMsg = {.msgType = TDMT_VND_TRIM, .pCont = pHead, .contLen = contLen, .info = pReq->info};
     SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
     int32_t code = tmsgSendReq(&epSet, &rpcMsg);
     if (code != 0) {
@@ -1475,7 +1475,7 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndTrimDb(pMnode, pDb);
+  code = mndTrimDb(pMnode, pDb, pReq);
 
 _OVER:
   if (code != 0) {

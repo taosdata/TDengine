@@ -241,7 +241,7 @@ typedef struct SUvUdfWork {
   struct SUvUdfWork *pWorkNext;
 } SUvUdfWork;
 
-typedef enum { UDF_STATE_INIT = 0, UDF_STATE_LOADING, UDF_STATE_READY} EUdfState;
+typedef enum { UDF_STATE_INIT = 0, UDF_STATE_LOADING, UDF_STATE_READY } EUdfState;
 
 typedef struct SUdf {
   char name[TSDB_FUNC_NAME_LEN + 1];
@@ -439,7 +439,7 @@ int32_t udfdInitScriptPlugin(int8_t scriptType) {
         return err;
       }
       break;
-      }
+    }
     default:
       fnError("udf script type %d not supported", scriptType);
       taosMemoryFree(plugin);
@@ -509,14 +509,14 @@ int32_t udfdRenameUdfFile(SUdf *udf) {
   char newPath[PATH_MAX];
   if (udf->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
     snprintf(newPath, PATH_MAX, "%s/lib%s.so", tsTempDir, udf->name);
-    taosRenameFile(udf->path, newPath);
-    sprintf(udf->path, "%s", newPath);
   } else if (udf->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
     snprintf(newPath, PATH_MAX, "%s/%s.py", tsTempDir, udf->name);
-    taosRenameFile(udf->path, newPath);
-    sprintf(udf->path, "%s", newPath);
   } else {
     return TSDB_CODE_UDF_SCRIPT_NOT_SUPPORTED;
+  }
+  int32_t code = taosRenameFile(udf->path, newPath);
+  if (code == 0) {
+    sprintf(udf->path, "%s", newPath);
   }
   return 0;
 }
@@ -554,6 +554,8 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
     fnError("udf name %s init failed. error %d", udfName, err);
     return err;
   }
+
+  fnInfo("udf init succeeded. name %s type %d context %p", udf->name, udf->scriptType, (void*)udf->scriptUdfCtx);
   return 0;
 }
 
@@ -763,6 +765,7 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   }
   uv_mutex_unlock(&global.udfsMutex);
   if (unloadUdf) {
+    fnInfo("udf teardown. udf name: %s type %d: context %p", udf->name, udf->scriptType, (void*)(udf->scriptUdfCtx));
     uv_cond_destroy(&udf->condReady);
     uv_mutex_destroy(&udf->lock);
     code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
@@ -1358,7 +1361,7 @@ int32_t udfdDeinitResidentFuncs() {
     char  *funcName = taosArrayGet(global.residentFuncs, i);
     SUdf **udfInHash = taosHashGet(global.udfsHash, funcName, strlen(funcName));
     if (udfInHash) {
-      SUdf *udf = *udfInHash;
+      SUdf   *udf = *udfInHash;
       int32_t code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
       fnDebug("udfd destroy function returns %d", code);
       taosHashRemove(global.udfsHash, funcName, strlen(funcName));

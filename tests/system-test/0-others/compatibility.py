@@ -3,6 +3,7 @@ import taos
 import sys
 import os
 import time
+import platform
 import inspect
 from taos.tmq import Consumer
 
@@ -106,6 +107,9 @@ class TDTestCase:
         if distro_id == "alpine":
             tdLog.info(f"alpine skip compatibility test")
             return True
+        if platform.system().lower() == 'windows':
+            tdLog.info(f"Windows skip compatibility test")
+            return True
         bPath = self.getBuildPath()
         cPath = self.getCfgPath()
         dbname = "test"
@@ -163,7 +167,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
         tdsql.query(f"select count(*) from {stb}")
-        tdsql.checkData(0,0,tableNumbers*recordNumbers1)    
+        tdsql.checkData(0,0,tableNumbers*recordNumbers1)
         # tdsql.query("show streams;")
         # os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
         # tdsql.query("show streams;")
@@ -192,15 +196,15 @@ class TDTestCase:
         tdsql.query("describe  information_schema.ins_databases;")
         qRows=tdsql.queryRows   
         comFlag=True
-        j=0 
-        while comFlag: 
+        j=0
+        while comFlag:
             for i in  range(qRows) :
                 if tdsql.queryResult[i][0] == "retentions" :
                     print("parameters include retentions")
                     comFlag=False
                     break
                 else :
-                    comFlag=True 
+                    comFlag=True
                     j=j+1
             if j == qRows:
                 print("parameters don't include retentions")

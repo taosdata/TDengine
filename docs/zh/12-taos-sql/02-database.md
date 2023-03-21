@@ -179,6 +179,14 @@ TRIM DATABASE db_name;
 
 删除过期数据，并根据多级存储的配置归整数据。
 
+## 落盘内存数据
+
+```sql
+FLUSH DATABASE db_name;
+```
+
+落盘内存中的数据。在关闭节点之前，执行这条命令可以避免重启后的数据回放，加速启动过程。
+
 ## 调整VGROUP中VNODE的分布
 
 ```sql

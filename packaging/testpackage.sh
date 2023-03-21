@@ -25,7 +25,7 @@ sourcePath="nas"
 cpuType="x64"
 lite="true"
 packageType="tar"
-subFile="taos.tar.gz"
+subFile="package.tar.gz"
 while getopts "m:c:f:l:s:o:t:v:h" opt; do
     case $opt in
         m)

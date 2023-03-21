@@ -52,6 +52,8 @@ typedef struct {
   int32_t   contLen;
   void     *pCont;
   SSdbRaw  *pRaw;
+
+  int64_t mTraceId;
 } STransAction;
 
 typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);

@@ -400,11 +400,11 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 #### 执行指定查询语句的配置参数
 
-查询子表或者普通表的配置参数在 `specified_table_query` 中设置。
+查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
 
 - **query_interval** : 查询时间间隔，单位是秒，默认值为 0。
 
-- **threads** : 执行查询 SQL 的线程数，默认值为 1。
+- **threads/concurrent** : 执行查询 SQL 的线程数，默认值为 1。
 
 - **sqls**：
   - **sql**: 执行的 SQL 命令，必填。
@@ -431,7 +431,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 #### 执行指定订阅语句的配置参数
 
-订阅子表或者普通表的配置参数在 `specified_table_query` 中设置。
+订阅指定表（可以指定超级表、子表或者普通表）的配置参数在 `specified_table_query` 中设置。
 
 - **threads/concurrent** : 执行 SQL 的线程数，默认为 1。
 
