@@ -309,70 +309,6 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   return 0;
 }
 
-//int32_t tqSendTaosxRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const STaosxRsp* pRsp) {
-//#if 0
-//  A(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
-//  A(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
-//
-//  if (pRsp->withSchema) {
-//    A(taosArrayGetSize(pRsp->blockSchema) == pRsp->blockNum);
-//  } else {
-//    A(taosArrayGetSize(pRsp->blockSchema) == 0);
-//  }
-//
-//  if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-//    if (pRsp->blockNum > 0) {
-//      A(pRsp->rspOffset.version > pRsp->reqOffset.version);
-//    } else {
-//      A(pRsp->rspOffset.version >= pRsp->reqOffset.version);
-//    }
-//  }
-//#endif
-//
-//  int32_t len = 0;
-//  int32_t code = 0;
-//  tEncodeSize(tEncodeSTaosxRsp, pRsp, len, code);
-//  if (code < 0) {
-//    return -1;
-//  }
-//
-//  int32_t tlen = sizeof(SMqRspHead) + len;
-//  void*   buf = rpcMallocCont(tlen);
-//  if (buf == NULL) {
-//    terrno = TSDB_CODE_OUT_OF_MEMORY;
-//    return -1;
-//  }
-//
-//  ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__TAOSX_RSP;
-//  ((SMqRspHead*)buf)->epoch = pReq->epoch;
-//  ((SMqRspHead*)buf)->consumerId = pReq->consumerId;
-//
-//  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
-//
-//  SEncoder encoder = {0};
-//  tEncoderInit(&encoder, abuf, len);
-//  tEncodeSTaosxRsp(&encoder, pRsp);
-//  tEncoderClear(&encoder);
-//
-//  SRpcMsg rsp = {
-//      .info = pMsg->info,
-//      .pCont = buf,
-//      .contLen = tlen,
-//      .code = 0,
-//  };
-//
-//  tmsgSendRsp(&rsp);
-//
-//  char buf1[80] = {0};
-//  char buf2[80] = {0};
-//  tFormatOffset(buf1, 80, &pRsp->reqOffset);
-//  tFormatOffset(buf2, 80, &pRsp->rspOffset);
-//
-//  tqDebug("taosx rsp, vgId:%d, consumer:0x%" PRIx64 " (epoch %d) send rsp, numOfBlks:%d, req:%s, rsp:%s",
-//          TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2);
-//  return 0;
-//}
-
 static FORCE_INLINE bool tqOffsetLessOrEqual(const STqOffset* pLeft, const STqOffset* pRight) {
   return pLeft->val.type == TMQ_OFFSET__LOG && pRight->val.type == TMQ_OFFSET__LOG &&
          pLeft->val.version <= pRight->val.version;
@@ -615,9 +551,9 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
 
     // NOTE: this pHandle->consumerId may have been changed already.
     tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, offset type:%d, uid/version:%" PRId64
-            ", ts:%" PRId64,
+            ", ts:%" PRId64", reqId:0x%"PRIx64,
             consumerId, pHandle->subKey, vgId, dataRsp.blockNum, dataRsp.rspOffset.type, dataRsp.rspOffset.uid,
-            dataRsp.rspOffset.ts);
+            dataRsp.rspOffset.ts, pRequest->reqId);
 
     tDeleteSMqDataRsp(&dataRsp);
     return code;
@@ -680,17 +616,12 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
         break;
       }
 
-      if (tqFetchLog(pTq, pHandle, &fetchVer, &pCkHead) < 0) {
+      if (tqFetchLog(pTq, pHandle, &fetchVer, &pCkHead, pRequest->reqId) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
-//        if (terrno == 0) {  // failed to seek to given ver, but no errors happen.
-//          code = tqRegisterPushEntry(pTq, pHandle, pRequest, pMsg, (SMqDataRsp*) &taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
-//          return code;
-//        } else { // error happens, return to consumers
-          code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
-          tDeleteSTaosxRsp(&taosxRsp);
-          taosMemoryFreeClear(pCkHead);
-          return code;
-//        }
+        code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
+        tDeleteSTaosxRsp(&taosxRsp);
+        taosMemoryFreeClear(pCkHead);
+        return code;
       }
 
       SWalCont* pHead = &pCkHead->head;

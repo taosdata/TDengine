@@ -922,7 +922,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
       pBlockNum->numOfBlocks += 1;
     }
 
-    if ((pScanInfo->pBlockList != NULL) && (taosArrayGetSize(pScanInfo->pBlockList) > 0)) {
+    if (taosArrayGetSize(pScanInfo->pBlockList) > 0) {
       numOfQTable += 1;
     }
   }
@@ -4220,12 +4220,8 @@ int32_t tsdbReaderSuspend(STsdbReader* pReader) {
   if (pStatus->loadFromFile) {
     SFileDataBlockInfo* pBlockInfo = getCurrentBlockInfo(&pReader->status.blockIter);
     if (pBlockInfo != NULL) {
-      pBlockScanInfo =
-          *(STableBlockScanInfo**)taosHashGet(pStatus->pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
+      pBlockScanInfo = getTableBlockScanInfo(pStatus->pTableMap, pBlockInfo->uid, pReader->idStr);
       if (pBlockScanInfo == NULL) {
-        code = TSDB_CODE_INVALID_PARA;
-        tsdbError("failed to locate the uid:%" PRIu64 " in query table uid list, total tables:%d, %s", pBlockInfo->uid,
-                  taosHashGetSize(pReader->status.pTableMap), pReader->idStr);
         goto _err;
       }
     } else {
