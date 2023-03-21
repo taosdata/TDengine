@@ -67,44 +67,57 @@ fn ipc_test<R: Read, W: Write>(
 
     for record in ipc_reader {
         if let Ok(record) = record {
-            for record in record {
-                records += record.num_rows();
-                // let data = record.to_column_views();
-                let map_data = record.to_column_views_group_by_tablename();
-                dbg!(&map_data);
-                for (k, data_vec) in &map_data {
-                    let table_name = k.as_deref().or(record.table());
-                    let mut stmt = Stmt::init(&taos)?;
-                    info!("init stmt");
-                    let sql = format!("insert into ? ({names}) values({marks})");
-                    info!("prepare with sql: {sql}");
-                    stmt.prepare(&sql).unwrap();
-                    info!("prepare");
-                    if let Some(table_name) = table_name {
-                        if let Err(err) = stmt.set_tbname(table_name) {
-                            tracing::warn!("table name `{}` error {err}", table_name);
-                            if let Some(tb) = record.meta_sql(Some(String::from(table_name))) {
-                                info!("sql: {tb}");
-                                // taos.exec_sync(&tb).unwrap();
-                                rt.block_on(taos.exec(&tb))?;
-                                stmt.set_tbname(table_name).unwrap();
-                            }
-                        }
-                        stmt.bind(data_vec.as_slice()).unwrap();
-                        stmt.add_batch().unwrap();
-                        let n = stmt.execute().unwrap();
-
-                        info!("written [{n}] records for table {table_name}");
-                    } else {
-                        stmt.bind(data_vec.as_slice()).unwrap();
-                        stmt.add_batch().unwrap();
-                        let n = stmt.execute().unwrap();
-
-                        info!("written : [{n}] records");
+            match record {
+                LushMessage::Tables(tables) => {
+                    for table in tables {
+                        let sql = table.to_sql(None).unwrap();
+                        rt.block_on(taos.exec(&sql))?;
                     }
-                    drop(stmt);
+                }
+                LushMessage::Insert(record) => {
+                    for record in record {
+                        records += record.num_rows();
+                        // let data = record.to_column_views();
+                        let map_data = record.to_column_views_group_by_tablename();
+                        // dbg!(&map_data);
+                        for (k, data_vec) in &map_data {
+                            let table_name = k.as_deref().or(record.table());
+                            let mut stmt = Stmt::init(&taos)?;
+                            info!("init stmt");
+                            let sql = format!("insert into ? ({names}) values({marks})");
+                            info!("prepare with sql: {sql}");
+                            stmt.prepare(&sql).unwrap();
+                            info!("prepare");
+                            if let Some(table_name) = table_name {
+                                if let Err(err) = stmt.set_tbname(table_name) {
+                                    tracing::warn!("table name `{}` error {err}", table_name);
+                                    if let Some(tb) =
+                                        record.meta_sql(Some(String::from(table_name)))
+                                    {
+                                        info!("sql: {tb}");
+                                        // taos.exec_sync(&tb).unwrap();
+                                        rt.block_on(taos.exec(&tb))?;
+                                        stmt.set_tbname(table_name).unwrap();
+                                    }
+                                }
+                                stmt.bind(data_vec.as_slice()).unwrap();
+                                stmt.add_batch().unwrap();
+                                let n = stmt.execute().unwrap();
+
+                                info!("written [{n}] records for table {table_name}");
+                            } else {
+                                stmt.bind(data_vec.as_slice()).unwrap();
+                                stmt.add_batch().unwrap();
+                                let n = stmt.execute().unwrap();
+
+                                info!("written : [{n}] records");
+                            }
+                            drop(stmt);
+                        }
+                    }
                 }
             }
+
             ipc_ack_writer.write_ok().unwrap();
         }
     }

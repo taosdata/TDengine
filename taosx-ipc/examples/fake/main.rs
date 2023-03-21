@@ -50,12 +50,7 @@ async fn main() -> Result<()> {
                 IpcField::new("t9", false, ArrowDataType::UInt64, IpcDataType::UInt64),
                 IpcField::new("t10", false, ArrowDataType::Float32, IpcDataType::Float32),
                 IpcField::new("t11", false, ArrowDataType::Float64, IpcDataType::Float64),
-                IpcField::new(
-                    "t12",
-                    false,
-                    ArrowDataType::Binary,
-                    IpcDataType::VarChar(10),
-                ),
+                IpcField::new("t12", true, ArrowDataType::Binary, IpcDataType::VarChar(10)),
             ],
         )
         .build();
@@ -70,23 +65,46 @@ async fn main() -> Result<()> {
     let now = chrono::Utc::now();
     let mut ms = now.timestamp_millis() - 10000;
 
+    let mut tables = lush_builder.child_tables_builder();
+
+    let tables = tables
+        .next_table("fake01")
+        .append(&true)
+        .append(&1i8)
+        .append(&2i16)
+        .append(&3i32)
+        .append(&4i64)
+        .append(&5u8)
+        .append(&6u16)
+        .append(&7u32)
+        .append(&8u64)
+        .append(&9f32)
+        .append(&10f64)
+        .append(&"I'm fake01")
+        .next_table("d1001").fill_nulls_to_end()
+        .next_table("d1002").fill_nulls_to_end()
+        .next_table("d1003").fill_nulls_to_end()
+        .finish()?;
+    // dbg!(&tables);
+    writer.write(&tables)?;
+
     loop {
         let mut insert = lush_builder.insert_builder();
-        insert
-            .table("tb1")
-            .using("meters")
-            .with_tag(Box::new(true) as Box<dyn Any>)
-            .with_tag(Box::new(1i8) as Box<dyn Any>)
-            .with_tag(Box::new(1i16) as Box<dyn Any>)
-            .with_tag(Box::new(1i32) as Box<dyn Any>)
-            .with_tag(Box::new(1i64) as Box<dyn Any>)
-            .with_tag(Box::new(1u8) as Box<dyn Any>)
-            .with_tag(Box::new(1u16) as Box<dyn Any>)
-            .with_tag(Box::new(1u32) as Box<dyn Any>)
-            .with_tag(Box::new(1u64) as Box<dyn Any>)
-            .with_tag(Box::new(1.0f32) as Box<dyn Any>)
-            .with_tag(Box::new(1.0f64) as Box<dyn Any>)
-            .with_tag(Box::new(&"abc") as Box<dyn Any>);
+
+        // insert
+        //     .table("tb1")
+        //     .with_tag(&true)
+        //     .with_tag(&1i8)
+        //     .with_tag(&2i16)
+        //     .with_tag(&3i32)
+        //     .with_tag(&4i64)
+        //     .with_tag(&5u8)
+        //     .with_tag(&6u16)
+        //     .with_tag(&7u32)
+        //     .with_tag(&8u64)
+        //     .with_tag(&9f32)
+        //     .with_tag(&10f64)
+        //     .with_tag(&"abc");
 
         let builder = insert.columns_builder();
 

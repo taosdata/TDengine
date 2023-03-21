@@ -10,7 +10,7 @@ use std::{
 use arrow::{
     array::{
         make_builder, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanArray, BooleanBuilder,
-        ListBuilder, StringBuilder, StructBuilder, TimestampMicrosecondBuilder,
+        ListBuilder, StringBuilder, StructArray, StructBuilder, TimestampMicrosecondBuilder,
         TimestampMillisecondBuilder, TimestampNanosecondBuilder, TimestampSecondBuilder,
         UInt8Array,
     },
@@ -24,21 +24,20 @@ use serde::{de::Visitor, Deserialize, Serialize};
 
 use taos_query::prelude::Itertools;
 
-pub struct ListOfStructBuilder {
+pub struct StructArrayBuilder {
     fields: Vec<Field>,
-    builder: ListBuilder<StructBuilder>,
+    builder: StructBuilder,
     batch: usize,
     index: Option<usize>,
 }
 
-impl ListOfStructBuilder {
+impl StructArrayBuilder {
     pub fn new(fields: Vec<Field>, capacity: usize) -> Self {
         let field_builders = fields
             .iter()
             .map(|f| make_builder(f.data_type(), capacity))
             .collect();
-        let values_builder = StructBuilder::new(fields.clone(), field_builders);
-        let builder = ListBuilder::new(values_builder);
+        let builder = StructBuilder::new(fields.clone(), field_builders);
         Self {
             fields,
             builder,
@@ -51,13 +50,9 @@ impl ListOfStructBuilder {
         self.builder.len()
     }
 
-    pub fn values(&mut self) -> &mut StructBuilder {
-        self.builder.values()
-    }
-
     pub fn append_null_row(&mut self) -> &mut Self {
         self.next_n(1);
-        for i in 0..self.fields.len() {
+        for _ in 0..self.fields.len() {
             self.append_null();
         }
         self
@@ -92,11 +87,7 @@ impl ListOfStructBuilder {
 
         macro_rules! primitive_append {
             ($a:ident, $t:ident) => {{
-                let b = self
-                    .builder
-                    .values()
-                    .field_builder::<arrow::array::$a>(idx)
-                    .unwrap();
+                let b = self.builder.field_builder::<arrow::array::$a>(idx).unwrap();
                 b.append_null();
             }};
         }
@@ -117,39 +108,32 @@ impl ListOfStructBuilder {
             ArrowDataType::Timestamp(unit, _) => match unit {
                 TimeUnit::Microsecond => self
                     .builder
-                    .values()
                     .field_builder::<TimestampMicrosecondBuilder>(idx)
                     .unwrap()
                     .append_null(),
                 TimeUnit::Second => self
                     .builder
-                    .values()
                     .field_builder::<TimestampSecondBuilder>(idx)
                     .unwrap()
                     .append_null(),
                 TimeUnit::Millisecond => self
                     .builder
-                    .values()
                     .field_builder::<TimestampMillisecondBuilder>(idx)
                     .unwrap()
                     .append_null(),
                 TimeUnit::Nanosecond => self
                     .builder
-                    .values()
                     .field_builder::<TimestampNanosecondBuilder>(idx)
                     .unwrap()
                     .append_null(),
             },
             ArrowDataType::Binary => self
                 .builder
-                .values()
                 .field_builder::<BinaryBuilder>(idx)
                 .unwrap()
                 .append_null(),
             ArrowDataType::Utf8 => {
-                // dbg!(&self.builder);
                 self.builder
-                    .values()
                     .field_builder::<StringBuilder>(idx)
                     .unwrap()
                     .append_null();
@@ -199,11 +183,7 @@ impl ListOfStructBuilder {
         macro_rules! primitive_append {
             ($a:ident, $t:ident) => {{
                 let v = value.downcast_ref::<$t>().unwrap();
-                let b = self
-                    .builder
-                    .values()
-                    .field_builder::<arrow::array::$a>(idx)
-                    .unwrap();
+                let b = self.builder.field_builder::<arrow::array::$a>(idx).unwrap();
                 b.append_value(*v);
             }};
         }
@@ -227,7 +207,6 @@ impl ListOfStructBuilder {
                     TimeUnit::Microsecond => {
                         let b = self
                             .builder
-                            .values()
                             .field_builder::<TimestampMicrosecondBuilder>(idx)
                             .unwrap();
                         b.append_value(*v);
@@ -235,7 +214,6 @@ impl ListOfStructBuilder {
                     TimeUnit::Second => {
                         let b = self
                             .builder
-                            .values()
                             .field_builder::<TimestampSecondBuilder>(idx)
                             .unwrap();
                         b.append_value(*v);
@@ -243,7 +221,6 @@ impl ListOfStructBuilder {
                     TimeUnit::Millisecond => {
                         let b = self
                             .builder
-                            .values()
                             .field_builder::<TimestampMillisecondBuilder>(idx)
                             .unwrap();
                         b.append_value(*v);
@@ -251,7 +228,6 @@ impl ListOfStructBuilder {
                     TimeUnit::Nanosecond => {
                         let b = self
                             .builder
-                            .values()
                             .field_builder::<TimestampNanosecondBuilder>(idx)
                             .unwrap();
                         b.append_value(*v);
@@ -259,11 +235,7 @@ impl ListOfStructBuilder {
                 }
             }
             ArrowDataType::Binary => {
-                let b = self
-                    .builder
-                    .values()
-                    .field_builder::<BinaryBuilder>(idx)
-                    .unwrap();
+                let b = self.builder.field_builder::<BinaryBuilder>(idx).unwrap();
                 match value.type_id() {
                     t if t == TypeId::of::<&str>() => {
                         b.append_value(value.downcast_ref::<&str>().unwrap())
@@ -288,11 +260,7 @@ impl ListOfStructBuilder {
             }
             ArrowDataType::Utf8 => {
                 // let v = value.downcast::<String>().unwrap();
-                let b = self
-                    .builder
-                    .values()
-                    .field_builder::<StringBuilder>(idx)
-                    .unwrap();
+                let b = self.builder.field_builder::<StringBuilder>(idx).unwrap();
 
                 match value.type_id() {
                     t if t == TypeId::of::<&str>() => {
@@ -361,11 +329,7 @@ impl ListOfStructBuilder {
         macro_rules! primitive_append {
             ($a:ident, $t:ident) => {{
                 let v = value.downcast_ref::<&[$t]>().unwrap();
-                let builder = self
-                    .builder
-                    .values()
-                    .field_builder::<arrow::array::$a>(idx)
-                    .unwrap();
+                let builder = self.builder.field_builder::<arrow::array::$a>(idx).unwrap();
                 let is_valid = vec![true; v.len()];
                 let _ = builder.append_values(*v, &is_valid);
             }};
@@ -390,36 +354,28 @@ impl ListOfStructBuilder {
                 match unit {
                     TimeUnit::Microsecond => self
                         .builder
-                        .values()
                         .field_builder::<TimestampMicrosecondBuilder>(idx)
                         .unwrap()
                         .append_values(*v, &is_valid),
                     TimeUnit::Second => self
                         .builder
-                        .values()
                         .field_builder::<TimestampSecondBuilder>(idx)
                         .unwrap()
                         .append_values(*v, &is_valid),
                     TimeUnit::Millisecond => self
                         .builder
-                        .values()
                         .field_builder::<TimestampMillisecondBuilder>(idx)
                         .unwrap()
                         .append_values(*v, &is_valid),
                     TimeUnit::Nanosecond => self
                         .builder
-                        .values()
                         .field_builder::<TimestampNanosecondBuilder>(idx)
                         .unwrap()
                         .append_values(*v, &is_valid),
                 }
             }
             ArrowDataType::Binary => {
-                let b = self
-                    .builder
-                    .values()
-                    .field_builder::<BinaryBuilder>(idx)
-                    .unwrap();
+                let b = self.builder.field_builder::<BinaryBuilder>(idx).unwrap();
                 macro_rules! append {
                     ($t:ty) => {{
                         for v in *value.downcast_ref::<$t>().unwrap() {
@@ -449,11 +405,7 @@ impl ListOfStructBuilder {
             }
             ArrowDataType::Utf8 => {
                 // let v = value.downcast::<String>().unwrap();
-                let b = self
-                    .builder
-                    .values()
-                    .field_builder::<StringBuilder>(idx)
-                    .unwrap();
+                let b = self.builder.field_builder::<StringBuilder>(idx).unwrap();
                 macro_rules! append {
                     ($t:ty) => {{
                         for v in value.downcast_ref::<$t>().unwrap().iter() {
@@ -505,7 +457,7 @@ impl ListOfStructBuilder {
         Ok(self)
     }
 
-    pub fn finish(&mut self) -> arrow::array::GenericListArray<i32> {
+    pub fn finish(&mut self) -> StructArray {
         if self.builder.len() == 0 {
             self.builder.append(true);
         }
@@ -516,7 +468,7 @@ impl ListOfStructBuilder {
     fn next_n(&mut self, n: usize) -> &mut Self {
         if !self.index.map(|index| index == 0).unwrap_or_default() {
             for _ in 0..n {
-                self.builder.values().append(true);
+                self.builder.append(true);
             }
             self.batch = n;
             self.index = Some(0);
@@ -535,13 +487,12 @@ mod tests {
             Field::new("name", DataType::Utf8, true),
             Field::new("value", DataType::Int32, true),
         ];
-        let mut builder = ListOfStructBuilder::new(fields, 2);
+        let mut builder = StructArrayBuilder::new(fields, 2);
 
         dbg!(["abc", "def"].type_id());
 
         // A two-rows item.
         builder
-            .append_null_row()
             // .next_item()
             .append_null()
             .append_null()

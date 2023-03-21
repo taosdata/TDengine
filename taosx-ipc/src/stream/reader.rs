@@ -2,8 +2,8 @@ use std::{collections::HashMap, io::Read, sync::Arc};
 
 use arrow::{
     array::{
-        Array, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array, Int16Array,
-        Int32Array, Int64Array, Int8Array, ListArray, StringArray, StructArray,
+        Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
+        Int16Array, Int32Array, Int64Array, Int8Array, ListArray, StringArray, StructArray,
         TimestampMillisecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
     datatypes::{DataType, Schema},
@@ -64,14 +64,276 @@ impl<R: Read> IpcReader<R> {
 
     pub fn lush_message_iter(&self) {}
 
-    fn parse_tables(&self, arrow: Arc<dyn Array>) -> Result<RecordBatch, ArrowError> {
-        let fields = arrow.as_any().downcast_ref::<ListArray>();
-        todo!()
+    fn parse_tables(&self, arrow: Arc<dyn Array>) -> Vec<LushInsertAttrs> {
+        let s = arrow.as_any().downcast_ref::<ListArray>().unwrap().value(0);
+        let s = s.as_any().downcast_ref::<StructArray>().unwrap();
+
+        let name = s
+            .column(0)
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .expect("get table name")
+            .value(0);
+        let name = std::str::from_utf8(name).unwrap().to_string();
+
+        let using = self.metadata.init().map(|init| init.name()).unwrap();
+
+        let names = s.column_names();
+        let values = s.columns();
+
+        (0..s.len())
+            .map(|i| {
+                let mut values: Vec<_> = names
+                    .iter()
+                    .zip(values.iter())
+                    .map(|(name, col)| {
+                        macro_rules! primitive_downcast {
+                            ($a:ident,$t:ident) => {{
+                                let v = col.as_any().downcast_ref::<arrow::array::$a>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::$t)
+                                } else {
+                                    Value::$t(v.value(i))
+                                }
+                            }};
+                        }
+                        let value = match col.data_type() {
+                            DataType::Null => todo!(),
+                            DataType::Boolean => Value::Bool(true),
+                            DataType::Int8 => {
+                                let v = col.as_any().downcast_ref::<Int8Array>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::TinyInt)
+                                } else {
+                                    Value::TinyInt(v.value(i))
+                                }
+                            }
+                            DataType::Int16 => {
+                                let v = col.as_any().downcast_ref::<Int16Array>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::SmallInt)
+                                } else {
+                                    Value::SmallInt(v.value(i))
+                                }
+                            }
+                            DataType::Int32 => {
+                                let v = col.as_any().downcast_ref::<Int32Array>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::Int)
+                                } else {
+                                    Value::Int(v.value(i))
+                                }
+                            }
+                            DataType::Int64 => {
+                                let v = col.as_any().downcast_ref::<Int64Array>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::BigInt)
+                                } else {
+                                    Value::BigInt(v.value(i))
+                                }
+                            }
+                            DataType::UInt8 => primitive_downcast!(UInt8Array, UTinyInt),
+                            DataType::UInt16 => primitive_downcast!(UInt16Array, USmallInt),
+                            DataType::UInt32 => primitive_downcast!(UInt32Array, UInt),
+                            DataType::UInt64 => primitive_downcast!(UInt64Array, UBigInt),
+                            // DataType::Float16 => primitive_downcast!(Float16Array, Float),
+                            DataType::Float32 => primitive_downcast!(Float32Array, Float),
+                            DataType::Float64 => primitive_downcast!(Float64Array, Double),
+                            DataType::Timestamp(_, _) => todo!(),
+                            DataType::Date32 => todo!(),
+                            DataType::Date64 => todo!(),
+                            DataType::Time32(_) => todo!(),
+                            DataType::Time64(_) => todo!(),
+                            DataType::Duration(_) => todo!(),
+                            DataType::Interval(_) => todo!(),
+                            DataType::Binary => {
+                                let v = col.as_any().downcast_ref::<BinaryArray>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::VarChar)
+                                } else {
+                                    Value::VarChar(
+                                        std::str::from_utf8(v.value(i)).unwrap().to_string(),
+                                    )
+                                }
+                            }
+                            DataType::FixedSizeBinary(_) => todo!(),
+                            DataType::LargeBinary => todo!(),
+                            DataType::Utf8 => {
+                                let v = col.as_any().downcast_ref::<StringArray>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::VarChar)
+                                } else {
+                                    Value::VarChar(v.value(i).to_string())
+                                }
+                            }
+                            DataType::LargeUtf8 => todo!(),
+                            DataType::List(_) => todo!(),
+                            DataType::FixedSizeList(_, _) => todo!(),
+                            DataType::LargeList(_) => todo!(),
+                            DataType::Struct(_) => todo!(),
+                            DataType::Union(_, _, _) => todo!(),
+                            DataType::Dictionary(_, _) => todo!(),
+                            DataType::Decimal128(_, _) => todo!(),
+                            DataType::Decimal256(_, _) => todo!(),
+                            DataType::Map(_, _) => todo!(),
+                            DataType::RunEndEncoded(_, _) => todo!(),
+                            _ => todo!("Unsupported data type for tag"),
+                        };
+                        (name.to_string(), value)
+                    })
+                    .collect_vec();
+                // let (name, values) = values.split_at(1);
+                let name = values.remove(0);
+
+                let s = LushInsertAttrs {
+                    name: name.1.strict_as_str().to_string(),
+                    using: Some(using.to_string()),
+                    tags: Some(values),
+                };
+                dbg!(s)
+            })
+            .collect_vec()
+    }
+
+    fn parse_attrs(&self, arrow: ArrayRef) -> Option<LushInsertAttrs> {
+        let s = arrow.as_any().downcast_ref::<StructArray>().unwrap();
+        if s.is_null(0) {
+            return None;
+        }
+        debug_assert!(s.len() == 1);
+
+        let name = s
+            .column(0)
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .expect("get table name")
+            .value(0);
+        let name = std::str::from_utf8(name).unwrap().to_string();
+
+        let using = self.metadata.init().map(|init| init.name()).unwrap();
+
+        let names = s.column_names();
+        let values = s.columns();
+
+        (0..s.len())
+            .map(|i| {
+                let mut values: Vec<_> = names
+                    .iter()
+                    .zip(values.iter())
+                    .map(|(name, col)| {
+                        macro_rules! primitive_downcast {
+                            ($a:ident,$t:ident) => {{
+                                let v = col.as_any().downcast_ref::<arrow::array::$a>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::$t)
+                                } else {
+                                    Value::$t(v.value(i))
+                                }
+                            }};
+                        }
+                        let value = match col.data_type() {
+                            DataType::Null => todo!(),
+                            DataType::Boolean => Value::Bool(true),
+                            DataType::Int8 => {
+                                let v = col.as_any().downcast_ref::<Int8Array>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::TinyInt)
+                                } else {
+                                    Value::TinyInt(v.value(i))
+                                }
+                            }
+                            DataType::Int16 => {
+                                let v = col.as_any().downcast_ref::<Int16Array>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::SmallInt)
+                                } else {
+                                    Value::SmallInt(v.value(i))
+                                }
+                            }
+                            DataType::Int32 => {
+                                let v = col.as_any().downcast_ref::<Int32Array>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::Int)
+                                } else {
+                                    Value::Int(v.value(i))
+                                }
+                            }
+                            DataType::Int64 => {
+                                let v = col.as_any().downcast_ref::<Int64Array>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::BigInt)
+                                } else {
+                                    Value::BigInt(v.value(i))
+                                }
+                            }
+                            DataType::UInt8 => primitive_downcast!(UInt8Array, UTinyInt),
+                            DataType::UInt16 => primitive_downcast!(UInt16Array, USmallInt),
+                            DataType::UInt32 => primitive_downcast!(UInt32Array, UInt),
+                            DataType::UInt64 => primitive_downcast!(UInt64Array, UBigInt),
+                            // DataType::Float16 => primitive_downcast!(Float16Array, Float),
+                            DataType::Float32 => primitive_downcast!(Float32Array, Float),
+                            DataType::Float64 => primitive_downcast!(Float64Array, Double),
+                            DataType::Timestamp(_, _) => todo!(),
+                            DataType::Date32 => todo!(),
+                            DataType::Date64 => todo!(),
+                            DataType::Time32(_) => todo!(),
+                            DataType::Time64(_) => todo!(),
+                            DataType::Duration(_) => todo!(),
+                            DataType::Interval(_) => todo!(),
+                            DataType::Binary => {
+                                let v = col.as_any().downcast_ref::<BinaryArray>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::VarChar)
+                                } else {
+                                    Value::VarChar(
+                                        std::str::from_utf8(v.value(i)).unwrap().to_string(),
+                                    )
+                                }
+                            }
+                            DataType::FixedSizeBinary(_) => todo!(),
+                            DataType::LargeBinary => todo!(),
+                            DataType::Utf8 => {
+                                let v = col.as_any().downcast_ref::<StringArray>().unwrap();
+                                if v.is_null(i) {
+                                    Value::Null(Ty::VarChar)
+                                } else {
+                                    Value::VarChar(v.value(i).to_string())
+                                }
+                            }
+                            DataType::LargeUtf8 => todo!(),
+                            DataType::List(_) => todo!(),
+                            DataType::FixedSizeList(_, _) => todo!(),
+                            DataType::LargeList(_) => todo!(),
+                            DataType::Struct(_) => todo!(),
+                            DataType::Union(_, _, _) => todo!(),
+                            DataType::Dictionary(_, _) => todo!(),
+                            DataType::Decimal128(_, _) => todo!(),
+                            DataType::Decimal256(_, _) => todo!(),
+                            DataType::Map(_, _) => todo!(),
+                            DataType::RunEndEncoded(_, _) => todo!(),
+                            _ => todo!("Unsupported data type for tag"),
+                        };
+                        (name.to_string(), value)
+                    })
+                    .collect_vec();
+                // let (name, values) = values.split_at(1);
+                let name = values.remove(0);
+
+                let s = LushInsertAttrs {
+                    name: name.1.strict_as_str().to_string(),
+                    using: Some(using.to_string()),
+                    tags: Some(values),
+                };
+                dbg!(s)
+            })
+            .collect_vec()
+            .into_iter()
+            .next()
     }
 }
 
 #[derive(Debug)]
-struct LushInsertAttrs {
+pub struct LushInsertAttrs {
     name: String,
     using: Option<String>,
     tags: Option<Vec<(String, Value)>>,
@@ -108,9 +370,6 @@ impl From<Arc<dyn Array>> for LushInsertRecords {
             .as_any()
             .downcast_ref::<ListArray>()
             .expect("parse records list");
-        // dbg!(&s);
-        // dbg!(s)
-        // debug_assert!(s.len() == 1);
         let v = s.value(0);
         let s = v
             .as_any()
@@ -593,22 +852,20 @@ impl LushMessageInsert {
 }
 
 #[derive(Debug)]
-pub struct LushMessageTable {
+pub struct LushMessageTable {}
 
-}
+#[derive(Debug)]
 pub enum LushMessage {
-    Table(LushMessageTable),
-    Children(LushMessageTables),
-    Insert(LushMessageInsert),
+    Tables(Vec<LushInsertAttrs>),
+    Insert(Vec<LushMessageInsert>),
 }
-pub struct LushMessageTables {
-    tables: RecordBatch,
-}
+// pub struct LushMessageTables(Vec<LushInsertAttrs>);
 
 impl<R: Read> Iterator for IpcReader<R> {
-    type Item = Result<Vec<LushMessageInsert>, ArrowError>;
+    type Item = Result<LushMessage, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        println!("Next message in the stream");
         let res = self.reader.next()?;
         dbg!(&res);
 
@@ -624,9 +881,14 @@ impl<R: Read> Iterator for IpcReader<R> {
                 LushMessageType::Table => todo!(),
                 LushMessageType::Children => {
                     let tables = record.column(__TABLES__INDEX__);
-                    for i in 0..tables.len() {
-                        let tables = tables.slice(i, 1);
-                    }
+
+                    let tables = (0..tables.len())
+                        .flat_map(|i| {
+                            let tables = tables.slice(i, 1);
+                            self.parse_tables(tables).into_iter()
+                        })
+                        .collect_vec();
+                    return Some(Ok(LushMessage::Tables(tables)));
                 }
                 LushMessageType::Insert => {
                     if let Some(attrs) = record.column_by_name(__ATTRS__) {
@@ -637,16 +899,13 @@ impl<R: Read> Iterator for IpcReader<R> {
 
                         let mut message = Vec::with_capacity(values.len());
                         for i in 0..values.len() {
-                            let attrs: LushInsertAttrs = attrs.slice(i, 1).into();
+                            let attrs = self.parse_attrs(attrs.slice(i, 1));
                             let records: LushInsertRecords = values.slice(i, 1).into();
                             dbg!(&records);
-                            let i = LushMessageInsert {
-                                attrs: Some(attrs),
-                                records,
-                            };
+                            let i = LushMessageInsert { attrs, records };
                             message.push(i);
                         }
-                        return Some(Ok(message));
+                        return Some(Ok(LushMessage::Insert(message)));
                     } else {
                         let values = record.column_by_name(__RECORDS__).unwrap();
 
@@ -662,7 +921,7 @@ impl<R: Read> Iterator for IpcReader<R> {
                             };
                             message.push(i);
                         }
-                        return Some(Ok(message));
+                        return Some(Ok(LushMessage::Insert(message)));
                     }
                 }
             }
@@ -693,9 +952,19 @@ fn file_reader() -> anyhow::Result<()> {
     for records in reader {
         dbg!(&records);
         let records = records.unwrap();
-        for record in records {
-            let map_data = record.to_column_views_group_by_tablename();
-            dbg!(&map_data);
+        match records {
+            LushMessage::Insert(records) => {
+                for record in records {
+                    let map_data = record.to_column_views_group_by_tablename();
+                    dbg!(&map_data);
+                }
+            }
+            LushMessage::Tables(tables) => {
+                for record in tables {
+                    let map_data = record.to_sql(None);
+                    dbg!(&map_data);
+                }
+            }
         }
     }
 
