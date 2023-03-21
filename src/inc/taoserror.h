@@ -121,7 +121,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_TOO_MANY_SML_LINES        TAOS_DEF_ERROR_CODE(0, 0x0229)  //"too many lines in batch")
 #define TSDB_CODE_TSC_SEND_DATA_FAILED          TAOS_DEF_ERROR_CODE(0, 0x0230)  //"Client send request data error"
 #define TSDB_CODE_TSC_EXCEED_ROW_BYTES          TAOS_DEF_ERROR_CODE(0, 0x0231)  //"Columns total length exceeds row bytes
-
+#define TSDB_CODE_TSC_EXCEED_QUERY_TIME_RANGE   TAOS_DEF_ERROR_CODE(0, 0x0232)  //"Query time range exceeds max query time range"
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)  //"Message not processed"
 #define TSDB_CODE_MND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0301)  //"Message is progressing"

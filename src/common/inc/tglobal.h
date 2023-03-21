@@ -96,6 +96,7 @@ extern int64_t tsMaxRetentWindow;
 extern bool    tsWriteBatchThreadLocal;
 extern int32_t tsWriteBatchSize;
 extern int32_t tsWriteBatchTimeout;
+extern int32_t tsMaxQueryTimeRange;
 
 // db parameters in client
 extern int32_t tsCacheBlockSize;

@@ -6605,6 +6605,18 @@ _ret:
   return ret;
 }
 
+static int32_t validateMaxQueryTimeRange(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
+  if (tsMaxQueryTimeRange < 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  int64_t maxTimeRange = convertTimePrecision(tsMaxQueryTimeRange * 1000, TSDB_TIME_PRECISION_MILLI, tinfo.precision);
+  if (pQueryInfo->window.ekey - pQueryInfo->window.skey > maxTimeRange) {
+    return TSDB_CODE_TSC_EXCEED_QUERY_TIME_RANGE;
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 
 int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql, bool joinQuery, bool delData) {
@@ -10665,6 +10677,10 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     if ((code = validateRangeNode(pSql, pQueryInfo, pSqlNode)) != TSDB_CODE_SUCCESS) {
       return code;
     }
+
+    if ((code = validateMaxQueryTimeRange(pSql, pQueryInfo)) != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   } else {
     pQueryInfo->command = TSDB_SQL_SELECT;
 
@@ -10819,6 +10835,9 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       return code;
     }
 
+    if ((code = validateMaxQueryTimeRange(pSql, pQueryInfo)) != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
   { // set the query info
