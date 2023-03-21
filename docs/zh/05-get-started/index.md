@@ -4,7 +4,7 @@ description: '快速设置 TDengine 环境并体验其高效写入和查询'
 ---
 
 import xiaot from './xiaot.webp'
-import xiaot_new from './xiaot-new.webp'
+import xiaot_new from './xiaot-03.webp'
 import channel from './channel.webp'
 import official_account from './official-account.webp'
 
@@ -25,7 +25,7 @@ import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 
 <table width="100%">
 <tr align="center">
-<td style={{padding:'1em 3em',border:0}}><img src={xiaot_03} alt="小 T 的二维码" width="200" /></td>
+<td style={{padding:'1em 3em',border:0}}><img src={xiaot_new} alt="小 T 的二维码" width="200" /></td>
 <td style={{padding:'1em 3em',border:0}}><img src={channel} alt="TDengine 微信视频号" width="200" /></td>
 <td style={{padding:'1em 3em',border:0}}><img src={official_account} alt="TDengine 微信公众号" width="200" /></td>
 </tr>
