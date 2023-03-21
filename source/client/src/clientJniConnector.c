@@ -331,13 +331,13 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryImp(
   int32_t   code = taos_errno(tres);
 
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, tscon, tstrerror(code), taos_errstr(tres));
+    jniError("jobj:%p, conn:%p, code:0x%x, msg:%s", jobj, tscon, code, taos_errstr(tres));
   } else {
     if (taos_is_update_query(tres)) {
       int32_t affectRows = taos_affected_rows(tres);
-      jniDebug("jobj:%p, conn:%p, code:%s, affect rows:%d", jobj, tscon, tstrerror(code), affectRows);
+      jniDebug("jobj:%p, conn:%p, code:0x%x, affect rows:%d", jobj, tscon, code, affectRows);
     } else {
-      jniDebug("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+      jniDebug("jobj:%p, conn:%p, code:0x%x", jobj, tscon, code);
     }
   }
 
@@ -376,13 +376,13 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeQueryWith
   int32_t   code = taos_errno(tres);
 
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, tscon, tstrerror(code), taos_errstr(tres));
+    jniError("jobj:%p, conn:%p, code:0x%x, msg:%s", jobj, tscon, code, taos_errstr(tres));
   } else {
     if (taos_is_update_query(tres)) {
       int32_t affectRows = taos_affected_rows(tres);
-      jniDebug("jobj:%p, conn:%p, code:%s, affect rows:%d", jobj, tscon, tstrerror(code), affectRows);
+      jniDebug("jobj:%p, conn:%p, code:0x%x, affect rows:%d", jobj, tscon, code, affectRows);
     } else {
-      jniDebug("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+      jniDebug("jobj:%p, conn:%p, code:0x%x", jobj, tscon, code);
     }
   }
 
@@ -534,7 +534,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
                numOfFields);
       return JNI_FETCH_END;
     } else {
-      jniDebug("jobj:%p, conn:%p, interrupted query. fetch row error code: %d, msg:%s", jobj, tscon, code,
+      jniDebug("jobj:%p, conn:%p, interrupted query. fetch row error code: 0x%x, msg:%s", jobj, tscon, code,
                taos_errstr(result));
       return JNI_RESULT_SET_NULL;
     }
@@ -621,8 +621,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchBlockImp(JNI
 
   int32_t numOfFields = taos_num_fields(tres);
   if (numOfFields <= 0) {
-    jniError("jobj:%p, conn:%p, query interrupted. taos_num_fields error code:%d, msg:%s", jobj, tscon, numOfFields,
-             taos_errstr(tres));
+    jniError("jobj:%p, conn:%p, query interrupted. taos_num_fields error code: 0x%x, msg:%s", jobj, tscon,
+             taos_errno(tres), taos_errstr(tres));
     return JNI_RESULT_SET_NULL;
   }
 
@@ -634,7 +634,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchBlockImp(JNI
       jniDebug("jobj:%p, conn:%p, resultset:%p, no data to retrieve", jobj, tscon, (void *)res);
       return JNI_FETCH_END;
     } else {
-      jniError("jobj:%p, conn:%p, query interrupted. fetch block error code:%d, msg:%s", jobj, tscon, error_code,
+      jniError("jobj:%p, conn:%p, query interrupted. fetch block error code: 0x%x, msg:%s", jobj, tscon, error_code,
                taos_errstr(tres));
       return JNI_RESULT_SET_NULL;
     }
@@ -684,7 +684,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_validateCreateTab
   }
 
   int code = taos_validate_sql(tscon, str);
-  jniDebug("jobj:%p, conn:%p, code is %d", jobj, tscon, code);
+  jniDebug("jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
 
   taosMemoryFreeClear(str);
   return code;
@@ -749,7 +749,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_prepareStmtImp(J
   int32_t    code = taos_stmt_prepare(pStmt, str, len);
   taosMemoryFreeClear(str);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("prepareStmt jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+    jniError("prepareStmt jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
     return JNI_TDENGINE_ERROR;
   }
 
@@ -787,7 +787,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_prepareStmtWithR
   int32_t    code = taos_stmt_prepare(pStmt, str, len);
   taosMemoryFreeClear(str);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("prepareStmtWithReqId jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+    jniError("prepareStmtWithReqId jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
     return JNI_TDENGINE_ERROR;
   }
 
@@ -815,7 +815,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setBindTableNameI
   if (code != TSDB_CODE_SUCCESS) {
     (*env)->ReleaseStringUTFChars(env, jname, name);
 
-    jniError("bindTableName jobj:%p, conn:%p, code:%s", jobj, tsconn, tstrerror(code));
+    jniError("bindTableName jobj:%p, conn:%p, code: 0x%x", jobj, tsconn, code);
     return JNI_TDENGINE_ERROR;
   }
 
@@ -890,7 +890,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsI
   (*env)->ReleaseStringUTFChars(env, tableName, name);
 
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("tableNameTags jobj:%p, conn:%p, code:%s", jobj, tsconn, tstrerror(code));
+    jniError("tableNameTags jobj:%p, conn:%p, code: 0x%x", jobj, tsconn, code);
     return JNI_TDENGINE_ERROR;
   }
   return JNI_SUCCESS;
@@ -956,7 +956,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(
   taosMemoryFreeClear(b);
 
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("bindColData jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+    jniError("bindColData jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
     return JNI_TDENGINE_ERROR;
   }
 
@@ -979,7 +979,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_addBatchImp(JNIEn
 
   int32_t code = taos_stmt_add_batch(pStmt);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("add batch jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+    jniError("add batch jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
     return JNI_TDENGINE_ERROR;
   }
 
@@ -1003,7 +1003,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeBatchImp(J
 
   int32_t code = taos_stmt_execute(pStmt);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("excute batch jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+    jniError("excute batch jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
     return JNI_TDENGINE_ERROR;
   }
 
@@ -1027,7 +1027,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_closeStmt(JNIEnv 
 
   int32_t code = taos_stmt_close(pStmt);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("close stmt jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+    jniError("close stmt jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
     return JNI_TDENGINE_ERROR;
   }
 
@@ -1089,12 +1089,9 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(JN
 
   TAOS_RES *tres = schemalessInsert(env, jobj, lines, taos, protocol, precision);
 
-  if (tres == NULL) {
-    return JNI_OUT_OF_MEMORY;
-  }
   int code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, taos, tstrerror(code), taos_errstr(tres));
+    jniError("jobj:%p, conn:%p, code: 0x%x, msg:%s", jobj, taos, code, taos_errstr(tres));
     taos_free_result(tres);
     return JNI_TDENGINE_ERROR;
   }
@@ -1113,9 +1110,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsert
   }
 
   TAOS_RES *tres = schemalessInsert(env, jobj, lines, taos, protocol, precision);
-  if (tres == NULL) {
-    return JNI_OUT_OF_MEMORY;
-  }
+
   return (jlong)tres;
 }
 
@@ -1148,10 +1143,6 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsert
 
   taosMemoryFreeClear(c_lines);
 
-  if (tres == NULL) {
-    jniError("execute schemaless insert with reqId result is NULL");
-    return JNI_OUT_OF_MEMORY;
-  }
   return (jlong)tres;
 }
 
@@ -1186,10 +1177,6 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsert
 
   taosMemoryFreeClear(c_lines);
 
-  if (tres == NULL) {
-    jniError("execute schemaless insert with ttl result is NULL");
-    return JNI_OUT_OF_MEMORY;
-  }
   return (jlong)tres;
 }
 
@@ -1222,10 +1209,6 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsert
 
   taosMemoryFreeClear(c_lines);
 
-  if (tres == NULL) {
-    jniError("execute schemaless insert with TTL and reqId result is NULL");
-    return JNI_OUT_OF_MEMORY;
-  }
   return (jlong)tres;
 }
 
@@ -1267,15 +1250,15 @@ JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInse
 
   (*env)->ReleaseStringUTFChars(env, data, line);
 
-  if (tres == NULL) {
-    jniError("jobj:%p, schemaless raw insert failed", jobj);
-    char *msg = "JNI schemaless raw insert return null";
-    return createSchemalessResp(env, 0, JNI_TDENGINE_ERROR, msg);
-  }
+  // if (tres == NULL) {
+  //   jniError("jobj:%p, schemaless raw insert failed", jobj);
+  //   char *msg = "JNI schemaless raw insert return null";
+  //   return createSchemalessResp(env, 0, JNI_TDENGINE_ERROR, msg);
+  // }
 
   int code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, taos, tstrerror(code), taos_errstr(tres));
+    jniError("jobj:%p, conn:%p, code: 0x%x, msg:%s", jobj, taos, code, taos_errstr(tres));
     taos_free_result(tres);
     return createSchemalessResp(env, 0, code, taos_errstr(tres));
   }
@@ -1300,15 +1283,9 @@ JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInse
 
   (*env)->ReleaseStringUTFChars(env, data, line);
 
-  if (tres == NULL) {
-    jniError("jobj:%p, schemaless raw insert with ReqId failed", jobj);
-    char *msg = "JNI schemaless raw insert with ReqId return null";
-    return createSchemalessResp(env, 0, JNI_TDENGINE_ERROR, msg);
-  }
-
   int code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, taos, tstrerror(code), taos_errstr(tres));
+    jniError("jobj:%p, conn:%p, code: 0x%x, msg:%s", jobj, taos, code, taos_errstr(tres));
     taos_free_result(tres);
     return createSchemalessResp(env, 0, code, taos_errstr(tres));
   }
@@ -1335,15 +1312,9 @@ JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInse
 
   (*env)->ReleaseStringUTFChars(env, data, line);
 
-  if (tres == NULL) {
-    jniError("jobj:%p, schemaless raw insert with ttl failed", jobj);
-    char *msg = "JNI schemaless raw insert with ttl return null";
-    return createSchemalessResp(env, 0, JNI_TDENGINE_ERROR, msg);
-  }
-
   int code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, taos, tstrerror(code), taos_errstr(tres));
+    jniError("jobj:%p, conn:%p, code: 0x%x, msg:%s", jobj, taos, code, taos_errstr(tres));
     taos_free_result(tres);
     return createSchemalessResp(env, 0, code, taos_errstr(tres));
   }
@@ -1369,15 +1340,9 @@ JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInse
 
   (*env)->ReleaseStringUTFChars(env, data, line);
 
-  if (tres == NULL) {
-    jniError("jobj:%p, schemaless raw insert with ttl and reqId failed", jobj);
-    char *msg = "JNI schemaless raw insert with ttl and reqId return null";
-    return createSchemalessResp(env, 0, JNI_TDENGINE_ERROR, taos_errstr(tres));
-  }
-
   int code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
-    jniError("jobj:%p, conn:%p, code:%s, msg:%s", jobj, taos, tstrerror(code), taos_errstr(tres));
+    jniError("jobj:%p, conn:%p, code: 0x%x, msg:%s", jobj, taos, code, taos_errstr(tres));
     taos_free_result(tres);
     return createSchemalessResp(env, 0, code, taos_errstr(tres));
   }
