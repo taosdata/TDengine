@@ -107,7 +107,7 @@ elif [ ${testFile} = "tools" ];then
     originTdpPath="taosTools-${originversion}"
     packageName="${tdPath}-Linux-${cpuType}${packageLite}.${packageType}"
     originPackageName="${originTdpPath}-Linux-${cpuType}${packageLite}.${packageType}"    
-    installCmd="install-tools.sh"
+    installCmd="install-taostools.sh"
 fi
 
 
@@ -333,7 +333,7 @@ if [[ ${packageName} =~ "Lite" ]]  ||   ([[ ${packageName} =~ "x64" ]] && [[ ${p
         wgetFile taosTools-2.1.3-Linux-x64.tar.gz v2.1.3 web
         tar xf taosTools-2.1.3-Linux-x64.tar.gz  
     fi
-    cd taosTools-2.1.3 && bash install-tools.sh
+    cd taosTools-2.1.3 && bash install-taostools.sh
 elif  ([[ ${packageName} =~ "arm64" ]] && [[ ${packageName} =~ "client" ]]);then
     echoColor G "===== install taos-tools arm when package is arm64-client ====="
     cd ${installPath}
@@ -342,7 +342,7 @@ elif  ([[ ${packageName} =~ "arm64" ]] && [[ ${packageName} =~ "client" ]]);then
         tar xf taosTools-2.1.3-Linux-arm64.tar.gz
     fi    
     
-    cd taosTools-2.1.3 && bash install-tools.sh
+    cd taosTools-2.1.3 && bash install-taostools.sh
 fi
 
 echoColor G  "===== start TDengine ====="
@@ -361,18 +361,18 @@ rm -rf ${installPath}/${tdPath}/
 #     cd ${installPath}
 #     wgetFile taosTools-2.1.2-Linux-x64.tar.gz .
 #     tar xf taosTools-2.1.2-Linux-x64.tar.gz
-#     cd taosTools-2.1.2 && bash install-tools.sh
+#     cd taosTools-2.1.2 && bash install-taostools.sh
 # elif [[ ${packageName} =~ "Lite" ]] &&  [[ ${packageName} =~ "deb" ]] ;then
 #     echoColor G "===== install taos-tools when package is lite or client ====="
 #     cd ${installPath}
 #     wgetFile taosTools-2.1.2-Linux-x64.tar.gz .
 #     tar xf taosTools-2.1.2-Linux-x64.tar.gz
-#     cd taosTools-2.1.2 && bash install-tools.sh
+#     cd taosTools-2.1.2 && bash install-taostools.sh
 # elif [[ ${packageName} =~ "Lite" ]] &&  [[ ${packageName} =~ "rpm" ]]  ;then
 #     echoColor G "===== install taos-tools when package is lite or client ====="
 #     cd ${installPath}
 #     wgetFile taosTools-2.1.2-Linux-x64.tar.gz .
 #     tar xf taosTools-2.1.2-Linux-x64.tar.gz
-#     cd taosTools-2.1.2 && bash install-tools.sh
+#     cd taosTools-2.1.2 && bash install-taostools.sh
 # fi
 
