@@ -54,7 +54,7 @@ class TestMinrows(TDCase):
         self.tdRest.request(f'drop database {dbname}')
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
-            kv_dict = {test_param: param_value}
+            kv_dict = {test_param: param_value,"maxrows": self.tdCom.Boundary.DB_PARAM_MAXROWS_CONFIG['boundary'][-1]}
             self.tdCom.createDb(dbname, **kv_dict)
             self.tdRest.request('select * from information_schema.ins_databases')
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
