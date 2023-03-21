@@ -16,11 +16,14 @@ VALGRIND=0
 UNIQUE=0
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
-while getopts "f:avu" arg
+while getopts "f:c:avu" arg
 do
   case $arg in
     f)
       FILE_NAME=$OPTARG
+      ;;
+    c)
+      CFG_STR=$OPTARG
       ;;
     a)
       ASYNC=1
@@ -126,6 +129,7 @@ echo "wal                0"                       >> $TAOS_CFG
 echo "asyncLog           0"                       >> $TAOS_CFG
 echo "locale             en_US.UTF-8"             >> $TAOS_CFG
 echo "enableCoreFile     1"                       >> $TAOS_CFG
+echo $CFG_STR					  >> $TAOS_CFG
 echo " "                                          >> $TAOS_CFG
 
 ulimit -n 600000

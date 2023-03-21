@@ -6612,7 +6612,8 @@ static int32_t validateMaxQueryTimeRange(SSqlObj* pSql, SQueryInfo* pQueryInfo) 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   int64_t maxTimeRange = convertTimePrecision(tsMaxQueryTimeRange * 1000, TSDB_TIME_PRECISION_MILLI, tinfo.precision);
-  if (pQueryInfo->window.ekey - pQueryInfo->window.skey > maxTimeRange) {
+  uint64_t queryTimeRange = pQueryInfo->window.ekey - pQueryInfo->window.skey;
+  if (queryTimeRange > maxTimeRange) {
     return TSDB_CODE_TSC_EXCEED_QUERY_TIME_RANGE;
   }
   return TSDB_CODE_SUCCESS;

@@ -135,8 +135,8 @@ bool    tsWriteBatchThreadLocal = false;    // if thread local enable, each thre
 int32_t tsWriteBatchSize = 0;               // suggest: 64 - 512, default 0, 0 means disable batching.
 int32_t tsWriteBatchTimeout = 10;           // suggest: 2 - 100 (unit: milliseconds)
 
-// max query time range
-// if less than zero, no limits
+// max query time range in seconds
+// if less than zero, no limits on query time range
 int32_t tsMaxQueryTimeRange = -1;
 
 // the maximum allowed query buffer size during query processing for each data node.
