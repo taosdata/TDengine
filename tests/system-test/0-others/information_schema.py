@@ -101,9 +101,38 @@ class TDTestCase:
                 tdSql.checkEqual(i[1],len(self.perf_list))
             elif i[0].lower() == self.dbname:
                 tdSql.checkEqual(i[1],self.tbnum+1)
+    def ins_columns_check(self):
+        tdSql.execute('drop database if exists db2')
+        tdSql.execute('create database if not exists db2 vgroups 1 replica 1')
+        for i in range (5):
+            self.stb4096 = 'create table db2.stb%d (ts timestamp' % (i)
+            for j in range (4094 - i):
+                self.stb4096 += ', c%d int' % (j)
+            self.stb4096 += ') tags (t1 int)'
+            tdSql.execute(self.stb4096)
+            for k in range(10):
+                tdSql.execute("create table db2.ctb_%d_%dc using db2.stb%d tags(%d)" %(i,k,i,k))
+        for t in range (2):
+            tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="SUPER_TABLE"')
+            tdSql.checkEqual(20465,len(tdSql.queryResult))
+        for t in range (2):
+            tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="CHILD_TABLE"')
+            tdSql.checkEqual(204650,len(tdSql.queryResult))
+
+        for i in range (5):
+            self.ntb4096 = 'create table db2.ntb%d (ts timestamp' % (i)
+            for j in range (4095 - i):
+                self.ntb4096 += ', c%d binary(10)' % (j)
+            self.ntb4096 += ')'
+            tdSql.execute(self.ntb4096)
+        for t in range (2):
+            tdSql.query(f'select * from information_schema.ins_columns where db_name="db2" and table_type=="NORMAL_TABLE"')
+            tdSql.checkEqual(20470,len(tdSql.queryResult))
+
     def run(self):
         self.prepare_data()
         self.count_check()
+        self.ins_columns_check()
 
     def stop(self):
         tdSql.close()
