@@ -43,7 +43,8 @@ typedef struct STableMergeScanSortSourceParam {
   SOperatorInfo* pOperator;
   int32_t        readerIdx;
   uint64_t       uid;
-  SSDataBlock*   inputBlock;
+  SSDataBlock*   inputBlock;  
+  STsdbReader*   dataReader;
 } STableMergeScanSortSourceParam;
 
 static bool processBlockWithProbability(const SSampleExecInfo* pInfo);
@@ -2586,6 +2587,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   SExecTaskInfo*                  pTaskInfo = pOperator->pTaskInfo;
   int32_t                         readIdx = source->readerIdx;
   SSDataBlock*                    pBlock = source->inputBlock;
+  int32_t                         code = 0;
 
   SQueryTableDataCond* pQueryCond = taosArrayGet(pInfo->queryConds, readIdx);
 
@@ -2593,12 +2595,14 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   void*        p = tableListGetInfo(pTaskInfo->pTableInfoList, readIdx + pInfo->tableStartIndex);
   SReadHandle* pHandle = &pInfo->base.readHandle;
 
-  int32_t code =
-      tsdbReaderOpen(pHandle->vnode, pQueryCond, p, 1, pBlock, &pInfo->base.dataReader, GET_TASKID(pTaskInfo));
-  if (code != 0) {
-    T_LONG_JMP(pTaskInfo->env, code);
+  if (NULL == source->dataReader) {
+    code = tsdbReaderOpen(pHandle->vnode, pQueryCond, p, 1, pBlock, &source->dataReader, GET_TASKID(pTaskInfo));
+    if (code != 0) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
   }
-
+  
+  pInfo->base.dataReader = source->dataReader;
   STsdbReader* reader = pInfo->base.dataReader;
   qTrace("tsdb/read-table-data: %p, enter next reader", reader);
   while (tsdbNextDataBlock(reader)) {
@@ -2637,14 +2641,10 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
     qTrace("tsdb/read-table-data: %p, close reader", reader);
-    tsdbReaderClose(pInfo->base.dataReader);
     pInfo->base.dataReader = NULL;
     return pBlock;
   }
 
-  qDebug("8");
-
-  tsdbReaderClose(pInfo->base.dataReader);
   pInfo->base.dataReader = NULL;
   return NULL;
 }
@@ -2759,6 +2759,8 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
   for (int32_t i = 0; i < numOfTable; ++i) {
     STableMergeScanSortSourceParam* param = taosArrayGet(pInfo->sortSourceParams, i);
     blockDataDestroy(param->inputBlock);
+    tsdbReaderClose(param->dataReader);
+    param->dataReader = NULL;
   }
   taosArrayClear(pInfo->sortSourceParams);
 
@@ -2871,14 +2873,13 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   for (int32_t i = 0; i < numOfTable; i++) {
     STableMergeScanSortSourceParam* p = taosArrayGet(pTableScanInfo->sortSourceParams, i);
     blockDataDestroy(p->inputBlock);
+    tsdbReaderClose(p->dataReader);
+    p->dataReader = NULL;
   }
 
   taosArrayDestroy(pTableScanInfo->sortSourceParams);
   tsortDestroySortHandle(pTableScanInfo->pSortHandle);
   pTableScanInfo->pSortHandle = NULL;
-
-  tsdbReaderClose(pTableScanInfo->base.dataReader);
-  pTableScanInfo->base.dataReader = NULL;
 
   for (int i = 0; i < taosArrayGetSize(pTableScanInfo->queryConds); i++) {
     SQueryTableDataCond* pCond = taosArrayGet(pTableScanInfo->queryConds, i);
@@ -2896,8 +2897,6 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   taosArrayDestroy(pTableScanInfo->pSortInfo);
   cleanupExprSupp(&pTableScanInfo->base.pseudoSup);
 
-  tsdbReaderClose(pTableScanInfo->base.dataReader);
-  pTableScanInfo->base.dataReader = NULL;
   taosLRUCacheCleanup(pTableScanInfo->base.metaCache.pTableMetaEntryCache);
 
   taosMemoryFreeClear(param);
