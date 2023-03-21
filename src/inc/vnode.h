@@ -106,10 +106,11 @@ int32_t vnodeProcessRead(void *pVnode, SVReadMsg *pRead);
 
 // wait thread
 void vnodeAddWait(void* pVnode, pthread_t* pthread, tsem_t* psem, void* param);
+// vnode set wait pthread
+void vnodeSetWait(void* vparam, pthread_t* pthread, void* param);
 void vnodeRemoveWait(void* pVnode, void* param);
 // get wait thread count
 bool vnodeWaitTooMany(void* vparam);
-tsem_t* vnodeSemWait(void* vparam);
 
 #ifdef __cplusplus
 }
