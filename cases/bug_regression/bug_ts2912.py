@@ -19,6 +19,7 @@ from datetime import datetime
 class TestTs2912(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
+        self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         self.lines1 = [('d1001', '2018-10-03 14:38:05.000', 10.30000, 219, "aa", 'California.SanFrancisco', 2),
                     ('d1001', '2018-10-03 14:38:15.000', 12.60000, 218, "bb", 'California.SanFrancisco', 2),
                     ('d1001', '2018-10-03 14:38:16.800', 12.30000, 221, "cc", 'California.SanFrancisco', 2),
@@ -41,7 +42,7 @@ class TestTs2912(TDCase):
         return int(dt.timestamp() * 1000)
 
     def create_stable(self):
-        conn = taos.connect()
+        conn = taos.connect(host=self.taosd_setting["fqdn"][0])
         try:
             conn.execute("DROP DATABASE if exists power")
             conn.execute("CREATE DATABASE if not exists power")
@@ -76,7 +77,7 @@ class TestTs2912(TDCase):
             stmt.bind_param(values)
 
     def insert_data(self):
-        conn = taos.connect(database="power")
+        conn = taos.connect(host=self.taosd_setting["fqdn"][0], database="power")
         try:
             stmt = conn.statement("INSERT INTO ? USING meters TAGS(?, ?) VALUES(?, ?, ?, ?)")
             self.bind_row_by_row(stmt, self.lines1)
@@ -89,7 +90,7 @@ class TestTs2912(TDCase):
             conn.close()
 
     def insert_data_notb(self):
-        conn = taos.connect(database="power")
+        conn = taos.connect(host=self.taosd_setting["fqdn"][0], database="power")
         try:
             stmt = conn.statement("INSERT INTO d_1 USING meters TAGS('California.SanFrancisco', 2) VALUES(?, ?, ?, ?)")
             self.bind_row_by_row_notb(stmt, self.lines3)
