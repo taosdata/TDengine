@@ -26,6 +26,7 @@ verType=stable      # -V [stable, beta]
 versionComp=3.0.0.0
 dockerMode="no"
 
+
 while getopts "hb:c:n:l:v:d:V:" arg
 do
   case $arg in
