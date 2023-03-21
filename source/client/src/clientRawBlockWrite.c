@@ -1373,7 +1373,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
     uError("WriteRaw:catalogGetTableMeta failed. table name: %s", tbname);
     goto end;
   }
-  uError("td23101 0vgId:%d, vgId:%d, name:%s, uid:%"PRIu64, vgData.vgId, pTableMeta->vgId, tbname, pTableMeta->uid);
+//  uError("td23101 0vgId:%d, vgId:%d, name:%s, uid:%"PRIu64, vgData.vgId, pTableMeta->vgId, tbname, pTableMeta->uid);
 
   pQuery = smlInitHandle();
   if (pQuery == NULL) {
@@ -1382,7 +1382,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   }
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   taosHashPut(pVgHash, (const char*)&vgData.vgId, sizeof(vgData.vgId), (char*)&vgData, sizeof(vgData));
-  uError("td23101 1vgId:%d, numEps:%d, name:%s, uid:%"PRIu64, vgData.vgId, vgData.epSet.numOfEps, tbname, pTableMeta->uid);
+//  uError("td23101 1vgId:%d, numEps:%d, name:%s, uid:%"PRIu64, vgData.vgId, vgData.epSet.numOfEps, tbname, pTableMeta->uid);
 
   code = rawBlockBindData(pQuery, pTableMeta, pData, NULL, fields, numFields, false);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1726,10 +1726,15 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       tDecoderClear(&decoderTmp);
     }
 
-    if (pCreateReqDst) {
+    SVgroupInfo vg;
+    code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vg);
+    if (code != TSDB_CODE_SUCCESS) {
+      uError("WriteRaw:catalogGetTableHashVgroup failed. table name: %s", tbName);
+      goto end;
+    }
+
+    if (pCreateReqDst) {  // change stable name to get meta
       strcpy(pName.tname, pCreateReqDst->ctb.stbName);
-    } else {
-      strcpy(pName.tname, tbName);
     }
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
@@ -1739,13 +1744,6 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     }
     if (code != TSDB_CODE_SUCCESS) {
       uError("WriteRaw:catalogGetTableMeta failed. table name: %s", tbName);
-      goto end;
-    }
-
-    SVgroupInfo vg;
-    code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vg);
-    if (code != TSDB_CODE_SUCCESS) {
-      uError("WriteRaw:catalogGetTableHashVgroup failed. table name: %s", tbName);
       goto end;
     }
 
