@@ -134,7 +134,6 @@ static int32_t setTableSchema(SCacheRowsReader* p, uint64_t suid, const char* id
 
     // all queried tables have been dropped already, return immediately.
     if (p->pSchema == NULL) {
-      taosMemoryFree(p);
       tsdbWarn("all queried tables has been dropped, try next group, %s", idstr);
       return TSDB_CODE_PAR_TABLE_NOT_EXIST;
     }
