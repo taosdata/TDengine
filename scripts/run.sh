@@ -267,7 +267,7 @@ function run_thread() {
         # echo "$thread_no $count $cmd"
         if [ ! -z $force_setup ]; then
             cmd="${cmd/--use/--setup}"
-            cmd="${cmd/--keep/}"
+            #cmd="${cmd/--keep/}"
         fi
         if [ ! -z "$tdengine_version" ]; then
             cmd="$cmd --server-pkg=${workdirs[index]}/TDinternal/community/release/TDengine-enterprise-server-${tdengine_version}-Linux-x64.tar.gz"
