@@ -400,11 +400,11 @@ static int32_t createVgroupDataCxt(STableDataCxt* pTableCxt, SHashObj* pVgroupHa
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  uError("td23101 2vgId:%d", pVgCxt->vgId);
   pVgCxt->vgId = pTableCxt->pMeta->vgId;
   int32_t code = taosHashPut(pVgroupHash, &pVgCxt->vgId, sizeof(pVgCxt->vgId), &pVgCxt, POINTER_BYTES);
   if (TSDB_CODE_SUCCESS == code) {
     taosArrayPush(pVgroupList, &pVgCxt);
+    uError("td23101 2vgId:%d, uid:%" PRIu64, pVgCxt->vgId, pTableCxt->pMeta->uid);
     *pOutput = pVgCxt;
   } else {
     insDestroyVgroupDataCxt(pVgCxt);
