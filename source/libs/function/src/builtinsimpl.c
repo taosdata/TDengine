@@ -32,9 +32,6 @@
 #define TAIL_MAX_POINTS_NUM    100
 #define TAIL_MAX_OFFSET        100
 
-#define UNIQUE_MAX_RESULT_SIZE (1024 * 1024 * 10)
-#define MODE_MAX_RESULT_SIZE   UNIQUE_MAX_RESULT_SIZE
-
 #define HLL_BUCKET_BITS 14  // The bits of the bucket
 #define HLL_DATA_BITS   (64 - HLL_BUCKET_BITS)
 #define HLL_BUCKETS     (1 << HLL_BUCKET_BITS)
