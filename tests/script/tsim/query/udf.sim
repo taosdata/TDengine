@@ -29,6 +29,9 @@ else
   sql create function bit_and as '/tmp/udf/libbitand.so' outputtype int bufSize 8;
   sql create aggregate function l2norm as '/tmp/udf/libl2norm.so' outputtype double bufSize 8;
 endi
+
+sql_error create function bit_and as '/tmp/udf/libbitand.so' oputtype json;
+
 sql show functions;
 if $rows != 2 then
   return -1
