@@ -554,6 +554,8 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
     fnError("udf name %s init failed. error %d", udfName, err);
     return err;
   }
+
+  fnInfo("udf init succeeded. name %s type %d context %p", udf->name, udf->scriptType, (void*)udf->scriptUdfCtx);
   return 0;
 }
 
@@ -763,6 +765,7 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   }
   uv_mutex_unlock(&global.udfsMutex);
   if (unloadUdf) {
+    fnInfo("udf teardown. udf name: %s type %d: context %p", udf->name, udf->scriptType, (void*)(udf->scriptUdfCtx));
     uv_cond_destroy(&udf->condReady);
     uv_mutex_destroy(&udf->lock);
     code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
