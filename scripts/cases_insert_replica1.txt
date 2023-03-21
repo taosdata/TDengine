@@ -39,6 +39,7 @@ taostest --use=common_insert.yaml --case=taosc_insert/null_check.py --keep --con
 taostest --use=common_insert.yaml --case=taosc_insert/numeric_type_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/str_type_boundary_check.py --keep --containers
 
+taostest --use=common_insert.yaml --case=bug_regression/bug_ts2910.py --keep --containers
 taostest --use=common_insert.yaml --case=bug_regression/bug_ts2912.py --keep --containers
 taostest --use=common_insert.yaml --case=bug_regression/bug_ts2918.py --keep --containers
 taostest --use=common_insert.yaml --case=bug_regression/bug_ts2919.py --keep --containers
