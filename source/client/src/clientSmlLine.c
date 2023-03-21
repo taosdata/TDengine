@@ -583,12 +583,14 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
                .i = ts,
                .length = (size_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes};
   if (info->dataFormat) {
+    uDebug("SML:0x%" PRIx64 " smlParseInfluxString format true, ts:%" PRId64, info->id, ts);
     ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, &kv, 0);
     if(ret != TSDB_CODE_SUCCESS){return ret;}
     ret = smlBuildRow(info->currTableDataCtx);
     if(ret != TSDB_CODE_SUCCESS){return ret;}
     clearColValArray(info->currTableDataCtx->pValues);
   } else {
+    uDebug("SML:0x%" PRIx64 " smlParseInfluxString format false, ts:%" PRId64, info->id, ts);
     taosArraySet(elements->colArray, 0, &kv);
   }
   info->preLine = *elements;
