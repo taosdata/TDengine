@@ -412,7 +412,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TABLE_LIMITED,          "Table creation limite
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_IS_LEADER,                "Sync is leader")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_LEADER,               "Sync not leader")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_LEADER,               "Sync leader is unreachable")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_ONE_REPLICA,              "Sync one replica")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_IN_NEW_CONFIG,        "Sync not in new config")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NEW_CONFIG_ERROR,         "Sync new config error")
@@ -420,9 +420,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_RECONFIG_NOT_READY,       "Sync not ready for re
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_PROPOSE_NOT_READY,        "Sync not ready for propose")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_STANDBY_NOT_READY,        "Sync not ready for standby")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_BATCH_ERROR,              "Sync batch error")
-TAOS_DEFINE_ERROR(TSDB_CODE_SYN_RESTORING,                "Sync is restoring")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_RESTORING,                "Sync leader is restoring")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG,     "Sync invalid snapshot msg")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_BUFFER_FULL,              "Sync buffer is full")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_WRITE_STALL,              "Sync write stall")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INTERNAL_ERROR,           "Sync internal error")
 
 //tq
@@ -515,7 +516,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ONLY_ONE_JSON_TAG,         "Only one tag if ther
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INCORRECT_NUM_OF_COL,      "Query block has incorrect number of result columns")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL,   "Incorrect TIMESTAMP value")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OFFSET_LESS_ZERO,          "soffset/offset can not be less than 0")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_BY,  "slimit/soffset only available for PARTITION BY query")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY,  "slimit/soffset only available for PARTITION/GROUP BY query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TOPIC_QUERY,        "Invalid topic query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DROP_STABLE,        "Cannot drop super table in batch")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,    "Start(end) time of query range required or time range too large")

@@ -1138,6 +1138,7 @@ typedef struct {
   int64_t numOfInsertSuccessReqs;
   int64_t numOfBatchInsertReqs;
   int64_t numOfBatchInsertSuccessReqs;
+  int32_t numOfCachedTables;
 } SVnodeLoad;
 
 typedef struct {
@@ -3201,6 +3202,7 @@ typedef struct {
   SArray*      blockData;
   SArray*      blockTbName;
   SArray*      blockSchema;
+  // the following attributes are extended from SMqDataRsp
   int32_t      createTableNum;
   SArray*      createTableLen;
   SArray*      createTableReq;

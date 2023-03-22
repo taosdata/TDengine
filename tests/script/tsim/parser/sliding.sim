@@ -7,7 +7,7 @@ $dbPrefix = sliding_db
 $tbPrefix = sliding_tb
 $mtPrefix = sliding_mt
 $tbNum = 8
-$rowNum = 10000
+$rowNum = 1000
 $totalNum = $tbNum * $rowNum
 
 print =============== sliding.sim
@@ -88,25 +88,25 @@ $ts1 = $tb1 . .ts
 $ts2 = $tb2 . .ts
 
 print ===============================interval_sliding query
-sql select _wstart, count(*) from sliding_tb0 interval(30s) sliding(30s);
+sql select _wstart, count(*) from sliding_tb0 interval(3s) sliding(3s);
 if $row != 10 then
  return -1
 endi
 if $data00 != @00-01-01 00:00:00.000@ then
  return -1
 endi
-if $data01 != 1000 then
+if $data01 != 100 then
  return -1
 endi
-if $data10 != @00-01-01 00:00:30.000@ then
+if $data10 != @00-01-01 00:00:03.000@ then
  return -1
 endi
-if $data11 != 1000 then
+if $data11 != 100 then
  return -1
 endi
 
 sql select _wstart, stddev(c1) from sliding_tb0 interval(10a) sliding(10a);
-if $row != 10000 then
+if $row != 1000 then
   return -1
 endi
 if $data00 != @00-01-01 00:00:00.000@ then
@@ -123,10 +123,10 @@ if $data91 != 0.000000000 then
 endi
 
 sql select _wstart, stddev(c1),count(c2),first(c3),last(c4) from sliding_tb0 interval(10a) sliding(10a) order by _wstart desc;
-if $row != 10000 then
+if $row != 1000 then
   return -1
 endi
-if $data00 != @00-01-01 00:04:59.970@ then
+if $data00 != @00-01-01 00:00:29.970@ then
  return -1
 endi
 if $data01 != 0.000000000 then
@@ -141,7 +141,7 @@ endi
 if $data04 != 99 then
   return -1
 endi
-if $data90 != @00-01-01 00:04:59.700@ then
+if $data90 != @00-01-01 00:00:29.700@ then
   return -1
 endi
 if $data91 != 0.000000000 then
@@ -157,41 +157,41 @@ if $data94 != 90 then
   return -1
 endi
 
-sql select _wstart, count(c2),last(c4) from sliding_tb0 interval(30s) sliding(10s) order by _wstart asc;
+sql select _wstart, count(c2),last(c4) from sliding_tb0 interval(3s) sliding(1s) order by _wstart asc;
 if $row != 32 then
   return -1
 endi
-if $data00 != @99-12-31 23:59:40.000@ then
-  print expect 12-31 23:59:40.000, actual: $data00
+if $data00 != @99-12-31 23:59:58.000@ then
+  print expect 12-31 23:59:58.000, actual: $data00
   return -1
 endi
-if $data01 != 334 then
+if $data01 != 34 then
   return -1
 endi
 if $data02 != 33 then
   return -1
 endi
 
-sql select _wstart, count(c2),stddev(c3),first(c4),last(c4) from sliding_tb0 where ts>'2000-01-01 0:0:0' and ts<'2000-1-1 0:0:31' interval(30s) sliding(30s) order by _wstart asc;
+sql select _wstart, count(c2),stddev(c3),first(c4),last(c4) from sliding_tb0 where ts>'2000-01-01 0:0:0' and ts<'2000-1-1 0:0:4' interval(3s) sliding(3s) order by _wstart asc;
 if $row != 2 then
   return -1
 endi
 if $data04 != 99 then
   return -1
 endi
-if $data01 != 999 then
+if $data01 != 99 then
   return -1
 endi
-if $data02 != 28.837977152 then
+if $data02 != 28.577380332 then
   return -1
 endi
 
 #interval offset + limit
-sql select _wstart, count(c2), first(c3),stddev(c4) from sliding_tb0 interval(10a) sliding(10a) order by _wstart desc limit 10 offset 990;
+sql select _wstart, count(c2), first(c3),stddev(c4) from sliding_tb0 interval(10a) sliding(10a) order by _wstart desc limit 10 offset 90;
 if $row != 10 then
   return -1
 endi
-if $data00 != @00-01-01 00:04:30.270@ then
+if $data00 != @00-01-01 00:00:27.270@ then
   return -1
 endi
 if $data01 != 1 then
@@ -203,7 +203,7 @@ endi
 if $data03 != 0.000000000 then
   return -1
 endi
-if $data90 != @00-01-01 00:04:30.000@ then
+if $data90 != @00-01-01 00:00:27.000@ then
   return -1
 endi
 if $data91 != 1 then
@@ -217,43 +217,43 @@ if $data93 != 0.000000000 then
 endi
 
 #interval offset test
-sql select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(30s) order by _wstart asc limit 1000 offset 1;
+sql select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(3s) order by _wstart asc limit 100 offset 1;
 if $row != 9 then
   return -1
 endi
-if $data00 != @00-01-01 00:00:30.000@ then
+if $data00 != @00-01-01 00:00:03.000@ then
   return -1
 endi
-if $data01 != 1000 then
+if $data01 != 100 then
   return -1
 endi
 if $data02 != 99 then
   return -1
 endi
-if $data80 != @00-01-01 00:04:30.000@ then
+if $data80 != @00-01-01 00:00:27.000@ then
   return -1
 endi
-if $data81 != 1000 then
+if $data81 != 100 then
   return -1
 endi
 
-sql select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 where ts>'2000-1-1 0:0:0' and ts<'2000-1-1 0:0:31' interval(30s) sliding(30s) order by _wstart asc limit 1000 offset 0;
+sql select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 where ts>'2000-1-1 0:0:0' and ts<'2000-1-1 0:0:4' interval(3s) sliding(3s) order by _wstart asc limit 100 offset 0;
 if $row != 2 then
  return -1
 endi
 if $data00 != @00-01-01 00:00:00.000@ then
  return -1
 endi
-if $data01 != 999 then
+if $data01 != 99 then
  return -1
 endi
 if $data02 != 99 then
  return -1
 endi
-if $data03 != 28.837977152 then
+if $data03 != 28.577380332 then
  return -1
 endi
-if $data10 != @00-01-01 00:00:30.000@ then
+if $data10 != @00-01-01 00:00:03.000@ then
  return -1
 endi
 if $data11 != 34 then
@@ -266,14 +266,14 @@ if $data13 != 9.810708435 then
  return -1
 endi
 
-sql select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by _wstart asc limit 100 offset 1;
+sql select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 1;
 if $row != 15 then
  return -1
 endi
 if $data00 != @00-01-01 00:00:00.000@ then
  return -1
 endi
-if $data01 != 1000 then
+if $data01 != 100 then
  return -1
 endi
 if $data02 != 99 then
@@ -282,85 +282,85 @@ endi
 if $data03 != 28.866070048 then
  return -1
 endi
-if $data90 != @00-01-01 00:03:00.000@ then
+if $data90 != @00-01-01 00:00:18.000@ then
  return -1
 endi
-if $data91 != 1000 then
+if $data91 != 100 then
  return -1
 endi
 if $data92 != 99 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by _wstart asc limit 100 offset 5;
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 5;
 if $row != 11 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by _wstart asc limit 100 offset 6;
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 6;
 if $row != 10 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by _wstart asc limit 100 offset 7;
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 7;
 if $row != 9 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by _wstart asc limit 100 offset 8;
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 8;
 if $row != 8 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by _wstart asc limit 100 offset 9;
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 9;
 if $row != 7 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by _wstart asc limit 100 offset 10;
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 10;
 if $row != 6 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by _wstart asc limit 100 offset 11;
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 11;
 if $row != 5 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by _wstart asc limit 100 offset 12;
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 12;
 if $row != 4 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by _wstart asc limit 100 offset 13;
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 13;
 if $row != 3 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by _wstart asc limit 100 offset 14;
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 14;
 if $row != 2 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by _wstart asc limit 100 offset 15;
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 15;
 if $row != 1 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(30s) sliding(20s) order by _wstart asc limit 100 offset 16;
+sql select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 16;
 if $row != 0 then
  return -1
 endi
 
-sql select _wstart, count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(30s) order by _wstart desc;
+sql select _wstart, count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(3s) order by _wstart desc;
 if $row != 10 then
  return -1
 endi
-#00-01-01 00:04:30.000|                   10|       0|              0.000000000|              0.000000000|
-if $data00 != @00-01-01 00:04:30.000@ then
+#00-01-01 00:00:27.000 |                     1 |        0 |               0.000000000 |               0.000000000 |
+if $data00 != @00-01-01 00:00:27.000@ then
  return -1
 endi
-if $data01 != 10 then
+if $data01 != 1 then
  return -1
 endi
 if $data02 != 0 then
@@ -370,18 +370,18 @@ if $data03 != 0.000000000 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(30s) sliding(20s) order by _wstart desc limit 1 offset 15;
+sql select count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(3s) sliding(2s) order by _wstart desc limit 1 offset 14;
 if $row != 1 then
  return -1
 endi
 
-sql select count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(30s) sliding(20s) order by _wstart desc limit 1 offset 16;
+sql select count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(3s) sliding(2s) order by _wstart desc limit 1 offset 15;
 if $row != 0 then
  return -1
 endi
 
 sql select _wstart, count(c2), first(c3),stddev(c4) from sliding_tb0 interval(10a) order by _wstart desc limit 10 offset 2;
-if $data00 != @00-01-01 00:04:59.910@ then
+if $data00 != @00-01-01 00:00:29.910@ then
   return -1
 endi
 

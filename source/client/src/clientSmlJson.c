@@ -1238,7 +1238,8 @@ int32_t smlParseJSON(SSmlHandle *info, char *payload) {
         payloadNum = payloadNum << 1;
         void *tmp = taosMemoryRealloc(info->lines, payloadNum * sizeof(SSmlLineInfo));
         if (tmp == NULL) {
-          return TSDB_CODE_OUT_OF_MEMORY;
+          ret = TSDB_CODE_OUT_OF_MEMORY;
+          return ret;
         }
         info->lines = (SSmlLineInfo *)tmp;
         memset(info->lines + cnt, 0, (payloadNum - cnt) * sizeof(SSmlLineInfo));

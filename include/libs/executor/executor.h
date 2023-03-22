@@ -67,9 +67,10 @@ typedef enum {
  * Create the exec task for stream mode
  * @param pMsg
  * @param SReadHandle
+ * @param vgId
  * @return
  */
-qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers);
+qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t vgId);
 
 /**
  * Create the exec task for queue mode
@@ -77,7 +78,15 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers);
  * @param SReadHandle
  * @return
  */
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols, SSchemaWrapper** pSchema);
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols, SSchemaWrapper** pSchema);
+
+/**
+ * set the task Id, usually used by message queue process
+ * @param tinfo
+ * @param taskId
+ * @param queryId
+ */
+void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
 /**

@@ -129,6 +129,14 @@ int32_t mndProcessWriteMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta
 
 int32_t mndSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   int32_t code = 0;
+  pMsg->info.conn.applyIndex = pMeta->index;
+  pMsg->info.conn.applyTerm = pMeta->term;
+
+  if (pMsg->code == 0) {
+    SMnode *pMnode = pFsm->data;
+    atomic_store_64(&pMnode->applied, pMsg->info.conn.applyIndex);
+  }
+
   if (!syncUtilUserCommit(pMsg->msgType)) {
     goto _out;
   }
@@ -138,6 +146,11 @@ _out:
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
   return code;
+}
+
+SyncIndex mndSyncAppliedIndex(const SSyncFSM *pFSM) {
+  SMnode *pMnode = pFSM->data;
+  return atomic_load_64(&pMnode->applied);
 }
 
 int32_t mndSyncGetSnapshot(const SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pReaderParam, void **ppReader) {
@@ -153,7 +166,7 @@ static void mndSyncGetSnapshotInfo(const SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   sdbGetCommitInfo(pMnode->pSdb, &pSnapshot->lastApplyIndex, &pSnapshot->lastApplyTerm, &pSnapshot->lastConfigIndex);
 }
 
-void mndRestoreFinish(const SSyncFSM *pFsm) {
+void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   SMnode *pMnode = pFsm->data;
 
   if (!pMnode->deploy) {
@@ -167,6 +180,8 @@ void mndRestoreFinish(const SSyncFSM *pFsm) {
   } else {
     mInfo("vgId:1, sync restore finished");
   }
+
+  ASSERT(commitIdx == mndSyncAppliedIndex(pFsm));
 }
 
 int32_t mndSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {
@@ -253,6 +268,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
   pFsm->FpCommitCb = mndSyncCommitMsg;
+  pFsm->FpAppliedIndexCb = mndSyncAppliedIndex;
   pFsm->FpPreCommitCb = NULL;
   pFsm->FpRollBackCb = NULL;
   pFsm->FpRestoreFinishCb = mndRestoreFinish;

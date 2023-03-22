@@ -512,8 +512,6 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
     blockDataDestroy(pBlock);
   }
 
-  // todo move this to time window aggregator, since the primary timestamp may not be known by exchange operator.
-  blockDataUpdateTsWindow(pRes, 0);
   return TSDB_CODE_SUCCESS;
 }
 
