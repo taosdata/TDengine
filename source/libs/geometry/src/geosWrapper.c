@@ -17,6 +17,9 @@
 #include "tdef.h"
 #include "types.h"
 
+typedef char (*_geosRelationFunc_t)(GEOSContextHandle_t handle, const GEOSGeometry *g1, const GEOSGeometry *g2);
+typedef char (*_geosPreparedRelationFunc_t)(GEOSContextHandle_t handle, const GEOSPreparedGeometry *pg1, const GEOSGeometry *g2);
+
 void geosFreeBuffer(void *buffer) {
   if (buffer) {
     GEOSFree_r(getThreadLocalGeosCtx()->handle, buffer);
@@ -168,7 +171,7 @@ int32_t initCtxAsText() {
   if (geosCtx->WKTWriter == NULL) {
     geosCtx->WKTWriter = GEOSWKTWriter_create_r(geosCtx->handle);
 
-    if (geosCtx->WKTWriter != NULL) {
+    if (geosCtx->WKTWriter) {
       GEOSWKTWriter_setRoundingPrecision_r(geosCtx->handle, geosCtx->WKTWriter, 6);
     } else {
       return code;
@@ -210,7 +213,7 @@ _exit:
   return code;
 }
 
-int32_t initCtxIntersects() {
+int32_t initCtxRelationFunc() {
   int32_t code = TSDB_CODE_FAILED;
   SGeosContext* geosCtx = getThreadLocalGeosCtx();
 
@@ -233,51 +236,62 @@ int32_t initCtxIntersects() {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t doIntersects(const unsigned char *inputGeom1, size_t size1,
-                     const unsigned char *inputGeom2, size_t size2,
-                     char *res) {
+int32_t doGeosRelation(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+                       bool swapped, char *res,
+                       _geosPreparedRelationFunc_t preparedRelationFn,
+                       _geosPreparedRelationFunc_t swappedPreparedRelationFn) {
   int32_t code = TSDB_CODE_FAILED;
   SGeosContext* geosCtx = getThreadLocalGeosCtx();
 
-  GEOSGeometry *geom1 = NULL;
   GEOSGeometry *geom2 = NULL;
-
-  geom1 = GEOSWKBReader_read_r(geosCtx->handle, geosCtx->WKBReader, inputGeom1, size1);
-  if (geom1 == NULL) {
-    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  code = readGeometry(input2, &geom2, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
 
-  geom2 = GEOSWKBReader_read_r(geosCtx->handle, geosCtx->WKBReader, inputGeom2, size2);
-  if (geom2 == NULL) {
-    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-    goto _exit;
+  if (!preparedGeom1 || !geom2) { //if empty input value
+    *res = -1;
+    return TSDB_CODE_SUCCESS;
   }
 
-  *res = GEOSIntersects_r(geosCtx->handle, geom1, geom2);
+  if (!swapped) {
+     ASSERT(preparedRelationFn);
+    *res = preparedRelationFn(geosCtx->handle, preparedGeom1, geom2);
+  }
+  else {
+     ASSERT(swappedPreparedRelationFn);
+    *res = swappedPreparedRelationFn(geosCtx->handle, preparedGeom1, geom2);
+  }
+
   code = TSDB_CODE_SUCCESS;
 
 _exit:
-  if (geom1) {
-    GEOSGeom_destroy_r(geosCtx->handle, geom1);
-    geom1 = NULL;
-  }
-
-  if (geom2) {
-    GEOSGeom_destroy_r(geosCtx->handle, geom2);
-    geom2 = NULL;
-  }
+  destroyGeometry(NULL, &geom2);
 
   return code;
 }
 
+int32_t doIntersects(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+                     bool swapped, char *res) {
+  return doGeosRelation(preparedGeom1, input2, swapped, res, GEOSPreparedIntersects_r, GEOSPreparedIntersects_r);
+}
+
+int32_t doTouches(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+                  bool swapped, char *res) {
+  return doGeosRelation(preparedGeom1, input2, swapped, res, GEOSPreparedTouches_r, GEOSPreparedTouches_r);
+}
+
 // input is with VARSTR format
-// need to call destroyPreparedGeometry(preparedGeom, outputGeom) later
-int32_t makePreparedGeometry(unsigned char *input, GEOSGeometry **outputGeom, const GEOSPreparedGeometry **outputPreparedGeom) {
+// need to call destroyGeometry(outputPreparedGeom, outputGeom) later
+int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom, const GEOSPreparedGeometry **outputPreparedGeom) {
   SGeosContext* geosCtx = getThreadLocalGeosCtx();
 
+  ASSERT(outputGeom); //it is not allowed if outputGeom is NULL
   *outputGeom = NULL;
-  *outputPreparedGeom = NULL;
+
+  if (outputPreparedGeom) {  //it means not to generate PreparedGeometry if outputPreparedGeom is NULL
+    *outputPreparedGeom = NULL;
+  }
 
   if (varDataLen(input) == 0) { //empty value
     return TSDB_CODE_SUCCESS;
@@ -288,48 +302,26 @@ int32_t makePreparedGeometry(unsigned char *input, GEOSGeometry **outputGeom, co
     return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
   }
 
-  *outputPreparedGeom = GEOSPrepare_r(geosCtx->handle, *outputGeom);
-  if (*outputPreparedGeom == NULL) {
-    return TSDB_CODE_FAILED;
+  if (outputPreparedGeom) {
+    *outputPreparedGeom = GEOSPrepare_r(geosCtx->handle, *outputGeom);
+    if (*outputPreparedGeom == NULL) {
+      return TSDB_CODE_FAILED;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-void destroyPreparedGeometry(const GEOSPreparedGeometry **preparedGeom, GEOSGeometry **geom) {
+void destroyGeometry(const GEOSPreparedGeometry **preparedGeom, GEOSGeometry **geom) {
   SGeosContext* geosCtx = getThreadLocalGeosCtx();
 
-  if (*preparedGeom) {
+  if (preparedGeom && *preparedGeom) {
     GEOSPreparedGeom_destroy_r(geosCtx->handle, *preparedGeom);
     *preparedGeom = NULL;
   }
 
-  if (*geom) {
+  if (geom && *geom) {
     GEOSGeom_destroy_r(geosCtx->handle, *geom);
     *geom = NULL;
   }
-}
-
-int32_t doPreparedIntersects(const GEOSPreparedGeometry *preparedGeom1,
-                             const unsigned char *inputGeom2, size_t size2,
-                             char *res) {
-  int32_t code = TSDB_CODE_FAILED;
-  SGeosContext* geosCtx = getThreadLocalGeosCtx();
-
-  GEOSGeometry *geom2 = GEOSWKBReader_read_r(geosCtx->handle, geosCtx->WKBReader, inputGeom2, size2);
-  if (geom2 == NULL) {
-    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-    goto _exit;
-  }
-
-  *res = GEOSPreparedIntersects_r(geosCtx->handle, preparedGeom1, geom2);
-  code = TSDB_CODE_SUCCESS;
-
-_exit:
-  if (geom2) {
-    GEOSGeom_destroy_r(geosCtx->handle, geom2);
-    geom2 = NULL;
-  }
-
-  return code;
 }

@@ -21,12 +21,16 @@
 #include "sclInt.h"
 #include "sclvector.h"
 
+typedef int32_t (*_geomDoRelationFunc_t)(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+                                         bool swapped, char *res);
+
 typedef int32_t (*_geomInitCtxFunc_t)();
 typedef int32_t (*_geomExecuteOneParamFunc_t)(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData);
 typedef int32_t (*_geomExecuteTwoParamsFunc_t)(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
                                                SColumnInfoData *pOutputData);
-typedef int32_t (*_geomExecutePreparedFunc_t)(const GEOSPreparedGeometry *preparedGeom1, SColumnInfoData *pInputData2, int32_t i2,
-                                              SColumnInfoData *pOutputData);
+typedef int32_t (*_geomExecuteRelationFunc_t)(const GEOSPreparedGeometry *preparedGeom1,
+                                              SColumnInfoData *pInputData2, int32_t i2,
+                                              bool swapped, SColumnInfoData *pOutputData);
 
 // output is with VARSTR format
 // need to call taosMemoryFree(*output) later
@@ -130,22 +134,6 @@ _exit:
   return code;
 }
 
-// both input1 and input2 are with VARSTR format
-int32_t doIntersectsFunc(unsigned char *input1, unsigned char *input2, char *res) {
-  int32_t code = TSDB_CODE_FAILED;
-
-  if (varDataLen(input1) == 0 || varDataLen(input2) == 0) { //empty value
-    *res = -1;  // it means a NULL result
-    return TSDB_CODE_SUCCESS;
-  }
-
-  code = doIntersects(varDataVal(input1), varDataLen(input1),
-                      varDataVal(input2), varDataLen(input2),
-                      res);
-
-  return code;
-}
-
 int32_t executeMakePointFunc(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
                              SColumnInfoData *pOutputData) {
   int32_t code = TSDB_CODE_FAILED;
@@ -210,29 +198,16 @@ _exit:
   return code;
 }
 
-int32_t executeIntersectsFunc(SColumnInfoData *pInputData[], int32_t i1, int32_t i2,
-                              SColumnInfoData *pOutputData) {
-  int32_t code = TSDB_CODE_FAILED;
-
-  char res = 0;
-  code = doIntersectsFunc(colDataGetData(pInputData[0], i1), colDataGetData(pInputData[1], i2), &res);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  colDataAppend(pOutputData, TMAX(i1, i2), &res, (res==-1));
-
-  return code;
-}
-
-int32_t executePreparedIntersectsFunc(const GEOSPreparedGeometry *preparedGeom1, SColumnInfoData *pInputData2, int32_t i2,
-                                      SColumnInfoData *pOutputData) {
+int32_t executeRelationFunc(const GEOSPreparedGeometry *preparedGeom1,
+                            SColumnInfoData *pInputData2, int32_t i2,
+                            bool swapped, SColumnInfoData *pOutputData,
+                            _geomDoRelationFunc_t doRelationFn) {
   int32_t code = TSDB_CODE_FAILED;
 
   char res = 0;
   unsigned char *input2 = colDataGetData(pInputData2, i2);
 
-  code = doPreparedIntersects(preparedGeom1, varDataVal(input2), varDataLen(input2), &res);
+  code = doRelationFn(preparedGeom1, input2, swapped, &res);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -242,17 +217,30 @@ int32_t executePreparedIntersectsFunc(const GEOSPreparedGeometry *preparedGeom1,
   return code;
 }
 
+int32_t executeIntersectsFunc(const GEOSPreparedGeometry *preparedGeom1,
+                              SColumnInfoData *pInputData2, int32_t i2,
+                              bool swapped, SColumnInfoData *pOutputData) {
+  return executeRelationFunc(preparedGeom1, pInputData2, i2, swapped, pOutputData, doIntersects);
+}
+
+int32_t executeTouchesFunc(const GEOSPreparedGeometry *preparedGeom1,
+                           SColumnInfoData *pInputData2, int32_t i2,
+                           bool swapped, SColumnInfoData *pOutputData) {
+  return executeRelationFunc(preparedGeom1, pInputData2, i2, swapped, pOutputData, doTouches);
+}
+
 int32_t geomOneParamFunction(SScalarParam *pInput, SScalarParam *pOutput,
                              _geomInitCtxFunc_t initCtxFn, _geomExecuteOneParamFunc_t executeOneParamFn) {
   int32_t code = TSDB_CODE_FAILED;
-
-  SColumnInfoData *pInputData = pInput->columnData;
-  SColumnInfoData *pOutputData = pOutput->columnData;
 
   code = initCtxFn();
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  pOutput->numOfRows = pInput->numOfRows;
 
   if (IS_NULL_TYPE(GET_PARAM_TYPE(pInput))) {
     colDataAppendNNULL(pOutputData, 0, pInput->numOfRows);
@@ -273,32 +261,29 @@ int32_t geomOneParamFunction(SScalarParam *pInput, SScalarParam *pOutput,
     }
   }
 
-  pOutput->numOfRows = pInput->numOfRows;
-
   return code;
 }
 
 int32_t geomTwoParamsFunction(SScalarParam *pInput, SScalarParam *pOutput,
                               _geomInitCtxFunc_t initCtxFn, _geomExecuteTwoParamsFunc_t executeTwoParamsFn) {
   int32_t code = TSDB_CODE_FAILED;
-  int32_t inputNum = 2;
-
-  SColumnInfoData *pInputData[inputNum];
-  SColumnInfoData *pOutputData = pOutput->columnData;
-  for (int32_t i = 0; i < inputNum; ++i) {
-    pInputData[i] = pInput[i].columnData;
-  }
 
   code = initCtxFn();
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
+  SColumnInfoData *pInputData[2];
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  pInputData[0] = pInput[0].columnData;
+  pInputData[1] = pInput[1].columnData;
+
   bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
                       IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
   bool isConstantLeft = (pInput[0].numOfRows == 1);
   bool isConstantRight = (pInput[1].numOfRows == 1);
   int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  pOutput->numOfRows = numOfRows;
 
   if (hasNullType ||                                           // one of operant is NULL type
      (isConstantLeft && colDataIsNull_s(pInputData[0], 0)) ||  // left operand is constant NULL
@@ -327,95 +312,92 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, SScalarParam *pOutput,
     }
   }
 
-  pOutput->numOfRows = numOfRows;
-
   return code;
 }
 
-int32_t geomPreparedSwappableFunction(SScalarParam *pInput, SScalarParam *pOutput,
-                                      _geomInitCtxFunc_t initCtxFn,
-                                      _geomExecuteTwoParamsFunc_t executeTwoParamsFn,
-                                      _geomExecutePreparedFunc_t executePreparedFn) {
+int32_t geomRelationFunction(SScalarParam *pInput, SScalarParam *pOutput,
+                             _geomExecuteRelationFunc_t executeRelationFn) {
   int32_t code = TSDB_CODE_FAILED;
-  int32_t inputNum = 2;
 
-  SColumnInfoData *pInputData[inputNum];
-  SColumnInfoData *pOutputData = pOutput->columnData;
-  for (int32_t i = 0; i < inputNum; ++i) {
-    pInputData[i] = pInput[i].columnData;
-  }
-
-  code = initCtxFn();
+  code = initCtxRelationFunc();
   if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
+    return code;
   }
 
+  // handle with all NULL output
   bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
                       IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
-  bool isConstant1 = (pInput[0].numOfRows == 1);
-  bool isConstant2 = (pInput[1].numOfRows == 1);
   int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  pOutput->numOfRows = numOfRows;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  if (hasNullType || // at least one of operant is NULL type
+     ((pInput[0].numOfRows == 1) && colDataIsNull_s(pInput[0].columnData, 0)) || // left operand is constant NULL
+     ((pInput[1].numOfRows == 1) && colDataIsNull_s(pInput[1].columnData, 0))) { // right operand is constant NULL
+    colDataAppendNNULL(pOutputData, 0, numOfRows);
+    code = TSDB_CODE_SUCCESS;
+    return code;
+  }
+
+  bool hasConstant = (pInput[0].numOfRows == 1) || (pInput[1].numOfRows == 1);
+  bool swapped = false;
+  SColumnInfoData *pInputData[2];
+
+  // swap two input data to make sure input data 0 is constant if there is one constant at least
+  if ((pInput[0].numOfRows != 1) && pInput[1].numOfRows == 1) {
+    pInputData[0] = pInput[1].columnData;
+    pInputData[1] = pInput[0].columnData;
+
+    swapped = true;
+  }
+  else {
+    pInputData[0] = pInput[0].columnData;
+    pInputData[1] = pInput[1].columnData;
+  }
 
   GEOSGeometry *geom1 = NULL;
   const GEOSPreparedGeometry *preparedGeom1 = NULL;
-  SColumnInfoData *pInputData2 = NULL;
 
-  if (hasNullType ||                                       // one of operant is NULL type
-     (isConstant1 && colDataIsNull_s(pInputData[0], 0)) || // left operand is constant NULL
-     (isConstant2 && colDataIsNull_s(pInputData[1], 0))) { // right operand is constant NULL
-    colDataAppendNNULL(pOutputData, 0, numOfRows);
-    code = TSDB_CODE_SUCCESS;
+  // if there is constant, make PreparedGeometry
+  if (hasConstant) {
+    code = readGeometry(colDataGetData(pInputData[0], 0), &geom1, &preparedGeom1);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
   }
-  else {
-    // only if two params are from 1 to X, make PreparedGeometry for the one param and call executePreparedFn()
-    int32_t constantIndex = -1;
-    int32_t scalarIndex = -1;
-    if (isConstant1 && !isConstant2) { // make first param constant to be PreparedGeometry as input1
-      constantIndex = 0;
-      scalarIndex = 1;
-    }
-    else if (isConstant2 && !isConstant1) { // make second param constant to be PreparedGeometry as input1 since the two params are swappable
-      constantIndex = 1;
-      scalarIndex = 0;
-    }
 
-    if (constantIndex != -1) {
-      code = makePreparedGeometry(colDataGetData(pInputData[constantIndex], 0), &geom1, &preparedGeom1);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _exit;
-      }
-      pInputData2 = pInputData[scalarIndex];
+  int32_t i1 = 0;
+  int32_t i2 = 0;
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    i1 = hasConstant ? 0 : i;
+    i2 = i;
+
+    if ((!hasConstant && colDataIsNull_s(pInputData[0], i1)) ||
+        (colDataIsNull_s(pInputData[1], i2))) {
+      colDataAppendNULL(pOutputData, i);
+      code = TSDB_CODE_SUCCESS;
+      continue;
     }
 
-    int32_t i1 = 0;
-    int32_t i2 = 0;
-    for (int32_t i = 0; i < numOfRows; ++i) {
-      i1 = isConstant1 ? 0 : i;
-      i2 = isConstant2 ? 0 : i;;
-
-      if ((!isConstant1 && colDataIsNull_s(pInputData[0], i1)) ||
-          (!isConstant2 && colDataIsNull_s(pInputData[1], i2))) {
-        colDataAppendNULL(pOutputData, i);
-        code = TSDB_CODE_SUCCESS;
-        continue;
-      }
-
-      if (preparedGeom1) {
-        code = executePreparedFn(preparedGeom1, pInputData2, i, pOutputData);
-      }
-      else {
-        code = executeTwoParamsFn(pInputData, i1, i2, pOutputData);
-      }
+    if (!hasConstant) {
+      code = readGeometry(colDataGetData(pInputData[0], i1), &geom1, &preparedGeom1);
       if (code != TSDB_CODE_SUCCESS) {
         goto _exit;
       }
     }
-  }
 
-  pOutput->numOfRows = numOfRows;
+    code = executeRelationFn(preparedGeom1, pInputData[1], i2, swapped, pOutputData);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
+
+    if (!hasConstant) {
+      destroyGeometry(&preparedGeom1, &geom1);
+    }
+  }
 
 _exit:
-  destroyPreparedGeometry(&preparedGeom1, &geom1);
+  destroyGeometry(&preparedGeom1, &geom1);
 
   return code;
 }
@@ -433,6 +415,11 @@ int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 }
 
 int32_t intersectsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomPreparedSwappableFunction(pInput, pOutput,
-                                       initCtxIntersects, executeIntersectsFunc, executePreparedIntersectsFunc);
+  return geomRelationFunction(pInput, pOutput,
+                              executeIntersectsFunc);
+}
+
+int32_t touchesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return geomRelationFunction(pInput, pOutput,
+                              executeTouchesFunc);
 }

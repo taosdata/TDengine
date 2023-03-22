@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include "os.h"
 
 #include "tgeosctx.h"
 
@@ -35,17 +36,14 @@ int32_t doGeomFromText(const char *inputWKT, unsigned char **outputGeom, size_t 
 int32_t initCtxAsText();
 int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT);
 
-int32_t initCtxIntersects();
-int32_t doIntersects(const unsigned char *inputGeom1, size_t size1,
-                     const unsigned char *inputGeom2, size_t size2,
-                     char *res);
+int32_t initCtxRelationFunc();
+int32_t doIntersects(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+                     bool swapped, char *res);
+int32_t doTouches(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+                  bool swapped, char *res);
 
-int32_t makePreparedGeometry(unsigned char *input, GEOSGeometry **outputGeom, const GEOSPreparedGeometry **outputPreparedGeom);
-void destroyPreparedGeometry(const GEOSPreparedGeometry **preparedGeom, GEOSGeometry **geom);
-
-int32_t doPreparedIntersects(const GEOSPreparedGeometry *preparedGeom1,
-                             const unsigned char *inputGeom2, size_t size2,
-                             char *res);
+int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom, const GEOSPreparedGeometry **outputPreparedGeom);
+void destroyGeometry(const GEOSPreparedGeometry **preparedGeom, GEOSGeometry **geom);
 
 #ifdef __cplusplus
 }
