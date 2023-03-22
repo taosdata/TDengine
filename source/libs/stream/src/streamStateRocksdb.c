@@ -457,20 +457,20 @@ int32_t streamStatePut_rocksdb(SStreamState* pState, const SWinKey* key, const v
   int code = 0;
 
   SStateKey sKey = {.key = *key, .opNum = pState->number};
-  STREAM_STATE_PUT_ROCKSDB(pState, "default", key, value, vLen);
+  STREAM_STATE_PUT_ROCKSDB(pState, "default", &sKey, value, vLen);
   return code;
 }
 int32_t streamStateGet_rocksdb(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
   int       code = 0;
   SStateKey sKey = {.key = *key, .opNum = pState->number};
-  STREAM_STATE_GET_ROCKSDB(pState, "default", key, pVal, pVLen);
+  STREAM_STATE_GET_ROCKSDB(pState, "default", &sKey, pVal, pVLen);
   return code;
 }
 // todo refactor
 int32_t streamStateDel_rocksdb(SStreamState* pState, const SWinKey* key) {
   int       code = 0;
   SStateKey sKey = {.key = *key, .opNum = pState->number};
-  STREAM_STATE_DEL_ROCKSDB(pState, "default", key);
+  STREAM_STATE_DEL_ROCKSDB(pState, "default", &sKey);
   return code;
 }
 
@@ -515,7 +515,7 @@ int32_t streamStateFillDel_rocksdb(SStreamState* pState, const SWinKey* key) {
 int32_t streamStateSessionPut_rocksdb(SStreamState* pState, const SSessionKey* key, const void* value, int32_t vLen) {
   int              code = 0;
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
-  STREAM_STATE_PUT_ROCKSDB(pState, "sess", key, value, vLen);
+  STREAM_STATE_PUT_ROCKSDB(pState, "sess", &sKey, value, vLen);
   if (code == -1) {
   }
   return code;
@@ -948,7 +948,7 @@ int32_t streamStateSessionGet_rocksdb(SStreamState* pState, SSessionKey* key, vo
 int32_t streamStateSessionDel_rocksdb(SStreamState* pState, const SSessionKey* key) {
   int              code = 0;
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
-  STREAM_STATE_DEL_ROCKSDB(pState, "sess", key);
+  STREAM_STATE_DEL_ROCKSDB(pState, "sess", &sKey);
   return code;
 }
 int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
