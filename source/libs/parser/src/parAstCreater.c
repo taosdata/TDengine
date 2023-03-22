@@ -925,8 +925,8 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->numOfVgroups = -1;
   pOptions->singleStable = -1;
   pOptions->schemaless = -1;
-  pOptions->walRetentionPeriod = -1;
-  pOptions->walRetentionSize = -1;
+  pOptions->walRetentionPeriod = -2;  // -1 is a valid value
+  pOptions->walRetentionSize = -2;    // -1 is a valid value
   pOptions->walRollPeriod = -1;
   pOptions->walSegmentSize = -1;
   pOptions->sstTrigger = -1;
@@ -935,7 +935,8 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   return (SNode*)pOptions;
 }
 
-SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, void* pVal) {
+static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, void* pVal,
+                                    bool alter) {
   CHECK_PARSER_STATUS(pCxt);
   SDatabaseOptions* pDbOptions = (SDatabaseOptions*)pOptions;
   switch (type) {
@@ -986,7 +987,9 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
       break;
     case DB_OPTION_REPLICA:
       pDbOptions->replica = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
-      updateWalOptionsDefault(pDbOptions);
+      if (!alter) {
+        updateWalOptionsDefault(pDbOptions);
+      }
       break;
     case DB_OPTION_STRICT:
       COPY_STRING_FORM_STR_TOKEN(pDbOptions->strictStr, (SToken*)pVal);
@@ -1033,16 +1036,20 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
   return pOptions;
 }
 
+SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, void* pVal) {
+  return setDatabaseOptionImpl(pCxt, pOptions, type, pVal, false);
+}
+
 SNode* setAlterDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption) {
   CHECK_PARSER_STATUS(pCxt);
   switch (pAlterOption->type) {
     case DB_OPTION_KEEP:
     case DB_OPTION_RETENTIONS:
-      return setDatabaseOption(pCxt, pOptions, pAlterOption->type, pAlterOption->pList);
+      return setDatabaseOptionImpl(pCxt, pOptions, pAlterOption->type, pAlterOption->pList, true);
     default:
       break;
   }
-  return setDatabaseOption(pCxt, pOptions, pAlterOption->type, &pAlterOption->val);
+  return setDatabaseOptionImpl(pCxt, pOptions, pAlterOption->type, &pAlterOption->val, true);
 }
 
 SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pDbName, SNode* pOptions) {
