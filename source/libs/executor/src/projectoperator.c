@@ -174,9 +174,13 @@ static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, S
   // here check for a new group data, we need to handle the data of the previous group.
   ASSERT(pLimitInfo->remainGroupOffset == 0 || pLimitInfo->remainGroupOffset == -1);
 
-  if (pLimitInfo->currentGroupId == 0 || pLimitInfo->currentGroupId != pBlock->info.id.groupId) {
+  bool newGroup = false;
+  if (0 == pBlock->info.id.groupId) {
+    pLimitInfo->numOfOutputGroups = 1;
+  } else if (pLimitInfo->currentGroupId != pBlock->info.id.groupId) {
     pLimitInfo->currentGroupId = pBlock->info.id.groupId;
     pLimitInfo->numOfOutputGroups += 1;
+    newGroup = true;
   } else {
     return PROJECT_RETRIEVE_CONTINUE;
   }
@@ -185,11 +189,13 @@ static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, S
     setOperatorCompleted(pOperator);
     return PROJECT_RETRIEVE_DONE;
   }
-  
+
   // reset the value for a new group data
   // existing rows that belongs to previous group.
-  resetLimitInfoForNextGroup(pLimitInfo);
-
+  if (newGroup) {
+    resetLimitInfoForNextGroup(pLimitInfo);
+  }
+  
   return PROJECT_RETRIEVE_CONTINUE;
 }
 
