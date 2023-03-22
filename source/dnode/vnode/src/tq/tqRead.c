@@ -357,11 +357,10 @@ bool tqNextDataBlock2(STqReader* pReader) {
     return false;
   }
 
-  tqDebug("tq reader next data block %p, %d %" PRId64 " %d", pReader->msg2.msgStr, pReader->msg2.msgLen,
-          pReader->msg2.ver, pReader->nextBlk);
-
   int32_t blockSz = taosArrayGetSize(pReader->submit.aSubmitTbData);
   while (pReader->nextBlk < blockSz) {
+    tqDebug("tq reader next data block %p, %d %" PRId64 " %d", pReader->msg2.msgStr, pReader->msg2.msgLen,
+            pReader->msg2.ver, pReader->nextBlk);
     SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
     if (pReader->tbIdHash == NULL) return true;
 
