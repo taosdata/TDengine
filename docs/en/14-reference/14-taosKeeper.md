@@ -86,7 +86,7 @@ The following `systemctl` commands can help you manage taoskeeper service:
 
 <TabItem label="macOS" value="macos">
 
-After the installation is complete, double-click the /applications/taoskeeper to start the program, or run `launchctl start com.tdengine.taoskeeper` to start taoskeeper Server.
+After the installation is complete, run `launchctl start com.tdengine.taoskeeper` to start taoskeeper Server.
 
 The following `launchctl` commands can help you manage taoskeeper service:
 

@@ -87,7 +87,7 @@ Active: inactive (dead)
 
 <TabItem label="macOS" value="macOS">
 
-安装后，在应用程序目录下，双击 taoskeeper 启动程序，也可以运行 `sudo launchctl start com.tdengine.taoskeeper` 来启动 taoskeeper 服务进程。
+安装后，可以运行 `sudo launchctl start com.tdengine.taoskeeper` 来启动 taoskeeper 服务进程。
 
 如下 `launchctl` 命令用于管理 taoskeeper 服务：
 
