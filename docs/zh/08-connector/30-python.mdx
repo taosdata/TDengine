@@ -10,7 +10,9 @@ import TabItem from "@theme/TabItem";
 `taospy` 是 TDengine 的官方 Python 连接器。`taospy` 提供了丰富的 API， 使得 Python 应用可以很方便地使用 TDengine。`taospy` 对 TDengine 的[原生接口](../cpp)和 [REST 接口](../rest-api)都进行了封装， 分别对应 `taospy` 包的 `taos` 模块 和 `taosrest` 模块。
 除了对原生接口和 REST 接口的封装，`taospy` 还提供了符合 [Python 数据访问规范(PEP 249)](https://peps.python.org/pep-0249/) 的编程接口。这使得 `taospy` 和很多第三方工具集成变得简单，比如 [SQLAlchemy](https://www.sqlalchemy.org/) 和 [pandas](https://pandas.pydata.org/)。
 
-使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 taosAdapter 提供的 REST 接口与服务端建立的连接的方式下文中称为“REST 连接”。
+`taos-ws-py` 是使用 WebSocket 方式连接 TDengine 的 Python 连接器包。可以选装。
+
+使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 taosAdapter 提供的 REST 接口或 WebSocket 接口与服务端建立的连接的方式下文中称为“REST 连接”或“WebSocket 连接”。
 
 Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-python)。
 
@@ -116,6 +118,15 @@ import taosrest
 ```
 
 </TabItem>
+<TabItem  value="ws" label="WebSocket 连接">
+
+对于 WebSocket 连接，只需验证是否能成功导入 `taosws` 模块。可在 Python 交互式 Shell 中输入：
+
+```python
+import taosws
+```
+
+</TabItem>
 </Tabs>
 
 :::tip
@@ -181,6 +192,27 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
   ],
   "rows": 1
 }
+```
+
+</TabItem>
+<TabItem value="ws" label="WebSocket 连接" groupId="connect">
+
+对于 WebSocket 连接， 除了确保集群已经启动，还要确保 taosAdapter 组件已经启动。可以使用如下 curl 命令测试：
+
+```
+curl -i -N -d "show databases" -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Host: <FQDN>:<PORT>" -H "Origin: http://<FQDN>:<PORT>" http://<FQDN>:<PORT>/rest/sql
+```
+
+上面的 FQDN 为运行 taosAdapter 的机器的 FQDN， PORT 为 taosAdapter 配置的监听端口， 默认为 6041。
+如果测试成功，会输出服务器版本信息，比如：
+
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Date: Tue, 21 Mar 2023 09:29:17 GMT
+Transfer-Encoding: chunked
+
+{"status":"succ","head":["server_version()"],"column_meta":[["server_version()",8,8]],"data":[["2.6.0.27"]],"rows":1}
 ```
 
 </TabItem>
