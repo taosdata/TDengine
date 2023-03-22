@@ -1322,6 +1322,9 @@ typedef struct {
   // 1st modification
   int16_t sttTrigger;
   int32_t minRows;
+  // 2nd modification
+  int32_t walRetentionPeriod;
+  int32_t walRetentionSize;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
