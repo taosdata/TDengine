@@ -380,6 +380,10 @@ void vnodePreClose(SVnode *pVnode) {
 
 void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 
+void vnodeForceElection(SVnode *pVnode) {
+  syncLeaderForceElection(pVnode->sync);
+}
+
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     tsem_wait(&pVnode->canCommit);

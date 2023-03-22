@@ -127,6 +127,7 @@ static SKeyword keywordTable[] = {
     {"LANGUAGE",             TK_LANGUAGE},
     {"LAST",                 TK_LAST},
     {"LAST_ROW",             TK_LAST_ROW},
+    {"LEADER",               TK_LEADER},
     {"LICENCES",             TK_LICENCES},
     {"LIKE",                 TK_LIKE},
     {"LIMIT",                TK_LIMIT},
