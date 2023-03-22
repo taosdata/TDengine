@@ -252,8 +252,6 @@ class TDTestCase:
         self.verfiy_same_value(sql)
         sql = f'select sum(col9), af_sum_float(col9) from {self.stbname}'
         self.verfiy_same_value(sql)
-
-
             
     
     # insert to child table d1 data
@@ -266,6 +264,15 @@ class TDTestCase:
                 sql = f'insert into {tbname}{i} values({ts+j},{cols});' 
                 tdSql.execute(sql)
 
+        # partial columns upate
+        sql = f'insert into {tbname}0(ts, col1, col9, col11) values(now, 100, 200, 0)'
+        tdSql.execute(sql)
+        sql = f'insert into {tbname}0(ts, col2, col5, col8) values(now, 100, 200, 300)'
+        tdSql.execute(sql)
+        sql = f'insert into {tbname}0(ts, col3, col7, col13) values(now, null, null, null)'
+        tdSql.execute(sql)        
+        sql = f'insert into {tbname}0(ts) values(now)'
+        tdSql.execute(sql)
         tdLog.info(f" insert {rows} for each child table.")
 
 
@@ -286,8 +293,6 @@ class TDTestCase:
         # aggregate
         self.create_aggr_udfpy()
         self.query_aggr_udfpy()
-
-
 
 
     def stop(self):
