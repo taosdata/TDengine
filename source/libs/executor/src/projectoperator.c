@@ -256,13 +256,9 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       if (pBlock == NULL) {
         if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE && pFinalRes->info.rows == 0) {
           pOperator->status = OP_OPENED;
-          if (pOperator->status == OP_EXEC_RECV) {
-            continue;
-          } else {
-            return NULL;
-          }
+          return NULL;
         }
-        qDebug("set op close, exec %d, status %d rows %d", pTaskInfo->execModel, pOperator->status,
+        qDebug("set op close, exec mode:%d, status %d rows %d", pTaskInfo->execModel, pOperator->status,
                pFinalRes->info.rows);
         setOperatorCompleted(pOperator);
         break;

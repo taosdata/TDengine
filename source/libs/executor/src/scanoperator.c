@@ -1627,12 +1627,14 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       if (ret.fetchType == FETCH_TYPE__DATA) {
         blockDataCleanup(pInfo->pRes);
         setBlockIntoRes(pInfo, &ret.data, true);
-        qDebug("queue scan log return %d rows", pInfo->pRes->info.rows);
-        return pInfo->pRes;
-      }else{
+        if (pInfo->pRes->info.rows > 0) {
+          qDebug("queue scan log return %d rows", pInfo->pRes->info.rows);
+          return pInfo->pRes;
+        }
+      }else if(ret.fetchType == FETCH_TYPE__NONE){
         pTaskInfo->streamInfo.currentOffset = ret.offset;
+        return NULL;
       }
-      return NULL;
     }
   } else {
     qError("unexpected streamInfo prepare type: %d", pTaskInfo->streamInfo.currentOffset.type);

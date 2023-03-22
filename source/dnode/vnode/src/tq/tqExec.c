@@ -76,13 +76,13 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
 
-    tqDebug("vgId:%d, tmq task start to execute", pTq->pVnode->config.vgId);
+    tqDebug("consumer:0x%"PRIx64" vgId:%d, tmq task start execute", pHandle->consumerId, pTq->pVnode->config.vgId);
     if (qExecTask(task, &pDataBlock, &ts) < 0) {
-      tqError("vgId:%d, task exec error since %s", pTq->pVnode->config.vgId, terrstr());
+      tqError("consumer:0x%"PRIx64" vgId:%d, task exec error since %s", pHandle->consumerId, pTq->pVnode->config.vgId, terrstr());
       return -1;
     }
 
-    tqDebug("consumer:0x%"PRIx64" vgId:%d, tmq task executed, get %p", pHandle->consumerId, pTq->pVnode->config.vgId, pDataBlock);
+    tqDebug("consumer:0x%"PRIx64" vgId:%d, tmq task end execute, get block:%p", pHandle->consumerId, pTq->pVnode->config.vgId, pDataBlock);
 
     // current scan should be stopped asap, since the rebalance occurs.
     if (pDataBlock == NULL) {
@@ -91,12 +91,9 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
 
     tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols, pTq->pVnode->config.tsdbCfg.precision);
     pRsp->blockNum++;
-
-    if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-      rowCnt += pDataBlock->info.rows;
-      if (rowCnt >= 4096) {
-        break;
-      }
+    rowCnt += pDataBlock->info.rows;
+    if (rowCnt >= 4096) {
+      break;
     }
   }
 

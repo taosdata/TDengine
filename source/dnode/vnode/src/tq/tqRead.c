@@ -309,7 +309,7 @@ void tqNextBlock(STqReader* pReader, SFetchRet* ret) {
         ret->offset.type = TMQ_OFFSET__LOG;
         ret->offset.version = pReader->pWalReader->curVersion;
         ret->fetchType = FETCH_TYPE__NONE;
-        tqInfo("return offset %" PRId64 ", no more valid msg in wal", ret->offset.version);
+        tqInfo("wal return none, offset %" PRId64 ", no more valid msg in wal", ret->offset.version);
         return;
       }
 
@@ -327,7 +327,7 @@ void tqNextBlock(STqReader* pReader, SFetchRet* ret) {
         continue;
       }
       ret->fetchType = FETCH_TYPE__DATA;
-      tqDebug("return data rows %d", ret->data.info.rows);
+      tqDebug("wal return data rows %d", ret->data.info.rows);
       return;
     }
   }
