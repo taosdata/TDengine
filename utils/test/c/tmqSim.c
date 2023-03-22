@@ -688,16 +688,17 @@ int32_t notifyMainScript(SThreadInfo* pInfo, int32_t cmdId) {
 }
 
 static int32_t g_once_commit_flag = 0;
-static void    tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
-     taosFprintfFile(g_fp, "tmq_commit_cb_print() commit %d\n", code);
 
-     if (0 == g_once_commit_flag) {
-       g_once_commit_flag = 1;
-       notifyMainScript((SThreadInfo*)param, (int32_t)NOTIFY_CMD_START_COMMIT);
+static void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
+  taosFprintfFile(g_fp, "tmq_commit_cb_print() commit %d\n", code);
+
+  if (0 == g_once_commit_flag) {
+    g_once_commit_flag = 1;
+    notifyMainScript((SThreadInfo*)param, (int32_t)NOTIFY_CMD_START_COMMIT);
   }
 
-     char tmpString[128];
-     taosFprintfFile(g_fp, "%s tmq_commit_cb_print() be called\n", getCurrentTimeString(tmpString));
+  char tmpString[128];
+  taosFprintfFile(g_fp, "%s tmq_commit_cb_print() be called\n", getCurrentTimeString(tmpString));
 }
 
 void build_consumer(SThreadInfo* pInfo) {

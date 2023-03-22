@@ -70,7 +70,7 @@ extern "C" {
 #define VALUE_LEN 6
 
 #define OTD_JSON_FIELDS_NUM     4
-#define MAX_RETRY_TIMES 5
+#define MAX_RETRY_TIMES 100
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
 typedef enum {

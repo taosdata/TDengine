@@ -31,6 +31,7 @@
 #include "thash.h"
 #include "ttypes.h"
 
+#define MULTI_READER_MAX_TABLE_NUM 5000
 #define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
 #define SWITCH_ORDER(n)              (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
 
@@ -43,7 +44,9 @@ typedef struct STableMergeScanSortSourceParam {
   SOperatorInfo* pOperator;
   int32_t        readerIdx;
   uint64_t       uid;
-  SSDataBlock*   inputBlock;
+  SSDataBlock*   inputBlock;  
+  bool           multiReader;
+  STsdbReader*   dataReader;
 } STableMergeScanSortSourceParam;
 
 static bool processBlockWithProbability(const SSampleExecInfo* pInfo);
@@ -1195,6 +1198,8 @@ static int32_t getPreSessionWindow(SStreamAggSupporter* pAggSup, TSKEY startTs, 
   if (code != TSDB_CODE_SUCCESS) {
     SET_SESSION_WIN_KEY_INVALID(pKey);
   }
+
+  taosMemoryFree(pCur);
   return code;
 }
 
@@ -1623,16 +1628,18 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     while (1) {
       SFetchRet ret = {0};
       tqNextBlock(pInfo->tqReader, &ret);
+      tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pInfo->tqReader->pWalReader->curVersion);
 
       if (ret.fetchType == FETCH_TYPE__DATA) {
+        qDebug("doQueueScan get data from log %d rows, version:%" PRId64, pInfo->pRes->info.rows, pTaskInfo->streamInfo.currentOffset.version);
         blockDataCleanup(pInfo->pRes);
         setBlockIntoRes(pInfo, &ret.data, true);
         if (pInfo->pRes->info.rows > 0) {
-          qDebug("queue scan log return %d rows", pInfo->pRes->info.rows);
+          qDebug("doQueueScan get data from log %d rows, return, version:%" PRId64, pInfo->pRes->info.rows, pTaskInfo->streamInfo.currentOffset.version);
           return pInfo->pRes;
         }
       }else if(ret.fetchType == FETCH_TYPE__NONE){
-        pTaskInfo->streamInfo.currentOffset = ret.offset;
+        qDebug("doQueueScan get none from log, return, version:%" PRId64, pTaskInfo->streamInfo.currentOffset.version);
         return NULL;
       }
     }
@@ -2546,6 +2553,7 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   SExecTaskInfo*                  pTaskInfo = pOperator->pTaskInfo;
   int32_t                         readIdx = source->readerIdx;
   SSDataBlock*                    pBlock = source->inputBlock;
+  int32_t                         code = 0;
 
   SQueryTableDataCond* pQueryCond = taosArrayGet(pInfo->queryConds, readIdx);
 
@@ -2553,17 +2561,20 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   void*        p = tableListGetInfo(pTaskInfo->pTableInfoList, readIdx + pInfo->tableStartIndex);
   SReadHandle* pHandle = &pInfo->base.readHandle;
 
-  int32_t code =
-      tsdbReaderOpen(pHandle->vnode, pQueryCond, p, 1, pBlock, &pInfo->base.dataReader, GET_TASKID(pTaskInfo));
-  if (code != 0) {
-    T_LONG_JMP(pTaskInfo->env, code);
+  if (NULL == source->dataReader || !source->multiReader) {
+    code = tsdbReaderOpen(pHandle->vnode, pQueryCond, p, 1, pBlock, &source->dataReader, GET_TASKID(pTaskInfo));
+    if (code != 0) {
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
   }
-
+  
+  pInfo->base.dataReader = source->dataReader;
   STsdbReader* reader = pInfo->base.dataReader;
   qTrace("tsdb/read-table-data: %p, enter next reader", reader);
   while (tsdbNextDataBlock(reader)) {
     if (isTaskKilled(pTaskInfo)) {
       tsdbReleaseDataBlock(reader);
+      pInfo->base.dataReader = NULL;
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
@@ -2597,14 +2608,18 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
     pInfo->base.readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
     qTrace("tsdb/read-table-data: %p, close reader", reader);
-    tsdbReaderClose(pInfo->base.dataReader);
+    if (!source->multiReader) {
+      tsdbReaderClose(pInfo->base.dataReader);
+      source->dataReader = NULL;
+    }
     pInfo->base.dataReader = NULL;
     return pBlock;
   }
 
-  qDebug("8");
-
-  tsdbReaderClose(pInfo->base.dataReader);
+  if (!source->multiReader) {
+    tsdbReaderClose(pInfo->base.dataReader);
+    source->dataReader = NULL;
+  }
   pInfo->base.dataReader = NULL;
   return NULL;
 }
@@ -2676,6 +2691,7 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
     STableMergeScanSortSourceParam param = {0};
     param.readerIdx = i;
     param.pOperator = pOperator;
+    param.multiReader = (numOfTable <= MULTI_READER_MAX_TABLE_NUM) ? true : false;
     param.inputBlock = createOneDataBlock(pInfo->pResBlock, false);
     blockDataEnsureCapacity(param.inputBlock, pOperator->resultInfo.capacity);
 
@@ -2719,6 +2735,8 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
   for (int32_t i = 0; i < numOfTable; ++i) {
     STableMergeScanSortSourceParam* param = taosArrayGet(pInfo->sortSourceParams, i);
     blockDataDestroy(param->inputBlock);
+    tsdbReaderClose(param->dataReader);
+    param->dataReader = NULL;
   }
   taosArrayClear(pInfo->sortSourceParams);
 
@@ -2761,9 +2779,6 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
   qDebug("%s get sorted row block, rows:%d, limit:%" PRId64, GET_TASKID(pTaskInfo), pResBlock->info.rows,
          pInfo->limitInfo.numOfOutputRows);
 
-  if (limitReached) {
-    resetLimitInfoForNextGroup(&pInfo->limitInfo);
-  }
   return (pResBlock->info.rows > 0) ? pResBlock : NULL;
 }
 
@@ -2816,6 +2831,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
       pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
       pInfo->groupId = tableListGetInfo(pTaskInfo->pTableInfoList, pInfo->tableStartIndex)->groupId;
       startGroupTableMergeScan(pOperator);
+      resetLimitInfoForNextGroup(&pInfo->limitInfo);      
     }
   }
 
@@ -2831,14 +2847,16 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   for (int32_t i = 0; i < numOfTable; i++) {
     STableMergeScanSortSourceParam* p = taosArrayGet(pTableScanInfo->sortSourceParams, i);
     blockDataDestroy(p->inputBlock);
+    tsdbReaderClose(p->dataReader);
+    p->dataReader = NULL;
   }
+
+  tsdbReaderClose(pTableScanInfo->base.dataReader);
+  pTableScanInfo->base.dataReader = NULL;
 
   taosArrayDestroy(pTableScanInfo->sortSourceParams);
   tsortDestroySortHandle(pTableScanInfo->pSortHandle);
   pTableScanInfo->pSortHandle = NULL;
-
-  tsdbReaderClose(pTableScanInfo->base.dataReader);
-  pTableScanInfo->base.dataReader = NULL;
 
   for (int i = 0; i < taosArrayGetSize(pTableScanInfo->queryConds); i++) {
     SQueryTableDataCond* pCond = taosArrayGet(pTableScanInfo->queryConds, i);
@@ -2856,8 +2874,6 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   taosArrayDestroy(pTableScanInfo->pSortInfo);
   cleanupExprSupp(&pTableScanInfo->base.pseudoSup);
 
-  tsdbReaderClose(pTableScanInfo->base.dataReader);
-  pTableScanInfo->base.dataReader = NULL;
   taosLRUCacheCleanup(pTableScanInfo->base.metaCache.pTableMetaEntryCache);
 
   taosMemoryFreeClear(param);

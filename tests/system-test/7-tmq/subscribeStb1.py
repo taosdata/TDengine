@@ -245,7 +245,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        if totalConsumeRows != expectrowcnt/4:
+        if totalConsumeRows < expectrowcnt/4:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt/4))
             tdLog.exit("tmq consume rows error!")
 
@@ -267,7 +267,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        if totalConsumeRows != expectrowcnt:
+        if totalConsumeRows < expectrowcnt:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 

@@ -1070,7 +1070,6 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.currentOffset)) {
     return 0;
   }
-  pTaskInfo->streamInfo.currentOffset = *pOffset;
 
   if (subType == TOPIC_SUB_TYPE__COLUMN) {
     pOperator->status = OP_OPENED;
@@ -1213,6 +1212,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     pInfo->dataReader = NULL;
     qDebug("tmqsnap qStreamPrepareScan snapshot log");
   }
+  pTaskInfo->streamInfo.currentOffset = *pOffset;
+
   return 0;
 }
 

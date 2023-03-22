@@ -214,7 +214,6 @@ enum {
 
 typedef struct {
   int8_t       fetchType;
-  STqOffsetVal offset;
   union {
     SSDataBlock data;
     void*       meta;

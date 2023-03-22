@@ -453,6 +453,15 @@ static int32_t processSubColumn(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
       dataRsp.reqOffset.version == dataRsp.rspOffset.version && pHandle->consumerId == pRequest->consumerId) {
     code = tqRegisterPushEntry(pTq, pHandle, pRequest, pMsg, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
     taosWUnLockLatch(&pTq->pushLock);
+    code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_RSP);
+
+    // NOTE: this pHandle->consumerId may have been changed already.
+    tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, offset type:%d, uid/version:%" PRId64
+            ", ts:%" PRId64", reqId:0x%"PRIx64,
+            pRequest->consumerId, pHandle->subKey, vgId, dataRsp.blockNum, dataRsp.rspOffset.type, dataRsp.rspOffset.uid,
+            dataRsp.rspOffset.ts, pRequest->reqId);
+
+    tDeleteSMqDataRsp(&dataRsp);
     return code;
   }
 
@@ -484,8 +493,7 @@ static int32_t processSubDbOrTable(STQ* pTq, STqHandle* pHandle, const SMqPollRe
 
     if (metaRsp.metaRspLen > 0) {
       code = tqSendMetaPollRsp(pTq, pMsg, pRequest, &metaRsp);
-      tqDebug("tmq poll: consumer:0x%" PRIx64 " subkey:%s vgId:%d, send meta offset type:%d,uid:%" PRId64
-                  ",ts:%" PRId64,
+      tqDebug("tmq poll: consumer:0x%" PRIx64 " subkey:%s vgId:%d, send meta offset type:%d,uid:%" PRId64 ",ts:%" PRId64,
               pRequest->consumerId, pHandle->subKey, vgId, metaRsp.rspOffset.type, metaRsp.rspOffset.uid,
               metaRsp.rspOffset.ts);
       taosMemoryFree(metaRsp.metaRsp);
@@ -522,7 +530,7 @@ static int32_t processSubDbOrTable(STQ* pTq, STqHandle* pHandle, const SMqPollRe
         break;
       }
 
-      if (tqFetchLog(pTq, pHandle, &fetchVer, &pCkHead) < 0) {
+      if (tqFetchLog(pTq, pHandle, &fetchVer, &pCkHead, pRequest->reqId) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
         code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
         tDeleteSTaosxRsp(&taosxRsp);

@@ -183,23 +183,24 @@ end:
   return tbSuid == realTbSuid;
 }
 
-int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead) {
+int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead, uint64_t reqId) {
   int32_t code = 0;
+  int32_t vgId = TD_VID(pTq->pVnode);
 
   taosThreadMutexLock(&pHandle->pWalReader->mutex);
   int64_t offset = *fetchOffset;
 
   while (1) {
     if (walFetchHead(pHandle->pWalReader, offset, *ppCkHead) < 0) {
-      tqDebug("tmq poll: consumer:0x%" PRIx64 ", (epoch %d) vgId:%d offset %" PRId64 ", no more log to return",
-              pHandle->consumerId, pHandle->epoch, TD_VID(pTq->pVnode), offset);
+      tqDebug("tmq poll: consumer:0x%" PRIx64 ", (epoch %d) vgId:%d offset %" PRId64 ", no more log to return, reqId:0x%"PRIx64,
+              pHandle->consumerId, pHandle->epoch, vgId, offset, reqId);
       *fetchOffset = offset - 1;
       code = -1;
       goto END;
     }
 
-    tqDebug("vgId:%d, taosx get msg ver %" PRId64 ", type: %s", pTq->pVnode->config.vgId, offset,
-            TMSG_INFO((*ppCkHead)->head.msgType));
+    tqDebug("vgId:%d, consumer:0x%" PRIx64 " taosx get msg ver %" PRId64 ", type: %s, reqId:0x%" PRIx64, vgId,
+            pHandle->consumerId, offset, TMSG_INFO((*ppCkHead)->head.msgType), reqId);
 
     if ((*ppCkHead)->head.msgType == TDMT_VND_SUBMIT) {
       code = walFetchBody(pHandle->pWalReader, ppCkHead);
@@ -305,14 +306,9 @@ void tqNextBlock(STqReader* pReader, SFetchRet* ret) {
   while (1) {
     if (pReader->msg2.msgStr == NULL) {
       if (walNextValidMsg(pReader->pWalReader) < 0) {
-//        pReader->ver = pReader->pWalReader->curVersion;
-        ret->offset.type = TMQ_OFFSET__LOG;
-        ret->offset.version = pReader->pWalReader->curVersion;
         ret->fetchType = FETCH_TYPE__NONE;
-        tqInfo("wal return none, offset %" PRId64 ", no more valid msg in wal", ret->offset.version);
         return;
       }
-
       void*   body = POINTER_SHIFT(pReader->pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
       int32_t bodyLen = pReader->pWalReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
       int64_t ver = pReader->pWalReader->pHead->head.version;
@@ -327,7 +323,6 @@ void tqNextBlock(STqReader* pReader, SFetchRet* ret) {
         continue;
       }
       ret->fetchType = FETCH_TYPE__DATA;
-      tqDebug("wal return data rows %d", ret->data.info.rows);
       return;
     }
   }
