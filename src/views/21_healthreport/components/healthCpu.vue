@@ -29,8 +29,8 @@
         prop="cpu_avg"
       ></el-table-column>
       <el-table-column
-        :label="$t('health.cpu_o99')"
-        prop="cpu_o99"
+        :label="$t('health.cpu_p99')"
+        prop="cpu_p99"
       ></el-table-column>
       <el-table-column
         :label="$t('health.cpu_p90')"
@@ -75,7 +75,7 @@ export default {
       try {
         this.requestIng = false;
         return await sendSQLReq(
-          `select dnode_id, avg(cpu_engine) as cpu_avg, apercentile(cpu_engine, 90) as cpu_p90, apercentile(cpu_engine, 99) as cpu_o99 from log.dnodes_info where _c0 >= now - ${this.day}d partition by dnode_id;`
+          `select dnode_id, avg(cpu_engine) as cpu_avg, apercentile(cpu_engine, 90) as cpu_p90, apercentile(cpu_engine, 99) as cpu_p99 from log.dnodes_info where _c0 >= now - ${this.day}d partition by dnode_id;`
         ).then((res) => {
           this.cpuData = res.data.map((data) => {
             return Object.fromEntries(

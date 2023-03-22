@@ -30,8 +30,8 @@
         prop="mem_avg"
       ></el-table-column>
       <el-table-column
-        :label="$t('health.mem_o99')"
-        prop="mem_o99"
+        :label="$t('health.mem_p99')"
+        prop="mem_p99"
       ></el-table-column>
       <el-table-column
         :label="$t('health.mem_p90')"
@@ -74,7 +74,7 @@ export default {
       try {
         this.requestIng = true;
         return await sendSQLReq(
-          `select dnode_id, avg(mem_engine) as mem_avg, apercentile(mem_engine, 90) as mem_p90, apercentile(mem_engine, 99) as mem_o99 from log.dnodes_info where _c0 >= now - ${this.day}d partition by dnode_id;`
+          `select dnode_id, avg(mem_engine) as mem_avg, apercentile(mem_engine, 90) as mem_p90, apercentile(mem_engine, 99) as mem_p99 from log.dnodes_info where _c0 >= now - ${this.day}d partition by dnode_id;`
         ).then((res) => {
           this.memData = res.data.map((data) => {
             return Object.fromEntries(
