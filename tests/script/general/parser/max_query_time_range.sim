@@ -19,10 +19,15 @@ sql create table t (ts timestamp, f int)
 sql insert into t values ( $ts , 1)( $ts + 1s , 2)( $ts + 2s , 3)( $ts + 3s, 4)( $ts + 4s, 5)
 
 sql select * from t where ts >= $ts and ts <= $ts + 3000
+sql select * from t where ts >= $ts and ts <= $ts + 3000 order by ts desc
 sql select * from t where ts > $ts and ts <= $ts + 3001
+sql select * from t where ts > $ts and ts <= $ts + 3001 order by ts desc
 sql select * from t where ts > $ts and ts < $ts + 3000
+sql select * from t where ts > $ts and ts < $ts + 3000 order by ts desc
 sql select * from t where ts > $ts and ts <= $ts + 3000
+sql select * from t where ts > $ts and ts <= $ts + 3000 order by ts desc
 sql select * from t where ts >= $ts and ts < $ts + 3000
+sql select * from t where ts >= $ts and ts < $ts + 3000 order by ts desc
 sql select * from t where ts > $ts and ts < $ts + 2000
 sql select * from t where ts = $ts + 200
 sql select * from t where ts = $ts
@@ -30,13 +35,20 @@ sql select * from t where ts > $ts and ts <= $ts + 3001
 sql select * from (select * from t where ts > $ts and ts <= $ts + 3001) where ts = $ts + 200
 
 sql_error select * from t
+sql_error select * from t order by ts desc
 sql_error select * from t where ts > $ts
+sql_error select * from t where ts > $ts order by ts desc
 sql_error select * from t where ts < $ts
+sql_error select * from t where ts < $ts order by ts desc
 
 sql_error select * from t where ts >= $ts and ts <= $ts + 3001
+sql_error select * from t where ts >= $ts and ts <= $ts + 3001 order by ts desc
 sql_error select * from t where ts >= $ts and ts <= $ts + 4000
+sql_error select * from t where ts >= $ts and ts <= $ts + 4000 order by ts desc
 
 sql_error select * from ( select * from t ) where ts >= $ts and ts <= $ts + 2000
+sql_error select * from ( select * from t ) where ts >= $ts and ts <= $ts + 2000 oder by ts desc
+sql_error select * from ( select * from t order by ts desc) where ts >= $ts and ts <= $ts + 2000 oder by ts desc
 
 sql_error select * from ( select * from t where ts > $ts and ts < $ts + 3000) where ts > $ts
 
