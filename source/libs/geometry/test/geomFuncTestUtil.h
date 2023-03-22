@@ -15,10 +15,14 @@
 
 #include <gtest/gtest.h>
 
-#include "os.h"
+#include "tdatablock.h"
+#include "geomFunc.h"
 
-int main(int argc, char **argv) {
-  taosSeedRand(taosGetTimestampSec());
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+void setScalarParam(SScalarParam *sclParam, int32_t type, void *valueArray, int32_t rowNum);
+void destroyScalarParam(SScalarParam *sclParam, int32_t colNum);
+
+void makeOneScalarParam(SScalarParam **pSclParam, int32_t type, void *valueArray, int32_t rowNum);
+
+void compareVarDataColumn(SColumnInfoData *columnData1, SColumnInfoData *columnData2, int32_t rowNum);
+
+void callGeomFromTextWrapper5(void *strArray, int32_t rowNum, SScalarParam *pOutputGeomFromText);
