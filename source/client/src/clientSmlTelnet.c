@@ -79,13 +79,10 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
 
   int     cnt = 0;
   SArray *preLineKV = info->preLineTagKV;
-  SArray *maxKVs = info->maxTagKVs;
-  bool    isSuperKVInit = true;
-  SArray *superKV = NULL;
   if (info->dataFormat) {
     if (!isSameMeasure) {
       SSmlSTableMeta **tmp = (SSmlSTableMeta **)taosHashGet(info->superTables, elements->measure, elements->measureLen);
-      SSmlSTableMeta  *sMeta = NULL;
+      SSmlSTableMeta *sMeta = NULL;
       if (unlikely(tmp == NULL)) {
         STableMeta *pTableMeta = smlGetMeta(info, elements->measure, elements->measureLen);
         if (pTableMeta == NULL) {
@@ -96,18 +93,16 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
         sMeta = smlBuildSTableMeta(info->dataFormat);
         sMeta->tableMeta = pTableMeta;
         taosHashPut(info->superTables, elements->measure, elements->measureLen, &sMeta, POINTER_BYTES);
+        for(int i = pTableMeta->tableInfo.numOfColumns; i < pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns; i++){
+          SSchema *tag = pTableMeta->schema + i;
+          SSmlKv kv = {.key = tag->name, .keyLen = strlen(tag->name), .type = tag->type, .length = (tag->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE };
+          taosArrayPush(sMeta->tags, &kv);
+        }
         tmp = &sMeta;
       }
       info->currSTableMeta = (*tmp)->tableMeta;
-      superKV = (*tmp)->tags;
-
-      if (unlikely(taosArrayGetSize(superKV) == 0)) {
-        isSuperKVInit = false;
-      }
-      taosArrayClear(maxKVs);
+      info->maxTagKVs = (*tmp)->tags;
     }
-  } else {
-    taosArrayClear(maxKVs);
   }
 
   taosArrayClear(preLineKV);
@@ -175,59 +170,21 @@ static int32_t smlParseTelnetTags(SSmlHandle *info, char *data, char *sqlEnd, SS
         info->reRun = true;
         return TSDB_CODE_SUCCESS;
       }
-
-      if (isSameMeasure) {
-        if (unlikely(cnt >= taosArrayGetSize(maxKVs))) {
-          info->dataFormat = false;
-          info->reRun = true;
-          return TSDB_CODE_SUCCESS;
-        }
-        SSmlKv *maxKV = (SSmlKv *)taosArrayGet(maxKVs, cnt);
-        if (unlikely(kv.length > maxKV->length)) {
-          maxKV->length = kv.length;
-          SSmlSTableMeta **tableMeta =
-              (SSmlSTableMeta **)taosHashGet(info->superTables, elements->measure, elements->measureLen);
-          if (unlikely(NULL == tableMeta)) {
-            uError("SML:0x%" PRIx64 " NULL == tableMeta", info->id);
-            return TSDB_CODE_SML_INTERNAL_ERROR;
-          }
-
-          SSmlKv *oldKV = (SSmlKv *)taosArrayGet((*tableMeta)->tags, cnt);
-          oldKV->length = kv.length;
-          info->needModifySchema = true;
-        }
-        if (unlikely(!IS_SAME_KEY)) {
-          info->dataFormat = false;
-          info->reRun = true;
-          return TSDB_CODE_SUCCESS;
-        }
-      } else {
-        if (isSuperKVInit) {
-          if (unlikely(cnt >= taosArrayGetSize(superKV))) {
-            info->dataFormat = false;
-            info->reRun = true;
-            return TSDB_CODE_SUCCESS;
-          }
-          SSmlKv *maxKV = (SSmlKv *)taosArrayGet(superKV, cnt);
-          if (unlikely(kv.length > maxKV->length)) {
-            maxKV->length = kv.length;
-          } else {
-            kv.length = maxKV->length;
-          }
-          info->needModifySchema = true;
-
-          if (unlikely(!IS_SAME_KEY)) {
-            info->dataFormat = false;
-            info->reRun = true;
-            return TSDB_CODE_SUCCESS;
-          }
-        } else {
-          taosArrayPush(superKV, &kv);
-        }
-        taosArrayPush(maxKVs, &kv);
+      if (unlikely(cnt >= taosArrayGetSize(info->maxTagKVs))) {
+        info->dataFormat = false;
+        info->reRun = true;
+        return TSDB_CODE_SUCCESS;
       }
-    } else {
-      taosArrayPush(maxKVs, &kv);
+      SSmlKv *maxKV = (SSmlKv *)taosArrayGet(info->maxTagKVs, cnt);
+      if (unlikely(!IS_SAME_KEY)) {
+        info->dataFormat = false;
+        info->reRun = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      if (unlikely(kv.length > maxKV->length)) {
+        maxKV->length = kv.length;
+        info->needModifySchema = true;
+      }
     }
     taosArrayPush(preLineKV, &kv);
     cnt++;

@@ -74,6 +74,10 @@ extern int32_t tsHeartbeatTimeout;
 // vnode
 extern int64_t tsVndCommitMaxIntervalMs;
 
+// mnode
+extern int64_t tsMndSdbWriteDelta;
+extern int64_t tsMndLogRetention;
+
 // monitor
 extern bool     tsEnableMonitor;
 extern int32_t  tsMonitorInterval;

@@ -75,10 +75,10 @@ database_option: {
 - TABLE_PREFIX：The prefix length in the table name that is ignored when distributing table to vnode based on table name.
 - TABLE_SUFFIX：The suffix length in the table name that is ignored when distributing table to vnode based on table name.
 - TSDB_PAGESIZE: The page size of the data storage engine in a vnode. The unit is KB. The default is 4 KB. The range is 1 to 16384, that is, 1 KB to 16 MB.
-- WAL_RETENTION_PERIOD: specifies the time after which WAL files are deleted. This parameter is used for data subscription. Enter a time in seconds. The default value of single copy is 0. A value of 0 indicates that each WAL file is deleted immediately after its contents are written to disk. -1: WAL files are never deleted. The default value of multiple copy is 4 days.
-- WAL_RETENTION_SIZE: specifies the size at which WAL files are deleted. This parameter is used for data subscription. Enter a size in KB. The default value of single copy is 0. A value of 0 indicates that each WAL file is deleted immediately after its contents are written to disk. -1: WAL files are never deleted. The default value of multiple copy is -1.
-- WAL_ROLL_PERIOD: specifies the time after which WAL files are rotated. After this period elapses, a new WAL file is created. The default value of single copy is 0. A value of 0 indicates that a new WAL file is created only after the previous WAL file was written to disk. The default values of multiple copy is 1 day.
-- WAL_SEGMENT_SIZE: specifies the maximum size of a WAL file. After the current WAL file reaches this size, a new WAL file is created. The default value is 0. A value of 0 indicates that a new WAL file is created only after the previous WAL file was written to disk.
+- WAL_RETENTION_PERIOD: specifies the maximum time of which WAL files are to be kept after consumption. This parameter is used for data subscription. Enter a time in seconds. The default value 0. A value of 0 indicates that WAL files are not required to keep after consumption. -1: the time of WAL files to keep has no upper limit.
+- WAL_RETENTION_SIZE: specifies the maximum total size of which WAL files are to be kept after consumption. This parameter is used for data subscription. Enter a size in KB. The default value is 0. A value of 0 indicates that WAL files are not required to keep after consumption. -1: the total size of WAL files to keep has no upper limit.
+- WAL_ROLL_PERIOD: specifies the time after which WAL files are rotated. After this period elapses, a new WAL file is created. The default value is 0. A value of 0 indicates that a new WAL file is created only after TSDB data in memory are flushed to disk.
+- WAL_SEGMENT_SIZE: specifies the maximum size of a WAL file. After the current WAL file reaches this size, a new WAL file is created. The default value is 0. A value of 0 indicates that a new WAL file is created only after TSDB data in memory are flushed to disk.
 
 ### Example Statement
 

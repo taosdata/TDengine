@@ -915,6 +915,7 @@ int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_
 
   SDataType t = {.type = type};
   t.bytes = IS_VAR_DATA_TYPE(t.type)? input->columnData->info.bytes:tDataTypes[type].bytes;
+  t.precision = input->columnData->info.precision;
 
   int32_t code = sclCreateColumnInfoData(&t, input->numOfRows, output);
   if (code != TSDB_CODE_SUCCESS) {

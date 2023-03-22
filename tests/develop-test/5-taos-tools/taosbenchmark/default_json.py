@@ -29,25 +29,23 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def getPath(self, tool="taosBenchmark"):
+        if (platform.system().lower() == 'windows'):
+            tool = tool + ".exe"
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if "community" in selfPath:
-            projPath = selfPath[: selfPath.find("community")]
-        elif "src" in selfPath:
-            projPath = selfPath[: selfPath.find("src")]
-        elif "/tools/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tools/")]
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
         else:
-            projPath = selfPath[: selfPath.find("tests")]
+            projPath = selfPath[:selfPath.find("tests")]
 
         paths = []
         for root, dirs, files in os.walk(projPath):
-            if (tool) in files:
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
-                if "packaging" not in rootRealPath:
+                if ("packaging" not in rootRealPath):
                     paths.append(os.path.join(root, tool))
                     break
-        if len(paths) == 0:
+        if (len(paths) == 0):
             tdLog.exit("taosBenchmark not found!")
             return
         else:

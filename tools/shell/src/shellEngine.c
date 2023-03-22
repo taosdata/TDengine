@@ -1048,26 +1048,28 @@ void *shellThreadLoop(void *arg) {
   taosGetOldTerminalMode();
   taosThreadCleanupPush(shellCleanup, NULL);
 
-  char *command = taosMemoryMalloc(SHELL_MAX_COMMAND_SIZE);
-  if (command == NULL) {
-    printf("failed to malloc command\r\n");
-    return NULL;
-  }
-
   do {
-    memset(command, 0, SHELL_MAX_COMMAND_SIZE);
-    taosSetTerminalMode();
-
-    if (shellReadCommand(command) != 0) {
+    char *command = taosMemoryMalloc(SHELL_MAX_COMMAND_SIZE);
+    if (command == NULL) {
+      printf("failed to malloc command\r\n");
       break;
     }
 
-    taosResetTerminalMode();
-  } while (shellRunCommand(command, true) == 0);
+    do {
+      memset(command, 0, SHELL_MAX_COMMAND_SIZE);
+      taosSetTerminalMode();
 
-  taosMemoryFreeClear(command);
-  shellWriteHistory();
-  shellExit();
+      if (shellReadCommand(command) != 0) {
+        break;
+      }
+
+      taosResetTerminalMode();
+    } while (shellRunCommand(command, true) == 0);
+
+    taosMemoryFreeClear(command);
+    shellWriteHistory();
+    shellExit();
+  } while (0);
 
   taosThreadCleanupPop(1);
   return NULL;

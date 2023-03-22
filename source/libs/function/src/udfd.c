@@ -30,8 +30,9 @@
 #include "tmisce.h"
 // clang-format on
 
-#define MAX_NUM_SCRIPT_PLUGINS 64
-#define MAX_NUM_PLUGIN_FUNCS   9
+#define UDFD_MAX_SCRIPT_PLUGINS 64
+#define UDFD_MAX_SCRIPT_TYPE    1
+#define UDFD_MAX_PLUGIN_FUNCS   9
 
 typedef struct SUdfCPluginCtx {
   uv_lib_t lib;
@@ -126,7 +127,8 @@ int32_t udfdCPluginUdfScalarProc(SUdfDataBlock *block, SUdfColumn *resultCol, vo
   if (ctx->scalarProcFunc) {
     return ctx->scalarProcFunc(block, resultCol);
   } else {
-    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
+    fnError("udfd c plugin scalar proc not implemented");
+    return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
   }
 }
 
@@ -135,7 +137,8 @@ int32_t udfdCPluginUdfAggStart(SUdfInterBuf *buf, void *udfCtx) {
   if (ctx->aggStartFunc) {
     return ctx->aggStartFunc(buf);
   } else {
-    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
+    fnError("udfd c plugin aggregation start not implemented");
+    return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
   }
   return 0;
 }
@@ -145,7 +148,8 @@ int32_t udfdCPluginUdfAggProc(SUdfDataBlock *block, SUdfInterBuf *interBuf, SUdf
   if (ctx->aggProcFunc) {
     return ctx->aggProcFunc(block, interBuf, newInterBuf);
   } else {
-    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
+    fnError("udfd c plugin aggregation process not implemented");
+    return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
   }
 }
 
@@ -155,7 +159,8 @@ int32_t udfdCPluginUdfAggMerge(SUdfInterBuf *inputBuf1, SUdfInterBuf *inputBuf2,
   if (ctx->aggMergeFunc) {
     return ctx->aggMergeFunc(inputBuf1, inputBuf2, outputBuf);
   } else {
-    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
+    fnError("udfd c plugin aggregation merge not implemented");
+    return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
   }
 }
 
@@ -164,7 +169,8 @@ int32_t udfdCPluginUdfAggFinish(SUdfInterBuf *buf, SUdfInterBuf *resultData, voi
   if (ctx->aggFinishFunc) {
     return ctx->aggFinishFunc(buf, resultData);
   } else {
-    return TSDB_CODE_UDF_FUNC_NOT_IMPLEMENTED;
+    fnError("udfd c plugin aggregation finish not implemented");
+    return TSDB_CODE_UDF_FUNC_EXEC_FAILURE;
   }
   return 0;
 }
@@ -205,7 +211,7 @@ typedef struct SUdfdContext {
   SHashObj  *udfsHash;
 
   uv_mutex_t        scriptPluginsMutex;
-  SUdfScriptPlugin *scriptPlugins[MAX_NUM_SCRIPT_PLUGINS];
+  SUdfScriptPlugin *scriptPlugins[UDFD_MAX_SCRIPT_PLUGINS];
 
   SArray *residentFuncs;
 
@@ -235,7 +241,7 @@ typedef struct SUvUdfWork {
   struct SUvUdfWork *pWorkNext;
 } SUvUdfWork;
 
-typedef enum { UDF_STATE_INIT = 0, UDF_STATE_LOADING, UDF_STATE_READY, UDF_STATE_UNLOADING } EUdfState;
+typedef enum { UDF_STATE_INIT = 0, UDF_STATE_LOADING, UDF_STATE_READY } EUdfState;
 
 typedef struct SUdf {
   char name[TSDB_FUNC_NAME_LEN + 1];
@@ -344,23 +350,24 @@ int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[],
   return 0;
 }
 
-void udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
+int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
   plugin->scriptType = TSDB_FUNC_SCRIPT_PYTHON;
-  //todo: windows support
+  // todo: windows support
   sprintf(plugin->libPath, "%s", "libtaospyudf.so");
   plugin->libLoaded = false;
-  const char *funcName[MAX_NUM_PLUGIN_FUNCS] = {"pyOpen",         "pyClose",         "pyUdfInit",
-                                                "pyUdfDestroy",   "pyUdfScalarProc", "pyUdfAggStart",
-                                                "pyUdfAggFinish", "pyUdfAggProc",    "pyUdfAggMerge"};
-  void      **funcs[MAX_NUM_PLUGIN_FUNCS] = {
+  const char *funcName[UDFD_MAX_PLUGIN_FUNCS] = {"pyOpen",         "pyClose",         "pyUdfInit",
+                                                 "pyUdfDestroy",   "pyUdfScalarProc", "pyUdfAggStart",
+                                                 "pyUdfAggFinish", "pyUdfAggProc",    "pyUdfAggMerge"};
+  void      **funcs[UDFD_MAX_PLUGIN_FUNCS] = {
       (void **)&plugin->openFunc,         (void **)&plugin->closeFunc,         (void **)&plugin->udfInitFunc,
       (void **)&plugin->udfDestroyFunc,   (void **)&plugin->udfScalarProcFunc, (void **)&plugin->udfAggStartFunc,
       (void **)&plugin->udfAggFinishFunc, (void **)&plugin->udfAggProcFunc,    (void **)&plugin->udfAggMergeFunc};
-  int32_t err = udfdLoadSharedLib(plugin->libPath, &plugin->lib, funcName, funcs, MAX_NUM_PLUGIN_FUNCS);
+  int32_t err = udfdLoadSharedLib(plugin->libPath, &plugin->lib, funcName, funcs, UDFD_MAX_PLUGIN_FUNCS);
   if (err != 0) {
     fnError("can not load python plugin. lib path %s", plugin->libPath);
-    return;
+    return err;
   }
+
   if (plugin->openFunc) {
     int16_t lenPythonPath = strlen(tsUdfdLdLibPath) + strlen(tsTempDir) + 1 + 1;  // tsTempDir:tsUdfdLdLibPath
     char   *pythonPath = taosMemoryMalloc(lenPythonPath);
@@ -369,12 +376,18 @@ void udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
 #else
     snprintf(pythonPath, lenPythonPath, "%s:%s", tsTempDir, tsUdfdLdLibPath);
 #endif
-    SScriptUdfEnvItem items[] = {{"PYTHONPATH", pythonPath}};
-    plugin->openFunc(items, 1);
+    SScriptUdfEnvItem items[] = {{"PYTHONPATH", pythonPath}, {"LOGDIR", tsLogDir}};
+    err = plugin->openFunc(items, 2);
     taosMemoryFree(pythonPath);
   }
+  if (err != 0) {
+    fnError("udf script python plugin open func failed. error: %d", err);
+    uv_dlclose(&plugin->lib);
+    return err;
+  }
   plugin->libLoaded = true;
-  return;
+
+  return 0;
 }
 
 void udfdDeinitCPlugin(SUdfScriptPlugin *plugin) {
@@ -412,30 +425,44 @@ void udfdDeinitPythonPlugin(SUdfScriptPlugin *plugin) {
   plugin->udfAggFinishFunc = NULL;
 }
 
-void udfdInitScriptPlugins() {
-  SUdfScriptPlugin *plugin = NULL;
+int32_t udfdInitScriptPlugin(int8_t scriptType) {
+  SUdfScriptPlugin *plugin = taosMemoryCalloc(1, sizeof(SUdfScriptPlugin));
 
-  // Initialize c plugin
-  plugin = taosMemoryCalloc(1, sizeof(SUdfScriptPlugin));
-  udfdInitializeCPlugin(plugin);
-  global.scriptPlugins[TSDB_FUNC_SCRIPT_BIN_LIB] = plugin;
+  switch (scriptType) {
+    case TSDB_FUNC_SCRIPT_BIN_LIB:
+      udfdInitializeCPlugin(plugin);
+      break;
+    case TSDB_FUNC_SCRIPT_PYTHON: {
+      int32_t err = udfdInitializePythonPlugin(plugin);
+      if (err != 0) {
+        taosMemoryFree(plugin);
+        return err;
+      }
+      break;
+    }
+    default:
+      fnError("udf script type %d not supported", scriptType);
+      taosMemoryFree(plugin);
+      return TSDB_CODE_UDF_SCRIPT_NOT_SUPPORTED;
+  }
 
-  // Initialize python plugin
-  plugin = taosMemoryCalloc(1, sizeof(SUdfScriptPlugin));
-  udfdInitializePythonPlugin(plugin);
-  global.scriptPlugins[TSDB_FUNC_SCRIPT_PYTHON] = plugin;
-  return;
+  global.scriptPlugins[scriptType] = plugin;
+  return TSDB_CODE_SUCCESS;
 }
 
 void udfdDeinitScriptPlugins() {
   SUdfScriptPlugin *plugin = NULL;
   plugin = global.scriptPlugins[TSDB_FUNC_SCRIPT_PYTHON];
-  udfdDeinitPythonPlugin(plugin);
-  taosMemoryFree(plugin);
+  if (plugin != NULL) {
+    udfdDeinitPythonPlugin(plugin);
+    taosMemoryFree(plugin);
+  }
 
   plugin = global.scriptPlugins[TSDB_FUNC_SCRIPT_BIN_LIB];
-  udfdDeinitCPlugin(plugin);
-  taosMemoryFree(plugin);
+  if (plugin != NULL) {
+    udfdDeinitCPlugin(plugin);
+    taosMemoryFree(plugin);
+  }
   return;
 }
 
@@ -478,6 +505,22 @@ void convertUdf2UdfInfo(SUdf *udf, SScriptUdfInfo *udfInfo) {
   udfInfo->scriptType = udf->scriptType;
 }
 
+int32_t udfdRenameUdfFile(SUdf *udf) {
+  char newPath[PATH_MAX];
+  if (udf->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
+    snprintf(newPath, PATH_MAX, "%s/lib%s.so", tsTempDir, udf->name);
+  } else if (udf->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
+    snprintf(newPath, PATH_MAX, "%s/%s.py", tsTempDir, udf->name);
+  } else {
+    return TSDB_CODE_UDF_SCRIPT_NOT_SUPPORTED;
+  }
+  int32_t code = taosRenameFile(udf->path, newPath);
+  if (code == 0) {
+    sprintf(udf->path, "%s", newPath);
+  }
+  return 0;
+}
+
 int32_t udfdInitUdf(char *udfName, SUdf *udf) {
   int32_t err = 0;
   err = udfdFillUdfInfoFromMNode(global.clientRpc, udfName, udf);
@@ -485,19 +528,34 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
     fnError("can not retrieve udf from mnode. udf name %s", udfName);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
-  // TODO: remove script plugins mutex
+  if (udf->scriptType > UDFD_MAX_SCRIPT_TYPE) {
+    fnError("udf name %s script type %d not supported", udfName, udf->scriptType);
+    return TSDB_CODE_UDF_SCRIPT_NOT_SUPPORTED;
+  }
+
   uv_mutex_lock(&global.scriptPluginsMutex);
   SUdfScriptPlugin *scriptPlugin = global.scriptPlugins[udf->scriptType];
   if (scriptPlugin == NULL) {
-    fnError("udf name %s script type %d not supported", udfName, udf->scriptType);
-    uv_mutex_unlock(&global.scriptPluginsMutex);
-    return TSDB_CODE_UDF_SCRIPT_NOT_SUPPORTED;
+    err = udfdInitScriptPlugin(udf->scriptType);
+    if (err != 0) {
+      uv_mutex_unlock(&global.scriptPluginsMutex);
+      return err;
+    }
   }
   uv_mutex_unlock(&global.scriptPluginsMutex);
-  udf->scriptPlugin = scriptPlugin;
+  udf->scriptPlugin = global.scriptPlugins[udf->scriptType];
+
+  udfdRenameUdfFile(udf);
+
   SScriptUdfInfo info = {0};
   convertUdf2UdfInfo(udf, &info);
-  udf->scriptPlugin->udfInitFunc(&info, &udf->scriptUdfCtx);
+  err = udf->scriptPlugin->udfInitFunc(&info, &udf->scriptUdfCtx);
+  if (err != 0) {
+    fnError("udf name %s init failed. error %d", udfName, err);
+    return err;
+  }
+
+  fnInfo("udf init succeeded. name %s type %d context %p", udf->name, udf->scriptType, (void*)udf->scriptUdfCtx);
   return 0;
 }
 
@@ -519,6 +577,14 @@ SUdf *udfdGetOrCreateUdf(const char *udfName) {
     uv_cond_init(&udfNew->condReady);
 
     udf = udfNew;
+    udf->resident = false;
+    for (int32_t i = 0; i < taosArrayGetSize(global.residentFuncs); ++i) {
+      char *funcName = taosArrayGet(global.residentFuncs, i);
+      if (strcmp(udfName, funcName) == 0) {
+        udf->resident = true;
+        break;
+      }
+    }
     SUdf **pUdf = &udf;
     taosHashPut(global.udfsHash, udfName, strlen(udfName), pUdf, POINTER_BYTES);
     uv_mutex_unlock(&global.udfsMutex);
@@ -540,20 +606,15 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   if (udf->state == UDF_STATE_INIT) {
     udf->state = UDF_STATE_LOADING;
     code = udfdInitUdf(setup->udfName, udf);
-
-    udf->resident = false;
-    for (int32_t i = 0; i < taosArrayGetSize(global.residentFuncs); ++i) {
-      char *funcName = taosArrayGet(global.residentFuncs, i);
-      if (strcmp(setup->udfName, funcName) == 0) {
-        udf->resident = true;
-        break;
-      }
+    if (code == 0) {
+      udf->state = UDF_STATE_READY;
+    } else {
+      udf->state = UDF_STATE_INIT;
     }
-    udf->state = UDF_STATE_READY;
     uv_cond_broadcast(&udf->condReady);
     uv_mutex_unlock(&udf->lock);
   } else {
-    while (udf->state != UDF_STATE_READY) {
+    while (udf->state == UDF_STATE_LOADING) {
       uv_cond_wait(&udf->condReady, &udf->lock);
     }
     uv_mutex_unlock(&udf->lock);
@@ -564,10 +625,10 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   SUdfResponse rsp;
   rsp.seqNum = request->seqNum;
   rsp.type = request->type;
-  rsp.code = code;
+  rsp.code = (code != 0) ? TSDB_CODE_UDF_FUNC_EXEC_FAILURE : 0;
   rsp.setupRsp.udfHandle = (int64_t)(handle);
   rsp.setupRsp.outputType = udf->outputType;
-  rsp.setupRsp.outputLen = udf->outputLen;
+  rsp.setupRsp.bytes = udf->outputLen;
   rsp.setupRsp.bufSize = udf->bufSize;
 
   int32_t len = encodeUdfResponse(NULL, &rsp);
@@ -647,7 +708,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
   rsp->seqNum = request->seqNum;
   rsp->type = request->type;
-  rsp->code = code;
+  rsp->code = (code != 0) ? TSDB_CODE_UDF_FUNC_EXEC_FAILURE : 0;
   subRsp->callType = call->callType;
 
   int32_t len = encodeUdfResponse(NULL, rsp);
@@ -704,9 +765,11 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   }
   uv_mutex_unlock(&global.udfsMutex);
   if (unloadUdf) {
+    fnInfo("udf teardown. udf name: %s type %d: context %p", udf->name, udf->scriptType, (void*)(udf->scriptUdfCtx));
     uv_cond_destroy(&udf->condReady);
     uv_mutex_destroy(&udf->lock);
-    udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
+    code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
+    fnDebug("udfd destroy function returns %d", code);
     taosMemoryFree(udf);
   }
   taosMemoryFree(handle);
@@ -1298,9 +1361,11 @@ int32_t udfdDeinitResidentFuncs() {
     char  *funcName = taosArrayGet(global.residentFuncs, i);
     SUdf **udfInHash = taosHashGet(global.udfsHash, funcName, strlen(funcName));
     if (udfInHash) {
-      SUdf *udf = *udfInHash;
-      udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
+      SUdf   *udf = *udfInHash;
+      int32_t code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
+      fnDebug("udfd destroy function returns %d", code);
       taosHashRemove(global.udfsHash, funcName, strlen(funcName));
+      taosMemoryFree(udf);
     }
   }
   taosArrayDestroy(global.residentFuncs);
@@ -1349,8 +1414,6 @@ int main(int argc, char *argv[]) {
     fnError("uv init failure");
     return -5;
   }
-
-  udfdInitScriptPlugins();
 
   udfdInitResidentFuncs();
 

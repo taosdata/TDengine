@@ -248,13 +248,13 @@ static const char* cacheModelStr(int8_t cacheModel) {
   return TSDB_CACHE_MODEL_NONE_STR;
 }
 
-static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, SDbCfgInfo* pCfg) {
+static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, char* dbFName, SDbCfgInfo* pCfg) {
   blockDataEnsureCapacity(pBlock, 1);
   pBlock->info.rows = 1;
 
   SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
   char             buf1[SHOW_CREATE_DB_RESULT_FIELD1_LEN] = {0};
-  STR_TO_VARSTR(buf1, dbFName);
+  STR_TO_VARSTR(buf1, dbName);
   colDataSetVal(pCol1, 0, buf1, false);
 
   SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
@@ -277,16 +277,20 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
   }
 
   char* retentions = buildRetension(pCfg->pRetensions);
+  int32_t dbFNameLen = strlen(dbFName);
+  int32_t hashPrefix = (pCfg->hashPrefix > (dbFNameLen + 1)) ? (pCfg->hashPrefix - dbFNameLen - 1) : 0;
 
   len += sprintf(
       buf2 + VARSTR_HEADER_SIZE,
       "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %dm "
       "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
-      "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d",
-      dbFName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile,
+      "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
+      "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64 " WAL_ROLL_PERIOD %d WAL_SEGMENT_SIZE %" PRId64,
+      dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile,
       pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows,  pCfg->sstTrigger, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2,
       pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups,
-      1 == pCfg->numOfStables);
+      1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize, pCfg->walRetentionPeriod,
+      pCfg->walRetentionSize, pCfg->walRollPeriod, pCfg->walSegmentSize);
 
   if (retentions) {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, " RETENTIONS %s", retentions);
@@ -404,7 +408,7 @@ static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveT
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildCreateDBResultDataBlock(&pBlock);
   if (TSDB_CODE_SUCCESS == code) {
-    setCreateDBResultIntoDataBlock(pBlock, pStmt->dbName, pStmt->pCfg);
+    setCreateDBResultIntoDataBlock(pBlock, pStmt->dbName, pStmt->dbFName, pStmt->pCfg);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_DB_RESULT_COLS, pRsp);

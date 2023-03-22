@@ -58,8 +58,8 @@
 #define SHELL_VERSION  "Print program version."
 
 #ifdef WEBSOCKET
-#define SHELL_DSN      "The dsn to use when connecting to cloud server."
-#define SHELL_REST     "Use restful mode when connecting."
+#define SHELL_DSN      "Use dsn to connect to the TDengine cloud server or to a remote server which provides WebSocket connection."
+#define SHELL_REST     "Use RESTful mode when connecting."
 #define SHELL_TIMEOUT  "Set the timeout for websocket query in seconds, default is 10."
 #endif
 
@@ -126,7 +126,7 @@ static struct argp_option shellOptions[] = {
     {"pktlen", 'l', "PKTLEN", 0, SHELL_PKT_LEN},
 #ifdef WEBSOCKET
     {"dsn", 'E', "DSN", 0, SHELL_DSN},
-    {"restful", 'R', 0, 0, SHELL_REST},
+    {"http", 'R', 0, 0, SHELL_REST},
 	  {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
 #endif
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
@@ -411,7 +411,9 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
       "Copyright (c) 2022 by %s, all rights reserved.\r\n\r\n";
   strcpy(shell.info.cusName, cusName);
   sprintf(shell.info.promptHeader, "%s> ", cusPrompt);
-  shell.info.promptContinue = TAOS_CONSOLE_PROMPT_CONTINUE;
+  char promptContinueFormat[32] = {0};
+  sprintf(promptContinueFormat, "%%%zus> ", strlen(cusPrompt));
+  sprintf(shell.info.promptContinue, promptContinueFormat, " ");
   shell.info.promptSize = strlen(shell.info.promptHeader);
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
            "version: %s compatible_version: %s\ngitinfo: %s\nbuildInfo: %s", version, compatible_version, gitinfo,

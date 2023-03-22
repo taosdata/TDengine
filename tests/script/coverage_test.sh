@@ -56,9 +56,9 @@ function buildTDengine() {
 	rm -rf *
 	if [ "$branch" == "3.0" ]; then
 		echo "3.0 ============="
-		cmake -DCOVER=true -DBUILD_TEST=true -DBUILD_HTTP=false -DBUILD_TOOLS=true .. 
+		cmake -DCOVER=true -DBUILD_TEST=true -DBUILD_HTTP=false -DBUILD_TOOLS=true .. > /dev/null
 	else
-		cmake -DCOVER=true -DBUILD_TOOLS=true -DBUILD_HTTP=false .. > /dev/null
+		cmake -DCOVER=true -DBUILD_TEST=true -DBUILD_TOOLS=true -DBUILD_HTTP=false .. > /dev/null
 	fi
 	make -j
 	make install
@@ -108,6 +108,19 @@ function runUnitTest() {
 	echo " $TDENGINE_DIR/debug"
 	cd $TDENGINE_DIR/debug
 	ctest -j12
+
+	echo " $TDENGINE_DIR/tests/script/api"
+	cd $TDENGINE_DIR/tests/script/api
+	make clean && make
+	
+	stopTaosd
+	stopTaosadapter
+
+	nohup taosd -c /etc/taos >> /dev/null 2>&1 &
+	./batchprepare 127.0.0.1
+	./dbTableRoute 127.0.0.1
+	./stopquery 127.0.0.1 demo t1
+	
 	echo "3.0 unit test done"
 }
 
@@ -115,7 +128,7 @@ function runSimCases() {
 	echo "=== Run sim cases ==="
 	
 	cd $TDENGINE_DIR/tests/script
-	runCasesOneByOne ../parallel_test/cases.task sim	
+	runCasesOneByOne ../parallel_test/cases.task sim
 	
 	totalSuccess=`grep 'sim success' $TDENGINE_COVERAGE_REPORT | wc -l`
 	if [ "$totalSuccess" -gt "0" ]; then
@@ -163,8 +176,8 @@ function runJDBCCases() {
 	stopTaosd
 	stopTaosadapter
 
-	taosd -c /etc/taos >> /dev/null 2>&1 &
-	taosadapter >> /dev/null 2>&1 &
+	nohup taosd -c /etc/taos >> /dev/null 2>&1 &
+	nohup taosadapter >> /dev/null 2>&1 &
 
 	mvn clean test > result.txt 2>&1
 	summary=`grep "Tests run:" result.txt | tail -n 1`		
