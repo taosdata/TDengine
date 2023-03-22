@@ -636,6 +636,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
       for (int i = 0; i < state->pLoadInfo->numOfStt; ++i) {
         state->pLoadInfo[i].colIds = aCols;
         state->pLoadInfo[i].numOfCols = nCols;
+        state->pLoadInfo[i].isLast = isLast;
       }
       tMergeTreeOpen(&state->mergeTree, 1, *state->pDataFReader, state->suid, state->uid,
                      &(STimeWindow){.skey = state->lastTs, .ekey = TSKEY_MAX},
@@ -647,10 +648,9 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
       if (nCols != state->pLoadInfo->numOfCols) {
         for (int i = 0; i < state->pLoadInfo->numOfStt; ++i) {
           state->pLoadInfo[i].numOfCols = nCols;
-        }
 
-        state->pLoadInfo->checkRemainingRow = state->checkRemainingRow;
-        state->pLoadInfo->isLast = isLast;
+          state->pLoadInfo[i].checkRemainingRow = state->checkRemainingRow;
+        }
       }
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
