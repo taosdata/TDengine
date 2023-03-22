@@ -2801,9 +2801,6 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
   qDebug("%s get sorted row block, rows:%d, limit:%" PRId64, GET_TASKID(pTaskInfo), pResBlock->info.rows,
          pInfo->limitInfo.numOfOutputRows);
 
-  if (limitReached) {
-    resetLimitInfoForNextGroup(&pInfo->limitInfo);
-  }
   return (pResBlock->info.rows > 0) ? pResBlock : NULL;
 }
 
@@ -2856,6 +2853,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
       pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
       pInfo->groupId = tableListGetInfo(pTaskInfo->pTableInfoList, pInfo->tableStartIndex)->groupId;
       startGroupTableMergeScan(pOperator);
+      resetLimitInfoForNextGroup(&pInfo->limitInfo);      
     }
   }
 
