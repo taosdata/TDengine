@@ -265,9 +265,13 @@ static void mnodeTableActionUpdateTimeSeries(const char *tableId, int64_t diffCo
     };
     if (!(pAcct = mnodeGetAcct(pDb->acct))) {
       mWarn("table:%s, acct:%s not exist to update timeseries", tableId, pDb->acct);
+      mnodeDecDbRef(pDb);
       return;
     }
     if (pAcct) pAcct->acctInfo.numOfTimeSeries += diffCols;
+    
+    mnodeDecAcctRef(pAcct);
+    mnodeDecDbRef(pDb);
   }
 }
 
