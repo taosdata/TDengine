@@ -135,6 +135,10 @@ bool    tsWriteBatchThreadLocal = false;    // if thread local enable, each thre
 int32_t tsWriteBatchSize = 0;               // suggest: 64 - 512, default 0, 0 means disable batching.
 int32_t tsWriteBatchTimeout = 10;           // suggest: 2 - 100 (unit: milliseconds)
 
+// max query time range in seconds
+// if less than zero, no limits on query time range
+int32_t tsMaxQueryTimeRange = -1;
+
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
 // 0  no query allowed, queries are disabled
@@ -1919,6 +1923,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 1;
   cfg.maxValue = 2048;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "maxQueryTimeRange";
+  cfg.ptr = &tsMaxQueryTimeRange;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = -1;
+  cfg.maxValue = (float)INT32_MAX;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

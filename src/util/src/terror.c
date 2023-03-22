@@ -128,6 +128,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_RES_TOO_MANY,             "Result set too large 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_TOO_MANY_SML_LINES,       "Too many lines in batch")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SEND_DATA_FAILED,         "Client send request data failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_EXCEED_ROW_BYTES,         "Columns total length exceeds row bytes")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_EXCEED_QUERY_TIME_RANGE, "Query time range exceeds max query time range")
 
 // mnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MSG_NOT_PROCESSED,        "Message not processed")
