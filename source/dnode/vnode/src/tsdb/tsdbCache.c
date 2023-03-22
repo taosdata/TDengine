@@ -641,6 +641,17 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
                      &(STimeWindow){.skey = state->lastTs, .ekey = TSKEY_MAX},
                      &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, state->pLoadInfo, false, NULL, true);
       state->pMergeTree = &state->mergeTree;
+      state->state = SFSLASTNEXTROW_BLOCKROW;
+    }
+    case SFSLASTNEXTROW_BLOCKROW: {
+      if (nCols != state->pLoadInfo->numOfCols) {
+        for (int i = 0; i < state->pLoadInfo->numOfStt; ++i) {
+          state->pLoadInfo[i].numOfCols = nCols;
+        }
+
+        state->pLoadInfo->checkRemainingRow = state->checkRemainingRow;
+        state->pLoadInfo->isLast = isLast;
+      }
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
         if (tMergeTreeIgnoreEarlierTs(&state->mergeTree)) {
@@ -651,20 +662,9 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
         state->state = SFSLASTNEXTROW_FILESET;
         goto _next_fileset;
       }
-      state->state = SFSLASTNEXTROW_BLOCKROW;
-    }
-    case SFSLASTNEXTROW_BLOCKROW: {
-      bool hasVal = false;
       state->row = tMergeTreeGetRow(&state->mergeTree);
       *ppRow = &state->row;
-      if (nCols != state->pLoadInfo->numOfCols) {
-        for (int i = 0; i < state->pLoadInfo->numOfStt; ++i) {
-          state->pLoadInfo[i].numOfCols = nCols;
-        }
-      }
-      state->pLoadInfo->checkRemainingRow = state->checkRemainingRow;
-      state->pLoadInfo->isLast = isLast;
-      hasVal = tMergeTreeNext(&state->mergeTree);
+
       if (TSDBROW_TS(&state->row) <= state->lastTs) {
         *pIgnoreEarlierTs = true;
         *ppRow = NULL;
