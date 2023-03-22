@@ -1199,9 +1199,8 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
       blockDataEnsureCapacity(pBlock, pBlock->info.rows + pRow->numOfRows);
       qDebug("datablock capacity not sufficient, expand to required:%d, current capacity:%d, %s",
-             (pRow->numOfRows+pBlock->info.rows),
-             pBlock->info.capacity, GET_TASKID(pTaskInfo));
-        // todo set the pOperator->resultInfo size
+             (pRow->numOfRows + pBlock->info.rows), pBlock->info.capacity, GET_TASKID(pTaskInfo));
+      // todo set the pOperator->resultInfo size
     }
 
     pGroupResInfo->index += 1;
@@ -1242,7 +1241,7 @@ void doBuildStreamResBlock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGr
   } else {
     memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
   }
-  tdbFree(tbname);
+  streamFreeVal(tbname);
 }
 
 void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
@@ -2596,6 +2595,7 @@ int32_t releaseOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResul
 }
 
 int32_t saveOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult, int32_t resSize) {
+  qWarn("write to stream state");
   streamStatePut(pState, pKey, pResult, resSize);
   return TSDB_CODE_SUCCESS;
 }
@@ -2633,7 +2633,7 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
       } else {
         memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
       }
-      tdbFree(tbname);
+      streamFreeVal(tbname);
     } else {
       // current value belongs to different group, it can't be packed into one datablock
       if (pBlock->info.id.groupId != pKey->groupId) {
@@ -2726,7 +2726,7 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
       } else {
         memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
       }
-      tdbFree(tbname);
+      streamFreeVal(tbname);
     } else {
       // current value belongs to different group, it can't be packed into one datablock
       if (pBlock->info.id.groupId != pKey->groupId) {

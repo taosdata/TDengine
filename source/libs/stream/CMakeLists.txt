@@ -13,7 +13,7 @@ if(${BUILD_WITH_ROCKSDB})
     PUBLIC rocksdb tdb 
     PRIVATE  os util transport qcom executor
   )
-  #add_definitions(-DUSE_ROCKSDB)
+  add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
 
 

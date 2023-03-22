@@ -1361,7 +1361,7 @@ static int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pS
 
       memcpy(varDataVal(tbname), parTbname, TSDB_TABLE_NAME_LEN);
       varDataSetLen(tbname, strlen(varDataVal(tbname)));
-      tdbFree(parTbname);
+      streamFreeVal(parTbname);
     }
     appendOneRowToStreamSpecialBlock(pDestBlock, srcStartTsCol + i, srcEndTsCol + i, srcUidData + i, &groupId,
                                      tbname[0] == 0 ? NULL : tbname);
@@ -1608,8 +1608,9 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
-      qDebug("queue scan tsdb return %d rows min:%" PRId64 " max:%" PRId64 " wal curVersion:%" PRId64, pResult->info.rows,
-             pResult->info.window.skey, pResult->info.window.ekey, pInfo->tqReader->pWalReader->curVersion);
+      qDebug("queue scan tsdb return %d rows min:%" PRId64 " max:%" PRId64 " wal curVersion:%" PRId64,
+             pResult->info.rows, pResult->info.window.skey, pResult->info.window.ekey,
+             pInfo->tqReader->pWalReader->curVersion);
       pTaskInfo->streamInfo.returned = 1;
       return pResult;
     } else {

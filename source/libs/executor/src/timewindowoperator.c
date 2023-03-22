@@ -1552,7 +1552,7 @@ static void doBuildDeleteResult(SStreamIntervalOperatorInfo* pInfo, SArray* pWin
       STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
       appendOneRowToStreamSpecialBlock(pBlock, &pWin->ts, &pWin->ts, &uid, &pWin->groupId, parTbName);
     }
-    tdbFree(tbname);
+    streamFreeVal(tbname);
     (*index)++;
   }
 }
@@ -3266,7 +3266,7 @@ void doBuildDeleteDataBlock(SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlo
       char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
       STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
       colDataSetVal(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
-      tdbFree(tbname);
+      streamFreeVal(tbname);
     }
     pBlock->info.rows += 1;
   }

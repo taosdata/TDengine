@@ -140,7 +140,8 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   while (1) {
     SSDataBlock* pBlock = pDownstream->fpSet.getNextFn(pDownstream);
     if (pBlock == NULL) {
-      if (pInfo->totalInputRows == 0 && (pInfo->pFillInfo->type != TSDB_FILL_NULL_F && pInfo->pFillInfo->type != TSDB_FILL_SET_VALUE_F)) {
+      if (pInfo->totalInputRows == 0 &&
+          (pInfo->pFillInfo->type != TSDB_FILL_NULL_F && pInfo->pFillInfo->type != TSDB_FILL_SET_VALUE_F)) {
         setOperatorCompleted(pOperator);
         return NULL;
       }
@@ -342,8 +343,8 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
 
   SInterval* pInterval =
       QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == downstream->operatorType
-      ? &((SMergeAlignedIntervalAggOperatorInfo*)downstream->info)->intervalAggOperatorInfo->interval
-      : &((SIntervalAggOperatorInfo*)downstream->info)->interval;
+          ? &((SMergeAlignedIntervalAggOperatorInfo*)downstream->info)->intervalAggOperatorInfo->interval
+          : &((SIntervalAggOperatorInfo*)downstream->info)->interval;
 
   int32_t order = (pPhyFillNode->inputTsOrder == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
   int32_t type = convertFillType(pPhyFillNode->mode);
@@ -381,12 +382,13 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
 
   setOperatorInfo(pOperator, "FillOperator", QUERY_NODE_PHYSICAL_PLAN_FILL, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = pInfo->numOfExpr;
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doFill, NULL, destroyFillOperatorInfo, optrDefaultBufFn, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(optrDummyOpenFn, doFill, NULL, destroyFillOperatorInfo, optrDefaultBufFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     destroyFillOperatorInfo(pInfo);
   }
@@ -843,9 +845,9 @@ static bool buildFillResult(SResultRowData* pResRow, SStreamFillSupporter* pFill
     int32_t          slotId = GET_DEST_SLOT_ID(pFillCol);
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, slotId);
     SFillInfo        tmpInfo = {
-        .currentKey = ts,
-        .order = TSDB_ORDER_ASC,
-        .interval = pFillSup->interval,
+               .currentKey = ts,
+               .order = TSDB_ORDER_ASC,
+               .interval = pFillSup->interval,
     };
     bool filled = fillIfWindowPseudoColumn(&tmpInfo, pFillCol, pColData, pBlock->info.rows);
     if (!filled) {
@@ -886,9 +888,9 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
     for (int32_t i = 0; i < pFillSup->numOfAllCols; ++i) {
       SFillColInfo* pFillCol = pFillSup->pAllColInfo + i;
       SFillInfo     tmp = {
-          .currentKey = pFillInfo->current,
-          .order = TSDB_ORDER_ASC,
-          .interval = pFillSup->interval,
+              .currentKey = pFillInfo->current,
+              .order = TSDB_ORDER_ASC,
+              .interval = pFillSup->interval,
       };
 
       int32_t          slotId = GET_DEST_SLOT_ID(pFillCol);
@@ -1049,7 +1051,7 @@ static void buildDeleteRange(SOperatorInfo* pOp, TSKEY start, TSKEY end, uint64_
     char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
     STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
     colDataSetVal(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
-    tdbFree(tbname);
+    streamFreeVal(tbname);
   }
 
   pBlock->info.rows++;
@@ -1209,7 +1211,8 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
     return NULL;
   }
   blockDataCleanup(pInfo->pRes);
-  if (hasRemainCalc(pInfo->pFillInfo) || (pInfo->pFillInfo->pos != FILL_POS_INVALID && pInfo->pFillInfo->needFill == true )) {
+  if (hasRemainCalc(pInfo->pFillInfo) ||
+      (pInfo->pFillInfo->pos != FILL_POS_INVALID && pInfo->pFillInfo->needFill == true)) {
     doStreamFillRange(pInfo->pFillInfo, pInfo->pFillSup, pInfo->pRes);
     if (pInfo->pRes->info.rows > 0) {
       printDataBlock(pInfo->pRes, "stream fill");
@@ -1373,8 +1376,8 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
   pFillInfo->pLinearInfo->winIndex = 0;
 
   pFillInfo->pResRow = NULL;
-  if (pFillSup->type == TSDB_FILL_SET_VALUE || pFillSup->type == TSDB_FILL_SET_VALUE_F 
-   || pFillSup->type == TSDB_FILL_NULL || pFillSup->type == TSDB_FILL_NULL_F) {
+  if (pFillSup->type == TSDB_FILL_SET_VALUE || pFillSup->type == TSDB_FILL_SET_VALUE_F ||
+      pFillSup->type == TSDB_FILL_NULL || pFillSup->type == TSDB_FILL_NULL_F) {
     pFillInfo->pResRow = taosMemoryCalloc(1, sizeof(SResultRowData));
     pFillInfo->pResRow->key = INT64_MIN;
     pFillInfo->pResRow->pRowVal = taosMemoryCalloc(1, pFillSup->rowSize);
@@ -1476,7 +1479,8 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   pInfo->srcRowIndex = 0;
   setOperatorInfo(pOperator, "StreamFillOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamFill, NULL, destroyStreamFillOperatorInfo, optrDefaultBufFn, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(optrDummyOpenFn, doStreamFill, NULL, destroyStreamFillOperatorInfo, optrDefaultBufFn, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1484,7 +1488,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   }
   return pOperator;
 
-  _error:
+_error:
   destroyStreamFillOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;

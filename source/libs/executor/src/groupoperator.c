@@ -966,7 +966,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
     void* tbname = NULL;
     if (streamStateGetParName(pOperator->pTaskInfo->streamInfo.pState, pParInfo->groupId, &tbname) == 0) {
       memcpy(pDest->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
-      tdbFree(tbname);
+      streamFreeVal(tbname);
     }
   }
   taosArrayDestroy(pParInfo->rowIds);
@@ -1118,7 +1118,7 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                              pInfo->scalarSup.numOfExprs, NULL);
+                            pInfo->scalarSup.numOfExprs, NULL);
     }
     taosHashClear(pInfo->pPartitions);
     doStreamHashPartitionImpl(pInfo, pBlock);
