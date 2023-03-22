@@ -831,4 +831,21 @@ TEST_F(ParserInitialATest, balanceVgroup) {
   run("BALANCE VGROUP");
 }
 
+/*
+ * BALANCE VGROUP LEADER
+ */
+TEST_F(ParserInitialATest, balanceVgroup) {
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_BALANCE_VGROUP_LEADER_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_BALANCE_VGROUP_LEADER);
+    SBalanceVgroupReq req = {0};
+    ASSERT_EQ(tSerializeSBalanceVgroupLeaderReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req),
+              TSDB_CODE_SUCCESS);
+  });
+
+  run("BALANCE VGROUP LEADER");
+}
+
 }  // namespace ParserTest
