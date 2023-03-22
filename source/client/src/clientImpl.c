@@ -192,7 +192,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   (*pRequest)->sqlLen = sqlLen;
   (*pRequest)->validateOnly = validateSql;
 
-  SSyncQueryParam* newpParam;
+  SSyncQueryParam* newpParam = NULL;
   if (param == NULL) {
     newpParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
     if (newpParam == NULL) {

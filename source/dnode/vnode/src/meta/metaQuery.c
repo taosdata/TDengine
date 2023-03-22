@@ -14,6 +14,8 @@
  */
 
 #include "meta.h"
+#include "osMemory.h"
+#include "tencode.h"
 
 void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
@@ -334,7 +336,7 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
   return 0;
 }
 
-int32_t metaTbCursorPrev(SMTbCursor *pTbCur) {
+int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
   int    ret;
   void  *pBuf;
   STbCfg tbCfg;
@@ -348,7 +350,7 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur) {
     tDecoderClear(&pTbCur->mr.coder);
 
     metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
-    if (pTbCur->mr.me.type == TSDB_SUPER_TABLE) {
+    if (pTbCur->mr.me.type == jumpTableType) {
       continue;
     }
 
@@ -1235,9 +1237,14 @@ END:
   return 0;
 }
 int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
-  int32_t ret = 0;
-  char   *buf = NULL;
+  SMetaEntry oStbEntry = {0};
+  int32_t    ret = -1;
+  char      *buf = NULL;
+  void      *pData = NULL;
+  int        nData = 0;
 
+  SDecoder    dc = {0};
+  STbDbKey    tbDbKey = {0};
   STagIdxKey *pKey = NULL;
   int32_t     nKey = 0;
 
@@ -1249,8 +1256,34 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   pCursor->type = param->type;
 
   metaRLock(pMeta);
+
+  if (tdbTbGet(pMeta->pUidIdx, &param->suid, sizeof(tb_uid_t), &pData, &nData) != 0) {
+    goto END;
+  }
+  tbDbKey.uid = param->suid;
+  tbDbKey.version = ((SUidIdxVal *)pData)[0].version;
+  tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pData, &nData);
+
+  tDecoderInit(&dc, pData, nData);
+  ret = metaDecodeEntry(&dc, &oStbEntry);
+
+  if (oStbEntry.stbEntry.schemaTag.pSchema == NULL || oStbEntry.stbEntry.schemaTag.pSchema == NULL) {
+    ret = -1;
+    goto END;
+  }
+  ret = -1;
+  for (int i = 0; i < oStbEntry.stbEntry.schemaTag.nCols; i++) {
+    SSchema *schema = oStbEntry.stbEntry.schemaTag.pSchema + i;
+    if (schema->colId == param->cid && param->type == schema->type && (IS_IDX_ON(schema) || i == 0)) {
+      ret = 0;
+    }
+  }
+  if (ret != 0) {
+    goto END;
+  }
+
   ret = tdbTbcOpen(pMeta->pTagIdx, &pCursor->pCur, NULL);
-  if (ret < 0) {
+  if (ret != 0) {
     goto END;
   }
 
@@ -1271,6 +1304,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
         maxSize = 4 * nTagData + 1;
         buf = taosMemoryCalloc(1, maxSize);
         if (false == taosMbsToUcs4(tagData, nTagData, (TdUcs4 *)buf, maxSize, &maxSize)) {
+          ret = -1;
           goto END;
         }
 
@@ -1288,8 +1322,10 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   if (ret != 0) {
     goto END;
   }
+
   int cmp = 0;
-  if (tdbTbcMoveTo(pCursor->pCur, pKey, nKey, &cmp) < 0) {
+  ret = tdbTbcMoveTo(pCursor->pCur, pKey, nKey, &cmp);
+  if (ret != 0) {
     goto END;
   }
 
@@ -1353,6 +1389,10 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
   if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
+  if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
+  tDecoderClear(&dc);
+  tdbFree(pData);
+
   taosMemoryFree(buf);
   taosMemoryFree(pKey);
 

@@ -147,9 +147,9 @@ typedef struct {
 } SMonStbInfo;
 
 typedef struct {
-  int32_t expire_time;
-  int64_t timeseries_used;
-  int64_t timeseries_total;
+  uint32_t expire_time;
+  int64_t  timeseries_used;
+  int64_t  timeseries_total;
 } SMonGrantInfo;
 
 typedef struct {
