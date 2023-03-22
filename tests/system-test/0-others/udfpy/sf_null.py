@@ -3,8 +3,8 @@
 def init():
     pass
 
-# destory
-def destory():
+# destroy
+def destroy():
     pass
 
 # return origin column one value 

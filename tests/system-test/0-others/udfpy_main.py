@@ -98,21 +98,15 @@ class TDTestCase:
 
         tdLog.info(f" create {count} child tables ok.")
 
-    def create_udfpy_impl(self, funs, filename):
-        for name, outtype in funs.items():
-            sql = f' create function {name} as "{self.udf_path}/{filename} {outtype} " language "Python" '
+    # create with dicts
+    def create_sf_dicts(self, dicts, filename):
+        for fun_name, out_type in dicts.items():
+            sql = f' create function {fun_name} as "{self.udf_path}/{filename}" outputtype {out_type} language "Python" '
             tdSql.execute(sql)
-
-
-    def create_udfpy_dicts(self, dicts, filename):
-        for k,v in dicts:
-            self.create_udfpy_impl(k, v, filename)
+            tdLog.info(sql)
 
     # create_udfpy_function
-    def create_udfpy_function(self):
-        # function
-
-
+    def create_scalar_udfpy(self):
         # scalar funciton
         self.scalar_funs = {
             'sf1': 'tinyint',
@@ -149,18 +143,19 @@ class TDTestCase:
         }
 
         # files
-        self.create_udfpy_function(self.scalar_funs, "fun_origin")
+        self.create_sf_dicts(self.scalar_funs, "sf_origin.py")
         self.create_udf_sf("sf_multi_args", "binary(1024)")
 
-        #self.create_udfpy_function(self.agg_funs, None)
-
+    # fun_name == fun_name.py
     def create_udf_sf(self, fun_name, out_type):
-        sql = f'create function {fun_name} as {self.udf_path}{fun_name}.py {out_type} language "Python"'
+        sql = f'create function {fun_name} as "{self.udf_path}/{fun_name}.py" outputtype {out_type} language "Python" '
         tdSql.execute(sql)
+        tdLog.info(sql)
 
     def create_udf_af(self, fun_name, out_type, bufsize):
-        sql = f'create aggregate function {fun_name} as {self.udf_path}{fun_name}.py {out_type} bufsize {bufsize} language "Python"'
+        sql = f'create aggregate function {fun_name} as "{self.udf_path}/{fun_name}.py" outputtype {out_type} bufsize {bufsize} language "Python" '
         tdSql.execute(sql)
+        tdLog.info(sql)
 
 
     # sql1 query result eual with sql2
@@ -174,7 +169,7 @@ class TDTestCase:
                 tdSql.checkData(i, j, result1[i][j])
 
     # same value like select col1, udf_fun1(col1) from st
-    def verfiy_same_value(sql):
+    def verify_same_value(sql):
         tdSql.query(sql)
         nrows = tdSql.getRows()
         for i in range(nrows):
@@ -205,11 +200,13 @@ class TDTestCase:
     # query_udfpy
     def query_scalar_udfpy(self):
         # col
-        for col_name, col_type in self.column_dict:
-           for fun_name, out_type in self.scalar_funs:
+        for col_name, col_type in self.column_dict.items():
+           for fun_name, out_type in self.scalar_funs.items():
                sql = f'select {col_name}, {fun_name}({col_name}) from {self.stbname}'
+               tdLog.info(sql)
                self.verify_same_value(sql)
                sql = f'select * from (select {col_name} as a, {fun_name}({col_name}) as b from {self.stbname} ) order by b,a desc'
+               tdLog.info(sql)
                self.verify_same_value(sql)
 
 
@@ -262,8 +259,8 @@ class TDTestCase:
         ts = 1670000000000
         for i in range(self.child_count):
             for j in range(rows):
-                ti = j % 128
-                cols = f'{ti},{ti},{i},{i},{ti},{ti},{i},{i},{i}.000{i},{i}.000{i},true,"var{i}","nch{i}",now'
+                tj = j % 128
+                cols = f'{tj},{tj},{j},{j},{tj},{tj},{j},{j},{j}.000{j},{j}.000{j},true,"var{j}","nch{j}",now'
                 sql = f'insert into {tbname}{i} values({ts+j},{cols});' 
                 tdSql.execute(sql)
 
@@ -284,10 +281,10 @@ class TDTestCase:
         # var
         stable = "meters"
         tbname = "d"
-        count = 100
+        count = 10
         # do 
         self.create_table(stable, tbname, count)
-        self.insert_data(tbname, 1000)
+        self.insert_data(tbname, 100)
 
         # scalar
         self.create_scalar_udfpy()
