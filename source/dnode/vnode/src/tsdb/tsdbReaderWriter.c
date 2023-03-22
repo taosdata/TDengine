@@ -16,7 +16,7 @@
 #include "tsdb.h"
 
 // =============== PAGE-WISE FILE ===============
-static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
+int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
   int32_t  code = 0;
   STsdbFD *pFD = NULL;
 
@@ -68,7 +68,7 @@ _exit:
   return code;
 }
 
-static void tsdbCloseFile(STsdbFD **ppFD) {
+void tsdbCloseFile(STsdbFD **ppFD) {
   STsdbFD *pFD = *ppFD;
   if (pFD) {
     taosMemoryFree(pFD->pBuf);
