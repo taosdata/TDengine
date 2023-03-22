@@ -1210,6 +1210,7 @@ static const YYCODETYPE yyFallback[] = {
     0,  /* TRANSACTION => nothing */
     0,  /*    BALANCE => nothing */
     0,  /*     VGROUP => nothing */
+    0,  /* VGROUP_LEADER => nothing */
     0,  /*      MERGE => nothing */
     0,  /* REDISTRIBUTE => nothing */
     0,  /*      SPLIT => nothing */
@@ -1891,6 +1892,7 @@ static const char *const yyTokenName[] = {
   /*  470 */ "sort_specification",
   /*  471 */ "ordering_specification_opt",
   /*  472 */ "null_ordering_opt",
+  /*  473 */ "VGROUP_LEADER",
 };
 #endif /* defined(YYCOVERAGE) || !defined(NDEBUG) */
 
@@ -2472,6 +2474,7 @@ static const char *const yyRuleName[] = {
  /* 571 */ "null_ordering_opt ::=",
  /* 572 */ "null_ordering_opt ::= NULLS FIRST",
  /* 573 */ "null_ordering_opt ::= NULLS LAST",
+ /* 574 */ "cmd ::= BALANCE VGROUP_LEADER",
 };
 #endif /* NDEBUG */
 
@@ -3666,6 +3669,7 @@ static const struct {
   {  472,    0 }, /* (571) null_ordering_opt ::= */
   {  472,   -2 }, /* (572) null_ordering_opt ::= NULLS FIRST */
   {  472,   -2 }, /* (573) null_ordering_opt ::= NULLS LAST */
+  {  329,   -2 }, /* (574) cmd ::= BALANCE VGROUP_LEADER */
 };
 
 static void yy_accept(yyParser*);  /* Forward Declaration */
@@ -4791,7 +4795,7 @@ static YYACTIONTYPE yy_reduce(
 { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_TRANSACTION_STMT, &yymsp[0].minor.yy0); }
         break;
       case 337: /* cmd ::= BALANCE VGROUP */
-{ pCxt->pRootNode = createBalanceVgroupStmt(pCxt); }
+{ pCxt->pRootNode = createBalanceVgroupLeaderStmt(pCxt); }
         break;
       case 338: /* cmd ::= MERGE VGROUP NK_INTEGER NK_INTEGER */
 { pCxt->pRootNode = createMergeVgroupStmt(pCxt, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0); }
@@ -5363,6 +5367,9 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 573: /* null_ordering_opt ::= NULLS LAST */
 { yymsp[-1].minor.yy675 = NULL_ORDER_LAST; }
+        break;
+      case 574: /* cmd ::= BALANCE VGROUP_LEADER */
+{ pCxt->pRootNode = createBalanceVgroupLeaderStmt(pCxt); }
         break;
       default:
         break;

@@ -228,6 +228,15 @@ int32_t syncLeaderTransfer(int64_t rid) {
   return ret;
 }
 
+int32_t syncLeaderForceElection(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) return -1;
+
+  int32_t ret = syncNodeElect(pSyncNode);
+  syncNodeRelease(pSyncNode);
+  return ret;
+}
+
 int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq) {
   SSyncNode* pNode = syncNodeAcquire(rid);
   if (pNode == NULL) return -1;

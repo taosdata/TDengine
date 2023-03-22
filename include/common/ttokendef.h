@@ -344,6 +344,7 @@
 #define TK_VARIABLE             326
 #define TK_VIEW                 327
 #define TK_WAL                  328
+#define TK_VGROUP_LEADER        329
 
 #define TK_NK_SPACE   600
 #define TK_NK_COMMENT 601

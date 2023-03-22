@@ -37,6 +37,9 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CREATE_VNODE:
       code = vmProcessCreateVnodeReq(pMgmt, pMsg);
       break;
+    case TDMT_DND_FORCE_ELECTION:
+      code = vmProcessForceElectionReq(pMgmt, pMsg);
+      break;
     case TDMT_DND_DROP_VNODE:
       code = vmProcessDropVnodeReq(pMgmt, pMsg);
       break;

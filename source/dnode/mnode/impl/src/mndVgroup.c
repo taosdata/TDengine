@@ -40,6 +40,7 @@ static void    mndCancelGetNextVnode(SMnode *pMnode, void *pIter);
 static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq);
+static int32_t mndProcessVgroupBalanceLeaderMsg(SRpcMsg *pReq);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
   SSdbTable table = {
@@ -60,10 +61,13 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_VNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_COMPACT_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DISABLE_WRITE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_FORCE_ELECTION_RSP, mndTransProcessRsp);
 
   mndSetMsgHandle(pMnode, TDMT_MND_REDISTRIBUTE_VGROUP, mndProcessRedistributeVgroupMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_SPLIT_VGROUP, mndProcessSplitVgroupMsg);
+  //mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP, mndProcessVgroupBalanceLeaderMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP, mndProcessBalanceVgroupMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP_LEADER, mndProcessVgroupBalanceLeaderMsg);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndRetrieveVgroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndCancelGetNextVgroup);
@@ -1767,6 +1771,157 @@ _OVER:
   mndReleaseVgroup(pMnode, pVgroup);
   mndReleaseDb(pMnode, pDb);
 
+  return code;
+}
+
+static void *mndBuildSForceElectionReq(SMnode *pMnode, SVgObj *pVgroup, int32_t dnodeId,
+                                          int32_t *pContLen) {
+  SForceElectionReq balanceReq = {
+      .vgId = pVgroup->vgId,
+  };
+
+  int32_t contLen = tSerializeSForceElectionReq(NULL, 0, &balanceReq);
+  if (contLen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  void *pReq = taosMemoryMalloc(contLen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  tSerializeSForceElectionReq((char *)pReq, contLen, &balanceReq);
+  *pContLen = contLen;
+  return pReq;                                    
+}
+
+int32_t mndAddBalanceVgroupLeaderAction(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, int32_t dnodeId) {
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, dnodeId);
+  if (pDnode == NULL) return -1;
+
+  STransAction action = {0};
+  action.epSet = mndGetDnodeEpset(pDnode);
+  mndReleaseDnode(pMnode, pDnode);
+
+  int32_t contLen = 0;
+  void   *pReq = mndBuildSForceElectionReq(pMnode, pVgroup, dnodeId, &contLen);
+  if (pReq == NULL) return -1;
+
+  action.pCont = pReq;
+  action.contLen = contLen;
+  action.msgType = TDMT_DND_FORCE_ELECTION;
+
+  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFree(pReq);
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans){
+  SSdb *pSdb = pMnode->pSdb;
+
+  int32_t vgid = pVgroup->vgId;
+  int8_t replica = pVgroup->replica;
+
+  if(pVgroup->replica <= 1) {
+    mInfo("trans:%d, vgid:%d no need to balance, replica:%d", pTrans->id, vgid, replica);
+    return -1;
+  }
+
+  int32_t index = vgid%replica;
+  int32_t dnodeId = pVgroup->vnodeGid[index].dnodeId;
+
+  bool       exist = false;
+  bool       online = false;
+  int64_t curMs = taosGetTimestampMs();
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, dnodeId);
+  if (pDnode != NULL) {
+    exist = true;
+    online = mndIsDnodeOnline(pDnode, curMs);
+    mndReleaseDnode(pMnode, pDnode);
+  }
+
+  if(exist && online)
+  {
+    mInfo("trans:%d, vgid:%d leader to dnode:%d", pTrans->id, vgid, dnodeId);
+
+    if (mndAddBalanceVgroupLeaderAction(pMnode, pTrans, pVgroup, dnodeId) != 0) {
+      mError("trans:%d, vgid:%d failed to be balanced to dnode:%d", pTrans->id, vgid, dnodeId);
+      return -1;
+    }
+
+    SSdbRaw *pRaw = mndVgroupActionEncode(pVgroup);
+    if (pRaw == NULL) {
+      mError("trans:%d, vgid:%d failed to encode action to dnode:%d", pTrans->id, vgid, dnodeId);
+      return -1;
+    }
+    if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+      sdbFreeRaw(pRaw);
+      mError("trans:%d, vgid:%d failed to append commit log dnode:%d", pTrans->id, vgid, dnodeId);
+      return -1;
+    }
+    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  }
+  else
+  {
+    mInfo("trans:%d, vgid:%d cant be balanced to dnode:%d, exist:%d, online:%d", pTrans->id, vgid, dnodeId, exist, online);
+  }
+
+  return 0;
+}
+
+int32_t mndProcessVgroupBalanceLeaderMsg(SRpcMsg *pReq) {
+  int32_t code = -1;
+  
+  SBalanceVgroupLeaderReq req = {0};
+  if (tDeserializeSBalanceVgroupLeaderReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return code;
+  }
+
+  SMnode *pMnode = pReq->info.node;
+  SSdb *pSdb = pMnode->pSdb;
+
+  int32_t total = sdbGetSize(pSdb, SDB_VGROUP);
+  if(total <= 0) {
+    terrno = TSDB_CODE_TSC_INVALID_OPERATION;
+    return code;
+  }
+  
+  STrans *pTrans = NULL;
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "bal-vg-leader");
+  if (pTrans == NULL) goto _OVER;
+  mndTransSetSerial(pTrans);
+  mInfo("trans:%d, used to balance vgroup leader", pTrans->id);
+
+  void *pIter = NULL;
+  int32_t count = 0;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    if(mndAddVgroupBalanceToTrans(pMnode, pVgroup, pTrans) == 0){
+      count++;
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+  
+  if(count == 0) {
+    terrno = TSDB_CODE_TSC_INVALID_OPERATION;
+    goto _OVER;
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  code = 0;
+
+_OVER:
+  mndTransDrop(pTrans);
   return code;
 }
 

@@ -386,6 +386,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDropStreamStmt));
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return makeNode(type, sizeof(SBalanceVgroupStmt));
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
+      return makeNode(type, sizeof(SBalanceVgroupLeaderStmt));
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return makeNode(type, sizeof(SMergeVgroupStmt));
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
@@ -937,6 +939,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_DROP_STREAM_STMT:     // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_STMT:  // no pointer field
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:  // no pointer field
     case QUERY_NODE_MERGE_VGROUP_STMT:    // no pointer field
       break;
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
