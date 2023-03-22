@@ -406,11 +406,9 @@ struct SMemTable {
   TSKEY            maxKey;
   int64_t          nRow;
   int64_t          nDel;
-  struct {
-    int32_t   nTbData;
-    int32_t   nBucket;
-    STbData **aBucket;
-  };
+  int32_t          nTbData;
+  int32_t          nBucket;
+  STbData        **aBucket;
 };
 
 struct TSDBROW {
