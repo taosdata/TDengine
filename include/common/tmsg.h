@@ -1658,6 +1658,20 @@ int32_t tSerializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistribut
 int32_t tDeserializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistributeVgroupReq* pReq);
 
 typedef struct {
+  int32_t useless;
+} SBalanceVgroupLeaderReq;
+
+int32_t tSerializeSBalanceVgroupLeaderReq(void* buf, int32_t bufLen, SBalanceVgroupLeaderReq* pReq);
+int32_t tDeserializeSBalanceVgroupLeaderReq(void* buf, int32_t bufLen, SBalanceVgroupLeaderReq* pReq);
+
+typedef struct {
+  int32_t  vgId;
+} SForceElectionReq;
+
+int32_t tSerializeSForceElectionReq(void* buf, int32_t bufLen, SForceElectionReq* pReq);
+int32_t tDeserializeSForceElectionReq(void* buf, int32_t bufLen, SForceElectionReq* pReq);
+
+typedef struct {
   int32_t vgId;
 } SSplitVgroupReq;
 

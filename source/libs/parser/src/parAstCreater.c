@@ -1952,6 +1952,13 @@ SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt) {
   return (SNode*)pStmt;
 }
 
+SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SBalanceVgroupLeaderStmt* pStmt = (SBalanceVgroupLeaderStmt*)nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_LEADER_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return (SNode*)pStmt;
+}
+
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2) {
   CHECK_PARSER_STATUS(pCxt);
   SMergeVgroupStmt* pStmt = (SMergeVgroupStmt*)nodesMakeNode(QUERY_NODE_MERGE_VGROUP_STMT);

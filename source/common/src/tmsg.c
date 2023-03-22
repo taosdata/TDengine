@@ -4447,6 +4447,31 @@ int32_t tDeserializeSBalanceVgroupReq(void *buf, int32_t bufLen, SBalanceVgroupR
   return 0;
 }
 
+int32_t tSerializeSBalanceVgroupLeaderReq(void *buf, int32_t bufLen, SBalanceVgroupLeaderReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->useless) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSBalanceVgroupLeaderReq(void *buf, int32_t bufLen, SBalanceVgroupLeaderReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->useless) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 int32_t tSerializeSMergeVgroupReq(void *buf, int32_t bufLen, SMergeVgroupReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -4519,6 +4544,31 @@ int32_t tSerializeSSplitVgroupReq(void *buf, int32_t bufLen, SSplitVgroupReq *pR
 }
 
 int32_t tDeserializeSSplitVgroupReq(void *buf, int32_t bufLen, SSplitVgroupReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSForceElectionReq(void *buf, int32_t bufLen, SForceElectionReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->vgId) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSForceElectionReq(void *buf, int32_t bufLen, SForceElectionReq *pReq) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
