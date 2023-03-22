@@ -4768,7 +4768,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   pTableBlockInfo->defMinRows = pc->minRows;
   pTableBlockInfo->defMaxRows = pc->maxRows;
 
-  int32_t bucketRange = ceil(((double)(pc->maxRows - pc->minRows)) / numOfBucket);
+  int32_t bucketRange = ceil(((pc->maxRows - pc->minRows)) / numOfBuckets);
 
   pTableBlockInfo->numOfFiles += 1;
 
