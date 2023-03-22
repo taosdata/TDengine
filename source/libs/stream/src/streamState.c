@@ -1038,6 +1038,7 @@ int32_t streamStateGetParTag(SStreamState* pState, int64_t groupId, void** tagVa
 }
 
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
+  qWarn("try to write to cf parname");
 #ifdef USE_ROCKSDB
   return streamStatePutParName_rocksdb(pState, groupId, tbname);
 #else
