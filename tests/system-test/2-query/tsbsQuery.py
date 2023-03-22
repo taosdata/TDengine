@@ -214,13 +214,13 @@ class TDTestCase:
         sql=f"SELECT model,count(state_changed) FROM (SELECT _rowts,model,diff(broken_down) AS state_changed FROM (SELECT ts,model,tb,cast(cast(floor(2*(nzs)) as bool) as int) AS broken_down FROM (SELECT _wstart as ts,model,tbname as tb, sum(cast(cast(status as bool) as int))/count(cast(cast(status as bool) as int)) AS nzs FROM {dbname}.diagnostics WHERE ts >= 1451606400000 AND ts < 1451952001000 partition BY tbname,model interval(10m))order by ts) partition BY tb,model ) WHERE state_changed = 1 partition BY model;"
         tdSql.query(f"{sql}")
         tdSql.checkRows(46)
-        # for i in range(2):
-        #     tdSql.query("%s"%sql)
-        #     quertR1=tdSql.queryResult
-        #     for j in  range(50):
-        #         tdSql.query("%s"%sql)
-        #         quertR2=tdSql.queryResult
-        #         assert quertR1 == quertR2 , "%s != %s ,The results of multiple queries are different" %(quertR1,quertR2)
+        for i in range(2):
+            tdSql.query("%s"%sql)
+            quertR1=tdSql.queryResult
+            for j in  range(50):
+                tdSql.query("%s"%sql)
+                quertR2=tdSql.queryResult
+                assert quertR1 == quertR2 , "%s != %s ,The results of multiple queries are different" %(quertR1,quertR2)
 
 
         #it's already supported:
