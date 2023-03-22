@@ -207,8 +207,11 @@ class TDTestCase:
         # col
         for col_name, col_type in self.column_dict:
            for fun_name, out_type in self.scalar_funs:
-               sql = f'select {col_name} {fun_name}({col_name}) from {self.stbname}'
+               sql = f'select {col_name}, {fun_name}({col_name}) from {self.stbname}'
                self.verify_same_value(sql)
+               sql = f'select * from (select {col_name} as a, {fun_name}({col_name}) as b from {self.stbname} ) order by b,a desc'
+               self.verify_same_value(sql)
+
 
         # multi-args
         self.query_multi_args()       
