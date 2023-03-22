@@ -6396,12 +6396,14 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FUNCTION_NAME);
   }
 
-  if (TSDB_DATA_TYPE_JSON == pStmt->outputDt.type ||
-      TSDB_DATA_TYPE_VARBINARY == pStmt->outputDt.type ||
-      TSDB_DATA_TYPE_DECIMAL == pStmt->outputDt.type ||
-      TSDB_DATA_TYPE_BLOB == pStmt->outputDt.type ||
+  if (TSDB_DATA_TYPE_JSON == pStmt->outputDt.type || TSDB_DATA_TYPE_VARBINARY == pStmt->outputDt.type ||
+      TSDB_DATA_TYPE_DECIMAL == pStmt->outputDt.type || TSDB_DATA_TYPE_BLOB == pStmt->outputDt.type ||
       TSDB_DATA_TYPE_MEDIUMBLOB == pStmt->outputDt.type) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Unsupported output type for UDF");
+  }
+
+  if (!pStmt->isAgg && pStmt->bufSize > 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "BUFSIZE can only be used with UDAF");
   }
 
   SCreateFuncReq req = {0};
