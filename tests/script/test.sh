@@ -111,7 +111,7 @@ touch -f $TAOS_CFG
 TAOS_FLAG=$PRG_DIR/flag
 
 HOSTNAME=`hostname -f`
-
+CFG_ADD=`echo $CFG_STR | tr = ' '`
 echo " "                                          >> $TAOS_CFG
 echo "firstEp            ${HOSTNAME}:7100"        >> $TAOS_CFG
 echo "secondEp           ${HOSTNAME}:7200"        >> $TAOS_CFG
@@ -129,7 +129,7 @@ echo "wal                0"                       >> $TAOS_CFG
 echo "asyncLog           0"                       >> $TAOS_CFG
 echo "locale             en_US.UTF-8"             >> $TAOS_CFG
 echo "enableCoreFile     1"                       >> $TAOS_CFG
-echo $CFG_STR					  >> $TAOS_CFG
+echo $CFG_ADD					  >> $TAOS_CFG
 echo " "                                          >> $TAOS_CFG
 
 ulimit -n 600000

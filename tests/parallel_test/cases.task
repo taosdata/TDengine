@@ -573,7 +573,7 @@
 10,,script,./test.sh -f general/compute/scalar_pow.sim
 9,,docs-examples-test,./test_go.sh
 9,,script,./test.sh -f general/parser/alter1.sim
-9,,script,./test.sh -c 'maxQueryTimeRange 3' -f general/parser/max_query_time_range.sim
+9,,script,./test.sh -c 'maxQueryTimeRange=3' -f general/parser/max_query_time_range.sim
 9,,script,./test.sh -f general/db/delete.sim
 9,,pytest,python3 test.py -f tools/taosdemoTestLimitOffset.py
 9,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/custom_col_tag.py
