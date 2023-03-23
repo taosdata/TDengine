@@ -9,7 +9,7 @@ use anyhow::Result;
 
 use crate::{LegacyMetrics, TargetOpts, TimeRange};
 
-use super::{sync_single_table, TableRecord};
+use super::{scheduler::Scheduler, sync_single_table, TableRecord};
 
 pub struct TablesHandle {
     source: TaosPool,
@@ -20,8 +20,9 @@ pub struct TablesHandle {
     handles: HashMap<String, JoinHandle<Result<()>>>,
     cancellation: Option<CancellationToken>,
     metrics: Arc<LegacyMetrics>,
-    sender: tokio::sync::mpsc::UnboundedSender<(String, TimeRange)>,
-    worker: Option<WorkerHandler>,
+    scheduler: Arc<Scheduler>,
+    // sender: tokio::sync::mpsc::UnboundedSender<(String, TimeRange)>,
+    // worker: Option<WorkerHandler>,
 }
 
 impl Drop for TablesHandle {
@@ -73,6 +74,7 @@ async fn process_sync_with(
 type WorkerHandler = JoinHandle<()>;
 impl TablesHandle {
     pub async fn new(
+        scheduler: Scheduler,
         source: TaosPool,
         target: TaosPool,
         opts: TableOpts,
@@ -87,31 +89,31 @@ impl TablesHandle {
             .await?
             .unwrap();
         let target_is_v3 = version.starts_with("3");
-        let (sender, todo) = tokio::sync::mpsc::unbounded_channel();
-
-        // let opts_cloned = opts.clone();
-        let (source2, target2) = (source.clone(), target.clone());
-        let target_opts_cloned = target_opts.clone();
         let token = CancellationToken::new();
-        let token_cloned = token.clone();
-        let sender_cloned = sender.clone();
-        let metrics_cloned = metrics.clone();
-        let worker = tokio::spawn(async move {
-            if let Err(err) = process_sync_with(
-                todo,
-                source2,
-                target2,
-                target_opts_cloned,
-                target_is_v3,
-                token_cloned,
-                &metrics_cloned,
-            )
-            .await
-            {
-                log::warn!("syncing error: {err:?}");
-            }
-            let _ = sender_cloned;
-        });
+        // let (sender, todo) = tokio::sync::mpsc::unbounded_channel();
+
+        // // let opts_cloned = opts.clone();
+        // let (source2, target2) = (source.clone(), target.clone());
+        // let target_opts_cloned = target_opts.clone();
+        // let token_cloned = token.clone();
+        // let sender_cloned = sender.clone();
+        // let metrics_cloned = metrics.clone();
+        // let worker = tokio::spawn(async move {
+        //     if let Err(err) = process_sync_with(
+        //         todo,
+        //         source2,
+        //         target2,
+        //         target_opts_cloned,
+        //         target_is_v3,
+        //         token_cloned,
+        //         &metrics_cloned,
+        //     )
+        //     .await
+        //     {
+        //         log::warn!("syncing error: {err:?}");
+        //     }
+        //     let _ = sender_cloned;
+        // });
         // let runtime = Runtime::new()?;
         Ok(Self {
             source,
@@ -120,10 +122,11 @@ impl TablesHandle {
             target_is_v3,
             opts,
             metrics,
-            sender,
+            // sender,
+            scheduler: Arc::new(scheduler),
             handles: Default::default(),
             cancellation: Some(token),
-            worker: Some(worker),
+            // worker: Some(worker),
         })
     }
     fn push_table(&mut self, table: String) -> Result<()> {
@@ -155,7 +158,7 @@ impl TablesHandle {
             .deserialize::<String>()
             .try_collect()
             .await?;
-        let sender = self.sender.clone();
+        // let sender = self.sender.clone();
         let opts = self.opts.clone();
         let h = tokio::spawn(async move {
             let mut now = Utc::now();
@@ -195,9 +198,9 @@ impl TablesHandle {
         Ok(())
     }
     pub async fn join(&mut self) -> Result<()> {
-        if let Some(worker) = self.worker.take() {
-            worker.await;
-        }
+        // if let Some(worker) = self.worker.take() {
+        //     worker.await;
+        // }
         Ok(())
     }
 }

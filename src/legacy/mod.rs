@@ -17,13 +17,67 @@ use linked_hash_map::LinkedHashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::*;
-use tokio::sync::Semaphore;
+use tokio::sync::{oneshot, Semaphore};
 
-use crate::{legacy::tasks::TablesHandle, utils::is_available_enterprise_edition, Action};
+use crate::{legacy::scheduler::Todo, utils::is_available_enterprise_edition, Action};
 
-use self::tasks::TableOpts;
+use self::scheduler::Scheduler;
 
-mod tasks;
+mod scheduler;
+// mod tasks;
+
+#[derive(Debug, Clone, Copy)]
+pub struct TableOpts {
+    /// A retrospective duration to sync.
+    pub(super) restro: Duration,
+    /// An internal to add a task.
+    pub(super) interval: Duration,
+    /// Time duration for possible server/client clock excursion.
+    pub(super) excursion: Duration,
+}
+
+impl Default for TableOpts {
+    fn default() -> Self {
+        Self {
+            restro: Duration::ZERO,
+            interval: Duration::from_secs(1),
+            excursion: Duration::from_millis(500),
+        }
+    }
+}
+
+impl TableOpts {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn restro(&mut self, value: Duration) -> &mut Self {
+        self.restro = value;
+        self
+    }
+    pub fn interval(&mut self, value: Duration) -> &mut Self {
+        self.interval = value;
+        self
+    }
+    pub fn excursion(&mut self, value: Duration) -> &mut Self {
+        self.excursion = value;
+        self
+    }
+
+    pub fn from_params(dsn: &mut Dsn) -> Result<Self, parse_duration::parse::Error> {
+        let mut opts = Self::new();
+        if let Some(value) = dsn.remove("restro") {
+            opts.restro = parse_duration::parse(&value)?;
+        }
+        if let Some(value) = dsn.remove("interval") {
+            opts.interval = parse_duration::parse(&value)?;
+        }
+        if let Some(value) = dsn.remove("excursion") {
+            opts.excursion = parse_duration::parse(&value)?;
+        }
+        Ok(opts)
+    }
+}
 
 #[derive(Debug)]
 pub struct LegacyMetrics {
@@ -168,6 +222,14 @@ impl TimeRange {
 
     pub const fn is_none(&self) -> bool {
         self.start.is_none() && self.end.is_none()
+    }
+
+    pub fn till_now() -> Self {
+        let end = chrono::Utc::now();
+        Self {
+            start: None,
+            end: Some(end),
+        }
     }
 }
 
@@ -604,10 +666,10 @@ async fn sync_super_table_schema_with_subs_without_pool(
 }
 
 async fn sync_super_table_schema_with_subs(
-    from_pool: &TaosPool,
+    from: &Taos,
     name: &str,
     subs: &[impl AsRef<str>],
-    to_pool: &TaosPool,
+    to: &Taos,
     tables: usize,
     target_opts: &TargetOpts,
     is_v3: bool,
@@ -618,9 +680,9 @@ async fn sync_super_table_schema_with_subs(
     // let version: String = from.query_one("SELECT server_version()").await?.unwrap();
     // if version.starts_with('2') {
     // create stable
-    let connect_timeout = Duration::from_secs(10);
-    let from = from_pool.get_timeout(connect_timeout)?;
-    let to = to_pool.get_timeout(connect_timeout)?;
+    // let connect_timeout = Duration::from_secs(10);
+    // let from = from_pool.get_timeout(connect_timeout)?;
+    // let to = to_pool.get_timeout(connect_timeout)?;
     debug_assert!(!name.is_empty());
     let (_, sql): ((), String) = from
         .query_one(format!("show create table `{name}`"))
@@ -801,6 +863,8 @@ async fn sync_schema(
     todo: Arc<LegacyTodo>,
     concurrency: usize,
     metrics: &Arc<LegacyMetrics>,
+    source_is_v3: bool,
+    target_is_v3: bool,
 ) -> anyhow::Result<()> {
     let from = from_pool.get_timeout(connect_timeout)?;
     let to = to_pool.get_timeout(connect_timeout)?;
@@ -854,11 +918,13 @@ async fn sync_schema(
         .try_for_each_concurrent(concurrency, |item| async move {
             let (from_pool, to_pool, stable, tables, target_opts, metrics) = item;
             if let Some(stable) = stable {
+                let from = from_pool.get()?;
+                let to = to_pool.get()?;
                 if let Err(err) = sync_super_table_schema_with_subs(
-                    &from_pool,
+                    &from,
                     &stable,
                     &tables,
-                    &to_pool,
+                    &to,
                     tables.len(),
                     &target_opts,
                     is_v3,
@@ -896,6 +962,7 @@ async fn sync_schema(
 }
 
 async fn sync_specified_tables_with_workers(
+    scheduler: &Scheduler,
     from: TaosPool,
     to: TaosPool,
     opts: QueryOpts,
@@ -903,6 +970,8 @@ async fn sync_specified_tables_with_workers(
     target_opts: TargetOpts,
     workers: usize,
     metrics: Arc<LegacyMetrics>,
+    source_is_v3: bool,
+    target_is_v3: bool,
 ) -> anyhow::Result<()> {
     log::info!("Synchronize table data with {} workers", workers);
     let order = Ordering::SeqCst;
@@ -920,475 +989,58 @@ async fn sync_specified_tables_with_workers(
 
     log::info!("Synching schedule use chunk size {chunk_size}");
 
-    let count = Arc::new(AtomicUsize::new(0));
+    // let count = Arc::new(AtomicUsize::new(0));
+    let mut count = 0;
     let mut dot = tables.len() / 100;
     if dot == 0 {
         dot = 1;
     }
     let total_tables = tables.len();
-    if true {
-        futures_util::stream::iter(tables.iter().enumerate())
-            .map(|(id, table)| {
-                let from = from.clone();
-                let to = to.clone();
-                let count = count.clone();
-                let target_opts = target_opts.clone();
-                let metrics = metrics.clone();
-                Ok::<_, anyhow::Error>((id + 1, from, to, count, target_opts, metrics, table))
-            })
-            .try_for_each_concurrent(workers * 4, |item| async move {
-                let (id, from, to, count, target_opts, metrics, (stable, table)) = item;
 
-                log::debug!("[table {id}: {table}] Syncing started");
-                {
-                    let from = from.get();
-                    if from.is_err() {
-                        let err = from.unwrap_err();
-                        log::error!("[table: {table}] Got reader connection error: {err}",);
-                        if let Some(path) = target_opts.fails_to.as_ref() {
-                            path.lock().unwrap().write_fmt(format_args!(
-                                "{}\t{}\n",
-                                table.as_str(),
-                                err
-                            ))?;
-                        }
-                        return Ok(());
-                    }
-                    let to = to.get();
-                    if to.is_err() {
-                        let err = to.unwrap_err();
-                        log::error!("[table: {table}] Got writer connection error: {err}",);
-                        if let Some(path) = target_opts.fails_to.as_ref() {
-                            path.lock().unwrap().write_fmt(format_args!(
-                                "{}\t{}\n",
-                                table.as_str(),
-                                err
-                            ))?;
-                        }
-                        return Ok(());
-                    }
-                    let from = from.unwrap();
-                    let to = to.unwrap();
-
-                    metrics.tables.fetch_add(1, order);
-                    let table_metrics = Arc::new(LegacyMetrics::default());
-                    let sync_ok = if let Some(duration) = target_opts.timeout_per_table {
-                        tokio::time::timeout(
-                            duration,
-                            sync_single_table(
-                                &from,
-                                stable.as_deref().map(|s| s.as_str()),
-                                table.as_str(),
-                                &to,
-                                &opts,
-                                &target_opts,
-                                to_is_v3,
-                                &table_metrics,
-                            ),
-                        )
-                        .await
-                        .map_err(|_| {
-                            anyhow::format_err!("[table: {table}] Sync table {table} timeout")
-                        })
-                        .and_then(|v| {
-                            v.map_err(|e| {
-                                anyhow::format_err!(
-                                    "[table: {table}] Sync table {table} error: {e:?}"
-                                )
-                            })
-                        })
-                    } else {
-                        let interval = Duration::from_secs(1);
-                        let mut interval = tokio::time::interval(interval);
-                        let interval_future = async {
-                            let mut last_records = 0;
-                            let mut last_written_ts = Duration::ZERO;
-                            let limit_duration_of_retrieving = Duration::from_secs(60);
-                            'inner: loop {
-                                interval.tick().await;
-                                let records = table_metrics.records.load(Ordering::SeqCst);
-                                let written = records - last_records;
-                                log::debug!(
-                                    "[table {table}] is running with {written} written in last second",
-                                );
-
-                                if written > 0 {
-                                    last_written_ts = table_metrics.time_cost.elapsed();
-                                    last_records = records;
-                                } else {
-                                    let duration = table_metrics.time_cost.elapsed() - last_written_ts;
-                                    if duration > limit_duration_of_retrieving  {
-                                    log::debug!(
-                                        "[table {table}] Received 0 records in last {limit_duration_of_retrieving:?}",
-                                    );
-                                        break 'inner;
-                                    }
-                                }
-                            }
-                            Err::<(), _>(anyhow::format_err!("[table {table}] Received 0 records in last {limit_duration_of_retrieving:?}"))
-                        };
-                        let future = sync_single_table(
-                            &from,
-                            stable.as_deref().map(|s| s.as_str()),
-                            table.as_str(),
-                            &to,
-                            &opts,
-                            &target_opts,
-                            to_is_v3,
-                            &table_metrics,
-                        );
-                        // let mut res = Ok(());
-                        tokio::select! {
-                            ok = interval_future => { ok },
-                            ok = future => {
-                                log::debug!("[table: {table}] Syncing done with table {table}");
-                                // res = ok;
-                                ok
-                            }
-                        }
-                    };
-
-                    match sync_ok {
-                        Ok(_) => {
-                            let count = count.fetch_add(1, Ordering::SeqCst) + 1;
-                            let order = Ordering::SeqCst;
-                            metrics.blocks.fetch_add(table_metrics.blocks.load(order), order);
-                            metrics.records.fetch_add(table_metrics.records.load(order), order);
-                            metrics.points.fetch_add(table_metrics.points.load(order), order);
-
-                            if count % dot == 0 {
-                                log::info!(
-                                    "Synchronized {:.2}% of tables ({} of {})",
-                                    count as f64 * 100.0 / total_tables as f64,
-                                    count,
-                                    total_tables,
-                                )
-                            }
-                        }
-                        Err(err) => {
-                            log::error!("[table: {table}] Synchronized failed because: {err:?}",);
-                            if let Some(path) = target_opts.fails_to.as_ref() {
-                                path.lock().unwrap().write_fmt(format_args!(
-                                    "{}\t{}\n",
-                                    table.as_str(),
-                                    format!("{err:?}").replace("\n", "")
-                                ))?;
-                            }
-                        }
-                    }
-                    Ok(())
-                }
-            })
-            .await
-            .context("Concurrently writing data error")?;
-    } else {
-        let semaphore = Arc::new(Semaphore::new(workers));
-        let mut join_handles = Vec::new();
-        let chunks = tables
-            .iter()
-            .chunks(chunk_size)
-            .into_iter()
-            .map(|c| c.map(Clone::clone).collect_vec())
-            .collect_vec();
-
-        for (id, chunk) in chunks.into_iter().enumerate() {
-            let time = Instant::now();
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
-            log::info!(
-                "[chunk: {id}] Got semaphore permit in {:?} to write {} tables",
-                time.elapsed(),
-                chunk.len()
-            );
-            let from = from.get()?;
-            let to = to.get()?;
-            let count = count.clone();
-            let target_opts = target_opts.clone();
-            let metrics = metrics.clone();
-            // let chunk = chunk.collect_vec();
-            join_handles.push(tokio::spawn(async move {
-                let tables = chunk.iter().map(|(_, t)| t).join(",");
-                log::info!("[chunk: {id}] Syncing {} tables: {tables}", chunk.len());
-
-                for (stable, table) in chunk {
-                    metrics.tables.fetch_add(1, order);
-                    log::debug!("[chunk: {id}] Syncing table {table}");
-
-                    let table_metrics = Arc::new(LegacyMetrics::default());
-                    let sync_ok = if let Some(duration) = target_opts.timeout_per_table {
-                        tokio::time::timeout(
-                            duration,
-                            sync_single_table(
-                                &from,
-                                stable.as_deref().map(|s| s.as_str()),
-                                table.as_str(),
-                                &to,
-                                &opts,
-                                &target_opts,
-                                to_is_v3,
-                                &table_metrics,
-                            ),
-                        )
-                        .await
-                        .map_err(|_| {
-                            anyhow::format_err!(
-                                "S[chunk: {id}, table: {table}] Sync table {table} timeout"
-                            )
-                        })
-                        .and_then(|v| {
-                            v.map_err(|e| {
-                                anyhow::format_err!(
-                                    "[table: {table}] Sync table {table} error: {e}"
-                                )
-                            })
-                        })
-                    } else {
-                        let interval_duration = Duration::from_secs(2);
-                        let mut interval = tokio::time::interval(interval_duration);
-                        let table_metrics = table_metrics.clone();
-                        let interval_future = async {
-                            let mut last_records = 0;
-                            let mut last_written_ts = Duration::ZERO;
-                            let limit_duration_of_retrieving = Duration::from_secs(60);
-                            'inner: loop {
-                                interval.tick().await;
-                                let records = table_metrics.records.load(Ordering::SeqCst);
-                                let written = records - last_records;
-                                log::debug!(
-                                    "[table {table}] is running with {written} written in last {interval_duration:?}",
-                                );
-
-                                if written > 0 {
-                                    last_written_ts = table_metrics.time_cost.elapsed();
-                                    last_records = records;
-                                } else {
-                                    let duration = table_metrics.time_cost.elapsed() - last_written_ts;
-                                    if duration > limit_duration_of_retrieving  {
-                                        break 'inner;
-                                    }
-                                }
-                            }
-                            Err::<(), _>(anyhow::format_err!("[table {table}] Received 0 records in last {limit_duration_of_retrieving:?}"))
-                        };
-                        let future = sync_single_table(
-                            &from,
-                            stable.as_deref().map(|s| s.as_str()),
-                            table.as_str(),
-                            &to,
-                            &opts,
-                            &target_opts,
-                            to_is_v3,
-                            &metrics,
-                        );
-                        // let mut res = Ok(());
-                        tokio::select! {
-                            ok = interval_future => { ok },
-                            ok = future => {
-                                log::debug!("[table: {table}] Syncing done with table {table}");
-                                // res = ok;
-                                ok
-                            }
-                        }
-                    };
-
-                    match sync_ok {
-                        Ok(_) => {
-                            let order = Ordering::SeqCst;
-                            metrics.blocks.fetch_add(table_metrics.blocks.load(order), order);
-                            metrics.records.fetch_add(table_metrics.records.load(order), order);
-                            metrics.points.fetch_add(table_metrics.points.load(order), order);
-
-                            let count = count.fetch_add(1, Ordering::SeqCst) + 1;
-
-                            if count % dot == 0 {
-                                log::info!(
-                                    "[table: {table}] Synchronized {:.2}% of tables ({} of {})",
-                                    count as f64 * 100.0 / total_tables as f64,
-                                    count,
-                                    total_tables,
-                                )
-                            }
-                        }
-                        Err(err) => {
-                            log::error!(
-                                "[table: {table}] Synchronized table {} failed because: {}",
-                                table.as_str(),
-                                err
-                            );
-                            if let Some(path) = target_opts.fails_to.as_ref() {
-                                path.lock().unwrap().write_fmt(format_args!(
-                                    "{}\t{}\n",
-                                    table.as_str(),
-                                    err
-                                ))?;
-                            }
-                        }
-                    }
-                }
-
-                drop(permit);
-                // permit
-                Ok::<(), anyhow::Error>(())
-            }));
+    let mut readers = Vec::new();
+    for (stable, table) in tables {
+        let (sender, reader) = oneshot::channel();
+        scheduler.send(Todo::Data(
+            stable.clone(),
+            table.to_string(),
+            opts.time_range,
+            Some(sender),
+        ))?;
+        readers.push(reader);
+    }
+    let mut fails = 0;
+    for reader in readers {
+        count += 1;
+        match reader.await? {
+            Ok(_) => {}
+            Err(err) => {
+                log::error!("Error: {err:?}",);
+                fails += 1;
+            }
         }
-        for handle in join_handles {
-            let res = handle.await.unwrap();
-            dbg!(&res);
+
+        if count % dot == 0 {
+            if fails == 0 {
+                log::info!(
+                    "Synchronized {:.2}% of tables ({} of {}).",
+                    count as f64 * 100.0 / total_tables as f64,
+                    count,
+                    total_tables,
+                )
+            } else {
+                log::info!(
+                    "Synchronized {:.2}% of tables ({} of {}), {} failed.",
+                    count as f64 * 100.0 / total_tables as f64,
+                    count,
+                    total_tables,
+                    fails,
+                );
+            }
         }
     }
-    log::info!(
-        "Synchronizing {} tables with {} workers finished",
-        count.load(Ordering::SeqCst),
-        workers
-    );
-
+    log::info!("Synchronizing {count} tables with {workers} workers finished");
     Ok(())
 }
-
-// #[deprecated]
-// async fn _sync_tables_only_with_workers(
-//     from: TaosPool,
-//     to: TaosPool,
-//     opts: QueryOpts,
-//     tables: Option<Vec<String>>,
-//     target_opts: TargetOpts,
-//     workers: usize,
-// ) -> anyhow::Result<()> {
-//     log::info!("Synchronize table data with {} workers", workers);
-//     let connect_timeout = Duration::from_secs(10);
-//     let from_taos = from.get_timeout(connect_timeout)?;
-//     let to_taos = to.get_timeout(connect_timeout)?;
-//     let workers = if workers > 0 {
-//         workers
-//     } else {
-//         std::thread::available_parallelism()?.get() * 2
-//     };
-//     let semaphore = Arc::new(Semaphore::new(workers));
-//     let v1: String = from_taos
-//         .query_one("SELECT server_version()")
-//         .await?
-//         .unwrap();
-//     let v2: String = to_taos.query_one("SELECT server_version()").await?.unwrap();
-//     let to_is_v3 = v2.starts_with('3');
-//     let tables = if let Some(tables) = tables {
-//         tables
-//     } else if v1.starts_with('2') {
-//         let mut res = from_taos.query("SHOW TABLES").await?;
-//         let tables: Vec<_> = res
-//             .deserialize::<TableRecord>()
-//             .map_ok(|f| f.table_name)
-//             .try_collect()
-//             .await?;
-//         drop(res);
-//         tables
-//     } else {
-//         //  get normal tables.
-//         let mut res = from_taos.query("SHOW TABLES").await?;
-//         let tables: Vec<String> = res.deserialize().try_collect().await?;
-//         drop(res);
-//         tables
-//     };
-
-//     let chunk_size = tables.len() / (workers * 4);
-//     let chunk_size = if chunk_size > 0 { chunk_size } else { 1 };
-
-//     let count = Arc::new(AtomicUsize::new(0));
-//     let mut join_handles = Vec::new();
-//     let mut dot = tables.len() / 100;
-//     if dot == 0 {
-//         dot = 1;
-//     }
-//     let total_tables = tables.len();
-
-//     let chunks = tables
-//         .into_iter()
-//         .chunks(chunk_size)
-//         .into_iter()
-//         .map(|c| c.collect_vec())
-//         .collect_vec();
-
-//     for (id, chunk) in chunks.into_iter().enumerate() {
-//         let permit = semaphore.clone().acquire_owned().await.unwrap();
-//         let from = from.get_timeout(connect_timeout)?;
-//         let to = to.get_timeout(connect_timeout)?;
-//         let count = count.clone();
-//         let target_opts = target_opts.clone();
-//         // let chunk = chunk.collect_vec();
-//         join_handles.push(tokio::spawn(async move {
-//             let _ = permit;
-//             for table in chunk {
-//                 let sync_ok = if let Some(duration) = target_opts.timeout_per_table {
-//                     tokio::time::timeout(
-//                         duration,
-//                         sync_single_table(
-//                             &from,
-//                             None,
-//                             table.as_str(),
-//                             &to,
-//                             &opts,
-//                             &target_opts,
-//                             to_is_v3,
-//                         ),
-//                     )
-//                     .await
-//                     .map_err(|_| anyhow::format_err!("Sync table {table} timeout"))
-//                     .and_then(|v| {
-//                         v.map_err(|e| anyhow::format_err!("Sync table {table} error: {e}"))
-//                     })
-//                 } else {
-//                     sync_single_table(
-//                         &from,
-//                         None,
-//                         table.as_str(),
-//                         &to,
-//                         &opts,
-//                         &target_opts,
-//                         to_is_v3,
-//                     )
-//                     .await
-//                     .map_err(|e| anyhow::format_err!("Sync table {table} error: {e}"))
-//                 };
-
-//                 match sync_ok {
-//                     Ok(_) => {
-//                         let count = count.fetch_add(1, Ordering::SeqCst);
-//                         if count % dot == 0 {
-//                             log::info!(
-//                                 "[{id}] synchronized {:.2}% of tables ({} of {})",
-//                                 count as f64 * 100.0 / total_tables as f64,
-//                                 count,
-//                                 total_tables,
-//                             )
-//                         }
-//                     }
-//                     Err(err) => {
-//                         log::error!(
-//                             "synchronized table {} failed because: {}",
-//                             table.as_str(),
-//                             err
-//                         );
-//                         if let Some(path) = target_opts.fails_to.as_ref() {
-//                             path.lock().await.write_fmt(format_args!(
-//                                 "{}\t{}\n",
-//                                 table.as_str(),
-//                                 err
-//                             ))?;
-//                         } else {
-//                             Err(err).with_context(|| {
-//                                 format!("synchronized table {} failed", table.as_str())
-//                             })?
-//                         }
-//                     }
-//                 }
-//             }
-//             Ok::<(), anyhow::Error>(())
-//         }));
-//     }
-//     for handle in join_handles {
-//         handle.await??;
-//     }
-
-//     Ok(())
-// }
 
 #[derive(Debug, Default, Clone, Copy)]
 pub enum SyncMode {
@@ -1564,7 +1216,7 @@ pub struct TargetOpts {
 impl Drop for TargetOpts {
     fn drop(&mut self) {
         if let Some(file) = self.fails_to.as_mut() {
-            file.lock().unwrap().flush();
+            let _ = file.lock().unwrap().flush();
         }
     }
 }
@@ -1872,6 +1524,64 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
     }
 }
 
+async fn realtime(
+    scheduler: &Scheduler,
+    start: DateTime<Utc>,
+    from: &Taos,
+    to: &Taos,
+    opts: &TableOpts,
+    source_is_v3: bool,
+    target_is_v3: bool,
+    todo: &LegacyTodo,
+) -> anyhow::Result<()> {
+    let mut now = start;
+    let excursion = chrono::Duration::from_std(opts.excursion)?;
+    if !opts.excursion.is_zero() {
+        now -= excursion;
+    }
+    // now is the separator of history and future data.
+
+    // check if need retro back.
+    if opts.restro.is_zero() {
+        // trace back to some duration.
+        let start = now - chrono::Duration::from_std(opts.restro)?;
+        let time_range = TimeRange::new().start(start).end(now);
+
+        for (stable, table) in &todo.tables {
+            scheduler
+                .send(Todo::Data(
+                    stable.clone(),
+                    table.clone(),
+                    time_range.clone(),
+                    None,
+                ))
+                .unwrap();
+        }
+    }
+
+    let tick_duration = chrono::Duration::from_std(opts.interval)?;
+    let mut interval = tokio::time::interval(opts.interval);
+    interval.tick().await;
+    let mut start = now;
+    loop {
+        let end = Utc::now() - tick_duration;
+        let time_range = TimeRange::new().start(start).end(end);
+        log::debug!("spawn sync task for range: {:?}", time_range);
+        for (stable, table) in &todo.tables {
+            scheduler
+                .send(Todo::Data(
+                    stable.clone(),
+                    table.clone(),
+                    time_range.clone(),
+                    None,
+                ))
+                .unwrap();
+        }
+        start = end;
+        let _ = interval.tick().await;
+    }
+}
+
 pub async fn legacy_to_taos(
     mut from: Dsn,
     actions: Vec<Action>,
@@ -1982,6 +1692,11 @@ pub async fn legacy_to_taos(
         anyhow::bail!("from and to databases have different precision");
     }
 
+    let v1: String = from.server_version().await?.to_string();
+    let source_is_v3 = !v1.starts_with("2");
+    let v2: String = to.server_version().await?.to_string();
+    let target_is_v3 = !v2.starts_with('2');
+
     metrics.workers.store(concurrent as _, Ordering::SeqCst);
 
     let todo = parse_todo_list(&from_pool, &source_opts).await?;
@@ -1998,6 +1713,18 @@ pub async fn legacy_to_taos(
         log::info!("{}", metrics_inner);
     });
 
+    let scheduler = scheduler::Scheduler::new(
+        from_pool.clone(),
+        to_pool.clone(),
+        Arc::new(source_opts.query),
+        Arc::new(target_opts.clone()),
+        concurrency as u32,
+        metrics.clone(),
+        source_is_v3,
+        target_is_v3,
+    )
+    .await;
+
     match (source_opts.mode, source_opts.schema) {
         (_, SchemaMode::Only) => {
             sync_schema(
@@ -2009,11 +1736,14 @@ pub async fn legacy_to_taos(
                 todo.clone(),
                 concurrent,
                 &metrics,
+                source_is_v3,
+                target_is_v3,
             )
             .await?
         }
         (SyncMode::AsIs, SchemaMode::None) => {
             sync_specified_tables_with_workers(
+                &scheduler,
                 from_pool,
                 to_pool,
                 source_opts.query,
@@ -2021,6 +1751,8 @@ pub async fn legacy_to_taos(
                 target_opts,
                 concurrent,
                 metrics.clone(),
+                source_is_v3,
+                target_is_v3,
             )
             .await?;
         }
@@ -2035,11 +1767,14 @@ pub async fn legacy_to_taos(
                 todo.clone(),
                 concurrent,
                 &metrics,
+                source_is_v3,
+                target_is_v3,
             )
             .await?;
             log::info!("synchronize all tables");
             // sync_tables_only(&from, &to, source_opts.query).await?;
             sync_specified_tables_with_workers(
+                &scheduler,
                 from_pool,
                 to_pool,
                 source_opts.query,
@@ -2047,6 +1782,8 @@ pub async fn legacy_to_taos(
                 target_opts,
                 concurrent,
                 metrics.clone(),
+                source_is_v3,
+                target_is_v3,
             )
             .await?;
             // sync_tables_only_with_workers(
@@ -2061,22 +1798,32 @@ pub async fn legacy_to_taos(
             log::info!("synchronize finished.");
         }
         (SyncMode::Realtime, _) => {
-            let mut tables = TablesHandle::new(
-                from_pool,
-                to_pool,
-                source_opts.table,
-                target_opts,
-                metrics.clone(),
+            // let mut tables = TablesHandle::new(
+            //     from_pool,
+            //     to_pool,
+            //     source_opts.table,
+            //     target_opts,
+            //     metrics.clone(),
+            // )
+            // .await?;
+            // tables.spawn().await?;
+            // tables.join().await?;
+            realtime(
+                &scheduler,
+                Utc::now(),
+                &from,
+                &to,
+                &source_opts.table,
+                source_is_v3,
+                target_is_v3,
+                &todo,
             )
             .await?;
-            tables.spawn().await?;
-            tables.join().await?;
         }
         (SyncMode::All, schema) => {
             match schema {
                 SchemaMode::None => (),
-                SchemaMode::Only => unreachable!(),
-                SchemaMode::Always => {
+                _ => {
                     sync_schema(
                         &from_pool,
                         &to_pool,
@@ -2086,12 +1833,16 @@ pub async fn legacy_to_taos(
                         todo.clone(),
                         concurrent,
                         &metrics,
+                        source_is_v3,
+                        target_is_v3,
                     )
                     .await?
                 }
             }
+            let restro_mark = Instant::now();
 
             sync_specified_tables_with_workers(
+                &scheduler,
                 from_pool.clone(),
                 to_pool.clone(),
                 source_opts.query.clone(),
@@ -2099,9 +1850,10 @@ pub async fn legacy_to_taos(
                 target_opts.clone(),
                 concurrent * 4,
                 metrics.clone(),
+                source_is_v3,
+                target_is_v3,
             )
             .await?;
-            let restro_mark = Instant::now();
             // sync_tables_only(&from, &to, source_opts.query, target_opts.clone()).await?;
 
             if source_opts.table.restro.is_zero() {
@@ -2111,16 +1863,17 @@ pub async fn legacy_to_taos(
                     source_opts.table.restro
                 );
             }
-            let mut tables = TablesHandle::new(
-                from_pool,
-                to_pool,
-                source_opts.table,
-                target_opts,
-                metrics.clone(),
+            realtime(
+                &scheduler,
+                Utc::now(),
+                &from,
+                &to,
+                &source_opts.table,
+                source_is_v3,
+                target_is_v3,
+                &todo,
             )
             .await?;
-            tables.spawn().await?;
-            tables.join().await?;
         }
 
         _ => unreachable!(),
