@@ -10,6 +10,8 @@ mod tmq_to_td;
 mod transform;
 pub mod utils;
 
+mod plugins;
+
 use taos::Dsn;
 
 pub use csv::*;
@@ -95,6 +97,9 @@ impl TaskOpts {
                 }
                 ("taos", "parquet") => {
                     query_to_parquet(from.clone(), to.clone(), *force).await?;
+                }
+                ("pi", "taos") => {
+                    plugins::pi_to_taos(from.clone(), transform.clone(), to.clone(), *jobs).await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
