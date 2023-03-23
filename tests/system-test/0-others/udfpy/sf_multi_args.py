@@ -14,7 +14,10 @@ def process(block):
         rows = []
         for j in range(ncols):
             val = block.data(i, j)
-            rows.append(val)
+            if type(val) is bytes:
+                rows.append(val.decode('utf-8'))
+            else:
+                rows.append(repr(val))
         results.append(','.join(rows))
     return results
 

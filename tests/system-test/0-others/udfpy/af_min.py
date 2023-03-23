@@ -13,7 +13,7 @@ def finish(buf):
     mins = pickle.loads(buf)
     min_val = None
     for min in mins:
-        if min < min_val:
+        if min_val is None or (min is not None and min < min_val):
             min_val = min
     return min_val
 

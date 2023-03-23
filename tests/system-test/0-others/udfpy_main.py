@@ -109,6 +109,7 @@ class TDTestCase:
     def create_scalar_udfpy(self):
         # scalar funciton
         self.scalar_funs = {
+            'sf0': 'timestamp',    
             'sf1': 'tinyint',
             'sf2': 'smallint',
             'sf3': 'int',
@@ -121,8 +122,7 @@ class TDTestCase:
             'sf10': 'double',
             'sf11': 'bool',
             'sf12': 'varchar(20)',
-            'sf13': 'nchar(20)',
-            'sf14': 'timestamp'            
+            'sf13': 'nchar(20)'
         }
         # agg function
         self.agg_funs = {
@@ -152,8 +152,8 @@ class TDTestCase:
         tdSql.execute(sql)
         tdLog.info(sql)
 
-    def create_udf_af(self, fun_name, out_type, bufsize):
-        sql = f'create aggregate function {fun_name} as "{self.udf_path}/{fun_name}.py" outputtype {out_type} bufsize {bufsize} language "Python" '
+    def create_udf_af(self, fun_name, filename, out_type, bufsize):
+        sql = f'create aggregate function {fun_name} as "{self.udf_path}/{filename}" outputtype {out_type} bufsize {bufsize} language "Python" '
         tdSql.execute(sql)
         tdLog.info(sql)
 
@@ -169,7 +169,7 @@ class TDTestCase:
                 tdSql.checkData(i, j, result1[i][j])
 
     # same value like select col1, udf_fun1(col1) from st
-    def verify_same_value(sql):
+    def verify_same_value(self, sql):
         tdSql.query(sql)
         nrows = tdSql.getRows()
         for i in range(nrows):
@@ -188,10 +188,16 @@ class TDTestCase:
             
     # query multi-args
     def query_multi_args(self):   
-        cols = self.column_dict.keys() + self.tag_dict.keys()
+        cols = list(self.column_dict.keys()) + list(self.tag_dict.keys())
+        cols.remove("col13")
+        cols.remove("t13")
         ncols = len(cols)
+        print(cols)
+
         for i in range(2, ncols):
-            sample = random.sample(i)
+            print(i)
+            sample = random.sample(cols, i)
+            print(sample)
             cols_name = ','.join(sample)
             sql = f'select  sf_multi_args({cols_name}),{cols_name} from {self.stbname}'
             self.verify_same_multi_values(sql)
@@ -202,12 +208,13 @@ class TDTestCase:
         # col
         for col_name, col_type in self.column_dict.items():
            for fun_name, out_type in self.scalar_funs.items():
-               sql = f'select {col_name}, {fun_name}({col_name}) from {self.stbname}'
-               tdLog.info(sql)
-               self.verify_same_value(sql)
-               sql = f'select * from (select {col_name} as a, {fun_name}({col_name}) as b from {self.stbname} ) order by b,a desc'
-               tdLog.info(sql)
-               self.verify_same_value(sql)
+               if col_type == out_type :                   
+                    sql = f'select {col_name}, {fun_name}({col_name}) from {self.stbname}'
+                    tdLog.info(sql)
+                    self.verify_same_value(sql)
+                    sql = f'select * from (select {col_name} as a, {fun_name}({col_name}) as b from {self.stbname} ) order by b,a desc'
+                    tdLog.info(sql)
+                    self.verify_same_value(sql)
 
 
         # multi-args
@@ -216,42 +223,48 @@ class TDTestCase:
     # create aggregate 
     def create_aggr_udfpy(self):
         # all type check null
-        for col_name, col_type in self.column_dict:
-             self.create_udf_af(f"af_null_{col_name}", f"{col_type}", 10*1024*1024)
+        for col_name, col_type in self.column_dict.items():
+             self.create_udf_af(f"af_null_{col_name}", "af_null.py", col_type, 10*1024)
 
         # min
-        self.create_udf_af(f"af_min_float", f"float", 10*1024*1024)
-        self.create_udf_af(f"af_min_int", f"int", 10*1024*1024)
+        file_name = "af_min.py"
+        fun_name = "af_min_float"
+        self.create_udf_af(fun_name, file_name, f"float", 10*1024)
+        fun_name = "af_min_int"
+        self.create_udf_af(fun_name, file_name, f"int", 10*1024)
 
         # sum
-        self.create_udf_af(f"af_sum_float", f"float", 100*1024*1024)
-        self.create_udf_af(f"af_sum_int", f"sum", 100*1024*1024)
+        file_name = "af_sum.py"
+        fun_name = "af_sum_float"
+        self.create_udf_af(fun_name, file_name, f"float", 10*1024)
+        fun_name = "af_sum_int"
+        self.create_udf_af(fun_name, file_name, f"int", 10*1024)
 
 
     # query aggregate 
     def query_aggr_udfpy(self) :
         # all type check null
-        for col_name, col_type in self.column_dict:
+        for col_name, col_type in self.column_dict.items():
              fun_name = f"af_null_{col_name}"
-             sql = f'select {fun_name}(col_name) from {self.stbname}'
+             sql = f'select {fun_name}({col_name}) from {self.stbname}'
              tdSql.query(sql)
-             tdSql.checkData(0, 0, "NULL")
+             tdSql.checkData(0, 0, "None")
 
         # min
         sql = f'select min(col3), af_min_int(col3) from {self.stbname}'
-        self.verfiy_same_value(sql)
+        self.verify_same_value(sql)
         sql = f'select min(col7), af_min_int(col7) from {self.stbname}'
-        self.verfiy_same_value(sql)
+        self.verify_same_value(sql)
         sql = f'select min(col9), af_min_float(col9) from {self.stbname}'
-        self.verfiy_same_value(sql)
+        self.verify_same_value(sql)
 
         # sum
         sql = f'select sum(col3), af_sum_int(col3) from {self.stbname}'
-        self.verfiy_same_value(sql)
+        self.verify_same_value(sql)
         sql = f'select sum(col7), af_sum_int(col7) from {self.stbname}'
-        self.verfiy_same_value(sql)
+        self.verify_same_value(sql)
         sql = f'select sum(col9), af_sum_float(col9) from {self.stbname}'
-        self.verfiy_same_value(sql)
+        self.verify_same_value(sql)
             
     
     # insert to child table d1 data
@@ -284,7 +297,7 @@ class TDTestCase:
         count = 10
         # do 
         self.create_table(stable, tbname, count)
-        self.insert_data(tbname, 100)
+        self.insert_data(tbname, 10)
 
         # scalar
         self.create_scalar_udfpy()
