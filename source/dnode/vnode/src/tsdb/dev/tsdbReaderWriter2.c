@@ -6,9 +6,11 @@ typedef struct SSttFReader SSttFReader;
 extern int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD);
 extern void    tsdbCloseFile(STsdbFD **ppFD);
 struct SSttFWriter {
-  STsdb   *pTsdb;
-  STsdbFD *pFd;
-  SSttFile file;
+  STsdb     *pTsdb;
+  STsdbFD   *pFd;
+  SSttFile   file;
+  SBlockData bData;
+  SArray    *aSttBlk;
 };
 
 int32_t tsdbSttFWriterOpen(STsdb *pTsdb, SSttFile *pSttFile, SSttFWriter **ppWritter) {
@@ -42,22 +44,10 @@ int32_t tsdbSttFWriterClose(SSttFWriter *pWritter) {
   return 0;
 }
 
-int32_t tsdbWriteSttBlockData(SSttFWriter *pWritter, SBlockData *pBlockData, SSttBlk *pSttBlk) {
-  // TODO
-  return 0;
-}
+int32_t tsdbSttFWriteRow(SSttFWriter *pWritter, int64_t suid, int64_t uid, TSDBROW *pRow) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
-int32_t tsdbWriteSttBlockIdx(SSttFWriter *pWriter, SArray *aSttBlk) {
-  // TODO
-  return 0;
-}
-
-int32_t tsdbWriteSttDelData(SSttFWriter *pWriter) {
-  // TODO
-  return 0;
-}
-
-int32_t tsdbWriteSttDelIdx(SSttFWriter *pWriter) {
-  // TODO
+  // TODO write row
   return 0;
 }

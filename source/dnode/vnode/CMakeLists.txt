@@ -54,6 +54,10 @@ target_sources(
     "src/tsdb/tsdbDiskData.c"
     "src/tsdb/tsdbMergeTree.c"
     "src/tsdb/tsdbDataIter.c"
+    # # dev
+    "src/tsdb/dev/tsdbCommit2.c"
+    "src/tsdb/dev/tsdbMerge.c"
+    "src/tsdb/dev/tsdbReaderWriter2.c"
 
     # tq
     "src/tq/tq.c"
