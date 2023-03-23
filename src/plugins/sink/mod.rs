@@ -130,13 +130,13 @@ async fn ipc_process<R: Read, W: Write>(
     Ok(())
 }
 
-#[cfg(not(target_os = "windows"))]
-pub async fn listen_unix_socket(target: TaosPool, socket: impl AsRef<Path>) -> anyhow::Result<()> {
+#[cfg(unix)]
+pub fn listen_unix_socket(target: TaosPool, socket: impl AsRef<Path>) -> anyhow::Result<()> {
     let path = socket.as_ref();
     if path.exists() {
         std::fs::remove_file(path).unwrap();
     }
-    let runtime = tokio::runtime::Runtime::new();
+    let runtime = tokio::runtime::Runtime::new()?;
     let listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
     info!("listen on socket address: {}", path.display());
 
@@ -146,7 +146,7 @@ pub async fn listen_unix_socket(target: TaosPool, socket: impl AsRef<Path>) -> a
             Ok((stream, addr)) => {
                 tracing::info!("new unix client!: {:?}", addr);
                 let pool = target.clone();
-                tokio::spawn(async move { ipc_unix_read(pool, stream) });
+                runtime.spawn(async move { ipc_unix_read(pool, stream) });
             }
             Err(e) => {
                 /* connection failed */
