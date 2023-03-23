@@ -313,21 +313,30 @@ int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* val
 }
 
 // todo refactor
-int32_t streamStateFillPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
-#ifdef USE_ROCKSDB
-  return streamStateFillPut_rocksdb(pState, key, value, vLen);
-#else
-  return tdbTbUpsert(pState->pTdbState->pFillStateDb, key, sizeof(SWinKey), value, vLen, pState->pTdbState->txn);
-#endif
-}
-
-// todo refactor
 int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
   return streamStateGet_rocksdb(pState, key, pVal, pVLen);
 #else
   SStateKey sKey = {.key = *key, .opNum = pState->number};
   return tdbTbGet(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), pVal, pVLen);
+#endif
+}
+// todo refactor
+int32_t streamStateDel(SStreamState* pState, const SWinKey* key) {
+#ifdef USE_ROCKSDB
+  return streamStateDel_rocksdb(pState, key);
+#else
+  SStateKey sKey = {.key = *key, .opNum = pState->number};
+  return tdbTbDelete(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), pState->pTdbState->txn);
+#endif
+}
+
+// todo refactor
+int32_t streamStateFillPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
+#ifdef USE_ROCKSDB
+  return streamStateFillPut_rocksdb(pState, key, value, vLen);
+#else
+  return tdbTbUpsert(pState->pTdbState->pFillStateDb, key, sizeof(SWinKey), value, vLen, pState->pTdbState->txn);
 #endif
 }
 
@@ -341,12 +350,11 @@ int32_t streamStateFillGet(SStreamState* pState, const SWinKey* key, void** pVal
 }
 
 // todo refactor
-int32_t streamStateDel(SStreamState* pState, const SWinKey* key) {
+int32_t streamStateFillDel(SStreamState* pState, const SWinKey* key) {
 #ifdef USE_ROCKSDB
-  return streamStateDel_rocksdb(pState, key);
+  return streamStateFillDel_rocksdb(pState, key);
 #else
-  SStateKey sKey = {.key = *key, .opNum = pState->number};
-  return tdbTbDelete(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), pState->pTdbState->txn);
+  return tdbTbDelete(pState->pTdbState->pFillStateDb, key, sizeof(SWinKey), pState->pTdbState->txn);
 #endif
 }
 
@@ -372,15 +380,6 @@ int32_t streamStateClear(SStreamState* pState) {
 }
 
 void streamStateSetNumber(SStreamState* pState, int32_t number) { pState->number = number; }
-
-// todo refactor
-int32_t streamStateFillDel(SStreamState* pState, const SWinKey* key) {
-#ifdef USE_ROCKSDB
-  return streamStateFillDel_rocksdb(pState, key);
-#else
-  return tdbTbDelete(pState->pTdbState->pFillStateDb, key, sizeof(SWinKey), pState->pTdbState->txn);
-#endif
-}
 
 int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
@@ -535,13 +534,21 @@ int32_t streamStateGetFirst(SStreamState* pState, SWinKey* key) {
 }
 
 int32_t streamStateSeekFirst(SStreamState* pState, SStreamStateCur* pCur) {
-  //
+#ifdef USE_ROCKSDB
+  rocksdb_iter_seek_to_first(pCur->iter);
+  return 0;
+#else
   return tdbTbcMoveToFirst(pCur->pCur);
+#endif
 }
 
 int32_t streamStateSeekLast(SStreamState* pState, SStreamStateCur* pCur) {
-  //
+#ifdef USE_ROCKSDB
+  rocksdb_iter_seek_to_last(pCur->iter);
+  return 0;
+#else
   return tdbTbcMoveToLast(pCur->pCur);
+#endif
 }
 
 SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key) {
