@@ -285,13 +285,13 @@ class TDSql:
                     success = False
                     if precision == 'ms':
                         dt_obj = self.queryResult[row][col]
-                        tz = int(int((dt_obj-datetime.datetime.fromtimestamp(0,dt_obj.tzinfo)).total_seconds())*1000) + int(dt_obj.microsecond/1000)
-                        if tz == data:
+                        ts = int(int((dt_obj-datetime.datetime.fromtimestamp(0,dt_obj.tzinfo)).total_seconds())*1000) + int(dt_obj.microsecond/1000)
+                        if ts == data:
                             success = True
                     elif precision == 'us':
                         dt_obj = self.queryResult[row][col]
-                        tz = int(int((dt_obj-datetime.datetime.fromtimestamp(0,dt_obj.tzinfo)).total_seconds())*1e6) + int(dt_obj.microsecond)
-                        if tz == data:
+                        ts = int(int((dt_obj-datetime.datetime.fromtimestamp(0,dt_obj.tzinfo)).total_seconds())*1e6) + int(dt_obj.microsecond)
+                        if ts == data:
                             success = True
                     elif precision == 'ns':
                         if data == self.queryResult[row][col]:
