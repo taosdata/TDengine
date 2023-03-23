@@ -13,15 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdb.h"
+#include "tsdbSttFWriter.h"
 
 // extern dependencies
-typedef struct SSttFWriter SSttFWriter;
-
-extern int32_t tsdbSttFWriterOpen(STsdb *pTsdb, const SSttFile *pSttFile, SSttFWriter **ppWriter);
-extern int32_t tsdbSttFWriterClose(SSttFWriter *pWriter);
-extern int32_t tsdbSttFWriteTSData(SSttFWriter *pWriter, TABLEID *tbid, TSDBROW *pRow);
-
 typedef struct {
   STsdb *pTsdb;
   // config
@@ -48,7 +42,7 @@ static int32_t tsdbCommitOpenWriter(SCommitter *pCommitter) {
 
   SSttFile sttFile = {0};  // TODO
 
-  code = tsdbSttFWriterOpen(pCommitter->pTsdb, &sttFile, &pCommitter->pWriter);
+  code = tsdbSttFWriterOpen(NULL /*TODO*/, &pCommitter->pWriter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

@@ -57,7 +57,7 @@ target_sources(
     # # dev
     "src/tsdb/dev/tsdbCommit2.c"
     "src/tsdb/dev/tsdbMerge.c"
-    "src/tsdb/dev/tsdbReaderWriter2.c"
+    "src/tsdb/dev/tsdbSttFWriter.c"
 
     # tq
     "src/tq/tq.c"

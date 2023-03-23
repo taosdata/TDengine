@@ -1,8 +1,45 @@
-#include "tsdb.h"
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
-typedef struct SSttFWriter SSttFWriter;
-typedef struct SSttFReader SSttFReader;
+#include "tsdbSttFWriter.h"
 
+int32_t tsdbSttFWriterOpen(const SSttFWriterConf *pConf, SSttFWriter **ppWriter) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbSttFWriterClose(SSttFWriter **ppWriter) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbSttFWriteTSData(SSttFWriter *pWriter, TABLEID *tbid, TSDBROW *pRow) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbSttFWriteDLData(SSttFWriter *pWriter, TABLEID *tbid, SDelData *pDelData) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+#if 0
 extern int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD);
 extern void    tsdbCloseFile(STsdbFD **ppFD);
 struct SSttFWriter {
@@ -104,3 +141,4 @@ int32_t tsdbSttFWriteDLData(SSttFWriter *pWriter, int64_t suid, int64_t uid, int
   // TODO write row
   return 0;
 }
+#endif
