@@ -12,7 +12,7 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
         # WKT strings to be input as GEOMETRY type
-        self.point = "POINT (3.000000 3.000000)"
+        self.point = "POINT (3.000000 6.000000)"
         self.lineString = "LINESTRING (1.000000 1.000000, 2.000000 2.000000, 5.000000 5.000000)"
         self.polygon = "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))"
 
@@ -122,55 +122,53 @@ class TDTestCase:
 
         # wrong param content input should NOT happen for GEOMETRY type
 
-    def intersects_test(self, dbname = "db"):
+    def geomRelationFunc_test(self, geomRelationFuncName, expectedResults, dbname = "db"):
         # two columns input, including NULL value
-        repectedResult = [True, True, True, None]
-        tdSql.query(f"select ST_Intersects(ST_GeomFromText(c3), c4) from {dbname}.t1")
+        tdSql.query(f"select {geomRelationFuncName}(ST_GeomFromText(c3), c4) from {dbname}.t1")
         for i in range(tdSql.queryRows):
-            tdSql.checkData(i, 0, repectedResult[i])
+            tdSql.checkData(i, 0, expectedResults[0][i])
 
         # constant and column input
-        repectedResult = [True, True, False, None]
-        tdSql.query(f"select ST_Intersects(ST_GeomFromText('{self.point}'), c4) from {dbname}.t1")
+        tdSql.query(f"select {geomRelationFuncName}(ST_GeomFromText('{self.point}'), c4) from {dbname}.t1")
         for i in range(tdSql.queryRows):
-            tdSql.checkData(i, 0, repectedResult[i])
+            tdSql.checkData(i, 0, expectedResults[1][i])
 
         # column and constant input
-        tdSql.query(f"select ST_Intersects(c4, ST_GeomFromText('{self.point}')) from {dbname}.t1")
+        tdSql.query(f"select {geomRelationFuncName}(c4, ST_GeomFromText('{self.point}')) from {dbname}.t1")
         for i in range(tdSql.queryRows):
-            tdSql.checkData(i, 0, repectedResult[i])
+            tdSql.checkData(i, 0, expectedResults[1][i])
 
         # two constants input
-        tdSql.query(f"select ST_Intersects(ST_GeomFromText('{self.point}'), ST_GeomFromText('{self.lineString}'))")
-        tdSql.checkEqual(tdSql.queryResult[0][0], True)
+        tdSql.query(f"select {geomRelationFuncName}(ST_GeomFromText('{self.point}'), ST_GeomFromText('{self.lineString}'))")
+        tdSql.checkEqual(tdSql.queryResult[0][0], expectedResults[2])
 
-        tdSql.query(f"select ST_Intersects(ST_GeomFromText('{self.point}'), ST_GeomFromText('{self.polygon}'))")
-        tdSql.checkEqual(tdSql.queryResult[0][0], False)
+        tdSql.query(f"select {geomRelationFuncName}(ST_GeomFromText('{self.point}'), ST_GeomFromText('{self.polygon}'))")
+        tdSql.checkEqual(tdSql.queryResult[0][0], expectedResults[3])
 
         # NULL type input
-        tdSql.query(f"select ST_Intersects(NULL, ST_GeomFromText('{self.point}'))")
+        tdSql.query(f"select {geomRelationFuncName}(NULL, ST_GeomFromText('{self.point}'))")
         tdSql.checkEqual(tdSql.queryResult[0][0], None)
 
-        tdSql.query(f"select ST_Intersects(ST_GeomFromText('{self.lineString}'), NULL)")
+        tdSql.query(f"select {geomRelationFuncName}(ST_GeomFromText('{self.lineString}'), NULL)")
         tdSql.checkEqual(tdSql.queryResult[0][0], None)
 
-        tdSql.query(f"select ST_Intersects(NULL, NULL)")
+        tdSql.query(f"select {geomRelationFuncName}(NULL, NULL)")
         tdSql.checkEqual(tdSql.queryResult[0][0], None)
 
         # wrong type input
-        tdSql.error(f"select ST_Intersects(c1, c4) from {dbname}.t1", self.errno_FUNTION_PARA_TYPE)
-        tdSql.error(f"select ST_Intersects(c4, c2) from {dbname}.t1", self.errno_FUNTION_PARA_TYPE)
-        tdSql.error(f"select ST_Intersects(c4, 'XXX') from {dbname}.t1", self.errno_FUNTION_PARA_TYPE)
+        tdSql.error(f"select {geomRelationFuncName}(c1, c4) from {dbname}.t1", self.errno_FUNTION_PARA_TYPE)
+        tdSql.error(f"select {geomRelationFuncName}(c4, c2) from {dbname}.t1", self.errno_FUNTION_PARA_TYPE)
+        tdSql.error(f"select {geomRelationFuncName}(c4, 'XXX') from {dbname}.t1", self.errno_FUNTION_PARA_TYPE)
 
         # wrong number of params input
-        tdSql.error(f"select ST_Intersects(c4) from {dbname}.t1", self.errno_FUNTION_PARA_NUM)
-        tdSql.error(f"select ST_Intersects(ST_GeomFromText(c3), c4, c4) from {dbname}.t1", self.errno_FUNTION_PARA_NUM)
+        tdSql.error(f"select {geomRelationFuncName}(c4) from {dbname}.t1", self.errno_FUNTION_PARA_NUM)
+        tdSql.error(f"select {geomRelationFuncName}(ST_GeomFromText(c3), c4, c4) from {dbname}.t1", self.errno_FUNTION_PARA_NUM)
 
         # used in where clause
-        repectedResult = [self.point, self.lineString]
-        tdSql.query(f"select c3 from {dbname}.t1 where ST_Intersects(ST_GeomFromText('{self.point}'), c4)=true")
+        tdSql.query(f"select c3 from {dbname}.t1 where {geomRelationFuncName}(ST_GeomFromText('{self.point}'), c4)=true")
+        tdSql.checkEqual(tdSql.queryRows, expectedResults[4][0])
         for i in range(tdSql.queryRows):
-            tdSql.checkData(i, 0, repectedResult[i])
+            tdSql.checkData(i, 0, expectedResults[4][i+1])
 
     def run(self):
         tdSql.prepare()
@@ -184,8 +182,25 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step3: ST_AsText function test")
         self.asText_test()
 
-        tdLog.printNoPrefix("==========step3: ST_Intersects function test")
-        self.intersects_test()
+        tdLog.printNoPrefix("==========step4: ST_Intersects function test")
+        expectedResults = [
+            [True, True, True, None],     # two columns
+            [True, False, True, None],    # constant and column
+            False,                        # two constants 1
+            True,                         # two constants 2
+            [2, self.point, self.polygon] # in where clause
+        ]
+        self.geomRelationFunc_test('ST_Intersects', expectedResults)
+
+        tdLog.printNoPrefix("==========step5: ST_Touches function test")
+        expectedResults = [
+            [False, False, False, None],  # two columns
+            [False, False, True, None],   # constant and column
+            False,                        # two constants 1
+            True,                         # two constants 2
+            [1, self.polygon]             # in where clause
+        ]
+        self.geomRelationFunc_test('ST_Touches', expectedResults)
 
     def stop(self):
         tdSql.close()

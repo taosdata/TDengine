@@ -3261,6 +3261,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = intersectsFunction,
     .finalizeFunc = NULL
   },
+  {
+    .name = "st_touches",
+    .type = FUNCTION_TYPE_TOUCHES,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = touchesFunction,
+    .finalizeFunc = NULL
+  },
 };
 // clang-format on
 
