@@ -65,7 +65,7 @@ r2d2 = "0.8.10"
 mimalloc = { version = "0.1.34", default-features = false, optional = true }
 
 [dependencies.taos]
-version = "0.5.7"
+version = "0.5.10"
 default-features = false
 features = ["ws", "r2d2"]
 
