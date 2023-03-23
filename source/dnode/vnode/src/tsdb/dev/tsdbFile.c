@@ -33,13 +33,16 @@ typedef enum {
   TSDB_FTYPE_TOMB,      // .tomb
 } tsdb_ftype_t;
 
+const char *tsdb_ftype_suffix[] = {
+    "none", "stt", "head", "data", "sma", "tomb",
+};
+
 typedef struct SFStt {
-  int64_t cid;
   int64_t offset;
 } SFStt;
 
 typedef struct SFHead {
-  // TODO
+  int64_t offset;
 } SFHead;
 
 typedef struct SFData {
@@ -56,8 +59,10 @@ typedef struct SFTomb {
 
 struct STFile {
   SDiskID      diskId;
-  tsdb_ftype_t type;
   int64_t      size;
+  int64_t      cid;
+  int32_t      fid;
+  tsdb_ftype_t type;
   union {
     SFStt  fstt;
     SFHead fhead;

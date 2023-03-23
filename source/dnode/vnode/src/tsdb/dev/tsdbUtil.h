@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TSDB_STT_FILE_WRITER_H
-#define _TSDB_STT_FILE_WRITER_H
+#ifndef _TSDB_UTIL_H
+#define _TSDB_UTIL_H
 
 #include "tsdb.h"
 
@@ -22,23 +22,29 @@
 extern "C" {
 #endif
 
-typedef struct SSttFWriter     SSttFWriter;
-typedef struct SSttFWriterConf SSttFWriterConf;
+/* Exposed Handle */
+typedef struct SDelBlock SDelBlock;
+typedef struct SDelBlk   SDelBlk;
 
-int32_t tsdbSttFWriterOpen(const SSttFWriterConf *pConf, SSttFWriter **ppWriter);
-int32_t tsdbSttFWriterClose(SSttFWriter **ppWriter);
-int32_t tsdbSttFWriteTSData(SSttFWriter *pWriter, TABLEID *tbid, TSDBROW *pRow);
-int32_t tsdbSttFWriteDLData(SSttFWriter *pWriter, TABLEID *tbid, SDelData *pDelData);
+/* Exposed APIs */
 
-struct SSttFWriterConf {
-  STsdb    *pTsdb;
-  SSkmInfo *pSkmTb;
-  SSkmInfo *pSkmRow;
-  int32_t   maxRow;
+/* Exposed Structs */
+struct SDelBlock {
+  // <suid, uid, version, skey, ekey>
+  SColData aColData[4];
+};
+
+struct SDelBlk {
+  int64_t suidMax;
+  int64_t suidMin;
+  int64_t uidMax;
+  int64_t uidMin;
+  int64_t verMax;
+  int64_t verMin;
 };
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TSDB_STT_FILE_WRITER_H*/
+#endif /*_TSDB_UTIL_H*/

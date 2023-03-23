@@ -14,10 +14,44 @@
  */
 
 #include "tsdbSttFWriter.h"
+#include "tsdbUtil.h"
+
+struct SSttFWriter {
+  SSttFWriterConf conf;
+  SBlockData      bData;
+  SDelBlock       dData;
+  SArray         *aSttBlk;  // SArray<SSttBlk>
+  SArray         *aDelBlk;  // SArray<SDelBlk>
+  SSkmInfo        skmTb;
+  SSkmInfo        skmRow;
+  STsdbFD        *pFd;
+};
 
 int32_t tsdbSttFWriterOpen(const SSttFWriterConf *pConf, SSttFWriter **ppWriter) {
   int32_t code = 0;
-  // TODO
+  int32_t lino = 0;
+
+  ppWriter[0] = taosMemoryCalloc(1, sizeof(SSttFWriter));
+  if (ppWriter[0] == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  ppWriter[0]->conf = pConf[0];
+  if (ppWriter[0]->conf.pSkmTb == NULL) ppWriter[0]->conf.pSkmTb = &ppWriter[0]->skmTb;
+  if (ppWriter[0]->conf.pSkmRow == NULL) ppWriter[0]->conf.pSkmRow = &ppWriter[0]->skmRow;
+
+  tBlockDataCreate(&ppWriter[0]->bData);
+  //   tDelBlockCreate(&ppWriter[0]->dData);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pConf->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    if (ppWriter[0]) {
+      taosMemoryFree(ppWriter[0]);
+      ppWriter[0] = NULL;
+    }
+  }
   return code;
 }
 
