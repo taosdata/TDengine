@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use anyhow::Result;
 
 use arrow::{
@@ -211,6 +209,7 @@ async fn main() -> Result<()> {
             .append_value("d1003".as_bytes());
 
         let batch = insert.build()?;
+        dbg!(&batch);
         writer.write(&batch)?;
 
         records += batch.num_rows();

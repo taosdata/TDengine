@@ -228,6 +228,8 @@ pub enum StreamType {
     Flat,
     /// Flow-control stream with lush messages.
     Lush,
+    /// OPC POINT
+    Point,
 }
 
 impl StreamType {
@@ -236,6 +238,7 @@ impl StreamType {
             StreamType::Line => "line",
             StreamType::Flat => "flat",
             StreamType::Lush => "lush",
+            StreamType::Point => "point",
         }
     }
 }
@@ -248,6 +251,7 @@ impl FromStr for StreamType {
             "line" => Ok(Self::Line),
             "flat" => Ok(Self::Flat),
             "lush" => Ok(Self::Lush),
+            "point" => Ok(Self::Point),
             _ => Err(s.to_string()),
         }
     }
@@ -312,6 +316,9 @@ impl IpcMetadata {
             preset: None,
             init: None,
         }
+    }
+    pub fn stream_type(&self) -> &StreamType {
+        &self.stream
     }
     pub fn with_preset(mut self, preset: impl Into<String>) -> Self {
         self.preset.replace(preset.into());
@@ -381,11 +388,7 @@ impl IpcField {
     }
 
     pub fn to_arrow_field(&self) -> Field {
-        Field::new(
-            self.name.as_str(),
-            self.arrow_data_type.clone(),
-            true,
-        )
+        Field::new(self.name.as_str(), self.arrow_data_type.clone(), true)
     }
     pub fn to_arrow_field_with_dict(&self, dict_id: i64, dict_is_ordered: bool) -> Field {
         Field::new_dict(
