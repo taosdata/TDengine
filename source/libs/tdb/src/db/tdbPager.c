@@ -987,6 +987,7 @@ int tdbPagerRestoreJournals(SPager *pPager) {
     }
   }
 
+  taosArrayDestroy(pTxnList);
   tdbCloseDir(&pDir);
 
   return 0;
