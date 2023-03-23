@@ -78,7 +78,7 @@ static int32_t tsdbCommitWriteDelData(SCommitter *pCommitter, int64_t suid, int6
   return code;
 }
 
-static int32_t tsdbCommitTimeSeriesData(SCommitter *pCommitter) {
+static int32_t tsdbCommitTSData(SCommitter *pCommitter) {
   int32_t code = 0;
   int32_t lino;
 
@@ -121,9 +121,11 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCommitDelData(SCommitter *pCommitter) {
+static int32_t tsdbCommitDLData(SCommitter *pCommitter) {
   int32_t code = 0;
   int32_t lino;
+
+  ASSERTS(0, "not implemented yet");
 
   int64_t    nDel = 0;
   SMemTable *pMem = pCommitter->pTsdb->imem;
@@ -166,6 +168,7 @@ static int32_t tsdbCommitFSetStart(SCommitter *pCommitter) {
   tsdbFidKeyRange(pCommitter->fid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
                   &pCommitter->maxKey);
   pCommitter->expLevel = tsdbFidLevel(pCommitter->fid, &pCommitter->pTsdb->keepCfg, taosGetTimestampSec());
+  pCommitter->nextKey = TSKEY_MAX;
 
   // TODO
 
@@ -198,10 +201,10 @@ static int32_t tsdbCommitNextFSet(SCommitter *pCommitter) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // commit fset
-  code = tsdbCommitTimeSeriesData(pCommitter);
+  code = tsdbCommitTSData(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbCommitDelData(pCommitter);
+  code = tsdbCommitDLData(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // fset commit end
@@ -222,6 +225,7 @@ static int32_t tsdbCommitterOpen(STsdb *pTsdb, SCommitInfo *pInfo, SCommitter *p
 
   memset(pCommitter, 0, sizeof(SCommitter));
   pCommitter->pTsdb = pTsdb;
+  pCommitter->nextKey = pTsdb->imem->minKey;  // TODO
 
   // TODO
 
@@ -267,7 +271,9 @@ int32_t tsdbCommitBegin(STsdb *pTsdb, SCommitInfo *pInfo) {
     code = tsdbCommitterOpen(pTsdb, pInfo, &committer);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    while (committer.nextKey != TSKEY_MAX && (code = tsdbCommitNextFSet(&committer))) {
+    while (committer.nextKey != TSKEY_MAX) {
+      code = tsdbCommitNextFSet(&committer);
+      if (code) break;
     }
 
     code = tsdbCommitterClose(&committer, code);
