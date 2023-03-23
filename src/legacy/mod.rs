@@ -1998,26 +1998,9 @@ pub async fn legacy_to_taos(
     let metrics_inner = metrics.clone();
     let todo_inner = todo.clone();
     std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(2));
+        std::thread::sleep(Duration::from_secs(5));
         log::info!("{}", metrics_inner);
     });
-
-    metrics.workers.store(workers as _, Ordering::SeqCst);
-
-    let todo = parse_todo_list(&from_pool, &source_opts).await?;
-    let todo = Arc::new(todo);
-
-    metrics
-        .stables
-        .store(todo.stables.len() as _, Ordering::SeqCst);
-
-    let metrics_inner = metrics.clone();
-    let todo_inner = todo.clone();
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(2));
-        log::info!("{}", metrics_inner);
-    });
-
     match (source_opts.mode, source_opts.schema) {
         (_, SchemaMode::Only) => {
             sync_schema(

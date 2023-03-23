@@ -220,7 +220,7 @@ pub enum LushMessageType {
     Insert,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum StreamType {
     /// Line-protocol stream.
     Line,

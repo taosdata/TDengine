@@ -173,9 +173,9 @@ fn handle_point_message<R: Read, W: Write>(
                     let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
                     let (table, field) = map.get(&id).unwrap();
                     let sql = if ts_index > value_index {
-                        format!("insert into {table} ({field}, ts) values (?, ?)") 
+                        format!("insert into {table} ({field}, ts) values (?, ?)")
                     } else {
-                        format!("insert into {table} (ts, {field}) values (?, ?)") 
+                        format!("insert into {table} (ts, {field}) values (?, ?)")
                     };
                     stmt.prepare(&sql).unwrap();
                     let new_cv_vec = cv_vec.iter().map(|t_cv| t_cv.slice(i..i+1).unwrap()).collect_vec();

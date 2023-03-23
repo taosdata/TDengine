@@ -22,6 +22,7 @@ pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::tmq_to_td;
 use tokio_util::sync::CancellationToken;
 pub use transform::Action;
+pub use plugins::*;
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {

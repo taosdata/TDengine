@@ -839,7 +839,7 @@ pub enum LushMessage {
     Insert(Vec<LushMessageInsert>),
 }
 // pub struct LushMessageTables(Vec<LushInsertAttrs>);
-pub trait IpcMessage {
+pub trait IpcMessage: Any + Send {
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -848,6 +848,7 @@ impl IpcMessage for LushMessage {
         self
     }
 }
+
 
 impl<R: Read> Iterator for IpcReader<R> {
     type Item = Result<Box<dyn IpcMessage>, ArrowError>;
