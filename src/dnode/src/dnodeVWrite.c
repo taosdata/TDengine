@@ -216,8 +216,15 @@ void dnodeSendRpcVWriteRsp(void *pVnode, void *wparam, int32_t code) {
       // first add to list
       vnodeAddWait(pVnode, NULL, pWrite->rspRet.psem, pWrite);
       pthread_t* thread = taosCreateThread(waitingResultThread, pWrite);
-      // set thread 
-      vnodeSetWait(pVnode, thread, pWrite);
+      if(thread == NULL) {
+        dError(":SDEL pVnode:%p pWrite=%p create thread error.", pWrite->pVnode, pWrite);
+        rpcSendResponse(&rpcRsp);
+        vnodeRemoveWait(pWrite->pVnode, pWrite);
+        vnodeFreeFromWQueue(pVnode, pWrite);
+      } else {
+        // set thread
+        vnodeSetWait(pVnode, thread, pWrite);
+      }
     }
   }  
 }
