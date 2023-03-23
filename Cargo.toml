@@ -75,6 +75,12 @@ tempfile = "3"
 
 taosx-ipc = { path = "./taosx-ipc" }
 
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["processthreadsapi"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dependencies.taos]
 version = "0.5.11"
 default-features = false

@@ -2,6 +2,9 @@ use std::{
     io::prelude::*,
     num::ParseIntError,
     path::{Path, PathBuf},
+    sync::Arc,
+    thread::JoinHandle,
+    time::Duration,
 };
 
 use async_process::Stdio;
@@ -70,7 +73,7 @@ pub enum PiError {
 
 impl PiConfig {
     pub fn new(mut dsn: Dsn, ipc: u16, sql: u16) -> Result<Self, PiError> {
-        debug_assert!(dsn.driver == "id");
+        debug_assert!(dsn.driver == "pi");
         let server_name = dsn
             .addresses
             .first()
@@ -148,13 +151,15 @@ pub async fn pi_to_taos(
     jobs: usize,
     port_pool: &PortPool,
 ) -> anyhow::Result<()> {
-    println!("# plugin: PI");
+    println!("# loading plugin: PI");
     #[cfg(not(target_os = "windows"))]
     {
         anyhow::bail!("PI connector support only windows platform");
     }
 
     let target_pool = TaosBuilder::from_dsn(to)?.pool()?;
+
+    let taos = target_pool.get_timeout(Duration::from_secs(5))?;
 
     let target_pool_for_ipc = target_pool.clone();
 
@@ -171,28 +176,71 @@ pub async fn pi_to_taos(
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
 
+    log::info!("Using config \n{}", toml);
+
     let server = spawn_rest_service(target_pool, 6052).await?;
-    let ipc = tokio::spawn(sink::listen_tcp_socket(
-        &target_pool_for_ipc,
-        config.ipc_stream,
-    ));
 
-    let mut command = async_process::Command::new(
-        "C:\\Program Files (x86)\\TD PI Connector\\TDPIConnector.Service.exe",
-    );
-    let output = command
-        .arg("-f")
-        .arg(config_file.path().display().to_string())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .await?;
+    let ipc =
+        std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, config.ipc_stream));
 
-    server.abort();
-    ipc.abort();
-    if output.status.success() {
-        return Ok(());
-    }
-    anyhow::bail!("PI plugin failed");
+    // let ipc = ;
+    // let ipc = tokio::spawn(future);
+
+    let v = tokio::task::spawn_blocking(move || {
+        let mut command = std::process::Command::new(
+            "C:\\Program Files (x86)\\TD PI Connector\\TDPIConnector.Service.exe",
+            // "target/debug/examples/pi",
+        );
+        command
+            .arg("-f")
+            .arg(config_file.path().display().to_string())
+            // .stdout(Stdio::piped())
+            // .stderr(Stdio::piped())
+            .output()
+    });
+
+    tokio::select! {
+        output = v => {
+            let output = output??;
+            // dbg!(output);
+            log::info!("PI exit with status {}", output.status);
+            // server.abort();
+            panic!();
+        },
+        _ = server => {
+            panic!();
+        }
+        _ = tokio::signal::ctrl_c() => {
+            log::info!("Ctrl+C triggered, cancel tasks");
+            // panic!();
+        }
+    };
+
+    stop_thread(ipc);
+
+    // rt.handle();
+    // (&unsafe { *Arc::into_raw(rt) }).shutdown_background();
+    log::info!("Done");
+    // server.abort();
     Ok(())
+}
+
+fn stop_thread<T>(handle: JoinHandle<T>) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::io::IntoRawHandle;
+        use winapi::ctypes::c_void as winapi_c_void;
+        use winapi::um::processthreadsapi::TerminateThread;
+
+        let raw_handle = handle.into_raw_handle();
+        TerminateThread(raw_handle as *mut winapi_c_void, 0);
+    }
+    #[cfg(unix)]
+    unsafe {
+        use libc::pthread_kill;
+        use std::os::unix::thread::JoinHandleExt;
+
+        let raw_handle = handle.into_pthread_t();
+        pthread_kill(raw_handle, 2);
+    };
 }

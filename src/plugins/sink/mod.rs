@@ -3,6 +3,7 @@ use std::{
     io::{Read, Write},
     net::{TcpListener, TcpStream},
     path::Path,
+    sync::Arc,
 };
 use taos::{AsyncQueryable, Bindable, Dsn, Itertools, Stmt, TBuilder, Taos, TaosBuilder, TaosPool};
 // use taosx_ipc::ack::{AckWriter, AckWriterBuilder};
@@ -130,11 +131,12 @@ async fn ipc_process<R: Read, W: Write>(
 }
 
 #[cfg(not(target_os = "windows"))]
-pub async fn listen_unix_socket(target: &TaosPool, socket: impl AsRef<Path>) -> anyhow::Result<()> {
+pub async fn listen_unix_socket(target: TaosPool, socket: impl AsRef<Path>) -> anyhow::Result<()> {
     let path = socket.as_ref();
     if path.exists() {
         std::fs::remove_file(path).unwrap();
     }
+    let runtime = tokio::runtime::Runtime::new();
     let listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
     info!("listen on socket address: {}", path.display());
 
@@ -154,9 +156,10 @@ pub async fn listen_unix_socket(target: &TaosPool, socket: impl AsRef<Path>) -> 
     }
 }
 
-pub async fn listen_tcp_socket(target: &TaosPool, socket: impl AsRef<str>) -> anyhow::Result<()> {
+pub fn listen_tcp_socket(target: TaosPool, socket: impl AsRef<str>) -> anyhow::Result<()> {
     let tcp_addr = socket.as_ref();
-    let listener = TcpListener::bind(tcp_addr).unwrap();
+    let listener = TcpListener::bind(tcp_addr)?;
+    let runtime = tokio::runtime::Runtime::new()?;
     info!("listen on socket address: {tcp_addr}");
     // let pool = TaosBuilder::from_dsn("taos:///test3")?.pool()?;
     loop {
@@ -164,7 +167,7 @@ pub async fn listen_tcp_socket(target: &TaosPool, socket: impl AsRef<str>) -> an
             Ok((stream, addr)) => {
                 tracing::info!("new unix client!: {:?}", addr);
                 let pool = target.clone();
-                tokio::spawn(async move { ipc_tcp_read(pool, stream) });
+                runtime.spawn(async move { ipc_tcp_read(pool, stream).await });
             }
             Err(e) => {
                 /* connection failed */
@@ -172,4 +175,5 @@ pub async fn listen_tcp_socket(target: &TaosPool, socket: impl AsRef<str>) -> an
             }
         }
     }
+    Ok(())
 }

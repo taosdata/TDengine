@@ -24,6 +24,7 @@ impl PortPool {
             if let Some(index) = bitmap.first_zero() {
                 let port = self.range.start + index as u16;
                 if port_selector::is_free_tcp(port) {
+                    bitmap.set(index, true);
                     return Some(port);
                 } else {
                     bitmap.set(index, true);

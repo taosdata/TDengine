@@ -154,6 +154,7 @@ impl Cli {
             ("pi", "taos") => {
                 let port_pool = PortPool::default();
                 pi_to_taos(args.from, args.transform, args.to, args.jobs, &port_pool).await?;
+                log::debug!("main scheduler done");
             }
             (_, _) => bail!(
                 "unsupported source or dest: from `{}` to `{}`",
