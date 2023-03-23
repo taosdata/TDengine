@@ -7,7 +7,7 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arrow = { version = "35.0.0", features = ["ipc"] }
+arrow = { version = "35.0.0" }
 chrono = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }

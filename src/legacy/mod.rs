@@ -912,10 +912,11 @@ async fn sync_specified_tables_with_workers(
     } else {
         std::thread::available_parallelism()?.get() * 2
     };
+    let half_workers = workers / 2;
     let v2: String = to_taos.query_one("SELECT server_version()").await?.unwrap();
     let to_is_v3 = v2.starts_with('3');
 
-    let chunk_size = tables.len() / workers / 4;
+    let chunk_size = tables.len() / workers / 2;
     let chunk_size = if chunk_size > 0 { chunk_size } else { 1 };
 
     log::info!("Synching schedule use chunk size {chunk_size}");
@@ -936,12 +937,14 @@ async fn sync_specified_tables_with_workers(
                 let metrics = metrics.clone();
                 Ok::<_, anyhow::Error>((id + 1, from, to, count, target_opts, metrics, table))
             })
-            .try_for_each_concurrent(workers * 4, |item| async move {
+            .try_for_each_concurrent(half_workers, |item| async move {
                 let (id, from, to, count, target_opts, metrics, (stable, table)) = item;
 
                 log::debug!("[table {id}: {table}] Syncing started");
                 {
+                    log::error!("[{id}:{table}] try get connection");
                     let from = from.get();
+                    log::error!("[{id}:{table}] got connection");
                     if from.is_err() {
                         let err = from.unwrap_err();
                         log::error!("[table: {table}] Got reader connection error: {err}",);

@@ -45,6 +45,7 @@ pub struct TaskOpts {
     pub compression_level: Option<usize>,
     pub force: bool,
     pub cancel: CancellationToken,
+    pub port_pool: crate::utils::port_pool::PortPool,
 }
 
 impl Drop for TaskOpts {
@@ -69,6 +70,7 @@ impl TaskOpts {
             compression_level: _,
             force,
             cancel,
+            port_pool,
         } = self;
 
         {
@@ -99,7 +101,14 @@ impl TaskOpts {
                     query_to_parquet(from.clone(), to.clone(), *force).await?;
                 }
                 ("pi", "taos") => {
-                    plugins::pi_to_taos(from.clone(), transform.clone(), to.clone(), *jobs).await?;
+                    plugins::pi_to_taos(
+                        from.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        *jobs,
+                        port_pool,
+                    )
+                    .await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }

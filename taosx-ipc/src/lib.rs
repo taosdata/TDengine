@@ -17,6 +17,7 @@ pub(crate) mod constants {
 }
 
 pub mod prelude {
+    pub use crate::ack::*;
     pub use crate::stream::reader::*;
     pub use crate::stream::writer::*;
 }
