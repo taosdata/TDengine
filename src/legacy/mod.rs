@@ -1902,11 +1902,13 @@ pub async fn legacy_to_taos(
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }
 
-    let from_pool = from_builder.pool()?;
-
     let connect_timeout = Duration::from_secs(10);
-
-    let from = from_pool.get_timeout(connect_timeout)?;
+    let pool_options = from_builder
+        .pool_builder()
+        .max_size(std::cmp::max(8, concurrent as u32))
+        .connection_timeout(Duration::from_secs(300));
+    let from_pool = TaosBuilder::from_dsn(&from)?.with_pool_builder(pool_options)?;
+    let from = from_pool.get()?;
 
     let source_taos = from_pool.get()?;
     if target_opts.assert {

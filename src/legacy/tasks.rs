@@ -1,8 +1,8 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{cell::UnsafeCell, collections::HashMap, sync::Arc, time::Duration};
 
 use chrono::Utc;
 use taos::*;
-use tokio::task::JoinHandle;
+use tokio::{runtime::Runtime, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 
 use anyhow::Result;
@@ -20,6 +20,8 @@ pub struct TablesHandle {
     handles: HashMap<String, JoinHandle<Result<()>>>,
     cancellation: Option<CancellationToken>,
     metrics: Arc<LegacyMetrics>,
+    sender: tokio::sync::mpsc::UnboundedSender<(String, TimeRange)>,
+    worker: Option<WorkerHandler>,
 }
 
 impl Drop for TablesHandle {
@@ -28,6 +30,47 @@ impl Drop for TablesHandle {
     }
 }
 
+async fn process_sync_with(
+    mut receiver: tokio::sync::mpsc::UnboundedReceiver<(String, TimeRange)>,
+    source: TaosPool,
+    target: TaosPool,
+    target_opts: TargetOpts,
+    target_is_v3: bool,
+    cancellation: CancellationToken,
+    metrics: &LegacyMetrics,
+) -> anyhow::Result<()> {
+    // let start = now - chrono::Duration::from_std(opts_cloned.restro)?;
+    let from = source.get()?;
+    let to = target.get()?;
+
+    // let target_is_v3 = self.target_is_v3;
+    // let table = self.table.clone();
+    // let target_opts = self.target_opts.clone();
+    // log::debug!("spawn sync task for range: {:?}", opts.time_range);
+    // let h = tokio::spawn(async move {
+    loop {
+        let (table, time_range) = receiver.recv().await.unwrap();
+
+        let opts = crate::QueryOpts {
+            time_range,
+            ..Default::default()
+        };
+        sync_single_table(
+            &from,
+            None, // todo
+            &table,
+            &to,
+            &opts,
+            &target_opts,
+            target_is_v3,
+            metrics,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+type WorkerHandler = JoinHandle<()>;
 impl TablesHandle {
     pub async fn new(
         source: TaosPool,
@@ -44,6 +87,32 @@ impl TablesHandle {
             .await?
             .unwrap();
         let target_is_v3 = version.starts_with("3");
+        let (sender, todo) = tokio::sync::mpsc::unbounded_channel();
+
+        // let opts_cloned = opts.clone();
+        let (source2, target2) = (source.clone(), target.clone());
+        let target_opts_cloned = target_opts.clone();
+        let token = CancellationToken::new();
+        let token_cloned = token.clone();
+        let sender_cloned = sender.clone();
+        let metrics_cloned = metrics.clone();
+        let worker = tokio::spawn(async move {
+            if let Err(err) = process_sync_with(
+                todo,
+                source2,
+                target2,
+                target_opts_cloned,
+                target_is_v3,
+                token_cloned,
+                &metrics_cloned,
+            )
+            .await
+            {
+                log::warn!("syncing error: {err:?}");
+            }
+            let _ = sender_cloned;
+        });
+        // let runtime = Runtime::new()?;
         Ok(Self {
             source,
             target,
@@ -51,8 +120,10 @@ impl TablesHandle {
             target_is_v3,
             opts,
             metrics,
+            sender,
             handles: Default::default(),
-            cancellation: Some(CancellationToken::new()),
+            cancellation: Some(token),
+            worker: Some(worker),
         })
     }
     fn push_table(&mut self, table: String) -> Result<()> {
@@ -67,6 +138,7 @@ impl TablesHandle {
             cancellation: CancellationToken::new(),
             metrics: self.metrics.clone(),
         };
+        // handle.run().await;
         let handle = tokio::spawn(async move { handle.run().await });
         self.handles.insert(table, handle);
         Ok(())
@@ -74,26 +146,57 @@ impl TablesHandle {
 
     pub async fn spawn(&mut self) -> Result<()> {
         let from = self.source.get()?;
+
         let v1: String = from.query_one("SELECT server_version()").await?.unwrap();
-        if v1.starts_with('2') {
-            let mut res = from.query("SHOW TABLES").await?;
-            let mut de = res.deserialize::<TableRecord>();
-            while let Some(row) = de.try_next().await? {
-                self.push_table(row.table_name)?;
+
+        let tables: Vec<_> = from
+            .query("SHOW TABLES")
+            .await?
+            .deserialize::<String>()
+            .try_collect()
+            .await?;
+        let sender = self.sender.clone();
+        let opts = self.opts.clone();
+        let h = tokio::spawn(async move {
+            let mut now = Utc::now();
+            let excursion = chrono::Duration::from_std(opts.excursion)?;
+            if !opts.excursion.is_zero() {
+                now -= excursion;
             }
-        } else {
-            //  get normal tables.
-            let mut res = from.query("SHOW TABLES").await?;
-            let mut de = res.deserialize::<String>();
-            while let Some(row) = de.try_next().await? {
-                self.push_table(row)?;
+            // now is the separator of history and future data.
+
+            // check if need retro back.
+            if opts.restro.is_zero() {
+                // trace back to some duration.
+                let start = now - chrono::Duration::from_std(opts.restro)?;
+                let time_range = TimeRange::new().start(start).end(now);
+
+                for table in &tables {
+                    sender.send((table.clone(), time_range.clone())).unwrap();
+                }
             }
-        }
+
+            let tick_duration = chrono::Duration::from_std(opts.interval)?;
+            let mut interval = tokio::time::interval(opts.interval);
+            interval.tick().await;
+            let mut start = now;
+            loop {
+                let end = Utc::now() - tick_duration;
+                let time_range = TimeRange::new().start(start).end(end);
+                log::debug!("spawn sync task for range: {:?}", time_range);
+                for table in &tables {
+                    sender.send((table.clone(), time_range.clone())).unwrap();
+                }
+                start = end;
+                let _ = interval.tick().await;
+            }
+            Ok::<(), anyhow::Error>(())
+        });
         Ok(())
     }
     pub async fn join(&mut self) -> Result<()> {
-        for h in self.handles.values_mut() {
-            h.await??;
+        if let Some(worker) = self.worker.take() {
+            worker.await;
         }
         Ok(())
     }
@@ -203,6 +306,20 @@ impl TableHandler {
                 .await
             });
             self.handles.push(h);
+            // let h = tokio::spawn(async move {
+            // sync_single_table(
+            //     &from,
+            //     None,
+            //     &table,
+            //     &to,
+            //     &opts,
+            //     &target_opts,
+            //     target_is_v3,
+            //     &metrics,
+            // )
+            // .await;
+            // });
+            // self.handles.push(h);
         }
 
         let tick_duration = chrono::Duration::from_std(self.opts.interval)?;
@@ -237,6 +354,21 @@ impl TableHandler {
                 .await
             });
             self.handles.push(h);
+            // sync_single_table(
+            //     &from,
+            //     None,
+            //     &table,
+            //     &to,
+            //     &opts,
+            //     &target_opts,
+            //     target_is_v3,
+            //     &metrics,
+            // )
+            // .await;
+            // let h = tokio::spawn(async move {
+            //     sync_single_table(&from, &table, &to, &opts, &target_opts, target_is_v3).await
+            // });
+            // self.handles.push(h);
             start = end;
         }
     }

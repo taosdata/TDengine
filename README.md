@@ -175,9 +175,9 @@ taosx run \
 
 The parameter `query` only works in these two scenarios, and should be a fetchable SQL(like `SELECT`).
 
-### For old versions data migration
+### Data Migration
 
-If you want to migrate a **2.6** version instance to another version (2.6 or 3.0), you need to install with feature `optin` instead of default.
+If you want to migrate a **2.6** version (or any version) instance to another version (2.6 or 3.0), you need to install with feature `optin` instead of default.
 
 ```bash
 cargo install --path /taosx/source/ --no-default-features --features optin
@@ -202,6 +202,20 @@ taosx run \
   -t 'taos://td3:6030/db2?libraryPath=./libtaos.so.3.0.1.8'\
   -vv
 ```
+
+You can use this feature to synchronize data in a time range:
+
+```bash
+taosx run \
+  -f 'taos://td2:6030/db1?start=2022-10-10T00:00:00Z&end=2023-10-10T00:00:00Z' \
+  -t 'taos://td3:6030/db2'\
+  -vv
+```
+
+Both `start` and `end` parameters should be RFC3339 with timezone.
+
+For some use cases, you can synchronize one or more stables with
+`stable=name1,name2` or child tables with `tables=stable_1.sub_1,ordinary_table_2`.
 
 ## Advanced Usage
 
@@ -499,8 +513,6 @@ taosx follows the [OpenAPI Specification 3.x][oas3] and provides a [SwaggerUI] i
     - `deleted`: include deleted tasks too.
 - **GET /tasks/count**: get tasks count only, all the filters above will work in this api.
 - **POST /tasks**: create new task with from/to DSN and return `id` of the task.
-- **POST /tasks/replicate**: create a replication task with explicit options.
-- **POST /tasks/subscribe**: create a subscription task with explicit options.
 - **GET /tasks/{id}**: get task status by `id`.
 - **POST /tasks/{id}/start**: start a task by `id` if not running.
 - **POST /tasks/{id}/stop**: stop a running tasks by `id`, do nothing if not running.
@@ -511,28 +523,22 @@ A task schema might be:
 ```json
 {
   "id": 1,
-  "stream_type": "replicate",
+  "from": "tmq://root:taosdata@localhost:6030/test",
+  "to": "local:/path/to/backup/test",
   "created_at": "2022-02-02T02:02:02+08:00",
   "last_modified_at": "2022-02-02T02:02:02+08:00",
-  "completed": false,
-  "from": "tmq://root:taosdata@localhost:6030/test",
-  "from_cluster": "<cluster id>",
-  "to": "local:/path/to/backup/test",
-  "to_cluster": "<cluster id>",
   "finished_at": "2022-02-02T02:02:02+08:00",
   "status": "completed",
+  "labels": []
 }
 ```
 
 - *`id`*: a unique 64 bit integer.
-- *`stream_type`*: possible `replicate`, `subscribe`, `backup`.
 - *`created_at`*: created datetime in nanoseconds with RFC3339 format.
 - *`last_modified_at`*: datetime that the task has last been modified.
 - *`completed`*: check if the status is `completed`.
 - *`from`*: DSN for source.
-- *`from_cluster`*: Optional cluster id for data source.
 - *`to`*: DSN for target.
-- *`to_cluster`*: Optional cluster id for data target.
 - *`status`*: possible values: `created`, `failed`, `cancelled`, `deleted`, `completed`, `interrupted`, `stopped`.
 - *`reason`*: an nullable field for the reason of current status (currently, for `failed` only).
 
@@ -540,7 +546,6 @@ To create a new task, use the schema:
 
 ```json
 {
-  "stream_type": "backup",
   "from": "tmq://root:taosdata@localhost:6030/test",
   "to": "local:./backups-test"
 }
@@ -551,7 +556,6 @@ And the POST response body is:
 ```json
 {
   "id": 3,
-  "stream_type": "backup",
   "from": "tmq://root:taosdata@localhost:6030/test",
   "to": "local:./backups-test",
   "created_at": "2022-08-30T20:45:10.815742654+08:00",
