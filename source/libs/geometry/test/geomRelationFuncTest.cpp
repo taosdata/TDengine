@@ -16,39 +16,33 @@
 #include "geomFuncTestUtil.h"
 
 void callGeomRelationFuncAndCompareResult(FScalarExecProcess geomRelationFunc,
-                                          SScalarParam *pInputIntersects, int32_t rowNum,
+                                          SScalarParam *pInput, int32_t rowNum,
                                           int32_t expectedCode, int8_t expectedResult[]) {
-  SScalarParam *pOutputIntersects;
-  makeOneScalarParam(&pOutputIntersects, TSDB_DATA_TYPE_BOOL, 0, rowNum);
-  int32_t code = geomRelationFunc(pInputIntersects, 2, pOutputIntersects);
+  SScalarParam *pOutput;
+  makeOneScalarParam(&pOutput, TSDB_DATA_TYPE_BOOL, 0, rowNum);
+  int32_t code = geomRelationFunc(pInput, 2, pOutput);
   ASSERT_EQ(code, expectedCode);
 
   if (code == TSDB_CODE_SUCCESS) {
     int8_t res = -1;
     for (int32_t i = 0; i < rowNum; ++i) {
-      bool isNull1 = colDataIsNull_s(pOutputIntersects->columnData, i);
+      bool isNull1 = colDataIsNull_s(pOutput->columnData, i);
       if (isNull1) {
         res = -1;
       }
       else {
-        res = *(bool*)colDataGetData(pOutputIntersects->columnData, i);
+        res = *(bool*)colDataGetData(pOutput->columnData, i);
       }
 
       ASSERT_EQ(res, expectedResult[i]);
     }
   }
 
-  destroyScalarParam(pOutputIntersects, 1);
-  destroyScalarParam(pInputIntersects, 2);
+  destroyScalarParam(pOutput, 1);
+  destroyScalarParam(pInput, 2);
 }
 
-void callIntersectsAndCompareResult(SScalarParam *pInputIntersects, int32_t rowNum, int32_t expectedCode, int8_t expectedResult[]) {
-  callGeomRelationFuncAndCompareResult(intersectsFunction,
-                                       pInputIntersects, rowNum,
-                                       expectedCode, expectedResult);
-}
-
-TEST(GeomFuncTest, intersectsFunction) {
+void relationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedResults[5][6]) {
   int32_t rowNum = 6;
 
   char strArray1[rowNum][TSDB_MAX_BINARY_LEN];
@@ -68,80 +62,101 @@ TEST(GeomFuncTest, intersectsFunction) {
   STR_TO_VARSTR(strArray2[5], "POLYGON((5.0 6.0, 7.0 6.0, 7.0 8.0, 5.0 8.0, 5.0 6.0))");
 
   // two columns input
-  SScalarParam *pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
-  callGeomFromTextWrapper5(strArray1, rowNum, pInputIntersects);  //pInputIntersects come from GeomFromText()
-  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects + 1);
-  int8_t expectedResultTwoCol[rowNum] = {1, 0, 1, 1, 0, 1}; // 1: true, 0: false, -1: null
-  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultTwoCol);
+  SScalarParam *pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  callGeomFromTextWrapper5(strArray1, rowNum, pInput);  //pInput come from GeomFromText()
+  callGeomFromTextWrapper5(strArray2, rowNum, pInput + 1);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResults[0]);
 
   // swap two columns
-  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
-  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects);
-  callGeomFromTextWrapper5(strArray1, rowNum, pInputIntersects + 1);
-  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultTwoCol);
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  callGeomFromTextWrapper5(strArray2, rowNum, pInput);
+  callGeomFromTextWrapper5(strArray1, rowNum, pInput + 1);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResults[0]);
 
   // constant and column input
-  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
-  callGeomFromTextWrapper5(strArray1, 1, pInputIntersects);
-  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects + 1);
-  int8_t expectedResultFirstConst[rowNum] = {1, 0, 1, 0, 1, 0};
-  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultFirstConst);
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  callGeomFromTextWrapper5(strArray1, 1, pInput);
+  callGeomFromTextWrapper5(strArray2, rowNum, pInput + 1);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResults[1]);
 
   // column and constant input
-  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
-  callGeomFromTextWrapper5(strArray1, rowNum, pInputIntersects);
-  callGeomFromTextWrapper5(strArray2, 1, pInputIntersects + 1);
-  int8_t expectedResultSecondConst[rowNum] = {1, 0, 0, 0, 0, 1};
-  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultSecondConst);
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  callGeomFromTextWrapper5(strArray1, rowNum, pInput);
+  callGeomFromTextWrapper5(strArray2, 1, pInput + 1);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResults[2]);
 
   // two constants input
-  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
-  callGeomFromTextWrapper5(strArray1, 1, pInputIntersects);
-  callGeomFromTextWrapper5(strArray2, 1, pInputIntersects + 1);
-  int8_t expectedResultTwoConst[1] = {1};
-  callIntersectsAndCompareResult(pInputIntersects, 1, TSDB_CODE_SUCCESS, expectedResultTwoConst);
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  callGeomFromTextWrapper5(strArray1, 1, pInput);
+  callGeomFromTextWrapper5(strArray2, 1, pInput + 1);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, 1, TSDB_CODE_SUCCESS, expectedResults[3]);
 
   // two columns with NULL value input
-  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
   STR_TO_VARSTR(strArray1[2], "");
   STR_TO_VARSTR(strArray2[4], "");
-  callGeomFromTextWrapper5(strArray1, rowNum, pInputIntersects);
-  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects + 1);
-  int8_t expectedResultWithNull[rowNum] = {1, 0, -1, 1, -1, 1};
-  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultWithNull);
+  callGeomFromTextWrapper5(strArray1, rowNum, pInput);
+  callGeomFromTextWrapper5(strArray2, rowNum, pInput + 1);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResults[4]);
 
   // first NULL type input
-  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
-  setScalarParam(pInputIntersects, TSDB_DATA_TYPE_NULL, 0, 1);
-  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects + 1);
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  setScalarParam(pInput, TSDB_DATA_TYPE_NULL, 0, 1);
+  callGeomFromTextWrapper5(strArray2, rowNum, pInput + 1);
   int8_t expectedResultNullType[rowNum] = {-1, -1, -1, -1, -1, -1};
-  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultNullType);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResultNullType);
 
   // second NULL type input
-  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
-  callGeomFromTextWrapper5(strArray1, rowNum, pInputIntersects);
-  setScalarParam(pInputIntersects + 1, TSDB_DATA_TYPE_NULL, 0, 1);
-  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultNullType);
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  callGeomFromTextWrapper5(strArray1, rowNum, pInput);
+  setScalarParam(pInput + 1, TSDB_DATA_TYPE_NULL, 0, 1);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResultNullType);
 
   // first empty content input
-  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
   char strInput[TSDB_MAX_BINARY_LEN];
   STR_TO_VARSTR(strInput, "");
-  setScalarParam(pInputIntersects, TSDB_DATA_TYPE_GEOMETRY, strInput, 1);
-  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects + 1);
-  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_SUCCESS, expectedResultNullType);
+  setScalarParam(pInput, TSDB_DATA_TYPE_GEOMETRY, strInput, 1);
+  callGeomFromTextWrapper5(strArray2, rowNum, pInput + 1);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResultNullType);
 
   // first wrong type input
-  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
   int32_t intInput = 3;
-  setScalarParam(pInputIntersects, TSDB_DATA_TYPE_INT, &intInput, 1);
-  callGeomFromTextWrapper5(strArray2, rowNum, pInputIntersects + 1);
-  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, 0);
+  setScalarParam(pInput, TSDB_DATA_TYPE_INT, &intInput, 1);
+  callGeomFromTextWrapper5(strArray2, rowNum, pInput + 1);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, 0);
 
   // second wrong content input
-  pInputIntersects = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
+  pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
   STR_TO_VARSTR(strInput, "XXX");
-  callGeomFromTextWrapper5(strArray1, rowNum, pInputIntersects);
-  setScalarParam(pInputIntersects + 1, TSDB_DATA_TYPE_GEOMETRY, strInput, 1);
-  callIntersectsAndCompareResult(pInputIntersects, rowNum, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, 0);
+  callGeomFromTextWrapper5(strArray1, rowNum, pInput);
+  setScalarParam(pInput + 1, TSDB_DATA_TYPE_GEOMETRY, strInput, 1);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, 0);
+}
+
+TEST(GeomRelationFuncTest, intersectsFunction) {
+  // 1: true, 0: false, -1: null
+  int8_t expectedResults[5][6] = {
+    {1, 0, 1, 1, 0, 1},   // two columns
+    {1, 0, 1, 0, 1, 0},   // first constant
+    {1, 0, 0, 0, 0, 1},   // second constant
+    {1},                  // two constant
+    {1, 0, -1, 1, -1, 1}  // with Null value
+  };
+
+  relationFuncTest(intersectsFunction, expectedResults);
+}
+
+TEST(GeomRelationFuncTest, touchesFunction) {
+  // 1: true, 0: false, -1: null
+  int8_t expectedResults[5][6] = {
+    {0, 0, 0, 0, 0, 1},   // two columns
+    {0, 0, 0, 0, 0, 0},   // first constant
+    {0, 0, 0, 0, 0, 0},   // second constant
+    {0},                  // two constant
+    {0, 0, -1, 0, -1, 1}  // with Null value
+  };
+
+  relationFuncTest(touchesFunction, expectedResults);
 }

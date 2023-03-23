@@ -115,7 +115,7 @@ void callMakePointAndCompareResult(int32_t type1, void *valueArray1, bool isCons
 #define MAKE_POINT_FIRST_COLUMN_VALUES {2, 3, -4}
 #define MAKE_POINT_SECOND_COLUMN_VALUES {5, -6, -7}
 
-TEST(GeomFuncTest, makePointFunctionTwoColumns) {
+TEST(GeomIoFuncTest, makePointFunctionTwoColumns) {
   int32_t rowNum = 3;
   SScalarParam *pExpectedResult;
 
@@ -150,7 +150,7 @@ TEST(GeomFuncTest, makePointFunctionTwoColumns) {
   destroyScalarParam(pExpectedResult, 1);
 }
 
-TEST(GeomFuncTest, makePointFunctionConstant) {
+TEST(GeomIoFuncTest, makePointFunctionConstant) {
   int32_t rowNum = 3;
   SScalarParam *pExpectedResult;
 
@@ -186,7 +186,7 @@ TEST(GeomFuncTest, makePointFunctionConstant) {
   destroyScalarParam(pExpectedResult, 1);
 }
 
-TEST(GeomFuncTest, makePointFunctionWithNull) {
+TEST(GeomIoFuncTest, makePointFunctionWithNull) {
   int32_t rowNum = 3;
   SScalarParam *pExpectedResult;
 
@@ -245,7 +245,7 @@ TEST(GeomFuncTest, makePointFunctionWithNull) {
   destroyScalarParam(pExpectedResult, 1);
 }
 
-TEST(GeomFuncTest, geomFromTextFunction) {
+TEST(GeomIoFuncTest, geomFromTextFunction) {
   int32_t rowNum = 4;
   char strArray[rowNum][TSDB_MAX_BINARY_LEN];
 
@@ -293,7 +293,7 @@ TEST(GeomFuncTest, geomFromTextFunction) {
   callGeomFromTextWrapper4(strArray, 1, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
 }
 
-TEST(GeomFuncTest, asTextFunction) {
+TEST(GeomIoFuncTest, asTextFunction) {
   // column input has been tested in geomFromTextFunction
 
   // empty input
