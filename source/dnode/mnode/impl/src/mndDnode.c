@@ -412,6 +412,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     if (pVgroup != NULL) {
       if (pVload->syncState == TAOS_SYNC_STATE_LEADER) {
         pVgroup->cacheUsage = pVload->cacheUsage;
+        pVgroup->numOfCachedTables = pVload->numOfCachedTables;
         pVgroup->numOfTables = pVload->numOfTables;
         pVgroup->numOfTimeSeries = pVload->numOfTimeSeries;
         pVgroup->totalStorage = pVload->totalStorage;

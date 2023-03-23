@@ -222,24 +222,24 @@ function install_bin() {
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo}chmod 0555 ${install_main_dir}/bin/*
 
   #Make link
-  [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || :
-  [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
-  [ -x ${install_main_dir}/bin/${udfdName} ] && ${csudo}ln -s ${install_main_dir}/bin/${udfdName} ${bin_link_dir}/${udfdName} || :
-  [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
+  [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || :
+  [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
+  [ -x ${install_main_dir}/bin/${udfdName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${udfdName} ${bin_link_dir}/${udfdName} || :
+  [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName} || :
-  [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName} || :
-  [ -x ${install_main_dir}/bin/${xname} ] && ${csudo}ln -s ${install_main_dir}/bin/${xname} ${bin_link_dir}/${xname} || :
-  [ -x ${install_main_dir}/bin/${explorerName} ] && ${csudo}ln -s ${install_main_dir}/bin/${explorerName} ${bin_link_dir}/${explorerName} || :
-  [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
-  [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
-  [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
+  [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName} || :
+  [ -x ${install_main_dir}/bin/${xname} ] && ${csudo}ln -sf ${install_main_dir}/bin/${xname} ${bin_link_dir}/${xname} || :
+  [ -x ${install_main_dir}/bin/${explorerName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${explorerName} ${bin_link_dir}/${explorerName} || :
+  [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
+  [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
+  [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
 
   if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
-    [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName2} || :
-    [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName2} || :
-    [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName2} || :
-    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript2} || :
+    [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName2} || :
+    [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName2} || :
+    [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName2} || :
+    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript2} || :
   fi
 }
 
@@ -250,14 +250,14 @@ function install_lib() {
   #${csudo}rm -rf ${v15_java_app_dir}              || :
   ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
 
-  ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
-  ${csudo}ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+  ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
+  ${csudo}ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
 
   [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
 
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
-    ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
-    ${csudo}ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
+    ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
+    ${csudo}ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
 
     [ -f ${install_main_dir}/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
   fi
@@ -347,10 +347,10 @@ function install_header() {
   [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h || :
 
   ${csudo}cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/*
-  ${csudo}ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
-  ${csudo}ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
-  ${csudo}ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
-  ${csudo}ln -s ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h  
+  ${csudo}ln -sf ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+  ${csudo}ln -sf ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
+  ${csudo}ln -sf ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
+  ${csudo}ln -sf ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h  
 
   [ -f ${install_main_dir}/include/taosws.h ] && ${csudo}ln -sf ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h || :
 }
@@ -511,7 +511,7 @@ function install_adapter_config() {
   fi
 
   [ -f ${cfg_install_dir}/${adapterName}.toml ] &&
-    ${csudo}ln -s ${cfg_install_dir}/${adapterName}.toml ${install_main_dir}/cfg/${adapterName}.toml
+    ${csudo}ln -sf ${cfg_install_dir}/${adapterName}.toml ${install_main_dir}/cfg/${adapterName}.toml
 
   [ ! -z $1 ] && return 0 || : # only install client
 
@@ -527,7 +527,7 @@ function install_config() {
     ${csudo}cp -f ${script_dir}/cfg/${configFile} ${cfg_install_dir}/${configFile}.new
   fi
 
-  ${csudo}ln -s ${cfg_install_dir}/${configFile} ${install_main_dir}/cfg
+  ${csudo}ln -sf ${cfg_install_dir}/${configFile} ${install_main_dir}/cfg
 
   [ ! -z $1 ] && return 0 || : # only install client
 
@@ -573,13 +573,13 @@ function install_log() {
   ${csudo}rm -rf ${log_dir} || :
   ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
 
-  ${csudo}ln -s ${log_dir} ${install_main_dir}/log
+  ${csudo}ln -sf ${log_dir} ${install_main_dir}/log
 }
 
 function install_data() {
   ${csudo}mkdir -p ${data_dir}
 
-  ${csudo}ln -s ${data_dir} ${install_main_dir}/data
+  ${csudo}ln -sf ${data_dir} ${install_main_dir}/data
 }
 
 function install_connector() {
@@ -862,21 +862,21 @@ function updateProduct() {
     openresty_work=false
 
     echo
-    echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${cfg_install_dir}/${configFile}"
+    echo -e "${GREEN_DARK}To configure ${productName2} ${NC}: edit ${cfg_install_dir}/${configFile}"
     [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To configure Adapter ${NC}: edit ${configDir}/taosadapter.toml"
+      echo -e "${GREEN_DARK}To configure ${clientName2} Adapter ${NC}: edit ${configDir}/taosadapter.toml"
     if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
       [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}systemctl start taosadapter ${NC}"
     elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
+      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}service ${serverName} start${NC}"
       [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Adapter ${NC}: ${csudo}service taosadapter start${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}service taosadapter start${NC}"
     else
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ./${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ./${serverName}${NC}"
       [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName} Adapter ${NC}: taosadapter &${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: taosadapter &${NC}"
     fi
 
     if [ ${openresty_work} = 'true' ]; then
@@ -887,7 +887,7 @@ function updateProduct() {
 
     if ((${prompt_force} == 1)); then
       echo ""
-      echo -e "${RED}Please run '${serverName} --force-keep-file' at first time for the exist ${productName} $exist_version!${NC}"
+      echo -e "${RED}Please run '${serverName} --force-keep-file' at first time for the exist ${productName2} $exist_version!${NC}"
     fi
     echo
     echo -e "\033[44;32;1m${productName2} is updated successfully!${NC}"
@@ -944,21 +944,21 @@ function installProduct() {
 
     # Ask if to start the service
     echo
-    echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${cfg_install_dir}/${configFile}"
+    echo -e "${GREEN_DARK}To configure ${productName2} ${NC}: edit ${cfg_install_dir}/${configFile}"
     [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To configure Taos Adapter ${NC}: edit ${configDir}/taosadapter.toml"
+      echo -e "${GREEN_DARK}To configure ${clientName2} Adapter ${NC}: edit ${configDir}/taosadapter.toml"
     if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
       [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}systemctl start taosadapter ${NC}"
     elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
+      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}service ${serverName} start${NC}"
       [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}service taosadapter start${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}service taosadapter start${NC}"
     else
-      echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${serverName}${NC}"
       [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: taosadapter &${NC}"
     fi
 
     if [ ! -z "$firstEp" ]; then
@@ -970,24 +970,24 @@ function installProduct() {
         tmpPort=""
       fi
       if [[ "$tmpPort" != "" ]]; then
-        echo -e "${GREEN_DARK}To access ${productName}    ${NC}: ${clientName} -h $tmpFqdn -P $tmpPort${GREEN_DARK} to login into cluster, then${NC}"
+        echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: ${clientName2} -h $tmpFqdn -P $tmpPort${GREEN_DARK} to login into cluster, then${NC}"
       else
-        echo -e "${GREEN_DARK}To access ${productName}    ${NC}: ${clientName} -h $tmpFqdn${GREEN_DARK} to login into cluster, then${NC}"
+        echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: ${clientName2} -h $tmpFqdn${GREEN_DARK} to login into cluster, then${NC}"
       fi
       echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
       echo
     elif [ ! -z "$serverFqdn" ]; then
-      echo -e "${GREEN_DARK}To access ${productName}    ${NC}: ${clientName} -h $serverFqdn${GREEN_DARK} to login into ${productName} server${NC}"
+      echo -e "${GREEN_DARK}To access ${productName2}    ${NC}: ${clientName2} -h $serverFqdn${GREEN_DARK} to login into ${productName2} server${NC}"
       echo
     fi
 
-    echo -e "\033[44;32;1m${productName} is installed successfully!${NC}"
+    echo -e "\033[44;32;1m${productName2} is installed successfully!${NC}"
     echo
   else # Only install client
     install_bin
     install_config
     echo
-    echo -e "\033[44;32;1m${productName} client is installed successfully!${NC}"
+    echo -e "\033[44;32;1m${productName2} client is installed successfully!${NC}"
   fi
 
   touch ~/.${historyFile}

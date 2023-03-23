@@ -102,10 +102,10 @@ int32_t shellRunSingleCommand(char *command) {
   }
 #ifdef WEBSOCKET
   if (shell.args.restful || shell.args.cloud) {
-	shellRunSingleCommandWebsocketImp(command);
+    shellRunSingleCommandWebsocketImp(command);
   } else {
 #endif
-	shellRunSingleCommandImp(command);
+    shellRunSingleCommandImp(command);
 #ifdef WEBSOCKET
   }
 #endif
@@ -1025,15 +1025,15 @@ void *shellCancelHandler(void *arg) {
     }
 
 #ifdef WEBSOCKET
-	if (shell.args.restful || shell.args.cloud) {
-		shell.stop_query = true;
-	} else {
+    if (shell.args.restful || shell.args.cloud) {
+      shell.stop_query = true;
+    } else {
 #endif
-    if (shell.conn) {
-		  taos_kill_query(shell.conn);
-		}
+      if (shell.conn) {
+        taos_kill_query(shell.conn);
+      }
 #ifdef WEBSOCKET
-	}
+    }
 #endif
   #ifdef WINDOWS
     printf("\n%s", shell.info.promptHeader);
@@ -1083,21 +1083,21 @@ int32_t shellExecute() {
   SShellArgs *pArgs = &shell.args;
 #ifdef WEBSOCKET
   if (shell.args.restful || shell.args.cloud) {
-	if (shell_conn_ws_server(1)) {
-		return -1;
-	}
+    if (shell_conn_ws_server(1)) {
+      return -1;
+    }
   } else {
 #endif
-	if (shell.args.auth == NULL) {
-		shell.conn = taos_connect(pArgs->host, pArgs->user, pArgs->password, pArgs->database, pArgs->port);
-	} else {
-		shell.conn = taos_connect_auth(pArgs->host, pArgs->user, pArgs->auth, pArgs->database, pArgs->port);
-	}
+    if (shell.args.auth == NULL) {
+      shell.conn = taos_connect(pArgs->host, pArgs->user, pArgs->password, pArgs->database, pArgs->port);
+    } else {
+      shell.conn = taos_connect_auth(pArgs->host, pArgs->user, pArgs->auth, pArgs->database, pArgs->port);
+    }
 
-	if (shell.conn == NULL) {
-		fflush(stdout);
-		return -1;
-	}
+    if (shell.conn == NULL) {
+      fflush(stdout);
+      return -1;
+    }
 #ifdef WEBSOCKET
   }
 #endif
@@ -1118,13 +1118,13 @@ int32_t shellExecute() {
       shellSourceFile(pArgs->file);
     }
 #ifdef WEBSOCKET
-	if (shell.args.restful || shell.args.cloud) {
-		ws_close(shell.ws_conn);
-	} else {
+    if (shell.args.restful || shell.args.cloud) {
+      ws_close(shell.ws_conn);
+    } else {
 #endif
-		taos_close(shell.conn);
+      taos_close(shell.conn);
 #ifdef WEBSOCKET
-	}
+    }
 #endif
 
     shellWriteHistory();
@@ -1148,9 +1148,9 @@ int32_t shellExecute() {
   if (!shell.args.restful && !shell.args.cloud) {
 #endif
 #ifndef WINDOWS
-  printfIntroduction();
+    printfIntroduction();
 #endif  
-	shellGetGrantInfo();
+    shellGetGrantInfo();
 #ifdef WEBSOCKET
   }
 #endif
