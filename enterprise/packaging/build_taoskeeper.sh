@@ -36,10 +36,8 @@ prepare_repo_taoskeeper() {
 
  checkout_latest_tag() {
    cd build-taoskeeper
-   latest="v1.0.5"
-   if [ "$latest" = "" ]; then
-     latest=$(git log --pretty=format:"%h"|head -n1)
-   fi
+   latest="v1.0.6"
+
    if [ "$REPO" = "taoskeeper" ]; then
      git checkout $latest
    fi
