@@ -62,10 +62,11 @@ async-backtrace = "0.2.2"
 dotenv = "0.15.0"
 tracing = "0.1"
 
+flume = "0.10"
 futures-util = "0.3"
+r2d2 = "0.8.10"
 serde_with = "2.3.1"
 tokio-cron-scheduler = "0.9.4"
-r2d2 = "0.8.10"
 
 async-process = "1.6"
 bitvec = "1"
