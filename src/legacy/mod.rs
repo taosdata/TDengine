@@ -1986,6 +1986,21 @@ pub async fn legacy_to_taos(
     }
 
     let metrics = Arc::new(LegacyMetrics::default());
+    metrics.workers.store(concurrent as _, Ordering::SeqCst);
+
+    let todo = parse_todo_list(&from_pool, &source_opts).await?;
+    let todo = Arc::new(todo);
+
+    metrics
+        .stables
+        .store(todo.stables.len() as _, Ordering::SeqCst);
+
+    let metrics_inner = metrics.clone();
+    let todo_inner = todo.clone();
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(2));
+        log::info!("{}", metrics_inner);
+    });
 
     metrics.workers.store(workers as _, Ordering::SeqCst);
 
