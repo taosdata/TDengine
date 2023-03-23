@@ -271,7 +271,7 @@ void qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped) {
   }
 }
 
-int32_t qwDbgEnableDebug(char *option) {
+int32_t qWorkerDbgEnableDebug(char *option) {
   if (0 == strcasecmp(option, "lock")) {
     gQWDebug.lockEnable = true;
     qError("qw lock debug enabled");

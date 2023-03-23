@@ -292,7 +292,7 @@ int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     return TSDB_CODE_SUCCESS;
   }
 
-  if (info->dataFormat) {
+  if (info->dataFormat && info->currSTableMeta != NULL) {
     if (needConverTime) {
       kvTs.i = convertTimePrecision(kvTs.i, TSDB_TIME_PRECISION_NANO, info->currSTableMeta->tableInfo.precision);
     }

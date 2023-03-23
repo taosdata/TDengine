@@ -48,7 +48,16 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   SyncIndex index = pEntry->index;
 
   if (index - pBuf->startIndex >= pBuf->size) {
-    sError("vgId:%d, failed to append due to sync log buffer full. index:%" PRId64 "", pNode->vgId, index);
+    terrno = TSDB_CODE_SYN_BUFFER_FULL;
+    sError("vgId:%d, failed to append since %s. index:%" PRId64 "", pNode->vgId, terrstr(), index);
+    goto _err;
+  }
+
+  SyncIndex appliedIndex = pNode->pFsm->FpAppliedIndexCb(pNode->pFsm);
+  if (pNode->restoreFinish && pBuf->commitIndex - appliedIndex >= pBuf->size) {
+    terrno = TSDB_CODE_SYN_WRITE_STALL;
+    sError("vgId:%d, failed to append since %s. index:%" PRId64 ", commit-index:%" PRId64 ", applied-index:%" PRId64,
+           pNode->vgId, terrstr(), index, pBuf->commitIndex, appliedIndex);
     goto _err;
   }
 
@@ -475,7 +484,7 @@ _out:
 
 int32_t syncLogFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry,
                           int32_t applyCode) {
-  if ((pNode->replicaNum == 1) && pNode->restoreFinish && pNode->vgId != 1) {
+  if (pNode->replicaNum == 1 && pNode->restoreFinish && pNode->vgId != 1) {
     return 0;
   }
 
@@ -587,10 +596,10 @@ _out:
   // mark as restored if needed
   if (!pNode->restoreFinish && pBuf->commitIndex >= pNode->commitIndex && pEntry != NULL &&
       currentTerm <= pEntry->term) {
-    pNode->pFsm->FpRestoreFinishCb(pNode->pFsm);
+    pNode->pFsm->FpRestoreFinishCb(pNode->pFsm, pBuf->commitIndex);
     pNode->restoreFinish = true;
-    sInfo("vgId:%d, restore finished. log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pNode->vgId,
-          pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
+    sInfo("vgId:%d, restore finished. term:%" PRId64 ", log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+          pNode->vgId, currentTerm, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
   }
 
   if (!inBuf) {
