@@ -50,7 +50,7 @@ class TDTestCase:
 
     def create_udf_function(self):
         # create  scalar functions
-        tdSql.execute("create function udf1 as '%s' outputtype int bufSize 8;"%self.libudf1)
+        tdSql.execute("create function udf1 as '%s' outputtype int;"%self.libudf1)
 
         functions = tdSql.getResult("show functions")
         function_nums = len(functions)
