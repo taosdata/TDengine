@@ -54,7 +54,7 @@ Geometry relationships functions determine spatial relationships between geometr
 ### ST_Intersects
 
 ```sql
-ST_AsText(GEOMETRY geomA, GEOMETRY geomB)
+ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
 ```
 
 **Description**: Compares two geometries and returns true if they intersect.
@@ -67,3 +67,22 @@ ST_AsText(GEOMETRY geomA, GEOMETRY geomB)
 
 **Explanations**：
 - Geometries intersect if they have any point in common.
+
+
+### ST_Touches
+
+```sql
+ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**Description**: Returns TRUE if A and B intersect, but their interiors do not intersect.
+
+**Return value type**: BOOL
+
+**Applicable data types**: GEOMETRY, GEOMETRY
+
+**Applicable table types**: standard tables and supertables
+
+**Explanations**：
+- A and B have at least one point in common, and the common points lie in at least one boundary.
+- For Point/Point inputs the relationship is always FALSE, since points do not have a boundary.
