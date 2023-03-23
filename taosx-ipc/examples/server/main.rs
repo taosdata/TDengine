@@ -1,10 +1,14 @@
 use std::{
+    collections::HashMap,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
     path::Path,
 };
-use taos::{AsyncQueryable, Bindable, Dsn, Itertools, Stmt, TBuilder, TaosBuilder};
-use taosx_ipc::ack::{AckWriter, AckWriterBuilder};
+use taos::{AsyncQueryable, Bindable, Dsn, Itertools, Stmt, TBuilder, Taos, TaosBuilder};
+use taosx_ipc::{
+    ack::{AckWriter, AckWriterBuilder},
+    stream::point::PointMessage,
+};
 use tokio::runtime::Runtime;
 use tracing::{info, instrument};
 
@@ -32,9 +36,9 @@ fn ipc_unix_read(stream: std::os::unix::net::UnixStream) -> anyhow::Result<()> {
 
 fn ipc_test<R: Read, W: Write>(
     ipc_reader: IpcReader<R>,
-    mut ipc_ack_writer: AckWriter<W>,
+    ipc_ack_writer: AckWriter<W>,
 ) -> anyhow::Result<()> {
-    let dsn = std::env::var("TAOSX_TARGET").unwrap_or("taos+ws://127.0.0.1:6041/test3".to_string());
+    let dsn = std::env::var("TAOSX_TARGET").unwrap_or("taos+ws://192.168.0.201:26041/test4".to_string());
     let mut dsn: Dsn = dsn.parse()?;
     let builder = TaosBuilder::from_dsn(&dsn).unwrap();
 
@@ -53,6 +57,19 @@ fn ipc_test<R: Read, W: Write>(
 
     let metadata = ipc_reader.metadata();
     dbg!(metadata);
+    match metadata.stream_type() {
+        StreamType::Lush => handle_lush_message(ipc_reader, taos, ipc_ack_writer).unwrap(),
+        StreamType::Point => handle_point_message(ipc_reader, taos, ipc_ack_writer).unwrap(),
+        _ => todo!(),
+    }
+    Ok(())
+}
+
+fn handle_lush_message<R: Read, W: Write>(
+    ipc_reader: IpcReader<R>,
+    taos: Taos,
+    mut ipc_ack_writer: AckWriter<W>,
+) -> anyhow::Result<()> {
     let rt = Runtime::new().unwrap();
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
         info!("{sql}");
@@ -67,6 +84,8 @@ fn ipc_test<R: Read, W: Write>(
 
     for record in ipc_reader {
         if let Ok(record) = record {
+            let record = record.as_any().downcast_ref::<LushMessage>().unwrap();
+            // dbg!(&record);
             match record {
                 LushMessage::Tables(tables) => {
                     for table in tables {
@@ -122,6 +141,56 @@ fn ipc_test<R: Read, W: Write>(
         }
     }
     println!("finished, totally {records} rows");
+    Ok(())
+}
+
+fn handle_point_message<R: Read, W: Write>(
+    ipc_reader: IpcReader<R>,
+    taos: Taos,
+    mut ipc_ack_writer: AckWriter<W>,
+) -> anyhow::Result<()> {
+    // let rt = Runtime::new().unwrap();
+    // TODO use the map initialized
+    let mut map = HashMap::new();
+    map.insert( String::from("1"), (String::from("d1004"), String::from("current")),);
+    map.insert( String::from("2"), (String::from("d1004"), String::from("voltage")),);
+    map.insert( String::from("3"), (String::from("d1004"), String::from("phase")),);
+    let mut records_count = 0;
+    for record in ipc_reader {
+        if let Ok(record) = record {
+            let record = record.as_any().downcast_ref::<PointMessage>().unwrap();
+            for message in record.records() {
+                let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_cloumn_view(message.record());
+                let mut stmt = Stmt::init(&taos)?;
+                // process id, ts, value
+                let schema = message.schema();
+                let id_index = schema.index_of("id").unwrap();
+                let ts_index = schema.index_of("ts").unwrap();
+                let value_index = schema.index_of("value").unwrap();
+                let id_cv = cv_vec.remove(id_index);
+                dbg!(&cv_vec);
+                for i in 0..id_cv.len() {
+                    let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
+                    let (table, field) = map.get(&id).unwrap();
+                    let sql = if ts_index > value_index {
+                        format!("insert into {table} ({field}, ts) values (?, ?)") 
+                    } else {
+                        format!("insert into {table} (ts, {field}) values (?, ?)") 
+                    };
+                    stmt.prepare(&sql).unwrap();
+                    let new_cv_vec = cv_vec.iter().map(|t_cv| t_cv.slice(i..i+1).unwrap()).collect_vec();
+                    info!(sql);
+                    dbg!(&new_cv_vec);
+                    stmt.bind(&new_cv_vec.as_slice()).unwrap();
+                    stmt.add_batch().unwrap();
+                    let n = stmt.execute().unwrap();
+                    records_count += n;
+                }
+            }
+            ipc_ack_writer.write_ok().unwrap();
+        }
+    }
+    println!("finished, totally {records_count} rows");
     Ok(())
 }
 

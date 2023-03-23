@@ -3,7 +3,7 @@ use std::any::Any;
 use anyhow::Result;
 
 use arrow::{
-    array::{BinaryBuilder, Float64Builder, Int32Builder, TimestampMillisecondBuilder},
+    array::{BinaryBuilder, Float64Builder, Int32Builder, TimestampMillisecondBuilder, StringBuilder, Float32Builder},
     datatypes::DataType,
     ipc::writer::StreamWriter,
 };
@@ -23,20 +23,8 @@ async fn main() -> Result<()> {
             "meters",
             vec![
                 IpcField::new("ts", false, timestamp_type, IpcDataType::Timestamp),
-                IpcField::new("c1", false, ArrowDataType::Int32, IpcDataType::Int32),
-                IpcField::new("c2", false, ArrowDataType::Float64, IpcDataType::Float64),
-                IpcField::new(
-                    "c3",
-                    false,
-                    ArrowDataType::Binary,
-                    IpcDataType::VarChar(100),
-                ),
-                IpcField::new(
-                    "__table_name__",
-                    false,
-                    ArrowDataType::Binary,
-                    IpcDataType::VarChar(100),
-                ),
+                IpcField::new("id", false, ArrowDataType::Utf8, IpcDataType::VarChar(32)),
+                IpcField::new("value", false, ArrowDataType::Float32, IpcDataType::Float64),
             ],
             vec![
                 IpcField::new("t1", false, ArrowDataType::Boolean, IpcDataType::Bool),
@@ -65,28 +53,31 @@ async fn main() -> Result<()> {
     let now = chrono::Utc::now();
     let mut ms = now.timestamp_millis() - 10000;
 
-    let mut tables = lush_builder.child_tables_builder();
+    // let mut tables = lush_builder.child_tables_builder();
 
-    let tables = tables
-        .next_table("fake01")
-        .append(&true)
-        .append(&1i8)
-        .append(&2i16)
-        .append(&3i32)
-        .append(&4i64)
-        .append(&5u8)
-        .append(&6u16)
-        .append(&7u32)
-        .append(&8u64)
-        .append(&9f32)
-        .append(&10f64)
-        .append(&"I'm fake01")
-        .next_table("d1001").fill_nulls_to_end()
-        .next_table("d1002").fill_nulls_to_end()
-        .next_table("d1003").fill_nulls_to_end()
-        .finish()?;
-    // dbg!(&tables);
-    writer.write(&tables)?;
+    // let tables = tables
+    //     .next_table("fake01")
+    //     .append(&true)
+    //     .append(&1i8)
+    //     .append(&2i16)
+    //     .append(&3i32)
+    //     .append(&4i64)
+    //     .append(&5u8)
+    //     .append(&6u16)
+    //     .append(&7u32)
+    //     .append(&8u64)
+    //     .append(&9f32)
+    //     .append(&10f64)
+    //     .append(&"I'm fake01")
+    //     .next_table("d1001")
+    //     .fill_nulls_to_end()
+    //     .next_table("d1002")
+    //     .fill_nulls_to_end()
+    //     .next_table("d1003")
+    //     .fill_nulls_to_end()
+    //     .finish()?;
+    // // dbg!(&tables);
+    // writer.write(&tables)?;
 
     loop {
         let mut insert = lush_builder.insert_builder();
@@ -116,101 +107,52 @@ async fn main() -> Result<()> {
             .append_value(ms);
 
         builder
-            .field_builder::<Int32Builder>(1)
+            .field_builder::<StringBuilder>(1)
             .unwrap()
-            .append_value(100i32);
+            .append_value(String::from("1"));
         builder
-            .field_builder::<Float64Builder>(2)
+            .field_builder::<Float32Builder>(2)
             .unwrap()
-            .append_value(100.);
-        builder
-            .field_builder::<BinaryBuilder>(3)
-            .unwrap()
-            .append_value("中文".as_bytes());
-        builder
-            .field_builder::<BinaryBuilder>(4)
-            .unwrap()
-            .append_value("d1001".as_bytes());
+            .append_value(1.0);
 
-        let builder = insert.columns_builder();
+            let builder = insert.columns_builder();
 
-        builder.append(true);
-
-        builder
-            .field_builder::<TimestampMillisecondBuilder>(0)
-            .unwrap()
-            .append_value(ms + 1000);
-
-        builder
-            .field_builder::<Int32Builder>(1)
-            .unwrap()
-            .append_value(101i32);
-        builder
-            .field_builder::<Float64Builder>(2)
-            .unwrap()
-            .append_value(101.);
-        builder
-            .field_builder::<BinaryBuilder>(3)
-            .unwrap()
-            .append_value("中文0".as_bytes());
-        builder
-            .field_builder::<BinaryBuilder>(4)
-            .unwrap()
-            .append_value("d1002".as_bytes());
-
-        let builder = insert.columns_builder();
-
-        builder.append(true);
-
-        builder
-            .field_builder::<TimestampMillisecondBuilder>(0)
-            .unwrap()
-            .append_value(ms + 2000);
-
-        builder
-            .field_builder::<Int32Builder>(1)
-            .unwrap()
-            .append_value(102i32);
-        builder
-            .field_builder::<Float64Builder>(2)
-            .unwrap()
-            .append_value(102.);
-        builder
-            .field_builder::<BinaryBuilder>(3)
-            .unwrap()
-            .append_value("中文2".as_bytes());
-        builder
-            .field_builder::<BinaryBuilder>(4)
-            .unwrap()
-            .append_value("d1001".as_bytes());
-
-        let builder = insert.columns_builder();
-
-        builder.append(true);
-
-        builder
-            .field_builder::<TimestampMillisecondBuilder>(0)
-            .unwrap()
-            .append_value(ms + 3000);
-
-        builder
-            .field_builder::<Int32Builder>(1)
-            .unwrap()
-            .append_value(103i32);
-        builder
-            .field_builder::<Float64Builder>(2)
-            .unwrap()
-            .append_value(103.);
-        builder
-            .field_builder::<BinaryBuilder>(3)
-            .unwrap()
-            .append_value("中文3".as_bytes());
-        builder
-            .field_builder::<BinaryBuilder>(4)
-            .unwrap()
-            .append_value("d1003".as_bytes());
+            builder.append(true);
+    
+            builder
+                .field_builder::<TimestampMillisecondBuilder>(0)
+                .unwrap()
+                .append_value(ms + 1000);
+    
+            builder
+                .field_builder::<StringBuilder>(1)
+                .unwrap()
+                .append_value(String::from("3"));
+            builder
+                .field_builder::<Float32Builder>(2)
+                .unwrap()
+                .append_value(1.1);
 
         let batch = insert.build()?;
+
+        // let builder = insert.columns_builder();
+
+        // builder.append(true);
+
+        // builder
+        //     .field_builder::<TimestampMillisecondBuilder>(0)
+        //     .unwrap()
+        //     .append_value(ms);
+
+        // builder
+        //     .field_builder::<StringBuilder>(1)
+        //     .unwrap()
+        //     .append_value(String::from("2"));
+        // builder
+        //     .field_builder::<Int32Builder>(2)
+        //     .unwrap()
+        //     .append_value(100);
+        // let batch = insert.build()?;
         writer.write(&batch)?;
 
         records += batch.num_rows();
