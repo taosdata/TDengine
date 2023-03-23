@@ -1,4 +1,4 @@
-mod components;
+pub mod components;
 pub mod point;
 pub mod reader;
 pub mod writer;
