@@ -1540,7 +1540,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
     }
   }
 
-  if (TK_NK_ID != pTbName->type && TK_NK_STRING != pTbName->type) {
+  if (TK_NK_ID != pTbName->type && TK_NK_STRING != pTbName->type && TK_NK_QUESTION != pTbName->type) {
     return buildSyntaxErrMsg(&pCxt->msg, "table_name is expected", pTbName->z);
   }
 
