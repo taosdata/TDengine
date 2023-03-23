@@ -16,6 +16,11 @@
 #include "vnd.h"
 #include "vnodeInt.h"
 
+#ifdef USE_DEV_CODE
+extern int32_t tsdbPreCommit(STsdb *pTsdb);
+extern int32_t tsdbCommitBegin(STsdb *pTsdb, SCommitInfo *pInfo);
+#endif
+
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 static int vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
@@ -314,7 +319,11 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+#ifdef USE_DEV_CODE
+  tsdbPreCommit(pVnode->pTsdb);
+#else
   tsdbPrepareCommit(pVnode->pTsdb);
+#endif
 
   metaPrepareAsyncCommit(pVnode->pMeta);
 
@@ -449,8 +458,12 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
 
   syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
 
-  // commit each sub-system
+// commit each sub-system
+#ifdef USE_DEV_CODE
+  code = tsdbCommitBegin(pVnode->pTsdb, pInfo);
+#else
   code = tsdbCommit(pVnode->pTsdb, pInfo);
+#endif
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (VND_IS_RSMA(pVnode)) {

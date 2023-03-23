@@ -171,3 +171,14 @@ option(
    ON 
 )
 
+
+# open this flag to use dev code, make sure it is off in release version
+option(
+   USE_DEV_CODE
+   "If use dev code" 
+   ON 
+)
+
+if (${USE_DEV_CODE})
+    add_definitions(-DUSE_DEV_CODE)
+endif(USE_DEV_CODE)

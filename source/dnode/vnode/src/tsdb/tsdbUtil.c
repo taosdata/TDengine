@@ -1161,8 +1161,6 @@ int32_t tsdbBuildDeleteSkyline2(SArray *aDelData, int32_t sidx, int32_t eidx, SA
 
 // SBlockData ======================================================
 int32_t tBlockDataCreate(SBlockData *pBlockData) {
-  int32_t code = 0;
-
   pBlockData->suid = 0;
   pBlockData->uid = 0;
   pBlockData->nRow = 0;
@@ -1171,9 +1169,7 @@ int32_t tBlockDataCreate(SBlockData *pBlockData) {
   pBlockData->aTSKEY = NULL;
   pBlockData->nColData = 0;
   pBlockData->aColData = NULL;
-
-_exit:
-  return code;
+  return 0;
 }
 
 void tBlockDataDestroy(SBlockData *pBlockData) {

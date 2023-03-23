@@ -18,9 +18,9 @@
 // extern dependencies
 typedef struct SSttFWriter SSttFWriter;
 
-extern int32_t tsdbSttFWriterOpen(STsdb *pTsdb, SSttFile *pSttFile, SSttFWriter **ppWritter);
-extern int32_t tsdbSttFWriterClose(SSttFWriter *pWritter);
-extern int32_t tsdbSttFWriteRow(SSttFWriter *pWritter, int64_t suid, int64_t uid, TSDBROW *pRow);
+extern int32_t tsdbSttFWriterOpen(STsdb *pTsdb, const SSttFile *pSttFile, SSttFWriter **ppWriter);
+extern int32_t tsdbSttFWriterClose(SSttFWriter *pWriter);
+extern int32_t tsdbSttFWriteTSData(SSttFWriter *pWriter, TABLEID *tbid, TSDBROW *pRow);
 
 typedef struct {
   STsdb *pTsdb;
@@ -43,12 +43,23 @@ typedef struct {
 } SCommitter;
 
 static int32_t tsdbCommitOpenWriter(SCommitter *pCommitter) {
-  int32_t code = 0;
-  // TODO
+  int32_t code;
+  int32_t lino;
+
+  SSttFile sttFile = {0};  // TODO
+
+  code = tsdbSttFWriterOpen(pCommitter->pTsdb, &sttFile, &pCommitter->pWriter);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s, fid:%d", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code), pCommitter->fid);
+  }
   return code;
 }
 
-static int32_t tsdbCommitWriteTSData(SCommitter *pCommitter, int64_t suid, int64_t uid, TSDBROW *pRow) {
+static int32_t tsdbCommitWriteTSData(SCommitter *pCommitter, TABLEID *tbid, TSDBROW *pRow) {
   int32_t code = 0;
   int32_t lino;
 
@@ -57,7 +68,7 @@ static int32_t tsdbCommitWriteTSData(SCommitter *pCommitter, int64_t suid, int64
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  code = tsdbSttFWriteRow(pCommitter->pWriter, suid, uid, pRow);
+  code = tsdbSttFWriteTSData(pCommitter->pWriter, tbid, pRow);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -65,7 +76,7 @@ _exit:
     tsdbError("vgId:%d failed at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), lino, tstrerror(code));
   } else {
     tsdbTrace("vgId:%d %s done, fid:%d suid:%" PRId64 " uid:%" PRId64 " ts:%" PRId64 " version:%" PRId64,
-              TD_VID(pCommitter->pTsdb->pVnode), __func__, pCommitter->fid, suid, uid, TSDBROW_KEY(pRow).ts,
+              TD_VID(pCommitter->pTsdb->pVnode), __func__, pCommitter->fid, tbid->suid, tbid->uid, TSDBROW_KEY(pRow).ts,
               TSDBROW_KEY(pRow).version);
   }
   return 0;
@@ -106,7 +117,7 @@ static int32_t tsdbCommitTSData(SCommitter *pCommitter) {
 
       nRow++;
 
-      code = tsdbCommitWriteTSData(pCommitter, pTbData->suid, pTbData->uid, pRow);
+      code = tsdbCommitWriteTSData(pCommitter, (TABLEID *)pTbData, pRow);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
@@ -161,22 +172,16 @@ _exit:
 }
 
 static int32_t tsdbCommitFSetStart(SCommitter *pCommitter) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
   pCommitter->fid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
   tsdbFidKeyRange(pCommitter->fid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
                   &pCommitter->maxKey);
   pCommitter->expLevel = tsdbFidLevel(pCommitter->fid, &pCommitter->pTsdb->keepCfg, taosGetTimestampSec());
   pCommitter->nextKey = TSKEY_MAX;
 
-  // TODO
-
-_exit:
-  if (code) {
-    tsdbError("vgId:%d failed at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), lino, tstrerror(code));
-  }
-  return code;
+  tsdbDebug("vgId:%d %s done, fid:%d minKey:%" PRId64 " maxKey:%" PRId64 " expLevel:%d",
+            TD_VID(pCommitter->pTsdb->pVnode), __func__, pCommitter->fid, pCommitter->minKey, pCommitter->maxKey,
+            pCommitter->expLevel);
+  return 0;
 }
 
 static int32_t tsdbCommitFSetEnd(SCommitter *pCommitter) {
@@ -221,13 +226,26 @@ _exit:
 
 static int32_t tsdbCommitterOpen(STsdb *pTsdb, SCommitInfo *pInfo, SCommitter *pCommitter) {
   int32_t code = 0;
-  int32_t lino = 0;
+  int32_t lino;
 
+  // set config
   memset(pCommitter, 0, sizeof(SCommitter));
   pCommitter->pTsdb = pTsdb;
-  pCommitter->nextKey = pTsdb->imem->minKey;  // TODO
+  pCommitter->minutes = pTsdb->keepCfg.days;
+  pCommitter->precision = pTsdb->keepCfg.precision;
+  pCommitter->minRow = pInfo->info.config.tsdbCfg.minRows;
+  pCommitter->maxRow = pInfo->info.config.tsdbCfg.maxRows;
+  pCommitter->cmprAlg = pInfo->info.config.tsdbCfg.compression;
+  pCommitter->sttTrigger = 0;  // TODO
 
-  // TODO
+  pCommitter->aTbDataP = tsdbMemTableGetTbDataArray(pTsdb->imem);
+  if (pCommitter->aTbDataP == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  // start loop
+  pCommitter->nextKey = pTsdb->imem->minKey;  // TODO
 
 _exit:
   if (code) {
