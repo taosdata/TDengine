@@ -368,11 +368,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   }
 
   int64_t clusterid = mndGetClusterId(pMnode);
-  if(statusReq.clusterId != 0 && statusReq.clusterId != clusterid)
-  {
-    int32_t err = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
-    mWarn("dnode:%d, %s, its clusterid:%" PRId64 " differ from current cluster:%" PRId64 ", code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, statusReq.clusterId, clusterid, err);
+  if (statusReq.clusterId != 0 && statusReq.clusterId != clusterid) {
     code = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
+    mWarn("dnode:%d, %s, its clusterid:%" PRId64 " differ from current cluster:%" PRId64 ", code:0x%x",
+          statusReq.dnodeId, statusReq.dnodeEp, statusReq.clusterId, clusterid, code);
     goto _OVER;
   }
 
