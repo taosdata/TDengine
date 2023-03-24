@@ -566,75 +566,14 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
   return code;
 }
 
-static int bindFileds(SBoundColInfo* pBoundInfo, SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
-  bool* pUseCols = taosMemoryCalloc(pBoundInfo->numOfCols, sizeof(bool));
-  if (NULL == pUseCols) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  pBoundInfo->numOfBound = 0;
-
-  int16_t lastColIdx = -1;  // last column found
-  int32_t code = TSDB_CODE_SUCCESS;
+static bool findFileds(SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
   for (int i = 0; i < numFields; i++) {
-    SToken token;
-    token.z = fields[i].name;
-    token.n = strlen(fields[i].name);
-
-    int16_t t = lastColIdx + 1;
-    int16_t index = insFindCol(&token, t, pBoundInfo->numOfCols, pSchema);
-    if (index < 0 && t > 0) {
-      index = insFindCol(&token, 0, t, pSchema);
-    }
-    if (index < 0) {
-      uError("can not find column name:%s", token.z);
-      code = TSDB_CODE_PAR_INVALID_COLUMN;
-      break;
-    } else if (pUseCols[index]) {
-      code = TSDB_CODE_PAR_INVALID_COLUMN;
-      uError("duplicated column name:%s", token.z);
-      break;
-    } else {
-      lastColIdx = index;
-      pUseCols[index] = true;
-      pBoundInfo->pColIndex[pBoundInfo->numOfBound] = index;
-      ++pBoundInfo->numOfBound;
+    if(strcmp(pSchema->name, fields[i].name) == 0){
+      return true;
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && !pUseCols[0]) {
-    uError("primary timestamp column can not be null:");
-    code = TSDB_CODE_PAR_INVALID_COLUMN;
-  }
-
-  taosMemoryFree(pUseCols);
-  return code;
-}
-
-static bool isSameBindFileds(SBoundColInfo* pBoundInfo, SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
-  int16_t lastColIdx = -1;  // last column found
-  for (int i = 0; i < numFields; i++) {
-    SToken token;
-    token.z = fields[i].name;
-    token.n = strlen(fields[i].name);
-
-    int16_t t = lastColIdx + 1;
-    int16_t index = insFindCol(&token, t, pBoundInfo->numOfCols, pSchema);
-    if (index < 0 && t > 0) {
-      index = insFindCol(&token, 0, t, pSchema);
-    }
-    if (index < 0) {
-      uError("can not find column name:%s", token.z);
-      return false;
-    } else {
-      lastColIdx = index;
-      if(pBoundInfo->pColIndex[i] != index){
-        return false;
-      }
-    }
-  }
-
-  return true;
+  return false;
 }
 
 int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, TAOS_FIELD* tFields,
@@ -648,39 +587,13 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     goto end;
   }
 
-  do {
-    if (tmp != NULL){
-      if(!isSameBindFileds(&pTableCxt->boundColsInfo, getTableColumnSchema(pTableMeta), tFields, numFields)){
-        char* fieldNames = (char*)taosMemoryCalloc(numFields, sizeof(tFields[0].name));
-        for(int i = 0; i < numFields; i++){
-          memcpy(fieldNames + i * sizeof(tFields[0].name), tFields[i].name, sizeof(tFields[0].name));
-        }
-        ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, fieldNames,
-                                 numFields * sizeof(tFields[0].name), pTableMeta, &pCreateTb, &pTableCxt, true);
-        taosMemoryFree(fieldNames);
-        if (ret != TSDB_CODE_SUCCESS) {
-          uError("insGetTableDataCxt inner error");
-          goto end;
-        }
-      }else{
-        break;
-      }
-    }
-
-    if (tFields != NULL) {
-      ret = bindFileds(&pTableCxt->boundColsInfo, getTableColumnSchema(pTableMeta), tFields, numFields);
-      if (ret != TSDB_CODE_SUCCESS) {
-        uError("bindFileds error");
-        goto end;
-      }
-    }
-    // no need to bind, because select * get all fields
+  if(tmp == NULL){
     ret = initTableColSubmitData(pTableCxt);
     if (ret != TSDB_CODE_SUCCESS) {
       uError("initTableColSubmitData error");
       goto end;
     }
-  }while(0);
+  }
 
   char* p = (char*)data;
   // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
@@ -708,35 +621,38 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   SSchema*       pSchema = getTableColumnSchema(pTableCxt->pMeta);
   SBoundColInfo* boundInfo = &pTableCxt->boundColsInfo;
 
-  if (boundInfo->numOfBound != numOfCols) {
-    uError("boundInfo->numOfBound:%d != numOfCols:%d", boundInfo->numOfBound, numOfCols);
+  if (numFields != numOfCols) {
+    uError("numFields:%d != numOfCols:%d", numFields, numOfCols);
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
   }
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
-    SSchema*  pColSchema = &pSchema[boundInfo->pColIndex[c]];
+    SSchema*  pColSchema = &pSchema[c];
     SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, c);
+    if(findFileds(pColSchema, tFields, numFields)){
+      if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
+        uError("type or bytes not equal");
+        ret = TSDB_CODE_INVALID_PARA;
+        goto end;
+      }
 
-    if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
-      uError("type or bytes not equal");
-      ret = TSDB_CODE_INVALID_PARA;
-      goto end;
-    }
+      int8_t* offset = pStart;
+      if (IS_VAR_DATA_TYPE(pColSchema->type)) {
+        pStart += numOfRows * sizeof(int32_t);
+      } else {
+        pStart += BitmapLen(numOfRows);
+      }
+      char* pData = pStart;
 
-    int8_t* offset = pStart;
-    if (IS_VAR_DATA_TYPE(pColSchema->type)) {
-      pStart += numOfRows * sizeof(int32_t);
-    } else {
-      pStart += BitmapLen(numOfRows);
-    }
-    char* pData = pStart;
-
-    tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
-    fields += sizeof(int8_t) + sizeof(int32_t);
-    if (needChangeLength) {
-      pStart += htonl(colLength[c]);
-    } else {
-      pStart += colLength[c];
+      tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
+      fields += sizeof(int8_t) + sizeof(int32_t);
+      if (needChangeLength) {
+        pStart += htonl(colLength[c]);
+      } else {
+        pStart += colLength[c];
+      }
+    }else{
+      tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, NULL, NULL);
     }
   }
 

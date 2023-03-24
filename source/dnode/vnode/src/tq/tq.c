@@ -629,6 +629,14 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
 
       // process meta
       if (pHead->msgType != TDMT_VND_SUBMIT) {
+        if(totalRows > 0) {
+          tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer - 1);
+          code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
+          tDeleteSTaosxRsp(&taosxRsp);
+          taosMemoryFreeClear(pCkHead);
+          return code;
+        }
+
         tqDebug("fetch meta msg, ver:%" PRId64 ", type:%s", pHead->version, TMSG_INFO(pHead->msgType));
         tqOffsetResetToLog(&metaRsp.rspOffset, fetchVer);
         metaRsp.resMsgType = pHead->msgType;
@@ -656,6 +664,8 @@ static int32_t extractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* 
       if (tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp, &totalRows) < 0) {
         tqError("tmq poll: tqTaosxScanLog error %" PRId64 ", in vgId:%d, subkey %s", consumerId, vgId,
                 pRequest->subKey);
+        taosMemoryFreeClear(pCkHead);
+        tDeleteSTaosxRsp(&taosxRsp);
         return -1;
       }
 
