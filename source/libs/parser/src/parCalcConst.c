@@ -361,11 +361,29 @@ static bool notRefByOrderBy(SColumnNode* pCol, SNodeList* pOrderByList) {
   return !cxt.hasThisCol;
 }
 
+static bool isSetUselessCol(SSetOperator* pSetOp, int32_t index, SExprNode* pProj) {
+  if (!isUselessCol(pProj)) {
+    return false;
+  }
+
+  SNodeList* pLeftProjs = getChildProjection(pSetOp->pLeft);
+  if (!isUselessCol((SExprNode*)nodesListGetNode(pLeftProjs, index))) {
+    return false;
+  }
+
+  SNodeList* pRightProjs = getChildProjection(pSetOp->pRight);
+  if (!isUselessCol((SExprNode*)nodesListGetNode(pRightProjs, index))) {
+    return false;
+  }
+
+  return true;
+}
+
 static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* pSetOp, bool subquery) {
   int32_t index = 0;
   SNode*  pProj = NULL;
   WHERE_EACH(pProj, pSetOp->pProjectionList) {
-    if (subquery && notRefByOrderBy((SColumnNode*)pProj, pSetOp->pOrderByList) && isUselessCol((SExprNode*)pProj)) {
+    if (subquery && notRefByOrderBy((SColumnNode*)pProj, pSetOp->pOrderByList) && isSetUselessCol(pSetOp, index, (SExprNode*)pProj)) {
       ERASE_NODE(pSetOp->pProjectionList);
       eraseSetOpChildProjection(pSetOp, index);
       continue;

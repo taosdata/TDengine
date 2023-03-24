@@ -571,8 +571,9 @@ static int32_t doPollDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* p
               ",version:%" PRId64,
               consumerId, pHandle->subKey, vgId, taosxRsp.blockNum, taosxRsp.rspOffset.type, taosxRsp.rspOffset.uid,
               taosxRsp.rspOffset.version);
-    } else {
-      //  if (offset.type == TMQ_OFFSET__LOG) {
+    }
+
+    if (offset.type == TMQ_OFFSET__LOG) {
       int64_t fetchVer = offset.version + 1;
       pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
       if (pCkHead == NULL) {

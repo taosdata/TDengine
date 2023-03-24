@@ -582,6 +582,11 @@ function install_service_on_launchctl() {
     ${csudo}cp ${install_main_dir}/service/com.taosdata.taosadapter.plist /Library/LaunchDaemons/com.taosdata.taosadapter.plist || :
     ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist || :
   fi
+  if [ -f ${install_main_dir}/service/com.taosdata.taoskeeper.plist ]; then
+    ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taoskeeper.plist > /dev/null 2>&1 || :
+    ${csudo}cp ${install_main_dir}/service/com.taosdata.taoskeeper.plist /Library/LaunchDaemons/com.taosdata.taoskeeper.plist || :
+    ${csudo}launchctl load -w /Library/LaunchDaemons/com.taosdata.taoskeeper.plist || :
+  fi
 }
 
 function install_taosadapter_service() {

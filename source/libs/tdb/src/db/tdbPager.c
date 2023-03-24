@@ -947,6 +947,12 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
   return 0;
 }
 
+static int32_t txnIdCompareDesc(const void *pLeft, const void *pRight) {
+  int64_t lhs = *(int64_t *)pLeft;
+  int64_t rhs = *(int64_t *)pRight;
+  return lhs > rhs ? -1 : 1;
+}
+
 int tdbPagerRestoreJournals(SPager *pPager) {
   tdbDirEntryPtr pDirEntry;
   tdbDirPtr      pDir = taosOpenDir(pPager->pEnv->dbName);
@@ -955,23 +961,33 @@ int tdbPagerRestoreJournals(SPager *pPager) {
     return -1;
   }
 
+  SArray *pTxnList = taosArrayInit(16, sizeof(int64_t));
+
   while ((pDirEntry = tdbReadDir(pDir)) != NULL) {
     char *name = tdbDirEntryBaseName(tdbGetDirEntryName(pDirEntry));
     if (strncmp(TDB_MAINDB_NAME "-journal", name, 16) == 0) {
-      char jname[TD_PATH_MAX] = {0};
-      int  dirLen = strlen(pPager->pEnv->dbName);
-      memcpy(jname, pPager->pEnv->dbName, dirLen);
-      jname[dirLen] = '/';
-      memcpy(jname + dirLen + 1, name, strlen(name));
-      if (tdbPagerRestore(pPager, jname) < 0) {
-        tdbCloseDir(&pDir);
+      int64_t txnId = -1;
+      sscanf(name, TDB_MAINDB_NAME "-journal.%" PRId64, &txnId);
+      taosArrayPush(pTxnList, &txnId);
+    }
+  }
+  taosArraySort(pTxnList, txnIdCompareDesc);
+  for (int i = 0; i < TARRAY_SIZE(pTxnList); ++i) {
+    int64_t *pTxnId = taosArrayGet(pTxnList, i);
+    char     jname[TD_PATH_MAX] = {0};
+    int      dirLen = strlen(pPager->pEnv->dbName);
+    memcpy(jname, pPager->pEnv->dbName, dirLen);
+    jname[dirLen] = '/';
+    sprintf(jname + dirLen + 1, TDB_MAINDB_NAME "-journal.%" PRId64, *pTxnId);
+    if (tdbPagerRestore(pPager, jname) < 0) {
+      tdbCloseDir(&pDir);
 
-        tdbError("failed to restore file due to %s. jFileName:%s", strerror(errno), name);
-        return -1;
-      }
+      tdbError("failed to restore file due to %s. jFileName:%s", strerror(errno), jname);
+      return -1;
     }
   }
 
+  taosArrayDestroy(pTxnList);
   tdbCloseDir(&pDir);
 
   return 0;

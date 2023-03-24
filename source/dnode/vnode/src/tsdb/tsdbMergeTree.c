@@ -504,9 +504,34 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
   pIter->iRow += step;
 
   while (1) {
+    bool skipBlock = false;
+
     findNextValidRow(pIter, idStr);
 
-    if (pIter->iRow >= pBlockData->nRow || pIter->iRow < 0) {
+    if (pIter->pBlockLoadInfo->checkRemainingRow) {
+      skipBlock = true;
+      int16_t *aCols = pIter->pBlockLoadInfo->colIds;
+      int      nCols = pIter->pBlockLoadInfo->numOfCols;
+      bool     isLast = pIter->pBlockLoadInfo->isLast;
+      for (int inputColIndex = 0; inputColIndex < nCols; ++inputColIndex) {
+        for (int colIndex = 0; colIndex < pBlockData->nColData; ++colIndex) {
+          SColData *pColData = &pBlockData->aColData[colIndex];
+          int16_t   cid = pColData->cid;
+
+          if (cid == aCols[inputColIndex]) {
+            if (isLast && (pColData->flag & HAS_VALUE)) {
+              skipBlock = false;
+              break;
+            } else if (pColData->flag & (HAS_VALUE | HAS_NULL)) {
+              skipBlock = false;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (skipBlock || pIter->iRow >= pBlockData->nRow || pIter->iRow < 0) {
       tLDataIterNextBlock(pIter, idStr);
       if (pIter->pSttBlk == NULL) {  // no more data
         goto _exit;
