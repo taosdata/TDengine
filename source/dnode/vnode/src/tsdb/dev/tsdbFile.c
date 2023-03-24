@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbFile.h"
+#include "dev.h"
 
 typedef enum {
   TSDB_FOP_CREATE = -2,  // create a file
@@ -24,57 +24,8 @@ typedef enum {
   TSDB_FOP_MAX,
 } tsdb_fop_t;
 
-typedef enum {
-  TSDB_FTYPE_NONE = 0,  // no file type
-  TSDB_FTYPE_STT,       // .stt
-  TSDB_FTYPE_HEAD,      // .head
-  TSDB_FTYPE_DATA,      // .data
-  TSDB_FTYPE_SMA,       // .sma
-  TSDB_FTYPE_TOMB,      // .tomb
-} tsdb_ftype_t;
-
 const char *tsdb_ftype_suffix[] = {
     "none", "stt", "head", "data", "sma", "tomb",
-};
-
-typedef struct SFStt {
-  int64_t offset;
-} SFStt;
-
-typedef struct SFHead {
-  int64_t offset;
-} SFHead;
-
-typedef struct SFData {
-  // TODO
-} SFData;
-
-typedef struct SFSma {
-  // TODO
-} SFSma;
-
-typedef struct SFTomb {
-  // TODO
-} SFTomb;
-
-struct STFile {
-  SDiskID      diskId;
-  int64_t      size;
-  int64_t      cid;
-  int32_t      fid;
-  tsdb_ftype_t type;
-  union {
-    SFStt  fstt;
-    SFHead fhead;
-    SFData fdata;
-    SFSma  fsma;
-    SFTomb ftomb;
-  };
-};
-
-struct SFileObj {
-  volatile int32_t nRef;
-  STFile           file;
 };
 
 struct SFileOp {

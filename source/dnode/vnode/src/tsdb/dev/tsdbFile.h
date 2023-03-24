@@ -23,13 +23,56 @@ extern "C" {
 #endif
 
 /* Exposed Handle */
-typedef struct STFile   STFile;
-typedef struct SFileObj SFileObj;
-typedef struct SFileOp  SFileOp;
+typedef struct STFile  STFile;
+typedef struct SFileOp SFileOp;
+
+typedef enum {
+  TSDB_FTYPE_NONE = 0,  // no file type
+  TSDB_FTYPE_STT,       // .stt
+  TSDB_FTYPE_HEAD,      // .head
+  TSDB_FTYPE_DATA,      // .data
+  TSDB_FTYPE_SMA,       // .sma
+  TSDB_FTYPE_TOMB,      // .tomb
+} tsdb_ftype_t;
 
 /* Exposed APIs */
 
 /* Exposed Structs */
+typedef struct SFStt {
+  int64_t offset;
+} SFStt;
+
+typedef struct SFHead {
+  int64_t offset;
+} SFHead;
+
+typedef struct SFData {
+  // TODO
+} SFData;
+
+typedef struct SFSma {
+  // TODO
+} SFSma;
+
+typedef struct SFTomb {
+  // TODO
+} SFTomb;
+struct STFile {
+  char         fname[TSDB_FILENAME_LEN];
+  SDiskID      diskId;
+  int64_t      size;
+  int64_t      cid;
+  int32_t      fid;
+  int32_t      ref;
+  tsdb_ftype_t type;
+  union {
+    SFStt  fstt;
+    SFHead fhead;
+    SFData fdata;
+    SFSma  fsma;
+    SFTomb ftomb;
+  };
+};
 
 #ifdef __cplusplus
 }

@@ -16,8 +16,6 @@
 #ifndef _TSDB_UTIL_H
 #define _TSDB_UTIL_H
 
-#include "tsdb.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif

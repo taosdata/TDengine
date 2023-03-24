@@ -13,4 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _TSDB_DEV_H
+#define _TSDB_DEV_H
+
 #include "tsdb.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "tsdbUtil.h"
+
+#include "tsdbFile.h"
+
+#include "tsdbFS.h"
+
+#include "tsdbSttFWriter.h"
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TSDB_DEV_H*/

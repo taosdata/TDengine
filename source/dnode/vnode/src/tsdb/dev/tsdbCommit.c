@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbSttFWriter.h"
+#include "dev.h"
 
 // extern dependencies
 typedef struct {

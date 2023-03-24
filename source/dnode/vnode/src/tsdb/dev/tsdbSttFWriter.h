@@ -16,7 +16,7 @@
 #ifndef _TSDB_STT_FILE_WRITER_H
 #define _TSDB_STT_FILE_WRITER_H
 
-#include "tsdb.h"
+#include "tsdbFile.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,6 +34,7 @@ struct SSttFWriterConf {
   STsdb    *pTsdb;
   SSkmInfo *pSkmTb;
   SSkmInfo *pSkmRow;
+  STFile    file;
   int32_t   maxRow;
   int32_t   szPage;
   int8_t    cmprAlg;
