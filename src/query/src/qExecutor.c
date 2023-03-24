@@ -1041,6 +1041,8 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
 
     if (tsCol != NULL) {
       pCtx[k].ptsList = &tsCol[pos];
+    } else {
+      pCtx[k].ptsList = NULL;
     }
 
     // not a whole block involved in query processing, statistics data can not be used
