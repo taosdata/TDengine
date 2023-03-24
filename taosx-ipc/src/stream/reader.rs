@@ -68,15 +68,6 @@ impl<R: Read> IpcReader<R> {
     fn parse_tables(&self, arrow: Arc<dyn Array>) -> Vec<LushInsertAttrs> {
         let s = arrow.as_any().downcast_ref::<ListArray>().unwrap().value(0);
         let s = s.as_any().downcast_ref::<StructArray>().unwrap();
-
-        let name = s
-            .column(0)
-            .as_any()
-            .downcast_ref::<BinaryArray>()
-            .expect("get table name")
-            .value(0);
-        let name = std::str::from_utf8(name).unwrap().to_string();
-
         let using = self.metadata.init().map(|init| init.name()).unwrap();
 
         let names = s.column_names();
