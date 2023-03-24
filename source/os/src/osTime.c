@@ -413,6 +413,8 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
   }
 #ifdef WINDOWS
   if (*timep < 0) {
+    return NULL;
+    // TODO: bugs in following code
     SYSTEMTIME    ss, s;
     FILETIME      ff, f;
     LARGE_INTEGER offset;
@@ -473,6 +475,8 @@ struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst) 
   }
 #ifdef WINDOWS
   if (*timep < 0) {
+    return NULL;
+    // TODO: bugs in following code
     SYSTEMTIME    ss, s;
     FILETIME      ff, f;
     LARGE_INTEGER offset;
