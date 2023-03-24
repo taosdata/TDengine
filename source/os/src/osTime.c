@@ -33,6 +33,7 @@
 #include <time.h>
 //#define TM_YEAR_BASE 1970 //origin
 #define TM_YEAR_BASE 1900  // slguan
+#define _MAX__TIME64_T 0x793406fffi64
 
 // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
 // until 00:00:00 January 1, 1970
@@ -444,6 +445,9 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
     result->tm_yday = 0;
     result->tm_isdst = 0;
   } else {
+    if (*timep > _MAX__TIME64_T) {
+      return NULL;
+    }
     localtime_s(result, timep);
   }
 #else
@@ -500,6 +504,9 @@ struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst) 
     result->tm_yday = 0;
     result->tm_isdst = 0;
   } else {
+    if (*timep > _MAX__TIME64_T) {
+      return NULL;
+    }
     localtime_s(result, timep);
   }
 #elif defined(LINUX)
