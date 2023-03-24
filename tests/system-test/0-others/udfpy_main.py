@@ -89,12 +89,15 @@ class TDTestCase:
         create_table_sql = self.set_stb_sql(stbname, self.column_dict, self.tag_dict)
         tdSql.execute(create_table_sql)
 
+        batch_size = 1000
         # create child table
         for i in range(count):
             ti = i % 128
             tags = f'{ti},{ti},{i},{i},{ti},{ti},{i},{i},{i}.000{i},{i}.000{i},true,"var{i}","nch{i}",now'
-            sql  = f'create table {tbname}{i} using {stbname} tags({tags})'
-            tdSql.execute(sql)
+            sql  = f'create table {tbname}{i} using {stbname} tags({tags});'
+            tdSql.execute(sql)            
+            if i % batch_size == 0:
+               tdLog.info(f" create child table {i} ...")
 
         tdLog.info(f" create {count} child tables ok.")
 
@@ -144,16 +147,22 @@ class TDTestCase:
 
         # files
         self.create_sf_dicts(self.scalar_funs, "sf_origin.py")
-        self.create_udf_sf("sf_multi_args", "binary(1024)")
+        fun_name = "sf_multi_args"
+        self.create_udf_sf(fun_name, f'{fun_name}.py', "binary(1024)")
+
+        # all type check null
+        for col_name, col_type in self.column_dict.items():
+             self.create_udf_sf(f"sf_null_{col_name}", "sf_null.py", col_type)
+
 
     # fun_name == fun_name.py
-    def create_udf_sf(self, fun_name, out_type):
-        sql = f'create function {fun_name} as "{self.udf_path}/{fun_name}.py" outputtype {out_type} language "Python" '
+    def create_udf_sf(self, fun_name, file_name, out_type):
+        sql = f'create function {fun_name} as "{self.udf_path}/{file_name}" outputtype {out_type} language "Python" '
         tdSql.execute(sql)
         tdLog.info(sql)
 
-    def create_udf_af(self, fun_name, filename, out_type, bufsize):
-        sql = f'create aggregate function {fun_name} as "{self.udf_path}/{filename}" outputtype {out_type} bufsize {bufsize} language "Python" '
+    def create_udf_af(self, fun_name, file_name, out_type, bufsize):
+        sql = f'create aggregate function {fun_name} as "{self.udf_path}/{file_name}" outputtype {out_type} bufsize {bufsize} language "Python" '
         tdSql.execute(sql)
         tdLog.info(sql)
 
@@ -216,9 +225,16 @@ class TDTestCase:
                     tdLog.info(sql)
                     self.verify_same_value(sql)
 
-
         # multi-args
         self.query_multi_args()       
+
+        # all type check null
+        for col_name, col_type in self.column_dict.items():
+             fun_name = f"sf_null_{col_name}"
+             sql = f'select {fun_name}({col_name}) from {self.stbname}'
+             tdSql.query(sql)
+             tdSql.checkData(0, 0, "None")
+
 
     # create aggregate 
     def create_aggr_udfpy(self):
@@ -270,12 +286,21 @@ class TDTestCase:
     # insert to child table d1 data
     def insert_data(self, tbname, rows):
         ts = 1670000000000
+        sqls = ""
+        batch_size = 300
         for i in range(self.child_count):
             for j in range(rows):
                 tj = j % 128
                 cols = f'{tj},{tj},{j},{j},{tj},{tj},{j},{j},{j}.000{j},{j}.000{j},true,"var{j}","nch{j}",now'
                 sql = f'insert into {tbname}{i} values({ts+j},{cols});' 
-                tdSql.execute(sql)
+                sqls += sql
+                if j % batch_size == 0:
+                   tdSql.execute(sqls)
+                   tdLog.info(f" child table={i} rows={j} insert data.")
+                   sqls = ""
+        # end
+        if sqls != "":
+            tdSql.execute(sqls)
 
         # partial columns upate
         sql = f'insert into {tbname}0(ts, col1, col9, col11) values(now, 100, 200, 0)'
@@ -286,7 +311,7 @@ class TDTestCase:
         tdSql.execute(sql)        
         sql = f'insert into {tbname}0(ts) values(now)'
         tdSql.execute(sql)
-        tdLog.info(f" insert {rows} for each child table.")
+        tdLog.info(f" insert {rows} to child table {self.child_count} .")
 
 
     # run
@@ -294,10 +319,11 @@ class TDTestCase:
         # var
         stable = "meters"
         tbname = "d"
-        count = 10
+        count = 10000
+        rows =  1000
         # do 
         self.create_table(stable, tbname, count)
-        self.insert_data(tbname, 10)
+        self.insert_data(tbname, rows)
 
         # scalar
         self.create_scalar_udfpy()
