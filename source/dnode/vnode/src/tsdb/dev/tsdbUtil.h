@@ -16,6 +16,8 @@
 #ifndef _TSDB_UTIL_H
 #define _TSDB_UTIL_H
 
+#include "tsdb.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,7 +34,7 @@ int32_t tDelBlockAppend(SDelBlock *pDelBlock, const TABLEID *tbid, const SDelDat
 
 /* Exposed Structs */
 struct SDelBlock {
-  SColData aColData[4];  // <suid, uid, version, skey, ekey>
+  SColData aColData[5];  // <suid, uid, version, skey, ekey>
 };
 
 struct SDelBlk {

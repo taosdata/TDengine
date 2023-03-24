@@ -14,3 +14,43 @@
  */
 
 #include "dev.h"
+
+int32_t tDelBlockCreate(SDelBlock *pDelBlock) {
+  memset(pDelBlock, 0, sizeof(SDelBlock));
+  for (int32_t i = 0; i < 5; ++i) {
+    tColDataInit(&pDelBlock->aColData[i], i + 1, TSDB_DATA_TYPE_BIGINT, 0);
+  }
+  return 0;
+}
+
+int32_t tDelBlockDestroy(SDelBlock *pDelBlock) {
+  for (int32_t i = 0; i < 5; ++i) {
+    tColDataDestroy(&pDelBlock->aColData[i]);
+  }
+  return 0;
+}
+
+int32_t tDelBlockClear(SDelBlock *pDelBlock) {
+  for (int32_t i = 0; i < 5; ++i) {
+    tColDataClear(&pDelBlock->aColData[i]);
+  }
+  return 0;
+}
+
+int32_t tDelBlockAppend(SDelBlock *pDelBlock, const TABLEID *tbid, const SDelData *pDelData) {
+  int32_t code = 0;
+  SColVal cv;
+
+  //   TODO
+  code = tColDataAppendValue(&pDelBlock->aColData[0], &cv);
+
+  code = tColDataAppendValue(&pDelBlock->aColData[1], &cv);
+
+  code = tColDataAppendValue(&pDelBlock->aColData[2], &cv);
+
+  code = tColDataAppendValue(&pDelBlock->aColData[3], &cv);
+
+  code = tColDataAppendValue(&pDelBlock->aColData[4], &cv);
+
+  return code;
+}
