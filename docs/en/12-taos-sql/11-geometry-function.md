@@ -86,3 +86,21 @@ ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
 **Explanations**：
 - A and B have at least one point in common, and the common points lie in at least one boundary.
 - For Point/Point inputs the relationship is always FALSE, since points do not have a boundary.
+
+
+### ST_Contains
+
+```sql
+ST_Contains(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**Description**: Returns TRUE if geometry A contains geometry B.
+
+**Return value type**: BOOL
+
+**Applicable data types**: GEOMETRY, GEOMETRY
+
+**Applicable table types**: standard tables and supertables
+
+**Explanations**：
+- A contains B if and only if all points of B lie inside (i.e. in the interior or boundary of) A (or equivalently, no points of B lie in the exterior of A), and the interiors of A and B have at least one point in common.

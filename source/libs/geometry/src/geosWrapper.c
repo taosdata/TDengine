@@ -281,6 +281,11 @@ int32_t doTouches(const GEOSPreparedGeometry *preparedGeom1, const unsigned char
   return doGeosRelation(preparedGeom1, input2, swapped, res, GEOSPreparedTouches_r, GEOSPreparedTouches_r);
 }
 
+int32_t doContains(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+                  bool swapped, char *res) {
+  return doGeosRelation(preparedGeom1, input2, swapped, res, GEOSPreparedContains_r, GEOSPreparedWithin_r);
+}
+
 // input is with VARSTR format
 // need to call destroyGeometry(outputPreparedGeom, outputGeom) later
 int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom, const GEOSPreparedGeometry **outputPreparedGeom) {

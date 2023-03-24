@@ -59,7 +59,7 @@ class TDTestCase:
         tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 2)", self.errno_TSC_SQL_SYNTAX_ERROR)
 
     def geomFromText_test(self, dbname = "db"):
-        # [ToDo] remove ST_AsText() calling in geomFromText_test once GEOMETRY type is supported  in taos-connector-python
+        # [ToDo] remove ST_AsText() calling in geomFromText_test once GEOMETRY type is supported in taos-connector-python
 
         # column input, including NULL value
         tdSql.query(f"select ST_AsText(ST_GeomFromText(c3)), ST_AsText(c4) from {dbname}.t1")
@@ -201,6 +201,16 @@ class TDTestCase:
             [1, self.polygon]             # in where clause
         ]
         self.geomRelationFunc_test('ST_Touches', expectedResults)
+
+        tdLog.printNoPrefix("==========step6: ST_Contains function test")
+        expectedResults = [
+            [True, True, True, None],     # two columns
+            [True, False, False, None],   # constant and column
+            False,                        # two constants 1
+            False,                        # two constants 2
+            [1, self.point]               # in where clause
+        ]
+        self.geomRelationFunc_test('ST_Contains', expectedResults)
 
     def stop(self):
         tdSql.close()

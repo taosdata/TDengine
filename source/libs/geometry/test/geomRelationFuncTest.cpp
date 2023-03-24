@@ -42,7 +42,24 @@ void callGeomRelationFuncAndCompareResult(FScalarExecProcess geomRelationFunc,
   destroyScalarParam(pInput, 2);
 }
 
-void relationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedResults[5][6]) {
+/*
+-- Use the following SQL to get expected results for all relation functions
+WITH geom_str AS
+(SELECT 'POINT(3.5 7.0)' AS g1, 'POINT(3.5 7.0)' AS g2
+UNION ALL
+SELECT 'POINT(3.0 3.0)' AS g1, 'LINESTRING(1.0 1.0, 2.0 2.0, 5.0 6.0)' AS g2
+UNION ALL
+SELECT 'POINT(4.0 7.0)' AS g1, 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))' AS g2
+UNION ALL
+SELECT 'LINESTRING(1.0 1.0, 2.0 2.0, 5.0 5.0)' AS g1, 'LINESTRING(1.0 4.0, 2.0 3.0, 5.0 0.0)' AS g2
+UNION ALL
+SELECT 'LINESTRING(1.0 1.0, 2.0 2.0, 3.0 5.0)' AS g1, 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))' AS g2
+UNION ALL
+SELECT 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))' AS g1, 'POLYGON((5.0 6.0, 7.0 6.0, 7.0 8.0, 5.0 8.0, 5.0 6.0))' AS g2
+)
+SELECT ST_Intersects(g1, g2), ST_Touches(g1, g2), ST_Contains(g1, g2) FROM geom_str
+*/
+void geomRelationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedResults[6][6]) {
   int32_t rowNum = 6;
 
   char strArray1[rowNum][TSDB_MAX_BINARY_LEN];
@@ -71,25 +88,25 @@ void relationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedResult
   pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
   callGeomFromTextWrapper5(strArray2, rowNum, pInput);
   callGeomFromTextWrapper5(strArray1, rowNum, pInput + 1);
-  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResults[0]);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResults[1]);
 
   // constant and column input
   pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
   callGeomFromTextWrapper5(strArray1, 1, pInput);
   callGeomFromTextWrapper5(strArray2, rowNum, pInput + 1);
-  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResults[1]);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResults[2]);
 
   // column and constant input
   pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
   callGeomFromTextWrapper5(strArray1, rowNum, pInput);
   callGeomFromTextWrapper5(strArray2, 1, pInput + 1);
-  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResults[2]);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResults[3]);
 
   // two constants input
   pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
   callGeomFromTextWrapper5(strArray1, 1, pInput);
   callGeomFromTextWrapper5(strArray2, 1, pInput + 1);
-  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, 1, TSDB_CODE_SUCCESS, expectedResults[3]);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, 1, TSDB_CODE_SUCCESS, expectedResults[4]);
 
   // two columns with NULL value input
   pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
@@ -97,7 +114,7 @@ void relationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedResult
   STR_TO_VARSTR(strArray2[4], "");
   callGeomFromTextWrapper5(strArray1, rowNum, pInput);
   callGeomFromTextWrapper5(strArray2, rowNum, pInput + 1);
-  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResults[4]);
+  callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_SUCCESS, expectedResults[5]);
 
   // first NULL type input
   pInput = (SScalarParam *)taosMemoryCalloc(2, sizeof(SScalarParam));
@@ -137,26 +154,42 @@ void relationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedResult
 
 TEST(GeomRelationFuncTest, intersectsFunction) {
   // 1: true, 0: false, -1: null
-  int8_t expectedResults[5][6] = {
+  int8_t expectedResults[6][6] = {
     {1, 0, 1, 1, 0, 1},   // two columns
+    {1, 0, 1, 1, 0, 1},   // two columns swpped
     {1, 0, 1, 0, 1, 0},   // first constant
     {1, 0, 0, 0, 0, 1},   // second constant
     {1},                  // two constant
     {1, 0, -1, 1, -1, 1}  // with Null value
   };
 
-  relationFuncTest(intersectsFunction, expectedResults);
+  geomRelationFuncTest(intersectsFunction, expectedResults);
 }
 
 TEST(GeomRelationFuncTest, touchesFunction) {
   // 1: true, 0: false, -1: null
-  int8_t expectedResults[5][6] = {
+  int8_t expectedResults[6][6] = {
     {0, 0, 0, 0, 0, 1},   // two columns
+    {0, 0, 0, 0, 0, 1},   // two columns swapped
     {0, 0, 0, 0, 0, 0},   // first constant
     {0, 0, 0, 0, 0, 0},   // second constant
     {0},                  // two constant
     {0, 0, -1, 0, -1, 1}  // with Null value
   };
 
-  relationFuncTest(touchesFunction, expectedResults);
+  geomRelationFuncTest(touchesFunction, expectedResults);
+}
+
+TEST(GeomRelationFuncTest, containsFunction) {
+  // 1: true, 0: false, -1: null
+  int8_t expectedResults[6][6] = {
+    {1, 0, 0, 0, 0, 0},   // two columns
+    {1, 0, 1, 0, 0, 0},   // two columns swapped
+    {1, 0, 0, 0, 0, 0},   // first constant
+    {1, 0, 0, 0, 0, 1},   // second constant
+    {1},                  // two constant
+    {1, 0, -1, 0, -1, 0}  // with Null value
+  };
+
+  geomRelationFuncTest(containsFunction, expectedResults);
 }
