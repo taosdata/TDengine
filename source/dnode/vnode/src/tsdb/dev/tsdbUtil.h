@@ -27,11 +27,14 @@ typedef struct SDelBlock SDelBlock;
 typedef struct SDelBlk   SDelBlk;
 
 /* Exposed APIs */
+int32_t tDelBlockCreate(SDelBlock *pDelBlock);
+int32_t tDelBlockDestroy(SDelBlock *pDelBlock);
+int32_t tDelBlockClear(SDelBlock *pDelBlock);
+int32_t tDelBlockAppend(SDelBlock *pDelBlock, const TABLEID *tbid, const SDelData *pDelData);
 
 /* Exposed Structs */
 struct SDelBlock {
-  // <suid, uid, version, skey, ekey>
-  SColData aColData[4];
+  SColData aColData[4];  // <suid, uid, version, skey, ekey>
 };
 
 struct SDelBlk {

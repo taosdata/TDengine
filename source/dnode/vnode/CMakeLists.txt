@@ -1,75 +1,83 @@
 # vnode
 add_library(vnode STATIC "")
+set(
+  VNODE_SOURCE_FILES
+  "src/vnd/vnodeOpen.c"
+  "src/vnd/vnodeBufPool.c"
+  "src/vnd/vnodeCfg.c"
+  "src/vnd/vnodeCommit.c"
+  "src/vnd/vnodeQuery.c"
+  "src/vnd/vnodeModule.c"
+  "src/vnd/vnodeSvr.c"
+  "src/vnd/vnodeSync.c"
+  "src/vnd/vnodeSnapshot.c"
+  "src/vnd/vnodeRetention.c"
+
+  # meta
+  "src/meta/metaOpen.c"
+  "src/meta/metaIdx.c"
+  "src/meta/metaTable.c"
+  "src/meta/metaSma.c"
+  "src/meta/metaQuery.c"
+  "src/meta/metaCommit.c"
+  "src/meta/metaEntry.c"
+  "src/meta/metaSnapshot.c"
+  "src/meta/metaCache.c"
+
+  # sma
+  "src/sma/smaEnv.c"
+  "src/sma/smaUtil.c"
+  "src/sma/smaFS.c"
+  "src/sma/smaOpen.c"
+  "src/sma/smaCommit.c"
+  "src/sma/smaRollup.c"
+  "src/sma/smaSnapshot.c"
+  "src/sma/smaTimeRange.c"
+
+  # tsdb
+  "src/tsdb/tsdbCommit.c"
+  "src/tsdb/tsdbFile.c"
+  "src/tsdb/tsdbFS.c"
+  "src/tsdb/tsdbOpen.c"
+  "src/tsdb/tsdbMemTable.c"
+  "src/tsdb/tsdbRead.c"
+  "src/tsdb/tsdbCache.c"
+  "src/tsdb/tsdbWrite.c"
+  "src/tsdb/tsdbReaderWriter.c"
+  "src/tsdb/tsdbUtil.c"
+  "src/tsdb/tsdbSnapshot.c"
+  "src/tsdb/tsdbCacheRead.c"
+  "src/tsdb/tsdbRetention.c"
+  "src/tsdb/tsdbDiskData.c"
+  "src/tsdb/tsdbMergeTree.c"
+  "src/tsdb/tsdbDataIter.c"
+
+  # tq
+  "src/tq/tq.c"
+  "src/tq/tqExec.c"
+  "src/tq/tqMeta.c"
+  "src/tq/tqRead.c"
+  "src/tq/tqOffset.c"
+  "src/tq/tqPush.c"
+  "src/tq/tqSink.c"
+  "src/tq/tqCommit.c"
+  "src/tq/tqSnapshot.c"
+  "src/tq/tqOffsetSnapshot.c"
+)
+
+if (USE_DEV_CODE)
+  aux_source_directory("src/tsdb/dev" VNODE_SOURCE_DEV_FILES)
+  list(
+    APPEND
+    VNODE_SOURCE_FILES
+    ${VNODE_SOURCE_DEV_FILES}
+  )
+endif(USE_DEV_CODE)
+
 target_sources(
     vnode
     PRIVATE
-
-    # vnode
-    "src/vnd/vnodeOpen.c"
-    "src/vnd/vnodeBufPool.c"
-    "src/vnd/vnodeCfg.c"
-    "src/vnd/vnodeCommit.c"
-    "src/vnd/vnodeQuery.c"
-    "src/vnd/vnodeModule.c"
-    "src/vnd/vnodeSvr.c"
-    "src/vnd/vnodeSync.c"
-    "src/vnd/vnodeSnapshot.c"
-    "src/vnd/vnodeRetention.c"
-
-    # meta
-    "src/meta/metaOpen.c"
-    "src/meta/metaIdx.c"
-    "src/meta/metaTable.c"
-    "src/meta/metaSma.c"
-    "src/meta/metaQuery.c"
-    "src/meta/metaCommit.c"
-    "src/meta/metaEntry.c"
-    "src/meta/metaSnapshot.c"
-    "src/meta/metaCache.c"
-
-    # sma
-    "src/sma/smaEnv.c"
-    "src/sma/smaUtil.c"
-    "src/sma/smaFS.c"
-    "src/sma/smaOpen.c"
-    "src/sma/smaCommit.c"
-    "src/sma/smaRollup.c"
-    "src/sma/smaSnapshot.c"
-    "src/sma/smaTimeRange.c"
-
-    # tsdb
-    "src/tsdb/tsdbCommit.c"
-    "src/tsdb/tsdbFile.c"
-    "src/tsdb/tsdbFS.c"
-    "src/tsdb/tsdbOpen.c"
-    "src/tsdb/tsdbMemTable.c"
-    "src/tsdb/tsdbRead.c"
-    "src/tsdb/tsdbCache.c"
-    "src/tsdb/tsdbWrite.c"
-    "src/tsdb/tsdbReaderWriter.c"
-    "src/tsdb/tsdbUtil.c"
-    "src/tsdb/tsdbSnapshot.c"
-    "src/tsdb/tsdbCacheRead.c"
-    "src/tsdb/tsdbRetention.c"
-    "src/tsdb/tsdbDiskData.c"
-    "src/tsdb/tsdbMergeTree.c"
-    "src/tsdb/tsdbDataIter.c"
-    # # dev
-    "src/tsdb/dev/tsdbCommit.c"
-    "src/tsdb/dev/tsdbMerge.c"
-    "src/tsdb/dev/tsdbSttFWriter.c"
-
-    # tq
-    "src/tq/tq.c"
-    "src/tq/tqExec.c"
-    "src/tq/tqMeta.c"
-    "src/tq/tqRead.c"
-    "src/tq/tqOffset.c"
-    "src/tq/tqPush.c"
-    "src/tq/tqSink.c"
-    "src/tq/tqCommit.c"
-    "src/tq/tqSnapshot.c"
-    "src/tq/tqOffsetSnapshot.c"
+    ${VNODE_SOURCE_FILES}
 )
 
 IF (TD_VNODE_PLUGINS)

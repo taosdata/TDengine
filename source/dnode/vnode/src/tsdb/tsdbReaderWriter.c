@@ -141,7 +141,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size) {
+int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size) {
   int32_t code = 0;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
   int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
@@ -173,7 +173,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
+int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
   int32_t code = 0;
   int64_t n = 0;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
@@ -202,7 +202,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbFsyncFile(STsdbFD *pFD) {
+int32_t tsdbFsyncFile(STsdbFD *pFD) {
   int32_t code = 0;
 
   code = tsdbWriteFilePage(pFD);

@@ -35,6 +35,8 @@ struct SSttFWriterConf {
   SSkmInfo *pSkmTb;
   SSkmInfo *pSkmRow;
   int32_t   maxRow;
+  int32_t   szPage;
+  int8_t    cmprAlg;
 };
 
 #ifdef __cplusplus
