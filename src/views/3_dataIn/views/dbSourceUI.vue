@@ -10,8 +10,8 @@
         <div class="block-title">
           <span>{{ dbsource[0].options.display }}</span>
         </div>
-        <div class="protocol">
-          <span class="label">{{dbsource[0].protocol.display }}</span>
+        <div class="protocol" v-if="dbsource[0].protocol">
+          <span class="label">{{ dbsource[0].protocol.display }}</span>
           <div class="label-value">
             <el-select
               v-model="dbsource[0].protocol.value"
@@ -51,7 +51,7 @@
               ></div>
             </div>
           </div>
-          <div style="width: 100%">
+          <div style="width: 100%" v-if="dbsource[0].options.port">
             <span
               :class="[
                 'label',
@@ -131,7 +131,7 @@
           </div>
         </div>
       </section>
-      <section class="authentication">
+      <section class="authentication" v-if="dbsource[0].authentication">
         <div>
           <div class="block-title">
             <span>{{ dbsource[0].authentication.display }}</span>
@@ -237,7 +237,7 @@
             ></div>
           </div>
           <template v-for="p in item.params">
-            <div :key="p.name">
+            <div :key="p.name + Math.random()">
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
               </span>
@@ -249,18 +249,21 @@
                   ></el-input>
                 </template>
                 <template v-if="p.hint.type && p.hint.type === 'str'">
-                  <el-select
-                    v-model="p.value"
-                    placeholder="Please select"
-                    style="margin-left: -15px"
-                  >
-                    <el-option
-                      v-for="c in p.hint.choices"
-                      :key="c"
-                      :label="c"
-                      :value="c"
-                    ></el-option>
-                  </el-select>
+                  <template v-if="p.hint.choices">
+                    <el-select
+                      v-model="p.value"
+                      placeholder="Please select"
+                      style="margin-left: -15px"
+                    >
+                      <el-option
+                        v-for="c in p.hint.choices"
+                        :key="c"
+                        :label="c"
+                        :value="c"
+                      ></el-option>
+                    </el-select>
+                  </template>
+                  <el-input v-else v-model="p.value"></el-input>
                 </template>
                 <template v-if="p.hint === 'bool'">
                   <el-radio-group v-model="p.value">
@@ -268,6 +271,14 @@
                       {{ c }}
                     </el-radio>
                   </el-radio-group>
+                </template>
+                <template
+                  v-if="
+                    (p.hint.type && p.hint.type === 'integer') ||
+                    p.hint === 'integer'
+                  "
+                >
+                  <el-input-number v-model="p.value"></el-input-number>
                 </template>
                 <div
                   v-html="transforHtml(p.description)"
@@ -317,7 +328,7 @@ import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
-import {decrypt} from '@/utils/index'
+import { decrypt } from "@/utils/index";
 export default {
   name: "DbSourceUI",
   props: {
@@ -331,18 +342,18 @@ export default {
       type: Boolean,
       default: false,
     },
-    editId:{
-      type:Number,
-      default:0
+    editId: {
+      type: Number,
+      default: 0,
     },
-    dbName:{
-      type:String,
-      default:''
-    }
+    dbName: {
+      type: String,
+      default: "",
+    },
   },
   data() {
     return {
-      decryptPwd:'',//解密的密码
+      decryptPwd: "", //解密的密码
       //   dbsource,
       disable: false,
       address: "",
@@ -357,19 +368,19 @@ export default {
   },
   created() {
     this.getDatabases();
-    if(this.isEditable){
-      this.dbname=this.dbName
+    if (this.isEditable) {
+      this.dbname = this.dbName;
     }
   },
-  watch:{
-    dbName:{
-      deep:true,
-      handler(val){
-        if(this.isEditable){
-          this.dbname=this.dbName
+  watch: {
+    dbName: {
+      deep: true,
+      handler(val) {
+        if (this.isEditable) {
+          this.dbname = this.dbName;
         }
-      }
-    }
+      },
+    },
   },
   methods: {
     transforHtml(val) {
@@ -406,10 +417,13 @@ export default {
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
       try {
-        if (data.protocol.value) {
-          dns += Object.is(data.protocol.value,'--')?'': data.protocol.value;
+        if (data.protocol&&data.protocol.value) {
+          dns += Object.is(data.protocol.value, "--")
+            ? ""
+            : data.protocol.value;
         }
         for (let key of Object.keys(data.options)) {
+          console.log(key,data.options[key],'遍历---');
           if (
             Object.hasOwnProperty.call(data.options[key], "required") &&
             (data.options[key]["value"] == "" ||
@@ -422,18 +436,19 @@ export default {
             return;
           }
         }
-        this.decryptPwd=decrypt(sessionStorage.getItem("pwd"))
-        dns += `://${sessionStorage.getItem(
-          "username"
-        )}:${this.decryptPwd}@${
+        this.decryptPwd = decrypt(sessionStorage.getItem("pwd"));
+        dns += `://${sessionStorage.getItem("username")}:${this.decryptPwd}@${
           data.options.host.value ? data.options.host.value : ""
         }
         `;
-        dns +=(Object.is(data.options.port.value, null) ? "" : ":") +
+        dns +=
+          (Object.is(data.options.port.value, null) ? "" : ":") +
           `${data.options.port.value ? data.options.port.value : ""}`;
-        dns += data.options.subject.value? "/" + data.options.subject.value: "";
-        let reg=/\s+/g
-        dns=dns.replace(reg,'').trim()
+        dns += data.options.subject.value
+          ? "/" + data.options.subject.value
+          : "";
+        let reg = /\s+/g;
+        dns = dns.replace(reg, "").trim();
         let querystr = "";
         for (let index = 0; index < data.groups.length; index++) {
           //   for (let j = 0; j < data.groups[index].params.length; j++) {
@@ -472,7 +487,7 @@ export default {
           labels: ["type::datain", `cluster-id::${id}`],
         };
         if (this.isEditable) {
-          await EditSource(apiParams,this.editId).then(() => {
+          await EditSource(apiParams, this.editId).then(() => {
             this.$parent.toggleComponent("dbsource", "");
           });
         } else {
@@ -518,7 +533,7 @@ export default {
       font-size: 14px;
       color: #4259ce;
       align-items: center;
-      width: 120px;
+      width: 200px;
       display: block;
     }
     .label.required {
@@ -640,6 +655,15 @@ export default {
     display: initial !important;
     color: #acaab2;
     margin-bottom: 0px !important;
+  }
+  :deep {
+    .el-input-number__increase,
+    .el-input-number__decrease {
+      height: 38px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
   }
 }
 </style>
