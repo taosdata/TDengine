@@ -175,8 +175,10 @@ pub async fn pi_to_taos(
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
+    let config_path = config_file.path().to_path_buf();
+    config_file.close()?;
 
-    log::info!("Using config \n{}", toml);
+    log::info!("Using config file {} \n{}", config_path.display(), toml);
 
     let server = spawn_rest_service(target_pool, 6052).await?;
 
@@ -193,7 +195,7 @@ pub async fn pi_to_taos(
         );
         command
             .arg("-f")
-            .arg(config_file.path().display().to_string())
+            .arg(&config_path)
             // .stdout(Stdio::piped())
             // .stderr(Stdio::piped())
             .output()
@@ -227,7 +229,7 @@ pub async fn pi_to_taos(
 
 fn stop_thread<T>(handle: JoinHandle<T>) {
     #[cfg(windows)]
-    {
+    unsafe {
         use std::os::windows::io::IntoRawHandle;
         use winapi::ctypes::c_void as winapi_c_void;
         use winapi::um::processthreadsapi::TerminateThread;
