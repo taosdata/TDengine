@@ -4521,6 +4521,7 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
         SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = numOfRows};
         taosArrayInsert(pSup->pColAgg, i, &nullColAgg);
         i += 1;
+        size++;
       }
       j += 1;
     }
