@@ -11,18 +11,26 @@ def start():
 
 def finish(buf):
     sums = pickle.loads(buf)
-    all = 0
+    all = None
     for sum in sums:
-        all += sum
+        if all is None:
+            all = sum
+        else:
+            all += sum
     return all
 
 def reduce(datablock, buf):
     (rows, cols) = datablock.shape()
     sums = pickle.loads(buf)
-    sum = 0
+    sum = None
     for i in range(rows):
         val = datablock.data(i, 0)
         if val is not None:
-           sum += val
-    sums.append(sum)
+           if sum is None:
+               sum = val
+           else:
+               sum += val
+               
+    if sum is not None:
+        sums.append(sum)
     return pickle.dumps(sums) 
