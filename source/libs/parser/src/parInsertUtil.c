@@ -611,8 +611,35 @@ static int bindFileds(SBoundColInfo* pBoundInfo, SSchema* pSchema, TAOS_FIELD* f
   return code;
 }
 
+static bool isSameBindFileds(SBoundColInfo* pBoundInfo, SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
+  int16_t lastColIdx = -1;  // last column found
+  for (int i = 0; i < numFields; i++) {
+    SToken token;
+    token.z = fields[i].name;
+    token.n = strlen(fields[i].name);
+
+    int16_t t = lastColIdx + 1;
+    int16_t index = insFindCol(&token, t, pBoundInfo->numOfCols, pSchema);
+    if (index < 0 && t > 0) {
+      index = insFindCol(&token, 0, t, pSchema);
+    }
+    if (index < 0) {
+      uError("can not find column name:%s", token.z);
+      return false;
+    } else {
+      lastColIdx = index;
+      if(pBoundInfo->pColIndex[i] != index){
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, TAOS_FIELD* tFields,
                      int numFields, bool needChangeLength) {
+  void* tmp = taosHashGet(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid, sizeof(pTableMeta->uid));
   STableDataCxt* pTableCxt = NULL;
   int            ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, &pTableMeta->uid,
                                           sizeof(pTableMeta->uid), pTableMeta, &pCreateTb, &pTableCxt, true);
@@ -620,19 +647,40 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     uError("insGetTableDataCxt error");
     goto end;
   }
-  if (tFields != NULL) {
-    ret = bindFileds(&pTableCxt->boundColsInfo, getTableColumnSchema(pTableMeta), tFields, numFields);
+
+  do {
+    if (tmp != NULL){
+      if(!isSameBindFileds(&pTableCxt->boundColsInfo, getTableColumnSchema(pTableMeta), tFields, numFields)){
+        char* fieldNames = (char*)taosMemoryCalloc(numFields, sizeof(tFields[0].name));
+        for(int i = 0; i < numFields; i++){
+          memcpy(fieldNames + i * sizeof(tFields[0].name), tFields[i].name, sizeof(tFields[0].name));
+        }
+        ret = insGetTableDataCxt(((SVnodeModifyOpStmt*)(query->pRoot))->pTableBlockHashObj, fieldNames,
+                                 numFields * sizeof(tFields[0].name), pTableMeta, &pCreateTb, &pTableCxt, true);
+        taosMemoryFree(fieldNames);
+        if (ret != TSDB_CODE_SUCCESS) {
+          uError("insGetTableDataCxt inner error");
+          goto end;
+        }
+      }else{
+        break;
+      }
+    }
+
+    if (tFields != NULL) {
+      ret = bindFileds(&pTableCxt->boundColsInfo, getTableColumnSchema(pTableMeta), tFields, numFields);
+      if (ret != TSDB_CODE_SUCCESS) {
+        uError("bindFileds error");
+        goto end;
+      }
+    }
+    // no need to bind, because select * get all fields
+    ret = initTableColSubmitData(pTableCxt);
     if (ret != TSDB_CODE_SUCCESS) {
-      uError("bindFileds error");
+      uError("initTableColSubmitData error");
       goto end;
     }
-  }
-  // no need to bind, because select * get all fields
-  ret = initTableColSubmitData(pTableCxt);
-  if (ret != TSDB_CODE_SUCCESS) {
-    uError("initTableColSubmitData error");
-    goto end;
-  }
+  }while(0);
 
   char* p = (char*)data;
   // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
