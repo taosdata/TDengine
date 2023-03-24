@@ -688,20 +688,27 @@ async fn sync_super_table_schema_with_subs(
         .query_one(format!("show create table `{name}`"))
         .await?
         .unwrap();
-    if let Err(err) = to
-        .exec(
-            sql.replace("VARCHAR", "BINARY")
-                .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
-                .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
-                .replace("create table", "CREATE TABLE IF NOT EXISTS")
-                .replace("create stable", "CREATE TABLE IF NOT EXISTS"),
-        )
-        .await
-    {
-        if err.to_string().contains("0x000B") {
-            from.exec(format!("desc `{name}`")).await?;
+    let sql = sql
+        .replace("VARCHAR", "BINARY")
+        .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
+        .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
+        .replace("create table", "CREATE TABLE IF NOT EXISTS")
+        .replace("create stable", "CREATE TABLE IF NOT EXISTS");
+
+    loop {
+        if let Err(err) = to.exec(&sql).await {
+            let errstr = err.to_string();
+            if errstr.contains("0x000B") {
+                from.exec(format!("desc `{name}`")).await?;
+                break;
+            } else if errstr.contains("0x032C") {
+                continue;
+            } else {
+                Err(err).with_context(|| format!("sql: [{}] exec error", &sql))?;
+                break;
+            }
         } else {
-            Err(err).with_context(|| format!("sql: [{}] exec error", &sql))?;
+            break;
         }
     }
     if let Some(duration) = target_opts.interval {
@@ -855,6 +862,7 @@ impl TableRecord {
 
 #[async_backtrace::framed]
 async fn sync_schema(
+    scheduler: &Scheduler,
     from_pool: &TaosPool,
     to_pool: &TaosPool,
     connect_timeout: Duration,
@@ -904,59 +912,56 @@ async fn sync_schema(
             .unwrap_or(8)
     };
 
-    futures_util::stream::iter(&chunks)
-        .map(|(stable, table)| {
-            Ok::<_, anyhow::Error>((
-                from_pool.clone(),
-                to_pool.clone(),
-                stable,
-                table,
-                &target_opts,
-                metrics.clone(),
-            ))
-        })
-        .try_for_each_concurrent(concurrency, |item| async move {
-            let (from_pool, to_pool, stable, tables, target_opts, metrics) = item;
-            if let Some(stable) = stable {
-                let from = from_pool.get()?;
-                let to = to_pool.get()?;
-                if let Err(err) = sync_super_table_schema_with_subs(
-                    &from,
-                    &stable,
-                    &tables,
-                    &to,
-                    tables.len(),
-                    &target_opts,
-                    is_v3,
-                    to_is_v3,
-                    concurrency,
-                    &metrics,
-                )
-                .await
-                .context("Sync table schema error")
-                {
-                    log::error!(
-                        "Syncing stable {stable} with {} child tables ({}) error: {:?}",
-                        tables.len(),
-                        tables.iter().take(100).join(","),
-                        err
-                    );
-                }
-            } else {
-                let from = from_pool.get()?;
-                let to = to_pool.get()?;
-                for table in tables {
-                    if let Err(err) = sync_normal_table_schema(&from, &table, &to).await {
-                        log::error!("Syncing table `{table}` error: {err:?}");
-                    } else {
-                        metrics.created_tables.fetch_add(1, Ordering::SeqCst);
-                    }
-                }
+    let mut readers = Vec::new();
+    for chunk in chunks {
+        let (sender, reader) = oneshot::channel();
+        let (stable, tables) = chunk;
+        scheduler.send(Todo::Meta(
+            stable.map(|s| Arc::new(s.to_string())),
+            tables.iter().map(|s| s.to_string()).collect_vec(),
+            Some(sender),
+        ))?;
+
+        readers.push((tables, reader));
+    }
+    let total = todo.tables.len();
+    let mut dot = total / 100;
+    if dot == 0 {
+        dot = 1;
+    }
+    let mut count = 0;
+    let mut fails = 0;
+    for (tables, reader) in readers {
+        count += tables.len();
+
+        match reader.await? {
+            Ok(_) => {}
+            Err(err) => {
+                log::error!("Error: {err:?}",);
+                fails += 1;
             }
-            Ok::<_, anyhow::Error>(())
-        })
-        .await
-        .context("Concurrently syncing table schema error")?;
+        }
+
+        if count % dot == 0 {
+            if fails == 0 {
+                log::info!(
+                    "Synchronized {:.2}% of tables ({} of {}) for schema.",
+                    count as f64 * 100.0 / total as f64,
+                    count,
+                    total,
+                )
+            } else {
+                log::info!(
+                    "Synchronized {:.2}% of tables ({} of {}) for schema, {} failed.",
+                    count as f64 * 100.0 / total as f64,
+                    count,
+                    total,
+                    fails,
+                );
+            }
+        }
+    }
+    log::info!("Synchronizing {count} tables metadata with {concurrency} workers finished");
 
     Ok(())
 }
@@ -974,21 +979,21 @@ async fn sync_specified_tables_with_workers(
     target_is_v3: bool,
 ) -> anyhow::Result<()> {
     log::info!("Synchronize table data with {} workers", workers);
-    let order = Ordering::SeqCst;
-    let to_taos = to.get()?;
-    let workers = if workers > 0 {
-        workers
-    } else {
-        std::thread::available_parallelism()?.get() * 2
-    };
-    let half_workers = workers / 2;
-    let v2: String = to_taos.query_one("SELECT server_version()").await?.unwrap();
-    let to_is_v3 = v2.starts_with('3');
+    // let order = Ordering::SeqCst;
+    // let to_taos = to.get()?;
+    // let workers = if workers > 0 {
+    //     workers
+    // } else {
+    //     std::thread::available_parallelism()?.get() * 2
+    // };
+    // let half_workers = workers / 2;
+    // let v2: String = to_taos.query_one("SELECT server_version()").await?.unwrap();
+    // let to_is_v3 = v2.starts_with('3');
 
-    let chunk_size = tables.len() / workers / 2;
-    let chunk_size = if chunk_size > 0 { chunk_size } else { 1 };
+    // let chunk_size = tables.len() / workers / 2;
+    // let chunk_size = if chunk_size > 0 { chunk_size } else { 1 };
 
-    log::info!("Synching schedule use chunk size {chunk_size}");
+    // log::info!("Synching schedule use chunk size {chunk_size}");
 
     // let count = Arc::new(AtomicUsize::new(0));
     let mut count = 0;
@@ -1012,6 +1017,7 @@ async fn sync_specified_tables_with_workers(
     let mut fails = 0;
     for reader in readers {
         count += 1;
+        metrics.tables.fetch_add(1, Ordering::SeqCst);
         match reader.await? {
             Ok(_) => {}
             Err(err) => {
@@ -1709,11 +1715,8 @@ pub async fn legacy_to_taos(
 
     let metrics_inner = metrics.clone();
     let todo_inner = todo.clone();
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(5));
-        log::info!("{}", metrics_inner);
-    });
 
+    log::info!("Prepare for {} worker scheduler", concurrency);
     let scheduler = scheduler::Scheduler::new(
         from_pool.clone(),
         to_pool.clone(),
@@ -1726,9 +1729,19 @@ pub async fn legacy_to_taos(
     )
     .await;
 
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(5));
+        log::debug!(
+            "Processed {}/{}",
+            metrics_inner.tables.load(Ordering::SeqCst),
+            todo_inner.tables.len()
+        );
+    });
+
     match (source_opts.mode, source_opts.schema) {
         (_, SchemaMode::Only) => {
             sync_schema(
+                &scheduler,
                 &from_pool,
                 &to_pool,
                 connect_timeout,
@@ -1760,6 +1773,7 @@ pub async fn legacy_to_taos(
         (SyncMode::AsIs, SchemaMode::Always) => {
             log::info!("synchronize schema");
             sync_schema(
+                &scheduler,
                 &from_pool,
                 &to_pool,
                 connect_timeout,
@@ -1826,6 +1840,7 @@ pub async fn legacy_to_taos(
                 SchemaMode::None => (),
                 _ => {
                     sync_schema(
+                        &scheduler,
                         &from_pool,
                         &to_pool,
                         connect_timeout,
