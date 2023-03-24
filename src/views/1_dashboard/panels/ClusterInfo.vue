@@ -13,7 +13,7 @@
         >
           {{ cluster_info.create_time | handleValue }}
         </div>
-        <div class="info_label">Create Time</div>
+        <div class="info_label">{{ $t("dashboard.createtime") }}</div>
       </div>
       <div class="info_card block-border">
         <div
@@ -23,7 +23,7 @@
         >
           {{ cluster_info.expire_time | handleValue }}
         </div>
-        <div class="info_label">Expire Time</div>
+        <div class="info_label">{{ $t("dashboard.expiretime") }}</div>
       </div>
       <div class="info_card block-border">
         <!-- <div class="block-border"> -->
@@ -34,7 +34,7 @@
           {{ cluster_info.version }}
         </div>
         <div class="info_label">
-          Version
+          {{ $t("dashboard.version") }}
           <!-- {{ $t("dashboard.storage") + " (GB " + $t("hour") + ")" }} -->
         </div>
         <!-- </div> -->

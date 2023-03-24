@@ -2,6 +2,7 @@
   <div class="connector">
     <ul class="client-list">
       <li v-for="(item, index) in docsList" :title="item.name" :key="index">
+        <span style="color:red;font-size:30px;">{{item}}</span>
         <router-link class="client-item" :to="getUrl(item.name, item.icon)">
           <h2 class="title">
             
@@ -36,6 +37,7 @@ export default {
   computed: {},
   methods: {
     getUrl(name) {
+      console.log(this.parentUrl + this.urlPre + encodeURIComponent(name),'跳转的地址');
       return this.parentUrl + this.urlPre + encodeURIComponent(name);
     },
     getImg(name, icon) {
