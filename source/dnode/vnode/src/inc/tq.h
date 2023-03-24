@@ -159,7 +159,7 @@ typedef struct {
   int32_t size;
 } STqOffsetHead;
 
-STqOffsetStore* tqOffsetOpen();
+STqOffsetStore* tqOffsetOpen(STQ* pTq);
 void            tqOffsetClose(STqOffsetStore*);
 STqOffset*      tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey);
 int32_t         tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset);

@@ -1116,6 +1116,7 @@ _failed:
 }
 
 int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
+  const int32_t   MAX_RETRY_COUNT = 120 * 2;  // let's wait for 2 mins at most
   const SArray*   container = &topic_list->container;
   int32_t         sz = taosArrayGetSize(container);
   void*           buf = NULL;
@@ -1209,7 +1210,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
 
   int32_t retryCnt = 0;
   while (TSDB_CODE_MND_CONSUMER_NOT_READY == tmqAskEp(tmq, false)) {
-    if (retryCnt++ > 40) {
+    if (retryCnt++ > MAX_RETRY_COUNT) {
       goto FAIL;
     }
 
