@@ -88,6 +88,24 @@ ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
 - For Point/Point inputs the relationship is always FALSE, since points do not have a boundary.
 
 
+### ST_Covers
+
+```sql
+ST_Covers(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**Description**: Returns TRUE if every point in Geometry B lies inside (intersects the interior or boundary of) Geometry A.
+
+**Return value type**: BOOL
+
+**Applicable data types**: GEOMETRY, GEOMETRY
+
+**Applicable table types**: standard tables and supertables
+
+**Explanations**：
+- A covers B means no point of B lies outside (in the exterior of) A.
+
+
 ### ST_Contains
 
 ```sql

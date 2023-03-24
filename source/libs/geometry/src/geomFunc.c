@@ -229,6 +229,12 @@ int32_t executeTouchesFunc(const GEOSPreparedGeometry *preparedGeom1,
   return executeRelationFunc(preparedGeom1, pInputData2, i2, swapped, pOutputData, doTouches);
 }
 
+int32_t executeCoversFunc(const GEOSPreparedGeometry *preparedGeom1,
+                          SColumnInfoData *pInputData2, int32_t i2,
+                          bool swapped, SColumnInfoData *pOutputData) {
+  return executeRelationFunc(preparedGeom1, pInputData2, i2, swapped, pOutputData, doCovers);
+}
+
 int32_t executeContainsFunc(const GEOSPreparedGeometry *preparedGeom1,
                             SColumnInfoData *pInputData2, int32_t i2,
                             bool swapped, SColumnInfoData *pOutputData) {
@@ -423,6 +429,11 @@ int32_t intersectsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
 int32_t touchesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return geomRelationFunction(pInput, pOutput,
                               executeTouchesFunc);
+}
+
+int32_t coversFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return geomRelationFunction(pInput, pOutput,
+                              executeCoversFunc);
 }
 
 int32_t containsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

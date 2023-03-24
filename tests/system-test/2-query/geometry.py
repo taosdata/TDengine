@@ -136,14 +136,14 @@ class TDTestCase:
         # column and constant input
         tdSql.query(f"select {geomRelationFuncName}(c4, ST_GeomFromText('{self.point}')) from {dbname}.t1")
         for i in range(tdSql.queryRows):
-            tdSql.checkData(i, 0, expectedResults[1][i])
+            tdSql.checkData(i, 0, expectedResults[2][i])
 
         # two constants input
         tdSql.query(f"select {geomRelationFuncName}(ST_GeomFromText('{self.point}'), ST_GeomFromText('{self.lineString}'))")
-        tdSql.checkEqual(tdSql.queryResult[0][0], expectedResults[2])
-
-        tdSql.query(f"select {geomRelationFuncName}(ST_GeomFromText('{self.point}'), ST_GeomFromText('{self.polygon}'))")
         tdSql.checkEqual(tdSql.queryResult[0][0], expectedResults[3])
+
+        tdSql.query(f"select {geomRelationFuncName}(ST_GeomFromText('{self.polygon}'), ST_GeomFromText('{self.point}'))")
+        tdSql.checkEqual(tdSql.queryResult[0][0], expectedResults[4])
 
         # NULL type input
         tdSql.query(f"select {geomRelationFuncName}(NULL, ST_GeomFromText('{self.point}'))")
@@ -166,9 +166,9 @@ class TDTestCase:
 
         # used in where clause
         tdSql.query(f"select c3 from {dbname}.t1 where {geomRelationFuncName}(ST_GeomFromText('{self.point}'), c4)=true")
-        tdSql.checkEqual(tdSql.queryRows, expectedResults[4][0])
+        tdSql.checkEqual(tdSql.queryRows, expectedResults[5][0])
         for i in range(tdSql.queryRows):
-            tdSql.checkData(i, 0, expectedResults[4][i+1])
+            tdSql.checkData(i, 0, expectedResults[5][i+1])
 
     def run(self):
         tdSql.prepare()
@@ -186,6 +186,7 @@ class TDTestCase:
         expectedResults = [
             [True, True, True, None],     # two columns
             [True, False, True, None],    # constant and column
+            [True, False, True, None],    # column and constant
             False,                        # two constants 1
             True,                         # two constants 2
             [2, self.point, self.polygon] # in where clause
@@ -196,16 +197,29 @@ class TDTestCase:
         expectedResults = [
             [False, False, False, None],  # two columns
             [False, False, True, None],   # constant and column
+            [False, False, True, None],   # column and constant
             False,                        # two constants 1
             True,                         # two constants 2
             [1, self.polygon]             # in where clause
         ]
         self.geomRelationFunc_test('ST_Touches', expectedResults)
 
-        tdLog.printNoPrefix("==========step6: ST_Contains function test")
+        tdLog.printNoPrefix("==========step6: ST_Covers function test")
         expectedResults = [
             [True, True, True, None],     # two columns
             [True, False, False, None],   # constant and column
+            [True, False, True, None],    # column and constant
+            False,                        # two constants 1
+            True,                         # two constants 2
+            [1, self.point]               # in where clause
+        ]
+        self.geomRelationFunc_test('ST_Covers', expectedResults)
+
+        tdLog.printNoPrefix("==========step7: ST_Contains function test")
+        expectedResults = [
+            [True, True, True, None],     # two columns
+            [True, False, False, None],   # constant and column
+            [True, False, False, None],   # column and constant
             False,                        # two constants 1
             False,                        # two constants 2
             [1, self.point]               # in where clause

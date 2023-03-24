@@ -43,13 +43,13 @@ void callGeomRelationFuncAndCompareResult(FScalarExecProcess geomRelationFunc,
 }
 
 /*
--- Use the following SQL to get expected results for all relation functions
+-- Use the following SQL to get expected results for all relation functions in PostgreSQL with PostGIS
 WITH geom_str AS
 (SELECT 'POINT(3.5 7.0)' AS g1, 'POINT(3.5 7.0)' AS g2
 UNION ALL
 SELECT 'POINT(3.0 3.0)' AS g1, 'LINESTRING(1.0 1.0, 2.0 2.0, 5.0 6.0)' AS g2
 UNION ALL
-SELECT 'POINT(4.0 7.0)' AS g1, 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))' AS g2
+SELECT 'POINT(3.0 6.0)' AS g1, 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))' AS g2
 UNION ALL
 SELECT 'LINESTRING(1.0 1.0, 2.0 2.0, 5.0 5.0)' AS g1, 'LINESTRING(1.0 4.0, 2.0 3.0, 5.0 0.0)' AS g2
 UNION ALL
@@ -57,7 +57,7 @@ SELECT 'LINESTRING(1.0 1.0, 2.0 2.0, 3.0 5.0)' AS g1, 'POLYGON((3.0 6.0, 5.0 6.0
 UNION ALL
 SELECT 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))' AS g1, 'POLYGON((5.0 6.0, 7.0 6.0, 7.0 8.0, 5.0 8.0, 5.0 6.0))' AS g2
 )
-SELECT ST_Intersects(g1, g2), ST_Touches(g1, g2), ST_Contains(g1, g2) FROM geom_str
+SELECT ST_Intersects(g1, g2), ST_Touches(g1, g2), ST_Covers(g1, g2), ST_Contains(g1, g2) FROM geom_str
 */
 void geomRelationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedResults[6][6]) {
   int32_t rowNum = 6;
@@ -65,7 +65,7 @@ void geomRelationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedRe
   char strArray1[rowNum][TSDB_MAX_BINARY_LEN];
   STR_TO_VARSTR(strArray1[0], "POINT(3.5 7.0)");
   STR_TO_VARSTR(strArray1[1], "POINT(3.0 3.0)");
-  STR_TO_VARSTR(strArray1[2], "POINT(4.0 7.0)");
+  STR_TO_VARSTR(strArray1[2], "POINT(3.0 6.0)");
   STR_TO_VARSTR(strArray1[3], "LINESTRING(1.0 1.0, 2.0 2.0, 5.0 5.0)");
   STR_TO_VARSTR(strArray1[4], "LINESTRING(1.0 1.0, 2.0 2.0, 3.0 5.0)");
   STR_TO_VARSTR(strArray1[5], "POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))");
@@ -169,8 +169,8 @@ TEST(GeomRelationFuncTest, intersectsFunction) {
 TEST(GeomRelationFuncTest, touchesFunction) {
   // 1: true, 0: false, -1: null
   int8_t expectedResults[6][6] = {
-    {0, 0, 0, 0, 0, 1},   // two columns
-    {0, 0, 0, 0, 0, 1},   // two columns swapped
+    {0, 0, 1, 0, 0, 1},   // two columns
+    {0, 0, 1, 0, 0, 1},   // two columns swapped
     {0, 0, 0, 0, 0, 0},   // first constant
     {0, 0, 0, 0, 0, 0},   // second constant
     {0},                  // two constant
@@ -180,11 +180,25 @@ TEST(GeomRelationFuncTest, touchesFunction) {
   geomRelationFuncTest(touchesFunction, expectedResults);
 }
 
-TEST(GeomRelationFuncTest, containsFunction) {
+TEST(GeomRelationFuncTest, coversFunction) {
   // 1: true, 0: false, -1: null
   int8_t expectedResults[6][6] = {
     {1, 0, 0, 0, 0, 0},   // two columns
     {1, 0, 1, 0, 0, 0},   // two columns swapped
+    {1, 0, 0, 0, 0, 0},   // first constant
+    {1, 0, 0, 0, 0, 1},   // second constant
+    {1},                  // two constant
+    {1, 0, -1, 0, -1, 0}  // with Null value
+  };
+
+  geomRelationFuncTest(coversFunction, expectedResults);
+}
+
+TEST(GeomRelationFuncTest, containsFunction) {
+  // 1: true, 0: false, -1: null
+  int8_t expectedResults[6][6] = {
+    {1, 0, 0, 0, 0, 0},   // two columns
+    {1, 0, 0, 0, 0, 0},   // two columns swapped
     {1, 0, 0, 0, 0, 0},   // first constant
     {1, 0, 0, 0, 0, 1},   // second constant
     {1},                  // two constant

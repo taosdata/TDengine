@@ -29,6 +29,7 @@ int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
 int32_t intersectsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t touchesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t coversFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t containsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 #ifdef __cplusplus

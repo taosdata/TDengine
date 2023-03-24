@@ -3272,6 +3272,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "st_covers",
+    .type = FUNCTION_TYPE_COVERS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = coversFunction,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "st_contains",
     .type = FUNCTION_TYPE_CONTAINS,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,

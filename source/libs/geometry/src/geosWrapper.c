@@ -281,6 +281,11 @@ int32_t doTouches(const GEOSPreparedGeometry *preparedGeom1, const unsigned char
   return doGeosRelation(preparedGeom1, input2, swapped, res, GEOSPreparedTouches_r, GEOSPreparedTouches_r);
 }
 
+int32_t doCovers(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+                 bool swapped, char *res) {
+  return doGeosRelation(preparedGeom1, input2, swapped, res, GEOSPreparedCovers_r, GEOSPreparedCoveredBy_r);
+}
+
 int32_t doContains(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
                   bool swapped, char *res) {
   return doGeosRelation(preparedGeom1, input2, swapped, res, GEOSPreparedContains_r, GEOSPreparedWithin_r);
