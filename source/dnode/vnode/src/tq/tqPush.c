@@ -213,7 +213,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
 
   if (msgType == TDMT_VND_SUBMIT) {
     // lock push mgr to avoid potential msg lost
-    taosWLockLatch(&pTq->pushLock);
+    taosWLockLatch(&pTq->lock);
 
     int32_t numOfRegisteredPush = taosHashGetSize(pTq->pPushMgr);
     if (numOfRegisteredPush > 0) {
@@ -231,7 +231,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
         taosArrayDestroy(cachedKeyLens);
 
         // unlock
-        taosWUnLockLatch(&pTq->pushLock);
+        taosWUnLockLatch(&pTq->lock);
         return -1;
       }
 
@@ -320,7 +320,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
       taosMemoryFree(data);
     }
     // unlock
-    taosWUnLockLatch(&pTq->pushLock);
+    taosWUnLockLatch(&pTq->lock);
   }
 
   if (!tsDisableStream && vnodeIsRoleLeader(pTq->pVnode)) {
