@@ -152,15 +152,38 @@ fn handle_point_message<R: Read, W: Write>(
     // let rt = Runtime::new().unwrap();
     // TODO use the map initialized
     let mut map = HashMap::new();
-    map.insert( String::from("1"), (String::from("d1004"), String::from("current")),);
-    map.insert( String::from("2"), (String::from("d1004"), String::from("voltage")),);
-    map.insert( String::from("3"), (String::from("d1004"), String::from("phase")),);
+    map.insert(
+        String::from("1"),
+        (
+            String::from("d1004"),
+            String::from("current"),
+            IpcDataType::Float32,
+        ),
+    );
+    map.insert(
+        String::from("2"),
+        (
+            String::from("d1004"),
+            String::from("voltage"),
+            IpcDataType::Int32,
+        ),
+    );
+    map.insert(
+        String::from("3"),
+        (
+            String::from("d1004"),
+            String::from("phase"),
+            IpcDataType::Float32,
+        ),
+    );
+
     let mut records_count = 0;
     for record in ipc_reader {
         if let Ok(record) = record {
             let record = record.as_any().downcast_ref::<PointMessage>().unwrap();
             for message in record.records() {
-                let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_cloumn_view(message.record());
+                let mut cv_vec =
+                    taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
                 let mut stmt = Stmt::init(&taos)?;
                 // process id, ts, value
                 let schema = message.schema();
@@ -171,14 +194,17 @@ fn handle_point_message<R: Read, W: Write>(
                 dbg!(&cv_vec);
                 for i in 0..id_cv.len() {
                     let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
-                    let (table, field) = map.get(&id).unwrap();
+                    let (table, field, _) = map.get(&id).unwrap();
                     let sql = if ts_index > value_index {
                         format!("insert into {table} ({field}, ts) values (?, ?)")
                     } else {
                         format!("insert into {table} (ts, {field}) values (?, ?)")
                     };
                     stmt.prepare(&sql).unwrap();
-                    let new_cv_vec = cv_vec.iter().map(|t_cv| t_cv.slice(i..i+1).unwrap()).collect_vec();
+                    let new_cv_vec = cv_vec
+                        .iter()
+                        .map(|t_cv| t_cv.slice(i..i + 1).unwrap())
+                        .collect_vec();
                     info!(sql);
                     dbg!(&new_cv_vec);
                     stmt.bind(&new_cv_vec.as_slice()).unwrap();

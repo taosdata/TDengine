@@ -1,6 +1,6 @@
 use std::{
     any::{Any, TypeId},
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     fmt::Display,
     str::FromStr,
     sync::Arc,
@@ -20,7 +20,8 @@ use arrow::{
 
 pub use arrow::datatypes::DataType as ArrowDataType;
 use serde::{de::Visitor, Deserialize, Serialize};
-use taos_query::prelude::{Itertools, Value};
+
+use taos_query::prelude::{Itertools, Ty, Value};
 
 use crate::{
     ack::AckType,
@@ -89,6 +90,26 @@ impl IpcDataType {
             IpcDataType::VarChar(len) => format!("varchar({len})"),
             IpcDataType::NChar(len) => format!("nchar({len})"),
             IpcDataType::Json => "json".to_string(),
+        }
+    }
+
+    pub fn ty(&self) -> Ty {
+        match self {
+            IpcDataType::Bool => Ty::Bool,
+            IpcDataType::UInt8 => Ty::UTinyInt,
+            IpcDataType::UInt16 => Ty::USmallInt,
+            IpcDataType::UInt32 => Ty::UInt,
+            IpcDataType::UInt64 => Ty::UBigInt,
+            IpcDataType::Int8 => Ty::TinyInt,
+            IpcDataType::Int16 => Ty::SmallInt,
+            IpcDataType::Int32 => Ty::Int,
+            IpcDataType::Int64 => Ty::BigInt,
+            IpcDataType::Float32 => Ty::Float,
+            IpcDataType::Float64 => Ty::Double,
+            IpcDataType::Timestamp => Ty::Timestamp,
+            IpcDataType::VarChar(len) => Ty::VarChar,
+            IpcDataType::NChar(len) => Ty::NChar,
+            IpcDataType::Json => Ty::Json,
         }
     }
 }
@@ -510,6 +531,16 @@ impl LushMessageInit {
 
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    pub fn column_data_type(&self, name: &str) -> Option<&IpcDataType> {
+        self.columns
+            .iter()
+            .find(|f| f.name == name)
+            .map(|f| &f.r#type)
+    }
+    pub fn tag_data_type(&self, name: &str) -> Option<&IpcDataType> {
+        self.tags.iter().find(|f| f.name == name).map(|f| &f.r#type)
     }
 }
 impl<'a> LushInsertBuilder<'a> {

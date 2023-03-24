@@ -1,4 +1,9 @@
-use std::{any::Any, collections::HashMap, io::Read, sync::Arc};
+use std::{
+    any::Any,
+    collections::{BTreeMap, HashMap},
+    io::Read,
+    sync::Arc,
+};
 
 use arrow::{
     array::{
@@ -6,7 +11,7 @@ use arrow::{
         Int16Array, Int32Array, Int64Array, Int8Array, ListArray, StringArray, StructArray,
         TimestampMillisecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
-    datatypes::{DataType, Schema},
+    datatypes::{DataType, Schema, SchemaRef},
     error::ArrowError,
     ipc::reader::StreamReader,
     record_batch::RecordBatch,
@@ -17,12 +22,12 @@ use taos_query::prelude::{ColumnView, Ty, Value};
 use crate::{
     ack::AckType,
     constants::{__ATTRS__, __RECORDS__, __TABLES__INDEX__, __TABLE_NAME__, __TYPE__},
-    prelude::{IpcMetadata, LushMessageType, StreamType},
+    prelude::{IpcDataType, IpcMetadata, LushMessageType, StreamType},
     stream::point::PointMessage,
 };
 
 pub struct IpcReader<R: Read> {
-    metadata: IpcMetadata,
+    metadata: Arc<IpcMetadata>,
     schema: Arc<Schema>,
     reader: StreamReader<R>,
 }
@@ -31,7 +36,7 @@ impl<R: Read> IpcReader<R> {
     pub fn new(reader: R) -> Result<Self, ArrowError> {
         let reader = StreamReader::try_new(reader, None)?;
         let schema = reader.schema();
-        let metadata = schema.metadata().into();
+        let metadata = Arc::new(schema.metadata().into());
         Ok(Self {
             metadata,
             schema,
@@ -322,6 +327,30 @@ impl<R: Read> IpcReader<R> {
             .into_iter()
             .next()
     }
+
+    fn parse_records(&self, arrow: ArrayRef) -> LushInsertRecords {
+        let s = arrow
+            .as_any()
+            .downcast_ref::<ListArray>()
+            .expect("parse records list");
+        let v = s.value(0);
+        let s = v
+            .as_any()
+            .downcast_ref::<StructArray>()
+            .expect("parse records struct");
+
+        // todo!()
+        let names = s.column_names();
+        let columns = s.columns();
+        let record = RecordBatch::try_from_iter(
+            names
+                .into_iter()
+                .zip(columns)
+                .map(|(name, value)| (name, value.clone())),
+        )
+        .unwrap();
+        LushInsertRecords { record }
+    }
 }
 
 #[derive(Debug)]
@@ -382,146 +411,198 @@ impl From<Arc<dyn Array>> for LushInsertRecords {
     }
 }
 
-impl From<Arc<dyn Array>> for LushInsertAttrs {
-    fn from(value: Arc<dyn Array>) -> Self {
-        let s = value
-            .as_any()
-            .downcast_ref::<StructArray>()
-            .expect("parse attrs struct");
-        assert!(s.len() == 1);
-        let name = s
-            .column(0)
-            .as_any()
-            .downcast_ref::<BinaryArray>()
-            .expect("get table name")
-            .value(0);
-        let name = std::str::from_utf8(name).unwrap().to_string();
-
-        let array = s
-            .column(1)
-            .as_any()
-            .downcast_ref::<BinaryArray>()
-            .expect("get table name");
-        let (using, tags) = if array.is_null(0) {
-            (None, None)
-        } else {
-            let tags = s
-                .column(2)
-                .as_any()
-                .downcast_ref::<StructArray>()
-                .expect("get tags");
-            let values: Vec<_> = tags
-                .column_names()
-                .into_iter()
-                .zip(tags.columns())
-                .map(|(name, col)| {
-                    macro_rules! primitive_downcast {
-                        ($a:ident,$t:ident) => {{
-                            let v = col.as_any().downcast_ref::<arrow::array::$a>().unwrap();
-                            if v.is_null(0) {
-                                Value::Null(Ty::$t)
-                            } else {
-                                Value::$t(v.value(0))
-                            }
-                        }};
-                    }
-                    let value = match col.data_type() {
-                        DataType::Null => todo!(),
-                        DataType::Boolean => Value::Bool(true),
-                        DataType::Int8 => {
-                            let v = col.as_any().downcast_ref::<Int8Array>().unwrap();
-                            if v.is_null(0) {
-                                Value::Null(Ty::TinyInt)
-                            } else {
-                                Value::TinyInt(v.value(0))
-                            }
-                        }
-                        DataType::Int16 => {
-                            let v = col.as_any().downcast_ref::<Int16Array>().unwrap();
-                            if v.is_null(0) {
-                                Value::Null(Ty::SmallInt)
-                            } else {
-                                Value::SmallInt(v.value(0))
-                            }
-                        }
-                        DataType::Int32 => {
-                            let v = col.as_any().downcast_ref::<Int32Array>().unwrap();
-                            if v.is_null(0) {
-                                Value::Null(Ty::Int)
-                            } else {
-                                Value::Int(v.value(0))
-                            }
-                        }
-                        DataType::Int64 => {
-                            let v = col.as_any().downcast_ref::<Int64Array>().unwrap();
-                            if v.is_null(0) {
-                                Value::Null(Ty::BigInt)
-                            } else {
-                                Value::BigInt(v.value(0))
-                            }
-                        }
-                        DataType::UInt8 => primitive_downcast!(UInt8Array, UTinyInt),
-                        DataType::UInt16 => primitive_downcast!(UInt16Array, USmallInt),
-                        DataType::UInt32 => primitive_downcast!(UInt32Array, UInt),
-                        DataType::UInt64 => primitive_downcast!(UInt64Array, UBigInt),
-                        // DataType::Float16 => primitive_downcast!(Float16Array, Float),
-                        DataType::Float32 => primitive_downcast!(Float32Array, Float),
-                        DataType::Float64 => primitive_downcast!(Float64Array, Double),
-                        DataType::Timestamp(_, _) => todo!(),
-                        DataType::Date32 => todo!(),
-                        DataType::Date64 => todo!(),
-                        DataType::Time32(_) => todo!(),
-                        DataType::Time64(_) => todo!(),
-                        DataType::Duration(_) => todo!(),
-                        DataType::Interval(_) => todo!(),
-                        DataType::Binary => {
-                            let v = col.as_any().downcast_ref::<BinaryArray>().unwrap();
-                            if v.is_null(0) {
-                                Value::Null(Ty::VarChar)
-                            } else {
-                                Value::VarChar(std::str::from_utf8(v.value(0)).unwrap().to_string())
-                            }
-                        }
-                        DataType::FixedSizeBinary(_) => todo!(),
-                        DataType::LargeBinary => todo!(),
-                        DataType::Utf8 => {
-                            let v = col.as_any().downcast_ref::<StringArray>().unwrap();
-                            if v.is_null(0) {
-                                Value::Null(Ty::VarChar)
-                            } else {
-                                Value::VarChar(v.value(0).to_string())
-                            }
-                        }
-                        DataType::LargeUtf8 => todo!(),
-                        DataType::List(_) => todo!(),
-                        DataType::FixedSizeList(_, _) => todo!(),
-                        DataType::LargeList(_) => todo!(),
-                        DataType::Struct(_) => todo!(),
-                        DataType::Union(_, _, _) => todo!(),
-                        DataType::Dictionary(_, _) => todo!(),
-                        DataType::Decimal128(_, _) => todo!(),
-                        DataType::Decimal256(_, _) => todo!(),
-                        DataType::Map(_, _) => todo!(),
-                        DataType::RunEndEncoded(_, _) => todo!(),
-                        _ => todo!("Unsupported data type for tag"),
-                    };
-                    (name.to_string(), value)
-                })
-                .collect();
-
-            (
-                Some(std::str::from_utf8(array.value(0)).unwrap().to_string()),
-                Some(values),
-            )
-        };
-        Self { name, using, tags }
-    }
-}
-
 #[derive(Debug)]
 pub struct LushMessageInsert {
+    schema: SchemaRef,
+    metadata: Arc<IpcMetadata>,
     attrs: Option<LushInsertAttrs>,
     records: LushInsertRecords,
+}
+
+mod arrow_to_taos {
+    use taos_query::prelude::{ColumnView, Itertools};
+
+    use crate::prelude::IpcDataType;
+
+    #[derive(thiserror::Error, Debug)]
+    pub enum ParseError {
+        #[error("Parse {0} to bool error: {1}")]
+        ParseBoolError(String, std::str::ParseBoolError),
+        #[error("Parse {0} to integer error: {1}")]
+        ParseIntError(String, std::num::ParseIntError),
+        #[error("Parse {0} to float error: {1}")]
+        ParseFloatError(String, std::num::ParseFloatError),
+    }
+
+    pub fn parse_str_into(
+        ty: &IpcDataType,
+        data: Vec<Option<&str>>,
+    ) -> Result<ColumnView, ParseError> {
+        let view = match ty {
+            crate::prelude::IpcDataType::Bool => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            v.parse::<bool>()
+                                .map_err(|err| ParseError::ParseBoolError(v.to_string(), err))
+                        })
+                        .transpose()
+                    })
+                    .try_collect::<_, Vec<_>, _>()?;
+                ColumnView::from_bools(v)
+            }
+            crate::prelude::IpcDataType::UInt8 => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            v.parse::<u8>()
+                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                        })
+                        .transpose()
+                    })
+                    .try_collect::<_, Vec<_>, _>()?;
+                ColumnView::from_unsigned_tiny_ints(v)
+            }
+            crate::prelude::IpcDataType::UInt16 => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            v.parse::<u16>()
+                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                        })
+                        .transpose()
+                    })
+                    .try_collect::<_, Vec<_>, _>()?;
+                ColumnView::from_unsigned_small_ints(v)
+            }
+            crate::prelude::IpcDataType::UInt32 => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            v.parse::<u32>()
+                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                        })
+                        .transpose()
+                    })
+                    .try_collect::<_, Vec<_>, _>()?;
+                ColumnView::from_unsigned_ints(v)
+            }
+            crate::prelude::IpcDataType::UInt64 => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            v.parse::<u64>()
+                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                        })
+                        .transpose()
+                    })
+                    .try_collect::<_, Vec<_>, _>()?;
+                ColumnView::from_unsigned_big_ints(v)
+            }
+            crate::prelude::IpcDataType::Int8 => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            v.parse::<i8>()
+                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                        })
+                        .transpose()
+                    })
+                    .try_collect::<_, Vec<_>, _>()?;
+                ColumnView::from_tiny_ints(v)
+            }
+            crate::prelude::IpcDataType::Int16 => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            v.parse::<i16>()
+                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                        })
+                        .transpose()
+                    })
+                    .try_collect::<_, Vec<_>, _>()?;
+                ColumnView::from_small_ints(v)
+            }
+            crate::prelude::IpcDataType::Int32 => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            v.parse::<i32>()
+                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                        })
+                        .transpose()
+                    })
+                    .try_collect::<_, Vec<_>, _>()?;
+                ColumnView::from_ints(v)
+            }
+            crate::prelude::IpcDataType::Int64 => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            v.parse::<i64>()
+                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                        })
+                        .transpose()
+                    })
+                    .try_collect::<_, Vec<_>, _>()?;
+                ColumnView::from_big_ints(v)
+            }
+            crate::prelude::IpcDataType::Float32 => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            v.parse::<f32>()
+                                .map_err(|err| ParseError::ParseFloatError(v.to_string(), err))
+                        })
+                        .transpose()
+                    })
+                    .try_collect::<_, Vec<_>, _>()?;
+                ColumnView::from_floats(v)
+            }
+            crate::prelude::IpcDataType::Float64 => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            v.parse::<f64>()
+                                .map_err(|err| ParseError::ParseFloatError(v.to_string(), err))
+                        })
+                        .transpose()
+                    })
+                    .try_collect::<_, Vec<_>, _>()?;
+                ColumnView::from_doubles(v)
+            }
+            crate::prelude::IpcDataType::Timestamp => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            v.parse::<i64>()
+                                .map_err(|err| ParseError::ParseIntError(v.to_string(), err))
+                        })
+                        .transpose()
+                    })
+                    .try_collect::<_, Vec<_>, _>()?;
+                ColumnView::from_millis_timestamp(v)
+            }
+            crate::prelude::IpcDataType::VarChar(_) => {
+                ColumnView::from_varchar::<&str, _, _, _>(data)
+            }
+            crate::prelude::IpcDataType::NChar(_) => ColumnView::from_nchar::<&str, _, _, _>(data),
+            crate::prelude::IpcDataType::Json => ColumnView::from_json::<&str, _, _, _>(data),
+        };
+        Ok(view)
+    }
 }
 
 impl LushMessageInsert {
@@ -538,7 +619,21 @@ impl LushMessageInsert {
     }
 
     pub fn to_column_views(&self) -> Vec<ColumnView> {
-        record_batch_to_cloumn_view(&self.records.record)
+        let ty = self
+            .records
+            .record
+            .schema()
+            .fields()
+            .into_iter()
+            .map(|field| {
+                self.metadata
+                    .init()
+                    .and_then(|init| init.column_data_type(field.name()))
+                    .map(Clone::clone)
+                    .unwrap()
+            })
+            .collect_vec();
+        parse_column_view_with_types(&self.records.record, &ty)
     }
 
     pub fn to_column_views_group_by_tablename(&self) -> HashMap<Option<String>, Vec<ColumnView>> {
@@ -597,7 +692,237 @@ impl LushMessageInsert {
     }
 }
 
-pub fn record_batch_to_cloumn_view(record: &RecordBatch) -> Vec<ColumnView> {
+pub fn parse_column_view_with_types(
+    record: &RecordBatch,
+    metadata: &[IpcDataType],
+) -> Vec<ColumnView> {
+    // let records_schema = record.schema();
+    // let fields = records_schema.fields();
+    record
+        .columns()
+        .iter()
+        .zip(metadata)
+        .map(|(column, ty)| {
+            // dbg!(column);
+            match column.data_type() {
+                DataType::Boolean => {
+                    let a = column.as_any().downcast_ref::<BooleanArray>().unwrap();
+
+                    ColumnView::from_bools(
+                        (0..a.len())
+                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                            .collect_vec(),
+                    )
+                }
+                DataType::Int8 => {
+                    let a = column.as_any().downcast_ref::<Int8Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_tiny_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_tiny_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Int16 => {
+                    let a = column.as_any().downcast_ref::<Int16Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_small_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_small_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Int32 => {
+                    let a = column.as_any().downcast_ref::<Int32Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Int64 => {
+                    let a = column.as_any().downcast_ref::<Int64Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_big_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_big_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::UInt8 => {
+                    let a = column.as_any().downcast_ref::<UInt8Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_unsigned_tiny_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_unsigned_tiny_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::UInt16 => {
+                    let a = column.as_any().downcast_ref::<UInt16Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_unsigned_small_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_unsigned_small_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::UInt32 => {
+                    let a = column.as_any().downcast_ref::<UInt32Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_unsigned_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_unsigned_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::UInt64 => {
+                    let a = column.as_any().downcast_ref::<UInt64Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_unsigned_big_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_unsigned_big_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Float16 => {
+                    let a = column.as_any().downcast_ref::<Float16Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_floats(
+                            a.values().iter().map(|f| f.to_f32_const()).collect_vec(),
+                        )
+                    } else {
+                        ColumnView::from_floats(
+                            (0..a.len())
+                                .map(|i| {
+                                    if a.is_null(i) {
+                                        None
+                                    } else {
+                                        Some(a.value(i).to_f32())
+                                    }
+                                })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Float32 => {
+                    let a = column.as_any().downcast_ref::<Float32Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_floats(a.values().to_vec())
+                    } else {
+                        ColumnView::from_floats(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Float64 => {
+                    let a = column.as_any().downcast_ref::<Float64Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_doubles(a.values().to_vec())
+                    } else {
+                        ColumnView::from_doubles(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Timestamp(u, _) => match u {
+                    arrow::datatypes::TimeUnit::Second => todo!(),
+                    arrow::datatypes::TimeUnit::Millisecond => {
+                        let a = column
+                            .as_any()
+                            .downcast_ref::<TimestampMillisecondArray>()
+                            .unwrap();
+                        if a.null_count() == 0 {
+                            let v = a.values();
+                            ColumnView::from_millis_timestamp(v.to_vec())
+                        } else {
+                            let values = (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect();
+                            ColumnView::from_millis_timestamp(values)
+                        }
+                    }
+                    arrow::datatypes::TimeUnit::Microsecond => todo!(),
+                    arrow::datatypes::TimeUnit::Nanosecond => todo!(),
+                },
+                DataType::Date32 => todo!(),
+                DataType::Date64 => todo!(),
+                DataType::Time32(_) => todo!(),
+                DataType::Time64(_) => todo!(),
+                DataType::Duration(_) => todo!(),
+                DataType::Interval(_) => todo!(),
+                DataType::Binary => {
+                    let a = column.as_any().downcast_ref::<BinaryArray>().unwrap();
+
+                    let data = (0..a.len())
+                        .map(|i| {
+                            if a.is_null(i) {
+                                None
+                            } else {
+                                Some(unsafe { std::str::from_utf8_unchecked(a.value(i)) })
+                            }
+                        })
+                        .collect_vec();
+
+                    arrow_to_taos::parse_str_into(ty, data).unwrap()
+                }
+                DataType::FixedSizeBinary(_) => todo!(),
+                DataType::LargeBinary => todo!(),
+                DataType::Utf8 => {
+                    let a = column.as_any().downcast_ref::<StringArray>().unwrap();
+
+                    let data = (0..a.len())
+                        .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                        .collect_vec();
+                    arrow_to_taos::parse_str_into(ty, data).unwrap()
+                }
+                DataType::LargeUtf8 => todo!(),
+                DataType::List(_) => todo!(),
+                DataType::FixedSizeList(_, _) => todo!(),
+                DataType::LargeList(_) => todo!(),
+                DataType::Struct(_) => todo!(),
+                DataType::Union(_, _, _) => todo!(),
+                DataType::Dictionary(_, _) => todo!(),
+                DataType::Decimal128(_, _) => todo!(),
+                DataType::Decimal256(_, _) => todo!(),
+                DataType::Map(_, _) => todo!(),
+                DataType::RunEndEncoded(_, _) => todo!(),
+                dt => panic!("unsupported input type: {dt}"),
+            }
+        })
+        .collect()
+}
+
+pub fn record_batch_to_column_view(record: &RecordBatch) -> Vec<ColumnView> {
     record
         .columns()
         .iter()
@@ -840,7 +1165,6 @@ impl IpcMessage for LushMessage {
     }
 }
 
-
 impl<R: Read> Iterator for IpcReader<R> {
     type Item = Result<Box<dyn IpcMessage>, ArrowError>;
 
@@ -883,7 +1207,12 @@ impl<R: Read> Iterator for IpcReader<R> {
                                     let attrs = self.parse_attrs(attrs.slice(i, 1));
                                     let records: LushInsertRecords = values.slice(i, 1).into();
                                     dbg!(&records);
-                                    let i = LushMessageInsert { attrs, records };
+                                    let i = LushMessageInsert {
+                                        attrs,
+                                        records,
+                                        schema: self.schema.clone(),
+                                        metadata: self.metadata.clone(),
+                                    };
                                     message.push(i);
                                 }
                                 return Some(Ok(Box::new(LushMessage::Insert(message))));
@@ -899,6 +1228,8 @@ impl<R: Read> Iterator for IpcReader<R> {
                                     let i = LushMessageInsert {
                                         attrs: None,
                                         records,
+                                        schema: self.schema.clone(),
+                                        metadata: self.metadata.clone(),
                                     };
                                     message.push(i);
                                 }
