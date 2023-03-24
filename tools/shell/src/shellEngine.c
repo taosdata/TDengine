@@ -292,7 +292,7 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
 
   struct tm ptm = {0};
   if (taosLocalTime(&tt, &ptm) == NULL) {
-    sprintf(buf, "%s", "NaN");
+    sprintf(buf, "NaN");
     return buf;
   }
   size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
