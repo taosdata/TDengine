@@ -443,7 +443,7 @@ export default {
   },
   dataIn: {
     connector: "Connectors",
-    connectorTip: `Use the programming language of your choice - The main way to get data in to TDengine cloud is <a href=" https://docs.tdengine.com/cloud/programming/insert/" target="_blank">using SQL to insert</a> data`,
+    connectorTip: `Use the programming language of your choice - The main way to get data in to TDengine cloud is <a href="https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql " target="_blank">using SQL to insert</a> data`,
     thirdParty: "Third Party",
     thirdPartyTip: `Third-party data collection agents`,
     inputCSVFile: "Manually upload CSV files to backfill data.",
@@ -689,9 +689,9 @@ export default {
   },
   dataOut: {
     tools: "Tools",
-    connectorTip: `Use the programming language of your choice to <a target='_blank' href='https://docs.tdengine.com/cloud/programming/query/'>query data using SQL</a>`,
+    connectorTip: `Use the programming language of your choice to <a target='_blank' href='https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation'>query data using SQL</a>`,
     toolsTip: "Data Dump - use taosDump to write a table, a portion of a table, or a super table to a file.",
-    subscriptionTitle: `Subscribe to data updates using <a href='https://docs.tdengine.com/cloud/data-subscription/' target='_blank'>data subscriptions</a>.`,
+    subscriptionTitle: `Subscribe to data updates using <a href='https://docs.tdengine.com/develop/tmq/#' target='_blank'>data subscriptions</a>.`,
   },
   auth: {},
   register: {

@@ -8,11 +8,11 @@
     ],
     "welcome": {
         "title": "TDengine Explorer",
-        "subTitle": "Serverless, fully managed cloud service for TDengine",
+        "subTitle": "Serverless, fully managed  service for TDengine",
         "mainContent": [
             {
                 "paragraph": " dramatically reducing the tools and cost needed to start, operate, and manage your time-series database at scale with built-in caching, data subscription, and stream processing. As a managed service, TDengine Cloud saves you time by taking care of clustering, backup, multi-cloud replication, and data retention on its own.",
-                "url": "https://tdengine.com/cloud/data-management",
+                "url": "https://docs.tdengine.com/",
                 "achorTitle": "Simplified time-series data management,"
             },
             {

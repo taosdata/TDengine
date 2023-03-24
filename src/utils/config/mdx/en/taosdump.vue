@@ -6,7 +6,7 @@
 <p>Please be careful if you see a prompt for this and please ensure that you follow best practices and relevant SOPs for data integrity, backup and data security.</p>
 <p>Users should not use taosdump to back up raw data, environment settings, hardware information, server configuration, or cluster topology. taosdump uses <a href="https://avro.apache.org/">Apache AVRO</a> as the data file format to store backup data.</p>
 <h2 id="installation">Installation</h2>
-<p>To use taosdump, you need to download and install <a href="https://tdengine.com/assets-download/cloud/taosTools-2.1.3-Linux-x64.tar.gz">taosTools</a>. Before installing taosTools, please firstly download and install <a href="https://docs.tdengine.com/cloud/tools/cli/#installation">TDengine CLI</a>.</p>
+<p>To use taosdump, you need to download and install <a href="https://docs.tdengine.com/get-started/package/#command-line-interface-(cli)">TDengine CLI</a>.</p>
 <p>Decompress the package and install.</p>
 <pre v-highlight><code>tar -xzf taosTools-2.1.3-Linux-x64.tar.gz
 cd taosTools-2.1.3-Linux-x64.tar.gz
