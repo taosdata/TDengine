@@ -163,6 +163,7 @@ void dnodeFreeVWriteQueue(void *pWqueue) {
 }
 
 void* waitingResultThread(void* param) {
+  setThreadName("waitDeleteResult");
   SVWriteMsg* pWrite = (SVWriteMsg* )param;
   // wait request deal finished
   dInfo(":SDEL pVnode:%p start wait commit pWrite=%p", pWrite->pVnode, pWrite);
