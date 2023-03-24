@@ -793,7 +793,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics) {
+int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics) {
   *pNumOfTopics = 0;
 
   SSdb   *pSdb = pMnode->pSdb;
