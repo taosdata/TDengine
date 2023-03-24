@@ -181,6 +181,7 @@ class TDTestCase:
         tdsql.execute("drop database if exists db")
         tdsql.execute("create database db")
         tdsql.execute("use db")
+        tdsql.execute("alter database db wal_retention_period 3600")
         tdsql.execute("create stable db.stb1 (ts timestamp, c1 int) tags (t1 int);")
         tdsql.execute("insert into db.ct1 using db.stb1 TAGS(1) values(now(),11);")
         tdsql.error(" insert into `db.ct2` using db.stb1 TAGS(9) values(now(),11);")
