@@ -423,7 +423,7 @@ export default {
             : data.protocol.value;
         }
         for (let key of Object.keys(data.options)) {
-          console.log(key,data.options[key],'遍历---');
+          // console.log(key,data.options[key],'遍历---');
           if (
             Object.hasOwnProperty.call(data.options[key], "required") &&
             (data.options[key]["value"] == "" ||
