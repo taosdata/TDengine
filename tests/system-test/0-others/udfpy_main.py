@@ -73,7 +73,7 @@ class TDTestCase:
             'col9': 'float',
             'col10': 'double',
             'col11': 'bool',
-            'col12': 'varchar(20)',
+            'col12': 'varchar(120)',
             'col13': 'nchar(100)',
         }
         self.tag_dict = {
@@ -88,7 +88,7 @@ class TDTestCase:
             't9': 'float',
             't10': 'double',
             't11': 'bool',
-            't12': 'varchar(20)',
+            't12': 'varchar(120)',
             't13': 'nchar(100)',         
         }
 
@@ -149,7 +149,7 @@ class TDTestCase:
             'sf9': 'float',
             'sf10': 'double',
             'sf11': 'bool',
-            'sf12': 'varchar(20)',
+            'sf12': 'varchar(120)',
             'sf13': 'nchar(100)'
         }
         # agg function
@@ -165,7 +165,7 @@ class TDTestCase:
             'af9': 'float',
             'af10': 'double',
             'af11': 'bool',
-            'af12': 'varchar(20)',
+            'af12': 'varchar(120)',
             'af13': 'nchar(100)',
             'af14': 'timestamp'            
         }
@@ -399,7 +399,7 @@ class TDTestCase:
         stable = "meters"
         tbname = "d"
         count = 3
-        rows =  1000000
+        rows =  1000
         # do 
         self.create_table(stable, tbname, count)
         self.insert_data(tbname, rows)

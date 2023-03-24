@@ -14,9 +14,13 @@ def process(block):
         for j in range(ncols):
             val = block.data(i, j)
             if val is None:
-                return [None]
+                row = None
+                break
             row.append(val.decode('utf-8'))
-        results.append(''.join(row))
+        if row is None:
+            results.append(None)
+        else:    
+            results.append(''.join(row))
     return results
 
 
