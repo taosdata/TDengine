@@ -21,7 +21,7 @@
 #include "tjson.h"
 #include "tglobal.h"
 
-#define LOG_MAX_LINE_SIZE             (1024)
+#define LOG_MAX_LINE_SIZE             (10024)
 #define LOG_MAX_LINE_BUFFER_SIZE      (LOG_MAX_LINE_SIZE + 3)
 #define LOG_MAX_LINE_DUMP_SIZE        (1024 * 1024)
 #define LOG_MAX_LINE_DUMP_BUFFER_SIZE (LOG_MAX_LINE_DUMP_SIZE + 3)

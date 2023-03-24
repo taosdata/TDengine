@@ -179,17 +179,23 @@ _err:
 int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
   if (pWal == NULL) return TSDB_CODE_APP_ERROR;
 
-  if (pWal->cfg.level == pCfg->level && pWal->cfg.fsyncPeriod == pCfg->fsyncPeriod) {
-    wDebug("vgId:%d, old walLevel:%d fsync:%d, new walLevel:%d fsync:%d not change", pWal->cfg.vgId, pWal->cfg.level,
-           pWal->cfg.fsyncPeriod, pCfg->level, pCfg->fsyncPeriod);
+  if (pWal->cfg.level == pCfg->level && pWal->cfg.fsyncPeriod == pCfg->fsyncPeriod &&
+      pWal->cfg.retentionPeriod == pCfg->retentionPeriod && pWal->cfg.retentionSize == pCfg->retentionSize) {
+    wDebug("vgId:%d, walLevel:%d fsync:%d walRetentionPeriod:%d walRetentionSize:%" PRId64 " not change",
+           pWal->cfg.vgId, pWal->cfg.level, pWal->cfg.fsyncPeriod, pWal->cfg.retentionPeriod, pWal->cfg.retentionSize);
     return 0;
   }
 
-  wInfo("vgId:%d, change old walLevel:%d fsync:%d, new walLevel:%d fsync:%d", pWal->cfg.vgId, pWal->cfg.level,
-        pWal->cfg.fsyncPeriod, pCfg->level, pCfg->fsyncPeriod);
+  wInfo("vgId:%d, change old walLevel:%d fsync:%d walRetentionPeriod:%d walRetentionSize:%" PRId64
+        ", new walLevel:%d fsync:%d walRetentionPeriod:%d walRetentionSize:%" PRId64,
+        pWal->cfg.vgId, pWal->cfg.level, pWal->cfg.fsyncPeriod, pWal->cfg.retentionPeriod, pWal->cfg.retentionSize,
+        pCfg->level, pCfg->fsyncPeriod, pCfg->retentionPeriod, pCfg->retentionSize);
 
   pWal->cfg.level = pCfg->level;
   pWal->cfg.fsyncPeriod = pCfg->fsyncPeriod;
+  pWal->cfg.retentionPeriod = pCfg->retentionPeriod;
+  pWal->cfg.retentionSize = pCfg->retentionSize;
+
   pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
   if (pWal->fsyncSeq <= 0) pWal->fsyncSeq = 1;
 

@@ -1326,6 +1326,7 @@ static void* ctgCloneDnodeList(void* pSrc) { return taosArrayDup((const SArray*)
 
 static void ctgFreeDnodeList(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
 
+#if 0
 static int32_t ctgCloneMetaDataArray(SArray* pSrc, __array_item_dup_fn_t copyFunc, SArray** pDst) {
   if (NULL == pSrc) {
     return TSDB_CODE_SUCCESS;
@@ -1417,6 +1418,7 @@ void catalogFreeMetaData(SMetaData* pData) {
   taosMemoryFreeClear(pData->pSvrVer);
   taosMemoryFree(pData);
 }
+#endif
 
 void ctgGetClusterCacheStat(SCatalog* pCtg) {
   for (int32_t i = 0; i < CTG_CI_MAX_VALUE; ++i) {

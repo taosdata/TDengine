@@ -325,6 +325,8 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.cacheLast = pDb->cfg.cacheLast;
   alterReq.sttTrigger = pDb->cfg.sstTrigger;
   alterReq.minRows = pDb->cfg.minRows;
+  alterReq.walRetentionPeriod = pDb->cfg.walRetentionPeriod;
+  alterReq.walRetentionSize = pDb->cfg.walRetentionSize;
 
   mInfo("vgId:%d, build alter vnode config req", pVgroup->vgId);
   int32_t contLen = tSerializeSAlterVnodeConfigReq(NULL, 0, &alterReq);
@@ -806,6 +808,9 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int32_t cacheUsage = (int32_t)pVgroup->cacheUsage;
     colDataSetVal(pColInfo, numOfRows, (const char *)&cacheUsage, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->numOfCachedTables, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->isTsma, false);

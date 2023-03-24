@@ -1070,7 +1070,8 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tEncodeI64(&encoder, pload->totalStorage) < 0) return -1;
     if (tEncodeI64(&encoder, pload->compStorage) < 0) return -1;
     if (tEncodeI64(&encoder, pload->pointsWritten) < 0) return -1;
-    if (tEncodeI64(&encoder, reserved) < 0) return -1;
+    if (tEncodeI32(&encoder, pload->numOfCachedTables) < 0) return -1;
+    if (tEncodeI32(&encoder, reserved) < 0) return -1;
     if (tEncodeI64(&encoder, reserved) < 0) return -1;
     if (tEncodeI64(&encoder, reserved) < 0) return -1;
   }
@@ -1148,7 +1149,8 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tDecodeI64(&decoder, &vload.totalStorage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.compStorage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.pointsWritten) < 0) return -1;
-    if (tDecodeI64(&decoder, &reserved) < 0) return -1;
+    if (tDecodeI32(&decoder, &vload.numOfCachedTables) < 0) return -1;
+    if (tDecodeI32(&decoder, (int32_t*)&reserved) < 0) return -1;
     if (tDecodeI64(&decoder, &reserved) < 0) return -1;
     if (tDecodeI64(&decoder, &reserved) < 0) return -1;
     if (taosArrayPush(pReq->pVloads, &vload) == NULL) {
@@ -2219,12 +2221,12 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tEncodeI8(&encoder, pReq->cacheLast) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->replications) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->sstTrigger) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->walRetentionPeriod) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->walRetentionSize) < 0) return -1;
 
   // 1st modification
   if (tEncodeI32(&encoder, pReq->minRows) < 0) return -1;
-
+  // 2nd modification
+  if (tEncodeI32(&encoder, pReq->walRetentionPeriod) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->walRetentionSize) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2252,19 +2254,21 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tDecodeI8(&decoder, &pReq->cacheLast) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->replications) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->sstTrigger) < 0) return -1;
-  if (!tDecodeIsEnd(&decoder)) {
-    if (tDecodeI32(&decoder, &pReq->walRetentionPeriod) < 0) return -1;
-    if (tDecodeI32(&decoder, &pReq->walRetentionSize) < 0) return -1;
-  } else {
-    pReq->walRetentionPeriod = -1;
-    pReq->walRetentionSize = -1;
-  }
 
   // 1st modification
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI32(&decoder, &pReq->minRows) < 0) return -1;
   } else {
     pReq->minRows = -1;
+  }
+
+  // 2nd modification
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pReq->walRetentionPeriod) < 0) return -1;
+    if (tDecodeI32(&decoder, &pReq->walRetentionSize) < 0) return -1;
+  } else {
+    pReq->walRetentionPeriod = -1;
+    pReq->walRetentionSize = -1;
   }
   tEndDecode(&decoder);
 
@@ -4196,7 +4200,9 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
   // 1st modification
   if (tEncodeI16(&encoder, pReq->sttTrigger) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->minRows) < 0) return -1;
-
+  // 2nd modification
+  if (tEncodeI32(&encoder, pReq->walRetentionPeriod) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->walRetentionSize) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4235,6 +4241,14 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
     if (tDecodeI32(&decoder, &pReq->minRows) < 0) return -1;
   }
 
+  // 2n modification
+  if (tDecodeIsEnd(&decoder)) {
+    pReq->walRetentionPeriod = -1;
+    pReq->walRetentionSize = -1;
+  } else {
+    if (tDecodeI32(&decoder, &pReq->walRetentionPeriod) < 0) return -1;
+    if (tDecodeI32(&decoder, &pReq->walRetentionSize) < 0) return -1;
+  }
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -6696,8 +6710,9 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     snprintf(buf, maxLen, "offset(snapshot) uid:%" PRId64 " ts:%" PRId64, pVal->uid, pVal->ts);
   } else {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
+
   return 0;
 }
 
@@ -6880,8 +6895,7 @@ int32_t tDecodeSMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
 }
 
 void tDeleteSMqDataRsp(SMqDataRsp *pRsp) {
-  taosArrayDestroy(pRsp->blockDataLen);
-  pRsp->blockDataLen = NULL;
+  pRsp->blockDataLen = taosArrayDestroy(pRsp->blockDataLen);;
   taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
   pRsp->blockData = NULL;
   taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSSchemaWrapper);

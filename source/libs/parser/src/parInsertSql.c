@@ -1492,6 +1492,7 @@ static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
   pStmt->pBoundCols = NULL;
   pStmt->usingTableProcessing = false;
   pStmt->fileProcessing = false;
+  pStmt->usingTableName.type = 0;
 }
 
 // input pStmt->pSql: [(field1_name, ...)] [ USING ... ] VALUES ... | FILE ...
@@ -1537,6 +1538,10 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
     } else {
       return code;
     }
+  }
+
+  if (TK_NK_ID != pTbName->type && TK_NK_STRING != pTbName->type && TK_NK_QUESTION != pTbName->type) {
+    return buildSyntaxErrMsg(&pCxt->msg, "table_name is expected", pTbName->z);
   }
 
   *pHasData = true;

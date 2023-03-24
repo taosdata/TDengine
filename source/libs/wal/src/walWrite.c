@@ -327,7 +327,7 @@ int32_t walEndSnapshot(SWal *pWal) {
       wDebug("vgId:%d, wal check remove file %" PRId64 "(file size %" PRId64 " close ts %" PRId64
              "), new tot size %" PRId64,
              pWal->cfg.vgId, iter->firstVer, iter->fileSize, iter->closeTs, newTotSize);
-      if (((pWal->cfg.retentionSize == 0) || (pWal->cfg.retentionSize != -1 && newTotSize > pWal->cfg.retentionSize)) ||
+      if ((pWal->cfg.retentionSize != -1 && pWal->cfg.retentionSize != 0 && newTotSize > pWal->cfg.retentionSize) ||
           ((pWal->cfg.retentionPeriod == 0) || (pWal->cfg.retentionPeriod != -1 && iter->closeTs != -1 &&
                                                 iter->closeTs + pWal->cfg.retentionPeriod < ts))) {
         // delete according to file size or close time
