@@ -605,6 +605,12 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if (pDb->cfg.walRetentionPeriod == 0) {
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    mError("db:%s, not allowed to create topic when WAL_RETENTION_PERIOD is zero", pDb->name);
+    goto _OVER;
+  }
+
   code = mndCreateTopic(pMnode, pReq, &createTopicReq, pDb, pReq->info.conn.user);
   if (code == 0) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
