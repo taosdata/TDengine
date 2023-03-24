@@ -2769,6 +2769,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->pPullDataMap = taosHashInit(64, hashFn, false, HASH_NO_LOCK);
   pInfo->pPullDataRes = createSpecialDataBlock(STREAM_RETRIEVE);
   pInfo->ignoreExpiredData = pIntervalPhyNode->window.igExpired;
+  pInfo->ignoreExpiredDataSaved = false;
   pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
   pInfo->delIndex = 0;
   pInfo->pDelWins = taosArrayInit(4, sizeof(SWinKey));
@@ -3587,6 +3588,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   pInfo->isFinal = false;
   pInfo->pPhyNode = pPhyNode;
   pInfo->ignoreExpiredData = pSessionNode->window.igExpired;
+  pInfo->ignoreExpiredDataSaved = false;
   pInfo->pUpdated = NULL;
   pInfo->pStUpdated = NULL;
 
@@ -4112,6 +4114,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
   pInfo->pChildren = NULL;
   pInfo->ignoreExpiredData = pStateNode->window.igExpired;
+  pInfo->ignoreExpiredDataSaved = false;
   pInfo->pUpdated = NULL;
   pInfo->pSeUpdated = NULL;
 
@@ -4885,6 +4888,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->interval = interval;
   pInfo->twAggSup = twAggSupp;
   pInfo->ignoreExpiredData = pIntervalPhyNode->window.igExpired;
+  pInfo->ignoreExpiredDataSaved = false;
   pInfo->isFinal = false;
 
   SExprSupp* pSup = &pOperator->exprSupp;

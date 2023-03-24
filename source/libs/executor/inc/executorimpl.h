@@ -559,6 +559,7 @@ typedef struct SStreamIntervalOperatorInfo {
   STimeWindowAggSupp twAggSup;
   bool               invertible;
   bool               ignoreExpiredData;
+  bool               ignoreExpiredDataSaved;
   SArray*            pDelWins;  // SWinRes
   int32_t            delIndex;
   SSDataBlock*       pDelRes;
@@ -620,6 +621,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   SPhysiNode*         pPhyNode;   // create new child
   bool                isFinal;
   bool                ignoreExpiredData;
+  bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
   SSHashObj*          pStUpdated;
 } SStreamSessionAggOperatorInfo;
@@ -637,6 +639,7 @@ typedef struct SStreamStateAggOperatorInfo {
   void*               pDelIterator;
   SArray*             pChildren;  // cache for children's result;
   bool                ignoreExpiredData;
+  bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
   SSHashObj*          pSeUpdated;
 } SStreamStateAggOperatorInfo;
