@@ -1959,7 +1959,7 @@ void destroyAggOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static char* buildTaskId(uint64_t taskId, uint64_t queryId) {
+char* buildTaskId(uint64_t taskId, uint64_t queryId) {
   char* p = taosMemoryMalloc(64);
 
   int32_t offset = 6;
@@ -1971,11 +1971,10 @@ static char* buildTaskId(uint64_t taskId, uint64_t queryId) {
   offset += tintToHex(queryId, &p[offset]);
 
   p[offset] = 0;
-
   return p;
 }
 
-static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPTR_EXEC_MODEL model, char* dbFName) {
+static SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, char* dbFName) {
   SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
   if (pTaskInfo == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1990,6 +1989,7 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
   pTaskInfo->stopInfo.pStopInfo = taosArrayInit(4, sizeof(SExchangeOpStopInfo));
   pTaskInfo->pResultBlockList = taosArrayInit(128, POINTER_BYTES);
 
+  pTaskInfo->id.vgId = vgId;
   pTaskInfo->id.queryId = queryId;
   pTaskInfo->id.str = buildTaskId(taskId, queryId);
   return pTaskInfo;
@@ -2178,7 +2178,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
 #ifndef NDEBUG
         int32_t sz = tableListGetSize(pTableListInfo);
-        qDebug("create stream task, total:%d", sz);
+        qDebug("vgId:%d create stream task, total qualified tables:%d, %s", pTaskInfo->id.vgId, sz, idstr);
 
         for (int32_t i = 0; i < sz; i++) {
           STableKeyInfo* pKeyInfo = tableListGetInfo(pTableListInfo, i);
@@ -2344,6 +2344,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     pOptr = createEventwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else {
     terrno = TSDB_CODE_INVALID_PARA;
+    taosMemoryFree(ops);
     return NULL;
   }
 
@@ -2438,17 +2439,14 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pT
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                               char* sql, EOPTR_EXEC_MODEL model) {
-  uint64_t queryId = pPlan->id.queryId;
-
-  *pTaskInfo = createExecTaskInfo(queryId, taskId, model, pPlan->dbFName);
+int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
+                               int32_t vgId, char* sql, EOPTR_EXEC_MODEL model) {
+  *pTaskInfo = doCreateExecTaskInfo(pPlan->id.queryId, taskId, vgId, model, pPlan->dbFName);
   if (*pTaskInfo == NULL) {
     goto _complete;
   }
 
   if (pHandle) {
-    /*(*pTaskInfo)->streamInfo.fillHistoryVer1 = pHandle->fillHistoryVer1;*/
     if (pHandle->pStateBackend) {
       (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
     }

@@ -1331,6 +1331,32 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   return code;
 }
 
+static bool isCountNotNullValue(SFunctionNode* pFunc) {
+  if (FUNCTION_TYPE_COUNT != pFunc->funcType || 1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return false;
+  }
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  return (QUERY_NODE_VALUE == nodeType(pPara) && !((SValueNode*)pPara)->isNull);
+}
+
+// count(1) is rewritten as count(ts) for scannning optimization
+static int32_t rewriteCountNotNullValue(STranslateContext* pCxt, SFunctionNode* pCount) {
+  SValueNode* pValue = (SValueNode*)nodesListGetNode(pCount->pParameterList, 0);
+  STableNode*  pTable = NULL;
+  int32_t      code = findTable(pCxt, NULL, &pTable);
+  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+    SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+    if (NULL == pCol) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol);
+      NODES_DESTORY_LIST(pCount->pParameterList);
+      code = nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol);
+    }
+  }
+  return code;
+}
+
 static bool isCountTbname(SFunctionNode* pFunc) {
   if (FUNCTION_TYPE_COUNT != pFunc->funcType || 1 != LIST_LENGTH(pFunc->pParameterList)) {
     return false;
@@ -1396,6 +1422,9 @@ static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (isCountStar(pFunc)) {
     return rewriteCountStar(pCxt, pFunc);
   }
+  if (isCountNotNullValue(pFunc)) {
+    return rewriteCountNotNullValue(pCxt, pFunc);
+  }  
   if (isCountTbname(pFunc)) {
     return rewriteCountTbname(pCxt, pFunc);
   }
@@ -2041,7 +2070,7 @@ static int32_t getGroupByErrorCode(STranslateContext* pCxt) {
   if (isSelectStmt(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pGroupByList) {
     return TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION;
   }
-  return TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN;
+  return TSDB_CODE_PAR_INVALID_OPTR_USAGE;
 }
 
 static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode) {
@@ -2114,13 +2143,13 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     if (pSelect->selectFuncNum > 1 || pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) {
-      return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt));
+      return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
     } else {
       return rewriteColToSelectValFunc(pCxt, pNode);
     }
   }
   if (isVectorFunc(*pNode) && isDistinctOrderBy(pCxt)) {
-    return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt));
+    return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
   }
   return DEAL_RES_CONTINUE;
 }

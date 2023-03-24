@@ -590,6 +590,7 @@ typedef struct {
   SDataFReader       **pDataFReader;
   TSDBROW              row;
 
+  bool               checkRemainingRow;
   SMergeTree         mergeTree;
   SMergeTree        *pMergeTree;
   SSttBlockLoadInfo *pLoadInfo;
@@ -632,10 +633,25 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
         if (code) goto _err;
       }
 
+      for (int i = 0; i < state->pLoadInfo->numOfStt; ++i) {
+        state->pLoadInfo[i].colIds = aCols;
+        state->pLoadInfo[i].numOfCols = nCols;
+        state->pLoadInfo[i].isLast = isLast;
+      }
       tMergeTreeOpen(&state->mergeTree, 1, *state->pDataFReader, state->suid, state->uid,
                      &(STimeWindow){.skey = state->lastTs, .ekey = TSKEY_MAX},
                      &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, state->pLoadInfo, false, NULL, true);
       state->pMergeTree = &state->mergeTree;
+      state->state = SFSLASTNEXTROW_BLOCKROW;
+    }
+    case SFSLASTNEXTROW_BLOCKROW: {
+      if (nCols != state->pLoadInfo->numOfCols) {
+        for (int i = 0; i < state->pLoadInfo->numOfStt; ++i) {
+          state->pLoadInfo[i].numOfCols = nCols;
+
+          state->pLoadInfo[i].checkRemainingRow = state->checkRemainingRow;
+        }
+      }
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
         if (tMergeTreeIgnoreEarlierTs(&state->mergeTree)) {
@@ -646,13 +662,9 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
         state->state = SFSLASTNEXTROW_FILESET;
         goto _next_fileset;
       }
-      state->state = SFSLASTNEXTROW_BLOCKROW;
-    }
-    case SFSLASTNEXTROW_BLOCKROW: {
-      bool hasVal = false;
       state->row = tMergeTreeGetRow(&state->mergeTree);
       *ppRow = &state->row;
-      hasVal = tMergeTreeNext(&state->mergeTree);
+
       if (TSDBROW_TS(&state->row) <= state->lastTs) {
         *pIgnoreEarlierTs = true;
         *ppRow = NULL;
@@ -664,6 +676,9 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
         state->state = SFSLASTNEXTROW_FILESET;
       }
 
+      if (!state->checkRemainingRow) {
+        state->checkRemainingRow = true;
+      }
       return code;
     }
     default:
@@ -908,10 +923,10 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
           int16_t   cid = pColData->cid;
 
           if (inputColIndex < nCols && cid == aCols[inputColIndex]) {
-            if (isLast && pColData->numOfValue != 0) {
+            if (isLast && (pColData->flag & HAS_VALUE)) {
               skipBlock = false;
               break;
-            } else if (pColData->numOfNone != pColData->nVal) {
+            } else if (pColData->flag & (HAS_VALUE | HAS_NULL)) {
               skipBlock = false;
               break;
             }
