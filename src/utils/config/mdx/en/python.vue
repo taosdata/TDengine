@@ -50,7 +50,7 @@ token = os.environ[&quot;TDENGINE_CLOUD_TOKEN&quot;]
 
 conn = taosrest.connect(url=url, token=token)
 </code></pre>
-<p>For how to write data and query data, please refer to <a href="https://docs.tdengine.com/cloud/data-in/insert-data/">https://docs.tdengine.com/cloud/data-in/insert-data/</a> and <a href="https://docs.tdengine.com/cloud/data-out/query-data/">https://docs.tdengine.com/cloud/data-out/query-data/</a>.</p>
+<p>For how to write data and query data, please refer to <a href=" https://docs.tdengine.com/cloud/programming/insert/"> https://docs.tdengine.com/cloud/programming/insert/</a> and <a href="https://docs.tdengine.com/cloud/programming/query/">https://docs.tdengine.com/cloud/programming/query/</a>.</p>
 <p>For more details about how to write or query data via REST API, please check <a href="https://docs.tdengine.com/cloud/programming/connector/rest-api/">REST API</a>.</p>
 <h2 id="jupyter">Jupyter</h2>
 <p><strong>Step 1: Install</strong></p>

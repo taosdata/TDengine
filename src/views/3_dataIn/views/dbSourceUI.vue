@@ -332,6 +332,10 @@ import { decrypt } from "@/utils/index";
 export default {
   name: "DbSourceUI",
   props: {
+    tagName: {
+      type: String,
+      default: "datasource",
+    },
     dbsource: {
       type: Array,
       default() {
@@ -417,7 +421,7 @@ export default {
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
       try {
-        if (data.protocol&&data.protocol.value) {
+        if (data.protocol && data.protocol.value) {
           dns += Object.is(data.protocol.value, "--")
             ? ""
             : data.protocol.value;
@@ -441,9 +445,12 @@ export default {
           data.options.host.value ? data.options.host.value : ""
         }
         `;
-        dns +=
-          (Object.is(data.options.port.value, null) ? "" : ":") +
-          `${data.options.port.value ? data.options.port.value : ""}`;
+        if (data.options.port) {
+          dns +=
+            (Object.is(data.options.port.value, null) ? "" : ":") +
+            `${data.options.port.value ? data.options.port.value : ""}`;
+        }
+
         dns += data.options.subject.value
           ? "/" + data.options.subject.value
           : "";
@@ -477,8 +484,9 @@ export default {
         }
 
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        console.log(data,'pppp');
         let apiParams = {
-          from: "tmq" + (Object.is(data.protocol.value, "--") ? "" : "+") + dns,
+          from: "tmq" + (data.protocol? (Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
           name: localStorage.getItem("datainName"),
           to:
             "taos+" +
@@ -486,13 +494,33 @@ export default {
             (this.dbname ? "/" + this.dbname : ""),
           labels: ["type::datain", `cluster-id::${id}`],
         };
-        if (this.isEditable) {
-          await EditSource(apiParams, this.editId).then(() => {
-            this.$parent.toggleComponent("dbsource", "");
-          });
+        if (this.tagName === "datasource") {
+          if (this.isEditable) {
+            await EditSource(apiParams, this.editId).then(() => {
+              this.$parent.toggleComponent("dbsource", "");
+            });
+          } else {
+            await AddSource(apiParams).then((res) => {
+              this.$parent.toggleComponent("dbsource", "");
+            });
+          }
         } else {
-          await AddSource(apiParams).then((res) => {
-            this.$parent.toggleComponent("dbsource", "");
+          console.log("pi的接口");
+          let piParams = {
+            from:
+              "tmq" + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
+            name: localStorage.getItem("datainName"),
+            to:
+              "taos+" +
+              localStorage.getItem("base_url") +
+              (this.dbname ? "/" + this.dbname : ""),
+            labels: ["type::pi", `cluster-id::${id}`],
+          };
+          await AddSource(piParams).then((res) => {
+            console.log(res, "pi的接口返回");
+            if(res&&res.id){
+              Message.success('Operation Successfully!')
+            }
           });
         }
       } catch (error) {

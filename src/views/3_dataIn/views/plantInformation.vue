@@ -1,6 +1,6 @@
 <template>
     <div class="plant-info">
-        <DbSourceUI :dbsource='dbsource'></DbSourceUI>
+        <DbSourceUI :dbsource='dbsource' :tagName='"pi"'></DbSourceUI>
     </div>
 </template>
 <script>
