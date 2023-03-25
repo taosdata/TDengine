@@ -1422,6 +1422,9 @@ static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (isCountStar(pFunc)) {
     return rewriteCountStar(pCxt, pFunc);
   }
+  if (isCountNotNullValue(pFunc)) {
+    return rewriteCountNotNullValue(pCxt, pFunc);
+  }  
   if (isCountTbname(pFunc)) {
     return rewriteCountTbname(pCxt, pFunc);
   }

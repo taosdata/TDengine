@@ -161,10 +161,9 @@ static int32_t discardGroupDataBlock(SSDataBlock* pBlock, SLimitInfo* pLimitInfo
       if (pLimitInfo->remainGroupOffset > 0) {
         return PROJECT_RETRIEVE_CONTINUE;
       }
-    }
 
-    // set current group id of the project operator
-    pLimitInfo->currentGroupId = pBlock->info.id.groupId;
+      pLimitInfo->currentGroupId = 0;
+    }
   }
 
   return PROJECT_RETRIEVE_DONE;
@@ -175,19 +174,29 @@ static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, S
   // here check for a new group data, we need to handle the data of the previous group.
   ASSERT(pLimitInfo->remainGroupOffset == 0 || pLimitInfo->remainGroupOffset == -1);
 
-  if (pLimitInfo->currentGroupId != 0 && pLimitInfo->currentGroupId != pBlock->info.id.groupId) {
+  bool newGroup = false;
+  if (0 == pBlock->info.id.groupId) {
+    pLimitInfo->numOfOutputGroups = 1;
+  } else if (pLimitInfo->currentGroupId != pBlock->info.id.groupId) {
+    pLimitInfo->currentGroupId = pBlock->info.id.groupId;
     pLimitInfo->numOfOutputGroups += 1;
-    if ((pLimitInfo->slimit.limit > 0) && (pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
-      setOperatorCompleted(pOperator);
-      return PROJECT_RETRIEVE_DONE;
-    }
-
-    // reset the value for a new group data
-    // existing rows that belongs to previous group.
-    resetLimitInfoForNextGroup(pLimitInfo);
+    newGroup = true;
+  } else {
+    return PROJECT_RETRIEVE_CONTINUE;
   }
 
-  return PROJECT_RETRIEVE_DONE;
+  if ((pLimitInfo->slimit.limit >= 0) && (pLimitInfo->slimit.limit < pLimitInfo->numOfOutputGroups)) {
+    setOperatorCompleted(pOperator);
+    return PROJECT_RETRIEVE_DONE;
+  }
+
+  // reset the value for a new group data
+  // existing rows that belongs to previous group.
+  if (newGroup) {
+    resetLimitInfoForNextGroup(pLimitInfo);
+  }
+  
+  return PROJECT_RETRIEVE_CONTINUE;
 }
 
 // todo refactor
@@ -199,7 +208,7 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   if (pBlock->info.rows == 0) {
     return PROJECT_RETRIEVE_CONTINUE;
   } else {
-    if (limitReached && (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
+    if (limitReached && (pLimitInfo->slimit.limit >= 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
       setOperatorCompleted(pOperator);
     }
   }

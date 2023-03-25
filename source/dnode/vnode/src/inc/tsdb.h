@@ -687,6 +687,8 @@ typedef struct SSttBlockLoadInfo {
   STSchema  *pSchema;
   int16_t   *colIds;
   int32_t    numOfCols;
+  bool       checkRemainingRow;
+  bool       isLast;
   bool       sttBlockLoaded;
   int32_t    numOfStt;
 
