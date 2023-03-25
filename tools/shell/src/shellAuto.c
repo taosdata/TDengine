@@ -109,7 +109,7 @@ SWords shellCommands[] = {
     {"drop function <udf_name> ;", 0, 0, NULL},
     {"drop consumer group <anyword> on ", 0, 0, NULL},
     {"drop topic <topic_name> ;", 0, 0, NULL},
-    {"drop stream <stream_name> ;", 0, 0, NULL},
+    {"drop stream <stream_name> ;", 0, 
     {"explain select", 0, 0, NULL},  // 44 append sub sql
     {"flush database <db_name> ;", 0, 0, NULL},
     {"help;", 0, 0, NULL},
@@ -329,7 +329,7 @@ TdThread* threads[WT_FROM_DB_CNT];
 char varTypes[WT_VAR_CNT][64] = {
     "<db_name>",    "<stb_name>",  "<tb_name>",  "<dnode_id >",  "<user_name>",    "<topic_name>", "<stream_name>",
     "<udf_name>",   "<all_table>", "<function>", "<keyword>",    "<tb_actions>",   "<db_options>", "<alter_db_options>",
-    "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "sys_table", "language"};
+    "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "sys_table", "udf_language"};
 
 char varSqls[WT_FROM_DB_CNT][64] = {"show databases;", "show stables;", "show tables;", "show dnodes;",
                                     "show users;",     "show topics;",  "show streams;", "show functions;"};
