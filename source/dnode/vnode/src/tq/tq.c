@@ -500,8 +500,12 @@ static int32_t processSubDbOrTable(STQ* pTq, STqHandle* pHandle, const SMqPollRe
       code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, TMQ_MSG_TYPE__TAOSX_RSP);
       tDeleteSTaosxRsp(&taosxRsp);
       return code;
+    }else {
+      *offset = taosxRsp.rspOffset;
     }
-  } else {
+  }
+
+  if (offset->type == TMQ_OFFSET__LOG){
     int64_t fetchVer = offset->version + 1;
     pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
     if (pCkHead == NULL) {
