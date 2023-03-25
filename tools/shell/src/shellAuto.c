@@ -108,7 +108,7 @@ SWords shellCommands[] = {
     {"drop function <udf_name> ;", 0, 0, NULL},
     {"drop consumer group <anyword> on ", 0, 0, NULL},
     {"drop topic <topic_name> ;", 0, 0, NULL},
-    {"drop stream <stream_name> ;", 0, NULL},
+    {"drop stream <stream_name> ;", 0, 0, NULL},
     {"explain select", 0, 0, NULL},  // 44 append sub sql
     {"flush database <db_name> ;", 0, 0, NULL},
     {"help;", 0, 0, NULL},
