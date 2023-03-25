@@ -167,8 +167,10 @@ function run_thread() {
         local case_build_san=`echo "$line"|cut -d, -f3`
         if [ "${case_build_san}" == "y" ]; then
             case_build_san="y"
+            DEBUGPATH="debugSan"
         elif [[ "${case_build_san}" == "n" ]] || [[ "${case_build_san}" == "" ]]; then
             case_build_san="n"
+            DEBUGPATH="debugNoSan"
         else
             usage
             exit 1
@@ -301,9 +303,9 @@ function run_thread() {
             if [ ! -z "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
                 local build_dir=$log_dir/build_${hosts[index]}
-                local remote_build_dir="${workdirs[index]}/TDengine/debug/build"
+                local remote_build_dir="${workdirs[index]}/TDengine/{DEBUGPATH}/build"
                 if [ $ent -ne 0 ]; then
-                    remote_build_dir="${workdirs[index]}/TDinternal/debug/build"
+                    remote_build_dir="${workdirs[index]}/TDinternal/{DEBUGPATH}/build"
                 fi
                 mkdir $build_dir 2>/dev/null
                 if [ $? -eq 0 ]; then
