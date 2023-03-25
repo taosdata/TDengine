@@ -626,6 +626,11 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
   }
+  if (numFields > boundInfo->numOfBound) {
+    uError("numFields:%d > boundInfo->numOfBound:%d", numFields, boundInfo->numOfBound);
+    ret = TSDB_CODE_INVALID_PARA;
+    goto end;
+  }
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
     SSchema*  pColSchema = &pSchema[c];
     SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, c);

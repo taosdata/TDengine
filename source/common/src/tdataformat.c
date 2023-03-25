@@ -2440,7 +2440,9 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
                                     char *data) {
   int32_t code = 0;
   if(data == NULL){
-    code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+    for (int32_t i = 0; i < nRows; ++i) {
+      code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NONE](pColData, NULL, 0);
+    }
     goto _exit;
   }
 
