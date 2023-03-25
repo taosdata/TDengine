@@ -855,7 +855,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   }
 
   if (numOfTopics != 0 && alterReq.walRetentionPeriod == 0) {
-    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    terrno = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
     mError("db:%s, not allowed to set WAL_RETENTION_PERIOD 0 when there are topics defined. numOfTopics:%d", pDb->name,
            numOfTopics);
     goto _OVER;
