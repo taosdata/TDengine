@@ -18,7 +18,6 @@
 #include <string.h>
 #include "executor.h"
 #include "osMemory.h"
-#include "query.h"
 #include "rocksdb/c.h"
 #include "streamBackendRocksdb.h"
 #include "streamInc.h"

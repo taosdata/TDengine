@@ -16,7 +16,6 @@
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
-#include "query.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
