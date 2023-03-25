@@ -222,7 +222,7 @@ pub async fn pi_to_taos(
 
     // rt.handle();
     // (&unsafe { *Arc::into_raw(rt) }).shutdown_background();
-    temp_path.close();
+    temp_path.close()?;
     log::info!("Done");
     // server.abort();
     Ok(())
