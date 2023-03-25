@@ -13,11 +13,14 @@
 
 from taostest import TDCase, T
 from taostest.util.common import TDCom
+import time
 
 class TestTs2920(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.rows_count = 10
+        self.query_interval = 1
+        self.time_out = 10
 
     def run(self):
         self.tdCom.createDb("test_ts2920")
@@ -32,6 +35,14 @@ class TestTs2920(TDCase):
         for i in range(self.rows_count, self.rows_count*2):
             self.tdSql.execute(f'insert into test_ts2920.ctb values (now+{i}m, "/gdmall/auction_syn/{self.tdCom.get_long_name(self.tdCom.Boundary.STBNAME_MAX_LENGTH)}", {i}.{i});')
         self.tdSql.query(f'select count(*) from test_ts2920.nginx_avg_output')
+        time_counter = 1
+        while self.tdSql.query_data[0][0] != self.rows_count*2-2:
+            if time_counter < self.time_out:
+                time_counter += self.query_interval
+                time.sleep(self.query_interval)
+                self.tdSql.query(f'select count(*) from test_ts2920.nginx_avg_output')
+            else:
+                return False
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.rows_count*2-2)
 
     def cleanup(self):
