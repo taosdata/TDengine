@@ -96,9 +96,14 @@ pub async fn spawn_rest_service(
 
     // This factory closure is called on each worker thread independently.
     let state = web::Data::new(builder);
-    let server = HttpServer::new(move || App::new().app_data(state.clone()).service(sql))
-        .bind(&format!("0.0.0.0:{port}"))?
-        .run();
+    let server = HttpServer::new(move || {
+        App::new()
+            .app_data(state.clone())
+            .service(sql)
+            .service(ping)
+    })
+    .bind(&format!("0.0.0.0:{port}"))?
+    .run();
     let h = tokio::spawn(async move { server.await });
     Ok(h)
 }
