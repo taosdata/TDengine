@@ -109,23 +109,18 @@ typedef struct {
 } STqPushEntry;
 
 struct STQ {
-  SVnode* pVnode;
-  char*   path;
-  int64_t walLogLastVer;
-
-  SRWLatch pushLock;
-
-  SHashObj* pPushMgr;    // consumerId -> STqPushEntry
-  SHashObj* pHandle;     // subKey -> STqHandle
-  SHashObj* pCheckInfo;  // topic -> SAlterCheckInfo
-
+  SVnode*         pVnode;
+  char*           path;
+  int64_t         walLogLastVer;
+  SRWLatch        lock;
+  SHashObj*       pPushMgr;    // consumerId -> STqPushEntry
+  SHashObj*       pHandle;     // subKey -> STqHandle
+  SHashObj*       pCheckInfo;  // topic -> SAlterCheckInfo
   STqOffsetStore* pOffsetStore;
-
-  TDB* pMetaDB;
-  TTB* pExecStore;
-  TTB* pCheckStore;
-
-  SStreamMeta* pStreamMeta;
+  TDB*            pMetaDB;
+  TTB*            pExecStore;
+  TTB*            pCheckStore;
+  SStreamMeta*    pStreamMeta;
 };
 
 typedef struct {
@@ -163,7 +158,7 @@ typedef struct {
   int32_t size;
 } STqOffsetHead;
 
-STqOffsetStore* tqOffsetOpen();
+STqOffsetStore* tqOffsetOpen(STQ* pTq);
 void            tqOffsetClose(STqOffsetStore*);
 STqOffset*      tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey);
 int32_t         tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset);
