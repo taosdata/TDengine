@@ -93,6 +93,7 @@ SWords shellCommands[] = {
     {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
     {"create function <anyword> as <anyword> outputtype <data_types> language <language>", 0, 0, NULL},
+    {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <language>", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
     {"describe <all_table>", 0, 0, NULL},
@@ -397,6 +398,7 @@ void showHelp() {
     create stream <stream_name> into <stb_name> as select ...\n\
     create topic <topic_name> as select ...\n\
     create function <udf_name> as <file_name> outputtype <data_types> language \'C\' | \'Python\' ;\n\
+    create aggregate function  <udf_name> as <file_name> outputtype <data_types> bufsize <bufsize_bytes> language \'C\' | \'Python\';\n\
     create user <user_name> pass <password> ...\n\
   ----- D ----- \n\
     describe <all_table>\n\
