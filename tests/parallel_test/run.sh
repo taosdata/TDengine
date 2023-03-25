@@ -303,10 +303,10 @@ function run_thread() {
             if [ ! -z "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
                 local build_dir=$log_dir/build_${hosts[index]}
-                local remote_build_dir="${workdirs[index]}/TDengine/{DEBUGPATH}/build"
-                if [ $ent -ne 0 ]; then
-                    remote_build_dir="${workdirs[index]}/TDinternal/{DEBUGPATH}/build"
-                fi
+                local remote_build_dir="${workdirs[index]}/{DEBUGPATH}/build"
+                # if [ $ent -ne 0 ]; then
+                #     remote_build_dir="${workdirs[index]}/{DEBUGPATH}/build"
+                # fi
                 mkdir $build_dir 2>/dev/null
                 if [ $? -eq 0 ]; then
                     # scp build binary
