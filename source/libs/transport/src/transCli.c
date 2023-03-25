@@ -486,6 +486,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
     STransMsg transMsg = {0};
     transMsg.code = code == -1 ? (pConn->broken ? TSDB_CODE_RPC_BROKEN_LINK : TSDB_CODE_RPC_NETWORK_UNAVAIL) : code;
     transMsg.msgType = pMsg ? pMsg->msg.msgType + 1 : 0;
+    transMsg.info.traceId = pMsg->msg.info.traceId;
     transMsg.info.ahandle = NULL;
 
     if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(pConn)) {
