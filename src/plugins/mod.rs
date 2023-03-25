@@ -218,10 +218,10 @@ pub async fn pi_to_taos(
             // dbg!(output);
             log::info!("PI exit with status {}", output.status);
             // server.abort();
-            panic!();
+            // panic!();
         },
         _ = server => {
-            panic!();
+            panic!("sql server finished first");
         }
         _ = tokio::signal::ctrl_c() => {
             log::info!("Ctrl+C triggered, cancel tasks");
