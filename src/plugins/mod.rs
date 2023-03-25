@@ -176,7 +176,7 @@ pub async fn pi_to_taos(
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
-    config_file.close()?;
+    let temp_path = config_file.into_temp_path();
 
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
@@ -222,6 +222,7 @@ pub async fn pi_to_taos(
 
     // rt.handle();
     // (&unsafe { *Arc::into_raw(rt) }).shutdown_background();
+    temp_path.close();
     log::info!("Done");
     // server.abort();
     Ok(())
