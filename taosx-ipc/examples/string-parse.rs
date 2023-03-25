@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
                 IpcField::new(
                     "__table_name__",
                     false,
-                    ArrowDataType::Binary,
+                    ArrowDataType::Utf8,
                     IpcDataType::VarChar(100),
                 ),
             ],
@@ -111,9 +111,9 @@ async fn main() -> Result<()> {
             .unwrap()
             .append_value("中文");
         builder
-            .field_builder::<BinaryBuilder>(4)
+            .field_builder::<StringBuilder>(4)
             .unwrap()
-            .append_value("d1001".as_bytes());
+            .append_value("d1001");
 
         let builder = insert.columns_builder();
 
@@ -137,9 +137,9 @@ async fn main() -> Result<()> {
             .unwrap()
             .append_value("中文0");
         builder
-            .field_builder::<BinaryBuilder>(4)
+            .field_builder::<StringBuilder>(4)
             .unwrap()
-            .append_value("fake01".as_bytes());
+            .append_value("fake01");
 
         let batch = insert.build()?;
         dbg!(&batch);

@@ -89,6 +89,10 @@ pub async fn spawn_rest_service(
             Err(err) => HttpResponse::InternalServerError().json(err),
         }
     }
+    #[get("/ping")]
+    async fn ping() -> &'static str {
+        "pong"
+    }
 
     // This factory closure is called on each worker thread independently.
     let state = web::Data::new(builder);

@@ -122,7 +122,7 @@ impl PiConfig {
         let points = dsn.remove("Points").map(|s| Path::new(&s).to_path_buf());
 
         let ipc_stream = format!("127.0.0.1:{ipc}");
-        let sql_api = format!("127.0.0.1:{sql}");
+        let sql_api = format!("http://127.0.0.1:{sql}");
 
         // dsn.addresses
         Ok(Self {
@@ -180,13 +180,24 @@ pub async fn pi_to_taos(
 
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    let server = spawn_rest_service(target_pool, 6052).await?;
+    let server = spawn_rest_service(target_pool, sql).await?;
 
     let ipc =
         std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, config.ipc_stream));
 
-    // let ipc = ;
-    // let ipc = tokio::spawn(future);
+    let client = awc::Client::new();
+    let mut retries = 0;
+    loop {
+        let resp = client.get(format!("{}/ping", config.sql_api)).send().await;
+        if resp.is_ok() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        if retries > 600 {
+            break;
+        }
+        retries += 1;
+    }
 
     let v = tokio::task::spawn_blocking(move || {
         let mut command = std::process::Command::new(
