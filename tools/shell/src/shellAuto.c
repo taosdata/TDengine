@@ -92,8 +92,8 @@ SWords shellCommands[] = {
     {"create qnode on dnode <dnode_id> ;", 0, 0, NULL},
     {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
-    {"create function <anyword> as <anyword> outputtype <data_types> language <language>", 0, 0, NULL},
-    {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <language>", 0, 0, NULL},
+    {"create function <anyword> as <anyword> outputtype <data_types> language <udf_language>", 0, 0, NULL},
+    {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
     {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
     {"describe <all_table>", 0, 0, NULL},
@@ -273,7 +273,7 @@ char* key_systable[] = {
     "ins_subscriptions", "ins_streams",    "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges", "perf_connections",
     "perf_queries",      "perf_consumers", "perf_trans",       "perf_apps"};
 
-char* language[] = {"\'Python\'", "\'C\'"};
+char* udf_language[] = {"\'Python\'", "\'C\'"};
 
 //
 //  ------- global variant define ---------
@@ -651,7 +651,7 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_USERACTION, user_actions, sizeof(user_actions) / sizeof(char*));
   GenerateVarType(WT_VAR_KEYSELECT, key_select, sizeof(key_select) / sizeof(char*));
   GenerateVarType(WT_VAR_SYSTABLE, key_systable, sizeof(key_systable) / sizeof(char*));
-  GenerateVarType(WT_VAR_LANGUAGE, key_systable, sizeof(language) / sizeof(char*));
+  GenerateVarType(WT_VAR_LANGUAGE, udf_language, sizeof(udf_language) / sizeof(char*));
 
   return true;
 }
