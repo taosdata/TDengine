@@ -272,7 +272,7 @@ char* key_systable[] = {
     "ins_subscriptions", "ins_streams",    "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges", "perf_connections",
     "perf_queries",      "perf_consumers", "perf_trans",       "perf_apps"};
 
-char* language[] = {"\'Python\'", "\'C\'"}
+char* language[] = {"\'Python\'", "\'C\'"};
 
 //
 //  ------- global variant define ---------
