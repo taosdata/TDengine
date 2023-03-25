@@ -3,14 +3,14 @@
     <MainContentHeader :title="$t('route.admin')"></MainContentHeader>
     <div class="content">
       <el-tabs value="user">
-        <el-tab-pane name="user" :label="$t('topic.users')">
+        <el-tab-pane name="user" :label="$t('taosuser.users')">
           <MgUser></MgUser>
         </el-tab-pane>
-        <el-tab-pane name="backup" :label="$t('topic.backup')">
+        <el-tab-pane name="backup" :label="$t('taosuser.backup')">
           <AdBackup></AdBackup>
           <!-- <MgDnodes></MgDnodes> -->
         </el-tab-pane>
-        <el-tab-pane name="replication" label="Data Replication">
+        <el-tab-pane name="replication" :label="$t('taosuser.datareplication')">
           <AdReplication></AdReplication>
         </el-tab-pane>
         <!-- <el-tab-pane name="udf" :label="$t('topic.udf')" :disabled='true'>

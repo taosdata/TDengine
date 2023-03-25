@@ -5,10 +5,10 @@
 </template>
 
 <script>
-import InfluxDB from "@/utils/config/mdx/en/influxdb.vue";
-import OpenTSDB from "@/utils/config/mdx/en/opentsdb.vue";
-import OPC from "@/utils/config/mdx/en/opc.vue";
-import Kafka from "@/utils/config/mdx/en/kafka.vue";
+import InfluxDB from "@/utils/config/mdx/influxdb.vue";
+import OpenTSDB from "@/utils/config/mdx/opentsdb.vue";
+import OPC from "@/utils/config/mdx/opc.vue";
+import Kafka from "@/utils/config/mdx/kafka.vue";
 export default {
   name: "SourceContent",
   components: {

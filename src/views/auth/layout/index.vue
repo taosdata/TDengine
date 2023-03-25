@@ -5,7 +5,7 @@
       <section class="router-wrapper">
         <section class="left-message">
           <h2 class="headline">
-            TDengine Cloud
+            TDengine 
           </h2>
           <ol>
             <li v-for="item in leftMessage.list" :key="item">

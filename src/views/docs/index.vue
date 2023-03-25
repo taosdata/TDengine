@@ -38,6 +38,7 @@
       },
       config() {
         let lang = window.decodeURIComponent(this.lang);
+        console.log(this.lang,'---java----',config,this.category);
         return (
           config[this.category].find(item => {
             return item.name == lang;
@@ -127,13 +128,11 @@
         return topList;
       },
       getImg(name, icon) {
-        let result = "";
         try {
-          result = require(`@/assets/images/${icon || name}.svg`);
+          return require(`@/assets/images/${icon || name}.svg`);
         } catch (err) {
-          console.log(err);
+          return require(`@/assets/logo.svg`);
         }
-        return result;
       },
       scrollTo(dom) {
         this.element.scrollTo({

@@ -363,11 +363,11 @@ export const AppIDKey = "AppID";
 export const TokenKey = "TDengine-Token";
 export const BusinessEmail = "business@tdengine.com";
 
-export const StreamDocsUrl = "https://docs.tdengine.com/cloud/stream/";
+export const StreamDocsUrl = "https://docs.tdengine.com/develop/stream/";
 export const DocsUrl = "https://docs.tdengine.com"
-//PlatForm == 1 ? "https://docs.taosdata.com" : "https://docs.tdengine.com";
 
-export const SubscriptionDocsUrl = "https://docs.tdengine.com/cloud/data-subscription/";
+
+export const SubscriptionDocsUrl = "https://docs.tdengine.com/taos-sql/tmq/#create-a-topic";
 export const TDengineTimeUnit = [
   {
     label: "nanosecond",

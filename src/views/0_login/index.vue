@@ -327,10 +327,10 @@ export default {
           if (res && res.code == 0 && !res.desc) {
             localStorage.setItem("TDengine-Token", token);
             this.getClusterID();
-             this.$router.push({
-                path: "/explorer",
-              });
-            // this.getUserAuthority();
+            //  this.$router.push({
+            //     path: "/explorer",
+            //   });
+            this.getUserAuthority();
           } else {
             Message.error(res.desc);
           }

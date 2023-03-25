@@ -61,7 +61,7 @@ remote_read:
     <p>{{ $t("docs.party.prometheus.step5desc") }}</p>
     <p>
       <img
-        src="../assets/prometheus/prometheus_data.webp"
+        src="./assets/prometheus/prometheus_data.webp"
         alt="TDengine prometheus remote_write result"
       />
     </p>

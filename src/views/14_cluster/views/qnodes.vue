@@ -7,15 +7,15 @@
     </div>
     <el-table style="margin-top: 20px" :data="qnodesList" size="mini">
       <el-table-column
-        :label="$t('topic.endpoint')"
+        :label="$t('taoscluster.endpoint')"
         prop="endpoint"
       ></el-table-column>
       <el-table-column
-        :label="$t('topic.create_time')"
+        :label="$t('taoscluster.createtime')"
         prop="create_time"
       ></el-table-column>
 
-      <el-table-column label="Action" width="65">
+      <el-table-column :label="$t('taoscluster.action')" width="65">
         <template slot-scope="scope">
           <el-button
             plain
@@ -37,7 +37,7 @@
     ></el-pagination>
     <el-dialog
       align="center"
-      :title="$t('topic.addsource')"
+      :title="$t('taoscluster.addqnodes')"
       width="600px"
       :visible.sync="dialog"
       @close='closeDialog'
@@ -57,7 +57,7 @@
         <el-form-item label="DNodes" prop="DNodes" required>
           <el-select
             v-model="ruleForm.DNodes"
-            placeholder="Please Select DNodes"
+            placeholder=""
             style="width:100%;"
           >
             <el-option

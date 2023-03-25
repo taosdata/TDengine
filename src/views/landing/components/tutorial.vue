@@ -81,7 +81,7 @@
         return this.landing[this.step];
       },
       docsUrl() {
-        return this.$store.state.language == "en" ? "https://docs.tdengine.com/cloud/" : "https://docs.tdengine.com/cloud/";
+        return this.$store.state.language == "en" ? "https://docs.tdengine.com" : "https://docs.tdengine.com";
       },
     },
     created() {

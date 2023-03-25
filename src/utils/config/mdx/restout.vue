@@ -1,42 +1,35 @@
 <template>
-  <div><p>In this section we will explain how to write into TDengine cloud service using schemaless OpenTSDB JSON protocols over REST interface.</p>
+  <div><p>In this section we will explain how to query data from TDengine  service using REST API.</p>
 <h2 id="config">Config</h2>
-<p>Run this command in your terminal to save the TDengine cloud token and URL as variables:</p>
+<p>Run this command in your terminal to save the TDengine  token and URL as variables:</p>
 <el-tabs value="bash">
 <el-tab-pane name="bash" label="Bash">
 
-<pre v-highlight="`export TDENGINE_CLOUD_TOKEN=&quot;${token}&quot;
-export TDENGINE_CLOUD_URL=&quot;${url}&quot;
+<pre v-highlight="`export TDENGINE_TOKEN=&quot;${token}&quot;
+export TDENGINE_URL=&quot;${url}&quot;
 `"><code class="language-bash"></code></pre>
 </el-tab-pane>
 <el-tab-pane name="cmd" label="CMD">
 
-<pre v-highlight="`set TDENGINE_CLOUD_TOKEN=&quot;${token}&quot;
-set TDENGINE_CLOUD_URL=&quot;${url}&quot;
+<pre v-highlight="`set TDENGINE_TOKEN=&quot;${token}&quot;
+set TDENGINE_URL=&quot;${url}&quot;
 `"><code class="language-bash"></code></pre>
 </el-tab-pane>
 <el-tab-pane name="powershell" label="Powershell">
 
-<pre v-highlight="`$env:TDENGINE_CLOUD_TOKEN=&quot;${token}&quot;
-$env:TDENGINE_CLOUD_URL=&quot;${url}&quot;
+<pre v-highlight="`$env:TDENGINE_TOKEN=&quot;${token}&quot;
+$env:TDENGINE_URL=&quot;${url}&quot;
 `"><code class="language-powershell"></code></pre>
 </el-tab-pane>
 </el-tabs>
 
-<h2 id="insert">Insert</h2>
-<p>You can use any client that supports the http protocol to access the RESTful interface address <code>&lt;cloud_url&gt;/opentsdb/v1/put</code> to write data in OpenTSDB compatible format to TDengine. The EndPoint is as follows:</p>
-<pre v-highlight><code class="language-text">/opentsdb/v1/put/json/&lt;db&gt;?token=&lt;cloud_token&gt;
-</code></pre>
-<h2 id="insert-example">Insert Example</h2>
-<pre v-highlight="`curl --request POST &quot;$TDENGINE_CLOUD_URL/opentsdb/v1/put/json/${db_name}?token=$TDENGINE_CLOUD_TOKEN&quot; --data-binary &quot;{\&quot;metric\&quot;:\&quot;meter_current\&quot;,\&quot;timestamp\&quot;:1646846400,\&quot;value\&quot;:10.3,\&quot;tags\&quot;:{\&quot;groupid\&quot;:2,\&quot;location\&quot;:\&quot;Beijing\&quot;,\&quot;id\&quot;:\&quot;d1001\&quot;}}&quot;
+<h2 id="query">Query</h2>
+<p>Following command below show how to query data into from table <code>ins_databases</code> of the database <code>information_schema</code> via the command line utility <code>curl</code>.</p>
+<pre v-highlight="`curl -L \
+  -d &quot;select name, ntables, status from information_schema.ins_databases;&quot; \
+  $TDENGINE_URL/rest/sql/test?token=$TDENGINE_TOKEN
 `"><code class="language-bash"></code></pre>
-<h2 id="query-example-with-sql">Query Example with SQL</h2>
-<ul>
-<li><code>meter_current</code> is the super table name.</li>
-<li>you can filter data by tag, like:<code>where groupid=2</code>.</li>
-</ul>
-<pre v-highlight="`curl -L -d &quot;select * from ${db_name}.meter_current where groupid=2&quot; $TDENGINE_CLOUD_URL/rest/sql/test?token=$TDENGINE_CLOUD_TOKEN
-`"><code class="language-bash"></code></pre>
+<p>Please refer to <a href="https://docs.tdengine.com/reference/rest-api/">REST-API</a> for detailed documentation.</p>
 </div>
   </template>
   

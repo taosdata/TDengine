@@ -32,7 +32,7 @@ export default {
   confirmPass: "Confirm Password",
   changePass: "Change Password",
   or: "Or",
-  "log-in": "Log into TDengine Cloud",
+  "log-in": "Log into TDengine ",
   signOut: "Sign out",
   submit: "Submit",
   view: "View",
@@ -133,7 +133,7 @@ export default {
   to: "To",
   plan: {
     pricePlan: "Price Plan",
-    planTitle: "TDengine Cloud Price Plan",
+    planTitle: "TDengine  Price Plan",
     selectPlan: "Select Plan",
     free: "Free",
     pleaseSelect: "Please select a price plan",
@@ -145,14 +145,14 @@ export default {
     planList: [
       {
         name: "Free Plan",
-        desc: "Always free plan to explore and learn TDengine Cloud.",
+        desc: "Always free plan to explore and learn TDengine .",
         btnText: "Try for Free",
         class: "free",
         btnType: "primary",
       },
       {
         name: "Standard Plan",
-        desc: "All the amazing features of TDengine Cloud with pay as you go pricing.",
+        desc: "All the amazing features of TDengine  with pay as you go pricing.",
         btnText: "Get Started",
         summary: ["dataIn", "storage", "dataOut", "queries", "inserts"],
         class: "standard",
@@ -247,7 +247,7 @@ export default {
       ],
     },
     login: "Log in",
-    freeStart: "Create your Free TDengine Cloud Account</br>No credit card is required",
+    freeStart: "Create your Free TDengine  Account</br>No credit card is required",
     noAccount: "Don't have an account?",
     createAccount: "Create you Account",
     signUp: "Sign up",
@@ -260,9 +260,9 @@ export default {
     Didn’t receive an email in 10 minutes?`,
     changeSucc: "Change Success!",
     createAcc: "Create an account",
-    createAccBtn: "Sign up for TDengine Cloud",
-    updateTip: "I'd like to receive TDengine Cloud updates",
-    signUpTip: `By clicking "Sign up", I agree to the TDengine Cloud <a href="https://tdengine.com/terms-of-service" class='link' target="_blank">Terms of Service</a> and <a href="${agreementUrl}" class='link' target="_blank">Privacy Policy</a>.`,
+    createAccBtn: "Sign up for TDengine ",
+    updateTip: "I'd like to receive TDengine  updates",
+    signUpTip: `By clicking "Sign up", I agree to the TDengine  <a href="https://tdengine.com/terms-of-service" class='link' target="_blank">Terms of Service</a> and <a href="${agreementUrl}" class='link' target="_blank">Privacy Policy</a>.`,
     forgotSub: "Please enter the registered email address",
     resetMyPass: "Reset my password",
     rememberedYouPass: "Remembered your password?",
@@ -279,8 +279,8 @@ export default {
     activiteError: "Your account activation failed, please click to re-initiate verification.",
     youRegistered: "You're already registered",
     registerVer:
-      "You have already tried to registered for TDengine Cloud service, but email is not verified yet. Please enter email below to receive another verification email.",
-    registerForgot: "You have already registered for TDengine Cloud service. Please enter email below to reset your password if you forget it.",
+      "You have already tried to registered for TDengine  service, but email is not verified yet. Please enter email below to receive another verification email.",
+    registerForgot: "You have already registered for TDengine  service. Please enter email below to reset your password if you forget it.",
     goBack: "Go back",
     sendAnother: "Send another verification email",
     thanks: "Thanks!",
@@ -443,7 +443,7 @@ export default {
   },
   dataIn: {
     connector: "Connectors",
-    connectorTip: `Use the programming language of your choice - The main way to get data in to TDengine cloud is <a href=" https://docs.tdengine.com/cloud/programming/insert/" target="_blank">using SQL to insert</a> data`,
+    connectorTip: `Use the programming language of your choice - The main way to get data in to TDengine  is <a href="https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql " target="_blank">using SQL to insert</a> data`,
     thirdParty: "Third Party",
     thirdPartyTip: `Third-party data collection agents`,
     inputCSVFile: "Manually upload CSV files to backfill data.",
@@ -462,7 +462,7 @@ export default {
     codeSampleTip:
       "Control how code samples in the documentation are populated with system resources. Not all code samples make use of system resources.",
     createToken: "Create TOKEN",
-    generateTokenTip: "There are not any API tokens, you have to generate one to connect to TDengine Cloud.",
+    generateTokenTip: "There are not any API tokens, you have to generate one to connect to TDengine .",
   },
   replication: {
     theTaskWithId: "the task with id {id}",
@@ -689,13 +689,49 @@ export default {
   },
   dataOut: {
     tools: "Tools",
-    connectorTip: `Use the programming language of your choice to <a target='_blank' href='https://docs.tdengine.com/cloud/programming/query/'>query data using SQL</a>`,
+    connectorTip: `Use the programming language of your choice to <a target='_blank' href='https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation'>query data using SQL</a>`,
     toolsTip: "Data Dump - use taosDump to write a table, a portion of a table, or a super table to a file.",
-    subscriptionTitle: `Subscribe to data updates using <a href='https://docs.tdengine.com/cloud/data-subscription/' target='_blank'>data subscriptions</a>.`,
+    subscriptionTitle: `Subscribe to data updates using <a href='https://docs.tdengine.com/develop/tmq/#' target='_blank'>data subscriptions</a>.`,
+  },
+  dataout: {
+    dump: {
+      desc: "创建可序列化的数据备份。",
+      step1: "简介",
+      step1desc: "taosdump 是一个支持从运行中的 TDengine 集群备份数据并将备份的数据恢复到相同或另一个运行中的 TDengine 集群中的工具应用程序。",
+      step1desc1:
+        "taosdump 可以用数据库、超级表或普通表作为逻辑数据单元进行备份，也可以对数据库、超级表和普通表中指定时间段内的数据记录进行备份。使用时可以指定数据备份的目录路径，如果不指定位置，taosdump 默认会将数据备份到当前目录。",
+      step1desc2: "使用时可以指定数据备份的目录路径，如果不指定位置，taosdump 默认会将数据备份到当前目录。",
+      step1desc3:
+        "如果指定的位置已经有数据文件，taosdump 会提示用户并立即退出，避免数据被覆盖。这意味着同一路径只能被用于一次备份。如果看到相关提示，请小心操作。",
+      step1desc4: "taosdump 是一个逻辑备份工具，它不应被用于备份任何原始数据、环境设置、硬件信息、服务端配置或集群的拓扑结构。taosdump 使用",
+      step1desc5: "作为数据文件格式来存储备份数据。",
+      step2: "安装",
+      step2desc: "使用 taosdump，您需要下载并安装 ",
+      step2desc1: "。注意，在安装 taosTools 之前，请首先下载和安装 ",
+      step2desc2: "解压下载的包并安装。",
+      step2desc3: "设置环境变量",
+      step3: "常用使用场景",
+      step31: "taosdump 备份数据",
+      step31desc: "备份所有数据库：指定 `-A` 或 `--all-databases` 参数；",
+      step31desc1: "备份多个指定数据库：使用 `-D db1,db2,...` 参数；",
+      step31desc2:
+        "备份指定数据库中的某些超级表或普通表：使用 `dbname stbname1 stbname2 tbname1 tbname2 ...` 参数，注意这种输入序列第一个参数为数据库名称，且只支持一个数据库，第二个和之后的参数为该数据库中的超级表或普通表名称，中间以空格分隔；",
+      step31desc3:
+        "备份系统 log 库：TDengine 集群通常会包含一个系统数据库，名为 `log`，这个数据库内的数据为 TDengine 自我运行的数据，taosdump 默认不会对 log 库进行备份。如果有特定需求对 log 库进行备份，可以使用 `-a` 或 `--allow-sys` 命令行参数。",
+      step31desc4:
+        "“宽容”模式备份：taosdump 1.4.1 之后的版本提供 `-n` 参数和 `-L` 参数，用于备份数据时不使用转义字符和“宽容”模式，可以在表名、列名、标签名没使用转义字符的情况下减少备份数据时间和备份数据占用空间。如果不确定符合使用 `-n` 和 `-L` 条件时请使用默认参数进行“严格”模式进行备份。转义字符的说明请参考",
+      step31desc5: "官方文档",
+      step31desc6: "。",
+      step32: "taosdump 恢复数据",
+      step32desc:
+        "恢复指定路径下的数据文件：使用 `-i` 参数加上数据文件所在路径。如前面提及，不应该使用同一个目录备份不同数据集合，也不应该在同一路径多次备份同一数据集，否则备份数据会造成覆盖或多次备份。",
+      step4: "详细命令行参数列表",
+      step4desc: "以下为 taosdump 详细命令行参数列表：",
+    },
   },
   auth: {},
   register: {
-    beforeUse: "Before using TDengine cloud service, please fill out the form below:",
+    beforeUse: "Before using TDengine  service, please fill out the form below:",
     CR: "Cloud & Region",
     infoVer: "Information verification",
     youUse: "You use TDengine as ",
@@ -707,7 +743,7 @@ export default {
     demoDataText: "a database with 1 million data points is created",
   },
   cluster: {
-    title: "Starting the TDengine Cloud Service ...",
+    title: "Starting the TDengine  Service ...",
     ready: "Deploy Instance",
     start: "Start Instance",
     running: "Ready to Go",
@@ -718,7 +754,7 @@ export default {
     upgradeSucc: "Upgrade Success",
     upgradeTip: "Confirm upgrade to ",
     demoDataTip: `Inside the demo database, there is a super table "meters".  Under this super table, there are 1,000 subtables named d0 to d999. Each table has 10,000 rows and each row has four columns: ts, current, voltage, and phase. The timestamps of the data in these columns range from 2017-07-14 02:40:00 000 to 2017-07-24 12:25:00 000. Each table is randomly assigned a groupId tag from 1 to 10 and a location tag of either Campbell, Cupertino, Los Angeles, Mountain View, Palo Alto, San Diego, San Francisco, San Jose, Santa Clara or Sunnyvale.`,
-    createClusterSuccTip: `<p>Your first TDengine instance was created successfully! Before you explore TDengine Cloud, please spend a few minutes learning more about it.</p>`,
+    createClusterSuccTip: `<p>Your first TDengine instance was created successfully! Before you explore TDengine , please spend a few minutes learning more about it.</p>`,
     congratulations: "Congratulations",
     createFirstInstanceTitle: "Please create your first instance!",
     createInstanceUpgradeTip:
@@ -729,7 +765,7 @@ export default {
     cidr: "Your VPC CIDR",
     id: "Your VPC ID",
     peerId: "Peering ID",
-    cloudCidr: "TDengine Cloud CIDR",
+    cloudCidr: "TDengine  CIDR",
     action: "Action",
     ProjectId: "Your Project ID",
     vpcNetName: "Your VPC Network Name",
@@ -773,6 +809,8 @@ export default {
     delUser: "Delete User",
   },
   stream: {
+    stable:'Super Table',
+    database:'Database',
     streamOption: "Stream Option",
     streamNameError: "Stream name cannot be empty",
     streamNameExist: "Stream name already exists",
@@ -863,6 +901,7 @@ export default {
     consumer: "Consumer",
     topicName: "Topic Name",
     topic: "Topic",
+    action:'Action',
     DBName: "DB Name",
     consumerID: "Consumer ID",
     consumerGroup: "Consumer Group",
@@ -918,11 +957,11 @@ export default {
     instanceDesc: `An instance is a running cluster of nodes of TDengine with one or more databases. An instance cannot span across multiple regions or multiple clouds, but a single account (organization) can have multiple instances. An account may invite multiple users into his/her organization to share the data, and each user can be configured with different access rights.
     <br />
     <br />
-    TDengine cloud provides a unique URL for each instance and uses tokens to authenticate the access. The token is generated by TDengine cloud for each user and for each instance. The token has a duration and can be reset by the user for each instance at any time for security purpose.`,
+    TDengine  provides a unique URL for each instance and uses tokens to authenticate the access. The token is generated by TDengine  for each user and for each instance. The token has a duration and can be reset by the user for each instance at any time for security purpose.`,
   },
   calculator: {
     title: "Price Estimate",
-    tip: "For TDengine cloud, we will have a pricing calculator on our website for the standard service (Free Plan is free, Enterprise plan will have custom quotes).",
+    tip: "For TDengine , we will have a pricing calculator on our website for the standard service (Free Plan is free, Enterprise plan will have custom quotes).",
     uploadCsvTip: "upload a csv with one line of data from a typical device",
     customTitle: "Custom_data.csv",
     fileInfo: "Uploaded data has {columns} columns and is {size} kb",
@@ -954,6 +993,13 @@ export default {
     toCompanyMegTemp: `<h1>{name} wishes to contact sales</h1><p>Email: {email}</p><p>Phone: {phone}</p><p>Company: {company}</p><p>Their message:</p><p>{message}</p>`,
   },
   health:{
+    cpu:'CPU',
+    memory:'Memory',
+    disk:'Disk',
+    basic:'Basic Operating Status',
+    refresh:'Refresh',
+    dnodes:'DNodes',
+    health:'Health',
     expire_time:'Expire Time',
     uptime:'Uptime',
     version:'Version',
@@ -966,5 +1012,583 @@ export default {
     'max(disk_engine)':'Max(Disk Engine)',
     "last(disk_engine)":'Last(Disk Engine)',
     'elapsed(ts, 1m)':'Elasped(ts,1m)'
+  },
+  datasource:{
+    name:'Name',
+    type:'Type',
+    target:'Target',
+    createat:'Create At',
+    status:'Status',
+    operation:'Operation',
+    addsource:'Add Source',
+    sourcetype:'Source Type',
+    sourcename:'Source Name',
+    // subscription:'TDengine Subscription',
+  },
+  explorer:{
+    databases:'Databases'
+  },
+  docs: {
+    connector: {
+      desc: "Connect using the {0} to encapsulate SQL as a REST request.",
+      bottom1: "The client connection is then established.",
+      bottom2: "The client connection is then established. For how to write data and query data, please refer to ",
+      bottomand: " and ",
+      bottom3: "For more details about how to write or query data via REST API, please check ",
+      bottom3end: ".",
+      java: {
+        step1: "Add Dependency",
+        step2: "Config",
+        step3: "Connect",
+        step3desc:
+          "Code bellow get JDBC URL from environment variables first and then create a Connection object, witch is a standard JDBC Connection object.",
+      },
+      go: {
+        step1: "Initialize Module",
+        step1desc: "You need generate the go example model as the following:",
+        step2: "Add Dependency",
+        step2desc: "Add the driver-go dependency in go.mod file in the go project directory:",
+        step3: "Config",
+        step4: "Connect",
+        step4desc: "Copy code bellow to main.go:",
+        step4desc1: "Then download dependencies by execute command:",
+        step4desc2: "Finally, test the connection:",
+      },
+      python: {
+        step1: "Install connector",
+        step1desc: "First, you need to install the latest taospy module which needs Python 3.6+. Run the command below in your terminal:",
+        step2: "Config",
+        step3: "Connect",
+        step3desc:
+          "Copy code bellow to your editor and run it. If you are using jupyter, assuming you have followed the guide about Jupyter in previous sections, you can copy the code into Jupyter editor in your browser.",
+        step41Title: "Step 1: Install",
+        step41Desc:
+          "For the users who are familiar with Jupyter to program in Python, both TDengine Python connector and Jupyter need to be ready in your environment. If you have not done yet, please use the commands below to install them.",
+        step42Title: "Step 2: Configure",
+        step42Desc:
+          "In order for Jupyter to connect to TDengine  instance, before launching Jupypter, the environment setting must be performed. We use Linux bash as example.",
+        step43Title: "Step 3: Connect",
+        step43Desc:
+          "Once jupyter lab is launched, Jupyter lab service is automatically connected and shown in your browser. You can create a new notebook and copy the sample code below and run it.",
+      },
+      node: {
+        step1: "Install connector",
+        step2: "Config",
+        step3: "Connect",
+      },
+      csharp: {
+        step1: "Create Project",
+        step11desc: "Add C# TDengine Driver class lib.",
+        step12desc: "Add following ItemGroup and Task to your project file.",
+        step2: "Config",
+        step3: "Connect",
+        step31desc: "The whole project file:",
+        step32desc: "The whole C# file:",
+      },
+      rust: {
+        desc: "Connect using the taos connector to encapsulate SQL in a websocket connection.",
+        step1: "Create Project",
+        step2: "Add Dependency",
+        step2desc: "Add dependency to Cargo.toml:",
+        step3: "Config",
+        step4: "Connect",
+        step41desc: "Copy following code to main.rs:",
+        step42desc: "Then you can execute cargo run to test the connection.",
+      },
+      rest: {
+        desc: "In this section we will explain how to write into TDengine  service using REST API",
+        step1: "Config",
+        step2: "Insert",
+        step2desc: "Following command below show how to insert data into the table d1001 of the database test via the command line utility curl: ",
+        step3: "Query",
+        step3desc:
+          "Following command below show how to query data into from table ins_databases of the database information_schema via the command line utility curl.",
+      },
+    },
+    party: {
+      prometheus: {
+        desc: "Configure Prometheus to write and read data from TDengine .",
+        totaldesc1:
+          "Prometheus is a widespread open-source monitoring and alerting system. Prometheus joined the Cloud Native Computing Foundation (CNCF) in 2016 as the second incubated project after Kubernetes, which has a very active developer and user community.",
+        totaldesc2:
+          "Prometheus provides `remote_write` interface to leverage other database products as its storage engine. To enable users of the Prometheus ecosystem to take advantage of TDengine&#39;s efficient writing, TDengine also provides support for this interface so that Prometheus data can be stored in TDengine via the `remote_write` interface with proper configuration to take full advantage of TDengine&#39;s efficient storage performance and clustering capabilities for time-series data.",
+        step1: "Prerequisites",
+        step1desc:
+          "In your TDengine  instance, click &quot;Explorer&quot; on the left panel, then click &quot;+&quot; besides Databases, to create a new database named as &quot;prometheus_data&quot;. Then execute `show databases` to confirm the database has been created successfully.",
+        step2: "Install Prometheus",
+        step2desc: "Supposed that you use Linux system with architecture amd64:",
+        step21: "Download",
+        step22: "Decompress and rename",
+        step23: "Change to directory prometheus",
+        step2end: "Then Prometheus is installed in current directory. For more installation options, please refer to the",
+        step2doc: "official documentation",
+        step3: "Configure",
+        step3desc:
+          "Configuring Prometheus is done by editing the Prometheus configuration file `prometheus.yml` (If you followed previous steps, you can find prometheus.xml in current directory).",
+        step3desc1:
+          "The resulting configuration will collect data about prometheus itself from its own HTTP metrics endpoint, and store data to TDengine .",
+        step4: "Start Prometheus",
+        step4desc: "Prometheus should start up. It also started a web server at",
+        step4desc1:
+          ". If you want to access the web server from a browser which is not running on the same host as Prometheus, please change `localhost` to correct hostname, FQDN or IP address, depending on your network environment.",
+        step5: "Verify Remote Write",
+        step5desc: "Log in TDengine , click &quot;Explorer&quot; on the left navigation bar. You will see metrics collected by prometheus.",
+        step5desc1: "TDengine will automatically create unique IDs for sub-table names by the rule.",
+      },
+      telegraf: {
+        desc: "Configure Telegraf to write metrics to TDengine .",
+        totaldesc1:
+          "Telegraf is an open-source, metrics collection software. Telegraf can collect the operation information of various components without having to write any scripts to collect regularly, reducing the difficulty of data acquisition.",
+        totaldesc2:
+          "Telegraf&#39;s data can be written to TDengine by simply adding the output configuration of Telegraf to the URL corresponding to taosAdapter and modifying several configuration items. The presence of Telegraf data in TDengine can take advantage of TDengine&#39;s efficient storage query performance and clustering capabilities for time-series data.",
+        step1: "Prerequisites",
+        step2: "Install Telegraf",
+        step2desc:
+          "Before telegraf can write data into TDengine  service, you need to firstly manually create a database. Log in TDengine , click &quot;Explorer&quot; on the left navigation bar, then click the &quot;+&quot; button besides &quot;Databases&quot; to add a database named as &quot;telegraf&quot; using all default parameters.",
+        step2desc1: "Supposed that you use Ubuntu system:",
+        step2desc2: "After installation, telegraf service should have been started. Lets stop it:",
+        step2end: "For installation instructions on other platforms please refer to the",
+        step2doc: "official documentation",
+        step3: "Configure",
+        step3desc: "Run this command in your terminal to save TDengine  token and URL as zariables:",
+        step3desc1: "Then run this command to generate new telegraf.conf.",
+        step3desc2: "Edit section &quot;outputs.http&quot;.",
+        step3desc3:
+          "The resulting configuration will collect CPU and memory data and sends it to TDengine database named &quot;telegraf&quot;. Database &quot;telegraf&quot; will be created automatically if it dose not exist in advance.",
+        step4: "Start Telegraf",
+        step4desc: "Start telegraf using new generated telegraf.conf file.",
+        step5: "Verify",
+        step5desc: "Check `weather` database `telegraf` exist by executing:",
+        step5desc1: "Check `weather` super table cpu and mem exist:",
+        step5desc2: "Telegraf collects the running status measurements of current system. You can enable",
+        step5desc2input: "input plugins",
+        step5desc2insert: "to insert",
+        step5desc2format: "other formats",
+        step5desc2end: "data to Telegraf then forward to TDengine.",
+        step5desc3:
+          "TDengine take influxdb format data and create unique ID for table names by the rule. The user can configure `smlChildTableName` parameter to generate specified table names if he/she needs. And he/she also need to insert data with specified data format. For example, Add `smlChildTableName=tname` in the taos.cfg file. Insert data `st,tname=cpu1,t1=4 c1=3 1626006833639000000` then the table name will be cpu1. If there are multiple lines has same tname but different tag_set, the first line&#39;s tag_set will be used to automatically creating table and ignore other lines. Please refer to",
+        step5desc3end: "TDengine Schemaless",
+      },
+      influxdb: {
+        title: "InfluxDB Line Protocol",
+        desc: "In this section we will explain how to write into TDengine  service using schemaless {0} over REST interface.",
+        step1: "Config",
+        step1desc: "Run this command in your terminal to save the TDengine  token and URL as variables:",
+        step2: "Insert",
+        step2desc:
+          "You can use any client that supports the http protocol to access the RESTful interface address `&lt;_url&gt;/influxdb/v1/write` to write data in InfluxDB compatible format to TDengine. The EndPoint is as follows:",
+        step2desc1: "Support InfluxDB query parameters as follows.",
+        step2desc2: "`db` specifies the database name used by TDengine",
+        step2desc3: "`precision` the time precision used by TDengine",
+        step2desc3ns: "nanoseconds",
+        step2desc3u: "microseconds",
+        step2desc3ms: "milliseconds",
+        step2desc3s: "seconds",
+        step2desc3m: "minutes",
+        step2desc3h: "hours",
+        step3: "Examples",
+        step31: "Insert Example",
+        step32: "Query Example with SQL",
+        step32desc: "`measurement` is the super table name.",
+        step32desc1: "you can filter data by tag, like:`where host=&quot;host1&quot;`.",
+      },
+      opentsdbjson: {
+        title: "OpenTSDB JSON Protocol",
+        step1: "Config",
+        step2: "Insert",
+        step2desc:
+          "You can use any client that supports the http protocol to access the RESTful interface address `&lt;_url&gt;/opentsdb/v1/put` to write data in OpenTSDB compatible format to TDengine. The EndPoint is as follows:",
+        step3: "Examples",
+        step31: "Insert Example",
+        step32: "Query Example with SQL",
+        step32desc: "`meter_current` is the super table name.",
+        step32desc1: "you can filter data by tag, like:`where groupid=2`.",
+      },
+      opentsdbtelnet: {
+        title: "OpenTSDB Telnet Protocol",
+        step1: "Config",
+        step2: "Insert",
+        step3: "Examples",
+        step31: "Insert Example",
+        step32: "Query Example with SQL",
+        step32desc: "`sys` is the super table name.",
+        step32desc1: 'you can filter data by tag, like:`where host="web01"`.',
+      },
+    },
+    dataout: {
+      dump: {
+        desc: "Create serialized data backups.",
+        step1: "Introduction",
+        step1desc:
+          "taosdump is a tool that supports backing up data from a running TDengine cluster and restoring the backed up data to the same, or another running TDengine cluster.",
+        step1desc1:
+          "taosdump can back up a database, a super table, or a normal table as a logical data unit or backup data records in the database, super tables, and normal tables. When using taosdump, you can specify the directory path for data backup. If you do not specify a directory, taosdump will back up the data to the current directory by default.",
+        step1desc2:
+          "If the specified location already has data files, taosdump will prompt the user and exit immediately to avoid data overwriting. This means that the same path can only be used for one backup.",
+        step1desc3:
+          "Please be careful if you see a prompt for this and please ensure that you follow best practices and relevant SOPs for data integrity, backup and data security.",
+        step1desc4:
+          "Users should not use taosdump to back up raw data, environment settings, hardware information, server configuration, or cluster topology. taosdump uses ",
+        step1desc5: " as the data file format to store backup data.",
+        step2: "Installation",
+        step2desc: "To use taosdump, you need to download and install",
+        step2desc1: ". Before installing taosTools, please firstly download and install",
+        step2desc2: "Decompress the package and install.",
+        step2desc3: "Set environment variable.",
+        step3: "Common usage scenarios",
+        step31: "taosdump backup data",
+        step31desc: "backing up all databases: specify `-A` or `-all-databases` parameter.",
+        step31desc1: "backup multiple specified databases: use `-D db1,db2,... ` parameters;",
+        step31desc2:
+          "back up some super or normal tables in the specified database: use `dbname stbname1 stbname2 tbname1 tbname2 ...` parameters. Note that the first parameter of this input sequence is the database name, and only one database is supported. The second and subsequent parameters are the names of super or normal tables in that database, separated by spaces.",
+        step31desc3:
+          "back up the system log database: TDengine clusters usually contain a system database named `log`. The data in this database is the data that TDengine runs itself, and the taosdump will not back up the log database by default. If users need to back up the log database, users can use the `-a` or `-allow-sys command-line parameter.",
+        step31desc4:
+          "Loose mode backup: taosdump version 1.4.1 onwards provides `-n` and `-L` parameters for backing up data without using escape characters and &quot;loose&quot; mode, which can reduce the number of backups if table names, column names, tag names do not use escape characters. This can also reduce the backup data time and backup data footprint. If you are unsure about using `-n` and `-L` conditions, please use the default parameters for &quot;strict&quot; mode backup. See the",
+        step31desc5: "official documentation",
+        step31desc6: " for a description of escaped characters.",
+        step32: "taosdump recover data",
+        step32desc:
+          "Restore the data file in the specified path: use the `-i` parameter plus the path to the data file. You should not use the same directory to backup different data sets, and you should not backup the same data set multiple times in the same path. Otherwise, the backup data will cause overwriting or multiple backups.",
+        step4: "Detailed command-line parameter list",
+        step4desc: "The following is a detailed list of taosdump command-line arguments.",
+      },
+    },
+    virtual: {
+      grafana: {
+        desc: "TDengine can be quickly integrated with the open-source data visualization system Grafana to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in TDengine on a dashboard.",
+        topdesc: "TDengine can be quickly integrated with the open-source data visualization system ",
+        topdesc1:
+          " to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in TDengine on a dashboard.",
+        topdesc2: "You can learn more about using the TDengine plugin on ",
+        topdesc3: ".",
+        step1: "Install Grafana",
+        step1desc:
+          "TDengine currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows:",
+        step2: "Install TDengine plugin",
+        step2desc:
+          "Please copy the following shell commands to export `TDENGINE_URL` and  `TDENGINE_TOKEN` for the data source installation.",
+        step2desc1: "Run below script from Linux terminal to install TDengine data source plugin.",
+        step2desc2: "After that completed, please restart grafana-server.",
+        step3: "Verify Plugin",
+        step3desc:
+          "Users can log in to the Grafana server (initial username/password:admin/admin) directly through the URL `http://localhost:3000`. Click `Configuration -&gt; Data Sources` on the left side. Then click `Test` button to verify if TDengine data source works. You should see a success message if the test worked.",
+        step4: "Use Grafana",
+        step4desc: "Please add new dashboard or import exist dashboard to illustrate the data you store in the TDengine.",
+        step4desc1: "And refer to the ",
+        step4desc2: "documentation",
+        step4desc3: "for more details.",
+      },
+      gds: {
+        desc: "Google Data Studio can quickly access TDengine and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development.",
+        topdesc: "Using its ",
+        topconnector: "partner connector",
+        topdesc1:
+          ", Google Data Studio can quickly access TDengine and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development. Share your reports and dashboards with individuals, teams, or the world. Collaborate in real time. Embed your report on any web page.",
+        topdesc2: "Refer to ",
+        topdesc3: "for additional information on utilizing the Data Studio with TDengine.",
+        step1: "Choose Data Source",
+        step1desc: "The current ",
+        step1desc1: "connector",
+        step1desc2:
+          "supports two different types of data sources: TDengine Server and TDengine . Select &quot;TDengine &quot; and then click &quot;NEXT&quot;.",
+        step2: "Connector Configuration",
+        step21: "Mandatory Config",
+        step21desc: "TDengine  URL:",
+        step211: "TDengine  Token:",
+        step212: "database",
+        step212desc:
+          "The database name that contains the table(no matter if it is a normal table, a super table or a child table) is the one you want to query for data and make reports on.",
+        step213: "table",
+        step213desc: "The name of the table that you wish to connect to in order to query its data and run a report.",
+        step213desc1: "Notice",
+        step213desc2: " The maximum amount of records that may currently be retrieved is 1000000 rows.",
+        step22: "Optional config",
+        step221: "Query range start date &amp; end date",
+        step221desc:
+          "The page where we configure our connector has two text boxes.These two date filter conditions are used to limit the amount of data that will be retrieved, and the date should be entered in the format &quot;YYYY-MM-DD HH:MM:SS.&quot; e.g.",
+        step221desc1:
+          "The query result&#39;s start timestamp is defined by the `start date`. To put it another way, records from before this `start date` won&#39;t be received.",
+        step221desc2:
+          "The `end time` indicates the query result&#39;s end timestamp. Therefore, records that were written after this end date cannot be retrieved. These conditions are utilized in the where clause in SQL statements, such as:",
+        step221desc3: "In fact, you can speed up the data loading in your report by using these filters.",
+        step221desc4:
+          "Click &quot;CONNECT&quot; once configuration is complete, then you can connect to your &quot;TDengine &quot; with the given database and table.",
+        step3: "Connector Configuration",
+        step3desc: "Unlock the power of your data with interactive dashboards and beautiful reports with the data stored in TDengine.",
+        step3desc1: "And refer to",
+        step3desc2: "documentation",
+        step3desc3: "for more details.",
+      },
+    },
+    tool: {
+      cli: {
+        desc: "The interactive shell for operating on TDengine",
+        topdesc:
+          "The TDengine command-line interface (hereafter referred to as `TDengine CLI`) is the most simplest way for users to manipulate and interact with TDengine instances.",
+        step1: "Installation",
+        step1desc: "To run TDengine CLI to access TDengine , please install ",
+        step1desc1: "TDengine client",
+        step1desc2: "installation package(",
+        step1desc3: ", ",
+        step1desc4: ") first.",
+        step2: "Config",
+        step2desc: "Run this command in your Linux terminal to save  DSN as variable:",
+        step2desc1: "Run this command in your Windows CMD prompt to save  DSN as variable:",
+        step2desc2: "Or run this command in your Windows PowerShell environment to save  DSN as variable:",
+        step2desc3: "Run this command in your Mac terminal to save  DSN as variable:",
+        step3: "Connect",
+        step3desc: "To access the TDengine , you can execute `taos` if you already set the environment variable.",
+        step3desc1:
+          "If you did not set environment variable for a TDengine  instance, or you want to access other TDengine  instances rather than the instance you already set the environment variable, you can use as below:",
+        step4: "Using TDengine CLI",
+        step4desc:
+          "TDengine CLI will display a welcome message and version information if it successfully connected to the TDengine service. If it fails, TDengine CLI will print an error message. The TDengine CLI prompts as follows:",
+        step4desc1:
+          "After entering the TDengine CLI, you can execute various SQL commands, including inserts, queries, or administrative commands. Please see the",
+        step4desc2: "official document",
+        step4desc3: "for more details.",
+      },
+      benchmark: {
+        desc: "The tool for benchmark testing of inserting or querying data.",
+        step1: "Introduction",
+        step1desc:
+          "taosBenchmark (formerly taosdemo ) is a tool for testing the performance of TDengine products. taosBenchmark can test the performance of TDengine&#39;s insert, query, and subscription functions and simulate large amounts of data generated by many devices. taosBenchmark can be configured to generate user defined databases, supertables, subtables, and the time series data to populate these for performance benchmarking. taosBenchmark is highly configurable and some of the configurations include the time interval for inserting data, the number of working threads and the capability to insert disordered data. The installer provides taosdemo as a soft link to taosBenchmark for compatibility with past users.",
+        step1desc1:
+          "Please be noted that in the context of TDengine  service, non privileged user can&#39;t create database using any tool, including taosBenchmark. The database needs to be firstly created in the data explorer in TDengine  service console. For any content about creating database in this document, the user needs to ignore and create the database manually inside TDengine  service.",
+        step2: "Installation",
+        step2desc: "To use taosBenchmark, you need to download and install",
+        step2desc1: " or downlaod and install ",
+        step2desc2: "TDengine client installtion package",
+        step2desc3: "Decompress the package and install.",
+        step3: "Run",
+        step31: "Configuration and running methods",
+        step31desc: "Run this command in your Linux terminal to save  DSN as variable:",
+        step31desc1: "Users can use `-f &lt;json file&gt;` to specify a configuration file.",
+        step31desc2:
+          "taosBenchmark supports the complete performance testing of TDengine by providing functionally to write, query, and subscribe. These three functions are mutually exclusive, users can only select one of them each time taosBenchmark runs. The query and subscribe functionalities are only configurable using a json configuration file by specifying the parameter `filetype`, while write can be performed through both the command-line and a configuration file. If you want to test the performance of queries configure taosBenchmark with the configuration file. You can modify the value of the `filetype` parameter to specify the function that you want to test.",
+        step31desc3: "Make sure that the TDengine cluster is running correctly before running taosBenchmark.",
+        step32: "Run with the configuration file",
+        step32desc: "A sample configuration file is provided in the taosBenchmark installation package under `&lt;install_directory&gt;/examples`.",
+        step32desc1: "  Use the following command-line to run taosBenchmark and control its behavior via a configuration file.",
+        step33: "Sample configuration files",
+        step34: "Configuration file examples",
+        step35: "Query Scenario JSON Profile Example",
+        step4: "Configuration file parameters in detailed",
+        step41: "General configuration parameters",
+        step41desc: "The parameters listed in this section apply to all function modes.",
+        step41desc1:
+          ": The function to be tested, with optional values `insert`, `query`. These correspond to the insert and query, respectively. Users can specify only one of these in each configuration file.",
+        step41desc2: ": specify the TDengine cluster configuration file&#39;s directory. The default path is /etc/taos.",
+        step41desc3: ": Specify the FQDN of the TDengine server to connect. The default value is `localhost`.",
+        step41desc4: ": The port number of the TDengine server to connect to, the default value is `6030`.",
+        step41desc5: ": The user name of the TDengine server to connect to, the default is `root`.",
+        step41desc6: ": The password to connect to the TDengine server, the default value is `taosdata`.",
+        step42: "Insert scenario configuration parameters",
+        step42desc:
+          "`filetype` must be set to `insert` in the insertion scenario. See [General Configuration Parameters](#General Configuration Parameters)",
+        step43: "Stream processing related configuration parameters",
+        step43desc: "The parameters for creating streams are configured in `stream` in the json configuration file, as shown below.",
+        step43desc1: ": Name of the stream. Mandatory.",
+        step43desc2: ": Name of the supertable for the stream. Mandatory.",
+        step43desc3: ": SQL statement for the stream to process. Mandatory.",
+        step43desc4: ": Triggering mode for stream processing. Optional.",
+        step43desc5: ": Watermark for stream processing. Optional.",
+        step43desc6: ": Whether to create the stream. Specify yes to create the stream or no to not create the stream.",
+        step44: "Super table related configuration parameters",
+        step44desc: "The parameters for creating super tables are configured in `super_tables` in the json configuration file, as shown below.",
+        step44desc1: ": Super table name, mandatory, no default value.",
+        step44desc2:
+          ": whether the child table already exists, default value is &quot;no&quot;, optional value is &quot;yes&quot; or &quot;no&quot;.",
+        step44desc3: ": The number of child tables, the default value is 10.",
+        step44desc4: ": The prefix of the child table name, mandatory configuration item, no default value.",
+        step44desc5:
+          ": specify the super table and child table names containing escape characters. The value can be &quot;yes&quot; or &quot;no&quot;. The default is &quot;no&quot;.",
+        step44desc6:
+          ": only when insert_mode is taosc, rest, stmt, and childtable_exists is &quot;no&quot;. &quot;yes&quot; means taosBenchmark will automatically create non-existent tables when inserting data; &quot;no&quot; means that taosBenchmark will create all tables before inserting.",
+        step44desc7:
+          ": the number of tables per batch when creating sub-tables, default is 10. Note: the actual number of batches may not be the same as this value. If the executed SQL statement is larger than the maximum length supported, it will be automatically truncated and re-executed to continue creating.",
+        step44desc8:
+          ": specify the source of data-generation. Default is taosBenchmark randomly generated. Users can configure it as &quot;rand&quot; and &quot;sample&quot;. When &quot;sample&quot; is used, taosBenchmark will use the data in the file specified by the `sample_file` parameter.",
+        step44desc9:
+          ": insertion mode with options taosc, rest, stmt, sml, sml-rest, corresponding to normal write, restful interface write, parameter binding interface write, schemaless interface write, restful schemaless interface write (provided by taosAdapter). The default value is taosc.",
+        step44desc10:
+          ": Specify whether to keep writing. If &quot;yes&quot;, insert_rows will be disabled, and writing will not stop until Ctrl + C stops the program. The default value is &quot;no&quot;, i.e., taosBenchmark will stop the writing after the specified number of rows are written. Note: insert_rows must be configured as a non-zero positive integer even if it fails in continuous write mode.",
+        step44desc11:
+          ": Insert data using line protocol. Only works when insert_mode is sml or sml-rest. The value can be `line`, `telnet`, or `json`.",
+        step44desc12:
+          ": Communication protocol in telnet mode only takes effect when insert_mode is sml-rest, and line_protocol is telnet. If not configured, the default protocol is http.",
+        step44desc13: ": The number of inserted rows per child table, default is 0.",
+        step44desc14:
+          ": Effective only if childtable_exists is yes, specifies the offset when fetching the list of child tables from the super table, i.e., starting from the first child table.",
+        step44desc15:
+          ": Effective only when childtable_exists is yes, specifies the upper limit for fetching the list of child tables from the super table.",
+        step44desc16:
+          ": Enables interleaved insertion mode and specifies the number of rows of data to be inserted into each child table at a time. Staggered insertion mode means inserting the number of rows specified by this parameter into each sub-table and repeating the process until all sub-tables have been inserted. The default value is 0, i.e., data is inserted into one sub-table before the next sub-table is inserted.",
+        step44desc17:
+          ": Specifies the insertion interval in ms for interleaved insertion mode. The default value is 0. It only works if `-B/--interlace-rows` is greater than 0. After inserting interlaced rows for each child table, the data insertion thread will wait for the interval specified by this value before proceeding to the next round of writes.",
+        step44desc18:
+          ": If this value is a positive number n, only the first n columns are written to, only if insert_mode is taosc and rest, or all columns if n is 0.",
+        step44desc19:
+          ": Specifies the percentage probability of disordered (i.e. out-of-order) data in the value range [0,50]. The default is 0, which means there is no disorder data.",
+        step44desc20:
+          ": Specifies the timestamp fallback range for the disordered data. The disordered timestamp is generated by subtracting a random value in this range, from the timestamp that would be used in the non-disorder case. Valid only if the percentage of disordered data specified by `-O/--disorder` is greater than 0.",
+        step44desc21:
+          ": The timestamp step for inserting data in each child table, in units consistent with the `precision` of the database. For e.g. if the `precision` is milliseconds, the timestamp step will be in milliseconds. The default value is 1.",
+        step44desc22: ": The timestamp start value of each sub-table, the default value is now.",
+        step44desc23: ": The type of the sample data file; for now only &quot;csv&quot; is supported.",
+        step44desc24:
+          ": Specify a CSV format file as the data source. It only works when data_source is a sample. If the number of rows in the CSV file is less than or equal to prepared_rand, then taosBenchmark will read the CSV file data cyclically until it is the same as prepared_rand; otherwise, taosBenchmark will read only the rows with the number of prepared_rand. The final number of rows of data generated is the smaller of the two.",
+        step44desc25:
+          ": effective only when data_source is `sample`, indicates whether the CSV file specified by sample_file contains the first timestamp column. Default is no. If set to yes, the first column of the CSV file is used as `timestamp`. Since the timestamp of the same sub-table cannot be repeated, the amount of data generated depends on the same number of rows of data in the CSV file, and insert_rows will be invalidated.",
+        step44desc26:
+          ": only works when insert_mode is taosc, rest. The final tag value is related to the childtable_count. Suppose the tag data rows in the CSV file are smaller than the given number of child tables. In that case, taosBenchmark will read the CSV file data cyclically until the number of child tables specified by childtable_count is generated. Otherwise, taosBenchmark will read the childtable_count rows of tag data only. The final number of child tables generated is the smaller of the two.",
+        step45: "TSMA configuration parameters",
+        step45desc: "The configuration parameters for specifying TSMAs are in `tsmas` in `super_tables`.",
+        step45desc1: ": Specifies TSMA name. Mandatory.",
+        step45desc2: ": Specifies TSMA function. Mandatory.",
+        step45desc3: ": Specifies TSMA interval. Mandatory.",
+        step45desc4: ": Specifies time offset for TSMA window. Mandatory.",
+        step45desc5: ": Specifies custom configurations to attach to the end of the TSMA creation statement. Optional.",
+        step45desc6: ": Specifies the number of inserted rows after which TSMA is started. Optional. The default value is 0.",
+        step46: "Tag and Data Column Configuration Parameters",
+        step46desc:
+          "The configuration parameters for specifying super table tag columns and data columns are in `columns` and `tag` in `super_tables`, respectively.",
+        step46desc1:
+          ": Specify the column type. For optional values, please refer to the data types supported by TDengine. Note: JSON data type is unique and can only be used for tags. When using JSON type as a tag, there is and can only be this one tag. At this time, `count` and `len` represent the meaning of the number of key-value pairs within the JSON tag and the length of the value of each KV pair. Respectively, the value is a string by default.",
+        step46desc2:
+          ": Specifies the length of this data type, valid for NCHAR, BINARY, and JSON data types. If this parameter is configured for other data types, a value of 0 means that the column is always written with a null value; if it is not 0, it is ignored.",
+        step46desc3:
+          ": Specifies the number of consecutive occurrences of the column type, e.g., &quot;count&quot;: 4096 generates 4096 columns of the specified type.",
+        step46desc4:
+          ": The name of the column, if used together with count, e.g. &quot;name&quot;: &quot;current&quot;, &quot;count&quot;:3, then the names of the 3 columns are current, current_2. current_3.",
+        step46desc5: ": The minimum value of the column/label of the data type.",
+        step46desc6: ": The maximum value of the column/label of the data type.",
+        step46desc7: ": The value field of the nchar/binary column/label, which will be chosen randomly from the values.",
+        step46desc8: ": Insert the column into the BSMA. Enter `yes` or `no`. The default is `no`.",
+        step47: "Insertion behavior configuration parameters",
+        step47desc: ": specify the number of threads to insert data. Default is 8.",
+        step47desc1: ": The number of threads to build the table, default is 8.",
+        step47desc2:
+          ": The number of pre-established connections to the TDengine server. If not configured, it is the same as number of threads specified.",
+        step47desc3: ": The path to the result output file, the default value is . /output.txt.",
+        step47desc4: ": The switch parameter requires the user to confirm after the prompt to continue. The default value is false.",
+        step47desc5:
+          ": Enables interleaved insertion mode and specifies the number of rows of data to be inserted into each child table at a time. Staggered insertion mode means inserting the number of rows specified by this parameter into each sub-table and repeating the process until all sub-tables have been inserted. The default value is 0, i.e., data is inserted into one sub-table before the next sub-table is inserted. This parameter can also be configured in `super_tables`, and if so, the configuration in `super_tables` takes precedence and overrides the global setting.",
+        step47desc6:
+          ": Specify the insert interval in `ms` for interleaved insert mode. The default value is 0. It only works if `-B/--interlace-rows` is greater than 0. After inserting interlaced rows for each child table, the data insertion thread will wait for the interval specified by this value before proceeding to the next round of writes. This parameter can also be configured in `super_tables`, and if so, the configuration in `super_tables` takes precedence and overrides the global setting.",
+        step47desc7:
+          ": Writing the number of rows of records per request to TDengine, the default value is 30000. When it is set too large, the TDengine client driver will return the corresponding error message, so you need to lower the setting of this parameter to meet the writing requirements.",
+        step47desc8:
+          ": The number of unique values in the generated random data. A value of 1 means that all data are equal. The default value is 10000.",
+        step48: "Query scenario configuration parameters",
+        step48desc:
+          "`filetype` must be set to `query` in the query scenario. See [General Configuration Parameters](#General Configuration Parameters) for details of this parameter and other general parameters",
+        step49: "Configuration parameters for executing the specified query statement",
+        step49desc: "The configuration parameters for querying the sub-tables or the normal tables are set in `specified_table_query`.",
+        step49desc1: ": The query interval in seconds, the default value is 0.",
+        step49desc2: ": The number of threads to execute the query SQL, the default value is 1.",
+        step49desc3: ": the SQL command to be executed.",
+        step49desc4: ": the file to save the query result. If it is unspecified, taosBenchmark will not save the result.",
+        step410: "Configuration parameters of query super table",
+        step410desc: "The configuration parameters of the super table query are set in `super_table_query`.",
+        step410desc1: ": Specify the name of the super table to be queried, required.",
+        step410desc2: ": The query interval in seconds, the default value is 0.",
+        step410desc3: ": The number of threads to execute the query SQL, the default value is 1.",
+        step410desc4:
+          ": The SQL command to be executed. For the query SQL of super table, keep &quot;xxxx&quot; in the SQL command. The program will automatically replace it with all the sub-table names of the super table. Replace it with all the sub-table names in the super table.",
+        step410desc5: ": The file to save the query result. If not specified, taosBenchmark will not save result.",
+      },
+    },
+    topic: {
+      topdesc: "You can follow the following steps to consume the topic `{2}` from the selected instance `{1}` of the organization `{0}`.",
+      python: {
+        step1: "Install Module",
+        step1desc: "First, you need to install the `taos-ws-py` module version &gt;= `0.2.1`. Run the command below in your terminal.",
+        step1desc1: "You&#39;ll need to have Python3 installed.",
+      },
+      go: {
+        step1: "Initialize",
+        step1desc: "You need generate the go example model and the `driver-go` dependency:",
+      },
+      rust: {
+        step1: "Create Project",
+        step1desc: "You can create the Rust project:",
+        step1desc1: "Then add the dependency to the `Cargo.toml` file:",
+      },
+      step2: "Configuration",
+      step3: "Create Consumer",
+      step3desc: "You can create a consumer as the following code:",
+      step4: "Subscribe Topic",
+      step4desc: "You can subscribe the shared topic `{0}` as the following code:",
+      step5: "Close Consumer",
+      step5desc: "You can close the consume if you want to unsubscribe the messages sent by the shared topic `{0}` as the following code:",
+      step6: "Full Example",
+      step6desc: "The following are full sample codes about how to consume the shared topic `{0}`:",
+      enddesc: "For more details about data subscription, please refer to",
+      enddesc1: ".",
+    },
+  },
+  component: {
+    docConfig: {
+      title: "Config",
+      content: "Run this command in your terminal to save TDengine  {0} as variables:",
+      url: "URL and token",
+      dsn: "DSN connection string",
+      tmq: "TMQ connection string",
+      endpoint: "endpoint and token",
+      bottom: "Alternatively, you can also set environment variables in your IDE's run configurations.",
+    },
+  },
+  taosuser:{
+    users:'Users',
+    backup:'Backup',
+    datareplication:'Data Replication',
+    name:'Name',
+    database:'Database',
+    topic:'Topic',
+    createtime:'Create Time',
+    action:'Action',
+    id:'ID',
+    lastbackup:'Last Backup Status',
+    operation:'Operation',
+    fromdb:'From Database',
+    toinstance:'To Instance',
+    todb:'To Database',
+    status:'Status',
+    reason:'Reason',
+    finishat:'Finish At',
+    createat:'Create At',
+    adduser:'Add New User',
+    username:'User Name',
+    password:'Password',
+    subscription:'Subscription',
+    createbackup:'Create New Backup',
+    backupcycle:'Backup Cycle',
+    directory:'Directory',
+    addreplication:'Add New Replication',
+    fromsource:'From Source',
+    targetdsn:'Target DSN',
+    changebackup:'Change Backup'
+  },
+  taoscluster:{
+    dnodes:'DNodes',
+    mnodes:'MNodes',
+    qnodes:'QNodes',
+    endpoint:'End Point',
+    vnodes:'VNodes',
+    supportvnodes:'Support VNodes',
+    status:'Status',
+    createtime:'Create Time',
+    action:'Action',
+    role:'Role',
+    adddnodes:'Add DNodes',
+    addmnodes:'Add MNodes',
+    addqnodes:'Add QNodes'
+
+  },
+  taossetting:{
+    grafanaurl:'Grafana Url',
+    save:'Save'
   }
 };

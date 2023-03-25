@@ -85,4 +85,14 @@
   };
 </script>
 
-<style scoped lang="scss"></style>
+<style scoped lang="scss">
+:deep {
+    .el-input-number__increase,
+    .el-input-number__decrease {
+      height: 30px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+  }
+</style>

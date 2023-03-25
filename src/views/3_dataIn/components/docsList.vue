@@ -41,14 +41,11 @@ export default {
       return this.parentUrl + this.urlPre + encodeURIComponent(name);
     },
     getImg(name, icon) {
-      let result = "";
-
       try {
-        result = require(`@/assets/images/${icon ? icon : name + ".svg"}`);
-      } catch (err) {
-        result = require(`@/assets/logo.svg`);
-      }
-      return result;
+          return require(`@/assets/images/${icon || name}.svg`);
+        } catch (err) {
+          return require(`@/assets/logo.svg`);
+        }
     },
   },
 };

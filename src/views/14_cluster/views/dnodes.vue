@@ -8,31 +8,31 @@
     <el-table style="margin-top: 20px" :data="dnodesList" size="mini">
       <el-table-column
         width="250"
-        :label="$t('topic.endpoint')"
+        :label="$t('taoscluster.endpoint')"
         prop="endpoint"
       ></el-table-column>
       <el-table-column
         width="250"
-        :label="$t('topic.vnodes')"
+        :label="$t('taoscluster.vnodes')"
         prop="vnodes"
       ></el-table-column>
       <el-table-column
         width="250"
-        :label="$t('topic.support_vnodes')"
+        :label="$t('taoscluster.supportvnodes')"
         prop="support_vnodes"
       ></el-table-column>
       <el-table-column
         width="250"
-        :label="$t('topic.status')"
+        :label="$t('taoscluster.status')"
         prop="status"
       ></el-table-column>
       <el-table-column
-        :label="$t('topic.create_time')"
+        :label="$t('taoscluster.createtime')"
         prop="create_time"
       ></el-table-column>
       <!-- <el-table-column :label="$t('topic.note')" prop="note"></el-table-column> -->
 
-      <el-table-column label="Action" width="65">
+      <el-table-column :label="$t('taoscluster.action')" width="65">
         <template slot-scope="scope">
           <el-button
             plain
@@ -54,7 +54,7 @@
     ></el-pagination>
     <el-dialog
       align="center"
-      :title="$t('topic.addsource')"
+      :title="$t('taoscluster.adddnodes')"
       width="600px"
       :visible.sync="dialog"
       @close='closeDialog'
@@ -68,7 +68,7 @@
         label-width="auto"
         class="demo-ruleForm"
       >
-        <el-form-item label="End Point" prop="endpoint" required>
+        <el-form-item :label="$t('taoscluster.endpoint')" prop="endpoint" required>
           <el-input v-model.trim="ruleForm.endpoint" ref="endinput"></el-input>
         </el-form-item>
       </el-form>

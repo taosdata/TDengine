@@ -1,6 +1,6 @@
 <template>
   <div class="page-wrapper">
-    <MainContentHeader :title="$t('route.tool')"></MainContentHeader>
+    <MainContentHeader :title="routeTitle"></MainContentHeader>
     <div class="content">
       <router-view />
     </div>
@@ -11,6 +11,16 @@
   export default {
     data() {
       return {};
+    },
+    computed: {
+      routeTitle() {
+        let result = this.$t("route.tool");
+
+        if (this.$route.params?.lang) {
+          result += " - " + this.$route.params.lang;
+        }
+        return result;
+      },
     },
   };
 </script>

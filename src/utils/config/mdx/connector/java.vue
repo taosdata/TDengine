@@ -70,19 +70,19 @@ public class ConnectCloudExample {
 </code></pre>
     <p>
       {{ $t("docs.connector.bottom1") }} {{ $t("docs.connector.bottom2") }}
-      <a :href="`https://docs.${urlPart}.com/cloud/programming/insert/`">{{
-        `https://docs.${urlPart}.com/cloud/programming/insert/`
+      <a :href="`https://docs.${urlPart}.com/develop/insert-data/`">{{
+        `https://docs.${urlPart}.com/develop/insert-data/`
       }}</a>
       {{ $t("docs.connector.bottomand") }}
-      <a :href="`https://docs.${urlPart}.com/cloud/programming/query/`">{{
-        `https://docs.${urlPart}.com/cloud/programming/query/`
+      <a :href="`https://docs.${urlPart}.com/develop/query-data/`">{{
+        `https://docs.${urlPart}.com/develop/query-data/`
       }}</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>
     <p>
       {{ $t("docs.connector.bottom3") }}
       <a
-        :href="`https://docs.${urlPart}.com/cloud/programming/connector/rest-api/`"
+        :href="`https://docs.${urlPart}.com/reference/rest-api/`"
         >REST API</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>

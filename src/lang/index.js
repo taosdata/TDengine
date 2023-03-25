@@ -29,7 +29,7 @@ window.languageList = [
   },
 ];
 const i18n = new VueI18n({
-  locale: "zh",
+  locale: "en",
   messages,
 });
 export function setLang(lang) {

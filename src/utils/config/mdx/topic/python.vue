@@ -16,24 +16,24 @@
 </el-tabs>
 
 <h2 id="config">Config</h2>
-<p>Run this command in your terminal to save TDengine cloud token and URL as variables:</p>
+<p>Run this command in your terminal to save TDengine  token and URL as variables:</p>
 <el-tabs value="bash">
 <el-tab-pane name="bash" label="Bash">
 
-<pre v-highlight="`export TDENGINE_CLOUD_TOKEN=&quot;${token}&quot;
-export TDENGINE_CLOUD_URL=&quot;${url}&quot;
+<pre v-highlight="`export TDENGINE_TOKEN=&quot;${token}&quot;
+export TDENGINE_URL=&quot;${url}&quot;
 `"><code class="language-bash"></code></pre>
 </el-tab-pane>
 <el-tab-pane name="cmd" label="CMD">
 
-<pre v-highlight="`set TDENGINE_CLOUD_TOKEN=&quot;${token}&quot;
-set TDENGINE_CLOUD_URL=&quot;${url}&quot;
+<pre v-highlight="`set TDENGINE_TOKEN=&quot;${token}&quot;
+set TDENGINE_URL=&quot;${url}&quot;
 `"><code class="language-bash"></code></pre>
 </el-tab-pane>
 <el-tab-pane name="powershell" label="Powershell">
 
-<pre v-highlight="`$env:TDENGINE_CLOUD_TOKEN=&quot;${token}&quot;
-$env:TDENGINE_CLOUD_URL=&quot;${url}&quot;
+<pre v-highlight="`$env:TDENGINE_TOKEN=&quot;${token}&quot;
+$env:TDENGINE_URL=&quot;${url}&quot;
 `"><code class="language-powershell"></code></pre>
 </el-tab-pane>
 </el-tabs>
@@ -45,13 +45,13 @@ $env:TDENGINE_CLOUD_URL=&quot;${url}&quot;
 <pre v-highlight><code class="language-python">import taosrest
 import os
 
-url = os.environ[&quot;TDENGINE_CLOUD_URL&quot;]
-token = os.environ[&quot;TDENGINE_CLOUD_TOKEN&quot;]
+url = os.environ[&quot;TDENGINE_URL&quot;]
+token = os.environ[&quot;TDENGINE_TOKEN&quot;]
 
 conn = taosrest.connect(url=url, token=token)
 </code></pre>
-<p>For how to write data and query data, please refer to <a href=" https://docs.tdengine.com/cloud/programming/insert/"> https://docs.tdengine.com/cloud/programming/insert/</a> and <a href="https://docs.tdengine.com/cloud/programming/query/">https://docs.tdengine.com/cloud/programming/query/</a>.</p>
-<p>For more details about how to write or query data via REST API, please check <a href="https://docs.tdengine.com/cloud/programming/connector/rest-api/">REST API</a>.</p>
+<p>For how to write data and query data, please refer to <a href=" https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql"> https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql</a> and <a href="https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation">https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation</a>.</p>
+<p>For more details about how to write or query data via REST API, please check <a href="https://docs.tdengine.com/reference/rest-api/">REST API</a>.</p>
 <h2 id="jupyter">Jupyter</h2>
 <p><strong>Step 1: Install</strong></p>
 <p>For the users who are familiar with Jupyter to program in Python, both TDengine Python connector and Jupyter need to be ready in your environment. If you have not done yet, please use the commands below to install them.</p>
@@ -72,9 +72,9 @@ conda install -c conda-forge taospy
 </el-tabs>
 
 <p><strong>Step 2: Configure</strong></p>
-<p>In order for Jupyter to connect to TDengine cloud service, before launching Jupypter, the environment setting must be performed. We use Linux bash as example.</p>
-<pre v-highlight="`export TDENGINE_CLOUD_TOKEN=&quot;${token}&quot;
-export TDENGINE_CLOUD_URL=&quot;${url}&quot;
+<p>In order for Jupyter to connect to TDengine  service, before launching Jupypter, the environment setting must be performed. We use Linux bash as example.</p>
+<pre v-highlight="`export TDENGINE_TOKEN=&quot;${token}&quot;
+export TDENGINE_URL=&quot;${url}&quot;
 jupyter lab
 `"><code class="language-bash"></code></pre>
 <p><strong>Step 3: Connect</strong></p>
@@ -82,8 +82,8 @@ jupyter lab
 <pre v-highlight><code class="language-python">import taosrest
 import os
 
-url = os.environ[&quot;TDENGINE_CLOUD_URL&quot;]
-token = os.environ[&quot;TDENGINE_CLOUD_TOKEN&quot;]
+url = os.environ[&quot;TDENGINE_URL&quot;]
+token = os.environ[&quot;TDENGINE_TOKEN&quot;]
 
 conn = taosrest.connect(url=url, token=token)
 </code></pre>

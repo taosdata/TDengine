@@ -15,21 +15,21 @@ tokio = { version = &quot;1&quot;, features = [&quot;full&quot;]}
 anyhow = &quot;1.0.0&quot; 
 </code></pre>
 <h2 id="config">Config</h2>
-<p>Run this command in your terminal to save TDengine cloud token as variables:</p>
+<p>Run this command in your terminal to save TDengine  token as variables:</p>
 <el-tabs value="bash">
 <el-tab-pane name="bash" label="Bash">
 
-<pre v-highlight="`export TDENGINE_CLOUD_DSN=&quot;${DSN}&quot;
+<pre v-highlight="`export TDENGINE_DSN=&quot;${DSN}&quot;
 `"><code class="language-bash"></code></pre>
 </el-tab-pane>
 <el-tab-pane name="cmd" label="CMD">
 
-<pre v-highlight="`set TDENGINE_CLOUD_DSN=&quot;${DSN}&quot;
+<pre v-highlight="`set TDENGINE_DSN=&quot;${DSN}&quot;
 `"><code class="language-bash"></code></pre>
 </el-tab-pane>
 <el-tab-pane name="powershell" label="Powershell">
 
-<pre v-highlight="`$env:TDENGINE_CLOUD_DSN=&quot;${DSN}&quot;
+<pre v-highlight="`$env:TDENGINE_DSN=&quot;${DSN}&quot;
 `"><code class="language-powershell"></code></pre>
 </el-tab-pane>
 </el-tabs>
@@ -42,15 +42,15 @@ use taos::*;
 
 #[tokio::main]
 async fn main() -&gt; Result&lt;()&gt; {
-    let dsn = std::env::var(&quot;TDENGINE_CLOUD_DSN&quot;)?;
+    let dsn = std::env::var(&quot;TDENGINE_DSN&quot;)?;
     let taos = TaosBuilder::from_dsn(dsn)?.build()?;
     let _ = taos.query(&quot;show databases&quot;).await?;
     println!(&quot;Connected&quot;);
     Ok(())
 }
 </code></pre>
-<p>Then you can execute <code>cargo run</code> to test the connection.  For how to write data and query data, please refer to <a href=" https://docs.tdengine.com/cloud/programming/insert/"> https://docs.tdengine.com/cloud/programming/insert/</a> and <a href="https://docs.tdengine.com/cloud/programming/query/">https://docs.tdengine.com/cloud/programming/query/</a>.</p>
-<p>For more details about how to write or query data via REST API, please check <a href="https://docs.tdengine.com/cloud/programming/connector/rest-api/">REST API</a>.</p>
+<p>Then you can execute <code>cargo run</code> to test the connection.  For how to write data and query data, please refer to <a href=" https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql"> https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql</a> and <a href="https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation">https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation</a>.</p>
+<p>For more details about how to write or query data via REST API, please check <a href="https://docs.tdengine.com/reference/rest-api/">REST API</a>.</p>
 </div>
   </template>
   

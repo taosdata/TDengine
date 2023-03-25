@@ -11,20 +11,20 @@
         {{ $t("refresh") }}
       </el-button>
       <el-button plain @click="add" size="small" icon="el-icon-plus"
-        >Add New Replication</el-button
+        >{{$t('taosuser.addreplication')}}</el-button
       >
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column label="ID" width="80" prop="id"></el-table-column>
-      <el-table-column label="From Database" prop="fromdb"></el-table-column>
-      <el-table-column label="To Instance" prop="hostport"></el-table-column>
-      <el-table-column label="To Database" prop="db"></el-table-column>
+      <el-table-column :label="$t('taosuser.fromdb')" prop="fromdb"></el-table-column>
+      <el-table-column :label="$t('taosuser.toinstance')" prop="hostport"></el-table-column>
+      <el-table-column :label="$t('taosuser.todb')" prop="db"></el-table-column>
 
-      <el-table-column label="Status" prop="status"></el-table-column>
-      <el-table-column label="Reason" prop="reason"></el-table-column>
-      <el-table-column label="Finished At" prop="finished_at"></el-table-column>
-      <el-table-column label="Create At" prop="created_at"></el-table-column>
-      <el-table-column label="Operation" width="110">
+      <el-table-column :label="$t('taosuser.status')" prop="status"></el-table-column>
+      <el-table-column :label="$t('taosuser.reason')" prop="reason"></el-table-column>
+      <el-table-column :label="$t('taosuser.finishat')" prop="finished_at"></el-table-column>
+      <el-table-column :label="$t('taosuser.createat')" prop="created_at"></el-table-column>
+      <el-table-column :label="$t('taosuser.operation')" width="110">
         <template slot-scope="scope">
           <el-switch
             :value="scope.row.status.toLowerCase() == 'running'"
@@ -70,7 +70,7 @@
     ></el-pagination>
     <el-dialog
       align="center"
-      title="Add New Replication"
+      :title="$t('taosuser.addreplication')"
       width="600px"
       :visible.sync="dialog"
       @close="closeDialog"
@@ -84,7 +84,7 @@
         label-width="auto"
         class="demo-ruleForm"
       >
-        <el-form-item label="From Source" prop="source" required>
+        <el-form-item :label="$t('taosuser.fromsource')" prop="source" required>
           <!-- <el-input v-model.trim="ruleForm.source"></el-input> -->
           <el-select v-model="ruleForm.source" placeholder="Please select">
             <el-option
@@ -95,7 +95,7 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item label="Target DSN" prop="target" required>
+        <el-form-item :label="$t('taosuser.targetdsn')" prop="target" required>
           <el-input
             v-model.trim="ruleForm.target"
             placeholder="taos://192.168.0.1:6030/db2"
@@ -132,7 +132,7 @@ import {
 } from "@/api/explorer/replication";
 import _ from "lodash";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import taosbenchmarkVue from "@/utils/config/mdx/en/taosbenchmark.vue";
+import taosbenchmarkVue from "@/utils/config/mdx/taosbenchmark.vue";
 export default {
   data() {
     return {

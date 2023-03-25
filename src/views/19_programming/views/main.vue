@@ -1,7 +1,7 @@
 <template>
   <div>
     <p class="primary-tip" v-html="$t('dataOut.connectorTip')"></p>
-    <DocsList v-bind="docsMap.outconnector" />
+    <DocsList v-bind="docsMap.connector" />
      <!-- <p class="primary-tip" v-html="$t('dataIn.thirdPartyTip')"></p> -->
     <!-- <DocsList v-bind="docsMap.inthirdParty" />
     <p class="primary-tip" v-html="$t('dataOut.toolsTip')"></p>
@@ -17,19 +17,22 @@
 
 <script>
 import DocsList from "@/views/3_dataIn/components/docsList.vue";
-import { dataOutConnector, dataOutTool,dataInConnector, party } from "@/utils/config";
+import { connector, dataOutTool,dataInConnector, party } from "@/utils/config";
 export default {
   components: { DocsList },
   data() {
     return {
       docsMap: {
-        outconnector: {
-          docsList: dataOutConnector,
+        connector: {
+          docsList: connector,
           parentUrl: "/programming",
-          urlPre: "/docs/dataOutConnector/",
+          urlPre: "/docs/connector/",
         }
       },
     };
+  },
+  created(){
+    console.log(this.docsMap,'kkkk===');
   },
   computed: {
     toolName() {

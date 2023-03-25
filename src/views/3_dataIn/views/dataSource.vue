@@ -6,17 +6,17 @@
         @click="dialog=true"
         size="small"
         icon="el-icon-plus"
-        >{{ $t("topic.addsource") }}</el-button
+        >{{ $t("datasource.addsource") }}</el-button
       >
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column label="Name" prop="localname"></el-table-column>
-      <el-table-column label="Type" prop="localtype"></el-table-column>
-      <el-table-column label="Target" prop="target"></el-table-column>
-      <el-table-column label="Created At" prop="created_at"></el-table-column>
+      <el-table-column :label="$t('datasource.name')" prop="localname"></el-table-column>
+      <el-table-column :label="$t('datasource.type')" prop="localtype"></el-table-column>
+      <el-table-column :label="$t('datasource.target')" prop="target"></el-table-column>
+      <el-table-column :label="$t('datasource.createat')" prop="created_at"></el-table-column>
       <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
 
-      <el-table-column label="Status" prop="status">
+      <el-table-column :label="$t('datasource.status')" prop="status">
         <template slot-scope="scope">
           <div class="status-operation">
             <el-tooltip
@@ -73,7 +73,7 @@
           </template> -->
         </template>
       </el-table-column>
-      <el-table-column label="Operation" width="100" class="action">
+      <el-table-column :label="$t('datasource.operation')" width="100" class="action">
         <template slot-scope="scope">
           <el-button
             type="primay"
@@ -102,7 +102,7 @@
     ></el-pagination>
     <el-dialog
       align="center"
-      title="Add New Data Source"
+      :title="$t('datasource.addsource')"
       width="400px"
       :visible.sync="dialog"
       @closed='closeDialog'
@@ -115,7 +115,7 @@
         label-position="left"
         class="demo-ruleForm"
       >
-        <el-form-item label="Source Type" prop="type" required>
+        <el-form-item :label="$t('datasource.sourcetype')" prop="type" required>
           <el-select
             v-model="ruleForm.type"
             placeholder="Please Select Source Type"
@@ -128,7 +128,7 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item label="Source Name" prop="name" required>
+        <el-form-item :label="$t('datasource.sourcename')" prop="name" required>
           <el-input v-model="ruleForm.name"></el-input>
         </el-form-item>
         <!-- <el-form-item label="Created Time" required>
