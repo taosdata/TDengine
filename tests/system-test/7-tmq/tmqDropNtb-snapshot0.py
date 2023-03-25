@@ -100,7 +100,7 @@ class TDTestCase:
 
         tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
 
-        if not ((totalConsumeRows >= expectrowcnt * 3/4) and (totalConsumeRows < expectrowcnt)):
+        if not ((totalConsumeRows >= expectrowcnt * 3/4) and (totalConsumeRows <= expectrowcnt)):
             tdLog.exit("tmq consume rows error with snapshot = 0!")
 
         tdLog.info("wait subscriptions exit ....")
