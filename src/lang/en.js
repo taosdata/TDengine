@@ -885,6 +885,18 @@ export default {
     rebalanceTime: "Rebalance Time",
     learnMoreTip: `To learn more about data subscription, please check <a target='_blank' href="docsUrl">documentation</a>`,
   },
+  pi:{
+    addpi:"Add PI",
+    name:'Name',
+    type:'Type',
+    target:'Target',
+    createat:'Create At',
+    status:'Status',
+    excutestart:'Excute Start',
+    excutestop:'Excute Stop',
+    operation:'Operation',
+    addnewpi:'Add New PI',
+  },
   landing: {
     title: "Welcome, let's get started!",
     introduce: "TDengine is a fully managed service for time-series data processing. Take a moment to read the key concepts of TDengine data model.",
