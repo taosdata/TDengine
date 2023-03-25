@@ -15,6 +15,7 @@
 #ifndef TDENGINE_QUERYUTIL_H
 #define TDENGINE_QUERYUTIL_H
 
+#include "executor.h"
 #include "function.h"
 #include "nodes.h"
 #include "plannodes.h"
@@ -22,7 +23,6 @@
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
 #include "vnode.h"
-#include "executor.h"
 
 #define T_LONG_JMP(_obj, _c) \
   do {                       \
@@ -37,7 +37,7 @@
     memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
 
-#define GET_RES_WINDOW_KEY_LEN(_l)     ((_l) + sizeof(uint64_t))
+#define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
 
 #define GET_TASKID(_t) (((SExecTaskInfo*)(_t))->id.str)
 
@@ -67,7 +67,7 @@ typedef struct SResultRowPosition {
 typedef struct SResKeyPos {
   SResultRowPosition pos;
   uint64_t           groupId;
-  char key[];
+  char               key[];
 } SResKeyPos;
 
 typedef struct SResultRowInfo {
@@ -88,12 +88,13 @@ typedef struct SColMatchInfo {
   int32_t matchType;  // determinate the source according to col id or slot id
 } SColMatchInfo;
 
-typedef struct SExecTaskInfo SExecTaskInfo;
+typedef struct SExecTaskInfo  SExecTaskInfo;
 typedef struct STableListInfo STableListInfo;
 struct SqlFunctionCtx;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
-                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, SExecTaskInfo* pTaskInfo);
+                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
+                                SExecTaskInfo* pTaskInfo);
 
 STableListInfo* tableListCreate();
 void*           tableListDestroy(STableListInfo* pTableListInfo);

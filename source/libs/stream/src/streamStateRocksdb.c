@@ -395,12 +395,14 @@ int streamGetInit(const char* funcName) {
     rocksdb_column_family_handle_t* pHandle = pState->pTdbState->pHandle[ginitDict[i].idx];             \
     rocksdb_t*                      db = pState->pTdbState->rocksdb;                                    \
     rocksdb_readoptions_t*          opts = pState->pTdbState->ropts;                                    \
-    char* val = rocksdb_get_cf(db, opts, pHandle, (const char*)buf, sizeof(*key), (size_t*)vLen, &err); \
+    size_t                          len = 0;                                                            \
+    char* val = rocksdb_get_cf(db, opts, pHandle, (const char*)buf, sizeof(*key), (size_t*)&len, &err); \
     if (val == NULL) {                                                                                  \
       qWarn("streamState str: %s failed to read from %s, err: not exist", toString, funcname);          \
       code = -1;                                                                                        \
     } else {                                                                                            \
-      *pVal = val;                                                                                      \
+      if (pVal != NULL) *pVal = val;                                                                    \
+      if (vLen != NULL) *vLen = len;                                                                    \
     }                                                                                                   \
     if (err != NULL) {                                                                                  \
       taosMemoryFree(err);                                                                              \
@@ -754,9 +756,8 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey*
   if (!pCur) {
     return -1;
   }
-  SStateSessionKey  ktmp = {0};
-  SStateSessionKey* pKTmp = &ktmp;
-  int32_t           kLen, vLen;
+  SStateSessionKey ktmp = {0};
+  int32_t          kLen, vLen;
 
   if (!rocksdb_iter_valid(pCur->iter)) {
     return -1;
@@ -764,7 +765,8 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey*
   const char* curKey = rocksdb_iter_key(pCur->iter, (size_t*)&kLen);
   stateSessionKeyDecode((void*)&ktmp, (char*)curKey);
 
-  const char* val = rocksdb_iter_value(pCur->iter, (size_t*)&vLen);
+  SStateSessionKey* pKTmp = &ktmp;
+  const char*       val = rocksdb_iter_value(pCur->iter, (size_t*)&vLen);
   if (pVal != NULL) *pVal = (char*)val;
   if (pVLen != NULL) *pVLen = vLen;
 

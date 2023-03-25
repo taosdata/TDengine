@@ -18,6 +18,7 @@
 #include <string.h>
 #include "executor.h"
 #include "osMemory.h"
+#include "query.h"
 #include "rocksdb/c.h"
 #include "streamBackendRocksdb.h"
 #include "streamInc.h"
@@ -288,7 +289,7 @@ int32_t streamStateFuncPut(SStreamState* pState, const STupleKey* key, const voi
 }
 int32_t streamStateFuncGet(SStreamState* pState, const STupleKey* key, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
-  return streamStateFuncGet(pState, key, pVal, pVLen);
+  return streamStateFuncGet_rocksdb(pState, key, pVal, pVLen);
 #else
   return tdbTbGet(pState->pTdbState->pFuncStateDb, key, sizeof(STupleKey), pVal, pVLen);
 #endif
@@ -398,6 +399,7 @@ int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void*
 
 int32_t streamStateReleaseBuf(SStreamState* pState, const SWinKey* key, void* pVal) {
   // todo refactor
+  qWarn("streamStateReleaseBuf");
   if (!pVal) {
     return 0;
   }
