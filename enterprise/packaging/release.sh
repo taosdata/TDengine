@@ -87,6 +87,9 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:" arg; do
     #echo "cusEmail=$OPTARG"
     cusEmail=$(echo $OPTARG)
     ;;
+  G)
+    grantValue=$(echo $OPTARG)
+    ;;
   h)
     echo "Usage: $(basename $0) -v [cluster | edge] "
     echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...] "
@@ -102,6 +105,7 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:" arg; do
     echo "                  -N <custom name>"
     echo "                  -P <custom prompt>"
     echo "                  -M <custom email>"
+    echo "                     -G <grant days>"
     exit 0
     ;;
   ?) #unknow option
@@ -249,7 +253,7 @@ if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" =
 #    if [[ "$dbName" != "taos" ]]; then
 #      replace_enterprise_$dbName
 #    fi
-    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=true ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail}
+    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=true ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DGRANT_VALUE=${grantValue}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"

@@ -26,6 +26,11 @@ IF (CUS_EMAIL)
     ADD_DEFINITIONS(-DCUS_EMAIL="${CUS_EMAIL}")
 ENDIF ()
 
+IF (GRANT_VALUE)
+    MESSAGE(STATUS "Input grant value: " ${GRANT_VALUE})
+    ADD_DEFINITIONS(-DGRANT_VALUE="${GRANT_VALUE}")
+ENDIF ()
+
 set( TD_SOURCE_DIR ${PROJECT_SOURCE_DIR} )
 include(${TD_SOURCE_DIR}/enterprise/cmake/cmake.options)
 add_subdirectory(enterprise/contrib)

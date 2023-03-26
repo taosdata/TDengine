@@ -19,8 +19,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#if 1
+#ifdef GRANT_VALUE
+#define GRANT_DEFAULT        GRANT_VALUE*86400
+#else
 #define GRANT_DEFAULT        60*86400
+#endif
+
+#if 1
 #define GRANT_TOLERENCE      86400  //86400
 #define GRANT_CHECK_INTERVAL 3600   //3600seconds
 #define GRANT_HEART_BEAT_MSG 60     //60seconds

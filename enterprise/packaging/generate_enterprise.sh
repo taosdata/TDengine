@@ -11,6 +11,7 @@ cpuType=$5
 cusName=$6
 cusPrompt=$7
 cusEmail=$8
+grantValue=$9
 
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
@@ -39,13 +40,13 @@ if [ ! -d $communityDir ]; then
     cmake .. -DBUILD_TAOSX=true
   else
     if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
-      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail}
+      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DGRANT_VALUE=${grantValue}
     elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
-      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt}
+      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue}
     elif [ ! -z "${cusName}" ]; then
-      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName}
+      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DGRANT_VALUE=${grantValue} 
     else
-      cmake .. -DBUILD_TAOSX=true -DCUS_PROMPT=${cusPrompt}
+      cmake .. -DBUILD_TAOSX=true -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue} 
     fi
   fi
 fi
@@ -69,13 +70,13 @@ rm -rf rpms/*
 
 
 if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail}
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} 
 elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt}
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -G ${grantValue} 
 elif [ ! -z "${cusName}" ]; then
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName}
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -G ${grantValue} 
 else
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -G ${grantValue} 
 fi
 
 # if [ ! -d  "$archiveDir/v$version" ]; then

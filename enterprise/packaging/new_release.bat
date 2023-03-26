@@ -8,6 +8,7 @@ set install_dir=C:\TDengine
 set cusName=TDengine
 set cusPrompt=taos
 set cusEmail=support@taosdata.com
+set grantValue=60
 
 :param
 if "%1"=="" (
@@ -18,6 +19,7 @@ if %1 == -n ( set "version=%2" && shift && shift && goto :param )
 if %1 == -N ( set "cusName=%2" && shift && shift && goto :param )
 if %1 == -M ( set "cusEmail=%2"  && shift && shift && goto :param )
 if %1 == -P ( set "cusPrompt=%2" && shift && shift && goto :param )
+if %1 == -G ( set "grantValue=%2" && shift && shift && goto :param )
 
 @REM unused
 if %1 == -b ( shift && shift && goto :param )
@@ -71,7 +73,7 @@ cd %work_dir%\debug\ver-%version%-x64
 call vcvarsall.bat x64
 if "%verType%" == "cluster" (
 	echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%"
-	cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%
+	cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DBUILD_EXPLORER=true -DBUILD_TAOSX=true -DWEBSOCKET=true -DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64 -DCUS_NAME=%cusName% -DCUS_PROMPT=%cusPrompt% -DCUS_EMAIL=%cusEmail%  -DGRANT_VALUE=%grantValue%
 ) else (
 	echo "cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DWEBSOCKET=true -DBUILD_HTTP=false -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64"
 	cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=true -DWEBSOCKET=true -DBUILD_HTTP=false -DBUILD_TEST=false -DVERNUMBER=%version% -DCPUTYPE=x64
