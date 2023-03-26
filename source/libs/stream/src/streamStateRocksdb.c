@@ -538,9 +538,10 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pSta
   char             buf[128] = {0};
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   int              len = stateSessionKeyEncode(&sKey, buf);
-  char             toString[128] = {0};
-  stateSessionKeyToString(&sKey, toString);
-  // qWarn("streamState seek key %s", toString);
+
+  // char             toString[128] = {0};
+  // stateSessionKeyToString(&sKey, toString);
+  //  qWarn("streamState seek key %s", toString);
 
   rocksdb_iter_seek(pCur->iter, buf, len);
   if (!rocksdb_iter_valid(pCur->iter)) {
@@ -659,8 +660,9 @@ SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* 
   SStateKey sKey = {.key = *key, .opNum = pState->number};
   char      buf[128] = {0};
   int       len = stateKeyEncode((void*)&sKey, buf);
-  char      sKeyStr[128] = {0};
-  stateKeyToString(&sKey, sKeyStr);
+
+  // char      sKeyStr[128] = {0};
+  // stateKeyToString(&sKey, sKeyStr);
   rocksdb_iter_seek(pCur->iter, buf, len);
   if (rocksdb_iter_valid(pCur->iter)) {
     SStateKey curKey;
