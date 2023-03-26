@@ -20,6 +20,7 @@
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
+#include "syncUtil.h"
 
 // TLA+ Spec
 // HandleRequestVoteRequest(i, j, m) ==

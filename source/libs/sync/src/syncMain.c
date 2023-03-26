@@ -37,6 +37,7 @@
 #include "syncVoteMgr.h"
 #include "tglobal.h"
 #include "tref.h"
+#include "syncUtil.h"
 
 static void    syncNodeEqPingTimer(void* param, void* tmrId);
 static void    syncNodeEqElectTimer(void* param, void* tmrId);
@@ -2294,6 +2295,14 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
   syncLogRecvHeartbeat(ths, pMsg, timeDiff, tbuf);
+
+  if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
+    sWarn(
+        "vgId:%d, drop heartbeat msg from dnode:%d, because it come from another cluster:%d, differ from current "
+        "cluster:%d",
+        ths->vgId, DID(&(pMsg->srcId)), CID(&(pMsg->srcId)), CID(&(ths->myRaftId)));
+    return 0;
+  }
 
   SRpcMsg rpcMsg = {0};
   (void)syncBuildHeartbeatReply(&rpcMsg, ths->vgId);
