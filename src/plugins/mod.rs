@@ -185,14 +185,14 @@ pub async fn pi_to_taos(
     let ipc =
         std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, config.ipc_stream));
 
-    let client = awc::Client::new();
+    let client = reqwest::Client::new();
     let mut retries = 0;
     loop {
         let resp = client.get(format!("{}/ping", config.sql_api)).send().await;
         if resp.is_ok() {
             break;
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        // tokio::time::sleep(Duration::from_millis(100)).await;
         if retries > 600 {
             break;
         }

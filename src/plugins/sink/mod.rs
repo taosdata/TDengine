@@ -138,6 +138,7 @@ pub fn listen_unix_socket(target: TaosPool, socket: impl AsRef<Path>) -> anyhow:
     }
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
+        .worker_threads(16)
         .build()?;
     let listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
     info!("listen on socket address: {}", path.display());
@@ -163,6 +164,7 @@ pub fn listen_tcp_socket(target: TaosPool, socket: impl AsRef<str>) -> anyhow::R
     let listener = TcpListener::bind(tcp_addr)?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
+        .worker_threads(16)
         .build()?;
     info!("listen on socket address: {tcp_addr}");
     loop {

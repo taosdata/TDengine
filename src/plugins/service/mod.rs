@@ -117,6 +117,6 @@ async fn service() -> anyhow::Result<()> {
     // dbg!(res);
 
     let handle = spawn_rest_service(taos, 6055).await?;
-    tokio::time::timeout(std::time::Duration::from_secs(5), handle).await???;
+    tokio::time::timeout(std::time::Duration::from_secs(50), handle).await???;
     Ok(())
 }
