@@ -150,6 +150,12 @@ char    tsTagFilterCache = 0;
 int32_t tsQueryBufferSize = -1;
 int64_t tsQueryBufferSizeBytes = -1;
 
+// the maximum rss threshold when creating a new query task
+// -1 no limit (default)
+// 0 no new query can be created now
+// positive values (in KB)
+int64_t tsQueryRssThreshold = -1;
+
 int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
 
@@ -394,6 +400,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "countAlwaysReturnValue", tsCountAlwaysReturnValue, 0, 1, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, 0) != 0) return -1;
+  if (cfgAddInt64(pCfg, "queryRssThreshold", tsQueryRssThreshold, -1, 1024 * 1024 * 1024, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "printAuth", tsPrintAuth, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryRspPolicy", tsQueryRspPolicy, 0, 1, 0) != 0) return -1;
 
@@ -1073,6 +1080,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tsQueryUseNodeAllocator = cfgGetItem(pCfg, "queryUseNodeAllocator")->bval;
       } else if (strcasecmp("queryRsmaTolerance", name) == 0) {
         tsQueryRsmaTolerance = cfgGetItem(pCfg, "queryRsmaTolerance")->i32;
+      } else if (strcasecmp("queryRssThreshold", name) == 0) {
+        tsQueryRssThreshold = cfgGetItem(pCfg, "queryRssThreshold")->i64;
       }
       break;
     }

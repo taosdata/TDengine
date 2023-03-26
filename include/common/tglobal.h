@@ -95,6 +95,7 @@ extern char    *tsSvrCrashReportUri;
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
 extern int64_t tsQueryBufferSizeBytes;  // maximum allowed usage buffer size in byte for each data node
+extern int64_t tsQueryRssThreshold; // maximum allowed rss threshold in KB before creating new query task
 
 // query client
 extern int32_t tsQueryPolicy;

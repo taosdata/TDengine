@@ -19,6 +19,7 @@
 #include "tdatablock.h"
 #include "tref.h"
 #include "tudf.h"
+#include "tglobal.h"
 #include "vnode.h"
 
 static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
@@ -452,6 +453,13 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   taosThreadOnce(&initPoolOnce, initRefPool);
 
   qDebug("start to create subplan task, TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, pSubplan->id.queryId);
+  int64_t procMemory = 0;
+  if (taosGetProcMemory(&procMemory)) {
+    if (tsQueryRssThreshold > 0 && procMemory >= tsQueryRssThreshold) {
+      qError("Exceeds query memory RSS threshold. RSS: %"PRId64 ", threshold: %"PRId64, procMemory, tsQueryRssThreshold);
+      return TSDB_CODE_QRY_RSS_THRESHOLD;
+    }
+  }
 
   int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId, sql, model);
   if (code != TSDB_CODE_SUCCESS) {
