@@ -746,16 +746,25 @@ int32_t streamStateFillGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, 
   if (!pCur) {
     return -1;
   }
-  SWinKey  winKey;
-  SWinKey* pKTmp = &winKey;
+  SWinKey winKey;
   if (rocksdb_iter_valid(pCur->iter)) {
     size_t tlen;
     char*  keyStr = (char*)rocksdb_iter_key(pCur->iter, &tlen);
     winKeyDecode(&winKey, keyStr);
+
+    size_t      vlen = 0;
+    const char* valStr = rocksdb_iter_value(pCur->iter, &vlen);
+    if (pVal != NULL) {
+      char* dst = taosMemoryCalloc(1, vlen);
+      memcpy(dst, valStr, vlen);
+      *pVal = dst;
+    }
+    if (pVLen != NULL) *pVLen = vlen;
+
   } else {
     return -1;
   }
-  *pKey = *pKTmp;
+  *pKey = winKey;
   return 0;
 }
 int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
