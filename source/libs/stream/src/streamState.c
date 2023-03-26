@@ -398,7 +398,7 @@ int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void*
 
 int32_t streamStateReleaseBuf(SStreamState* pState, const SWinKey* key, void* pVal) {
   // todo refactor
-  qWarn("streamStateReleaseBuf");
+  qDebug("streamStateReleaseBuf");
   if (!pVal) {
     return 0;
   }
@@ -667,6 +667,7 @@ void streamStateFreeCur(SStreamStateCur* pCur) {
   if (!pCur) {
     return;
   }
+  qDebug("streamStateFreeCur");
   rocksdb_iter_destroy(pCur->iter);
   tdbTbcClose(pCur->pCur);
   taosMemoryFree(pCur);

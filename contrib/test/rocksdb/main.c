@@ -159,30 +159,63 @@ int main(int argc, char const *argv[]) {
     rocksdb_write(db, wOpt, wBatch, &err);
   }
   {
-    char buf[128] = {0};
-    KV   kv = {.k1 = 0, .k2 = 0};
-    kvSerial(&kv, buf);
-    char *v = rocksdb_get_cf(db, rOpt, cfHandle[1], buf, sizeof(kv), &vlen, &err);
-    printf("Get value %s, and len = %d, xxxx\n", v, (int)vlen);
-    rocksdb_iterator_t *iter = rocksdb_create_iterator_cf(db, rOpt, cfHandle[1]);
-    rocksdb_iter_seek_to_first(iter);
-    int i = 0;
-    while (rocksdb_iter_valid(iter)) {
-      size_t      klen, vlen;
-      const char *key = rocksdb_iter_key(iter, &klen);
-      const char *value = rocksdb_iter_value(iter, &vlen);
-      KV          kv;
-      kvDeserial(&kv, (char *)key);
-      printf("kv1: %d\t kv2: %d, len:%d, value = %s\n", (int)(kv.k1), (int)(kv.k2), (int)(klen), value);
-      i++;
-      rocksdb_iter_next(iter);
+    {
+      char buf[128] = {0};
+      KV   kv = {.k1 = 0, .k2 = 0};
+      kvSerial(&kv, buf);
+      char *v = rocksdb_get_cf(db, rOpt, cfHandle[1], buf, sizeof(kv), &vlen, &err);
+      printf("Get value %s, and len = %d, xxxx\n", v, (int)vlen);
+      rocksdb_iterator_t *iter = rocksdb_create_iterator_cf(db, rOpt, cfHandle[1]);
+      rocksdb_iter_seek_to_first(iter);
+      int i = 0;
+      while (rocksdb_iter_valid(iter)) {
+        size_t      klen, vlen;
+        const char *key = rocksdb_iter_key(iter, &klen);
+        const char *value = rocksdb_iter_value(iter, &vlen);
+        KV          kv;
+        kvDeserial(&kv, (char *)key);
+        printf("kv1: %d\t kv2: %d, len:%d, value = %s\n", (int)(kv.k1), (int)(kv.k2), (int)(klen), value);
+        i++;
+        rocksdb_iter_next(iter);
+      }
+      rocksdb_iter_destroy(iter);
     }
-    rocksdb_iter_destroy(iter);
-    printf("iterator count %d\n", i);
+    {
+      char                buf[128] = {0};
+      KV                  kv = {.k1 = 0, .k2 = 0};
+      int                 len = kvSerial(&kv, buf);
+      rocksdb_iterator_t *iter = rocksdb_create_iterator_cf(db, rOpt, cfHandle[1]);
+      rocksdb_iter_seek(iter, buf, len);
+      if (!rocksdb_iter_valid(iter)) {
+        printf("invalid iter");
+      }
+      {
+        char buf[128] = {0};
+        KV   kv = {.k1 = 100, .k2 = 0};
+        int  len = kvSerial(&kv, buf);
+
+        rocksdb_iterator_t *iter = rocksdb_create_iterator_cf(db, rOpt, cfHandle[1]);
+        rocksdb_iter_seek(iter, buf, len);
+        if (!rocksdb_iter_valid(iter)) {
+          printf("invalid iter\n");
+          rocksdb_iter_seek_for_prev(iter, buf, len);
+          if (!rocksdb_iter_valid(iter)) {
+            printf("stay invalid iter\n");
+          } else {
+            size_t      klen = 0, vlen = 0;
+            const char *key = rocksdb_iter_key(iter, &klen);
+            const char *value = rocksdb_iter_value(iter, &vlen);
+            KV          kv;
+            kvDeserial(&kv, (char *)key);
+            printf("kv1: %d\t kv2: %d, len:%d, value = %s\n", (int)(kv.k1), (int)(kv.k2), (int)(klen), value);
+          }
+        }
+      }
+    }
   }
 
-  char *v = rocksdb_get_cf(db, rOpt, cfHandle[0], "key", strlen("key"), &vlen, &err);
-  printf("Get value %s, and len = %d\n", v, (int)vlen);
+  // char *v = rocksdb_get_cf(db, rOpt, cfHandle[0], "key", strlen("key"), &vlen, &err);
+  // printf("Get value %s, and len = %d\n", v, (int)vlen);
 
   rocksdb_column_family_handle_destroy(cfHandle[0]);
   rocksdb_column_family_handle_destroy(cfHandle[1]);
