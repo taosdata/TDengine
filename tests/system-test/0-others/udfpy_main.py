@@ -240,6 +240,7 @@ class TDTestCase:
             cols_name = ','.join(sample)
             sql = f'select sf_multi_args({cols_name}),{cols_name} from {self.stbname} limit 10'
             self.verify_same_multi_values(sql)
+            tdLog.info(sql)
 
     
     # query_udfpy
@@ -251,7 +252,7 @@ class TDTestCase:
                     sql = f'select {col_name}, {fun_name}({col_name}) from {self.stbname} limit 10'
                     tdLog.info(sql)
                     self.verify_same_value(sql)
-                    sql = f'select * from (select {col_name} as a, {fun_name}({col_name}) as b from {self.stbname} ) order by b,a desc limit 10'
+                    sql = f'select * from (select {col_name} as a, {fun_name}({col_name}) as b from {self.stbname}  limit 100) order by b,a desc'
                     tdLog.info(sql)
                     self.verify_same_value(sql)
 
@@ -271,41 +272,43 @@ class TDTestCase:
                     tdLog.exit(f" check {sql} not expect None.")
 
         # concat
-        sql = f'select sf_concat_var(col12, t12), concat(col12, t12) from {self.stbname}'
+        sql = f'select sf_concat_var(col12, t12), concat(col12, t12) from {self.stbname} limit 1000'
         self.verify_same_value(sql)
-        sql = f'select sf_concat_nch(col13, t13), concat(col13, t13) from {self.stbname}'
+        sql = f'select sf_concat_nch(col13, t13), concat(col13, t13) from {self.stbname} limit 1000'
         self.verify_same_value(sql)
 
     # create aggregate 
     def create_aggr_udfpy(self):
+
+        bufsize = 200 * 1024
         # all type check null
         for col_name, col_type in self.column_dict.items():
-             self.create_udf_af(f"af_null_{col_name}", "af_null.py", col_type, 10*1024)
+             self.create_udf_af(f"af_null_{col_name}", "af_null.py", col_type, bufsize)
 
         # min
         file_name = "af_min.py"
         fun_name = "af_min_float"
-        self.create_udf_af(fun_name, file_name, f"float", 10*1024)
+        self.create_udf_af(fun_name, file_name, f"float", bufsize)
         fun_name = "af_min_int"
-        self.create_udf_af(fun_name, file_name, f"int", 10*1024)
+        self.create_udf_af(fun_name, file_name, f"int", bufsize)
 
         # sum
         file_name = "af_sum.py"
         fun_name = "af_sum_float"
-        self.create_udf_af(fun_name, file_name, f"float", 10*1024)
+        self.create_udf_af(fun_name, file_name, f"float", bufsize)
         fun_name = "af_sum_int"
-        self.create_udf_af(fun_name, file_name, f"int", 10*1024)
+        self.create_udf_af(fun_name, file_name, f"int", bufsize)
         fun_name = "af_sum_bigint"
-        self.create_udf_af(fun_name, file_name, f"bigint", 10*1024)
+        self.create_udf_af(fun_name, file_name, f"bigint", bufsize)
 
         # count
         file_name = "af_count.py"
         fun_name = "af_count_float"
-        self.create_udf_af(fun_name, file_name, f"float", 10*1024)
+        self.create_udf_af(fun_name, file_name, f"float", bufsize)
         fun_name = "af_count_int"
-        self.create_udf_af(fun_name, file_name, f"int", 10*1024)
+        self.create_udf_af(fun_name, file_name, f"int", bufsize)
         fun_name = "af_count_bigint"
-        self.create_udf_af(fun_name, file_name, f"bigint", 10*1024)
+        self.create_udf_af(fun_name, file_name, f"bigint", bufsize)
 
 
     # query aggregate 
@@ -364,7 +367,7 @@ class TDTestCase:
     def insert_data(self, tbname, rows):
         ts = 1670000000000
         values = ""
-        batch_size = 300
+        batch_size = 500
         child_name = ""
         for i in range(self.child_count):
             for j in range(rows):
@@ -399,17 +402,16 @@ class TDTestCase:
         stable = "meters"
         tbname = "d"
         count = 3
-        rows =  1000
+        rows =  3000000
         # do 
         self.create_table(stable, tbname, count)
         self.insert_data(tbname, rows)
 
-        # scalar
+        # create
         self.create_scalar_udfpy()
-        self.query_scalar_udfpy()
-
-        # aggregate
         self.create_aggr_udfpy()
+        # query
+        self.query_scalar_udfpy()
         self.query_aggr_udfpy()
 
         # show performance
