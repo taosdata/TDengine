@@ -38,13 +38,6 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
     }
     snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
   }
-  if (strcmp(tsWalDataDir, tsDataDir) != 0) {
-    char dir2[TSDB_FILENAME_LEN] = {0};
-    snprintf(dir2, TSDB_FILENAME_LEN, "%s%s%s", tsWalDataDir, TD_DIRSEP, path);
-    if (taosMkDir(dir2)) {
-      return TAOS_SYSTEM_ERROR(errno);
-    }
-  }
 
   if (pCfg) {
     info.config = *pCfg;
