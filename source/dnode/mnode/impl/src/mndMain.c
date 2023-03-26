@@ -344,8 +344,8 @@ static int32_t mndInitWal(SMnode *pMnode) {
       .fsyncPeriod = 0,
       .rollPeriod = -1,
       .segSize = -1,
-      .retentionPeriod = -1,
-      .retentionSize = -1,
+      .retentionPeriod = 0,
+      .retentionSize = 0,
       .level = TAOS_WAL_FSYNC,
   };
 
@@ -370,7 +370,6 @@ static int32_t mndInitSdb(SMnode *pMnode) {
   opt.path = pMnode->path;
   opt.pMnode = pMnode;
   opt.pWal = pMnode->pWal;
-  opt.sync = pMnode->syncMgmt.sync;
 
   pMnode->pSdb = sdbInit(&opt);
   if (pMnode->pSdb == NULL) {
@@ -381,11 +380,13 @@ static int32_t mndInitSdb(SMnode *pMnode) {
 }
 
 static int32_t mndOpenSdb(SMnode *pMnode) {
+  int32_t code = 0;
   if (!pMnode->deploy) {
-    return sdbReadFile(pMnode->pSdb);
-  } else {
-    return 0;
+    code = sdbReadFile(pMnode->pSdb);
   }
+
+  atomic_store_64(&pMnode->applied, pMnode->pSdb->commitIndex);
+  return code;
 }
 
 static void mndCleanupSdb(SMnode *pMnode) {
@@ -552,16 +553,7 @@ void mndPreClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     syncLeaderTransfer(pMnode->syncMgmt.sync);
     syncPreStop(pMnode->syncMgmt.sync);
-#if 0
-    while (syncSnapshotRecving(pMnode->syncMgmt.sync)) {
-      mInfo("vgId:1, snapshot is recving");
-      taosMsleep(300);
-    }
-    while (syncSnapshotSending(pMnode->syncMgmt.sync)) {
-      mInfo("vgId:1, snapshot is sending");
-      taosMsleep(300);
-    }
-#endif
+    sdbWriteFile(pMnode->pSdb, 0);
   }
 }
 
@@ -716,6 +708,9 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
   } else if (code == 0) {
     mGTrace("msg:%p, successfully processed", pMsg);
   } else {
+    if (code == -1) {
+      code = terrno;
+    }
     mGError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, tstrerror(code), pMsg->info.ahandle,
             TMSG_INFO(pMsg->msgType));
   }
@@ -869,7 +864,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   }
 
   // grant info
-  pGrantInfo->expire_time = (pMnode->grant.expireTimeMS - ms) / 86400000.0f;
+  pGrantInfo->expire_time = (pMnode->grant.expireTimeMS - ms) / 1000;
   pGrantInfo->timeseries_total = pMnode->grant.timeseriesAllowed;
   if (pMnode->grant.expireTimeMS == 0) {
     pGrantInfo->expire_time = INT32_MAX;

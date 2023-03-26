@@ -370,11 +370,6 @@ int32_t tqPutReqToQueue(SVnode* pVnode, SVCreateTbBatchReq* pReqs) {
   }
 
   return TSDB_CODE_SUCCESS;
-
-_error:
-  terrno = TSDB_CODE_OUT_OF_MEMORY;
-  tqError("failed to encode submit req since %s", terrstr());
-  return TSDB_CODE_OUT_OF_MEMORY;
 }
 
 void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
@@ -441,9 +436,6 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
       for (int32_t rowId = 0; rowId < rows; rowId++) {
         SVCreateTbReq  createTbReq = {0};
         SVCreateTbReq* pCreateTbReq = &createTbReq;
-        if (!pCreateTbReq) {
-          goto _end;
-        }
 
         // set const
         pCreateTbReq->flags = 0;
@@ -460,6 +452,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         if (size == 2) {
           tagArray = taosArrayInit(1, sizeof(STagVal));
           if (!tagArray) {
+            tdDestroySVCreateTbReq(pCreateTbReq);
             goto _end;
           }
           STagVal tagVal = {
@@ -477,6 +470,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         } else {
           tagArray = taosArrayInit(size - 1, sizeof(STagVal));
           if (!tagArray) {
+            tdDestroySVCreateTbReq(pCreateTbReq);
             goto _end;
           }
           for (int32_t tagId = UD_TAG_COLUMN_INDEX, step = 1; tagId < size; tagId++, step++) {
@@ -503,6 +497,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         tTagNew(tagArray, 1, false, &pTag);
         tagArray = taosArrayDestroy(tagArray);
         if (pTag == NULL) {
+          tdDestroySVCreateTbReq(pCreateTbReq);
           terrno = TSDB_CODE_OUT_OF_MEMORY;
           goto _end;
         }
@@ -556,6 +551,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         SVCreateTbReq* pCreateTbReq = NULL;
 
         if (!(pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateStbReq)))) {
+          taosMemoryFree(ctbName);
           goto _end;
         };
 
@@ -572,6 +568,8 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         // set tag content
         tagArray = taosArrayInit(1, sizeof(STagVal));
         if (!tagArray) {
+          taosMemoryFree(ctbName);
+          tdDestroySVCreateTbReq(pCreateTbReq);
           goto _end;
         }
         STagVal tagVal = {
@@ -586,6 +584,8 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         tTagNew(tagArray, 1, false, &pTag);
         tagArray = taosArrayDestroy(tagArray);
         if (pTag == NULL) {
+          taosMemoryFree(ctbName);
+          tdDestroySVCreateTbReq(pCreateTbReq);
           terrno = TSDB_CODE_OUT_OF_MEMORY;
           goto _end;
         }
@@ -619,6 +619,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
                   TD_VID(pVnode), ctbName, suid, mr.me.ctbEntry.suid);
           metaReaderClear(&mr);
           taosMemoryFree(ctbName);
+          continue;
         }
 
         tbData.uid = mr.me.uid;
@@ -629,6 +630,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
       // rows
       if (!pVals && !(pVals = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal)))) {
         taosArrayDestroy(tbData.aRowP);
+        tdDestroySVCreateTbReq(tbData.pCreateTbReq);
         goto _end;
       }
 
@@ -679,6 +681,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
 
       SSubmitReq2 submitReq = {0};
       if (!(submitReq.aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData)))) {
+        tDestroySSubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }
 
@@ -692,6 +695,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
       len += sizeof(SSubmitReq2Msg);
       pBuf = rpcMallocCont(len);
       if (NULL == pBuf) {
+        tDestroySSubmitReq2(&submitReq, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }
       ((SSubmitReq2Msg*)pBuf)->header.vgId = TD_VID(pVnode);
@@ -703,6 +707,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         tqError("failed to encode submit req since %s", terrstr());
         tEncoderClear(&encoder);
         rpcFreeCont(pBuf);
+        tDestroySSubmitReq2(&submitReq, TSDB_MSG_FLG_ENCODE);
         continue;
       }
       tEncoderClear(&encoder);

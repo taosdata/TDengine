@@ -195,9 +195,12 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
  */
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,
                                    int16_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
-                                   bool isIntervalQuery, SAggSupporter* pSup) {
+                                   bool isIntervalQuery, SAggSupporter* pSup, bool keepGroup) {
   SET_RES_WINDOW_KEY(pSup->keyBuf, pData, bytes, groupId);
-
+  if (!keepGroup) {
+    *(uint64_t*)pSup->keyBuf = calcGroupId(pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
+  }
+  
   SResultRowPosition* p1 =
       (SResultRowPosition*)tSimpleHashGet(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
 
@@ -1034,7 +1037,7 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
   int32_t*        rowEntryInfoOffset = pOperator->exprSupp.rowEntryInfoOffset;
 
   SResultRow* pResultRow = doSetResultOutBufByKey(pAggInfo->aggSup.pResultBuf, pResultRowInfo, (char*)&groupId,
-                                                  sizeof(groupId), true, groupId, pTaskInfo, false, &pAggInfo->aggSup);
+                                                  sizeof(groupId), true, groupId, pTaskInfo, false, &pAggInfo->aggSup, true);
   /*
    * not assign result buffer yet, add new result buffer
    * all group belong to one result set, and each group result has different group id so set the id to be one
@@ -1197,16 +1200,11 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
     }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      // expand the result datablock capacity
-      if (pRow->numOfRows > pBlock->info.capacity) {
-        blockDataEnsureCapacity(pBlock, pRow->numOfRows);
-        qDebug("datablock capacity not sufficient, expand to requried:%d, current capacity:%d, %s", pRow->numOfRows,
-               pBlock->info.capacity, GET_TASKID(pTaskInfo));
+      blockDataEnsureCapacity(pBlock, pBlock->info.rows + pRow->numOfRows);
+      qDebug("datablock capacity not sufficient, expand to required:%d, current capacity:%d, %s",
+             (pRow->numOfRows+pBlock->info.rows),
+             pBlock->info.capacity, GET_TASKID(pTaskInfo));
         // todo set the pOperator->resultInfo size
-      } else {
-        releaseBufPage(pBuf, page);
-        break;
-      }
     }
 
     pGroupResInfo->index += 1;
@@ -1449,14 +1447,19 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag) {
+int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scanFlag, bool inheritUsOrder) {
   // todo add more information about exchange operation
   int32_t type = pOperator->operatorType;
-  if (type == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE || type == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN) {
+  if (type == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN ||
+      type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN ||
+      type == QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN) {
     *order = TSDB_ORDER_ASC;
+    *scanFlag = MAIN_SCAN;
+    return TSDB_CODE_SUCCESS;
+  } else if (type == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+    if (!inheritUsOrder) {
+      *order = TSDB_ORDER_ASC;
+    }
     *scanFlag = MAIN_SCAN;
     return TSDB_CODE_SUCCESS;
   } else if (type == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
@@ -1473,7 +1476,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
     if (pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL) {
       return TSDB_CODE_INVALID_PARA;
     } else {
-      return getTableScanInfo(pOperator->pDownstream[0], order, scanFlag);
+      return getTableScanInfo(pOperator->pDownstream[0], order, scanFlag, inheritUsOrder);
     }
   }
 }
@@ -1589,7 +1592,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     }
     hasValidBlock = true;
 
-    int32_t code = getTableScanInfo(pOperator, &order, &scanFlag);
+    int32_t code = getTableScanInfo(pOperator, &order, &scanFlag, false);
     if (code != TSDB_CODE_SUCCESS) {
       destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
       T_LONG_JMP(pTaskInfo->env, code);
@@ -1956,7 +1959,7 @@ void destroyAggOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static char* buildTaskId(uint64_t taskId, uint64_t queryId) {
+char* buildTaskId(uint64_t taskId, uint64_t queryId) {
   char* p = taosMemoryMalloc(64);
 
   int32_t offset = 6;
@@ -1968,11 +1971,10 @@ static char* buildTaskId(uint64_t taskId, uint64_t queryId) {
   offset += tintToHex(queryId, &p[offset]);
 
   p[offset] = 0;
-
   return p;
 }
 
-static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPTR_EXEC_MODEL model, char* dbFName) {
+static SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, char* dbFName) {
   SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
   if (pTaskInfo == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1987,6 +1989,7 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
   pTaskInfo->stopInfo.pStopInfo = taosArrayInit(4, sizeof(SExchangeOpStopInfo));
   pTaskInfo->pResultBlockList = taosArrayInit(128, POINTER_BYTES);
 
+  pTaskInfo->id.vgId = vgId;
   pTaskInfo->id.queryId = queryId;
   pTaskInfo->id.str = buildTaskId(taskId, queryId);
   return pTaskInfo;
@@ -2175,7 +2178,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
 #ifndef NDEBUG
         int32_t sz = tableListGetSize(pTableListInfo);
-        qDebug("create stream task, total:%d", sz);
+        qDebug("vgId:%d create stream task, total qualified tables:%d, %s", pTaskInfo->id.vgId, sz, idstr);
 
         for (int32_t i = 0; i < sz; i++) {
           STableKeyInfo* pKeyInfo = tableListGetInfo(pTableListInfo, i);
@@ -2341,6 +2344,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     pOptr = createEventwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else {
     terrno = TSDB_CODE_INVALID_PARA;
+    taosMemoryFree(ops);
     return NULL;
   }
 
@@ -2435,17 +2439,14 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pT
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                               char* sql, EOPTR_EXEC_MODEL model) {
-  uint64_t queryId = pPlan->id.queryId;
-
-  *pTaskInfo = createExecTaskInfo(queryId, taskId, model, pPlan->dbFName);
+int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
+                               int32_t vgId, char* sql, EOPTR_EXEC_MODEL model) {
+  *pTaskInfo = doCreateExecTaskInfo(pPlan->id.queryId, taskId, vgId, model, pPlan->dbFName);
   if (*pTaskInfo == NULL) {
     goto _complete;
   }
 
   if (pHandle) {
-    /*(*pTaskInfo)->streamInfo.fillHistoryVer1 = pHandle->fillHistoryVer1;*/
     if (pHandle->pStateBackend) {
       (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
     }
@@ -2771,11 +2772,17 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pSta
 }
 
 void qStreamCloseTsdbReader(void* task) {
-  if (task == NULL) return;
+  if (task == NULL) {
+    return;
+  }
+
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)task;
   SOperatorInfo* pOp = pTaskInfo->pRoot;
-  qDebug("stream close tsdb reader, reset status uid %" PRId64 " ts %" PRId64, pTaskInfo->streamInfo.lastStatus.uid,
+
+  qDebug("stream close tsdb reader, reset status uid:%" PRId64 " ts:%" PRId64, pTaskInfo->streamInfo.lastStatus.uid,
          pTaskInfo->streamInfo.lastStatus.ts);
+
+  // todo refactor, other thread may already use this read to extract data.
   pTaskInfo->streamInfo.lastStatus = (STqOffsetVal){0};
   while (pOp->numOfDownstream == 1 && pOp->pDownstream[0]) {
     SOperatorInfo* pDownstreamOp = pOp->pDownstream[0];
@@ -2783,8 +2790,19 @@ void qStreamCloseTsdbReader(void* task) {
       SStreamScanInfo* pInfo = pDownstreamOp->info;
       if (pInfo->pTableScanOp) {
         STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+
+        setOperatorCompleted(pInfo->pTableScanOp);
+        while(pTaskInfo->owner != 0) {
+          taosMsleep(100);
+          qDebug("wait for the reader stopping");
+        }
+
         tsdbReaderClose(pTSInfo->base.dataReader);
         pTSInfo->base.dataReader = NULL;
+
+        // restore the status, todo refactor.
+        pInfo->pTableScanOp->status = OP_OPENED;
+        pTaskInfo->status = TASK_NOT_COMPLETED;
         return;
       }
     }

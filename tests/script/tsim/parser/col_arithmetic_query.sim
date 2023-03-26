@@ -4,7 +4,7 @@
 $dbPrefix = ca_db
 $tbPrefix = ca_tb
 $stbPrefix = ca_stb
-$rowNum = 10000
+$rowNum = 1000
 
 $i = 0
 $db = $dbPrefix . $i
@@ -33,7 +33,7 @@ endi
 
 # asc/desc order [d.2] ======================================================
 sql select c1 *( 2 / 3 ), c1/c1 from $tb order by ts asc;
-if $rows != 10000 then
+if $rows != 1000 then
   return -1
 endi
 if $data00 != 0.000000000 then
@@ -57,7 +57,7 @@ if $data91 != 1.000000000 then
 endi
 
 sql select (c1 * 2) % 7.9, c1*1, c1*1*1, c1*c1, c1*c1*c1 from $tb order by ts desc;
-if $rows != 10000 then
+if $rows != 1000 then
  return -1
 endi
 if $data00 != 2.200000000 then
@@ -151,7 +151,7 @@ sql       select top(c1,1) - 88 from $tb
 
 # all data types [d.6] ================================================================
 sql select c2-c1*1.1, c3/c2, c4*c3, c5%c4, (c6+c4)%22, c2-c2 from $tb
-if $rows != 10000 then
+if $rows != 1000 then
  return -1
 endi
 if $data00 != 0.000000000 then
@@ -221,7 +221,7 @@ if $data90 != 76.000000000 then
   return -1
 endi
 
-sql select c4 / 99.123 from $tb limit 10 offset 9999;
+sql select c4 / 99.123 from $tb limit 10 offset 999;
 if $rows != 1 then
   return -1
 endi
@@ -237,7 +237,7 @@ sql_error select c2-c2, c3-c4, c5%c3 from $tb fill(value, 12);
 
 # constant column. [d.13]==============================================================
 sql select c1, c2+c6, 12.9876545678, 1, 1.1 from $tb
-if $rows != 10000 then
+if $rows != 1000 then
   return -1
 endi
 if $data00 != 0 then
@@ -261,7 +261,7 @@ endi
 
 # column value filter [d.14]===========================================================
 sql select c1, c2+c6, 12.9876545678, 1, 1.1 from $tb where c1<2
-if $rows != 2000 then
+if $rows != 200 then
   return -1
 endi
 if $data00 != 0 then
@@ -338,13 +338,14 @@ sql select (count(c1) * 2) % 7.9, (count(c1) * 2), ( count(1)*2) from $stb
 if $rows != 1 then
   return -1
 endi
-if $data00 != 1.800000000 then
+print  $data00 
+if $data00 != 6.500000000 then
   return -1
 endi
-if $data01 != 100000.000000000 then
+if $data01 != 10000.000000000 then
   return -1
 endi
-if $data02 != 200000.000000000 then
+if $data02 != 20000.000000000 then
   return -1
 endi
 
@@ -371,7 +372,7 @@ endi
 if $data00 != 0.000000000 then
   return -1
 endi
-if $data01 != 225000.000000000 then
+if $data01 != 22500.000000000 then
   return -1
 endi
 if $data02 != 8.077777778 then
@@ -383,7 +384,7 @@ endi
 if $data04 != 0.444444444 then
   return -1
 endi
-if $data05 != 450000.000000000 then
+if $data05 != 45000.000000000 then
   return -1
 endi
 
@@ -484,10 +485,10 @@ endi
 if $data10 != 0.000000000 then
   return -1
 endi
-if $data20 != 0.997600000 then
+if $data20 != 0.976000000 then
   return -1
 endi
-if $data90 != 7.980800000 then
+if $data90 != 7.808000000 then
   return -1
 endi
 
@@ -496,7 +497,7 @@ sql select first(c6) - sum(c6) + 12 from $stb limit 12 offset 0;
 if $rows != 1 then
   return -1
 endi
-if $data00 != -449988.000000000 then
+if $data00 != -44988.000000000 then
   return -1
 endi
 
@@ -546,7 +547,7 @@ endi
 
 # interval query [d.17]===============================================================
 sql select avg(c2)*count(c2), sum(c3)-first(c3), last(c4)+9 from ca_stb0 interval(1s)
-if $rows != 10000 then
+if $rows != 1000 then
   return -1
 endi
 

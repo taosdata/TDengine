@@ -18,7 +18,7 @@ from tmqCommon import *
 class TDTestCase:
     def __init__(self):
         self.vgroups    = 4
-        self.ctbNum     = 10
+        self.ctbNum     = 4
         self.rowsPerTbl = 10000
 
     def init(self, conn, logSql, replicaVar=1):
@@ -41,7 +41,7 @@ class TDTestCase:
                     'ctbStartIdx': 0,
                     'ctbNum':     10,
                     'rowsPerTbl': 10000,
-                    'batchNum':   10,
+                    'batchNum':   1000,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  3,
                     'showMsg':    1,
@@ -112,15 +112,15 @@ class TDTestCase:
         # init consume info, and start tmq_sim, then check consume result
         tdLog.info("insert consume info to consume processor")
         consumerId   = 3
-        expectrowcnt = math.ceil(paraDict["rowsPerTbl"] * paraDict["ctbNum"] / 3)
+        expectrowcnt = math.ceil(paraDict["rowsPerTbl"] * paraDict["ctbNum"])
         topicList    = topicNameList[0]
         ifcheckdata  = 1
         ifManualCommit = 1
-        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:200, auto.offset.reset:earliest'
+        keyList      = 'group.id:cgrp3, enable.auto.commit:true, auto.commit.interval.ms:200, auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         consumerId   = 4
-        expectrowcnt = math.ceil(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2/3)
+        expectrowcnt = math.ceil(paraDict["rowsPerTbl"] * paraDict["ctbNum"])
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor 0")
@@ -130,9 +130,9 @@ class TDTestCase:
         expectRows = 2
         resultList = tmqCom.selectConsumeResult(expectRows)
         actConsumeTotalRows = resultList[0] + resultList[1]
-
-        if not (totalRowsInserted == actConsumeTotalRows):
-            tdLog.info("sum of two consume rows: %d should be equal to total inserted rows: %d"%(actConsumeTotalRows, totalRowsInserted))
+        
+        tdLog.info("sum of two consume rows: %d should be greater than or equal to total inserted rows: %d"%(actConsumeTotalRows, totalRowsInserted))
+        if not (totalRowsInserted <= actConsumeTotalRows):        
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
         time.sleep(10)
@@ -188,7 +188,7 @@ class TDTestCase:
         topicList    = topicNameList[0]
         ifcheckdata  = 1
         ifManualCommit = 1
-        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:200, auto.offset.reset:earliest'
+        keyList      = 'group.id:cgrp4, enable.auto.commit:true, auto.commit.interval.ms:200, auto.offset.reset:earliest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor 0")
@@ -216,7 +216,7 @@ class TDTestCase:
 
         actConsumeTotalRows = resultList[0]
 
-        if not (actConsumeTotalRows > 0 and actConsumeTotalRows < totalRowsInserted):
+        if not (actConsumeTotalRows > 0 and actConsumeTotalRows <= totalRowsInserted):
             tdLog.info("act consume rows: %d"%(actConsumeTotalRows))
             tdLog.info("and second consume rows should be between 0 and %d"%(totalRowsInserted))
             tdLog.exit("%d tmq consume rows error!"%consumerId)

@@ -66,7 +66,8 @@ enum {
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {
-  char* key;
+  char*   key;
+  int32_t idx;
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
@@ -286,22 +287,25 @@ static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
 }
 
 static FORCE_INLINE SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4) {
-  SMqRspObj* msg = (SMqRspObj*)res;
-  msg->resIter++;
-  if (msg->resIter < msg->rsp.blockNum) {
-    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(msg->rsp.blockData, msg->resIter);
-    if (msg->rsp.withSchema) {
-      SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(msg->rsp.blockSchema, msg->resIter);
-      setResSchemaInfo(&msg->resInfo, pSW->pSchema, pSW->nCols);
-      taosMemoryFreeClear(msg->resInfo.row);
-      taosMemoryFreeClear(msg->resInfo.pCol);
-      taosMemoryFreeClear(msg->resInfo.length);
-      taosMemoryFreeClear(msg->resInfo.convertBuf);
-      taosMemoryFreeClear(msg->resInfo.convertJson);
+  SMqRspObj* pRspObj = (SMqRspObj*)res;
+  pRspObj->resIter++;
+
+  if (pRspObj->resIter < pRspObj->rsp.blockNum) {
+    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(pRspObj->rsp.blockData, pRspObj->resIter);
+    if (pRspObj->rsp.withSchema) {
+      SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(pRspObj->rsp.blockSchema, pRspObj->resIter);
+      setResSchemaInfo(&pRspObj->resInfo, pSW->pSchema, pSW->nCols);
+      taosMemoryFreeClear(pRspObj->resInfo.row);
+      taosMemoryFreeClear(pRspObj->resInfo.pCol);
+      taosMemoryFreeClear(pRspObj->resInfo.length);
+      taosMemoryFreeClear(pRspObj->resInfo.convertBuf);
+      taosMemoryFreeClear(pRspObj->resInfo.convertJson);
     }
-    setQueryResultFromRsp(&msg->resInfo, pRetrieve, convertUcs4, false);
-    return &msg->resInfo;
+
+    setQueryResultFromRsp(&pRspObj->resInfo, pRetrieve, convertUcs4, false);
+    return &pRspObj->resInfo;
   }
+
   return NULL;
 }
 

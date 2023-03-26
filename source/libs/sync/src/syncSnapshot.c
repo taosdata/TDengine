@@ -992,8 +992,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq end");
     snapshotSenderStop(pSender, true);
-    SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
-    syncLogReplMgrReset(pMgr);
+    syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
     return 0;
   }
 
@@ -1018,8 +1017,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "receive error ack");
     sSError(pSender, "snapshot sender receive error ack:%d, my seq:%d", pMsg->ack, pSender->seq);
     snapshotSenderStop(pSender, true);
-    SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
-    syncLogReplMgrReset(pMgr);
+    syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
     return -1;
   }
 
@@ -1027,8 +1025,6 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
 
 _ERROR:
   snapshotSenderStop(pSender, true);
-  SSyncLogReplMgr *pMgr = syncNodeGetLogReplMgr(pSyncNode, &pMsg->srcId);
-  syncLogReplMgrReset(pMgr);
-
+  syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
   return -1;
 }

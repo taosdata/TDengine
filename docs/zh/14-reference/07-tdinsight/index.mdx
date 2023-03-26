@@ -140,10 +140,10 @@ Install and configure TDinsight dashboard in Grafana on Ubuntu 18.04/20.04 syste
 | -n     | --tdengine-ds-name         | TDENGINE_DS_NAME             | TDengine 数据源名称，默认为 TDengine。                  |
 | -a     | --tdengine-api             | TDENGINE_API                 | TDengine REST API 端点。默认为`http://127.0.0.1:6041`。 |
 | -u     | --tdengine-user            | TDENGINE_USER                | TDengine 用户名。 [默认值：root]                        |
-| -p     | --tdengine-密码            | TDENGINE_PASSWORD            | TDengine 密码。 [默认：taosdata]                        |
+| -p     | --tdengine-password        | TDENGINE_PASSWORD            | TDengine 密码。 [默认：taosdata]                        |
 | -i     | --tdinsight-uid            | TDINSIGHT_DASHBOARD_UID      | TDinsight 仪表盘`uid`。 [默认值：tdinsight]             |
 | -t     | --tdinsight-title          | TDINSIGHT_DASHBOARD_TITLE    | TDinsight 仪表盘标题。 [默认：TDinsight]                |
-| -e     | --tdinsight-可编辑         | TDINSIGHT_DASHBOARD_EDITABLE | 如果配置仪表盘可以编辑。 [默认值：false]                |
+| -e     | --tdinsight-editable       | TDINSIGHT_DASHBOARD_EDITABLE | 如果配置仪表盘可以编辑。 [默认值：false]                |
 | -E     | --external-notifier        | EXTERNAL_NOTIFIER            | 将外部通知程序 uid 应用于 TDinsight 仪表盘。            |
 
 假设您在主机 `tdengine` 上启动 TDengine 数据库，HTTP API 端口为 `6041`，用户为 `root1`，密码为 `pass5ord`。执行脚本：

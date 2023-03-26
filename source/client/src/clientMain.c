@@ -281,7 +281,10 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       return pResultInfo->row;
     } else {
       pResultInfo = tmqGetNextResInfo(res, true);
-      if (pResultInfo == NULL) return NULL;
+      if (pResultInfo == NULL) {
+        return NULL;
+      }
+
       doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
       return pResultInfo->row;
@@ -603,6 +606,9 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
 }
 
 int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
+  *numOfRows = 0;
+  *pData = NULL;
+
   if (res == NULL || TD_RES_TMQ_META(res)) {
     return 0;
   }

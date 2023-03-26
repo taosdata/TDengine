@@ -74,6 +74,10 @@ extern int32_t tsHeartbeatTimeout;
 // vnode
 extern int64_t tsVndCommitMaxIntervalMs;
 
+// mnode
+extern int64_t tsMndSdbWriteDelta;
+extern int64_t tsMndLogRetention;
+
 // monitor
 extern bool     tsEnableMonitor;
 extern int32_t  tsMonitorInterval;
@@ -94,7 +98,8 @@ extern char    *tsSvrCrashReportUri;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
-extern int64_t tsQueryBufferSizeBytes;  // maximum allowed usage buffer size in byte for each data node
+extern int64_t tsQueryBufferSizeBytes;    // maximum allowed usage buffer size in byte for each data node
+extern int32_t tsCacheLazyLoadThreshold;  // cost threshold for last/last_row loading cache as much as possible
 extern int64_t tsQueryRssThreshold; // maximum allowed rss threshold in KB before creating new query task
 
 // query client
@@ -142,10 +147,10 @@ extern char tsUdfdResFuncs[];
 extern char tsUdfdLdLibPath[];
 
 // schemaless
-extern char    tsSmlChildTableName[];
-extern char    tsSmlTagName[];
-//extern bool    tsSmlDataFormat;
-//extern int32_t tsSmlBatchSize;
+extern char tsSmlChildTableName[];
+extern char tsSmlTagName[];
+// extern bool    tsSmlDataFormat;
+// extern int32_t tsSmlBatchSize;
 
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
