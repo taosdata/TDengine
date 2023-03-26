@@ -1,8 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
-use arrow::{record_batch::RecordBatch, array::{Array, ListArray, StructArray}, datatypes::SchemaRef};
+use arrow::{
+    array::{Array, ListArray, StructArray},
+    datatypes::SchemaRef,
+    record_batch::RecordBatch,
+};
 
-use crate::prelude::{IpcMessage };
+use crate::prelude::IpcMessage;
 
 pub struct PointConfig {
     config_name: String,

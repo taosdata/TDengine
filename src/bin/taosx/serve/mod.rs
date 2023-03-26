@@ -15,8 +15,8 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use task::*;
 
-mod data_sources;
 mod controller;
+mod data_sources;
 mod metrics;
 mod task;
 

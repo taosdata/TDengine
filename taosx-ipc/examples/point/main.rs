@@ -3,8 +3,13 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::Result;
 
 use arrow::{
+    array::{
+        make_builder, BinaryBuilder, Float32Builder, Int32Builder, StringBuilder, StructArray,
+        StructBuilder, TimestampMillisecondBuilder, UInt8Array,
+    },
     datatypes::{DataType, Field, Schema},
-    ipc::{writer::StreamWriter, }, record_batch::RecordBatch, array::{Int32Builder, TimestampMillisecondBuilder, Float32Builder, StringBuilder, StructBuilder, make_builder, UInt8Array, BinaryBuilder, StructArray},
+    ipc::writer::StreamWriter,
+    record_batch::RecordBatch,
 };
 
 use taosx_ipc::{prelude::*, stream::components::ListOfStructBuilder};
@@ -16,16 +21,20 @@ async fn main() -> Result<()> {
     #[cfg(target_os = "windows")]
     let stream = std::net::TcpStream::connect("127.0.0.1:6051")?;
     // let timestamp_type = DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None);
-    
+
     let mut metadata = HashMap::new();
     metadata.insert(String::from("version"), String::from("1.0"));
     metadata.insert(String::from("stream"), String::from("point"));
     metadata.insert(String::from("ack"), String::from("none"));
     let opc_columns = vec![
-        Field::new("ts", DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None), false), 
-        Field::new("id", ArrowDataType::Utf8, false), 
-        Field::new("value", ArrowDataType::Float32, false), 
-        ];
+        Field::new(
+            "ts",
+            DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
+            false,
+        ),
+        Field::new("id", ArrowDataType::Utf8, false),
+        Field::new("value", ArrowDataType::Float32, false),
+    ];
     let record = DataType::Struct(opc_columns.clone());
     let record_list = DataType::List(Box::new(Field::new("item", record.clone(), true)));
     let schema = Schema::new(vec![
@@ -44,13 +53,7 @@ async fn main() -> Result<()> {
         //     0,
         //     false,
         // ),
-        Field::new_dict(
-            "__records__",
-            record_list,
-            true,
-            3,
-            false,
-        ),
+        Field::new_dict("__records__", record_list, true, 3, false),
     ])
     .with_metadata(metadata);
 
@@ -60,7 +63,6 @@ async fn main() -> Result<()> {
     let mut records = 0;
     let now = chrono::Utc::now();
     let mut ms = now.timestamp_millis() - 10000;
-
 
     loop {
         let mut list_struct_builder = ListOfStructBuilder::new(opc_columns.clone(), 3);
@@ -95,10 +97,14 @@ async fn main() -> Result<()> {
             .append_value(101.);
 
         let list = list_struct_builder.finish();
-        let attrs = StructBuilder::new(opc_columns.clone(), opc_columns
-        .iter()
-        .map(|f| make_builder(f.data_type(), 3))
-        .collect()).finish();
+        let attrs = StructBuilder::new(
+            opc_columns.clone(),
+            opc_columns
+                .iter()
+                .map(|f| make_builder(f.data_type(), 3))
+                .collect(),
+        )
+        .finish();
 
         let batch = RecordBatch::try_new(
             Arc::new(schema.clone()),

@@ -79,9 +79,12 @@ async fn main() -> Result<()> {
         .append(&9f32)
         .append(&10f64)
         .append(&"I'm fake01")
-        .next_table("d1001").fill_nulls_to_end()
-        .next_table("d1002").fill_nulls_to_end()
-        .next_table("d1003").fill_nulls_to_end()
+        .next_table("d1001")
+        .fill_nulls_to_end()
+        .next_table("d1002")
+        .fill_nulls_to_end()
+        .next_table("d1003")
+        .fill_nulls_to_end()
         .finish()?;
     // dbg!(&tables);
     writer.write(&tables)?;

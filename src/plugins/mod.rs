@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use async_process::Stdio;
+use anyhow::Context;
 use itertools::Itertools;
 use taos::{Dsn, TBuilder, TaosBuilder};
 
@@ -185,6 +185,8 @@ pub async fn pi_to_taos(
     let ipc =
         std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, config.ipc_stream));
 
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
     let client = reqwest::Client::new();
     let mut retries = 0;
     loop {
@@ -192,7 +194,7 @@ pub async fn pi_to_taos(
         if resp.is_ok() {
             break;
         }
-        // tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
         if retries > 600 {
             break;
         }
@@ -212,13 +214,13 @@ pub async fn pi_to_taos(
             .output()
     });
 
+    log::info!("waiting for PI connector");
     tokio::select! {
         output = v => {
-            let output = output??;
-            // dbg!(output);
+            let output = output.context("join error")?.context("PI connector run error")?;
+            log::info!("PI exit with stdout: {}", std::str::from_utf8(&output.stdout).unwrap());
+            log::info!("PI exit with stderr: {}", std::str::from_utf8(&output.stderr).unwrap());
             log::info!("PI exit with status {}", output.status);
-            // server.abort();
-            // panic!();
         },
         _ = server => {
             panic!("sql server finished first");

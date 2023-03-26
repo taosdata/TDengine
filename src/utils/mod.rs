@@ -4,7 +4,6 @@ use futures::TryStreamExt;
 use serde::Deserialize;
 use taos::{AsyncFetchable, AsyncQueryable, Dsn, TBuilder, Taos, TaosBuilder};
 
-
 pub mod port_pool;
 /// Check enterprise edition
 pub async fn is_available_enterprise_edition(taos: &TaosBuilder) -> bool {

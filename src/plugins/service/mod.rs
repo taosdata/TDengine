@@ -102,7 +102,7 @@ pub async fn spawn_rest_service(
             .service(sql)
             .service(ping)
     })
-    .bind(&format!("0.0.0.0:{port}"))?
+    .bind(&format!("127.0.0.1:{port}"))?
     .run();
     let h = tokio::spawn(async move { server.await });
     Ok(h)

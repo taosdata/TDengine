@@ -23,8 +23,7 @@ use tokio_cron_scheduler::{Job, JobScheduler, JobToRun};
 use tokio_util::sync::CancellationToken;
 use utoipa::*;
 
-use crate::serve::{TaskFilter, TaskController, TaskDecorator, TaskDetail, NewTask, UpdateTask};
-
+use crate::serve::{NewTask, TaskController, TaskDecorator, TaskDetail, TaskFilter, UpdateTask};
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
