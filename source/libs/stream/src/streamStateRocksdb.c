@@ -561,7 +561,7 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pSta
 
   rocksdb_iter_prev(pCur->iter);
   if (!rocksdb_iter_valid(pCur->iter)) {
-    qWarn("streamState failed to seek key prev %s", toString);
+    // qWarn("streamState failed to seek key prev %s", toString);
     streamStateFreeCur(pCur);
     return NULL;
   }
