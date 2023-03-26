@@ -149,6 +149,20 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
   }
 
   tfsClosedir(tsdbDir);
+
+  if (strcmp(tsWalDataDir, tsDataDir) != 0) {
+    char walSrcPath[TSDB_FILENAME_LEN] = {0};
+    char walDstPath[TSDB_FILENAME_LEN] = {0};
+    snprintf(walSrcPath, TSDB_FILENAME_LEN, "%s%svnode%svnode%d", tsWalDataDir, TD_DIRSEP, TD_DIRSEP, srcVgId);
+    snprintf(walDstPath, TSDB_FILENAME_LEN, "%s%svnode%svnode%d", tsWalDataDir, TD_DIRSEP, TD_DIRSEP, dstVgId);
+
+    if (taosRenameFile(walSrcPath, walDstPath) != 0 && errno != ENOENT) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      vError("failed to rename %s to %s since %s", walSrcPath, walDstPath, terrstr());
+      return -1;
+    }
+  }
+
   return 0;
 }
 
