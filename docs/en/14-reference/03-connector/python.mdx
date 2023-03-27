@@ -278,6 +278,86 @@ For a more detailed description of the `sql()` method, please refer to [RestClie
 </TabItem>
 </Tabs>
 
+### Usage with req_id
+
+By using the optional req_id parameter, you can specify a request ID that can be used for tracing.
+
+<Tabs defaultValue="rest">
+<TabItem value="native" label="native connection">
+
+##### TaosConnection class
+
+The `TaosConnection` class contains both an implementation of the PEP249 Connection interface (e.g., the `cursor()` method and the `close()` method) and many extensions (e.g., the `execute()`, `query()`, `schemaless_insert()`, and `subscribe()` methods).
+
+```python title="execute method"
+{{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:insert}}
+```
+
+```python title="query method"
+{{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:query}}
+```
+
+:::tip
+The queried results can only be fetched once. For example, only one of `fetch_all()` and `fetch_all_into_dict()` can be used in the example above. Repeated fetches will result in an empty list.
+:::
+
+##### Use of TaosResult class
+
+In the above example of using the `TaosConnection` class, we have shown two ways to get the result of a query: `fetch_all()` and `fetch_all_into_dict()`. In addition, `TaosResult` also provides methods to iterate through the result set by rows (`rows_iter`) or by data blocks (`blocks_iter`). Using these two methods will be more efficient in scenarios where the query has a large amount of data.
+
+```python title="blocks_iter method"
+{{#include docs/examples/python/result_set_with_req_id_examples.py}}
+```
+##### Use of the TaosCursor class
+
+The `TaosConnection` class and the `TaosResult` class already implement all the functionality of the native interface. If you are familiar with the interfaces in the PEP249 specification, you can also use the methods provided by the `TaosCursor` class.
+
+```python title="Use of TaosCursor"
+{{#include docs/examples/python/cursor_usage_native_reference_with_req_id.py}}
+```
+
+:::note
+The TaosCursor class uses native connections for write and query operations. In a client-side multi-threaded scenario, this cursor instance must remain thread exclusive and cannot be shared across threads for use, otherwise, it will result in errors in the returned results.
+
+:::
+
+</TabItem>
+<TabItem value="rest" label="REST connection">
+
+##### Use of TaosRestCursor class
+
+The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
+
+```python title="Use of TaosRestCursor"
+{{#include docs/examples/python/connect_rest_with_req_id_examples.py:basic}}
+```
+- `cursor.execute`: Used to execute arbitrary SQL statements.
+- `cursor.rowcount` : For write operations, returns the number of successful rows written. For query operations, returns the number of rows in the result set.
+- `cursor.description` : Returns the description of the field. Please refer to [TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html) for the specific format of the description information.
+
+##### Use of the RestClient class
+
+The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
+
+```python title="Use of RestClient"
+{{#include docs/examples/python/rest_client_with_req_id_example.py}}
+```
+
+For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
+
+</TabItem>
+<TabItem value="websocket" label="WebSocket connection">
+
+```python
+{{#include docs/examples/python/connect_websocket_with_req_id_examples.py:basic}}
+```
+
+- `conn.execute`: can use to execute arbitrary SQL statements, and return the number of rows affected.
+- `conn.query`: can use to execute query SQL statements, and return the query results.
+
+</TabItem>
+</Tabs>
+
 ### Used with pandas
 
 <Tabs default="native" groupId="connect">
