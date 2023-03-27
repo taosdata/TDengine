@@ -2500,7 +2500,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = firstLastScalarFunction,
     .pPartialFunc = "_last_row_partial",
     .pMergeFunc   = "_last_row_merge",
-    .finalizeFunc = firstLastFinalize
+    .finalizeFunc = firstLastFinalize,
+    .combineFunc  = lastCombine
   },
   {
     .name = "_cache_last_row",
@@ -2809,7 +2810,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "mode",
     .type = FUNCTION_TYPE_MODE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateMode,
     .getEnvFunc   = getModeFuncEnv,
     .initFunc     = modeFunctionSetup,
@@ -3212,7 +3213,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_block_dist",
     .type = FUNCTION_TYPE_BLOCK_DIST,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateBlockDistFunc,
     .getEnvFunc   = getBlockDistFuncEnv,
     .initFunc     = blockDistSetup,

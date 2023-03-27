@@ -284,7 +284,7 @@ sql create table ccc using st tags(3,2,2);
 sql create table ddd using st tags(4,2,2);
 
 
-sql create stream streams1 ignore expired 0 fill_history 0 watermark 3s into streamst subtable(c) as select  _wstart, c , count(*) c1  from st partition by c interval(1s) ;
+sql create stream streams1 ignore expired 0 fill_history 0 watermark 3s into streamst subtable(c) as select  _wstart, c , count(*) c1, last_row(b) c2  from st partition by c interval(1s) ;
 
 sql insert into aaa values(1648791221001,2,2,"/a1/aa/aa");
 sql insert into bbb values(1648791221001,2,2,"/a1/aa/aa");
