@@ -344,7 +344,7 @@ int streamInitBackend(SStreamState* pState, char* path) {
   pState->pTdbState->pHandle = cfHandle;
   pState->pTdbState->writeOpts = rocksdb_writeoptions_create();
   // rocksdb_writeoptions_
-  rocksdb_writeoptions_set_no_slowdown(pState->pTdbState->writeOpts, 1);
+  // rocksdb_writeoptions_set_no_slowdown(pState->pTdbState->writeOpts, 1);
   pState->pTdbState->readOpts = rocksdb_readoptions_create();
   pState->pTdbState->cfOpts = (rocksdb_options_t**)cfOpt;
   pState->pTdbState->pCompare = pCompare;
@@ -415,8 +415,8 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
       return -1;                                                                                               \
     }                                                                                                          \
     char toString[128] = {0};                                                                                  \
+    if (qDebugFlag & DEBUG_TRACE) ginitDict[i].toStrFunc((void*)key, toString);                                \
     ginitDict[i].enFunc((void*)key, buf);                                                                      \
-    ginitDict[i].toStrFunc((void*)key, toString);                                                              \
     rocksdb_column_family_handle_t* pHandle = pState->pTdbState->pHandle[ginitDict[i].idx];                    \
     rocksdb_t*                      db = pState->pTdbState->rocksdb;                                           \
     rocksdb_writeoptions_t*         opts = pState->pTdbState->writeOpts;                                       \
@@ -441,7 +441,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
       return -1;                                                                                        \
     }                                                                                                   \
     char toString[128] = {0};                                                                           \
-    ginitDict[i].toStrFunc((void*)key, toString);                                                       \
+    if (qDebugFlag & DEBUG_TRACE) ginitDict[i].toStrFunc((void*)key, toString);                         \
     ginitDict[i].enFunc((void*)key, buf);                                                               \
     rocksdb_column_family_handle_t* pHandle = pState->pTdbState->pHandle[ginitDict[i].idx];             \
     rocksdb_t*                      db = pState->pTdbState->rocksdb;                                    \
@@ -475,7 +475,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
       return -1;                                                                            \
     }                                                                                       \
     char toString[128] = {0};                                                               \
-    ginitDict[i].toStrFunc((void*)key, toString);                                           \
+    if (qDebugFlag & DEBUG_TRACE) ginitDict[i].toStrFunc((void*)key, toString);             \
     ginitDict[i].enFunc((void*)key, buf);                                                   \
     rocksdb_column_family_handle_t* pHandle = pState->pTdbState->pHandle[ginitDict[i].idx]; \
     rocksdb_t*                      db = pState->pTdbState->rocksdb;                        \
@@ -622,9 +622,6 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentNext_rocksdb(SStreamState* pSta
   if (pCur == NULL) {
     return NULL;
   }
-  // pCur->iter =
-  //     rocksdb_create_iterator_cf(pState->pTdbState->rocksdb, pState->pTdbState->readOpts,
-  //     pState->pTdbState->pHandle[2]);
 
   // pCur->iter =
   //     rocksdb_create_iterator_cf(pState->pTdbState->rocksdb, pState->pTdbState->readOpts,
