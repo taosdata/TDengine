@@ -15,11 +15,7 @@
 
 #include "dev.h"
 
-struct STFileSystem {
-  STsdb *pTsdb;
+struct SFileSet {
+  struct STFile *files[TSDB_FTYPE_MAX];
+  SRBTree        fsttTree;
 };
-
-int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS) {
-  // TODO
-  return 0;
-}

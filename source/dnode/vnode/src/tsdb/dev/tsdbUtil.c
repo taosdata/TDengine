@@ -54,3 +54,34 @@ int32_t tDelBlockAppend(SDelBlock *pDelBlock, const TABLEID *tbid, const SDelDat
 
   return code;
 }
+
+int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb) {
+  if (tbid->suid) {
+    if (pSkmTb->suid == tbid->suid) {
+      pSkmTb->uid = tbid->uid;
+      return 0;
+    }
+  } else if (pSkmTb->uid == tbid->uid) {
+    return 0;
+  }
+
+  pSkmTb->suid = tbid->suid;
+  pSkmTb->uid = tbid->uid;
+  tDestroyTSchema(pSkmTb->pTSchema);
+  return metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, tbid->suid, tbid->uid, -1, &pSkmTb->pTSchema);
+}
+
+int32_t tsdbUpdateSkmRow(STsdb *pTsdb, const TABLEID *tbid, int32_t sver, SSkmInfo *pSkmRow) {
+  if (pSkmRow->pTSchema && pSkmRow->suid == tbid->suid) {
+    if (pSkmRow->suid) {
+      if (sver == pSkmRow->pTSchema->version) return 0;
+    } else if (pSkmRow->uid == tbid->uid && pSkmRow->pTSchema->version == sver) {
+      return 0;
+    }
+  }
+
+  pSkmRow->suid = tbid->suid;
+  pSkmRow->uid = tbid->uid;
+  tDestroyTSchema(pSkmRow->pTSchema);
+  return metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, tbid->suid, tbid->uid, sver, &pSkmRow->pTSchema);
+}

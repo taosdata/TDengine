@@ -83,7 +83,7 @@ static int32_t tsdbCommitWriteDelData(SCommitter *pCommitter, int64_t suid, int6
   return code;
 }
 
-static int32_t tsdbCommitTSData(SCommitter *pCommitter) {
+static int32_t commit_timeseries_data(SCommitter *pCommitter) {
   int32_t code = 0;
   int32_t lino;
 
@@ -126,7 +126,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCommitDLData(SCommitter *pCommitter) {
+static int32_t commit_delete_data(SCommitter *pCommitter) {
   int32_t code = 0;
   int32_t lino;
 
@@ -165,7 +165,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCommitFSetStart(SCommitter *pCommitter) {
+static int32_t start_commit_file_set(SCommitter *pCommitter) {
   pCommitter->fid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
   tsdbFidKeyRange(pCommitter->fid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
                   &pCommitter->maxKey);
@@ -178,7 +178,7 @@ static int32_t tsdbCommitFSetStart(SCommitter *pCommitter) {
   return 0;
 }
 
-static int32_t tsdbCommitFSetEnd(SCommitter *pCommitter) {
+static int32_t end_commit_file_set(SCommitter *pCommitter) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -191,23 +191,23 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCommitNextFSet(SCommitter *pCommitter) {
+static int32_t commit_next_file_set(SCommitter *pCommitter) {
   int32_t code = 0;
   int32_t lino = 0;
 
   // fset commit start
-  code = tsdbCommitFSetStart(pCommitter);
+  code = start_commit_file_set(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // commit fset
-  code = tsdbCommitTSData(pCommitter);
+  code = commit_timeseries_data(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbCommitDLData(pCommitter);
+  code = commit_delete_data(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // fset commit end
-  code = tsdbCommitFSetEnd(pCommitter);
+  code = end_commit_file_set(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -218,7 +218,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCommitterOpen(STsdb *pTsdb, SCommitInfo *pInfo, SCommitter *pCommitter) {
+static int32_t open_committer(STsdb *pTsdb, SCommitInfo *pInfo, SCommitter *pCommitter) {
   int32_t code = 0;
   int32_t lino;
 
@@ -250,7 +250,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCommitterClose(SCommitter *pCommiter, int32_t eno) {
+static int32_t close_committer(SCommitter *pCommiter, int32_t eno) {
   int32_t code = 0;
   // TODO
   return code;
@@ -280,15 +280,15 @@ int32_t tsdbCommitBegin(STsdb *pTsdb, SCommitInfo *pInfo) {
   } else {
     SCommitter committer;
 
-    code = tsdbCommitterOpen(pTsdb, pInfo, &committer);
+    code = open_committer(pTsdb, pInfo, &committer);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     while (committer.nextKey != TSKEY_MAX) {
-      code = tsdbCommitNextFSet(&committer);
+      code = commit_next_file_set(&committer);
       if (code) break;
     }
 
-    code = tsdbCommitterClose(&committer, code);
+    code = close_committer(&committer, code);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

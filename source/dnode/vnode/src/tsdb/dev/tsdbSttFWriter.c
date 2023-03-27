@@ -32,10 +32,12 @@ struct SSttFWriter {
   // helper data
   SSkmInfo skmTb;
   SSkmInfo skmRow;
+  int32_t  aBufSize[5];
+  uint8_t *aBuf[5];
   STsdbFD *pFd;
 };
 
-static int32_t write_ts_block(struct SSttFWriter *pWriter) {
+static int32_t write_timeseries_block(struct SSttFWriter *pWriter) {
   int32_t code = 0;
   int32_t lino;
 
@@ -50,18 +52,32 @@ static int32_t write_ts_block(struct SSttFWriter *pWriter) {
   pSttBlk->minUid = pBData->aUid[0];
   pSttBlk->maxUid = pBData->aUid[pBData->nRow - 1];
   pSttBlk->minKey = pSttBlk->maxKey = pBData->aTSKEY[0];
-  pSttBlk->minVer = pSttBlk->maxVer = pBData->aTSKEY[0];
+  pSttBlk->minVer = pSttBlk->maxVer = pBData->aVersion[0];
   pSttBlk->nRow = pBData->nRow;
   for (int32_t iRow = 1; iRow < pBData->nRow; iRow++) {
-    pSttBlk->minKey = TMIN(pSttBlk->minKey, pBData->aTSKEY[iRow]);
-    pSttBlk->maxKey = TMAX(pSttBlk->maxKey, pBData->aTSKEY[iRow]);
-    pSttBlk->minVer = TMIN(pSttBlk->minVer, pBData->aVersion[iRow]);
-    pSttBlk->maxVer = TMAX(pSttBlk->maxVer, pBData->aVersion[iRow]);
+    if (pSttBlk->minKey > pBData->aTSKEY[iRow]) pSttBlk->minKey = pBData->aTSKEY[iRow];
+    if (pSttBlk->maxKey < pBData->aTSKEY[iRow]) pSttBlk->maxKey = pBData->aTSKEY[iRow];
+    if (pSttBlk->minVer > pBData->aVersion[iRow]) pSttBlk->minVer = pBData->aVersion[iRow];
+    if (pSttBlk->maxVer < pBData->aVersion[iRow]) pSttBlk->maxVer = pBData->aVersion[iRow];
   }
 
   // compress data block
-  code = tCmprBlockData(pBData, pWriter->config.cmprAlg, NULL, NULL, NULL /* TODO */, NULL /* TODO */);
+  code = tCmprBlockData(pBData, pWriter->config.cmprAlg, NULL, NULL, pWriter->config.aBuf, pWriter->aBufSize);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  pSttBlk->bInfo.offset = pWriter->config.file.size;
+  pSttBlk->bInfo.szKey = pWriter->aBufSize[2] + pWriter->aBufSize[3];
+  pSttBlk->bInfo.szBlock = pWriter->aBufSize[0] + pWriter->aBufSize[1] + pSttBlk->bInfo.szKey;
+
+  for (int32_t iBuf = 3; iBuf >= 0; iBuf--) {
+    if (pWriter->aBufSize[iBuf]) {
+      code =
+          tsdbWriteFile(pWriter->pFd, pWriter->config.file.size, pWriter->config.aBuf[iBuf], pWriter->aBufSize[iBuf]);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      pWriter->config.file.size += pWriter->aBufSize[iBuf];
+    }
+  }
 
   tBlockDataClear(pBData);
 
@@ -69,18 +85,34 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pWriter->config.pTsdb->pVnode), __func__, lino,
               tstrerror(code));
+  } else {
+    // tsdbTrace();
+  }
+  return code;
+}
+
+static int32_t write_stt_blk(struct SSttFWriter *pWriter) {
+  int32_t code = 0;
+  int32_t lino;
+
+  if (taosArrayGetSize(pWriter->aSttBlk) == 0) {
+    goto _exit;
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pWriter->config.pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
+  } else {
+    // tsdbDebug("vgId:%d %s done, offset:%" PRId64 " size:%" PRId64 " # of stt block:%d",
+    // TD_VID(pWriter->config.pTsdb->pVnode), __func__);
   }
   return code;
 }
 
 static int32_t write_del_block(struct SSttFWriter *pWriter) {
   int32_t code = 0;
-  // TODO
-  return code;
-}
 
-static int32_t write_stt_blk(struct SSttFWriter *pWriter) {
-  int32_t code = 0;
   // TODO
   return code;
 }
@@ -91,7 +123,7 @@ static int32_t write_del_blk(struct SSttFWriter *pWriter) {
   return code;
 }
 
-static int32_t stt_fwriter_create(const struct SSttFWriterConf *pConf, struct SSttFWriter **ppWriter) {
+static int32_t create_stt_fwriter(const struct SSttFWriterConf *pConf, struct SSttFWriter **ppWriter) {
   int32_t code = 0;
 
   if ((ppWriter[0] = taosMemoryCalloc(1, sizeof(*ppWriter[0]))) == NULL) {
@@ -100,11 +132,14 @@ static int32_t stt_fwriter_create(const struct SSttFWriterConf *pConf, struct SS
   }
 
   ppWriter[0]->config = pConf[0];
+  if (pConf->pSkmTb == NULL) {
+    ppWriter[0]->config.pSkmTb = &ppWriter[0]->skmTb;
+  }
   if (pConf->pSkmRow == NULL) {
     ppWriter[0]->config.pSkmRow = &ppWriter[0]->skmRow;
   }
-  if (pConf->pSkmTb == NULL) {
-    ppWriter[0]->config.pSkmTb = &ppWriter[0]->skmTb;
+  if (pConf->aBuf == NULL) {
+    ppWriter[0]->config.aBuf = ppWriter[0]->aBuf;
   }
 
   tBlockDataCreate(&ppWriter[0]->bData);
@@ -124,10 +159,11 @@ _exit:
   return code;
 }
 
-static int32_t stt_fwriter_destroy(struct SSttFWriter *pWriter) {
+static int32_t destroy_stt_fwriter(struct SSttFWriter *pWriter) {
   if (pWriter) {
     tDestroyTSchema(pWriter->skmTb.pTSchema);
     tDestroyTSchema(pWriter->skmRow.pTSchema);
+    for (int32_t i = 0; i < sizeof(pWriter->aBuf) / sizeof(pWriter->aBuf[0]); i++) taosMemoryFree(pWriter->aBuf[i]);
     taosArrayDestroy(pWriter->aSttBlk);
     tBlockDataDestroy(&pWriter->bData);
     taosMemoryFree(pWriter);
@@ -135,26 +171,36 @@ static int32_t stt_fwriter_destroy(struct SSttFWriter *pWriter) {
   return 0;
 }
 
-static int32_t stt_fwriter_open(struct SSttFWriter *pWriter) {
+static int32_t open_stt_fwriter(struct SSttFWriter *pWriter) {
   int32_t code = 0;
-  // TODO
+  int32_t lino;
+
+  int32_t flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;  // TODO
+
+  code = tsdbOpenFile(pWriter->config.file.fname, pWriter->config.szPage, flag, &pWriter->pFd);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pWriter->config.pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
+  }
   return code;
 }
 
-static int32_t stt_fwriter_close(struct SSttFWriter *pWriter) {
-  int32_t code = 0;
-  // TODO
-  return code;
+static int32_t close_stt_fwriter(struct SSttFWriter *pWriter) {
+  tsdbCloseFile(&pWriter->pFd);
+  return 0;
 }
 
 int32_t tsdbSttFWriterOpen(const struct SSttFWriterConf *pConf, struct SSttFWriter **ppWriter) {
   int32_t code = 0;
   int32_t lino;
 
-  code = stt_fwriter_create(pConf, ppWriter);
+  code = create_stt_fwriter(pConf, ppWriter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = stt_fwriter_open(ppWriter[0]);
+  code = open_stt_fwriter(ppWriter[0]);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -173,10 +219,22 @@ int32_t tsdbSttFWriterClose(struct SSttFWriter **ppWriter) {
   int32_t code = 0;
   int32_t lino;
 
-  code = stt_fwriter_close(ppWriter[0]);
+  if (ppWriter[0]->bData.nRow > 0) {
+    code = write_timeseries_block(ppWriter[0]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  code = write_stt_blk(ppWriter[0]);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  stt_fwriter_close(ppWriter[0]);
+  code = write_del_blk(ppWriter[0]);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = close_stt_fwriter(ppWriter[0]);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  destroy_stt_fwriter(ppWriter[0]);
+  ppWriter[0] = NULL;
 
 _exit:
   if (code) {
@@ -191,21 +249,20 @@ int32_t tsdbSttFWriteTSData(struct SSttFWriter *pWriter, TABLEID *tbid, TSDBROW 
 
   if (!TABLE_SAME_SCHEMA(pWriter->bData.suid, pWriter->bData.uid, tbid->suid, tbid->uid)) {
     if (pWriter->bData.nRow > 0) {
-      code = write_ts_block(pWriter);
+      code = write_timeseries_block(pWriter);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    // TODO: code = tsdbUpdateTableSchema(pWriter->config.pTsdb, tbid->uid, tbid->suid, pWriter->config.pSkmTb);
+    code = tsdbUpdateSkmTb(pWriter->config.pTsdb, tbid, pWriter->config.pSkmTb);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    TABLEID id = {.suid = tbid->suid, .uid = tbid->suid ? 0 : tbid->uid};
+    TABLEID id = {.suid = tbid->suid, 0};
     code = tBlockDataInit(&pWriter->bData, &id, pWriter->config.pSkmTb->pTSchema, NULL, 0);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (pRow->type == TSDBROW_ROW_FMT) {
-    // TODO: code = tsdbUpdateRowSchema(pWriter->config.pTsdb, tbid->uid, tbid->suid, pRow->row,
-    // pWriter->config.pSkmRow);
+    code = tsdbUpdateSkmRow(pWriter->config.pTsdb, tbid, TSDBROW_SVERSION(pRow), pWriter->config.pSkmRow);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -213,7 +270,7 @@ int32_t tsdbSttFWriteTSData(struct SSttFWriter *pWriter, TABLEID *tbid, TSDBROW 
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (pWriter->bData.nRow >= pWriter->config.maxRow) {
-    code = write_ts_block(pWriter);
+    code = write_timeseries_block(pWriter);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
