@@ -12,7 +12,7 @@ chrono = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 shadow-rs = "0.21.0"
-taos-query = "0.5.0"
+taos-query = "0.6.0"
 thiserror = "1.0.38"
 tracing = "0.1"
 zstd = "0.12.1"
@@ -20,7 +20,7 @@ zstd = "0.12.1"
 [dev-dependencies]
 actix-web = "4"
 anyhow = "1"
-taos = { version = "0.5.0" }
+taos = { version = "0.6.0" }
 tokio = { version = "1", features = ["full"] }
 tracing-actix-web = { version = "0.7" }
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
