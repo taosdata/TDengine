@@ -110,7 +110,6 @@ async fn consume_point_record(taos: &Taos, record: &PointMessage, count: &mut us
         let ts_index = schema.index_of("ts").unwrap();
         let value_index = schema.index_of("value").unwrap();
         let id_cv = cv_vec.remove(id_index);
-        dbg!(&cv_vec);
         for i in 0..id_cv.len() {
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
             let (table, field, _) = map.get(&id).unwrap();

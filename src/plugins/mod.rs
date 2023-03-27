@@ -325,8 +325,8 @@ struct UAConnectConfig {
     endpoint: String,
     connect_timeout: Option<i64>,
     request_timeout: Option<i64>,
-    security_policy: Option<String>,
-    security_mode: Option<String>,
+    security_policy: String,
+    security_mode: String,
     certificate: Option<String>,
     private_key: Option<String>,
     auth_method: String,
@@ -398,13 +398,16 @@ impl OPCConfig {
         match dsn.protocol.as_deref() {
             Some("ua") => {
                 opc_type = OPCType::OPCUA;
-                let endpoint = dsn.addresses.first()
-                .and_then(|addr| addr.host.clone()).expect("should config endpoint");
+                let addr = dsn.addresses.first().expect("should config ip:port");
+                if addr.host.is_none() || addr.port.is_none() {
+                    return Err(OPCError::EndpointIsRequired(dsn));
+                }
+                let endpoint = format!("opc.tcp://{}:{}/{}", addr.host.as_ref().unwrap(), addr.port.as_ref().unwrap(), dsn.subject.as_ref().unwrap_or(&"".to_string()));
 
                 let connect_timeout = parse_int_at!("connect_timeout");
                 let request_timeout = parse_int_at!("request_timeout");
-                let security_policy = dsn.remove("security_policy");
-                let security_mode = dsn.remove("security_mode");
+                let security_policy = dsn.remove("security_policy").expect("should config security_policy");
+                let security_mode = dsn.remove("security_mode").expect("should config security_mode");
                 let certificate = dsn.remove("certificate");
                 let private_key = dsn.remove("private_key");
                 let auth_method = dsn.remove("auth_method").expect("should config auth_method");
@@ -608,8 +611,8 @@ pub async fn opc_to_taos(mut from: Dsn, actions: Vec<Action>, to: Dsn, jobs: usi
             "/usr/local/taos/xplugins/opc-collector_darwin_arm64",
         );
         command
-            .arg("-f")
-            .arg(&config_path)
+            .arg("collect")
+            .arg(format!("--conf={}", &config_path.display()))
             .output()
     });
 
@@ -617,7 +620,7 @@ pub async fn opc_to_taos(mut from: Dsn, actions: Vec<Action>, to: Dsn, jobs: usi
         output = v => {
             let output = output??;
             // dbg!(output);
-            log::info!("PI exit with status {}", output.status);
+            log::info!("OPC exit with status {}", output.status);
             // server.abort();
             panic!();
         },
