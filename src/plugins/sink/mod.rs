@@ -20,7 +20,7 @@ async fn ipc_tcp_read(
     pool: TaosPool,
     stream: TcpStream,
     lock: Arc<Mutex<()>>,
-    config: Option<&HashMap<String, (String, String, IpcDataType)>>) -> anyhow::Result<()> {
+    config: Option<HashMap<String, (String, String, IpcDataType)>>) -> anyhow::Result<()> {
     let ipc_reader = IpcReader::new(&stream).unwrap();
     let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
     let client = client.to_string();
@@ -33,7 +33,7 @@ async fn ipc_unix_read(
     pool: TaosPool,
     stream: std::os::unix::net::UnixStream,
     lock: Arc<Mutex<()>>,
-    config: Option<&HashMap<String, (String, String, IpcDataType)>>,
+    config: Option<HashMap<String, (String, String, IpcDataType)>>,
 ) -> anyhow::Result<()> {
     let ipc_reader = IpcReader::new(&stream).unwrap();
     let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
@@ -171,7 +171,7 @@ async fn ipc_point_reader<R: Read, W: Write>(
     taos: &Taos,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
-    config: Option<&HashMap<String, (String, String, IpcDataType)>>,
+    config: Option<HashMap<String, (String, String, IpcDataType)>>,
 ) -> anyhow::Result<()> {
     let mut count = 0;
     for record in ipc_reader {
@@ -180,7 +180,7 @@ async fn ipc_point_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_point_record(&taos, &record, &mut count, config.unwrap())
+            consume_point_record(&taos, &record, &mut count, config.as_ref().unwrap())
                 .await
                 .unwrap();
 
@@ -198,7 +198,7 @@ async fn ipc_process<R: Read, W: Write>(
     ipc_reader: IpcReader<R>,
     ipc_ack_writer: AckWriter<W>,
     lock: Arc<Mutex<()>>,
-    config: Option<&HashMap<String, (String, String, IpcDataType)>>,
+    config: Option<HashMap<String, (String, String, IpcDataType)>>,
 ) -> anyhow::Result<()> {
     let taos = pool.get()?;
     let metadata = ipc_reader.metadata();
@@ -227,7 +227,7 @@ async fn ipc_process<R: Read, W: Write>(
 }
 
 #[cfg(unix)]
-pub fn listen_unix_socket(target: TaosPool, socket: impl AsRef<Path>, config: Option<&HashMap<String, (String, String, IpcDataType)>>) -> anyhow::Result<()> {
+pub fn listen_unix_socket(target: TaosPool, socket: impl AsRef<Path>, config: Option<HashMap<String, (String, String, IpcDataType)>>) -> anyhow::Result<()> {
     let path = socket.as_ref();
     if path.exists() {
         std::fs::remove_file(path).unwrap();
@@ -247,7 +247,18 @@ pub fn listen_unix_socket(target: TaosPool, socket: impl AsRef<Path>, config: Op
                 tracing::info!("new unix client!: {:?}", addr);
                 let pool = target.clone();
                 let lock = sql_lock.clone();
-                runtime.spawn(async move { ipc_unix_read(addr.to_string(), pool, stream, lock, config) });
+                let config = config.clone();
+                runtime.spawn(async move {
+                    ipc_unix_read(
+                        addr.as_pathname()
+                            .map(|path| path.display().to_string())
+                            .unwrap_or_default(),
+                        pool,
+                        stream,
+                        lock,
+                        config,
+                    )
+                });
             }
             Err(e) => {
                 /* connection failed */
@@ -257,7 +268,7 @@ pub fn listen_unix_socket(target: TaosPool, socket: impl AsRef<Path>, config: Op
     }
 }
 
-pub fn listen_tcp_socket(target: TaosPool, socket: impl AsRef<str>, config: Option<&HashMap<String, (String, String, IpcDataType)>>) -> anyhow::Result<()> {
+pub fn listen_tcp_socket(target: TaosPool, socket: impl AsRef<str>, config: Option<HashMap<String, (String, String, IpcDataType)>>) -> anyhow::Result<()> {
     let tcp_addr = socket.as_ref();
     let listener = TcpListener::bind(tcp_addr)?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -272,6 +283,7 @@ pub fn listen_tcp_socket(target: TaosPool, socket: impl AsRef<str>, config: Opti
                 log::info!("new tcp client!: {:?}", addr);
                 let pool = target.clone();
                 let lock = sql_lock.clone();
+                let config = config.clone();
                 runtime.spawn(async move {
                     let res = ipc_tcp_read(addr, pool, stream, lock, config).await;
                     if let Err(err) = res {

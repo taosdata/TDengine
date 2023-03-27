@@ -182,7 +182,7 @@ pub async fn pi_to_taos(
 
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    let server = spawn_rest_service(target_pool, sql).await?;
+    let server = spawn_rest_service(target_pool, sql)?;
 
     let ipc =
         std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, config.ipc_stream, None));
@@ -439,10 +439,10 @@ impl OPCConfig {
                     let feild = String::from(pair[2]);
                     let value_type = String::from(pair[3]);
                     let ua_node_config = UANodeConfig {
-                        id ,
-                        value_type,
+                        id: id.clone(),
+                        value_type: value_type.clone(),
                     };
-                    param_mapping.insert(id, (table, feild, IpcDataType::from_str(value_type.to_lowercase().as_str()).unwrap()));
+                    param_mapping.insert(id, (table.clone(), feild.clone(), IpcDataType::from_str(value_type.to_lowercase().as_str()).unwrap()));
                     ua_node_config_vec.push(ua_node_config);
                     process_table_info(&mut table_info, table, feild, value_type);
                 }
@@ -482,10 +482,10 @@ impl OPCConfig {
                     let feild = String::from(pair[2]);
                     let value_type = String::from(pair[3]);
                     da_nodes_vec.push(DANodeConfig{
-                        tag,
-                        value_type,
+                        tag: tag.clone(),
+                        value_type: value_type.clone(),
                     });
-                    param_mapping.insert(tag, (table, feild, IpcDataType::from_str(&value_type.to_lowercase().as_str()).unwrap()));
+                    param_mapping.insert(tag, (table.clone(), feild.clone(), IpcDataType::from_str(&value_type.to_lowercase().as_str()).unwrap()));
                     process_table_info(&mut table_info, table, feild, value_type);
                 }
                 collect = CollectConfig {
@@ -530,14 +530,14 @@ fn get_string_vec_from_param(dsn: &mut Dsn, key: &str) -> Vec<String> {
 
 fn process_table_info(table_info: &mut HashMap<String, Vec<(String, String)>>, table: String
     , feild: String, value_type: String) {
-    let mut table_vec = if table_info.get_mut(&table).is_none() {
+    if table_info.get_mut(&table).is_none() {
         let mut t_v = Vec::new();
+        t_v.push((feild, value_type));
         table_info.insert(table, t_v);
-        &mut t_v
     } else {
-        table_info.get_mut(&table).unwrap()
+        let t_v = table_info.get_mut(&table).unwrap();
+        t_v.push((feild, value_type));
     };
-    table_vec.push((feild, value_type));
 }
 
 pub async fn opc_to_taos(mut from: Dsn, actions: Vec<Action>, to: Dsn, jobs: usize, port_pool: &PortPool) -> anyhow::Result<()> {
@@ -571,7 +571,7 @@ pub async fn opc_to_taos(mut from: Dsn, actions: Vec<Action>, to: Dsn, jobs: usi
 
     log::info!("Using opc config file {} \n{}", config_path.display(), toml);
 
-    let ipc = std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, config.report.remote, Some(&config.param_mapping)));
+    let ipc = std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, config.report.remote, Some(config.param_mapping.clone())));
     // TODO use unix socket on unix-like os
     // let ipc = if cfg!(target_os = "windows") {
     //     std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, socket))
