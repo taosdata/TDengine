@@ -14,6 +14,9 @@
  */
 
 #include "tsdb.h"
+#ifdef USE_DEV_CODE
+#include "dev/dev.h"
+#endif
 
 int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   STsdbKeepCfg *pKeepCfg = &pTsdb->keepCfg;
@@ -65,10 +68,16 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
     taosMkDir(pTsdb->path);
   }
 
-  // open tsdb
+// open tsdb
+#ifdef USE_DEV_CODE
+  if (tsdbOpenFileSystem(pTsdb, &pTsdb->pFS, rollback) < 0) {
+    goto _err;
+  }
+#else
   if (tsdbFSOpen(pTsdb, rollback) < 0) {
     goto _err;
   }
+#endif
 
   if (tsdbOpenCache(pTsdb) < 0) {
     goto _err;
@@ -94,7 +103,11 @@ int tsdbClose(STsdb **pTsdb) {
 
     taosThreadRwlockDestroy(&(*pTsdb)->rwLock);
 
+#ifndef USE_DEV_CODE
     tsdbFSClose(*pTsdb);
+#else
+    tsdbCloseFileSystem(&(*pTsdb)->pFS);
+#endif
     tsdbCloseCache(*pTsdb);
     taosMemoryFreeClear(*pTsdb);
   }

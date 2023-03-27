@@ -13,21 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TSDB_FILE_SYSTEM_H
-#define _TSDB_FILE_SYSTEM_H
-
-#include "tsdb.h"
+#ifndef _TD_TSDB_STT_FILE_READER_H
+#define _TD_TSDB_STT_FILE_READER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* Exposed Handle */
-struct STFileSystem;
 
 /* Exposed APIs */
-int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS, int8_t rollback);
-int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS);
 
 /* Exposed Structs */
 
@@ -35,4 +30,4 @@ int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS);
 }
 #endif
 
-#endif /*_TSDB_FILE_SYSTEM_H*/
+#endif /*_TD_TSDB_STT_FILE_READER_H*/

@@ -37,7 +37,7 @@ static int32_t destroy_file_system(struct STFileSystem **ppFS) {
   return 0;
 }
 
-static int32_t open_file_system(struct STFileSystem *pFS) {
+static int32_t open_file_system(struct STFileSystem *pFS, int8_t rollback) {
   // TODO
   return 0;
 }
@@ -47,14 +47,14 @@ static int32_t close_file_system(struct STFileSystem *pFS) {
   return 0;
 }
 
-int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS) {
+int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS, int8_t rollback) {
   int32_t code;
   int32_t lino;
 
   code = create_file_system(pTsdb, ppFS);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = open_file_system(ppFS[0]);
+  code = open_file_system(ppFS[0], rollback);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

@@ -12,27 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _TSDB_FILE_SYSTEM_H
-#define _TSDB_FILE_SYSTEM_H
-
-#include "tsdb.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* Exposed Handle */
-struct STFileSystem;
-
-/* Exposed APIs */
-int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS, int8_t rollback);
-int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS);
-
-/* Exposed Structs */
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TSDB_FILE_SYSTEM_H*/

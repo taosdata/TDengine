@@ -40,9 +40,20 @@ static int32_t tsdbCommitOpenWriter(SCommitter *pCommitter) {
   int32_t code;
   int32_t lino;
 
-  SSttFile sttFile = {0};  // TODO
+  struct SSttFWriterConf conf = {
+      .pTsdb = pCommitter->pTsdb,
+      .file = {0},
+      .pSkmTb = NULL,
+      .pSkmRow = NULL,
+      .maxRow = pCommitter->maxRow,
+      .szPage = pCommitter->pTsdb->pVnode->config.tsdbPageSize,
+      .cmprAlg = pCommitter->cmprAlg,
+      .aBuf = NULL,
+  };
 
-  code = tsdbSttFWriterOpen(NULL /*TODO*/, &pCommitter->pWriter);
+  // taosArraySearch(pCommitter->pTsdb);
+
+  code = tsdbSttFWriterOpen(&conf, &pCommitter->pWriter);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
