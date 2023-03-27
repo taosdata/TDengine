@@ -1065,12 +1065,9 @@ void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExpr
   bool returnNotNull = false;
   for (int32_t j = 0; j < numOfExprs; ++j) {
     SResultRowEntryInfo* pResInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
-    qWarn("offset: idx: %d, val: %d", j, rowEntryOffset[j]);
     if (!isRowEntryInitialized(pResInfo)) {
-      qWarn("no result");
       continue;
     } else {
-      qWarn("has result");
     }
 
     if (pRow->numOfRows < pResInfo->numOfRes) {

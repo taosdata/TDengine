@@ -2352,8 +2352,6 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
   SResultRow*     pResult = NULL;
   int32_t         forwardRows = 0;
 
-  int stepTrace = 0;
-  qWarn("step1 %d", stepTrace++);
   SColumnInfoData* pColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
   tsCols = (int64_t*)pColDataInfo->pData;
 
@@ -2366,17 +2364,14 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
     nextWin = getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, &pInfo->interval, TSDB_ORDER_ASC);
   }
   while (1) {
-    qWarn("step1 %d", stepTrace++);
     bool isClosed = isCloseWindow(&nextWin, &pInfo->twAggSup);
     if ((pInfo->ignoreExpiredData && isClosed) || !inSlidingWindow(&pInfo->interval, &nextWin, &pSDataBlock->info)) {
       startPos = getNexWindowPos(&pInfo->interval, &pSDataBlock->info, tsCols, startPos, nextWin.ekey, &nextWin);
       if (startPos < 0) {
-        qWarn("step1 %d", stepTrace++);
         break;
       }
       continue;
     }
-    qWarn("step1 %d", stepTrace++);
 
     if (IS_FINAL_OP(pInfo) && isClosed && pInfo->pChildren) {
       bool    ignore = true;
@@ -2407,7 +2402,6 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
           ignore = false;
         }
       }
-      qWarn("step1 %d", stepTrace++);
 
       if (ignore) {
         startPos = getNexWindowPos(&pInfo->interval, &pSDataBlock->info, tsCols, startPos, nextWin.ekey, &nextWin);
@@ -2417,27 +2411,22 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
         continue;
       }
     }
-    qWarn("step1 %d", stepTrace++);
 
     int32_t code = setOutputBuf(pInfo->pState, &nextWin, &pResult, groupId, pSup->pCtx, numOfOutput,
                                 pSup->rowEntryInfoOffset, &pInfo->aggSup);
     if (code != TSDB_CODE_SUCCESS || pResult == NULL) {
-      qWarn("step1 %d", stepTrace++);
       T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
     }
-    qWarn("step1 %d", stepTrace++);
     if (IS_FINAL_OP(pInfo)) {
       forwardRows = 1;
     } else {
       forwardRows = getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, nextWin.ekey, binarySearchForKey,
                                              NULL, TSDB_ORDER_ASC);
     }
-    qWarn("step1 %d", stepTrace++);
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE && pUpdatedMap) {
       saveWinResultInfo(pResult->win.skey, groupId, pUpdatedMap);
     }
 
-    qWarn("step1 %d", stepTrace++);
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
       SWinKey key = {
           .ts = pResult->win.skey,
@@ -2446,7 +2435,6 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
       tSimpleHashPut(pInfo->aggSup.pResultRowHashTable, &key, sizeof(SWinKey), NULL, 0);
     }
 
-    qWarn("step1 %d", stepTrace++);
     updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &nextWin, true);
     applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
                                     pSDataBlock->info.rows, numOfOutput);
@@ -2455,7 +2443,6 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
         .groupId = groupId,
     };
 
-    qWarn("step1 %d", stepTrace++);
     saveOutputBuf(pInfo->pState, &key, pResult, pInfo->aggSup.resultRowSize);
     releaseOutputBuf(pInfo->pState, &key, pResult);
     if (pInfo->delKey.ts > key.ts) {
@@ -2474,7 +2461,6 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
                pSDataBlock->info.id.uid, pSDataBlock->info.window.skey, pSDataBlock->info.window.ekey);
       }
     }
-    qWarn("step1 %d", stepTrace++);
 
     if (IS_FINAL_OP(pInfo)) {
       startPos = getNextQualifiedFinalWindow(&pInfo->interval, &nextWin, &pSDataBlock->info, tsCols, prevEndPos);
@@ -2483,7 +2469,6 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
           getNextQualifiedWindow(&pInfo->interval, &nextWin, &pSDataBlock->info, tsCols, prevEndPos, TSDB_ORDER_ASC);
     }
     if (startPos < 0) {
-      qWarn("step1 %d", stepTrace++);
       break;
     }
   }

@@ -333,6 +333,8 @@ int streamInitBackend(SStreamState* pState, char* path) {
   pState->pTdbState->rocksdb = db;
   pState->pTdbState->pHandle = cfHandle;
   pState->pTdbState->wopts = rocksdb_writeoptions_create();
+  // rocksdb_writeoptions_
+  rocksdb_writeoptions_set_no_slowdown(pState->pTdbState->wopts, 1);
   pState->pTdbState->ropts = rocksdb_readoptions_create();
   return 0;
 }
@@ -341,6 +343,8 @@ void streamCleanBackend(SStreamState* pState) {
   for (int i = 0; i < cfLen; i++) {
     rocksdb_column_family_handle_destroy(pState->pTdbState->pHandle[i]);
   }
+  rocksdb_writeoptions_destroy(pState->pTdbState->wopts);
+  rocksdb_readoptions_destroy(pState->pTdbState->ropts);
   rocksdb_close(pState->pTdbState->rocksdb);
 }
 
@@ -352,7 +356,18 @@ int streamGetInit(const char* funcName) {
   }
   return -1;
 }
-
+bool streamStateIterSeekAndValid(rocksdb_iterator_t* iter, char* buf, size_t len) {
+  bool valid = false;
+  rocksdb_iter_seek(iter, buf, len);
+  if (!rocksdb_iter_valid(iter)) {
+    rocksdb_iter_seek_for_prev(iter, buf, len);
+    if (!rocksdb_iter_valid(iter)) {
+      return valid;
+    }
+  }
+  valid = true;
+  return valid;
+}
 #define STREAM_STATE_PUT_ROCKSDB(pState, funcname, key, value, vLen)                                           \
   do {                                                                                                         \
     code = 0;                                                                                                  \
@@ -542,14 +557,10 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pSta
   // char             toString[128] = {0};
   // stateSessionKeyToString(&sKey, toString);
   //  qWarn("streamState seek key %s", toString);
-
-  rocksdb_iter_seek(pCur->iter, buf, len);
-  if (!rocksdb_iter_valid(pCur->iter)) {
-    rocksdb_iter_seek_for_prev(pCur->iter, buf, len);
-    if (!rocksdb_iter_valid(pCur->iter)) {
-      streamStateFreeCur(pCur);
-      return NULL;
-    }
+  bool valid = streamStateIterSeekAndValid(pCur->iter, buf, len);
+  if (valid == false) {
+    streamStateFreeCur(pCur);
+    return NULL;
   }
 
   int32_t          c = 0;
@@ -582,13 +593,18 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentNext_rocksdb(SStreamState* pSta
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   int              len = stateSessionKeyEncode(&sKey, buf);
 
-  rocksdb_iter_seek(pCur->iter, (const char*)buf, len);
-  if (!rocksdb_iter_valid(pCur->iter)) {
-    rocksdb_iter_seek_for_prev(pCur->iter, buf, len);
-    if (!rocksdb_iter_valid(pCur->iter)) {
-      streamStateFreeCur(pCur);
-      return NULL;
-    }
+  // rocksdb_iter_seek(pCur->iter, (const char*)buf, len);
+  // if (!rocksdb_iter_valid(pCur->iter)) {
+  //   rocksdb_iter_seek_for_prev(pCur->iter, buf, len);
+  //   if (!rocksdb_iter_valid(pCur->iter)) {
+  //     streamStateFreeCur(pCur);
+  //     return NULL;
+  //   }
+  // }
+  bool valid = streamStateIterSeekAndValid(pCur->iter, buf, len);
+  if (valid == false) {
+    streamStateFreeCur(pCur);
+    return NULL;
   }
   size_t           klen;
   const char*      iKey = rocksdb_iter_key(pCur->iter, &klen);
@@ -617,14 +633,13 @@ SStreamStateCur* streamStateSessionSeekKeyNext_rocksdb(SStreamState* pState, con
 
   char buf[128] = {0};
   int  len = stateSessionKeyEncode(&sKey, buf);
-  rocksdb_iter_seek(pCur->iter, (const char*)buf, len);
-  if (!rocksdb_iter_valid(pCur->iter)) {
-    rocksdb_iter_seek_for_prev(pCur->iter, buf, len);
-    if (!rocksdb_iter_valid(pCur->iter)) {
-      streamStateFreeCur(pCur);
-      return NULL;
-    }
+
+  bool valid = streamStateIterSeekAndValid(pCur->iter, buf, len);
+  if (valid == false) {
+    streamStateFreeCur(pCur);
+    return NULL;
   }
+
   size_t           klen;
   const char*      iKey = rocksdb_iter_key(pCur->iter, &klen);
   SStateSessionKey curKey = {0};
@@ -721,14 +736,13 @@ SStreamStateCur* streamStateFillGetCur_rocksdb(SStreamState* pState, const SWinK
       rocksdb_create_iterator_cf(pState->pTdbState->rocksdb, pState->pTdbState->ropts, pState->pTdbState->pHandle[1]);
   char buf[128] = {0};
   int  len = winKeyEncode((void*)key, buf);
-  rocksdb_iter_seek(pCur->iter, buf, len);
-  if (!rocksdb_iter_valid(pCur->iter)) {
-    rocksdb_iter_seek_for_prev(pCur->iter, buf, len);
-    if (!rocksdb_iter_valid(pCur->iter)) {
-      streamStateFreeCur(pCur);
-      return NULL;
-    }
+
+  bool valid = streamStateIterSeekAndValid(pCur->iter, buf, len);
+  if (valid == false) {
+    streamStateFreeCur(pCur);
+    return NULL;
   }
+
   if (rocksdb_iter_valid(pCur->iter)) {
     size_t  kLen;
     SWinKey curKey;
@@ -837,13 +851,10 @@ SStreamStateCur* streamStateSeekKeyNext_rocksdb(SStreamState* pState, const SWin
   SStateKey sKey = {.key = *key, .opNum = pState->number};
   char      buf[128] = {0};
   int       len = stateKeyEncode((void*)&sKey, buf);
-  rocksdb_iter_seek(pCur->iter, buf, len);
-  if (!rocksdb_iter_valid(pCur->iter)) {
-    rocksdb_iter_seek_for_prev(pCur->iter, buf, len);
-    if (!rocksdb_iter_valid(pCur->iter)) {
-      streamStateFreeCur(pCur);
-      return NULL;
-    }
+
+  if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
+    streamStateFreeCur(pCur);
+    return NULL;
   }
 
   if (rocksdb_iter_valid(pCur->iter)) {
@@ -871,14 +882,12 @@ SStreamStateCur* streamStateFillSeekKeyNext_rocksdb(SStreamState* pState, const 
 
   char buf[128] = {0};
   int  len = winKeyEncode((void*)key, buf);
-  rocksdb_iter_seek(pCur->iter, buf, len);
-  if (!rocksdb_iter_valid(pCur->iter)) {
-    rocksdb_iter_seek_for_prev(pCur->iter, buf, len);
-    if (!rocksdb_iter_valid(pCur->iter)) {
-      streamStateFreeCur(pCur);
-      return NULL;
-    }
+
+  if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
+    streamStateFreeCur(pCur);
+    return NULL;
   }
+
   {
     SWinKey curKey;
     size_t  kLen = 0;
@@ -905,13 +914,9 @@ SStreamStateCur* streamStateFillSeekKeyPrev_rocksdb(SStreamState* pState, const 
   char buf[128] = {0};
   int  len = winKeyEncode((void*)key, buf);
 
-  rocksdb_iter_seek(pCur->iter, buf, len);
-  if (!rocksdb_iter_valid(pCur->iter)) {
-    rocksdb_iter_seek_for_prev(pCur->iter, buf, len);
-    if (!rocksdb_iter_valid(pCur->iter)) {
-      streamStateFreeCur(pCur);
-      return NULL;
-    }
+  if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
+    streamStateFreeCur(pCur);
+    return NULL;
   }
 
   {
@@ -956,13 +961,10 @@ int32_t streamStateSessionGetKeyByRange_rocksdb(SStreamState* pState, const SSes
   int32_t          c = 0;
   char             buf[128] = {0};
   int              len = stateSessionKeyEncode(&sKey, buf);
-  rocksdb_iter_seek(pCur->iter, buf, len);
-  if (!rocksdb_iter_valid(pCur->iter)) {
-    rocksdb_iter_seek_for_prev(pCur->iter, buf, len);
-    if (!rocksdb_iter_valid(pCur->iter)) {
-      streamStateFreeCur(pCur);
-      return -1;
-    }
+
+  if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
+    streamStateFreeCur(pCur);
+    return -1;
   }
 
   int32_t          kLen;
