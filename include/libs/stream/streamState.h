@@ -34,13 +34,11 @@ typedef struct STdbState {
 
   rocksdb_t*                       rocksdb;
   rocksdb_column_family_handle_t** pHandle;
-  rocksdb_writeoptions_t*          wopts;
-  rocksdb_readoptions_t*           ropts;
-  // rocksdb_column_family_handle_t*  fillStateDB;
-  // rocksdb_column_family_handle_t*  sessStateDB;
-  // rocksdb_column_family_handle_t*  funcStateDB;
-  // rocksdb_column_family_handle_t*  parnameStateDB;
-  // rocksdb_column_family_handle_t*  partagStateDB;
+  rocksdb_writeoptions_t*          writeOpts;
+  rocksdb_readoptions_t*           readOpts;
+  rocksdb_options_t**              cfOpts;
+  rocksdb_comparator_t**           pCompare;
+  rocksdb_options_t*               dbOpt;
 
   TDB* db;
   TTB* pStateDb;

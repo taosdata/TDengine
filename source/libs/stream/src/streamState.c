@@ -216,7 +216,7 @@ _err:
 
 void streamStateClose(SStreamState* pState) {
 #ifdef USE_ROCKSDB
-  // streamCleanBackend(pState);
+  streamCleanBackend(pState);
 #else
   tdbCommit(pState->pTdbState->db, pState->pTdbState->txn);
   tdbPostCommit(pState->pTdbState->db, pState->pTdbState->txn);
