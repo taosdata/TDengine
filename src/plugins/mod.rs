@@ -237,7 +237,6 @@ pub async fn pi_to_taos(
     temp_path.close()?;
     // rt.handle();
     // (&unsafe { *Arc::into_raw(rt) }).shutdown_background();
-    temp_path.close()?;
     log::info!("Done");
     // server.abort();
     Ok(())
@@ -552,11 +551,12 @@ pub async fn opc_to_taos(mut from: Dsn, actions: Vec<Action>, to: Dsn, jobs: usi
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
 
     let config = OPCConfig::new(from, ipc_port)?;
+    dbg!(&config);
     // process table info
     for (table_name, feild_info) in &config.table_info {
         let mut sql = format!("CREATE TABLE IF NOT EXISTS {table_name} (`ts` TIMESTAMP");
         for (feild, feild_type) in feild_info {
-            sql.push_str(format!(" `{feild}` {feild_type}").as_str());
+            sql.push_str(format!(", `{feild}` {feild_type}").as_str());
         }
         sql.push_str(")");
         log::info!("create table: {table_name}, sql: {sql}");
