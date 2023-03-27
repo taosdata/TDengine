@@ -163,7 +163,7 @@ SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 
 以下面的 SQL 语句为例，事件窗口切分如图所示：
 ```sql
-select _wstart, _wend, count(*) from t start with c1 > 0 end with c2 < 10 
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
 ![TDengine Database 事件窗口示意图](./event_window.webp)
