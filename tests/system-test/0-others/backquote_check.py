@@ -29,7 +29,7 @@ class TDTestCase:
         self.streamname = 'stm'
         self.streamtb = 'stm_stb'
     def topic_name_check(self):
-        tdSql.execute(f'create database if not exists {self.dbname}')
+        tdSql.execute(f'create database if not exists {self.dbname} wal_retention_period 3600')
         tdSql.execute(f'use {self.dbname}')
         tdSql.execute(f'create stable {self.stbname} (ts timestamp,c0 int) tags(t0 int)')
         for name in [self.dbname,self.stbname]:
@@ -56,12 +56,12 @@ class TDTestCase:
             tdSql.execute(f'drop topic `{name}`')
 
     def db_name_check(self):
-        tdSql.execute(f'create database if not exists `{self.dbname}`')
+        tdSql.execute(f'create database if not exists `{self.dbname}` wal_retention_period 3600')
         tdSql.execute(f'use `{self.dbname}`')
         tdSql.execute(f'drop database {self.dbname}')
     
     def stream_name_check(self):
-        tdSql.execute(f'create database if not exists {self.dbname}')
+        tdSql.execute(f'create database if not exists {self.dbname} wal_retention_period 3600')
         tdSql.execute(f'use {self.dbname}')
         tdSql.execute(f'create stable {self.stbname} (ts timestamp,c0 int) tags(t0 int)')
         tdSql.execute(f'create stream `{self.streamname}` into `{self.streamtb}` as select count(*) from {self.stbname} interval(10s);')

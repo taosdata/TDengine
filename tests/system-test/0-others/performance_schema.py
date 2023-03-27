@@ -75,7 +75,7 @@ class TDTestCase:
     def prepare_data(self):
         tdSql.execute(f"create database if not exists {self.dbname} vgroups 2")                                         #1 query
         tdSql.execute(f'use {self.dbname}')                                                                             #1 query
-
+        tdsql.execute(f"alter database {self.dbname} wal_retention_period 3600")
         tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))                   #1 query
         
         for i in range(self.tbnum):                                                                                     #self.tbnum query
@@ -92,12 +92,12 @@ class TDTestCase:
         def run(self):
             tdSqlTran = TDSql()
             tdSqlTran.init(self.obj.conn.cursor())
-            tdSqlTran.execute(f"create database if not exists %s vgroups 20"%(self.obj.transTestDBName))
+            tdSqlTran.execute(f"create database if not exists %s vgroups 20 wal_retention_period 3600"%(self.obj.transTestDBName))
             tdSqlTran.execute(f"DROP DATABASE %s"%(self.obj.transTestDBName))
 
     def init_tmq_env(self, db, topic):
         self.conn.execute("drop topic if exists {}".format(topic))
-        self.conn.execute("create database if not exists {}".format(db))
+        self.conn.execute("create database if not exists {} wal_retention_period 3600".format(db))
         self.conn.select_db(db)
         self.conn.execute(
             "create stable if not exists stb_sub (ts timestamp, c1 int, c2 float, c3 varchar(16)) tags(t1 int, t3 varchar(16))")
