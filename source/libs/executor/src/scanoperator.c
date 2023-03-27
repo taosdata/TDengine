@@ -654,9 +654,10 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
       continue;
     }
 
-    ASSERT(pBlock->info.id.uid != 0);
-    pBlock->info.id.groupId = getTableGroupId(pTaskInfo->pTableInfoList, pBlock->info.id.uid);
-
+    if (pBlock->info.id.uid) {
+      pBlock->info.id.groupId = getTableGroupId(pTaskInfo->pTableInfoList, pBlock->info.id.uid);
+    }
+    
     uint32_t status = 0;
     int32_t  code = loadDataBlock(pOperator, &pTableScanInfo->base, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
@@ -680,7 +681,6 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     pTaskInfo->streamInfo.lastStatus.uid = pBlock->info.id.uid;
     pTaskInfo->streamInfo.lastStatus.ts = pBlock->info.window.ekey;
 
-    ASSERT(pBlock->info.id.uid != 0);
     return pBlock;
   }
   return NULL;
@@ -797,7 +797,6 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     SSDataBlock* result = doGroupedTableScan(pOperator);
     if (result != NULL) {
-      ASSERT(result->info.id.uid != 0);
       return result;
     }
 
