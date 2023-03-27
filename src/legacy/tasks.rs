@@ -401,7 +401,7 @@ mod tests {
         pretty_env_logger::formatted_timed_builder()
             .filter_level(log::LevelFilter::Debug)
             .init();
-        let taos = TaosBuilder::from_dsn("taos:///")?.build()?;
+        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         taos.exec_many([
             "drop database if exists ts2031f",
             "create database ts2031f",
@@ -458,7 +458,7 @@ mod tests {
         pretty_env_logger::formatted_timed_builder()
             .filter_level(log::LevelFilter::Debug)
             .init();
-        let taos = TaosBuilder::from_dsn("taos:///")?.build()?;
+        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         taos.exec_many([
             "drop database if exists ts2031f",
             "create database ts2031f",

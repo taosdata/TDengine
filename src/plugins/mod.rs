@@ -9,7 +9,7 @@ use std::{
 
 use anyhow::Context;
 use itertools::Itertools;
-use taos::{Dsn, TBuilder, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 
 use crate::{plugins::service::spawn_rest_service, utils::port_pool::PortPool, Action};
 
@@ -157,9 +157,9 @@ pub async fn pi_to_taos(
         anyhow::bail!("PI connector support only windows platform");
     }
 
-    let target_pool = TaosBuilder::from_dsn(to)?.pool()?;
+    let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(to)?.pool()?;
 
-    let taos = target_pool.get_timeout(Duration::from_secs(5))?;
+    let taos = target_pool.get().await?;
 
     let target_pool_for_ipc = target_pool.clone();
 
@@ -180,7 +180,7 @@ pub async fn pi_to_taos(
 
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    let server = spawn_rest_service(target_pool, sql)?;
+    let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql));
 
     let ipc =
         std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, config.ipc_stream));
@@ -222,9 +222,6 @@ pub async fn pi_to_taos(
             log::info!("PI exit with stderr: {}", std::str::from_utf8(&output.stderr).unwrap());
             log::info!("PI exit with status {}", output.status);
         },
-        _ = server => {
-            panic!("sql server finished first");
-        }
         _ = tokio::signal::ctrl_c() => {
             log::info!("Ctrl+C triggered, cancel tasks");
             // panic!();
@@ -232,6 +229,7 @@ pub async fn pi_to_taos(
     };
 
     stop_thread(ipc);
+    stop_thread(server);
 
     // rt.handle();
     // (&unsafe { *Arc::into_raw(rt) }).shutdown_background();

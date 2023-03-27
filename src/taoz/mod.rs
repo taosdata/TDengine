@@ -199,13 +199,13 @@ where
 mod tests {
     use std::sync::{Arc, Mutex};
 
-    use taos::TBuilder;
+    use taos::AsyncTBuilder;
 
     use super::*;
 
     #[tokio::test]
     async fn write() -> anyhow::Result<()> {
-        let taos = TaosBuilder::from_dsn("taos:///")?.build()?;
+        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         pretty_env_logger::formatted_builder().filter_level(log::LevelFilter::Debug);
         taos.exec_many([
             "drop topic if exists abc1",
@@ -225,7 +225,7 @@ mod tests {
             .write_head_async(&Header::new(db.to_string()))
             .await?;
 
-        let mut tmq = TmqBuilder::from_dsn("taos:///?group.id=c")?.build()?;
+        let mut tmq = TmqBuilder::from_dsn("taos:///?group.id=c")?.build().await?;
         tmq.subscribe([db]).await?;
         let writer = Arc::new(Mutex::new(writer));
 
@@ -281,7 +281,7 @@ mod tests {
 
     #[tokio::test]
     async fn read() -> anyhow::Result<()> {
-        let taos = TaosBuilder::from_dsn("taos:///")?.build()?;
+        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         taos.exec_many([
             "drop database if exists abc3",
             "create database if not exists abc3",

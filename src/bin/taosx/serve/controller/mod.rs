@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
-use taos::{AsyncQueryable, Dsn, TBuilder, TaosBuilder};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx::utils::port_pool::PortPool;
 use taosx::TaskOpts;
 use tokio::{runtime::Runtime, sync::RwLock};
@@ -777,7 +777,7 @@ impl TaskController {
             let mut dsn: Dsn = task.from.parse()?;
             let _ = dsn.subject.take();
             let builder = TaosBuilder::from_dsn(dsn).context("cannot drop oneshot topic")?;
-            let taos = builder.build().context("cannot drop oneshot topic")?;
+            let taos = builder.build().await.context("cannot drop oneshot topic")?;
             let mut retries = 0;
             loop {
                 if retries > 20 {

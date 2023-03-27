@@ -592,7 +592,8 @@ async fn sync_super_table_schema_with_subs_without_pool(
     let res_to: LinkedHashMap<_, _> = to
         .query(&sql)
         .await?
-        .to_records()?
+        .to_records()
+        .await?
         .into_iter()
         .map(|mut v| (format!("{}", v.remove(0)), v))
         .collect();
@@ -600,7 +601,8 @@ async fn sync_super_table_schema_with_subs_without_pool(
     let (exists, non_exists): (Vec<_>, Vec<_>) = from
         .query(&sql)
         .await?
-        .to_records()?
+        .to_records()
+        .await?
         .into_iter()
         .map(|mut v| (format!("{}", v.remove(0)), v))
         .partition(|v| res_to.contains_key(&v.0));
@@ -738,7 +740,8 @@ async fn sync_super_table_schema_with_subs(
             format!("SELECT tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
         })
         .await?
-        .to_records()?
+        .to_records()
+        .await?
         .into_iter()
         .map(|mut v| (format!("{}", v.remove(0)), v))
         .collect();
@@ -750,7 +753,8 @@ async fn sync_super_table_schema_with_subs(
             format!("SELECT tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
         })
         .await?
-        .to_records()?
+        .to_records()
+        .await?
         .into_iter()
         .map(|mut v| (format!("{}", v.remove(0)), v))
         .partition(|v| res_to.contains_key(&v.0));
@@ -874,8 +878,8 @@ async fn sync_schema(
     source_is_v3: bool,
     target_is_v3: bool,
 ) -> anyhow::Result<()> {
-    let from = from_pool.get_timeout(connect_timeout)?;
-    let to = to_pool.get_timeout(connect_timeout)?;
+    let from = from_pool.get().await?;
+    let to = to_pool.get().await?;
     let v2: String = to.query_one("SELECT server_version()").await?.unwrap();
     let to_is_v3 = v2.starts_with('3');
     let v1: String = from
@@ -1318,6 +1322,7 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
     // let version =
     let taos = pool
         .get()
+        .await
         .context("Connect to data source error with timeout")?;
     let version = taos.server_version().await?;
     let is_v2 = version.starts_with('2');
@@ -1620,18 +1625,14 @@ pub async fn legacy_to_taos(
     }
 
     let connect_timeout = Duration::from_secs(10);
-    let pool_options = from_builder
-        .pool_builder()
-        .max_size(std::cmp::max(8, concurrent as u32))
-        .connection_timeout(Duration::from_secs(300));
-    let from_pool = TaosBuilder::from_dsn(&from)?.with_pool_builder(pool_options)?;
-    let from = from_pool.get()?;
+    let from_pool = TaosBuilder::from_dsn(&from)?.pool()?;
+    let from = from_pool.get().await?;
 
-    let source_taos = from_pool.get()?;
+    let source_taos = from_pool.get().await?;
     if target_opts.assert {
         // use take there to avoid [Error: [0x0383] Invalid database name] when execute sql with no database
         if let Some(db) = to.subject.take() {
-            let target = to_builder.build()?;
+            let target = to_builder.build().await?;
             if target.exec(format!("use `{db}`")).await.is_err() {
                 if let Some(database_options) = target_opts.database_options.clone() {
                     target
@@ -1691,7 +1692,7 @@ pub async fn legacy_to_taos(
     }
 
     let to_pool = TaosBuilder::from_dsn(&to)?.pool()?;
-    let to = to_pool.get_timeout(connect_timeout)?;
+    let to = to_pool.get().await?;
 
     let precision_of_from = from.query("select 1").await?.precision();
     let precision_of_to = to.query("select 1").await?.precision();
@@ -2244,7 +2245,7 @@ mod tests {
             .filter_level(log::LevelFilter::Debug)
             .init();
         // prepare
-        let taos = TaosBuilder::from_dsn("taos:///")?.build()?;
+        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         taos.exec_many([
             "drop database if exists `x-sync-2`",
             "create database `x-sync-2`",

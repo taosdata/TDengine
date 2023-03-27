@@ -2,17 +2,17 @@ use std::path::Path;
 
 use futures::TryStreamExt;
 use serde::Deserialize;
-use taos::{AsyncFetchable, AsyncQueryable, Dsn, TBuilder, Taos, TaosBuilder};
+use taos::*;
 
 pub mod port_pool;
 /// Check enterprise edition
 pub async fn is_available_enterprise_edition(taos: &TaosBuilder) -> bool {
-    taos.is_enterprise_edition()
+    taos.is_enterprise_edition().await
 }
 
 /// Clear database stables and tables.
 pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
-    let taos = TaosBuilder::from_dsn(dsn)?.build()?;
+    let taos = TaosBuilder::from_dsn(dsn)?.build().await?;
 
     let mut stables = taos.query("SHOW STABLES").await?;
     let mut rows = stables.rows();
@@ -47,7 +47,7 @@ pub async fn clear_local(local: &Dsn) -> anyhow::Result<()> {
 async fn test_clear_database() -> anyhow::Result<()> {
     let dsn = "taos:///";
 
-    let taos = TaosBuilder::from_dsn(dsn)?.build()?;
+    let taos = TaosBuilder::from_dsn(dsn)?.build().await?;
 
     let db = "test_clear_database";
     taos.exec_many([

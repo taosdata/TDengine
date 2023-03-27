@@ -5,7 +5,7 @@ use std::{
     path::Path,
     sync::Arc,
 };
-use taos::{AsyncQueryable, Bindable, Dsn, Itertools, Stmt, TBuilder, Taos, TaosBuilder, TaosPool};
+use taos::{AsyncQueryable, Bindable, Dsn, Itertools, Stmt, AsyncTBuilder, Taos, TaosBuilder, TaosPool};
 // use taosx_ipc::ack::{AckWriter, AckWriterBuilder};
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
@@ -134,7 +134,7 @@ async fn ipc_process<R: Read, W: Write>(
     ipc_ack_writer: AckWriter<W>,
     lock: Arc<Mutex<()>>,
 ) -> anyhow::Result<()> {
-    let taos = pool.get()?;
+    let taos = pool.get().await?;
     let metadata = ipc_reader.metadata();
     let stream_type = *metadata.stream_type();
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {

@@ -86,7 +86,7 @@ libc = "0.2"
 [dependencies.taos]
 version = "0.5.11"
 default-features = false
-features = ["ws", "r2d2"]
+features = ["ws", "deadpool"]
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 jemallocator = { version = "0.5.0", optional = true }

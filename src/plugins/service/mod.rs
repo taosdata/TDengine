@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use taos::{AsyncFetchable, AsyncQueryable, Code, TBuilder, TaosBuilder, TaosPool, Value};
+use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Code, TaosBuilder, TaosPool, Value};
 use tokio::task::JoinHandle;
 
 struct RestBuilder {
@@ -41,19 +41,22 @@ impl From<taos::Error> for RestErrResponse {
 }
 impl RestBuilder {
     pub async fn query(&self, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
-        let conn = self.taos.get().map_err(|err| RestErrResponse {
+        log::info!("SQL: {sql}");
+        let conn = self.taos.get().await.map_err(|err| RestErrResponse {
             code: Code::Failed,
             desc: err.to_string(),
         })?;
-
+        log::info!("Got connection, querying");
         let mut set = conn.query(sql).await?;
         let column_meta = set
             .fields()
             .iter()
             .map(|f| (f.name().to_string(), f.ty().to_string(), f.bytes()))
             .collect_vec();
+        log::info!("Got fields {column_meta:?}, fetching data.");
         let data = set
-            .to_records()?
+            .to_records()
+            .await?
             .into_iter()
             .map(|row| {
                 row.into_iter()
@@ -66,6 +69,7 @@ impl RestBuilder {
                     .collect_vec()
             })
             .collect_vec();
+        log::info!("SQL result: {data:?}");
         Ok(RestOkResponse {
             code: Code::Success,
             column_meta,
@@ -75,10 +79,7 @@ impl RestBuilder {
     }
 }
 
-pub fn spawn_rest_service(
-    pool: TaosPool,
-    port: u16,
-) -> anyhow::Result<JoinHandle<Result<(), std::io::Error>>> {
+pub fn spawn_rest_service(pool: TaosPool, port: u16) -> anyhow::Result<()> {
     use actix_web::*;
     let builder = RestBuilder { taos: pool };
 
@@ -94,6 +95,10 @@ pub fn spawn_rest_service(
         "pong"
     }
 
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(4)
+        .build()?;
     // This factory closure is called on each worker thread independently.
     let state = web::Data::new(builder);
     let server = HttpServer::new(move || {
@@ -104,19 +109,20 @@ pub fn spawn_rest_service(
     })
     .bind(&format!("127.0.0.1:{port}"))?
     .run();
-    let h = tokio::spawn(async move { server.await });
-    Ok(h)
+    let _ = runtime.block_on(async move { server.await })?;
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn service() -> anyhow::Result<()> {
-    let taos = TaosBuilder::from_dsn("taos:///").expect("connect").pool()?;
-    // let rest = RestBuilder { taos };
-    // let res = rest.query("show dddd").await;
-    // dbg!(serde_json::to_string(&res));
-    // dbg!(res);
+    let taos = TaosBuilder::from_dsn("taos+ws://localhost:6041/test")
+        .expect("connect")
+        .pool()?;
 
-    let handle = spawn_rest_service(taos, 6055)?;
-    tokio::time::timeout(std::time::Duration::from_secs(50), handle).await???;
+    // std::env::set_var("RUST_LOG", "trace");
+    // pretty_env_logger::init();
+    let thread = std::thread::spawn(move || spawn_rest_service(taos, 6055));
+
+    thread.join().unwrap()?;
     Ok(())
 }
