@@ -1670,10 +1670,10 @@ int32_t tDeserializeSBalanceVgroupLeaderReq(void* buf, int32_t bufLen, SBalanceV
 
 typedef struct {
   int32_t  vgId;
-} SForceElectionReq;
+} SForceBecomeFollowerReq;
 
-int32_t tSerializeSForceElectionReq(void* buf, int32_t bufLen, SForceElectionReq* pReq);
-int32_t tDeserializeSForceElectionReq(void* buf, int32_t bufLen, SForceElectionReq* pReq);
+int32_t tSerializeSForceBecomeFollowerReq(void* buf, int32_t bufLen, SForceBecomeFollowerReq* pReq);
+int32_t tDeserializeSForceBecomeFollowerReq(void* buf, int32_t bufLen, SForceBecomeFollowerReq* pReq);
 
 typedef struct {
   int32_t vgId;
