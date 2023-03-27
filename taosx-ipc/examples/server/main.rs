@@ -38,7 +38,8 @@ fn ipc_test<R: Read, W: Write>(
     ipc_reader: IpcReader<R>,
     ipc_ack_writer: AckWriter<W>,
 ) -> anyhow::Result<()> {
-    let dsn = std::env::var("TAOSX_TARGET").unwrap_or("taos+ws://192.168.0.201:26041/test4".to_string());
+    let dsn =
+        std::env::var("TAOSX_TARGET").unwrap_or("taos+ws://192.168.0.201:26041/test4".to_string());
     let mut dsn: Dsn = dsn.parse()?;
     let builder = TaosBuilder::from_dsn(&dsn).unwrap();
 
@@ -260,7 +261,7 @@ fn listen_tcp() {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 20)]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_level(true)

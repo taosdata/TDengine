@@ -42,13 +42,13 @@ groups:
       type: str
   - name: PIDataPipesInstances
     display: PI Data Pipes Instances
-    hint: timeout
+    hint: integer
     description: |
       Default 1.
     placeholder: 1
   - name: PIDataPipesInstances
     display: PI Data Pipes Instances
-    hint: timeout
+    hint: integer
     description: |
       Default 1.
     placeholder: 1

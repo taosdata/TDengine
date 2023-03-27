@@ -18,11 +18,11 @@ pub use csv::*;
 pub use legacy::*;
 pub use local_to_taos::local_to_taos;
 pub use parquets::*;
+pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::tmq_to_td;
 use tokio_util::sync::CancellationToken;
 pub use transform::Action;
-pub use plugins::*;
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {

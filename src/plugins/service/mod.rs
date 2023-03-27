@@ -89,12 +89,21 @@ pub async fn spawn_rest_service(
             Err(err) => HttpResponse::InternalServerError().json(err),
         }
     }
+    #[get("/ping")]
+    async fn ping() -> &'static str {
+        "pong"
+    }
 
     // This factory closure is called on each worker thread independently.
     let state = web::Data::new(builder);
-    let server = HttpServer::new(move || App::new().app_data(state.clone()).service(sql))
-        .bind(&format!("0.0.0.0:{port}"))?
-        .run();
+    let server = HttpServer::new(move || {
+        App::new()
+            .app_data(state.clone())
+            .service(sql)
+            .service(ping)
+    })
+    .bind(&format!("127.0.0.1:{port}"))?
+    .run();
     let h = tokio::spawn(async move { server.await });
     Ok(h)
 }
@@ -108,6 +117,6 @@ async fn service() -> anyhow::Result<()> {
     // dbg!(res);
 
     let handle = spawn_rest_service(taos, 6055).await?;
-    tokio::time::timeout(std::time::Duration::from_secs(5), handle).await???;
+    tokio::time::timeout(std::time::Duration::from_secs(50), handle).await???;
     Ok(())
 }

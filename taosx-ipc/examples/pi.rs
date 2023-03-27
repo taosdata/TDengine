@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Result;
 
 use arrow::{
@@ -8,11 +10,7 @@ use arrow::{
 
 use taosx_ipc::prelude::*;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    #[cfg(not(target_os = "windows"))]
-    let stream = std::os::unix::net::UnixStream::connect("./taosx.sock")?;
-    #[cfg(target_os = "windows")]
+async fn process_tcp_stream(id: usize) -> Result<()> {
     let stream = std::net::TcpStream::connect("127.0.0.1:6051")?;
     let timestamp_type = DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None);
 
@@ -66,7 +64,7 @@ async fn main() -> Result<()> {
     let mut tables = lush_builder.child_tables_builder();
 
     let tables = tables
-        .next_table("fake01")
+        .next_table(&format!("d{id}001"))
         .append(&true)
         .append(&1i8)
         .append(&2i16)
@@ -78,12 +76,15 @@ async fn main() -> Result<()> {
         .append(&8u64)
         .append(&9f32)
         .append(&10f64)
-        .append(&"I'm fake01")
-        .next_table("d1001")
         .fill_nulls_to_end()
-        .next_table("d1002")
+        .next_table(&format!("d{id}002"))
+        .append(&true)
+        .append(&1i8)
+        .append(&2i16)
+        .append(&3i32)
+        .append(&4i64)
         .fill_nulls_to_end()
-        .next_table("d1003")
+        .next_table(&format!("d{id}003"))
         .fill_nulls_to_end()
         .finish()?;
     // dbg!(&tables);
@@ -91,21 +92,6 @@ async fn main() -> Result<()> {
 
     loop {
         let mut insert = lush_builder.insert_builder();
-
-        // insert
-        //     .table("tb1")
-        //     .with_tag(&true)
-        //     .with_tag(&1i8)
-        //     .with_tag(&2i16)
-        //     .with_tag(&3i32)
-        //     .with_tag(&4i64)
-        //     .with_tag(&5u8)
-        //     .with_tag(&6u16)
-        //     .with_tag(&7u32)
-        //     .with_tag(&8u64)
-        //     .with_tag(&9f32)
-        //     .with_tag(&10f64)
-        //     .with_tag(&"abc");
 
         let builder = insert.columns_builder();
 
@@ -131,7 +117,7 @@ async fn main() -> Result<()> {
         builder
             .field_builder::<BinaryBuilder>(4)
             .unwrap()
-            .append_value("d1001".as_bytes());
+            .append_value(format!("d{id}001").as_bytes());
 
         let builder = insert.columns_builder();
 
@@ -157,7 +143,7 @@ async fn main() -> Result<()> {
         builder
             .field_builder::<BinaryBuilder>(4)
             .unwrap()
-            .append_value("d1002".as_bytes());
+            .append_value(format!("d{id}002").as_bytes());
 
         let builder = insert.columns_builder();
 
@@ -183,7 +169,7 @@ async fn main() -> Result<()> {
         builder
             .field_builder::<BinaryBuilder>(4)
             .unwrap()
-            .append_value("d1001".as_bytes());
+            .append_value(format!("d{id}003").as_bytes());
 
         let builder = insert.columns_builder();
 
@@ -209,7 +195,7 @@ async fn main() -> Result<()> {
         builder
             .field_builder::<BinaryBuilder>(4)
             .unwrap()
-            .append_value("d1003".as_bytes());
+            .append_value(format!("d{id}003").as_bytes());
 
         let batch = insert.build()?;
         dbg!(&batch);
@@ -218,9 +204,23 @@ async fn main() -> Result<()> {
         records += batch.num_rows();
         println!("written {} record batch", records);
         if records >= 1 {
-            break;
+            // break;
         }
+        std::thread::sleep(Duration::from_secs(1));
         ms += 1;
     }
+    Ok(())
+}
+
+#[tokio::main(flavor = "multi_thread", worker_threads = 20)]
+async fn main() -> Result<()> {
+    let mut handles = vec![];
+    for i in 0..4 {
+        handles.push(tokio::spawn(process_tcp_stream(i)));
+    }
+    for h in handles {
+        h.await?.unwrap();
+    }
+    panic!("expect run forever");
     Ok(())
 }

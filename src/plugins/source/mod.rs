@@ -21,12 +21,12 @@ pub struct DataSourceConfig {
 #[cfg(test)]
 
 mod tests {
-	use super::*;
+    use super::*;
 
-	#[test]
-	fn config() {
-		let config_str = r#"
+    #[test]
+    fn config() {
+        let config_str = r#"
 		{ id: }
 		"#;
-	}
+    }
 }

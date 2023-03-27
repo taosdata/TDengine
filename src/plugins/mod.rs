@@ -7,6 +7,7 @@ use std::{
     time::Duration, str::FromStr, collections::HashMap,
 };
 
+use anyhow::Context;
 use anyhow::bail;
 use itertools::Itertools;
 use taos::{Dsn, TBuilder, TaosBuilder};
@@ -123,7 +124,7 @@ impl PiConfig {
         let points = dsn.remove("Points").map(|s| Path::new(&s).to_path_buf());
 
         let ipc_stream = format!("127.0.0.1:{ipc}");
-        let sql_api = format!("127.0.0.1:{sql}");
+        let sql_api = format!("http://127.0.0.1:{sql}");
 
         // dsn.addresses
         Ok(Self {
@@ -181,13 +182,26 @@ pub async fn pi_to_taos(
 
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    let server = spawn_rest_service(target_pool, 6052).await?;
+    let server = spawn_rest_service(target_pool, sql).await?;
 
     let ipc =
         std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, config.ipc_stream, None));
 
-    // let ipc = ;
-    // let ipc = tokio::spawn(future);
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    let client = reqwest::Client::new();
+    let mut retries = 0;
+    loop {
+        let resp = client.get(format!("{}/ping", config.sql_api)).send().await;
+        if resp.is_ok() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        if retries > 600 {
+            break;
+        }
+        retries += 1;
+    }
 
     let v = tokio::task::spawn_blocking(move || {
         let mut command = std::process::Command::new(
@@ -202,16 +216,16 @@ pub async fn pi_to_taos(
             .output()
     });
 
+    log::info!("waiting for PI connector");
     tokio::select! {
         output = v => {
-            let output = output??;
-            // dbg!(output);
+            let output = output.context("join error")?.context("PI connector run error")?;
+            log::info!("PI exit with stdout: {}", std::str::from_utf8(&output.stdout).unwrap());
+            log::info!("PI exit with stderr: {}", std::str::from_utf8(&output.stderr).unwrap());
             log::info!("PI exit with status {}", output.status);
-            // server.abort();
-            panic!();
         },
         _ = server => {
-            panic!();
+            panic!("sql server finished first");
         }
         _ = tokio::signal::ctrl_c() => {
             log::info!("Ctrl+C triggered, cancel tasks");
@@ -223,6 +237,7 @@ pub async fn pi_to_taos(
     temp_path.close()?;
     // rt.handle();
     // (&unsafe { *Arc::into_raw(rt) }).shutdown_background();
+    temp_path.close()?;
     log::info!("Done");
     // server.abort();
     Ok(())
@@ -657,7 +672,7 @@ async fn opc_config_to_toml() -> anyhow::Result<()>{
         batch_size: None,
         batch_timeout: Some(100), },
         param_mapping: map,
-        table_info: map,
+        table_info: HashMap::new(),
     };
     let toml = toml::to_string(&config)?;
     println!("toml:[{}]", toml);

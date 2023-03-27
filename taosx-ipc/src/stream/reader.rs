@@ -18,6 +18,7 @@ use arrow::{
 };
 use taos_query::prelude::Itertools;
 use taos_query::prelude::{ColumnView, Ty, Value};
+use tracing::{error, info};
 
 use crate::{
     ack::AckType,
@@ -187,7 +188,7 @@ impl<R: Read> IpcReader<R> {
                     using: Some(using.to_string()),
                     tags: Some(values),
                 };
-                dbg!(s)
+                s
             })
             .collect_vec()
     }
@@ -321,7 +322,8 @@ impl<R: Read> IpcReader<R> {
                     using: Some(using.to_string()),
                     tags: Some(values),
                 };
-                dbg!(s)
+                // dbg!(s)
+                s
             })
             .collect_vec()
             .into_iter()
@@ -665,7 +667,7 @@ impl LushMessageInsert {
                             map.insert(Some(bv.to_string().unwrap()), l);
                         }
                         Some(c) => {
-                            dbg!(&c);
+                            // dbg!(&c);
                             let mut data_i = 0;
                             for (n, cv) in data.iter().enumerate() {
                                 if n == i {
@@ -1169,7 +1171,7 @@ impl<R: Read> Iterator for IpcReader<R> {
     type Item = Result<Box<dyn IpcMessage>, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        println!("Next message in the stream");
+        info!("Next message in the stream");
         let res = self.reader.next()?;
 
         if let Ok(record) = res {
@@ -1206,7 +1208,7 @@ impl<R: Read> Iterator for IpcReader<R> {
                                 for i in 0..values.len() {
                                     let attrs = self.parse_attrs(attrs.slice(i, 1));
                                     let records: LushInsertRecords = values.slice(i, 1).into();
-                                    dbg!(&records);
+                                    // dbg!(&records);
                                     let i = LushMessageInsert {
                                         attrs,
                                         records,
@@ -1249,8 +1251,10 @@ impl<R: Read> Iterator for IpcReader<R> {
                 }
                 _ => todo!(),
             }
+        } else {
+            error!("Empty message");
+            None
         }
-        None
     }
 }
 
