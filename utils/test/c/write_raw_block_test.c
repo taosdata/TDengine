@@ -101,6 +101,7 @@ int32_t init_env() {
   ASSERT(numOfRows == 1);
 
   taos_write_raw_block(pConn, numOfRows, data, "d1");
+  taos_free_result(pRes);
 
   pRes = taos_query(pConn, "select ts,phase from d0");
   if (taos_errno(pRes) != 0) {
@@ -114,6 +115,7 @@ int32_t init_env() {
   int         numFields = taos_num_fields(pRes);
   TAOS_FIELD *fields = taos_fetch_fields(pRes);
   taos_write_raw_block_with_fields(pConn, numOfRows, data, "d2", fields, numFields);
+  taos_free_result(pRes);
 
   taos_close(pConn);
   return 0;
