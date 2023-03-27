@@ -447,3 +447,10 @@ int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc
 
   return code;
 }
+
+char* fmGetFuncName(int32_t funcId) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return taosStrdup("invalid function");
+  }
+  return  taosStrdup(funcMgtBuiltins[funcId].name);
+}

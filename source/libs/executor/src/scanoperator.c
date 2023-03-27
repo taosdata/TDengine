@@ -1803,6 +1803,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes);
         prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
         pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+        printDataBlock(pInfo->pUpdateRes, "recover update");
         return pInfo->pUpdateRes;
       } break;
       case STREAM_SCAN_FROM_DATAREADER_RANGE: {
@@ -1813,7 +1814,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
           updateInfoSetScanRange(pInfo->pUpdateInfo, &pTableScanInfo->base.cond.twindows, pInfo->groupId, version);
           pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
           checkUpdateData(pInfo, true, pSDB, false);
-          // printDataBlock(pSDB, "stream scan update");
+          printDataBlock(pSDB, "scan recover update");
           calBlockTbName(pInfo, pSDB);
           return pSDB;
         }
@@ -1838,6 +1839,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       }
       if (pInfo->pCreateTbRes->info.rows > 0) {
         pInfo->scanMode = STREAM_SCAN_FROM_RES;
+        printDataBlock(pInfo->pCreateTbRes, "recover createTbl");
         return pInfo->pCreateTbRes;
       }
       qDebug("stream recover scan get block, rows %d", pInfo->pRecoverRes->info.rows);
