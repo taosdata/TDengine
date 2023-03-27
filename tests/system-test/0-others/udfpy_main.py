@@ -401,8 +401,8 @@ class TDTestCase:
         # var
         stable = "meters"
         tbname = "d"
-        count = 3
-        rows =  3000000
+        count = 10
+        rows =  50000
         # do 
         self.create_table(stable, tbname, count)
         self.insert_data(tbname, rows)
