@@ -22,7 +22,7 @@ extern int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t
 extern int32_t tsdbFsyncFile(STsdbFD *pFD);
 
 struct SSttFWriter {
-  SSttFWriterConf config;
+  struct SSttFWriterConf config;
   // time-series data
   SBlockData bData;
   SArray    *aSttBlk;  // SArray<SSttBlk>
@@ -35,7 +35,7 @@ struct SSttFWriter {
   STsdbFD *pFd;
 };
 
-static int32_t write_ts_block(SSttFWriter *pWriter) {
+static int32_t write_ts_block(struct SSttFWriter *pWriter) {
   int32_t code = 0;
   int32_t lino;
 
@@ -73,28 +73,28 @@ _exit:
   return code;
 }
 
-static int32_t write_del_block(SSttFWriter *pWriter) {
+static int32_t write_del_block(struct SSttFWriter *pWriter) {
   int32_t code = 0;
   // TODO
   return code;
 }
 
-static int32_t write_stt_blk(SSttFWriter *pWriter) {
+static int32_t write_stt_blk(struct SSttFWriter *pWriter) {
   int32_t code = 0;
   // TODO
   return code;
 }
 
-static int32_t write_del_blk(SSttFWriter *pWriter) {
+static int32_t write_del_blk(struct SSttFWriter *pWriter) {
   int32_t code = 0;
   // TODO
   return code;
 }
 
-static int32_t stt_fwriter_create(const SSttFWriterConf *pConf, SSttFWriter **ppWriter) {
+static int32_t stt_fwriter_create(const struct SSttFWriterConf *pConf, struct SSttFWriter **ppWriter) {
   int32_t code = 0;
 
-  if ((ppWriter[0] = taosMemoryCalloc(1, sizeof(SSttFWriter))) == NULL) {
+  if ((ppWriter[0] = taosMemoryCalloc(1, sizeof(*ppWriter[0]))) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -124,7 +124,7 @@ _exit:
   return code;
 }
 
-static int32_t stt_fwriter_destroy(SSttFWriter *pWriter) {
+static int32_t stt_fwriter_destroy(struct SSttFWriter *pWriter) {
   if (pWriter) {
     tDestroyTSchema(pWriter->skmTb.pTSchema);
     tDestroyTSchema(pWriter->skmRow.pTSchema);
@@ -135,19 +135,19 @@ static int32_t stt_fwriter_destroy(SSttFWriter *pWriter) {
   return 0;
 }
 
-static int32_t stt_fwriter_open(SSttFWriter *pWriter) {
+static int32_t stt_fwriter_open(struct SSttFWriter *pWriter) {
   int32_t code = 0;
   // TODO
   return code;
 }
 
-static int32_t stt_fwriter_close(SSttFWriter *pWriter) {
+static int32_t stt_fwriter_close(struct SSttFWriter *pWriter) {
   int32_t code = 0;
   // TODO
   return code;
 }
 
-int32_t tsdbSttFWriterOpen(const SSttFWriterConf *pConf, SSttFWriter **ppWriter) {
+int32_t tsdbSttFWriterOpen(const struct SSttFWriterConf *pConf, struct SSttFWriter **ppWriter) {
   int32_t code = 0;
   int32_t lino;
 
@@ -168,7 +168,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFWriterClose(SSttFWriter **ppWriter) {
+int32_t tsdbSttFWriterClose(struct SSttFWriter **ppWriter) {
   int32_t vgId = TD_VID(ppWriter[0]->config.pTsdb->pVnode);
   int32_t code = 0;
   int32_t lino;
@@ -185,7 +185,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFWriteTSData(SSttFWriter *pWriter, TABLEID *tbid, TSDBROW *pRow) {
+int32_t tsdbSttFWriteTSData(struct SSttFWriter *pWriter, TABLEID *tbid, TSDBROW *pRow) {
   int32_t code = 0;
   int32_t lino;
 
@@ -225,7 +225,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSttFWriteDLData(SSttFWriter *pWriter, TABLEID *tbid, SDelData *pDelData) {
+int32_t tsdbSttFWriteDLData(struct SSttFWriter *pWriter, TABLEID *tbid, SDelData *pDelData) {
   int32_t code = 0;
   // TODO
   return code;

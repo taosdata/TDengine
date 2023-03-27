@@ -33,7 +33,7 @@ typedef struct {
   TSKEY   minKey;
   TSKEY   maxKey;
   // writer
-  SSttFWriter *pWriter;
+  struct SSttFWriter *pWriter;
 } SCommitter;
 
 static int32_t tsdbCommitOpenWriter(SCommitter *pCommitter) {

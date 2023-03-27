@@ -22,13 +22,13 @@
 extern "C" {
 #endif
 
-typedef struct SSttFWriter     SSttFWriter;
-typedef struct SSttFWriterConf SSttFWriterConf;
+struct SSttFWriter;
+struct SSttFWriterConf;
 
-int32_t tsdbSttFWriterOpen(const SSttFWriterConf *pConf, SSttFWriter **ppWriter);
-int32_t tsdbSttFWriterClose(SSttFWriter **ppWriter);
-int32_t tsdbSttFWriteTSData(SSttFWriter *pWriter, TABLEID *tbid, TSDBROW *pRow);
-int32_t tsdbSttFWriteDLData(SSttFWriter *pWriter, TABLEID *tbid, SDelData *pDelData);
+int32_t tsdbSttFWriterOpen(const struct SSttFWriterConf *pConf, struct SSttFWriter **ppWriter);
+int32_t tsdbSttFWriterClose(struct SSttFWriter **ppWriter);
+int32_t tsdbSttFWriteTSData(struct SSttFWriter *pWriter, TABLEID *tbid, TSDBROW *pRow);
+int32_t tsdbSttFWriteDLData(struct SSttFWriter *pWriter, TABLEID *tbid, SDelData *pDelData);
 
 struct SSttFWriterConf {
   STsdb    *pTsdb;
