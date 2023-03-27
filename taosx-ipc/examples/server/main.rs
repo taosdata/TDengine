@@ -4,7 +4,7 @@ use std::{
     net::{TcpListener, TcpStream},
     path::Path,
 };
-use taos::{AsyncQueryable, Bindable, Dsn, Itertools, Stmt, TBuilder, Taos, TaosBuilder};
+use taos::sync::*;
 use taosx_ipc::{
     ack::{AckWriter, AckWriterBuilder},
     stream::point::PointMessage,
@@ -41,14 +41,14 @@ fn ipc_test<R: Read, W: Write>(
     let dsn =
         std::env::var("TAOSX_TARGET").unwrap_or("taos+ws://192.168.0.201:26041/test4".to_string());
     let mut dsn: Dsn = dsn.parse()?;
-    let builder = TaosBuilder::from_dsn(&dsn).unwrap();
+    let builder = TaosBuilder::from_dsn(&dsn)?;
 
     let taos = builder.build().unwrap_or_else(|e| {
         info!("connect error: {}", e);
         let subject = dsn.subject.take();
         let new_builder = TaosBuilder::from_dsn(&dsn).unwrap();
         let taos = new_builder.build().unwrap();
-        taos.exec_sync(format!("create database `{}`", subject.unwrap()))
+        taos.exec(format!("create database `{}`", subject.unwrap()))
             .unwrap();
         builder.build().unwrap()
     });
@@ -74,7 +74,7 @@ fn handle_lush_message<R: Read, W: Write>(
     let rt = Runtime::new().unwrap();
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
         info!("{sql}");
-        rt.block_on(taos.exec(&sql))?;
+        taos.exec(&sql)?;
         // taos.exec_sync(&sql).unwrap();
     }
     let columns = ipc_reader.columns();
@@ -91,7 +91,7 @@ fn handle_lush_message<R: Read, W: Write>(
                 LushMessage::Tables(tables) => {
                     for table in tables {
                         let sql = table.to_sql(None).unwrap();
-                        rt.block_on(taos.exec(&sql))?;
+                        taos.exec(&sql)?;
                     }
                 }
                 LushMessage::Insert(record) => {
@@ -116,7 +116,7 @@ fn handle_lush_message<R: Read, W: Write>(
                                     {
                                         info!("sql: {tb}");
                                         // taos.exec_sync(&tb).unwrap();
-                                        rt.block_on(taos.exec(&tb))?;
+                                        taos.exec(&tb)?;
                                         stmt.set_tbname(table_name).unwrap();
                                     }
                                 }
