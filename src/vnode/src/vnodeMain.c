@@ -686,6 +686,7 @@ void vnodeRemoveWait(void* vparam, void* param) {
     SVnodeObj* pVnode = (SVnodeObj* )vparam;
     SListIter iter = {0};
 
+    vInfo("vgId:%d :SDEL enter remove-wait pWrite=%p list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
     tsem_wait(&pVnode->semWait);
     tdListInitIter(pVnode->waitThreads, &iter, TD_LIST_FORWARD);
 
@@ -697,15 +698,18 @@ void vnodeRemoveWait(void* vparam, void* param) {
       SWaitThread * pWaitThread = (SWaitThread *)pNode->data;
       if (pWaitThread->param == param) {
         // found , free SWaitThread memeber
-        free(pWaitThread->pthread);
+        if (pWaitThread->pthread) {
+          free(pWaitThread->pthread);
+        }
         tdListPopNode(pVnode->waitThreads, pNode);
-        vDebug("vgId:%d :SDEL removed wait thread %p wait list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
+        vInfo("vgId:%d :SDEL deleted remove-wait pWrite=%p list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
         // free pListNode self
         free(pNode);
         break;
       }
     }
     tsem_post(&pVnode->semWait);
+    vInfo("vgId:%d :SDEL end remove-wait pWrite=%p list count=%d ", pVnode->vgId, param, listNEles(pVnode->waitThreads));
 }
 
 // get wait thread count
