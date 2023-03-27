@@ -413,12 +413,16 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
   }
 #ifdef WINDOWS
   if (*timep < 0) {
+    return NULL;
+    // TODO: bugs in following code
     SYSTEMTIME    ss, s;
     FILETIME      ff, f;
     LARGE_INTEGER offset;
     struct tm     tm1;
     time_t        tt = 0;
-    localtime_s(&tm1, &tt);
+    if (localtime_s(&tm1, &tt) != 0 ) {
+      return NULL;
+    }
     ss.wYear = tm1.tm_year + 1900;
     ss.wMonth = tm1.tm_mon + 1;
     ss.wDay = tm1.tm_mday;
@@ -444,7 +448,9 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
     result->tm_yday = 0;
     result->tm_isdst = 0;
   } else {
-    localtime_s(result, timep);
+    if (localtime_s(result, timep) != 0) {
+      return NULL;
+    }
   }
 #else
   localtime_r(timep, result);
@@ -469,12 +475,16 @@ struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst) 
   }
 #ifdef WINDOWS
   if (*timep < 0) {
+    return NULL;
+    // TODO: bugs in following code
     SYSTEMTIME    ss, s;
     FILETIME      ff, f;
     LARGE_INTEGER offset;
     struct tm     tm1;
     time_t        tt = 0;
-    localtime_s(&tm1, &tt);
+    if (localtime_s(&tm1, &tt) != 0) {
+      return NULL;
+    }
     ss.wYear = tm1.tm_year + 1900;
     ss.wMonth = tm1.tm_mon + 1;
     ss.wDay = tm1.tm_mday;
@@ -500,7 +510,9 @@ struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst) 
     result->tm_yday = 0;
     result->tm_isdst = 0;
   } else {
-    localtime_s(result, timep);
+    if (localtime_s(result, timep) != 0) {
+      return NULL;
+    }
   }
 #elif defined(LINUX)
   time_t secsMin = 60, secsHour = 3600, secsDay = 3600 * 24;

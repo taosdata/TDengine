@@ -37,6 +37,7 @@
 #include "syncVoteMgr.h"
 #include "tglobal.h"
 #include "tref.h"
+#include "syncUtil.h"
 
 static void    syncNodeEqPingTimer(void* param, void* tmrId);
 static void    syncNodeEqElectTimer(void* param, void* tmrId);
@@ -206,6 +207,9 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
     case TDMT_SYNC_LOCAL_CMD:
       code = syncNodeOnLocalCmd(pSyncNode, pMsg);
       break;
+    case TDMT_SYNC_FORCE_FOLLOWER:
+      code = syncForceBecomeFollower(pSyncNode, pMsg);
+      break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       code = -1;
@@ -228,13 +232,18 @@ int32_t syncLeaderTransfer(int64_t rid) {
   return ret;
 }
 
-int32_t syncLeaderForceElection(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) return -1;
+int32_t syncForceBecomeFollower(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  syncNodeBecomeFollower(ths, "force election");
 
-  int32_t ret = syncNodeElect(pSyncNode);
-  syncNodeRelease(pSyncNode);
-  return ret;
+  SRpcMsg rsp = {
+      .code = 0,
+      .pCont = pRpcMsg->info.rsp,
+      .contLen = pRpcMsg->info.rspLen,
+      .info = pRpcMsg->info,
+  };
+  tmsgSendRsp(&rsp);
+
+  return 0;
 }
 
 int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq) {
@@ -2294,6 +2303,14 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
   syncLogRecvHeartbeat(ths, pMsg, timeDiff, tbuf);
+
+  if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
+    sWarn(
+        "vgId:%d, drop heartbeat msg from dnode:%d, because it come from another cluster:%d, differ from current "
+        "cluster:%d",
+        ths->vgId, DID(&(pMsg->srcId)), CID(&(pMsg->srcId)), CID(&(ths->myRaftId)));
+    return 0;
+  }
 
   SRpcMsg rpcMsg = {0};
   (void)syncBuildHeartbeatReply(&rpcMsg, ths->vgId);

@@ -56,7 +56,6 @@ void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodePreClose(SVnode *pVnode);
 void    vnodePostClose(SVnode *pVnode);
-void    vnodeForceElection(SVnode *pVnode);
 void    vnodeSyncCheckTimeout(SVnode *pVnode);
 void    vnodeClose(SVnode *pVnode);
 int32_t vnodeSyncCommit(SVnode *pVnode);
