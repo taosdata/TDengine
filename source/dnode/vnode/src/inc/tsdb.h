@@ -353,6 +353,9 @@ struct STsdb {
   TdThreadMutex  lruMutex;
   SLRUCache     *biCache;
   TdThreadMutex  biMutex;
+#ifdef USE_DEV_CODE
+  struct STFileSystem *pFS;
+#endif
 };
 
 struct TSDBKEY {

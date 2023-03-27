@@ -16,13 +16,18 @@
 #ifndef _TSDB_FILE_SYSTEM_H
 #define _TSDB_FILE_SYSTEM_H
 
+#include "tsdb.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* Exposed Handle */
+struct STFileSystem;
 
 /* Exposed APIs */
+int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS);
+int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS);
 
 /* Exposed Structs */
 

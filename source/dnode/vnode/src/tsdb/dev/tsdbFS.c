@@ -16,10 +16,61 @@
 #include "dev.h"
 
 struct STFileSystem {
-  STsdb *pTsdb;
+  STsdb           *pTsdb;
+  int32_t          nFileSet;
+  struct SFileSet *aFileSet;
 };
 
-int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS) {
+static int32_t create_file_system(STsdb *pTsdb, struct STFileSystem **ppFS) {
+  ppFS[0] = taosMemoryCalloc(1, sizeof(*ppFS[0]));
+  if (ppFS[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  ppFS[0]->pTsdb = pTsdb;
+  return 0;
+}
+
+static int32_t destroy_file_system(struct STFileSystem **ppFS) {
+  if (ppFS[0]) {
+    taosMemoryFree(ppFS[0]->aFileSet);
+    taosMemoryFree(ppFS[0]);
+    ppFS[0] = NULL;
+  }
+  return 0;
+}
+
+static int32_t open_file_system(struct STFileSystem *pFS) {
   // TODO
+  return 0;
+}
+
+static int32_t close_file_system(struct STFileSystem *pFS) {
+  // TODO
+  return 0;
+}
+
+int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS) {
+  int32_t code;
+  int32_t lino;
+
+  code = create_file_system(pTsdb, ppFS);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = open_file_system(ppFS[0]);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    if (ppFS[0]) destroy_file_system(ppFS);
+  } else {
+    tsdbInfo("vgId:%d %s success", TD_VID(pTsdb->pVnode), __func__);
+  }
+  return 0;
+}
+
+int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS) {
+  if (ppFS[0] == NULL) return 0;
+
+  close_file_system(ppFS[0]);
+  destroy_file_system(ppFS);
   return 0;
 }
