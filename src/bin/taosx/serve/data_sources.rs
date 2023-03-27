@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use actix_web::{get, http::header::ContentType, HttpResponse, Responder};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use utoipa::*;
 
@@ -93,5 +94,5 @@ pub(super) struct DataIn {
 pub(super) async fn data_sources_in() -> impl Responder {
     HttpResponse::Ok()
         .content_type(ContentType::json())
-        .body(include_str!("./data_sources/tmq.json"))
+        .json(super::controller::DATA_SOURCE_DEFINITIONS_VEC.as_slice())
 }

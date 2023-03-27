@@ -1045,10 +1045,19 @@ pub struct Task {
 }
 
 lazy_static::lazy_static! {
+    pub static ref DATA_SOURCE_DEFINITIONS_VEC: Vec<DataSourceDefinition> = {
+        let mut def: Vec<DataSourceDefinition> = Vec::new();
+        def.push(serde_yaml::from_str(include_str!("../data_sources/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/opc.yaml")).unwrap());
+        def
+    };
     /// This is an example for using doc comment attributes
-    static ref DATA_SOURCE_DEFINITIONS: BTreeMap<String, DataSourceDefinition> = {
-        let json = include_str!("../data_sources/tmq.json");
-        let def: Vec<DataSourceDefinition> = serde_json::from_str(json).unwrap();
+    pub static ref DATA_SOURCE_DEFINITIONS: BTreeMap<String, DataSourceDefinition> = {
+        let mut def: Vec<DataSourceDefinition> = Vec::new();
+        def.push(serde_yaml::from_str(include_str!("../data_sources/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/opc.yaml")).unwrap());
         def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
     };
 }

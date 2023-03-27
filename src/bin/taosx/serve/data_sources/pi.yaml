@@ -71,5 +71,5 @@ groups:
   - name: MaxBackfillRangeDays
     display: Max Backfill Range(in days)
     hint: integer
-    description: backfille最长期限， 单位：day
+    description: Max backfill time range in days.
     placeholder: 1

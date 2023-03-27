@@ -36,6 +36,7 @@ parse_duration = "2.1"
 pretty_env_logger = "0.4"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9.19"
 sha2 = "0.10"
 thiserror = "1"
 tokio = { version = "1", features = ["full"] }
