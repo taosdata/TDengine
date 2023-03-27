@@ -181,7 +181,16 @@ pub fn listen_unix_socket(target: TaosPool, socket: impl AsRef<Path>) -> anyhow:
                 tracing::info!("new unix client!: {:?}", addr);
                 let pool = target.clone();
                 let lock = sql_lock.clone();
-                runtime.spawn(async move { ipc_unix_read(addr.to_string(), pool, stream, lock) });
+                runtime.spawn(async move {
+                    ipc_unix_read(
+                        addr.as_pathname()
+                            .map(|path| path.display().to_string())
+                            .unwrap_or_default(),
+                        pool,
+                        stream,
+                        lock,
+                    )
+                });
             }
             Err(e) => {
                 /* connection failed */
