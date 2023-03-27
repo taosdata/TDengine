@@ -61,7 +61,7 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_VNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_COMPACT_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DISABLE_WRITE_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_FORCE_ELECTION_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_SYNC_FORCE_FOLLOWER_RSP, mndTransProcessRsp);
 
   mndSetMsgHandle(pMnode, TDMT_MND_REDISTRIBUTE_VGROUP, mndProcessRedistributeVgroupMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_SPLIT_VGROUP, mndProcessSplitVgroupMsg);
@@ -1779,17 +1779,18 @@ _OVER:
   return code;
 }
 
-static void *mndBuildSForceElectionReq(SMnode *pMnode, SVgObj *pVgroup, int32_t dnodeId,
+static void *mndBuildSForceBecomeFollowerReq(SMnode *pMnode, SVgObj *pVgroup, int32_t dnodeId,
                                           int32_t *pContLen) {
-  SForceElectionReq balanceReq = {
+  SForceBecomeFollowerReq balanceReq = {
       .vgId = pVgroup->vgId,
   };
 
-  int32_t contLen = tSerializeSForceElectionReq(NULL, 0, &balanceReq);
+  int32_t contLen = tSerializeSForceBecomeFollowerReq(NULL, 0, &balanceReq);
   if (contLen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+  contLen += sizeof(SMsgHead);
 
   void *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
@@ -1797,9 +1798,13 @@ static void *mndBuildSForceElectionReq(SMnode *pMnode, SVgObj *pVgroup, int32_t 
     return NULL;
   }
 
-  tSerializeSForceElectionReq((char *)pReq, contLen, &balanceReq);
+  SMsgHead *pHead = pReq;
+  pHead->contLen = htonl(contLen);
+  pHead->vgId = htonl(pVgroup->vgId);
+
+  tSerializeSForceBecomeFollowerReq((char *)pReq + sizeof(SMsgHead), contLen, &balanceReq);
   *pContLen = contLen;
-  return pReq;                                    
+  return pReq;                                  
 }
 
 int32_t mndAddBalanceVgroupLeaderAction(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, int32_t dnodeId) {
@@ -1811,12 +1816,12 @@ int32_t mndAddBalanceVgroupLeaderAction(SMnode *pMnode, STrans *pTrans, SVgObj *
   mndReleaseDnode(pMnode, pDnode);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildSForceElectionReq(pMnode, pVgroup, dnodeId, &contLen);
+  void   *pReq = mndBuildSForceBecomeFollowerReq(pMnode, pVgroup, dnodeId, &contLen);
   if (pReq == NULL) return -1;
 
   action.pCont = pReq;
   action.contLen = contLen;
-  action.msgType = TDMT_DND_FORCE_ELECTION;
+  action.msgType = TDMT_SYNC_FORCE_FOLLOWER;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
@@ -1832,13 +1837,20 @@ int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTra
   int32_t vgid = pVgroup->vgId;
   int8_t replica = pVgroup->replica;
 
-  if(pVgroup->replica <= 1) {
+ if(pVgroup->replica <= 1) {
     mInfo("trans:%d, vgid:%d no need to balance, replica:%d", pTrans->id, vgid, replica);
     return -1;
   }
 
-  int32_t index = vgid%replica;
-  int32_t dnodeId = pVgroup->vnodeGid[index].dnodeId;
+  int32_t dnodeId = pVgroup->vnodeGid[0].dnodeId;
+
+  for(int i = 0; i < replica; i++)
+  {
+    if(pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER){
+      dnodeId = pVgroup->vnodeGid[i].dnodeId;
+      break;
+    }
+  }
 
   bool       exist = false;
   bool       online = false;
