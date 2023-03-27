@@ -183,16 +183,18 @@ static int32_t calcConstProject(SNode* pProject, bool dual, SNode** pNew) {
   } else {
     code = scalarCalculateConstants(pProject, pNew);
   }
-  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_VALUE == nodeType(*pNew) && NULL != pAssociation) {
+  if (TSDB_CODE_SUCCESS == code) {
     strcpy(((SExprNode*)*pNew)->aliasName, aliasName);
-    int32_t size = taosArrayGetSize(pAssociation);
-    for (int32_t i = 0; i < size; ++i) {
-      SNode** pCol = taosArrayGetP(pAssociation, i);
-      nodesDestroyNode(*pCol);
-      *pCol = nodesCloneNode(*pNew);
-      if (NULL == *pCol) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        break;
+    if (QUERY_NODE_VALUE == nodeType(*pNew) && NULL != pAssociation) {
+      int32_t size = taosArrayGetSize(pAssociation);
+      for (int32_t i = 0; i < size; ++i) {
+        SNode** pCol = taosArrayGetP(pAssociation, i);
+        nodesDestroyNode(*pCol);
+        *pCol = nodesCloneNode(*pNew);
+        if (NULL == *pCol) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          break;
+        }
       }
     }
   }
@@ -383,7 +385,8 @@ static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* 
   int32_t index = 0;
   SNode*  pProj = NULL;
   WHERE_EACH(pProj, pSetOp->pProjectionList) {
-    if (subquery && notRefByOrderBy((SColumnNode*)pProj, pSetOp->pOrderByList) && isSetUselessCol(pSetOp, index, (SExprNode*)pProj)) {
+    if (subquery && notRefByOrderBy((SColumnNode*)pProj, pSetOp->pOrderByList) &&
+        isSetUselessCol(pSetOp, index, (SExprNode*)pProj)) {
       ERASE_NODE(pSetOp->pProjectionList);
       eraseSetOpChildProjection(pSetOp, index);
       continue;
