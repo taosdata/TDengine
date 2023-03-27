@@ -25,6 +25,7 @@ settings:
         logDir: /var/log/taos
         debugFlag: 135
         asyncLog: 0
+        maxQueryTimeRange: 3
 
   - name: taosAdapter
     fqdn: [ceph01]
