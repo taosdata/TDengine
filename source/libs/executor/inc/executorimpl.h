@@ -115,6 +115,7 @@ typedef struct STaskIdInfo {
   uint64_t subplanId;
   uint64_t templateId;
   char*    str;
+  int32_t  vgId;
 } STaskIdInfo;
 
 enum {
@@ -834,8 +835,10 @@ void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
 void doDestroyTask(SExecTaskInfo* pTaskInfo);
 void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 
-int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                               char* sql, EOPTR_EXEC_MODEL model);
+char* buildTaskId(uint64_t taskId, uint64_t queryId);
+
+int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
+                               int32_t vgId, char* sql, EOPTR_EXEC_MODEL model);
 int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle);
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList);
 
