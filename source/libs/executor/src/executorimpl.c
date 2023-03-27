@@ -2769,32 +2769,24 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
     SResultRow* pRow = (SResultRow*)pVal;
     doUpdateNumOfRows(pCtx, pRow, numOfExprs, rowEntryOffset);
     // no results, continue to check the next one
-    qWarn("indx 1");
     if (pRow->numOfRows == 0) {
       pGroupResInfo->index += 1;
-      qWarn("indx 2");
       releaseOutputBuf(pState, pKey, pRow);
       continue;
     }
-    qWarn("indx 3");
     if (pBlock->info.id.groupId == 0) {
       pBlock->info.id.groupId = pKey->groupId;
       void* tbname = NULL;
-      qWarn("indx 4");
       if (streamStateGetParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, &tbname) < 0) {
-        qWarn("indx 5");
         pBlock->info.parTbName[0] = 0;
       } else {
-        qWarn("indx 6");
         memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
       }
-      qWarn("indx 7");
       streamFreeVal(tbname);
     } else {
       // current value belongs to different group, it can't be packed into one datablock
       if (pBlock->info.id.groupId != pKey->groupId) {
         releaseOutputBuf(pState, pKey, pRow);
-        qWarn("indx 8");
         break;
       }
     }
@@ -2804,36 +2796,30 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
       releaseOutputBuf(pState, pKey, pRow);
       break;
     }
-    qWarn("indx 10");
     pGroupResInfo->index += 1;
 
     for (int32_t j = 0; j < numOfExprs; ++j) {
       int32_t slotId = pExprInfo[j].base.resSchema.slotId;
-      qWarn("indx 10");
 
       pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
       SResultRowEntryInfo* pEnryInfo = pCtx[j].resultInfo;
       qWarn("initd:%d, complete:%d, null:%d, res:%d", pEnryInfo->initialized, pEnryInfo->complete, pEnryInfo->isNullRes,
             pEnryInfo->numOfRes);
       if (pCtx[j].fpSet.finalize) {
-        qWarn("indx 14");
         int32_t code1 = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
         if (TAOS_FAILED(code1)) {
           qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code1));
           T_LONG_JMP(pTaskInfo->env, code1);
         }
       } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
-        qWarn("indx 11");
         // do nothing, todo refactor
       } else {
         // expand the result into multiple rows. E.g., _wstart, top(k, 20)
         // the _wstart needs to copy to 20 following rows, since the results of top-k expands to 20 different rows.
         SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
         char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
-        qWarn("indx 12");
         for (int32_t k = 0; k < pRow->numOfRows; ++k) {
           colDataSetVal(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
-          qWarn("indx 13");
         }
       }
     }
