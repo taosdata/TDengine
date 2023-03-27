@@ -180,7 +180,7 @@ pub async fn pi_to_taos(
 
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    let server = spawn_rest_service(target_pool, sql).await?;
+    let server = spawn_rest_service(target_pool, sql)?;
 
     let ipc =
         std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, config.ipc_stream));

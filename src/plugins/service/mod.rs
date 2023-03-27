@@ -75,7 +75,7 @@ impl RestBuilder {
     }
 }
 
-pub async fn spawn_rest_service(
+pub fn spawn_rest_service(
     pool: TaosPool,
     port: u16,
 ) -> anyhow::Result<JoinHandle<Result<(), std::io::Error>>> {
@@ -116,7 +116,7 @@ async fn service() -> anyhow::Result<()> {
     // dbg!(serde_json::to_string(&res));
     // dbg!(res);
 
-    let handle = spawn_rest_service(taos, 6055).await?;
+    let handle = spawn_rest_service(taos, 6055)?;
     tokio::time::timeout(std::time::Duration::from_secs(50), handle).await???;
     Ok(())
 }
