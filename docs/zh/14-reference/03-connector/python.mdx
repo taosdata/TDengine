@@ -346,16 +346,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
 </TabItem>
-<TabItem value="websocket" label="WebSocket 连接">
 
-```python
-{{#include docs/examples/python/connect_websocket_with_req_id_examples.py:basic}}
-```
-
-- `conn.execute`: 用来执行任意 SQL 语句，返回影响的行数
-- `conn.query`: 用来执行查询 SQL 语句，返回查询结果
-
-</TabItem>
 </Tabs>
 
 ### 与 pandas 一起使用
