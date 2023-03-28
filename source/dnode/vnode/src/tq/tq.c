@@ -223,19 +223,6 @@ static int32_t doSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqData
 
 int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
   SMqDataRsp* pRsp = pPushEntry->pDataRsp;
-
-#if 0
-  A(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
-  A(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
-
-  A(!pRsp->withSchema);
-  A(taosArrayGetSize(pRsp->blockSchema) == 0);
-
-  if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-    A(pRsp->rspOffset.version > pRsp->reqOffset.version);
-  }
-#endif
-
   SMqRspHead* pHeader = &pPushEntry->pDataRsp->head;
   doSendDataRsp(&pPushEntry->info, pRsp, pHeader->epoch, pHeader->consumerId, pHeader->mqMsgType);
 
@@ -895,7 +882,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       atomic_store_32(&pHandle->epoch, -1);
 
       // remove if it has been register in the push manager, and return one empty block to consumer
-      tqRemovePushEntry(pTq, req.subKey, (int32_t)strlen(req.subKey), pHandle->consumerId, true);
+      tqUnregisterPushEntry(pTq, req.subKey, (int32_t)strlen(req.subKey), pHandle->consumerId, true);
 
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
       atomic_add_fetch_32(&pHandle->epoch, 1);

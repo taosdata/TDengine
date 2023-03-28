@@ -62,6 +62,8 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, in
 }
 
 int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset) {
+  const int32_t MAX_ROWS_TO_RETURN = 4096;
+
   const STqExecHandle* pExec = &pHandle->execHandle;
 
   qTaskInfo_t task = pExec->task;
@@ -82,7 +84,8 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     }
   }
 
-  int32_t rowCnt = 0;
+  int32_t totalRows = 0;
+
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
@@ -94,9 +97,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
       return -1;
     }
 
-    tqDebug("consumer:0x%"PRIx64" vgId:%d, tmq task executed, get %p", pHandle->consumerId, vgId, pDataBlock);
-
-    // current scan should be stopped asap, since the rebalance occurs.
+    // current scan should be stopped ASAP, since the re-balance occurs.
     if (pDataBlock == NULL) {
       break;
     }
@@ -104,9 +105,12 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols, pTq->pVnode->config.tsdbCfg.precision);
     pRsp->blockNum++;
 
+    tqDebug("vgId:%d, consumer:0x%" PRIx64 " tmq task executed, rows:%d, total blocks:%d", vgId, pHandle->consumerId,
+            pDataBlock->info.rows, pRsp->blockNum);
+
     if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-      rowCnt += pDataBlock->info.rows;
-      if (rowCnt >= 4096) {
+      totalRows += pDataBlock->info.rows;
+      if (totalRows >= MAX_ROWS_TO_RETURN) {
         break;
       }
     }
@@ -126,6 +130,9 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     tqError("vgId:%d, get column should not with meta:%d,%d", vgId, pRsp->withTbName, pRsp->withSchema);
     return -1;
   }
+
+  tqDebug("vgId:%d, consumer:0x%" PRIx64 " tmq task executed, rows:%d, total blocks:%d, rows:%d", vgId, pHandle->consumerId,
+          pRsp->blockNum, totalRows);
 
   return 0;
 }
