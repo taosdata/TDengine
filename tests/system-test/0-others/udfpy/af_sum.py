@@ -7,30 +7,20 @@ def destroy():
     pass
 
 def start():
-    return pickle.dumps([])
+    return pickle.dumps(None)
 
 def finish(buf):
-    sums = pickle.loads(buf)
-    all = None
-    for sum in sums:
-        if all is None:
-            all = sum
-        else:
-            all += sum
-    return all
+    sum = pickle.loads(buf)
+    return sum
 
 def reduce(datablock, buf):
     (rows, cols) = datablock.shape()
-    sums = pickle.loads(buf)
-    sum = None
+    sum = pickle.loads(buf)
     for i in range(rows):
         val = datablock.data(i, 0)
         if val is not None:
            if sum is None:
                sum = val
            else:
-               sum += val
-               
-    if sum is not None:
-        sums.append(sum)
-    return pickle.dumps(sums) 
+               sum += val               
+    return pickle.dumps(sum) 

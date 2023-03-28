@@ -209,12 +209,12 @@ class TDTestCase:
                 tdSql.checkData(i, j, result1[i][j])
 
     # same value like select col1, udf_fun1(col1) from st
-    def verify_same_value(self, sql):
+    def verify_same_value(self, sql, col=0):
         tdSql.query(sql)
         nrows = tdSql.getRows()
         for i in range(nrows):
-            val = tdSql.getData(i, 0)
-            tdSql.checkData(i, 1, val)
+            val = tdSql.getData(i, col)
+            tdSql.checkData(i, col + 1, val)
 
     # verify multi values
     def verify_same_multi_values(self, sql):
@@ -395,6 +395,24 @@ class TDTestCase:
         tdSql.execute(sql)
         tdLog.info(f" insert {rows} to child table {self.child_count} .")
 
+   
+    # create stream
+    def create_stream(self):
+        sql = f"create stream ma  into sta subtable(concat('sta_',tbname)) \
+            as select _wstart,count(col1),af_count_bigint(col1) from {self.stbname} partition by tbname interval(1s);"
+        tdSql.execute(sql)
+        tdLog.info(sql)
+
+    #  query stream
+    def verify_stream(self):
+        sql = f"select * from sta limit 10"
+        self.verify_same_value(sql, 1)
+
+    # create tmq
+    def create_tmq(self):
+        sql = f"create topic topa as select concat(col12,t12),sf_concat_var(col12,t12) from {self.stbname};"   
+        tdSql.execute(sql)
+        tdLog.info(sql)
 
     # run
     def run(self):
@@ -402,14 +420,23 @@ class TDTestCase:
         stable = "meters"
         tbname = "d"
         count = 10
-        rows =  50000
+        rows =  5000
         # do 
         self.create_table(stable, tbname, count)
-        self.insert_data(tbname, rows)
 
         # create
         self.create_scalar_udfpy()
         self.create_aggr_udfpy()
+
+        # create stream
+        self.create_stream()
+
+        # create tmq
+        self.create_tmq()
+
+        # insert data
+        self.insert_data(tbname, rows)
+
         # query
         self.query_scalar_udfpy()
         self.query_aggr_udfpy()
