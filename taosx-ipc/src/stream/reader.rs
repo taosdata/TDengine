@@ -24,7 +24,7 @@ use crate::{
     ack::AckType,
     constants::{__ATTRS__, __RECORDS__, __TABLES__INDEX__, __TABLE_NAME__, __TYPE__},
     prelude::{IpcDataType, IpcMetadata, LushMessageType, StreamType},
-    stream::point::PointMessage,
+    stream::point::{PointMessage, RecordMessage},
 };
 
 pub struct IpcReader<R: Read> {
@@ -1250,13 +1250,10 @@ impl<R: Read> Iterator for IpcReader<R> {
                     }
                 }
                 StreamType::Point => {
-                    let values = record.column_by_name(__RECORDS__).unwrap();
-                    let mut records = Vec::with_capacity(values.len());
-                    for i in 0..values.len() {
-                        let record = values.slice(i, 1).into();
-                        records.push(record);
-                    }
-                    return Some(Ok(Box::new(PointMessage::new(records))));
+                    let record = RecordMessage {
+                        record
+                    };
+                    return Some(Ok(Box::new(PointMessage::new(vec![record]))));
                 }
                 _ => todo!(),
             }
