@@ -451,6 +451,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
     char* val = rocksdb_get_cf(db, opts, pHandle, (const char*)buf, sizeof(*key), (size_t*)&len, &err); \
     if (val == NULL) {                                                                                  \
       qWarn("streamState str: %s failed to read from %s, err: not exist", toString, funcname);          \
+      if (err != NULL) taosMemoryFree(err);                                                             \
       code = -1;                                                                                        \
     } else {                                                                                            \
       if (pVal != NULL) *pVal = val;                                                                    \
@@ -551,20 +552,35 @@ int32_t streamStateFillDel_rocksdb(SStreamState* pState, const SWinKey* key) {
 
 int32_t streamStateClear_rocksdb(SStreamState* pState) {
   qDebug("streamStateClear_rocksdb");
-  SWinKey key = {.ts = 0, .groupId = 0};
-  // batch clear later
-  streamStatePut_rocksdb(pState, &key, NULL, 0);
-  while (1) {
-    SStreamStateCur* pCur = streamStateSeekKeyNext_rocksdb(pState, &key);
-    SWinKey          delKey = {0};
-    int32_t          code = streamStateGetKVByCur_rocksdb(pCur, &delKey, NULL, 0);
-    streamStateFreeCur(pCur);
-    if (code == 0) {
-      streamStateDel_rocksdb(pState, &delKey);
-    } else {
-      break;
-    }
+
+  SStateKey sKey = {.key = {.ts = 0, .groupId = 0}, .opNum = pState->number};
+  SStateKey eKey = {.key = {.ts = UINT64_MAX, .groupId = INT64_MAX}, .opNum = pState->number};
+  char      sKeyStr[128] = {0};
+  char      eKeyStr[128] = {0};
+
+  int sLen = stateKeyEncode(&sKey, sKeyStr);
+  int eLen = stateKeyEncode(&sKey, eKeyStr);
+
+  char* err = NULL;
+  rocksdb_delete_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->writeOpts, pState->pTdbState->pHandle[0],
+                          sKeyStr, sLen, eKeyStr, eLen, &err);
+  if (err != NULL) {
+    qWarn("failed to delete range cf(default)");
   }
+
+  // batch clear later
+  // streamStatePut_rocksdb(pState, &key, NULL, 0);
+  // while (1) {
+  //   SStreamStateCur* pCur = streamStateSeekKeyNext_rocksdb(pState, &key);
+  //   SWinKey          delKey = {0};
+  //   int32_t          code = streamStateGetKVByCur_rocksdb(pCur, &delKey, NULL, 0);
+  //   streamStateFreeCur(pCur);
+  //   if (code == 0) {
+  //     streamStateDel_rocksdb(pState, &delKey);
+  //   } else {
+  //     break;
+  //   }
+  // }
   return 0;
 }
 

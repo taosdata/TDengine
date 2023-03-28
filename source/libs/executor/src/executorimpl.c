@@ -2709,7 +2709,7 @@ int32_t getOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow** pResult, 
 }
 
 int32_t streamStateAddIfNotExist2(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
-  qWarn("streamStateAddIfNotExist");
+  // qWarn("streamStateAddIfNotExist");
   char*   tVal = NULL;
   int32_t size = 0;
   int32_t code = streamStateGet(pState, key, (void**)&tVal, &size);
@@ -2803,8 +2803,8 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
 
       pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
       SResultRowEntryInfo* pEnryInfo = pCtx[j].resultInfo;
-      qWarn("initd:%d, complete:%d, null:%d, res:%d", pEnryInfo->initialized, pEnryInfo->complete, pEnryInfo->isNullRes,
-            pEnryInfo->numOfRes);
+      qDebug("initd:%d, complete:%d, null:%d, res:%d", pEnryInfo->initialized, pEnryInfo->complete,
+             pEnryInfo->isNullRes, pEnryInfo->numOfRes);
       if (pCtx[j].fpSet.finalize) {
         int32_t code1 = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
         if (TAOS_FAILED(code1)) {
