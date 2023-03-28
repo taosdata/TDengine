@@ -307,7 +307,7 @@ void tsdbMemTableCountRows(SMemTable *pMemTable, SHashObj*        pTableMap, int
         continue;
       }
       
-      rowsNum += tsdbCountTbDataRows(pTbData);
+      *rowsNum += tsdbCountTbDataRows(pTbData);
       pTbData = pTbData->next;
     }
   }
