@@ -3113,7 +3113,7 @@ static int32_t doSumBlockRows(STsdbReader* pReader, SDataFReader* pFileReader) {
     }
 
     STableBlockScanInfo** p = taosHashGet(pReader->status.pTableMap, &pBlockIdx->uid, sizeof(pBlockIdx->uid));
-    if (p == NULL || *p == NULL) {
+    if (p == NULL) {
       continue;
     }
 
@@ -3189,6 +3189,10 @@ static int32_t readRowsCountFromStt(STsdbReader* pReader) {
           taosArrayClear(pBlockLoadInfo->aSttBlk);
           continue;
         }
+        for (int32_t i = 0; i < size; ++i) {
+          SSttBlk *p = taosArrayGet(pBlockLoadInfo->aSttBlk, i);
+          pReader->rowsNum += p->nRow;
+        }
       } else {
         for (int32_t i = 0; i < size; ++i) {
           SSttBlk *p = taosArrayGet(pBlockLoadInfo->aSttBlk, i);
@@ -3206,6 +3210,22 @@ static int32_t readRowsCountFromStt(STsdbReader* pReader) {
       }
     }
   }
+
+  return code;
+}
+
+static int32_t readRowsCountFromMem(STsdbReader* pReader) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int64_t   memNum = 0, imemNum = 0;
+  if (pReader->pReadSnap->pMem != NULL) {
+    tsdbMemTableCountRows(pReader->pReadSnap->pMem, pReader->status.pTableMap, &memNum);
+  }
+
+  if (pReader->pReadSnap->pIMem != NULL) {
+    tsdbMemTableCountRows(pReader->pReadSnap->pIMem, pReader->status.pTableMap, &imemNum);
+  }
+
+  pReader->rowsNum += memNum + imemNum;
 
   return code;
 }
@@ -4170,7 +4190,7 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
 
 // ====================================== EXPOSED APIs ======================================
 int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
-                       SSDataBlock* pResBlock, STsdbReader** ppReader, const char* idstr) {
+                       SSDataBlock* pResBlock, STsdbReader** ppReader, const char* idstr, bool countOnly) {
   STimeWindow window = pCond->twindows;
   if (pCond->type == TIMEWINDOW_RANGE_EXTERNAL) {
     pCond->twindows.skey += 1;
@@ -4262,9 +4282,10 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
 
   pReader->suspended = true;
 
+  if (countOnly) {
+    pReader->readMode = READ_MODE_COUNT_ONLY;
+  }
   
-  pReader->readMode = READ_MODE_COUNT_ONLY;
-
   tsdbDebug("%p total numOfTable:%d in this query %s", pReader, numOfTables, pReader->idStr);
   return code;
 
@@ -4586,6 +4607,11 @@ static bool tsdbReadRowsCountOnly(STsdbReader* pReader) {
     if (code != TSDB_CODE_SUCCESS) {
       return false;
     }
+  }
+
+  code = readRowsCountFromMem(pReader);
+  if (code != TSDB_CODE_SUCCESS) {
+    return false;
   }
 
   pBlock->info.rows = pReader->rowsNum;

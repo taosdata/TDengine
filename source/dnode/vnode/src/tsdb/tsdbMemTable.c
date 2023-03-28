@@ -282,6 +282,34 @@ bool tsdbTbDataIterNext(STbDataIter *pIter) {
   return true;
 }
 
+int64_t tsdbCountTbDataRows(STbData *pTbData) {
+  SMemSkipListNode *pNode = NULL;
+  int64_t rowsNum = 0;
+  
+  while (true) {
+    pNode = SL_GET_NODE_FORWARD(pTbData->sl.pHead, 0);
+    if (pNode == pTbData->sl.pTail) {
+      return rowsNum;
+    }
+
+    rowsNum++;
+  }
+}
+
+void tsdbMemTableCountRows(SMemTable *pMemTable, SHashObj*        pTableMap, int64_t *rowsNum) {
+  taosRLockLatch(&pMemTable->latch);
+  for (int32_t i = 0; i < pMemTable->nBucket; ++i) {
+    STbData *pTbData = pMemTable->aBucket[i];
+    
+    void* p = taosHashGet(pTableMap, &pTbData->uid, sizeof(pTbData->uid));
+    if (p == NULL) {
+      continue;
+    }
+    rowsNum += tsdbCountTbDataRows(pTbData);
+  }
+  taosRUnLockLatch(&pMemTable->latch);
+}
+
 static int32_t tsdbMemTableRehash(SMemTable *pMemTable) {
   int32_t code = 0;
 
