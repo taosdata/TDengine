@@ -605,6 +605,12 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if (pDb->cfg.walRetentionPeriod == 0) {
+    terrno = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
+    mError("db:%s, not allowed to create topic when WAL_RETENTION_PERIOD is zero", pDb->name);
+    goto _OVER;
+  }
+
   code = mndCreateTopic(pMnode, pReq, &createTopicReq, pDb, pReq->info.conn.user);
   if (code == 0) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -793,7 +799,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics) {
+int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics) {
   *pNumOfTopics = 0;
 
   SSdb   *pSdb = pMnode->pSdb;

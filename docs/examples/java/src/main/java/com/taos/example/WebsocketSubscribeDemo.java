@@ -35,7 +35,7 @@ public class WebsocketSubscribeDemo {
                     Statement statement = connection.createStatement()) {
                 statement.executeUpdate("drop topic if exists " + TOPIC);
                 statement.executeUpdate("drop database if exists " + DB_NAME);
-                statement.executeUpdate("create database " + DB_NAME);
+                statement.executeUpdate("create database " + DB_NAME + " wal_retention_period 3600");
                 statement.executeUpdate("use " + DB_NAME);
                 statement.executeUpdate(
                         "CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT) TAGS (`groupid` INT, `location` BINARY(24))");
