@@ -669,6 +669,9 @@ void streamStateFreeCur(SStreamStateCur* pCur) {
   }
   qDebug("streamStateFreeCur");
   rocksdb_iter_destroy(pCur->iter);
+  rocksdb_release_snapshot(pCur->db, pCur->snapshot);
+  rocksdb_readoptions_destroy(pCur->readOpt);
+
   tdbTbcClose(pCur->pCur);
   taosMemoryFree(pCur);
 }

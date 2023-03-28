@@ -65,7 +65,10 @@ int32_t       streamStateAbort(SStreamState* pState);
 void          streamStateDestroy(SStreamState* pState);
 
 typedef struct {
-  rocksdb_iterator_t* iter;
+  rocksdb_iterator_t*    iter;
+  rocksdb_snapshot_t*    snapshot;
+  rocksdb_readoptions_t* readOpt;
+  rocksdb_t*             db;
 
   TBC*    pCur;
   int64_t number;
