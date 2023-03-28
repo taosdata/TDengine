@@ -631,10 +631,10 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
   }
-  for (int c = 0; c < boundInfo->numOfBound; ++c) {
-    SSchema*  pColSchema = &pSchema[c];
-    SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, c);
-    if(tFields == NULL || findFileds(pColSchema, tFields, numFields)){
+  if(tFields == NULL){
+    for (int j = 0; j < boundInfo->numOfBound; j++){
+      SSchema*  pColSchema = &pSchema[j];
+      SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);
       if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
         uError("type or bytes not equal");
         ret = TSDB_CODE_INVALID_PARA;
@@ -652,12 +652,49 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
       tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
       fields += sizeof(int8_t) + sizeof(int32_t);
       if (needChangeLength) {
-        pStart += htonl(colLength[c]);
+        pStart += htonl(colLength[j]);
       } else {
-        pStart += colLength[c];
+        pStart += colLength[j];
       }
-    }else{
-      tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, NULL, NULL);
+    }
+  }else{
+    for (int i = 0; i < numFields; i++) {
+      for (int j = 0; j < boundInfo->numOfBound; j++){
+        SSchema*  pColSchema = &pSchema[j];
+        SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);
+        if(strcmp(pSchema->name, tFields[i].name) == 0){
+          if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
+            uError("type or bytes not equal");
+            ret = TSDB_CODE_INVALID_PARA;
+            goto end;
+          }
+
+          int8_t* offset = pStart;
+          if (IS_VAR_DATA_TYPE(pColSchema->type)) {
+            pStart += numOfRows * sizeof(int32_t);
+          } else {
+            pStart += BitmapLen(numOfRows);
+          }
+          char* pData = pStart;
+
+          tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
+          fields += sizeof(int8_t) + sizeof(int32_t);
+          if (needChangeLength) {
+            pStart += htonl(colLength[i]);
+          } else {
+            pStart += colLength[i];
+          }
+          boundInfo->pColIndex[j] = -1;
+        }
+      }
+
+    }
+
+    for (int c = 0; c < boundInfo->numOfBound; ++c) {
+      if( boundInfo->pColIndex[c] != -1){
+        SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, c);
+        tColDataAddValueByDataBlock(pCol, 0, 0, numOfRows, NULL, NULL);
+      }
     }
   }
 
