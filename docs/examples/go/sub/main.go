@@ -15,7 +15,7 @@ func main() {
 		panic(err)
 	}
 	defer db.Close()
-	_, err = db.Exec("create database if not exists example_tmq")
+	_, err = db.Exec("create database if not exists example_tmq wal_retention_period 3600")
 	if err != nil {
 		panic(err)
 	}
