@@ -38,11 +38,8 @@ class TDTestCase:
             if data_tb_col[i] is None:
                 tdSql.checkData( i, 0 , None )
             if col_name not in ["c2", "double"] or tbname != f"{self.dbname}.t1" or i != 10:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(data_tb_col[i]/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = datetime.datetime.fromtimestamp(data_tb_col[i]/1000)
+                tdSql.checkData( i, 0, date_init_stamp)
 
     def __range_to_timestamp(self, cols, tables):
         for col in cols:
@@ -60,7 +57,7 @@ class TDTestCase:
         self.__range_to_timestamp(cols=__col_list, tables=__table_list)
 
     def all_test(self):
-
+        _datetime_epoch = datetime.datetime.fromtimestamp(0)
         tdSql.query(f"select c1  from {self.dbname}.ct4")
         data_ct4_c1 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
         tdSql.query(f"select c1  from {self.dbname}.t1")
@@ -99,22 +96,16 @@ class TDTestCase:
             if data_ct4_c1[i] is None:
                 tdSql.checkData( i, 0 , None )
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(data_ct4_c1[i]/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c1[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
 
         tdSql.query(f"select cast(c1 as timestamp) as b from {self.dbname}.t1")
         for i in range(len(data_t1_c1)):
             if data_t1_c1[i] is None:
                 tdSql.checkData( i, 0 , None )
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(data_t1_c1[i]/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c1[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
 
 
         tdLog.printNoPrefix("==========step8: cast bigint to bigint, expect no changes")
@@ -156,11 +147,8 @@ class TDTestCase:
             if data_ct4_c2[i] is None:
                 tdSql.checkData( i, 0 , None )
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(data_ct4_c2[i]/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c2[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
 
 
         tdSql.query(f"select cast(c2 as timestamp) as b from {self.dbname}.t1")
@@ -170,11 +158,8 @@ class TDTestCase:
             elif i == 10:
                 continue
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(data_t1_c2[i]/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c2[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
 
 
         tdLog.printNoPrefix("==========step12: cast smallint to bigint, expect no changes")
@@ -216,22 +201,16 @@ class TDTestCase:
             if data_ct4_c3[i] is None:
                 tdSql.checkData( i, 0 , None )
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(data_ct4_c3[i]/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c3[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
 
         tdSql.query(f"select cast(c3 as timestamp) as b from {self.dbname}.t1")
         for i in range(len(data_t1_c3)):
             if data_t1_c3[i] is None:
                 tdSql.checkData( i, 0 , None )
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(data_t1_c3[i]/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c3[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
 
 
         tdLog.printNoPrefix("==========step16: cast tinyint to bigint, expect no changes")
@@ -273,22 +252,16 @@ class TDTestCase:
             if data_ct4_c4[i] is None:
                 tdSql.checkData( i, 0 , None )
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(data_ct4_c4[i]/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c4[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
 
         tdSql.query(f"select cast(c4 as timestamp) as b from {self.dbname}.t1")
         for i in range(len(data_t1_c4)):
             if data_t1_c4[i] is None:
                 tdSql.checkData( i, 0 , None )
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(data_t1_c4[i]/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c4[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
 
 
         tdLog.printNoPrefix("==========step20: cast float to bigint, expect no changes")
@@ -326,21 +299,15 @@ class TDTestCase:
             if data_ct4_c5[i] is None:
                 tdSql.checkData( i, 0 , None )
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(int(data_ct4_c5[i])/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c5[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
         tdSql.query(f"select cast(c5 as timestamp) as b from {self.dbname}.t1")
         for i in range(len(data_t1_c5)):
             if data_t1_c5[i] is None:
                 tdSql.checkData( i, 0 , None )
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(int(data_t1_c5[i])/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c5[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
 
         tdLog.printNoPrefix("==========step24: cast double to bigint, expect no changes")
         tdSql.query(f"select c6  from {self.dbname}.ct4")
@@ -382,11 +349,8 @@ class TDTestCase:
             if data_ct4_c6[i] is None:
                 tdSql.checkData( i, 0 , None )
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(int(data_ct4_c6[i])/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c6[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
 
         tdSql.query(f"select cast(c6 as timestamp) as b from {self.dbname}.t1")
         for i in range(len(data_t1_c6)):
@@ -395,11 +359,8 @@ class TDTestCase:
             elif i == 10:
                 continue
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(int(data_t1_c6[i])/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c6[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
 
         tdLog.printNoPrefix("==========step28: cast bool to bigint, expect no changes")
         tdSql.query(f"select c7  from {self.dbname}.ct4")
@@ -436,21 +397,15 @@ class TDTestCase:
             if data_ct4_c7[i] is None:
                 tdSql.checkData( i, 0 , None )
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(int(data_ct4_c7[i])/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c7[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
         tdSql.query(f"select cast(c7 as timestamp) as b from {self.dbname}.t1")
         for i in range(len(data_t1_c7)):
             if data_t1_c7[i] is None:
                 tdSql.checkData( i, 0 , None )
             else:
-                utc_zone = datetime.timezone.utc
-                utc_8 = datetime.timezone(datetime.timedelta(hours=8))
-                date_init_stamp = datetime.datetime.utcfromtimestamp(int(data_t1_c7[i])/1000)
-                date_data = date_init_stamp.replace(tzinfo=utc_zone).astimezone(utc_8).strftime("%Y-%m-%d %H:%M:%S.%f")
-                tdSql.checkData( i, 0, date_data)
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c7[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
 
 
         tdSql.query(f"select c8  from {self.dbname}.ct4")
@@ -694,7 +649,7 @@ class TDTestCase:
         tdSql.query(f"select cast('123' as tinyint unsigned) as b from {self.dbname}.stb1 partition by tbname")
 
         # uion with cast and common cols
-        
+
         tdSql.query(f"select cast(c2 as int) as b from {self.dbname}.stb1 union all select c1 from {self.dbname}.stb1 ")
         tdSql.query(f"select cast(c3 as bool) as b from {self.dbname}.stb1 union all select c7 from {self.dbname}.ct1 ")
         tdSql.query(f"select cast(c4 as tinyint) as b from {self.dbname}.stb1 union all select c4 from {self.dbname}.stb1")
