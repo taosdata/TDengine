@@ -105,7 +105,7 @@ class TDTestCase:
     
     # create stable and child tables
     def create_table(self, stbname, tbname, count):
-        tdSql.prepare()
+        tdSql.execute("create database db wal_retention_period 4")
         tdSql.execute('use db')
         self.child_count = count
         self.stbname = stbname
