@@ -888,7 +888,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       // kill executing task
       qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
       if (pTaskInfo != NULL) {
-//        qAsyncKillTask(pTaskInfo);
+        qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
       }
 
       taosWLockLatch(&pTq->lock);
@@ -902,11 +902,6 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
       if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
         qStreamCloseTsdbReader(pTaskInfo);
-      }
-
-      // reset the error code.
-      if (pHandle->execHandle.task != NULL) {
-
       }
 
       taosWUnLockLatch(&pTq->lock);
