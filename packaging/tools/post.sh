@@ -146,7 +146,7 @@ function install_include() {
 }
 
 function install_jemalloc() {
-  jemalloc_dir=${script_dir}/jemalloc
+  jemalloc_dir=${script_dir}/../jemalloc
 
   if [ -d ${jemalloc_dir} ]; then
     ${csudo}/usr/bin/install -c -d /usr/local/bin
