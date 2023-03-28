@@ -425,6 +425,8 @@ pub async fn opc_to_taos(
         command
             .arg("collect")
             .arg(format!("--conf={}", &config_path.display()))
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
             .output()
     });
 
