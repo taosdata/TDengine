@@ -676,6 +676,8 @@ typedef struct {
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_USET_PASSWORD_LEN];
   char   objname[TSDB_DB_FNAME_LEN];  // db or topic
+  char   tabName[TSDB_TABLE_NAME_LEN];
+  char*  tagCond;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
@@ -3187,9 +3189,9 @@ typedef struct {
   SArray*      blockTbName;
   SArray*      blockSchema;
   // the following attributes are extended from SMqDataRsp
-  int32_t      createTableNum;
-  SArray*      createTableLen;
-  SArray*      createTableReq;
+  int32_t createTableNum;
+  SArray* createTableLen;
+  SArray* createTableReq;
 } STaosxRsp;
 
 int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const STaosxRsp* pRsp);

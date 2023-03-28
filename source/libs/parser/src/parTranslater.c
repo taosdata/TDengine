@@ -6464,7 +6464,15 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   }
   strcpy(req.user, pStmt->userName);
   sprintf(req.objname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
-  return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
+  sprintf(req.tabName, "%s", pStmt->tabName);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (NULL != pStmt->pTagCond) {
+    code = nodesNodeToString(pStmt->pTagCond, false, &req.tagCond, NULL);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
+  }
+  return code;
 }
 
 static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
@@ -6482,6 +6490,7 @@ static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
   }
   strcpy(req.user, pStmt->userName);
   sprintf(req.objname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
+  sprintf(req.tabName, "%s", pStmt->tabName);
   return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
 }
 

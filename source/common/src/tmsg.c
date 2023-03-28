@@ -1150,7 +1150,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tDecodeI64(&decoder, &vload.compStorage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.pointsWritten) < 0) return -1;
     if (tDecodeI32(&decoder, &vload.numOfCachedTables) < 0) return -1;
-    if (tDecodeI32(&decoder, (int32_t*)&reserved) < 0) return -1;
+    if (tDecodeI32(&decoder, (int32_t *)&reserved) < 0) return -1;
     if (tDecodeI64(&decoder, &reserved) < 0) return -1;
     if (tDecodeI64(&decoder, &reserved) < 0) return -1;
     if (taosArrayPush(pReq->pVloads, &vload) == NULL) {
@@ -1368,6 +1368,16 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->pass) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->objname) < 0) return -1;
+  int32_t len = strlen(pReq->tabName);
+  if (tEncodeI32(&encoder, len) < 0) return -1;
+  if (len > 0) {
+    if (tEncodeCStr(&encoder, pReq->tabName) < 0) return -1;
+  }
+  len = (NULL == pReq->tagCond ? 0 : strlen(pReq->tagCond));
+  if (tEncodeI32(&encoder, len) < 0) return -1;
+  if (len > 0) {
+    if (tEncodeCStr(&encoder, pReq->tagCond) < 0) return -1;
+  }
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1387,6 +1397,17 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->pass) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->objname) < 0) return -1;
+  if (!tDecodeIsEnd(&decoder)) {
+    int32_t len = 0;
+    if (tDecodeI32(&decoder, &len) < 0) return -1;
+    if (len > 0) {
+      if (tDecodeCStrTo(&decoder, pReq->tabName) < 0) return -1;
+    }
+    if (tDecodeI32(&decoder, &len) < 0) return -1;
+    if (len > 0) {
+      if (tDecodeCStrAlloc(&decoder, &pReq->tagCond) < 0) return -1;
+    }
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -6824,7 +6845,7 @@ int32_t tDecodeSMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
 }
 
 void tDeleteSMqDataRsp(SMqDataRsp *pRsp) {
-  pRsp->blockDataLen = taosArrayDestroy(pRsp->blockDataLen);;
+  pRsp->blockDataLen = taosArrayDestroy(pRsp->blockDataLen);
   taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
   pRsp->blockData = NULL;
   taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSSchemaWrapper);
