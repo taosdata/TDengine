@@ -251,7 +251,7 @@ class TDSql:
 
         if self.queryResult[row][col] != data:
             if self.cursor.istype(col, "TIMESTAMP"):
-                # suppose user want to check nanosecond timestamp if a longer data passed`` 
+                # suppose user want to check nanosecond timestamp if a longer data passed``
                 if isinstance(data,str) :
                     if (len(data) >= 28):
                         if self.queryResult[row][col] == _parse_ns_timestamp(data):
@@ -260,7 +260,7 @@ class TDSql:
                         else:
                             caller = inspect.getframeinfo(inspect.stack()[1][0])
                             args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
-                            tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)                        
+                            tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
                     else:
                         if self.queryResult[row][col].astimezone(datetime.timezone.utc) == _parse_datetime(data).astimezone(datetime.timezone.utc):
                             # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
@@ -270,12 +270,12 @@ class TDSql:
                             args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
                             tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
                     return
-                elif isinstance(data,int) :
-                    if len(str(data)) == 16 :
+                elif isinstance(data,int):
+                    if len(str(data)) == 16:
                         precision = 'us'
-                    elif len(str(data)) == 13 :
+                    elif len(str(data)) == 13:
                         precision = 'ms'
-                    elif len(str(data)) == 19 :
+                    elif len(str(data)) == 19:
                         precision = 'ns'
                     else:
                         caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -303,11 +303,21 @@ class TDSql:
                         args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
                         tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
                     return
+                elif isinstance(data,datetime.datetime):
+                    dt_obj = self.queryResult[row][col]
+                    delt_data = data-datetime.datetime.fromtimestamp(0,data.tzinfo)
+                    delt_result = self.queryResult[row][col] - datetime.datetime.fromtimestamp(0,self.queryResult[row][col].tzinfo)
+                    if delt_data == delt_result:
+                        tdLog.info("check successfully")
+                    else:
+                        caller = inspect.getframeinfo(inspect.stack()[1][0])
+                        args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+                        tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
+                    return
                 else:
                     caller = inspect.getframeinfo(inspect.stack()[1][0])
                     args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
                     tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
-                  
 
             if str(self.queryResult[row][col]) == str(data):
                 # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
