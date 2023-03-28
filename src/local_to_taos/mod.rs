@@ -101,6 +101,8 @@ async fn restore(
     Ok(())
 }
 
+#[tracing::instrument]
+#[async_backtrace::framed]
 pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
     if from.path.is_none() {
         anyhow::bail!(
