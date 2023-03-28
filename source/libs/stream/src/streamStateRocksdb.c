@@ -297,11 +297,11 @@ void        destroyFunc(void* stata) { return; }
 int streamInitBackend(SStreamState* pState, char* path) {
   rocksdb_options_t* opts = rocksdb_options_create();
   rocksdb_options_increase_parallelism(opts, 4);
-  rocksdb_options_optimize_level_style_compaction(opts, 0);
-  // create the DB if it's not already present
+  // rocksdb_options_optimize_level_style_compaction(opts, 0);
+  //  create the DB if it's not already present
   rocksdb_options_set_create_if_missing(opts, 1);
   rocksdb_options_set_create_missing_column_families(opts, 1);
-  rocksdb_options_set_write_buffer_size(opts, 64 << 20);
+  rocksdb_options_set_write_buffer_size(opts, 8 << 20);
 
   char* err = NULL;
   int   cfLen = sizeof(cfName) / sizeof(cfName[0]);
