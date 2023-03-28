@@ -283,11 +283,11 @@ bool tsdbTbDataIterNext(STbDataIter *pIter) {
 }
 
 int64_t tsdbCountTbDataRows(STbData *pTbData) {
-  SMemSkipListNode *pNode = NULL;
+  SMemSkipListNode *pNode = pTbData->sl.pHead;
   int64_t rowsNum = 0;
   
   while (true) {
-    pNode = SL_GET_NODE_FORWARD(pTbData->sl.pHead, 0);
+    pNode = SL_GET_NODE_FORWARD(pNode, 0);
     if (pNode == pTbData->sl.pTail) {
       return rowsNum;
     }
