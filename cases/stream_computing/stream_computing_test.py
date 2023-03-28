@@ -2723,6 +2723,7 @@ class StreamComputingTest(TDCase):
                         f'select ts,t10 from {self.dbname}.{self.case_name}_tb1',
                         f'select c10 from {self.dbname}.{self.case_name}_tb1',
                         f'select c9,c10 from {self.dbname}.{self.case_name}_tb1'
+                        f'select _wstart, count(*) from {self.dbname}.{self.case_name}_stb event_window start with c1 >= 0 end with c1 <= 5;'
                         ]
         for error_sql in error_sql_list:
             self.tdSql.error(f'create stream if not exists {stream_name} into {dbname2}.target_tb as {error_sql}')
