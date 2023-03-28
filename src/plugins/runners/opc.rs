@@ -219,7 +219,7 @@ impl OPCConfig {
                     assert_eq!(4, pair.len());
                     let id = String::from(pair[0]);
                     let table = String::from(pair[1]);
-                    let feild = String::from(pair[2]);
+                    let field = String::from(pair[2]);
                     let value_type = String::from(pair[3]);
                     let ua_node_config = UANodeConfig {
                         id: id.clone(),
@@ -229,12 +229,12 @@ impl OPCConfig {
                         id,
                         (
                             table.clone(),
-                            feild.clone(),
+                            field.clone(),
                             IpcDataType::from_str(value_type.to_lowercase().as_str()).unwrap(),
                         ),
                     );
                     ua_node_config_vec.push(ua_node_config);
-                    process_table_info(&mut table_info, table, feild, value_type);
+                    process_table_info(&mut table_info, table, field, value_type);
                 }
                 let collect_ua_config = UaCollectConfig {
                     nodes: ua_node_config_vec,
@@ -272,7 +272,7 @@ impl OPCConfig {
                     let pair = node_vec[i].split("::").collect_vec();
                     let tag = String::from(pair[0]);
                     let table = String::from(pair[1]);
-                    let feild = String::from(pair[2]);
+                    let field = String::from(pair[2]);
                     let value_type = String::from(pair[3]);
                     da_nodes_vec.push(DaNodeConfig {
                         tag: tag.clone(),
@@ -282,11 +282,11 @@ impl OPCConfig {
                         tag,
                         (
                             table.clone(),
-                            feild.clone(),
+                            field.clone(),
                             IpcDataType::from_str(&value_type.to_lowercase().as_str()).unwrap(),
                         ),
                     );
-                    process_table_info(&mut table_info, table, feild, value_type);
+                    process_table_info(&mut table_info, table, field, value_type);
                 }
                 collect = CollectConfig {
                     interval,
@@ -335,16 +335,16 @@ fn get_string_vec_from_param(dsn: &mut Dsn, key: &str) -> Vec<String> {
 fn process_table_info(
     table_info: &mut HashMap<String, Vec<(String, String)>>,
     table: String,
-    feild: String,
+    field: String,
     value_type: String,
 ) {
     if table_info.get_mut(&table).is_none() {
         let mut t_v = Vec::new();
-        t_v.push((feild, value_type));
+        t_v.push((field, value_type));
         table_info.insert(table, t_v);
     } else {
         let t_v = table_info.get_mut(&table).unwrap();
-        t_v.push((feild, value_type));
+        t_v.push((field, value_type));
     };
 }
 
@@ -369,10 +369,10 @@ pub async fn opc_to_taos(
     let config = OPCConfig::new(from, ipc_port)?;
     dbg!(&config);
     // process table info
-    for (table_name, feild_info) in &config.table_info {
+    for (table_name, field_info) in &config.table_info {
         let mut sql = format!("CREATE TABLE IF NOT EXISTS {table_name} (`ts` TIMESTAMP");
-        for (feild, feild_type) in feild_info {
-            sql.push_str(format!(", `{feild}` {feild_type}").as_str());
+        for (field, field_type) in field_info {
+            sql.push_str(format!(", `{field}` {field_type}").as_str());
         }
         sql.push_str(")");
         log::info!("create table: {table_name}, sql: {sql}");
