@@ -36,6 +36,8 @@ typedef enum {
 } tsdb_ftype_t;
 
 /* Exposed APIs */
+int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile);
+int32_t tsdbTFileClear(struct STFile *pFile);
 
 /* Exposed Structs */
 struct FStt {

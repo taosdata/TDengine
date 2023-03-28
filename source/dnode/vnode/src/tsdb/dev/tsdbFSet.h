@@ -16,6 +16,8 @@
 #ifndef _TSDB_FILE_SET_H
 #define _TSDB_FILE_SET_H
 
+#include "tsdb.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,6 +28,12 @@ struct SFileSet;
 /* Exposed APIs */
 
 /* Exposed Structs */
+struct SFileSet {
+  int32_t        fid;
+  int64_t        nextid;
+  struct STFile *files[TSDB_FTYPE_MAX];
+  SRBTree        fsttTree;
+};
 
 #ifdef __cplusplus
 }

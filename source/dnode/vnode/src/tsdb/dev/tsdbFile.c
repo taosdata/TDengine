@@ -35,3 +35,14 @@ struct SFileOp {
     } create;
   };
 };
+
+int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile) {
+  snprintf(pFile->fname, TSDB_FILENAME_LEN, "%s", pTsdb->path);
+  return 0;
+}
+
+int32_t tsdbTFileClear(struct STFile *pFile) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}

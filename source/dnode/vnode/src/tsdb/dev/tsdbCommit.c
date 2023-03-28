@@ -42,7 +42,6 @@ static int32_t tsdbCommitOpenWriter(SCommitter *pCommitter) {
 
   struct SSttFWriterConf conf = {
       .pTsdb = pCommitter->pTsdb,
-      .file = {0},
       .pSkmTb = NULL,
       .pSkmRow = NULL,
       .maxRow = pCommitter->maxRow,
@@ -51,7 +50,21 @@ static int32_t tsdbCommitOpenWriter(SCommitter *pCommitter) {
       .aBuf = NULL,
   };
 
-  // taosArraySearch(pCommitter->pTsdb);
+  // pCommitter->pTsdb->pFS = NULL;
+  // taosbsearch(pCommitter->pTsdb->pFS->aFileSet, &pCommitter->fid, tsdbCompareFid, &lino);
+  struct SFileSet *pSet = NULL;
+  if (pSet == NULL) {
+    conf.file = (struct STFile){
+        .cid = 1,
+        .fid = pCommitter->fid,
+        .diskId = (SDiskID){0},
+        .type = TSDB_FTYPE_STT,
+    };
+    tsdbTFileInit(pCommitter->pTsdb, &conf.file);
+  } else {
+    // TODO
+    ASSERT(0);
+  }
 
   code = tsdbSttFWriterOpen(&conf, &pCommitter->pWriter);
   TSDB_CHECK_CODE(code, lino, _exit);

@@ -15,12 +15,6 @@
 
 #include "dev.h"
 
-struct STFileSystem {
-  STsdb           *pTsdb;
-  int32_t          nFileSet;
-  struct SFileSet *aFileSet;
-};
-
 static int32_t create_file_system(STsdb *pTsdb, struct STFileSystem **ppFS) {
   ppFS[0] = taosMemoryCalloc(1, sizeof(*ppFS[0]));
   if (ppFS[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;

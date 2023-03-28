@@ -14,8 +14,3 @@
  */
 
 #include "dev.h"
-
-struct SFileSet {
-  struct STFile *files[TSDB_FTYPE_MAX];
-  SRBTree        fsttTree;
-};

@@ -30,6 +30,11 @@ int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS, int8_t roll
 int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS);
 
 /* Exposed Structs */
+struct STFileSystem {
+  STsdb           *pTsdb;
+  int32_t          nFileSet;
+  struct SFileSet *aFileSet;
+};
 
 #ifdef __cplusplus
 }
