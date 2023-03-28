@@ -12,6 +12,7 @@ fi
 today=`date +"%Y%m%d"`
 TDENGINE_DIR=/root/TDengine
 JDBC_DIR=/root/taos-connector-jdbc
+TAOSKEEPER_DIR=/root/taoskeeper
 TDENGINE_COVERAGE_REPORT=$TDENGINE_DIR/tests/coverage-report-$today.log
 
 # Color setting
@@ -171,6 +172,24 @@ function runJDBCCases() {
 	echo -e "### JDBC test result: $summary ###" | tee -a $TDENGINE_COVERAGE_REPORT
 }
 
+function runTaosKeeperCases() {
+	echo "=== Run taoskeeper cases ==="
+
+	cd $TAOSKEEPER_DIR
+	git checkout -- .
+	git reset --hard HEAD
+	git checkout master
+	git pull
+
+	stopTaosd
+	stopTaosadapter
+
+	taosd -c /etc/taos >> /dev/null 2>&1 &
+	taosadapter >> /dev/null 2>&1 &
+
+	go mod tidy && go test -v ./...
+}
+
 function runTest() {
 	echo "run Test"
 	
@@ -182,6 +201,7 @@ function runTest() {
 	runSimCases
 	runPythonCases
 	runJDBCCases
+	runTaosKeeperCases
 	
 	stopTaosd	
 	cd $TDENGINE_DIR/tests/script
@@ -199,7 +219,7 @@ function lcovFunc {
 	lcov -d . --capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info
 
 	# remove exclude paths
-	if [ "$branch" == "3.0" ]; then
+	if [ "$branch" == "main" ] ; then
 		lcov --remove coverage.info \
 			'*/contrib/*' '*/tests/*' '*/test/*' '*/tools/*' '*/libs/sync/*'\
 			'*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c'\
@@ -209,6 +229,8 @@ function lcovFunc {
 			'*/tthread.c' '*/tversion.c' '*/ctgDbg.c' '*/schDbg.c' '*/qwDbg.c' '*/tencode.h' '*/catalog.c'\
 			'*/tqSnapshot.c' '*/tsdbSnapshot.c''*/metaSnapshot.c' '*/smaSnapshot.c' '*/tqOffsetSnapshot.c'\
 			'*/vnodeSnapshot.c' '*/metaSnapshot.c' '*/tsdbSnapshot.c' '*/mndGrant.c' '*/mndSnode.c' '*/streamRecover.c'\
+			'*/osAtomic.c' '*/osDir.c' '*/osFile.c' '*/osMath.c' '*/osSignal.c' '*/osSleep.c' '*/osString.c' '*/osSystem.c'\
+			'*/osThread.c' '*/osTime.c' '*/osTimezone.c' \
 		       	--rc lcov_branch_coverage=1 -o coverage.info
 	else	
 		lcov --remove coverage.info \

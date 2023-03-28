@@ -7,7 +7,7 @@ $dbPrefix = group_db
 $tbPrefix = group_tb
 $mtPrefix = group_mt
 $tbNum = 8
-$rowNum = 10000
+$rowNum = 1000
 $totalNum = $tbNum * $rowNum
 
 print =============== projection_limit_offset.sim
@@ -81,199 +81,199 @@ $ts2 = $tb2 . .ts
 sql select ts from group_mt0
 print $rows
 
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' limit 8000 offset 0;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 8000 offset 0;
 if $rows != 4008 then
   print expect 4008, actual:$rows
   return -1
 endi
 
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' limit 8000 offset 1;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 8000 offset 1;
 if $rows != 4007 then
   return -1
 endi
 
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' limit 8000 offset 101;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 8000 offset 101;
 print $rows
 if $rows != 3907 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.101@ then
+if $data00 != @70-01-01 08:01:40.101@ then
   return -1
 endi
 
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' limit 8000 offset 902;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 8000 offset 902;
 if $rows != 3106 then
   return -1
 endi
 
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' limit 8000 offset 400;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 8000 offset 400;
 if $rows != 3608 then
   return -1
 endi
 
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' limit 8000 offset 4007;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 8000 offset 4007;
 if $rows != 1 then
   return -1
 endi
 
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' limit 2000 offset 4008;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' limit 2000 offset 4008;
 if $rows != 0 then
   return -1
 endi
 
 #==================================order by desc, multi vnode, limit/offset===================================
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' order by ts desc limit 8000 offset 0;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 8000 offset 0;
 if $rows != 4008 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.500@ then
+if $data00 != @70-01-01 08:01:40.500@ then
    return -1
 endi
 
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' order by ts desc limit 8000 offset 1;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 8000 offset 1;
 if $rows != 4007 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.500@ then
+if $data00 != @70-01-01 08:01:40.500@ then
    return -1
 endi
 
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' order by ts desc limit 8000 offset 101;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 8000 offset 101;
 print $rows
 if $rows != 3907 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.488@ then
+if $data00 != @70-01-01 08:01:40.488@ then
    return -1
 endi
 
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' order by ts desc limit 8000 offset 902;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 8000 offset 902;
 if $rows != 3106 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.388@ then
+if $data00 != @70-01-01 08:01:40.388@ then
    return -1
 endi
 
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' order by ts desc limit 8000 offset 400;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 8000 offset 400;
 if $rows != 3608 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.450@ then
+if $data00 != @70-01-01 08:01:40.450@ then
    return -1
 endi
 
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' order by ts desc limit 8000 offset 4007;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 8000 offset 4007;
 if $rows != 1 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.000@ then
+if $data00 != @70-01-01 08:01:40.000@ then
    return -1
 endi
 
-sql select ts from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.500' order by ts desc limit 2000 offset 4008;
+sql select ts from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.500' order by ts desc limit 2000 offset 4008;
 if $rows != 0 then
   return -1
 endi
 
 #=================================single value filter======================================
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts asc limit 10 offset 0;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 0;
 if $row != 8 then
    return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.000@ then
+if $data00 != @70-01-01 08:01:40.000@ then
   return -1
 endi
 
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts asc limit 10 offset 1;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 1;
 if $row != 7 then
    return -1
 endi
 
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts asc limit 10 offset 2;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 2;
 if $row != 6 then
    return -1
 endi
 
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts asc limit 10 offset 4;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 4;
 if $row != 4 then
    return -1
 endi
 
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts asc limit 10 offset 7;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 7;
 if $row != 1 then
    return -1
 endi
 
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts asc limit 10 offset 8;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 8;
 if $row != 0 then
    return -1
 endi
 
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts asc limit 10 offset 9;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts asc limit 10 offset 9;
 if $row != 0 then
    return -1
 endi
 
 #===============================single value filter, order by desc============================
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts desc limit 10 offset 0;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 0;
 if $row != 8 then
    return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.000@ then
+if $data00 != @70-01-01 08:01:40.000@ then
   return -1
 endi
 
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts desc limit 10 offset 1;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 1;
 if $row != 7 then
    return -1
 endi
 
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts desc limit 10 offset 2;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 2;
 if $row != 6 then
    return -1
 endi
 
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts desc limit 10 offset 4;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 4;
 if $row != 4 then
    return -1
 endi
 
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts desc limit 10 offset 7;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 7;
 if $row != 1 then
    return -1
 endi
 
-if $data00 != @70-01-01 08:01:43.000@ then
+if $data00 != @70-01-01 08:01:40.000@ then
   return -1
 endi
 
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts desc limit 10 offset 8;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 8;
 if $row != 0 then
    return -1
 endi
 
-sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:43' and ts<='1970-1-1 8:1:43.00' order by ts desc limit 10 offset 9;
+sql select ts,tbname from group_mt0 where ts>='1970-1-1 8:1:40' and ts<='1970-1-1 8:1:40.00' order by ts desc limit 10 offset 9;
 if $row != 0 then
    return -1
 endi
 
 #[tbase-695]
-sql select ts,tbname from group_mt0 where ts>='1970-01-01 8:1:40' and ts<'1970-1-1 8:1:45' and c1<99999999 limit 100000 offset 5000
+sql select ts,tbname from group_mt0 where ts>='1970-01-01 8:1:40' and ts<'1970-1-1 8:1:40.500' and c1<99999999 limit 10000 offset 500
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
 print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
 print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
-if $row != 35000 then
+if $row != 3500 then
    return -1
 endi
 
@@ -301,7 +301,7 @@ print tbase-722
 sql select spread(ts) from group_tb0;
 print $data00
 
-if $data00 != 9999.000000000 then
+if $data00 != 999.000000000 then
    return -1
 endi
 

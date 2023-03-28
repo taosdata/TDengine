@@ -543,7 +543,7 @@ void taos_init_imp(void) {
 
   if (taosCreateLog("taoslog", 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
     // ignore create log failed, only print
-    printf(" WARING: Create taoslog failed. configDir=%s\n", configDir);
+    printf(" WARING: Create taoslog failed:%s. configDir=%s\n", strerror(errno), configDir);
   }
 
   if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1) != 0) {

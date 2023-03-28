@@ -5900,6 +5900,39 @@ int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return pResInfo->numOfRes;
 }
 
+int32_t groupKeyCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SGroupKeyInfo*       pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SGroupKeyInfo*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+
+  // escape rest of data blocks to avoid first entry to be overwritten.
+  if (pDBuf->hasResult) {
+    goto _group_key_over;
+  }
+
+  if (pSBuf->isNull) {
+    pDBuf->isNull = true;
+    pDBuf->hasResult = true;
+    goto _group_key_over;
+  }
+
+  if (IS_VAR_DATA_TYPE(pSourceCtx->resDataInfo.type)) {
+    memcpy(pDBuf->data, pSBuf->data,
+           (pSourceCtx->resDataInfo.type == TSDB_DATA_TYPE_JSON) ? getJsonValueLen(pSBuf->data) : varDataTLen(pSBuf->data));
+  } else {
+    memcpy(pDBuf->data, pSBuf->data, pSourceCtx->resDataInfo.bytes);
+  }
+
+  pDBuf->hasResult = true;
+
+_group_key_over:
+
+  SET_VAL(pDResInfo, 1, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElems = 0;
 
