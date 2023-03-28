@@ -611,6 +611,7 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       break;
     }
 
+    // todo handle the malloc failure
     SMqRebInputObj rebInput = {0};
     SMqRebOutputObj rebOutput = {0};
     rebOutput.newConsumers = taosArrayInit(0, sizeof(int64_t));
