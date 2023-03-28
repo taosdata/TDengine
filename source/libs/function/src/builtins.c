@@ -2480,7 +2480,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "irate",
     .type = FUNCTION_TYPE_IRATE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateIrate,
     .getEnvFunc   = getIrateFuncEnv,
     .initFunc     = irateFuncSetup,
@@ -3234,6 +3234,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = groupKeyFunction,
     .finalizeFunc = groupKeyFinalize,
+    .combineFunc  = groupKeyCombine,
     .pPartialFunc = "_group_key",
     .pMergeFunc   = "_group_key"
   },

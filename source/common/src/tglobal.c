@@ -154,6 +154,7 @@ char    tsTagFilterCache = 0;
 // positive value (in MB)
 int32_t tsQueryBufferSize = -1;
 int64_t tsQueryBufferSizeBytes = -1;
+int32_t tsCacheLazyLoadThreshold = 500;
 
 int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
@@ -332,6 +333,10 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, true) != 0) return -1;
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, true) != 0) return -1;
 
+  tsNumOfRpcThreads = tsNumOfCores / 2;
+  tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
+  if (cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, 0) != 0) return -1;
+
   tsNumOfRpcSessions = TRANGE(tsNumOfRpcSessions, 100, 100000);
   if (cfgAddInt32(pCfg, "numOfRpcSessions", tsNumOfRpcSessions, 1, 100000, 0) != 0) return -1;
 
@@ -492,6 +497,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "udfdLdLibPath", tsUdfdLdLibPath, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "disableStream", tsDisableStream, 0) != 0) return -1;
+
+  if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, 0) != 0) return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -723,6 +730,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
 
+  tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;
   tsNumOfRpcSessions = cfgGetItem(pCfg, "numOfRpcSessions")->i32;
 
   tsTimeToGetAvailableConn = cfgGetItem(pCfg, "timeToGetAvailableConn")->i32;
@@ -818,6 +826,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
+
+  tsCacheLazyLoadThreshold = cfgGetItem(pCfg, "cacheLazyLoadThreshold")->i32;
 
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
 
@@ -1228,13 +1238,13 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   }
 
   if (taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl) != 0) {
-    uError("failed to load cfg since %s", terrstr());
+    printf("failed to load cfg since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
 
   if (cfgLoadFromArray(pCfg, pArgs) != 0) {
-    uError("failed to load cfg from array since %s", terrstr());
+    printf("failed to load cfg from array since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
@@ -1250,13 +1260,13 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   if (taosMulModeMkDir(tsLogDir, 0777) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to create dir:%s since %s", tsLogDir, terrstr());
+    printf("failed to create dir:%s since %s", tsLogDir, terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
 
   if (taosInitLog(logname, logFileNum) != 0) {
-    uError("failed to init log file since %s", terrstr());
+    printf("failed to init log file since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }

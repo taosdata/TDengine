@@ -24,7 +24,7 @@ clientName2="${12}"
 productName="TDengine"
 clientName="taos"
 configFile="taos.cfg"
-tarName="taos.tar.gz"
+tarName="package.tar.gz"
 
 if [ "$osType" != "Darwin" ]; then
   script_dir="$(dirname $(readlink -f $0))"

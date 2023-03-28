@@ -1940,6 +1940,7 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
   }
 
   if (pInfo->algo != APERCT_ALGO_TDIGEST) {
+    buildHistogramInfo(pInfo);
     qDebug("%s after merge, total:%" PRId64 ", numOfEntry:%d, %p", __FUNCTION__, pInfo->pHisto->numOfElems,
            pInfo->pHisto->numOfEntries, pInfo->pHisto);
   }
@@ -2461,6 +2462,9 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
   int32_t numOfElems = 0;
 
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pCol, i)) {
+      continue;
+    }
     char*          data = colDataGetData(pCol, i);
     SFirstLastRes* pInputInfo = (SFirstLastRes*)varDataVal(data);
     int32_t        code = firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery, i);
@@ -5894,6 +5898,39 @@ int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return pResInfo->numOfRes;
+}
+
+int32_t groupKeyCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SGroupKeyInfo*       pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SGroupKeyInfo*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+
+  // escape rest of data blocks to avoid first entry to be overwritten.
+  if (pDBuf->hasResult) {
+    goto _group_key_over;
+  }
+
+  if (pSBuf->isNull) {
+    pDBuf->isNull = true;
+    pDBuf->hasResult = true;
+    goto _group_key_over;
+  }
+
+  if (IS_VAR_DATA_TYPE(pSourceCtx->resDataInfo.type)) {
+    memcpy(pDBuf->data, pSBuf->data,
+           (pSourceCtx->resDataInfo.type == TSDB_DATA_TYPE_JSON) ? getJsonValueLen(pSBuf->data) : varDataTLen(pSBuf->data));
+  } else {
+    memcpy(pDBuf->data, pSBuf->data, pSourceCtx->resDataInfo.bytes);
+  }
+
+  pDBuf->hasResult = true;
+
+_group_key_over:
+
+  SET_VAL(pDResInfo, 1, 1);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {

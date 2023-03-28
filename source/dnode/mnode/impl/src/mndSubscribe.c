@@ -349,10 +349,10 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
 
   // 4. calc vg number of each consumer
   int32_t numOfFinal = pInput->oldConsumerNum + numOfAdded - numOfRemoved;
-  
+
   int32_t minVgCnt = 0;
   int32_t imbConsumerNum = 0;
-  
+
   // calc num
   if (numOfFinal) {
     minVgCnt = totalVgNum / numOfFinal;
@@ -398,7 +398,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
       taosArrayPush(pConsumerEp->vgs, &pRebVg->pVgEp);
       pRebVg->newConsumerId = pConsumerEp->consumerId;
       taosArrayPush(pOutput->rebVgs, pRebVg);
-      mInfo("mq rebalance: add vgId:%d to consumer:%" PRIx64 " (second scan) (not enough)", pRebVg->pVgEp->vgId,
+      mInfo("mq rebalance: add vgId:%d to consumer:0x%" PRIx64 " (second scan) (not enough)", pRebVg->pVgEp->vgId,
             pConsumerEp->consumerId);
     }
   }
@@ -428,12 +428,12 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
       taosArrayPush(pConsumerEp->vgs, &pRebVg->pVgEp);
       pRebVg->newConsumerId = pConsumerEp->consumerId;
       if (pRebVg->newConsumerId == pRebVg->oldConsumerId) {
-        mInfo("mq rebalance: skip vg %d for same consumer:%" PRIx64 " (second scan)", pRebVg->pVgEp->vgId,
+        mInfo("mq rebalance: skip vg %d for same consumer:0x%" PRIx64 " (second scan)", pRebVg->pVgEp->vgId,
               pConsumerEp->consumerId);
         continue;
       }
       taosArrayPush(pOutput->rebVgs, pRebVg);
-      mInfo("mq rebalance: add vgId:%d to consumer:%" PRIx64 " (second scan) (unassigned)", pRebVg->pVgEp->vgId,
+      mInfo("mq rebalance: add vgId:%d to consumer:0x%" PRIx64 " (second scan) (unassigned)", pRebVg->pVgEp->vgId,
             pConsumerEp->consumerId);
     }
   } else {
@@ -1070,7 +1070,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumerEp->consumerId, false);
 
-        mDebug("mnd show subscriptions: topic %s, consumer:%" PRIx64 " cgroup %s vgid %d", varDataVal(topic),
+        mDebug("mnd show subscriptions: topic %s, consumer:0x%" PRIx64 " cgroup %s vgid %d", varDataVal(topic),
                pConsumerEp->consumerId, varDataVal(cgroup), pVgEp->vgId);
 
         // offset

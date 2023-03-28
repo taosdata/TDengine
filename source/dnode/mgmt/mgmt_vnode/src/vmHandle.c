@@ -20,6 +20,8 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
   if (pInfo->pVloads == NULL) return;
 
+  tfsUpdateSize(pMgmt->pTfs);
+  
   taosThreadRwlockRdlock(&pMgmt->lock);
 
   void *pIter = taosHashIterate(pMgmt->hash, NULL);

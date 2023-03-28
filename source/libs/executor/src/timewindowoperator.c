@@ -78,7 +78,7 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
                                       int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup,
                                       SExecTaskInfo* pTaskInfo) {
   SResultRow* pResultRow = doSetResultOutBufByKey(pAggSup->pResultBuf, pResultRowInfo, (char*)&win->skey, TSDB_KEYSIZE,
-                                                  masterscan, tableGroupId, pTaskInfo, true, pAggSup);
+                                                  masterscan, tableGroupId, pTaskInfo, true, pAggSup, true);
 
   if (pResultRow == NULL) {
     *pResult = NULL;
@@ -939,7 +939,6 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
   int32_t forwardRows =
       getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, pInfo->inputOrder);
-  ASSERT(forwardRows > 0);
 
   // prev time window not interpolation yet.
   if (pInfo->timeWindowInterpo) {
@@ -2111,10 +2110,12 @@ void compactFunctions(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
     } else if (functionNeedToExecute(&pDestCtx[k]) && pDestCtx[k].fpSet.combine != NULL) {
       int32_t code = pDestCtx[k].fpSet.combine(&pDestCtx[k], &pSourceCtx[k]);
       if (code != TSDB_CODE_SUCCESS) {
-        qError("%s apply functions error, code: %s", GET_TASKID(pTaskInfo), tstrerror(code));
-        pTaskInfo->code = code;
-        T_LONG_JMP(pTaskInfo->env, code);
+        qError("%s apply combine functions error, code: %s", GET_TASKID(pTaskInfo), tstrerror(code));
       }
+    } else if (pDestCtx[k].fpSet.combine == NULL) {
+      char* funName = fmGetFuncName(pDestCtx[k].functionId);
+      qError("%s error, combine funcion for %s is not implemented", GET_TASKID(pTaskInfo), funName);
+      taosMemoryFreeClear(funName);
     }
   }
 }
@@ -2770,6 +2771,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->pPullDataMap = taosHashInit(64, hashFn, false, HASH_NO_LOCK);
   pInfo->pPullDataRes = createSpecialDataBlock(STREAM_RETRIEVE);
   pInfo->ignoreExpiredData = pIntervalPhyNode->window.igExpired;
+  pInfo->ignoreExpiredDataSaved = false;
   pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
   pInfo->delIndex = 0;
   pInfo->pDelWins = taosArrayInit(4, sizeof(SWinKey));
@@ -3588,6 +3590,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   pInfo->isFinal = false;
   pInfo->pPhyNode = pPhyNode;
   pInfo->ignoreExpiredData = pSessionNode->window.igExpired;
+  pInfo->ignoreExpiredDataSaved = false;
   pInfo->pUpdated = NULL;
   pInfo->pStUpdated = NULL;
 
@@ -3912,7 +3915,7 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   blockDataEnsureCapacity(pAggSup->pScanBlock, rows);
   SColumnInfoData* pKeyColInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->stateCol.slotId);
   for (int32_t i = 0; i < rows; i += winRows) {
-    if (pInfo->ignoreExpiredData && isOverdue(tsCols[i], &pInfo->twAggSup)) {
+    if (pInfo->ignoreExpiredData && isOverdue(tsCols[i], &pInfo->twAggSup) || colDataIsNull_s(pKeyColInfo, i)) {
       i++;
       continue;
     }
@@ -4113,6 +4116,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
   pInfo->pChildren = NULL;
   pInfo->ignoreExpiredData = pStateNode->window.igExpired;
+  pInfo->ignoreExpiredDataSaved = false;
   pInfo->pUpdated = NULL;
   pInfo->pSeUpdated = NULL;
 
@@ -4805,10 +4809,9 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       setInverFunction(pSup->pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.type);
     }
 
+    doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.id.groupId, pInfo->pUpdatedMap);
     pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlock->info.window.ekey);
     pInfo->twAggSup.minTs = TMIN(pInfo->twAggSup.minTs, pBlock->info.window.skey);
-
-    doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.id.groupId, pInfo->pUpdatedMap);
   }
   pOperator->status = OP_RES_TO_RETURN;
   removeDeleteResults(pInfo->pUpdatedMap, pInfo->pDelWins);
@@ -4887,6 +4890,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->interval = interval;
   pInfo->twAggSup = twAggSupp;
   pInfo->ignoreExpiredData = pIntervalPhyNode->window.igExpired;
+  pInfo->ignoreExpiredDataSaved = false;
   pInfo->isFinal = false;
 
   SExprSupp* pSup = &pOperator->exprSupp;

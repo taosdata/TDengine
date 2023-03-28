@@ -115,13 +115,15 @@ typedef struct STaskIdInfo {
   uint64_t subplanId;
   uint64_t templateId;
   char*    str;
+  int32_t  vgId;
 } STaskIdInfo;
 
 enum {
   STREAM_RECOVER_STEP__NONE = 0,
   STREAM_RECOVER_STEP__PREPARE1,
   STREAM_RECOVER_STEP__PREPARE2,
-  STREAM_RECOVER_STEP__SCAN,
+  STREAM_RECOVER_STEP__SCAN1,
+  STREAM_RECOVER_STEP__SCAN2,
 };
 
 typedef struct {
@@ -557,6 +559,7 @@ typedef struct SStreamIntervalOperatorInfo {
   STimeWindowAggSupp twAggSup;
   bool               invertible;
   bool               ignoreExpiredData;
+  bool               ignoreExpiredDataSaved;
   SArray*            pDelWins;  // SWinRes
   int32_t            delIndex;
   SSDataBlock*       pDelRes;
@@ -618,6 +621,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   SPhysiNode*         pPhyNode;   // create new child
   bool                isFinal;
   bool                ignoreExpiredData;
+  bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
   SSHashObj*          pStUpdated;
 } SStreamSessionAggOperatorInfo;
@@ -635,6 +639,7 @@ typedef struct SStreamStateAggOperatorInfo {
   void*               pDelIterator;
   SArray*             pChildren;  // cache for children's result;
   bool                ignoreExpiredData;
+  bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
   SSHashObj*          pSeUpdated;
 } SStreamStateAggOperatorInfo;
@@ -749,7 +754,7 @@ void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo, char* pData,
                                    int16_t bytes, bool masterscan, uint64_t groupId, SExecTaskInfo* pTaskInfo,
-                                   bool isIntervalQuery, SAggSupporter* pSup);
+                                   bool isIntervalQuery, SAggSupporter* pSup, bool keepGroup);
 // operator creater functions
 // clang-format off
 SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo);
@@ -833,8 +838,10 @@ void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
 void doDestroyTask(SExecTaskInfo* pTaskInfo);
 void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 
-int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                               char* sql, EOPTR_EXEC_MODEL model);
+char* buildTaskId(uint64_t taskId, uint64_t queryId);
+
+int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
+                               int32_t vgId, char* sql, EOPTR_EXEC_MODEL model);
 int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pTaskInfo, SReadHandle* readHandle);
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInfoList);
 
@@ -881,6 +888,7 @@ SExprInfo*   createExpr(SNodeList* pNodeList, int32_t* numOfExprs);
 void copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
                               SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo);
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset);
+void doClearBufferedBlocks(SStreamScanInfo* pInfo);
 
 #ifdef __cplusplus
 }

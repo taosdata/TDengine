@@ -1331,6 +1331,32 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   return code;
 }
 
+static bool isCountNotNullValue(SFunctionNode* pFunc) {
+  if (FUNCTION_TYPE_COUNT != pFunc->funcType || 1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return false;
+  }
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  return (QUERY_NODE_VALUE == nodeType(pPara) && !((SValueNode*)pPara)->isNull);
+}
+
+// count(1) is rewritten as count(ts) for scannning optimization
+static int32_t rewriteCountNotNullValue(STranslateContext* pCxt, SFunctionNode* pCount) {
+  SValueNode* pValue = (SValueNode*)nodesListGetNode(pCount->pParameterList, 0);
+  STableNode* pTable = NULL;
+  int32_t     code = findTable(pCxt, NULL, &pTable);
+  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+    SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+    if (NULL == pCol) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol);
+      NODES_DESTORY_LIST(pCount->pParameterList);
+      code = nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol);
+    }
+  }
+  return code;
+}
+
 static bool isCountTbname(SFunctionNode* pFunc) {
   if (FUNCTION_TYPE_COUNT != pFunc->funcType || 1 != LIST_LENGTH(pFunc->pParameterList)) {
     return false;
@@ -1395,6 +1421,9 @@ static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
 
   if (isCountStar(pFunc)) {
     return rewriteCountStar(pCxt, pFunc);
+  }
+  if (isCountNotNullValue(pFunc)) {
+    return rewriteCountNotNullValue(pCxt, pFunc);
   }
   if (isCountTbname(pFunc)) {
     return rewriteCountTbname(pCxt, pFunc);
@@ -2041,7 +2070,7 @@ static int32_t getGroupByErrorCode(STranslateContext* pCxt) {
   if (isSelectStmt(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pGroupByList) {
     return TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION;
   }
-  return TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN;
+  return TSDB_CODE_PAR_INVALID_OPTR_USAGE;
 }
 
 static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode) {
@@ -2114,13 +2143,13 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     if (pSelect->selectFuncNum > 1 || pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) {
-      return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt));
+      return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
     } else {
       return rewriteColToSelectValFunc(pCxt, pNode);
     }
   }
   if (isVectorFunc(*pNode) && isDistinctOrderBy(pCxt)) {
-    return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt));
+    return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
   }
   return DEAL_RES_CONTINUE;
 }
@@ -2500,6 +2529,11 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
       STempTableNode* pTempTable = (STempTableNode*)pTable;
       code = translateSubquery(pCxt, pTempTable->pSubquery);
       if (TSDB_CODE_SUCCESS == code) {
+        if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) &&
+            ((SSelectStmt*)pTempTable->pSubquery)->isEmptyResult && isSelectStmt(pCxt->pCurrStmt)) {
+          ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
+        }
+
         pTempTable->table.precision = getStmtPrecision(pTempTable->pSubquery);
         pTempTable->table.singleTable = stmtIsSingleTable(pTempTable->pSubquery);
         code = addNamespace(pCxt, pTempTable);
@@ -2928,6 +2962,9 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateFillValues(pCxt, pSelect);
+  }
+  if (NULL == pSelect->pProjectionList || 0 >= pSelect->pProjectionList->length) {
+    code = TSDB_CODE_PAR_INVALID_SELECTED_EXPR;
   }
   return code;
 }
@@ -3364,8 +3401,8 @@ static int32_t checkLimit(STranslateContext* pCxt, SSelectStmt* pSelect) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OFFSET_LESS_ZERO);
   }
 
-  if (NULL != pSelect->pSlimit && NULL == pSelect->pPartitionByList) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_BY);
+  if (NULL != pSelect->pSlimit && (NULL == pSelect->pPartitionByList && NULL == pSelect->pGroupByList)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4245,6 +4282,7 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->cacheLastSize = pStmt->pOptions->cacheLastSize;
   pReq->replications = pStmt->pOptions->replica;
   pReq->sstTrigger = pStmt->pOptions->sstTrigger;
+  pReq->minRows = pStmt->pOptions->minRowsPerBlock;
   return;
 }
 
@@ -5564,7 +5602,8 @@ static int32_t checkCreateTopic(STranslateContext* pCxt, SCreateTopicStmt* pStmt
 
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt->pQuery)) {
     SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
-    if (!pSelect->isDistinct && QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable) &&
+    if (!pSelect->isDistinct &&
+        (NULL != pSelect->pFromTable && QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable)) &&
         NULL == pSelect->pGroupByList && NULL == pSelect->pLimit && NULL == pSelect->pSlimit &&
         NULL == pSelect->pOrderByList && NULL == pSelect->pPartitionByList) {
       return TSDB_CODE_SUCCESS;
@@ -5626,12 +5665,36 @@ static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) 
   return refreshGetTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pStmt->pMeta);
 }
 
+static int32_t translateCompactRange(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt, SCompactDbReq* pReq) {
+  SDbCfgInfo dbCfg = {0};
+  int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pStart) {
+    ((SValueNode*)pStmt->pStart)->node.resType.precision = dbCfg.precision;
+    ((SValueNode*)pStmt->pStart)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    code = doTranslateValue(pCxt, (SValueNode*)pStmt->pStart);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pEnd) {
+    ((SValueNode*)pStmt->pEnd)->node.resType.precision = dbCfg.precision;
+    ((SValueNode*)pStmt->pEnd)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    code = doTranslateValue(pCxt, (SValueNode*)pStmt->pEnd);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pReq->timeRange.skey = NULL != pStmt->pStart ? ((SValueNode*)pStmt->pStart)->datum.i : INT64_MIN;
+    pReq->timeRange.ekey = NULL != pStmt->pEnd ? ((SValueNode*)pStmt->pEnd)->datum.i : INT64_MAX;
+  }
+  return code;
+}
+
 static int32_t translateCompact(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
   SCompactDbReq compactReq = {0};
   SName         name;
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameGetFullDbName(&name, compactReq.db);
-  return buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &compactReq);
+  int32_t code = translateCompactRange(pCxt, pStmt, &compactReq);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &compactReq);
+  }
+  return code;
 }
 
 static int32_t translateKillConnection(STranslateContext* pCxt, SKillStmt* pStmt) {
@@ -5860,11 +5923,15 @@ static int32_t addSubtableInfoToCreateStreamQuery(STranslateContext* pCxt, STabl
   return code;
 }
 
+static bool isEventWindowQuery(SSelectStmt* pSelect) {
+  return NULL != pSelect->pWindow && QUERY_NODE_EVENT_WINDOW == nodeType(pSelect->pWindow);
+}
+
 static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
   if (TSDB_DATA_TYPE_TIMESTAMP != ((SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0))->resType.type ||
       !pSelect->isTimeLineResult || crossTableWithoutAggOper(pSelect) || NULL != pSelect->pOrderByList ||
-      crossTableWithUdaf(pSelect)) {
+      crossTableWithUdaf(pSelect) || isEventWindowQuery(pSelect)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
   if (NULL != pSelect->pSubtable && TSDB_DATA_TYPE_VARCHAR != ((SExprNode*)pSelect->pSubtable)->resType.type) {

@@ -412,6 +412,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     if (pVgroup != NULL) {
       if (pVload->syncState == TAOS_SYNC_STATE_LEADER) {
         pVgroup->cacheUsage = pVload->cacheUsage;
+        pVgroup->numOfCachedTables = pVload->numOfCachedTables;
         pVgroup->numOfTables = pVload->numOfTables;
         pVgroup->numOfTimeSeries = pVload->numOfTimeSeries;
         pVgroup->totalStorage = pVload->totalStorage;
@@ -440,7 +441,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       if (roleChanged) {
         SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
         if (pDb != NULL && pDb->stateTs != curMs) {
-          mInfo("db:%s, stateTs changed by status msg, old stateTs:%" PRId64 " new stateTs:%" PRId64, pDb->name, pDb->stateTs, curMs);
+          mInfo("db:%s, stateTs changed by status msg, old stateTs:%" PRId64 " new stateTs:%" PRId64, pDb->name,
+                pDb->stateTs, curMs);
           pDb->stateTs = curMs;
         }
         mndReleaseDb(pMnode, pDb);
@@ -1073,6 +1075,9 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->createdTime, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->rebootTime, false);
 
     char *b = taosMemoryCalloc(VARSTR_HEADER_SIZE + strlen(offlineReason[pDnode->offlineReason]) + 1, 1);
     STR_TO_VARSTR(b, online ? "" : offlineReason[pDnode->offlineReason]);

@@ -108,12 +108,18 @@ static int32_t sortComparCleanup(SMsortComparParam* cmpParam) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tsortClearOrderdSource(SArray* pOrderedSource) {
+void tsortClearOrderdSource(SArray* pOrderedSource, int64_t *fetchUs, int64_t *fetchNum) {
   for (size_t i = 0; i < taosArrayGetSize(pOrderedSource); i++) {
     SSortSource** pSource = taosArrayGet(pOrderedSource, i);
     if (NULL == *pSource) {
       continue;
     }
+
+    if (fetchUs) {
+      *fetchUs += (*pSource)->fetchUs;
+      *fetchNum += (*pSource)->fetchNum;
+    }
+    
     // release pageIdList
     if ((*pSource)->pageIdList) {
       taosArrayDestroy((*pSource)->pageIdList);
@@ -147,7 +153,10 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   taosMemoryFreeClear(pSortHandle->idStr);
   blockDataDestroy(pSortHandle->pDataBlock);
 
-  tsortClearOrderdSource(pSortHandle->pOrderedSource);
+  int64_t fetchUs = 0, fetchNum = 0;
+  tsortClearOrderdSource(pSortHandle->pOrderedSource, &fetchUs, &fetchNum);
+  qError("all source fetch time: %" PRId64 "us num:%" PRId64 " %s", fetchUs, fetchNum, pSortHandle->idStr);
+  
   taosArrayDestroy(pSortHandle->pOrderedSource);
   taosMemoryFreeClear(pSortHandle);
 }
@@ -214,7 +223,6 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     if (pPage == NULL) {
       taosArrayDestroy(pPageIdList);
       blockDataDestroy(p);
-      taosArrayDestroy(pPageIdList);
       return terrno;
     }
 
@@ -308,7 +316,7 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
     }
 
     int64_t et = taosGetTimestampUs();
-    qDebug("init for merge sort completed, elapsed time:%.2f ms, %s", (et - st) / 1000.0, pHandle->idStr);
+    qError("init for merge sort completed, elapsed time:%.2f ms, %s", (et - st) / 1000.0, pHandle->idStr);
   }
 
   return code;
@@ -366,7 +374,10 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
         releaseBufPage(pHandle->pBuf, pPage);
       }
     } else {
+      int64_t st = taosGetTimestampUs();      
       pSource->src.pBlock = pHandle->fetchfp(((SSortSource*)pSource)->param);
+      pSource->fetchUs += taosGetTimestampUs() - st;
+      pSource->fetchNum++;
       if (pSource->src.pBlock == NULL) {
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;
@@ -603,7 +614,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
       }
     }
 
-    tsortClearOrderdSource(pHandle->pOrderedSource);
+    tsortClearOrderdSource(pHandle->pOrderedSource, NULL, NULL);
     taosArrayAddAll(pHandle->pOrderedSource, pResList);
     taosArrayDestroy(pResList);
 
@@ -645,7 +656,7 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
     SSortSource*  source = *pSource;
     *pSource = NULL;
 
-    tsortClearOrderdSource(pHandle->pOrderedSource);
+    tsortClearOrderdSource(pHandle->pOrderedSource, NULL, NULL);
 
     while (1) {
       SSDataBlock* pBlock = pHandle->fetchfp(source->param);

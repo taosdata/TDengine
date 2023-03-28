@@ -28,7 +28,7 @@ productName="TDengine"
 serverName="taosd"
 clientName="taos"
 configFile="taos.cfg"
-tarName="taos.tar.gz"
+tarName="package.tar.gz"
 dumpName="taosdump"
 benchmarkName="taosBenchmark"
 toolsName="taostools"
@@ -53,7 +53,7 @@ if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
   cd ${top_dir}/tools/taos-tools/packaging/deb
   [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-  taostools_ver=$(git tag |grep -v taos | sort | tail -1)
+  taostools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
   taostools_install_dir="${release_dir}/${clientName2}Tools-${taostools_ver}"
 
   cd ${curr_dir}
@@ -171,22 +171,22 @@ if [ -n "${taostools_bin_files}" ]; then
         && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
         && chmod a+x ${taostools_install_dir}/bin/* || :
 
-    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-taostools.sh ]; then
-        cp ${top_dir}/tools/taos-tools/packaging/tools/install-taostools.sh \
+    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh ]; then
+        cp ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh \
             ${taostools_install_dir}/ > /dev/null \
-            && chmod a+x ${taostools_install_dir}/install-taostools.sh \
-            || echo -e "failed to copy install-taostools.sh"
+            && chmod a+x ${taostools_install_dir}/install-tools.sh \
+            || echo -e "failed to copy install-tools.sh"
     else
-        echo -e "install-taostools.sh not found"
+        echo -e "install-tools.sh not found"
     fi
 
-    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-taostools.sh ]; then
-        cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-taostools.sh \
+    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh ]; then
+        cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh \
             ${taostools_install_dir}/ > /dev/null \
-            && chmod a+x ${taostools_install_dir}/uninstall-taostools.sh \
-            || echo -e "failed to copy uninstall-taostools.sh"
+            && chmod a+x ${taostools_install_dir}/uninstall-tools.sh \
+            || echo -e "failed to copy uninstall-tools.sh"
     else
-        echo -e "uninstall-taostools.sh not found"
+        echo -e "uninstall-tools.sh not found"
     fi
 
     if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then

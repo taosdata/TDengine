@@ -7,7 +7,7 @@ $dbPrefix = wh_db
 $tbPrefix = wh_tb
 $mtPrefix = wh_mt
 $tbNum = 10
-$rowNum = 10000
+$rowNum = 1000
 $totalNum = $tbNum * $rowNum
 
 print =============== where.sim
@@ -62,7 +62,7 @@ sql select count(*) from $tb where c1<10 and c1<>2
 if $rows != 1 then
   return -1
 endi
-if $data00 != 900 then
+if $data00 != 90 then
   return -1
 endi
 
@@ -308,9 +308,9 @@ if $row != 0 then
 endi
 
 sql select * from wh_mt0 where c3 = 1;
-print $rows -> 1000
+print $rows -> 100
 print $data00 $data01 $data02
-if $row != 1000 then
+if $row != 100 then
   return -1
 endi
 

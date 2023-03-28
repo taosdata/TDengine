@@ -28,6 +28,10 @@
 
 #ifdef WEBSOCKET
 #include "taosws.h"
+
+#define SHELL_WS_TIMEOUT                        30
+#define SHELL_WS_DSN_BUFF                       256
+#define SHELL_WS_DSN_MASK                       10
 #endif
 
 #define SHELL_MAX_HISTORY_SIZE                 1000
@@ -83,7 +87,7 @@ typedef struct {
   const char *clientVersion;
   char cusName[32];
   char promptHeader[32];
-  const char* promptContinue;
+  char promptContinue[32];
   const char* osname;
   int32_t     promptSize;
   char        programVersion[256];
@@ -99,7 +103,7 @@ typedef struct {
   bool            exit;
 #ifdef WEBSOCKET
   WS_TAOS*        ws_conn;
-  bool		      stop_query;
+  bool            stop_query;
 #endif
 } SShellObj;
 
@@ -139,7 +143,7 @@ void    shellExit();
 void shellTestNetWork();
 
 #ifdef WEBSOCKET
-void	shellCheckConnectMode();
+void shellCheckConnectMode();
 // shellWebsocket.c
 int shell_conn_ws_server(bool first);
 int32_t shell_run_websocket();

@@ -77,7 +77,7 @@ void mndCleanupConsumer(SMnode *pMnode) {}
 
 bool mndRebTryStart() {
   int32_t old = atomic_val_compare_exchange_32(&mqRebInExecCnt, 0, 1);
-  mInfo("tq timer, rebalance counter old val:%d", old);
+  mDebug("tq timer, rebalance counter old val:%d", old);
   return old == 0;
 }
 
@@ -101,7 +101,7 @@ void mndRebCntDec() {
     int32_t newVal = val - 1;
     int32_t oldVal = atomic_val_compare_exchange_32(&mqRebInExecCnt, val, newVal);
     if (oldVal == val) {
-      mInfo("rebalance trans end, rebalance counter:%d", newVal);
+      mDebug("rebalance trans end, rebalance counter:%d", newVal);
       break;
     }
   }
@@ -253,11 +253,11 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   SMqConsumerObj *pConsumer;
   void           *pIter = NULL;
 
-  mTrace("start to process mq timer");
+  mDebug("start to process mq timer");
 
   // rebalance cannot be parallel
   if (!mndRebTryStart()) {
-    mInfo("mq rebalance already in progress, do nothing");
+    mDebug("mq rebalance already in progress, do nothing");
     return 0;
   }
 
@@ -317,7 +317,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
         taosArrayPush(pRebSub->removedConsumers, &pConsumer->consumerId);
       }
       taosRUnLockLatch(&pConsumer->lock);
-    } else if (status == MQ_CONSUMER_STATUS__MODIFY) {
+    } else if (status == MQ_CONSUMER_STATUS__MODIFY || status == MQ_CONSUMER_STATUS__MODIFY_IN_REB) {
       taosRLockLatch(&pConsumer->lock);
 
       int32_t newTopicNum = taosArrayGetSize(pConsumer->rebNewTopics);
@@ -356,7 +356,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   } else {
     taosHashCleanup(pRebMsg->rebSubHash);
     rpcFreeCont(pRebMsg);
-    mInfo("mq rebalance finished, no modification");
+    mDebug("mq rebalance finished, no modification");
     mndRebEnd();
   }
   return 0;
@@ -601,6 +601,13 @@ static void* topicNameDup(void* p){
   return taosStrdup((char*) p);
 }
 
+static void freeItem(void* param) {
+  void* pItem = *(void**)param;
+  if (pItem != NULL) {
+    taosMemoryFree(pItem);
+  }
+}
+
 int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
   char   *msgStr = pMsg->pCont;
@@ -616,7 +623,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   int32_t code = -1;
   SArray *pTopicList = subscribe.topicNames;
   taosArraySort(pTopicList, taosArrayCompareString);
-  taosArrayRemoveDuplicateP(pTopicList, taosArrayCompareString, taosMemoryFree);
+  taosArrayRemoveDuplicate(pTopicList, taosArrayCompareString, freeItem);
 
   int32_t newTopicNum = taosArrayGetSize(pTopicList);
 

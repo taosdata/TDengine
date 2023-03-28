@@ -211,6 +211,11 @@ static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
   SDecoder *pCoder = &(SDecoder){0};
 
+  if (taosHton64(((SSubmitReq2Msg *)pMsg->pCont)->version) != 1) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   tDecoderInit(pCoder, (uint8_t *)pMsg->pCont + sizeof(SSubmitReq2Msg), pMsg->contLen - sizeof(SSubmitReq2Msg));
 
   if (tStartDecode(pCoder) < 0) {
@@ -301,13 +306,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   void   *pReq;
   int32_t len;
   int32_t ret;
-  /*
-  if (!pVnode->inUse) {
-    terrno = TSDB_CODE_VND_NO_AVAIL_BUFPOOL;
-    vError("vgId:%d, not ready to write since %s", TD_VID(pVnode), terrstr());
-    return -1;
-  }
-  */
+
   if (version <= pVnode->state.applied) {
     vError("vgId:%d, duplicate write request. version: %" PRId64 ", applied: %" PRId64 "", TD_VID(pVnode), version,
            pVnode->state.applied);
@@ -321,8 +320,8 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
   ASSERT(pVnode->state.applied + 1 == version);
 
-  pVnode->state.applied = version;
-  pVnode->state.applyTerm = pMsg->info.conn.applyTerm;
+  atomic_store_64(&pVnode->state.applied, version);
+  atomic_store_64(&pVnode->state.applyTerm, pMsg->info.conn.applyTerm);
 
   if (!syncUtilUserCommit(pMsg->msgType)) goto _exit;
 
@@ -511,7 +510,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
-       pMsg->msgType == TDMT_VND_BATCH_META) &&
+       pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TMQ_CONSUME) &&
       !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
@@ -1218,6 +1217,11 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
 
+    if (pSubmitTbData->pCreateTbReq && pSubmitTbData->pCreateTbReq->uid == 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+
     if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       if (TARRAY_SIZE(pSubmitTbData->aCol) <= 0) {
         code = TSDB_CODE_INVALID_MSG;
@@ -1531,6 +1535,14 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
     }
   }
 
+  if (req.sttTrigger != -1 && req.sttTrigger != pVnode->config.sttTrigger) {
+    pVnode->config.sttTrigger = req.sttTrigger;
+  }
+
+  if (req.minRows != -1 && req.minRows != pVnode->config.tsdbCfg.minRows) {
+    pVnode->config.tsdbCfg.minRows = req.minRows;
+  }
+
   if (walChanged) {
     walAlter(pVnode->pWal, &pVnode->config.walCfg);
   }
@@ -1646,7 +1658,7 @@ _err:
 }
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SDropIndexReq req = {0};
-  pRsp->msgType = TDMT_VND_CREATE_INDEX_RSP;
+  pRsp->msgType = TDMT_VND_DROP_INDEX_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
@@ -1655,6 +1667,7 @@ static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t version, void *p
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
+
   if (metaDropIndexFromSTable(pVnode->pMeta, version, &req) < 0) {
     pRsp->code = terrno;
     return -1;

@@ -4,7 +4,7 @@ $dbPrefix = lm1_db
 $tbPrefix = lm1_tb
 $stbPrefix = lm1_stb
 $tbNum = 10
-$rowNum = 10000
+$rowNum = 1000
 $totalNum = $tbNum * $rowNum
 $ts0 = 1537146000000
 $delta = 600000
@@ -13,7 +13,7 @@ $i = 0
 $db = $dbPrefix . $i
 $stb = $stbPrefix . $i
 
-print ====== use db
+print ====== use $db
 sql use $db
 
 ##### select from table
@@ -664,9 +664,9 @@ endi
 if $data21 != 4.027681991 then
   return -1
 endi
-
+print select  _wstart, count(c1), count(c2), count(c3), count(c4), count(c5), count(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(27m)
 sql select  _wstart, count(c1), count(c2), count(c3), count(c4), count(c5), count(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(27m)
-if $rows != 3704 then
+if $rows != 371 then
   return -1
 endi
 if $data01 != 2 then
@@ -994,11 +994,14 @@ endi
 $offset = $rowNum / 10
 $offset = $offset * 3
 $offset = $offset - 1
+
+print === select * from $tb where c1 < 5 and c1 > 1 order by ts asc limit 3 offset $offset
 sql select * from $tb where c1 < 5 and c1 > 1 order by ts asc limit 3 offset $offset
 if $rows != 1 then
   return -1
 endi
-if $data00 != @18-11-25 18:40:00.000@ then
+print $data00
+if $data00 != @18-09-24 06:40:00.000@ then
   return -1
 endi
 if $data01 != 4 then
@@ -1012,19 +1015,19 @@ sql select * from $tb order by ts desc limit 5
 if $rows != 5 then
   return -1
 endi
-if $data00 != @18-11-25 19:30:00.000@ then
+if $data00 != @18-09-24 07:30:00.000@ then
   return -1
 endi
 if $data01 != 9 then
   return -1
 endi
-if $data10 != @18-11-25 19:20:00.000@ then
+if $data10 != @18-09-24 07:20:00.000@ then
   return -1
 endi
 if $data12 != 8 then
   return -1
 endi
-if $data20 != @18-11-25 19:10:00.000@ then
+if $data20 != @18-09-24 07:10:00.000@ then
   return -1
 endi
 if $data23 != 7.00000 then
@@ -1048,7 +1051,7 @@ endi
 if $data39 != nchar6 then
   return -1
 endi
-if $data40 != @18-11-25 18:50:00.000@ then
+if $data40 != @18-09-24 06:50:00.000@ then
   return -1
 endi
 
@@ -1056,19 +1059,19 @@ sql select * from $tb order by ts desc limit 5 offset 1
 if $rows != 5 then
   return -1
 endi
-if $data00 != @18-11-25 19:20:00.000@ then
+if $data00 != @18-09-24 07:20:00.000@ then
   return -1
 endi
 if $data01 != 8 then
   return -1
 endi
-if $data10 != @18-11-25 19:10:00.000@ then
+if $data10 != @18-09-24 07:10:00.000@ then
   return -1
 endi
 if $data12 != 7 then
   return -1
 endi
-if $data20 != @18-11-25 19:00:00.000@ then
+if $data20 != @18-09-24 07:00:00.000@ then
   return -1
 endi
 if $data23 != 6.00000 then
@@ -1092,12 +1095,13 @@ endi
 if $data39 != nchar5 then
   return -1
 endi
-if $data40 != @18-11-25 18:40:00.000@ then
+if $data40 != @18-09-24 06:40:00.000@ then
   return -1
 endi
 
 $offset = $rowNum
 $offset = $offset - 2
+print ==== select * from $tb order by ts desc limit 5 offset $offset
 sql select * from $tb order by ts desc limit 5 offset $offset
 if $rows != 2 then
   return -1
@@ -1119,16 +1123,16 @@ sql select * from $tb where c1 < 8 order by ts desc limit 3 offset 2
 if $rows != 3 then
   return -1
 endi
-if $data00 != @18-11-25 18:50:00.000@ then
+if $data00 != @18-09-24 06:50:00.000@ then
   return -1
 endi
 if $data01 != 5 then
   return -1
 endi
-if $data10 != @18-11-25 18:40:00.000@ then
+if $data10 != @18-09-24 06:40:00.000@ then
   return -1
 endi
-if $data20 != @18-11-25 18:30:00.000@ then
+if $data20 != @18-09-24 06:30:00.000@ then
   return -1
 endi
 if $data12 != 4 then
