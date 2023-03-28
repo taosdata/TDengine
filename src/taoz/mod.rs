@@ -179,7 +179,7 @@ where
             return <RawMeta as AsyncInlinable>::read_inlined(&mut self.0)
                 .await
                 .map(MessageSet::Meta);
-        } else {
+        } else if data_type == DataType::IS_DATA {
             let mut data = Vec::new();
             loop {
                 if let Some(raw) =
@@ -192,6 +192,8 @@ where
             }
 
             Ok(MessageSet::Data(data))
+        } else {
+            unreachable!()
         }
     }
 }

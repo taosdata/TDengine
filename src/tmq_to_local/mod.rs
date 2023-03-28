@@ -48,6 +48,17 @@ where
 }
 
 impl ZFileMan {
+    pub async fn shutdown(&self) -> Result<()> {
+        for entry in self.writers.iter_mut() {
+            let mut man = entry.value().lock().await;
+            log::info!("Flush vgroup {}", entry.key());
+            man.start_raw_block().await?;
+            man.finish_raw_block().await?;
+            man.flush().await?;
+            man.shutdown().await?;
+        }
+        Ok(())
+    }
     async fn assert_vgroup(&self, vgroup: i32) -> Result<()> {
         if !self.writers.contains_key(&vgroup) {
             let _ = self.sync.lock().await;
@@ -180,10 +191,15 @@ async fn backup(
                     match message {
                         MessageSet::Meta(meta) => {
                             man.write_vgroup_with_meta(vgroup, meta, &metrics).await?;
+
+                            man.flush_vgroup(vgroup).await?;
+                            consumer.commit(offset).await?;
                         }
                         MessageSet::Data(data) => {
                             let (size, stop) = man.write_vgroup_with_data(vgroup, data, &metrics, stop_at).await?;
                             rows += size;
+                            man.flush_vgroup(vgroup).await?;
+                            consumer.commit(offset).await?;
                             if stop {
                                 break;
                             }
@@ -191,16 +207,17 @@ async fn backup(
                         MessageSet::MetaData(meta, data) => {
                             // writer.write_meta(&meta.as_raw_meta().await?).await?;
                             man.write_vgroup_with_meta(vgroup, meta, &metrics).await?;
+                            man.flush_vgroup(vgroup).await?;
                             let (size, stop) = man.write_vgroup_with_data(vgroup, data, &metrics, stop_at).await?;
+
+                            man.flush_vgroup(vgroup).await?;
+                            consumer.commit(offset).await?;
                             rows += size;
                             if stop {
                                 break;
                             }
                         }
                     }
-                    // writer.flush().await?;
-                    man.flush_vgroup(vgroup).await?;
-                    consumer.commit(offset).await?;
                 } else {
                     log::info!("[sync: {id}] polling stopped");
                     break;
@@ -371,6 +388,8 @@ pub async fn tmq_to_local(
     let mut task_id = 0;
     let (consumers_sender, mut consumers_receiver) = tokio::sync::mpsc::unbounded_channel();
 
+    let mut files_manager = Vec::new();
+
     for (_, topic) in config.topics.iter().enumerate() {
         if jobs == 0 && topic.vgroups == 0 {
             anyhow::bail!("unknown vgroups, use a thread number larger than 0 with -j");
@@ -415,10 +434,15 @@ pub async fn tmq_to_local(
             handles.push(handle);
             task_id += 1;
         }
+
+        files_manager.push(man);
     }
     for handle in handles {
         let _ = handle.await??;
         log::info!("worker done");
+    }
+    for man in files_manager {
+        man.shutdown().await?;
     }
     log::info!("stop all consumers({})", task_id);
     for _ in 0..task_id {
