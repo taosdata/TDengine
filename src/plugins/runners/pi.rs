@@ -212,8 +212,8 @@ pub async fn pi_to_taos(
         command
             .arg("-f")
             .arg(&config_path)
-            // .stdout(Stdio::piped())
-            // .stderr(Stdio::piped())
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
             .output()
     });
 
