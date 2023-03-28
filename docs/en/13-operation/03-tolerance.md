@@ -18,14 +18,8 @@ To achieve absolutely no data loss, set wal_level to 2 and wal_fsync_period to 0
 
 ## Disaster Recovery
 
-TDengine uses replication to provide high availability.
+TDengine provides disaster recovery by using taosX to replicate data between two TDengine clusters which are deployed in two distant data centers. Assume there are two TDengine clusters, A and B, A is the source and B is the target, and A takes the workload of writing and querying. You can deploy `taosX` in the data center where cluster A resides in, `taosX` consumes the data written into cluster A and writes into cluster B. If the data center of cluster A is disrupted because of disaster, you can switch to cluster to take the workload of data writing and querying, and deploy a `taosX` in the data center of cluster B to replicate data from cluster B to cluster A if cluster A has been recovered, or another cluster C if cluster A has not been recovered. 
 
-A TDengine cluster is managed by mnodes. You can configure up to three mnodes to ensure high availability. The data replication between mnode replicas is performed in a synchronous way to guarantee metadata consistency.
+You can use the data replication feature of `taosX` to build more complicated disaster recovery solution.
 
-The number of replicas for time series data in TDengine is associated with each database. There can be many databases in a cluster and each database can be configured with a different number of replicas. When creating a database, the parameter `replica` is used to specify the number of replicas. To achieve high availability, set `replica` to 3.
-
-The number of dnodes in a TDengine cluster must NOT be lower than the number of replicas for any database, otherwise it would fail when trying to create a table.
-
-As long as the dnodes of a TDengine cluster are deployed on different physical machines and the replica number is higher than 1, high availability can be achieved without any other assistance. For disaster recovery, dnodes of a TDengine cluster should be deployed in geographically different data centers.
-
-Alternatively, you can use taosX to synchronize the data from one TDengine cluster to another cluster in a remote location. However, taosX is only available in TDengine enterprise version, for more information please contact tdengine.com. 
+taosX is only provided in TDengine enterprise edition, for more detail please contact business@tdengine.com.
