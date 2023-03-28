@@ -300,7 +300,7 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
       void* data = taosMemoryMalloc(len);
       if (data == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
-        tqError("failed to copy data for stream since out of memory, vgId:%d, consumer:0x%"PRIx64, vgId);
+        tqError("failed to copy data for stream since out of memory, vgId:%d", vgId);
         taosWUnLockLatch(&pTq->lock);
         return -1;
       }
