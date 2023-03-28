@@ -3,7 +3,6 @@ add_library(stream STATIC ${STREAM_SRC})
 target_include_directories(
     stream
     PUBLIC "${TD_SOURCE_DIR}/include/libs/stream"
-    PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
@@ -13,6 +12,11 @@ if(${BUILD_WITH_ROCKSDB})
     PUBLIC rocksdb tdb 
     PRIVATE  os util transport qcom executor
   )
+  target_include_directories(
+    stream
+    PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
+  )
+  
   add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
 
