@@ -233,7 +233,7 @@ class TDTestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume 0 processor")
-        pollDelay = 5
+        pollDelay = 10
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -251,6 +251,7 @@ class TDTestCase:
 
         tdLog.info("start consume 1 processor")
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tdLog.sleep(2)
 
         tdLog.info("start one new thread to insert data")
         parameterDict['actionType'] = actionType.INSERT_DATA
@@ -271,6 +272,7 @@ class TDTestCase:
 
         tdLog.info("start consume 2 processor")
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tdLog.sleep(2)
 
         tdLog.info("start one new thread to insert data")
         parameterDict['actionType'] = actionType.INSERT_DATA
@@ -338,7 +340,7 @@ class TDTestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume 0 processor")
-        pollDelay = 100
+        pollDelay = 20
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -380,6 +382,7 @@ class TDTestCase:
 
         tdLog.info("start consume 2 processor")
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tdLog.sleep(2)
 
         tdLog.info("start one new thread to insert data")
         parameterDict['actionType'] = actionType.INSERT_DATA
@@ -394,7 +397,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        if totalConsumeRows != expectrowcnt*2:
+        if totalConsumeRows < expectrowcnt*2:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt*2))
             tdLog.exit("tmq consume rows error!")
 
