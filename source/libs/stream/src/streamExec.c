@@ -152,8 +152,14 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       if (batchCnt >= batchSz) break;
     }
     if (taosArrayGetSize(pRes) == 0) {
-      taosArrayDestroy(pRes);
-      break;
+      if (finished) {
+        taosArrayDestroy(pRes);
+        qDebug("task %d finish recover exec task ", pTask->taskId);
+        break;
+      } else {
+        qDebug("task %d continue recover exec task ", pTask->taskId);
+        continue;
+      }
     }
     SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
     if (qRes == NULL) {

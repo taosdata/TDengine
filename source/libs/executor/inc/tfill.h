@@ -92,8 +92,8 @@ typedef struct SResultRowData {
 
 typedef struct SStreamFillLinearInfo {
   TSKEY   nextEnd;
-  SArray* pDeltaVal;      // double. value for Fill(linear).
-  SArray* pNextDeltaVal;  // double. value for Fill(linear).
+  SArray* pEndPoints;
+  SArray* pNextEndPoints;
   int64_t winIndex;
   bool    hasNext;
 } SStreamFillLinearInfo;

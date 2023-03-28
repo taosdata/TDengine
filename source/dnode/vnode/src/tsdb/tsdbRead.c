@@ -4512,6 +4512,7 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
   int32_t i = 0, j = 0;
   int32_t size = (int32_t)taosArrayGetSize(pSup->pColAgg);
   taosArrayInsert(pSup->pColAgg, 0, pTsAgg);
+  size++;
 
   while (j < numOfCols && i < size) {
     SColumnDataAgg* pAgg = taosArrayGet(pSup->pColAgg, i);
@@ -4524,9 +4525,20 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
       if (pSup->colId[j] != PRIMARYKEY_TIMESTAMP_COL_ID) {
         SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = numOfRows};
         taosArrayInsert(pSup->pColAgg, i, &nullColAgg);
+        i += 1;
+        size++;
       }
       j += 1;
     }
+  }
+
+  while (j < numOfCols) {
+    if (pSup->colId[j] != PRIMARYKEY_TIMESTAMP_COL_ID) {
+      SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = numOfRows};
+      taosArrayInsert(pSup->pColAgg, i, &nullColAgg);
+      i += 1;
+    }
+    j++;
   }
 }
 
@@ -4607,8 +4619,8 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SSDataBlock* pDataBlock, 
     } else if (pAgg->colId < pSup->colId[j]) {
       i += 1;
     } else if (pSup->colId[j] < pAgg->colId) {
-      // ASSERT(pSup->colId[j] == PRIMARYKEY_TIMESTAMP_COL_ID);
-      pResBlock->pBlockAgg[pSup->slotId[j]] = &pSup->tsColAgg;
+      pResBlock->pBlockAgg[pSup->slotId[j]] = NULL;
+      *allHave = false;
       j += 1;
     }
   }

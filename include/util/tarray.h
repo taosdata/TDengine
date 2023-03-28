@@ -208,6 +208,8 @@ void  taosArrayDestroyP(SArray* pArray, FDelete fp);
 
 void  taosArrayDestroyEx(SArray* pArray, FDelete fp);
 
+void taosArraySwap(SArray* a, SArray* b);
+
 /**
  * sort the array
  * @param pArray
