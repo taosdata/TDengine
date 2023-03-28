@@ -15,6 +15,7 @@
 
 #include "osDef.h"
 #include "tsdb.h"
+#include "tsimplehash.h"
 
 #define ASCENDING_TRAVERSE(o) (o == TSDB_ORDER_ASC)
 
@@ -177,7 +178,8 @@ struct STsdbReader {
   STsdbReadSnap*     pReadSnap;
   SIOCostSummary     cost;
   STSchema*          pSchema;      // the newest version schema
-  STSchema*          pMemSchema;   // the previous schema for in-memory data, to avoid load schema too many times
+//  STSchema*          pMemSchema;   // the previous schema for in-memory data, to avoid load schema too many times
+  SSHashObj*         pSchemaMap;   // keep the retrieved schema info, to avoid the overhead by repeatly load schema
   SDataFReader*      pFileReader;  // the file reader
   SDelFReader*       pDelFReader;  // the del file reader
   SArray*            pDelIdx;      // del file block index;
@@ -1858,28 +1860,23 @@ static FORCE_INLINE STSchema* doGetSchemaForTSRow(int32_t sversion, STsdbReader*
     return pReader->pSchema;
   }
 
-  if (pReader->pMemSchema == NULL) {
-    int32_t code =
-        metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pReader->pMemSchema);
-    if (code != TSDB_CODE_SUCCESS) {
-      terrno = code;
-      return NULL;
-    } else {
-      return pReader->pMemSchema;
-    }
+  void** p = tSimpleHashGet(pReader->pSchemaMap, &sversion, sizeof(sversion));
+  if (p != NULL) {
+    return *(STSchema**) p;
   }
 
-  if (pReader->pMemSchema->version == sversion) {
-    return pReader->pMemSchema;
-  }
-
-  taosMemoryFreeClear(pReader->pMemSchema);
-  int32_t code = metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pReader->pMemSchema);
-  if (code != TSDB_CODE_SUCCESS || pReader->pMemSchema == NULL) {
+  STSchema* ptr = NULL;
+  int32_t code = metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &ptr);
+  if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return NULL;
   } else {
-    return pReader->pMemSchema;
+    code = tSimpleHashPut(pReader->pSchemaMap, &sversion, sizeof(sversion), &ptr, POINTER_BYTES);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
+      return NULL;
+    }
+    return ptr;
   }
 }
 
@@ -4002,6 +3999,11 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
   return code;
 }
 
+static void freeSchemaFunc(void* param) {
+  void* p = *(void**) param;
+  taosMemoryFree(p);
+}
+
 // ====================================== EXPOSED APIs ======================================
 int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
                        SSDataBlock* pResBlock, STsdbReader** ppReader, const char* idstr) {
@@ -4078,6 +4080,14 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     }
   }
 
+  pReader->pSchemaMap = tSimpleHashInit(8, taosFastHash);
+  if (pReader->pSchemaMap == NULL) {
+    tsdbError("failed init schema hash for reader", pReader->idStr);
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  tSimpleHashSetFreeFp(pReader->pSchemaMap, freeSchemaFunc);
   if (pReader->pSchema != NULL) {
     code = updateBlockSMAInfo(pReader->pSchema, &pReader->suppInfo);
     if (code != TSDB_CODE_SUCCESS) {
@@ -4120,7 +4130,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
       p->status.uidList.tableUidList = NULL;
       p->pReadSnap = NULL;
       p->pSchema = NULL;
-      p->pMemSchema = NULL;
+      p->pSchemaMap = NULL;
 
       p = pReader->innerReader[1];
 
@@ -4128,7 +4138,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
       p->status.uidList.tableUidList = NULL;
       p->pReadSnap = NULL;
       p->pSchema = NULL;
-      p->pMemSchema = NULL;
+      p->pSchemaMap = NULL;
 
       tsdbReaderClose(pReader->innerReader[0]);
       tsdbReaderClose(pReader->innerReader[1]);
@@ -4208,10 +4218,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
   taosMemoryFree(pReader->idStr);
   taosMemoryFree(pReader->pSchema);
 
-  if (pReader->pMemSchema != pReader->pSchema) {
-    taosMemoryFree(pReader->pMemSchema);
-  }
-
+  tSimpleHashCleanup(pReader->pSchemaMap);
   taosMemoryFreeClear(pReader);
 }
 
@@ -4371,14 +4378,14 @@ int32_t tsdbReaderResume(STsdbReader* pReader) {
       pPrevReader->status.pTableMap = pReader->status.pTableMap;
       pPrevReader->status.uidList = pReader->status.uidList;
       pPrevReader->pSchema = pReader->pSchema;
-      pPrevReader->pMemSchema = pReader->pMemSchema;
+      pPrevReader->pSchemaMap = pReader->pSchemaMap;
       pPrevReader->pReadSnap = pReader->pReadSnap;
 
       pNextReader->capacity = 1;
       pNextReader->status.pTableMap = pReader->status.pTableMap;
       pNextReader->status.uidList = pReader->status.uidList;
       pNextReader->pSchema = pReader->pSchema;
-      pNextReader->pMemSchema = pReader->pMemSchema;
+      pNextReader->pSchemaMap = pReader->pSchemaMap;
       pNextReader->pReadSnap = pReader->pReadSnap;
 
       code = doOpenReaderImpl(pPrevReader);

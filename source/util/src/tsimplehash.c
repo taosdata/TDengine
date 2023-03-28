@@ -28,19 +28,23 @@
 
 #define HASH_INDEX(v, c) ((v) & ((c)-1))
 
-#define FREE_HASH_NODE(_n)   \
-  do {                       \
-    taosMemoryFreeClear(_n); \
+#define FREE_HASH_NODE(_n, fp) \
+  do {                         \
+    if (fp) {                  \
+      fp((_n)->data);          \
+    }                          \
+    taosMemoryFreeClear(_n);   \
   } while (0);
 
 struct SSHashObj {
-  SHNode    **hashList;
-  size_t      capacity;  // number of slots
-  int64_t     size;      // number of elements in hash table
-  _hash_fn_t  hashFp;    // hash function
-  _equal_fn_t equalFp;   // equal function
-  SArray*     pHashNodeBuf;// hash node allocation buffer, 1k size of each page by default
-  int32_t     offset;      // allocation offset in current page
+  SHNode        **hashList;
+  size_t          capacity;  // number of slots
+  int64_t         size;      // number of elements in hash table
+  _hash_fn_t      hashFp;    // hash function
+  _equal_fn_t     equalFp;   // equal function
+  _hash_free_fn_t freeFp;    // free function
+  SArray         *pHashNodeBuf;  // hash node allocation buffer, 1k size of each page by default
+  int32_t         offset;        // allocation offset in current page
 };
 
 static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
@@ -71,7 +75,6 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn) {
   pHashObj->capacity = taosHashCapacity((int32_t)capacity);
   pHashObj->equalFp = memcmp;
 
-  pHashObj->pHashNodeBuf = taosArrayInit(10, sizeof(void*));
   pHashObj->offset = 0;
   pHashObj->size = 0;
   
@@ -90,6 +93,10 @@ int32_t tSimpleHashGetSize(const SSHashObj *pHashObj) {
     return 0;
   }
   return (int32_t) pHashObj->size;
+}
+
+void tSimpleHashSetFreeFp(SSHashObj* pHashObj, _hash_free_fn_t freeFp) {
+  pHashObj->freeFp = freeFp;
 }
 
 static void* doInternalAlloc(SSHashObj* pHashObj, int32_t size) {
@@ -306,7 +313,8 @@ int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key, size_t keyLen) {
       } else {
         pPrev->next = pNode->next;
       }
-      FREE_HASH_NODE(pNode);
+
+      FREE_HASH_NODE(pNode, pHashObj->freeFp);
       pHashObj->size -= 1;
       code = TSDB_CODE_SUCCESS;
       break;
@@ -341,7 +349,7 @@ int32_t tSimpleHashIterateRemove(SSHashObj *pHashObj, const void *key, size_t ke
         *pIter = pPrev ? GET_SHASH_NODE_DATA(pPrev) : NULL;
       }
 
-      FREE_HASH_NODE(pNode);
+      FREE_HASH_NODE(pNode, pHashObj->freeFp);
       pHashObj->size -= 1;
       break;
     }
@@ -370,14 +378,13 @@ void tSimpleHashClear(SSHashObj *pHashObj) {
 
     while (pNode) {
       pNext = pNode->next;
-      FREE_HASH_NODE(pNode);
+      FREE_HASH_NODE(pNode, pHashObj->freeFp);
       pNode = pNext;
     }
 
     pHashObj->hashList[i] = NULL;
   }
 
-  taosArrayClearEx(pHashObj->pHashNodeBuf, destroyItems);
   pHashObj->offset = 0;
   pHashObj->size = 0;
 }
@@ -388,7 +395,6 @@ void tSimpleHashCleanup(SSHashObj *pHashObj) {
   }
 
   tSimpleHashClear(pHashObj);
-  taosArrayDestroy(pHashObj->pHashNodeBuf);
   taosMemoryFreeClear(pHashObj->hashList);
   taosMemoryFree(pHashObj);
 }
