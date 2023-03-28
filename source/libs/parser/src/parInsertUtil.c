@@ -621,12 +621,12 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   SSchema*       pSchema = getTableColumnSchema(pTableCxt->pMeta);
   SBoundColInfo* boundInfo = &pTableCxt->boundColsInfo;
 
-  if (numFields != numOfCols) {
+  if (tFields != NULL && numFields != numOfCols) {
     uError("numFields:%d != numOfCols:%d", numFields, numOfCols);
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
   }
-  if (numFields > boundInfo->numOfBound) {
+  if (tFields != NULL && numFields > boundInfo->numOfBound) {
     uError("numFields:%d > boundInfo->numOfBound:%d", numFields, boundInfo->numOfBound);
     ret = TSDB_CODE_INVALID_PARA;
     goto end;
@@ -634,7 +634,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
     SSchema*  pColSchema = &pSchema[c];
     SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, c);
-    if(findFileds(pColSchema, tFields, numFields)){
+    if(tFields == NULL || findFileds(pColSchema, tFields, numFields)){
       if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
         uError("type or bytes not equal");
         ret = TSDB_CODE_INVALID_PARA;

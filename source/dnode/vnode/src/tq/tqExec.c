@@ -65,6 +65,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   const STqExecHandle* pExec = &pHandle->execHandle;
 
   qTaskInfo_t task = pExec->task;
+  int32_t vgId = TD_VID(pTq->pVnode);
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
     tqError("prepare scan failed, return");

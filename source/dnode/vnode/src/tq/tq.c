@@ -858,6 +858,12 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,
              req.newConsumerId);
 
+      // kill executing task
+      qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
+      if (pTaskInfo != NULL) {
+        qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
+      }
+
       taosWLockLatch(&pTq->lock);
       atomic_store_32(&pHandle->epoch, -1);
 
@@ -868,7 +874,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       atomic_add_fetch_32(&pHandle->epoch, 1);
 
       if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-        qStreamCloseTsdbReader(pHandle->execHandle.task);
+        qStreamCloseTsdbReader(pTaskInfo);
       }
 
       taosWUnLockLatch(&pTq->lock);
