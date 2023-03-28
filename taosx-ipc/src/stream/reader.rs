@@ -1172,7 +1172,16 @@ impl<R: Read> Iterator for IpcReader<R> {
 
     fn next(&mut self) -> Option<Self::Item> {
         info!("Next message in the stream");
-        let res = self.reader.next()?;
+        // let res = self.reader.next()?;
+        let res = loop {
+            if let Some(res) = self.reader.next() {
+                break res;
+            }
+        };
+        
+        if res.is_err() {
+            dbg!(&res);
+        }
 
         if let Ok(record) = res {
             match self.metadata().stream_type() {

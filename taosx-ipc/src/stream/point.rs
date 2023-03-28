@@ -8,17 +8,6 @@ use arrow::{
 
 use crate::prelude::IpcMessage;
 
-pub struct PointConfig {
-    config_name: String,
-    /// key is point id
-    config: HashMap<String, PointFieldInfo>,
-}
-
-pub struct PointFieldInfo {
-    table: String,
-    field: String,
-}
-
 #[derive(Debug)]
 pub struct PointMessage {
     records: Vec<RecordMessage>,
@@ -42,7 +31,7 @@ impl IpcMessage for PointMessage {
 
 #[derive(Debug)]
 pub struct RecordMessage {
-    record: RecordBatch,
+    pub(crate) record: RecordBatch,
 }
 
 impl RecordMessage {

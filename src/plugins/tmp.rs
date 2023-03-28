@@ -60,7 +60,7 @@ pub enum PiError {
     ServerIsRequired(Dsn),
     #[error("Database name is required in PI dsn: {0}")]
     DatabaseIsRequired(Dsn),
-    #[error("Parse integer error from {1} while parsing parameter {0}: {:?}")],
+    #[error("Parse integer error from {1} while parsing parameter {0}: {:?}")]
     ParseNumberError(&'static str, String, ParseIntError),
 }
 
