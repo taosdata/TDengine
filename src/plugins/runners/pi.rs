@@ -221,8 +221,8 @@ pub async fn pi_to_taos(
     tokio::select! {
         output = v => {
             let output = output.context("join error")?.context("PI connector run error")?;
-            log::info!("PI exit with stdout: {}", std::str::from_utf8(&output.stdout).unwrap());
-            log::info!("PI exit with stderr: {}", std::str::from_utf8(&output.stderr).unwrap());
+            // log::info!("PI exit with stdout: {}", std::str::from_utf8(&output.stdout).unwrap());
+            // log::info!("PI exit with stderr: {}", std::str::from_utf8(&output.stderr).unwrap());
             log::info!("PI exit with status {}", output.status);
         },
         _ = tokio::signal::ctrl_c() => {
