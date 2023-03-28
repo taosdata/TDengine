@@ -220,7 +220,7 @@ static void freeItem(void* param) {
 
 static void doRemovePushedEntry(SArray* pCachedKeys, STQ* pTq) {
   int32_t vgId = TD_VID(pTq->pVnode);
-  size_t  numOfKeys = taosArrayGetSize(pCachedKeys);
+  int32_t  numOfKeys = (int32_t) taosArrayGetSize(pCachedKeys);
 
   for (int32_t i = 0; i < numOfKeys; i++) {
     SItem* pItem = taosArrayGet(pCachedKeys, i);
@@ -248,13 +248,9 @@ static void doPushDataForEntry(void* pIter, STqExecHandle* pExec, STQ* pTq, int6
   qTaskInfo_t pTaskInfo = pExec->task;
 
   // prepare scan mem data
-  SPackedData submit = {
-      .msgStr = pData,
-      .msgLen = dataLen,
-      .ver = ver,
-  };
+  SPackedData submit = {.msgStr = pData, .msgLen = dataLen, .ver = ver};
 
-  if(qStreamSetScanMemData(pTaskInfo, submit) != 0){
+  if (qStreamSetScanMemData(pTaskInfo, submit) != 0) {
     return;
   }
 
@@ -287,7 +283,7 @@ static void doPushDataForEntry(void* pIter, STqExecHandle* pExec, STQ* pTq, int6
   }
 }
 
-int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
+int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
   void*   pReq = POINTER_SHIFT(msg, sizeof(SSubmitReq2Msg));
   int32_t len = msgLen - sizeof(SSubmitReq2Msg);
   int32_t vgId = TD_VID(pTq->pVnode);
@@ -341,6 +337,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
     taosWUnLockLatch(&pTq->lock);
   }
 
+  // push data for stream processing
   if (!tsDisableStream && vnodeIsRoleLeader(pTq->pVnode)) {
     if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) {
       return 0;
@@ -353,12 +350,9 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
         tqError("failed to copy data for stream since out of memory");
         return -1;
       }
+
       memcpy(data, pReq, len);
-      SPackedData submit = {
-          .msgStr = data,
-          .msgLen = len,
-          .ver = ver,
-      };
+      SPackedData submit = {.msgStr = data, .msgLen = len, .ver = ver};
 
       tqDebug("tq copy write msg %p %d %" PRId64 " from %p", data, len, ver, pReq);
       tqProcessSubmitReq(pTq, submit);
