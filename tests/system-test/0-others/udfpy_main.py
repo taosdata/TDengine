@@ -20,6 +20,7 @@ from util.sqlset import *
 
 import random
 import os
+import subprocess
 
 
 class PerfDB:
@@ -414,8 +415,17 @@ class TDTestCase:
         tdSql.execute(sql)
         tdLog.info(sql)
 
+    def install_taospy(self):
+        tdLog.info("install taospyudf...")
+        packs = ["taospyudf"]
+        for pack in packs:
+            subprocess.check_call([sys.executable, '-m', 'pip', 'install', pack])
+        tdLog.info("install taospyudf successfully.")
+
     # run
     def run(self):
+        self.install_taospy()
+
         # var
         stable = "meters"
         tbname = "d"
