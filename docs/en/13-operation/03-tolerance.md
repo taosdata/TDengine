@@ -18,8 +18,8 @@ To achieve absolutely no data loss, set wal_level to 2 and wal_fsync_period to 0
 
 ## Disaster Recovery
 
-TDengine provides disaster recovery by using taosX to replicate data between two TDengine clusters which are deployed in two distant data centers. Assume there are two TDengine clusters, A and B, A is the source and B is the target, and A takes the workload of writing and querying. You can deploy `taosX` in the data center where cluster A resides in, `taosX` consumes the data written into cluster A and writes into cluster B. If the data center of cluster A is disrupted because of disaster, you can switch to cluster to take the workload of data writing and querying, and deploy a `taosX` in the data center of cluster B to replicate data from cluster B to cluster A if cluster A has been recovered, or another cluster C if cluster A has not been recovered. 
+TDengine provides disaster recovery by using taosX to replicate data between two TDengine clusters which are deployed in two distant data centers. Assume there are two TDengine clusters, A and B, A is the source and B is the target, and A takes the workload of writing and querying. You can deploy `taosX` in the data center where cluster A resides in, `taosX` consumes the data written into cluster A and writes into cluster B. If the data center of cluster A is disrupted because of disaster, you can switch to cluster B to take the workload of data writing and querying, and deploy a `taosX` in the data center of cluster B to replicate data from cluster B to cluster A if cluster A has been recovered, or another cluster C if cluster A has not been recovered. 
 
 You can use the data replication feature of `taosX` to build more complicated disaster recovery solution.
 
-taosX is only provided in TDengine enterprise edition, for more detail please contact business@tdengine.com.
+taosX is only provided in TDengine enterprise edition, for more details please contact business@tdengine.com.
