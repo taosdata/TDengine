@@ -256,7 +256,7 @@ int32_t tsdbSttFWriteTSData(struct SSttFWriter *pWriter, TABLEID *tbid, TSDBROW 
     code = tsdbUpdateSkmTb(pWriter->config.pTsdb, tbid, pWriter->config.pSkmTb);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    TABLEID id = {.suid = tbid->suid, 0};
+    TABLEID id = {.suid = tbid->suid, .uid = tbid->suid ? 0 : tbid->uid};
     code = tBlockDataInit(&pWriter->bData, &id, pWriter->config.pSkmTb->pTSchema, NULL, 0);
     TSDB_CHECK_CODE(code, lino, _exit);
   }

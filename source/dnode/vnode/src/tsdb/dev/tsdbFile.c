@@ -25,7 +25,12 @@ typedef enum {
 } tsdb_fop_t;
 
 const char *tsdb_ftype_suffix[] = {
-    "none", "stt", "head", "data", "sma", "tomb",
+    ".head",  // TSDB_FTYPE_HEAD
+    ".data",  // TSDB_FTYPE_DATA
+    ".sma",   // TSDB_FTYPE_SMA
+    ".tomb",  // TSDB_FTYPE_TOMB
+    NULL,     // TSDB_FTYPE_MAX
+    ".stt",
 };
 
 struct SFileOp {
@@ -37,7 +42,17 @@ struct SFileOp {
 };
 
 int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile) {
-  snprintf(pFile->fname, TSDB_FILENAME_LEN, "%s", pTsdb->path);
+  SVnode *pVnode = pTsdb->pVnode;
+  STfs   *pTfs = pVnode->pTfs;
+
+  if (pTfs) {
+    snprintf(pFile->fname, TSDB_FILENAME_LEN, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTfs, pFile->diskId),
+             TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pVnode), pFile->fid, pFile->cid, tsdb_ftype_suffix[pFile->type]);
+  } else {
+    snprintf(pFile->fname, TSDB_FILENAME_LEN, "%s%sv%df%dver%" PRId64 "%s", pTsdb->path, TD_DIRSEP, TD_VID(pVnode),
+             pFile->fid, pFile->cid, tsdb_ftype_suffix[pFile->type]);
+  }
+  pFile->ref = 1;
   return 0;
 }
 
