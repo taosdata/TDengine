@@ -309,7 +309,15 @@ int streamInitBackend(SStreamState* pState, char* path) {
   const rocksdb_options_t** cfOpt = taosMemoryCalloc(cfLen, sizeof(rocksdb_options_t*));
   for (int i = 0; i < cfLen; i++) {
     cfOpt[i] = rocksdb_options_create_copy(opts);
-  }
+    rocksdb_block_based_table_options_t* tableOpt = rocksdb_block_based_options_create();
+
+    rocksdb_cache_t* cache = rocksdb_cache_create_lru(128 << 20);
+    rocksdb_block_based_options_set_block_cache(tableOpt, cache);
+    rocksdb_filterpolicy_t* filter = rocksdb_filterpolicy_create_bloom_full(10);
+
+    rocksdb_block_based_options_set_filter_policy(tableOpt, filter);
+    rocksdb_options_set_block_based_table_factory((rocksdb_options_t*)cfOpt[i], tableOpt);
+  };
 
   rocksdb_comparator_t** pCompare = taosMemoryCalloc(cfLen, sizeof(rocksdb_comparator_t**));
 
