@@ -65,16 +65,17 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   const STqExecHandle* pExec = &pHandle->execHandle;
 
   qTaskInfo_t task = pExec->task;
+  int32_t vgId = TD_VID(pTq->pVnode);
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-    tqDebug("prepare scan failed, return");
+    tqDebug("prepare scan failed, return, consumer:0x%"PRIx64, pHandle->consumerId);
     if (pOffset->type == TMQ_OFFSET__LOG) {
       pRsp->rspOffset = *pOffset;
       return 0;
     } else {
       tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
       if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-        tqDebug("prepare scan failed, return");
+        tqDebug("prepare scan failed, return, consumer:0x%"PRIx64, pHandle->consumerId);
         pRsp->rspOffset = *pOffset;
         return 0;
       }
@@ -86,13 +87,14 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
 
-    tqDebug("vgId:%d, tmq task start to execute", pTq->pVnode->config.vgId);
+    tqDebug("vgId:%d, tmq task start to execute, consumer:0x%"PRIx64, vgId, pHandle->consumerId);
     if (qExecTask(task, &pDataBlock, &ts) < 0) {
-      tqError("vgId:%d, task exec error since %s", pTq->pVnode->config.vgId, terrstr());
+      tqError("vgId:%d, task exec error since %s, consumer:0x%" PRIx64, vgId, terrstr(),
+              pHandle->consumerId);
       return -1;
     }
 
-    tqDebug("consumer:0x%"PRIx64" vgId:%d, tmq task executed, get %p", pHandle->consumerId, pTq->pVnode->config.vgId, pDataBlock);
+    tqDebug("consumer:0x%"PRIx64" vgId:%d, tmq task executed, get %p", pHandle->consumerId, vgId, pDataBlock);
 
     // current scan should be stopped asap, since the rebalance occurs.
     if (pDataBlock == NULL) {
@@ -115,15 +117,16 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   }
 
   if (pRsp->rspOffset.type == 0) {
-    tqError("expected rsp offset: type %d %" PRId64 " %" PRId64 " %" PRId64, pRsp->rspOffset.type, pRsp->rspOffset.ts,
-            pRsp->rspOffset.uid, pRsp->rspOffset.version);
+    tqError("vgId:%d, expected rsp offset: type %d %" PRId64 " %" PRId64 " %" PRId64, vgId, pRsp->rspOffset.type,
+            pRsp->rspOffset.ts, pRsp->rspOffset.uid, pRsp->rspOffset.version);
     return -1;
   }
 
   if (pRsp->withTbName || pRsp->withSchema) {
-    tqError("get column should not with meta:%d,%d", pRsp->withTbName, pRsp->withSchema);
+    tqError("vgId:%d, get column should not with meta:%d,%d", vgId, pRsp->withTbName, pRsp->withSchema);
     return -1;
   }
+
   return 0;
 }
 

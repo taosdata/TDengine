@@ -140,7 +140,7 @@ void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)
 
         taosArraySet(pArray, pos + 1, p2);
         memset(TARRAY_GET_ELEM(pArray, i), 0, pArray->elemSize);
-	pos += 1;
+        pos += 1;
       } else {
         pos += 1;
       }
@@ -150,45 +150,6 @@ void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)
   if (fp != NULL) {
     for (int32_t i = pos + 1; i < pArray->size; ++i) {
       void* p = taosArrayGet(pArray, i);
-      fp(p);
-    }
-  }
-
-  pArray->size = pos + 1;
-}
-
-void taosArrayRemoveDuplicateP(SArray* pArray, __compar_fn_t comparFn, void (*fp)(void*)) {
-  size_t size = pArray->size;
-  if (size <= 1) {
-    return;
-  }
-
-  int32_t pos = 0;
-  for (int32_t i = 1; i < size; ++i) {
-    char* p1 = taosArrayGet(pArray, pos);
-    char* p2 = taosArrayGet(pArray, i);
-
-    if (comparFn(p1, p2) == 0) {
-      // do nothing
-    } else {
-      if (pos + 1 != i) {
-        void* p = taosArrayGetP(pArray, pos + 1);
-        if (fp != NULL) {
-          fp(p);
-        }
-
-        taosArraySet(pArray, pos + 1, p2);
-        memset(TARRAY_GET_ELEM(pArray, i), 0, pArray->elemSize);
-	pos += 1;
-      } else {
-        pos += 1;
-      }
-    }
-  }
-
-  if (fp != NULL) {
-    for (int32_t i = pos + 1; i < pArray->size; ++i) {
-      void* p = taosArrayGetP(pArray, i);
       fp(p);
     }
   }
@@ -392,20 +353,6 @@ void taosArrayClearEx(SArray* pArray, void (*fp)(void*)) {
   pArray->size = 0;
 }
 
-void taosArrayClearP(SArray* pArray, FDelete fp) {
-  if (pArray == NULL) return;
-  if (fp == NULL) {
-    pArray->size = 0;
-    return;
-  }
-
-  for (int32_t i = 0; i < pArray->size; ++i) {
-    fp(*(void**)TARRAY_GET_ELEM(pArray, i));
-  }
-
-  pArray->size = 0;
-}
-
 void* taosArrayDestroy(SArray* pArray) {
   if (pArray) {
     taosMemoryFree(pArray->pData);
@@ -495,6 +442,7 @@ static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void
   if (pArray->size <= 1) {
     return;
   }
+
   for (int32_t i = 1; i <= pArray->size - 1; ++i) {
     for (int32_t j = i; j > 0; --j) {
       if (fn(taosArrayGetP(pArray, j), taosArrayGetP(pArray, j - 1), param) == -1) {
@@ -507,7 +455,6 @@ static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void
       }
     }
   }
-  return;
 }
 
 int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode) {
@@ -539,21 +486,3 @@ void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* par
   taosArrayGetSize(pArray) > 8 ? taosArrayQuickSort(pArray, fn, param) : taosArrayInsertSort(pArray, fn, param);
 }
 
-void taosArraySwap(SArray* a, SArray* b) {
-  if (a == NULL || b == NULL) return;
-  size_t t = a->size;
-  a->size = b->size;
-  b->size = t;
-
-  uint32_t cap = a->capacity;
-  a->capacity = b->capacity;
-  b->capacity = cap;
-
-  uint32_t elem = a->elemSize;
-  a->elemSize = b->elemSize;
-  b->elemSize = elem;
-
-  void* data = a->pData;
-  a->pData = b->pData;
-  b->pData = data;
-}
