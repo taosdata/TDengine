@@ -140,7 +140,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     return code;
   }
 
-  tqDebug("vgId:%d, consumer:0x%" PRIx64 " tmq task executed, rows:%d, total blocks:%d, rows:%d", vgId, pHandle->consumerId,
+  tqDebug("vgId:%d, consumer:0x%" PRIx64 " tmq task executed, total blocks:%d, rows:%d", vgId, pHandle->consumerId,
           pRsp->blockNum, totalRows);
 
   return code;
