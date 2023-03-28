@@ -2867,6 +2867,41 @@ int32_t tEncodeSTqOffset(SEncoder* pEncoder, const STqOffset* pOffset);
 int32_t tDecodeSTqOffset(SDecoder* pDecoder, STqOffset* pOffset);
 
 typedef struct {
+  SMsgHead head;
+  int32_t  taskId;
+} SVPauseStreamTaskReq;
+
+typedef struct {
+  int8_t reserved;
+} SVPauseStreamTaskRsp;
+
+typedef struct {
+  char   name[TSDB_STREAM_FNAME_LEN];
+  int8_t igNotExists;
+} SMPauseStreamReq;
+
+int32_t tSerializeSMPauseStreamReq(void* buf, int32_t bufLen, const SMPauseStreamReq* pReq);
+int32_t tDeserializeSMPauseStreamReq(void* buf, int32_t bufLen, SMPauseStreamReq* pReq);
+
+typedef struct {
+  SMsgHead head;
+  int32_t  taskId;
+} SVResumeStreamTaskReq;
+
+typedef struct {
+  int8_t reserved;
+} SVResumeStreamTaskRsp;
+
+typedef struct {
+  char   name[TSDB_STREAM_FNAME_LEN];
+  int8_t igNotExists;
+  int8_t igUntreated;
+} SMResumeStreamReq;
+
+int32_t tSerializeSMResumeStreamReq(void* buf, int32_t bufLen, const SMResumeStreamReq* pReq);
+int32_t tDeserializeSMResumeStreamReq(void* buf, int32_t bufLen, SMResumeStreamReq* pReq);
+
+typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   char    stb[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;

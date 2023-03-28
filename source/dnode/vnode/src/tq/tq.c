@@ -1205,6 +1205,16 @@ int32_t tqProcessTaskDropReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgL
   return 0;
 }
 
+int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
+  SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*)msg;
+  return 0;
+}
+
+int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
+  SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
+  return 0;
+}
+
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg) {
   char*              msgStr = pMsg->pCont;
   char*              msgBody = POINTER_SHIFT(msgStr, sizeof(SMsgHead));
