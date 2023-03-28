@@ -420,6 +420,8 @@ class TDTestCase:
         packs = ["taospyudf"]
         for pack in packs:
             subprocess.check_call([sys.executable, '-m', 'pip', 'install', pack])
+        tdLog.info("call ldconfig...")
+        os.system("ldconfig")
         tdLog.info("install taospyudf successfully.")
 
     # run
