@@ -300,12 +300,16 @@ void tsdbMemTableCountRows(SMemTable *pMemTable, SHashObj*        pTableMap, int
   taosRLockLatch(&pMemTable->latch);
   for (int32_t i = 0; i < pMemTable->nBucket; ++i) {
     STbData *pTbData = pMemTable->aBucket[i];
-    
-    void* p = taosHashGet(pTableMap, &pTbData->uid, sizeof(pTbData->uid));
-    if (p == NULL) {
-      continue;
+    while (pTbData) {
+      void* p = taosHashGet(pTableMap, &pTbData->uid, sizeof(pTbData->uid));
+      if (p == NULL) {
+        pTbData = pTbData->next;
+        continue;
+      }
+      
+      rowsNum += tsdbCountTbDataRows(pTbData);
+      pTbData = pTbData->next;
     }
-    rowsNum += tsdbCountTbDataRows(pTbData);
   }
   taosRUnLockLatch(&pMemTable->latch);
 }
