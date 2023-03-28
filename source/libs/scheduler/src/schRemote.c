@@ -36,7 +36,7 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
                       TMSG_INFO(msgType));
         SCH_ERR_RET(TSDB_CODE_QW_MSG_ERROR);
       }
-      if (taskStatus != JOB_TASK_STATUS_PART_SUCC) {
+      if (taskStatus != JOB_TASK_STATUS_FETCH) {
         SCH_TASK_ELOG("rsp msg conflicted with task status, status:%s, rspType:%s", jobTaskStatusStr(taskStatus),
                       TMSG_INFO(msgType));
         SCH_ERR_RET(TSDB_CODE_QW_MSG_ERROR);
@@ -137,24 +137,11 @@ int32_t schProcessExplainRsp(SSchJob *pJob, SSchTask *pTask, SExplainRsp *rsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-// Note: no more task error processing, handled in function internal
-int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDataBuf *pMsg, int32_t rspCode) {
+int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
   char   *msg = pMsg->pData;
   int32_t msgSize = pMsg->len;
   int32_t msgType = pMsg->msgType;
-
-  bool dropExecNode = (msgType == TDMT_SCH_LINK_BROKEN || SCH_NETWORK_ERR(rspCode));
-  if (SCH_IS_QUERY_JOB(pJob)) {
-    SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, dropExecNode, pMsg->handle, execId));
-  }
-  
-  SCH_ERR_JRET(schValidateRspMsgType(pJob, pTask, msgType));
-
-  int32_t reqType = IsReq(pMsg) ? pMsg->msgType : (pMsg->msgType - 1);
-  if (SCH_TASK_NEED_REDIRECT(pTask, reqType, rspCode, pMsg->len)) {
-    SCH_RET(schHandleRedirect(pJob, pTask, (SDataBuf *)pMsg, rspCode));
-  }
 
   pTask->redirectCtx.inRedirect = false;
 
@@ -422,6 +409,31 @@ _return:
   taosMemoryFreeClear(msg);
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
+} 
+
+
+// Note: no more task error processing, handled in function internal
+int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDataBuf *pMsg, int32_t rspCode) {
+  int32_t code = 0;
+  int32_t msgType = pMsg->msgType;
+
+  bool dropExecNode = (msgType == TDMT_SCH_LINK_BROKEN || SCH_NETWORK_ERR(rspCode));
+  if (SCH_IS_QUERY_JOB(pJob)) {
+    SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, dropExecNode, pMsg->handle, execId));
+  }
+  
+  SCH_ERR_JRET(schValidateRspMsgType(pJob, pTask, msgType));
+
+  int32_t reqType = IsReq(pMsg) ? pMsg->msgType : (pMsg->msgType - 1);
+  if (SCH_JOB_NEED_RETRY(pJob, pTask, reqType, rspCode)) {
+    SCH_RET(schHandleJobRetry());
+  } else if (SCH_TASKSET_NEED_RETRY(pJob, pTask, reqType, rspCode)) {
+    SCH_RET(schHandleTaskSetRetry(pJob, pTask, (SDataBuf *)pMsg, rspCode));
+  }
+
+  pTask->redirectCtx.inRedirect = false;
+
+  SCH_RET(schProcessResponseMsg(pJob, pTask, execId, pMsg, rspCode));
 } 
 int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   int32_t                code = 0;
