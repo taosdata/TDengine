@@ -466,7 +466,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
     size_t                          len = 0;                                                            \
     char* val = rocksdb_get_cf(db, opts, pHandle, (const char*)buf, sizeof(*key), (size_t*)&len, &err); \
     if (val == NULL) {                                                                                  \
-      qWarn("streamState str: %s failed to read from %s, err: not exist", toString, funcname);          \
+      qDebug("streamState str: %s failed to read from %s, err: not exist", toString, funcname);         \
       if (err != NULL) taosMemoryFree(err);                                                             \
       code = -1;                                                                                        \
     } else {                                                                                            \
