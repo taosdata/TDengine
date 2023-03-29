@@ -379,7 +379,10 @@ int32_t streamStateClear(SStreamState* pState) {
 #endif
 }
 
-void streamStateSetNumber(SStreamState* pState, int32_t number) { pState->number = number; }
+void streamStateSetNumber(SStreamState* pState, int32_t number) {
+  pState->number = number;
+  pState->random = (uint64_t)tGenIdPI64();
+}
 
 int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB

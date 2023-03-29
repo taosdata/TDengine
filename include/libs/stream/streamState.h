@@ -55,6 +55,7 @@ typedef struct STdbState {
 typedef struct {
   STdbState* pTdbState;
   int32_t    number;
+  uint64_t   random;
 } SStreamState;
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages);
@@ -70,8 +71,9 @@ typedef struct {
   rocksdb_readoptions_t* readOpt;
   rocksdb_t*             db;
 
-  TBC*    pCur;
-  int64_t number;
+  TBC*     pCur;
+  int64_t  number;
+  uint64_t random;
 } SStreamStateCur;
 
 int32_t streamStateFuncPut(SStreamState* pState, const STupleKey* key, const void* value, int32_t vLen);

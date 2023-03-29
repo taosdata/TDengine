@@ -15,6 +15,7 @@
 
 #include "rocksdb/c.h"
 #include "streamBackendRocksdb.h"
+#include "tcoding.h"
 #include "tcommon.h"
 #include "tlog.h"
 //
@@ -23,51 +24,76 @@
 //  |--uint64_t-|-uint64_t--|--int64_t--|
 //
 //
+//  SStateKey1
+//  |--groupid--|---ts------|--opNum----|---seqNum--|
 //
+
+typedef struct {
+  SStateKey key;
+  uint64_t  seq;
+} SStateKey1;
+
+typedef struct {
+  SStateSessionKey key;
+  uint64_t         seq;
+} SStateSessionKey1;
+
 int stateKeyDBComp(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen) {
-  SStateKey key1, key2;
+  SStateKey1 key1, key2;
   memset(&key1, 0, sizeof(key1));
   memset(&key2, 0, sizeof(key2));
 
   char* p1 = (char*)aBuf;
   char* p2 = (char*)bBuf;
 
-  p1 = taosDecodeFixedU64(p1, &key1.key.groupId);
-  p2 = taosDecodeFixedU64(p2, &key2.key.groupId);
+  p1 = taosDecodeFixedU64(p1, &key1.key.key.groupId);
+  p2 = taosDecodeFixedU64(p2, &key2.key.key.groupId);
 
-  p1 = taosDecodeFixedI64(p1, &key1.key.ts);
-  p2 = taosDecodeFixedI64(p2, &key2.key.ts);
+  p1 = taosDecodeFixedI64(p1, &key1.key.key.ts);
+  p2 = taosDecodeFixedI64(p2, &key2.key.key.ts);
 
-  taosDecodeFixedI64(p1, &key1.opNum);
-  taosDecodeFixedI64(p2, &key2.opNum);
+  p1 = taosDecodeFixedI64(p1, &key1.key.opNum);
+  p2 = taosDecodeFixedI64(p2, &key2.key.opNum);
 
-  return stateKeyCmpr(&key1, sizeof(key1), &key2, sizeof(key2));
+  taosDecodeFixedU64(p1, &key1.seq);
+  taosDecodeFixedU64(p2, &key2.seq);
+
+  if (key1.seq < key2.seq) {
+    return -1;
+  } else if (key1.seq > key2.seq) {
+    return 1;
+  }
+  return stateKeyCmpr(&key1.key, sizeof(key1.key), &key2.key, sizeof(key2.key));
 }
 
 int stateKeyEncode(void* k, char* buf) {
-  SStateKey* key = k;
-  int        len = 0;
-  len += taosEncodeFixedU64((void**)&buf, key->key.groupId);
-  len += taosEncodeFixedI64((void**)&buf, key->key.ts);
-  len += taosEncodeFixedI64((void**)&buf, key->opNum);
+  SStateKey1* key = k;
+  int         len = 0;
+  len += taosEncodeFixedU64((void**)&buf, key->key.key.groupId);
+  len += taosEncodeFixedI64((void**)&buf, key->key.key.ts);
+  len += taosEncodeFixedI64((void**)&buf, key->key.opNum);
+  len += taosEncodeFixedU64((void**)&buf, key->seq);
+
   return len;
 }
 int stateKeyDecode(void* k, char* buf) {
-  SStateKey* key = k;
-  int        len = 0;
-  char*      p = buf;
-  p = taosDecodeFixedU64(p, &key->key.groupId);
-  p = taosDecodeFixedI64(p, &key->key.ts);
-  p = taosDecodeFixedI64(p, &key->opNum);
+  SStateKey1* key = k;
+  int         len = 0;
+  char*       p = buf;
+  p = taosDecodeFixedU64(p, &key->key.key.groupId);
+  p = taosDecodeFixedI64(p, &key->key.key.ts);
+  p = taosDecodeFixedI64(p, &key->key.opNum);
+  p = taosDecodeFixedU64(p, &key->seq);
   return p - buf;
 }
 
 int stateKeyToString(void* k, char* buf) {
-  SStateKey* key = k;
-  int        n = 0;
-  n += sprintf(buf + n, "[groupId:%" PRId64 ",", key->key.groupId);
-  n += sprintf(buf + n, "ts:%" PRIi64 ",", key->key.ts);
-  n += sprintf(buf + n, "opNum:%" PRIi64 "]", key->opNum);
+  SStateKey1* key = k;
+  int         n = 0;
+  n += sprintf(buf + n, "[groupId:%" PRId64 ",", key->key.key.groupId);
+  n += sprintf(buf + n, "ts:%" PRIi64 ",", key->key.key.ts);
+  n += sprintf(buf + n, "opNum:%" PRIi64 ",", key->key.opNum);
+  n += sprintf(buf + n, "seq: %" PRIu64 "]", key->seq);
   return n;
 }
 
@@ -77,57 +103,73 @@ int stateKeyToString(void* k, char* buf) {
 //  |-----STimeWindow-----|
 //  |---skey--|---ekey----|--groupId-|--opNum--|
 //  |---int64-|--int64_t--|--uint64--|--int64_t|
-// |
+//
+// SStateSessionKey1
+//  |-----------SSessionKey1----------|
+//  |-----STimeWindow-----|
+//  |---skey--|---ekey----|--groupId-|--opNum--|---seq---|
+//  |---int64-|--int64_t--|--uint64--|--int64_t|--uint64-|
 //
 int stateSessionKeyDBComp(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen) {
-  SStateSessionKey w1, w2;
+  SStateSessionKey1 w1, w2;
   memset(&w1, 0, sizeof(w1));
   memset(&w2, 0, sizeof(w2));
 
   char* p1 = (char*)aBuf;
   char* p2 = (char*)bBuf;
 
-  p1 = taosDecodeFixedI64(p1, &w1.key.win.skey);
-  p2 = taosDecodeFixedI64(p2, &w2.key.win.skey);
+  p1 = taosDecodeFixedI64(p1, &w1.key.key.win.skey);
+  p2 = taosDecodeFixedI64(p2, &w2.key.key.win.skey);
 
-  p1 = taosDecodeFixedI64(p1, &w1.key.win.ekey);
-  p2 = taosDecodeFixedI64(p2, &w2.key.win.ekey);
+  p1 = taosDecodeFixedI64(p1, &w1.key.key.win.ekey);
+  p2 = taosDecodeFixedI64(p2, &w2.key.key.win.ekey);
 
-  p1 = taosDecodeFixedU64(p1, &w1.key.groupId);
-  p2 = taosDecodeFixedU64(p2, &w2.key.groupId);
+  p1 = taosDecodeFixedU64(p1, &w1.key.key.groupId);
+  p2 = taosDecodeFixedU64(p2, &w2.key.key.groupId);
 
-  p1 = taosDecodeFixedI64(p1, &w1.opNum);
-  p2 = taosDecodeFixedI64(p2, &w2.opNum);
+  p1 = taosDecodeFixedI64(p1, &w1.key.opNum);
+  p2 = taosDecodeFixedI64(p2, &w2.key.opNum);
 
-  return stateSessionKeyCmpr(&w1, sizeof(w1), &w2, sizeof(w2));
+  p1 = taosDecodeFixedU64(p1, &w1.seq);
+  p2 = taosDecodeFixedU64(p2, &w2.seq);
+
+  if (w1.seq < w2.seq) {
+    return -1;
+  } else {
+    return 1;
+  }
+  return stateSessionKeyCmpr(&w1.key, sizeof(w1.key), &w2.key, sizeof(w2.key));
 }
 int stateSessionKeyEncode(void* ses, char* buf) {
-  SStateSessionKey* sess = ses;
-  int               len = 0;
-  len += taosEncodeFixedI64((void**)&buf, sess->key.win.skey);
-  len += taosEncodeFixedI64((void**)&buf, sess->key.win.ekey);
-  len += taosEncodeFixedU64((void**)&buf, sess->key.groupId);
-  len += taosEncodeFixedI64((void**)&buf, sess->opNum);
+  SStateSessionKey1* sess = ses;
+  int                len = 0;
+  len += taosEncodeFixedI64((void**)&buf, sess->key.key.win.skey);
+  len += taosEncodeFixedI64((void**)&buf, sess->key.key.win.ekey);
+  len += taosEncodeFixedU64((void**)&buf, sess->key.key.groupId);
+  len += taosEncodeFixedI64((void**)&buf, sess->key.opNum);
+  len += taosEncodeFixedU64((void**)&buf, sess->seq);
   return len;
 }
 int stateSessionKeyDecode(void* ses, char* buf) {
-  SStateSessionKey* sess = ses;
-  int               len = 0;
+  SStateSessionKey1* sess = ses;
+  int                len = 0;
 
   char* p = buf;
-  p = taosDecodeFixedI64(p, &sess->key.win.skey);
-  p = taosDecodeFixedI64(p, &sess->key.win.ekey);
-  p = taosDecodeFixedU64(p, &sess->key.groupId);
-  p = taosDecodeFixedI64(p, &sess->opNum);
+  p = taosDecodeFixedI64(p, &sess->key.key.win.skey);
+  p = taosDecodeFixedI64(p, &sess->key.key.win.ekey);
+  p = taosDecodeFixedU64(p, &sess->key.key.groupId);
+  p = taosDecodeFixedI64(p, &sess->key.opNum);
+  p = taosDecodeFixedU64(p, &sess->seq);
   return p - buf;
 }
 int stateSessionKeyToString(void* k, char* buf) {
-  SStateSessionKey* key = k;
-  int               n = 0;
-  n += sprintf(buf + n, "[skey:%" PRIi64 ",", key->key.win.skey);
-  n += sprintf(buf + n, "ekey:%" PRIi64 ",", key->key.win.ekey);
-  n += sprintf(buf + n, "groupId:%" PRIu64 ",", key->key.groupId);
-  n += sprintf(buf + n, "opNum:%" PRIi64 "]", key->opNum);
+  SStateSessionKey1* key = k;
+  int                n = 0;
+  n += sprintf(buf + n, "[skey:%" PRIi64 ",", key->key.key.win.skey);
+  n += sprintf(buf + n, "ekey:%" PRIi64 ",", key->key.key.win.ekey);
+  n += sprintf(buf + n, "groupId:%" PRIu64 ",", key->key.key.groupId);
+  n += sprintf(buf + n, "opNum:%" PRIi64 ",", key->key.opNum);
+  n += sprintf(buf + n, "seq:%" PRIu64 "]", key->seq);
   return n;
 }
 
@@ -311,12 +353,11 @@ int streamInitBackend(SStreamState* pState, char* path) {
   for (int i = 0; i < cfLen; i++) {
     cfOpt[i] = rocksdb_options_create_copy(opts);
     rocksdb_block_based_table_options_t* tableOpt = rocksdb_block_based_options_create();
-    rocksdb_cache_t*                     cache = rocksdb_cache_create_lru(128 << 20);
-    rocksdb_block_based_options_set_block_cache(tableOpt, cache);
 
+    rocksdb_cache_t* cache = rocksdb_cache_create_lru(128 << 20);
+    rocksdb_block_based_options_set_block_cache(tableOpt, cache);
     rocksdb_filterpolicy_t* filter = rocksdb_filterpolicy_create_bloom(15);
     rocksdb_block_based_options_set_filter_policy(tableOpt, filter);
-
     rocksdb_options_set_block_based_table_factory((rocksdb_options_t*)cfOpt[i], tableOpt);
 
     rocksdb_slicetransform_t* trans = rocksdb_slicetransform_create_fixed_prefix(8);
@@ -389,6 +430,7 @@ void streamCleanBackend(SStreamState* pState) {
 
   rocksdb_close(pState->pTdbState->rocksdb);
   pState->pTdbState->rocksdb = NULL;
+  pState->random = 1;
 }
 
 int streamGetInit(const char* funcName) {
@@ -528,20 +570,20 @@ int32_t streamStateFuncDel_rocksdb(SStreamState* pState, const STupleKey* key) {
 int32_t streamStatePut_rocksdb(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
   int code = 0;
 
-  SStateKey sKey = {.key = *key, .opNum = pState->number};
+  SStateKey1 sKey = {.key = {.key = *key, .opNum = pState->number}, .seq = pState->random};
   STREAM_STATE_PUT_ROCKSDB(pState, "default", &sKey, value, vLen);
   return code;
 }
 int32_t streamStateGet_rocksdb(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
-  int       code = 0;
-  SStateKey sKey = {.key = *key, .opNum = pState->number};
+  int        code = 0;
+  SStateKey1 sKey = {.key = {.key = *key, .opNum = pState->number}, .seq = pState->random};
   STREAM_STATE_GET_ROCKSDB(pState, "default", &sKey, pVal, pVLen);
   return code;
 }
 // todo refactor
 int32_t streamStateDel_rocksdb(SStreamState* pState, const SWinKey* key) {
-  int       code = 0;
-  SStateKey sKey = {.key = *key, .opNum = pState->number};
+  int        code = 0;
+  SStateKey1 sKey = {.key = {.key = *key, .opNum = pState->number}, .seq = pState->random};
   STREAM_STATE_DEL_ROCKSDB(pState, "default", &sKey);
   return code;
 }
@@ -569,10 +611,12 @@ int32_t streamStateFillDel_rocksdb(SStreamState* pState, const SWinKey* key) {
 int32_t streamStateClear_rocksdb(SStreamState* pState) {
   qDebug("streamStateClear_rocksdb");
 
-  SStateKey sKey = {.key = {.ts = 0, .groupId = 0}, .opNum = pState->number};
-  SStateKey eKey = {.key = {.ts = INT64_MAX, .groupId = UINT64_MAX}, .opNum = pState->number};
-  char      sKeyStr[128] = {0};
-  char      eKeyStr[128] = {0};
+  SStateKey1 sKey = {.key = {.key = {.ts = 0, .groupId = 0}, .opNum = pState->number}, .seq = pState->random};
+  SStateKey1 eKey = {.key = {.key = {.ts = INT64_MAX, .groupId = UINT64_MAX}, .opNum = pState->number},
+                     .seq = pState->random};
+
+  char sKeyStr[128] = {0};
+  char eKeyStr[128] = {0};
 
   int sLen = stateKeyEncode(&sKey, sKeyStr);
   int eLen = stateKeyEncode(&eKey, eKeyStr);
@@ -596,8 +640,8 @@ int32_t streamStateClear_rocksdb(SStreamState* pState) {
 }
 
 int32_t streamStateSessionPut_rocksdb(SStreamState* pState, const SSessionKey* key, const void* value, int32_t vLen) {
-  int              code = 0;
-  SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
+  int               code = 0;
+  SStateSessionKey1 sKey = {.key = {.key = *key, .opNum = pState->number}, .seq = pState->random};
   STREAM_STATE_PUT_ROCKSDB(pState, "sess", &sKey, value, vLen);
   if (code == -1) {
   }
@@ -610,21 +654,23 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pSta
     return NULL;
   }
   pCur->number = pState->number;
+  pCur->random = pState->random;
   pCur->db = pState->pTdbState->rocksdb;
   pCur->iter = streamStateIterCreate(pState, "sess", &pCur->snapshot, &pCur->readOpt);
 
-  char             buf[128] = {0};
-  SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
-  int              len = stateSessionKeyEncode(&sKey, buf);
+  char buf[128] = {0};
+
+  SStateSessionKey1 sKey = {.key = {.key = *key, .opNum = pState->number}, .seq = pState->random};
+  int               len = stateSessionKeyEncode(&sKey, buf);
   if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
     streamStateFreeCur(pCur);
     return NULL;
   }
 
-  int32_t          c = 0;
-  size_t           klen;
-  const char*      iKey = rocksdb_iter_key(pCur->iter, &klen);
-  SStateSessionKey curKey = {0};
+  int32_t           c = 0;
+  size_t            klen;
+  const char*       iKey = rocksdb_iter_key(pCur->iter, &klen);
+  SStateSessionKey1 curKey = {0};
   stateSessionKeyDecode(&curKey, (char*)iKey);
   if (stateSessionKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) >= 0) return pCur;
 
@@ -643,20 +689,22 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentNext_rocksdb(SStreamState* pSta
     return NULL;
   }
   pCur->db = pState->pTdbState->rocksdb;
+  pCur->random = pState->random;
   pCur->iter = streamStateIterCreate(pState, "sess", &pCur->snapshot, &pCur->readOpt);
   pCur->number = pState->number;
 
   char buf[128] = {0};
 
-  SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
-  int              len = stateSessionKeyEncode(&sKey, buf);
+  SStateSessionKey1 sKey = {.key = {.key = *key, .opNum = pState->number}, .seq = pCur->random};
+
+  int len = stateSessionKeyEncode(&sKey, buf);
   if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
     streamStateFreeCur(pCur);
     return NULL;
   }
-  size_t           klen;
-  const char*      iKey = rocksdb_iter_key(pCur->iter, &klen);
-  SStateSessionKey curKey = {0};
+  size_t            klen;
+  const char*       iKey = rocksdb_iter_key(pCur->iter, &klen);
+  SStateSessionKey1 curKey = {0};
   stateSessionKeyDecode(&curKey, (char*)iKey);
   if (stateSessionKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) <= 0) return pCur;
 
@@ -675,10 +723,11 @@ SStreamStateCur* streamStateSessionSeekKeyNext_rocksdb(SStreamState* pState, con
     return NULL;
   }
   pCur->db = pState->pTdbState->rocksdb;
+  pCur->random = pState->random;
   pCur->iter = streamStateIterCreate(pState, "sess", &pCur->snapshot, &pCur->readOpt);
   pCur->number = pState->number;
 
-  SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
+  SStateSessionKey1 sKey = {.key = {.key = *key, .opNum = pState->number}, .seq = pCur->random};
 
   char buf[128] = {0};
   int  len = stateSessionKeyEncode(&sKey, buf);
@@ -687,9 +736,9 @@ SStreamStateCur* streamStateSessionSeekKeyNext_rocksdb(SStreamState* pState, con
     return NULL;
   }
 
-  size_t           klen;
-  const char*      iKey = rocksdb_iter_key(pCur->iter, &klen);
-  SStateSessionKey curKey = {0};
+  size_t            klen;
+  const char*       iKey = rocksdb_iter_key(pCur->iter, &klen);
+  SStateSessionKey1 curKey = {0};
   stateSessionKeyDecode(&curKey, (char*)iKey);
   if (stateSessionKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) < 0) return pCur;
 
@@ -717,17 +766,18 @@ SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* 
 
   if (pCur == NULL) return NULL;
   pCur->db = pState->pTdbState->rocksdb;
+  pCur->random = pState->random;
   pCur->iter = streamStateIterCreate(pState, "default", &pCur->snapshot, &pCur->readOpt);
 
-  SStateKey sKey = {.key = *key, .opNum = pState->number};
-  char      buf[128] = {0};
-  int       len = stateKeyEncode((void*)&sKey, buf);
+  SStateKey1 sKey = {.key = {.key = *key, .opNum = pState->number}, .seq = pCur->random};
+  char       buf[128] = {0};
+  int        len = stateKeyEncode((void*)&sKey, buf);
 
   rocksdb_iter_seek(pCur->iter, buf, len);
   if (rocksdb_iter_valid(pCur->iter)) {
-    SStateKey curKey;
-    size_t    kLen = 0;
-    char*     keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
+    SStateKey1 curKey;
+    size_t     kLen = 0;
+    char*      keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
     stateKeyDecode((void*)&curKey, keyStr);
 
     if (stateKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) == 0) {
@@ -752,17 +802,17 @@ SStreamStateCur* streamStateGetAndCheckCur_rocksdb(SStreamState* pState, SWinKey
 int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
   qDebug("streamStateGetKVByCur_rocksdb");
   if (!pCur) return -1;
-  SStateKey  tkey;
-  SStateKey* pKtmp = &tkey;
+  SStateKey1  tkey;
+  SStateKey1* pKtmp = &tkey;
 
   if (rocksdb_iter_valid(pCur->iter)) {
     size_t tlen;
     char*  keyStr = (char*)rocksdb_iter_key(pCur->iter, &tlen);
     stateKeyDecode((void*)pKtmp, keyStr);
-    if (pKtmp->opNum != pCur->number) {
+    if (pKtmp->key.opNum != pCur->number || pKtmp->seq != pCur->random) {
       return -1;
     }
-    *pKey = pKtmp->key;
+    *pKey = pKtmp->key.key;
     return 0;
   }
   return -1;
@@ -852,8 +902,8 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey*
   if (!pCur) {
     return -1;
   }
-  SStateSessionKey ktmp = {0};
-  int32_t          kLen, vLen;
+  SStateSessionKey1 ktmp = {0};
+  int32_t           kLen, vLen;
 
   if (!rocksdb_iter_valid(pCur->iter)) {
     return -1;
@@ -861,20 +911,20 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey*
   const char* curKey = rocksdb_iter_key(pCur->iter, (size_t*)&kLen);
   stateSessionKeyDecode((void*)&ktmp, (char*)curKey);
 
-  SStateSessionKey* pKTmp = &ktmp;
-  const char*       val = rocksdb_iter_value(pCur->iter, (size_t*)&vLen);
+  SStateSessionKey1* pKTmp = &ktmp;
+  const char*        val = rocksdb_iter_value(pCur->iter, (size_t*)&vLen);
   if (pVal != NULL) {
     *pVal = (char*)val;
   }
   if (pVLen != NULL) *pVLen = vLen;
 
-  if (pKTmp->opNum != pCur->number) {
+  if (pKTmp->key.opNum != pCur->number || pKTmp->seq != pCur->random) {
     return -1;
   }
-  if (pKey->groupId != 0 && pKey->groupId != pKTmp->key.groupId) {
+  if (pKey->groupId != 0 && pKey->groupId != pKTmp->key.key.groupId) {
     return -1;
   }
-  *pKey = pKTmp->key;
+  *pKey = pKTmp->key.key;
   return 0;
 }
 
@@ -886,20 +936,22 @@ SStreamStateCur* streamStateSeekKeyNext_rocksdb(SStreamState* pState, const SWin
   }
   pCur->number = pState->number;
   pCur->db = pState->pTdbState->rocksdb;
+  pCur->random = pState->random;
+
   pCur->iter = streamStateIterCreate(pState, "default", &pCur->snapshot, &pCur->readOpt);
 
-  SStateKey sKey = {.key = *key, .opNum = pState->number};
-  char      buf[128] = {0};
-  int       len = stateKeyEncode((void*)&sKey, buf);
+  SStateKey1 sKey = {.key = {.key = *key, .opNum = pState->number}, .seq = pCur->random};
+  char       buf[128] = {0};
+  int        len = stateKeyEncode((void*)&sKey, buf);
   if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
     streamStateFreeCur(pCur);
     return NULL;
   }
 
   if (rocksdb_iter_valid(pCur->iter)) {
-    SStateKey curKey;
-    size_t    kLen;
-    char*     keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
+    SStateKey1 curKey;
+    size_t     kLen;
+    char*      keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
     stateKeyDecode((void*)&curKey, keyStr);
     if (stateKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) > 0) {
       return pCur;
@@ -992,22 +1044,23 @@ int32_t streamStateSessionGetKeyByRange_rocksdb(SStreamState* pState, const SSes
   if (pCur == NULL) {
     return -1;
   }
+  pCur->random = pState->random;
   pCur->number = pState->number;
   pCur->db = pState->pTdbState->rocksdb;
   pCur->iter = streamStateIterCreate(pState, "sess", &pCur->snapshot, &pCur->readOpt);
 
-  SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
-  int32_t          c = 0;
-  char             buf[128] = {0};
-  int              len = stateSessionKeyEncode(&sKey, buf);
+  SStateSessionKey1 sKey = {.key = {.key = *key, .opNum = pState->number}, .seq = pCur->random};
+  int32_t           c = 0;
+  char              buf[128] = {0};
+  int               len = stateSessionKeyEncode(&sKey, buf);
   if (!streamStateIterSeekAndValid(pCur->iter, buf, len)) {
     streamStateFreeCur(pCur);
     return -1;
   }
 
-  int32_t          kLen;
-  const char*      iKeyStr = rocksdb_iter_key(pCur->iter, (size_t*)&kLen);
-  SStateSessionKey iKey = {0};
+  int32_t           kLen;
+  const char*       iKeyStr = rocksdb_iter_key(pCur->iter, (size_t*)&kLen);
+  SStateSessionKey1 iKey = {0};
   stateSessionKeyDecode(&iKey, (char*)iKeyStr);
 
   c = stateSessionKeyCmpr(&sKey, sizeof(sKey), &iKey, sizeof(iKey));
