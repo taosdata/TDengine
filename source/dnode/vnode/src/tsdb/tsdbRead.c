@@ -3687,7 +3687,8 @@ int32_t doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* p
       return code;
     }
 
-    tsdbRowMerge(&merge, pRow);
+    pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
+    tsdbRowMergerAdd(&merge, pRow, pSchema);
     code =
         doMergeRowsInBuf(&pBlockScanInfo->iter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
     if (code != TSDB_CODE_SUCCESS) {
