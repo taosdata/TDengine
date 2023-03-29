@@ -1156,6 +1156,11 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       }
 
       STableKeyInfo keyInfo = {.uid = uid};
+      int64_t oldSkey = pScanBaseInfo->cond.twindows.skey;
+
+      // let's start from the next ts that returned to consumer.
+      pScanBaseInfo->cond.twindows.skey = ts + 1;
+
       if (pScanBaseInfo->dataReader == NULL) {
         int32_t code = tsdbReaderOpen(pScanBaseInfo->readHandle.vnode, &pScanBaseInfo->cond, &keyInfo, 1,
                                       pScanInfo->pResBlock, &pScanBaseInfo->dataReader, NULL);
@@ -1164,21 +1169,20 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
           terrno = code;
           return -1;
         }
+
+        qDebug("tsdb reader created with offset(snapshot) uid:%" PRId64 " ts %" PRId64 " table index:%d, total:%d, %s",
+               uid, ts, pScanInfo->currentTable, numOfTables, id);
       } else {
         tsdbSetTableList(pScanBaseInfo->dataReader, &keyInfo, 1);
-        int64_t oldSkey = pScanBaseInfo->cond.twindows.skey;
-
-        // let's start from the next ts that returned to consumer.
-        pScanBaseInfo->cond.twindows.skey = ts + 1;
         tsdbReaderReset(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
-
-        // restore the key value
-        pScanBaseInfo->cond.twindows.skey = oldSkey;
         pScanInfo->scanTimes = 0;
 
         qDebug("tsdb reader offset seek snapshot to uid:%" PRId64 " ts %" PRId64 "  table index:%d numOfTable:%d, %s",
                uid, ts, pScanInfo->currentTable, numOfTables, id);
       }
+
+      // restore the key value
+      pScanBaseInfo->cond.twindows.skey = oldSkey;
     } else {
       qError("invalid pOffset->type:%d, %s", pOffset->type, id);
       return -1;
