@@ -679,15 +679,16 @@ int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq
 int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
 
 typedef struct {
-  int8_t alterType;
-  int8_t superUser;
-  int8_t sysInfo;
-  int8_t enable;
-  char   user[TSDB_USER_LEN];
-  char   pass[TSDB_USET_PASSWORD_LEN];
-  char   objname[TSDB_DB_FNAME_LEN];  // db or topic
-  char   tabName[TSDB_TABLE_NAME_LEN];
-  char*  tagCond;
+  int8_t  alterType;
+  int8_t  superUser;
+  int8_t  sysInfo;
+  int8_t  enable;
+  char    user[TSDB_USER_LEN];
+  char    pass[TSDB_USET_PASSWORD_LEN];
+  char    objname[TSDB_DB_FNAME_LEN];  // db or topic
+  char    tabName[TSDB_TABLE_NAME_LEN];
+  char*   tagCond;
+  int32_t tagCondLen;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);

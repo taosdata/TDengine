@@ -1373,11 +1373,7 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
   if (len > 0) {
     if (tEncodeCStr(&encoder, pReq->tabName) < 0) return -1;
   }
-  len = (NULL == pReq->tagCond ? 0 : strlen(pReq->tagCond));
-  if (tEncodeI32(&encoder, len) < 0) return -1;
-  if (len > 0) {
-    if (tEncodeCStr(&encoder, pReq->tagCond) < 0) return -1;
-  }
+  if (tEncodeBinary(&encoder, pReq->tagCond, pReq->tagCondLen) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1403,10 +1399,9 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
     if (len > 0) {
       if (tDecodeCStrTo(&decoder, pReq->tabName) < 0) return -1;
     }
-    if (tDecodeI32(&decoder, &len) < 0) return -1;
-    if (len > 0) {
-      if (tDecodeCStrAlloc(&decoder, &pReq->tagCond) < 0) return -1;
-    }
+    uint64_t tagCondLen = 0;
+    if (tDecodeBinaryAlloc(&decoder, (void **)&pReq->tagCond, &tagCondLen) < 0) return -1;
+    pReq->tagCondLen = tagCondLen;
   }
   tEndDecode(&decoder);
 

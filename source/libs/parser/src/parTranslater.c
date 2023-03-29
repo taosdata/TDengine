@@ -6467,7 +6467,7 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   sprintf(req.tabName, "%s", pStmt->tabName);
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL != pStmt->pTagCond) {
-    code = nodesNodeToString(pStmt->pTagCond, false, &req.tagCond, NULL);
+    code = nodesNodeToString(pStmt->pTagCond, false, &req.tagCond, &req.tagCondLen);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
