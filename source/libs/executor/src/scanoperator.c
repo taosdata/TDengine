@@ -1617,18 +1617,18 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
     tsdbReaderClose(pTSInfo->base.dataReader);
     pTSInfo->base.dataReader = NULL;
-    tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pTaskInfo->streamInfo.snapshotVer);
     qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", pTaskInfo->streamInfo.snapshotVer + 1);
     if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1, pTaskInfo->id.str) < 0) {
       return NULL;
     }
+    tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pTaskInfo->streamInfo.snapshotVer);
   }
 
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__LOG) {
     while (1) {
       SFetchRet ret = {0};
       tqNextBlock(pInfo->tqReader, &ret);
-      tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pInfo->tqReader->pWalReader->curVersion - 1);
+      tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pInfo->tqReader->pWalReader->curVersion - 1); //curVersion move to next, so currentOffset = curVersion - 1
 
       if (ret.fetchType == FETCH_TYPE__DATA) {
         qDebug("doQueueScan get data from log %d rows, version:%" PRId64, pInfo->pRes->info.rows, pTaskInfo->streamInfo.currentOffset.version);

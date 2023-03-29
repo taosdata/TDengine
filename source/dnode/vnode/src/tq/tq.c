@@ -395,6 +395,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
           return -1;
         }
 
+        // offset set to previous version when init
         tqOffsetResetToLog(pOffsetVal, pHandle->pRef->refVer - 1);
       }
     } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
