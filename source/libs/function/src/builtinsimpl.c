@@ -494,8 +494,8 @@ bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-static int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = 0;
+static int64_t getNumOfElems(SqlFunctionCtx* pCtx) {
+  int64_t numOfElem = 0;
 
   /*
    * 1. column data missing (schema modified) causes pInputCol->hasNull == true. pInput->colDataSMAIsSet == true;
@@ -528,7 +528,7 @@ static int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
  * count function does not use the pCtx->interResBuf to keep the intermediate buffer
  */
 int32_t countFunction(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = 0;
+  int64_t numOfElem = 0;
 
   SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
   SInputColumnInfoData* pInput = &pCtx->input;
@@ -555,7 +555,7 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
 }
 
 int32_t countInvertFunction(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = getNumOfElems(pCtx);
+  int64_t numOfElem = getNumOfElems(pCtx);
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   char*                buf = GET_ROWCELL_INTERBUF(pResInfo);
@@ -1929,7 +1929,7 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
 
   SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  qDebug("%s total %d rows will merge, %p", __FUNCTION__, pInput->numOfRows, pInfo->pHisto);
+  qDebug("%s total %" PRId64 " rows will merge, %p", __FUNCTION__, pInput->numOfRows, pInfo->pHisto);
 
   int32_t start = pInput->startRowIndex;
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
