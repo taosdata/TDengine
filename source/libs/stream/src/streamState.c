@@ -26,6 +26,8 @@
 #include "tcompare.h"
 #include "ttimer.h"
 
+int64_t seq = 0;
+
 int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
   if (pWin1->groupId > pWin2->groupId) {
     return 1;
@@ -381,7 +383,7 @@ int32_t streamStateClear(SStreamState* pState) {
 
 void streamStateSetNumber(SStreamState* pState, int32_t number) {
   pState->number = number;
-  pState->random = (uint64_t)tGenIdPI64();
+  pState->random = (uint64_t)atomic_add_fetch_64(&seq, 1);
 }
 
 int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {

@@ -58,9 +58,9 @@ int stateKeyDBComp(void* state, const char* aBuf, size_t aLen, const char* bBuf,
   taosDecodeFixedU64(p1, &key1.seq);
   taosDecodeFixedU64(p2, &key2.seq);
 
-  if (key1.seq < key2.seq) {
+  if (key1.seq > key2.seq) {
     return -1;
-  } else if (key1.seq > key2.seq) {
+  } else if (key1.seq < key2.seq) {
     return 1;
   }
   return stateKeyCmpr(&key1.key, sizeof(key1.key), &key2.key, sizeof(key2.key));
@@ -133,9 +133,9 @@ int stateSessionKeyDBComp(void* state, const char* aBuf, size_t aLen, const char
   p1 = taosDecodeFixedU64(p1, &w1.seq);
   p2 = taosDecodeFixedU64(p2, &w2.seq);
 
-  if (w1.seq < w2.seq) {
+  if (w1.seq > w2.seq) {
     return -1;
-  } else {
+  } else if (w1.seq < w2.seq) {
     return 1;
   }
   return stateSessionKeyCmpr(&w1.key, sizeof(w1.key), &w2.key, sizeof(w2.key));
