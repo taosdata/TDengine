@@ -139,7 +139,7 @@ In many use cases, it's hard to align the timestamp of the data collected by eac
 
 Interpolation can be performed in TDengine if there is no data in a time range.
 
-For more details please refer to [Aggregate by Window](https://docs.tdengine.com/cloud/taos-sql/interval).
+For more details please refer to [Aggregate by Window](https://docs.tdengine.com/cloud/taos-sql/distinguished/).
 
 ## Connector Examples
 
