@@ -21,14 +21,25 @@ extern int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, 
 extern int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size);
 extern int32_t tsdbFsyncFile(STsdbFD *pFD);
 
+typedef struct {
+  struct {
+    int64_t offset;
+    int64_t size;
+  } dict[4];  // 0:bloom filter, 1:SSttBlk, 2:SDelBlk, 3:STbStatisBlk
+  uint8_t reserved[32];
+} SFSttFooter;
+
 struct SSttFWriter {
   struct SSttFWriterConf config;
-  // time-series data
-  SBlockData bData;
-  SArray    *aSttBlk;  // SArray<SSttBlk>
-  // tombstone data
-  SDelBlock dData;
-  SArray   *aDelBlk;  // SArray<SDelBlk>
+  // data
+  SBlockData     bData;
+  SDelBlock      dData;
+  STbStatisBlock sData;
+  SArray        *aSttBlk;     // SArray<SSttBlk>
+  SArray        *aDelBlk;     // SArray<SDelBlk>
+  SArray        *aStatisBlk;  // SArray<STbStatisBlk>
+  void          *bloomFilter;
+  SFSttFooter    footer;
   // helper data
   SSkmInfo skmTb;
   SSkmInfo skmRow;

@@ -23,8 +23,10 @@ extern "C" {
 #endif
 
 /* Exposed Handle */
-typedef struct SDelBlock SDelBlock;
-typedef struct SDelBlk   SDelBlk;
+typedef struct SDelBlock      SDelBlock;
+typedef struct SDelBlk        SDelBlk;
+typedef struct STbStatisBlock STbStatisBlock;
+typedef struct STbStatisBlk   STbStatisBlk;
 
 /* Exposed APIs */
 int32_t tDelBlockCreate(SDelBlock *pDelBlock, int32_t capacity);
@@ -50,6 +52,19 @@ struct SDelBlk {
   int64_t uidMin;
   int64_t verMax;
   int64_t verMin;
+};
+struct STbStatisBlock {
+  int32_t  capacity;
+  int32_t  nRow;
+  int64_t *aData[7];  // [suid, uid, skey, sver, ekey, ever, count]
+};
+struct STbStatisBlk {
+  int64_t suidMax;
+  int64_t suidMin;
+  int64_t uidMax;
+  int64_t uidMin;
+  int64_t offset;
+  int64_t size;
 };
 
 #ifdef __cplusplus
