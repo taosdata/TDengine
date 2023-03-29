@@ -307,7 +307,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
 
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       handle.execHandle.task =
-`          qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, vgId, &handle.execHandle.numOfCols, 0);
+          qCreateQueueExecTaskInfo(handle.execHandle.execCol.qmsg, &reader, vgId, &handle.execHandle.numOfCols, 0);
       if (handle.execHandle.task == NULL) {
         tqError("cannot create exec task for %s", handle.subKey);
         code = -1;
