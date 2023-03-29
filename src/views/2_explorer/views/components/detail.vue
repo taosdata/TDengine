@@ -10,11 +10,21 @@
   import StableCreate from "./stables/stb_create";
   import Info from "./info.vue";
   import TableCreate from "./tables/tb_create";
+   import DatabasePrivileges from "./privilege";
   // import Matrixs from "./matrixs";
+  Array.prototype.insert = function (index, item) {
+    this.splice(index, 0, item);
+  };
+  Array.prototype.remove = function (index) {
+    if (index > -1 && this.length > 1) {
+      this.splice(index, 1);
+    }
+  };
   export default {
     components: {
       DatabaseCreate,
       // CreateStableOrTable,
+      DatabasePrivileges,
       Info,
       TableCreate,
       StableCreate,

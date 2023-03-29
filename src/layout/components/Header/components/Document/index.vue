@@ -1,7 +1,7 @@
 <template>
   <div class="doc-block">
     <a class="drop-block" target="_blank" :href="docsUrl">
-      <el-tooltip class="item" effect="light" content="Document" placement="bottom">
+      <el-tooltip class="item" effect="light" :content="$t('document')" placement="bottom">
         <Icon
           name="document"
           class="dropdown_icon"

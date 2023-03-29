@@ -1,7 +1,7 @@
 <template>
   <div class="support-content">
     <a class="support-block-url" target="_blank" :href="supportUrl">
-    <el-tooltip class="item" effect="light" content="Support" placement="bottom">
+    <el-tooltip class="item" effect="light" :content="$t('support.support')" placement="bottom">
       <div class="support-block" @click="showSupportDialog">
         <Icon name="support" style="width: 26px; height: 26px; margin-left: 2px;"></Icon>
       </div>

@@ -140,3 +140,162 @@ export function handleDataKey(data, type, parent = "") {
     return item;
   });
 }
+
+//数据库管理
+export function disableDBUser(userId, dbname, appId = store.getters.appId) {
+  return request({
+    url: `/region/${store.getters.region}/db/privilege/disable/${appId}/${dbname}/user/${userId}`,
+    method: "put",
+  });
+}
+export function disableDBUserGroup(groupId, dbname, appId = store.getters.appId) {
+  return request({
+    url: `/region/${store.getters.region}/db/privilege/disable/${appId}/${dbname}/group/${groupId}`,
+    method: "put",
+  });
+}
+export function enableDBUserRole(data, appId = store.getters.appId) {
+  return request({
+    url: `/region/${store.getters.region}/db/privilege/active/user/${appId}`,
+    data,
+    method: "post",
+  });
+}
+export function enableDBUserGroup(groupId, dbname, appId = store.getters.appId) {
+  return request({
+    url: `/region/${store.getters.region}/db/privilege/active/${appId}/${dbname}/group/${groupId}`,
+    method: "put",
+  });
+}
+export function deleteDBUser(userId, dbname, appId = store.getters.appId) {
+  return request({
+    url: `/region/${store.getters.region}/db/privilege/delete/${appId}/${dbname}/user/${userId}`,
+    method: "put",
+  });
+}
+export function deleteDBUserGroup(groupId, dbname, appId = store.getters.appId) {
+  return request({
+    url: `/region/${store.getters.region}/db/privilege/delete/${appId}/${dbname}/group/${groupId}`,
+    method: "put",
+  });
+}
+// 获取用户组数据库级别关联资源
+export function getDatabaseGroupResource(group_id, databaseId, appId = store.getters.appId) {
+  return request({
+    url: `/group/${group_id}/resources/${appId}`,
+  }).then(data => data.filter(item => item.databaseId == databaseId));
+}
+// 修改group角色
+export function apendInstanceGroupResource(data, id, appId = store.getters.appId) {
+  return request({
+    url: `/group/${appId}/roles/${id}`,
+    method: "put",
+    data: JSON.stringify(data),
+  });
+}
+// 获取app下的所有用户
+export function getAppUser(params, appId = store.getters.appId) {
+  return request({
+    url: `/region/${store.getters.region}/app/${appId}/users`,
+    params,
+  });
+}
+
+// 获取用户组实例级别关联资源
+export function getInstanceGroupResource(group_id, appId = store.getters.appId) {
+  return request({
+    url: `/group/${group_id}/resources/${appId}`,
+  });
+}
+
+export function getOrganizationResource(user_id) {
+  return request({
+    url: `/user/${user_id}/resources`,
+  });
+}
+export function getInstanceResource(user_id, app_id = store.getters.appId) {
+  return request({
+    url: `/user/${user_id}/resources/` + app_id,
+  });
+}
+export function getDBResource(user_id, databaseId, app_id = store.getters.appId) {
+  return request({
+    url: `/user/${user_id}/resources/` + app_id,
+  }).then(data => data.filter(item => item.databaseId == databaseId));
+}
+// 获取group列表
+export function getGroupList(params) {
+  return request({
+    url: "/group",
+    params,
+  });
+}
+// 获取当前实例下的用户组
+export function getInstanceGroup(params, appId = store.getters.appId) {
+  return request({
+    url: `/app/${appId}/groups`,
+    params,
+  });
+}
+// 获取当前组织下的已经分配了的user-role和group-role列表
+export function getOrganizationUserAndGroupRoleList(params, orgId = store.getters.orgId) {
+  return request({
+    url: "/org/grants/" + orgId,
+    params,
+  });
+}
+export function getGrantList(params) {
+  return request({
+    url: "/role/grant-list",
+    params,
+  });
+}
+export function getUnGrantList(params) {
+  return request({
+    url: `/role/no-granted-list/${params.type}/${params.id}`,
+  });
+}
+// 创建group
+export function createGroup(data) {
+  return request({
+    url: "/group",
+    method: "post",
+    data,
+  });
+}
+
+// 修改group
+export function updateGroup(data, id) {
+  return request({
+    url: "/group/" + id,
+    method: "put",
+    data,
+  });
+}
+export function apendOrganizationGroupResource(data, id) {
+  return request({
+    url: "/group/roles/" + id,
+    method: "put",
+    data: JSON.stringify(data),
+  });
+}
+// 获取group用户列表
+export function getGroupUserList(id) {
+  return request({
+    url: "/group/user/" + id,
+    // params,
+  });
+}
+// 删除group用户
+export function disableOrganizationGroupUser(group_id, user_id) {
+  return request({
+    url: `/group/role/${group_id}/${user_id}`,
+    method: "delete",
+  });
+}
+// 获取用户组组织级别关联资源
+export function getOrganizationGroupResource(group_id) {
+  return request({
+    url: `/group/${group_id}/resources`,
+  });
+}

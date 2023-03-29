@@ -51,7 +51,7 @@
               ></div>
             </div>
           </div>
-          <div style="width: 100%" v-if="dbsource[0].options.port&&dbsource[0].options.port.diaplay">
+          <div style="width: 100%" v-if="dbsource[0].options.port">
             <span
               :class="[
                 'label',
@@ -111,7 +111,7 @@
             ></div>
           </div>
         </div> -->
-        <div style="width: 100%">
+        <!-- <div style="width: 100%">
           <span
             :class="[
               'label',
@@ -129,9 +129,9 @@
               class="description"
             ></div>
           </div>
-        </div>
+        </div> -->
       </section>
-      <section class="authentication" v-if="dbsource[0].authentication&&dbsource[0].authentication.display">
+      <section class="authentication" v-if="dbsource[0].authentication">
         <div>
           <div class="block-title">
             <span>{{ dbsource[0].authentication.display }}</span>
@@ -153,16 +153,21 @@
             </template>
           </el-radio-group>
           <div class="authen-details">
-            <template v-if="dbsource[0].authentication.value == 'plain'">
-              <div class="plain">
+            <template
+              v-if="
+                dbsource[0].authentication.value == 'plain' ||
+                dbsource[0].authentication.value == 'anonymous'
+              "
+            >
+              <!-- <div class="plain">
                 <div class="plain-item">
                   <span class="label">{{
-                    dbsource[0].authentication.alternatives[0].username.display
+                    dbsource[0].authentication.alternatives[1].username.display
                   }}</span>
                   <div style="width: 100%">
                     <el-input
                       v-model="
-                        dbsource[0].authentication.alternatives[0].username
+                        dbsource[0].authentication.alternatives[1].username
                           .value
                       "
                     ></el-input>
@@ -170,7 +175,7 @@
                       class="description"
                       v-html="
                         transforHtml(
-                          dbsource[0].authentication.alternatives[0].username
+                          dbsource[0].authentication.alternatives[1].username
                             .description
                         )
                       "
@@ -180,12 +185,12 @@
 
                 <div class="plain-item">
                   <span class="label">{{
-                    dbsource[0].authentication.alternatives[0].password.display
+                    dbsource[0].authentication.alternatives[1].password.display
                   }}</span>
                   <div style="width: 100%">
                     <el-input
                       v-model="
-                        dbsource[0].authentication.alternatives[0].password
+                        dbsource[0].authentication.alternatives[1].password
                           .value
                       "
                     ></el-input>
@@ -193,28 +198,40 @@
                       class="description"
                       v-html="
                         transforHtml(
-                          dbsource[0].authentication.alternatives[0].password
+                          dbsource[0].authentication.alternatives[1].password
                             .description
                         )
                       "
                     ></p>
                   </div>
                 </div>
-              </div>
+              </div> -->
             </template>
             <template v-else>
               <div
-                v-for="al in dbsource[0].authentication.alternatives.slice(1)"
+                v-for="al in dbsource[0].authentication.alternatives.slice(2)"
                 :key="al.name"
-                style="display: flex; align-items: baseline"
+                style="
+                  display: flex;
+                  align-items: baseline;
+                  flex-direction: column;
+                "
               >
                 <span class="label">{{ al.display }}</span>
                 <div
                   v-for="(p, index) in al.params"
                   :key="index"
-                  style="width: 100%"
+                  style="width: 100%; margin-top: 10px"
                 >
-                  <el-input v-model="p.value"></el-input>
+                  <span class="label">{{ p.display }}</span>
+                  <template v-if="p.hint == 'file'">
+                    <el-input v-model="p.value" type="textarea"></el-input
+                  ></template>
+                  <template v-if="p.hint.choices">
+                    <el-select v-model="p.value" style="width:100%;">
+                        <el-option v-for="item in p.hint.choices" :key="item" :label="item" :value="item"></el-option>
+                    </el-select>
+                  </template>
                   <div
                     class="description"
                     v-html="transforHtml(p.description)"
@@ -225,7 +242,7 @@
           </div>
         </div>
       </section>
-      <template v-for="item in dbsource[0].groups">
+      <template v-for="(item,gindex) in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
           <div style="flex-direction: column; align-items: baseline">
             <div class="block-title">
@@ -236,8 +253,8 @@
               v-html="transforHtml(item.description)"
             ></div>
           </div>
-          <template v-for="(p,pind) in item.params">
-            <div :key="pind">
+          <template v-for="p in item.params">
+            <div :key="p.name + Math.random()" v-if="(p.if&&p.if.includes(dbsource[0].protocol.value))||gindex>0">
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
               </span>
@@ -332,10 +349,6 @@ import { decrypt } from "@/utils/index";
 export default {
   name: "DbSourceUI",
   props: {
-    tagName: {
-      type: String,
-      default: "datasource",
-    },
     dbsource: {
       type: Array,
       default() {
@@ -354,11 +367,6 @@ export default {
       type: String,
       default: "",
     },
-  },
-  filters:{
-    transtozh(val){
-      console.log(val,'转移成中文');
-    }
   },
   data() {
     return {
@@ -445,26 +453,22 @@ export default {
           }
         }
         this.decryptPwd = decrypt(sessionStorage.getItem("pwd"));
-        if (this.tagName === "datasource") {
-          dns += `://${sessionStorage.getItem("username")}:${this.decryptPwd}@${
-            data.options.host.value ? data.options.host.value : ""
-          }
-        `;
-        }else{
-          dns +=`://${
+        // dns += `://${sessionStorage.getItem("username")}:${this.decryptPwd}@${
+        //   data.options.host.value ? data.options.host.value : ""
+        // }
+        // `;
+        dns +=`://${
             data.options.host.value ? data.options.host.value : ""
           }`
-        }
-
         if (data.options.port) {
           dns +=
             (Object.is(data.options.port.value, null) ? "" : ":") +
             `${data.options.port.value ? data.options.port.value : ""}`;
         }
 
-        dns += data.options.subject.value
-          ? "/" + data.options.subject.value
-          : "";
+        // dns += data.options.subject.value
+        //   ? "/" + data.options.subject.value
+        //   : "";
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
@@ -496,52 +500,33 @@ export default {
 
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         console.log(data, "pppp");
-        let apiParams = {
-          from:
-            "tmq" +
-            (data.protocol
-              ? Object.is(data.protocol.value, "--")
-                ? ""
-                : "+"
-              : "") +
-            dns,
-          name: localStorage.getItem("datainName"),
-          to:
-            "taos+" +
-            localStorage.getItem("base_url") +
-            (this.dbname ? "/" + this.dbname : ""),
-          labels: ["type::datain", `cluster-id::${id}`],
-        };
-        if (this.tagName === "datasource") {
-          if (this.isEditable) {
-            await EditSource(apiParams, this.editId).then(() => {
-              this.$parent.toggleComponent("dbsource", "");
-            });
-          } else {
-            await AddSource(apiParams).then((res) => {
-              this.$parent.toggleComponent("dbsource", "");
-            });
-          }
-        } else {
-          console.log("pi的接口", dns);
+        
+        
+          console.log("opc的接口");
           let piParams = {
-            from: "pi" + dns,
+            from:
+              "opc" +
+              (data.protocol
+                ? Object.is(data.protocol.value, "--")
+                  ? ""
+                  : "+"
+                : "") +
+              dns,
             name: localStorage.getItem("datainName"),
-            //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
-            // name: localStorage.getItem("datainName"),
             to:
               "taos+" +
               localStorage.getItem("base_url") +
               (this.dbname ? "/" + this.dbname : ""),
-            labels: ["type::pi", `cluster-id::${id}`],
+            labels: ["type::opc", `cluster-id::${id}`],
           };
           await AddSource(piParams).then((res) => {
+            console.log(res, "opc的接口返回");
             if (res && res.id) {
-              this.$parent.toggleComponent("pitable", "");
+              this.$parent.toggleComponent("opctable", "");
               Message.success("Operation Successfully!");
             }
           });
-        }
+        
       } catch (error) {
         console.log(error);
       }

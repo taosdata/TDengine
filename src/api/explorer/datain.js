@@ -7,7 +7,20 @@ export function getDatain(id){
         method: "get"
     });
 }
-
+ export function getPI(id){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url: `/tasks?detail=true&labels=type::pi,cluster-id::${id}`,
+        method: "get"
+    });
+ }
+ export function getOPC(id){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url: `/tasks?detail=true&labels=type::opc,cluster-id::${id}`,
+        method: "get"
+    });
+ }
 export function getUIData(){
     return request({
         baseURL:process.env.VUE_APP_X_API,
@@ -33,6 +46,18 @@ export function EditSource(data,id){
         baseURL:process.env.VUE_APP_X_API,
         url:`/tasks/${id}`,
         method:'patch',
+        headers:{
+            "Content-Type":"application/json"
+        },
+        data
+    })
+}
+//获取ua的nodes或者da的tags
+export function getUaAndDaData(data){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/ds/in/sets`,
+        method:'post',
         headers:{
             "Content-Type":"application/json"
         },

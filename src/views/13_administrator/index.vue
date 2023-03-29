@@ -8,15 +8,14 @@
         </el-tab-pane>
         <el-tab-pane name="backup" :label="$t('taosuser.backup')">
           <AdBackup></AdBackup>
-          <!-- <MgDnodes></MgDnodes> -->
         </el-tab-pane>
         <el-tab-pane name="replication" :label="$t('taosuser.datareplication')">
           <AdReplication></AdReplication>
         </el-tab-pane>
-        <!-- <el-tab-pane name="udf" :label="$t('topic.udf')" :disabled='true'>
-          <MgUdf></MgUdf>
+        <el-tab-pane name="cluster" :label="$t('route.cluster')">
+          <Cluster></Cluster>
         </el-tab-pane>
-        <el-tab-pane name="activities" :label="$t('topic.activities')" :disabled='true'>
+        <!-- <el-tab-pane name="activities" :label="$t('topic.activities')" :disabled='true'>
           <Activities></Activities>
         </el-tab-pane> -->
       </el-tabs>
@@ -30,10 +29,11 @@ import AdReplication from './views/replication.vue'
 // import MgQnodes from '../14_cluster/views/qnodes.vue'
 import MgUdf from './views/udf.vue'
 import Activities from './views/activities.vue'
+import Cluster from '@/views/14_cluster/index.vue'
 export default {
   name: "Admin",
   components:{
-    MgUser,AdBackup,AdReplication,MgUdf,Activities
+    MgUser,AdBackup,AdReplication,MgUdf,Activities,Cluster
   },
   data() {
     return {

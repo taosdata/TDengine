@@ -6,7 +6,7 @@
         @click="dialog = true"
         size="small"
         icon="el-icon-plus"
-        >{{ $t("taospi.addpi") }}</el-button
+        >{{ $t("taosopc.addopc") }}</el-button
       >
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
@@ -118,7 +118,7 @@
     ></el-pagination>
     <el-dialog
       align="center"
-      :title="$t('taospi.addnewpi')"
+      :title="$t('taosopc.addopc')"
       width="400px"
       :visible.sync="dialog"
       @closed="closeDialog"
@@ -131,72 +131,194 @@
         label-position="left"
         class="demo-ruleForm"
       >
-        <el-form-item
-          :label="$t('taospi.UpdateInterval')"
-          prop="UpdateInterval"
-        >
-          <el-input-number
-            v-model="ruleForm.UpdateInterval"
-          ></el-input-number>
+        <el-form-item :label="$t('taosopc.opc_type')" prop="opc_type">
+          <el-select v-model="ruleForm.opc_type" placeholder="">
+            <el-option label="opcua" value="opcua"></el-option>
+            <el-option label="opcda" value="opcda"></el-option>
+          </el-select>
         </el-form-item>
-        <el-form-item
-          :label="$t('taospi.PIServerName')"
-          required
-          prop="PIServerName"
-        >
-          <el-input v-model="ruleForm.PIServerName"></el-input>
-        </el-form-item>
-        <el-form-item :label="$t('taospi.PISystemName')" prop="PISystemName">
-          <el-input v-model="ruleForm.PISystemName"></el-input>
-        </el-form-item>
-        <el-form-item
-          required
-          :label="$t('taospi.AFDatabaseName')"
-          prop="AFDatabaseName"
-        >
-          <el-input v-model="ruleForm.AFDatabaseName"></el-input>
-        </el-form-item>
-        <el-form-item
-          :label="$t('taospi.PIDataPipesInstances')"
-          prop="PIDataPipesInstances"
-        >
-          <el-input-number
-            v-model="ruleForm.PIDataPipesInstances"
-          ></el-input-number>
-        </el-form-item>
-        <el-form-item
-          :label="$t('taospi.AFDataPipesInstances')"
-          prop="AFDataPipesInstances"
-        >
-          <el-input-number
-            v-model="ruleForm.AFDataPipesInstances"
-          ></el-input-number>
-        </el-form-item>
-        <el-form-item
-          :label="$t('taospi.MaxBackfillRangeDays')"
-          prop="MaxBackfillRangeDays"
-        >
-          <el-input-number
-            v-model="ruleForm.MaxBackfillRangeDays"
-          ></el-input-number>
-        </el-form-item>
-        <el-form-item :label="$t('taospi.TaosXEnabled')" prop="TaosXEnabled">
-          <el-switch
-            v-model="ruleForm.TaosXEnabled"
-            active-color="#13ce66"
+        <template v-if="ruleForm.opc_type === 'opcua'">
+          <p>
+            <span style="color: #4d6992; font-size: 24px">{{
+              $t("taosopc.ua_config")
+            }}</span>
+          </p>
+          <el-form-item
+            :label="$t('taosopc.connect_timeout')"
+            prop="connect_timeout"
+            required
           >
-          </el-switch>
+            <el-input-number
+              v-model="ruleForm.connect_timeout"
+            ></el-input-number>
+          </el-form-item>
+          <el-form-item
+            :label="$t('taosopc.endpoint')"
+            prop="endpoint"
+            required
+          >
+            <el-input-number v-model="ruleForm.endpoint"></el-input-number>
+          </el-form-item>
+          <el-form-item
+            :label="$t('taosopc.request_timeout')"
+            prop="request_timeout"
+            required
+          >
+            <el-input v-model="ruleForm.request_timeout"></el-input>
+          </el-form-item>
+          <el-form-item
+            :label="$t('taosopc.security_policy')"
+            prop="security_policy"
+            required
+          >
+            <el-select v-model="ruleForm.security_policy">
+              <el-option
+                v-for="item in policiesList"
+                :key="item"
+                :label="item"
+                :value="item"
+              >
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item
+            :label="$t('taosopc.security_mode')"
+            prop="security_mode"
+            required
+          >
+            <el-select v-model="ruleForm.security_mode">
+              <el-option
+                v-for="item in modeList"
+                :key="item"
+                :label="item"
+                :value="item"
+              >
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item
+            :label="$t('taosopc.certificate')"
+            prop="certificate"
+            :required="
+              ruleForm.security_mode !== 'Nonde' ||
+              ruleForm.security_policy !== 'None'
+            "
+          >
+            <el-input v-model="ruleForm.certificate"></el-input>
+          </el-form-item>
+          <el-form-item
+            :label="$t('taosopc.private_key')"
+            prop="private_key"
+            :required="
+              ruleForm.security_mode !== 'Nonde' ||
+              ruleForm.security_policy !== 'None'
+            "
+          >
+            <el-input v-model="ruleForm.private_key"></el-input>
+          </el-form-item>
+          <el-form-item :label="$t('taosopc.auth_method')" prop="auth_method">
+            <el-select v-model="ruleForm.auth_method">
+              <el-option
+                v-for="item in authMethodList"
+                :key="item"
+                :label="item"
+                :value="item"
+              >
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item
+            :label="$t('taosopc.username')"
+            prop="username"
+            :required="ruleForm.auth_method === 'UserName'"
+          >
+            <el-input v-model="ruleForm.username"></el-input>
+          </el-form-item>
+          <el-form-item
+            :label="$t('taosopc.password')"
+            prop="password"
+            :required="ruleForm.auth_method === 'UserName'"
+          >
+            <el-input v-model="ruleForm.password"></el-input>
+          </el-form-item>
+          <p>
+            <span style="color: #4d6992; font-size: 24px">
+              {{ $t("taosopc.collect_config") }}
+            </span>
+          </p>
+          <el-form-item :label="$t('taosopc.interval')" prop="interval" required>
+            <el-input v-model="ruleForm.interval"></el-input>
+          </el-form-item>
+          <el-form-item :label="$t('taosopc.nodes')" prop="nodes" required>
+            <el-select v-model="ruleForm.nodes" multiple>
+              <el-option
+                v-for="item in uaCollectNodes"
+                :key="item.value_type"
+                :label="item.id"
+                :value="item.value_type"
+              >
+              </el-option>
+            </el-select>
+          </el-form-item>
+        </template>
+        <template v-if="ruleForm.opc_type === 'opcda'">
+          <p>
+            <span style="color: #4d6992; font-size: 24px">{{
+              $t("taosopc.da_config")
+            }}</span>
+          </p>
+          <el-form-item :label="$t('taosopc.server')" prop="server" required>
+            
+            <el-input v-model="ruleForm.server"></el-input>
+          </el-form-item>
+          <el-form-item :label="$t('taosopc.nodes')" prop="nodes" required>
+            <el-input v-model="ruleForm.nodes"></el-input>
+            <!-- <div>
+              <span>
+                {{ $t("taosopc.nodetip") }}
+              </span>
+            </div> -->
+          </el-form-item>
+          <p>
+            <span style="color: #4d6992; font-size: 24px">
+              {{ $t("taosopc.collect_config") }}
+            </span>
+          </p>
+          <el-form-item
+            :label="$t('taosopc.interval')"
+            prop="interval"
+            required
+          >
+            <el-input v-model="ruleForm.interval"></el-input>
+          </el-form-item>
+          <el-form-item :label="$t('taosopc.tags')" prop="tags" required>
+            <el-select v-model="ruleForm.tags" multiple>
+              <el-option
+                v-for="item in tagsLists"
+                :key="item.value_type"
+                :label="item.tag"
+                :value="item.value_type"
+              >
+              </el-option>
+            </el-select>
+          </el-form-item>
+        </template>
+        <p>
+          <span style="color: #4d6992; font-size: 24px">
+            {{ $t("taosopc.report_config") }}
+          </span>
+        </p>
+        <el-form-item :label="$t('taosopc.remote')" prop="remote" required>
+            <el-input v-model="ruleForm.remote"></el-input>
         </el-form-item>
-        <el-form-item :label="$t('taospi.MaxWaitLen')" prop="MaxWaitLen">
-          <el-input-number
-            v-model="ruleForm.MaxWaitLen"
-          ></el-input-number>
+        <el-form-item :label="$t('taosopc.concurrent')" prop="concurrent" required>
+            <el-input v-model="ruleForm.concurrent"></el-input>
         </el-form-item>
-        <el-form-item :label="$t('taospi.IPCStream')" prop="IPCStream" required>
-          <el-input v-model="ruleForm.IPCStream"></el-input>
+        <el-form-item :label="$t('taosopc.batch_size')" prop="batch_size" required>
+            <el-input v-model="ruleForm.batch_size"></el-input>
         </el-form-item>
-        <el-form-item :label="$t('taospi.SQLAPI')" prop="SQLAPI" required>
-          <el-input v-model="ruleForm.SQLAPI" type="number"></el-input>
+        <el-form-item :label="$t('taosopc.batch_timeout')" prop="batch_timeout" required>
+            <el-input v-model="ruleForm.batch_timeout"></el-input>
         </el-form-item>
       </el-form>
       <el-row style="margin-top: 20px">
@@ -221,7 +343,7 @@
 </template>
 <script>
 import { Message } from "element-ui";
-import { getPI } from "@/api/explorer/datain";
+import { getOPC ,getUaAndDaData} from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 export default {
   name: "DataSource",
@@ -241,35 +363,43 @@ export default {
       if (!this.ruleForm.AFDatabaseName) {
         return true;
       }
-      if(!this.ruleForm.IPCStream){
-        return true
+      if (!this.ruleForm.IPCStream) {
+        return true;
       }
-      if(!this.ruleForm.SQLAPI){
-        return true
+      if (!this.ruleForm.SQLAPI) {
+        return true;
       }
       return false;
     },
   },
   data() {
     return {
+      policiesList: ["None", "Basic128Rsa15", "Basic256", "Basic256Sha256"],
+      modeList: ["None", "Sign", "SignAndEncrypt"],
+      authMethodList: ["Certificate", "UserName", "Anonymous"],
       dbsource: null,
       pageSize: 10,
       currentPage: 1,
       total: 10,
       dialog: false,
+      tagsLists: [],
+      uaCollectNodes: [],
       ruleForm: {
-
-        UpdateInterval: 10000,
-        PIServerName: "",
-        PISystemName: "",
-        AFDatabaseName: "",
-        PIDataPipesInstances: 1,
-        AFDataPipesInstances: 1,
-        MaxBackfillRangeDays: 1,
-        TaosXEnabled: true,
-        MaxWaitLen: 1000,
-        IPCStream: "",
-        SQLAPI: 8080,
+        opc_type: "opcua",
+        endpoint: "",
+        connect_timeout: "",
+        request_timeout: "",
+        security_policy: "",
+        security_mode: "",
+        certificate: "",
+        private_key: "",
+        auth_method: "",
+        username: "",
+        password: "",
+        server: undefined,
+        nodes: undefined,
+        interval: "",
+        tags: "",
       },
       topicList: [],
     };
@@ -307,8 +437,8 @@ export default {
           data.to_expand && data.to_expand.subject
             ? data.to_expand.subject
             : "";
-        this.$parent.dbsource = editDdata;
-        this.$parent.toggleComponent("ui",dbname);
+        this.$parent.uidata = editDdata;
+        // this.$parent.toggleComponent("ui", this.ruleForm.type, data.id, dbname);
       }
 
       // this.$router.push({
@@ -316,13 +446,13 @@ export default {
       // });
     },
     handleAdd() {
-      console.log('获取参数',this.ruleForm);
-      this.$parent.toggleComponent("ui");
+      console.log("获取参数", this.ruleForm);
+      this.$parent.toggleComponent("ui", this.ruleForm.type);
     },
     async getList() {
       try {
         let id = localStorage.getItem("local_clusterID");
-        await getPI(id).then((res) => {
+        await getOPC(id).then((res) => {
           if (res) {
             this.topicList = res.map((item) => {
               item["localname"] = item.name ? item.name : "tmq+" + item.id;
@@ -377,9 +507,22 @@ export default {
         return Promise.reject(err);
       }
     },
+    async getNodesOrTags(){
+      try {
+        let params ={
+          from:"opc+ua://192.168.1.84:53530/OPCUA/SimulationServer"
+        }
+        await getUaAndDaData(params).then(res=>{
+          console.log(res,'nodes or tags====');
+        })
+      } catch (error) {
+        console.log(error);
+      }
+    }
   },
   created() {
     this.getList();
+    this.getNodesOrTags()
   },
 };
 </script>
@@ -407,12 +550,12 @@ export default {
   width: 172px !important;
 }
 :deep {
-    .el-input-number__increase,
-    .el-input-number__decrease {
-      height: 26px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
+  .el-input-number__increase,
+  .el-input-number__decrease {
+    height: 26px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
+}
 </style>

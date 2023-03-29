@@ -11,12 +11,12 @@
         <el-tab-pane name="csv" :label="$t('topic.csv')">
           <DataCSV></DataCSV>
         </el-tab-pane>
-        <!-- <el-tab-pane name='pi' label='PI'>
+        <el-tab-pane name='pi' label='PI'>
           <PlantInformation></PlantInformation>
         </el-tab-pane>
         <el-tab-pane name="opc" label="OPC">
           <OpcView></OpcView>
-        </el-tab-pane> -->
+        </el-tab-pane>
       </el-tabs>
     </div>
     

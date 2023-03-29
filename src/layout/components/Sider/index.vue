@@ -116,15 +116,15 @@ export default {
             show: flag ? false : true,
           },
         },
-        {
-          path: "/healthreport",
-          title: this.$t("route.healthreport"),
-          icon: "healthreport",
-          parting: false,
-          meta: {
-            show: flag ? false : true,
-          },
-        },
+        // {
+        //   path: "/healthreport",
+        //   title: this.$t("route.healthreport"),
+        //   icon: "healthreport",
+        //   parting: false,
+        //   meta: {
+        //     show: flag ? false : true,
+        //   },
+        // },
         {
           path: "/tools",
           title: this.$t("route.tool"),
@@ -170,31 +170,31 @@ export default {
         {
           path: "/admin",
           title: this.$t("route.admin"),
-          icon: "management",
+          icon: "users",
           parting: false,
           meta:{
             show:true
           }
         },
-        {
-          path: "/cluster",
-          title: this.$t("route.cluster"),
-          icon: "cluster",
-          parting: false,
-          meta:{
-            show:true
-          }
-        },
+        // {
+        //   path: "/cluster",
+        //   title: this.$t("route.cluster"),
+        //   icon: "cluster",
+        //   parting: false,
+        //   meta:{
+        //     show:true
+        //   }
+        // },
 
-        {
-          path: "/settings",
-          title: this.$t("route.settings"),
-          icon: "settings",
-          parting: true,
-          meta: {
-            show: flag ? false : true,
-          },
-        },
+        // {
+        //   path: "/settings",
+        //   title: this.$t("route.settings"),
+        //   icon: "settings",
+        //   parting: true,
+        //   meta: {
+        //     show: flag ? false : true,
+        //   },
+        // },
         // {
         //   path: "/network",
         //   title: this.$t("network"),
