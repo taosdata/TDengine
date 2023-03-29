@@ -270,7 +270,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
 
   SMqDoRebalanceMsg *pRebMsg = rpcMallocCont(sizeof(SMqDoRebalanceMsg));
   if (pRebMsg == NULL) {
-    mError("failed to create the rebalance msg, size:%d, quit mq timer", sizeof(SMqDoRebalanceMsg));
+    mError("failed to create the rebalance msg, size:%d, quit mq timer", (int32_t) sizeof(SMqDoRebalanceMsg));
     mndRebEnd();
     return TSDB_CODE_OUT_OF_MEMORY;
   }
