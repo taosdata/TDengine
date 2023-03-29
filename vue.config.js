@@ -30,6 +30,7 @@ module.exports = {
   configureWebpack: {
     resolve: {
       alias: {
+        'element-ui':resolve('node_modules/element-ui'),
         "@": resolve("src"),
         assets: resolve("src/assets"),
         components: resolve("src/components"),
