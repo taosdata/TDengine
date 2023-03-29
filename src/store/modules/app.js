@@ -11,9 +11,11 @@ import { BaseRoute, ServerLevel, NeedRefreshStatus, InitClusterStatus } from "@/
 import router from "@/router";
 import { Message } from "element-ui";
 import moment from "moment";
+import { sendSQLReq } from "@/api/gateway/console";
+
 const state = {
   token: getToken(),
-  loginInfo:{},
+  loginInfo: {},
   language: process.env.VUE_APP_LANGUAGE || "en",
   userInfo: null,
   clusters: [],
@@ -43,7 +45,7 @@ const defaultUserInfo = {
   company_name: "",
   industry_type: "",
   position: "",
-  cluster_url:""
+  cluster_url: ""
 };
 // const currentHost = new RegExp("^(https?://)?" + window.location.host + "$");
 const currentHost = {
@@ -58,11 +60,11 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
-  SET_CLUSTER_URL(state,url){
-    state.cluster_url=url
+  SET_CLUSTER_URL(state, url) {
+    state.cluster_url = url
   },
-  SAVE_LOGIN_INFO(state,info){
-    state.loginInfo=info
+  SAVE_LOGIN_INFO(state, info) {
+    state.loginInfo = info
   },
   SET_TIME_ZONE(state, timeZone) {
     state.timeZone = timeZone;
@@ -129,6 +131,27 @@ const mutations = {
 };
 
 const actions = {
+  async getUserInfo({ commit, dispatch }) {
+    if (!state.userInfo) {
+      let userName = sessionStorage.getItem("username");
+      await sendSQLReq(`select * from information_schema.ins_users where name='${userName}'`)
+        .then((res) => {
+          let user = res.data.map((data) => {
+            return Object.fromEntries(
+              res.column_meta.map((item, index) => {
+                return [item[0], data[index]];
+              })
+            );
+          });
+          commit("SET_USERINFO", user[0]);
+        })
+        .catch((err) => {
+          err.desc && Message.error(err.desc);
+          return Promise.reject(err);
+        });
+    }
+    return state.userInfo;
+  },
   getGlobalData({ dispatch }) {
     dispatch("profile/getCountryList", null, { root: true });
     dispatch("profile/getPositionList", null, { root: true });
@@ -201,22 +224,6 @@ const actions = {
       state.currentPricePlanList.find(item => item.priceLevel == currentPriceLevel)
     );
   },
-  getUserInfo({ commit, dispatch }) {
-    return getUserInfoReq().then(user => {
-      user = user || {};
-      setLang(user.language);
-      user.role_id = user.role_id || user.roleId;
-      commit("SET_USERINFO", user);
-      if (user.status == 2) {
-        // 判断用户状态，如果是2， 跳转到引导页，完善信息
-        // dispatch("logout", false);
-        return false;
-      } else if (user.status == 1) {
-        // 用户状态，如果是1，信息已经完善，跳转到首页
-        return true;
-      }
-    });
-  },
   getClusterList({ state, commit, dispatch }, isRefresh = true) {
     commit("CLEAR_TIMEOUT");
     return new Promise(resolve => {
@@ -267,6 +274,7 @@ const actions = {
     commit("CLEAR_TIMEOUT");
     removeAppID();
     commit("LOGIN", request);
+    commit("SET_USERINFO");
   },
   // logout({ commit }, request = true) {
   //   const run = () => {

@@ -26,23 +26,25 @@
               </li>
             </ul>
             <span>{{ filterPrivileges(scope)[0]['name'] }}: {{ filterPrivileges(scope)[0]['privileges'] }}
-              <i class="el-icon-more-outline" :style="{'vertical-align': 'bottom'}"></i></span>
+              <i class="el-icon-more-outline" :style="{ 'vertical-align': 'bottom' }"></i></span>
           </el-tooltip>
-          <span v-if="filterPrivileges(scope).length == 1">{{ filterPrivileges(scope)[0]['name'] }}: {{ filterPrivileges(scope)[0]['privileges'] }}</span>
+          <span v-if="filterPrivileges(scope).length == 1">{{ filterPrivileges(scope)[0]['name'] }}: {{
+            filterPrivileges(scope)[0]['privileges'] }}</span>
         </template>
       </el-table-column>
       <el-table-column :label="$t('taosuser.topic')">
         <template slot-scope="scope" v-if="scope.row.super !== 1">
           <el-tooltip placement="right" effect="light" v-if="filterTopic(scope).length > 1">
             <ul slot="content">
-            <li v-for="(item, index) in filterTopic(scope)" :key="index">
-              <span>{{ item.name }}: {{ item.privileges }}</span>
-            </li>
-          </ul>
+              <li v-for="(item, index) in filterTopic(scope)" :key="index">
+                <span>{{ item.name }}: {{ item.privileges }}</span>
+              </li>
+            </ul>
             <span>{{ filterTopic(scope)[0]['name'] }}: {{ filterTopic(scope)[0]['privileges'] }}
-              <i class="el-icon-more-outline" :style="{'vertical-align': 'bottom'}"></i></span>
+              <i class="el-icon-more-outline" :style="{ 'vertical-align': 'bottom' }"></i></span>
           </el-tooltip>
-          <span v-if="filterTopic(scope).length == 1">{{ filterTopic(scope)[0]['name'] }}: {{ filterTopic(scope)[0]['privileges'] }}</span>
+          <span v-if="filterTopic(scope).length == 1">{{ filterTopic(scope)[0]['name'] }}: {{
+            filterTopic(scope)[0]['privileges'] }}</span>
         </template>
       </el-table-column>
 
@@ -55,12 +57,12 @@
 
       <el-table-column :label="$t('taosuser.action')" width="150">
         <template slot-scope="scope">
-          <el-switch :value="scope.row.enable == 1" :disabled="scope.row.super === 1" @change="changeState(scope.row)"
-            active-color="#13ce66" inactive-color="#6D7074">
+          <el-switch :value="scope.row.enable == 1" :disabled="scope.row.super === 1 || !currentUser.super"
+            @change="changeState(scope.row)" active-color="#13ce66" inactive-color="#6D7074">
           </el-switch>&nbsp;&nbsp;
-          <el-button plain size="small" @click="edit(scope.row)" :disabled="scope.row.super === 1"
+          <el-button plain size="small" @click="edit(scope.row)" :disabled="scope.row.super === 1 || !currentUser.super"
             icon="el-icon-edit"></el-button>
-          <el-button plain size="small" @click="del(scope.row)" :disabled="scope.row.super === 1"
+          <el-button plain size="small" @click="del(scope.row)" :disabled="scope.row.super === 1 || !currentUser.super"
             icon="el-icon-delete"></el-button>
         </template>
       </el-table-column>
@@ -102,7 +104,6 @@ export default {
       }
       return res.join(", ");
     },
-
   },
   computed: {
     confirmStatus() {
@@ -141,13 +142,21 @@ export default {
         ],
       },
       usersList: [],
-      editUser: ""
+      editUser: "",
+      currentUser: {}
     };
   },
   created() {
     this.getUserData();
+    this.getCurrentUser();
   },
   methods: {
+     getCurrentUser() {
+       this.$store.dispatch("app/getUserInfo").then((res) => {
+        console.log(res)
+         this.currentUser = res;
+       });
+    },
     closeDialog() {
       this.dialog = false
       this.getUserData();
