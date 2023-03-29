@@ -14,7 +14,7 @@ Please refer to [Install Prometheus](https://docs.tdengine.com/cloud/data-in/pro
 
 ## Configure Prometheus
 
-Please refer to [Configure Prometheus](https://docs.tdengine.com/cloud/prometheus/#configure-prometheus).
+Please refer to [Configure Prometheus](https://docs.tdengine.com/cloud/data-in/prometheus/#configure-prometheus).
 
 ## Start Prometheus
 
