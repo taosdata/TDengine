@@ -99,27 +99,38 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree) {
         smaDebug("vgId:%d, table %" PRIi64 " no need to destroy rsma info level %d since empty taskInfo", SMA_VID(pSma),
                  pInfo->suid, i + 1);
       }
-
+#if 0
       if (pInfo->iTaskInfo[i]) {
         tdRSmaQTaskInfoFree(&pInfo->iTaskInfo[i], SMA_VID(pSma), i + 1);
       } else {
         smaDebug("vgId:%d, table %" PRIi64 " no need to destroy rsma info level %d since empty iTaskInfo",
                  SMA_VID(pSma), pInfo->suid, i + 1);
       }
+#endif
     }
     if (isDeepFree) {
       taosMemoryFreeClear(pInfo->pTSchema);
     }
 
     if (isDeepFree) {
-      if (pInfo->queue) taosCloseQueue(pInfo->queue);
-      if (pInfo->qall) taosFreeQall(pInfo->qall);
-      if (pInfo->iQueue) taosCloseQueue(pInfo->iQueue);
-      if (pInfo->iQall) taosFreeQall(pInfo->iQall);
-      pInfo->queue = NULL;
-      pInfo->qall = NULL;
-      pInfo->iQueue = NULL;
-      pInfo->iQall = NULL;
+      if (pInfo->queue) {
+        taosCloseQueue(pInfo->queue);
+        pInfo->queue = NULL;
+      }
+      if (pInfo->qall) {
+        taosFreeQall(pInfo->qall);
+        pInfo->qall = NULL;
+      }
+#if 0
+      if (pInfo->iQueue) {
+        taosCloseQueue(pInfo->iQueue);
+        pInfo->iQueue = NULL;
+      }
+      if (pInfo->iQall) {
+        taosFreeQall(pInfo->iQall);
+        pInfo->iQall = NULL;
+      }
+#endif
     }
 
     taosMemoryFree(pInfo);
@@ -376,13 +387,14 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
   if (!(pRSmaInfo->qall = taosAllocateQall())) {
     goto _err;
   }
+#if 0
   if (!(pRSmaInfo->iQueue = taosOpenQueue())) {
     goto _err;
   }
   if (!(pRSmaInfo->iQall = taosAllocateQall())) {
     goto _err;
   }
-
+#endif
   if (tdSetRSmaInfoItemParams(pSma, param, pStat, pRSmaInfo, 0) < 0) {
     goto _err;
   }
@@ -803,7 +815,11 @@ static int32_t tdRsmaPrintSubmitReq(SSma *pSma, SSubmitReq *pReq) {
 static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, int32_t inputType, SRSmaInfo *pInfo,
                                  ERsmaExecType type, int8_t level) {
   int32_t idx = level - 1;
+#if 0
   void   *qTaskInfo = (type == RSMA_EXEC_COMMIT) ? RSMA_INFO_IQTASK(pInfo, idx) : RSMA_INFO_QTASK(pInfo, idx);
+#else
+  void *qTaskInfo = RSMA_INFO_QTASK(pInfo, idx);
+#endif
   if (!qTaskInfo) {
     smaDebug("vgId:%d, no qTaskInfo to execute rsma %" PRIi8 " task for suid:%" PRIu64, SMA_VID(pSma), level,
              pInfo->suid);
@@ -836,6 +852,7 @@ static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, 
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 static int32_t tdCloneQTaskInfo(SSma *pSma, qTaskInfo_t dstTaskInfo, qTaskInfo_t srcTaskInfo, SRSmaParam *param,
                                 tb_uid_t suid, int8_t idx) {
   int32_t code = 0;
@@ -884,6 +901,7 @@ _exit:
   }
   return code;
 }
+#endif
 
 /**
  * @brief Clone qTaskInfo of SRSmaInfo
@@ -920,6 +938,7 @@ static int32_t tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo) {
 
   if (TABLE_IS_ROLLUP(mr.me.flags)) {
     param = &mr.me.stbEntry.rsmaParam;
+#if 0
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
       if (!pInfo->iTaskInfo[i]) {
         continue;
@@ -928,6 +947,7 @@ static int32_t tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
     smaDebug("vgId:%d, rsma clone env success for %" PRIi64, SMA_VID(pSma), pInfo->suid);
+#endif
   } else {
     code = TSDB_CODE_RSMA_INVALID_SCHEMA;
     TSDB_CHECK_CODE(code, lino, _exit);

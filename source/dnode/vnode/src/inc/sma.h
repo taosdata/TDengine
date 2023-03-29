@@ -159,9 +159,11 @@ struct SRSmaInfo {
   void         *taskInfo[TSDB_RETENTION_L2];   // qTaskInfo_t
   STaosQueue   *queue;                         // buffer queue of SubmitReq
   STaosQall    *qall;                          // buffer qall of SubmitReq
+#if 0
   void         *iTaskInfo[TSDB_RETENTION_L2];  // immutable qTaskInfo_t
   STaosQueue   *iQueue;                        // immutable buffer queue of SubmitReq
   STaosQall    *iQall;                         // immutable buffer qall of SubmitReq
+#endif
 };
 
 #define RSMA_INFO_HEAD_LEN     offsetof(SRSmaInfo, items)
@@ -207,6 +209,14 @@ static FORCE_INLINE void tdRefSmaStat(SSma *pSma, SSmaStat *pStat) {
 static FORCE_INLINE void tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
   int32_t ref = T_REF_DEC(pStat);
   smaDebug("vgId:%d, unref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
+}
+
+static FORCE_INLINE void tdSmaLoopsCheck(int32_t *pCnt, int32_t limit) {
+  ++(*pCnt);
+  if (*pCnt > limit) {
+    sched_yield();
+    *pCnt = 0;
+  }
 }
 
 int32_t smaPreClose(SSma *pSma);

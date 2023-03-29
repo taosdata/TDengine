@@ -278,11 +278,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
       } else {
         smaDebug("vgId:%d, rsma fetch tasks are not all finished yet", SMA_VID(pSma));
       }
-      ++nLoops;
-      if (nLoops > 1000) {
-        sched_yield();
-        nLoops = 0;
-      }
+      tdSmaLoopsCheck(&nLoops, 1000);
     }
 
     // step 3:
