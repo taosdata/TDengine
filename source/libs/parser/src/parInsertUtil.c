@@ -695,6 +695,8 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
       if( boundInfo->pColIndex[c] != -1){
         SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, c);
         tColDataAddValueByDataBlock(pCol, 0, 0, numOfRows, NULL, NULL);
+      }else{
+        boundInfo->pColIndex[c] = c;  // restore for next block
       }
     }
   }
