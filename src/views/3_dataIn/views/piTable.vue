@@ -6,17 +6,17 @@
         @click="dialog=true"
         size="small"
         icon="el-icon-plus"
-        >{{ $t("datasource.addsource") }}</el-button
+        >{{ $t("pi.addpi") }}</el-button
       >
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column :label="$t('datasource.name')" prop="localname"></el-table-column>
-      <el-table-column :label="$t('datasource.type')" prop="localtype"></el-table-column>
-      <el-table-column :label="$t('datasource.target')" prop="target"></el-table-column>
-      <el-table-column :label="$t('datasource.createat')" prop="created_at"></el-table-column>
+      <el-table-column :label="$t('pi.name')" prop="localname"></el-table-column>
+      <el-table-column :label="$t('pi.type')" prop="localtype"></el-table-column>
+      <el-table-column :label="$t('pi.target')" prop="target"></el-table-column>
+      <el-table-column :label="$t('pi.createat')" prop="created_at"></el-table-column>
       <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
 
-      <el-table-column :label="$t('datasource.status')" prop="status">
+      <el-table-column :label="$t('pi.status')" prop="status">
         <template slot-scope="scope">
           <div class="status-operation">
             <el-tooltip
@@ -42,7 +42,7 @@
               <el-tooltip
                 placement="bottom"
                 effect="light"
-                content="Excute Start"
+                :content="$t('pi.excutestart')"
               >
                 <el-button
                   plain
@@ -56,7 +56,7 @@
               <el-tooltip
                 placement="bottom"
                 effect="light"
-                content="Excute Stop"
+                :content="$t('pi.excutestop')"
               >
                 <el-button
                   plain
@@ -73,7 +73,7 @@
           </template> -->
         </template>
       </el-table-column>
-      <el-table-column :label="$t('datasource.operation')" width="100" class="action">
+      <el-table-column :label="$t('pi.operation')" width="100" class="action">
         <template slot-scope="scope">
           <el-button
             type="primay"
@@ -102,7 +102,7 @@
     ></el-pagination>
     <el-dialog
       align="center"
-      :title="$t('datasource.addsource')"
+      :title="$t('pi.addnewpi')"
       width="400px"
       :visible.sync="dialog"
       @closed='closeDialog'
@@ -115,7 +115,7 @@
         label-position="left"
         class="demo-ruleForm"
       >
-        <el-form-item :label="$t('datasource.sourcetype')" prop="type" required>
+        <el-form-item label="Source Type" prop="type" required>
           <el-select
             v-model="ruleForm.type"
             placeholder="Please Select Source Type"
@@ -128,7 +128,7 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('datasource.sourcename')" prop="name" required>
+        <el-form-item label="Source Name" prop="name" required>
           <el-input v-model="ruleForm.name"></el-input>
         </el-form-item>
         <!-- <el-form-item label="Created Time" required>

@@ -3,7 +3,7 @@
     <PanelHeader style="justify-content: space-between">
       <div>
         <Icon name="database_icon" class="database_icon"></Icon>
-        <span class="title">Databases</span>
+        <span class="title">{{$t('explorer.databases')}}</span>
       </div>
       <div>
         <el-button

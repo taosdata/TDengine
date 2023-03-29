@@ -1,6 +1,6 @@
 <template>
   <div class="page-wrapper">
-    <MainContentHeader title="Health Report"></MainContentHeader>
+    <MainContentHeader :title="$t('route.healthreport')"></MainContentHeader>
 
     <div class="content">
       <!-- <el-tabs value="basics">
@@ -16,19 +16,19 @@
       </el-tabs> -->
       <section class="basics">
         <p class="title">
-          <span>Basic Operating Status</span>
+          <span>{{$t('health.basic')}}</span>
         </p>
         <BasicOperating></BasicOperating>
       </section>
       <section class="dnodes">
         <p class="title">
-          <span>DNodes</span>
+          <span>{{$t('health.dnodes')}}</span>
         </p>
         <DnodeHealth></DnodeHealth>
       </section>
       <section class="health">
         <p class="title">
-          <span>Health</span>
+          <span>{{$t('health.health')}}</span>
         </p>
         <Health></Health>
       </section>

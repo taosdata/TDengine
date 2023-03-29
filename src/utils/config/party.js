@@ -1,74 +1,76 @@
 import * as mdx from "./mdx";
+import i18n from "@/lang";
 export default [
   {
     name: "Prometheus",
-    desc: "Configure Prometheus to write and read data from TDengine Cloud.",
+    desc: i18n.t("docs.party.prometheus.desc"),
 
     docs: {
       zh: "",
-      en: mdx.prometheusEN,
+      en: mdx.prometheusDoc,
     },
     steps: [
-      { title: "Install Prometheus", dom: "install-prometheus" },
-      { title: "Configure", dom: "configure" },
-      { title: "Start Prometheus", dom: "start-prometheus" },
-      { title: "Verify Remote Write", dom: "verify-remote-write" },
-      { title: "Verify Remote Read", dom: "verify-remote-read" },
+      { title: i18n.t("docs.party.prometheus.step1"), dom: "prerequisites" },
+      { title: i18n.t("docs.party.prometheus.step2"), dom: "install-prometheus" },
+      { title: i18n.t("docs.party.prometheus.step3"), dom: "configure-prometheus" },
+      { title: i18n.t("docs.party.prometheus.step4"), dom: "start-prometheus" },
+      { title: i18n.t("docs.party.prometheus.step5"), dom: "verify-remote-write" },
     ],
   },
   {
     name: "Telegraf",
-    desc: "Configure Telegraf to write metrics to TDengine Cloud.",
+    desc: i18n.t("docs.party.telegraf.desc"),
 
     docs: {
       zh: "",
-      en: mdx.telegrafEN,
+      en: mdx.telegrafDoc,
     },
     steps: [
-      { title: "Install Telegraf", dom: "install-telegraf" },
-      { title: "Configure", dom: "configure" },
-      { title: "Start Telegraf", dom: "start-telegraf" },
-      { title: "Verify", dom: "verify" },
+      { title: i18n.t("docs.party.telegraf.step1"), dom: "prerequisites" },
+      { title: i18n.t("docs.party.telegraf.step2"), dom: "install-telegraf" },
+      { title: i18n.t("docs.party.telegraf.step3"), dom: "configure" },
+      { title: i18n.t("docs.party.telegraf.step4"), dom: "start-telegraf" },
+      { title: i18n.t("docs.party.telegraf.step5"), dom: "verify" },
     ],
   },
   {
-    name: "InfluxDB Line Protocol",
-    icon: "influxDB.svg",
-    desc: "In this section we will explain how to write into TDengine cloud service using schemaless InfluxDB line protocols over REST interface",
-    docs: {
-      zh: "",
-      en: mdx.influxDB,
+    name: i18n.t("docs.party.influxdb.title"),
+    icon: "influxDB",
+    desc: i18n.t("docs.party.influxdb.desc", [i18n.t("docs.party.influxdb.title")]),
+    docs:{
+      zh:'',
+      en:mdx.influxDBDoc
     },
     steps: [
-      { title: "Config", dom: "config" },
-      { title: "Insert", dom: "insert" },
-      { title: "Examples", dom: "insert-example" },
+      { title: i18n.t("docs.party.influxdb.step1"), dom: "config" },
+      { title: i18n.t("docs.party.influxdb.step2"), dom: "insert" },
+      { title: i18n.t("docs.party.influxdb.step3"), dom: "examples" },
     ],
   },
   {
-    name: "OpenTSDB JSON Protocol",
-    desc: "In this section we will explain how to write into TDengine cloud service using schemaless OpenTSDB JSON protocols over REST interface",
+    name: i18n.t("docs.party.opentsdbjson.title"),
+    desc:i18n.t("docs.party.influxdb.desc", [i18n.t("docs.party.opentsdbjson.title")]),
     docs: {
       zh: "",
-      en: mdx.opentsJSON,
+      en: mdx.opentsJSONDoc,
     },
     steps: [
-      { title: "Config", dom: "config" },
-      { title: "Insert", dom: "insert" },
-      { title: "Examples", dom: "insert-example" },
+      { title: i18n.t("docs.party.influxdb.step1"), dom: "config" },
+      { title: i18n.t("docs.party.influxdb.step2"), dom: "insert" },
+      { title: i18n.t("docs.party.influxdb.step3"), dom: "examples" },
     ],
   },
   {
-    name: "OpenTSDB Telnet Protocol",
-    desc: "In this section we will explain how to write into TDengine cloud service using schemaless OpenTSDB Telnet protocols over REST interface",
+    name: i18n.t("docs.party.opentsdbtelnet.title"),
+    desc: i18n.t("docs.party.influxdb.desc", [i18n.t("docs.party.opentsdbtelnet.title")]),
     docs: {
       zh: "",
-      en: mdx.opentsTelnet,
+      en: mdx.opentsTelnetDoc,
     },
     steps: [
-      { title: "Config", dom: "config" },
-      { title: "Insert", dom: "insert" },
-      { title: "Examples", dom: "insert-example" },
+      { title: i18n.t("docs.party.influxdb.step1"), dom: "config" },
+      { title: i18n.t("docs.party.influxdb.step2"), dom: "insert" },
+      { title: i18n.t("docs.party.influxdb.step3"), dom: "examples" },
     ],
   },
   // {

@@ -10,14 +10,14 @@
         >{{ $t("refresh") }}</el-button
       >
       <el-button plain @click="add" size="small" icon="el-icon-plus"
-        >Create New Backup</el-button
+        >{{$t('taosuser.createbackup')}}</el-button
       >
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column label="ID" width="150" prop="id"></el-table-column>
-      <el-table-column label="Database" prop="database"></el-table-column>
-      <el-table-column label="Create Time" prop="created_at"></el-table-column>
-      <el-table-column label="Last Backup Status" prop="status">
+      <el-table-column :label="$t('taosuser.database')" prop="database"></el-table-column>
+      <el-table-column :label="$t('taosuser.createtime')" prop="created_at"></el-table-column>
+      <el-table-column :label="$t('taosuser.lastbackup')" prop="status">
         <template slot-scope="scope">
           <div class="status-operation">
             <el-tooltip
@@ -71,7 +71,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="Operation" width="150">
+      <el-table-column :label="$t('taosuser.operation')" width="150">
         <template slot-scope="scope">
           <el-switch
             :value="scope.row.status.toLowerCase() == 'running'"
@@ -132,8 +132,8 @@
         label-width="120px"
         class="demo-ruleForm"
       >
-        <el-form-item prop="cycle" required label="Backup Cycle">
-          <el-select v-model="ruleForm.cycle" placeholder="Please select">
+        <el-form-item prop="cycle" required :label="$t('taosuser.backupcycle')">
+          <el-select v-model="ruleForm.cycle" placeholder="">
             <el-option
               v-for="c in cycleList"
               :key="c.value"
@@ -143,8 +143,8 @@
             </el-option>
           </el-select>
         </el-form-item>
-        <el-form-item label="Database" prop="db" required v-if="!isEditDialog">
-          <el-select v-model="ruleForm.db" placeholder="Please select">
+        <el-form-item :label="$t('taosuser.database')" prop="db" required v-if="!isEditDialog">
+          <el-select v-model="ruleForm.db" placeholder="">
             <el-option
               v-for="db in dblist"
               :key="db['node-key']"
@@ -155,7 +155,7 @@
           </el-select>
         </el-form-item>
         <el-form-item
-          label="Directory"
+          :label="$t('taosuser.directory')"
           prop="directory"
           required
           v-if="!isEditDialog"
@@ -292,7 +292,7 @@ export default {
       });
     },
     add() {
-      this.dialogTitle = "Create New Backup";
+      this.dialogTitle = this.$t('taosuser.createbackup');
       this.isEditDialog = false;
       this.dialog = true;
       this.ruleForm.db = "";
@@ -302,7 +302,7 @@ export default {
       this.getBackData();
     },
     edit(data) {
-      this.dialogTitle = "Change Backup";
+      this.dialogTitle = this.$t('taosuser.changebackup');
       this.isEditDialog = true;
       this.dialog = true;
       this.ruleForm.db = data.database;

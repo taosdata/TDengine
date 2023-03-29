@@ -1,15 +1,15 @@
 <template>
   <div>
     <el-form :model="ruleForm" :rules="rules" ref="ruleForm" size="mini" label-width="auto" class="demo-ruleForm">
-      <el-form-item label="User Name" prop="user" required>
+      <el-form-item :label="$t('taosuser.username')" prop="user" required>
         <el-input v-model.trim="ruleForm.user" disabled></el-input>
       </el-form-item>
-      <el-form-item label="Password" prop="pwd">
+      <el-form-item :label="$t('taosuser.password')" prop="pwd">
         <el-input v-model.trim="ruleForm.pwd" type="password"></el-input>
       </el-form-item>
       <div class="line"></div>
 
-      <el-form-item label="Database" v-if="this.databaseList.length > 0">
+      <el-form-item :label="$t('taosuser.database')" v-if="this.databaseList.length > 0">
         <ul>
           <li v-for="(item, index) in this.databaseList" :key="index">
             <label class="db-label">{{ item }}</label>
@@ -21,7 +21,7 @@
           </li>
         </ul>
       </el-form-item>
-      <el-form-item label="Subscription" v-if="this.topicList.length > 0">
+      <el-form-item :label="$t('taosuser.subscription')" v-if="this.topicList.length > 0">
         <ul>
           <li v-for="(item, index) in this.topicList" :key="index">
             <label class="db-label">{{ item }}</label>

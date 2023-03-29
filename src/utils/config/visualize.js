@@ -1,30 +1,31 @@
 import * as mdx from "./mdx";
+import i18n from "@/lang";
 export default [
   {
     name: "Grafana",
-    desc: "TDengine can be quickly integrated with the open-source data visualization system Grafana to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in TDengine on a dashboard.",
+    desc: i18n.t("docs.virtual.grafana.desc"),
     docs: {
       zh: "",
-      en: mdx.grafanaEN,
+      en: mdx.grafanaDoc,
     },
     steps: [
-      { title: "Install Grafana", dom: "install-grafana" },
-      { title: "Install TDengine plugin ", dom: "install-tdengine-plugin" },
-      { title: "Verify Plugin", dom: "verify-plugin" },
-      { title: "Use Grafana", dom: "use-grafana" },
+      { title: i18n.t("docs.virtual.grafana.step1"), dom: "install-grafana" },
+      { title: i18n.t("docs.virtual.grafana.step2"), dom: "install-tdengine-plugin" },
+      { title: i18n.t("docs.virtual.grafana.step3"), dom: "verify-plugin" },
+      { title: i18n.t("docs.virtual.grafana.step4"), dom: "use-grafana" },
     ],
   },
   {
     name: "Google Data Studio",
-    desc: "Google Data Studio can quickly access TDengine and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development. ",
+    desc: i18n.t("docs.virtual.gds.desc"),
     docs: {
-      zh: "",
-      en: mdx.gdsEN
+      zh:'',
+      en:mdx.gdsDoc
     },
     steps: [
-      {title: "Choose Data Source", dom: "choose-data-source"},
-      {title: "Configuration", dom: "connector-configuration"},
-      {title: "Create Report or Dashboard", dom: "create-report-or-dashboard"},
+      {title: i18n.t("docs.virtual.gds.step1"), dom: "choose-data-source"},
+      {title: i18n.t("docs.virtual.gds.step2"), dom: "connector-configuration"},
+      {title: i18n.t("docs.virtual.gds.step3"), dom: "create-report-or-dashboard"},
     ]
   }
 ];

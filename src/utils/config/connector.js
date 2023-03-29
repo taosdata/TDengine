@@ -1,122 +1,107 @@
 import * as mdx from "./mdx";
-
-const common = [
+import i18n from "@/lang";
+export default [
   {
     name: "Java",
     type: "client",
-    desc: "Connect using the taos-jdbcdriver to encapsulate SQL as a REST request.",
+    desc: i18n.t("docs.connector.desc", ["taos-jdbc"]),
     docs: {
       zh: "",
-      en: mdx.javaEN,
+      en: mdx.javaDoc,
     },
     steps: [
-      { title: "Add Dependency", dom: "add-dependency" },
-      { title: "Config", dom: "config" },
-      { title: "Connect", dom: "connect" },
+      { title: i18n.t("docs.connector.java.step1"), dom: "add-dependency" },
+      { title: i18n.t("docs.connector.java.step2"), dom: "config" },
+      { title: i18n.t("docs.connector.java.step3"), dom: "connect" },
     ],
   },
   {
     name: "Go",
     type: "client",
-    desc: "Connect using the driver-go to encapsulate SQL as a REST request.",
+    desc: i18n.t("docs.connector.desc", ["driver-go"]),
     docs: {
       zh: "",
-      en: mdx.goEN,
+      en: mdx.goDoc,
     },
     steps: [
-      { title: "Initialize Module", dom: "initialize-module" },
-      { title: "Add Dependency", dom: "add-dependency" },
-      { title: "Config", dom: "config" },
-      { title: "Connect", dom: "connect" },
+      { title: i18n.t("docs.connector.go.step1"), dom: "initialize-module" },
+      { title: i18n.t("docs.connector.go.step2"), dom: "add-dependency" },
+      { title: i18n.t("docs.connector.go.step3"), dom: "config" },
+      { title: i18n.t("docs.connector.go.step4"), dom: "connect" },
     ],
   },
   {
     name: "Python",
     type: "client",
-    desc: "Connect using the taospy package to encapsulate SQL as a REST request.",
+    desc: i18n.t("docs.connector.desc", ["taospy"]),
     docs: {
       zh: "",
-      en: mdx.pythonEN,
+      en: mdx.pythonDoc,
     },
     steps: [
-      { title: "Install connector", dom: "install-connector" },
-      { title: "Config", dom: "config" },
-      { title: "Connect", dom: "connect" },
+      { title: i18n.t("docs.connector.python.step1"), dom: "install-connector" },
+      { title: i18n.t("docs.connector.python.step2"), dom: "config" },
+      { title: i18n.t("docs.connector.python.step3"), dom: "connect" },
+      { title: "Jupyter", dom: "jupyter" },
     ],
   },
   {
     name: "Node.js",
     type: "client",
-    desc: "Connect using the @tdengine/rest connector to encapsulate SQL as a REST request.",
+    desc: i18n.t("docs.connector.desc", ["@tdengine/rest"]),
     docs: {
       zh: "",
-      en: mdx.nodeEN,
+      en: mdx.nodeDoc,
     },
     steps: [
-      { title: "Install connector", dom: "install-connector" },
-      { title: "Config", dom: "config" },
-      { title: "Connect", dom: "connect" },
-    ],
+      { title: i18n.t("docs.connector.node.step1"), dom: "install-connector" },
+      { title: i18n.t("docs.connector.node.step2"), dom: "config" },
+      { title: i18n.t("docs.connector.node.step3"), dom: "connect" },
+    ]
   },
   {
     name: "C#",
     icon: "csharp.svg",
     type: "client",
-    desc: "Connect using the TDengine.Connector to encapsulate SQL as a REST request.",
+    desc: i18n.t("docs.connector.desc", ["TDengine.Connector"]),
     docs: {
       zh: "",
-      en: mdx.csharpEN,
+      en: mdx.csharpDoc,
     },
     steps: [
-      { title: "Create Project", dom: "create-project" },
-      { title: "Config", dom: "config" },
-      { title: "Connect", dom: "connect" },
+      { title: i18n.t("docs.connector.csharp.step1"), dom: "create-project" },
+      { title: i18n.t("docs.connector.csharp.step2"), dom: "config" },
+      { title: i18n.t("docs.connector.csharp.step3"), dom: "connect" },
     ],
   },
   {
     name: "Rust",
     type: "client",
-    desc: "Connect using the taos connector to encapsulate SQL in a websocket connection.",
+    desc: i18n.t("docs.connector.rust.desc"),
     docs: {
       zh: "",
-      en: mdx.rustEN,
+      en: mdx.rustDoc,
     },
     steps: [
-      { title: "Create Project", dom: "create-project" },
-      { title: "Add Dependency", dom: "add-dependency" },
-      { title: "Config", dom: "config" },
-      { title: "Connect", dom: "connect" },
+      { title: i18n.t("docs.connector.rust.step1"), dom: "create-project" },
+      { title: i18n.t("docs.connector.rust.step2"), dom: "add-dependency" },
+      { title: i18n.t("docs.connector.rust.step3"), dom: "config" },
+      { title: i18n.t("docs.connector.rust.step4"), dom: "connect" },
     ],
   },
-];
+  {
+    name: "REST API",
+    type: "client",
+    desc: i18n.t("docs.connector.rest.desc"),
+    docs: {
+      zh: "",
+      en: mdx.restDoc,
+    },
+    steps: [
+      { title: i18n.t("docs.connector.rest.step1"), dom: "config" },
+      { title: i18n.t("docs.connector.rest.step2"), dom: "insert" },
+      { title: i18n.t("docs.connector.rest.step3"), dom: "query" },
+    ],
+  }
+]
 
-export const dataIn = common.concat([
-  {
-    name: "REST API",
-    type: "client",
-    desc: "In this section we will explain how to write into TDengine cloud service using REST API",
-    docs: {
-      zh: "",
-      en: mdx.restIN,
-    },
-    steps: [
-      { title: "Config", dom: "config" },
-      { title: "Insert", dom: "insert" },
-    ],
-  },
-]);
-export const dataOut = common.concat([
-  {
-    name: "REST API",
-    type: "client",
-    desc: "In this section we will explain how to query data from TDengine cloud service using REST API. ",
-    docs: {
-      zh: "",
-      en: mdx.restOUT,
-    },
-    steps: [
-      { title: "Config", dom: "config" },
-      { title: "Query", dom: "query" },
-    ],
-  },
-]);

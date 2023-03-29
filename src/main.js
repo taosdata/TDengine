@@ -3,6 +3,7 @@ import App from "./App.vue";
 import store from "./store";
 import router from "./router";
 import i18n from "./lang";
+import { setLang } from "@/lang";
 import "@/styles/reset.css"; // CSS resets
 import ELEMENT from "element-ui";
 import 'element-ui/lib/theme-chalk/index.css'
@@ -32,6 +33,14 @@ Vue.config.productionTip = false;
 Vue.use(ELEMENT);
 Vue.prototype.$bus = $bus;
 Vue.prototype.$BusOnAndAutoOff = BusOnAndAutoOff;
+export function getBrowserLang() {
+  const nav = window.navigator;
+  const browserLang = (nav.language || nav.browserLanguage || '').toLowerCase();
+  if (browserLang.includes('zh')) return 'zh';
+  if (browserLang.includes('en')) return 'en';
+  return 'zh';
+}
+setLang(getBrowserLang())
 new Vue({
   router,
   store,

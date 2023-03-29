@@ -44,11 +44,11 @@
       </el-input>
     </section> -->
     <section class="grafana">
-      <span class="title" style="white-space: nowrap">Grafana Url：</span>
-      <el-input placeholder="Please enter the url" v-model="grafanaUrl"></el-input>
+      <span class="title" style="white-space: nowrap">{{$t('taossetting.grafanaurl')}}</span>
+      <el-input placeholder="" v-model="grafanaUrl"></el-input>
     </section>
     <section class="bottom">
-      <el-button type="primary" @click="saveGrafana">Save</el-button>
+      <el-button type="primary" @click="saveGrafana">{{$t('taossetting.save')}}</el-button>
     </section>
   </div>
 </template>

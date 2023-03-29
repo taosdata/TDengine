@@ -17,7 +17,7 @@
         :label="$t('topic.sysinfo')"
         prop="sysinfo"
       ></el-table-column> -->
-      <el-table-column :label="$t('users.db')">
+      <el-table-column :label="$t('taosuser.database')">
         <template slot-scope="scope" v-if="scope.row.super !== 1">
           <el-tooltip placement="right" effect="light" v-if="filterPrivileges(scope).length > 1">
             <ul slot="content">
@@ -31,7 +31,7 @@
           <span v-if="filterPrivileges(scope).length == 1">{{ filterPrivileges(scope)[0]['name'] }}: {{ filterPrivileges(scope)[0]['privileges'] }}</span>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('topic.title')">
+      <el-table-column :label="$t('taosuser.topic')">
         <template slot-scope="scope" v-if="scope.row.super !== 1">
           <el-tooltip placement="right" effect="light" v-if="filterTopic(scope).length > 1">
             <ul slot="content">
@@ -51,9 +51,9 @@
           <span>{{ scope | filterVal }}</span>
         </template>
       </el-table-column> -->
-      <el-table-column :label="$t('topic.create_time')" prop="create_time"></el-table-column>
+      <el-table-column :label="$t('taosuser.createtime')" prop="create_time"></el-table-column>
 
-      <el-table-column label="Action" width="150">
+      <el-table-column :label="$t('taosuser.action')" width="150">
         <template slot-scope="scope">
           <el-switch :value="scope.row.enable == 1" :disabled="scope.row.super === 1" @change="changeState(scope.row)"
             active-color="#13ce66" inactive-color="#6D7074">
@@ -68,7 +68,7 @@
     <el-pagination class="pagination" layout="total, prev, pager, next" :current-page.sync="currentPage"
       :page-size="pageSize" :hide-on-single-page="true" :total="total" @current-change="handlePageChange"></el-pagination>
 
-    <el-dialog align="center" :title="$t('topic.addsource')" width="550px" :visible.sync="dialog">
+    <el-dialog align="center" :title="$t('taosuser.adduser')" width="550px" :visible.sync="dialog">
       <AddUser @close="closeDialog"></AddUser>
     </el-dialog>
 

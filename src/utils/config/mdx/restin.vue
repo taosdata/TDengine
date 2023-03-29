@@ -1,52 +1,35 @@
 <template>
-  <div><h2 id="install-connector">Install Connector</h2>
-<pre v-highlight="`npm install @tdengine/rest
-`"><code class="language-bash"></code></pre>
+  <div><p>In this section we will explain how to write into TDengine  service using REST API.</p>
 <h2 id="config">Config</h2>
-<p>Run this command in your terminal to save TDengine cloud token as variables:</p>
+<p>Run this command in your terminal to save the TDengine  token and URL as variables:</p>
 <el-tabs value="bash">
 <el-tab-pane name="bash" label="Bash">
 
-<pre v-highlight="`export TDENGINE_CLOUD_TOKEN=&quot;${token}&quot;
-export TDENGINE_CLOUD_URL=&quot;${url}&quot;
+<pre v-highlight="`export TDENGINE_TOKEN=&quot;${token}&quot;
+export TDENGINE_URL=&quot;${url}&quot;
 `"><code class="language-bash"></code></pre>
 </el-tab-pane>
 <el-tab-pane name="cmd" label="CMD">
 
-<pre v-highlight="`set TDENGINE_CLOUD_TOKEN=&quot;${token}&quot;
-set TDENGINE_CLOUD_URL=&quot;${url}&quot;
+<pre v-highlight="`set TDENGINE_TOKEN=&quot;${token}&quot;
+set TDENGINE_URL=&quot;${url}&quot;
 `"><code class="language-bash"></code></pre>
 </el-tab-pane>
 <el-tab-pane name="powershell" label="Powershell">
 
-<pre v-highlight="`$env:TDENGINE_CLOUD_TOKEN=&quot;${token}&quot;
-$env:TDENGINE_CLOUD_URL=&quot;${url}&quot;
+<pre v-highlight="`$env:TDENGINE_TOKEN=&quot;${token}&quot;
+$env:TDENGINE_URL=&quot;${url}&quot;
 `"><code class="language-powershell"></code></pre>
 </el-tab-pane>
 </el-tabs>
 
-
-
-<h2 id="connect">Connect</h2>
-<pre v-highlight><code class="language-javascript">const { options, connect } = require(&quot;@tdengine/rest&quot;);
-
-async function test() {
-  options.url = process.env.TDENGINE_CLOUD_URL;
-  options.query = { token: process.env.TDENGINE_CLOUD_TOKEN };
-  let conn = connect(options);
-  let cursor = conn.cursor();
-  try {
-    let res = await cursor.query(&quot;show databases&quot;);
-    res.toString();
-  } catch (err) {
-    console.log(err);
-  }
-}
-
-test();
-</code></pre>
-<p>For how to write data and query data, please refer to <a href=" https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql"> https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql</a> and <a href="https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation">https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation</a>.</p>
-<p>For more details about how to write or query data via REST API, please check <a href="https://docs.tdengine.com/reference/rest-api/">REST API</a>.</p>
+<h2 id="insert">Insert</h2>
+<p>Following command below show how to insert data into the table <code>d1001</code> of the database <code>test</code> via the command line utility <code>curl</code>.</p>
+<pre v-highlight="`curl -L \
+  -d &quot;INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31)&quot; \
+  $TDENGINE_URL/rest/sql/test?token=$TDENGINE_TOKEN
+`"><code class="language-bash"></code></pre>
+<p>Please refer to <a href="https://docs.tdengine.com/reference/rest-api/">REST-API</a> for detailed documentation.</p>
 </div>
   </template>
   

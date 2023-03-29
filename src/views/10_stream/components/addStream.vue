@@ -31,7 +31,7 @@
         <el-input v-model="info.stream_name"> </el-input>
       </el-form-item>
       <h1 class="part-title">{{ $t("stream.output") }}</h1>
-      <el-form-item :label="$t('topic.database')" required prop="target_db">
+      <el-form-item :label="$t('stream.database')" required prop="target_db">
         <el-select
           class="w100"
           v-model="info.target_db"
@@ -45,7 +45,7 @@
           ></el-option>
         </el-select>
       </el-form-item>
-      <el-form-item :label="$t('topic.stable')" required prop="target_stb">
+      <el-form-item :label="$t('stream.stable')" required prop="target_stb">
         <el-input :disabled="!info.target_db" v-model="info.target_stb">
         </el-input>
       </el-form-item>
@@ -484,6 +484,15 @@ export default {
     height: 100px;
   }
 }
+:deep {
+    .el-input-number__increase,
+    .el-input-number__decrease {
+      height: 30px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+  }
 </style>
 <style>
 .show-topic-sql .pre-code {
@@ -492,4 +501,5 @@ export default {
   padding: 5px;
   white-space: break-spaces;
 }
+
 </style>
