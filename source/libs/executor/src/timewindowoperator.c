@@ -155,8 +155,52 @@ FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn
   return forwardRows;
 }
 
+int lowerBound(TSKEY arr[], int N, TSKEY key, int order) {
+  int mid;
+
+  int low = 0;
+  int high = N;
+
+  while (low < high) {
+    mid = low + (high - low) / 2;
+    if ((order == TSDB_ORDER_ASC && key <= arr[mid]) || (order == TSDB_ORDER_DESC && key >= arr[mid])) {
+      high = mid;
+    } else {
+      low = mid + 1;
+    }
+  }
+
+  if (low < N && ((order == TSDB_ORDER_ASC && arr[low] < key) || (order == TSDB_ORDER_DESC && arr[low] > key))) {
+    low++;
+  }
+
+  return low;
+}
+
+int upperBound(TSKEY arr[], int N, TSKEY key, int order) {
+  int mid;
+
+  int low = 0;
+  int high = N;
+
+  while (low < high) {
+    mid = low + (high - low) / 2;
+
+    if ((order == TSDB_ORDER_ASC && key >= arr[mid]) || (order == TSDB_ORDER_DESC && key <= arr[mid])) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+
+  if (low < N && ((order == TSDB_ORDER_ASC && arr[low] <= key) || (order == TSDB_ORDER_DESC && arr[low] >= key))) {
+    low++;
+  }
+
+  return low;
+}
+
 int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
-  int32_t midPos = -1;
   int32_t numOfRows;
 
   if (num <= 0) {
@@ -166,65 +210,15 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
   assert(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
 
   TSKEY*  keyList = (TSKEY*)pValue;
-  int32_t firstPos = 0;
-  int32_t lastPos = num - 1;
 
-  if (order == TSDB_ORDER_DESC) {
-    // find the first position which is smaller than the key
-    while (1) {
-      if (key >= keyList[firstPos]) return firstPos;
-      if (key == keyList[lastPos]) return lastPos;
-
-      if (key < keyList[lastPos]) {
-        lastPos += 1;
-        if (lastPos >= num) {
-          return -1;
-        } else {
-          return lastPos;
-        }
-      }
-
-      numOfRows = lastPos - firstPos + 1;
-      midPos = (numOfRows >> 1) + firstPos;
-
-      if (key < keyList[midPos]) {
-        firstPos = midPos + 1;
-      } else if (key > keyList[midPos]) {
-        lastPos = midPos - 1;
-      } else {
-        break;
-      }
-    }
-
+  int32_t ub = upperBound(keyList, num, key, order);
+  if (ub == num) {
+    return -1;
   } else {
-    // find the first position which is bigger than the key
-    while (1) {
-      if (key <= keyList[firstPos]) return firstPos;
-      if (key == keyList[lastPos]) return lastPos;
-
-      if (key > keyList[lastPos]) {
-        lastPos = lastPos + 1;
-        if (lastPos >= num)
-          return -1;
-        else
-          return lastPos;
-      }
-
-      numOfRows = lastPos - firstPos + 1;
-      midPos = (numOfRows >> 1u) + firstPos;
-
-      if (key < keyList[midPos]) {
-        lastPos = midPos - 1;
-      } else if (key > keyList[midPos]) {
-        firstPos = midPos + 1;
-      } else {
-        break;
-      }
-    }
+    return ub - 1;
   }
-
-  return midPos;
 }
+
 
 int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimaryColumn, int32_t startPos, TSKEY ekey,
                                  __block_search_fn_t searchFn, STableQueryInfo* item, int32_t order) {
