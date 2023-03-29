@@ -37,13 +37,15 @@ int32_t initCtxAsText();
 int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT);
 
 int32_t initCtxRelationFunc();
-int32_t doIntersects(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+int32_t doIntersects(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
                      bool swapped, char *res);
-int32_t doTouches(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
-                  bool swapped, char *res);
-int32_t doCovers(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+int32_t doEquals(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
                  bool swapped, char *res);
-int32_t doContains(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+int32_t doTouches(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+                  bool swapped, char *res);
+int32_t doCovers(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+                 bool swapped, char *res);
+int32_t doContains(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
                    bool swapped, char *res);
 
 int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom, const GEOSPreparedGeometry **outputPreparedGeom);

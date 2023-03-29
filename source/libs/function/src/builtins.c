@@ -3262,6 +3262,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "st_equals",
+    .type = FUNCTION_TYPE_EQUALS,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = equalsFunction,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "st_touches",
     .type = FUNCTION_TYPE_TOUCHES,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,

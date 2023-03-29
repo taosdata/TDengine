@@ -193,7 +193,18 @@ class TDTestCase:
         ]
         self.geomRelationFunc_test('ST_Intersects', expectedResults)
 
-        tdLog.printNoPrefix("==========step5: ST_Touches function test")
+        tdLog.printNoPrefix("==========step5: ST_Equals function test")
+        expectedResults = [
+            [True, True, True, None],     # two columns
+            [True, False, False, None],   # constant and column
+            [True, False, False, None],   # column and constant
+            False,                        # two constants 1
+            False,                        # two constants 2
+            [1, self.point]               # in where clause
+        ]
+        self.geomRelationFunc_test('ST_Equals', expectedResults)
+
+        tdLog.printNoPrefix("==========step6: ST_Touches function test")
         expectedResults = [
             [False, False, False, None],  # two columns
             [False, False, True, None],   # constant and column
@@ -204,7 +215,7 @@ class TDTestCase:
         ]
         self.geomRelationFunc_test('ST_Touches', expectedResults)
 
-        tdLog.printNoPrefix("==========step6: ST_Covers function test")
+        tdLog.printNoPrefix("==========step7: ST_Covers function test")
         expectedResults = [
             [True, True, True, None],     # two columns
             [True, False, False, None],   # constant and column
@@ -215,7 +226,7 @@ class TDTestCase:
         ]
         self.geomRelationFunc_test('ST_Covers', expectedResults)
 
-        tdLog.printNoPrefix("==========step7: ST_Contains function test")
+        tdLog.printNoPrefix("==========step8: ST_Contains function test")
         expectedResults = [
             [True, True, True, None],     # two columns
             [True, False, False, None],   # constant and column

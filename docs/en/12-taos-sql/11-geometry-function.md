@@ -69,6 +69,24 @@ ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
 - Geometries intersect if they have any point in common.
 
 
+### ST_Equals
+
+```sql
+ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**Description**: Returns TRUE if the given geometries are "spatially equal".
+
+**Return value type**: BOOL
+
+**Applicable data types**: GEOMETRY, GEOMETRY
+
+**Applicable table types**: standard tables and supertables
+
+**Explanations**：
+- 'Spatially equal' means ST_Contains(A,B) = true and ST_Contains(B,A) = true, and the ordering of points can be different but represent the same geometry structure.
+
+
 ### ST_Touches
 
 ```sql

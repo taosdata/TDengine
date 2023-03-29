@@ -57,7 +57,7 @@ SELECT 'LINESTRING(1.0 1.0, 2.0 2.0, 3.0 5.0)' AS g1, 'POLYGON((3.0 6.0, 5.0 6.0
 UNION ALL
 SELECT 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))' AS g1, 'POLYGON((5.0 6.0, 7.0 6.0, 7.0 8.0, 5.0 8.0, 5.0 6.0))' AS g2
 )
-SELECT ST_Intersects(g1, g2), ST_Touches(g1, g2), ST_Covers(g1, g2), ST_Contains(g1, g2) FROM geom_str
+SELECT ST_Intersects(g1, g2), ST_Equals(g1, g2), ST_Touches(g1, g2), ST_Covers(g1, g2), ST_Contains(g1, g2) FROM geom_str
 */
 void geomRelationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedResults[6][6]) {
   int32_t rowNum = 6;
@@ -164,6 +164,20 @@ TEST(GeomRelationFuncTest, intersectsFunction) {
   };
 
   geomRelationFuncTest(intersectsFunction, expectedResults);
+}
+
+TEST(GeomRelationFuncTest, equalsFunction) {
+  // 1: true, 0: false, -1: null
+  int8_t expectedResults[6][6] = {
+    {1, 0, 0, 0, 0, 0},   // two columns
+    {1, 0, 0, 0, 0, 0},   // two columns swapped
+    {1, 0, 0, 0, 0, 0},   // first constant
+    {1, 0, 0, 0, 0, 0},   // second constant
+    {1},                  // two constant
+    {1, 0, -1, 0, -1, 0}  // with Null value
+  };
+
+  geomRelationFuncTest(equalsFunction, expectedResults);
 }
 
 TEST(GeomRelationFuncTest, touchesFunction) {

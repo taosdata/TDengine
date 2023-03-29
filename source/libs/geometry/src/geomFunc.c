@@ -21,16 +21,13 @@
 #include "sclInt.h"
 #include "sclvector.h"
 
-typedef int32_t (*_geomDoRelationFunc_t)(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+typedef int32_t (*_geomDoRelationFunc_t)(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
                                          bool swapped, char *res);
 
 typedef int32_t (*_geomInitCtxFunc_t)();
 typedef int32_t (*_geomExecuteOneParamFunc_t)(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData);
 typedef int32_t (*_geomExecuteTwoParamsFunc_t)(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
                                                SColumnInfoData *pOutputData);
-typedef int32_t (*_geomExecuteRelationFunc_t)(const GEOSPreparedGeometry *preparedGeom1,
-                                              SColumnInfoData *pInputData2, int32_t i2,
-                                              bool swapped, SColumnInfoData *pOutputData);
 
 // output is with VARSTR format
 // need to call taosMemoryFree(*output) later
@@ -198,7 +195,7 @@ _exit:
   return code;
 }
 
-int32_t executeRelationFunc(const GEOSPreparedGeometry *preparedGeom1,
+int32_t executeRelationFunc(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1,
                             SColumnInfoData *pInputData2, int32_t i2,
                             bool swapped, SColumnInfoData *pOutputData,
                             _geomDoRelationFunc_t doRelationFn) {
@@ -207,7 +204,7 @@ int32_t executeRelationFunc(const GEOSPreparedGeometry *preparedGeom1,
   char res = 0;
   unsigned char *input2 = colDataGetData(pInputData2, i2);
 
-  code = doRelationFn(preparedGeom1, input2, swapped, &res);
+  code = doRelationFn(geom1, preparedGeom1, input2, swapped, &res);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -215,30 +212,6 @@ int32_t executeRelationFunc(const GEOSPreparedGeometry *preparedGeom1,
   colDataAppend(pOutputData, i2, &res, (res==-1));
 
   return code;
-}
-
-int32_t executeIntersectsFunc(const GEOSPreparedGeometry *preparedGeom1,
-                              SColumnInfoData *pInputData2, int32_t i2,
-                              bool swapped, SColumnInfoData *pOutputData) {
-  return executeRelationFunc(preparedGeom1, pInputData2, i2, swapped, pOutputData, doIntersects);
-}
-
-int32_t executeTouchesFunc(const GEOSPreparedGeometry *preparedGeom1,
-                           SColumnInfoData *pInputData2, int32_t i2,
-                           bool swapped, SColumnInfoData *pOutputData) {
-  return executeRelationFunc(preparedGeom1, pInputData2, i2, swapped, pOutputData, doTouches);
-}
-
-int32_t executeCoversFunc(const GEOSPreparedGeometry *preparedGeom1,
-                          SColumnInfoData *pInputData2, int32_t i2,
-                          bool swapped, SColumnInfoData *pOutputData) {
-  return executeRelationFunc(preparedGeom1, pInputData2, i2, swapped, pOutputData, doCovers);
-}
-
-int32_t executeContainsFunc(const GEOSPreparedGeometry *preparedGeom1,
-                            SColumnInfoData *pInputData2, int32_t i2,
-                            bool swapped, SColumnInfoData *pOutputData) {
-  return executeRelationFunc(preparedGeom1, pInputData2, i2, swapped, pOutputData, doContains);
 }
 
 int32_t geomOneParamFunction(SScalarParam *pInput, SScalarParam *pOutput,
@@ -328,7 +301,7 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, SScalarParam *pOutput,
 }
 
 int32_t geomRelationFunction(SScalarParam *pInput, SScalarParam *pOutput,
-                             _geomExecuteRelationFunc_t executeRelationFn) {
+                             _geomDoRelationFunc_t doRelationFn) {
   int32_t code = TSDB_CODE_FAILED;
 
   code = initCtxRelationFunc();
@@ -393,7 +366,7 @@ int32_t geomRelationFunction(SScalarParam *pInput, SScalarParam *pOutput,
       }
     }
 
-    code = executeRelationFn(preparedGeom1, pInputData[1], i, swapped, pOutputData);
+    code = executeRelationFunc(geom1, preparedGeom1, pInputData[1], i, swapped, pOutputData, doRelationFn);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
@@ -422,21 +395,21 @@ int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 }
 
 int32_t intersectsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomRelationFunction(pInput, pOutput,
-                              executeIntersectsFunc);
+  return geomRelationFunction(pInput, pOutput, doIntersects);
+}
+
+int32_t equalsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return geomRelationFunction(pInput, pOutput, doEquals);
 }
 
 int32_t touchesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomRelationFunction(pInput, pOutput,
-                              executeTouchesFunc);
+  return geomRelationFunction(pInput, pOutput, doTouches);
 }
 
 int32_t coversFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomRelationFunction(pInput, pOutput,
-                              executeCoversFunc);
+  return geomRelationFunction(pInput, pOutput, doCovers);
 }
 
 int32_t containsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomRelationFunction(pInput, pOutput,
-                              executeContainsFunc);
+  return geomRelationFunction(pInput, pOutput, doContains);
 }

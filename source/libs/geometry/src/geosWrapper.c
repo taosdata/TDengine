@@ -236,8 +236,10 @@ int32_t initCtxRelationFunc() {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t doGeosRelation(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+int32_t doGeosRelation(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
                        bool swapped, char *res,
+                       _geosRelationFunc_t relationFn,
+                       _geosRelationFunc_t swappedRelationFn,
                        _geosPreparedRelationFunc_t preparedRelationFn,
                        _geosPreparedRelationFunc_t swappedPreparedRelationFn) {
   int32_t code = TSDB_CODE_FAILED;
@@ -249,18 +251,30 @@ int32_t doGeosRelation(const GEOSPreparedGeometry *preparedGeom1, const unsigned
     goto _exit;
   }
 
-  if (!preparedGeom1 || !geom2) { //if empty input value
+  if (!geom1 || !geom2) { //if empty input value
     *res = -1;
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!swapped) {
-     ASSERT(preparedRelationFn);
-    *res = preparedRelationFn(geosCtx->handle, preparedGeom1, geom2);
+  if (!preparedGeom1) {
+    if (!swapped) {
+      ASSERT(relationFn);
+      *res = relationFn(geosCtx->handle, geom1, geom2);
+    }
+    else {
+      ASSERT(swappedRelationFn);
+      *res = swappedRelationFn(geosCtx->handle, geom1, geom2);
+    }
   }
   else {
-     ASSERT(swappedPreparedRelationFn);
-    *res = swappedPreparedRelationFn(geosCtx->handle, preparedGeom1, geom2);
+    if (!swapped) {
+      ASSERT(preparedRelationFn);
+      *res = preparedRelationFn(geosCtx->handle, preparedGeom1, geom2);
+    }
+    else {
+      ASSERT(swappedPreparedRelationFn);
+      *res = swappedPreparedRelationFn(geosCtx->handle, preparedGeom1, geom2);
+    }
   }
 
   code = TSDB_CODE_SUCCESS;
@@ -271,24 +285,34 @@ _exit:
   return code;
 }
 
-int32_t doIntersects(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+int32_t doIntersects(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
                      bool swapped, char *res) {
-  return doGeosRelation(preparedGeom1, input2, swapped, res, GEOSPreparedIntersects_r, GEOSPreparedIntersects_r);
+  return doGeosRelation(geom1, preparedGeom1, input2, swapped, res,
+                        GEOSIntersects_r, GEOSIntersects_r, GEOSPreparedIntersects_r, GEOSPreparedIntersects_r);
 }
 
-int32_t doTouches(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
-                  bool swapped, char *res) {
-  return doGeosRelation(preparedGeom1, input2, swapped, res, GEOSPreparedTouches_r, GEOSPreparedTouches_r);
-}
-
-int32_t doCovers(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+int32_t doEquals(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
                  bool swapped, char *res) {
-  return doGeosRelation(preparedGeom1, input2, swapped, res, GEOSPreparedCovers_r, GEOSPreparedCoveredBy_r);
+  return doGeosRelation(geom1, NULL, input2, swapped, res,
+                        GEOSEquals_r, GEOSEquals_r, NULL, NULL);  // no prepared version for eguals()
 }
 
-int32_t doContains(const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+int32_t doTouches(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
                   bool swapped, char *res) {
-  return doGeosRelation(preparedGeom1, input2, swapped, res, GEOSPreparedContains_r, GEOSPreparedWithin_r);
+  return doGeosRelation(geom1, preparedGeom1, input2, swapped, res,
+                        GEOSTouches_r, GEOSTouches_r, GEOSPreparedTouches_r, GEOSPreparedTouches_r);
+}
+
+int32_t doCovers(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+                 bool swapped, char *res) {
+  return doGeosRelation(geom1, preparedGeom1, input2, swapped, res,
+                        GEOSCovers_r, GEOSCoveredBy_r, GEOSPreparedCovers_r, GEOSPreparedCoveredBy_r);
+}
+
+int32_t doContains(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+                   bool swapped, char *res) {
+  return doGeosRelation(geom1, preparedGeom1, input2, swapped, res,
+                        GEOSContains_r, GEOSWithin_r, GEOSPreparedContains_r, GEOSPreparedWithin_r);
 }
 
 // input is with VARSTR format
