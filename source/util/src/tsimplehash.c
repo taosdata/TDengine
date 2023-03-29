@@ -75,6 +75,7 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn) {
   pHashObj->capacity = taosHashCapacity((int32_t)capacity);
   pHashObj->equalFp = memcmp;
 
+  pHashObj->freeFp = NULL;
   pHashObj->offset = 0;
   pHashObj->size = 0;
   
