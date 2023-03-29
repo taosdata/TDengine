@@ -215,7 +215,7 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
   if (ub == num) {
     return -1;
   } else {
-    return ub - 1;
+    return ub;
   }
 }
 
