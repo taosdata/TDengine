@@ -3087,7 +3087,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 }
 
 
-static int32_t doSumBlockRows(STsdbReader* pReader, SDataFReader* pFileReader) {
+static int32_t doSumFileBlockRows(STsdbReader* pReader, SDataFReader* pFileReader) {
   int64_t    st = taosGetTimestampUs();
   LRUHandle* handle = NULL;
   int32_t    code = tsdbCacheGetBlockIdx(pFileReader->pTsdb->biCache, pFileReader, &handle);
@@ -3134,32 +3134,7 @@ _end:
 }
 
 
-static int32_t readRowsCountFromFile(STsdbReader* pReader) {
-  int32_t   code = TSDB_CODE_SUCCESS;
-
-  while (1) {
-    bool    hasNext = false;
-    int32_t code = filesetIteratorNext(&pReader->status.fileIter, pReader, &hasNext);
-    if (code) {
-      return code;
-    }
-
-    if (!hasNext) {  // no data files on disk
-      break;
-    }
-
-    code = doSumBlockRows(pReader, pReader->pFileReader);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-  }
-
-  pReader->status.loadFromFile = false;
-
-  return code;
-}
-
-static int32_t readRowsCountFromStt(STsdbReader* pReader) {
+static int32_t doSumSttBlockRows(STsdbReader* pReader) {
   int32_t   code = TSDB_CODE_SUCCESS;
   SLastBlockReader*    pLastBlockReader = pReader->status.fileIter.pLastBlockReader;
   SSttBlockLoadInfo*   pBlockLoadInfo = NULL;
@@ -3167,17 +3142,12 @@ static int32_t readRowsCountFromStt(STsdbReader* pReader) {
   for (int32_t i = 0; i < pReader->pFileReader->pSet->nSttF; ++i) {  // open all last file
     pBlockLoadInfo = &pLastBlockReader->pInfo[i];
     
-    if (!pLastBlockReader->pInfo[i].sttBlockLoaded) {
-      pLastBlockReader->pInfo[i].sttBlockLoaded = true;
-    
-      code = tsdbReadSttBlk(pReader->pFileReader, i, pBlockLoadInfo->aSttBlk);
-      if (code) {
-        return code;
-      }
+    code = tsdbReadSttBlk(pReader->pFileReader, i, pBlockLoadInfo->aSttBlk);
+    if (code) {
+      return code;
     }
 
     size_t size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
-  
     if (size >= 1) {
       SSttBlk *pStart = taosArrayGet(pBlockLoadInfo->aSttBlk, 0);
       SSttBlk *pEnd = taosArrayGet(pBlockLoadInfo->aSttBlk, size - 1);
@@ -3210,6 +3180,36 @@ static int32_t readRowsCountFromStt(STsdbReader* pReader) {
       }
     }
   }
+
+  return code;
+}
+
+static int32_t readRowsCountFromFiles(STsdbReader* pReader) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+
+  while (1) {
+    bool    hasNext = false;
+    int32_t code = filesetIteratorNext(&pReader->status.fileIter, pReader, &hasNext);
+    if (code) {
+      return code;
+    }
+
+    if (!hasNext) {  // no data files on disk
+      break;
+    }
+
+    code = doSumFileBlockRows(pReader, pReader->pFileReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    code = doSumSttBlockRows(pReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }    
+  }
+
+  pReader->status.loadFromFile = false;
 
   return code;
 }
@@ -4597,12 +4597,7 @@ static bool tsdbReadRowsCountOnly(STsdbReader* pReader) {
     return false;
   }
 
-  code = readRowsCountFromFile(pReader);
-  if (code != TSDB_CODE_SUCCESS) {
-    return false;
-  }
-
-  code = readRowsCountFromStt(pReader);
+  code = readRowsCountFromFiles(pReader);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }
