@@ -37,13 +37,14 @@ protocol:
       display: DA
       description: For OPC-DA(Classic) connections.
 options:
-  host:
-    display: Server
-    description: OPC server name.
-    placeholder: server
-  port:
-    display: Port
-    description: OPC server ip.
+  endpoint:
+    display: Server endpoint
+    description: |
+      OPC server endpoint.
+
+      - For OPC-UA, it is like: `127.0.0.1:6666/OPCUA/ServerPath`.
+      - For OPC-DA, it is like: `127.0.0.1:6666`.
+    placeholder: 127.0.0.1:6666/OPCUA/ServerPath
 
 strict: false
 
@@ -56,18 +57,21 @@ authentication:
       display: Anonymous
       description: Logging in anonymously without any configurations (if available).
       value: true
+      params: []
 
     - name: plain
-      display: Plain
+      display: Username
       description: Use username and password.
       username:
         display: Username
         description: OPC server username.
         placeholder: username
+        required: true
       password:
         display: Password
         description: OPC server password.
         placeholder: password
+        required: true
     - name: certificates
       display: Certificates
       description: Use certificate file and private key.
