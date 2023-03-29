@@ -1773,7 +1773,7 @@ static int32_t buildDataBlockFromBuf(STsdbReader* pReader, STableBlockScanInfo* 
   setComposedBlockFlag(pReader, true);
 
   double elapsedTime = (taosGetTimestampUs() - st) / 1000.0;
-  tsdbDebug("%p build data block from cache completed, elapsed time:%.2f ms, numOfRows:%d, brange:%" PRId64
+  tsdbDebug("%p build data block from cache completed, elapsed time:%.2f ms, numOfRows:%" PRId64 ", brange:%" PRId64
             " - %" PRId64 ", uid:%" PRIu64 ",  %s",
             pReader, elapsedTime, pBlock->info.rows, pBlock->info.window.skey, pBlock->info.window.ekey,
             pBlockScanInfo->uid, pReader->idStr);
@@ -2723,7 +2723,7 @@ _end:
 
   if (pResBlock->info.rows > 0) {
     tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64
-              " rows:%d, elapsed time:%.2f ms %s",
+              " rows:%" PRId64 ", elapsed time:%.2f ms %s",
               pReader, pResBlock->info.id.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
               pResBlock->info.rows, el, pReader->idStr);
   }
@@ -2970,7 +2970,7 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
 
     if (pResBlock->info.rows > 0) {
       tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64
-                " rows:%d, elapsed time:%.2f ms %s",
+                " rows:%" PRId64 ", elapsed time:%.2f ms %s",
                 pReader, pResBlock->info.id.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
                 pResBlock->info.rows, el, pReader->idStr);
       return TSDB_CODE_SUCCESS;
@@ -3060,7 +3060,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
       if (pResBlock->info.rows > 0) {
         tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64
-                  " rows:%d, elapsed time:%.2f ms %s",
+                  " rows:%" PRId64 ", elapsed time:%.2f ms %s",
                   pReader, pResBlock->info.id.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
                   pResBlock->info.rows, el, pReader->idStr);
       }
@@ -4593,20 +4593,18 @@ static bool tsdbReadRowsCountOnly(STsdbReader* pReader) {
   int32_t code =  TSDB_CODE_SUCCESS;
   SSDataBlock* pBlock = pReader->pResBlock;
 
-  while (1) {
-    if (pReader->status.loadFromFile == false) {
-      break;
-    }
-  
-    code = readRowsCountFromFile(pReader);
-    if (code != TSDB_CODE_SUCCESS) {
-      return false;
-    }
+  if (pReader->status.loadFromFile == false) {
+    return false;
+  }
 
-    code = readRowsCountFromStt(pReader);
-    if (code != TSDB_CODE_SUCCESS) {
-      return false;
-    }
+  code = readRowsCountFromFile(pReader);
+  if (code != TSDB_CODE_SUCCESS) {
+    return false;
+  }
+
+  code = readRowsCountFromStt(pReader);
+  if (code != TSDB_CODE_SUCCESS) {
+    return false;
   }
 
   code = readRowsCountFromMem(pReader);
