@@ -542,7 +542,7 @@ function install_config() {
   local_fqdn_check
 
   echo
-  echo -e -n "${GREEN}Enter FQDN:port (like h1.${emailName2}:6030) of an existing ${productName2} cluster node to join${NC}"
+  echo -e -n "${GREEN}Enter FQDN:port (like h1.${clientName2}:6030) of an existing ${productName2} cluster node to join${NC}"
   echo
   echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
   read firstEp
