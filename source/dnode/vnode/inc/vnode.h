@@ -182,7 +182,7 @@ int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableL
 
 void         tsdbReaderSetId(STsdbReader* pReader, const char* idstr);
 void         tsdbReaderClose(STsdbReader *pReader);
-bool         tsdbNextDataBlock(STsdbReader *pReader);
+int32_t      tsdbNextDataBlock(STsdbReader *pReader, bool *hasNext);
 int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave);
 void         tsdbReleaseDataBlock(STsdbReader *pReader);
 SSDataBlock *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);

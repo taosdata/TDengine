@@ -1627,7 +1627,7 @@ static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScan
     char             varTbName[TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(varTbName, name);
 
-    colDataSetNItems(pColumnInfoData, 0, varTbName, pBlock->info.rows);
+    colDataSetNItems(pColumnInfoData, 0, varTbName, pBlock->info.rows, true);
   }
 
   doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
