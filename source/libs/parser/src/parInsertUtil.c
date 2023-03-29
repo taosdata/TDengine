@@ -661,8 +661,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     for (int i = 0; i < numFields; i++) {
       for (int j = 0; j < boundInfo->numOfBound; j++){
         SSchema*  pColSchema = &pSchema[j];
-        SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);
-        if(strcmp(pSchema->name, tFields[i].name) == 0){
+        if(strcmp(pColSchema->name, tFields[i].name) == 0){
           if (*fields != pColSchema->type && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
             uError("type or bytes not equal");
             ret = TSDB_CODE_INVALID_PARA;
@@ -677,6 +676,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
           }
           char* pData = pStart;
 
+          SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, j);
           tColDataAddValueByDataBlock(pCol, pColSchema->type, pColSchema->bytes, numOfRows, offset, pData);
           fields += sizeof(int8_t) + sizeof(int32_t);
           if (needChangeLength) {
@@ -685,6 +685,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
             pStart += colLength[i];
           }
           boundInfo->pColIndex[j] = -1;
+          break;
         }
       }
 
