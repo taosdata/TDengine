@@ -656,6 +656,9 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
       } else {
         pStart += colLength[j];
       }
+      if(ASSERT(pCol->nVal == numOfRows)){
+        uError("tFields is null, pCol->nVal:%d != numOfRows:%d", pCol->nVal, numOfRows);
+      }
     }
   }else{
     for (int i = 0; i < numFields; i++) {
@@ -683,6 +686,9 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
             pStart += htonl(colLength[i]);
           } else {
             pStart += colLength[i];
+          }
+          if(ASSERT(pCol->nVal == numOfRows)){
+            uError("tFields is not null, pCol->nVal:%d != numOfRows:%d", pCol->nVal, numOfRows);
           }
           boundInfo->pColIndex[j] = -1;
           break;
