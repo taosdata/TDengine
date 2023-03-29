@@ -223,19 +223,6 @@ static int32_t doSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqData
 
 int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
   SMqDataRsp* pRsp = pPushEntry->pDataRsp;
-
-#if 0
-  A(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
-  A(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
-
-  A(!pRsp->withSchema);
-  A(taosArrayGetSize(pRsp->blockSchema) == 0);
-
-  if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-    A(pRsp->rspOffset.version > pRsp->reqOffset.version);
-  }
-#endif
-
   SMqRspHead* pHeader = &pPushEntry->pDataRsp->head;
   doSendDataRsp(&pPushEntry->info, pRsp, pHeader->epoch, pHeader->consumerId, pHeader->mqMsgType);
 
@@ -486,6 +473,10 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosWUnLockLatch(&pTq->lock);
+    return code;
+  }
 
   // till now, all data has been transferred to consumer, new data needs to push client once arrived.
   if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
@@ -895,17 +886,23 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,
              req.newConsumerId);
 
+      // kill executing task
+      qTaskInfo_t pTaskInfo = pHandle->execHandle.task;
+      if (pTaskInfo != NULL) {
+        qKillTask(pTaskInfo, TSDB_CODE_SUCCESS);
+      }
+
       taosWLockLatch(&pTq->lock);
       atomic_store_32(&pHandle->epoch, -1);
 
       // remove if it has been register in the push manager, and return one empty block to consumer
-      tqRemovePushEntry(pTq, req.subKey, (int32_t)strlen(req.subKey), pHandle->consumerId, true);
+      tqUnregisterPushEntry(pTq, req.subKey, (int32_t)strlen(req.subKey), pHandle->consumerId, true);
 
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
       atomic_add_fetch_32(&pHandle->epoch, 1);
 
       if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-        qStreamCloseTsdbReader(pHandle->execHandle.task);
+        qStreamCloseTsdbReader(pTaskInfo);
       }
 
       taosWUnLockLatch(&pTq->lock);

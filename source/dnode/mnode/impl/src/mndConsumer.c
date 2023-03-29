@@ -601,6 +601,13 @@ static void* topicNameDup(void* p){
   return taosStrdup((char*) p);
 }
 
+static void freeItem(void* param) {
+  void* pItem = *(void**)param;
+  if (pItem != NULL) {
+    taosMemoryFree(pItem);
+  }
+}
+
 int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
   char   *msgStr = pMsg->pCont;
@@ -616,7 +623,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   int32_t code = -1;
   SArray *pTopicList = subscribe.topicNames;
   taosArraySort(pTopicList, taosArrayCompareString);
-  taosArrayRemoveDuplicateP(pTopicList, taosArrayCompareString, taosMemoryFree);
+  taosArrayRemoveDuplicate(pTopicList, taosArrayCompareString, freeItem);
 
   int32_t newTopicNum = taosArrayGetSize(pTopicList);
 
