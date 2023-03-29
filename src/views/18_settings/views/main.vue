@@ -1,6 +1,6 @@
 <template>
   <div class="setting-content">
-    <section class="theme">
+    <!-- <section class="theme">
       <span class="title">Theme：</span>
       <ul class="theme-list">
         <li v-for="(item, index) in themes" :key="index">
@@ -42,7 +42,7 @@
         v-model="textarea"
       >
       </el-input>
-    </section>
+    </section> -->
     <section class="grafana">
       <span class="title" style="white-space: nowrap">Grafana Url：</span>
       <el-input placeholder="Please enter the url" v-model="grafanaUrl"></el-input>

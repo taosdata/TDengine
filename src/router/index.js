@@ -210,6 +210,10 @@ const adminRoute = [
       },
     ],
   },
+  {
+    path: "/healthreport",
+    component: () => import("@/views/21_healthreport"),
+  },
   // {
   //   path: "user",
   //   component: () => import("@/views/9_user"),

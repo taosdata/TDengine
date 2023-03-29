@@ -117,6 +117,15 @@ export default {
           },
         },
         {
+          path: "/healthreport",
+          title: this.$t("route.healthreport"),
+          icon: "healthreport",
+          parting: false,
+          meta: {
+            show: flag ? false : true,
+          },
+        },
+        {
           path: "/tools",
           title: this.$t("route.tool"),
           icon: "tool",

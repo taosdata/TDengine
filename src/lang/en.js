@@ -231,6 +231,7 @@ export default {
     udf:"UDF",
     settings:"Settings",
     programming:"Programming",
+    healthreport:'Health Report',
     backup:"Backup",
     admin:"Admin",
     cluster:'Cluster'
@@ -442,7 +443,7 @@ export default {
   },
   dataIn: {
     connector: "Connectors",
-    connectorTip: `Use the programming language of your choice - The main way to get data in to TDengine cloud is <a href="https://docs.tdengine.com/cloud/data-in/insert-data/" target="_blank">using SQL to insert</a> data`,
+    connectorTip: `Use the programming language of your choice - The main way to get data in to TDengine cloud is <a href="https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql " target="_blank">using SQL to insert</a> data`,
     thirdParty: "Third Party",
     thirdPartyTip: `Third-party data collection agents`,
     inputCSVFile: "Manually upload CSV files to backfill data.",
@@ -688,9 +689,9 @@ export default {
   },
   dataOut: {
     tools: "Tools",
-    connectorTip: `Use the programming language of your choice to <a target='_blank' href='https://docs.tdengine.com/cloud/data-out/query-data/'>query data using SQL</a>`,
+    connectorTip: `Use the programming language of your choice to <a target='_blank' href='https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation'>query data using SQL</a>`,
     toolsTip: "Data Dump - use taosDump to write a table, a portion of a table, or a super table to a file.",
-    subscriptionTitle: `Subscribe to data updates using <a href='https://docs.tdengine.com/cloud/tmq/' target='_blank'>data subscriptions</a>.`,
+    subscriptionTitle: `Subscribe to data updates using <a href='https://docs.tdengine.com/develop/tmq/#' target='_blank'>data subscriptions</a>.`,
   },
   auth: {},
   register: {
@@ -940,4 +941,18 @@ export default {
     messageTemp: `<h1>You succesfully contacted sales</h1><p>Your Message:</p><p>{msg}</p>`,
     toCompanyMegTemp: `<h1>{name} wishes to contact sales</h1><p>Email: {email}</p><p>Phone: {phone}</p><p>Company: {company}</p><p>Their message:</p><p>{message}</p>`,
   },
+  health:{
+    expire_time:'Expire Time',
+    uptime:'Uptime',
+    version:'Version',
+    cpu_avg:'CPU AVG',
+    cpu_p99:'CPU P99',
+    cpu_p90:'CPU P90',
+    mem_avg:'Memory AVG',
+    mem_p99:'Memory P99',
+    mem_p90:'Memory P90',
+    'max(disk_engine)':'Max(Disk Engine)',
+    "last(disk_engine)":'Last(Disk Engine)',
+    'elapsed(ts, 1m)':'Elasped(ts,1m)'
+  }
 };

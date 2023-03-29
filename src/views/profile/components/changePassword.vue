@@ -73,6 +73,7 @@
 import { validEmail, validPassword } from "@/utils/validate.js";
 import { sendSQLReq } from "@/api/gateway/console";
 import {deleteCookieItem} from '@/utils/index'
+import {decrypt} from '@/utils/index'
 export default {
   props: {
     needEmail: {
@@ -90,7 +91,7 @@ export default {
       if (!value) {
         return callback(new Error("Old password is required."));
       } else {
-        if (value != sessionStorage.getItem("pwd")) {
+        if (value != decrypt(sessionStorage.getItem("pwd"))) {
           return callback(new Error("Old password is wrong."));
         } else {
           return callback();

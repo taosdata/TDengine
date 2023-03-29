@@ -1,128 +1,99 @@
-[
-    {
-      "id": "tmq",
-      "name": "TDengine Subscription",
-      "description": "TMQ data source is a reader-only data source for TDengine.\n\n## Protocols\n\n- **ws**: websocket protocol with plain HTTP connection.\n- **wss**: websocket protocol with TLS http connection.\n\nWithout protocol settings, TMQ will use native connection.\n\n## Subject\n\nTMQ data source could subscribe data from a database or\na specified table with fully \"database.name\" format.\n",
-      "type": "uri",
-      "protocol": {
-        "display": "Protocol",
-        "value": "ws",
-        "description": "Choose a protocol scheme for websocket connection, leave it empty for native connection",
-        "choices": [
-            {
-                "name": "--",
-                "display": "Native",
-                "description": "",
-                "default": true
-            },
-          {
-            "name": "ws",
-            "display": "WS",
-            "description": "WebSocket with HTTP."
-          },
-          {
-            "name": "wss",
-            "display": "WSS",
-            "description": "WebSocket with HTTPS."
-          }
-        ]
+{
+  "id": "pi",
+  "name": "PI System",
+  "description": "A data source plugin for PI system.\n",
+  "type": "uri",
+  "options": {
+      "host": {
+          "display": "Server",
+          "description": "PI server name (hostname).",
+          "placeholder": "server"
       },
-      "options": {
-        "host": {
-          "display": "Host",
-          "description": "TDengine fqdn. Leave it empty if use server localhost(relative to taosX server).",
-          "placeholder": "localhost"
-        },
-        "port": {
-          "display": "Port",
-          "description": "TDengine connection port, leave it empty if use default port.",
-          "placeholder": "auto"
-        },
-        "username": {
-          "display": "Username",
-          "description": "TDengine username. The default is root.",
-          "placeholder": "root"
-        },
-        "password": {
-          "display": "Password",
-          "description": "TDengine password. The default is taosdata.",
-          "placeholder": "taosdata"
-        },
-        "subject": {
+      "subject": {
           "required": true,
-          "display": "Topics",
-          "description": "Database name, database.table name or topic name is all available.",
-          "placeholder": "Example: db1,db1.stb1,topic1"
-        }
-      },
-      "strict": false,
-      "groups": [
-        {
-          "name": "Cloud Authentication",
-          "display_order": 1,
-          "description": "Token for TDcloud.",
-          "params": [
-            {
-              "name": "token",
-              "hint": "str",
-              "description": "Copy the token from TDcloud admin panel."
-            }
-          ]
-        },
-        {
-          "name": "Subscribe Options",
-          "display_order": 2,
-          "description": "Options for TMQ subscription.",
-          "params": [
-            {
-              "name": "group.id",
-              "hint": "str",
-              "required": true,
-              "description": "A consumer group id. One group id shares consume offsets globally.\n"
-            },
-            {
-              "name": "client.id",
-              "hint": "str",
-              "description": "Consumer client id to distinguish from individual clients.\n"
-            },
-            {
-              "name": "auto.offset.reset",
-              "hint": {
-                "type": "str",
-                "choices": [
-                  "earliest",
-                  "latest",
-                  "none"
-                ]
-              }
-            },
-            {
-              "name": "use.topic.name",
-              "hint": "str",
-              "description": "Use specific topic name for selected database or database.name,\nwhich does not work if the subject is direct topic name.\n"
-            },
-            {
-              "name": "timeout",
-              "hint": "timeout",
-              "description": "A timeout for polling data from the topic.\n\nThe input value should be one of:\n\n- `never`: means waiting for valid message without timeout.\n- A duration string like `5s`, `1m` etc.\n",
-              "placeholder": "5s"
-            }
-          ]
-        }
-      ],
-      "definitions": {
-        "hints": [
-          {
-            "name": "timeout",
-            "type": "str",
-            "choices": [
-              "Never",
-              {
-                "type": "duration"
-              }
-            ]
-          }
-        ]
+          "display": "AFDatabaseName",
+          "description": "AF database name",
+          "placeholder": "Example: Met1"
       }
-    }
+  },
+  "strict": false,
+  "groups": [
+      {
+          "name": "Data Sets",
+          "display_order": 1,
+          "description": "Choose data sets in the system",
+          "params": [
+              {
+                  "name": "TemplateForPIPoint",
+                  "display": "Template For Point",
+                  "description": "Choose one or more templates for data transfer.",
+                  "hint": "str"
+              },
+              {
+                  "name": "TemplateForAFElement",
+                  "display": "Template For AF Element",
+                  "description": "Choose one or more templates for data transfer.",
+                  "hint": "str"
+              }
+          ]
+      },
+      {
+          "name": "PI System",
+          "display_order": 2,
+          "description": "PI system configurations.",
+          "params": [
+              {
+                  "name": "PISystemName",
+                  "display": "PI System Name",
+                  "description": "PI System name, leave it empty to use the same hostname with **Server**.",
+                  "hint": {
+                      "type": "str"
+                  }
+              },
+              {
+                  "name": "PIDataPipesInstances",
+                  "display": "PI Data Pipes Instances",
+                  "hint": "timeout",
+                  "description": "Default 1.\n",
+                  "placeholder": 1
+              },
+              {
+                  "name": "PIDataPipesInstances",
+                  "display": "PI Data Pipes Instances",
+                  "hint": "timeout",
+                  "description": "Default 1.\n",
+                  "placeholder": 1
+              }
+          ]
+      },
+      {
+          "name": "Data Queue",
+          "display_order": 3,
+          "description": "Other configurations.",
+          "params": [
+              {
+                  "name": "MaxWaitLen",
+                  "display": "Max Wait Length",
+                  "description": "Message Wait queue max length",
+                  "hint": {
+                      "type": "integer"
+                  }
+              },
+              {
+                  "name": "UpdateInterval",
+                  "display": "Update Interval (in ms)",
+                  "hint": "integer",
+                  "description": "Pull Data from PI System Interval in `ms`.",
+                  "placeholder": 10000
+              },
+              {
+                  "name": "MaxBackfillRangeDays",
+                  "display": "Max Backfill Range(in days)",
+                  "hint": "integer",
+                  "description": "backfille最长期限， 单位：day",
+                  "placeholder": 1
+              }
+          ]
+      }
   ]
+}

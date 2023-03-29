@@ -67,8 +67,8 @@ func main() {
 <p>Finally, test the connection:</p>
 <pre v-highlight><code>go run main.go
 </code></pre>
-<p>The client connection is then established.  For how to write data and query data, please refer to <a href="https://docs.tdengine.com/cloud/data-in/insert-data/">https://docs.tdengine.com/cloud/data-in/insert-data/</a> and <a href="https://docs.tdengine.com/cloud/data-out/query-data/">https://docs.tdengine.com/cloud/data-out/query-data/</a>.</p>
-<p>For more details about how to write or query data via REST API, please check <a href="https://docs.tdengine.com/cloud/programming/connector/rest-api/">REST API</a>.</p>
+<p>The client connection is then established.  For how to write data and query data, please refer to <a href=" https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql"> https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql</a> and <a href="https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation">https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation</a>.</p>
+<p>For more details about how to write or query data via REST API, please check <a href="https://docs.tdengine.com/reference/rest-api/">REST API</a>.</p>
 </div>
   </template>
   

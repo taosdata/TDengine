@@ -11,6 +11,12 @@
         <el-tab-pane name="csv" :label="$t('topic.csv')">
           <DataCSV></DataCSV>
         </el-tab-pane>
+        <!-- <el-tab-pane name='pi' label='PI'>
+          <PlantInformation></PlantInformation>
+        </el-tab-pane>
+        <el-tab-pane name="opc" label="OPC">
+          <OpcView></OpcView>
+        </el-tab-pane> -->
       </el-tabs>
     </div>
     
@@ -22,12 +28,16 @@ import DataIn from "./dataIn.vue";
 import DbSource from "./dbSource.vue";
 import SourceContent from './sourceContent.vue'
 import DataCSV from './dataCSV.vue'
+import PlantInformation from './plantInformation.vue'
+import OpcView from './opcView.vue'
 export default {
   components: {
     DataIn,
     DbSource,
     SourceContent,
-    DataCSV
+    DataCSV,
+    PlantInformation,
+    OpcView
   },
   data() {
     return {
