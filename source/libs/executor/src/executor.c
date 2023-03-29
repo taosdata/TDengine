@@ -1120,7 +1120,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       // let's seek to the next version in wal file
       if (tqSeekVer(pInfo->tqReader, pOffset->version + 1, pTaskInfo->id.str) < 0) {
-        qError("tqSeekVer failed ver:%, %s" PRId64, pOffset->version + 1, id);
+        qError("tqSeekVer failed ver:%"PRId64", %s" PRId64, pOffset->version + 1, id);
         return -1;
       }
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
