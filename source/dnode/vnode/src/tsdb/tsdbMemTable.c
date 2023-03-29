@@ -287,12 +287,12 @@ int64_t tsdbCountTbDataRows(STbData *pTbData) {
   int64_t rowsNum = 0;
   
   while (NULL != pNode) {
+    pNode = SL_GET_NODE_FORWARD(pNode, 0);
     if (pNode == pTbData->sl.pTail) {
       return rowsNum;
     }
 
     rowsNum++;
-    pNode = SL_GET_NODE_FORWARD(pNode, 0);
   }
 
   return rowsNum;
