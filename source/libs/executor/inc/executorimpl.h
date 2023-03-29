@@ -482,12 +482,6 @@ typedef struct SStreamScanInfo {
 } SStreamScanInfo;
 
 typedef struct {
-  //  int8_t    subType;
-  //  bool      withMeta;
-  //  int64_t   suid;
-  //  int64_t   snapVersion;
-  //  void     *metaInfo;
-  //  void     *dataInfo;
   SVnode*       vnode;
   SSDataBlock   pRes;  // result SSDataBlock
   STsdbReader*  dataReader;
@@ -689,6 +683,8 @@ typedef struct SStreamFillOperatorInfo {
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
 #define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)
+
+SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, char* dbFName);
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn, __optr_explain_fn_t explain);
