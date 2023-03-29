@@ -177,12 +177,16 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_USER_SYSINFO                0xA
 #define TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC    0xB
 #define TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC 0xC
-#define TSDB_ALTER_USER_ADD_READ_STABLE        0xD
-#define TSDB_ALTER_USER_REMOVE_READ_STABLE     0xE
-#define TSDB_ALTER_USER_ADD_WRITE_STABLE       0xF
-#define TSDB_ALTER_USER_REMOVE_WRITE_STABLE    0x10
-#define TSDB_ALTER_USER_ADD_ALL_STABLE         0x11
-#define TSDB_ALTER_USER_REMOVE_ALL_STABLE      0x12
+#define TSDB_ALTER_USER_ADD_READ_TABLE         0xD
+#define TSDB_ALTER_USER_REMOVE_READ_TABLE      0xE
+#define TSDB_ALTER_USER_ADD_WRITE_TABLE        0xF
+#define TSDB_ALTER_USER_REMOVE_WRITE_TABLE     0x10
+#define TSDB_ALTER_USER_ADD_ALL_TABLE          0x11
+#define TSDB_ALTER_USER_REMOVE_ALL_TABLE       0x12
+#define TSDB_ALTER_USER_ADD_READ_TAG           0x13
+#define TSDB_ALTER_USER_REMOVE_READ_TAG        0x14
+#define TSDB_ALTER_USER_ADD_WRITE_TAG          0x15
+#define TSDB_ALTER_USER_REMOVE_WRITE_TAG       0x16
 
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 
@@ -706,6 +710,8 @@ typedef struct {
   SHashObj* createdDbs;
   SHashObj* readDbs;
   SHashObj* writeDbs;
+  SHashObj* readTbs;
+  SHashObj* writeTbs;
 } SGetUserAuthRsp;
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
