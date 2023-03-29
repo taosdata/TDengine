@@ -36,7 +36,7 @@ Query OK, 2 row(s) in set (0.001100s)
 
 To meet the requirements of varied use cases, some special functions have been added in TDengine. Some examples are `twa` (Time Weighted Average), `spread` (The difference between the maximum and the minimum), and `last_row` (the last row). Furthermore, continuous query is also supported in TDengine.
 
-For detailed query syntax please refer to [Select](https://docs.tdengine.com/cloud/taos-sql/select).
+For detailed query syntax please refer to [Select](https://docs.tdengine.com/cloud/taos-sql/select/).
 
 ## Aggregation among Tables
 
@@ -82,7 +82,7 @@ SELECT count(*), max(current) FROM test.meters where groupId = 2 and ts > now - 
 Query OK, 1 row(s) in set (0.002136s)
 ```
 
-Join queries are only allowed between subtables of the same STable. In [Select](https://docs.tdengine.com/cloud/taos-sql/select), all query operations are marked as to whether they support STables or not.
+Join queries are only allowed between subtables of the same STable. In [Select](https://docs.tdengine.com/cloud/taos-sql/select/), all query operations are marked as to whether they support STables or not.
 
 ## Down Sampling and Interpolation
 
