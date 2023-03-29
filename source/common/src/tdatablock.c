@@ -147,9 +147,17 @@ int32_t colDataReserve(SColumnInfoData* pColumnInfoData, size_t newSize) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow, const char* pData,
-                         int32_t itemLen, int32_t numOfRows) {
-  ASSERT(pColumnInfoData->info.bytes >= itemLen);
+static int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow, const char* pData,
+                         int32_t itemLen, int32_t numOfRows, bool trimValue) {
+  if (pColumnInfoData->info.bytes < itemLen) {
+    uWarn("column/tag actual data len %d is bigger than schema len %d, trim it:%d", itemLen, pColumnInfoData->info.bytes, trimValue);
+    if (trimValue) {
+      itemLen = pColumnInfoData->info.bytes;
+    } else {
+      return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+    }
+  }
+  
   size_t start = 1;
 
   // the first item
@@ -178,10 +186,12 @@ static void doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t curren
 
     pColumnInfoData->varmeta.length += numOfRows * itemLen;
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData,
-                            uint32_t numOfRows) {
+                            uint32_t numOfRows, bool trimValue) {
   int32_t len = pColumnInfoData->info.bytes;
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     len = varDataTLen(pData);
@@ -193,8 +203,7 @@ int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, 
     }
   }
 
-  doCopyNItems(pColumnInfoData, currentRow, pData, len, numOfRows);
-  return TSDB_CODE_SUCCESS;
+  return doCopyNItems(pColumnInfoData, currentRow, pData, len, numOfRows, trimValue);
 }
 
 static void doBitmapMerge(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, const SColumnInfoData* pSource,

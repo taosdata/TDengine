@@ -998,7 +998,8 @@ TEST(clientCase, sub_db_test) {
 
   // 创建订阅 topics 列表
   tmq_list_t* topicList = tmq_list_new();
-  tmq_list_append(topicList, "topic_db1");
+  tmq_list_append(topicList, "topic_t1");
+  tmq_list_append(topicList, "topic_s2");
 
   // 启动订阅
   tmq_subscribe(tmq, topicList);
