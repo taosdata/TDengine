@@ -19,21 +19,7 @@
 
 #include "shellInt.h"
 
-#ifndef CUS_NAME
-    char cusName[] = "TDengine";
-#endif
-
-#ifndef CUS_PROMPT
-    char cusPrompt[] = "taos";
-#endif
-
-#ifndef CUS_EMAIL
-    char cusEmail[] = "<support@taosdata.com>";
-#endif
-
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
-#endif
 
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
 
@@ -92,7 +78,7 @@ void shellPrintHelp() {
 #endif
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
   printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
-  printf("\r\n\r\nReport bugs to %s.\r\n", cusEmail);
+  printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
 }
 
 #ifdef LINUX
@@ -104,7 +90,7 @@ void shellPrintHelp() {
 #endif
 
 const char *argp_program_version = version;
-const char *argp_program_bug_address = cusEmail;
+const char *argp_program_bug_address = CUS_EMAIL;
 
 static struct argp_option shellOptions[] = {
     {"host", 'h', "HOST", 0, SHELL_HOST},
@@ -414,10 +400,10 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shell.info.clientVersion =
       "Welcome to the %s Command Line Interface, Client Version:%s\r\n"
       "Copyright (c) 2022 by %s, all rights reserved.\r\n\r\n";
-  strcpy(shell.info.cusName, cusName);
-  sprintf(shell.info.promptHeader, "%s> ", cusPrompt);
+  strcpy(shell.info.cusName, CUS_NAME);
+  sprintf(shell.info.promptHeader, "%s> ", CUS_PROMPT);
   char promptContinueFormat[32] = {0};
-  sprintf(promptContinueFormat, "%%%zus> ", strlen(cusPrompt));
+  sprintf(promptContinueFormat, "%%%zus> ", strlen(CUS_PROMPT));
   sprintf(shell.info.promptContinue, promptContinueFormat, " ");
   shell.info.promptSize = strlen(shell.info.promptHeader);
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),

@@ -228,7 +228,7 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
 
   taosExpandDir(inputCfgDir, cfgDir, PATH_MAX);
   if (taosIsDir(cfgDir)) {
-    snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
+    snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "%s.cfg", CUS_PROMPT, cfgDir);
   } else {
     tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
   }
