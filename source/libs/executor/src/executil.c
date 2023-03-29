@@ -34,7 +34,7 @@ struct STableListInfo {
   int32_t   numOfOuputGroups;  // the data block will be generated one by one
   int32_t*  groupOffset;       // keep the offset value for each group in the tableList
   SArray*   pTableList;
-  SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
+  SHashObj* map;               // speedup acquire the tableQueryInfo by table uid
   uint64_t  suid;
 };
 
@@ -1798,6 +1798,21 @@ STableKeyInfo* tableListGetInfo(const STableListInfo* pTableList, int32_t index)
   }
 
   return taosArrayGet(pTableList->pTableList, index);
+}
+
+int32_t tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex) {
+  int32_t numOfTables = taosArrayGetSize(pTableList->pTableList);
+  if (startIndex >= numOfTables) {
+    return -1;
+  }
+
+  for (int32_t i = startIndex; i < numOfTables; ++i) {
+    STableKeyInfo* p = taosArrayGet(pTableList->pTableList, i);
+    if (p->uid == uid) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {

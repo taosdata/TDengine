@@ -68,14 +68,14 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   int32_t vgId = TD_VID(pTq->pVnode);
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-    tqDebug("prepare scan failed, return, consumer:0x%"PRIx64, pHandle->consumerId);
+    tqDebug("prepare scan failed, vgId:%d, consumer:0x%"PRIx64, vgId, pHandle->consumerId);
     if (pOffset->type == TMQ_OFFSET__LOG) {
       pRsp->rspOffset = *pOffset;
       return 0;
     } else {
       tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
       if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-        tqDebug("prepare scan failed, return, consumer:0x%"PRIx64, pHandle->consumerId);
+        tqDebug("prepare scan failed, vgId:%d, consumer:0x%"PRIx64, vgId, pHandle->consumerId);
         pRsp->rspOffset = *pOffset;
         return 0;
       }

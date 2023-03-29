@@ -143,10 +143,7 @@ typedef struct {
   SQueryTableDataCond tableCond;
   int64_t             fillHistoryVer1;
   int64_t             fillHistoryVer2;
-
-  // int8_t        triggerSaved;
-  // int64_t       deleteMarkSaved;
-  SStreamState* pState;
+  SStreamState*       pState;
 } SStreamTaskInfo;
 
 typedef struct {
@@ -168,15 +165,14 @@ typedef struct STaskStopInfo {
 } STaskStopInfo;
 
 struct SExecTaskInfo {
-  STaskIdInfo   id;
-  uint32_t      status;
-  STimeWindow   window;
-  STaskCostInfo cost;
-  int64_t       owner;  // if it is in execution
-  int32_t       code;
-  int32_t       qbufQuota;  // total available buffer (in KB) during execution query
-
-  int64_t               version;  // used for stream to record wal version, why not move to sschemainfo
+  STaskIdInfo           id;
+  uint32_t              status;
+  STimeWindow           window;
+  STaskCostInfo         cost;
+  int64_t               owner;      // if it is in execution
+  int32_t               code;
+  int32_t               qbufQuota;  // total available buffer (in KB) during execution query
+  int64_t               version;    // used for stream to record wal version, why not move to sschemainfo
   SStreamTaskInfo       streamInfo;
   SSchemaInfo           schemaInfo;
   STableListInfo*       pTableInfoList;  // this is a table list
@@ -188,6 +184,7 @@ struct SExecTaskInfo {
   SLocalFetch           localFetch;
   SArray*               pResultBlockList;  // result block list
   STaskStopInfo         stopInfo;
+  SRWLatch              lock;              // secure the access of STableListInfo
 };
 
 enum {

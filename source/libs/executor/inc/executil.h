@@ -107,6 +107,7 @@ int32_t         tableListGetGroupList(const STableListInfo* pTableList, int32_t 
 uint64_t        tableListGetSize(const STableListInfo* pTableList);
 uint64_t        tableListGetSuid(const STableListInfo* pTableList);
 STableKeyInfo*  tableListGetInfo(const STableListInfo* pTableList, int32_t index);
+int32_t         tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex);
 
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);

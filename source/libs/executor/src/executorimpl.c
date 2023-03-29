@@ -1989,6 +1989,7 @@ static SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, in
   pTaskInfo->stopInfo.pStopInfo = taosArrayInit(4, sizeof(SExchangeOpStopInfo));
   pTaskInfo->pResultBlockList = taosArrayInit(128, POINTER_BYTES);
 
+  taosInitRWLatch(&pTaskInfo->lock);
   pTaskInfo->id.vgId = vgId;
   pTaskInfo->id.queryId = queryId;
   pTaskInfo->id.str = buildTaskId(taskId, queryId);
