@@ -4496,16 +4496,15 @@ static int32_t doTsdbNextDataBlock(STsdbReader* pReader, bool *hasNext) {
       return code;
     }
 
-    if (pBlock->info.rows > 0) {
-      *hasNext = true;
-    } else {
+    if (pBlock->info.rows <= 0) {
       resetTableListIndex(&pReader->status);
       code = buildBlockFromBufferSequentially(pReader);
     }
   } else {  // no data in files, let's try the buffer
     code = buildBlockFromBufferSequentially(pReader);
-    *hasNext = pBlock->info.rows > 0;
   }
+
+  *hasNext = pBlock->info.rows > 0;
 
   return code;
 }
