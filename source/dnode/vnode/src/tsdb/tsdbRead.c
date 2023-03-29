@@ -3064,9 +3064,6 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   TSDBKEY keyInBuf = getCurrentKeyInBuf(pScanInfo, pReader);
 
   if (fileBlockShouldLoad(pReader, pBlockInfo, pBlock, pScanInfo, keyInBuf, pLastBlockReader)) {
-    if (READ_MODE_COUNT_ONLY == pReader->readMode && pReader->rowsNum > 0) {
-      return code;
-    }
     code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData, pScanInfo->uid);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -3075,19 +3072,12 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
     // build composed data block
     code = buildComposedDataBlock(pReader);
   } else if (bufferDataInFileBlockGap(pReader->order, keyInBuf, pBlock)) {
-    if (READ_MODE_COUNT_ONLY == pReader->readMode && pReader->rowsNum > 0) {
-      return code;
-    }
     // data in memory that are earlier than current file block
     // rows in buffer should be less than the file block in asc, greater than file block in desc
     int64_t endKey = (ASCENDING_TRAVERSE(pReader->order)) ? pBlock->minKey.ts : pBlock->maxKey.ts;
     code = buildDataBlockFromBuf(pReader, pScanInfo, endKey);
   } else {
     if (hasDataInLastBlock(pLastBlockReader) && !ASCENDING_TRAVERSE(pReader->order)) {
-      if (READ_MODE_COUNT_ONLY == pReader->readMode && pReader->rowsNum > 0) {
-        return code;
-      }
-
       // only return the rows in last block
       int64_t tsLast = getCurrentKeyInLastBlock(pLastBlockReader);
       ASSERT(tsLast >= pBlock->maxKey.ts);
@@ -3437,12 +3427,6 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
           initBlockDumpInfo(pReader, pBlockIter);
         } else {
           if (pReader->status.pCurrentFileset->nSttF > 0) {
-            if (READ_MODE_COUNT_ONLY == pReader->readMode && pReader->rowsNum > 0) {
-              pReader->pResBlock->info.rows = pReader->rowsNum;
-              pReader->rowsNum = 0;
-              return TSDB_CODE_SUCCESS;
-            }
-
             // data blocks in current file are exhausted, let's try the next file now
             SBlockData* pBlockData = &pReader->status.fileBlockData;
             if (pBlockData->uid != 0) {
@@ -3457,17 +3441,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
             code = initForFirstBlockInFile(pReader, pBlockIter);
 
             // error happens or all the data files are completely checked
-            if (code != TSDB_CODE_SUCCESS) {
-              return code;
-            }
-
-            if (READ_MODE_COUNT_ONLY == pReader->readMode && pReader->rowsNum > 0) {
-              pReader->pResBlock->info.rows = pReader->rowsNum;
-              pReader->rowsNum = 0;
-              return TSDB_CODE_SUCCESS;
-            }
-
-            if (pReader->status.loadFromFile == false) {
+            if ((code != TSDB_CODE_SUCCESS) || (pReader->status.loadFromFile == false)) {
               return code;
             }
 
@@ -3481,17 +3455,6 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
       }
 
       code = doBuildDataBlock(pReader);
-      if (READ_MODE_COUNT_ONLY == pReader->readMode) {
-        if (false == pReader->status.composedDataBlock && pDumpInfo->allDumped) {
-          pReader->rowsNum += pReader->pResBlock->info.rows;
-          pReader->pResBlock->info.rows = 0;
-          continue;
-        } else if (pReader->pResBlock->info.rows == 0 && pReader->rowsNum > 0) {
-          pReader->pResBlock->info.rows = pReader->rowsNum;
-          pReader->rowsNum = 0;
-          return TSDB_CODE_SUCCESS;
-        }
-      }
     }
 
     if (code != TSDB_CODE_SUCCESS) {
