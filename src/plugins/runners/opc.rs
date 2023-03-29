@@ -2,17 +2,11 @@ use std::{
     collections::HashMap,
     io::prelude::*,
     num::ParseIntError,
-    path::{Path, PathBuf},
-    str::FromStr,
-    sync::Arc,
-    thread::JoinHandle,
-    time::Duration,
+    str::FromStr, fmt::Display,
 };
 
-use anyhow::bail;
-use anyhow::Context;
 use itertools::Itertools;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, TaosBuilder, IntoDsn};
 use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
@@ -49,6 +43,10 @@ enum OpcError {
     DatabaseIsRequired(Dsn),
     #[error("Username and password are both required for UserName authentication method in {0}")]
     UserPassRequired(Dsn),
+    #[error("config file not found in {0}")]
+    FileNotFound(String),
+    #[error("config file not found in {0}")]
+    EmptyConfig(String),
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
     ParseNumberError(&'static str, String, ParseIntError),
 }
@@ -211,8 +209,7 @@ impl OPCConfig {
                     da: None,
                 };
                 let interval = parse_int_at!("interval");
-                let node_vec = get_string_vec_from_param(&mut dsn, "ua.nodes");
-                // let type_vec = get_string_vec_from_param(&mut dsn, "value_type");
+                let node_vec = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?;
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
@@ -266,7 +263,7 @@ impl OPCConfig {
                     da: Some(connect_da_config),
                 };
                 let interval = parse_int_at!("interval");
-                let node_vec = get_string_vec_from_param(&mut dsn, "da.nodes");
+                let node_vec = get_string_vec_from_param_or_file(&mut dsn, "da.nodes")?;
                 let mut da_nodes_vec = Vec::new();
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
@@ -322,14 +319,38 @@ impl OPCConfig {
     }
 }
 
-fn get_string_vec_from_param(dsn: &mut Dsn, key: &str) -> Vec<String> {
-    dsn.remove(key)
-        .unwrap_or_default()
-        .split(",")
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
-        .collect_vec()
+fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<String>, OpcError> {
+    if let Some(nodes) = dsn.remove(key) {
+        let (files, mut node_config): (Vec<_>, Vec<_>) = nodes
+            .split(",")
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .partition(|v| v.starts_with("@"));
+        for file in files {
+            let f = std::fs::File::open(&file[1..]);
+            if f.is_err() {
+                log::warn!("file: {} read error", file);
+                return Err(OpcError::FileNotFound(file));
+            }
+            let buf = std::io::BufReader::new(f.unwrap());
+            let mut file_data = buf.lines().collect_vec();
+            // remove header
+            if file_data.remove(0).is_err() {
+                log::warn!("file: {} content length < 1", file);
+            }
+            
+            node_config.extend(file_data.iter().filter_map(|r| r.as_ref().ok()).map(|s| s.replace(",", "::")));
+
+        }
+        if node_config.len() == 0 {
+            log::warn!("node config is empty");
+            return Err(OpcError::EmptyConfig(nodes));
+        }
+        return Result::Ok(node_config);
+    }
+    log::warn!("node config is empty");
+    return Err(OpcError::EmptyConfig(String::new()));
 }
 
 fn process_table_info(
@@ -367,8 +388,6 @@ pub async fn opc_to_taos(
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
 
     let config = OPCConfig::new(from, ipc_port)?;
-    dbg!(&config);
-    // process table info
     for (table_name, field_info) in &config.table_info {
         let mut sql = format!("CREATE TABLE IF NOT EXISTS {table_name} (`ts` TIMESTAMP");
         for (field, field_type) in field_info {
@@ -451,7 +470,7 @@ pub async fn opc_to_taos(
 }
 
 #[tokio::test]
-async fn opc_config_to_toml() -> anyhow::Result<()> {
+async fn test_opc_config_to_toml() -> anyhow::Result<()> {
     let mut map = HashMap::new();
     map.insert(
         String::from("123"),
@@ -506,6 +525,46 @@ async fn opc_config_to_toml() -> anyhow::Result<()> {
         table_info: HashMap::new(),
     };
     let toml = toml::to_string(&config)?;
-    println!("toml:[{}]", toml);
+    assert_eq!(r#"opc_type = "opcua"
+
+[connect.ua]
+endpoint = "endpoint.123"
+connect_timeout = 10
+request_timeout = 20
+security_policy = "None"
+security_mode = "None"
+auth_method = "Anonymous"
+
+[connect.da]
+server = "server.server"
+nodes = ["localhost"]
+
+[collect]
+interval = 10
+
+[[collect.ua.nodes]]
+id = "1"
+value_type = "DOUBLE"
+
+[[collect.da.nodes]]
+tag = "123"
+value_type = "VARCHAR"
+
+[report]
+remote = "remote.remote"
+concurrent = 10
+batch_timeout = 100
+"#, toml);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> { 
+    let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
+    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?;
+    assert_eq!(vec_string, vec![String::from("ns=3;i=1004::ntb1::c0::double"), String::from("ns=3;i=1008::ntb1::c1::double")]);
+    let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
+    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?;
+    assert_eq!(vec_string, vec![String::from("ns=3;i=1004::ntb1::c0::double"), String::from("ns=3;i=1008::ntb1::c1::double"), String::from("ns=2;i=2::ntb2::c1::double"), String::from("ns=2;i=3::ntb3::c2::int")]);
     Ok(())
 }
