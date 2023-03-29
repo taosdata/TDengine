@@ -27,7 +27,7 @@ typedef struct SDelBlock SDelBlock;
 typedef struct SDelBlk   SDelBlk;
 
 /* Exposed APIs */
-int32_t tDelBlockCreate(SDelBlock *pDelBlock);
+int32_t tDelBlockCreate(SDelBlock *pDelBlock, int32_t capacity);
 int32_t tDelBlockDestroy(SDelBlock *pDelBlock);
 int32_t tDelBlockClear(SDelBlock *pDelBlock);
 int32_t tDelBlockAppend(SDelBlock *pDelBlock, const TABLEID *tbid, const SDelData *pDelData);
@@ -36,8 +36,11 @@ int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb);
 int32_t tsdbUpdateSkmRow(STsdb *pTsdb, const TABLEID *tbid, int32_t sver, SSkmInfo *pSkmRow);
 
 /* Exposed Structs */
+// <suid, uid, version, skey, ekey>
 struct SDelBlock {
-  SColData aColData[5];  // <suid, uid, version, skey, ekey>
+  int32_t  capacity;
+  int32_t  nRow;
+  int64_t *aData[5];  // [suid, uid, version, skey, ekey
 };
 
 struct SDelBlk {

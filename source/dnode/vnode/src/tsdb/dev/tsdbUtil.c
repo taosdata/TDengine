@@ -15,44 +15,42 @@
 
 #include "dev.h"
 
-int32_t tDelBlockCreate(SDelBlock *pDelBlock) {
-  memset(pDelBlock, 0, sizeof(SDelBlock));
-  for (int32_t i = 0; i < 5; ++i) {
-    tColDataInit(&pDelBlock->aColData[i], i + 1, TSDB_DATA_TYPE_BIGINT, 0);
+int32_t tDelBlockCreate(SDelBlock *pDelBlock, int32_t capacity) {
+  int32_t code;
+
+  memset(pDelBlock, 0, sizeof(*pDelBlock));
+  pDelBlock->capacity = capacity;
+  for (int32_t i = 0; i < ARRAY_SIZE(pDelBlock->aData); ++i) {
+    if ((code = tRealloc((uint8_t **)&pDelBlock->aData[i], sizeof(int64_t) * capacity))) {
+      for (i--; i >= 0; --i) tFree(pDelBlock->aData[i]);
+      return code;
+    }
   }
+
   return 0;
 }
 
 int32_t tDelBlockDestroy(SDelBlock *pDelBlock) {
-  for (int32_t i = 0; i < 5; ++i) {
-    tColDataDestroy(&pDelBlock->aColData[i]);
+  for (int32_t i = 0; i < ARRAY_SIZE(pDelBlock->aData); ++i) {
+    tFree(pDelBlock->aData[i]);
   }
   return 0;
 }
 
 int32_t tDelBlockClear(SDelBlock *pDelBlock) {
-  for (int32_t i = 0; i < 5; ++i) {
-    tColDataClear(&pDelBlock->aColData[i]);
-  }
+  pDelBlock->nRow = 0;
   return 0;
 }
 
 int32_t tDelBlockAppend(SDelBlock *pDelBlock, const TABLEID *tbid, const SDelData *pDelData) {
-  int32_t code = 0;
-  SColVal cv;
-
-  //   TODO
-  code = tColDataAppendValue(&pDelBlock->aColData[0], &cv);
-
-  code = tColDataAppendValue(&pDelBlock->aColData[1], &cv);
-
-  code = tColDataAppendValue(&pDelBlock->aColData[2], &cv);
-
-  code = tColDataAppendValue(&pDelBlock->aColData[3], &cv);
-
-  code = tColDataAppendValue(&pDelBlock->aColData[4], &cv);
-
-  return code;
+  ASSERT(pDelBlock->nRow < pDelBlock->capacity);
+  pDelBlock->aData[0][pDelBlock->nRow] = tbid->suid;
+  pDelBlock->aData[1][pDelBlock->nRow] = tbid->uid;
+  pDelBlock->aData[2][pDelBlock->nRow] = pDelData->version;
+  pDelBlock->aData[3][pDelBlock->nRow] = pDelData->sKey;
+  pDelBlock->aData[4][pDelBlock->nRow] = pDelData->eKey;
+  pDelBlock->nRow++;
+  return 0;
 }
 
 int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb) {

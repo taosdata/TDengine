@@ -112,6 +112,8 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     goto LABEL;                                        \
   }
 
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
+
 #ifdef __cplusplus
 }
 #endif
