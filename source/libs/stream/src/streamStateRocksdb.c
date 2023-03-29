@@ -563,7 +563,6 @@ int32_t streamStateFillDel_rocksdb(SStreamState* pState, const SWinKey* key) {
 }
 
 // todo refactor
-
 int32_t streamStateClear_rocksdb(SStreamState* pState) {
   qDebug("streamStateClear_rocksdb");
 
@@ -585,6 +584,7 @@ int32_t streamStateClear_rocksdb(SStreamState* pState) {
   char* err = NULL;
   rocksdb_delete_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->writeOpts, pState->pTdbState->pHandle[0],
                           sKeyStr, sLen, eKeyStr, eLen, &err);
+  rocksdb_compact_range_cf(pState->pTdbState->rocksdb, pState->pTdbState->pHandle[0], sKeyStr, sLen, eKeyStr, eLen);
   if (err != NULL) {
     qWarn("failed to delete range cf(default) err: %s, start: %s, end:%s", err, toStringStart, toStringEnd);
     taosMemoryFree(err);
