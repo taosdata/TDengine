@@ -55,6 +55,7 @@ class TDTestCase:
 
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
+        tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
         tdLog.info("create stb")
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         tdLog.info("create ctb")
@@ -213,7 +214,7 @@ class TDTestCase:
         paraDict['rowsPerTbl'] = self.rowsPerTbl
         consumerId     = 1
         if self.snapshot == 0:
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1/2) * (1/2*3))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] *(2 + 1/2*1/2*2 + 1/2 + 1/4))
         elif self.snapshot == 1:
             expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 + 1/2))
 

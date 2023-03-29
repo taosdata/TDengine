@@ -846,6 +846,18 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  int32_t numOfTopics = 0;
+  if (mndGetNumOfTopics(pMnode, pDb->name, &numOfTopics) != 0) {
+    goto _OVER;
+  }
+
+  if (numOfTopics != 0 && alterReq.walRetentionPeriod == 0) {
+    terrno = TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO;
+    mError("db:%s, not allowed to set WAL_RETENTION_PERIOD 0 when there are topics defined. numOfTopics:%d", pDb->name,
+           numOfTopics);
+    goto _OVER;
+  }
+
   memcpy(&dbObj, pDb, sizeof(SDbObj));
   if (dbObj.cfg.pRetensions != NULL) {
     dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);

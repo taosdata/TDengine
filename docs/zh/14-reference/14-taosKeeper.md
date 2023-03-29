@@ -13,12 +13,11 @@ taosKeeper 是 TDengine 3.0 版本监控指标的导出工具，通过简单的�
 
 ## 安装
 
-<!-- taosKeeper 有两种安装方式: -->
+taosKeeper 有两种安装方式：
 taosKeeper 安装方式：
 
-<!-- - 安装 TDengine 官方安装包的同时会自动安装 taosKeeper, 详情请参考[ TDengine 安装](/operation/pkg-install)。-->
+- 安装 TDengine 官方安装包的同时会自动安装 taosKeeper, 详情请参考[ TDengine 安装](/operation/pkg-install)。
 
-<!-- - 单独编译 taosKeeper 并安装，详情请参考 [taosKeeper](https://github.com/taosdata/taoskeeper) 仓库。-->
 - 单独编译 taosKeeper 并安装，详情请参考 [taosKeeper](https://github.com/taosdata/taoskeeper) 仓库。
 
 ## 配置和运行方式
@@ -112,7 +111,7 @@ Active: inactive (dead)
 
 #### 配置文件启动
 
-执行以下命令即可快速体验 taosKeeper。当不指定 taosKeeper 配置文件时，优先使用 `/etc/taos/keeper.toml` 配置，否则将使用默认配置。 
+执行以下命令即可快速体验 taosKeeper。当不指定 taosKeeper 配置文件时，优先使用 `/etc/taos/keeper.toml` 配置，否则将使用默认配置。
 
 ```shell
 $ taoskeeper -c <keeper config file>
@@ -190,19 +189,19 @@ $ curl http://127.0.0.1:6043/metrics
 部分结果集：
 
 ```shell
-# HELP taos_cluster_info_connections_total 
+# HELP taos_cluster_info_connections_total
 # TYPE taos_cluster_info_connections_total counter
 taos_cluster_info_connections_total{cluster_id="5981392874047724755"} 16
-# HELP taos_cluster_info_dbs_total 
+# HELP taos_cluster_info_dbs_total
 # TYPE taos_cluster_info_dbs_total counter
 taos_cluster_info_dbs_total{cluster_id="5981392874047724755"} 2
-# HELP taos_cluster_info_dnodes_alive 
+# HELP taos_cluster_info_dnodes_alive
 # TYPE taos_cluster_info_dnodes_alive counter
 taos_cluster_info_dnodes_alive{cluster_id="5981392874047724755"} 1
-# HELP taos_cluster_info_dnodes_total 
+# HELP taos_cluster_info_dnodes_total
 # TYPE taos_cluster_info_dnodes_total counter
 taos_cluster_info_dnodes_total{cluster_id="5981392874047724755"} 1
-# HELP taos_cluster_info_first_ep 
+# HELP taos_cluster_info_first_ep
 # TYPE taos_cluster_info_first_ep gauge
 taos_cluster_info_first_ep{cluster_id="5981392874047724755",value="hlb:6030"} 1
 ```

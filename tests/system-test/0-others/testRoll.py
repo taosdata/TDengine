@@ -13,7 +13,7 @@ def init_tmq_env(db, topic):
 
     conn.execute("drop topic if exists {}".format(topic))
     conn.execute("drop database if exists {}".format(db))
-    conn.execute("create database if not exists {} replica 1 ".format(db))
+    conn.execute("create database if not exists {} replica 1 wal_retention_period 3600".format(db))
     conn.select_db(db)
     conn.execute(
         "create stable if not exists stb1 (ts timestamp, c1 int, c2 float, c3 varchar(16)) tags(t1 int, t3 varchar(16))")
@@ -37,7 +37,7 @@ def init_tmq_rest_env(db, topic):
 
     conn.execute("drop topic if exists {}".format(topic))
     conn.execute("drop database if exists {}".format(db))
-    conn.execute("create database if not exists {} replica 3 ".format(db))
+    conn.execute("create database if not exists {} replica 3 wal_retention_period 3600".format(db))
     conn.select_db(db)
     conn.execute(
         "create stable if not exists stb1 (ts timestamp, c1 int, c2 float, c3 varchar(16)) tags(t1 int, t3 varchar(16))")
