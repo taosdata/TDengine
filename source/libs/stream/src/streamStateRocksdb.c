@@ -398,17 +398,11 @@ int streamGetInit(const char* funcName) {
   return -1;
 }
 bool streamStateIterSeekAndValid(rocksdb_iterator_t* iter, char* buf, size_t len) {
-  bool valid = false;
-  // opt later
-  rocksdb_iter_seek(iter, buf, len);
+  rocksdb_iter_seek_for_prev(iter, buf, len);
   if (!rocksdb_iter_valid(iter)) {
-    rocksdb_iter_seek_for_prev(iter, buf, len);
-    if (!rocksdb_iter_valid(iter)) {
-      return valid;
-    }
+    return false;
   }
-  valid = true;
-  return valid;
+  return true;
 }
 rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfName, rocksdb_snapshot_t** snapshot,
                                           rocksdb_readoptions_t** readOpt) {
