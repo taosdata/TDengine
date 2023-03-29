@@ -596,13 +596,13 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
   SMnode            *pMnode = pMsg->info.node;
   SMqDoRebalanceMsg *pReq = pMsg->pCont;
   void              *pIter = NULL;
-  bool               rebalanceExec = false;  // to ensure only once.
+  bool               rebalanceOnce = false;  // to ensure only once.
 
   mInfo("mq re-balance start, total required re-balanced trans:%d", taosHashGetSize(pReq->rebSubHash));
 
   // here we only handle one topic rebalance requirement to ensure the atomic execution of this transaction.
   while (1) {
-    if (rebalanceExec) {
+    if (rebalanceOnce) {
       break;
     }
 
@@ -673,10 +673,6 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       mError("mq re-balance persist output error, possibly vnode splitted or dropped");
     }
 
-    taosArrayDestroy(pRebInfo->lostConsumers);
-    taosArrayDestroy(pRebInfo->newConsumers);
-    taosArrayDestroy(pRebInfo->removedConsumers);
-
     taosArrayDestroy(rebOutput.newConsumers);
     taosArrayDestroy(rebOutput.touchedConsumers);
     taosArrayDestroy(rebOutput.removedConsumers);
@@ -684,7 +680,7 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
     tDeleteSubscribeObj(rebOutput.pSub);
     taosMemoryFree(rebOutput.pSub);
 
-    rebalanceExec = true;
+    rebalanceOnce = true;
   }
 
   // reset flag
