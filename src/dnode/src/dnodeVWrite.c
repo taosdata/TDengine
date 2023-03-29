@@ -163,6 +163,7 @@ void dnodeFreeVWriteQueue(void *pWqueue) {
 }
 
 void* waitingResultThread(void* param) {
+  setThreadName("waitDeleteResult");
   SVWriteMsg* pWrite = (SVWriteMsg* )param;
   // wait request deal finished
   dInfo(":SDEL pVnode:%p start wait commit pWrite=%p", pWrite->pVnode, pWrite);
@@ -216,8 +217,15 @@ void dnodeSendRpcVWriteRsp(void *pVnode, void *wparam, int32_t code) {
       // first add to list
       vnodeAddWait(pVnode, NULL, pWrite->rspRet.psem, pWrite);
       pthread_t* thread = taosCreateThread(waitingResultThread, pWrite);
-      // set thread 
-      vnodeSetWait(pVnode, thread, pWrite);
+      if(thread == NULL) {
+        dError(":SDEL pVnode:%p pWrite=%p create thread error.", pWrite->pVnode, pWrite);
+        rpcSendResponse(&rpcRsp);
+        vnodeRemoveWait(pWrite->pVnode, pWrite);
+        vnodeFreeFromWQueue(pVnode, pWrite);
+      } else {
+        // set thread
+        vnodeSetWait(pVnode, thread, pWrite);
+      }
     }
   }  
 }
