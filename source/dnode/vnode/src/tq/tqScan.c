@@ -18,7 +18,9 @@
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision) {
   int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
   void*   buf = taosMemoryCalloc(1, dataStrLen);
-  if (buf == NULL) return -1;
+  if (buf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
   pRetrieve->useconds = 0;
@@ -31,7 +33,8 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t
   actualLen += sizeof(SRetrieveTableRsp);
   taosArrayPush(pRsp->blockDataLen, &actualLen);
   taosArrayPush(pRsp->blockData, &buf);
-  return 0;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, STaosxRsp* pRsp) {
@@ -62,8 +65,12 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, in
 }
 
 int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset) {
-  const STqExecHandle* pExec = &pHandle->execHandle;
+  const int32_t MAX_ROWS_TO_RETURN = 4096;
+  int32_t       vgId = TD_VID(pTq->pVnode);
+  int32_t       code = 0;
+  int32_t       totalRows = 0;
 
+  const STqExecHandle* pExec = &pHandle->execHandle;
   qTaskInfo_t task = pExec->task;
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
@@ -71,28 +78,34 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     return -1;
   }
 
-  int32_t rowCnt = 0;
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
 
-    tqDebug("consumer:0x%"PRIx64" vgId:%d, tmq task start execute", pHandle->consumerId, pTq->pVnode->config.vgId);
+    tqDebug("consumer:0x%"PRIx64" vgId:%d, tmq task start execute", pHandle->consumerId, vgId);
     if (qExecTask(task, &pDataBlock, &ts) < 0) {
-      tqError("consumer:0x%"PRIx64" vgId:%d, task exec error since %s", pHandle->consumerId, pTq->pVnode->config.vgId, terrstr());
+      tqError("consumer:0x%"PRIx64" vgId:%d, task exec error since %s", pHandle->consumerId, vgId, terrstr());
       return -1;
     }
 
-    tqDebug("consumer:0x%"PRIx64" vgId:%d, tmq task end execute, get block:%p", pHandle->consumerId, pTq->pVnode->config.vgId, pDataBlock);
+    tqDebug("consumer:0x%"PRIx64" vgId:%d tmq task executed, rows:%d, total blocks:%d", pHandle->consumerId, vgId,
+            pDataBlock->info.rows, pRsp->blockNum);
 
     // current scan should be stopped asap, since the rebalance occurs.
+
     if (pDataBlock == NULL) {
       break;
     }
 
-    tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols, pTq->pVnode->config.tsdbCfg.precision);
+    code = tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols, pTq->pVnode->config.tsdbCfg.precision);
+    if (code != TSDB_CODE_SUCCESS) {
+      tqError("vgId:%d, failed to add block to rsp msg", vgId);
+      return code;
+    }
+
     pRsp->blockNum++;
-    rowCnt += pDataBlock->info.rows;
-    if (rowCnt >= 4096) {
+    totalRows += pDataBlock->info.rows;
+    if (totalRows >= MAX_ROWS_TO_RETURN) {
       break;
     }
   }

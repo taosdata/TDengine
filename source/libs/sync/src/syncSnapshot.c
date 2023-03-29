@@ -798,7 +798,6 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
   if (pMsg->term > raftStoreGetTerm(pSyncNode)) {
     syncNodeStepDown(pSyncNode, pMsg->term);
   }
-  syncNodeResetElectTimer(pSyncNode);
 
   // state, term, seq/ack
   int32_t code = 0;
@@ -840,6 +839,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     code = -1;
   }
 
+  syncNodeResetElectTimer(pSyncNode);
   return code;
 }
 
