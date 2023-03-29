@@ -6,7 +6,8 @@ use std::{
 };
 
 use itertools::Itertools;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder, IntoDsn};
+// use serde_with::__private__::duplicate_key_impls::PreventDuplicateInsertsMap;
+use taos::{AsyncTBuilder, Dsn, TaosBuilder, IntoDsn, AsyncFetchable, taos_query::helpers::ColumnMeta};
 use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
@@ -45,6 +46,8 @@ enum OpcError {
     UserPassRequired(Dsn),
     #[error("config file not found in {0}")]
     FileNotFound(String),
+    #[error("table cloumn not match in {0}")]
+    CloumnNotMatch(String),
     #[error("config file not found in {0}")]
     EmptyConfig(String),
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
@@ -371,7 +374,7 @@ fn process_table_info(
 
 #[instrument(skip(port_pool))]
 pub async fn opc_to_taos(
-    mut from: Dsn,
+    from: Dsn,
     actions: Vec<Action>,
     to: Dsn,
     jobs: usize,
@@ -388,14 +391,67 @@ pub async fn opc_to_taos(
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
 
     let config = OPCConfig::new(from, ipc_port)?;
+    let mut ts_cloumn_name_map = HashMap::new();
     for (table_name, field_info) in &config.table_info {
-        let mut sql = format!("CREATE TABLE IF NOT EXISTS {table_name} (`ts` TIMESTAMP");
-        for (field, field_type) in field_info {
-            sql.push_str(format!(", `{field}` {field_type}").as_str());
+        let res = taos.describe(&table_name).await;
+        // let res = taos.query(&sql).await;
+        if res.is_err() {
+            // table not exists, will create normal table
+            let mut sql = format!("CREATE TABLE IF NOT EXISTS {table_name} (`ts` TIMESTAMP");
+            ts_cloumn_name_map.insert(table_name.clone(), String::from("ts"));
+            for (field, field_type) in field_info {
+                sql.push_str(format!(", `{field}` {field_type}").as_str());
+            }
+            sql.push_str(")");
+            log::info!("create normal table: {table_name}, sql: {sql}");
+            taos.exec(&sql).await?;
+        } else {
+            // table exists and check normal table or child table
+            let desc = res.unwrap();
+            let mut field_map = HashMap::new();
+                desc.iter().for_each(|c| {
+                    match c {
+                        ColumnMeta::Column(d) => {
+                            field_map.insert(d.field.clone(), d.ty.to_string().to_ascii_lowercase());
+                        },
+                        _ => (),
+                    }
+                });
+            // insert ts column
+            ts_cloumn_name_map.insert(table_name.clone(), desc[0].field.clone());
+            if desc.is_stable() {
+                // child table.
+                for (field, field_type) in field_info {
+                    let field_get = field_map.get(field);
+                    if field_get.is_none() {
+                        anyhow::bail!("field: {} not found in table: {}", field, table_name);
+                    }
+                    if field_get.unwrap().to_ascii_lowercase() != field_type.to_ascii_lowercase() {
+                        anyhow::bail!("field: {} not type: {} not match in table: {}", field, field_type,table_name);
+                    }
+                }
+            } else {
+                // ordinary table.
+                let mut columns_to_add = HashMap::new();
+                for (field, field_type) in field_info {
+                    let field_get = field_map.get(field); 
+                    if field_get.is_none() {
+                        // column not exists alter table
+                        columns_to_add.insert(field, field_type);
+                    } else if field_get.unwrap().to_ascii_lowercase() != field_type.to_ascii_lowercase() {
+                        anyhow::bail!("field: {} not type: {} not match in table: {}", field, field_type,table_name);
+                    }
+                }
+                if columns_to_add.len() > 0 {
+                    for (field_name, field_type) in columns_to_add {
+                        let alter_sql = format!("ALTER TABLE {table_name} ADD COLUMN {field_name}, {field_type}");
+                        log::info!("alter table sql: {}", alter_sql);
+                        taos.exec(alter_sql).await?;
+                    }
+                }
+            }
         }
-        sql.push_str(")");
-        log::info!("create table: {table_name}, sql: {sql}");
-        taos.exec(&sql).await?;
+        
     }
 
     let toml = toml::to_string(&config)?;
@@ -410,7 +466,11 @@ pub async fn opc_to_taos(
         sink::listen_tcp_socket(
             target_pool_for_ipc,
             config.report.remote,
-            Some(config.param_mapping.clone()),
+            Some(OpcTableConfig {
+                    table_info: config.param_mapping.clone(),
+                    ts_cloumn_name: ts_cloumn_name_map.clone(),
+                }
+                ),
         )
     });
     // TODO use unix socket on unix-like os
@@ -467,6 +527,15 @@ pub async fn opc_to_taos(
     temp_path.close()?;
     log::info!("OPC to taos task done");
     Ok(())
+}
+
+#[derive(Clone)]
+pub struct OpcTableConfig {
+    /// table_info: table_name, Vec<(field, type)>
+    pub(crate) table_info: HashMap<String, (String, String, IpcDataType)>,
+
+    /// table_name, ts column
+    pub(crate) ts_cloumn_name: HashMap<String, String>,
 }
 
 #[tokio::test]
