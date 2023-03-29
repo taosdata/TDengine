@@ -419,8 +419,8 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
 
 _exit:
   if (code) {
-    smaError("vgId:%d, %s failed at line %d since %s, smaIndex:%PRIi64", SMA_VID(pSma), __func__, lino, tstrerror(code),
-             indexUid);
+    smaError("vgId:%d, %s failed at line %d since %s, smaIndex:%" PRIi64, SMA_VID(pSma), __func__, lino,
+             tstrerror(code), indexUid);
   }
   return code;
 }

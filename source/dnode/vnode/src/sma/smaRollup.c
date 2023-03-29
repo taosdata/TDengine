@@ -1213,33 +1213,35 @@ _exit:
  * N.B. the data would be restored from the unified WAL replay procedure
  */
 int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer, int8_t rollback) {
+  int32_t code = 0;
+  int64_t nTables = 0;
+
   // step 1: init env
   if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_ROLLUP) != TSDB_CODE_SUCCESS) {
-    terrno = TSDB_CODE_TDB_INIT_FAILED;
-    return TSDB_CODE_FAILED;
+    code = TSDB_CODE_TDB_INIT_FAILED;
+    goto _err;
   }
 
   // step 2: open SRSmaFS for qTaskFiles
-  if (tdRSmaFSOpen(pSma, qtaskFileVer, rollback) < 0) {
+  if ((code = tdRSmaFSOpen(pSma, qtaskFileVer, rollback)) < 0) {
     goto _err;
   }
 
   // step 3: iterate all stables to restore the rsma env
-  int64_t nTables = 0;
-  if (tdRSmaRestoreQTaskInfoInit(pSma, &nTables) < 0) {
+  if ((code = tdRSmaRestoreQTaskInfoInit(pSma, &nTables)) < 0) {
     goto _err;
   }
-  if (nTables <= 0) {
-    smaDebug("vgId:%d, no need to restore rsma task %" PRIi8 " since no tables", SMA_VID(pSma), type);
-    return TSDB_CODE_SUCCESS;
+
+_err:
+  if (code) {
+    smaError("vgId:%d, restore rsma task %" PRIi8 "from qtaskf %" PRIi64 " failed since %s", SMA_VID(pSma), type,
+             qtaskFileVer, tstrerror(code));
+  } else {
+    smaInfo("vgId:%d, restore rsma task %" PRIi8 " from qtaskf %" PRIi64 " succeed, nTables:%" PRIi64, SMA_VID(pSma),
+            type, qtaskFileVer, nTables);
   }
 
-  smaInfo("vgId:%d, restore rsma task %" PRIi8 " from qtaskf %" PRIi64 " succeed", SMA_VID(pSma), type, qtaskFileVer);
-  return TSDB_CODE_SUCCESS;
-_err:
-  smaError("vgId:%d, restore rsma task %" PRIi8 "from qtaskf %" PRIi64 " failed since %s", SMA_VID(pSma), type,
-           qtaskFileVer, terrstr());
-  return TSDB_CODE_FAILED;
+  return code;
 }
 
 int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {

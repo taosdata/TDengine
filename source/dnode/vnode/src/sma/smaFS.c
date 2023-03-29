@@ -99,8 +99,9 @@ _exit:
 }
 
 static int32_t tdRSmaSaveFSToFile(SRSmaFS *pFS, const char *fname) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  TdFilePtr pFD = NULL;
 
   // encode to binary
   int32_t  size = tdRSmaFSToBinary(NULL, pFS) + sizeof(TSCKSUM);
@@ -113,8 +114,8 @@ static int32_t tdRSmaSaveFSToFile(SRSmaFS *pFS, const char *fname) {
   taosCalcChecksumAppend(0, pData, size);
 
   // save to file
-  TdFilePtr pFD = taosCreateFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
-  if (pFD == NULL) {
+  pFD = taosCreateFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  if (!pFD) {
     code = TAOS_SYSTEM_ERROR(errno);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -122,19 +123,16 @@ static int32_t tdRSmaSaveFSToFile(SRSmaFS *pFS, const char *fname) {
   int64_t n = taosWriteFile(pFD, pData, size);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
-    taosCloseFile(&pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (taosFsyncFile(pFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
-    taosCloseFile(&pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  taosCloseFile(&pFD);
-
 _exit:
+  taosCloseFile(&pFD);
   if (pData) taosMemoryFree(pData);
   if (code) {
     smaError("%s failed at line %d since %s, fname:%s", __func__, lino, tstrerror(code), fname);
@@ -193,36 +191,31 @@ static int32_t tdRSmaLoadFSFromFile(const char *fname, SRSmaFS *pFS) {
   int64_t size;
   if (taosFStatFile(pFD, &size, NULL) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
-    taosCloseFile(&pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   pData = taosMemoryMalloc(size);
   if (pData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    taosCloseFile(&pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (taosReadFile(pFD, pData, size) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
-    taosCloseFile(&pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (!taosCheckChecksumWhole(pData, size)) {
     code = TSDB_CODE_FILE_CORRUPTED;
-    taosCloseFile(&pFD);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-
-  taosCloseFile(&pFD);
 
   // decode binary
   code = tsdbBinaryToFS(pData, size, pFS);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
+  taosCloseFile(&pFD);
   if (pData) taosMemoryFree(pData);
   if (code) {
     smaError("%s failed at line %d since %s, fname:%s", __func__, lino, tstrerror(code), fname);
