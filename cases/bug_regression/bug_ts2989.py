@@ -13,18 +13,15 @@
 
 from taostest import TDCase, T
 from taostest.util.common import TDCom
-from taostest.util.rest import TDRest
-
 class TestTs2989(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest(env_setting=self.env_setting)
 
     def run(self):
         self.tdCom.createDb("test_ts2989")
-        self.tdRest.request('create stable test_ts2989.a (ts timestamp, i int) tags (t1 int);')
-        self.tdRest.request('insert into test_ts2989.a2 using test_ts2989.a tags(12) (ts,i ) values(now,11));')
-        self.tdSql.checkEqual(self.tdRest.resp, {'code': 534, 'desc': "syntax error near ');' (table_name is expected)"})
+        self.tdSql.execute('create stable test_ts2989.a (ts timestamp, i int) tags (t1 int);')
+        self.tdSql.error('insert into test_ts2989.a2 using test_ts2989.a tags(12) (ts,i ) values(now,11));')
+        self.tdSql.checkIn("insert data into super table is not supported", str(self.tdSql.error_msg))
 
     def cleanup(self):
         pass

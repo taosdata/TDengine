@@ -42,7 +42,7 @@ class TestTs2920(TDCase):
                 time.sleep(self.query_interval)
                 self.tdSql.query(f'select count(*) from test_ts2920.nginx_avg_output')
             else:
-                return False
+                pass
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.rows_count*2-2)
 
     def cleanup(self):
