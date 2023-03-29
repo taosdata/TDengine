@@ -1347,15 +1347,9 @@ void taosCleanupCfg() {
   }
 }
 
-extern int32_t scanDebug;
 void taosCfgDynamicOptions(const char *option, const char *value) {
   if (strncasecmp(option, "debugFlag", 9) == 0) {
     int32_t flag = atoi(value);
-    if (1 == flag) {
-      scanDebug = 1;
-    } else {
-      scanDebug = 0;
-    }
     taosSetAllDebugFlag(flag, true);
     return;
   }
