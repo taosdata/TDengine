@@ -9,6 +9,7 @@ options:
     display: Server
     description: PI server name (hostname).
     placeholder: server
+    required: true
   subject:
     required: true
     display: AFDatabaseName
@@ -46,8 +47,8 @@ groups:
     description: |
       Default 1.
     placeholder: 1
-  - name: PIDataPipesInstances
-    display: PI Data Pipes Instances
+  - name: AFDataPipesInstances
+    display: AF Data Pipes Instances
     hint: integer
     description: |
       Default 1.
