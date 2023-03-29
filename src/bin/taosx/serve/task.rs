@@ -30,9 +30,9 @@ use crate::serve::{NewTask, TaskController, TaskDecorator, TaskDetail, TaskFilte
 pub(super) struct Failed {
     /// Error code
     #[schema(example = 0, value_type = i32)]
-    code: Code,
+    pub code: Code,
     /// Error reason
-    message: String,
+    pub message: String,
 }
 
 /// List tasks in current.

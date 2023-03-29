@@ -19,7 +19,7 @@ use tracing::instrument;
 use crate::{
     plugins::sink,
     utils::{port_pool::PortPool, stop_thread},
-    Action,
+    Action, DataSet,
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -448,6 +448,58 @@ pub async fn opc_to_taos(
     temp_path.close()?;
     log::info!("OPC to taos task done");
     Ok(())
+}
+
+pub async fn ops_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
+    let config = OPCConfig::new(from.clone(), 0)?;
+    let toml = toml::to_string(&config)?;
+    let mut config_file = tempfile::NamedTempFile::new()?;
+    write!(config_file, "{}", &toml)?;
+    let config_path = config_file.path().to_path_buf();
+    let temp_path = config_file.into_temp_path();
+
+    log::info!("Using opc config file {} \n{}", config_path.display(), toml);
+
+    // TODO use unix socket on unix-like os
+    // let ipc = if cfg!(target_os = "windows") {
+    //     std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, socket))
+    // } else {
+    //     std::thread::spawn(move || sink::listen_unix_socket(target_pool_for_ipc, socket))
+    // };
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    let mut command =
+        std::process::Command::new("C:\\TDengine\\xplugins\\opc-collector_windows_amd64.exe");
+    #[cfg(all(target_os = "windows", target_arch = "x86"))]
+    let mut command =
+        std::process::Command::new("C:\\TDengine\\xplugins\\opc-collector_windows_386.exe");
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    let mut command =
+        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_amd64");
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    let mut command =
+        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_arm64");
+    #[cfg(all(target_os = "linux", target_arch = "arm"))]
+    let mut command =
+        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_arm");
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    let mut command =
+        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_darwin_amd64");
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    let mut command =
+        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_darwin_arm64");
+    let output = command
+        .arg("points")
+        .arg(format!("--conf={}", &config_path.display()))
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()?;
+    // dbg!(output);
+    log::info!("OPC exit with status {}", output.status);
+
+    // let json = String::from_utf8_lossy(&output.stdout);
+    let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
+    temp_path.close()?;
+    Ok(res)
 }
 
 #[tokio::test]
