@@ -130,8 +130,35 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   int32_t numOfTopics = taosHashGetSize(pUser->topics);
   int32_t size = sizeof(SUserObj) + USER_RESERVE_SIZE + 
                 (numOfReadDbs + numOfWriteDbs ) * TSDB_DB_FNAME_LEN +
-                (numOfReadStbs + numOfWriteStbs) * TSDB_TABLE_FNAME_LEN + 
                  numOfTopics * TSDB_TOPIC_FNAME_LEN;
+
+  char *stb = taosHashIterate(pUser->readStbs, NULL);
+  while (stb != NULL) {
+    size_t keyLen = 0;
+    void  *key = taosHashGetKey(stb, &keyLen);
+    size += sizeof(int32_t);
+    size += keyLen;
+
+    size_t valueLen = 0;
+    valueLen = strlen(stb);
+    size += sizeof(int32_t);
+    size += valueLen;
+    stb = taosHashIterate(pUser->readStbs, stb);
+  }
+
+  stb = taosHashIterate(pUser->writeStbs, NULL);
+  while (stb != NULL) {
+    size_t keyLen = 0;
+    void  *key = taosHashGetKey(stb, &keyLen);
+    size += sizeof(int32_t);
+    size += keyLen;
+    
+    size_t valueLen = 0;
+    valueLen = strlen(stb);
+    size += sizeof(int32_t);
+    size += keyLen;
+    stb = taosHashIterate(pUser->writeStbs, stb);
+  }
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, USER_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
@@ -171,15 +198,31 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     topic = taosHashIterate(pUser->topics, topic);
   }
 
-  char *stb = taosHashIterate(pUser->readStbs, NULL);
+  stb = taosHashIterate(pUser->readStbs, NULL);
   while (stb != NULL) {
-    SDB_SET_BINARY(pRaw, dataPos, stb, TSDB_TABLE_FNAME_LEN, _OVER);
+    size_t keyLen = 0;
+    void  *key = taosHashGetKey(stb, &keyLen);
+    SDB_SET_INT32(pRaw, dataPos, keyLen, _OVER)
+    SDB_SET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
+
+    size_t valueLen = 0;
+    valueLen = strlen(stb);
+    SDB_SET_INT32(pRaw, dataPos, valueLen, _OVER)
+    SDB_SET_BINARY(pRaw, dataPos, stb, valueLen, _OVER);
     stb = taosHashIterate(pUser->readStbs, stb);
   }
 
   stb = taosHashIterate(pUser->writeStbs, NULL);
   while (stb != NULL) {
-    SDB_SET_BINARY(pRaw, dataPos, stb, TSDB_TABLE_FNAME_LEN, _OVER);
+    size_t keyLen = 0;
+    void  *key = taosHashGetKey(stb, &keyLen);
+    SDB_SET_INT32(pRaw, dataPos, keyLen, _OVER)
+    SDB_SET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
+    
+    size_t valueLen = 0;
+    valueLen = strlen(stb);
+    SDB_SET_INT32(pRaw, dataPos, valueLen, _OVER)
+    SDB_SET_BINARY(pRaw, dataPos, stb, valueLen, _OVER);
     stb = taosHashIterate(pUser->writeStbs, stb);
   }
 
@@ -279,17 +322,39 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
   if(sver >= 3){
     for (int32_t i = 0; i < numOfReadStbs; ++i) {
-      char stb[TSDB_TABLE_FNAME_LEN] = {0};
-      SDB_GET_BINARY(pRaw, dataPos, stb, TSDB_TABLE_FNAME_LEN, _OVER)
-      int32_t len = strlen(stb) + 1;
-      taosHashPut(pUser->readStbs, stb, len, stb, TSDB_DB_FNAME_LEN);
+      int32_t keyLen = 0;
+      SDB_GET_INT32(pRaw, dataPos, &keyLen, _OVER);
+
+      char *key = taosMemoryCalloc(keyLen + 1, sizeof(char));
+      SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
+
+      int32_t valuelen = 0;
+      SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
+      char *value = taosMemoryCalloc(valuelen + 1, sizeof(char));
+      SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
+
+      taosHashPut(pUser->readStbs, key, keyLen, value, valuelen);
+
+      taosMemoryFree(key);
+      taosMemoryFree(value);
     }
 
     for (int32_t i = 0; i < numOfWriteStbs; ++i) {
-      char stb[TSDB_TABLE_FNAME_LEN] = {0};
-      SDB_GET_BINARY(pRaw, dataPos, stb, TSDB_TABLE_FNAME_LEN, _OVER)
-      int32_t len = strlen(stb) + 1;
-      taosHashPut(pUser->writeStbs, stb, len, stb, TSDB_TABLE_FNAME_LEN);
+      int32_t keyLen = 0;
+      SDB_GET_INT32(pRaw, dataPos, &keyLen, _OVER);
+
+      char *key = taosMemoryCalloc(keyLen + 1, sizeof(char));
+      SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
+
+      int32_t valuelen = 0;
+      SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
+      char *value = taosMemoryCalloc(valuelen + 1, sizeof(char));
+      SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
+
+      taosHashPut(pUser->writeStbs, key, keyLen, value, valuelen);
+
+      taosMemoryFree(key);
+      taosMemoryFree(value);
     }
   }
 
@@ -755,6 +820,48 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     taosHashPut(newUser.topics, pTopic->name, len, pTopic->name, TSDB_TOPIC_FNAME_LEN);
   }
 
+  if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_TAG) {
+    char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+    snprintf(tbFName, sizeof(tbFName), "%s.%s", alterReq.objname, alterReq.tabName);
+
+    int32_t len = strlen(tbFName) + 1;
+    SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
+    if (pStb == NULL) {
+      mndReleaseStb(pMnode, pStb);
+      goto _OVER;
+    }
+    if(alterReq.tagCond == NULL){
+      mndReleaseStb(pMnode, pStb);
+      goto _OVER;
+    }
+    int32_t condLen = strlen(alterReq.tagCond);
+    if (taosHashPut(newUser.readStbs, tbFName, len, alterReq.tagCond, strlen(alterReq.tagCond)) != 0) {
+      mndReleaseStb(pMnode, pStb);
+      goto _OVER;
+    }
+  }
+
+  if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_TAG) {
+    char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+    snprintf(tbFName, sizeof(tbFName), "%s.%s", alterReq.objname, alterReq.tabName);
+
+    int32_t len = strlen(tbFName) + 1;
+    SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
+    if (pStb == NULL) {
+      mndReleaseStb(pMnode, pStb);
+      goto _OVER;
+    }
+    if(alterReq.tagCond == NULL){
+      mndReleaseStb(pMnode, pStb);
+      goto _OVER;
+    }
+    int32_t condLen = strlen(alterReq.tagCond);
+    if (taosHashPut(newUser.writeStbs, tbFName, len, alterReq.tagCond, condLen) != 0) {
+      mndReleaseStb(pMnode, pStb);
+      goto _OVER;
+    }
+  }
+
   if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC) {
     int32_t      len = strlen(alterReq.objname) + 1;
     SMqTopicObj *pTopic = mndAcquireTopic(pMnode, alterReq.objname);
@@ -1037,12 +1144,32 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       STR_WITH_MAXSIZE_TO_VARSTR(privilege, "read", pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)privilege, false);
+      
+      size_t superTableLen = 0;
+      void  *superTable = taosHashGetKey(stb, &superTableLen);
+      char  objName[TSDB_TABLE_NAME_LEN] = {0};
+      mndExtractTbNameFromStbFullName(superTable, objName, TSDB_TABLE_NAME_LEN);
 
-      char  objName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      mndExtractTbNameFromStbFullName(stb, &objName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
-      varDataSetLen(objName, strlen(&objName[VARSTR_HEADER_SIZE]));
+      SNode  *pAst = NULL;
+      int32_t code = nodesStringToNode(stb, &pAst);
+
+      char *buf = taosMemoryCalloc(TSDB_EXPLAIN_RESULT_ROW_SIZE, sizeof(char));
+      int32_t sqlLen = 0;
+      nodesNodeToSQL(pAst, buf, TSDB_EXPLAIN_RESULT_ROW_SIZE * sizeof(char), &sqlLen);
+
+      char *value = taosMemoryCalloc(sqlLen + TSDB_TABLE_NAME_LEN + 1, sizeof(char));
+
+      sprintf(value, "%s(%s)", objName, buf);
+
+      char *obj = taosMemoryCalloc(sqlLen + TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE + 1, sizeof(char));
+      STR_WITH_MAXSIZE_TO_VARSTR(obj, value, pShow->pMeta->pSchemas[cols].bytes);
+
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)objName, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)obj, false);
+
+      taosMemoryFree(value);
+      taosMemoryFree(buf);
+      taosMemoryFree(obj);
 
       numOfRows++;
       stb = taosHashIterate(pUser->readStbs, stb);
@@ -1061,11 +1188,31 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)privilege, false);
 
+      size_t superTableLen = 0;
+      void  *superTable = taosHashGetKey(stb, &superTableLen);
       char  objName[TSDB_TABLE_NAME_LEN] = {0};
-      mndExtractTbNameFromStbFullName(stb, &objName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
-      varDataSetLen(objName, strlen(&objName[VARSTR_HEADER_SIZE]));
+      mndExtractTbNameFromStbFullName(superTable, objName, TSDB_TABLE_NAME_LEN);
+
+      SNode  *pAst = NULL;
+      int32_t code = nodesStringToNode(stb, &pAst);
+
+      char *buf = taosMemoryCalloc(TSDB_EXPLAIN_RESULT_ROW_SIZE, sizeof(char));
+      int32_t sqlLen = 0;
+      nodesNodeToSQL(pAst, buf, TSDB_EXPLAIN_RESULT_ROW_SIZE * sizeof(char), &sqlLen);
+
+      char *value = taosMemoryCalloc(sqlLen + TSDB_TABLE_NAME_LEN + 1, sizeof(char));
+
+      sprintf(value, "%s(%s)", objName, buf);
+
+      char *obj = taosMemoryCalloc(sqlLen + TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE + 1, sizeof(char));
+      STR_WITH_MAXSIZE_TO_VARSTR(obj, value, pShow->pMeta->pSchemas[cols].bytes);
+
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)objName, false);
+      colDataSetVal(pColInfo, numOfRows, (const char *)obj, false);
+
+      taosMemoryFree(value);
+      taosMemoryFree(buf);
+      taosMemoryFree(obj);
 
       numOfRows++;
       stb = taosHashIterate(pUser->writeStbs, stb);
