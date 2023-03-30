@@ -680,58 +680,28 @@ static int32_t mndTagPriviledge(SMnode *pMnode, SHashObj *hash, SAlterUserReq *a
 
 static int32_t mndTablePriviledge(SMnode *pMnode, SHashObj *hash, SAlterUserReq *alterReq, SSdb *pSdb){
   void         *pIter = NULL;
+  char          tbFName[TSDB_TABLE_FNAME_LEN] = {0};
 
-  if (strcmp(alterReq->tabName, "1.*") != 0) {
-    char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
-    snprintf(tbFName, sizeof(tbFName), "%s.%s", alterReq->objname, alterReq->tabName);
-    int32_t len = strlen(tbFName) + 1;
+  snprintf(tbFName, sizeof(tbFName), "%s.%s", alterReq->objname, alterReq->tabName);
+  int32_t len = strlen(tbFName) + 1;
 
-    if (taosHashPut(hash, tbFName, len, tbFName, len) != 0) {
-      return -1;
-    }
-  } else {
-    while (1) {
-      SStbObj *pStb = NULL;
-      pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
-      if (pIter == NULL) break;
-      int32_t len = strlen(pStb->name) + 1;
-      taosHashPut(hash, pStb->name, len, pStb->name, len);
-      sdbRelease(pSdb, pStb);
-    }
+  if (taosHashPut(hash, tbFName, len, tbFName, len) != 0) {
+    return -1;
   }
+
   return 0;
 }
 
 static int32_t mndRemoveTablePriviledge(SMnode *pMnode, SHashObj *hash, SAlterUserReq *alterReq, SSdb *pSdb){
   void         *pIter = NULL;
-  if (strcmp(alterReq->objname, "1.*") != 0) {
-    char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
-    snprintf(tbFName, sizeof(tbFName), "%s.%s", alterReq->objname, alterReq->tabName);
-    int32_t len = strlen(tbFName) + 1;
+  char          tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+  snprintf(tbFName, sizeof(tbFName), "%s.%s", alterReq->objname, alterReq->tabName);
+  int32_t len = strlen(tbFName) + 1;
 
-    if (taosHashRemove(hash, tbFName, len) != 0) {
-      return -1;
-    }
-  } else {
-    while (1) {
-      SStbObj *pStb = NULL;
-      pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
-      if (pIter == NULL) break;
-      int32_t len = strlen(pStb->name) + 1;
+  if (taosHashRemove(hash, tbFName, len) != 0) {
+    return -1;
+  }
 
-      if(strcmp(pStb->db, alterReq->objname) == 0){
-        if (taosHashRemove(hash, pStb->name, len) != 0) {
-          mndReleaseStb(pMnode, pStb);
-          return -1;
-        }
-      }
-
-      //taosHashPut(newUser.writeStbs, pStb->name, len, pStb->name, TSDB_DB_FNAME_LEN);
-      //sdbRelease(pSdb, pStb);
-    }
-
-    //taosHashClear(newUser.readStbs);
-  }  
   return 0;
 }
 
@@ -874,23 +844,21 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     }
   }
 
-  if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_TABLE || alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_TABLE) {
+  if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_TABLE) {
     if(mndTablePriviledge(pMnode, newUser.readTbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
-  if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_TABLE || alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_TABLE) {
+  if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_TABLE) {
     if(mndTablePriviledge(pMnode, newUser.writeTbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_TABLE || 
-      alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_TAG || 
-      alterReq.alterType == TSDB_ALTER_USER_REMOVE_ALL_TABLE) {
+      alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_TAG) {
     if(mndRemoveTablePriviledge(pMnode, newUser.readTbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_TABLE ||
-      alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_TAG ||
-      alterReq.alterType == TSDB_ALTER_USER_REMOVE_ALL_TABLE) {
+      alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_TAG ) {
     if(mndRemoveTablePriviledge(pMnode, newUser.writeTbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
