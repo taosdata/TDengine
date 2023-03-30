@@ -87,7 +87,10 @@ pub fn spawn_rest_service(pool: TaosPool, port: u16) -> anyhow::Result<()> {
     async fn sql(rest: web::Data<RestBuilder>, sql: String) -> HttpResponse {
         match rest.query(&sql).await {
             Ok(ok) => HttpResponse::Ok().json(ok),
-            Err(err) => HttpResponse::InternalServerError().json(err),
+            Err(err) => {
+                log::info!("query sql error code :{}, message:{} ", err.code.to_string(), err.desc);
+                HttpResponse::InternalServerError().json(err)
+            },
         }
     }
     #[get("/ping")]

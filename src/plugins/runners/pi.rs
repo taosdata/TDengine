@@ -1,19 +1,13 @@
 use std::{
-    collections::HashMap,
     io::prelude::*,
     num::ParseIntError,
     path::{Path, PathBuf},
-    str::FromStr,
-    sync::Arc,
-    thread::JoinHandle,
     time::Duration,
 };
 
-use anyhow::bail;
 use anyhow::Context;
 use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
-use taosx_ipc::prelude::IpcDataType;
 
 use crate::{
     plugins::{service::spawn_rest_service, sink},
@@ -51,6 +45,8 @@ struct PiConfig {
     ipc_stream: String,
     #[serde(rename = "SQLAPI")]
     sql_api: String,
+    #[serde(rename = "TDDataBase")]
+    td_database: String,
     // data set
     #[serde(rename = "TemplateForPIPoint")]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -74,7 +70,7 @@ pub enum PiError {
 }
 
 impl PiConfig {
-    pub fn new(mut dsn: Dsn, ipc: u16, sql: u16) -> Result<Self, PiError> {
+    pub fn new(mut dsn: Dsn, td_database: String, ipc: u16, sql: u16) -> Result<Self, PiError> {
         debug_assert!(dsn.driver == "pi");
         let server_name = dsn
             .addresses
@@ -88,7 +84,6 @@ impl PiConfig {
             .subject
             .clone()
             .ok_or_else(|| PiError::DatabaseIsRequired(dsn.clone()))?;
-
         macro_rules! parse_int_at {
             ($n:expr) => {
                 dsn.remove($n)
@@ -138,6 +133,7 @@ impl PiConfig {
             max_backfill_range_days,
             ipc_stream,
             sql_api,
+            td_database,
             template_for_pi_point,
             template_for_af_element,
             points,
@@ -158,10 +154,10 @@ pub async fn pi_to_taos(
     {
         anyhow::bail!("PI connector support only windows platform");
     }
-
+    let td_database = to.subject.clone();
     let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(to)?.pool()?;
 
-    let taos = target_pool.get().await?;
+    // let taos = target_pool.get().await?;
 
     let target_pool_for_ipc = target_pool.clone();
 
@@ -172,7 +168,7 @@ pub async fn pi_to_taos(
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
 
-    let config = PiConfig::new(from, ipc, sql)?;
+    let config = PiConfig::new(from, td_database.unwrap(), ipc, sql)?;
 
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
