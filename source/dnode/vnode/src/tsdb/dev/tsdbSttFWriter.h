@@ -33,11 +33,11 @@ int32_t tsdbSttFWriteDLData(struct SSttFWriter *pWriter, TABLEID *tbid, SDelData
 struct SSttFWriterConf {
   STsdb        *pTsdb;
   struct STFile file;
-  SSkmInfo     *pSkmTb;
-  SSkmInfo     *pSkmRow;
   int32_t       maxRow;
   int32_t       szPage;
   int8_t        cmprAlg;
+  SSkmInfo     *pSkmTb;
+  SSkmInfo     *pSkmRow;
   uint8_t     **aBuf;
 };
 

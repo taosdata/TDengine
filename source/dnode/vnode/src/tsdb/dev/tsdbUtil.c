@@ -15,6 +15,7 @@
 
 #include "dev.h"
 
+// SDelBlock ----------
 int32_t tDelBlockCreate(SDelBlock *pDelBlock, int32_t capacity) {
   int32_t code;
 
@@ -53,6 +54,33 @@ int32_t tDelBlockAppend(SDelBlock *pDelBlock, const TABLEID *tbid, const SDelDat
   return 0;
 }
 
+// STbStatisBlock ----------
+
+int32_t tTbStatisBlockCreate(STbStatisBlock *pTbStatisBlock, int32_t capacity) {
+  memset(pTbStatisBlock, 0, sizeof(*pTbStatisBlock));
+  pTbStatisBlock->capacity = capacity;
+  for (int32_t i = 0; i < ARRAY_SIZE(pTbStatisBlock->aData); ++i) {
+    if (tRealloc((uint8_t **)&pTbStatisBlock->aData[i], sizeof(int64_t) * capacity)) {
+      for (i--; i >= 0; --i) tFree(pTbStatisBlock->aData[i]);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return 0;
+}
+
+int32_t tTbStatisBlockDestroy(STbStatisBlock *pTbStatisBlock) {
+  for (int32_t i = 0; i < ARRAY_SIZE(pTbStatisBlock->aData); ++i) {
+    tFree(pTbStatisBlock->aData[i]);
+  }
+  return 0;
+}
+
+int32_t tTbStatisBlockClear(STbStatisBlock *pTbStatisBlock) {
+  pTbStatisBlock->nRow = 0;
+  return 0;
+}
+
+// other apis ----------
 int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb) {
   if (tbid->suid) {
     if (pSkmTb->suid == tbid->suid) {

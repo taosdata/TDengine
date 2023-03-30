@@ -21,12 +21,14 @@ extern int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, 
 extern int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size);
 extern int32_t tsdbFsyncFile(STsdbFD *pFD);
 
+typedef struct SFDataPtr {
+  int64_t offset;
+  int64_t size;
+} SFDataPtr;
+
 typedef struct {
-  struct {
-    int64_t offset;
-    int64_t size;
-  } dict[4];  // 0:bloom filter, 1:SSttBlk, 2:SDelBlk, 3:STbStatisBlk
-  uint8_t reserved[32];
+  SFDataPtr dict[4];  // 0:bloom filter, 1:SSttBlk, 2:SDelBlk, 3:STbStatisBlk
+  uint8_t   reserved[32];
 } SFSttFooter;
 
 struct SSttFWriter {
@@ -153,15 +155,38 @@ static int32_t create_stt_fwriter(const struct SSttFWriterConf *pConf, struct SS
     ppWriter[0]->config.aBuf = ppWriter[0]->aBuf;
   }
 
+  // time-series data block
   tBlockDataCreate(&ppWriter[0]->bData);
-  ppWriter[0]->aSttBlk = taosArrayInit(64, sizeof(SSttBlk));
-  if (ppWriter[0]->aSttBlk == NULL) {
+  if ((ppWriter[0]->aSttBlk = taosArrayInit(64, sizeof(SSttBlk))) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
+  // deleted data block
+  if ((code = tDelBlockCreate(&ppWriter[0]->dData, pConf->maxRow))) goto _exit;
+  if ((ppWriter[0]->aDelBlk = taosArrayInit(64, sizeof(SDelBlk))) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  // statistics data block
+  if ((code = tTbStatisBlockCreate(&ppWriter[0]->sData, pConf->maxRow))) goto _exit;
+  if ((ppWriter[0]->aStatisBlk = taosArrayInit(64, sizeof(STbStatisBlock))) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  // TODO: bloom filter
+
 _exit:
   if (code && ppWriter[0]) {
+    // statistics data block
+    taosArrayDestroy(ppWriter[0]->aStatisBlk);
+    tTbStatisBlockDestroy(&ppWriter[0]->sData);
+    // deleted data block
+    taosArrayDestroy(ppWriter[0]->aDelBlk);
+    tDelBlockDestroy(&ppWriter[0]->dData);
+    // time-series data block
     taosArrayDestroy(ppWriter[0]->aSttBlk);
     tBlockDataDestroy(&ppWriter[0]->bData);
     taosMemoryFree(ppWriter[0]);
@@ -172,9 +197,16 @@ _exit:
 
 static int32_t destroy_stt_fwriter(struct SSttFWriter *pWriter) {
   if (pWriter) {
-    tDestroyTSchema(pWriter->skmTb.pTSchema);
+    for (int32_t i = 0; ARRAY_SIZE(pWriter->aBuf); i++) tFree(pWriter->aBuf[i]);
     tDestroyTSchema(pWriter->skmRow.pTSchema);
-    for (int32_t i = 0; i < sizeof(pWriter->aBuf) / sizeof(pWriter->aBuf[0]); i++) taosMemoryFree(pWriter->aBuf[i]);
+    tDestroyTSchema(pWriter->skmTb.pTSchema);
+    // statistics data block
+    taosArrayDestroy(pWriter->aStatisBlk);
+    tTbStatisBlockDestroy(&pWriter->sData);
+    // deleted data block
+    taosArrayDestroy(pWriter->aDelBlk);
+    tDelBlockDestroy(&pWriter->dData);
+    // time-series data block
     taosArrayDestroy(pWriter->aSttBlk);
     tBlockDataDestroy(&pWriter->bData);
     taosMemoryFree(pWriter);
@@ -186,7 +218,7 @@ static int32_t open_stt_fwriter(struct SSttFWriter *pWriter) {
   int32_t code = 0;
   int32_t lino;
 
-  int32_t flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;  // TODO
+  int32_t flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
 
   code = tsdbOpenFile(pWriter->config.file.fname, pWriter->config.szPage, flag, &pWriter->pFd);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -217,10 +249,7 @@ int32_t tsdbSttFWriterOpen(const struct SSttFWriterConf *pConf, struct SSttFWrit
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pConf->pTsdb->pVnode), __func__, lino, tstrerror(code));
-    if (ppWriter[0]) {
-      taosMemoryFree(ppWriter[0]);
-      ppWriter[0] = NULL;
-    }
+    if (ppWriter[0]) destroy_stt_fwriter(ppWriter[0]);
   }
   return code;
 }

@@ -36,7 +36,7 @@ typedef struct {
   struct SSttFWriter *pWriter;
 } SCommitter;
 
-static int32_t tsdbCommitOpenWriter(SCommitter *pCommitter) {
+static int32_t open_committer_writer(SCommitter *pCommitter) {
   int32_t code;
   int32_t lino;
 
@@ -82,7 +82,7 @@ static int32_t tsdbCommitWriteTSData(SCommitter *pCommitter, TABLEID *tbid, TSDB
   int32_t lino;
 
   if (pCommitter->pWriter == NULL) {
-    code = tsdbCommitOpenWriter(pCommitter);
+    code = open_committer_writer(pCommitter);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

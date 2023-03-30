@@ -22,18 +22,24 @@
 extern "C" {
 #endif
 
-/* Exposed Handle */
-typedef struct SDelBlock      SDelBlock;
-typedef struct SDelBlk        SDelBlk;
-typedef struct STbStatisBlock STbStatisBlock;
-typedef struct STbStatisBlk   STbStatisBlk;
+// SDelBlock ----------
+typedef struct SDelBlock SDelBlock;
+typedef struct SDelBlk   SDelBlk;
 
-/* Exposed APIs */
 int32_t tDelBlockCreate(SDelBlock *pDelBlock, int32_t capacity);
 int32_t tDelBlockDestroy(SDelBlock *pDelBlock);
 int32_t tDelBlockClear(SDelBlock *pDelBlock);
 int32_t tDelBlockAppend(SDelBlock *pDelBlock, const TABLEID *tbid, const SDelData *pDelData);
 
+// STbStatisBlock ----------
+typedef struct STbStatisBlock STbStatisBlock;
+typedef struct STbStatisBlk   STbStatisBlk;
+
+int32_t tTbStatisBlockCreate(STbStatisBlock *pTbStatisBlock, int32_t capacity);
+int32_t tTbStatisBlockDestroy(STbStatisBlock *pTbStatisBlock);
+int32_t tTbStatisBlockClear(STbStatisBlock *pTbStatisBlock);
+
+// other apis
 int32_t tsdbUpdateSkmTb(STsdb *pTsdb, const TABLEID *tbid, SSkmInfo *pSkmTb);
 int32_t tsdbUpdateSkmRow(STsdb *pTsdb, const TABLEID *tbid, int32_t sver, SSkmInfo *pSkmRow);
 
