@@ -246,6 +246,7 @@ typedef enum { UDF_STATE_INIT = 0, UDF_STATE_LOADING, UDF_STATE_READY } EUdfStat
 
 typedef struct SUdf {
   char name[TSDB_FUNC_NAME_LEN + 1];
+  int32_t version;
 
   int8_t  funcType;
   int8_t  scriptType;
@@ -833,13 +834,13 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
       goto _return;
     }
     SFuncInfo *pFuncInfo = (SFuncInfo *)taosArrayGet(retrieveRsp.pFuncInfos, 0);
-    // SUdf      *udf = msgInfo->param;
     SUdf *udf = msgInfo->param;
     udf->funcType = pFuncInfo->funcType;
     udf->scriptType = pFuncInfo->scriptType;
     udf->outputType = pFuncInfo->outputType;
     udf->outputLen = pFuncInfo->outputLen;
     udf->bufSize = pFuncInfo->bufSize;
+    udf->version = *(int32_t*)taosArrayGet(retrieveRsp.pFuncVersions,0);
 
     if (!osTempSpaceAvailable()) {
       terrno = TSDB_CODE_NO_AVAIL_DISK;
@@ -850,9 +851,9 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
     char path[PATH_MAX] = {0};
 #ifdef WINDOWS
-    snprintf(path, sizeof(path), "%s%s", tsTempDir, pFuncInfo->name);
+    snprintf(path, sizeof(path), "%s%s%d", tsTempDir, pFuncInfo->name, udf->version);
 #else
-    snprintf(path, sizeof(path), "%s/%s", tsTempDir, pFuncInfo->name);
+    snprintf(path, sizeof(path), "%s/%s%d", tsTempDir, pFuncInfo->name, udf->version);
 #endif
     TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
     if (file == NULL) {

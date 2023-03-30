@@ -1702,6 +1702,8 @@ int32_t tSerializeSCreateFuncReq(void *buf, int32_t bufLen, SCreateFuncReq *pReq
     if (tEncodeCStr(&encoder, pReq->pComment) < 0) return -1;
   }
 
+  if (tEncodeI8(&encoder, pReq->orReplace) <0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1743,6 +1745,8 @@ int32_t tDeserializeSCreateFuncReq(void *buf, int32_t bufLen, SCreateFuncReq *pR
     }
     if (tDecodeCStrTo(&decoder, pReq->pComment) < 0) return -1;
   }
+
+  if (tDecoodeI8(&decoder, &pReq->orReplace) < 0) return -1;
 
   tEndDecode(&decoder);
 
@@ -1855,6 +1859,12 @@ int32_t tSerializeSRetrieveFuncRsp(void *buf, int32_t bufLen, SRetrieveFuncRsp *
     }
   }
 
+  if (pRsp->numOfFuncs != (int32_t)taosArrayGetSize(pRsp->pFuncVersions)) return -1;
+  for (int32_t i = 0; i < pRsp->numOfFuncs; ++i) {
+    int32_t version = *(int32_t*)taosArrayGet(pRsp->pFuncVersions, i);
+    if (tEncodeI32(&encoder, version) < 0) return -1;
+  }
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1901,6 +1911,15 @@ int32_t tDeserializeSRetrieveFuncRsp(void *buf, int32_t bufLen, SRetrieveFuncRsp
     }
 
     taosArrayPush(pRsp->pFuncInfos, &fInfo);
+  }
+
+  pRsp->pFuncVersions = taosArrayInit(pRsp->numOfFuncs, sizeof(int32_t));
+  if (pRsp->pFuncVersions == NULL) return -1;
+
+  for (int32_t i = 0; i < pRsp->numOfFuncs; ++i) {
+    int32_t version = 0;
+    if (tDecodeI32(&decoder, &version) < 0) return -1;
+    taosArrayPush(pRsp->pFuncVersions, &version);
   }
   tEndDecode(&decoder);
 
