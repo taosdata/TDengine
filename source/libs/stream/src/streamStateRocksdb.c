@@ -614,18 +614,18 @@ int32_t streamStateClear_rocksdb(SStreamState* pState) {
   rocksdb_iterator_t*    iter = streamStateIterCreate(pState, "default", NULL, &opt);
   rocksdb_iter_seek(iter, buf, sLen);
 
-  // int32_t limit = 128;
-  // krocksdb_writebatch_t* batch = rocksdb_writebatch_create();
   char* err = NULL;
   while (rocksdb_iter_valid(iter)) {
     int   kLen = 0;
     char* key = (char*)rocksdb_iter_key(iter, (size_t*)&kLen);
 
-    SStateKey sskey = {0};
-    stateKeyDecode((void*)&sskey, key);
-    if (sskey.opNum != pState->number) {
-      rocksdb_iter_next(iter);
-      continue;
+    SStateKey ckey = {0};
+    stateKeyDecode((void*)&ckey, key);
+    if (ckey.opNum != pState->number) {
+      break;
+    }
+    if (stateKeyCmpr(&skey, sizeof(skey), &ckey, sizeof(ckey)) > 0) {
+      break;
     }
 
     rocksdb_delete_cf(pState->pTdbState->rocksdb, pState->pTdbState->writeOpts, pState->pTdbState->pHandle[0], key,
