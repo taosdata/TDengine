@@ -546,7 +546,11 @@ void taos_init_imp(void) {
   deltaToUtcInitOnce();
 
   char logDirName[64] = {0};
+#ifdef CUS_PROMPT
   snprintf(logDirName, 64, "%slog", CUS_PROMPT);
+#else
+  snprintf(logDirName, 64, "taoslog");
+#endif
   if (taosCreateLog(logDirName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
     // ignore create log failed, only print
     printf(" WARING: Create %s failed:%s. configDir=%s\n", logDirName, strerror(errno), configDir);
