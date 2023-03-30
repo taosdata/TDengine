@@ -236,7 +236,7 @@ int32_t initCtxRelationFunc() {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t doGeosRelation(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+int32_t doGeosRelation(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                        bool swapped, char *res,
                        _geosRelationFunc_t relationFn,
                        _geosRelationFunc_t swappedRelationFn,
@@ -244,17 +244,6 @@ int32_t doGeosRelation(const GEOSGeometry *geom1, const GEOSPreparedGeometry *pr
                        _geosPreparedRelationFunc_t swappedPreparedRelationFn) {
   int32_t code = TSDB_CODE_FAILED;
   SGeosContext* geosCtx = getThreadLocalGeosCtx();
-
-  GEOSGeometry *geom2 = NULL;
-  code = readGeometry(input2, &geom2, NULL);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
-  }
-
-  if (!geom1 || !geom2) { //if empty input value
-    *res = -1;
-    return TSDB_CODE_SUCCESS;
-  }
 
   if (!preparedGeom1) {
     if (!swapped) {
@@ -278,45 +267,41 @@ int32_t doGeosRelation(const GEOSGeometry *geom1, const GEOSPreparedGeometry *pr
   }
 
   code = TSDB_CODE_SUCCESS;
-
-_exit:
-  destroyGeometry(NULL, &geom2);
-
   return code;
 }
 
-int32_t doIntersects(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+int32_t doIntersects(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                      bool swapped, char *res) {
-  return doGeosRelation(geom1, preparedGeom1, input2, swapped, res,
+  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res,
                         GEOSIntersects_r, GEOSIntersects_r, GEOSPreparedIntersects_r, GEOSPreparedIntersects_r);
 }
 
-int32_t doEquals(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+int32_t doEquals(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                  bool swapped, char *res) {
-  return doGeosRelation(geom1, NULL, input2, swapped, res,
+  return doGeosRelation(geom1, NULL, geom2, swapped, res,
                         GEOSEquals_r, GEOSEquals_r, NULL, NULL);  // no prepared version for eguals()
 }
 
-int32_t doTouches(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+int32_t doTouches(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                   bool swapped, char *res) {
-  return doGeosRelation(geom1, preparedGeom1, input2, swapped, res,
+  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res,
                         GEOSTouches_r, GEOSTouches_r, GEOSPreparedTouches_r, GEOSPreparedTouches_r);
 }
 
-int32_t doCovers(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+int32_t doCovers(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                  bool swapped, char *res) {
-  return doGeosRelation(geom1, preparedGeom1, input2, swapped, res,
+  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res,
                         GEOSCovers_r, GEOSCoveredBy_r, GEOSPreparedCovers_r, GEOSPreparedCoveredBy_r);
 }
 
-int32_t doContains(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+int32_t doContains(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                    bool swapped, char *res) {
-  return doGeosRelation(geom1, preparedGeom1, input2, swapped, res,
+  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res,
                         GEOSContains_r, GEOSWithin_r, GEOSPreparedContains_r, GEOSPreparedWithin_r);
 }
 
 // input is with VARSTR format
-// need to call destroyGeometry(outputPreparedGeom, outputGeom) later
+// need to call destroyGeometry(outputGeom, outputPreparedGeom) later
 int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom, const GEOSPreparedGeometry **outputPreparedGeom) {
   SGeosContext* geosCtx = getThreadLocalGeosCtx();
 
@@ -346,7 +331,7 @@ int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom, cons
   return TSDB_CODE_SUCCESS;
 }
 
-void destroyGeometry(const GEOSPreparedGeometry **preparedGeom, GEOSGeometry **geom) {
+void destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedGeom) {
   SGeosContext* geosCtx = getThreadLocalGeosCtx();
 
   if (preparedGeom && *preparedGeom) {

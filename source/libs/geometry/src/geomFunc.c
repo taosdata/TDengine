@@ -21,7 +21,7 @@
 #include "sclInt.h"
 #include "sclvector.h"
 
-typedef int32_t (*_geomDoRelationFunc_t)(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const unsigned char *input2,
+typedef int32_t (*_geomDoRelationFunc_t)(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                                          bool swapped, char *res);
 
 typedef int32_t (*_geomInitCtxFunc_t)();
@@ -196,20 +196,24 @@ _exit:
 }
 
 int32_t executeRelationFunc(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1,
-                            SColumnInfoData *pInputData2, int32_t i2,
+                            const GEOSGeometry *geom2, int32_t i,
                             bool swapped, SColumnInfoData *pOutputData,
                             _geomDoRelationFunc_t doRelationFn) {
   int32_t code = TSDB_CODE_FAILED;
-
   char res = 0;
-  unsigned char *input2 = colDataGetData(pInputData2, i2);
 
-  code = doRelationFn(geom1, preparedGeom1, input2, swapped, &res);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+  if (!geom1 || !geom2) { //if empty input value
+    res = -1;
+    code = TSDB_CODE_SUCCESS;
+  }
+  else {
+    code = doRelationFn(geom1, preparedGeom1, geom2, swapped, &res);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
-  colDataAppend(pOutputData, i2, &res, (res==-1));
+  colDataAppend(pOutputData, i, &res, (res==-1));
 
   return code;
 }
@@ -301,7 +305,7 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, SScalarParam *pOutput,
 }
 
 int32_t geomRelationFunction(SScalarParam *pInput, SScalarParam *pOutput,
-                             _geomDoRelationFunc_t doRelationFn) {
+                             bool swapAllowed, _geomDoRelationFunc_t doRelationFn) {
   int32_t code = TSDB_CODE_FAILED;
 
   code = initCtxRelationFunc();
@@ -312,27 +316,31 @@ int32_t geomRelationFunction(SScalarParam *pInput, SScalarParam *pOutput,
   // handle with all NULL output
   bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
                       IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
+  bool isConstant1 = (pInput[0].numOfRows == 1);
+  bool isConstant2 = (pInput[1].numOfRows == 1);
   int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
   pOutput->numOfRows = numOfRows;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   if (hasNullType || // at least one of operant is NULL type
-     ((pInput[0].numOfRows == 1) && colDataIsNull_s(pInput[0].columnData, 0)) || // left operand is constant NULL
-     ((pInput[1].numOfRows == 1) && colDataIsNull_s(pInput[1].columnData, 0))) { // right operand is constant NULL
+     (isConstant1 && colDataIsNull_s(pInput[0].columnData, 0)) || // left operand is constant NULL
+     (isConstant2 && colDataIsNull_s(pInput[1].columnData, 0))) { // right operand is constant NULL
     colDataAppendNNULL(pOutputData, 0, numOfRows);
     code = TSDB_CODE_SUCCESS;
     return code;
   }
 
-  bool hasConstant = (pInput[0].numOfRows == 1) || (pInput[1].numOfRows == 1);
   bool swapped = false;
   SColumnInfoData *pInputData[2];
 
-  // swap two input data to make sure input data 0 is constant if hasConstant is true
-  if ((pInput[0].numOfRows != 1) && pInput[1].numOfRows == 1) {
+  // swap two input data to make sure input data 0 is constant if swapAllowed and only isConstant2 is true
+  if (swapAllowed &&
+     !isConstant1 && isConstant2) {
     pInputData[0] = pInput[1].columnData;
     pInputData[1] = pInput[0].columnData;
 
+    isConstant1 = true;
+    isConstant2 = false;
     swapped = true;
   }
   else {
@@ -341,43 +349,60 @@ int32_t geomRelationFunction(SScalarParam *pInput, SScalarParam *pOutput,
   }
 
   GEOSGeometry *geom1 = NULL;
+  GEOSGeometry *geom2 = NULL;
   const GEOSPreparedGeometry *preparedGeom1 = NULL;
 
   // if there is constant, make PreparedGeometry from pInputData 0
-  if (hasConstant) {
+  if (isConstant1) {
     code = readGeometry(colDataGetData(pInputData[0], 0), &geom1, &preparedGeom1);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
+  }
+  if (isConstant2) {
+    code = readGeometry(colDataGetData(pInputData[1], 0), &geom2, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
   }
 
   for (int32_t i = 0; i < numOfRows; ++i) {
-    if ((!hasConstant && colDataIsNull_s(pInputData[0], i)) ||
-        (colDataIsNull_s(pInputData[1], i))) {
+    if ((!isConstant1 && colDataIsNull_s(pInputData[0], i)) ||
+        (!isConstant2 && colDataIsNull_s(pInputData[1], i))) {
       colDataAppendNULL(pOutputData, i);
       code = TSDB_CODE_SUCCESS;
       continue;
     }
 
-    if (!hasConstant) {
+    if (!isConstant1) {
       code = readGeometry(colDataGetData(pInputData[0], i), &geom1, &preparedGeom1);
       if (code != TSDB_CODE_SUCCESS) {
         goto _exit;
       }
     }
+    if (!isConstant2) {
+      code = readGeometry(colDataGetData(pInputData[1], i), &geom2, NULL);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _exit;
+      }
+    }
 
-    code = executeRelationFunc(geom1, preparedGeom1, pInputData[1], i, swapped, pOutputData, doRelationFn);
+    code = executeRelationFunc(geom1, preparedGeom1, geom2, i, swapped, pOutputData, doRelationFn);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
 
-    if (!hasConstant) {
-      destroyGeometry(&preparedGeom1, &geom1);
+    if (!isConstant1) {
+      destroyGeometry(&geom1, &preparedGeom1);
+    }
+    if (!isConstant2) {
+      destroyGeometry(&geom2, NULL);
     }
   }
 
 _exit:
-  destroyGeometry(&preparedGeom1, &geom1);
+  destroyGeometry(&geom1, &preparedGeom1);
+  destroyGeometry(&geom2, NULL);
 
   return code;
 }
@@ -395,21 +420,21 @@ int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 }
 
 int32_t intersectsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomRelationFunction(pInput, pOutput, doIntersects);
+  return geomRelationFunction(pInput, pOutput, true, doIntersects);
 }
 
 int32_t equalsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomRelationFunction(pInput, pOutput, doEquals);
+  return geomRelationFunction(pInput, pOutput, true, doEquals);
 }
 
 int32_t touchesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomRelationFunction(pInput, pOutput, doTouches);
+  return geomRelationFunction(pInput, pOutput, true, doTouches);
 }
 
 int32_t coversFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomRelationFunction(pInput, pOutput, doCovers);
+  return geomRelationFunction(pInput, pOutput, true, doCovers);
 }
 
 int32_t containsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return geomRelationFunction(pInput, pOutput, doContains);
+  return geomRelationFunction(pInput, pOutput, true, doContains);
 }
