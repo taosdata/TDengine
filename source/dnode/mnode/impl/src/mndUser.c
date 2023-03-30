@@ -400,6 +400,32 @@ static int32_t mndUserActionInsert(SSdb *pSdb, SUserObj *pUser) {
   return 0;
 }
 
+SHashObj *mndDupTableHash(SHashObj *pOld) {
+  SHashObj *pNew =
+      taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (pNew == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  char *tb = taosHashIterate(pOld, NULL);
+  while (tb != NULL) {
+    size_t keyLen = 0;
+    char *key = taosHashGetKey(tb, &keyLen);
+
+    int32_t valueLen = strlen(tb) + 1;
+    if (taosHashPut(pNew, key, keyLen, tb, valueLen) != 0) {
+      taosHashCancelIterate(pOld, tb);
+      taosHashCleanup(pNew);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    tb = taosHashIterate(pOld, tb);
+  }
+
+  return pNew;
+}
+
 static int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   memcpy(pNew, pUser, sizeof(SUserObj));
   pNew->authVersion++;
@@ -408,8 +434,8 @@ static int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   taosRLockLatch(&pUser->lock);
   pNew->readDbs = mndDupDbHash(pUser->readDbs);
   pNew->writeDbs = mndDupDbHash(pUser->writeDbs);
-  pNew->readTbs = mndDupTopicHash(pUser->readTbs);
-  pNew->writeTbs = mndDupTopicHash(pUser->writeTbs);
+  pNew->readTbs = mndDupTableHash(pUser->readTbs);
+  pNew->writeTbs = mndDupTableHash(pUser->writeTbs);
   pNew->topics = mndDupTopicHash(pUser->topics);
   taosRUnLockLatch(&pUser->lock);
 
@@ -826,7 +852,8 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       if (pStb == NULL) {
         mndReleaseStb(pMnode, pStb);
         goto _OVER;
-      }
+      }  
+
       if (taosHashRemove(newUser.readTbs, tbFName, len) != 0) {
         mndReleaseStb(pMnode, pStb);
         goto _OVER;
@@ -912,7 +939,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       goto _OVER;
     }
 
-    int32_t condLen = strlen(alterReq.tagCond) + 1;
+    int32_t condLen = alterReq.tagCondLen + 1;
     if (taosHashPut(newUser.readTbs, tbFName, len, alterReq.tagCond, condLen) != 0) {
       mndReleaseStb(pMnode, pStb);
       goto _OVER;
@@ -933,7 +960,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       mndReleaseStb(pMnode, pStb);
       goto _OVER;
     }
-    int32_t condLen = strlen(alterReq.tagCond) + 1;
+    int32_t condLen = alterReq.tagCondLen + 1;
     if (taosHashPut(newUser.writeTbs, tbFName, len, alterReq.tagCond, condLen) != 0) {
       mndReleaseStb(pMnode, pStb);
       goto _OVER;
