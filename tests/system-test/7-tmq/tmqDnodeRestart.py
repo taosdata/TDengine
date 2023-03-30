@@ -146,7 +146,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        tdSql.query(queryString)
+        tdSql.query(queryString, None, 50)
         totalRowsFromQury = tdSql.getRows()
 
         tdLog.info("act consume rows: %d, act query rows: %d"%(totalConsumeRows, totalRowsFromQury))
@@ -236,7 +236,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        tdSql.query(queryString)
+        tdSql.query(queryString, None, 50)
         totalRowsFromQuery = tdSql.getRows()
 
         tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, totalRowsFromQuery))
