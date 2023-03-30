@@ -1746,7 +1746,7 @@ int32_t tDeserializeSCreateFuncReq(void *buf, int32_t bufLen, SCreateFuncReq *pR
     if (tDecodeCStrTo(&decoder, pReq->pComment) < 0) return -1;
   }
 
-  if (tDecoodeI8(&decoder, &pReq->orReplace) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->orReplace) < 0) return -1;
 
   tEndDecode(&decoder);
 
