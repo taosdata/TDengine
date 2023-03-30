@@ -1330,6 +1330,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
   pColInfo->orderStatus = isOrdered ? ORDER_STATUS_ORDERED : ORDER_STATUS_DISORDERED;
 
   if (!isOrdered) {
+    tfree(pColInfo->colIdxInfo);
     pColInfo->colIdxInfo = tcalloc(pColInfo->numOfBound, sizeof(SBoundIdxInfo));
     if (pColInfo->colIdxInfo == NULL) {
       code = TSDB_CODE_TSC_OUT_OF_MEMORY;
