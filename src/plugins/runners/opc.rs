@@ -2,12 +2,11 @@ use std::{
     collections::HashMap,
     io::prelude::*,
     num::ParseIntError,
-    str::FromStr, fmt::Display,
+    str::FromStr, 
 };
 
 use itertools::Itertools;
-// use serde_with::__private__::duplicate_key_impls::PreventDuplicateInsertsMap;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder, IntoDsn, AsyncFetchable, taos_query::helpers::ColumnMeta};
+use taos::{AsyncTBuilder, Dsn, TaosBuilder, taos_query::helpers::ColumnMeta, IntoDsn};
 use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
@@ -44,11 +43,11 @@ enum OpcError {
     DatabaseIsRequired(Dsn),
     #[error("Username and password are both required for UserName authentication method in {0}")]
     UserPassRequired(Dsn),
-    #[error("config file not found in {0}")]
+    #[error("config file not found: {0}")]
     FileNotFound(String),
     #[error("table cloumn not match in {0}")]
     CloumnNotMatch(String),
-    #[error("config file not found in {0}")]
+    #[error("config file content is empty in {0}")]
     EmptyConfig(String),
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
     ParseNumberError(&'static str, String, ParseIntError),
@@ -394,10 +393,10 @@ pub async fn opc_to_taos(
     let mut ts_cloumn_name_map = HashMap::new();
     for (table_name, field_info) in &config.table_info {
         let res = taos.describe(&table_name).await;
-        // let res = taos.query(&sql).await;
         if res.is_err() {
             // table not exists, will create normal table
             let mut sql = format!("CREATE TABLE IF NOT EXISTS {table_name} (`ts` TIMESTAMP");
+            log::info!("table {table_name} use `ts` as ts column");
             ts_cloumn_name_map.insert(table_name.clone(), String::from("ts"));
             for (field, field_type) in field_info {
                 sql.push_str(format!(", `{field}` {field_type}").as_str());
@@ -412,12 +411,13 @@ pub async fn opc_to_taos(
                 desc.iter().for_each(|c| {
                     match c {
                         ColumnMeta::Column(d) => {
-                            field_map.insert(d.field.clone(), d.ty.to_string().to_ascii_lowercase());
+                            field_map.insert(d.field.clone(), d.ty.to_string());
                         },
                         _ => (),
                     }
                 });
             // insert ts column
+            log::info!("table {table_name} use `{}` as ts column", desc[0].field);
             ts_cloumn_name_map.insert(table_name.clone(), desc[0].field.clone());
             if desc.is_stable() {
                 // child table.
@@ -426,9 +426,10 @@ pub async fn opc_to_taos(
                     if field_get.is_none() {
                         anyhow::bail!("field: {} not found in table: {}", field, table_name);
                     }
-                    if field_get.unwrap().to_ascii_lowercase() != field_type.to_ascii_lowercase() {
-                        anyhow::bail!("field: {} not type: {} not match in table: {}", field, field_type,table_name);
+                    if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase()) {
+                        anyhow::bail!("field: {} type: {} not match in child table: {} which type is {}", field, field_type,table_name, field_get.unwrap());
                     }
+                    
                 }
             } else {
                 // ordinary table.
@@ -436,15 +437,15 @@ pub async fn opc_to_taos(
                 for (field, field_type) in field_info {
                     let field_get = field_map.get(field); 
                     if field_get.is_none() {
-                        // column not exists alter table
+                        // column not exists and alter table
                         columns_to_add.insert(field, field_type);
-                    } else if field_get.unwrap().to_ascii_lowercase() != field_type.to_ascii_lowercase() {
-                        anyhow::bail!("field: {} not type: {} not match in table: {}", field, field_type,table_name);
+                    } else if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase()) {
+                        anyhow::bail!("field: {} type: {} not match in normal table: {} which type is {} ", field, field_type, table_name, field_get.unwrap());
                     }
                 }
                 if columns_to_add.len() > 0 {
                     for (field_name, field_type) in columns_to_add {
-                        let alter_sql = format!("ALTER TABLE {table_name} ADD COLUMN {field_name}, {field_type}");
+                        let alter_sql = format!("ALTER TABLE {table_name} ADD COLUMN `{field_name}` {field_type}");
                         log::info!("alter table sql: {}", alter_sql);
                         taos.exec(alter_sql).await?;
                     }
@@ -527,6 +528,21 @@ pub async fn opc_to_taos(
     temp_path.close()?;
     log::info!("OPC to taos task done");
     Ok(())
+}
+
+/// check field type 
+/// return true if matched 
+/// if type equals return true else false
+/// if type is binary|varchar|nchar check whether type configed contains those characters
+fn check_field_type(field_type_config: &String, field_type: String) -> bool {
+    let field_type_config = field_type_config.to_ascii_lowercase();
+    if field_type.contains("binary") || field_type.contains("varchar") || field_type.contains("nchar") {
+        field_type_config.contains("binary") || field_type_config.contains("varchar") || field_type_config.contains("nchar")
+    } else if field_type_config == field_type {
+        true
+    } else {
+        false
+    }
 }
 
 #[derive(Clone)]
