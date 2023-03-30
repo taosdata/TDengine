@@ -584,9 +584,15 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       if (isNullVal) {
         colDataSetNNULL(pColInfoData, 0, pBlock->info.rows);
       } else if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
-        colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows);
+        code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, false);
         if (IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
           taosMemoryFree(data);
+        }
+        if (code) {
+          if (freeReader) {
+            metaReaderClear(&mr);
+          }
+          return code;
         }
       } else {  // todo opt for json tag
         for (int32_t i = 0; i < pBlock->info.rows; ++i) {
@@ -634,10 +640,22 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SSDataBlock*    pBlock = pTableScanInfo->pResBlock;
+  bool            hasNext = false;
+  int32_t         code = TSDB_CODE_SUCCESS;
 
   int64_t st = taosGetTimestampUs();
 
-  while (tsdbNextDataBlock(pTableScanInfo->base.dataReader)) {
+  while (true) {
+    code = tsdbNextDataBlock(pTableScanInfo->base.dataReader, &hasNext);
+    if (code) {
+      tsdbReleaseDataBlock(pTableScanInfo->base.dataReader);
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
+
+    if (!hasNext) {
+      break;
+    }
+    
     if (isTaskKilled(pTaskInfo)) {
       tsdbReleaseDataBlock(pTableScanInfo->base.dataReader);
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
@@ -1015,7 +1033,15 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
     return NULL;
   }
 
-  if (tsdbNextDataBlock(pReader)) {
+  bool hasNext = false;
+  code = tsdbNextDataBlock(pReader, &hasNext);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+    return NULL;
+  }
+
+  if (hasNext) {
     /*SSDataBlock* p = */ tsdbRetrieveDataBlock(pReader, NULL);
     doSetTagColumnData(&pTableScanInfo->base, pBlock, pTaskInfo, pBlock->info.rows);
     pBlock->info.id.groupId = getTableGroupId(pTaskInfo->pTableInfoList, pBlock->info.id.uid);
@@ -1803,6 +1829,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes);
         prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
         pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+        printDataBlock(pInfo->pUpdateRes, "recover update");
         return pInfo->pUpdateRes;
       } break;
       case STREAM_SCAN_FROM_DATAREADER_RANGE: {
@@ -1813,7 +1840,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
           updateInfoSetScanRange(pInfo->pUpdateInfo, &pTableScanInfo->base.cond.twindows, pInfo->groupId, version);
           pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
           checkUpdateData(pInfo, true, pSDB, false);
-          // printDataBlock(pSDB, "stream scan update");
+          printDataBlock(pSDB, "scan recover update");
           calBlockTbName(pInfo, pSDB);
           return pSDB;
         }
@@ -1838,6 +1865,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       }
       if (pInfo->pCreateTbRes->info.rows > 0) {
         pInfo->scanMode = STREAM_SCAN_FROM_RES;
+        printDataBlock(pInfo->pCreateTbRes, "recover createTbl");
         return pInfo->pCreateTbRes;
       }
       qDebug("stream recover scan get block, rows %d", pInfo->pRecoverRes->info.rows);
@@ -2102,12 +2130,22 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
   // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo*      pTaskInfo = pOperator->pTaskInfo;
   SStreamRawScanInfo* pInfo = pOperator->info;
+  int32_t             code = TSDB_CODE_SUCCESS;
   pTaskInfo->streamInfo.metaRsp.metaRspLen = 0;  // use metaRspLen !=0 to judge if data is meta
   pTaskInfo->streamInfo.metaRsp.metaRsp = NULL;
 
   qDebug("tmqsnap doRawScan called");
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
-    if (pInfo->dataReader && tsdbNextDataBlock(pInfo->dataReader)) {
+    bool hasNext = false;
+    if (pInfo->dataReader) {
+      code = tsdbNextDataBlock(pInfo->dataReader, &hasNext);
+      if (code) {
+        tsdbReleaseDataBlock(pInfo->dataReader);
+        longjmp(pTaskInfo->env, code);
+      }
+    }
+    
+    if (pInfo->dataReader && hasNext) {
       if (isTaskKilled(pTaskInfo)) {
         tsdbReleaseDataBlock(pInfo->dataReader);
         longjmp(pTaskInfo->env, pTaskInfo->code);
@@ -2608,8 +2646,21 @@ static SSDataBlock* getTableDataBlockImpl(void* param) {
   
   pInfo->base.dataReader = source->dataReader;
   STsdbReader* reader = pInfo->base.dataReader;
+  bool hasNext = false;
   qTrace("tsdb/read-table-data: %p, enter next reader", reader);
-  while (tsdbNextDataBlock(reader)) {
+
+  while (true) {
+    code = tsdbNextDataBlock(reader, &hasNext);
+    if (code != 0) {
+      tsdbReleaseDataBlock(reader);
+      pInfo->base.dataReader = NULL;
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
+
+    if (!hasNext) {
+      break;
+    }
+  
     if (isTaskKilled(pTaskInfo)) {
       tsdbReleaseDataBlock(reader);
       pInfo->base.dataReader = NULL;

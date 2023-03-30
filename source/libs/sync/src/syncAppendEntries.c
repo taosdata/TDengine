@@ -105,6 +105,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SRpcMsg            rpcRsp = {0};
   bool               accepted = false;
   SSyncRaftEntry*    pEntry = NULL;
+  bool               resetElect = false;
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
@@ -137,7 +138,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   syncNodeStepDown(ths, pMsg->term);
-  syncNodeResetElectTimer(ths);
+  resetElect = true;
 
   if (pMsg->dataLen < sizeof(SSyncRaftEntry)) {
     sError("vgId:%d, incomplete append entries received. prev index:%" PRId64 ", term:%" PRId64 ", datalen:%d",
@@ -184,10 +185,9 @@ _SEND_RESPONSE:
   // commit index, i.e. leader notice me
   if (syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
     sError("vgId:%d, failed to commit raft fsm log since %s.", ths->vgId, terrstr());
-    goto _out;
   }
 
-_out:
+  if (resetElect) syncNodeResetElectTimer(ths);
   return 0;
 
 _IGNORE:
