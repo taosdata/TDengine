@@ -121,7 +121,7 @@ struct UANodeConfig {
 
 #[derive(Debug, serde::Serialize)]
 struct DaCollectConfig {
-    nodes: Vec<DaNodeConfig>,
+    tags: Vec<DaNodeConfig>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -265,7 +265,7 @@ impl OPCConfig {
                     da: Some(connect_da_config),
                 };
                 let interval = parse_int_at!("interval");
-                let node_vec = get_string_vec_from_param_or_file(&mut dsn, "da.nodes")?;
+                let node_vec = get_string_vec_from_param_or_file(&mut dsn, "da.tags")?;
                 let mut da_nodes_vec = Vec::new();
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
@@ -291,7 +291,7 @@ impl OPCConfig {
                     interval,
                     ua: None,
                     da: Some(DaCollectConfig {
-                        nodes: da_nodes_vec,
+                        tags: da_nodes_vec,
                     }),
                 }
             }
