@@ -74,14 +74,14 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   qTaskInfo_t          task = pExec->task;
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-    tqDebug("prepare scan failed, return, consumer:0x%"PRIx64, pHandle->consumerId);
+    tqDebug("prepare scan failed, vgId:%d, consumer:0x%"PRIx64, vgId, pHandle->consumerId);
     if (pOffset->type == TMQ_OFFSET__LOG) {
       pRsp->rspOffset = *pOffset;
       return code;
     } else {
       tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
       if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-        tqDebug("prepare scan failed, return, consumer:0x%"PRIx64, pHandle->consumerId);
+        tqDebug("prepare scan failed, vgId:%d, consumer:0x%"PRIx64, vgId, pHandle->consumerId);
         pRsp->rspOffset = *pOffset;
         return code;
       }
@@ -92,7 +92,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
 
-    tqDebug("vgId:%d, tmq task start to execute, consumer:0x%" PRIx64, vgId, pHandle->consumerId);
+    tqDebug("vgId:%d, tmq task start to execute, consumer:0x%"PRIx64, vgId, pHandle->consumerId);
 
     code = qExecTask(task, &pDataBlock, &ts);
     if (code != TSDB_CODE_SUCCESS) {

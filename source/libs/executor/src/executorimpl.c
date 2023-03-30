@@ -1974,7 +1974,7 @@ char* buildTaskId(uint64_t taskId, uint64_t queryId) {
   return p;
 }
 
-static SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, char* dbFName) {
+SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, char* dbFName) {
   SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
   if (pTaskInfo == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1982,6 +1982,7 @@ static SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, in
   }
 
   setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
+  pTaskInfo->cost.created = taosGetTimestampUs();
 
   pTaskInfo->schemaInfo.dbname = taosStrdup(dbFName);
   pTaskInfo->execModel = model;
@@ -1989,6 +1990,7 @@ static SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, in
   pTaskInfo->stopInfo.pStopInfo = taosArrayInit(4, sizeof(SExchangeOpStopInfo));
   pTaskInfo->pResultBlockList = taosArrayInit(128, POINTER_BYTES);
 
+  taosInitRWLatch(&pTaskInfo->lock);
   pTaskInfo->id.vgId = vgId;
   pTaskInfo->id.queryId = queryId;
   pTaskInfo->id.str = buildTaskId(taskId, queryId);
@@ -2464,7 +2466,6 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
     goto _complete;
   }
 
-  (*pTaskInfo)->cost.created = taosGetTimestampUs();
   return TSDB_CODE_SUCCESS;
 
 _complete:
