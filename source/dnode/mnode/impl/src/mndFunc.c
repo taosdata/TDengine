@@ -519,6 +519,7 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, (const char *)b2, false);
+      taosMemoryFree(b2);
     } else {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataSetVal(pColInfo, numOfRows, NULL, true);
@@ -544,6 +545,26 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->bufSize, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    char* language = "";
+    if (pFunc->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
+      language = "C";
+    } else if (pFunc->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
+      language = "Python";
+    }
+    char varLang[TSDB_TYPE_STR_MAX_LEN + 1] = {0};
+    varDataSetLen(varLang, strlen(language));
+    strcpy(varDataVal(varLang), language);
+    colDataSetVal(pColInfo, numOfRows, (const char *)varLang, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    int32_t varCodeLen = (pFunc->codeSize + VARSTR_HEADER_SIZE) > TSDB_MAX_BINARY_LEN ? TSDB_MAX_BINARY_LEN : pFunc->codeSize + VARSTR_HEADER_SIZE;
+    char *b4 = taosMemoryMalloc(varCodeLen);
+    memcpy(varDataVal(b4), pFunc->pCode, varCodeLen - VARSTR_HEADER_SIZE);
+    varDataSetLen(b4, varCodeLen - VARSTR_HEADER_SIZE);
+    colDataSetVal(pColInfo, numOfRows, (const char*)b4, false);
+    taosMemoryFree(b4);
 
     numOfRows++;
     sdbRelease(pSdb, pFunc);
