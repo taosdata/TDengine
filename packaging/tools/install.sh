@@ -863,20 +863,20 @@ function updateProduct() {
 
     echo
     echo -e "${GREEN_DARK}To configure ${productName2} ${NC}: edit ${cfg_install_dir}/${configFile}"
-    [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To configure ${clientName2} Adapter ${NC}: edit ${configDir}/taosadapter.toml"
+    [ -f ${configDir}/${clientName2}adapter.toml ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
+      echo -e "${GREEN_DARK}To configure ${clientName2} Adapter ${NC}: edit ${configDir}/${clientName2}adapter.toml"
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
-      [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}systemctl start taosadapter ${NC}"
+      [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}systemctl start ${clientName2}adapter ${NC}"
     elif ((${service_mod} == 1)); then
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}service ${serverName} start${NC}"
-      [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}service taosadapter start${NC}"
+      [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}service ${clientName2}adapter start${NC}"
     else
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ./${serverName}${NC}"
-      [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: taosadapter &${NC}"
+      [ -f ${installDir}/bin/${clientName2}adapter ] && \
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${clientName2}adapter &${NC}"
     fi
 
     if [ ${openresty_work} = 'true' ]; then
@@ -945,20 +945,20 @@ function installProduct() {
     # Ask if to start the service
     echo
     echo -e "${GREEN_DARK}To configure ${productName2} ${NC}: edit ${cfg_install_dir}/${configFile}"
-    [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To configure ${clientName2} Adapter ${NC}: edit ${configDir}/taosadapter.toml"
+    [ -f ${configDir}/${clientName2}adapter.toml ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
+      echo -e "${GREEN_DARK}To configure ${clientName2} Adapter ${NC}: edit ${configDir}/${clientName2}adapter.toml"
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
-      [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}systemctl start taosadapter ${NC}"
+      [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}systemctl start ${clientName2}adapter ${NC}"
     elif ((${service_mod} == 1)); then
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${csudo}service ${serverName} start${NC}"
-      [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}service taosadapter start${NC}"
+      [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${csudo}service ${clientName2}adapter start${NC}"
     else
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}: ${serverName}${NC}"
-      [ -f ${installDir}/bin/taosadapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: taosadapter &${NC}"
+      [ -f ${installDir}/bin/${clientName2}adapter ] && \
+        echo -e "${GREEN_DARK}To start ${clientName2} Adapter ${NC}: ${clientName2}adapter &${NC}"
     fi
 
     if [ ! -z "$firstEp" ]; then
