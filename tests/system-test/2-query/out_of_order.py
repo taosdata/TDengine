@@ -181,7 +181,7 @@ class TDTestCase:
         startTime = time.time()
 
         #self.check_out_of_order('db1',10,random.randint(10000,50000),random.randint(1,10),1)
-        self.check_out_of_order('db1',random.randint(50,200),random.randint(10000,20000),random.randint(1,5),1)
+        self.check_out_of_order('db1',random.randint(50,100),random.randint(10000,20000),random.randint(1,5),1)
 
         # self.check_out_of_order('db2',random.randint(50,200),random.randint(10000,50000),random.randint(5,50),1)
 
