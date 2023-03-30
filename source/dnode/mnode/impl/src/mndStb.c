@@ -2613,6 +2613,13 @@ void mndExtractDbNameFromStbFullName(const char *stbFullName, char *dst) {
   tNameGetFullDbName(&name, dst);
 }
 
+void mndExtractShortDbNameFromStbFullName(const char *stbFullName, char *dst) {
+  SName name = {0};
+  tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+  tNameGetDbName(&name, dst);
+}
+
 void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t dstSize) {
   int32_t pos = -1;
   int32_t num = 0;
