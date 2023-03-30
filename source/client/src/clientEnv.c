@@ -30,7 +30,9 @@
 #include "tsched.h"
 #include "ttime.h"
 
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
+#endif
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
