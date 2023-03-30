@@ -619,6 +619,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_STREAM_STATE_COMMIT,       "Rsma stream state c
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FS_REF,                    "Rsma fs ref error")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FS_SYNC,                   "Rsma fs sync error")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FS_UPDATE,                 "Rsma fs update error")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_RESULT,                    "Rsma result error")
 
 //index
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")

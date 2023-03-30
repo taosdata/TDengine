@@ -82,6 +82,9 @@ static int32_t vnodeRetentionTask(void *param) {
   code = tsdbDoRetention(pInfo->pVnode->pTsdb, pInfo->now);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  code = smaDoRetention(pInfo->pVnode->pSma, pInfo->now);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   // commit info
   vnodeCommitInfo(dir);
 
