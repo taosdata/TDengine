@@ -685,7 +685,7 @@ static int32_t mndTablePriviledge(SMnode *pMnode, SHashObj *hash, SAlterUserReq 
   snprintf(tbFName, sizeof(tbFName), "%s.%s", alterReq->objname, alterReq->tabName);
   int32_t len = strlen(tbFName) + 1;
 
-  if (taosHashPut(hash, tbFName, len, tbFName, len) != 0) {
+  if (taosHashPut(hash, tbFName, len, "t", 2) != 0) {
     return -1;
   }
 
@@ -1096,7 +1096,7 @@ static void mndLoopHash(SHashObj * hash, char *priType, SSDataBlock *pBlock, int
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, *numOfRows, (const char *)tableNameContent, false);
 
-    if(strcmp(key, value)!= 0){
+    if(strcmp("t", value) != 0){
       SNode  *pAst = NULL;
       int32_t sqlLen = 0;
       char sql[TSDB_EXPLAIN_RESULT_ROW_SIZE] = {0};
