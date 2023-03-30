@@ -1366,7 +1366,7 @@ static int32_t unAllSplCreateExchangeNode(SSplitContext* pCxt, int32_t startGrou
   pExchange->node.precision = pProject->node.precision;
   pExchange->node.pTargets = nodesCloneList(pProject->node.pTargets);
   pExchange->node.pConditions = nodesCloneNode(pProject->node.pConditions);
-  if (NULL == pExchange->node.pTargets || NULL == pExchange->node.pConditions) {
+  if (NULL == pExchange->node.pTargets || (NULL != pProject->node.pConditions && NULL == pExchange->node.pConditions)) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   TSWAP(pExchange->node.pLimit, pProject->node.pLimit);
