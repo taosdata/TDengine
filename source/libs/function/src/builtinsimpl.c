@@ -871,6 +871,12 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
       SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
       int32_t         dstSlotId = pc->pExpr->base.resSchema.slotId;
 
+      // group_key function has its own process function
+      // do not process there
+      if (fmIsGroupKeyFunc(pc->functionId)) {
+        continue;
+      }
+
       SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
       if (nullList[j]) {
         colDataSetNULL(pDstCol, rowIndex);
@@ -3090,6 +3096,12 @@ void* serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubsid
   int32_t offset = 0;
   for (int32_t i = 0; i < pSubsidiaryies->num; ++i) {
     SqlFunctionCtx* pc = pSubsidiaryies->pCtx[i];
+
+    // group_key function has its own process function
+    // do not process there
+    if (fmIsGroupKeyFunc(pc->functionId)) {
+      continue;
+    }
 
     SFunctParam* pFuncParam = &pc->pExpr->base.pParam[0];
     int32_t      srcSlotId = pFuncParam->pCol->slotId;
