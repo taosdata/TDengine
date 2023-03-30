@@ -252,7 +252,7 @@ class TDTestCase:
         resultList = tmqCom.selectConsumeResult(expectRows)
 
         tdLog.info("expect consume rows: %d should less/equal than act consume rows: %d"%(expectRowsList[0], resultList[0]))
-        if expectRowsList[0] <= resultList[0]:
+        if expectRowsList[0] > resultList[0]:
             tdLog.exit("0 tmq consume rows error!")
 
         if expectRowsList[0] == resultList[0]:
