@@ -65,7 +65,8 @@ fn configure(store: Data<TaskController>) -> impl FnOnce(&mut ServiceConfig) {
             .service(start_task)
             .service(stop_task)
             .service(metrics::metrics_exporter)
-            .service(data_sources_in);
+            .service(data_sources_in)
+            .service(data_source_collection);
     }
 }
 impl Cli {
@@ -117,6 +118,7 @@ impl Cli {
                 task::get_task_by_id,
                 metrics::metrics_exporter,
                 data_sources_in,
+                data_source_collection,
             ),
             tags(
                 (name = "tasks", description = "Task management endpoints"),

@@ -18,7 +18,7 @@ use taosx_ipc::prelude::IpcDataType;
 use crate::{
     plugins::{service::spawn_rest_service, sink},
     utils::{port_pool::PortPool, stop_thread},
-    Action,
+    Action, DataSet,
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -240,4 +240,43 @@ pub async fn pi_to_taos(
     log::info!("Done");
     // server.abort();
     Ok(())
+}
+
+pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
+    println!("# loading plugin: PI");
+    #[cfg(not(target_os = "windows"))]
+    {
+        anyhow::bail!("PI connector support only windows platform");
+    }
+    return Ok(vec![]);
+
+    // todo: add a command to get list of all available data sets.
+
+    // let config = PiConfig::new(from.clone(), 0, 0)?;
+
+    // let toml = toml::to_string(&config)?;
+    // let mut config_file = tempfile::NamedTempFile::new()?;
+    // write!(config_file, "{}", &toml)?;
+    // let config_path = config_file.path().to_path_buf();
+    // let temp_path = config_file.into_temp_path();
+
+    // log::info!("Using config file {} \n{}", config_path.display(), toml);
+
+    //     let mut command = std::process::Command::new(
+    //         "C:\\Program Files (x86)\\TD PI Connector\\TDPIConnector.Service.exe",
+    //         // "target/debug/examples/pi",
+    //     );
+    // let output = command
+    //     .arg("points")
+    //     .arg(format!("--conf={}", &config_path.display()))
+    //     .stdout(std::process::Stdio::piped())
+    //     .stderr(std::process::Stdio::piped())
+    //     .output()?;
+    // // dbg!(output);
+    // log::info!("OPC exit with status {}", output.status);
+
+    // // let json = String::from_utf8_lossy(&output.stdout);
+    // let res: Vec<DataSets> = serde_json::from_slice(&output.stdout)?;
+    // temp_path.close()?;
+    // Ok(res)
 }
