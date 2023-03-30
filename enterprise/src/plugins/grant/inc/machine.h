@@ -20,7 +20,8 @@
 #include <stdint.h>
 
 #ifdef GRANT_VALUE
-#define GRANT_DEFAULT        GRANT_VALUE*86400
+#define GRANT_VALUE_INT        atoi(GRANT_VALUE)
+#define GRANT_DEFAULT        (GRANT_VALUE_INT*86400)
 #else
 #define GRANT_DEFAULT        60*86400
 #endif

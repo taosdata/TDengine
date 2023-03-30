@@ -8,10 +8,10 @@ versionComp=$2
 branchName=$3
 verType=$4
 cpuType=$5
-cusName=$6
+grantValue=$6
+cusName=$7
 cusPrompt=$7
-cusEmail=$8
-grantValue=$9
+cusEmail=$9
 
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community

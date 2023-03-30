@@ -29,7 +29,7 @@ verNumber=""
 verNumberComp="3.0.0.0"
 httpdBuild=false
 
-while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:" arg; do
+while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:" arg; do
   case $arg in
   v)
     #echo "verMode=$OPTARG"
