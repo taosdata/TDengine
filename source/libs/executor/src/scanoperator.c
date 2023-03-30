@@ -1829,6 +1829,15 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         printDataBlock(pInfo->pUpdateRes, "recover update");
         return pInfo->pUpdateRes;
       } break;
+      case STREAM_SCAN_FROM_DELETE_DATA: {
+        generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes);
+        prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
+        pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+        copyDataBlock(pInfo->pDeleteDataRes, pInfo->pUpdateRes);
+        pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
+        printDataBlock(pInfo->pDeleteDataRes, "recover delete");
+        return pInfo->pDeleteDataRes;
+      } break;
       case STREAM_SCAN_FROM_DATAREADER_RANGE: {
         SSDataBlock* pSDB = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
         if (pSDB) {
@@ -2021,6 +2030,7 @@ FETCH_NEXT_BLOCK:
       copyDataBlock(pInfo->pUpdateRes, pSup->pScanBlock);
       blockDataCleanup(pSup->pScanBlock);
       prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
+      pInfo->pUpdateRes->info.type = STREAM_DELETE_DATA;
       return pInfo->pUpdateRes;
     }
 
