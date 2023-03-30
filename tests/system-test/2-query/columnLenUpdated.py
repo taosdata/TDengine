@@ -147,6 +147,30 @@ class TDTestCase:
         tdSql.checkData(1, 1, '55555')
 
 
+
+        keyDict['s'] = "\"alter table db1.tba add column f2 binary(5) \""
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", '')
+        if retCode != "TAOS_OK":
+            tdLog.exit("taos -s fail")
+
+        tdSql.query("select * from tba order by ts")
+        tdSql.query("select * from tba order by ts")
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 2, None)
+
+
+
+
+        keyDict['s'] = "\"alter table db1.tba add column f3 binary(5) \""
+        retCode = taos_command(buildPath, "s", keyDict['s'], "Query OK", '')
+        if retCode != "TAOS_OK":
+            tdLog.exit("taos -s fail")
+
+        tdSql.query("select f3 from tba order by ts")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, None)
+
+
         tdSql.query("create table stb (ts timestamp, f1 int, f2 binary(2)) tags (tg1 binary(2))")
         tdSql.query("create table tb1 using stb tags('bb')")
         tdSql.query("insert into tb1 values (now, 2,'22')")
