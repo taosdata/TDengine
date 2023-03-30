@@ -300,6 +300,12 @@ int32_t doContains(const GEOSGeometry *geom1, const GEOSPreparedGeometry *prepar
                         GEOSContains_r, GEOSWithin_r, GEOSPreparedContains_r, GEOSPreparedWithin_r);
 }
 
+int32_t doContainsProperly(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
+                           bool swapped, char *res) {
+  return doGeosRelation(geom1, preparedGeom1, geom2, swapped, res,
+                        NULL, NULL, GEOSPreparedContainsProperly_r, NULL);
+}
+
 // input is with VARSTR format
 // need to call destroyGeometry(outputGeom, outputPreparedGeom) later
 int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom, const GEOSPreparedGeometry **outputPreparedGeom) {

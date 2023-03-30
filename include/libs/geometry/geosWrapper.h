@@ -47,6 +47,8 @@ int32_t doCovers(const GEOSGeometry *geom1, const GEOSPreparedGeometry *prepared
                  bool swapped, char *res);
 int32_t doContains(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                    bool swapped, char *res);
+int32_t doContainsProperly(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
+                           bool swapped, char *res);
 
 int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom, const GEOSPreparedGeometry **outputPreparedGeom);
 void destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedGeom);

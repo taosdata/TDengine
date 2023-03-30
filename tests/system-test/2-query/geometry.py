@@ -237,6 +237,17 @@ class TDTestCase:
         ]
         self.geomRelationFunc_test('ST_Contains', expectedResults)
 
+        tdLog.printNoPrefix("==========step9: ST_ContainsProperly function test")
+        expectedResults = [
+            [True, False, False, None],   # two columns
+            [True, False, False, None],   # constant and column
+            [True, False, False, None],   # column and constant
+            False,                        # two constants 1
+            False,                        # two constants 2
+            [1, self.point]               # in where clause
+        ]
+        self.geomRelationFunc_test('ST_ContainsProperly', expectedResults)
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

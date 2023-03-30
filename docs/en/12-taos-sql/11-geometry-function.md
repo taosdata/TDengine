@@ -140,3 +140,21 @@ ST_Contains(GEOMETRY geomA, GEOMETRY geomB)
 
 **Explanations**：
 - A contains B if and only if all points of B lie inside (i.e. in the interior or boundary of) A (or equivalently, no points of B lie in the exterior of A), and the interiors of A and B have at least one point in common.
+
+
+### ST_ContainsProperly
+
+```sql
+ST_ContainsProperly(GEOMETRY geomA, GEOMETRY geomB)
+```
+
+**Description**: Returns TRUE if every point of B lies inside A.
+
+**Return value type**: BOOL
+
+**Applicable data types**: GEOMETRY, GEOMETRY
+
+**Applicable table types**: standard tables and supertables
+
+**Explanations**：
+- There is no point of B lies in the the boundary or exterior of A.

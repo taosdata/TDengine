@@ -3301,6 +3301,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = containsFunction,
     .finalizeFunc = NULL
   },
+  {
+    .name = "st_containsproperly",
+    .type = FUNCTION_TYPE_CONTAINS_PROPERLY,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_GEOMETRY_FUNC,
+    .translateFunc = translateIn2GeomOutBool,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = containsProperlyFunction,
+    .finalizeFunc = NULL
+  },
 };
 // clang-format on
 

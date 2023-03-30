@@ -438,3 +438,7 @@ int32_t coversFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 int32_t containsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return geomRelationFunction(pInput, pOutput, true, doContains);
 }
+
+int32_t containsProperlyFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return geomRelationFunction(pInput, pOutput, false, doContainsProperly);
+}

@@ -53,11 +53,11 @@ SELECT 'POINT(3.0 6.0)' AS g1, 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0
 UNION ALL
 SELECT 'LINESTRING(1.0 1.0, 2.0 2.0, 5.0 5.0)' AS g1, 'LINESTRING(1.0 4.0, 2.0 3.0, 5.0 0.0)' AS g2
 UNION ALL
-SELECT 'LINESTRING(1.0 1.0, 2.0 2.0, 3.0 5.0)' AS g1, 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))' AS g2
+SELECT 'LINESTRING(3.0 7.0, 4.0 7.0, 5.0 7.0)' AS g1, 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))' AS g2
 UNION ALL
 SELECT 'POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))' AS g1, 'POLYGON((5.0 6.0, 7.0 6.0, 7.0 8.0, 5.0 8.0, 5.0 6.0))' AS g2
 )
-SELECT ST_Intersects(g1, g2), ST_Equals(g1, g2), ST_Touches(g1, g2), ST_Covers(g1, g2), ST_Contains(g1, g2) FROM geom_str
+SELECT ST_Intersects(g1, g2), ST_Equals(g1, g2), ST_Touches(g1, g2), ST_Covers(g1, g2), ST_Contains(g1, g2), ST_ContainsProperly(g1, g2) FROM geom_str
 */
 void geomRelationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedResults[6][6]) {
   int32_t rowNum = 6;
@@ -67,7 +67,7 @@ void geomRelationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedRe
   STR_TO_VARSTR(strArray1[1], "POINT(3.0 3.0)");
   STR_TO_VARSTR(strArray1[2], "POINT(3.0 6.0)");
   STR_TO_VARSTR(strArray1[3], "LINESTRING(1.0 1.0, 2.0 2.0, 5.0 5.0)");
-  STR_TO_VARSTR(strArray1[4], "LINESTRING(1.0 1.0, 2.0 2.0, 3.0 5.0)");
+  STR_TO_VARSTR(strArray1[4], "LINESTRING(3.0 7.0, 4.0 7.0, 5.0 7.0)");
   STR_TO_VARSTR(strArray1[5], "POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0, 3.0 6.0))");
 
   char strArray2[rowNum][TSDB_MAX_BINARY_LEN];
@@ -155,10 +155,10 @@ void geomRelationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedRe
 TEST(GeomRelationFuncTest, intersectsFunction) {
   // 1: true, 0: false, -1: null
   int8_t expectedResults[6][6] = {
-    {1, 0, 1, 1, 0, 1},   // two columns
-    {1, 0, 1, 1, 0, 1},   // two columns swpped
+    {1, 0, 1, 1, 1, 1},   // two columns
+    {1, 0, 1, 1, 1, 1},   // two columns swpped
     {1, 0, 1, 0, 1, 0},   // first constant
-    {1, 0, 0, 0, 0, 1},   // second constant
+    {1, 0, 0, 0, 1, 1},   // second constant
     {1},                  // two constant
     {1, 0, -1, 1, -1, 1}  // with Null value
   };
@@ -198,9 +198,9 @@ TEST(GeomRelationFuncTest, coversFunction) {
   // 1: true, 0: false, -1: null
   int8_t expectedResults[6][6] = {
     {1, 0, 0, 0, 0, 0},   // two columns
-    {1, 0, 1, 0, 0, 0},   // two columns swapped
+    {1, 0, 1, 0, 1, 0},   // two columns swapped
     {1, 0, 0, 0, 0, 0},   // first constant
-    {1, 0, 0, 0, 0, 1},   // second constant
+    {1, 0, 0, 0, 1, 1},   // second constant
     {1},                  // two constant
     {1, 0, -1, 0, -1, 0}  // with Null value
   };
@@ -212,12 +212,26 @@ TEST(GeomRelationFuncTest, containsFunction) {
   // 1: true, 0: false, -1: null
   int8_t expectedResults[6][6] = {
     {1, 0, 0, 0, 0, 0},   // two columns
-    {1, 0, 0, 0, 0, 0},   // two columns swapped
+    {1, 0, 0, 0, 1, 0},   // two columns swapped
     {1, 0, 0, 0, 0, 0},   // first constant
-    {1, 0, 0, 0, 0, 1},   // second constant
+    {1, 0, 0, 0, 1, 1},   // second constant
     {1},                  // two constant
     {1, 0, -1, 0, -1, 0}  // with Null value
   };
 
   geomRelationFuncTest(containsFunction, expectedResults);
+}
+
+TEST(GeomRelationFuncTest, containsProperlyFunction) {
+  // 1: true, 0: false, -1: null
+  int8_t expectedResults[6][6] = {
+    {1, 0, 0, 0, 0, 0},   // two columns
+    {1, 0, 0, 0, 0, 0},   // two columns swapped
+    {1, 0, 0, 0, 0, 0},   // first constant
+    {1, 0, 0, 0, 1, 1},   // second constant
+    {1},                  // two constant
+    {1, 0, -1, 0, -1, 0}  // with Null value
+  };
+
+  geomRelationFuncTest(containsProperlyFunction, expectedResults);
 }
