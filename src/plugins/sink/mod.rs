@@ -1,28 +1,26 @@
-use anyhow::bail;
 use std::{
     any::Any,
-    collections::HashMap,
     io::{Read, Write},
     net::{SocketAddr, TcpListener, TcpStream},
     path::Path,
     sync::Arc,
 };
 use taos::{
-    AsyncQueryable, AsyncTBuilder, Bindable, Dsn, Itertools, Stmt, Taos, TaosBuilder, TaosPool,
+    AsyncQueryable, Bindable, Itertools, Stmt, Taos, TaosPool,
 };
-use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
 use tracing::{info, instrument};
 
 use taosx_ipc::{prelude::*, stream::point::PointMessage};
+use super::runners::opc::OpcTableConfig;
 
-#[instrument(skip(pool))]
+#[instrument(skip(pool, config))]
 async fn ipc_tcp_read(
     client: SocketAddr,
     pool: TaosPool,
     stream: TcpStream,
     lock: Arc<Mutex<()>>,
-    config: Option<HashMap<String, (String, String, IpcDataType)>>,
+    config: Option<OpcTableConfig>,
 ) -> anyhow::Result<()> {
     let ipc_reader = IpcReader::new(&stream).unwrap();
     let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
@@ -36,7 +34,7 @@ async fn ipc_unix_read(
     pool: TaosPool,
     stream: std::os::unix::net::UnixStream,
     lock: Arc<Mutex<()>>,
-    config: Option<HashMap<String, (String, String, IpcDataType)>>,
+    config: Option<OpcTableConfig>
 ) -> anyhow::Result<()> {
     let ipc_reader = IpcReader::new(&stream).unwrap();
     let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
@@ -106,7 +104,7 @@ async fn consume_point_record(
     taos: &Taos,
     record: &PointMessage,
     count: &mut usize,
-    map: &HashMap<String, (String, String, IpcDataType)>,
+    config: &OpcTableConfig
 ) -> anyhow::Result<()> {
     for message in record.records() {
         let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
@@ -117,13 +115,21 @@ async fn consume_point_record(
         let ts_index = schema.index_of("ts").unwrap();
         let value_index = schema.index_of("value").unwrap();
         let id_cv = cv_vec.remove(id_index);
+        let table_info = &config.table_info;
+        let ts_cloumn = &config.ts_cloumn_name;
         for i in 0..id_cv.len() {
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
-            let (table, field, _) = map.get(&id).unwrap();
+            let table_info = table_info.get(&id);
+            if table_info.is_none() {
+                log::warn!("id: {} cannot get table info", id);
+                continue;
+            }
+            let (table, field, _) = table_info.unwrap();
+            let ts_cloumn_name = ts_cloumn.get(table).unwrap();
             let sql = if ts_index > value_index {
-                format!("insert into {table} ({field}, ts) values (?, ?)")
+                format!("insert into {table} ({field}, {ts_cloumn_name}) values (?, ?)")
             } else {
-                format!("insert into {table} (ts, {field}) values (?, ?)")
+                format!("insert into {table} ({ts_cloumn_name}, {field}) values (?, ?)")
             };
             stmt.prepare(&sql).unwrap();
             let new_cv_vec = cv_vec
@@ -175,7 +181,7 @@ async fn ipc_point_reader<R: Read, W: Write>(
     taos: &Taos,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
-    config: Option<HashMap<String, (String, String, IpcDataType)>>,
+    config: Option<OpcTableConfig>
 ) -> anyhow::Result<()> {
     let mut count = 0;
     for record in ipc_reader {
@@ -195,14 +201,14 @@ async fn ipc_point_reader<R: Read, W: Write>(
     Ok(())
 }
 
-#[instrument(skip(pool, ipc_reader, ipc_ack_writer))]
+#[instrument(skip(pool, ipc_reader, ipc_ack_writer, config))]
 async fn ipc_process<R: Read, W: Write>(
     client: String,
     pool: TaosPool,
     ipc_reader: IpcReader<R>,
     ipc_ack_writer: AckWriter<W>,
     lock: Arc<Mutex<()>>,
-    config: Option<HashMap<String, (String, String, IpcDataType)>>,
+    config: Option<OpcTableConfig>
 ) -> anyhow::Result<()> {
     let taos = pool.get().await?;
     let metadata = ipc_reader.metadata();
@@ -234,8 +240,9 @@ async fn ipc_process<R: Read, W: Write>(
 pub fn listen_unix_socket(
     target: TaosPool,
     socket: impl AsRef<Path>,
-    config: Option<HashMap<String, (String, String, IpcDataType)>>,
+    config: Option<OpcTableConfig>
 ) -> anyhow::Result<()> {
+
     let path = socket.as_ref();
     if path.exists() {
         std::fs::remove_file(path).unwrap();
@@ -279,7 +286,7 @@ pub fn listen_unix_socket(
 pub fn listen_tcp_socket(
     target: TaosPool,
     socket: impl AsRef<str>,
-    config: Option<HashMap<String, (String, String, IpcDataType)>>,
+    config: Option<OpcTableConfig>,
 ) -> anyhow::Result<()> {
     let tcp_addr = socket.as_ref();
     let listener = TcpListener::bind(tcp_addr)?;

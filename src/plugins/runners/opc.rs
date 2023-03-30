@@ -2,17 +2,11 @@ use std::{
     collections::HashMap,
     io::prelude::*,
     num::ParseIntError,
-    path::{Path, PathBuf},
-    str::FromStr,
-    sync::Arc,
-    thread::JoinHandle,
-    time::Duration,
+    str::FromStr, 
 };
 
-use anyhow::bail;
-use anyhow::Context;
 use itertools::Itertools;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, TaosBuilder, taos_query::helpers::ColumnMeta, IntoDsn};
 use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
@@ -49,6 +43,12 @@ enum OpcError {
     DatabaseIsRequired(Dsn),
     #[error("Username and password are both required for UserName authentication method in {0}")]
     UserPassRequired(Dsn),
+    #[error("config file not found: {0}")]
+    FileNotFound(String),
+    #[error("table cloumn not match in {0}")]
+    CloumnNotMatch(String),
+    #[error("config file content is empty in {0}")]
+    EmptyConfig(String),
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
     ParseNumberError(&'static str, String, ParseIntError),
 }
@@ -211,8 +211,7 @@ impl OPCConfig {
                     da: None,
                 };
                 let interval = parse_int_at!("interval");
-                let node_vec = get_string_vec_from_param(&mut dsn, "ua.nodes");
-                // let type_vec = get_string_vec_from_param(&mut dsn, "value_type");
+                let node_vec = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?;
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
@@ -266,7 +265,7 @@ impl OPCConfig {
                     da: Some(connect_da_config),
                 };
                 let interval = parse_int_at!("interval");
-                let node_vec = get_string_vec_from_param(&mut dsn, "da.nodes");
+                let node_vec = get_string_vec_from_param_or_file(&mut dsn, "da.nodes")?;
                 let mut da_nodes_vec = Vec::new();
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
@@ -322,14 +321,38 @@ impl OPCConfig {
     }
 }
 
-fn get_string_vec_from_param(dsn: &mut Dsn, key: &str) -> Vec<String> {
-    dsn.remove(key)
-        .unwrap_or_default()
-        .split(",")
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
-        .collect_vec()
+fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<String>, OpcError> {
+    if let Some(nodes) = dsn.remove(key) {
+        let (files, mut node_config): (Vec<_>, Vec<_>) = nodes
+            .split(",")
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .partition(|v| v.starts_with("@"));
+        for file in files {
+            let f = std::fs::File::open(&file[1..]);
+            if f.is_err() {
+                log::warn!("file: {} read error", file);
+                return Err(OpcError::FileNotFound(file));
+            }
+            let buf = std::io::BufReader::new(f.unwrap());
+            let mut file_data = buf.lines().collect_vec();
+            // remove header
+            if file_data.remove(0).is_err() {
+                log::warn!("file: {} content length < 1", file);
+            }
+            
+            node_config.extend(file_data.iter().filter_map(|r| r.as_ref().ok()).map(|s| s.replace(",", "::")));
+
+        }
+        if node_config.len() == 0 {
+            log::warn!("node config is empty");
+            return Err(OpcError::EmptyConfig(nodes));
+        }
+        return Result::Ok(node_config);
+    }
+    log::warn!("node config is empty");
+    return Err(OpcError::EmptyConfig(String::new()));
 }
 
 fn process_table_info(
@@ -350,7 +373,7 @@ fn process_table_info(
 
 #[instrument(skip(port_pool))]
 pub async fn opc_to_taos(
-    mut from: Dsn,
+    from: Dsn,
     actions: Vec<Action>,
     to: Dsn,
     jobs: usize,
@@ -367,16 +390,69 @@ pub async fn opc_to_taos(
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
 
     let config = OPCConfig::new(from, ipc_port)?;
-    dbg!(&config);
-    // process table info
+    let mut ts_cloumn_name_map = HashMap::new();
     for (table_name, field_info) in &config.table_info {
-        let mut sql = format!("CREATE TABLE IF NOT EXISTS {table_name} (`ts` TIMESTAMP");
-        for (field, field_type) in field_info {
-            sql.push_str(format!(", `{field}` {field_type}").as_str());
+        let res = taos.describe(&table_name).await;
+        if res.is_err() {
+            // table not exists, will create normal table
+            let mut sql = format!("CREATE TABLE IF NOT EXISTS {table_name} (`ts` TIMESTAMP");
+            log::info!("table {table_name} use `ts` as ts column");
+            ts_cloumn_name_map.insert(table_name.clone(), String::from("ts"));
+            for (field, field_type) in field_info {
+                sql.push_str(format!(", `{field}` {field_type}").as_str());
+            }
+            sql.push_str(")");
+            log::info!("create normal table: {table_name}, sql: {sql}");
+            taos.exec(&sql).await?;
+        } else {
+            // table exists and check normal table or child table
+            let desc = res.unwrap();
+            let mut field_map = HashMap::new();
+                desc.iter().for_each(|c| {
+                    match c {
+                        ColumnMeta::Column(d) => {
+                            field_map.insert(d.field.clone(), d.ty.to_string());
+                        },
+                        _ => (),
+                    }
+                });
+            // insert ts column
+            log::info!("table {table_name} use `{}` as ts column", desc[0].field);
+            ts_cloumn_name_map.insert(table_name.clone(), desc[0].field.clone());
+            if desc.is_stable() {
+                // child table.
+                for (field, field_type) in field_info {
+                    let field_get = field_map.get(field);
+                    if field_get.is_none() {
+                        anyhow::bail!("field: {} not found in table: {}", field, table_name);
+                    }
+                    if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase()) {
+                        anyhow::bail!("field: {} type: {} not match in child table: {} which type is {}", field, field_type,table_name, field_get.unwrap());
+                    }
+                    
+                }
+            } else {
+                // ordinary table.
+                let mut columns_to_add = HashMap::new();
+                for (field, field_type) in field_info {
+                    let field_get = field_map.get(field); 
+                    if field_get.is_none() {
+                        // column not exists and alter table
+                        columns_to_add.insert(field, field_type);
+                    } else if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase()) {
+                        anyhow::bail!("field: {} type: {} not match in normal table: {} which type is {} ", field, field_type, table_name, field_get.unwrap());
+                    }
+                }
+                if columns_to_add.len() > 0 {
+                    for (field_name, field_type) in columns_to_add {
+                        let alter_sql = format!("ALTER TABLE {table_name} ADD COLUMN `{field_name}` {field_type}");
+                        log::info!("alter table sql: {}", alter_sql);
+                        taos.exec(alter_sql).await?;
+                    }
+                }
+            }
         }
-        sql.push_str(")");
-        log::info!("create table: {table_name}, sql: {sql}");
-        taos.exec(&sql).await?;
+        
     }
 
     let toml = toml::to_string(&config)?;
@@ -391,7 +467,11 @@ pub async fn opc_to_taos(
         sink::listen_tcp_socket(
             target_pool_for_ipc,
             config.report.remote,
-            Some(config.param_mapping.clone()),
+            Some(OpcTableConfig {
+                    table_info: config.param_mapping.clone(),
+                    ts_cloumn_name: ts_cloumn_name_map.clone(),
+                }
+                ),
         )
     });
     // TODO use unix socket on unix-like os
@@ -450,6 +530,30 @@ pub async fn opc_to_taos(
     Ok(())
 }
 
+/// check field type 
+/// return true if matched 
+/// if type equals return true else false
+/// if type is binary|varchar|nchar check whether type configed contains those characters
+fn check_field_type(field_type_config: &String, field_type: String) -> bool {
+    let field_type_config = field_type_config.to_ascii_lowercase();
+    if field_type.contains("binary") || field_type.contains("varchar") || field_type.contains("nchar") {
+        field_type_config.contains("binary") || field_type_config.contains("varchar") || field_type_config.contains("nchar")
+    } else if field_type_config == field_type {
+        true
+    } else {
+        false
+    }
+}
+
+#[derive(Clone)]
+pub struct OpcTableConfig {
+    /// table_info: table_name, Vec<(field, type)>
+    pub(crate) table_info: HashMap<String, (String, String, IpcDataType)>,
+
+    /// table_name, ts column
+    pub(crate) ts_cloumn_name: HashMap<String, String>,
+}
+
 pub async fn ops_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     let config = OPCConfig::new(from.clone(), 0)?;
     let toml = toml::to_string(&config)?;
@@ -503,7 +607,7 @@ pub async fn ops_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
 }
 
 #[tokio::test]
-async fn opc_config_to_toml() -> anyhow::Result<()> {
+async fn test_opc_config_to_toml() -> anyhow::Result<()> {
     let mut map = HashMap::new();
     map.insert(
         String::from("123"),
@@ -558,6 +662,46 @@ async fn opc_config_to_toml() -> anyhow::Result<()> {
         table_info: HashMap::new(),
     };
     let toml = toml::to_string(&config)?;
-    println!("toml:[{}]", toml);
+    assert_eq!(r#"opc_type = "opcua"
+
+[connect.ua]
+endpoint = "endpoint.123"
+connect_timeout = 10
+request_timeout = 20
+security_policy = "None"
+security_mode = "None"
+auth_method = "Anonymous"
+
+[connect.da]
+server = "server.server"
+nodes = ["localhost"]
+
+[collect]
+interval = 10
+
+[[collect.ua.nodes]]
+id = "1"
+value_type = "DOUBLE"
+
+[[collect.da.nodes]]
+tag = "123"
+value_type = "VARCHAR"
+
+[report]
+remote = "remote.remote"
+concurrent = 10
+batch_timeout = 100
+"#, toml);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> { 
+    let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
+    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?;
+    assert_eq!(vec_string, vec![String::from("ns=3;i=1004::ntb1::c0::double"), String::from("ns=3;i=1008::ntb1::c1::double")]);
+    let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
+    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?;
+    assert_eq!(vec_string, vec![String::from("ns=3;i=1004::ntb1::c0::double"), String::from("ns=3;i=1008::ntb1::c1::double"), String::from("ns=2;i=2::ntb2::c1::double"), String::from("ns=2;i=3::ntb3::c2::int")]);
     Ok(())
 }
