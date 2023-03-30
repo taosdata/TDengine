@@ -27,7 +27,7 @@ typedef struct SFDataPtr {
 } SFDataPtr;
 
 typedef struct {
-  SFDataPtr dict[4];  // 0:bloom filter, 1:SSttBlk, 2:SDelBlk, 3:STbStatisBlk
+  SFDataPtr dict[4];  // 0:bloom filter, 1:SSttBlk, 2:STbStatisBlk, 3:SDelBlk
   uint8_t   reserved[32];
 } SFSttFooter;
 
@@ -123,32 +123,81 @@ static int32_t write_stt_blk(struct SSttFWriter *pWriter) {
   int32_t code = 0;
   int32_t lino;
 
-  if (taosArrayGetSize(pWriter->aSttBlk) == 0) {
-    goto _exit;
+  pWriter->footer.dict[1].offset = pWriter->config.file.size;
+  pWriter->footer.dict[1].size = sizeof(SSttBlk) * taosArrayGetSize(pWriter->aSttBlk);
+
+  if (pWriter->footer.dict[1].size) {
+    code = tsdbWriteFile(pWriter->pFd, pWriter->config.file.size, TARRAY_DATA(pWriter->aSttBlk),
+                         pWriter->footer.dict[1].size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    pWriter->config.file.size += pWriter->footer.dict[1].size;
   }
 
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pWriter->config.pTsdb->pVnode), __func__, lino,
               tstrerror(code));
-  } else {
-    // tsdbDebug("vgId:%d %s done, offset:%" PRId64 " size:%" PRId64 " # of stt block:%d",
-    // TD_VID(pWriter->config.pTsdb->pVnode), __func__);
   }
   return code;
 }
 
-static int32_t write_del_block(struct SSttFWriter *pWriter) {
+static int32_t write_statistics_blk(struct SSttFWriter *pWriter) {
   int32_t code = 0;
+  int32_t lino;
 
-  // TODO
+  pWriter->footer.dict[2].offset = pWriter->config.file.size;
+  pWriter->footer.dict[2].size = sizeof(STbStatisBlock) * taosArrayGetSize(pWriter->aStatisBlk);
+
+  if (pWriter->footer.dict[2].size) {
+    code = tsdbWriteFile(pWriter->pFd, pWriter->config.file.size, TARRAY_DATA(pWriter->aStatisBlk),
+                         pWriter->footer.dict[2].size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    pWriter->config.file.size += pWriter->footer.dict[2].size;
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pWriter->config.pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
+  }
   return code;
 }
 
 static int32_t write_del_blk(struct SSttFWriter *pWriter) {
   int32_t code = 0;
-  // TODO
+  int32_t lino;
+
+  pWriter->footer.dict[3].offset = pWriter->config.file.size;
+  pWriter->footer.dict[3].size = sizeof(SDelBlk) * taosArrayGetSize(pWriter->aDelBlk);
+
+  if (pWriter->footer.dict[3].size) {
+    code = tsdbWriteFile(pWriter->pFd, pWriter->config.file.size, TARRAY_DATA(pWriter->aDelBlk),
+                         pWriter->footer.dict[3].size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    pWriter->config.file.size += pWriter->footer.dict[3].size;
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pWriter->config.pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
+  }
   return code;
+}
+
+static int32_t write_file_footer(struct SSttFWriter *pWriter) {
+  int32_t code = tsdbWriteFile(pWriter->pFd, pWriter->config.file.size, (const uint8_t *)&pWriter->footer,
+                               sizeof(pWriter->footer));
+  pWriter->config.file.size += sizeof(pWriter->footer);
+  return code;
+}
+
+static int32_t write_file_header(struct SSttFWriter *pWriter) {
+  // TODO
+  return 0;
 }
 
 static int32_t create_stt_fwriter(const struct SSttFWriterConf *pConf, struct SSttFWriter **ppWriter) {
@@ -284,10 +333,29 @@ int32_t tsdbSttFWriterClose(struct SSttFWriter **ppWriter) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  if (ppWriter[0]->sData.nRow > 0) {
+    code = write_statistics_block(ppWriter[0]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  if (ppWriter[0]->dData.nRow > 0) {
+    code = write_delete_block(ppWriter[0]);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   code = write_stt_blk(ppWriter[0]);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  code = write_statistics_blk(ppWriter[0]);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   code = write_del_blk(ppWriter[0]);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = write_file_footer(ppWriter[0]);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = write_file_header(ppWriter[0]);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = close_stt_fwriter(ppWriter[0]);
