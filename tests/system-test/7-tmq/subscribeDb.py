@@ -13,11 +13,11 @@ from util.dnodes import *
 
 class TDTestCase:
     hostname = socket.gethostname()
-    #rpcDebugFlagVal = '143'
+    rpcDebugFlagVal = '143'
     #clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
     #clientCfgDict["rpcDebugFlag"]  = rpcDebugFlagVal
     #updatecfgDict = {'clientCfg': {}, 'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
-    #updatecfgDict["rpcDebugFlag"] = rpcDebugFlagVal
+    updatecfgDict["rpcDebugFlag"] = rpcDebugFlagVal
     #print ("===================: ", updatecfgDict)
 
     def init(self, conn, logSql, replicaVar=1):

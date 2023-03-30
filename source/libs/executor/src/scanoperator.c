@@ -779,13 +779,14 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       // if no data, switch to next table and continue scan
       pInfo->currentTable++;
       if (pInfo->currentTable >= numOfTables) {
+        qDebug("all table checked in table list, total:%d, return NULL, %s", numOfTables, GET_TASKID(pTaskInfo));
         return NULL;
       }
 
       STableKeyInfo* pTableInfo = tableListGetInfo(pTaskInfo->pTableInfoList, pInfo->currentTable);
       tsdbSetTableList(pInfo->base.dataReader, pTableInfo, 1);
       qDebug("set uid:%" PRIu64 " into scanner, total tables:%d, index:%d/%d %s", pTableInfo->uid, numOfTables,
-             pInfo->currentTable, numOfTables, pTaskInfo->id.str);
+             pInfo->currentTable, numOfTables, GET_TASKID(pTaskInfo));
 
       tsdbReaderReset(pInfo->base.dataReader, &pInfo->base.cond);
       pInfo->scanTimes = 0;
