@@ -782,13 +782,14 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       // if no data, switch to next table and continue scan
       pInfo->currentTable++;
       if (pInfo->currentTable >= numOfTables) {
+        qDebug("all table checked in table list, total:%d, return NULL, %s", numOfTables, GET_TASKID(pTaskInfo));
         return NULL;
       }
 
       STableKeyInfo* pTableInfo = tableListGetInfo(pTaskInfo->pTableInfoList, pInfo->currentTable);
       tsdbSetTableList(pInfo->base.dataReader, pTableInfo, 1);
-      qDebug("set uid:%" PRIu64 " into scanner, total tables:%d, index:%d %s", pTableInfo->uid, numOfTables,
-             pInfo->currentTable, pTaskInfo->id.str);
+      qDebug("set uid:%" PRIu64 " into scanner, total tables:%d, index:%d/%d %s", pTableInfo->uid, numOfTables,
+             pInfo->currentTable, numOfTables, GET_TASKID(pTaskInfo));
 
       tsdbReaderReset(pInfo->base.dataReader, &pInfo->base.cond);
       pInfo->scanTimes = 0;
@@ -1601,19 +1602,16 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
+  const char* id = GET_TASKID(pTaskInfo);
 
-  qDebug("start to exec queue scan");
+  qDebug("start to exec queue scan, %s", id);
 
   if (pTaskInfo->streamInfo.submit.msgStr != NULL) {
-    if (pInfo->tqReader->msg2.msgStr == NULL) {
-      /*pInfo->tqReader->pMsg = pTaskInfo->streamInfo.pReq;*/
 
-      /*const SSubmitReq* pSubmit = pInfo->tqReader->pMsg;*/
-      /*if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {*/
-      /*void* msgStr = pTaskInfo->streamInfo.*/
+    if (pInfo->tqReader->msg2.msgStr == NULL) {
       SPackedData submit = pTaskInfo->streamInfo.submit;
       if (tqReaderSetSubmitReq2(pInfo->tqReader, submit.msgStr, submit.msgLen, submit.ver) < 0) {
-        qError("submit msg messed up when initing stream submit block %p", submit.msgStr);
+        qError("submit msg messed up when initing stream submit block %p, %s", submit.msgStr, id);
         pInfo->tqReader->msg2 = (SPackedData){0};
         pInfo->tqReader->setMsg = 0;
         ASSERT(0);
@@ -1647,18 +1645,20 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
-      qDebug("queue scan tsdb return %" PRId64 " rows min:%" PRId64 " max:%" PRId64 " wal curVersion:%" PRId64, pResult->info.rows,
-             pResult->info.window.skey, pResult->info.window.ekey, pInfo->tqReader->pWalReader->curVersion);
+      qDebug("queue scan tsdb return %" PRId64 " rows min:%" PRId64 " max:%" PRId64 " wal curVersion:%" PRId64" %s", pResult->info.rows,
+             pResult->info.window.skey, pResult->info.window.ekey, pInfo->tqReader->pWalReader->curVersion, id);
       pTaskInfo->streamInfo.returned = 1;
       return pResult;
     } else {
+      // no data has return already, try to extract data in the WAL
       if (!pTaskInfo->streamInfo.returned) {
         STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
         tsdbReaderClose(pTSInfo->base.dataReader);
-        qDebug("3");
+
         pTSInfo->base.dataReader = NULL;
         tqOffsetResetToLog(&pTaskInfo->streamInfo.prepareStatus, pTaskInfo->streamInfo.snapshotVer);
-        qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", pTaskInfo->streamInfo.snapshotVer + 1);
+
+        qDebug("queue scan tsdb over, switch to wal ver:%" PRId64 " %s", pTaskInfo->streamInfo.snapshotVer + 1, id);
         if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1, pTaskInfo->id.str) < 0) {
           tqOffsetResetToLog(&pTaskInfo->streamInfo.lastStatus, pTaskInfo->streamInfo.snapshotVer);
           return NULL;
@@ -1675,7 +1675,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       if (tqNextBlock(pInfo->tqReader, &ret) < 0) {
         // if the end is reached, terrno is 0
         if (terrno != 0) {
-          qError("failed to get next log block since %s", terrstr());
+          qError("failed to get next log block since %s, %s", terrstr(), id);
         }
       }
 
@@ -1690,9 +1690,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       } else if (ret.fetchType == FETCH_TYPE__META) {
         qError("unexpected ret.fetchType:%d", ret.fetchType);
         continue;
-        //        pTaskInfo->streamInfo.lastStatus = ret.offset;
-        //        pTaskInfo->streamInfo.metaBlk = ret.meta;
-        //        return NULL;
       } else if (ret.fetchType == FETCH_TYPE__NONE ||
                  (ret.fetchType == FETCH_TYPE__SEP && pOperator->status == OP_EXEC_RECV)) {
         pTaskInfo->streamInfo.lastStatus = ret.offset;
@@ -1704,7 +1701,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       }
     }
   } else {
-    qError("unexpected streamInfo prepare type: %d", pTaskInfo->streamInfo.prepareStatus.type);
+    qError("unexpected streamInfo prepare type: %d %s", pTaskInfo->streamInfo.prepareStatus.type, id);
     return NULL;
   }
 }
