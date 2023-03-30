@@ -234,7 +234,9 @@ if [ "$verMode" == "cluster" ]; then
   sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" remove_temp.sh
   sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" remove_temp.sh
   sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" remove_temp.sh
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmail2}\"/g" remove_temp.sh
+  cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
+  echo "domain is ${cusDomain}"
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusDomain}\"/g" remove_temp.sh
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 if [ "$verMode" == "cloud" ]; then
