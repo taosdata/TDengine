@@ -662,7 +662,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         # TODO commit out
         # self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
         for i in range(count):
-            input_sql = self.tdCom.gen_full_type_sql(stb_name=stb_name, t7=f'"{self.tdCom.get_long_name()}"', c7=f'"{self.tdCom.get_long_name()}"', id_noexist_tag=True)[0]
+            input_sql = self.tdCom.gen_full_type_sql(stb_name=stb_name, t8=f'"{self.tdCom.get_long_name()}"', c8=f'"{self.tdCom.get_long_name()}"', id_noexist_tag=True)[0]
             sql_list.append(input_sql)
         self.tdSql._conn.schemaless_insert(sql_list, TDSmlProtocolType.LINE.value, None)
         self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
@@ -1049,16 +1049,18 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.query(f'select count(*) from {self.dbname}.`E50`')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], thread_count*batch_count*loop_times)
 
+    def ts_3053(self):
+        lines = ["meters,location=la,groupid=ca current=11.8,voltage=221","meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27","ts3038,location=l2a,groupid=ca current=L\"11.8\"","ts3038,location=l2a,groupid=ca voltage=L\"221\"","ts3038,location=l2a,groupid=ca phase=L\"221\""]
+        self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, None)
+        self.tdSql.query('select count(*) from meters;')
 
     def test(self):
-        self.col_value_length_check()
-        # self.tdSql.execute('drop database if exists iot_dev;')
-        # self.tdSql.execute('create database if not exists iot_dev precision "ns";')
-        # self.tdSql.execute('use iot_dev')
-        # # lines = ['xx,device_code=3ef89390-e612-11eb-ad04-a507e9855fed animal_id=1076048383523889174i64 1626006833639000000']
-        # lines = ['xx,device_code=3ef89390-e612-11eb-ad04-a507e9855fed animal_id=9223372036854775807i64 1626006833639000000']
-        # self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, None)
-        # print(lines)
+        # for i in range(100):
+        self.multi_insert_check(500)
+        self.tdSql.execute('drop database if exists iot_dev;')
+        self.tdSql.execute('create database if not exists iot_dev precision "ns";')
+        self.tdSql.execute('use iot_dev')
+        # lines = ['xx,device_code=3ef89390-e612-11eb-ad04-a507e9855fed animal_id=1076048383523889174i64 1626006833639000000']
         # self.tdSql.query(f'select * from xx')
         # print("query_res -----", self.tdSql.query_data)
         # input_sql = 'reported_j1WhBe0W78Edj6hK,realm_device_id=test_device_id_001 Ia=10.01f32,P=1.32012f32,Ib=9.0100001f32,Ia_source_time=1677834213374i64,P_source_time=1677834213374i64,Ib_source_time=1677834213374i64 1677834213374'
@@ -1145,6 +1147,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
 
             self.ts_2828(10, 10, 5)
+            self.ts_3053()
 
     def cleanup(self):
         pass
