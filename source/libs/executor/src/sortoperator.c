@@ -698,7 +698,7 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
     pDataBlock->info.dataLoad = 1;
   }
 
-  qDebug("%s get sorted block, groupId:0x%" PRIx64 " rows:%d", GET_TASKID(pTaskInfo), pDataBlock->info.id.groupId,
+  qDebug("%s get sorted block, groupId:0x%" PRIx64 " rows:%" PRId64 , GET_TASKID(pTaskInfo), pDataBlock->info.id.groupId,
          pDataBlock->info.rows);
 
   return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;

@@ -1201,7 +1201,7 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
       blockDataEnsureCapacity(pBlock, pBlock->info.rows + pRow->numOfRows);
-      qDebug("datablock capacity not sufficient, expand to required:%d, current capacity:%d, %s",
+      qDebug("datablock capacity not sufficient, expand to required:%" PRId64 ", current capacity:%d, %s",
              (pRow->numOfRows+pBlock->info.rows),
              pBlock->info.capacity, GET_TASKID(pTaskInfo));
         // todo set the pOperator->resultInfo size
@@ -1214,7 +1214,7 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
     pBlock->info.rows += pRow->numOfRows;
   }
 
-  qDebug("%s result generated, rows:%d, groupId:%" PRIu64, GET_TASKID(pTaskInfo), pBlock->info.rows,
+  qDebug("%s result generated, rows:%" PRId64 ", groupId:%" PRIu64, GET_TASKID(pTaskInfo), pBlock->info.rows,
          pBlock->info.id.groupId);
   pBlock->info.dataLoad = 1;
   blockDataUpdateTsWindow(pBlock, 0);

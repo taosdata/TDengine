@@ -257,19 +257,14 @@ cleanup:
   kvVal->f = (float)result;
 
 #define SET_BIGINT                                                                                         \
-  if (smlDoubleToInt64OverFlow(result)) {                                                                  \
-    errno = 0;                                                                                             \
-    int64_t tmp = taosStr2Int64(pVal, &endptr, 10);                                                        \
-    if (errno == ERANGE) {                                                                                 \
-      smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", pVal); \
-      return false;                                                                                        \
-    }                                                                                                      \
-    kvVal->type = TSDB_DATA_TYPE_BIGINT;                                                                   \
-    kvVal->i = tmp;                                                                                        \
-    return true;                                                                                           \
-  }                                                                                                        \
-  kvVal->type = TSDB_DATA_TYPE_BIGINT;                                                                     \
-  kvVal->i = (int64_t)result;
+  errno = 0;                                                                                             \
+  int64_t tmp = taosStr2Int64(pVal, &endptr, 10);                                                        \
+  if (errno == ERANGE) {                                                                                 \
+    smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", pVal); \
+    return false;                                                                                        \
+  }                                                                                                      \
+  kvVal->type = TSDB_DATA_TYPE_BIGINT;                                                                   \
+  kvVal->i = tmp;
 
 #define SET_INT                                                                    \
   if (!IS_VALID_INT(result)) {                                                     \
@@ -288,19 +283,14 @@ cleanup:
   kvVal->i = result;
 
 #define SET_UBIGINT                                                                               \
-  if (result >= (double)UINT64_MAX || result < 0) {                                               \
-    errno = 0;                                                                                    \
-    uint64_t tmp = taosStr2UInt64(pVal, &endptr, 10);                                             \
-    if (errno == ERANGE || result < 0) {                                                          \
-      smlBuildInvalidDataMsg(msg, "unsigned big int out of range[0,18446744073709551615]", pVal); \
-      return false;                                                                               \
-    }                                                                                             \
-    kvVal->type = TSDB_DATA_TYPE_UBIGINT;                                                         \
-    kvVal->u = tmp;                                                                               \
-    return true;                                                                                  \
-  }                                                                                               \
-  kvVal->type = TSDB_DATA_TYPE_UBIGINT;                                                           \
-  kvVal->u = result;
+  errno = 0;                                                                                    \
+  uint64_t tmp = taosStr2UInt64(pVal, &endptr, 10);                                             \
+  if (errno == ERANGE || result < 0) {                                                          \
+    smlBuildInvalidDataMsg(msg, "unsigned big int out of range[0,18446744073709551615]", pVal); \
+    return false;                                                                               \
+  }                                                                                             \
+  kvVal->type = TSDB_DATA_TYPE_UBIGINT;                                                         \
+  kvVal->u = tmp;
 
 #define SET_UINT                                                                  \
   if (!IS_VALID_UINT(result)) {                                                   \
