@@ -340,7 +340,7 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
         continue;
       }
       ret->fetchType = FETCH_TYPE__DATA;
-      tqDebug("return data rows %d", ret->data.info.rows);
+      tqDebug("return data rows %" PRId64, ret->data.info.rows);
       return 0;
     }
 

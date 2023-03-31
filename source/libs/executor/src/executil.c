@@ -571,6 +571,10 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
           memcpy(pStart, data, len);
           pStart += len;
         } else if (IS_VAR_DATA_TYPE(pValue->info.type)) {
+          if (varDataTLen(data) > pValue->info.bytes) {
+            code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+            goto end;
+          }
           memcpy(pStart, data, varDataTLen(data));
           pStart += varDataTLen(data);
         } else {

@@ -128,8 +128,9 @@ FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn
     if (end >= 0) {
       forwardRows = end;
 
-      if (pData[end + pos] == ekey) {
+      while (pData[end + pos] == ekey) {
         forwardRows += 1;
+        ++pos;
       }
     }
   } else {
@@ -137,8 +138,9 @@ FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn
     if (end >= 0) {
       forwardRows = end;
 
-      if (pData[end + pos] == ekey) {
+      while (pData[end + pos] == ekey) {
         forwardRows += 1;
+        ++pos;
       }
     }
     //    int32_t end = searchFn((char*)pData, pos + 1, ekey, order);

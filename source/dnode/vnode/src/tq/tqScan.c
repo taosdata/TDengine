@@ -114,7 +114,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
 
     pRsp->blockNum++;
 
-    tqDebug("vgId:%d, consumer:0x%" PRIx64 " tmq task executed, rows:%d, total blocks:%d", vgId, pHandle->consumerId,
+    tqDebug("vgId:%d, consumer:0x%" PRIx64 " tmq task executed, rows:%" PRId64 ", total blocks:%d", vgId, pHandle->consumerId,
             pDataBlock->info.rows, pRsp->blockNum);
 
     if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
