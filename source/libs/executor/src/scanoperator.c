@@ -772,7 +772,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     while (1) {
       SSDataBlock* result = doGroupedTableScan(pOperator);
-      if (result || (pOperator->status == OP_EXEC_DONE)) {
+      if (result || (pOperator->status == OP_EXEC_DONE) || isTaskKilled(pTaskInfo)) {
         return result;
       }
 
@@ -1666,6 +1666,8 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__LOG) {
     while (1) {
       SFetchRet ret = {0};
+      terrno = 0;
+
       if (tqNextBlock(pInfo->tqReader, &ret) < 0) {
         // if the end is reached, terrno is 0
         if (terrno != 0) {
