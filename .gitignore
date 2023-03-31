@@ -25,3 +25,5 @@ TDC-Hub-fe
 Cargo.lock
 target
 src/views/0_login/data.json
+package-lock.json
+yarn.lock
