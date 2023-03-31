@@ -1,6 +1,6 @@
 [package]
 name = "taos-explorer"
-version = "0.2.0"
+version = "0.3.0-alpha.0"
 edition = "2021"
 description = "TDengine Explorer UI"
 
@@ -16,6 +16,7 @@ awc = "3.1"
 clap = { version = "4", features = ["derive", "env"] }
 clap-verbosity-flag = "2.0.0"
 futures-util = "0.3.26"
+http-auth-basic = "0.3"
 log = { version = "0.4", features = ["serde"] }
 pretty_env_logger = "0.4"
 rust-embed = "6.4.2"
@@ -28,6 +29,5 @@ tracing-actix-web = "0.7.2"
 tracing-awc = { version = "0.1.0" }
 tracing-subscriber = "0.3"
 utoipa = "3.0.2"
-http-auth-basic = "0.3"
 
 taos = { version = "0.6.0", default-features = false, features = ["ws-rustls", "optin", "deadpool"] }

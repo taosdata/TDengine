@@ -1,6 +1,6 @@
 {
   "name": "taos-explorer-ui",
-  "version": "0.2.0",
+  "version": "0.3.0-alpha.0",
   "description": "TDengine Explorer",
   "author": "support@taosdata.com",
   "private": true,
@@ -87,7 +87,7 @@
       "no-useless-escape": "off",
       "no-unreachable": "off",
       "no-case-declarations": "off",
-      "vue/comment-directive":"off"
+      "vue/comment-directive": "off"
     },
     "ignorePatterns": [
       "/WebSocket/**"
