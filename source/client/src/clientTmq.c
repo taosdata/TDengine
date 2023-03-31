@@ -320,15 +320,16 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "enable.heartbeat.background") == 0) {
-    if (strcasecmp(value, "true") == 0) {
-      conf->hbBgEnable = true;
-      return TMQ_CONF_OK;
-    } else if (strcasecmp(value, "false") == 0) {
-      conf->hbBgEnable = false;
-      return TMQ_CONF_OK;
-    } else {
+//    if (strcasecmp(value, "true") == 0) {
+//      conf->hbBgEnable = true;
+//      return TMQ_CONF_OK;
+//    } else if (strcasecmp(value, "false") == 0) {
+//      conf->hbBgEnable = false;
+//      return TMQ_CONF_OK;
+//    } else {
+      tscError("the default value of enable.heartbeat.background is true, can not be seted");
       return TMQ_CONF_INVALID;
-    }
+//    }
   }
 
   if (strcasecmp(key, "td.connect.ip") == 0) {
