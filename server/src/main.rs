@@ -1,8 +1,10 @@
 use actix_cors::Cors;
 use awc::error::JsonPayloadError;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
+use http_auth_basic::Credentials;
 use log::LevelFilter;
-use std::{fs::File, io::Read, path::PathBuf};
+use std::{fmt::Display, fs::File, io::Read, path::PathBuf};
+use taos::*;
 use tracing::{info, instrument, Level};
 use tracing_actix_web::{RequestId, TracingLogger};
 use tracing_awc::Tracing;
@@ -11,11 +13,10 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use actix_embed::Embed;
 use actix_web::{
     error::{self, PayloadError},
-    http::header::ContentType,
+    http::header::{ContentType, AUTHORIZATION},
     middleware::Logger,
-    web, App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder,
+    post, web, App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder,
 };
-use futures_util::StreamExt as _;
 
 use clap::Parser;
 use rust_embed::RustEmbed;
@@ -91,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
             .wrap(cors)
             .app_data(args.clone())
             .route("/", web::get().to(index))
+            .service(rest_sql)
             .route("/api/x/{api:.*}", web::to(x_api))
             .route("/api/-/profile", web::to(profile))
             .route("/api-doc/openapi.json", web::to(x_api_doc))
@@ -116,6 +118,19 @@ async fn profile(args: web::Data<Args>) -> impl Responder {
     HttpResponse::Ok().json(&args.profile)
 }
 
+#[post("/rest/sql")]
+async fn rest_sql(args: web::Data<Args>, req: HttpRequest, sql: String) -> impl Responder {
+    let header = req
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|header| header.to_str().ok())
+        .unwrap_or_default();
+    match args.query(header, &sql).await {
+        Ok(ok) => HttpResponse::Ok().json(ok),
+        Err(err) => HttpResponse::InternalServerError().json(err),
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error(transparent)]
@@ -139,14 +154,14 @@ async fn x_api(
     mut body: web::Payload,
 ) -> Result<HttpResponse, Error> {
     req.method();
-    if args.x_api.is_none() {
+    if args.profile.x_api.is_none() {
         return Ok(HttpResponse::NotFound().finish());
     }
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
         bytes.extend_from_slice(&item?);
     }
-    let x = args.x_api.as_deref().unwrap();
+    let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/{api}?{}", req.query_string());
     let client = awc::Client::builder().wrap(Tracing).finish();
     let method = req.method();
@@ -162,14 +177,14 @@ async fn x_api_doc(
     args: web::Data<Args>,
     mut body: web::Payload,
 ) -> Result<HttpResponse, Error> {
-    if args.x_api.is_none() {
+    if args.profile.x_api.is_none() {
         return Ok(HttpResponse::NotFound().finish());
     }
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
         bytes.extend_from_slice(&item?);
     }
-    let x = args.x_api.as_deref().unwrap();
+    let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/api-doc/openapi.json");
     let client = awc::Client::new();
     let method = req.method();
@@ -193,13 +208,22 @@ struct Asset;
 
 #[derive(Parser, Debug, Clone, Deserialize, Serialize)]
 struct Profile {
-    /// Persist cluster url, rg.: http://192.168.0.201:16041
-    #[clap(short, long, env = "EXPLORER_CLUSTER")]
+    /// Cluster endpoint. Use REST API like `http://192.168.0.201:16041` or native `taos://192.168.0.201:6030`.
+    #[clap(
+        short,
+        long,
+        env = "EXPLORER_CLUSTER",
+        default_value = "taos://localhost:6030"
+    )]
     cluster: Option<String>,
 
     /// External link for Grafana TDinsight dashboard, use direct ip or hostname like: http://grafana:3000/d/tdinsight-3x/tdinsight-for-3-x?orgId=1&refresh=30s
     #[clap(short, long, env = "EXPLORER_DASHBOARD")]
     dashboard: Option<String>,
+
+    /// API end point for data streaming task management.
+    #[clap(short, long, env = "EXPLORER_X_API")]
+    x_api: Option<String>,
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]
@@ -235,11 +259,98 @@ struct Args {
     #[clap(env = "EXPLORER_LOG_LEVEL", hide = true)]
     log_level: Option<LevelFilter>,
 
-    /// API end point for data streaming task management.
-    #[clap(short, long, env = "EXPLORER_X_API")]
-    x_api: Option<String>,
-
     #[clap(flatten)]
     #[serde(flatten)]
     profile: Profile,
+}
+
+impl Args {
+    async fn query(&self, header: &str, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
+        log::info!("SQL: {sql}");
+        //token
+        let credentials =
+            Credentials::from_header(header.to_string()).map_err(RestErrResponse::new)?;
+        let mut dsn: Dsn = self
+            .profile
+            .cluster
+            .as_deref()
+            .unwrap_or("taos://localhost:6030")
+            .parse()
+            .map_err(RestErrResponse::new)?;
+        dsn.username = Some(credentials.user_id);
+        dsn.password = Some(credentials.password);
+        let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
+
+        log::info!("Got connection, querying");
+        let mut set = conn.query(sql).await?;
+        let column_meta = set
+            .fields()
+            .iter()
+            .map(|f| (f.name().to_string(), f.ty().to_string(), f.bytes()))
+            .collect_vec();
+        log::info!("Got fields {column_meta:?}, fetching data.");
+        let data = set
+            .to_records()
+            .await?
+            .into_iter()
+            .map(|row| {
+                row.into_iter()
+                    .map(|v| match v {
+                        taos::Value::Timestamp(ts) => {
+                            serde_json::Value::String(ts.to_datetime_with_tz().to_rfc3339())
+                        }
+                        _ => v.to_json_value(),
+                    })
+                    .collect_vec()
+            })
+            .collect_vec();
+        log::info!("SQL result: {data:?}");
+        Ok(RestOkResponse {
+            code: Code::Success,
+            column_meta,
+            rows: data.len() as _,
+            data,
+        })
+    }
+}
+#[derive(Debug, serde::Serialize)]
+struct RestOkResponse {
+    code: Code,
+    column_meta: Vec<(String, String, u32)>,
+    data: Vec<Vec<serde_json::Value>>,
+    rows: u64,
+}
+#[derive(Debug, serde::Serialize)]
+struct RestErrResponse {
+    code: Code,
+    desc: String,
+}
+impl RestErrResponse {
+    pub fn new(err: impl Display) -> Self {
+        Self {
+            code: Code::Failed,
+            desc: err.to_string(),
+        }
+    }
+}
+impl From<taos::Error> for RestErrResponse {
+    fn from(err: taos::Error) -> Self {
+        let err_str = err.to_string();
+        let parts = err_str.split_terminator(['[', ']']).collect_vec();
+        // dbg!(parts);
+        if parts.len() == 3 {
+            let code = i32::from_str_radix(&parts[1][2..], 16).unwrap_or(0xFFFF);
+            let desc = parts[2].to_string();
+
+            RestErrResponse {
+                code: Code::new(code),
+                desc,
+            }
+        } else {
+            RestErrResponse {
+                code: Code::Failed,
+                desc: err_str,
+            }
+        }
+    }
 }
