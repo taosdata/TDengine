@@ -623,7 +623,7 @@ static void asyncCommitOffset(tmq_t* tmq, const TAOS_RES* pRes, tmq_commit_cb* p
   }
 
   if (j == numOfVgroups) {
-    tscWarn("consumer:0x" PRIx64 " failed to find the specified vgId:%d, total Vgs:%d, topic:%s", tmq->consumerId, vgId,
+    tscWarn("consumer:0x%" PRIx64 " failed to find the specified vgId:%d, total Vgs:%d, topic:%s", tmq->consumerId, vgId,
             numOfVgroups, pTopicName);
     taosMemoryFree(pParamSet);
     pCommitFp(tmq, TSDB_CODE_SUCCESS, userParam);
