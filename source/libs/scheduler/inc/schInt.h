@@ -299,6 +299,7 @@ typedef struct SSchJob {
   SExecResult          execRes;
   void                *fetchRes;  // TODO free it or not
   bool                 fetched;
+  bool                 noMoreRetry;
   int64_t              resNumOfRows; // from int32_t to int64_t
   SSchResInfo          userRes;
   char                *sql;
@@ -333,8 +334,8 @@ extern SSchedulerMgmt schMgmt;
   ((_job)->attr.localExec && SCH_IS_QUERY_JOB(_job) && (!SCH_IS_INSERT_JOB(_job)) && \
    (!SCH_IS_DATA_BIND_QRY_TASK(_task)))
 
-#define SCH_UPDATE_REDICT_CODE(job, _code) atomic_val_compare_exchange_32(&((job)->redirectCode), 0, _code)
-#define SCH_GET_REDICT_CODE(job, _code) (((!NO_RET_REDIRECT_ERROR(_code)) || (job)->redirectCode == 0) ? (_code) : (job)->redirectCode)
+#define SCH_UPDATE_REDIRECT_CODE(job, _code) atomic_val_compare_exchange_32(&((job)->redirectCode), 0, _code)
+#define SCH_GET_REDIRECT_CODE(job, _code) (((!NO_RET_REDIRECT_ERROR(_code)) || (job)->redirectCode == 0) ? (_code) : (job)->redirectCode)
 
 #define SCH_SET_TASK_STATUS(task, st) atomic_store_8(&(task)->status, st)
 #define SCH_GET_TASK_STATUS(task)     atomic_load_8(&(task)->status)
@@ -398,7 +399,7 @@ extern SSchedulerMgmt schMgmt;
    (NEED_SCHEDULER_REDIRECT_ERROR(_code) || SCH_LOW_LEVEL_NETWORK_ERR((_job), (_task), (_code)) || SCH_TASK_RETRY_NETWORK_ERR((_task), (_code))))
 #define SCH_TASK_NEED_RETRY(_msgType, _code) \
    ((SCH_REDIRECT_MSGTYPE(_msgType) && SCH_NETWORK_ERR(_code)) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
-  
+
 
 #define SCH_IS_LEVEL_UNFINISHED(_level) ((_level)->taskLaunchedNum < (_level)->taskNum)
 #define SCH_GET_CUR_EP(_addr)           (&(_addr)->epSet.eps[(_addr)->epSet.inUse])
@@ -522,6 +523,11 @@ extern SSchedulerMgmt schMgmt;
     }                                                                                                 \
   } while (0)
 
+#define SCH_RESET_JOB_LEVEL_IDX(_job) do {                        \
+  (_job)->levelIdx = (_job)->levelNum - 1;                       \
+  SCH_JOB_DLOG("set job levelIdx to %d", (_job)->levelIdx);       \
+} while (0)
+
 void     schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask);
 void     schCleanClusterHb(void *pTrans);
 int32_t  schLaunchTask(SSchJob *job, SSchTask *task);
@@ -603,6 +609,10 @@ int32_t  schHandleJobDrop(SSchJob *pJob, int32_t errCode);
 bool     schChkCurrentOp(SSchJob *pJob, int32_t op, int8_t sync);
 int32_t  schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rspCode);
 int32_t  schProcessExplainRsp(SSchJob *pJob, SSchTask *pTask, SExplainRsp *rsp);
+int32_t  schHandleJobRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_t rspCode);
+int32_t  schChkResetJobRetry(SSchJob *pJob, int32_t rspCode);
+void     schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask);
+int32_t  schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, int32_t rspCode);
 
 extern SSchDebug gSCHDebug;
 

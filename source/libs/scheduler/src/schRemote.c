@@ -416,6 +416,7 @@ _return:
 int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
   int32_t msgType = pMsg->msgType;
+  char   *msg = pMsg->pData;
 
   bool dropExecNode = (msgType == TDMT_SCH_LINK_BROKEN || SCH_NETWORK_ERR(rspCode));
   if (SCH_IS_QUERY_JOB(pJob)) {
@@ -426,7 +427,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
 
   int32_t reqType = IsReq(pMsg) ? pMsg->msgType : (pMsg->msgType - 1);
   if (SCH_JOB_NEED_RETRY(pJob, pTask, reqType, rspCode)) {
-    SCH_RET(schHandleJobRetry());
+    SCH_RET(schHandleJobRetry(pJob, pTask, (SDataBuf *)pMsg, rspCode));
   } else if (SCH_TASKSET_NEED_RETRY(pJob, pTask, reqType, rspCode)) {
     SCH_RET(schHandleTaskSetRetry(pJob, pTask, (SDataBuf *)pMsg, rspCode));
   }
@@ -434,6 +435,12 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
   pTask->redirectCtx.inRedirect = false;
 
   SCH_RET(schProcessResponseMsg(pJob, pTask, execId, pMsg, rspCode));
+
+_return:
+
+  taosMemoryFreeClear(msg);
+
+  SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 } 
 int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   int32_t                code = 0;

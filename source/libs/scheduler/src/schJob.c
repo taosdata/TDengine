@@ -296,7 +296,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
   }
 
   pJob->levelNum = levelNum;
-  pJob->levelIdx = levelNum - 1;
+  SCH_RESET_JOB_LEVEL_IDX(pJob);
 
   SSchLevel      level = {0};
   SNodeListNode *plans = NULL;
@@ -828,8 +828,9 @@ int32_t schChkResetJobRetry(SSchJob *pJob, int32_t rspCode) {
     SCH_LOCK(SCH_WRITE, &pJob->resLock);
     if (pJob->fetched) {
       SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
-      SCH_TASK_ELOG("already fetched while got error %s", tstrerror(rspCode));
-      SCH_ERR_JRET(rspCode);
+      pJob->noMoreRetry = true;
+      SCH_JOB_ELOG("already fetched while got error %s", tstrerror(rspCode));
+      SCH_ERR_RET(rspCode);
     }
     SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
 
@@ -839,12 +840,56 @@ int32_t schChkResetJobRetry(SSchJob *pJob, int32_t rspCode) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t schResetJobForRetry(SSchJob *pJob, int32_t rspCode) {
+  SCH_ERR_RET(schChkResetJobRetry(pJob, rspCode));
+
+  int32_t numOfLevels = taosArrayGetSize(pJob->levels);
+  for (int32_t i = 0; i < numOfLevels; ++i) {
+    SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
+
+    pLevel->taskExecDoneNum = 0;
+    pLevel->taskLaunchedNum = 0;
+
+    int32_t numOfTasks = taosArrayGetSize(pLevel->subTasks);
+    for (int32_t j = 0; j < numOfTasks; ++j) {
+      SSchTask *pTask = taosArrayGet(pLevel->subTasks, j);
+      SCH_LOCK_TASK(pTask);
+      SCH_ERR_RET(schChkUpdateRedirectCtx(pJob, pTask, NULL, rspCode));
+      qClearSubplanExecutionNode(pTask->plan);
+      schResetTaskForRetry(pJob, pTask);
+      SCH_UNLOCK_TASK(pTask);
+    }
+  }
+
+  SCH_RESET_JOB_LEVEL_IDX(pJob);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t schHandleJobRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
 
-  SCH_ERR_JRET(schChkResetJobRetry(pJob, rspCode));
+  taosMemoryFreeClear(pMsg->pData);
+  taosMemoryFreeClear(pMsg->pEpSet);
 
+  SCH_UNLOCK_TASK(pTask);
+
+  SCH_TASK_DLOG("start to redirect all job tasks cause of error: %s", tstrerror(rspCode));
+
+  SCH_ERR_JRET(schResetJobForRetry(pJob, rspCode));
+
+  SCH_ERR_JRET(schLaunchJob(pJob));
+
+  SCH_LOCK_TASK(pTask);
+
+  SCH_RET(code);
+
+_return:
+
+  SCH_LOCK_TASK(pTask);
+
+  SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
 
 bool schChkCurrentOp(SSchJob *pJob, int32_t op, int8_t sync) {
