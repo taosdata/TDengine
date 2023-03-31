@@ -939,6 +939,9 @@ int sml_ts2164_Test() {
       //      "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
       "meters,location=la,groupid=ca current=11.8,voltage=221",
       "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
+      "ts3038,location=l2a,groupid=ca current=L\"11.8\"",
+      "ts3038,location=l2a,groupid=ca voltage=L\"221\"",
+      "ts3038,location=l2a,groupid=ca phase=L\"221\"",
       //      "meters,location=la,groupid=cb current=11.8,voltage=221,phase=0.27",
   };
 

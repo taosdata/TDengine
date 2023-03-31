@@ -25,6 +25,8 @@ static void clearColValArray(SArray* pCols) {
     if (TSDB_DATA_TYPE_NCHAR == pCol->type) {
       taosMemoryFreeClear(pCol->value.pData);
     }
+    pCol->flag = CV_FLAG_NONE;
+    pCol->value.val = 0;
   }
 }
 
