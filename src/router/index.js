@@ -171,13 +171,13 @@ const adminRoute = [
     path: "dashboard",
     component: () => import("@/views/1_dashboard"),
   },
-  {
-    path: "replication",
-    meta: {
-      role: ["1"],
-    },
-    component: () => import("@/views/4_replication"),
-  },
+  // {
+  //   path: "replication",
+  //   meta: {
+  //     role: ["1"],
+  //   },
+  //   component: () => import("@/views/4_replication"),
+  // },
   {
     path: "stream",
     meta: {
@@ -205,7 +205,7 @@ const adminRoute = [
       {
         path: "share",
         name: "Topic Share",
-        component: () => import("@/views/11_topic/views/subscription.vue"),
+        component: () => import("@/views/11_topic/views/shareTopic.vue"),
       },
       {
         path: "example",
@@ -311,12 +311,7 @@ const costantRoutes = [
     props: true,
     component: () => import("@/views/instanceStatus/index.vue"),
   },
-  {
-    path: "/createFirstInstance",
-    name: "createFirstInstance",
-    props: true,
-    component: () => import("@/views/createFirstInstance/index.vue"),
-  },
+  
   {
     path: "/",
     name: "layout",

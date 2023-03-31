@@ -33,9 +33,9 @@
       >
         <el-option
           v-for="item in topicList"
-          :key="item.topicId"
-          :label="item.topicName"
-          :value="item.topicId"
+          :key="item"
+          :label="item"
+          :value="item"
         ></el-option>
       </el-select>
     </div>
@@ -43,8 +43,9 @@
 </template>
 
 <script>
-import { getTopics } from "@/api/topic";
+import { sendSQLReq } from "@/api/gateway/console";
 import Docs from "@/components/Docs/index.vue";
+import { Message } from "element-ui";
 export default {
   props: {},
   components: { Docs },
@@ -57,6 +58,8 @@ export default {
       exTabEl: null,
       topicSelEl: null,
       topicSelTop: 0,
+      currentPage: 1,
+      pageSize: 10,
       langFixed: {
         go: {
           fixed: false,
@@ -82,7 +85,7 @@ export default {
     },
   },
   created() {
-    this.init();
+    this.getTopicList();
   },
   mounted() {
     const tmpEl = document.querySelector(".main_content");
@@ -104,19 +107,29 @@ export default {
     this.element?.removeEventListener("scroll", this.handleScroll);
   },
   methods: {
-    async init() {
-      await this.getTopics();
-      if (this.$route.query?.topicId) {
-        this.currentTopic = this.$route.query.topicId;
-      }
-    },
-    async getTopics() {
-      let data = await getTopics();
-      if (data) {
-        this.topicList = data;
-        if (!this.currentTopic && data && data.length > 0) {
-          this.currentTopic = data[0].topicId;
-        }
+    // async init() {
+    //   await this.getTopics({ currentPage: this.currentPage, pageSize: this.pageSize });
+    //   if (this.$route.query?.topicId) {
+    //     this.currentTopic = this.$route.query.topicId;
+    //   }
+    // },
+     async getTopicList() {
+      try {
+        await sendSQLReq(`show topics;`)
+          .then((res) => {
+            this.topicList = res.data.map((data) => {
+            return data.join('')
+            });
+            this.currentTopic=this.topicList[0]
+            console.log(this.topicList, this.currentTopic,"全部的topics");
+          })
+          .catch((err) => {
+            err.desc && Message.error(err.desc);
+            return Promise.reject(err);
+          });
+      } catch (error) {
+        console.log(error);
+        Message.error(error.desc);
       }
     },
     changeLang() {
@@ -232,7 +245,7 @@ export default {
   }
   .topic-example-select {
     position: fixed;
-    top: 20.5rem;
+    top: 22rem;
     right: 5.5rem;
     z-index: 1000;
     background-color: white;

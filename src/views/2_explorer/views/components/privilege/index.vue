@@ -1,11 +1,11 @@
 <template>
   <el-tabs v-model="activiteName">
-    <el-tab-pane v-if="userShow" name="user" :label="$t('accessControl.users')">
+    <el-tab-pane  name="user" :label="$t('accessControl.users')">
       <List />
     </el-tab-pane>
-    <el-tab-pane v-if="groupShow" name="userGroup" :label="$t('accessControl.userGroups')">
+    <!-- <el-tab-pane v-if="groupShow" name="userGroup" :label="$t('accessControl.userGroups')">
       <List type="group" />
-    </el-tab-pane>
+    </el-tab-pane> -->
   </el-tabs>
 </template>
 

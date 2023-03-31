@@ -17,7 +17,7 @@
         :label="$t('topic.sysinfo')"
         prop="sysinfo"
       ></el-table-column> -->
-      <el-table-column :label="$t('taosuser.database')">
+      <!-- <el-table-column :label="$t('taosuser.database')">
         <template slot-scope="scope" v-if="scope.row.super !== 1">
           <el-tooltip placement="right" effect="light" v-if="filterPrivileges(scope).length > 1">
             <ul slot="content">
@@ -30,8 +30,8 @@
           </el-tooltip>
           <span v-if="filterPrivileges(scope).length == 1">{{ filterPrivileges(scope)[0]['name'] }}: {{ filterPrivileges(scope)[0]['privileges'] }}</span>
         </template>
-      </el-table-column>
-      <el-table-column :label="$t('taosuser.topic')">
+      </el-table-column> -->
+      <!-- <el-table-column :label="$t('taosuser.topic')">
         <template slot-scope="scope" v-if="scope.row.super !== 1">
           <el-tooltip placement="right" effect="light" v-if="filterTopic(scope).length > 1">
             <ul slot="content">
@@ -44,7 +44,7 @@
           </el-tooltip>
           <span v-if="filterTopic(scope).length == 1">{{ filterTopic(scope)[0]['name'] }}: {{ filterTopic(scope)[0]['privileges'] }}</span>
         </template>
-      </el-table-column>
+      </el-table-column> -->
 
       <!-- <el-table-column label="Permission">
         <template slot-scope="scope">

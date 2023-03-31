@@ -37,9 +37,9 @@
       },
     },
     computed: {
-      language() {
-        return this.$store.state.profile.userInfo.language || "en";
-      },
+      // language() {
+      //   return this.$store.state.profile.userInfo.language || "en";
+      // },
       config() {
         let lang = window.decodeURIComponent(this.lang);
         return (
@@ -73,10 +73,10 @@
       };
     },
     watch: {
-      language() {
-        //语言切换刷新页面
-        window.location.reload();
-      },
+      // language() {
+      //   //语言切换刷新页面
+      //   window.location.reload();
+      // },
     },
     mounted() {
       // 在这里保存元素

@@ -557,12 +557,12 @@ export default {
     },
     async manage(data, node) {
       console.log("数据库管理，只有管理员可以看到该功能");
-      // await this.handleVar(data);
-      //   this.$store.state.console.currentInfoType = data.typeName;
-      //   this.$store.commit("console/SET_CURRENT_INFO_DATA", data);
-      //   this.$store.state.console.currentComponent = "DatabasePrivileges";
-      //   this.$store.commit("console/SET_TAB_NAME", this.$t(`data.databaseControl`).replace("{dbName}", data.name));
-      //   this.$store.state.console.partActive = "detail";
+      await this.handleVar(data);
+        this.$store.state.console.currentInfoType = data.typeName;
+        this.$store.commit("console/SET_CURRENT_INFO_DATA", data);
+        this.$store.state.console.currentComponent = "DatabasePrivileges";
+        this.$store.commit("console/SET_TAB_NAME", this.$t(`data.databaseControl`).replace("{dbName}", data.name));
+        this.$store.state.console.partActive = "detail";
     },
     getTooltip(data, operate) {
       console.log(data,operate,'toolitp-----ss');
