@@ -143,10 +143,7 @@ typedef struct {
   SQueryTableDataCond tableCond;
   int64_t             fillHistoryVer1;
   int64_t             fillHistoryVer2;
-
-  // int8_t        triggerSaved;
-  // int64_t       deleteMarkSaved;
-  SStreamState* pState;
+  SStreamState*       pState;
 } SStreamTaskInfo;
 
 typedef struct {
@@ -168,15 +165,14 @@ typedef struct STaskStopInfo {
 } STaskStopInfo;
 
 struct SExecTaskInfo {
-  STaskIdInfo   id;
-  uint32_t      status;
-  STimeWindow   window;
-  STaskCostInfo cost;
-  int64_t       owner;  // if it is in execution
-  int32_t       code;
-  int32_t       qbufQuota;  // total available buffer (in KB) during execution query
-
-  int64_t               version;  // used for stream to record wal version, why not move to sschemainfo
+  STaskIdInfo           id;
+  uint32_t              status;
+  STimeWindow           window;
+  STaskCostInfo         cost;
+  int64_t               owner;      // if it is in execution
+  int32_t               code;
+  int32_t               qbufQuota;  // total available buffer (in KB) during execution query
+  int64_t               version;    // used for stream to record wal version, why not move to sschemainfo
   SStreamTaskInfo       streamInfo;
   SSchemaInfo           schemaInfo;
   STableListInfo*       pTableInfoList;  // this is a table list
@@ -188,6 +184,7 @@ struct SExecTaskInfo {
   SLocalFetch           localFetch;
   SArray*               pResultBlockList;  // result block list
   STaskStopInfo         stopInfo;
+  SRWLatch              lock;              // secure the access of STableListInfo
 };
 
 enum {
@@ -339,6 +336,7 @@ typedef struct STableScanInfo {
   int8_t          scanMode;
   int8_t          assignBlockUid;
   bool            hasGroupByTag;
+  bool            countOnly;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -485,12 +483,6 @@ typedef struct SStreamScanInfo {
 } SStreamScanInfo;
 
 typedef struct {
-  //  int8_t    subType;
-  //  bool      withMeta;
-  //  int64_t   suid;
-  //  int64_t   snapVersion;
-  //  void     *metaInfo;
-  //  void     *dataInfo;
   SVnode*       vnode;
   SSDataBlock   pRes;  // result SSDataBlock
   STsdbReader*  dataReader;
@@ -559,6 +551,7 @@ typedef struct SStreamIntervalOperatorInfo {
   STimeWindowAggSupp twAggSup;
   bool               invertible;
   bool               ignoreExpiredData;
+  bool               ignoreExpiredDataSaved;
   SArray*            pDelWins;  // SWinRes
   int32_t            delIndex;
   SSDataBlock*       pDelRes;
@@ -620,6 +613,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   SPhysiNode*         pPhyNode;   // create new child
   bool                isFinal;
   bool                ignoreExpiredData;
+  bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
   SSHashObj*          pStUpdated;
 } SStreamSessionAggOperatorInfo;
@@ -637,6 +631,7 @@ typedef struct SStreamStateAggOperatorInfo {
   void*               pDelIterator;
   SArray*             pChildren;  // cache for children's result;
   bool                ignoreExpiredData;
+  bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
   SSHashObj*          pSeUpdated;
 } SStreamStateAggOperatorInfo;
@@ -689,6 +684,8 @@ typedef struct SStreamFillOperatorInfo {
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
 #define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)
+
+SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, char* dbFName);
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn, __optr_explain_fn_t explain);
