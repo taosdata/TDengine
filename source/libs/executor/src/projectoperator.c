@@ -267,8 +267,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
           pOperator->status = OP_OPENED;
           return NULL;
         }
-        qDebug("set op close, exec mode:%d, status %d rows %d", pTaskInfo->execModel, pOperator->status,
-               pFinalRes->info.rows);
+        qDebug("set op close, exec %d, status %d rows %" PRId64 , pTaskInfo->execModel, pOperator->status, pFinalRes->info.rows);
         setOperatorCompleted(pOperator);
         break;
       }
@@ -333,7 +332,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
       // when apply the limit/offset for each group, pRes->info.rows may be 0, due to limit constraint.
       if (pFinalRes->info.rows > 0 || (pOperator->status == OP_EXEC_DONE)) {
-        qDebug("project return %d rows, status %d", pFinalRes->info.rows, pOperator->status);
+        qDebug("project return %" PRId64 " rows, status %d", pFinalRes->info.rows, pOperator->status);
         break;
       }
     } else {

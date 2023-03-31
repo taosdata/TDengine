@@ -320,15 +320,16 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   }
 
   if (strcasecmp(key, "enable.heartbeat.background") == 0) {
-    if (strcasecmp(value, "true") == 0) {
-      conf->hbBgEnable = true;
-      return TMQ_CONF_OK;
-    } else if (strcasecmp(value, "false") == 0) {
-      conf->hbBgEnable = false;
-      return TMQ_CONF_OK;
-    } else {
+//    if (strcasecmp(value, "true") == 0) {
+//      conf->hbBgEnable = true;
+//      return TMQ_CONF_OK;
+//    } else if (strcasecmp(value, "false") == 0) {
+//      conf->hbBgEnable = false;
+//      return TMQ_CONF_OK;
+//    } else {
+      tscError("the default value of enable.heartbeat.background is true, can not be seted");
       return TMQ_CONF_INVALID;
-    }
+//    }
   }
 
   if (strcasecmp(key, "td.connect.ip") == 0) {
@@ -535,10 +536,14 @@ static int32_t doSendCommitMsg(tmq_t* tmq, SMqClientVg* pVg, const char* pTopicN
   atomic_add_fetch_32(&pParamSet->totalRspNum, 1);
 
   SEp* pEp = GET_ACTIVE_EP(&pVg->epSet);
-  tscDebug("consumer:0x%" PRIx64 " topic:%s on vgId:%d send offset:%" PRId64 " prev:%" PRId64
-           ", ep:%s:%d, ordinal:%d/%d, req:0x%" PRIx64,
-           tmq->consumerId, pOffset->subKey, pVg->vgId, pOffset->val.version, pVg->committedOffset.version, pEp->fqdn,
-           pEp->port, index + 1, totalVgroups, pMsgSendInfo->requestId);
+  char offsetBuf[80] = {0};
+  tFormatOffset(offsetBuf, tListLen(offsetBuf), &pOffset->val);
+
+  char commitBuf[80] = {0};
+  tFormatOffset(commitBuf, tListLen(commitBuf), &pVg->committedOffset);
+  tscDebug("consumer:0x%" PRIx64 " topic:%s on vgId:%d send offset:%s prev:%s, ep:%s:%d, ordinal:%d/%d, req:0x%" PRIx64,
+           tmq->consumerId, pOffset->subKey, pVg->vgId, offsetBuf, commitBuf, pEp->fqdn, pEp->port, index + 1,
+           totalVgroups, pMsgSendInfo->requestId);
 
   int64_t transporterId = 0;
   asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, pMsgSendInfo);

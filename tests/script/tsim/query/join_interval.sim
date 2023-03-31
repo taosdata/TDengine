@@ -1,0 +1,42 @@
+
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c udf -v 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step create databases
+sql create database d1
+sql create database d2
+sql create table d1.t1(ts timestamp, i int) tags(t int);
+sql create table d2.t1(ts timestamp, i int);
+sql insert into d1.t11 using d1.t1 tags(1) values(1500000000000, 0)(1500000000001, 1)(1500000000002,2)(1500000000003,3)(1500000000004,4)
+sql insert into d1.t12 using d1.t1 tags(2) values(1500000000000, 0)(1500000000001, 1)(1500000000002,2)(1500000000003,3)(1500000000004,4)
+sql insert into d1.t13 using d1.t1 tags(3) values(1500000000000, 0)(1500000000001, 1)(1500000000002,2)(1500000000003,3)(1500000000004,4)
+
+sql insert into d2.t1 values(1500000000000,0)(1500000000001,1)(1500000000002,2)
+
+sql select _wstart,_wend,count((a.ts)),count(b.ts) from d1.t1 a, d2.t1 b where a.ts is not null and a.ts = b.ts  interval(1a) ;
+if $data02 != 3 then
+  return -1
+endi
+
+if $data03 != 3 then
+  return -1
+endi
+
+if $data12 != 3 then
+  return -1
+endi
+
+if $data13 != 3 then
+  return -1
+endi
+if $data22 != 3 then
+  return -1
+endi
+
+if $data23 != 3 then
+  return -1
+endi
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

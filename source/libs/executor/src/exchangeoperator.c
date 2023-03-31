@@ -212,6 +212,11 @@ static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
       return NULL;
     }
 
+    doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+    if (blockDataGetNumOfRows(pBlock) == 0) {
+      continue;
+    }
+    
     SLimitInfo* pLimitInfo = &pExchangeInfo->limitInfo;
     if (hasLimitOffsetInfo(pLimitInfo)) {
       int32_t status = handleLimitOffset(pOperator, pLimitInfo, pBlock, false);
@@ -302,6 +307,11 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
   setOperatorInfo(pOperator, "ExchangeOperator", QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pDummyBlock->pDataBlock);
+
+  code = filterInitFromNode((SNode*)pExNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   pOperator->fpSet =
       createOperatorFpSet(prepareLoadRemoteData, loadRemoteData, NULL, destroyExchangeOperatorInfo, optrDefaultBufFn, NULL);

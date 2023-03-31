@@ -185,7 +185,7 @@ typedef struct SBlockID {
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rowSize;
-  int32_t     rows;  // todo hide this attribute
+  int64_t     rows;  // todo hide this attribute
   uint32_t    capacity;
   SBlockID    id;
   int16_t     hasVarCol;

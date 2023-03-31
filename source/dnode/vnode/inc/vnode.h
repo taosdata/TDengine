@@ -178,7 +178,7 @@ typedef struct STsdbReader STsdbReader;
 
 int32_t tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int32_t num);
 int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
-                       SSDataBlock *pResBlock, STsdbReader **ppReader, const char *idstr);
+                       SSDataBlock *pResBlock, STsdbReader **ppReader, const char *idstr, bool countOnly);
 
 void         tsdbReaderSetId(STsdbReader* pReader, const char* idstr);
 void         tsdbReaderClose(STsdbReader *pReader);
