@@ -4,7 +4,7 @@
 # is required to use systemd to manage services at boot
 
 set -e
-#set -x
+# set -x
 
 verMode=edge
 pagMode=full
@@ -233,11 +233,13 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${xname} ] && ${csudo}ln -sf ${install_main_dir}/bin/${xname} ${bin_link_dir}/${xname} || :
   [ -x ${install_main_dir}/bin/${explorerName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${explorerName} ${bin_link_dir}/${explorerName} || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
-  [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
-  [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
+  if [ "$clientName2" == "${clientName}" ]; then
+    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
+  fi
+  [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
 
   if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
-    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript2} || :
+    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript2} || :
   fi
 }
 
@@ -897,7 +899,7 @@ function updateProduct() {
     echo -e "\033[44;32;1m${productName2} client is updated successfully!${NC}"
   fi
 
-  rm -rf $(tar -tf ${tarName} | grep -v "^\./$")
+  rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
 
 function installProduct() {
@@ -989,7 +991,7 @@ function installProduct() {
   fi
 
   touch ~/.${historyFile}
-  rm -rf $(tar -tf ${tarName} | grep -v "^\./$")
+  rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
 
 ## ==============================Main program starts from here============================

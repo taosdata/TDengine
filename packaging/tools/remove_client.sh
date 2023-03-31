@@ -15,11 +15,11 @@ uninstallScript="rmtaos"
 clientName2="taos"
 productName2="TDengine"
 
-benchmarkName2="${clientName}Benchmark"
-dumpName2="${clientName}dump"
-uninstallScript2="rm${clientName}"
+benchmarkName2="${clientName2}Benchmark"
+dumpName2="${clientName2}dump"
+uninstallScript2="rm${clientName2}"
 
-installDir="/usr/local/${clientName}"
+installDir="/usr/local/${clientName2}"
 
 #install main path
 install_main_dir=${installDir}

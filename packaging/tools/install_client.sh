@@ -305,7 +305,7 @@ function update_TDengine() {
     echo
     echo -e "\033[44;32;1m${productName2} client is updated successfully!${NC}"
 
-    rm -rf $(tar -tf ${tarName})
+    rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
 
 function install_TDengine() {
@@ -332,7 +332,7 @@ function install_TDengine() {
     echo
     echo -e "\033[44;32;1m${productName2} client is installed successfully!${NC}"
 
-    rm -rf $(tar -tf ${tarName})
+    rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
 
 
