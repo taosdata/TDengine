@@ -646,7 +646,7 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
                 }],
             }),
             da: Some(DaCollectConfig {
-                nodes: vec![DaNodeConfig {
+                tags: vec![DaNodeConfig {
                     tag: String::from("123"),
                     value_type: String::from("VARCHAR"),
                 }],
