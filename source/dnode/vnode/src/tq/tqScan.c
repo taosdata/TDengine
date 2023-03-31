@@ -88,11 +88,8 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
       return -1;
     }
 
-    tqDebug("consumer:0x%"PRIx64" vgId:%d tmq task executed, rows:%"PRId64", total blocks:%d", pHandle->consumerId, vgId,
-            pDataBlock->info.rows, pRsp->blockNum);
-
+    tqDebug("consumer:0x%"PRIx64" vgId:%d tmq task executed, total blocks:%d, pDataBlock:%p", pHandle->consumerId, vgId, pRsp->blockNum, pDataBlock);
     // current scan should be stopped asap, since the rebalance occurs.
-
     if (pDataBlock == NULL) {
       break;
     }

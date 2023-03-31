@@ -215,7 +215,8 @@ class TDTestCase:
                          parameterDict["stbName"],\
                          parameterDict["ctbNum"],\
                          parameterDict["rowsPerTbl"],\
-                         parameterDict["batchNum"])
+                         parameterDict["batchNum"],\
+                         parameterDict["startTs"])
 
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'
@@ -328,7 +329,8 @@ class TDTestCase:
                          parameterDict["stbName"],\
                          parameterDict["ctbNum"],\
                          parameterDict["rowsPerTbl"],\
-                         parameterDict["batchNum"])
+                         parameterDict["batchNum"],\
+                         parameterDict["startTs"])
 
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'
@@ -415,7 +417,8 @@ class TDTestCase:
                          parameterDict["stbName"],\
                          parameterDict["ctbNum"],\
                          parameterDict["rowsPerTbl"],\
-                         parameterDict["batchNum"])
+                         parameterDict["batchNum"],\
+                         parameterDict["startTs"])
 
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'
@@ -502,7 +505,8 @@ class TDTestCase:
                          parameterDict["stbName"],\
                          parameterDict["ctbNum"],\
                          parameterDict["rowsPerTbl"],\
-                         parameterDict["batchNum"])
+                         parameterDict["batchNum"],\
+                         parameterDict["startTs"])
 
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'
