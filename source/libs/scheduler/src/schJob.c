@@ -83,6 +83,10 @@ int32_t schUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
     oriStatus = SCH_GET_JOB_STATUS(pJob);
 
     if (oriStatus == newStatus) {
+      if (JOB_TASK_STATUS_FETCH == newStatus) {
+        return code;
+      }
+      
       SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
     }
 
@@ -116,7 +120,8 @@ int32_t schUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
         break;
       case JOB_TASK_STATUS_FETCH:
         if (newStatus != JOB_TASK_STATUS_FAIL && newStatus != JOB_TASK_STATUS_SUCC &&
-            newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_EXEC) {
+            newStatus != JOB_TASK_STATUS_DROP && newStatus != JOB_TASK_STATUS_EXEC &&
+            newStatus != JOB_TASK_STATUS_FETCH) {
           SCH_ERR_JRET(TSDB_CODE_APP_ERROR);
         }
       
@@ -988,7 +993,7 @@ int32_t schProcessOnOpBegin(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq *pReq
         SCH_ERR_RET(TSDB_CODE_APP_ERROR);
       }
 
-      if (status != JOB_TASK_STATUS_PART_SUCC) {
+      if (status != JOB_TASK_STATUS_PART_SUCC && status != JOB_TASK_STATUS_FETCH) {
         SCH_JOB_ELOG("job status error for fetch, status:%s", jobTaskStatusStr(status));
         SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
       }
