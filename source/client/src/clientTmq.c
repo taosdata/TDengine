@@ -605,7 +605,7 @@ static void asyncCommitOffset(tmq_t* tmq, const TAOS_RES* pRes, tmq_commit_cb* p
   }
 
   if (i == numOfTopics) {
-    tscWarn("consumer:0x" PRIx64 " failed to find the specified topic:%s, total topics:%d", tmq->consumerId, pTopicName,
+    tscWarn("consumer:0x%" PRIx64 " failed to find the specified topic:%s, total topics:%d", tmq->consumerId, pTopicName,
             numOfTopics);
     taosMemoryFree(pParamSet);
     pCommitFp(tmq, TSDB_CODE_SUCCESS, userParam);
