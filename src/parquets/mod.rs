@@ -9,7 +9,7 @@ use arrow::{
 };
 use futures::TryStreamExt;
 use taos::{
-    AsyncFetchable, AsyncQueryable, ColumnView, Dsn, Field, Itertools, Precision, TBuilder,
+    AsyncFetchable, AsyncQueryable, AsyncTBuilder, ColumnView, Dsn, Field, Itertools, Precision,
     TaosBuilder, Ty,
 };
 
@@ -100,7 +100,7 @@ fn column_to_arrow(column: &ColumnView) -> ArrayRef {
 pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()> {
     let sql = from.params.remove("query").unwrap();
     let builder = TaosBuilder::from_dsn(from)?;
-    let taos = builder.build()?;
+    let taos = builder.build().await?;
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
     if !is_available_enterprise_edition(&builder).await {
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
@@ -156,7 +156,7 @@ async fn test() -> Result<()> {
     let from = Dsn::from_str(&format!("taos:///?query=select * from {db}.stb1"))?;
     let to = Dsn::from_str("local:./test.parquet")?;
 
-    let client = TaosBuilder::from_dsn(&from)?.build()?;
+    let client = TaosBuilder::from_dsn(&from)?.build().await?;
 
     assert_eq!(
         client

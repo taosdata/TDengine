@@ -16,24 +16,23 @@ use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
-use taos::{AsyncQueryable, Code, Dsn, TBuilder, TaosBuilder};
+use taos::{AsyncQueryable, Code, Dsn, TaosBuilder};
 use taosx::TaskOpts;
 use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler, JobToRun};
 use tokio_util::sync::CancellationToken;
 use utoipa::*;
 
-use crate::serve::{TaskFilter, TaskController, TaskDecorator, TaskDetail, NewTask, UpdateTask};
-
+use crate::serve::{NewTask, TaskController, TaskDecorator, TaskDetail, TaskFilter, UpdateTask};
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub(super) struct Failed {
     /// Error code
     #[schema(example = 0, value_type = i32)]
-    code: Code,
+    pub code: Code,
     /// Error reason
-    message: String,
+    pub message: String,
 }
 
 /// List tasks in current.

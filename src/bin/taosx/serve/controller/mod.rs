@@ -11,7 +11,8 @@ use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
-use taos::{AsyncQueryable, Dsn, TBuilder, TaosBuilder};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taosx::utils::port_pool::PortPool;
 use taosx::TaskOpts;
 use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
@@ -226,7 +227,8 @@ impl TaskControllerRef {
                     }
                     Err(err) => {
                         log::error!("Scheduler task error: {err:?}, task:{task:?}");
-                        Err(err).with_context(|| format!("Schedule task error, task:{:?}", task))?;
+                        Err(err)
+                            .with_context(|| format!("Schedule task error, task:{:?}", task))?;
                     }
                 }
             }
@@ -386,6 +388,7 @@ impl TaskController {
             compression_level: task.compression_level.map(Into::into),
             force: task.force,
             cancel: CancellationToken::new(),
+            port_pool: PortPool::default(),
         };
 
         let pool = self.pool.clone();
@@ -774,7 +777,7 @@ impl TaskController {
             let mut dsn: Dsn = task.from.parse()?;
             let _ = dsn.subject.take();
             let builder = TaosBuilder::from_dsn(dsn).context("cannot drop oneshot topic")?;
-            let taos = builder.build().context("cannot drop oneshot topic")?;
+            let taos = builder.build().await.context("cannot drop oneshot topic")?;
             let mut retries = 0;
             loop {
                 if retries > 20 {
@@ -1042,10 +1045,19 @@ pub struct Task {
 }
 
 lazy_static::lazy_static! {
+    pub static ref DATA_SOURCE_DEFINITIONS_VEC: Vec<DataSourceDefinition> = {
+        let mut def: Vec<DataSourceDefinition> = Vec::new();
+        def.push(serde_yaml::from_str(include_str!("../data_sources/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/opc.yaml")).unwrap());
+        def
+    };
     /// This is an example for using doc comment attributes
-    static ref DATA_SOURCE_DEFINITIONS: BTreeMap<String, DataSourceDefinition> = {
-        let json = include_str!("../data_sources/tmq.json");
-        let def: Vec<DataSourceDefinition> = serde_json::from_str(json).unwrap();
+    pub static ref DATA_SOURCE_DEFINITIONS: BTreeMap<String, DataSourceDefinition> = {
+        let mut def: Vec<DataSourceDefinition> = Vec::new();
+        def.push(serde_yaml::from_str(include_str!("../data_sources/tmq.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/pi.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/opc.yaml")).unwrap());
         def.into_iter().map(|ds| (ds.id.to_string(), ds)).collect()
     };
 }

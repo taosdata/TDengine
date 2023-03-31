@@ -10,12 +10,15 @@ mod tmq_to_td;
 mod transform;
 pub mod utils;
 
+mod plugins;
+
 use taos::Dsn;
 
 pub use csv::*;
 pub use legacy::*;
 pub use local_to_taos::local_to_taos;
 pub use parquets::*;
+pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::tmq_to_td;
 use tokio_util::sync::CancellationToken;
@@ -43,6 +46,7 @@ pub struct TaskOpts {
     pub compression_level: Option<usize>,
     pub force: bool,
     pub cancel: CancellationToken,
+    pub port_pool: crate::utils::port_pool::PortPool,
 }
 
 impl Drop for TaskOpts {
@@ -67,6 +71,7 @@ impl TaskOpts {
             compression_level: _,
             force,
             cancel,
+            port_pool,
         } = self;
 
         {
@@ -96,6 +101,19 @@ impl TaskOpts {
                 ("taos", "parquet") => {
                     query_to_parquet(from.clone(), to.clone(), *force).await?;
                 }
+                ("pi", "taos") => {
+                    plugins::pi_to_taos(
+                        from.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        *jobs,
+                        port_pool,
+                    )
+                    .await?;
+                },
+                ("opc", "taos") => {
+                    plugins::opc_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, port_pool).await?;
+                },
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
             Ok(())

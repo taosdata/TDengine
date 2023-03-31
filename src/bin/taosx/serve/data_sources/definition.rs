@@ -91,6 +91,10 @@ pub struct Param {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
+
+    /// Condition for a parameter, eg. "if: protocol.ws"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#if: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -329,6 +333,7 @@ impl DataSourceDefinition {
                 description: None,
                 value: Some(value),
                 display: None,
+                r#if: None,
             })
         }
         self

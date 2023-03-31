@@ -155,7 +155,7 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
 
     let target_database = to.subject.take();
     let target = TaosBuilder::from_dsn(&to)?;
-    let global_taos = target.build()?;
+    let global_taos = target.build().await?;
 
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
     if !is_available_enterprise_edition(&target).await {
@@ -201,7 +201,7 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
         }
         if let Some(table) = topic.table.as_ref() {
             // schema rebuild
-            let taos = target.build()?;
+            let taos = target.build().await?;
             if let Some(target) = target_database.as_ref() {
                 taos.exec(format!("use `{}`", target)).await?;
             } else {
@@ -260,7 +260,7 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
 
         for (_, files) in files {
             let sem = task_sem.clone().acquire_owned().await?;
-            let taos = target.build()?;
+            let taos = target.build().await?;
             if let Some(target) = target_database.as_ref() {
                 taos.exec(format!("use `{}`", target)).await?;
             } else {
@@ -301,7 +301,7 @@ async fn test() -> anyhow::Result<()> {
         std::fs::remove_dir_all(out)?;
     }
     let local: Dsn = format!("local:./{}", out.display()).parse()?;
-    let taos = TaosBuilder::from_dsn("taos://")?.build()?;
+    let taos = TaosBuilder::from_dsn("taos://")?.build().await?;
     taos.exec_many([
         "DROP TOPIC IF EXISTS local_to_taos",
         "DROP DATABASE IF EXISTS local_to_taos",

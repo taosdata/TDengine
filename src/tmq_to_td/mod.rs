@@ -325,7 +325,7 @@ pub async fn tmq_to_td(
     let target_database = to.subject.take();
     let target = TaosBuilder::from_dsn(&to)?.pool()?;
 
-    let target_taos = target.get_timeout(Duration::from_secs(5))?;
+    let target_taos = target.get().await?;
 
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
     {
@@ -395,7 +395,7 @@ pub async fn tmq_to_td(
 
         if let Some(table) = topic.table.as_ref() {
             // schema rebuild
-            let taos = target.get()?;
+            let taos = target.get().await?;
             // taos.exec(format!("use `{target_database}`")).await?;
 
             if let Some(sql) = table.stable_sql.as_deref() {
@@ -463,14 +463,14 @@ pub async fn tmq_to_td(
 
         let mut consumers = Vec::with_capacity(jobs);
         for _ in 0..jobs {
-            let mut consumer = tmq.build()?;
+            let mut consumer = tmq.build().await?;
             consumer.subscribe([&topic.name]).await?;
             consumers.push(consumer);
         }
 
         for _ in 0..jobs {
             let consumer = consumers.pop().unwrap();
-            let taos = target.get()?;
+            let taos = target.get().await?;
             // taos.exec(format!("use `{target_database}`")).await?;
             let mut table = topic.table.as_ref().map(|t| t.table.clone());
             if topic.is_query() {

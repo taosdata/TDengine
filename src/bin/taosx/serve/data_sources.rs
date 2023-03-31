@@ -1,11 +1,15 @@
 use std::collections::BTreeMap;
 
-use actix_web::{get, http::header::ContentType, HttpResponse, Responder};
+use actix_web::{get, http::header::ContentType, post, web::Json, HttpResponse, Responder};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use taos::Dsn;
 use utoipa::*;
 
 mod definition;
 pub use definition::*;
+
+use crate::serve::task::Failed;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct DataSourceInput {
@@ -93,5 +97,41 @@ pub(super) struct DataIn {
 pub(super) async fn data_sources_in() -> impl Responder {
     HttpResponse::Ok()
         .content_type(ContentType::json())
-        .body(include_str!("./data_sources/tmq.json"))
+        .json(super::controller::DATA_SOURCE_DEFINITIONS_VEC.as_slice())
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub(super) struct DataSets {
+    id: String,
+    name: Option<String>,
+    r#type: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub(super) struct DataSetsReq {
+    from: String,
+}
+
+// impl DataSetsReq {
+//     pub fn datasets(&self) -> anyhow::Result<Vec<DataSets>> {
+//         let dsn: Dsn = data.from.parse()?;
+//     }
+// }
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "Available data sources", body = Vec<DataSets>),
+    ),
+)]
+#[post("/ds/in/sets")]
+pub(super) async fn data_source_collection(data: Json<DataSetsReq>) -> impl Responder {
+    match taosx::list_datasets_from(&data.from).await {
+        Ok(data) => HttpResponse::Ok()
+            .content_type(ContentType::json())
+            .json(&data),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: 0xFFFF.into(),
+            message: err.to_string(),
+        }),
+    }
 }

@@ -232,7 +232,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
     let use_table_name = from.remove("use.table.name");
 
     let builder = TaosBuilder::from_dsn(&from)?;
-    let source = builder.build()?;
+    let source = builder.build().await?;
 
     let mut topics = database
         .split(",")

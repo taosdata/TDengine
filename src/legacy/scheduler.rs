@@ -57,8 +57,8 @@ async fn worker(
     source_is_v3: bool,
     target_is_v3: bool,
 ) -> anyhow::Result<()> {
-    let from = source.get()?;
-    let to = target.get()?;
+    let from = source.get().await?;
+    let to = target.get().await?;
     loop {
         let todo = receiver.recv_async().await?;
         match todo {

@@ -285,7 +285,7 @@ pub async fn tmq_to_local(
     let (mut from, builder, topics) = check_tmq_dsn(from).await?;
 
     #[cfg(not(feature = "disable-enterprise-only-validation"))]
-    if !builder.is_enterprise_edition() {
+    if !builder.is_enterprise_edition().await {
         anyhow::bail!(
             "Only enterprise edition is supported. If it's not your case, please contact us."
         )
@@ -406,7 +406,7 @@ pub async fn tmq_to_local(
             .workers
             .fetch_add(jobs as _, std::sync::atomic::Ordering::SeqCst);
         for _ in 0..jobs {
-            let mut consumer = tmq.build()?;
+            let mut consumer = tmq.build().await?;
             consumer.subscribe([&topic.name]).await?;
             consumers.push(consumer);
         }
@@ -458,7 +458,7 @@ pub async fn tmq_to_local(
 async fn test_tmq_to_local() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     pretty_env_logger::init();
-    let taos = TaosBuilder::from_dsn("taos://")?.build()?;
+    let taos = TaosBuilder::from_dsn("taos://")?.build().await?;
     taos.exec_many([
         "DROP TOPIC IF EXISTS tmq_to_local",
         "DROP DATABASE IF EXISTS tmq_to_local",

@@ -1,17 +1,38 @@
-use std::path::Path;
+use std::{path::Path, thread::JoinHandle};
 
 use futures::TryStreamExt;
-use serde::Deserialize;
-use taos::{AsyncFetchable, AsyncQueryable, Dsn, TBuilder, Taos, TaosBuilder};
+use taos::*;
+
+pub mod port_pool;
+
+pub fn stop_thread<T>(handle: JoinHandle<T>) {
+    #[cfg(windows)]
+    unsafe {
+        use std::os::windows::io::IntoRawHandle;
+        use winapi::ctypes::c_void as winapi_c_void;
+        use winapi::um::processthreadsapi::TerminateThread;
+
+        let raw_handle = handle.into_raw_handle();
+        TerminateThread(raw_handle as *mut winapi_c_void, 0);
+    }
+    #[cfg(unix)]
+    unsafe {
+        use libc::pthread_kill;
+        use std::os::unix::thread::JoinHandleExt;
+
+        let raw_handle = handle.into_pthread_t();
+        pthread_kill(raw_handle, 2);
+    };
+}
 
 /// Check enterprise edition
 pub async fn is_available_enterprise_edition(taos: &TaosBuilder) -> bool {
-    taos.is_enterprise_edition()
+    taos.is_enterprise_edition().await
 }
 
 /// Clear database stables and tables.
 pub async fn clear_database(dsn: &Dsn) -> anyhow::Result<()> {
-    let taos = TaosBuilder::from_dsn(dsn)?.build()?;
+    let taos = TaosBuilder::from_dsn(dsn)?.build().await?;
 
     let mut stables = taos.query("SHOW STABLES").await?;
     let mut rows = stables.rows();
@@ -46,7 +67,7 @@ pub async fn clear_local(local: &Dsn) -> anyhow::Result<()> {
 async fn test_clear_database() -> anyhow::Result<()> {
     let dsn = "taos:///";
 
-    let taos = TaosBuilder::from_dsn(dsn)?.build()?;
+    let taos = TaosBuilder::from_dsn(dsn)?.build().await?;
 
     let db = "test_clear_database";
     taos.exec_many([
