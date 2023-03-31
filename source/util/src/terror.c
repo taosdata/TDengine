@@ -190,6 +190,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_USER_FROM_CONN,        "Can not get user from
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USERS,           "Too many users")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ALTER_OPER,       "Invalid alter operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_AUTH_FAILURE,             "Authentication failure")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_PRIVILEDGE_EXIST,         "User already have this priviledge")
 
 //mnode-stable-part1
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_ALREADY_EXIST,        "STable already exists")
