@@ -315,7 +315,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             except SchemalessError as err:
                 self.tdSql.checkNotEqual(err.errno, 0)
         # i64
-        for c4 in [f'-{self.tdCom.boundary_config["BIGINT_MAX"]}i64']:
+        for c4 in [f'-{self.tdCom.boundary_config["BIGINT_MAX"]}i64', '1076048383523889174i64', f'{self.tdCom.boundary_config["BIGINT_MAX"]}i64']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(c4=c4)
             self.tdCom.check_res(input_sql, stb_name)
         for c4 in [f'-{self.tdCom.boundary_config["BIGINT_MAX"]+2}i64', f'{self.tdCom.boundary_config["BIGINT_MAX"]+1}i64']:
@@ -325,7 +325,6 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 self.tdSql.checkNotEqual(err.errno, 0)
-
         # f32
         for c5 in [f"{-3.4028234663852885981170418348451692544*(10**38)}f32", f"{3.4028234663852885981170418348451692544*(10**38)}f32"]:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(c5=c5)
@@ -1052,8 +1051,16 @@ class TestInfluxdbLineTaoscInsert(TDCase):
 
 
     def test(self):
-        self.tdSql.execute('create database iot_dev keep 365 duration 10 buffer 16 wal_level 1;')
-        self.tdSql.execute('use iot_dev')
+        self.col_value_length_check()
+        # self.tdSql.execute('drop database if exists iot_dev;')
+        # self.tdSql.execute('create database if not exists iot_dev precision "ns";')
+        # self.tdSql.execute('use iot_dev')
+        # # lines = ['xx,device_code=3ef89390-e612-11eb-ad04-a507e9855fed animal_id=1076048383523889174i64 1626006833639000000']
+        # lines = ['xx,device_code=3ef89390-e612-11eb-ad04-a507e9855fed animal_id=9223372036854775807i64 1626006833639000000']
+        # self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, None)
+        # print(lines)
+        # self.tdSql.query(f'select * from xx')
+        # print("query_res -----", self.tdSql.query_data)
         # input_sql = 'reported_j1WhBe0W78Edj6hK,realm_device_id=test_device_id_001 Ia=10.01f32,P=1.32012f32,Ib=9.0100001f32,Ia_source_time=1677834213374i64,P_source_time=1677834213374i64,Ib_source_time=1677834213374i64 1677834213374'
         # input_sql = 'device_reported_qe6N8Di0WSgKaW4s,realm_device_id=241_ow0xnTjY7HrN kWDmdMax=0.0f64,Qv=30949.17f64,kWTotDmd=6867.977f64,Pfa=0.849f64,kvarhNet=27642.12f64,Iavg=11.129f64,Pfc=0.856f64,Pfb=0.869f64,InPw=22434.94f64,P=6.862864f64,Q=-3.950617f64,Pa=2.316923f64,Pb=2.36111f64,S=7.918729f64,Pc=2.184831f64,Pf=0.867f64,Ubc=410.911f64,Uunb=0.0f64,InQvr=1653.53f64,DMDmaxTime=7942.826f64,Iunb=0.032f64,kVAh=38571.08f64,IaRtDmd=11.325f64,Pw=22437.54f64,InQv=29295.64f64,Ulnavg=237.224f64,Fr=50.012f64,Ua=237.205f64,Ullavg=410.884f64,Ub=237.258f64,Uc=237.209f64,Sa=2.707169f64,Sb=2.701234f64,IcRtDmd=10.844f64,Qa=-1.399694f64,Sc=2.511948f64,InPwr=2.6f64,kWhNet=22432.33f64,Qb=-1.311908f64,Uca=410.824f64,Qc=-1.239016f64,Uab=410.916f64,Ia=11.413f64,Ib=11.385f64,Ic=10.59f64,IbRtDmd=11.357f64,Inc=3.239f64,kWDmdMax_source_time=1678259700000i64,Qv_source_time=1678259700000i64,kWTotDmd_source_time=1678259700000i64,Pfa_source_time=1678259700000i64,kvarhNet_source_time=1678259700000i64,Iavg_source_time=1678259700000i64,Pfc_source_time=1678259700000i64,Pfb_source_time=1678259700000i64,InPw_source_time=1678259700000i64,P_source_time=1678259700000i64,Q_source_time=1678259700000i64,Pa_source_time=1678259700000i64,Pb_source_time=1678259700000i64,S_source_time=1678259700000i64,Pc_source_time=1678259700000i64,Pf_source_time=1678259700000i64,Ubc_source_time=1678259700000i64,Uunb_source_time=1678259700000i64,InQvr_source_time=1678259700000i64,DMDmaxTime_source_time=1678259700000i64,Iunb_source_time=1678259700000i64,kVAh_source_time=1678259700000i64,IaRtDmd_source_time=1678259700000i64,Pw_source_time=1678259700000i64,InQv_source_time=1678259700000i64,Ulnavg_source_time=1678259700000i64,Fr_source_time=1678259700000i64,Ua_source_time=1678259700000i64,Ullavg_source_time=1678259700000i64,Ub_source_time=1678259700000i64,Uc_source_time=1678259700000i64,Sa_source_time=1678259700000i64,Sb_source_time=1678259700000i64,IcRtDmd_source_time=1678259700000i64,Qa_source_time=1678259700000i64,Sc_source_time=1678259700000i64,InPwr_source_time=1678259700000i64,kWhNet_source_time=1678259700000i64,Qb_source_time=1678259700000i64,Uca_source_time=1678259700000i64,Qc_source_time=1678259700000i64,Uab_source_time=1678259700000i64,Ia_source_time=1678259700000i64,Ib_source_time=1678259700000i64,Ic_source_time=1678259700000i64,IbRtDmd_source_time=1678259700000i64,Inc_source_time=1678259700000i64 1678259705937'
         # input_sql = 'device_reported_qe6N8Di0WSgKaW4s,realm_device_id=241_ow0xnTjY7HrN kWDmdMax=0.0f64,Qv=30949.17f64,kWTotDmd=6867.977f64,Pfa=0.849f64,kvarhNet=27642.12f64,Iavg=11.129f64,Pfc=0.856f64,Pfb=0.869f64,InPw=22434.94f64,P=6.862864f64,Q=-3.950617f64,Pa=2.316923f64,Pb=2.36111f64,S=7.918729f64,Pc=2.184831f64,Pf=0.867f64,Ubc=410.911f64,Uunb=0.0f64,InQvr=1653.53f64,DMDmaxTime=7942.826f64,Iunb=0.032f64,kVAh=38571.08f64,IaRtDmd=11.325f64,Pw=22437.54f64,InQv=29295.64f64,Ulnavg=237.224f64,Fr=50.012f64,Ua=237.205f64,Ullavg=410.884f64,Ub=237.258f64,Uc=237.209f64,Sa=2.707169f64,Sb=2.701234f64,IcRtDmd=10.844f64,Qa=-1.399694f64,Sc=2.511948f64,InPwr=2.6f64,kWhNet=22432.33f64,Qb=-1.311908f64,Uca=410.824f64,Qc=-1.239016f64,Uab=410.916f64,Ia=11.413f64,Ib=11.385f64,Ic=10.59f64,IbRtDmd=11.357f64,Inc=3.239f64,kWDmdMax_source_time=1678259700000i64,Qv_source_time=1678259700000i64,kWTotDmd_source_time=1678259700000i64,Pfa_source_time=1678259700000i64,kvarhNet_source_time=1678259700000i64,Iavg_source_time=1678259700000i64,Pfc_source_time=1678259700000i64,Pfb_source_time=1678259700000i64,InPw_source_time=1678259700000i64,P_source_time=1678259700000i64,Q_source_time=1678259700000i64,Pa_source_time=1678259700000i64,Pb_source_time=1678259700000i64,S_source_time=1678259700000i64,Pc_source_time=1678259700000i64,Pf_source_time=1678259700000i64,Ubc_source_time=1678259700000i64,Uunb_source_time=1678259700000i64,InQvr_source_time=1678259700000i64,DMDmaxTime_source_time=1678259700000i64,Iunb_source_time=1678259700000i64,kVAh_source_time=1678259700000i64,IaRtDmd_source_time=1678259700000i64,Pw_source_time=1678259700000i64,InQv_source_time=1678259700000i64,Ulnavg_source_time=1678259700000i64,Fr_source_time=1678259700000i64,Ua_source_time=1678259700000i64,Ullavg_source_time=1678259700000i64,Ub_source_time=1678259700000i64,Uc_source_time=1678259700000i64,Sa_source_time=1678259700000i64,Sb_source_time=1678259700000i64,IcRtDmd_source_time=1678259700000i64,Qa_source_time=1678259700000i64,Sc_source_time=1678259700000i64,InPwr_source_time=1678259700000i64,kWhNet_source_time=1678259700000i64,Qb_source_time=1678259700000i64,Uca_source_time=1678259700000i64,Qc_source_time=1678259700000i64,Uab_source_time=1678259700000i64,Ia_source_time=1678259700000i64,Ib_source_time=1678259700000i64,Ic_source_time=1678259700000i64,IbRtDmd_source_time=1678259700000i64,Inc_source_time=1678259700000i64 1678259705937'
