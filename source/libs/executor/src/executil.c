@@ -17,6 +17,7 @@
 #include "functionMgt.h"
 #include "index.h"
 #include "os.h"
+#include "query.h"
 #include "tdatablock.h"
 #include "thash.h"
 #include "tmsg.h"
@@ -820,6 +821,7 @@ static SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTa
   int32_t code = blockDataEnsureCapacity(pResBlock, numOfTables);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
+    taosMemoryFree(pResBlock);
     return NULL;
   }
 
@@ -1057,10 +1059,10 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
         SIndexMetaArg metaArg = {
             .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = pIndex, .suid = pScanNode->uid};
 
-        SIdxFltStatus status = SFLT_NOT_INDEX;
+        status = SFLT_NOT_INDEX;
         code = doFilterTag(pTagIndexCond, &metaArg, pUidList, &status);
         if (code != 0 || status == SFLT_NOT_INDEX) {  // temporarily disable it for performance sake
-          //          qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
+          qWarn("failed to get tableIds from index, suid:%" PRIu64, pScanNode->uid);
           code = TDB_CODE_SUCCESS;
         } else {
           qInfo("succ to get filter result, table num: %d", (int)taosArrayGetSize(pUidList));

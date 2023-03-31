@@ -99,6 +99,9 @@ The parameters described in this document by the effect that they have on the sy
 
 ## Monitoring Parameters
 
+:::note
+Please note the `taoskeeper` needs to be installed and running to create the `log` database and receiving metrics sent by `taosd` as the full monitoring solution.
+
 ### monitor
 
 | Attribute     | Description                                                                                                                                                                                               |

@@ -271,8 +271,6 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     SReqResultInfo *pResultInfo;
     if (msg->resIter == -1) {
       pResultInfo = tmqGetNextResInfo(res, true);
-      tscDebug("consumer:0x%" PRIx64 ", vgId:%d, numOfRows:%" PRId64 ", total rows:%" PRId64, msg->rsp.head.consumerId,
-               msg->vgId, pResultInfo->numOfRows, pResultInfo->totalRows);
     } else {
       pResultInfo = tmqGetCurResInfo(res);
     }
@@ -286,9 +284,6 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       if (pResultInfo == NULL) {
         return NULL;
       }
-
-      tscDebug("consumer:0x%" PRIx64 " vgId:%d, numOfRows:%" PRId64 ", total rows:%" PRId64, msg->rsp.head.consumerId,
-               msg->vgId, pResultInfo->numOfRows, pResultInfo->totalRows);
 
       doSetOneRowPtr(pResultInfo);
       pResultInfo->current += 1;
@@ -611,6 +606,9 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
 }
 
 int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
+  *numOfRows = 0;
+  *pData = NULL;
+
   if (res == NULL || TD_RES_TMQ_META(res)) {
     return 0;
   }

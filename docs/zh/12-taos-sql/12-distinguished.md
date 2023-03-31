@@ -69,6 +69,16 @@ FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填
 5. LINEAR 填充：根据前后距离最近的非 NULL 值做线性插值填充。例如：FILL(LINEAR)。
 6. NEXT 填充：使用下一个非 NULL 值填充数据。例如：FILL(NEXT)。
 
+以上填充模式中，除了 NONE 模式默认不填充值之外，其他模式在查询的整个时间范围内如果没有数据 FILL 子句将被忽略，即不产生填充数据，查询结果为空。这种行为在部分模式（PREV、NEXT、LINEAR）下具有合理性，因为在这些模式下没有数据意味着无法产生填充数值。而对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，从 3.0.3.0 版本开始，增加了两种新的填充模式：
+
+7. NULL_F: 强制填充 NULL 值 
+8. VALUE_F: 强制填充 VALUE 值
+
+NULL, NULL_F, VALUE, VALUE_F 这几种填充模式针对不同场景区别如下：
+- INTERVAL 子句： NULL_F, VALUE_F 为强制填充模式；NULL, VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
+- 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
+- INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
+
 :::info
 
 1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。针对每次查询，系统可返回不超过 1 千万条具有插值的结果。
@@ -153,7 +163,7 @@ SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 
 以下面的 SQL 语句为例，事件窗口切分如图所示：
 ```sql
-select _wstart, _wend, count(*) from t start with c1 > 0 end with c2 < 10 
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
 ![TDengine Database 事件窗口示意图](./event_window.webp)

@@ -584,6 +584,8 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
         tTagNew(tagArray, 1, false, &pTag);
         tagArray = taosArrayDestroy(tagArray);
         if (pTag == NULL) {
+          taosMemoryFree(ctbName);
+          tdDestroySVCreateTbReq(pCreateTbReq);
           terrno = TSDB_CODE_OUT_OF_MEMORY;
           taosMemoryFree(ctbName);
           tdDestroySVCreateTbReq(pCreateTbReq);

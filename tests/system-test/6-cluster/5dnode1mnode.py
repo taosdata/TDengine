@@ -18,7 +18,10 @@ class MyDnodes(TDDnodes):
     def __init__(self ,dnodes_lists):
         super(MyDnodes,self).__init__()
         self.dnodes = dnodes_lists  # dnode must be TDDnode instance
-        self.simDeployed = False
+        if platform.system().lower() == 'windows':
+            self.simDeployed = True
+        else:
+            self.simDeployed = False
 
 class TDTestCase:
     noConn = True
@@ -29,7 +32,7 @@ class TDTestCase:
         self.master_dnode = self.TDDnodes.dnodes[0]
         self.host=self.master_dnode.cfgDict["fqdn"]
         conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
-        tdSql.init(conn1.cursor())
+        tdSql.init(conn1.cursor(), True)
 
 
     def getBuildPath(self):

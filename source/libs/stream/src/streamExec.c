@@ -20,7 +20,7 @@
 static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* pRes) {
   int32_t code;
   void*   exec = pTask->exec.executor;
-  while(atomic_load_8(&pTask->taskStatus) != TASK_STATUS__NORMAL) {
+  while(pTask->taskLevel == TASK_LEVEL__SOURCE && atomic_load_8(&pTask->taskStatus) != TASK_STATUS__NORMAL) {
     qError("stream task wait for the end of fill history");
     taosMsleep(2);
     continue;

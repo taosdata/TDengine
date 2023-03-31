@@ -176,6 +176,7 @@ typedef struct {
   char        opername[TSDB_TRANS_OPER_LEN];
   SArray*     pRpcArray;
   SRWLatch    lockRpcArray;
+  int64_t     mTraceId;
 } STrans;
 
 typedef struct {
@@ -359,6 +360,7 @@ typedef struct {
   int8_t    replica;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
   void*     pTsma;
+  int32_t   numOfCachedTables;
 } SVgObj;
 
 typedef struct {
@@ -456,6 +458,7 @@ typedef struct {
   void*          pIter;
   SMnode*        pMnode;
   STableMetaRsp* pMeta;
+  bool           restore;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
   char           filterTb[TSDB_TABLE_NAME_LEN];

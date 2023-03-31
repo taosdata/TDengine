@@ -1070,8 +1070,15 @@ int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols,
   if (code != 0) {
     return code;
   }
+
   SUdfcUvSession *session = handle;
   code = doCallUdfScalarFunc(handle, input, numOfCols, output);
+  if (code != TSDB_CODE_SUCCESS) {
+    fnError("udfc scalar function execution failure");
+    releaseUdfFuncHandle(udfName);
+    return code;
+  }
+
   if (output->columnData == NULL) {
     fnError("udfc scalar function calculate error. no column data");
     code = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;
@@ -1210,14 +1217,19 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock) {
     fnError("udfAggFinalize error. doCallUdfAggFinalize step. udf code:%d", udfCallCode);
     GET_RES_INFO(pCtx)->numOfRes = 0;
   } else {
-    if (resultBuf.bufLen <= session->bytes) {
-      memcpy(udfRes->finalResBuf, resultBuf.buf, resultBuf.bufLen);
-      udfRes->finalResNum = resultBuf.numOfResult;
-      GET_RES_INFO(pCtx)->numOfRes = udfRes->finalResNum;
-    } else {
-      fnError("udfc inter buf size %d is greater than function output size %d", resultBuf.bufLen, session->bytes);
+    if (resultBuf.numOfResult == 0) {
+      udfRes->finalResNum = 0;
       GET_RES_INFO(pCtx)->numOfRes = 0;
-      udfCallCode = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;
+    } else {
+      if (resultBuf.bufLen <= session->bytes) {
+        memcpy(udfRes->finalResBuf, resultBuf.buf, resultBuf.bufLen);
+        udfRes->finalResNum = resultBuf.numOfResult;
+        GET_RES_INFO(pCtx)->numOfRes = udfRes->finalResNum;
+      } else {
+        fnError("udfc inter buf size %d is greater than function output size %d", resultBuf.bufLen, session->bytes);
+        GET_RES_INFO(pCtx)->numOfRes = 0;
+        udfCallCode = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;
+      }
     }
   }
 

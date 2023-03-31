@@ -51,13 +51,8 @@ if $loop_count == 10 then
   return -1
 endi
 
-if $data01 != 1 then
-  print =====data01=$data01
-  goto loop1
-endi
-
-if $data02 != NULL then
-  print =====data02=$data02
+if $rows != 0 then
+  print =====rows=$rows
   goto loop1
 endi
 

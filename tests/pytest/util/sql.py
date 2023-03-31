@@ -23,6 +23,15 @@ import pandas as pd
 from util.log import *
 from util.constant import *
 
+# from datetime import timezone
+import time
+
+def _parse_ns_timestamp(timestr):
+    dt_obj = datetime.datetime.strptime(timestr[:len(timestr)-3], "%Y-%m-%d %H:%M:%S.%f")
+    tz = int(int((dt_obj-datetime.datetime.fromtimestamp(0,dt_obj.tzinfo)).total_seconds())*1e9) + int(dt_obj.microsecond * 1000) + int(timestr[-3:])
+    return tz
+
+
 def _parse_datetime(timestr):
     try:
         return datetime.datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S.%f')
@@ -227,28 +236,102 @@ class TDSql:
         self.checkRowCol(row, col)
         return self.cursor.istype(col, dataType)
 
+
     def checkData(self, row, col, data):
+        if row >= self.queryRows:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, row+1, self.queryRows)
+            tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+        if col >= self.queryCols:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, col+1, self.queryCols)
+            tdLog.exit("%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args)   
+      
         self.checkRowCol(row, col)
+
         if self.queryResult[row][col] != data:
             if self.cursor.istype(col, "TIMESTAMP"):
-                # suppose user want to check nanosecond timestamp if a longer data passed
-                if (len(data) >= 28):
-                    if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
-                        tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                # suppose user want to check nanosecond timestamp if a longer data passed``
+                if isinstance(data,str) :
+                    if (len(data) >= 28):
+                        if self.queryResult[row][col] == _parse_ns_timestamp(data):
+                            # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{pd.to_datetime(resultData)} == expect:{data}")
+                            tdLog.info("check successfully")
+                        else:
+                            caller = inspect.getframeinfo(inspect.stack()[1][0])
+                            args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+                            tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
+                    else:
+                        if self.queryResult[row][col].astimezone(datetime.timezone.utc) == _parse_datetime(data).astimezone(datetime.timezone.utc):
+                            # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                            tdLog.info("check successfully")
+                        else:
+                            caller = inspect.getframeinfo(inspect.stack()[1][0])
+                            args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+                            tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
+                    return
+                elif isinstance(data,int):
+                    if len(str(data)) == 16:
+                        precision = 'us'
+                    elif len(str(data)) == 13:
+                        precision = 'ms'
+                    elif len(str(data)) == 19:
+                        precision = 'ns'
+                    else:
+                        caller = inspect.getframeinfo(inspect.stack()[1][0])
+                        args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+                        tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
+                        return
+                    success = False
+                    if precision == 'ms':
+                        dt_obj = self.queryResult[row][col]
+                        ts = int(int((dt_obj-datetime.datetime.fromtimestamp(0,dt_obj.tzinfo)).total_seconds())*1000) + int(dt_obj.microsecond/1000)
+                        if ts == data:
+                            success = True
+                    elif precision == 'us':
+                        dt_obj = self.queryResult[row][col]
+                        ts = int(int((dt_obj-datetime.datetime.fromtimestamp(0,dt_obj.tzinfo)).total_seconds())*1e6) + int(dt_obj.microsecond)
+                        if ts == data:
+                            success = True
+                    elif precision == 'ns':
+                        if data == self.queryResult[row][col]:
+                            success = True
+                    if success:
+                        tdLog.info("check successfully")
+                    else:
+                        caller = inspect.getframeinfo(inspect.stack()[1][0])
+                        args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+                        tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
+                    return
+                elif isinstance(data,datetime.datetime):
+                    dt_obj = self.queryResult[row][col]
+                    delt_data = data-datetime.datetime.fromtimestamp(0,data.tzinfo)
+                    delt_result = self.queryResult[row][col] - datetime.datetime.fromtimestamp(0,self.queryResult[row][col].tzinfo)
+                    if delt_data == delt_result:
+                        tdLog.info("check successfully")
+                    else:
+                        caller = inspect.getframeinfo(inspect.stack()[1][0])
+                        args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+                        tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
+                    return
                 else:
-                    if self.queryResult[row][col] == _parse_datetime(data):
-                        tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
-                return
+                    caller = inspect.getframeinfo(inspect.stack()[1][0])
+                    args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
+                    tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
 
             if str(self.queryResult[row][col]) == str(data):
-                tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                tdLog.info("check successfully")
                 return
 
             elif isinstance(data, float):
                 if abs(data) >= 1 and abs((self.queryResult[row][col] - data) / data) <= 0.000001:
-                    tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                    # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                    tdLog.info("check successfully")
                 elif abs(data) < 1 and abs(self.queryResult[row][col] - data) <= 0.000001:
-                    tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                    # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+                    tdLog.info("check successfully")
+
                 else:
                     caller = inspect.getframeinfo(inspect.stack()[1][0])
                     args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
@@ -258,8 +341,7 @@ class TDSql:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
                 args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
                 tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
-
-        tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
+        tdLog.info("check successfully")
 
     # return true or false replace exit, no print out
     def checkRowColNoExit(self, row, col):
