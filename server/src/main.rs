@@ -154,14 +154,14 @@ async fn x_api(
     mut body: web::Payload,
 ) -> Result<HttpResponse, Error> {
     req.method();
-    if args.x_api.is_none() {
+    if args.profile.x_api.is_none() {
         return Ok(HttpResponse::NotFound().finish());
     }
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
         bytes.extend_from_slice(&item?);
     }
-    let x = args.x_api.as_deref().unwrap();
+    let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/{api}?{}", req.query_string());
     let client = awc::Client::builder().wrap(Tracing).finish();
     let method = req.method();
@@ -177,14 +177,14 @@ async fn x_api_doc(
     args: web::Data<Args>,
     mut body: web::Payload,
 ) -> Result<HttpResponse, Error> {
-    if args.x_api.is_none() {
+    if args.profile.x_api.is_none() {
         return Ok(HttpResponse::NotFound().finish());
     }
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
         bytes.extend_from_slice(&item?);
     }
-    let x = args.x_api.as_deref().unwrap();
+    let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/api-doc/openapi.json");
     let client = awc::Client::new();
     let method = req.method();
