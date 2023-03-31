@@ -771,24 +771,32 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
   // scan table one by one sequentially
   if (pInfo->scanMode == TABLE_SCAN__TABLE_ORDER) {
-    int32_t numOfTables = tableListGetSize(pTaskInfo->pTableInfoList);
+    int32_t numOfTables = 0;//tableListGetSize(pTaskInfo->pTableInfoList);
+    STableKeyInfo tInfo = {0};
 
     while (1) {
       SSDataBlock* result = doGroupedTableScan(pOperator);
-      if (result || (pOperator->status == OP_EXEC_DONE)) {
+      if (result || (pOperator->status == OP_EXEC_DONE) || isTaskKilled(pTaskInfo)) {
         return result;
       }
 
       // if no data, switch to next table and continue scan
       pInfo->currentTable++;
+
+      taosRLockLatch(&pTaskInfo->lock);
+      numOfTables = tableListGetSize(pTaskInfo->pTableInfoList);
+
       if (pInfo->currentTable >= numOfTables) {
         qDebug("all table checked in table list, total:%d, return NULL, %s", numOfTables, GET_TASKID(pTaskInfo));
+        taosRUnLockLatch(&pTaskInfo->lock);
         return NULL;
       }
 
-      STableKeyInfo* pTableInfo = tableListGetInfo(pTaskInfo->pTableInfoList, pInfo->currentTable);
-      tsdbSetTableList(pInfo->base.dataReader, pTableInfo, 1);
-      qDebug("set uid:%" PRIu64 " into scanner, total tables:%d, index:%d/%d %s", pTableInfo->uid, numOfTables,
+      tInfo = *(STableKeyInfo*) tableListGetInfo(pTaskInfo->pTableInfoList, pInfo->currentTable);
+      taosRUnLockLatch(&pTaskInfo->lock);
+
+      tsdbSetTableList(pInfo->base.dataReader, &tInfo, 1);
+      qDebug("set uid:%" PRIu64 " into scanner, total tables:%d, index:%d/%d %s", tInfo.uid, numOfTables,
              pInfo->currentTable, numOfTables, GET_TASKID(pTaskInfo));
 
       tsdbReaderReset(pInfo->base.dataReader, &pInfo->base.cond);
@@ -1672,6 +1680,8 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__LOG) {
     while (1) {
       SFetchRet ret = {0};
+      terrno = 0;
+
       if (tqNextBlock(pInfo->tqReader, &ret) < 0) {
         // if the end is reached, terrno is 0
         if (terrno != 0) {
