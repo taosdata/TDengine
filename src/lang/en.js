@@ -1637,6 +1637,7 @@ export default {
     SQLAPI: 'SQLAPI'
   },
   taosopc: {
+    searchnodes:'Search Nodes',
     da_config: 'DA Config',
     ua_config: 'UA Config',
     addopc: 'Add New OPC',

@@ -85,18 +85,6 @@
           label-width="0px"
           class="demo-dynamic"
         >
-          <!-- <div>
-            <p class="lable-form">
-              <span>Cluster</span>
-            </p>
-            <el-form-item label="" prop="cluster">
-              <el-input
-                v-model="dynamicValidateForm.cluster"
-                @blur="getClusterUrl"
-                placeholder="http://localhost:8080"
-              ></el-input>
-            </el-form-item>
-          </div> -->
           <div>
             <p class="lable-form">
               <span>{{ $t("login.username") }}</span>
@@ -123,7 +111,7 @@
               @click="submitForm('dynamicValidateForm')"
               class="signin"
               v-loading="loading"
-              >{{$t('login.signin')}}</el-button
+              >{{ $t("login.signin") }}</el-button
             >
           </el-form-item>
         </el-form>
@@ -250,15 +238,6 @@ export default {
     };
   },
   methods: {
-    getClusterUrl() {
-      this.dynamicValidateForm.cluster = "http://localhost:6041";
-      localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
-      this.$store.commit(
-        "app/SET_CLUSTER_URL",
-        this.dynamicValidateForm.cluster
-      );
-      // request.defaults.baseURL = this.dynamicValidateForm.cluster;
-    },
     submitForm(formName) {
       // let reg =
       //   /^(https?:\/\/)?([\da-z.-]+)(\.([a-z.]{2,6}))?(:[\d]{1,5})?([\/\w.-]*)*\/?$/;
@@ -276,8 +255,7 @@ export default {
           this.encryptedPwd = encrypt(this.dynamicValidateForm.password);
           setTimeout(() => {
             if (!this.tasoxStatus) {
-              Message.error(this.$t('login.taosxtip')
-              );
+              Message.error(this.$t("login.taosxtip"));
               this.loading = false;
             } else {
               this.login();
@@ -335,10 +313,10 @@ export default {
           if (res && res.code == 0 && !res.desc) {
             localStorage.setItem("TDengine-Token", token);
             this.getClusterID();
-            this.$router.push({
-              path: "/explorer",
-            });
-            // this.getUserAuthority();
+            // this.$router.push({
+            //   path: "/explorer",
+            // });
+            this.getUserAuthority();
           } else {
             Message.error(res.desc);
           }
@@ -354,7 +332,11 @@ export default {
         await getUrls().then((res) => {
           if (res && res.cluster) {
             this.dynamicValidateForm.cluster = res.cluster;
-            this.getClusterUrl();
+            localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
+            this.$store.commit(
+              "app/SET_CLUSTER_URL",
+              this.dynamicValidateForm.cluster
+            );
           }
           if (res && res.dashboard) {
             localStorage.setItem("local_grafana", res.dashboard);
