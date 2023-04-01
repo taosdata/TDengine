@@ -236,7 +236,6 @@ if [ "$verMode" == "cluster" ]; then
   sed -i "s/configFile2=\"taos.cfg\"/configFile2=\"${clientName2}.cfg\"/g" remove_temp.sh
   sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" remove_temp.sh
   cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
-  echo "domain is ${cusDomain}"
   sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusDomain}\"/g" remove_temp.sh
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
@@ -267,7 +266,8 @@ if [ "$verMode" == "cluster" ]; then
   sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" install_temp.sh
   sed -i "s/configFile2=\"taos.cfg\"/configFile2=\"${clientName2}.cfg\"/g" install_temp.sh
   sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" install_temp.sh
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmail2}\"/g" install_temp.sh
+  cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusDomain}\"/g" install_temp.sh
   mv install_temp.sh ${install_dir}/install.sh
 fi
 if [ "$verMode" == "cloud" ]; then
