@@ -138,8 +138,16 @@ struct ReportConfig {
     batch_timeout: Option<i64>,
 }
 
+/// OPC connector mode
+enum OPCConfigMode {
+    /// just get points
+    Points,
+    /// collect point data
+    Collect
+}
+
 impl OPCConfig {
-    fn new(mut dsn: Dsn, ipc_port: u16) -> Result<Self, OpcError> {
+    fn new(mut dsn: Dsn, ipc_port: u16, config_mode: OPCConfigMode) -> Result<Self, OpcError> {
         debug_assert!(dsn.driver == "opc");
         macro_rules! parse_int_at {
             ($n:expr) => {
@@ -211,7 +219,11 @@ impl OPCConfig {
                     da: None,
                 };
                 let interval = parse_int_at!("interval");
-                let node_vec = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?;
+                let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
+                    vec![]
+                } else {
+                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?
+                };
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
@@ -265,7 +277,11 @@ impl OPCConfig {
                     da: Some(connect_da_config),
                 };
                 let interval = parse_int_at!("interval");
-                let node_vec = get_string_vec_from_param_or_file(&mut dsn, "da.tags")?;
+                let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
+                    vec![]
+                } else {
+                    get_string_vec_from_param_or_file(&mut dsn, "da.tags")?
+                };
                 let mut da_nodes_vec = Vec::new();
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
@@ -389,7 +405,7 @@ pub async fn opc_to_taos(
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
 
-    let config = OPCConfig::new(from, ipc_port)?;
+    let config = OPCConfig::new(from, ipc_port, OPCConfigMode::Collect)?;
     let mut ts_cloumn_name_map = HashMap::new();
     for (table_name, field_info) in &config.table_info {
         let res = taos.describe(&table_name).await;
@@ -555,7 +571,7 @@ pub struct OpcTableConfig {
 }
 
 pub async fn ops_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
-    let config = OPCConfig::new(from.clone(), 0)?;
+    let config = OPCConfig::new(from.clone(), 0, OPCConfigMode::Points)?;
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
