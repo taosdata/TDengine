@@ -6,30 +6,27 @@
 
 ## Project setup
 
-```bash
+```shell
 # clone the project
 git clone https://github.com/taosdata/explorer.git
 cd explorer
-npm install
+yarn
 
 # develop
-npm run dev
+yarn dev
 ```
 
 ### Build
 
 Build frontend distribution.
 
-```
-npm run build
+```shell
+yarn build
 ```
 
 Build explorer binary.
 
-```bash
-# Linux
-cargo build --release --target x86_64-unknown-linux-musl
-# Windows
+```shell
 cargo build --release
 ```
 
@@ -55,7 +52,8 @@ Options:
           API end point for data streaming task management
 
           [env: EXPLORER_X_API=]
-
+  -C, --cluster <CLUSTER>
+  
   -h, --help
           Print help (see a summary with '-h')
 

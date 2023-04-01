@@ -93,6 +93,7 @@ async fn main() -> anyhow::Result<()> {
             .app_data(args.clone())
             .route("/", web::get().to(index))
             .service(rest_sql)
+            .service(rest_upload)
             .route("/api/x/{api:.*}", web::to(x_api))
             .route("/api/-/profile", web::to(profile))
             .route("/api-doc/openapi.json", web::to(x_api_doc))
@@ -119,7 +120,7 @@ async fn profile(args: web::Data<Args>) -> impl Responder {
 }
 
 #[post("/rest/sql")]
-async fn rest_sql(args: web::Data<Args>, req: HttpRequest, sql: String) -> impl Responder {
+async fn rest_sql_builtin(args: web::Data<Args>, req: HttpRequest, sql: String) -> impl Responder {
     let header = req
         .headers()
         .get(AUTHORIZATION)
@@ -129,6 +130,54 @@ async fn rest_sql(args: web::Data<Args>, req: HttpRequest, sql: String) -> impl 
         Ok(ok) => HttpResponse::Ok().json(ok),
         Err(err) => HttpResponse::InternalServerError().json(err),
     }
+}
+
+#[post("/rest/upload")]
+async fn rest_upload(
+    args: web::Data<Args>,
+    req: HttpRequest,
+    mut body: web::Payload,
+) -> Result<HttpResponse, Error> {
+    req.method();
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item?);
+    }
+    let x = args.profile.cluster.as_deref().unwrap();
+    let url = format!("{x}/rest/upload?{}", req.query_string());
+    let client = awc::Client::builder().wrap(Tracing).finish();
+    let method = req.method();
+    let mut builder = client.request(method.clone(), url);
+    *builder.headers_mut() = req.headers().clone();
+    let mut resp = builder
+        .content_type(req.content_type())
+        .send_body(bytes)
+        .await?;
+    Ok(HttpResponse::Ok().body(resp.body().await?))
+}
+
+#[post("/rest/sql")]
+async fn rest_sql(
+    args: web::Data<Args>,
+    req: HttpRequest,
+    mut body: web::Payload,
+) -> Result<HttpResponse, Error> {
+    req.method();
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item?);
+    }
+    let x = args.profile.cluster.as_deref().unwrap();
+    let url = format!("{x}/rest/sql?{}", req.query_string());
+    let client = awc::Client::builder().wrap(Tracing).finish();
+    let method = req.method();
+    let mut builder = client.request(method.clone(), url);
+    *builder.headers_mut() = req.headers().clone();
+    let mut resp = builder
+        .content_type(req.content_type())
+        .send_body(bytes)
+        .await?;
+    Ok(HttpResponse::Ok().body(resp.body().await?))
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -208,12 +257,12 @@ struct Asset;
 
 #[derive(Parser, Debug, Clone, Deserialize, Serialize)]
 struct Profile {
-    /// Cluster endpoint. Use REST API like `http://192.168.0.201:16041` or native `taos://192.168.0.201:6030`.
+    /// Cluster endpoint. Use taosAdapter endpoint like `http://192.168.0.201:16041`.
     #[clap(
         short,
         long,
         env = "EXPLORER_CLUSTER",
-        default_value = "taos://localhost:6030"
+        default_value = "http://localhost:6041"
     )]
     cluster: Option<String>,
 
