@@ -171,6 +171,11 @@ export default {
     replication: "数据复制",
   },
   login: {
+    signin:'登录',
+    taosxtip:'请先启动taosX，配置它在资源管理器中的终端点，然后重新启动资源管理器',
+    username:'用户名',
+    password:'密码',
+    loginTitle:'登录 TaosExplorer',
     login: "登陆",
     loginLeftMessage: {
       title: "只需 200 美元，您就可以在一个月内管理 10,000 个智能电表生成的数据",
@@ -260,6 +265,7 @@ export default {
     response: "响应",
   },
   data: {
+    changeDBPrivilegeTip: "你想从{dbName}数据库{type} {listType}吗?",
     exportDataViaCli: '通过TDengine CLI交互',
     noDatabase: "暂无数据库",
     dataExplorer: "数据浏览",
@@ -716,7 +722,9 @@ export default {
 
   },
   explorer: {
-    databases: '数据库'
+    databases: '数据库',
+    user_name:'用户名',
+    privilege:'权限'
   },
   dataOut: {
     connectorTip: "使用您选择的编程语言<a target='_blank' href='https://docs.taosdata.com/taos-sql/select/'>使用SQL</a>查询数据。",

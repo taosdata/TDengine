@@ -510,7 +510,7 @@ export default {
     async getNodesOrTags(){
       try {
         let params ={
-          from:"opc+ua://192.168.1.84:53530/OPCUA/SimulationServer"
+          from:"opc+ua://192.168.1.84:53530/OPCUA/SimulationServer?ua.nodes=Random.Int8::meters5::c1::int"
         }
         await getUaAndDaData(params).then(res=>{
           console.log(res,'nodes or tags====');

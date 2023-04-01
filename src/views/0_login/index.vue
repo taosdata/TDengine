@@ -75,6 +75,9 @@
       </div>
 
       <div class="login-content">
+        <div class="login-title">
+          <span>{{ $t("login.loginTitle") }}</span>
+        </div>
         <el-form
           :model="dynamicValidateForm"
           ref="dynamicValidateForm"
@@ -82,7 +85,7 @@
           label-width="0px"
           class="demo-dynamic"
         >
-          <div>
+          <!-- <div>
             <p class="lable-form">
               <span>Cluster</span>
             </p>
@@ -93,10 +96,10 @@
                 placeholder="http://localhost:8080"
               ></el-input>
             </el-form-item>
-          </div>
+          </div> -->
           <div>
             <p class="lable-form">
-              <span>User Name</span>
+              <span>{{ $t("login.username") }}</span>
             </p>
             <el-form-item prop="username" label="">
               <el-input v-model="dynamicValidateForm.username"></el-input>
@@ -104,7 +107,7 @@
           </div>
           <div>
             <p class="lable-form">
-              <span>Password</span>
+              <span>{{ $t("login.password") }}</span>
             </p>
             <el-form-item label="" prop="password">
               <el-input
@@ -120,7 +123,7 @@
               @click="submitForm('dynamicValidateForm')"
               class="signin"
               v-loading="loading"
-              >Sign In</el-button
+              >{{$t('login.signin')}}</el-button
             >
           </el-form-item>
         </el-form>
@@ -181,7 +184,6 @@
   </div>
 </template>
 <script>
-import { request } from "@/utils/request";
 import { DbBase64 } from "../../utils/dbBase64";
 import { deleteCookieItem } from "@/utils/index";
 import { sendSQLReq } from "@/api/gateway/console";
@@ -189,7 +191,7 @@ import { Message } from "element-ui";
 import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
 import { getUrls, fetchApiByCluster } from "@/api/explorer/login";
-import {encrypt} from '@/utils/index'
+import { encrypt } from "@/utils/index";
 export default {
   name: "Login",
   components: {
@@ -210,6 +212,7 @@ export default {
       }
     };
     return {
+      tasoxStatus: true,
       oemName: process.env.VUE_APP_CUS_NAME,
       loading: false,
       earch: require("@/assets/earth.webp"),
@@ -243,36 +246,42 @@ export default {
         ],
       },
       dataJson,
-      encryptedPwd:''
+      encryptedPwd: "",
     };
   },
   methods: {
-   
     getClusterUrl() {
+      this.dynamicValidateForm.cluster = "http://localhost:6041";
       localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
       this.$store.commit(
         "app/SET_CLUSTER_URL",
         this.dynamicValidateForm.cluster
       );
-      request.defaults.baseURL = this.dynamicValidateForm.cluster;
+      // request.defaults.baseURL = this.dynamicValidateForm.cluster;
     },
     submitForm(formName) {
-      let reg =
-        /^(https?:\/\/)?([\da-z.-]+)(\.([a-z.]{2,6}))?(:[\d]{1,5})?([\/\w.-]*)*\/?$/;
-        
-      if (
-        this.dynamicValidateForm.cluster &&
-        !reg.test(this.dynamicValidateForm.cluster)
-      ) {
-        Message.error("Please enter the correct cluster url .");
-        return;
-      }
+      // let reg =
+      //   /^(https?:\/\/)?([\da-z.-]+)(\.([a-z.]{2,6}))?(:[\d]{1,5})?([\/\w.-]*)*\/?$/;
+
+      // if (
+      //   this.dynamicValidateForm.cluster &&
+      //   !reg.test(this.dynamicValidateForm.cluster)
+      // ) {
+      //   Message.error("Please enter the correct cluster url .");
+      //   return;
+      // }
       this.$refs[formName].validate((valid) => {
         if (valid) {
           this.loading = true;
-          this.encryptedPwd= encrypt(this.dynamicValidateForm.password)
+          this.encryptedPwd = encrypt(this.dynamicValidateForm.password);
           setTimeout(() => {
-            this.login();
+            if (!this.tasoxStatus) {
+              Message.error(this.$t('login.taosxtip')
+              );
+              this.loading = false;
+            } else {
+              this.login();
+            }
           }, 1000);
         } else {
           return false;
@@ -317,7 +326,6 @@ export default {
         username: this.dynamicValidateForm.username,
         pwd: this.dynamicValidateForm.password,
       });
-      request.defaults.baseURL = this.dynamicValidateForm.cluster;
       try {
         await fetchApiByCluster(
           this.dynamicValidateForm.cluster,
@@ -327,9 +335,9 @@ export default {
           if (res && res.code == 0 && !res.desc) {
             localStorage.setItem("TDengine-Token", token);
             this.getClusterID();
-             this.$router.push({
-                path: "/explorer",
-              });
+            this.$router.push({
+              path: "/explorer",
+            });
             // this.getUserAuthority();
           } else {
             Message.error(res.desc);
@@ -339,7 +347,6 @@ export default {
       } catch (error) {
         this.loading = false;
         deleteCookieItem();
-        Message.error("Faild to fetch,wrong cluster url!");
       }
     },
     async getClusterAndDashboardUrl() {
@@ -347,9 +354,15 @@ export default {
         await getUrls().then((res) => {
           if (res && res.cluster) {
             this.dynamicValidateForm.cluster = res.cluster;
+            this.getClusterUrl();
           }
           if (res && res.dashboard) {
             localStorage.setItem("local_grafana", res.dashboard);
+          }
+          if (res && res.x_api) {
+            this.tasoxStatus = true;
+          } else {
+            this.tasoxStatus = false;
           }
         });
       } catch (error) {
@@ -470,9 +483,11 @@ export default {
     display: flex;
     flex-direction: row;
     padding: 20px calc(50vw - 600px);
+    justify-content: center;
     .article {
       padding: 15px;
       flex: 1.5;
+      display: none !important;
       // border: 1px solid rgb(54, 42, 185);
       margin-right: 20px;
       display: flex;
@@ -488,9 +503,15 @@ export default {
     }
     .login-content {
       width: 480px;
-      flex: 1;
       padding: 15px;
+      padding-top: 30px;
       box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
+      .login-title {
+        font-size: 28px;
+        font-weight: 500;
+        text-align: center;
+        margin-bottom: 30px;
+      }
     }
   }
   // .plans {
@@ -505,6 +526,7 @@ export default {
       display: flex;
       flex-direction: row;
       .inside {
+        display: none !important;
         flex-direction: column;
         display: flex;
         padding: 30px 20px 0;
@@ -619,6 +641,7 @@ export default {
     font-weight: 700;
     padding: 8px 20px;
     font-size: 16px;
+    margin-top: 50px;
   }
 }
 </style>

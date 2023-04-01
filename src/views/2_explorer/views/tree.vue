@@ -85,12 +85,15 @@
                     @click.stop="edit(data, node)"
                     v-if="!['sfile', 'nfile'].includes(data.typeName)"
                   ></i>
-                  <i
+                  <template v-if="isRoot==='root'">
+                    <i
                     v-permission
                     class="el-icon-unlock operate-icon"
                     @click.stop="manage(data, node)"
                     v-if="data.typeName === 'database'"
                   ></i>
+                  </template>
+                  
                   <i
                     v-permission
                     class="el-icon-delete operate-icon"
@@ -172,6 +175,7 @@ export default {
     };
     this.notAdd = ["column", "tag"];
     return {
+      isRoot:sessionStorage.getItem('username'),
       defaultProps: {
         children: "children",
         label: "label",
@@ -367,7 +371,9 @@ export default {
     // 处理全局db和stb
     async handleVar(data, node) {
       switch (data.typeName) {
-        //case "database":
+        case "database":
+          this.$store.commit("dbs/SET_SELECTED_DB", data.name);
+          break;
         case "sfile":
           //操作数据库时，获取数据库配置
           // if (!Object.prototype.hasOwnProperty.call(data, "minrows")) {
@@ -556,7 +562,7 @@ export default {
       this.changePartActive();
     },
     async manage(data, node) {
-      console.log("数据库管理，只有管理员可以看到该功能");
+      console.log("数据库管理，只有管理员可以看到该功能",data,node);
       await this.handleVar(data);
         this.$store.state.console.currentInfoType = data.typeName;
         this.$store.commit("console/SET_CURRENT_INFO_DATA", data);

@@ -25,7 +25,7 @@
 </template>
 
 <script>
-  import { getGrantList, getUnGrantList } from "@/api/gateway/data/dbs";
+  import {  getUnGrantList } from "@/api/gateway/data/dbs";
   import UTCDATETIMEPICKER from "@/components/UTCDateTimePicker.vue";
   export default {
     props: {
@@ -61,7 +61,7 @@
     },
     computed: {
       dataFn() {
-        return this.type == "all" ? getGrantList : getUnGrantList;
+        return getUnGrantList;
       },
       aliasMap() {
         return this.$store.getters.instanceAliasMap;
@@ -71,7 +71,7 @@
       params: {
         handler(newval, oldval) {
           if (JSON.stringify(newval) != JSON.stringify(oldval)) {
-            this.getGrantList();
+            // this.getGrantList();
           }
         },
         deep: true,
@@ -79,7 +79,7 @@
     },
 
     created() {
-      this.getGrantList();
+      // this.getGrantList();
     },
     mounted() {},
     methods: {
@@ -240,7 +240,7 @@
         this.expiration = {};
         this.currentValue = [];
         this.$emit("input", []);
-        this.getGrantList();
+        // this.getGrantList();
       },
     },
   };

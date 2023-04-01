@@ -41,20 +41,20 @@
       },
     },
     watch: {
-      currentDB: {
-        handler() {
-          if (this.userShow) {
-            this.$store.dispatch("dbs/getDBUserList");
-          }
-          if (this.groupShow) {
-            this.$store.dispatch("dbs/getDBGroupList");
-            if (!this.userShow) {
-              this.activiteName = "userGroup";
-            }
-          }
-        },
-        immediate: true,
-      },
+      // currentDB: {
+      //   handler() {
+      //     if (this.userShow) {
+      //       this.$store.dispatch("dbs/getDBUserList");
+      //     }
+      //     if (this.groupShow) {
+      //       this.$store.dispatch("dbs/getDBGroupList");
+      //       if (!this.userShow) {
+      //         this.activiteName = "userGroup";
+      //       }
+      //     }
+      //   },
+      //   immediate: true,
+      // },
     },
     created() {},
     mounted() {},

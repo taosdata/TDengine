@@ -40,7 +40,8 @@
 
 <style lang="scss" scoped>
   .detail {
-    max-height: 100vh;
+    height:100%;
+    // max-height: 100vh;
     overflow: auto;
     position: relative;
     padding: 0 15px;
@@ -66,7 +67,7 @@
     color: #606266;
   }
   .detail ::v-deep .el-form-item {
-    margin-bottom: 8px;
+    margin-bottom: 25px;
   }
   .detail ::v-deep .el-form-item__label {
     font-weight: 500;

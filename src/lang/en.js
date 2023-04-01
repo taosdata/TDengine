@@ -237,6 +237,11 @@ export default {
     cluster: 'Cluster'
   },
   login: {
+    signin:'Sign In',
+    taosxtip:'Please start taosX firstly, configure its end point in explorer, and restart explorer',
+    loginTitle:'Log in TaosExplorer',
+    username:'User Name',
+    password:'Password',
     loginLeftMessage: {
       title: "With $200, you can manage data generated from 10,000 smart meters in a month",
       list: [
@@ -335,6 +340,7 @@ export default {
     latencyDesc: "The latency which ranks at {per}% from low to high in all requests",
   },
   data: {
+    changeDBPrivilegeTip: "Do you want to {type} the {listType} from the {dbName} DB ?",
     exportDataViaCli: "Explorer data via TDengine CLI",
     noDatabase: "No Database",
     dataExplorer: "Data Explorer",
@@ -1039,7 +1045,9 @@ export default {
 
   },
   explorer: {
-    databases: 'Databases'
+    databases: 'Databases',
+    user_name:'User Name',
+    privilege:'Privilege'
   },
   docs: {
     connector: {
