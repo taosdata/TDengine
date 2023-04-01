@@ -14,9 +14,9 @@
         <el-tab-pane name='pi' label='PI'>
           <PlantInformation></PlantInformation>
         </el-tab-pane>
-        <el-tab-pane name="opc" label="OPC">
+        <!-- <el-tab-pane name="opc" label="OPC">
           <OpcView></OpcView>
-        </el-tab-pane>
+        </el-tab-pane> -->
       </el-tabs>
     </div>
     
