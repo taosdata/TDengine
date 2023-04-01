@@ -61,7 +61,9 @@ export function deleteDBReq(payload, appId = store.getters.appId) {
     baseURL:'',
     url: '/rest/sql',
     data: `DROP DATABASE ${dbName};`,
-
+    headers: {
+      "Content-Type":"text/plain"
+  },
     method: "post",
   })
     .then(data => {
@@ -81,6 +83,9 @@ export function createDB(data, name, appId = store.getters.appId) {
     // url: `/private/data/sql/createdb/${appId}/${name}`,
     baseURL:'',
     url: '/rest/sql',
+    headers: {
+      "Content-Type":"text/plain"
+  },
     data:
       `CREATE DATABASE \`${name}\`  ${Object.keys(DBFILED)
         .map(item => {

@@ -410,7 +410,7 @@ export const TDengineTimeUnit = [
   },
 ];
 export const RequestCommonConfig = {
-  timeout: 20000,
+  // timeout: 20000,
   withCredentials: false,
 };
 

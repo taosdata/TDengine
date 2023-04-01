@@ -14,7 +14,8 @@ export function fetchApiByCluster(url, token, data) {
         url: `/rest/sql`,
         method: "post",
         headers: {
-            Authorization: token
+            Authorization: token,
+            "Content-Type":"text/plain"
         },
         data
     });
