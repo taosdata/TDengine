@@ -157,7 +157,17 @@
             prop="endpoint"
             required
           >
-            <el-input-number v-model="ruleForm.endpoint"></el-input-number>
+            <!-- <el-input-number v-model="ruleForm.endpoint"></el-input-number> -->
+            <div style="margin-bottom:10px;">
+              <el-input placeholder="localhost" v-model="ruleForm.endpoint.ip"></el-input>
+            </div>
+            <div style="margin-bottom:10px;">
+              <el-input placeholder="8080" v-model="ruleForm.endpoint.port"></el-input>
+            </div>
+            <div style="margin-bottom:10px;">
+              <el-input placeholder="/OPCUA/SimulationServer" v-model="ruleForm.endpoint.direct"></el-input>
+            </div>
+            <el-button type="primary" style="width:100%" @click="getNodesOrTags">{{$t('taosopc.searchnodes')}}</el-button>
           </el-form-item>
           <el-form-item
             :label="$t('taosopc.request_timeout')"
@@ -246,7 +256,11 @@
               {{ $t("taosopc.collect_config") }}
             </span>
           </p>
-          <el-form-item :label="$t('taosopc.interval')" prop="interval" required>
+          <el-form-item
+            :label="$t('taosopc.interval')"
+            prop="interval"
+            required
+          >
             <el-input v-model="ruleForm.interval"></el-input>
           </el-form-item>
           <el-form-item :label="$t('taosopc.nodes')" prop="nodes" required>
@@ -268,7 +282,6 @@
             }}</span>
           </p>
           <el-form-item :label="$t('taosopc.server')" prop="server" required>
-            
             <el-input v-model="ruleForm.server"></el-input>
           </el-form-item>
           <el-form-item :label="$t('taosopc.nodes')" prop="nodes" required>
@@ -309,16 +322,28 @@
           </span>
         </p>
         <el-form-item :label="$t('taosopc.remote')" prop="remote" required>
-            <el-input v-model="ruleForm.remote"></el-input>
+          <el-input v-model="ruleForm.remote"></el-input>
         </el-form-item>
-        <el-form-item :label="$t('taosopc.concurrent')" prop="concurrent" required>
-            <el-input v-model="ruleForm.concurrent"></el-input>
+        <el-form-item
+          :label="$t('taosopc.concurrent')"
+          prop="concurrent"
+          required
+        >
+          <el-input v-model="ruleForm.concurrent"></el-input>
         </el-form-item>
-        <el-form-item :label="$t('taosopc.batch_size')" prop="batch_size" required>
-            <el-input v-model="ruleForm.batch_size"></el-input>
+        <el-form-item
+          :label="$t('taosopc.batch_size')"
+          prop="batch_size"
+          required
+        >
+          <el-input v-model="ruleForm.batch_size"></el-input>
         </el-form-item>
-        <el-form-item :label="$t('taosopc.batch_timeout')" prop="batch_timeout" required>
-            <el-input v-model="ruleForm.batch_timeout"></el-input>
+        <el-form-item
+          :label="$t('taosopc.batch_timeout')"
+          prop="batch_timeout"
+          required
+        >
+          <el-input v-model="ruleForm.batch_timeout"></el-input>
         </el-form-item>
       </el-form>
       <el-row style="margin-top: 20px">
@@ -343,7 +368,7 @@
 </template>
 <script>
 import { Message } from "element-ui";
-import { getOPC ,getUaAndDaData} from "@/api/explorer/datain";
+import { getOPC, getUaAndDaData } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 export default {
   name: "DataSource",
@@ -386,7 +411,11 @@ export default {
       uaCollectNodes: [],
       ruleForm: {
         opc_type: "opcua",
-        endpoint: "",
+        endpoint: {
+          ip:'',
+          port:'',
+          direct:''
+        },
         connect_timeout: "",
         request_timeout: "",
         security_policy: "",
@@ -507,22 +536,23 @@ export default {
         return Promise.reject(err);
       }
     },
-    async getNodesOrTags(){
+    async getNodesOrTags() {
+      console.log(this.ruleForm.opc_type);
       try {
-        let params ={
-          from:"opc+ua://192.168.1.84:53530/OPCUA/SimulationServer?ua.nodes=Random.Int8::meters5::c1::int"
-        }
-        await getUaAndDaData(params).then(res=>{
-          console.log(res,'nodes or tags====');
-        })
+        let params = {
+          from: "opc+ua://192.168.1.84:53530/OPCUA/SimulationServer?ua.nodes=Random.Int8::meters5::c1::int",
+        };
+        await getUaAndDaData(params).then((res) => {
+          console.log(res, "nodes or tags====");
+        });
       } catch (error) {
         console.log(error);
       }
-    }
+    },
   },
   created() {
     this.getList();
-    this.getNodesOrTags()
+    this.getNodesOrTags();
   },
 };
 </script>

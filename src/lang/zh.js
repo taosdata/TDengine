@@ -1295,6 +1295,7 @@ export default {
     SQLAPI: 'SQLAPI'
   },
   taosopc: {
+    searchnodes:'查询Nodes',
     da_config: 'DA配置',
     ua_config: 'UA配置',
     addopc: '新增OPC',
