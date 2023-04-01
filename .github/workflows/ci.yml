@@ -21,10 +21,10 @@ jobs:
         with:
           path: |
             node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+            yarn.lock
+          key: ${{ runner.os }}-node-yarn
       - run: |
-          npm install
-          npm run build
+          yarn && yarn build
       - name: Upload dist
         uses: actions/upload-artifact@v3
         with:
@@ -130,8 +130,6 @@ jobs:
     needs: web
     steps:
       - uses: actions/checkout@v3
-      - run: |
-          sudo apt install musl-tools -y
       - uses: actions/download-artifact@v3
         with:
           name: dist
@@ -139,7 +137,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-unknown-linux-musl
+          targets: x86_64-unknown-linux-gnu
 
       - uses: actions/cache@v3
         name: Cargo Caches
@@ -159,18 +157,18 @@ jobs:
           key: ${{ runner.os }}-cargo-target
 
       - name: build package
-        run: cargo build --release --target x86_64-unknown-linux-musl
+        run: cargo build --release --target x86_64-unknown-linux-gnu
 
       - name: build archive
         run: |
-          cd target/x86_64-unknown-linux-musl/release/
-          tar -cavf taos-explorer-x86_64-unknown-linux-musl.tar.gz taos-explorer
+          cd target/x86_64-unknown-linux-gnu/release/
+          tar -cavf taos-explorer-x86_64-unknown-linux-gnu.tar.gz taos-explorer
 
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
           name: taos-explorer
-          path: target/x86_64-unknown-linux-musl/release/*.tar.gz
+          path: target/x86_64-unknown-linux-gnu/release/*.tar.gz
 
   linux-aarch64:
     runs-on: ubuntu-18.04
@@ -184,7 +182,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-unknown-linux-musl
+          targets: aarch64-unknown-linux-gnu
 
       - uses: actions/cache@v3
         name: Cargo Caches
@@ -208,18 +206,18 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --all --release --target=aarch64-unknown-linux-musl
+          args: --all --release --target=aarch64-unknown-linux-gnu
 
       - name: build archive
         run: |
-          cd target/aarch64-unknown-linux-musl/release/
-          tar -cavf taos-explorer-aarch64-unknown-linux-musl.tar.gz taos-explorer
+          cd target/aarch64-unknown-linux-gnu/release/
+          tar -cavf taos-explorer-aarch64-unknown-linux-gnu.tar.gz taos-explorer
 
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
           name: taos-explorer
-          path: target/aarch64-unknown-linux-musl/release/*.tar.gz
+          path: target/aarch64-unknown-linux-gnu/release/*.tar.gz
   release:
     needs:
       - macos
@@ -246,7 +244,7 @@ jobs:
           name: Latest
           tag_name: latest
           files: |
-            taos-explorer-aarch64-unknown-linux-musl.tar.gz
-            taos-explorer-x86_64-unknown-linux-musl.tar.gz
+            taos-explorer-aarch64-unknown-linux-gnu.tar.gz
+            taos-explorer-x86_64-unknown-linux-gnu.tar.gz
             taos-explorer-universal2-apple-darwin.tar.gz
             taos-explorer-x86_64-windows-msvc.zip
