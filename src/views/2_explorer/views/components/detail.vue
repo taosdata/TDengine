@@ -10,11 +10,21 @@
   import StableCreate from "./stables/stb_create";
   import Info from "./info.vue";
   import TableCreate from "./tables/tb_create";
+   import DatabasePrivileges from "./privilege";
   // import Matrixs from "./matrixs";
+  Array.prototype.insert = function (index, item) {
+    this.splice(index, 0, item);
+  };
+  Array.prototype.remove = function (index) {
+    if (index > -1 && this.length > 1) {
+      this.splice(index, 1);
+    }
+  };
   export default {
     components: {
       DatabaseCreate,
       // CreateStableOrTable,
+      DatabasePrivileges,
       Info,
       TableCreate,
       StableCreate,
@@ -30,7 +40,8 @@
 
 <style lang="scss" scoped>
   .detail {
-    max-height: 100vh;
+    height:100%;
+    // max-height: 100vh;
     overflow: auto;
     position: relative;
     padding: 0 15px;
@@ -56,7 +67,7 @@
     color: #606266;
   }
   .detail ::v-deep .el-form-item {
-    margin-bottom: 8px;
+    margin-bottom: 25px;
   }
   .detail ::v-deep .el-form-item__label {
     font-weight: 500;

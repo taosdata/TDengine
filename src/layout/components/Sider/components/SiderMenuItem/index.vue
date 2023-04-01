@@ -57,7 +57,9 @@ export default {
     },
     menuClick(val) {
       let url = localStorage.getItem("local_grafana");
+      console.log(val,'菜单点击');
       if (val === "Dashboard") {
+        window.open('https://grafana.com','_blank')
         if (url) {
           OpenNewTab(url);
         } else {

@@ -3,20 +3,32 @@
     <div class="flexEnd">
       <el-button
         plain
-        @click="dialog=true"
+        @click="dialog = true"
         size="small"
         icon="el-icon-plus"
-        >{{ $t("pi.addpi") }}</el-button
+        >{{ $t("taospi.addpi") }}</el-button
       >
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column :label="$t('pi.name')" prop="localname"></el-table-column>
-      <el-table-column :label="$t('pi.type')" prop="localtype"></el-table-column>
-      <el-table-column :label="$t('pi.target')" prop="target"></el-table-column>
-      <el-table-column :label="$t('pi.createat')" prop="created_at"></el-table-column>
+      <el-table-column
+        :label="$t('taospi.name')"
+        prop="localname"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('taospi.type')"
+        prop="localtype"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('taospi.target')"
+        prop="target"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('taospi.createat')"
+        prop="created_at"
+      ></el-table-column>
       <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
 
-      <el-table-column :label="$t('pi.status')" prop="status">
+      <el-table-column :label="$t('taospi.status')" prop="status">
         <template slot-scope="scope">
           <div class="status-operation">
             <el-tooltip
@@ -42,7 +54,7 @@
               <el-tooltip
                 placement="bottom"
                 effect="light"
-                :content="$t('pi.excutestart')"
+                :content="$t('taospi.excutestart')"
               >
                 <el-button
                   plain
@@ -56,7 +68,7 @@
               <el-tooltip
                 placement="bottom"
                 effect="light"
-                :content="$t('pi.excutestop')"
+                :content="$t('taospi.excutestop')"
               >
                 <el-button
                   plain
@@ -73,7 +85,11 @@
           </template> -->
         </template>
       </el-table-column>
-      <el-table-column :label="$t('pi.operation')" width="100" class="action">
+      <el-table-column
+        :label="$t('taospi.operation')"
+        width="100"
+        class="action"
+      >
         <template slot-scope="scope">
           <el-button
             type="primay"
@@ -102,10 +118,10 @@
     ></el-pagination>
     <el-dialog
       align="center"
-      :title="$t('pi.addnewpi')"
+      :title="$t('taospi.addnewpi')"
       width="400px"
       :visible.sync="dialog"
-      @closed='closeDialog'
+      @closed="closeDialog"
     >
       <el-form
         :model="ruleForm"
@@ -115,32 +131,73 @@
         label-position="left"
         class="demo-ruleForm"
       >
-        <el-form-item label="Source Type" prop="type" required>
-          <el-select
-            v-model="ruleForm.type"
-            placeholder="Please Select Source Type"
+        <el-form-item
+          :label="$t('taospi.UpdateInterval')"
+          prop="UpdateInterval"
+        >
+          <el-input-number
+            v-model="ruleForm.UpdateInterval"
+          ></el-input-number>
+        </el-form-item>
+        <el-form-item
+          :label="$t('taospi.PIServerName')"
+          required
+          prop="PIServerName"
+        >
+          <el-input v-model="ruleForm.PIServerName"></el-input>
+        </el-form-item>
+        <el-form-item :label="$t('taospi.PISystemName')" prop="PISystemName">
+          <el-input v-model="ruleForm.PISystemName"></el-input>
+        </el-form-item>
+        <el-form-item
+          required
+          :label="$t('taospi.AFDatabaseName')"
+          prop="AFDatabaseName"
+        >
+          <el-input v-model="ruleForm.AFDatabaseName"></el-input>
+        </el-form-item>
+        <el-form-item
+          :label="$t('taospi.PIDataPipesInstances')"
+          prop="PIDataPipesInstances"
+        >
+          <el-input-number
+            v-model="ruleForm.PIDataPipesInstances"
+          ></el-input-number>
+        </el-form-item>
+        <el-form-item
+          :label="$t('taospi.AFDataPipesInstances')"
+          prop="AFDataPipesInstances"
+        >
+          <el-input-number
+            v-model="ruleForm.AFDataPipesInstances"
+          ></el-input-number>
+        </el-form-item>
+        <el-form-item
+          :label="$t('taospi.MaxBackfillRangeDays')"
+          prop="MaxBackfillRangeDays"
+        >
+          <el-input-number
+            v-model="ruleForm.MaxBackfillRangeDays"
+          ></el-input-number>
+        </el-form-item>
+        <el-form-item :label="$t('taospi.TaosXEnabled')" prop="TaosXEnabled">
+          <el-switch
+            v-model="ruleForm.TaosXEnabled"
+            active-color="#13ce66"
           >
-            <el-option
-              :label="item.name"
-              :value="item.id"
-              v-for="item in sourceList"
-              :key="item.id"
-            ></el-option>
-          </el-select>
+          </el-switch>
         </el-form-item>
-        <el-form-item label="Source Name" prop="name" required>
-          <el-input v-model="ruleForm.name"></el-input>
+        <el-form-item :label="$t('taospi.MaxWaitLen')" prop="MaxWaitLen">
+          <el-input-number
+            v-model="ruleForm.MaxWaitLen"
+          ></el-input-number>
         </el-form-item>
-        <!-- <el-form-item label="Created Time" required>
-          <el-form-item prop="time">
-            <el-date-picker
-              v-model="ruleForm.time"
-              type="datetime"
-              placeholder="Please Select Date And Time"
-            >
-            </el-date-picker>
-          </el-form-item>
-        </el-form-item>-->
+        <el-form-item :label="$t('taospi.IPCStream')" prop="IPCStream" required>
+          <el-input v-model="ruleForm.IPCStream"></el-input>
+        </el-form-item>
+        <el-form-item :label="$t('taospi.SQLAPI')" prop="SQLAPI" required>
+          <el-input v-model="ruleForm.SQLAPI" type="number"></el-input>
+        </el-form-item>
       </el-form>
       <el-row style="margin-top: 20px">
         <el-col :span="5" :offset="6">
@@ -164,7 +221,7 @@
 </template>
 <script>
 import { Message } from "element-ui";
-import { getDatain } from "@/api/explorer/datain";
+import { getPI } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 export default {
   name: "DataSource",
@@ -178,11 +235,17 @@ export default {
   },
   computed: {
     confirmStatus() {
-      if (!this.ruleForm.type) {
+      if (!this.ruleForm.PIServerName) {
         return true;
       }
-      if (!this.ruleForm.name) {
+      if (!this.ruleForm.AFDatabaseName) {
         return true;
+      }
+      if(!this.ruleForm.IPCStream){
+        return true
+      }
+      if(!this.ruleForm.SQLAPI){
+        return true
       }
       return false;
     },
@@ -195,8 +258,18 @@ export default {
       total: 10,
       dialog: false,
       ruleForm: {
-        type: "",
-        name: "",
+
+        UpdateInterval: 10000,
+        PIServerName: "",
+        PISystemName: "",
+        AFDatabaseName: "",
+        PIDataPipesInstances: 1,
+        AFDataPipesInstances: 1,
+        MaxBackfillRangeDays: 1,
+        TaosXEnabled: true,
+        MaxWaitLen: 1000,
+        IPCStream: "",
+        SQLAPI: 8080,
       },
       topicList: [],
     };
@@ -205,7 +278,7 @@ export default {
     handlePageChange() {},
     closeDialog() {
       this.$refs.ruleForm.resetFields();
-        this.dialog=false
+      this.dialog = false;
     },
     del(data) {
       this.$confirm("Are you sure  to delete " + data.name + "?", "Warning", {
@@ -230,9 +303,12 @@ export default {
     edit(data) {
       if (data.from_detail) {
         let editDdata = [].concat(data.from_detail);
-        let dbname=data.to_expand&&data.to_expand.subject?data.to_expand.subject:''
-        this.$parent.uidata = editDdata;
-        this.$parent.toggleComponent("ui", this.ruleForm.type, data.id,dbname);
+        let dbname =
+          data.to_expand && data.to_expand.subject
+            ? data.to_expand.subject
+            : "";
+        this.$parent.dbsource = editDdata;
+        this.$parent.toggleComponent("ui",dbname);
       }
 
       // this.$router.push({
@@ -240,13 +316,13 @@ export default {
       // });
     },
     handleAdd() {
-      localStorage.setItem("datainName", this.ruleForm.name);
-      this.$parent.toggleComponent("ui", this.ruleForm.type);
+      console.log('获取参数',this.ruleForm);
+      this.$parent.toggleComponent("ui");
     },
     async getList() {
       try {
         let id = localStorage.getItem("local_clusterID");
-        await getDatain(id).then((res) => {
+        await getPI(id).then((res) => {
           if (res) {
             this.topicList = res.map((item) => {
               item["localname"] = item.name ? item.name : "tmq+" + item.id;
@@ -330,4 +406,13 @@ export default {
 ::v-deep.input.el-input__inner {
   width: 172px !important;
 }
+:deep {
+    .el-input-number__increase,
+    .el-input-number__decrease {
+      height: 26px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+  }
 </style>

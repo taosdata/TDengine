@@ -2,7 +2,7 @@
   <div class="source-ui">
     <div class="left-ui">
       <section class="header">
-        <h1>{{ dbsource[0].name }}</h1>
+        <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
 
         <!-- <h3>{{ dbsource[0].description }}</h3> -->
       </section>
@@ -51,7 +51,7 @@
               ></div>
             </div>
           </div>
-          <div style="width: 100%" v-if="dbsource[0].options.port">
+          <div style="width: 100%" v-if="dbsource[0].options.port&&dbsource[0].options.port.diaplay">
             <span
               :class="[
                 'label',
@@ -131,7 +131,7 @@
           </div>
         </div>
       </section>
-      <section class="authentication" v-if="dbsource[0].authentication">
+      <section class="authentication" v-if="dbsource[0].authentication&&dbsource[0].authentication.display">
         <div>
           <div class="block-title">
             <span>{{ dbsource[0].authentication.display }}</span>
@@ -236,8 +236,8 @@
               v-html="transforHtml(item.description)"
             ></div>
           </div>
-          <template v-for="p in item.params">
-            <div :key="p.name + Math.random()">
+          <template v-for="(p,pind) in item.params">
+            <div :key="pind">
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
               </span>
@@ -245,7 +245,7 @@
                 <template v-if="p.hint === 'str' || p.hint === 'timeout'">
                   <el-input
                     v-model="p.value"
-                    placeholder="Please enter timeout"
+                    placeholder="Please enter "
                   ></el-input>
                 </template>
                 <template v-if="p.hint.type && p.hint.type === 'str'">
@@ -355,6 +355,11 @@ export default {
       default: "",
     },
   },
+  filters:{
+    transtozh(val){
+      console.log(val,'转移成中文');
+    }
+  },
   data() {
     return {
       decryptPwd: "", //解密的密码
@@ -427,7 +432,6 @@ export default {
             : data.protocol.value;
         }
         for (let key of Object.keys(data.options)) {
-          // console.log(key,data.options[key],'遍历---');
           if (
             Object.hasOwnProperty.call(data.options[key], "required") &&
             (data.options[key]["value"] == "" ||
@@ -441,10 +445,17 @@ export default {
           }
         }
         this.decryptPwd = decrypt(sessionStorage.getItem("pwd"));
-        dns += `://${sessionStorage.getItem("username")}:${this.decryptPwd}@${
-          data.options.host.value ? data.options.host.value : ""
-        }
+        if (this.tagName === "datasource") {
+          dns += `://${sessionStorage.getItem("username")}:${this.decryptPwd}@${
+            data.options.host.value ? data.options.host.value : ""
+          }
         `;
+        }else{
+          dns +=`://${
+            data.options.host.value ? data.options.host.value : ""
+          }`
+        }
+
         if (data.options.port) {
           dns +=
             (Object.is(data.options.port.value, null) ? "" : ":") +
@@ -484,9 +495,16 @@ export default {
         }
 
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-        console.log(data,'pppp');
+        console.log(data, "pppp");
         let apiParams = {
-          from: "tmq" + (data.protocol? (Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
+          from:
+            "tmq" +
+            (data.protocol
+              ? Object.is(data.protocol.value, "--")
+                ? ""
+                : "+"
+              : "") +
+            dns,
           name: localStorage.getItem("datainName"),
           to:
             "taos+" +
@@ -505,11 +523,12 @@ export default {
             });
           }
         } else {
-          console.log("pi的接口");
+          console.log("pi的接口", dns);
           let piParams = {
-            from:
-              "tmq" + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
+            from: "pi" + dns,
             name: localStorage.getItem("datainName"),
+            //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
+            // name: localStorage.getItem("datainName"),
             to:
               "taos+" +
               localStorage.getItem("base_url") +
@@ -517,9 +536,9 @@ export default {
             labels: ["type::pi", `cluster-id::${id}`],
           };
           await AddSource(piParams).then((res) => {
-            console.log(res, "pi的接口返回");
-            if(res&&res.id){
-              Message.success('Operation Successfully!')
+            if (res && res.id) {
+              this.$parent.toggleComponent("pitable", "");
+              Message.success("Operation Successfully!");
             }
           });
         }

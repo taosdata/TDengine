@@ -3,14 +3,13 @@
     <MainContentHeader :title="$t('topic.pageTitle')"></MainContentHeader>
     <section class="content">
       <el-tabs value="topic">
-        <el-tab-pane name="topic" :label="$t('topic.topic')">
+        <LinkTab :tabs="tabs" class="topic-heads" />
+        <router-view></router-view>
+        <!-- <el-tab-pane name="topic" :label="$t('topic.topic')">
           <Topic></Topic>
         </el-tab-pane>
         <el-tab-pane name="consumer" :label="$t('topic.consumer')">
           <Consumer></Consumer>
-        </el-tab-pane>
-        <!-- <el-tab-pane name="subscription" :label="$t('topic.subscription')">
-          <Subscription></Subscription>
         </el-tab-pane> -->
       </el-tabs>
     </section>
@@ -18,16 +17,41 @@
 </template>
 
 <script>
-  import Topic from "./views/topic.vue";
-  import Consumer from "./views/consumer.vue";
-  // import Subscription from "./views/subscription.vue";
-  export default {
-    components: {
-      Topic,
-      Consumer,
-      // Subscription,
-    },
-  };
+import Topic from "./views/topic.vue";
+import Consumer from "./views/consumer.vue";
+export default {
+  provide() {
+    return {
+      tabs: this.tabs,
+    };
+  },
+  components: {
+    Topic,
+    Consumer,
+  },
+  data() {
+    return {
+      tabs: [
+        {
+          label: this.$t("topic.topic"),
+          name: "/topic",
+        },
+        {
+          label: this.$t("topic.consumer"),
+          name: "/topic/consumer",
+        },
+        {
+          label: this.$t("topic.shareTopic"),
+          name: "/topic/share",
+        },
+        {
+          label: this.$t("topic.sampleCode"),
+          name: "/topic/example",
+        },
+      ],
+    };
+  },
+};
 </script>
 
 <style></style>

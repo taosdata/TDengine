@@ -5,13 +5,12 @@ import { refreshTokenExpire } from "./token";
 import { ReLoginCode, SuccessCode, RequestCommonConfig } from "@/const";
 const request = axios.create({
   ...RequestCommonConfig,
-  baseURL: '',
+  baseURL: process.env.VUE_APP_BASE_URL,
   headers: {
     "Content-Type": "application/json"
   },
 });
 
-request.defaults.baseURL=localStorage.getItem('base_url')
 let msg = "";
 let setTokenTimer = null;
 

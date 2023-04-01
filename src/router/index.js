@@ -39,22 +39,22 @@ const layoutCommonChildren = [
     path: "explorer",
     component: () => import("@/views/2_explorer"),
   },
-  {
-    path: "instances",
-    component: () => import("@/views/7_cluster"),
-    children: [
-      {
-        path: "",
-        name: "ClusterList",
-        component: () => import("@/views/7_cluster/views/list.vue"),
-      },
-      {
-        path: "create",
-        props: true,
-        component: () => import("@/views/7_cluster/views/create.vue"),
-      },
-    ],
-  },
+  // {
+  //   path: "instances",
+  //   component: () => import("@/views/7_cluster"),
+  //   children: [
+  //     {
+  //       path: "",
+  //       name: "ClusterList",
+  //       component: () => import("@/views/7_cluster/views/list.vue"),
+  //     },
+  //     {
+  //       path: "create",
+  //       props: true,
+  //       component: () => import("@/views/7_cluster/views/create.vue"),
+  //     },
+  //   ],
+  // },
 
   {
     path: "support",
@@ -112,10 +112,10 @@ const layoutCommonChildren = [
     path: "landing",
     component: () => import("@/views/landing"),
   },
-  {
-    path: "users",
-    component: () => import("@/views/13_users"),
-  },
+  // {
+  //   path: "users",
+  //   component: () => import("@/views/13_users"),
+  // },
   {
     path: "backup",
     component: () => import("@/views/20_backup"),
@@ -157,27 +157,27 @@ const layoutCommonChildren = [
     path: "admin",
     component: () => import("@/views/13_administrator"),
   },
-  {
-    path: "cluster",
-    component: () => import("@/views/14_cluster"),
-  },
-  {
-    path: "settings",
-    component: () => import("@/views/18_settings"),
-  },
+  // {
+  //   path: "cluster",
+  //   component: () => import("@/views/14_cluster"),
+  // },
+  // {
+  //   path: "settings",
+  //   component: () => import("@/views/18_settings"),
+  // },
 ];
 const adminRoute = [
   {
     path: "dashboard",
     component: () => import("@/views/1_dashboard"),
   },
-  {
-    path: "replication",
-    meta: {
-      role: ["1"],
-    },
-    component: () => import("@/views/4_replication"),
-  },
+  // {
+  //   path: "replication",
+  //   meta: {
+  //     role: ["1"],
+  //   },
+  //   component: () => import("@/views/4_replication"),
+  // },
   {
     path: "stream",
     meta: {
@@ -191,6 +191,28 @@ const adminRoute = [
       role: ["1"],
     },
     component: () => import("@/views/11_topic"),
+    children:[
+      {
+        path: "",
+        props: true,
+        component: () => import("@/views/11_topic/views/topic.vue"),
+      },
+      {
+        path: "consumer",
+        props: true,
+        component: () => import("@/views/11_topic/views/consumer.vue"),
+      },
+      {
+        path: "share",
+        name: "Topic Share",
+        component: () => import("@/views/11_topic/views/shareTopic.vue"),
+      },
+      {
+        path: "example",
+        name: "Topic Example",
+        component: () => import("@/views/11_topic/views/example.vue"),
+      },
+    ]
   },
   {
     path: "tools",
@@ -289,12 +311,7 @@ const costantRoutes = [
     props: true,
     component: () => import("@/views/instanceStatus/index.vue"),
   },
-  {
-    path: "/createFirstInstance",
-    name: "createFirstInstance",
-    props: true,
-    component: () => import("@/views/createFirstInstance/index.vue"),
-  },
+  
   {
     path: "/",
     name: "layout",

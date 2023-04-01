@@ -1,41 +1,83 @@
 <template>
   <div class="page-wrapper">
-    <MainContentHeader :title="$t('route.cluster')"></MainContentHeader>
+    <!-- <MainContentHeader :title="$t('route.cluster')"></MainContentHeader> -->
     <div class="content">
-      <el-tabs value="dnodes">
+      <!-- <el-tabs value="dnodes">
         <el-tab-pane name="dnodes" :label="$t('topic.dnodes')">
-          <MgDnodes @sendData='getData'></MgDnodes>
+          <MgDnodes @sendData="getData"></MgDnodes>
         </el-tab-pane>
         <el-tab-pane name="mnodes" :label="$t('topic.mnodes')">
-          <MgMnodes :dnodes='dnodeLists'></MgMnodes>
+          <MgMnodes :dnodes="dnodeLists"></MgMnodes>
         </el-tab-pane>
         <el-tab-pane name="qnodes" :label="$t('topic.qnodes')">
-          <MgQnodes :dnodes='dnodeLists'></MgQnodes>
+          <MgQnodes :dnodes="dnodeLists"></MgQnodes>
         </el-tab-pane>
-      </el-tabs>
+      </el-tabs> -->
+      <section>
+        <p class="title">
+          <span>{{ $t("topic.dnodes") }}</span>
+        </p>
+        <MgDnodes @sendData="getData"></MgDnodes>
+      </section>
+      <section>
+        <p class="title">
+          <span>{{ $t("topic.mnodes") }}</span>
+        </p>
+        <MgMnodes :dnodes="dnodeLists"></MgMnodes>
+      </section>
+      <section>
+        <p class="title">
+          <span>{{ $t("topic.qnodes") }}</span>
+        </p>
+        <MgQnodes :dnodes="dnodeLists"></MgQnodes>
+      </section>
     </div>
   </div>
 </template>
 <script>
 // import MgUser from './views/user.vue'
-import MgDnodes from './views/dnodes.vue'
-import MgMnodes from './views/mnodes.vue'
-import MgQnodes from './views/qnodes.vue'
+import MgDnodes from "./views/dnodes.vue";
+import MgMnodes from "./views/mnodes.vue";
+import MgQnodes from "./views/qnodes.vue";
 export default {
   name: "Cluster",
-  components:{
-    MgDnodes,MgMnodes,MgQnodes
+  components: {
+    MgDnodes,
+    MgMnodes,
+    MgQnodes,
   },
   data() {
     return {
       message: "这是Management页面",
-      dnodeLists:[]
+      dnodeLists: [],
     };
   },
-  methods:{
-    getData(data){
-      this.dnodeLists=data
-    }
-  }
+  methods: {
+    getData(data) {
+      this.dnodeLists = data;
+    },
+  },
 };
 </script>
+<style lang="scss" scoped>
+section{
+    border-radius: 10px;
+    padding: 15px;
+    box-shadow: 0 2px 12px 0 rgba(0,0,0,.1);
+    margin-bottom:15px;
+    &:nth-child(2){
+        height:300px;
+    }
+}
+.title{
+    background-color: #ecf8ff;
+    border-left-color: #50bfff;
+    color: #333;
+    border-left-width: 5px;
+    border-left-style: solid;
+    border-radius: 4px;
+    font-size: 16px;
+    margin: 10px 0;
+    padding: 8px 16px;
+}
+</style>

@@ -3,7 +3,7 @@
     <PanelHeader style="justify-content: space-between">
       <div>
         <Icon name="database_icon" class="database_icon"></Icon>
-        <span class="title">{{$t('explorer.databases')}}</span>
+        <span class="title">{{ $t("explorer.databases") }}</span>
       </div>
       <div>
         <el-button
@@ -56,26 +56,44 @@
             <section class="operate-btn">
               <template v-if="!data.dataType">
                 <span>{{ data.dataType }}</span>
+                <el-tooltip effect="light" placement="top" :content="getTooltip(data, 'view')">
                 <i
                   class="el-icon-view operate-icon"
                   @click.stop="view(data)"
                   v-if="!['sfile', 'nfile'].includes(data.typeName)"
                 ></i>
+                </el-tooltip>
                 <template v-if="!data.noOperate">
-                  <i
-                    v-permission
-                    v-if="
-                      data.typeName !== 'table' && data.typeName !== 'database'
-                    "
-                    class="el-icon-plus operate-icon"
-                    @click.stop="add(data, node)"
-                  ></i>
+                  <el-tooltip
+                    effect="light"
+                    placement="top"
+                    :content="getTooltip(data, 'add')"
+                  >
+                    <i
+                      v-permission
+                      v-if="
+                        data.typeName !== 'table' &&
+                        data.typeName !== 'database'
+                      "
+                      class="el-icon-plus operate-icon"
+                      @click.stop="add(data, node)"
+                    ></i>
+                  </el-tooltip>
                   <i
                     v-permission
                     class="el-icon-edit operate-icon"
                     @click.stop="edit(data, node)"
                     v-if="!['sfile', 'nfile'].includes(data.typeName)"
                   ></i>
+                  <template v-if="isRoot==='root'">
+                    <i
+                    v-permission
+                    class="el-icon-unlock operate-icon"
+                    @click.stop="manage(data, node)"
+                    v-if="data.typeName === 'database'"
+                  ></i>
+                  </template>
+                  
                   <i
                     v-permission
                     class="el-icon-delete operate-icon"
@@ -157,6 +175,7 @@ export default {
     };
     this.notAdd = ["column", "tag"];
     return {
+      isRoot:sessionStorage.getItem('username'),
       defaultProps: {
         children: "children",
         label: "label",
@@ -272,7 +291,6 @@ export default {
             ))
           );
         case "database":
-
           //databse下需要添加Stables文件夹和Tbales文件夹
           let result = [1, 2].map((item) => {
             return {
@@ -353,7 +371,9 @@ export default {
     // 处理全局db和stb
     async handleVar(data, node) {
       switch (data.typeName) {
-        //case "database":
+        case "database":
+          this.$store.commit("dbs/SET_SELECTED_DB", data.name);
+          break;
         case "sfile":
           //操作数据库时，获取数据库配置
           // if (!Object.prototype.hasOwnProperty.call(data, "minrows")) {
@@ -366,7 +386,6 @@ export default {
           break;
 
         case "nfile":
-
           this.$store.commit("dbs/SET_SELECTED_DB", data.parent);
           this.$store.commit("stables/SET_SELECTED_STB", "");
           break;
@@ -413,7 +432,7 @@ export default {
           this.$store.state.console.currentComponent = "TableCreate";
           break;
         case "table":
-          case "nfile":
+        case "nfile":
           this.$store.commit("tables/HANDLE_ADD_TABLE");
           this.$store.state.console.currentComponent = "TableCreate";
           break;
@@ -542,6 +561,40 @@ export default {
       }
       this.changePartActive();
     },
+    async manage(data, node) {
+      console.log("数据库管理，只有管理员可以看到该功能",data,node);
+      await this.handleVar(data);
+        this.$store.state.console.currentInfoType = data.typeName;
+        this.$store.commit("console/SET_CURRENT_INFO_DATA", data);
+        this.$store.state.console.currentComponent = "DatabasePrivileges";
+        this.$store.commit("console/SET_TAB_NAME", this.$t(`data.databaseControl`).replace("{dbName}", data.name));
+        this.$store.state.console.partActive = "detail";
+    },
+    getTooltip(data, operate) {
+      console.log(data,operate,'toolitp-----ss');
+      return {
+        database: {
+          add: this.$t("data.createStable", [data.name]),
+          edit: this.$t("data.editDatabase"),
+          view: this.$t("data.viewDatabase"),
+          del: this.$t("data.delDatabase"),
+          manage: this.$t("data.manageDBprivilege"),
+        },
+        sfile: {
+          add: this.$t("data.createTableUse", [data.name]),
+          edit: this.$t("data.editStable", [data.name]),
+          view: this.$t("data.viewStable"),
+          del: this.$t("data.delStable"),
+        },
+        nfile: {
+          add:this.$t('data.createnormalTable',[data.name]),
+          edit: this.$t("data.editTable", [data.name]),
+          view: this.$t("data.viewTable"),
+          del: this.$t("data.delTable"),
+        },
+      }[data.typeName][operate];
+    },
+   
   },
 };
 </script>

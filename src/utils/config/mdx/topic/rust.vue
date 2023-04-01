@@ -1,10 +1,11 @@
 <template>
-  <div><h2 id="create-project">Create Project</h2>
-<pre v-highlight><code>cargo new --bin cloud-example
+  <div>
+    <h2 id="create-project">{{ $t("docs.connector.rust.step1") }}</h2>
+    <pre v-highlight><code>cargo new --bin cloud-example
 </code></pre>
-<h2 id="add-dependency">Add Dependency</h2>
-<p>Add dependency to <code>Cargo.toml</code>. </p>
-<pre v-highlight><code class="language-toml">[package]
+    <h2 id="add-dependency">{{ $t("docs.connector.rust.step2") }}</h2>
+    <p>{{ $t("docs.connector.rust.step2desc") }}</p>
+    <pre v-highlight><code class="language-toml">[package]
 name = &quot;cloud-example&quot;
 version = &quot;0.1.0&quot;
 edition = &quot;2021&quot;
@@ -14,30 +15,38 @@ taos = { version = &quot;*&quot;, default-features = false, features = [&quot;ws
 tokio = { version = &quot;1&quot;, features = [&quot;full&quot;]}
 anyhow = &quot;1.0.0&quot; 
 </code></pre>
-<h2 id="config">Config</h2>
-<p>Run this command in your terminal to save TDengine  token as variables:</p>
-<el-tabs value="bash">
-<el-tab-pane name="bash" label="Bash">
+    <h2 id="config">{{ $t("docs.connector.rust.step3") }}</h2>
+    <p>{{ $t("component.docConfig.content", [" DSN "]) }}</p>
+    <el-tabs value="bash">
+      <el-tab-pane name="bash" label="Bash">
+        <pre
+          v-highlight="
+            `export TDENGINE_DSN=&quot;${DSN}&quot;
+`
+          "
+        ><code class="language-bash"></code></pre>
+      </el-tab-pane>
+      <el-tab-pane name="cmd" label="CMD">
+        <pre
+          v-highlight="
+            `set TDENGINE_DSN=&quot;${DSN}&quot;
+`
+          "
+        ><code class="language-bash"></code></pre>
+      </el-tab-pane>
+      <el-tab-pane name="powershell" label="Powershell">
+        <pre
+          v-highlight="
+            `$env:TDENGINE_DSN=&quot;${DSN}&quot;
+`
+          "
+        ><code class="language-powershell"></code></pre>
+      </el-tab-pane>
+    </el-tabs>
 
-<pre v-highlight="`export TDENGINE_DSN=&quot;${DSN}&quot;
-`"><code class="language-bash"></code></pre>
-</el-tab-pane>
-<el-tab-pane name="cmd" label="CMD">
-
-<pre v-highlight="`set TDENGINE_DSN=&quot;${DSN}&quot;
-`"><code class="language-bash"></code></pre>
-</el-tab-pane>
-<el-tab-pane name="powershell" label="Powershell">
-
-<pre v-highlight="`$env:TDENGINE_DSN=&quot;${DSN}&quot;
-`"><code class="language-powershell"></code></pre>
-</el-tab-pane>
-</el-tabs>
-
-
-<h2 id="connect">Connect</h2>
-<p>Copy following code to <code>main.rs</code>.</p>
-<pre v-highlight><code class="language-rust">use anyhow::Result;
+    <h2 id="connect">{{ $t("docs.connector.rust.step4") }}</h2>
+    <p>{{ $t("docs.connector.rust.step41desc") }}</p>
+    <pre v-highlight><code class="language-rust">use anyhow::Result;
 use taos::*;
 
 #[tokio::main]
@@ -49,59 +58,51 @@ async fn main() -&gt; Result&lt;()&gt; {
     Ok(())
 }
 </code></pre>
-<p>Then you can execute <code>cargo run</code> to test the connection.  For how to write data and query data, please refer to <a href=" https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql"> https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql</a> and <a href="https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation">https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation</a>.</p>
-<p>For more details about how to write or query data via REST API, please check <a href="https://docs.tdengine.com/reference/rest-api/">REST API</a>.</p>
-</div>
-  </template>
-  
-  <script>
-  import _ from 'lodash';
-  export default {
-    props: {
-      token: {
-        type: String,
-        default: "",
-      },
-      url: {
-        type: String,
-        default: "",
-      }
+    <p>{{ $t("docs.connector.rust.step42desc") }}</p>
+    <p>
+      {{ $t("docs.connector.bottom2") }}
+      <a :href="`https://docs.${urlPart}.com/develop/insert-data/`">{{
+        `https://docs.${urlPart}.com/develop/insert-data/`
+      }}</a>
+      {{ $t("docs.connector.bottomand") }}
+      <a :href="`https://docs.${urlPart}.com/develop/query-data/`">{{
+        `https://docs.${urlPart}.com/develop/query-data/`
+      }}</a
+      >{{ $t("docs.connector.bottom3end") }}
+    </p>
+    <p>
+      {{ $t("docs.connector.bottom3") }}
+      <a
+        :href="`https://docs.${urlPart}.com/reference/rest-api/`"
+        >REST API</a
+      >{{ $t("docs.connector.bottom3end") }}
+    </p>
+  </div>
+</template>
+
+<script>
+import { IsAliyun } from "@/const";
+export default {
+  props: {
+    token: {
+      type: String,
+      default: "",
     },
-    data() {
-      return {};
+    url: {
+      type: String,
+      default: "",
     },
-    computed: {
-      jdbcURL() {
-        let username = _.first(atob(this.token.replace("Basic ", "")).split(":"));
-        let password = _(atob(this.token.replace("Basic ", ""))).split(":").drop(1).join(":").value();
-        return "jdbc:TAOS-RS://" + this.url.replace(
-          /https?:\/\//,
-          ""
-        ) + "?usessl=" + this.url.startsWith("https") + "&user=" + username + "&password=" + password;
-      },
-      goDSN() {
-        return atob(this.token.replace("Basic ", "")) + "@" + (this.url.startsWith("https") ? "https" : "http") + "(" + this.url.replace(/https?:\/\//, "") + ")/";
-      },
-      DSN() {
-        let auth = atob(this.token.replace("Basic ", ""));
-        let scheme = _(this.url).split("://").first();
-        let url = this.url.replace(/https?:\/\//, "");
-        return scheme + "://" + auth + '@' + url;
-      },
-      cloud_url() {
-        return this.url;
-      },
-      cloud_token() {
-        return this.token;
-      }
+  },
+  data() {
+    return {};
+  },
+  computed: {
+    DSN() {
+      return this.url + "?token=" + this.token;
     },
-    watch: {
-      tokenList: {
-        handler() {
-          this.token = this.tokenList[0]?.token;
-        }
-      },
-      immediate: true
-    }
-  };
-  </script>
+    urlPart() {
+      return IsAliyun ? "taosdata" : "tdengine";
+    },
+  },
+};
+</script>

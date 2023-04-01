@@ -5,6 +5,7 @@ import { compHeadAndData } from "@/utils";
 import { Message } from "element-ui";
 export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.appId) {
   return request({
+    baseURL:'http://localhost:6041',
     url:'/rest/sql',
     method: 'post',
     timeout: 120000,
@@ -26,6 +27,7 @@ export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.ap
 export function executeDBOperations(sql, appId = store.getters.appId) {
   return request({
     // url: `/private/data/sql/${appId}`,
+    baseURL:'http://localhost:6041',
     url:'/rest/sql',
     method: "post",
     data: sql
@@ -73,6 +75,7 @@ export async function getPaginationData(countSql, dataSql, currentPage, pageSize
 // 通过token执行sql
 export function executeSQLByToken(sql, token) {
   return request({
+    baseURL:'http://localhost:6041',
     url: `/rest/sql/token/${token}`,
     method: "post",
     data: {
@@ -96,6 +99,7 @@ export function executeSQLByToken(sql, token) {
 export function getFavorites(sql) {
   return request({
     // url: "/api/region/1/data/favorite",
+    baseURL:'http://localhost:6041',
     url:'/rest/sql',
     method:'post',
     data:sql
@@ -127,6 +131,7 @@ export function delFavorite(id) {
 export function getSharedFavorites(sql) {
   return request({
     // url: "/api/region/1/data/shared_favorite",
+    baseURL:'http://localhost:6041',
     url:'/rest/sql',
     method:'post',
     data:sql

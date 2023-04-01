@@ -9,12 +9,11 @@ export const BaseRoute = [
   "/instanceStatus",
   "/user",
   "/landing",
-  "/calculator",
-  "/createFirstInstance",
+  "/calculator"
 ];
 // 不需要切换集群的路由
 export const NoInstanceSelectRoute = ["/billing", "/alert", "/activity", "/profile", "/support", "/user"];
-export const NoInstanceAccessRoute = ["/createFirstInstance"];
+
 export const AllClusterStatus = [
   "Ready", //就绪
   "Starting", //启动中
