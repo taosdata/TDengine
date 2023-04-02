@@ -175,7 +175,7 @@ struct SExecTaskInfo {
   int64_t               version;    // used for stream to record wal version, why not move to sschemainfo
   SStreamTaskInfo       streamInfo;
   SSchemaInfo           schemaInfo;
-  STableListInfo*       pTableInfoList;  // this is a table list
+//  STableListInfo*       pTableInfoList;  // this is a table list
   const char*           sql;             // query sql string
   jmp_buf               env;             // jump to this position when error happens.
   EOPTR_EXEC_MODEL      execModel;       // operator execution model [batch model|stream model]
@@ -323,6 +323,8 @@ typedef struct STableScanBase {
   int32_t                scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
   int32_t                dataBlockLoadFlag;
   SLimitInfo             limitInfo;
+  // there are more than one table list exists in one task, if only one vnode exists.
+  STableListInfo*        pTableInfoList;
 } STableScanBase;
 
 typedef struct STableScanInfo {
@@ -363,11 +365,12 @@ typedef struct STableMergeScanInfo {
 } STableMergeScanInfo;
 
 typedef struct STagScanInfo {
-  SColumnInfo*  pCols;
-  SSDataBlock*  pRes;
-  SColMatchInfo matchInfo;
-  int32_t       curPos;
-  SReadHandle   readHandle;
+  SColumnInfo*    pCols;
+  SSDataBlock*    pRes;
+  SColMatchInfo   matchInfo;
+  int32_t         curPos;
+  SReadHandle     readHandle;
+  STableListInfo* pTableInfoList;
 } STagScanInfo;
 
 typedef enum EStreamScanMode {
@@ -753,9 +756,9 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 // clang-format off
 SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle, STableListInfo* pTableList, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle, STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
 
@@ -773,7 +776,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
 
 SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** dowStreams, size_t numStreams, SMergePhysiNode* pMergePhysiNode, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pTableScanNode, SReadHandle* readHandle, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pTableScanNode, SReadHandle* readHandle, STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
 
@@ -787,9 +790,9 @@ SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionW
 
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanPhysiNode* pBlockScanNode, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanPhysiNode* pBlockScanNode, STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond, STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskInfo);
 

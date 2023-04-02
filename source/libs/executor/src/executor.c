@@ -404,7 +404,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       }
     }
 
-    STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
+    STableListInfo* pTableListInfo = ((STableScanInfo*)pScanInfo->pTableScanOp->info)->base.pTableInfoList;
     taosWLockLatch(&pTaskInfo->lock);
 
     for (int32_t i = 0; i < numOfQualifiedTables; ++i) {
@@ -1083,7 +1083,7 @@ int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit) {
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {
   SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo*  pOperator = pTaskInfo->pRoot;
-  STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
+  STableListInfo* pTableListInfo = NULL;//pTaskInfo->pTableInfoList;
   const char*     id = GET_TASKID(pTaskInfo);
 
   pTaskInfo->streamInfo.prepareStatus = *pOffset;

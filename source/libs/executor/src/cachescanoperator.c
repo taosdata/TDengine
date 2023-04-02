@@ -37,6 +37,7 @@ typedef struct SCacheRowsScanInfo {
   SSDataBlock*    pBufferredRes;
   SArray*         pUidList;
   int32_t         indexOfBufferedRes;
+  STableListInfo* pTableList;
 } SCacheRowsScanInfo;
 
 static SSDataBlock* doScanCache(SOperatorInfo* pOperator);
@@ -47,7 +48,7 @@ static int32_t      removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColM
 #define SCAN_ROW_TYPE(_t)  ((_t)? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW)
 
 SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle,
-                                           SExecTaskInfo* pTaskInfo) {
+                                           STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo) {
   int32_t           code = TSDB_CODE_SUCCESS;
   SCacheRowsScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SCacheRowsScanInfo));
   SOperatorInfo*    pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -75,20 +76,18 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
     goto _error;
   }
 
-  STableListInfo* pTableList = pTaskInfo->pTableInfoList;
-
-  int32_t totalTables = tableListGetSize(pTableList);
+  int32_t totalTables = tableListGetSize(pTableListInfo);
   int32_t capacity = 0;
 
   pInfo->pUidList = taosArrayInit(4, sizeof(int64_t));
 
   // partition by tbname
-  if (oneTableForEachGroup(pTableList) || (totalTables == 1)) {
+  if (oneTableForEachGroup(pTableListInfo) || (totalTables == 1)) {
     pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_ALL | SCAN_ROW_TYPE(pScanNode->ignoreNull);
 
-    STableKeyInfo* pList = tableListGetInfo(pTableList, 0);
+    STableKeyInfo* pList = tableListGetInfo(pTableListInfo, 0);
 
-    uint64_t suid = tableListGetSuid(pTableList);
+    uint64_t suid = tableListGetSuid(pTableListInfo);
     code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, totalTables,
                                    taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader, pTaskInfo->id.str);
     if (code != TSDB_CODE_SUCCESS) {
@@ -136,7 +135,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
   SCacheRowsScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*    pTaskInfo = pOperator->pTaskInfo;
-  STableListInfo*   pTableList = pTaskInfo->pTableInfoList;
+  STableListInfo*   pTableList = pInfo->pTableList;
 
   uint64_t suid = tableListGetSuid(pTableList);
   int32_t  size = tableListGetSize(pTableList);
