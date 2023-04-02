@@ -329,31 +329,24 @@ void tqNextBlock(STqReader* pReader, SFetchRet* ret) {
 }
 
 int32_t tqReaderSetSubmitReq2(STqReader* pReader, void* msgStr, int32_t msgLen, int64_t ver) {
-//  ASSERT(pReader->msg2.msgStr == NULL && msgStr && msgLen && (ver >= 0));
-
   pReader->msg2.msgStr = msgStr;
   pReader->msg2.msgLen = msgLen;
   pReader->msg2.ver = ver;
-//  pReader->ver = ver;
 
   tqDebug("tq reader set msg %p %d", msgStr, msgLen);
-
-  if (pReader->setMsg == 0) {
-    SDecoder decoder;
-    tDecoderInit(&decoder, pReader->msg2.msgStr, pReader->msg2.msgLen);
-    if (tDecodeSSubmitReq2(&decoder, &pReader->submit) < 0) {
-      tDecoderClear(&decoder);
-      tqError("DecodeSSubmitReq2 error, msgLen:%d, ver:%"PRId64, msgLen, ver);
-      return -1;
-    }
+  SDecoder decoder;
+  tDecoderInit(&decoder, pReader->msg2.msgStr, pReader->msg2.msgLen);
+  if (tDecodeSSubmitReq2(&decoder, &pReader->submit) < 0) {
     tDecoderClear(&decoder);
-    pReader->setMsg = 1;
+    tqError("DecodeSSubmitReq2 error, msgLen:%d, ver:%"PRId64, msgLen, ver);
+    return -1;
   }
+  tDecoderClear(&decoder);
   return 0;
 }
 
 bool tqNextDataBlock2(STqReader* pReader) {
-  if (pReader->msg2.msgStr == NULL || pReader->setMsg != 1) {
+  if (pReader->msg2.msgStr == NULL) {
     return false;
   }
 
@@ -372,7 +365,6 @@ bool tqNextDataBlock2(STqReader* pReader) {
   }
 
   tDestroySSubmitReq2(&pReader->submit, TSDB_MSG_FLG_DECODE);
-  pReader->setMsg = 0;
   pReader->nextBlk = 0;
   pReader->msg2.msgStr = NULL;
 
@@ -381,7 +373,6 @@ bool tqNextDataBlock2(STqReader* pReader) {
 
 bool tqNextDataBlockFilterOut2(STqReader* pReader, SHashObj* filterOutUids) {
   if (pReader->msg2.msgStr == NULL) return false;
-  ASSERT(pReader->setMsg == 1);
 
   int32_t blockSz = taosArrayGetSize(pReader->submit.aSubmitTbData);
   while (pReader->nextBlk < blockSz) {
@@ -396,7 +387,6 @@ bool tqNextDataBlockFilterOut2(STqReader* pReader, SHashObj* filterOutUids) {
   }
 
   tDestroySSubmitReq2(&pReader->submit, TSDB_MSG_FLG_DECODE);
-  pReader->setMsg = 0;
   pReader->nextBlk = 0;
   pReader->msg2.msgStr = NULL;
 

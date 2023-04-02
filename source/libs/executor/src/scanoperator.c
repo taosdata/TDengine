@@ -2033,7 +2033,6 @@ FETCH_NEXT_BLOCK:
 
         int32_t      current = pInfo->validBlockIndex++;
         SPackedData* pSubmit = taosArrayGet(pInfo->pBlockLists, current);
-        /*if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {*/
         if (tqReaderSetSubmitReq2(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver) < 0) {
           qError("submit msg messed up when initing stream submit block %p, current %d, total %d", pSubmit, current,
                  totBlockNum);

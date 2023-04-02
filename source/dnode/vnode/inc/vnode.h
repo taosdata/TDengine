@@ -232,10 +232,8 @@ typedef struct SSnapContext {
 } SSnapContext;
 
 typedef struct STqReader {
-//  int64_t     ver;
   SPackedData msg2;
 
-  int8_t      setMsg;
   SSubmitReq2 submit;
   int32_t     nextBlk;
 
