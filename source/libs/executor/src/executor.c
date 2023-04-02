@@ -755,8 +755,8 @@ int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
-  qDebug("%s execTask async killed", GET_TASKID(pTaskInfo));
-  setTaskKilled(pTaskInfo, rspCode);
+  qDebug("%s sync killed execTask", GET_TASKID(pTaskInfo));
+  setTaskKilled(pTaskInfo, TSDB_CODE_TSC_QUERY_KILLED);
 
   while(qTaskIsExecuting(pTaskInfo)) {
     taosMsleep(10);
