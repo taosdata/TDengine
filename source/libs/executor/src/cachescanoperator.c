@@ -280,6 +280,7 @@ void destroyCacheScanOperator(void* param) {
   taosMemoryFree(pInfo->pSlotIds);
   taosArrayDestroy(pInfo->pUidList);
   taosArrayDestroy(pInfo->matchInfo.pList);
+  tableListDestroy(pInfo->pTableList);
 
   if (pInfo->pLastrowReader != NULL) {
     pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
