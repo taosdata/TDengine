@@ -290,6 +290,7 @@ void tqCloseReader(STqReader* pReader) {
   }
   // free hash
   taosHashCleanup(pReader->tbIdHash);
+  tDestroySSubmitReq2(&pReader->submit, TSDB_MSG_FLG_DECODE);
   taosMemoryFree(pReader);
 }
 
