@@ -54,9 +54,11 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   SOperatorInfo*    pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+    tableListDestroy(pTableListInfo);
     goto _error;
   }
 
+  pInfo->pTableList = pTableListInfo;
   pInfo->readHandle = *readHandle;
 
   SDataBlockDescNode* pDescNode = pScanNode->scan.node.pOutputDataBlockDesc;

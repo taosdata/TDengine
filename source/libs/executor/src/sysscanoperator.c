@@ -2215,6 +2215,7 @@ static void destroyBlockDistScanOperatorInfo(void* param) {
   SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
   blockDataDestroy(pDistInfo->pResBlock);
   tsdbReaderClose(pDistInfo->pHandle);
+  tableListDestroy(pDistInfo->pTableListInfo);
   taosMemoryFreeClear(param);
 }
 
@@ -2265,8 +2266,8 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
     }
 
     pInfo->pTableListInfo = pTableListInfo;
-    size_t          num = tableListGetSize(pTableListInfo);
-    void*           pList = tableListGetInfo(pTableListInfo, 0);
+    size_t num = tableListGetSize(pTableListInfo);
+    void*  pList = tableListGetInfo(pTableListInfo, 0);
 
     code = tsdbReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock, &pInfo->pHandle, pTaskInfo->id.str, false);
     cleanupQueryTableDataCond(&cond);
