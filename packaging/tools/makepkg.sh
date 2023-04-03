@@ -96,7 +96,7 @@ else
       ${taostools_bin_files} \
       ${taosx_bin} \
       ${explorer_bin_files} \
-      ${build_dir}/bin/taosadapter \
+      ${build_dir}/bin/${clientName}adapter \
       ${build_dir}/bin/udfd \
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
@@ -135,12 +135,12 @@ mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 
-if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
-  cp ${compile_dir}/test/cfg/taosadapter.toml ${install_dir}/cfg || :
+if [ -f "${compile_dir}/test/cfg/${clientName}adapter.toml" ]; then
+  cp ${compile_dir}/test/cfg/${clientName}adapter.toml ${install_dir}/cfg || :
 fi
 
-if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
-  cp ${compile_dir}/test/cfg/taosadapter.service ${install_dir}/cfg || :
+if [ -f "${compile_dir}/test/cfg/${clientName}adapter.service" ]; then
+  cp ${compile_dir}/test/cfg/${clientName}adapter.service ${install_dir}/cfg || :
 fi
 
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
@@ -152,16 +152,16 @@ mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${se
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${serverName}.rpm
 
 if [ $adapterName != "taosadapter" ]; then
-  mv ${install_dir}/cfg/taosadapter.toml ${install_dir}/cfg/$adapterName.toml
+  mv ${install_dir}/cfg/${clientName2}adapter.toml ${install_dir}/cfg/$adapterName.toml
   sed -i "s/path = \"\/var\/log\/taos\"/path = \"\/var\/log\/${productName}\"/g" ${install_dir}/cfg/$adapterName.toml
   sed -i "s/password = \"taosdata\"/password = \"${defaultPasswd}\"/g" ${install_dir}/cfg/$adapterName.toml
 
-  mv ${install_dir}/cfg/taosadapter.service ${install_dir}/cfg/$adapterName.service
+  mv ${install_dir}/cfg/${clientName2}adapter.service ${install_dir}/cfg/$adapterName.service
   sed -i "s/TDengine/${productName}/g" ${install_dir}/cfg/$adapterName.service
   sed -i "s/taosAdapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
   sed -i "s/taosadapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
 
-  mv ${install_dir}/bin/taosadapter ${install_dir}/bin/${adapterName}
+  mv ${install_dir}/bin/${clientName2}adapter ${install_dir}/bin/${adapterName}
   mv ${install_dir}/bin/taosd-dump-cfg.gdb ${install_dir}/bin/${serverName}-dump-cfg.gdb
 fi
 
@@ -233,9 +233,9 @@ if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
   sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" remove_temp.sh
   sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" remove_temp.sh
+  sed -i "s/configFile2=\"taos.cfg\"/configFile2=\"${clientName2}.cfg\"/g" remove_temp.sh
   sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" remove_temp.sh
   cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
-  echo "domain is ${cusDomain}"
   sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusDomain}\"/g" remove_temp.sh
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
@@ -264,8 +264,10 @@ if [ "$verMode" == "cluster" ]; then
   sed -i 's/verMode=edge/verMode=cluster/g' install_temp.sh
   sed -i "s/serverName2=\"taosd\"/serverName2=\"${serverName2}\"/g" install_temp.sh
   sed -i "s/clientName2=\"taos\"/clientName2=\"${clientName2}\"/g" install_temp.sh
+  sed -i "s/configFile2=\"taos.cfg\"/configFile2=\"${clientName2}.cfg\"/g" install_temp.sh
   sed -i "s/productName2=\"TDengine\"/productName2=\"${productName2}\"/g" install_temp.sh
-  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusEmail2}\"/g" install_temp.sh
+  cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
+  sed -i "s/emailName2=\"taosdata.com\"/emailName2=\"${cusDomain}\"/g" install_temp.sh
   mv install_temp.sh ${install_dir}/install.sh
 fi
 if [ "$verMode" == "cloud" ]; then
