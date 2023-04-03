@@ -197,6 +197,8 @@ IF(TD_BULID_EXPLORER)
     set(ENV{TAOS_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib)
     set(ENV{LD_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LD_LIBRARY_PATH})
     set(ENV{LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LIBRARY_PATH})
+    set(EXPLORER_ETC_PATH ${CMAKE_BINARY_DIR}/build/share/etc)
+    file(MAKE_DIRECTORY ${EXPLORER_ETC_PATH})
     IF (TD_WINDOWS)
         ExternalProject_Add(explorer
             PREFIX              explorer
@@ -215,6 +217,7 @@ IF(TD_BULID_EXPLORER)
             COMMAND git checkout .
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taos-explorer.exe ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer.exe
+            COMMAND cmake -E copy server/examples/explorer.toml ${EXPLORER_ETC_PATH}/explorer.toml
         )
     ELSE()
         ExternalProject_Add(explorer
@@ -233,6 +236,7 @@ IF(TD_BULID_EXPLORER)
             COMMAND git checkout .
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taos-explorer ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer
+            COMMAND cmake -E copy server/examples/explorer.toml ${EXPLORER_ETC_PATH}/explorer.toml
         )
     ENDIF ()
 ENDIF ()
