@@ -305,10 +305,11 @@ export default {
         pwd: this.dynamicValidateForm.password,
       });
       try {
+        let sql='select server_version()'
         await fetchApiByCluster(
           this.dynamicValidateForm.cluster,
           token,
-          "select server_version()"
+          sql
         ).then((res) => {
           if (res && res.code == 0 && !res.desc) {
             localStorage.setItem("TDengine-Token", token);

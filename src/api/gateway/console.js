@@ -5,17 +5,20 @@ import { compHeadAndData } from "@/utils";
 import { Message } from "element-ui";
 export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.appId) {
   return request({
-    baseURL:'',
-    url:'/rest/sql',
+    baseURL: '',
+    url: '/rest/sql',
     method: 'post',
     timeout: 120000,
-    data:sqlStr
+    headers: {
+      "Content-Type": "text/plain"
+    },
+    data: sqlStr
     // data:type==='s'?{ sql: sqlStr }:''
     // data: { sql: sqlStr },
   }).then(data => {
     // return data;
     // let cData = jsonToObj(data);
-    let cData=JSON.parse(JSON.stringify(data))
+    let cData = JSON.parse(JSON.stringify(data))
     if (cData.code == 0) return composeData ? compHeadAndData(cData.column_meta, cData.data) : cData;
     return Promise.reject(cData?.desc ? cData : { desc: data || "Service Unavailable, please try again later!" });
   }).catch(err => {
@@ -27,9 +30,12 @@ export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.ap
 export function executeDBOperations(sql, appId = store.getters.appId) {
   return request({
     // url: `/private/data/sql/${appId}`,
-    baseURL:'',
-    url:'/rest/sql',
+    baseURL: '',
+    url: '/rest/sql',
     method: "post",
+    headers: {
+      "Content-Type": "text/plain"
+    },
     data: sql
   })
     .then(data => {
@@ -75,9 +81,12 @@ export async function getPaginationData(countSql, dataSql, currentPage, pageSize
 // 通过token执行sql
 export function executeSQLByToken(sql, token) {
   return request({
-    baseURL:'',
+    baseURL: '',
     url: `/rest/sql/token/${token}`,
     method: "post",
+    headers: {
+      "Content-Type": "text/plain"
+    },
     data: {
       sql,
     },
@@ -99,10 +108,13 @@ export function executeSQLByToken(sql, token) {
 export function getFavorites(sql) {
   return request({
     // url: "/api/region/1/data/favorite",
-    baseURL:'',
-    url:'/rest/sql',
-    method:'post',
-    data:sql
+    baseURL: '',
+    url: '/rest/sql',
+    method: 'post',
+    headers: {
+      "Content-Type": "text/plain"
+    },
+    data: sql
     // params: { app_id: '1597864550720372736' },
   });
 }
@@ -131,10 +143,13 @@ export function delFavorite(id) {
 export function getSharedFavorites(sql) {
   return request({
     // url: "/api/region/1/data/shared_favorite",
-    baseURL:'',
-    url:'/rest/sql',
-    method:'post',
-    data:sql
+    baseURL: '',
+    url: '/rest/sql',
+    headers: {
+      "Content-Type": "text/plain"
+    },
+    method: 'post',
+    data: sql
     // params: { app_id: store.getters.appId },
   });
 }
