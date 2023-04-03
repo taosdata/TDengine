@@ -68,16 +68,20 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
 SStreamDataSubmit2* streamDataSubmitNew(SPackedData submit) {
   SStreamDataSubmit2* pDataSubmit = (SStreamDataSubmit2*)taosAllocateQitem(sizeof(SStreamDataSubmit2), DEF_QITEM, 0);
 
-  if (pDataSubmit == NULL) return NULL;
+  if (pDataSubmit == NULL) {
+    return NULL;
+  }
+
   pDataSubmit->dataRef = (int32_t*)taosMemoryMalloc(sizeof(int32_t));
-  if (pDataSubmit->dataRef == NULL) goto FAIL;
+  if (pDataSubmit->dataRef == NULL) {
+    taosFreeQitem(pDataSubmit);
+    return NULL;
+  }
+
   pDataSubmit->submit = submit;
   *pDataSubmit->dataRef = 1;
   pDataSubmit->type = STREAM_INPUT__DATA_SUBMIT;
   return pDataSubmit;
-FAIL:
-  taosFreeQitem(pDataSubmit);
-  return NULL;
 }
 
 SStreamMergedSubmit2* streamMergedSubmitNew() {

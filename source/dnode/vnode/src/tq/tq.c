@@ -819,13 +819,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     pHandle->pRef = pRef;
 
     SReadHandle handle = {
-        .meta = pVnode->pMeta,
-        .vnode = pVnode,
-        .initTableReader = true,
-        .initTqReader = true,
-        .version = ver,
-    };
-
+        .meta = pVnode->pMeta, .vnode = pVnode, .initTableReader = true, .initTqReader = true, .version = ver};
     pHandle->snapshotVer = ver;
 
     if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
@@ -1393,11 +1387,10 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
 }
 
 int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
-  void*               pIter = NULL;
-  bool                failed = false;
-  SStreamDataSubmit2* pSubmit = NULL;
+  void* pIter = NULL;
+  bool  failed = false;
 
-  pSubmit = streamDataSubmitNew(submit);
+  SStreamDataSubmit2* pSubmit = streamDataSubmitNew(submit);
   if (pSubmit == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tqError("failed to create data submit for stream since out of memory");
@@ -1411,7 +1404,10 @@ int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
     }
 
     SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->taskLevel != TASK_LEVEL__SOURCE) continue;
+    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
+      continue;
+    }
+
     if (pTask->taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
       tqDebug("skip push task %d, task status %d", pTask->taskId, pTask->taskStatus);
       continue;

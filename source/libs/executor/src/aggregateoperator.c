@@ -40,6 +40,16 @@ typedef struct {
   int32_t startOffset;
 } SFunctionCtxStatus;
 
+typedef struct SAggOperatorInfo {
+  SOptrBasicInfo   binfo;
+  SAggSupporter    aggSup;
+  STableQueryInfo* current;
+  uint64_t         groupId;
+  SGroupResInfo    groupResInfo;
+  SExprSupp        scalarExprSup;
+  bool             groupKeyOptimized;
+} SAggOperatorInfo;
+
 static void destroyAggOperatorInfo(void* param);
 static void setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId);
 

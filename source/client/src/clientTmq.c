@@ -107,7 +107,6 @@ struct tmq_t {
   STaosQueue*   mqueue;        // queue of rsp
   STaosQall*    qall;
   STaosQueue*   delayedTask;   // delayed task queue for heartbeat and auto commit
-  TdThreadMutex lock;          // used to protect the operation on each topic, when updating the epsets.
   tsem_t        rspSem;
 };
 
@@ -188,7 +187,6 @@ typedef struct {
   SMqClientVg*    pVg;
   SMqClientTopic* pTopic;
   int32_t         vgId;
-  tsem_t          rspSem;
   uint64_t        requestId; // request id for debug purpose
 } SMqPollCbParam;
 
@@ -979,7 +977,6 @@ void tmqFreeImpl(void* handle) {
 
   taosFreeQall(tmq->qall);
   tsem_destroy(&tmq->rspSem);
-  taosThreadMutexDestroy(&tmq->lock);
 
   taosArrayDestroyEx(tmq->clientTopics, freeClientVgImpl);
   taos_close_internal(tmq->pTscObj);
@@ -1024,7 +1021,6 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->delayedTask = taosOpenQueue();
   pTmq->qall = taosAllocateQall();
 
-  taosThreadMutexInit(&pTmq->lock, NULL);
   if (pTmq->clientTopics == NULL || pTmq->mqueue == NULL || pTmq->qall == NULL || pTmq->delayedTask == NULL ||
       conf->groupId[0] == 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1233,7 +1229,6 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
 
   tmq_t* tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
   if (tmq == NULL) {
-    tsem_destroy(&pParam->rspSem);
     taosMemoryFree(pParam);
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
@@ -1419,7 +1414,7 @@ static void freeClientVgInfo(void* param) {
   taosArrayDestroy(pTopic->vgs);
 }
 
-static bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) {
+static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) {
   bool set = false;
 
   int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
@@ -1471,14 +1466,11 @@ static bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) {
 
   taosHashCleanup(pVgOffsetHashMap);
 
-  taosThreadMutexLock(&tmq->lock);
   // destroy current buffered existed topics info
   if (tmq->clientTopics) {
     taosArrayDestroyEx(tmq->clientTopics, freeClientVgInfo);
   }
-
   tmq->clientTopics = newTopics;
-  taosThreadMutexUnlock(&tmq->lock);
 
   int8_t flag = (topicNumGet == 0)? TMQ_CONSUMER_STATUS__NO_TOPIC:TMQ_CONSUMER_STATUS__READY;
   atomic_store_8(&tmq->status, flag);
@@ -1742,7 +1734,7 @@ static int32_t tmqHandleNoPollRsp(tmq_t* tmq, SMqRspWrapper* rspWrapper, bool* p
     if (rspWrapper->epoch > atomic_load_32(&tmq->epoch)) {
       SMqAskEpRspWrapper* pEpRspWrapper = (SMqAskEpRspWrapper*)rspWrapper;
       SMqAskEpRsp*        rspMsg = &pEpRspWrapper->msg;
-      tmqUpdateEp(tmq, rspWrapper->epoch, rspMsg);
+      doUpdateLocalEp(tmq, rspWrapper->epoch, rspMsg);
       /*tmqClearUnhandleMsg(tmq);*/
       tDeleteSMqAskEpRsp(rspMsg);
       *pReset = true;
@@ -2163,7 +2155,7 @@ void updateEpCallbackFn(tmq_t* pTmq, int32_t code, SDataBuf* pDataBuf, void* par
 
     SMqAskEpRsp rsp;
     tDecodeSMqAskEpRsp(POINTER_SHIFT(pDataBuf->pData, sizeof(SMqRspHead)), &rsp);
-    tmqUpdateEp(pTmq, head->epoch, &rsp);
+    doUpdateLocalEp(pTmq, head->epoch, &rsp);
     tDeleteSMqAskEpRsp(&rsp);
   }
 

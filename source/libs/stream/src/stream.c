@@ -92,22 +92,22 @@ int32_t streamSetupTrigger(SStreamTask* pTask) {
 int32_t streamSchedExec(SStreamTask* pTask) {
   int8_t schedStatus =
       atomic_val_compare_exchange_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE, TASK_SCHED_STATUS__WAITING);
+
   if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
     SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
     if (pRunReq == NULL) {
       atomic_store_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE);
       return -1;
     }
+
     pRunReq->head.vgId = pTask->nodeId;
     pRunReq->streamId = pTask->streamId;
     pRunReq->taskId = pTask->taskId;
-    SRpcMsg msg = {
-        .msgType = TDMT_STREAM_TASK_RUN,
-        .pCont = pRunReq,
-        .contLen = sizeof(SStreamTaskRunReq),
-    };
+
+    SRpcMsg msg = { .msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq) };
     tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &msg);
   }
+
   return 0;
 }
 
@@ -275,7 +275,38 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
   return 0;
 }
 
-// int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp) {
-//   //
-//   return 0;
-// }
+int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
+  int8_t type = pItem->type;
+
+  if (type == STREAM_INPUT__DATA_SUBMIT) {
+    SStreamDataSubmit2* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit2*)pItem);
+    if (pSubmitClone == NULL) {
+      qDebug("task %d %p submit enqueue failed since out of memory", pTask->taskId, pTask);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
+      return -1;
+    }
+
+    taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
+    qDebug("stream task:%d %p submit enqueue %p %p %p msgLen:%d ver:%" PRId64 ", total in queue:%d", pTask->taskId,
+           pTask, pItem, pSubmitClone, pSubmitClone->submit.msgStr, pSubmitClone->submit.msgLen,
+           pSubmitClone->submit.ver, pTask->inputQueue->queue->numOfItems);
+  } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
+             type == STREAM_INPUT__REF_DATA_BLOCK) {
+    taosWriteQitem(pTask->inputQueue->queue, pItem);
+  } else if (type == STREAM_INPUT__CHECKPOINT) {
+    taosWriteQitem(pTask->inputQueue->queue, pItem);
+  } else if (type == STREAM_INPUT__GET_RES) {
+    taosWriteQitem(pTask->inputQueue->queue, pItem);
+  }
+
+  if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
+    atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
+  }
+
+#if 0
+  // TODO: back pressure
+  atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL);
+#endif
+  return 0;
+}
