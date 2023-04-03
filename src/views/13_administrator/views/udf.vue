@@ -112,6 +112,7 @@
   </div>
 </template>
 <script>
+import { sendSQLReq } from "@/api/gateway/console";
 export default {
   data() {
     return {
@@ -171,7 +172,9 @@ export default {
         return false
     }
   },
-
+   created(){
+    this.getData()
+   },
   methods: {
     handlePageChange() {},
     del(data) {
@@ -186,6 +189,15 @@ export default {
     },
     addUdf(){
 
+    },
+    async getData(){
+      try {
+        await sendSQLReq(`select * from logs order by ts desc limit 100`).then(res=>{
+          console.log(res,'查询历史登录----');
+        })
+      } catch (error) {
+        console.log();
+      }
     }
   },
 };

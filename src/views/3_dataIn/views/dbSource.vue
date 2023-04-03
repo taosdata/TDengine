@@ -38,7 +38,8 @@ export default {
     async getData() {
       try {
         await getUIData().then((result) => {
-          this.sourceList = result;
+          console.log(result,'数据源====');
+          this.sourceList = result.filter(val=>val.id==='tmq');
         });
         this.$parent.$parent.$parent.sourceDisabled=false
       } catch (error) {

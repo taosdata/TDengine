@@ -80,7 +80,7 @@ export function deleteDBReq(payload, appId = store.getters.appId) {
 export function createDB(data, name, appId = store.getters.appId) {
   return request({
     // url: `/private/data/sql/createdb/${appId}/${name}`,
-    baseURL:'http://localhost:6041',
+    baseURL:'',
     url: '/rest/sql',
     headers: {
       "Content-Type":"text/plain"

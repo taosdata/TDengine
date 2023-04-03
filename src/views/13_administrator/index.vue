@@ -15,9 +15,9 @@
         <el-tab-pane name="cluster" :label="$t('route.cluster')">
           <Cluster></Cluster>
         </el-tab-pane>
-        <!-- <el-tab-pane name="activities" :label="$t('topic.activities')" :disabled='true'>
-          <Activities></Activities>
-        </el-tab-pane> -->
+        <el-tab-pane name="udf" :label="$t('topic.udf')" >
+          <MgUdf></MgUdf>
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
