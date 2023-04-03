@@ -184,6 +184,7 @@ echo "=======================new version number: ${verNumber}, compatible versio
 build_time=$(date +"%F %R")
 
 # get commint id from git
+cd "${top_dir}/community"
 gitinfo=$(git rev-parse --verify HEAD)
 
 if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
