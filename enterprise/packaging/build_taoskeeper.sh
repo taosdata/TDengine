@@ -36,13 +36,12 @@ prepare_repo_taoskeeper() {
 
 checkout_latest_tag() {
   cd build-taoskeeper
-  latest=$(git tag --sort=-taggerdate|tail -n1)
-  if [ "$latest" = "" ]; then
-    latest=$(git log --pretty=format:"%h"|head -n1)
-  else
-    git checkout $latest
-  fi
-  echo $latest
+  latest="v1.0.7"
+
+   if [ "$REPO" = "taoskeeper" ]; then
+     git checkout $latest
+   fi
+   echo $latest
 }
 
 build_binary() {
