@@ -202,3 +202,20 @@ taos_cluster_info_dnodes_total{cluster_id="5981392874047724755"} 1
 # TYPE taos_cluster_info_first_ep gauge
 taos_cluster_info_first_ep{cluster_id="5981392874047724755",value="hlb:6030"} 1
 ```
+
+### check_health 
+
+```
+$ curl -i http://127.0.0.1:6043/check_health
+```
+
+Response:
+
+```
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Date: Mon, 03 Apr 2023 07:20:38 GMT
+Content-Length: 19
+
+{"version":"1.0.0"}
+```
