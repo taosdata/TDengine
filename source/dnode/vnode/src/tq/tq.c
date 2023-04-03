@@ -1415,7 +1415,10 @@ int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
 
     tqDebug("data submit enqueue stream task:%d, ver: %" PRId64, pTask->taskId, submit.ver);
     if (succ) {
-      if (tAppendDataForStream(pTask, (SStreamQueueItem*)pSubmit) < 0) {
+      int32_t code = tAppendDataForStream(pTask, (SStreamQueueItem*)pSubmit);
+      if (code < 0) {
+        // let's handle the back pressure
+
         tqError("stream task:%d failed to put into queue for, too many", pTask->taskId);
         continue;
       }
