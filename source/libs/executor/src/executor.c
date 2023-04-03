@@ -1192,7 +1192,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       SSnapContext*       sContext = pInfo->sContext;
 
       SOperatorInfo* p = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, id);
-      STableListInfo* pTableListInfo = ((STableScanInfo*)(p->info))->base.pTableListInfo;
+      STableListInfo* pTableListInfo = ((SStreamRawScanInfo*)(p->info))->pTableListInfo;
+
       if (setForSnapShot(sContext, pOffset->uid) != 0) {
         qError("setDataForSnapShot error. uid:%" PRId64" , %s", pOffset->uid, id);
         return -1;

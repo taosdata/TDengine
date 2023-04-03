@@ -2172,19 +2172,19 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
       code = tsdbNextDataBlock(pInfo->dataReader, &hasNext);
       if (code) {
         tsdbReleaseDataBlock(pInfo->dataReader);
-        longjmp(pTaskInfo->env, code);
+        T_LONG_JMP(pTaskInfo->env, code);
       }
     }
     
     if (pInfo->dataReader && hasNext) {
       if (isTaskKilled(pTaskInfo)) {
         tsdbReleaseDataBlock(pInfo->dataReader);
-        longjmp(pTaskInfo->env, pTaskInfo->code);
+        T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
       }
 
       SSDataBlock* pBlock = tsdbRetrieveDataBlock(pInfo->dataReader, NULL);
       if (pBlock == NULL) {
-        longjmp(pTaskInfo->env, terrno);
+        T_LONG_JMP(pTaskInfo->env, terrno);
       }
 
       qDebug("tmqsnap doRawScan get data uid:%" PRId64 "", pBlock->info.id.uid);
@@ -2283,6 +2283,7 @@ static void destroyRawScanOperatorInfo(void* param) {
   SStreamRawScanInfo* pRawScan = (SStreamRawScanInfo*)param;
   tsdbReaderClose(pRawScan->dataReader);
   destroySnapContext(pRawScan->sContext);
+  tableListDestroy(pRawScan->pTableListInfo);
   taosMemoryFree(pRawScan);
 }
 
@@ -2304,6 +2305,7 @@ SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pT
     goto _end;
   }
 
+  pInfo->pTableListInfo = tableListCreate();
   pInfo->vnode = pHandle->vnode;
 
   pInfo->sContext = pHandle->sContext;

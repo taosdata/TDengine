@@ -34,6 +34,12 @@
 #include "ttypes.h"
 #include "vnode.h"
 
+typedef struct {
+  bool    hasAgg;
+  int32_t numOfRows;
+  int32_t startOffset;
+} SFunctionCtxStatus;
+
 static void destroyAggOperatorInfo(void* param);
 static void setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId);
 
@@ -44,9 +50,15 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator);
 static int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx);
 static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator);
 
-static int32_t addNewWindowResultBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
+static int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t numOfOutput, size_t keyBufSize,
+                         const char* pKey);
+
+static int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
 
 static void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId);
+
+static void functionCtxSave(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus);
+static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus);
 
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode,
                                            SExecTaskInfo* pTaskInfo) {
@@ -366,7 +378,7 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
    * all group belong to one result set, and each group result has different group id so set the id to be one
    */
   if (pResultRow->pageId == -1) {
-    int32_t ret = addNewWindowResultBuf(pResultRow, pAggInfo->aggSup.pResultBuf, pAggInfo->binfo.pRes->info.rowSize);
+    int32_t ret = addNewResultRowBuf(pResultRow, pAggInfo->aggSup.pResultBuf, pAggInfo->binfo.pRes->info.rowSize);
     if (ret != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, terrno);
     }
@@ -376,7 +388,7 @@ void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uin
 }
 
 // a new buffer page for each table. Needs to opt this design
-int32_t addNewWindowResultBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size) {
+int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size) {
   if (pWindowRes->pageId != -1) {
     return 0;
   }
@@ -424,4 +436,128 @@ int32_t addNewWindowResultBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf,
   }
 
   return 0;
+}
+
+int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t numOfOutput, size_t keyBufSize,
+                         const char* pKey) {
+  int32_t code = 0;
+  //  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+
+  pAggSup->currentPageId = -1;
+  pAggSup->resultRowSize = getResultRowSize(pCtx, numOfOutput);
+  pAggSup->keyBuf = taosMemoryCalloc(1, keyBufSize + POINTER_BYTES + sizeof(int64_t));
+  pAggSup->pResultRowHashTable = tSimpleHashInit(100, taosFastHash);
+
+  if (pAggSup->keyBuf == NULL || pAggSup->pResultRowHashTable == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  uint32_t defaultPgsz = 0;
+  uint32_t defaultBufsz = 0;
+  getBufferPgSize(pAggSup->resultRowSize, &defaultPgsz, &defaultBufsz);
+
+  if (!osTempSpaceAvailable()) {
+    code = TSDB_CODE_NO_AVAIL_DISK;
+    qError("Init stream agg supporter failed since %s, %s", terrstr(code), pKey);
+    return code;
+  }
+
+  code = createDiskbasedBuf(&pAggSup->pResultBuf, defaultPgsz, defaultBufsz, pKey, tsTempDir);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("Create agg result buf failed since %s, %s", tstrerror(code), pKey);
+    return code;
+  }
+
+  return code;
+}
+
+void cleanupAggSup(SAggSupporter* pAggSup) {
+  taosMemoryFreeClear(pAggSup->keyBuf);
+  tSimpleHashCleanup(pAggSup->pResultRowHashTable);
+  destroyDiskbasedBuf(pAggSup->pResultBuf);
+}
+
+int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
+                   const char* pkey, void* pState) {
+  int32_t code = initExprSupp(pSup, pExprInfo, numOfCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = doInitAggInfoSup(pAggSup, pSup->pCtx, numOfCols, keyBufSize, pkey);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    if (pState) {
+      pSup->pCtx[i].saveHandle.pBuf = NULL;
+      pSup->pCtx[i].saveHandle.pState = pState;
+      pSup->pCtx[i].exprIdx = i;
+    } else {
+      pSup->pCtx[i].saveHandle.pBuf = pAggSup->pResultBuf;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData,
+                                     int32_t offset, int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput) {
+  for (int32_t k = 0; k < numOfOutput; ++k) {
+    // keep it temporarily
+    SFunctionCtxStatus status = {0};
+    functionCtxSave(&pCtx[k], &status);
+
+    pCtx[k].input.startRowIndex = offset;
+    pCtx[k].input.numOfRows = forwardStep;
+
+    // not a whole block involved in query processing, statistics data can not be used
+    // NOTE: the original value of isSet have been changed here
+    if (pCtx[k].input.colDataSMAIsSet && forwardStep < numOfTotal) {
+      pCtx[k].input.colDataSMAIsSet = false;
+    }
+
+    if (pCtx[k].isPseudoFunc) {
+      SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
+
+      char* p = GET_ROWCELL_INTERBUF(pEntryInfo);
+
+      SColumnInfoData idata = {0};
+      idata.info.type = TSDB_DATA_TYPE_BIGINT;
+      idata.info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      idata.pData = p;
+
+      SScalarParam out = {.columnData = &idata};
+      SScalarParam tw = {.numOfRows = 5, .columnData = pTimeWindowData};
+      pCtx[k].sfp.process(&tw, 1, &out);
+      pEntryInfo->numOfRes = 1;
+    } else {
+      int32_t code = TSDB_CODE_SUCCESS;
+      if (functionNeedToExecute(&pCtx[k]) && pCtx[k].fpSet.process != NULL) {
+        code = pCtx[k].fpSet.process(&pCtx[k]);
+
+        if (code != TSDB_CODE_SUCCESS) {
+          qError("%s apply functions error, code: %s", GET_TASKID(taskInfo), tstrerror(code));
+          taskInfo->code = code;
+          T_LONG_JMP(taskInfo->env, code);
+        }
+      }
+
+      // restore it
+      functionCtxRestore(&pCtx[k], &status);
+    }
+  }
+}
+
+void functionCtxSave(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
+  pStatus->hasAgg = pCtx->input.colDataSMAIsSet;
+  pStatus->numOfRows = pCtx->input.numOfRows;
+  pStatus->startOffset = pCtx->input.startRowIndex;
+}
+
+void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
+  pCtx->input.colDataSMAIsSet = pStatus->hasAgg;
+  pCtx->input.numOfRows = pStatus->numOfRows;
+  pCtx->input.startRowIndex = pStatus->startOffset;
 }

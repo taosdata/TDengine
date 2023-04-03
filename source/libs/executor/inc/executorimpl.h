@@ -485,10 +485,11 @@ typedef struct SStreamScanInfo {
 } SStreamScanInfo;
 
 typedef struct {
-  SVnode*       vnode;
-  SSDataBlock   pRes;  // result SSDataBlock
-  STsdbReader*  dataReader;
-  SSnapContext* sContext;
+  SVnode*         vnode;
+  SSDataBlock     pRes;  // result SSDataBlock
+  STsdbReader*    dataReader;
+  SSnapContext*   sContext;
+  STableListInfo* pTableListInfo;
 } SStreamRawScanInfo;
 
 typedef struct STableCountScanSupp {
