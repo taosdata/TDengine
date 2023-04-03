@@ -114,6 +114,9 @@ ELSE ()
     SET(TD_BULID_TAOSX FALSE)
 ENDIF ()
 
+SET(OUTPUT_SERVICE_DIR ${CMAKE_BINARY_DIR}/build/share/srv)
+FILE(MAKE_DIRECTORY ${OUTPUT_SERVICE_DIR})
+
 IF(TD_BULID_TAOSX)
     include(ExternalProject)
     set(ENV{TAOS_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib)
@@ -218,6 +221,7 @@ IF(TD_BULID_EXPLORER)
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taos-explorer.exe ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer.exe
             COMMAND cmake -E copy server/examples/explorer.toml ${EXPLORER_ETC_PATH}/explorer.toml
+            COMMAND cmake -E copy target/${EXPLORER_PREFIX}-explorer.service ${OUTPUT_SERVICE_DIR}
         )
     ELSE()
         ExternalProject_Add(explorer
@@ -237,6 +241,7 @@ IF(TD_BULID_EXPLORER)
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taos-explorer ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer
             COMMAND cmake -E copy server/examples/explorer.toml ${EXPLORER_ETC_PATH}/explorer.toml
+            COMMAND cmake -E copy target/${EXPLORER_PREFIX}-explorer.service ${OUTPUT_SERVICE_DIR}
         )
     ENDIF ()
 ENDIF ()
