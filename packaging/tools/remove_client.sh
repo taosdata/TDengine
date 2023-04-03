@@ -16,6 +16,7 @@ clientName2="taos"
 productName2="TDengine"
 
 benchmarkName2="${clientName2}Benchmark"
+demoName2="${clientName2}demo"
 dumpName2="${clientName2}dump"
 uninstallScript2="rm${clientName2}"
 
@@ -44,14 +45,17 @@ function kill_client() {
 
 function clean_bin() {
     # Remove link
-    ${csudo}rm -f ${bin_link_dir}/${clientName}      || :
-    ${csudo}rm -f ${bin_link_dir}/taosdemo  || :
-    ${csudo}rm -f ${bin_link_dir}/taosdump  || :
+    ${csudo}rm -f ${bin_link_dir}/${clientName2}      || :
+    ${csudo}rm -f ${bin_link_dir}/${demoName2}        || :
+    ${csudo}rm -f ${bin_link_dir}/${benchmarkName2}   || :
+    ${csudo}rm -f ${bin_link_dir}/${dumpName2}        || :
     ${csudo}rm -f ${bin_link_dir}/${uninstallScript}    || :
     ${csudo}rm -f ${bin_link_dir}/set_core  || :
 
     if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
         ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
+        ${csudo}rm -f ${bin_link_dir}/${demoName2}        || :
+        ${csudo}rm -f ${bin_link_dir}/${benchmarkName2}   || :
         ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
         ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
     fi
