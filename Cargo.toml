@@ -90,8 +90,8 @@ libc = "0.2"
 arrow = { version = "36.0.0" }
 parquet = "36.0.0"
 
-taos = { version = "0.7.0", default-features = false, features = ["ws", "deadpool"] }
-taos-query = { version = "0.7.0", default-features = false, features = ["deadpool"] }
+taos = { version = "0.7.1", default-features = false, features = ["ws", "deadpool"] }
+taos-query = { version = "0.7.1", default-features = false, features = ["deadpool"] }
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 jemallocator = { version = "0.5.0", optional = true }
