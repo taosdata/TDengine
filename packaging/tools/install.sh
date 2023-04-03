@@ -36,13 +36,16 @@ demoName="taosdemo"
 xname="taosx"
 
 clientName2="taos"
-serverName2="taosd"
-configFile2="taos.cfg"
+serverName2="${clientName2}d"
+configFile2="${clientName2}.cfg"
 productName2="TDengine"
 emailName2="taosdata.com"
+xname2="${clientName2}x"
+adapterName2="${clientName2}adapter"
 
 explorerName="${clientName2}-explorer"
 benchmarkName2="${clientName2}Benchmark"
+demoName2="${clientName2}demo"
 dumpName2="${clientName2}dump"
 uninstallScript2="rm${clientName2}"
 
@@ -211,11 +214,11 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/${serverName2} || :
   ${csudo}rm -f ${bin_link_dir}/${udfdName} || :
   ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
-  ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
-  ${csudo}rm -f ${bin_link_dir}/${demoName} || :
-  ${csudo}rm -f ${bin_link_dir}/${benchmarkName} || :
-  ${csudo}rm -f ${bin_link_dir}/${dumpName} || :
-  ${csudo}rm -f ${bin_link_dir}/${xname} || :
+  ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
+  ${csudo}rm -f ${bin_link_dir}/${demoName2} || :
+  ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
+  ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
+  ${csudo}rm -f ${bin_link_dir}/${xname2} || :
   ${csudo}rm -f ${bin_link_dir}/${explorerName} || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
@@ -226,11 +229,11 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${clientName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${clientName2} ${bin_link_dir}/${clientName2} || :
   [ -x ${install_main_dir}/bin/${serverName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${serverName2} ${bin_link_dir}/${serverName2} || :
   [ -x ${install_main_dir}/bin/${udfdName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${udfdName} ${bin_link_dir}/${udfdName} || :
-  [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
-  [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName} || :
-  [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName} || :
-  [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName} || :
-  [ -x ${install_main_dir}/bin/${xname} ] && ${csudo}ln -sf ${install_main_dir}/bin/${xname} ${bin_link_dir}/${xname} || :
+  [ -x ${install_main_dir}/bin/${adapterName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${adapterName2} ${bin_link_dir}/${adapterName2} || :
+  [ -x ${install_main_dir}/bin/${benchmarkName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName2} ${bin_link_dir}/${demoName2} || :
+  [ -x ${install_main_dir}/bin/${benchmarkName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName2} ${bin_link_dir}/${benchmarkName2} || :
+  [ -x ${install_main_dir}/bin/${dumpName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${dumpName2} ${bin_link_dir}/${dumpName2} || :
+  [ -x ${install_main_dir}/bin/${xname2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${xname2} ${bin_link_dir}/${xname2} || :
   [ -x ${install_main_dir}/bin/${explorerName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${explorerName} ${bin_link_dir}/${explorerName} || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   if [ "$clientName2" == "${clientName}" ]; then
