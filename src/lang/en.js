@@ -238,7 +238,7 @@ export default {
   },
   login: {
     signin:'Sign In',
-    taosxtip:'Please start taosX firstly, configure its end point in explorer, and restart explorer',
+    taosxtip:'Please configure Taosx in /et/taos/explorer.toml first',
     loginTitle:'Log in TaosExplorer',
     username:'User Name',
     password:'Password',
@@ -1637,6 +1637,7 @@ export default {
     SQLAPI: 'SQLAPI'
   },
   taosopc: {
+    searchtag:'Search Tag',
     searchnodes:'Search Nodes',
     da_config: 'DA Config',
     ua_config: 'UA Config',
@@ -1728,4 +1729,6 @@ export default {
     currentDB: "Current Database",
     groupRoleDisabledReasonTip: "This user accessed the resources via groups, please manage the resources access control through user groups.",
   },
+  taosx404:'The Taosx API is not configured. Please check the explorer configuration',
+  taosx500:'The Taosx API cannot be accessed. Please check the Taosx service status'
 };

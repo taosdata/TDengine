@@ -200,7 +200,7 @@ export default {
       }
     };
     return {
-      tasoxStatus: true,
+      taosxStatus: true,
       oemName: process.env.VUE_APP_CUS_NAME,
       loading: false,
       earch: require("@/assets/earth.webp"),
@@ -254,7 +254,7 @@ export default {
           this.loading = true;
           this.encryptedPwd = encrypt(this.dynamicValidateForm.password);
           setTimeout(() => {
-            if (!this.tasoxStatus) {
+            if (!this.taosxStatus) {
               Message.error(this.$t("login.taosxtip"));
               this.loading = false;
             } else {
@@ -343,13 +343,13 @@ export default {
             localStorage.setItem("local_grafana", res.dashboard);
           }
           if (res && res.x_api) {
-            this.tasoxStatus = true;
+            this.taosxStatus = true;
           } else {
-            this.tasoxStatus = false;
+            this.taosxStatus = false;
           }
         });
       } catch (error) {
-        Message.error(error);
+        // Message.error(error);
       }
     },
     //获取登录用户权限
@@ -382,22 +382,6 @@ export default {
         Message.error("Only enterprise edition is supported");
       }
     },
-    //删除cookie某一项目
-    // deleteCookieItem() {
-    //   var cookieItems = document.cookie.split(";");
-    //   for (var i = 0; i < cookieItems.length; i++) {
-    //     var item = cookieItems[i];
-    //     while (item.charAt(0) === " ") {
-    //       item = item.substring(1);
-    //     }
-    //     if (item.indexOf("TDengine-Token=") === 0) {
-    //       document.cookie =
-    //         encodeURIComponent(item.split("=")[0]) +
-    //         "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    //       break;
-    //     }
-    //   }
-    // },
   },
   created() {
     this.getClusterAndDashboardUrl();

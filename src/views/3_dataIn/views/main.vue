@@ -5,17 +5,17 @@
         <el-tab-pane name="datacollection" :label="$t('topic.datacollection')" v-if="!isOem">
           <DataIn ></DataIn>
         </el-tab-pane>
-        <el-tab-pane name="datasource" :label="$t('topic.datasource')" v-if="!isOem">
+        <el-tab-pane name="datasource" :label="$t('topic.datasource')" v-if="!isOem" :disabled='sourceDisabled'>
           <DbSource ></DbSource>
         </el-tab-pane>
         <el-tab-pane name="csv" :label="$t('topic.csv')">
           <DataCSV></DataCSV>
         </el-tab-pane>
-        <el-tab-pane name='pi' label='PI'>
-          <PlantInformation></PlantInformation>
+        <el-tab-pane name='pi' label='PI' :disabled='piDisable'>
+          <PlantInformation ></PlantInformation>
         </el-tab-pane>
-        <!-- <el-tab-pane name="opc" label="OPC">
-          <OpcView></OpcView>
+        <!-- <el-tab-pane name="opc" label="OPC" :disabled='opcDisable'>
+          <OpcView ></OpcView>
         </el-tab-pane> -->
       </el-tabs>
     </div>
@@ -41,6 +41,9 @@ export default {
   },
   data() {
     return {
+      sourceDisabled:true,
+      piDisable:false,
+      opcDisable:false,
       isOem:process.env.VUE_APP_CUS_NAME&&process.env.VUE_APP_CUS_NAME!=='TDengine',
       active:process.env.VUE_APP_CUS_NAME&&process.env.VUE_APP_CUS_NAME!=='TDengine'?'csv':'datacollection'
     };

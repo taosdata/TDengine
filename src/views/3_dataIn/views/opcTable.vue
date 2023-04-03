@@ -158,16 +158,30 @@
             required
           >
             <!-- <el-input-number v-model="ruleForm.endpoint"></el-input-number> -->
-            <div style="margin-bottom:10px;">
-              <el-input placeholder="localhost" v-model="ruleForm.endpoint.ip"></el-input>
+            <div style="margin-bottom: 10px">
+              <el-input
+                placeholder="127.0.0.1"
+                v-model="ruleForm.endpoint.ip"
+              ></el-input>
             </div>
-            <div style="margin-bottom:10px;">
-              <el-input placeholder="8080" v-model="ruleForm.endpoint.port"></el-input>
+            <div style="margin-bottom: 10px">
+              <el-input
+                placeholder="8080"
+                v-model="ruleForm.endpoint.port"
+              ></el-input>
             </div>
-            <div style="margin-bottom:10px;">
-              <el-input placeholder="/OPCUA/SimulationServer" v-model="ruleForm.endpoint.direct"></el-input>
+            <div style="margin-bottom: 10px">
+              <el-input
+                placeholder="/OPCUA/SimulationServer"
+                v-model="ruleForm.endpoint.direct"
+              ></el-input>
             </div>
-            <el-button type="primary" style="width:100%" @click="getNodesOrTags">{{$t('taosopc.searchnodes')}}</el-button>
+            <el-button
+              type="primary"
+              style="width: 100%"
+              @click="getNodesOrTags"
+              >{{ $t("taosopc.searchnodes") }}</el-button
+            >
           </el-form-item>
           <el-form-item
             :label="$t('taosopc.request_timeout')"
@@ -267,9 +281,9 @@
             <el-select v-model="ruleForm.nodes" multiple>
               <el-option
                 v-for="item in uaCollectNodes"
-                :key="item.value_type"
-                :label="item.id"
-                :value="item.value_type"
+                :key="item.id"
+                :label="item.name"
+                :value="item.id"
               >
               </el-option>
             </el-select>
@@ -281,17 +295,21 @@
               $t("taosopc.da_config")
             }}</span>
           </p>
-          <el-form-item :label="$t('taosopc.server')" prop="server" required>
+          <el-form-item
+            :label="$t('taosopc.server')"
+            prop="server"
+            required
+          >
             <el-input v-model="ruleForm.server"></el-input>
           </el-form-item>
-          <el-form-item :label="$t('taosopc.nodes')" prop="nodes" required>
+          <el-form-item :label="$t('taosopc.nodes')" prop="nodes" required 
+            class="da-server">
             <el-input v-model="ruleForm.nodes"></el-input>
-            <!-- <div>
-              <span>
-                {{ $t("taosopc.nodetip") }}
-              </span>
-            </div> -->
+            <el-button type="primary" @click="getNodesOrTags" style="height:32px;">{{
+              $t("taosopc.searchtag")
+            }}</el-button>
           </el-form-item>
+          
           <p>
             <span style="color: #4d6992; font-size: 24px">
               {{ $t("taosopc.collect_config") }}
@@ -355,8 +373,7 @@
         <el-col :span="5" :push="4">
           <el-button
             size="small"
-            :disabled="confirmStatus"
-            @click="handleAdd"
+            @click="submit('ruleForm')"
             class="w100"
             type="primary"
             >{{ $t("confirm") }}</el-button
@@ -399,6 +416,7 @@ export default {
   },
   data() {
     return {
+      loading: false,
       policiesList: ["None", "Basic128Rsa15", "Basic256", "Basic256Sha256"],
       modeList: ["None", "Sign", "SignAndEncrypt"],
       authMethodList: ["Certificate", "UserName", "Anonymous"],
@@ -412,9 +430,9 @@ export default {
       ruleForm: {
         opc_type: "opcua",
         endpoint: {
-          ip:'',
-          port:'',
-          direct:''
+          ip: "",
+          port: "",
+          direct: "",
         },
         connect_timeout: "",
         request_timeout: "",
@@ -425,8 +443,8 @@ export default {
         auth_method: "",
         username: "",
         password: "",
-        server: undefined,
-        nodes: undefined,
+        server: "",
+        nodes: "",
         interval: "",
         tags: "",
       },
@@ -474,6 +492,17 @@ export default {
       //   path: `/dataIn/source/${data.data_source_name}`
       // });
     },
+    submit(formName) {
+      this.$refs[formName].validate((valid) => {
+        if (valid) {
+          this.loading = true;
+          this.handleAdd();
+        } else {
+          return false;
+        }
+        this.loading = false;
+      });
+    },
     handleAdd() {
       console.log("获取参数", this.ruleForm);
       this.$parent.toggleComponent("ui", this.ruleForm.type);
@@ -492,7 +521,7 @@ export default {
           }
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
+        // err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -537,12 +566,26 @@ export default {
       }
     },
     async getNodesOrTags() {
-      console.log(this.ruleForm.opc_type);
+      console.log(this.ruleForm.endpoint, "获取变量", this.ruleForm.opc_type);
       try {
-        let params = {
-          from: "opc+ua://192.168.1.84:53530/OPCUA/SimulationServer?ua.nodes=Random.Int8::meters5::c1::int",
-        };
+        let params = null;
+        if (this.ruleForm.opc_type === "opcua") {
+          params = {
+            from: `opc+ua://${this.ruleForm.endpoint.ip}:${this.ruleForm.endpoint.port}${this.ruleForm.endpoint.direct}`,
+          };
+        } else {
+          params = {
+            from: `opc+da://${this.ruleForm.server}`,
+          };
+        }
+
         await getUaAndDaData(params).then((res) => {
+          if (this.ruleForm.opc_type === "opcua") {
+            this.uaCollectNodes = res;
+          } else {
+            this.tagsLists = res;
+          }
+
           console.log(res, "nodes or tags====");
         });
       } catch (error) {
@@ -552,7 +595,7 @@ export default {
   },
   created() {
     this.getList();
-    this.getNodesOrTags();
+    // this.getNodesOrTags();
   },
 };
 </script>
@@ -586,6 +629,19 @@ export default {
     display: flex;
     justify-content: center;
     align-items: center;
+  }
+}
+.el-form-item.da-server {
+  display: flex;
+  flex-wrap: nowrap;
+  ::v-deep {
+    .el-form-item__content {
+      display: flex;
+      flex-direction: column;
+      .el-button {
+        margin-top: 10px;
+      }
+    }
   }
 }
 </style>

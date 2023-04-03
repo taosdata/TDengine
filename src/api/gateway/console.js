@@ -107,7 +107,6 @@ export function executeSQLByToken(sql, token) {
 // 获取个人收藏列表
 export function getFavorites(sql) {
   return request({
-    // url: "/api/region/1/data/favorite",
     baseURL: '',
     url: '/rest/sql',
     method: 'post',
@@ -115,7 +114,6 @@ export function getFavorites(sql) {
       "Content-Type": "text/plain"
     },
     data: sql
-    // params: { app_id: '1597864550720372736' },
   });
 }
 
@@ -142,7 +140,6 @@ export function delFavorite(id) {
 // 获取共享收藏列表
 export function getSharedFavorites(sql) {
   return request({
-    // url: "/api/region/1/data/shared_favorite",
     baseURL: '',
     url: '/rest/sql',
     headers: {
@@ -150,7 +147,6 @@ export function getSharedFavorites(sql) {
     },
     method: 'post',
     data: sql
-    // params: { app_id: store.getters.appId },
   });
 }
 

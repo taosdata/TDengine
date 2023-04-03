@@ -40,8 +40,14 @@ export default {
         await getUIData().then((result) => {
           this.sourceList = result;
         });
+        this.$parent.$parent.$parent.sourceDisabled=false
       } catch (error) {
-        Message.error(error);
+        if(error.response.status==404){
+          this.$parent.$parent.$parent.sourceDisabled=true
+        }
+        if(error.response.status===500){
+          this.$parent.$parent.$parent.sourceDisabled=true
+        }
       }
     },
     toggleComponent(name, type, id,dbname) {

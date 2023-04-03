@@ -31,7 +31,7 @@
           </div>
         </div>
         <div class="first">
-          <div style="width: 100%">
+          <div style="width: 100%" v-if="JSON.stringify(dbsource[0].options.host)!=='{}'">
             <span
               :class="[
                 'label',
@@ -51,7 +51,7 @@
               ></div>
             </div>
           </div>
-          <div style="width: 100%" v-if="dbsource[0].options.port">
+          <div style="width: 100%" v-if="JSON.stringify(dbsource[0].options.port)!=='{}'">
             <span
               :class="[
                 'label',
@@ -253,8 +253,8 @@
               v-html="transforHtml(item.description)"
             ></div>
           </div>
-          <template v-for="p in item.params">
-            <div :key="p.name + Math.random()" v-if="(p.if&&p.if.includes(dbsource[0].protocol.value))||gindex>0">
+          <template v-for="(p,pind) in item.params">
+            <div :key="pind" v-if="(p.if&&p.if.includes(dbsource[0].protocol.value))||gindex>0">
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
               </span>
