@@ -33,8 +33,6 @@ from datetime import datetime
 from datetime import timedelta
 from os       import path
 
-stopInsert = False
-
 
 #
 # --------------    util   --------------------------
@@ -148,7 +146,6 @@ class VNode :
     
     # vnode
     def check_retention(self):
-        global stopInsert 
         #
         # check period
         #
@@ -314,7 +311,6 @@ class TDTestCase:
 
     # insert to child table d1 data
     def insert_data(self, tbname, insertTime):
-        global stopInsert
         start = time.time()
         values = ""
         child_name = ""
@@ -331,11 +327,11 @@ class TDTestCase:
             cost = time.time() - start
             if j % 100 == 0:
                 tdSql.execute(f"flush database {self.dbname}")
-                print(f' cost={cost} j ={j} \n')
+                tdLog.info("   insert row cost time = %ds rows = %d"%(cost, j))
 
             if cost > insertTime and j > 1000:
-                tdLog.info(f" insert finished. cost time ={cost}s rows={j}")
-                return 
+                tdLog.info(" insert finished. cost time = %ds rows = %d"%(cost, j))
+                return
    
     # create tmq
     def create_tmq(self):
@@ -355,6 +351,8 @@ class TDTestCase:
         for dnode in os.listdir(self.projDir):
             vnodeDir = self.projDir + f"{dnode}/data/vnode/"
             print(f"vnodeDir={vnodeDir}")
+            if dnode == "psim":
+                continue
             # enum all vnode
             for entry in os.listdir(vnodeDir):
                 entryPath = path.join(vnodeDir, entry)
@@ -373,13 +371,11 @@ class TDTestCase:
 
     # test db1
     def test_db(self, dbname, checkTime ,wal_period, wal_size_kb):
-        global stopInsert
         # var        
         stable = "meters"
         tbname = "d"
-        vgroups = 4
-        count = 10
-        rows = 1000000
+        vgroups = 6
+        count = 20
 
         # do 
         self.create_database(dbname, wal_period, wal_size_kb, vgroups)
@@ -389,7 +385,6 @@ class TDTestCase:
         self.create_tmq()
 
         # insert data
-
         self.insert_data(tbname, checkTime)
 
         #stopInsert = False
@@ -403,8 +398,6 @@ class TDTestCase:
 
         # stop insert and wait exit
         tdLog.info(f" {dbname} stop insert ...")
-        stopInsert = True
-        tobj.join()
         tdLog.info(f" {dbname} test_db end.")
 
     # run
@@ -413,8 +406,9 @@ class TDTestCase:
         #self.test_db("db1", 10, 60, 0)
         # size
         #self.test_db("db2", 5, 10*24*3600, 2*1024) # 2M size
+        
         # period + size        
-        self.test_db("db3", checkTime = 2*60, wal_period = 30, wal_size_kb=10)
+        self.test_db("db", checkTime = 30*60, wal_period = 60, wal_size_kb=10)
 
 
     def stop(self):
