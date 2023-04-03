@@ -33,6 +33,7 @@ typedef struct {
   TSKEY   minKey;
   TSKEY   maxKey;
   // writer
+  SArray             *aFileOp;
   struct SSttFWriter *pWriter;
 } SCommitter;
 
@@ -358,7 +359,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbCommitRollback(STsdb *pTsdb) {
+int32_t tsdbCommitAbort(STsdb *pTsdb) {
   int32_t code = 0;
   int32_t lino = 0;
 

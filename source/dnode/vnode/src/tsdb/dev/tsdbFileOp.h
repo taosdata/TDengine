@@ -13,27 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TSDB_DEV_H
-#define _TSDB_DEV_H
-
-#include "tsdb.h"
+#ifndef _TSDB_FILE_OP_H
+#define _TSDB_FILE_OP_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "tsdbUtil.h"
+/* Exposed Handle */
+typedef enum {
+  TSDB_FOP_EXTEND = -2,
+  TSDB_FOP_CREATE,
+  TSDB_FOP_NONE,
+  TSDB_FOP_DELETE,
+  TSDB_FOP_TRUNCATE,
+} EFileOpType;
 
-#include "tsdbFile.h"
+struct SFileOp {
+  EFileOpType op;
+  // TODO
+};
 
-#include "tsdbFileOp.h"
+/* Exposed APIs */
 
-#include "tsdbFS.h"
-
-#include "tsdbSttFWriter.h"
+/* Exposed Structs */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TSDB_DEV_H*/
+#endif /*_TSDB_FILE_OP_H*/

@@ -13,27 +13,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TSDB_DEV_H
-#define _TSDB_DEV_H
+#include "dev.h"
 
-#include "tsdb.h"
+typedef struct {
+  STsdb *pTsdb;
+} SMerger;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "tsdbUtil.h"
-
-#include "tsdbFile.h"
-
-#include "tsdbFileOp.h"
-
-#include "tsdbFS.h"
-
-#include "tsdbSttFWriter.h"
-
-#ifdef __cplusplus
+int32_t tsdbMergeBegin(STsdb *pTsdb) {
+  int32_t code = 0;
+  // TODO
+  return code;
 }
-#endif
 
-#endif /*_TSDB_DEV_H*/
+int32_t tsdbMergeCommit(STsdb *pTsdb) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbMergeAbort(STsdb *pTsdb) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}

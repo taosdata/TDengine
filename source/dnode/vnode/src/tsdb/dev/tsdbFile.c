@@ -15,15 +15,6 @@
 
 #include "dev.h"
 
-typedef enum {
-  TSDB_FOP_CREATE = -2,  // create a file
-  TSDB_FOP_EXTEND,       // extend a file
-  TSDB_FOP_NONE,         // no operation
-  TSDB_FOP_TRUNCATE,     // truncate a file
-  TSDB_FOP_DELETE,       // delete a file
-  TSDB_FOP_MAX,
-} tsdb_fop_t;
-
 const char *tsdb_ftype_suffix[] = {
     ".head",  // TSDB_FTYPE_HEAD
     ".data",  // TSDB_FTYPE_DATA
@@ -31,14 +22,6 @@ const char *tsdb_ftype_suffix[] = {
     ".tomb",  // TSDB_FTYPE_TOMB
     NULL,     // TSDB_FTYPE_MAX
     ".stt",
-};
-
-struct SFileOp {
-  tsdb_fop_t op;
-  union {
-    struct {
-    } create;
-  };
 };
 
 int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile) {
