@@ -43,8 +43,6 @@ sudo apt-get update
 sudo apt-get install grafana
 ```
 
-### 在 CentOS / RHEL 上安装 Grafana
-
 </TabItem>
 <TabItem value="redhat" label="基于 CentOS / RHEL 系统">
 
@@ -79,7 +77,37 @@ sudo yum install \
 
 </Tabs>
 
-<Tabs defaultValue="auto" groupId="deploy">
+### 安装 TDengine 数据源插件
+
+<Tabs defaultValue="manual" groupId="deploy">
+<TabItem value="manual" label="手动设置 TDinsight">
+
+从 GitHub 安装 TDengine 最新版数据源插件。
+
+```bash
+get_latest_release() {
+  curl --silent "https://api.github.com/repos/taosdata/grafanaplugin/releases/latest" |
+    grep '"tag_name":' |
+    sed -E 's/.*"v([^"]+)".*/\1/'
+}
+TDENGINE_PLUGIN_VERSION=$(get_latest_release)
+sudo grafana-cli \
+  --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v$TDENGINE_PLUGIN_VERSION/tdengine-datasource-$TDENGINE_PLUGIN_VERSION.zip \
+  plugins install tdengine-datasource
+```
+
+:::note
+3.1.6 和更早版本插件需要在配置文件 `/etc/grafana/grafana.ini` 中添加如下设置，以启用未签名插件。
+
+```ini
+[plugins]
+allow_loading_unsigned_plugins = tdengine-datasource
+```
+
+:::
+
+</TabItem>
+
 <TabItem value="auto" label="自动部署 TDinsight">
 
 我们提供了一个自动化安装脚本 [`TDinsight.sh`](https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh) 脚本以便用户快速进行安装配置。
@@ -175,33 +203,7 @@ sudo ./TDengine.sh -n TDengine-Env1 -a http://another:6041 -u root -p taosdata -
 特别地，当您使用 Grafana Cloud 或其他组织时，`-O` 可用于设置组织 ID。 `-G` 可指定 Grafana 插件安装目录。 `-e` 参数将仪表盘设置为可编辑。
 
 </TabItem>
-<TabItem value="manual" label="手动设置 TDinsight">
-
-### 安装 TDengine 数据源插件
-
-从 GitHub 安装 TDengine 最新版数据源插件。
-
-```bash
-get_latest_release() {
-  curl --silent "https://api.github.com/repos/taosdata/grafanaplugin/releases/latest" |
-    grep '"tag_name":' |
-    sed -E 's/.*"v([^"]+)".*/\1/'
-}
-TDENGINE_PLUGIN_VERSION=$(get_latest_release)
-sudo grafana-cli \
-  --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v$TDENGINE_PLUGIN_VERSION/tdengine-datasource-$TDENGINE_PLUGIN_VERSION.zip \
-  plugins install tdengine-datasource
-```
-
-:::note
-3.1.6 和更早版本插件需要在配置文件 `/etc/grafana/grafana.ini` 中添加如下设置，以启用未签名插件。
-
-```ini
-[plugins]
-allow_loading_unsigned_plugins = tdengine-datasource
-```
-
-:::
+</Tabs>
 
 ### 启动 Grafana 服务
 
@@ -233,8 +235,7 @@ sudo systemctl enable grafana-server
 
 ![TDengine Database TDinsight 数据源测试](./assets/howto-add-datasource-test.webp)
 
-</TabItem>
-</Tabs>
+
 
 ### 导入仪表盘
 
