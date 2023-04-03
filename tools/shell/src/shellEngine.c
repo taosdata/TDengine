@@ -695,7 +695,7 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
 
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON: {
-      int16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
+      uint16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
       if (bytes > shell.args.displayWidth) {
         return TMAX(shell.args.displayWidth, width);
       } else {
