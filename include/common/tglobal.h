@@ -165,7 +165,8 @@ extern int32_t tsUptimeInterval;
 extern int32_t tsRpcRetryLimit;
 extern int32_t tsRpcRetryInterval;
 
-extern bool tsDisableStream;
+extern bool    tsDisableStream;
+extern int64_t tsStreamBufferSize;
 
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

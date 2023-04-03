@@ -17,6 +17,7 @@
 
 #include "rocksdb/c.h"
 #include "tdbInt.h"
+#include "tstreamFileState.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,6 +55,7 @@ typedef struct STdbState {
 // incremental state storage
 typedef struct {
   STdbState* pTdbState;
+  SStreamFileState* pFileState;
   int32_t    number;
 } SStreamState;
 
@@ -61,7 +63,6 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
 void          streamStateClose(SStreamState* pState);
 int32_t       streamStateBegin(SStreamState* pState);
 int32_t       streamStateCommit(SStreamState* pState);
-int32_t       streamStateAbort(SStreamState* pState);
 void          streamStateDestroy(SStreamState* pState);
 
 typedef struct {
@@ -125,9 +126,6 @@ int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
 
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char* tbname);
 int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal);
-
-int32_t streamStatePutParTag(SStreamState* pState, int64_t groupId, const void* tag, int32_t tagLen);
-int32_t streamStateGetParTag(SStreamState* pState, int64_t groupId, void** tagVal, int32_t* tagLen);
 
 /***compare func **/
 

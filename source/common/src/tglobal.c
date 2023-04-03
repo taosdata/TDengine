@@ -196,6 +196,7 @@ int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
+int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -496,6 +497,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "udfdLdLibPath", tsUdfdLdLibPath, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "disableStream", tsDisableStream, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "streamBufferSize", tsStreamBufferSize, 0) != 0) return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -824,7 +826,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
 
-  tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
+  tsDisableStream = cfgGetItem(pCfg, "disableStream")->i64;
 
   GRANT_CFG_GET;
   return 0;

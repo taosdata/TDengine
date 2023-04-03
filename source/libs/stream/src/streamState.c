@@ -263,22 +263,6 @@ int32_t streamStateCommit(SStreamState* pState) {
 #endif
 }
 
-int32_t streamStateAbort(SStreamState* pState) {
-#ifdef USE_ROCKSDB
-  return 0;
-#else
-  if (tdbAbort(pState->pTdbState->db, pState->pTdbState->txn) < 0) {
-    return -1;
-  }
-
-  if (tdbBegin(pState->pTdbState->db, &pState->pTdbState->txn, NULL, NULL, NULL,
-               TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
-    return -1;
-  }
-  return 0;
-#endif
-}
-
 int32_t streamStateFuncPut(SStreamState* pState, const STupleKey* key, const void* value, int32_t vLen) {
 #ifdef USE_ROCKSDB
   return streamStateFuncPut_rocksdb(pState, key, value, vLen);
@@ -305,7 +289,8 @@ int32_t streamStateFuncDel(SStreamState* pState, const STupleKey* key) {
 // todo refactor
 int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
 #ifdef USE_ROCKSDB
-  return streamStatePut_rocksdb(pState, key, value, vLen);
+  return 0;
+  // return streamStatePut_rocksdb(pState, key, value, vLen);
 #else
   SStateKey sKey = {.key = *key, .opNum = pState->number};
   return tdbTbUpsert(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), value, vLen, pState->pTdbState->txn);
@@ -315,7 +300,8 @@ int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* val
 // todo refactor
 int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
-  return streamStateGet_rocksdb(pState, key, pVal, pVLen);
+  return getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), pVal, pVLen);
+  // return streamStateGet_rocksdb(pState, key, pVal, pVLen);
 #else
   SStateKey sKey = {.key = *key, .opNum = pState->number};
   return tdbTbGet(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), pVal, pVLen);
@@ -1030,22 +1016,6 @@ _end:
   *pVal = tmp;
   streamStateFreeCur(pCur);
   return res;
-#endif
-}
-
-int32_t streamStatePutParTag(SStreamState* pState, int64_t groupId, const void* tag, int32_t tagLen) {
-#ifdef USE_ROCKSDB
-  return streamStatePutParTag_rocksdb(pState, groupId, tag, tagLen);
-#else
-  return tdbTbUpsert(pState->pTdbState->pParTagDb, &groupId, sizeof(int64_t), tag, tagLen, pState->pTdbState->txn);
-#endif
-}
-
-int32_t streamStateGetParTag(SStreamState* pState, int64_t groupId, void** tagVal, int32_t* tagLen) {
-#ifdef USE_ROCKSDB
-  return streamStateGetParTag_rocksdb(pState, groupId, tagVal, tagLen);
-#else
-  return tdbTbGet(pState->pTdbState->pParTagDb, &groupId, sizeof(int64_t), tagVal, tagLen);
 #endif
 }
 

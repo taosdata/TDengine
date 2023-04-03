@@ -46,6 +46,24 @@ void *tdListFree(SList *list) {
   return NULL;
 }
 
+void tdListEmptyP(SList *list, FDelete fp) {
+  SListNode *node;
+  while ((node = TD_DLIST_HEAD(list)) != NULL) {
+    TD_DLIST_POP(list, node);
+    fp(node->data);
+    taosMemoryFree(node);
+  }
+}
+
+void *tdListFreeP(SList *list, FDelete fp) {
+  if (list) {
+    tdListEmptyP(list, fp);
+    taosMemoryFree(list);
+  }
+
+  return NULL;
+}
+
 void tdListPrependNode(SList *list, SListNode *node) { TD_DLIST_PREPEND(list, node); }
 
 void tdListAppendNode(SList *list, SListNode *node) { TD_DLIST_APPEND(list, node); }

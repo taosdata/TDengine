@@ -2723,7 +2723,7 @@ int32_t streamStateAddIfNotExist2(SStreamState* pState, const SWinKey* key, void
   return 0;
 }
 
-int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResult, int64_t tableGroupId,
+int32_t setIntervalOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResult, int64_t tableGroupId,
                      SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup) {
   SWinKey key = {
       .ts = win->skey,

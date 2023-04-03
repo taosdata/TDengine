@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "executorimpl.h"
+#include "tglobal.h"
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -2151,7 +2152,7 @@ static void rebuildIntervalWindow(SOperatorInfo* pOperator, SArray* pWinArray, S
         continue;
       }
       if (num == 0) {
-        int32_t code = setOutputBuf(pInfo->pState, &parentWin, &pCurResult, pWinRes->groupId, pSup->pCtx, numOfOutput,
+        int32_t code = setIntervalOutputBuf(pInfo->pState, &parentWin, &pCurResult, pWinRes->groupId, pSup->pCtx, numOfOutput,
                                     pSup->rowEntryInfoOffset, &pInfo->aggSup);
         ASSERT(pCurResult != NULL);
         if (code != TSDB_CODE_SUCCESS || pCurResult == NULL) {
@@ -2160,7 +2161,7 @@ static void rebuildIntervalWindow(SOperatorInfo* pOperator, SArray* pWinArray, S
       }
       num++;
       SResultRow* pChResult = NULL;
-      setOutputBuf(pChInfo->pState, &parentWin, &pChResult, pWinRes->groupId, pChildSup->pCtx, pChildSup->numOfExprs,
+      setIntervalOutputBuf(pChInfo->pState, &parentWin, &pChResult, pWinRes->groupId, pChildSup->pCtx, pChildSup->numOfExprs,
                    pChildSup->rowEntryInfoOffset, &pChInfo->aggSup);
       updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &parentWin, true);
       compactFunctions(pSup->pCtx, pChildSup->pCtx, numOfOutput, pTaskInfo, &pInfo->twAggSup.timeWindowData);
@@ -2412,7 +2413,7 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
       }
     }
 
-    int32_t code = setOutputBuf(pInfo->pState, &nextWin, &pResult, groupId, pSup->pCtx, numOfOutput,
+    int32_t code = setIntervalOutputBuf(pInfo->pState, &nextWin, &pResult, groupId, pSup->pCtx, numOfOutput,
                                 pSup->rowEntryInfoOffset, &pInfo->aggSup);
     if (code != TSDB_CODE_SUCCESS || pResult == NULL) {
       T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
@@ -4853,6 +4854,11 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   return NULL;
 }
 
+bool compareTs(void* pKey, TSKEY mark) {
+  SWinKey* pWinKey = (SWinKey*) pKey;
+  return pWinKey->ts < mark;
+}
+
 SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
                                                 SExecTaskInfo* pTaskInfo) {
   SStreamIntervalOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamIntervalOperatorInfo));
@@ -4939,6 +4945,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->numOfDatapack = 0;
   pInfo->pUpdated = NULL;
   pInfo->pUpdatedMap = NULL;
+  pInfo->pState->pFileState = streamFileStateInit(tsStreamBufferSize, pInfo->aggSup.resultRowSize, compareTs, pInfo->pState);
 
   setOperatorInfo(pOperator, "StreamIntervalOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
