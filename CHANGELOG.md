@@ -1,3 +1,19 @@
+<a name="0.3.0"></a>
+## 0.3.0 TDengine (2023-04-03)
+
+
+#### Features
+
+*   add explorer.toml file ([975eda1b](975eda1b))
+*   support /rest/sql directly in explorer API ([5e2081cf](5e2081cf))
+
+#### Bug Fixes
+
+*   fix configuration file path error on linux ([d012c6ab](d012c6ab))
+*   /rest/upload and /rest/sql fix ([3475c9a6](3475c9a6))
+
+
+
 <a name="0.2.0"></a>
 ## 0.2.0 TDengine (2023-02-28)
 
