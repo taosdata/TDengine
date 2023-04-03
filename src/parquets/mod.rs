@@ -13,7 +13,9 @@ use taos::{
     TaosBuilder, Ty,
 };
 
-use parquet::{arrow::arrow_writer::ArrowWriter, file::properties::WriterProperties};
+use parquet::{
+    arrow::arrow_writer::ArrowWriter, basic::ZstdLevel, file::properties::WriterProperties,
+};
 
 use crate::utils::is_available_enterprise_edition;
 fn precision_to_arrow(precision: Precision) -> TimeUnit {
@@ -119,7 +121,7 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
     log::debug!("schema: {}", &schema);
     let schema_ref = schema.clone();
     let props = WriterProperties::builder()
-        .set_compression(parquet::basic::Compression::ZSTD)
+        .set_compression(parquet::basic::Compression::ZSTD(ZstdLevel::default()))
         .build();
     let file = std::fs::File::create(&filename).unwrap();
 
