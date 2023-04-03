@@ -4001,10 +4001,6 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
 int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
                        SSDataBlock* pResBlock, STsdbReader** ppReader, const char* idstr) {
   STimeWindow window = pCond->twindows;
-  if (pCond->type == TIMEWINDOW_RANGE_EXTERNAL) {
-    pCond->twindows.skey += 1;
-    pCond->twindows.ekey -= 1;
-  }
 
   int32_t capacity = pVnode->config.tsdbCfg.maxRows;
   if (pResBlock != NULL) {
@@ -4027,11 +4023,11 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     // update the SQueryTableDataCond to create inner reader
     int32_t order = pCond->order;
     if (order == TSDB_ORDER_ASC) {
-      pCond->twindows.ekey = window.skey;
+      pCond->twindows.ekey = window.skey - 1;
       pCond->twindows.skey = INT64_MIN;
       pCond->order = TSDB_ORDER_DESC;
     } else {
-      pCond->twindows.skey = window.ekey;
+      pCond->twindows.skey = window.ekey + 1;
       pCond->twindows.ekey = INT64_MAX;
       pCond->order = TSDB_ORDER_ASC;
     }
@@ -4043,11 +4039,11 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     }
 
     if (order == TSDB_ORDER_ASC) {
-      pCond->twindows.skey = window.ekey;
+      pCond->twindows.skey = window.ekey + 1;
       pCond->twindows.ekey = INT64_MAX;
     } else {
       pCond->twindows.skey = INT64_MIN;
-      pCond->twindows.ekey = window.ekey;
+      pCond->twindows.ekey = window.ekey - 1;
     }
     pCond->order = order;
 
