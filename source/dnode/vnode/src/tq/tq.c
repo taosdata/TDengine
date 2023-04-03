@@ -1332,7 +1332,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
       pRefBlock->dataRef = pRef;
       atomic_add_fetch_32(pRefBlock->dataRef, 1);
 
-      if (streamTaskInput(pTask, (SStreamQueueItem*)pRefBlock) < 0) {
+      if (tAppendDataForStream(pTask, (SStreamQueueItem*)pRefBlock) < 0) {
         qError("stream task input del failed, task id %d", pTask->taskId);
 
         atomic_sub_fetch_32(pRef, 1);
@@ -1367,7 +1367,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
     taosArrayPush(pStreamBlock->blocks, &block);
 
     if (!failed) {
-      if (streamTaskInput(pTask, (SStreamQueueItem*)pStreamBlock) < 0) {
+      if (tAppendDataForStream(pTask, (SStreamQueueItem*)pStreamBlock) < 0) {
         qError("stream task input del failed, task id %d", pTask->taskId);
         continue;
       }
@@ -1388,13 +1388,13 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
 
 int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
   void* pIter = NULL;
-  bool  failed = false;
+  bool  succ = true;
 
   SStreamDataSubmit2* pSubmit = streamDataSubmitNew(submit);
   if (pSubmit == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tqError("failed to create data submit for stream since out of memory");
-    failed = true;
+    succ = false;
   }
 
   while (1) {
@@ -1409,20 +1409,19 @@ int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
     }
 
     if (pTask->taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
-      tqDebug("skip push task %d, task status %d", pTask->taskId, pTask->taskStatus);
+      tqDebug("stream task:%d skip push data, not ready for processing, status %d", pTask->taskId, pTask->taskStatus);
       continue;
     }
 
-    tqDebug("data submit enqueue stream task: %d, ver: %" PRId64, pTask->taskId, submit.ver);
-
-    if (!failed) {
-      if (streamTaskInput(pTask, (SStreamQueueItem*)pSubmit) < 0) {
-        tqError("stream task input failed, task id %d", pTask->taskId);
+    tqDebug("data submit enqueue stream task:%d, ver: %" PRId64, pTask->taskId, submit.ver);
+    if (succ) {
+      if (tAppendDataForStream(pTask, (SStreamQueueItem*)pSubmit) < 0) {
+        tqError("stream task:%d failed to put into queue for, too many", pTask->taskId);
         continue;
       }
 
       if (streamSchedExec(pTask) < 0) {
-        tqError("stream task launch failed, task id %d", pTask->taskId);
+        tqError("stream task:%d launch failed, code:%s", pTask->taskId, tstrerror(terrno));
         continue;
       }
     } else {
@@ -1430,12 +1429,12 @@ int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
     }
   }
 
-  if (pSubmit) {
+  if (pSubmit != NULL) {
     streamDataSubmitDestroy(pSubmit);
     taosFreeQitem(pSubmit);
   }
 
-  return failed ? -1 : 0;
+  return succ ? 0 : -1;
 }
 
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {

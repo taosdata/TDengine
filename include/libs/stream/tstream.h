@@ -356,7 +356,7 @@ SStreamTask* tNewSStreamTask(int64_t streamId);
 int32_t      tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
-int32_t      streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem);
+int32_t      tAppendDataForStream(SStreamTask* pTask, SStreamQueueItem* pItem);
 
 static FORCE_INLINE void streamTaskInputFail(SStreamTask* pTask) {
   atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);

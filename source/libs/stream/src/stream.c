@@ -68,7 +68,7 @@ void streamSchedByTimer(void* param, void* tmrId) {
 
     atomic_store_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE);
 
-    if (streamTaskInput(pTask, (SStreamQueueItem*)trigger) < 0) {
+    if (tAppendDataForStream(pTask, (SStreamQueueItem*)trigger) < 0) {
       taosFreeQitem(trigger);
       taosTmrReset(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->timer);
       return;
@@ -123,7 +123,7 @@ int32_t streamTaskEnqueue(SStreamTask* pTask, const SStreamDispatchReq* pReq, SR
     /*pData->blocks = pReq->data;*/
     /*pBlock->sourceVer = pReq->sourceVer;*/
     streamDispatchReqToData(pReq, pData);
-    if (streamTaskInput(pTask, (SStreamQueueItem*)pData) == 0) {
+    if (tAppendDataForStream(pTask, (SStreamQueueItem*)pData) == 0) {
       status = TASK_INPUT_STATUS__NORMAL;
     } else {
       status = TASK_INPUT_STATUS__FAILED;
@@ -164,7 +164,7 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
     /*pData->blocks = pReq->data;*/
     /*pBlock->sourceVer = pReq->sourceVer;*/
     streamRetrieveReqToData(pReq, pData);
-    if (streamTaskInput(pTask, (SStreamQueueItem*)pData) == 0) {
+    if (tAppendDataForStream(pTask, (SStreamQueueItem*)pData) == 0) {
       status = TASK_INPUT_STATUS__NORMAL;
     } else {
       status = TASK_INPUT_STATUS__FAILED;
@@ -275,7 +275,7 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
   return 0;
 }
 
-int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
+int32_t tAppendDataForStream(SStreamTask* pTask, SStreamQueueItem* pItem) {
   int8_t type = pItem->type;
 
   if (type == STREAM_INPUT__DATA_SUBMIT) {
@@ -288,9 +288,11 @@ int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
     }
 
     taosWriteQitem(pTask->inputQueue->queue, pSubmitBlock);
+
+    int32_t total = taosQueueItemSize(pTask->inputQueue->queue);
     qDebug("stream task:%d %p submit enqueue %p %p %p msgLen:%d ver:%" PRId64 ", total in queue:%d", pTask->taskId,
            pTask, pItem, pSubmitBlock, pSubmitBlock->submit.msgStr, pSubmitBlock->submit.msgLen,
-           pSubmitBlock->submit.ver, pTask->inputQueue->queue->numOfItems);
+           pSubmitBlock->submit.ver, total);
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
