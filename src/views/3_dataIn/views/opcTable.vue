@@ -485,7 +485,7 @@ export default {
             ? data.to_expand.subject
             : "";
         this.$parent.uidata = editDdata;
-        // this.$parent.toggleComponent("ui", this.ruleForm.type, data.id, dbname);
+        this.$parent.toggleComponent("ui");
       }
 
       // this.$router.push({
@@ -575,7 +575,7 @@ export default {
           };
         } else {
           params = {
-            from: `opc+da://${this.ruleForm.server}`,
+            from: `opc+da://${this.ruleForm.server}?nodes=${this.ruleForm.nodes}`,
           };
         }
 

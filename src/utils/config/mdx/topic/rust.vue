@@ -1,88 +1,140 @@
 <template>
   <div>
-    <h2 id="create-project">{{ $t("docs.connector.rust.step1") }}</h2>
+    <p>{{ $t("docs.topic.topdesc", [org, instance, topic]) }}</p>
+    <h2 id="rust-create-project">{{ $t("docs.topic.rust.step1") }}</h2>
+    <p>{{ $t("docs.topic.rust.step1desc") }}</p>
     <pre v-highlight><code>cargo new --bin cloud-example
 </code></pre>
-    <h2 id="add-dependency">{{ $t("docs.connector.rust.step2") }}</h2>
-    <p>{{ $t("docs.connector.rust.step2desc") }}</p>
+    <p>{{ $t("docs.topic.rust.step1desc1") }}</p>
     <pre v-highlight><code class="language-toml">[package]
 name = &quot;cloud-example&quot;
 version = &quot;0.1.0&quot;
-edition = &quot;2021&quot;
+edition = &quot;2023&quot;
 
 [dependencies]
-taos = { version = &quot;*&quot;, default-features = false, features = [&quot;ws&quot;] }
+taos = { version = &quot;*&quot;, default-features = false, features = [&quot;ws&quot;, &quot;ws-native-tls&quot;] }
 tokio = { version = &quot;1&quot;, features = [&quot;full&quot;]}
 anyhow = &quot;1.0.0&quot; 
 </code></pre>
-    <h2 id="config">{{ $t("docs.connector.rust.step3") }}</h2>
-    <p>{{ $t("component.docConfig.content", [" DSN "]) }}</p>
-    <el-tabs value="bash">
-      <el-tab-pane name="bash" label="Bash">
-        <pre
-          v-highlight="
-            `export TDENGINE_DSN=&quot;${DSN}&quot;
-`
-          "
-        ><code class="language-bash"></code></pre>
-      </el-tab-pane>
-      <el-tab-pane name="cmd" label="CMD">
-        <pre
-          v-highlight="
-            `set TDENGINE_DSN=&quot;${DSN}&quot;
-`
-          "
-        ><code class="language-bash"></code></pre>
-      </el-tab-pane>
-      <el-tab-pane name="powershell" label="Powershell">
-        <pre
-          v-highlight="
-            `$env:TDENGINE_DSN=&quot;${DSN}&quot;
-`
-          "
-        ><code class="language-powershell"></code></pre>
-      </el-tab-pane>
-    </el-tabs>
+    <doc-config
+      :id="'rust-config'"
+      :url="tmq"
+      :need-token="false"
+      :url-key="'TDENGINE_CLOUD_TMQ'"
+      :url-des="$t('component.docConfig.tmq')"
+    ></doc-config>
+    <h2 id="rust-create-consumer">{{ $t("docs.topic.step3") }}</h2>
+    <p>{{ $t("docs.topic.step3desc") }}</p>
+    <pre
+      v-highlight
+    ><code class="language-rust">let tmq_str = std::env::var("TDENGINE_CLOUD_TMQ")?;
+let tmq_uri = format!( "{}&\
+group.id=test_group_rs&\
+client.id=test_consumer_ws", tmq_str);
+println!("request tmq URI is {tmq_uri}\n");
+let tmq = TmqBuilder::from_dsn(tmq_uri,)?;
+let mut consumer = tmq.build()?;</code></pre>
+    <h2 id="rust-subscribe-consume">{{ $t("docs.topic.step4") }}</h2>
+    <p>{{ $t("docs.topic.step4desc", [topicName]) }}</p>
+    <pre
+      v-highlight="
+        `consumer.subscribe([&quot;${topicName}&quot;]).await?;
 
-    <h2 id="connect">{{ $t("docs.connector.rust.step4") }}</h2>
-    <p>{{ $t("docs.connector.rust.step41desc") }}</p>
-    <pre v-highlight><code class="language-rust">use anyhow::Result;
-use taos::*;
+// consume loop
+consumer
+  .stream()
+  .try_for_each_concurrent(10, |(offset, message)| async {
+    let topic = offset.topic();
+    // the vgroup id, like partition id in kafka.
+    let vgroup_id = offset.vgroup_id();
+    println!(&quot;* in vgroup id {vgroup_id} of topic {topic}\\n&quot;);
+
+    if let Some(data) = message.into_data() {
+      while let Some(block) = data.fetch_raw_block().await? {
+        // A two-dimension matrix while each cell is a [taos::Value] object.
+        let values = block.to_values();
+        // Number of rows.
+        assert_eq!(values.len(), block.nrows());
+        // Number of columns
+        assert_eq!(values[0].len(), block.ncols());
+        println!(&quot;first row: {}&quot;, values[0].iter().join(&quot;, &quot;));
+      }
+    }
+    consumer.commit(offset).await?;
+    Ok(())
+  })
+  .await?;`
+      "
+    ><code class="language-rust"></code></pre>
+    <h2 id="rust-close-consumer">{{ $t("docs.topic.step5") }}</h2>
+    <p>{{ $t("docs.topic.step5desc", [topicName]) }}</p>
+    <pre
+      v-highlight
+    ><code class="language-rust">consumer.unsubscribe().await;</code></pre>
+    <h2 id="rust-fullexample">{{ $t("docs.topic.step6") }}</h2>
+    <p>{{ $t("docs.topic.step6desc") }}</p>
+    <pre
+      v-highlight="
+        `use taos::*;
 
 #[tokio::main]
-async fn main() -&gt; Result&lt;()&gt; {
-    let dsn = std::env::var(&quot;TDENGINE_DSN&quot;)?;
-    let taos = TaosBuilder::from_dsn(dsn)?.build()?;
-    let _ = taos.query(&quot;show databases&quot;).await?;
-    println!(&quot;Connected&quot;);
-    Ok(())
-}
-</code></pre>
-    <p>{{ $t("docs.connector.rust.step42desc") }}</p>
+async fn main() -> anyhow::Result<()> {
+  // subscribe
+  let tmq_str = std::env::var(&quot;TDENGINE_CLOUD_TMQ&quot;)?;
+  let tmq_uri = format!( &quot;{}&\\
+  group.id=test_group_rs&\\
+  client.id=test_consumer_ws&quot;, tmq_str);
+  println!(&quot;request tmq URI is {tmq_uri}\n&quot;);
+  let tmq = TmqBuilder::from_dsn(tmq_uri,)?;
+  let mut consumer = tmq.build()?;
+  consumer.subscribe([&quot;${topicName}&quot;]).await?;
+
+  // consume loop
+  consumer
+    .stream()
+    .try_for_each_concurrent(10, |(offset, message)| async {
+      let topic = offset.topic();
+      // the vgroup id, like partition id in kafka.
+      let vgroup_id = offset.vgroup_id();
+      println!(&quot;* in vgroup id {vgroup_id} of topic {topic}\\n&quot;);
+
+      if let Some(data) = message.into_data() {
+        while let Some(block) = data.fetch_raw_block().await? {
+          // A two-dimension matrix while each cell is a [taos::Value] object.
+          let values = block.to_values();
+          // Number of rows.
+          assert_eq!(values.len(), block.nrows());
+          // Number of columns
+          assert_eq!(values[0].len(), block.ncols());
+          println!(&quot;first row: {}&quot;, values[0].iter().join(&quot;, &quot;));
+        }
+      }
+      consumer.commit(offset).await?;
+      Ok(())
+    })
+    .await?;
+
+  consumer.unsubscribe().await;
+
+  Ok(())
+}`
+      "
+    ><code class="language-rust"></code></pre>
     <p>
-      {{ $t("docs.connector.bottom2") }}
-      <a :href="`https://docs.${urlPart}.com/develop/insert-data/`">{{
-        `https://docs.${urlPart}.com/develop/insert-data/`
+      {{ $t("docs.topic.enddesc") }}
+      <a :href="`https://docs.tdengine.com/develop/tmq/#data-subscription`">{{
+        `https://docs.tdengine.com/develop/tmq/#data-subscription`
       }}</a>
-      {{ $t("docs.connector.bottomand") }}
-      <a :href="`https://docs.${urlPart}.com/develop/query-data/`">{{
-        `https://docs.${urlPart}.com/develop/query-data/`
-      }}</a
-      >{{ $t("docs.connector.bottom3end") }}
-    </p>
-    <p>
-      {{ $t("docs.connector.bottom3") }}
-      <a
-        :href="`https://docs.${urlPart}.com/reference/rest-api/`"
-        >REST API</a
-      >{{ $t("docs.connector.bottom3end") }}
+      {{ $t("docs.topic.enddesc1") }}
     </p>
   </div>
 </template>
 
 <script>
+import DocConfig from "@/components/DocConfig/index.vue";
 import { IsAliyun } from "@/const";
 export default {
+  components: { DocConfig },
   props: {
     token: {
       type: String,
@@ -92,16 +144,29 @@ export default {
       type: String,
       default: "",
     },
-  },
-  data() {
-    return {};
+    topic: {
+      type: String,
+      default: "",
+    },
   },
   computed: {
-    DSN() {
-      return this.url + "?token=" + this.token;
+    tmq() {
+      const wsPrefix = this.url.startsWith("https") ? "wss" : "ws";
+      const uri = this.url.replace(/https?:\/\//, "");
+      const tokenStr = this.token;
+      return `${wsPrefix}://${uri}/rest/tmq?token=${tokenStr}`;
+    },
+    org() {
+      return this.$store.state.currentOrganization?.orgName || "";
+    },
+    instance() {
+      return this.$store.state.app?.current_cluster?.alias || "";
     },
     urlPart() {
       return IsAliyun ? "taosdata" : "tdengine";
+    },
+    topicName() {
+      return this.topic ? this.topic : this.$t("docs.topic.defaultTopic");
     },
   },
 };

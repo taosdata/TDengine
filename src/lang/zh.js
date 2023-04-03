@@ -1171,7 +1171,7 @@ export default {
       },
     },
     topic: {
-      topdesc: "您可以按照下面的步骤消费组织 `{0}` 的 TDengine 实例 `{1}` 中的主题 `{2}` 。",
+      topdesc: "您可以按照下面的步骤消费组织的 TDengine 实例 中的主题。",
       python: {
         step1: "安装模块",
         step1desc: "首先您需要安装 `taos-ws-py` 模块，版本需要大于 `0.2.1` 。在您的终端执行下面的命令。",

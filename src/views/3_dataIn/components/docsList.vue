@@ -41,6 +41,10 @@ export default {
       return this.parentUrl + this.urlPre + encodeURIComponent(name);
     },
     getImg(name, icon) {
+      console.log(name,icon,'图标');
+      if(name=='REST API'){
+        name='restapi'
+      }
       try {
           return require(`@/assets/images/${icon || name}.svg`);
         } catch (err) {

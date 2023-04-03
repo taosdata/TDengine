@@ -29,7 +29,6 @@ export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.ap
 
 export function executeDBOperations(sql, appId = store.getters.appId) {
   return request({
-    // url: `/private/data/sql/${appId}`,
     baseURL: '',
     url: '/rest/sql',
     method: "post",
@@ -39,7 +38,6 @@ export function executeDBOperations(sql, appId = store.getters.appId) {
     data: sql
   })
     .then(data => {
-      // data = jsonToObj(data);
       data = JSON.parse(JSON.stringify((data)));
       if (data.code == 0) return compHeadAndData(data.column_meta, data.data);
       return Promise.reject(data);

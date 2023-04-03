@@ -128,6 +128,9 @@
         return topList;
       },
       getImg(name, icon) {
+        if(name=='REST API'){
+          name='restapi'
+        }
         try {
           return require(`@/assets/images/${icon || name}.svg`);
         } catch (err) {

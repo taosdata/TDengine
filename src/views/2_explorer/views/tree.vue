@@ -56,25 +56,31 @@
             <section class="operate-btn">
               <template v-if="!data.dataType">
                 <span>{{ data.dataType }}</span>
-                <el-tooltip effect="light" placement="top" :content="getTooltip(data, 'view')">
-                <i
-                  class="el-icon-view operate-icon"
-                  @click.stop="view(data)"
+                <el-tooltip
+                  effect="light"
+                  placement="top"
+                  :content="getTooltip(data, 'view')"
                   v-if="!['sfile', 'nfile'].includes(data.typeName)"
-                ></i>
+                >
+                  <i
+                    class="el-icon-view operate-icon"
+                    @click.stop="view(data)"
+                    
+                  ></i>
                 </el-tooltip>
                 <template v-if="!data.noOperate">
                   <el-tooltip
                     effect="light"
                     placement="top"
                     :content="getTooltip(data, 'add')"
-                  >
-                    <i
-                      v-permission
-                      v-if="
+                    v-if="
                         data.typeName !== 'table' &&
                         data.typeName !== 'database'
                       "
+                  >
+                    <i
+                      v-permission
+                      
                       class="el-icon-plus operate-icon"
                       @click.stop="add(data, node)"
                     ></i>
@@ -85,15 +91,15 @@
                     @click.stop="edit(data, node)"
                     v-if="!['sfile', 'nfile'].includes(data.typeName)"
                   ></i>
-                  <template v-if="isRoot==='root'">
+                  <template v-if="isRoot === 'root'">
                     <i
-                    v-permission
-                    class="el-icon-unlock operate-icon"
-                    @click.stop="manage(data, node)"
-                    v-if="data.typeName === 'database'"
-                  ></i>
+                      v-permission
+                      class="el-icon-unlock operate-icon"
+                      @click.stop="manage(data, node)"
+                      v-if="data.typeName === 'database'"
+                    ></i>
                   </template>
-                  
+
                   <i
                     v-permission
                     class="el-icon-delete operate-icon"
@@ -175,7 +181,7 @@ export default {
     };
     this.notAdd = ["column", "tag"];
     return {
-      isRoot:sessionStorage.getItem('username'),
+      isRoot: sessionStorage.getItem("username"),
       defaultProps: {
         children: "children",
         label: "label",
@@ -370,6 +376,7 @@ export default {
     },
     // 处理全局db和stb
     async handleVar(data, node) {
+      console.log(data.node, "0000");
       switch (data.typeName) {
         case "database":
           this.$store.commit("dbs/SET_SELECTED_DB", data.name);
@@ -562,17 +569,19 @@ export default {
       this.changePartActive();
     },
     async manage(data, node) {
-      console.log("数据库管理，只有管理员可以看到该功能",data,node);
+      console.log("数据库管理，只有管理员可以看到该功能", data, node);
       await this.handleVar(data);
-        this.$store.state.console.currentInfoType = data.typeName;
-        this.$store.commit("console/SET_CURRENT_INFO_DATA", data);
-        this.$store.state.console.currentComponent = "DatabasePrivileges";
-        this.$store.commit("console/SET_TAB_NAME", this.$t(`data.databaseControl`).replace("{dbName}", data.name));
-        this.$store.state.console.partActive = "detail";
+      this.$store.state.console.currentInfoType = data.typeName;
+      this.$store.commit("console/SET_CURRENT_INFO_DATA", data);
+      this.$store.state.console.currentComponent = "DatabasePrivileges";
+      this.$store.commit(
+        "console/SET_TAB_NAME",
+        this.$t(`data.databaseControl`).replace("{dbName}", data.name)
+      );
+      this.$store.state.console.partActive = "detail";
     },
     getTooltip(data, operate) {
-      console.log(data,operate,'toolitp-----ss');
-      return {
+      let obj = {
         database: {
           add: this.$t("data.createStable", [data.name]),
           edit: this.$t("data.editDatabase"),
@@ -587,14 +596,28 @@ export default {
           del: this.$t("data.delStable"),
         },
         nfile: {
-          add:this.$t('data.createnormalTable',[data.name]),
+          add: this.$t("data.createnormalTable", [data.name]),
           edit: this.$t("data.editTable", [data.name]),
           view: this.$t("data.viewTable"),
           del: this.$t("data.delTable"),
         },
-      }[data.typeName][operate];
+        table: {
+          add: this.$t("data.createnormalTable", [data.name]),
+          edit: this.$t("data.editTable", [data.name]),
+          view: this.$t("data.viewTable"),
+          del: this.$t("data.delTable"),
+        },
+        stable: {
+          add: this.$t("data.createnormalTable", [data.name]),
+          edit: this.$t("data.editTable", [data.name]),
+          view: this.$t("data.viewTable"),
+          del: this.$t("data.delTable"),
+        },
+      };
+
+      console.log(data, operate,obj[data.typeName], "toolitp-----ss");
+      return obj[data.typeName][operate];
     },
-   
   },
 };
 </script>

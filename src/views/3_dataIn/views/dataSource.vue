@@ -240,6 +240,7 @@ export default {
       // });
     },
     handleAdd() {
+      
       localStorage.setItem("datainName", this.ruleForm.name);
       this.$parent.toggleComponent("ui", this.ruleForm.type);
     },
