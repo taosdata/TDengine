@@ -755,7 +755,8 @@ static bool isPrimaryKeyImpl(SNode* pExpr) {
   } else if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
     SFunctionNode* pFunc = (SFunctionNode*)pExpr;
     if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType || FUNCTION_TYPE_GROUP_KEY == pFunc->funcType ||
-        FUNCTION_TYPE_FIRST == pFunc->funcType || FUNCTION_TYPE_LAST == pFunc->funcType) {
+        FUNCTION_TYPE_FIRST == pFunc->funcType || FUNCTION_TYPE_LAST == pFunc->funcType ||
+        FUNCTION_TYPE_LAST_ROW == pFunc->funcType) {
       return isPrimaryKeyImpl(nodesListGetNode(pFunc->pParameterList, 0));
     } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
                FUNCTION_TYPE_IROWTS == pFunc->funcType) {
