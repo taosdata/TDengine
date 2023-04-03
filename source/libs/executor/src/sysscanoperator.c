@@ -83,10 +83,11 @@ typedef struct MergeIndex {
 } MergeIndex;
 
 typedef struct SBlockDistInfo {
-  SSDataBlock* pResBlock;
-  STsdbReader* pHandle;
-  SReadHandle  readHandle;
-  uint64_t     uid;  // table uid
+  SSDataBlock*    pResBlock;
+  STsdbReader*    pHandle;
+  SReadHandle     readHandle;
+  STableListInfo* pTableListInfo;
+  uint64_t        uid;  // table uid
 } SBlockDistInfo;
 
 static int32_t sysChkFilter__Comm(SNode* pNode);
@@ -2214,6 +2215,7 @@ static void destroyBlockDistScanOperatorInfo(void* param) {
   SBlockDistInfo* pDistInfo = (SBlockDistInfo*)param;
   blockDataDestroy(pDistInfo->pResBlock);
   tsdbReaderClose(pDistInfo->pHandle);
+  tableListDestroy(pDistInfo->pTableListInfo);
   taosMemoryFreeClear(param);
 }
 
@@ -2245,7 +2247,7 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
 }
 
 SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanPhysiNode* pBlockScanNode,
-                                               SExecTaskInfo* pTaskInfo) {
+                                               STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo) {
   SBlockDistInfo* pInfo = taosMemoryCalloc(1, sizeof(SBlockDistInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -2263,9 +2265,9 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
       goto _error;
     }
 
-    STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
-    size_t          num = tableListGetSize(pTableListInfo);
-    void*           pList = tableListGetInfo(pTableListInfo, 0);
+    pInfo->pTableListInfo = pTableListInfo;
+    size_t num = tableListGetSize(pTableListInfo);
+    void*  pList = tableListGetInfo(pTableListInfo, 0);
 
     code = tsdbReaderOpen(readHandle->vnode, &cond, pList, num, pInfo->pResBlock, &pInfo->pHandle, pTaskInfo->id.str, false);
     cleanupQueryTableDataCond(&cond);
