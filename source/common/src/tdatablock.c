@@ -1864,8 +1864,7 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
     }
   }
   struct tm ptm = {0};
-  if (taosLocalTime(&tt, &ptm) == NULL) {
-    sprintf(buf, "NaN");
+  if (taosLocalTime(&tt, &ptm, buf) == NULL) {
     return buf;
   }
   size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);

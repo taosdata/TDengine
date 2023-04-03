@@ -1069,8 +1069,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     struct tm tmInfo;
     int32_t len = 0;
 
-    if (taosLocalTime((const time_t *)&timeVal, &tmInfo) == NULL) {
-      sprintf(buf, "NaN");
+    if (taosLocalTime((const time_t *)&timeVal, &tmInfo, buf) == NULL) {
       len = (int32_t)strlen(buf);
       goto _end;
     }
