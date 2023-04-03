@@ -1070,8 +1070,15 @@ int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols,
   if (code != 0) {
     return code;
   }
+
   SUdfcUvSession *session = handle;
   code = doCallUdfScalarFunc(handle, input, numOfCols, output);
+  if (code != TSDB_CODE_SUCCESS) {
+    fnError("udfc scalar function execution failure");
+    releaseUdfFuncHandle(udfName);
+    return code;
+  }
+
   if (output->columnData == NULL) {
     fnError("udfc scalar function calculate error. no column data");
     code = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;

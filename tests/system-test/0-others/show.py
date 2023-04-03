@@ -28,7 +28,7 @@ class TDTestCase:
         self.perf_param = ['apps','connections','consumers','queries','transactions']
         self.perf_param_list = ['apps','connections','consumers','queries','trans']
         self.dbname = "db"
-        self.vgroups = 10
+        self.vgroups = 4
         self.stbname = f'`{tdCom.getLongName(5)}`'
         self.tbname = f'`{tdCom.getLongName(3)}`'
         self.db_param = {

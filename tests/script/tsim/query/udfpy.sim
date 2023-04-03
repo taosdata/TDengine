@@ -42,6 +42,25 @@ sql show functions;
 if $rows != 4 then
   return -1
 endi
+
+sql select func_language, func_body,name from information_schema.ins_functions order by name
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != @C@ then 
+  return -1
+endi
+if $data10 != @C@ then 
+  return -1
+endi
+if $data20 != @Python@ then 
+  return -1
+endi
+if $data30 != @Python@ then 
+  return -1
+endi
+
 sql select bit_and(f, f) from t;
 if $rows != 2 then
   return -1
