@@ -1,0 +1,21 @@
+# This is a automacically generated configuration file for Explorer in [TOML](https://toml.io/) format.
+#
+# Here is a full list of available options.
+
+# Explorer server port to listen on.
+#
+# port = 6060
+
+# Explorer server log level, default is "info"
+#
+# log_level = "info"
+
+# REST API endpoint to connect to the cluster.
+#   Default is "http://localhost:6041" - the default endpoint for REST API.
+#
+# cluster = "http://localhost:6041"
+
+# API endpoint for data replication/backup/data sources. No default option.
+#   Set it to API URL like "http://localhost:6050".
+#
+# x_api =
