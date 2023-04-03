@@ -404,7 +404,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       }
     }
 
-    STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
+    STableListInfo* pTableListInfo = ((STableScanInfo*)pScanInfo->pTableScanOp->info)->base.pTableListInfo;
     taosWLockLatch(&pTaskInfo->lock);
 
     for (int32_t i = 0; i < numOfQualifiedTables; ++i) {
@@ -485,9 +485,7 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
 
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, char* sql, EOPTR_EXEC_MODEL model) {
-  assert(pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
-
   taosThreadOnce(&initPoolOnce, initRefPool);
 
   qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
@@ -507,7 +505,12 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
 
   if (handle) {
     void* pSinkParam = NULL;
-    code = createDataSinkParam(pSubplan->pDataSink, &pSinkParam, pTaskInfo, readHandle);
+
+    SArray* pInfoList = getTableListInfo(*pTask);
+    STableListInfo* pTableListInfo = taosArrayGetP(pInfoList, 0);
+    taosArrayDestroy(pInfoList);
+
+    code = createDataSinkParam(pSubplan->pDataSink, &pSinkParam, pTableListInfo, readHandle);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to createDataSinkParam, vgId:%d, code:%s, %s", vgId, tstrerror(code), (*pTask)->id.str);
       goto _error;
@@ -1083,7 +1086,6 @@ void qStreamSetOpen(qTaskInfo_t tinfo) {
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {
   SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo*  pOperator = pTaskInfo->pRoot;
-  STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
   const char*     id = GET_TASKID(pTaskInfo);
 
   // if pOffset equal to current offset, means continue consume
@@ -1092,17 +1094,14 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   }
 
   if (subType == TOPIC_SUB_TYPE__COLUMN) {
-    if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-      if (pOperator->numOfDownstream != 1) {
-        qError("invalid operator, number of downstream:%d, %s", pOperator->numOfDownstream, id);
-        return -1;
-      }
-      pOperator = pOperator->pDownstream[0];
+    pOperator = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id);
+    if (pOperator == NULL) {
+      return -1;
     }
-
     SStreamScanInfo* pInfo = pOperator->info;
     STableScanInfo*  pScanInfo = pInfo->pTableScanOp->info;
     STableScanBase*  pScanBaseInfo = &pScanInfo->base;
+    STableListInfo* pTableListInfo = pScanBaseInfo->pTableListInfo;
 
     if (pOffset->type == TMQ_OFFSET__LOG) {
       tsdbReaderClose(pScanBaseInfo->dataReader);
@@ -1187,9 +1186,14 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     }
 
   } else {  // subType == TOPIC_SUB_TYPE__TABLE/TOPIC_SUB_TYPE__DB
+
     if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
       SStreamRawScanInfo* pInfo = pOperator->info;
       SSnapContext*       sContext = pInfo->sContext;
+
+      SOperatorInfo* p = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, id);
+      STableListInfo* pTableListInfo = ((SStreamRawScanInfo*)(p->info))->pTableListInfo;
+
       if (setForSnapShot(sContext, pOffset->uid) != 0) {
         qError("setDataForSnapShot error. uid:%" PRId64" , %s", pOffset->uid, id);
         return -1;
