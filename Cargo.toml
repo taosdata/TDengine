@@ -31,7 +31,7 @@ itertools = "0.10.4"
 lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = "0.4"
-parquet = "35.0.0"
+parquet = { workspace = true }
 parse_duration = "2.1"
 pretty_env_logger = "0.4"
 regex = "1"
@@ -87,7 +87,9 @@ winapi = { version = "0.3", features = ["processthreadsapi"] }
 libc = "0.2"
 
 [workspace.dependencies]
-arrow = { version = "36.0.0", default-features = false }
+arrow = { version = "36.0.0" }
+parquet = "36.0.0"
+
 taos = { version = "0.7.0", default-features = false, features = ["ws", "deadpool"] }
 taos-query = { version = "0.7.0", default-features = false, features = ["deadpool"] }
 
