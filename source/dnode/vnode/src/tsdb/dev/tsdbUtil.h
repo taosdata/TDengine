@@ -26,6 +26,11 @@ extern "C" {
 typedef struct SDelBlock SDelBlock;
 typedef struct SDelBlk   SDelBlk;
 
+typedef struct SFDataPtr {
+  int64_t offset;
+  int64_t size;
+} SFDataPtr;
+
 int32_t tDelBlockCreate(SDelBlock *pDelBlock, int32_t capacity);
 int32_t tDelBlockDestroy(SDelBlock *pDelBlock);
 int32_t tDelBlockClear(SDelBlock *pDelBlock);
@@ -52,12 +57,12 @@ struct SDelBlock {
 };
 
 struct SDelBlk {
-  int64_t suidMax;
-  int64_t suidMin;
-  int64_t uidMax;
-  int64_t uidMin;
-  int64_t verMax;
-  int64_t verMin;
+  int32_t   nRow;
+  TABLEID   minTid;
+  TABLEID   maxTid;
+  int64_t   minVer;
+  int64_t   maxVer;
+  SFDataPtr dp;
 };
 struct STbStatisBlock {
   int32_t  capacity;
@@ -65,12 +70,12 @@ struct STbStatisBlock {
   int64_t *aData[7];  // [suid, uid, skey, sver, ekey, ever, count]
 };
 struct STbStatisBlk {
-  int64_t suidMax;
-  int64_t suidMin;
-  int64_t uidMax;
-  int64_t uidMin;
-  int64_t offset;
-  int64_t size;
+  int32_t   nRow;
+  TABLEID   minTid;
+  TABLEID   maxTid;
+  int64_t   minVer;
+  int64_t   maxVer;
+  SFDataPtr dp;
 };
 
 #ifdef __cplusplus

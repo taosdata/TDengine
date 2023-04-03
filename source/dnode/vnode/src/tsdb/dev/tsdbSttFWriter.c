@@ -21,11 +21,6 @@ extern int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, 
 extern int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size);
 extern int32_t tsdbFsyncFile(STsdbFD *pFD);
 
-typedef struct SFDataPtr {
-  int64_t offset;
-  int64_t size;
-} SFDataPtr;
-
 typedef struct {
   SFDataPtr dict[4];  // 0:bloom filter, 1:SSttBlk, 2:STbStatisBlk, 3:SDelBlk
   uint8_t   reserved[32];
@@ -106,16 +101,91 @@ _exit:
 
 static int32_t write_statistics_block(struct SSttFWriter *pWriter) {
   int32_t code = 0;
+  int32_t lino;
+
+  STbStatisBlk *pStatisBlk = (STbStatisBlk *)taosArrayReserve(pWriter->aStatisBlk, 1);
+  if (pStatisBlk == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  pStatisBlk->nRow = pWriter->sData.nRow;
+  pStatisBlk->minTid.suid = pWriter->sData.aData[0][0];
+  pStatisBlk->minTid.uid = pWriter->sData.aData[1][0];
+  pStatisBlk->maxTid.suid = pWriter->sData.aData[0][pWriter->sData.nRow - 1];
+  pStatisBlk->maxTid.uid = pWriter->sData.aData[1][pWriter->sData.nRow - 1];
+  pStatisBlk->minVer = pStatisBlk->maxVer = pStatisBlk->maxVer = pWriter->sData.aData[2][0];
+  for (int32_t iRow = 1; iRow < pWriter->sData.nRow; iRow++) {
+    if (pStatisBlk->minVer > pWriter->sData.aData[2][iRow]) pStatisBlk->minVer = pWriter->sData.aData[2][iRow];
+    if (pStatisBlk->maxVer < pWriter->sData.aData[2][iRow]) pStatisBlk->maxVer = pWriter->sData.aData[2][iRow];
+  }
+
+  pStatisBlk->dp.offset = pWriter->config.file.size;
+  pStatisBlk->dp.size = 0;  // TODO
+
+  int64_t tsize = sizeof(int64_t) * pWriter->sData.nRow;
+  for (int32_t i = 0; i < ARRAY_SIZE(pWriter->sData.aData); i++) {
+    code = tsdbWriteFile(pWriter->pFd, pWriter->config.file.size, (const uint8_t *)pWriter->sData.aData[i], tsize);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    pStatisBlk->dp.size += tsize;
+    pWriter->config.file.size += tsize;
+  }
 
   tTbStatisBlockClear(&pWriter->sData);
-  // TODO
 
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pWriter->config.pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
+  } else {
+    // tsdbTrace();
+  }
   return code;
 }
 
 static int32_t write_delete_block(struct SSttFWriter *pWriter) {
   int32_t code = 0;
-  // TODO
+  int32_t lino;
+
+  SDelBlk *pDelBlk = taosArrayReserve(pWriter->aDelBlk, 1);
+  if (pDelBlk == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  pDelBlk->nRow = pWriter->sData.nRow;
+  pDelBlk->minTid.suid = pWriter->sData.aData[0][0];
+  pDelBlk->minTid.uid = pWriter->sData.aData[1][0];
+  pDelBlk->maxTid.suid = pWriter->sData.aData[0][pWriter->sData.nRow - 1];
+  pDelBlk->maxTid.uid = pWriter->sData.aData[1][pWriter->sData.nRow - 1];
+  pDelBlk->minVer = pDelBlk->maxVer = pDelBlk->maxVer = pWriter->sData.aData[2][0];
+  for (int32_t iRow = 1; iRow < pWriter->sData.nRow; iRow++) {
+    if (pDelBlk->minVer > pWriter->sData.aData[2][iRow]) pDelBlk->minVer = pWriter->sData.aData[2][iRow];
+    if (pDelBlk->maxVer < pWriter->sData.aData[2][iRow]) pDelBlk->maxVer = pWriter->sData.aData[2][iRow];
+  }
+
+  pDelBlk->dp.offset = pWriter->config.file.size;
+  pDelBlk->dp.size = 0;  // TODO
+
+  int64_t tsize = sizeof(int64_t) * pWriter->dData.nRow;
+  for (int32_t i = 0; i < ARRAY_SIZE(pWriter->dData.aData); i++) {
+    code = tsdbWriteFile(pWriter->pFd, pWriter->config.file.size, (const uint8_t *)pWriter->dData.aData[i], tsize);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    pDelBlk->dp.size += tsize;
+    pWriter->config.file.size += tsize;
+  }
+
+  tDelBlockDestroy(&pWriter->dData);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pWriter->config.pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
+  } else {
+    // tsdbTrace();
+  }
   return code;
 }
 
