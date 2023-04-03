@@ -197,24 +197,7 @@ IF(TD_BULID_EXPLORER)
     set(ENV{TAOS_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib)
     set(ENV{LD_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LD_LIBRARY_PATH})
     set(ENV{LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LIBRARY_PATH})
-    IF (TD_LINUX)
-        ExternalProject_Add(explorer
-            PREFIX              explorer
-            SOURCE_DIR          ${CMAKE_CURRENT_SOURCE_DIR}/explorer
-            BUILD_ALWAYS        off
-            BUILD_IN_SOURCE     1
-            CONFIGURE_COMMAND
-            COMMAND git checkout main
-            COMMAND git pull || true
-            BUILD_COMMAND
-            COMMAND git checkout main
-            COMMAND git pull || true
-            COMMAND npm install && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} npm run build && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build --release
-            COMMAND git checkout .
-            INSTALL_COMMAND
-            COMMAND cmake -E copy target/release/taos-explorer ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer
-        )
-    ELSEIF (TD_WINDOWS)
+    IF (TD_WINDOWS)
         ExternalProject_Add(explorer
             PREFIX              explorer
             SOURCE_DIR          ${CMAKE_CURRENT_SOURCE_DIR}/explorer
@@ -225,11 +208,31 @@ IF(TD_BULID_EXPLORER)
             COMMAND git pull || true
             # COMMAND cargo update
             BUILD_COMMAND
+            COMMAND git checkout main
             COMMAND git pull || true
-            COMMAND set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && npm install && npm run build && cargo build --release
+            COMMAND yarn --version || npm install -g yarn
+            COMMAND set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && yarn && yarn build && cargo build --release
             COMMAND git checkout .
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taos-explorer.exe ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer.exe
+        )
+    ELSE()
+        ExternalProject_Add(explorer
+            PREFIX              explorer
+            SOURCE_DIR          ${CMAKE_CURRENT_SOURCE_DIR}/explorer
+            BUILD_ALWAYS        off
+            BUILD_IN_SOURCE     1
+            CONFIGURE_COMMAND
+            COMMAND git checkout main
+            COMMAND git pull || true
+            BUILD_COMMAND
+            COMMAND git checkout main
+            COMMAND git pull || true
+            COMMAND yarn --version || npm install -g yarn
+            COMMAND yarn && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} yarn build && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build --release
+            COMMAND git checkout .
+            INSTALL_COMMAND
+            COMMAND cmake -E copy target/release/taos-explorer ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer
         )
     ENDIF ()
 ENDIF ()
