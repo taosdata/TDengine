@@ -1668,6 +1668,7 @@ class StreamComputingTest(TDCase):
                         self.tdSql.query(f'select count(*) from `{tname}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix}`;')
                         ptn_counter += 1
             # self.tdSql.query(f'select count(*) from {self.ctb_name}_{self.subtable_prefix}{self.ctb_name}{self.subtable_suffix};')
+                    self.tdSql.checkEqual(self.tdSql.query_data[0][0] , 5)
                     self.tdSql.checkEqual(self.tdSql.query_data[0][0] > 0, True)
 
             self.tdSql.query(f'select * from {self.tb_name}')
@@ -2808,6 +2809,11 @@ class StreamComputingTest(TDCase):
         # self.at_once_interval(interval=random.randint(10, 15), partition="tbname")
         # self.at_once_interval_ext(interval=random.randint(10, 15), delete=False, fill_history_value=1, partition=None, subtable="constant", stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm.split(",")[0], use_exist_stb=True)
         # self.at_once_interval_ext(interval=random.randint(10, 15), delete=False, fill_history_value=1, partition=f'tbname,{self.tag_filter_des_select_elm},c1', stb_field_name_value=self.tb_filter_des_select_elm, tag_value=self.tag_filter_des_select_elm, use_exist_stb=True)
+        # self.vgroups = 1
+        # # for fill_value in ["NULL", "PREV", "NEXT", "VALUE,1,2,3,4,5,6,7,8,9,10,11,1,2,3,4,5,6,7,8,9,10,11"]:
+        # for fill_value in ["NEXT"]:
+        #     for watermark in [None]:
+        #         self.window_close_interval(interval=random.randint(10, 12), watermark=watermark, fill_value=fill_value)
         # return
         for vgroups in self.vgroups_list:
             self.vgroups = vgroups
