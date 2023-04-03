@@ -1672,7 +1672,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pInfo->tqReader->pWalReader->curVersion - 1); //curVersion move to next, so currentOffset = curVersion - 1
 
       if (ret.fetchType == FETCH_TYPE__DATA) {
-        qDebug("doQueueScan get data from log %"PRId64" rows, version:%" PRId64, pInfo->pRes->info.rows, pTaskInfo->streamInfo.currentOffset.version);
+        qDebug("doQueueScan get data from log %"PRId64" rows, version:%" PRId64, ret.data.info.rows, pTaskInfo->streamInfo.currentOffset.version);
         blockDataCleanup(pInfo->pRes);
         setBlockIntoRes(pInfo, &ret.data, true);
         if (pInfo->pRes->info.rows > 0) {

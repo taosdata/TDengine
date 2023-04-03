@@ -82,13 +82,13 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
 
-    tqDebug("consumer:0x%"PRIx64" vgId:%d, tmq task start execute", pHandle->consumerId, vgId);
+    tqDebug("consumer:0x%"PRIx64" vgId:%d, tmq one task start execute", pHandle->consumerId, vgId);
     if (qExecTask(task, &pDataBlock, &ts) != TSDB_CODE_SUCCESS) {
       tqError("consumer:0x%"PRIx64" vgId:%d, task exec error since %s", pHandle->consumerId, vgId, terrstr());
       return -1;
     }
 
-    tqDebug("consumer:0x%"PRIx64" vgId:%d tmq task executed, total blocks:%d, pDataBlock:%p", pHandle->consumerId, vgId, pRsp->blockNum, pDataBlock);
+    tqDebug("consumer:0x%"PRIx64" vgId:%d tmq one task end executed, pDataBlock:%p", pHandle->consumerId, vgId, pDataBlock);
     // current scan should be stopped asap, since the rebalance occurs.
     if (pDataBlock == NULL) {
       break;
@@ -107,6 +107,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     }
   }
 
+  tqDebug("consumer:0x%"PRIx64" vgId:%d tmq task executed finished, total blocks:%d, totalRows:%d", pHandle->consumerId, vgId, pRsp->blockNum, totalRows);
   qStreamExtractOffset(task, &pRsp->rspOffset);
   return 0;
 }

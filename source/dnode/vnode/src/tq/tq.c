@@ -448,9 +448,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
   int code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
   if(code != 0) {
-    tDeleteSMqDataRsp(&dataRsp);
-    taosWUnLockLatch(&pTq->lock);
-    return TSDB_CODE_TMQ_CONSUMER_ERROR;
+    goto end;
   }
 
   // till now, all data has been transferred to consumer, new data needs to push client once arrived.
@@ -461,16 +459,20 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     return code;
   }
 
-  taosWUnLockLatch(&pTq->lock);
+
   code = tqSendDataRsp(pTq, pMsg, pRequest, (SMqDataRsp*)&dataRsp, TMQ_MSG_TYPE__POLL_RSP);
 
   // NOTE: this pHandle->consumerId may have been changed already.
-  tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, offset type:%d, uid/version:%" PRId64
-          ", ts:%" PRId64 ", reqId:0x%" PRIx64,
-          consumerId, pHandle->subKey, vgId, dataRsp.blockNum, dataRsp.rspOffset.type, dataRsp.rspOffset.uid,
-          dataRsp.rspOffset.ts, pRequest->reqId);
 
-  tDeleteSMqDataRsp(&dataRsp);
+end:
+  {
+    char buf[80] = {0};
+    tFormatOffset(buf, 80, &dataRsp.rspOffset);
+    tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, rsp block:%d, rsp offset type:%s, reqId:0x%" PRIx64 " code:%d",
+            consumerId, pHandle->subKey, vgId, dataRsp.blockNum, buf, pRequest->reqId, code);
+    taosWUnLockLatch(&pTq->lock);
+    tDeleteSMqDataRsp(&dataRsp);
+  }
   return code;
 }
 

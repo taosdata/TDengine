@@ -1269,6 +1269,8 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
 
       pRspWrapper->tmqRspType = TMQ_MSG_TYPE__END_RSP;
       taosWriteQitem(tmq->mqueue, pRspWrapper);
+    }else if(code == TSDB_CODE_WAL_LOG_NOT_EXIST){    //poll data while insert
+      taosMsleep(500);
     }
 
     goto CREATE_MSG_FAIL;
