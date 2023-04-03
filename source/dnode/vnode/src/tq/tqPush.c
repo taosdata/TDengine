@@ -30,7 +30,7 @@ static int32_t tqLoopExecFromQueue(STQ* pTq, STqHandle* pHandle, SStreamDataSubm
     // update processed
     atomic_store_64(&pHandle->pushHandle.processedVer, pSubmit->ver);
     streamQueueProcessSuccess(&pHandle->pushHandle.inputQ);
-    streamDataSubmitRefDec(pSubmit);
+    streamDataSubmitDestroy(pSubmit);
     if (pRsp->blockNum > 0) {
       *ppSubmit = pSubmit;
       return 0;
@@ -58,7 +58,7 @@ int32_t tqExecFromInputQ(STQ* pTq, STqHandle* pHandle) {
     }
     while (pHandle->pushHandle.processedVer > pSubmit->ver + 1) {
       streamQueueProcessSuccess(&pHandle->pushHandle.inputQ);
-      streamDataSubmitRefDec(pSubmit);
+      streamDataSubmitDestroy(pSubmit);
       pSubmit = streamQueueNextItem(&pHandle->pushHandle.inputQ);
       if (pSubmit == NULL) break;
     }
@@ -120,7 +120,7 @@ int32_t tqPreparePush(STQ* pTq, STqHandle* pHandle, int64_t reqId, const SRpcHan
 int32_t tqEnqueue(STqHandle* pHandle, SStreamDataSubmit* pSubmit) {
   int8_t inputStatus = atomic_load_8(&pHandle->pushHandle.inputStatus);
   if (inputStatus == TASK_INPUT_STATUS__NORMAL) {
-    SStreamDataSubmit* pSubmitClone = streamSubmitRefClone(pSubmit);
+    SStreamDataSubmit* pSubmitClone = streamSubmitBlockClone(pSubmit);
     if (pSubmitClone == NULL) {
       return -1;
     }

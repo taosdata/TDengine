@@ -48,10 +48,12 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
   if (pArray == NULL) {
     return -1;
   }
+
   taosArrayPush(pArray, &(SSDataBlock){0});
   SRetrieveTableRsp* pRetrieve = pReq->pRetrieve;
   SSDataBlock*       pDataBlock = taosArrayGet(pArray, 0);
   blockDecode(pDataBlock, pRetrieve->data);
+
   // TODO: refactor
   pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
   pDataBlock->info.window.ekey = be64toh(pRetrieve->ekey);
@@ -79,25 +81,40 @@ SStreamDataSubmit2* streamDataSubmitNew(SPackedData submit) {
   }
 
   pDataSubmit->submit = submit;
-  *pDataSubmit->dataRef = 1;
+  *pDataSubmit->dataRef = 1;   // initialize the reference count to be 1
   pDataSubmit->type = STREAM_INPUT__DATA_SUBMIT;
+
   return pDataSubmit;
+}
+
+void streamDataSubmitDestroy(SStreamDataSubmit2* pDataSubmit) {
+  int32_t ref = atomic_sub_fetch_32(pDataSubmit->dataRef, 1);
+  ASSERT(ref >= 0 && pDataSubmit->type == STREAM_INPUT__DATA_SUBMIT);
+
+  if (ref == 0) {
+    taosMemoryFree(pDataSubmit->submit.msgStr);
+    taosMemoryFree(pDataSubmit->dataRef);
+  }
 }
 
 SStreamMergedSubmit2* streamMergedSubmitNew() {
   SStreamMergedSubmit2* pMerged = (SStreamMergedSubmit2*)taosAllocateQitem(sizeof(SStreamMergedSubmit2), DEF_QITEM, 0);
+  if (pMerged == NULL) {
+    return NULL;
+  }
 
-  if (pMerged == NULL) return NULL;
   pMerged->submits = taosArrayInit(0, sizeof(SPackedData));
   pMerged->dataRefs = taosArrayInit(0, sizeof(void*));
-  if (pMerged->dataRefs == NULL || pMerged->submits == NULL) goto FAIL;
+
+  if (pMerged->dataRefs == NULL || pMerged->submits == NULL) {
+    taosArrayDestroy(pMerged->submits);
+    taosArrayDestroy(pMerged->dataRefs);
+    taosFreeQitem(pMerged);
+    return NULL;
+  }
+
   pMerged->type = STREAM_INPUT__MERGED_SUBMIT;
   return pMerged;
-FAIL:
-  if (pMerged->submits) taosArrayDestroy(pMerged->submits);
-  if (pMerged->dataRefs) taosArrayDestroy(pMerged->dataRefs);
-  taosFreeQitem(pMerged);
-  return NULL;
 }
 
 int32_t streamMergeSubmit(SStreamMergedSubmit2* pMerged, SStreamDataSubmit2* pSubmit) {
@@ -111,24 +128,15 @@ static FORCE_INLINE void streamDataSubmitRefInc(SStreamDataSubmit2* pDataSubmit)
   atomic_add_fetch_32(pDataSubmit->dataRef, 1);
 }
 
-SStreamDataSubmit2* streamSubmitRefClone(SStreamDataSubmit2* pSubmit) {
+SStreamDataSubmit2* streamSubmitBlockClone(SStreamDataSubmit2* pSubmit) {
   SStreamDataSubmit2* pSubmitClone = taosAllocateQitem(sizeof(SStreamDataSubmit2), DEF_QITEM, 0);
-
   if (pSubmitClone == NULL) {
     return NULL;
   }
+
   streamDataSubmitRefInc(pSubmit);
   memcpy(pSubmitClone, pSubmit, sizeof(SStreamDataSubmit2));
   return pSubmitClone;
-}
-
-void streamDataSubmitRefDec(SStreamDataSubmit2* pDataSubmit) {
-  int32_t ref = atomic_sub_fetch_32(pDataSubmit->dataRef, 1);
-  ASSERT(ref >= 0);
-  if (ref == 0) {
-    taosMemoryFree(pDataSubmit->submit.msgStr);
-    taosMemoryFree(pDataSubmit->dataRef);
-  }
 }
 
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* elem) {
@@ -168,7 +176,7 @@ void streamFreeQitem(SStreamQueueItem* data) {
     taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)blockDataFreeRes);
     taosFreeQitem(data);
   } else if (type == STREAM_INPUT__DATA_SUBMIT) {
-    streamDataSubmitRefDec((SStreamDataSubmit2*)data);
+    streamDataSubmitDestroy((SStreamDataSubmit2*)data);
     taosFreeQitem(data);
   } else if (type == STREAM_INPUT__MERGED_SUBMIT) {
     SStreamMergedSubmit2* pMerge = (SStreamMergedSubmit2*)data;

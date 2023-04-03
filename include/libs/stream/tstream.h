@@ -223,27 +223,12 @@ static FORCE_INLINE void* streamQueueCurItem(SStreamQueue* queue) {
   return queue->qItem;
 }
 
-static FORCE_INLINE void* streamQueueNextItem(SStreamQueue* queue) {
-  int8_t dequeueFlag = atomic_exchange_8(&queue->status, STREAM_QUEUE__PROCESSING);
-  if (dequeueFlag == STREAM_QUEUE__FAILED) {
-    ASSERT(queue->qItem != NULL);
-    return streamQueueCurItem(queue);
-  } else {
-    queue->qItem = NULL;
-    taosGetQitem(queue->qall, &queue->qItem);
-    if (queue->qItem == NULL) {
-      taosReadAllQitems(queue->queue, queue->qall);
-      taosGetQitem(queue->qall, &queue->qItem);
-    }
-    return streamQueueCurItem(queue);
-  }
-}
+void* streamQueueNextItem(SStreamQueue* queue);
 
 SStreamDataSubmit2* streamDataSubmitNew(SPackedData submit);
+void streamDataSubmitDestroy(SStreamDataSubmit2* pDataSubmit);
 
-void streamDataSubmitRefDec(SStreamDataSubmit2* pDataSubmit);
-
-SStreamDataSubmit2* streamSubmitRefClone(SStreamDataSubmit2* pSubmit);
+SStreamDataSubmit2* streamSubmitBlockClone(SStreamDataSubmit2* pSubmit);
 
 typedef struct {
   char* qmsg;

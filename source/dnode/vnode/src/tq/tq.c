@@ -1431,7 +1431,7 @@ int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
   }
 
   if (pSubmit) {
-    streamDataSubmitRefDec(pSubmit);
+    streamDataSubmitDestroy(pSubmit);
     taosFreeQitem(pSubmit);
   }
 

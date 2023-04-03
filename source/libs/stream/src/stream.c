@@ -279,18 +279,18 @@ int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
   int8_t type = pItem->type;
 
   if (type == STREAM_INPUT__DATA_SUBMIT) {
-    SStreamDataSubmit2* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit2*)pItem);
-    if (pSubmitClone == NULL) {
+    SStreamDataSubmit2* pSubmitBlock = streamSubmitBlockClone((SStreamDataSubmit2*)pItem);
+    if (pSubmitBlock == NULL) {
       qDebug("task %d %p submit enqueue failed since out of memory", pTask->taskId, pTask);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
       return -1;
     }
 
-    taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
+    taosWriteQitem(pTask->inputQueue->queue, pSubmitBlock);
     qDebug("stream task:%d %p submit enqueue %p %p %p msgLen:%d ver:%" PRId64 ", total in queue:%d", pTask->taskId,
-           pTask, pItem, pSubmitClone, pSubmitClone->submit.msgStr, pSubmitClone->submit.msgLen,
-           pSubmitClone->submit.ver, pTask->inputQueue->queue->numOfItems);
+           pTask, pItem, pSubmitBlock, pSubmitBlock->submit.msgStr, pSubmitBlock->submit.msgLen,
+           pSubmitBlock->submit.ver, pTask->inputQueue->queue->numOfItems);
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
@@ -309,4 +309,20 @@ int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
   atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL);
 #endif
   return 0;
+}
+
+void* streamQueueNextItem(SStreamQueue* queue) {
+  int8_t dequeueFlag = atomic_exchange_8(&queue->status, STREAM_QUEUE__PROCESSING);
+  if (dequeueFlag == STREAM_QUEUE__FAILED) {
+    ASSERT(queue->qItem != NULL);
+    return streamQueueCurItem(queue);
+  } else {
+    queue->qItem = NULL;
+    taosGetQitem(queue->qall, &queue->qItem);
+    if (queue->qItem == NULL) {
+      taosReadAllQitems(queue->queue, queue->qall);
+      taosGetQitem(queue->qall, &queue->qItem);
+    }
+    return streamQueueCurItem(queue);
+  }
 }
