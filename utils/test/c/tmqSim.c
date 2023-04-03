@@ -472,7 +472,10 @@ static char* shellFormatTimestamp(char* buf, int64_t val, int32_t precision) {
   }
 
   struct tm ptm;
-  taosLocalTime(&tt, &ptm);
+  if (taosLocalTime(&tt, &ptm) == NULL) {
+    sprintf(tt, "NaN");
+    return buf;
+  }
   size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
 
   if (precision == TSDB_TIME_PRECISION_NANO) {

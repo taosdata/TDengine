@@ -1067,9 +1067,16 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     }
 
     struct tm tmInfo;
-    taosLocalTime((const time_t *)&timeVal, &tmInfo);
+    int32_t len = 0;
+
+    if (taosLocalTime((const time_t *)&timeVal, &tmInfo) == NULL) {
+      sprintf(buf, "NaN");
+      len = (int32_t)strlen(buf);
+      goto _end;
+    }
+
     strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
-    int32_t len = (int32_t)strlen(buf);
+    len = (int32_t)strlen(buf);
 
     // add timezone string
     if (tzLen > 0) {
@@ -1103,6 +1110,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       len += fracLen;
     }
 
+_end:
     memmove(buf + VARSTR_HEADER_SIZE, buf, len);
     varDataSetLen(buf, len);
 

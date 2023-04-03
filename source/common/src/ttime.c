@@ -867,13 +867,19 @@ const char* fmtts(int64_t ts) {
 
   if (ts > -62135625943 && ts < 32503651200) {
     time_t t = (time_t)ts;
-    taosLocalTime(&t, &tm);
+    if (taosLocalTime(&t, &tm) == NULL) {
+      sprintf(buf, "NaN");
+      return buf;
+    }
     pos += strftime(buf + pos, sizeof(buf), "s=%Y-%m-%d %H:%M:%S", &tm);
   }
 
   if (ts > -62135625943000 && ts < 32503651200000) {
     time_t t = (time_t)(ts / 1000);
-    taosLocalTime(&t, &tm);
+    if (taosLocalTime(&t, &tm) == NULL) {
+      sprintf(buf, "NaN");
+      return buf;
+    }
     if (pos > 0) {
       buf[pos++] = ' ';
       buf[pos++] = '|';
@@ -885,7 +891,10 @@ const char* fmtts(int64_t ts) {
 
   {
     time_t t = (time_t)(ts / 1000000);
-    taosLocalTime(&t, &tm);
+    if (taosLocalTime(&t, &tm) == NULL) {
+      sprintf(buf, "NaN");
+      return buf;
+    }
     if (pos > 0) {
       buf[pos++] = ' ';
       buf[pos++] = '|';
@@ -937,7 +946,10 @@ void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) 
       ASSERT(false);
   }
 
-  taosLocalTime(&quot, &ptm);
+  if (taosLocalTime(&quot, &ptm) == NULL) {
+    sprintf(buf, "NaN");
+    return;
+  }
   int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", &ptm);
   length += snprintf(ts + length, fractionLen, format, mod);
   length += (int32_t)strftime(ts + length, 40 - length, "%z", &ptm);
