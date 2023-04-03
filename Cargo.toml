@@ -15,7 +15,7 @@ exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 
 [dependencies]
 anyhow = "1"
-arrow = { version = "35.0.0", default-features = false }
+arrow = { workspace = true }
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "1"
@@ -78,16 +78,18 @@ tempfile = "3"
 reqwest = "0.11.15"
 taosx-ipc = { path = "./taosx-ipc" }
 
+taos = { workspace = true }
+
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
-[dependencies.taos]
-version = "0.6.0"
-default-features = false
-features = ["ws", "deadpool"]
+[workspace.dependencies]
+arrow = { version = "36.0.0", default-features = false }
+taos = { version = "0.7.0", default-features = false, features = ["ws", "deadpool"] }
+taos-query = { version = "0.7.0", default-features = false, features = ["deadpool"] }
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 jemallocator = { version = "0.5.0", optional = true }
