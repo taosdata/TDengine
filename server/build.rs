@@ -4,15 +4,15 @@ fn main() {
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let out_dir = Path::new(&out_dir);
     let readme = Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("README.md");
-    let cus_name = std::env::var("CUS_NAME").unwrap_or("".to_string());
-    let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or("".to_string());
+    let cus_name = std::env::var("CUS_NAME").unwrap_or("TDengine".to_string());
+    let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or("taos".to_string());
     let cus_name = if cus_name.trim().is_empty() {
         "TDengine"
     } else {
         cus_name.trim()
     };
     let cus_prompt = if cus_prompt.trim().is_empty() {
-        "TDengine"
+        "taos"
     } else {
         cus_prompt.trim()
     };
