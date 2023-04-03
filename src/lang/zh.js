@@ -172,7 +172,7 @@ export default {
   },
   login: {
     signin:'登录',
-    taosxtip:'请先启动taosX，配置它在资源管理器中的终端点，然后重新启动资源管理器',
+    taosxtip:'请先在 /et/taos/explorer.toml 中配置Taosx',
     username:'用户名',
     password:'密码',
     loginTitle:'登录 TaosExplorer',
@@ -1295,6 +1295,7 @@ export default {
     SQLAPI: 'SQLAPI'
   },
   taosopc: {
+    searchtag:'查询Tag',
     searchnodes:'查询Nodes',
     da_config: 'DA配置',
     ua_config: 'UA配置',
@@ -1387,4 +1388,6 @@ export default {
     currentDB: "当前数据库",
     groupRoleDisabledReasonTip: "该用户通过组访问资源，请通过用户组管理资源访问控制。",
   },
+  taosx404:'未配置 TaosX API，请检查 Explorer 配置',
+  taosx500:'TaosX API 无法访问，请检查 taosx 服务状态'
 };

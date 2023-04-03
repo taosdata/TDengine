@@ -35,6 +35,7 @@ request.interceptors.request.use(
   },
   error => {
     // do something with request error
+    console.log(error, 'request');
     return Promise.reject(error);
   }
 );
@@ -47,45 +48,28 @@ request.interceptors.response.use(
   // Determine the request status by custom code
   response => {
     const res = response.data;
-    
+
     if (res.type) return Promise.resolve(res);
-    if(res.code){ //针对最新的tasks接口无code情况做出的判断
+    if (res.code) { //针对最新的tasks接口无code情况做出的判断
       res.code += "";
     }
-    
-
-    if (res.code&&checkRegion(res.code)) {
+    if (res.code && checkRegion(res.code)) {
       // token过期, 让用户重新登录
       store.dispatch("app/logout", false);
       return Promise.reject(null);
     }
-    if (res.code&&checkStatus(res.code)) {
+    if (res.code && checkStatus(res.code)) {
       return Promise.resolve(res.data);
     }
-    // let curmsg = res.data?.message || res.msg || res.message || "Unknown Error";
-    // // 相同的提示没有必要显示多次
-    // if (curmsg && curmsg != msg) {
-    //   msg = curmsg;
-    //   Message.closeAll();
-    //   Message({
-    //     message: msg,
-    //     type: "error",
-    //     duration: response.config.messageDur ?? 3000,
-    //     showClose: response.config.messageDur === 0,
-    //   });
-    //   setTimeout(() => {
-    //     msg = "";
-    //   }, 1000);
-    // }
-    if(Object.is(res.code,0)&&res.code==='0'){//针对 'show databses'
+    if (Object.is(res.code, 0) && res.code === '0') {//针对 'show databses'
       return Promise.resolve(res)
     }
-    if(res.code&&res.code==='21200'){//测试用---后续删除
+    if (res.code && res.code === '21200') {//测试用---后续删除
       return Promise.resolve(res)
     }
     return Promise.resolve(res);
   },
-  error => {
+  (error) => {
     Message.closeAll();
     Message({
       message: error.message || "Unknown Error",
@@ -93,6 +77,20 @@ request.interceptors.response.use(
       duration: 3000,
       showClose: true,
     });
+    let taosx404en = 'The Taosx API is not configured. Please check the explorer configuration'
+    let taosx500en = 'The Taosx API cannot be accessed. Please check the Taosx service status'
+    let taosx404 = '未配置 TaosX API，请检查 Explorer 配置'
+    let taosx500 = 'TaosX API 无法访问，请检查 taosx 服务状态'
+    Message.close()
+    if (error.config.baseURL.includes('/api/x')) {
+
+      if (error.response.status === 404) {
+        Message.error(navigator.language.includes('zh') ? taosx404 : taosx404en)
+      }
+      if (error.response.status === 500) {
+        Message.error(navigator.language.includes('zh') ? taosx500 : taosx500en)
+      }
+    }
     return Promise.reject(error);
   }
 );

@@ -46,9 +46,14 @@ export default {
         await getUIData().then((result) => {
           this.dbsource = result.filter((item) => item.id === "pi");
         });
-        console.log(this.dbsource, "获取pi的配置文件---");
+        this.$parent.$parent.$parent.piDisable=false
       } catch (error) {
-        Message.error(error);
+        if(error.response.status==404){
+          this.$parent.$parent.$parent.piDisable=true
+        }
+        if(error.response.status===500){
+          this.$parent.$parent.$parent.piDisable=true
+        }
       }
     },
   },
