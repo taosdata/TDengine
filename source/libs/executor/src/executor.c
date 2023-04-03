@@ -1074,6 +1074,12 @@ int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit) {
   return 0;
 }
 
+void qStreamSetOpen(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  SOperatorInfo*  pOperator = pTaskInfo->pRoot;
+  pOperator->status = OP_NOT_OPENED;
+}
+
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {
   SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo*  pOperator = pTaskInfo->pRoot;
@@ -1086,8 +1092,6 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   }
 
   if (subType == TOPIC_SUB_TYPE__COLUMN) {
-    pOperator->status = OP_OPENED;
-
     if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
       if (pOperator->numOfDownstream != 1) {
         qError("invalid operator, number of downstream:%d, %s", pOperator->numOfDownstream, id);
