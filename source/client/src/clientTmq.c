@@ -328,7 +328,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
 //      return TMQ_CONF_OK;
 //    } else {
       tscError("the default value of enable.heartbeat.background is true, can not be seted");
-      return TMQ_CONF_INVALID;
+      return TMQ_CONF_OK;
 //    }
   }
 
