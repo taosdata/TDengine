@@ -18,6 +18,19 @@
 #endif
 
 #include "shellInt.h"
+#include "version.h"
+
+#ifndef CUS_NAME
+char cusName[] = "TDengine";
+#endif
+
+#ifndef CUS_PROMPT
+char cusPrompt[] = "taos";
+#endif
+
+#ifndef CUS_EMAIL
+char cusEmail[] = "<support@taosdata.com>";
+#endif
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -46,9 +59,10 @@
 #define SHELL_VERSION  "Print program version."
 
 #ifdef WEBSOCKET
-#define SHELL_DSN      "Use dsn to connect to the TDengine cloud server or to a remote server which provides WebSocket connection."
-#define SHELL_REST     "Use RESTful mode when connecting."
-#define SHELL_TIMEOUT  "Set the timeout for websocket query in seconds, default is 30."
+#define SHELL_DSN \
+  "Use dsn to connect to the TDengine cloud server or to a remote server which provides WebSocket connection."
+#define SHELL_REST    "Use RESTful mode when connecting."
+#define SHELL_TIMEOUT "Set the timeout for websocket query in seconds, default is 30."
 #endif
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg);
@@ -141,7 +155,7 @@ static void shellParseArgsUseArgp(int argc, char *argv[]) {
 #endif
 
 #ifndef ARGP_ERR_UNKNOWN
-  #define ARGP_ERR_UNKNOWN E2BIG
+#define ARGP_ERR_UNKNOWN E2BIG
 #endif
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg) {
@@ -242,8 +256,8 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
   SShellArgs *pArgs = &shell.args;
 
   for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0
-            || strcmp(argv[i], "-?") == 0 || strcmp(argv[i], "/?") == 0) {
+    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 || strcmp(argv[i], "-?") == 0 ||
+        strcmp(argv[i], "/?") == 0) {
       shellParseSingleOpt('?', NULL);
       return 0;
     }
@@ -259,10 +273,8 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       return -1;
     }
 
-    if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u'
-            || key[1] == 'a' || key[1] == 'c' || key[1] == 's'
-            || key[1] == 'f' || key[1] == 'd' || key[1] == 'w'
-            || key[1] == 'n' || key[1] == 'l' || key[1] == 'N'
+    if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u' || key[1] == 'a' || key[1] == 'c' || key[1] == 's' ||
+        key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N'
 #ifdef WEBSOCKET
         || key[1] == 'E' || key[1] == 'T'
 #endif
@@ -278,12 +290,10 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       }
       shellParseSingleOpt(key[1], val);
       i++;
-    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C'
-                || key[1] == 'r' || key[1] == 'k'
-                || key[1] == 't' || key[1] == 'V'
-                || key[1] == '?' || key[1] == 1
+    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || key[1] == 't' ||
+               key[1] == 'V' || key[1] == '?' || key[1] == 1
 #ifdef WEBSOCKET
-            ||key[1] == 'R'
+               || key[1] == 'R'
 #endif
     ) {
       shellParseSingleOpt(key[1], NULL);
@@ -425,9 +435,15 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #endif
   sprintf(shell.info.promptContinue, promptContinueFormat, " ");
   shell.info.promptSize = strlen(shell.info.promptHeader);
+#ifdef TD_ENTERPRISE
+  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
+           "version: %s compatible_version: %s\ngitinfo: %s\ngitinfoOfInternal: %s\nbuildInfo: %s", version,
+           compatible_version, gitinfo, gitinfoOfInternal, buildinfo);
+#else
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
            "version: %s compatible_version: %s\ngitinfo: %s\nbuildInfo: %s", version, compatible_version, gitinfo,
            buildinfo);
+#endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   shell.info.osname = "Windows";

@@ -28,10 +28,10 @@ import os
 NO_FOUND      = 0  # not found assert or ASSERT 
 FOUND_OK      = 1  # found ASSERT and valid usage
 FOUND_NOIF    = 2  # found ASSERT but no if like  ASSERT(...)
-FOUND_LOWER   = 3  # found assert write with lower letters
+FOUND_LOWER   = 3  # found assert write with system assert
 FOUND_HAVENOT = 4  # found ASSERT have if but have not like if(!ASSERT)
 
-code_strs = ["not found", "valid", "found but no if", "lower assert","found but have not"]
+code_strs = ["not found", "valid", "found but no if", "system assert","found but have not"]
 
 
 #

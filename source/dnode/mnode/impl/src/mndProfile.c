@@ -226,7 +226,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, version, 2)) != 0) {
+  if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, version, 3)) != 0) {
     terrno = code;
     goto _OVER;
   }

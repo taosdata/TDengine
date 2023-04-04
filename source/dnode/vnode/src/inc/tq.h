@@ -109,23 +109,18 @@ typedef struct {
 } STqPushEntry;
 
 struct STQ {
-  SVnode* pVnode;
-  char*   path;
-  int64_t walLogLastVer;
-
-  SRWLatch pushLock;
-
-  SHashObj* pPushMgr;    // consumerId -> STqPushEntry
-  SHashObj* pHandle;     // subKey -> STqHandle
-  SHashObj* pCheckInfo;  // topic -> SAlterCheckInfo
-
+  SVnode*         pVnode;
+  char*           path;
+  int64_t         walLogLastVer;
+  SRWLatch        lock;
+  SHashObj*       pPushMgr;    // consumerId -> STqPushEntry
+  SHashObj*       pHandle;     // subKey -> STqHandle
+  SHashObj*       pCheckInfo;  // topic -> SAlterCheckInfo
   STqOffsetStore* pOffsetStore;
-
-  TDB* pMetaDB;
-  TTB* pExecStore;
-  TTB* pCheckStore;
-
-  SStreamMeta* pStreamMeta;
+  TDB*            pMetaDB;
+  TTB*            pExecStore;
+  TTB*            pCheckStore;
+  SStreamMeta*    pStreamMeta;
 };
 
 typedef struct {
@@ -144,8 +139,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
 int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum, uint64_t reqId);
 
 // tqExec
-int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp);
-// int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp* pRsp);
+int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp, int32_t* totalRows);
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
 int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp, int32_t type);
 int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry);
@@ -164,7 +158,7 @@ typedef struct {
   int32_t size;
 } STqOffsetHead;
 
-STqOffsetStore* tqOffsetOpen();
+STqOffsetStore* tqOffsetOpen(STQ* pTq);
 void            tqOffsetClose(STqOffsetStore*);
 STqOffset*      tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey);
 int32_t         tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset);
