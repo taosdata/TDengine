@@ -287,12 +287,12 @@ int32_t tAppendDataForStream(SStreamTask* pTask, SStreamQueueItem* pItem) {
       return -1;
     }
 
-    taosWriteQitem(pTask->inputQueue->queue, pSubmitBlock);
-
-    int32_t total = taosQueueItemSize(pTask->inputQueue->queue);
+    int32_t total = taosQueueItemSize(pTask->inputQueue->queue) + 1;
     qDebug("stream task:%d %p submit enqueue %p %p %p msgLen:%d ver:%" PRId64 ", total in queue:%d", pTask->taskId,
            pTask, pItem, pSubmitBlock, pSubmitBlock->submit.msgStr, pSubmitBlock->submit.msgLen,
            pSubmitBlock->submit.ver, total);
+
+    taosWriteQitem(pTask->inputQueue->queue, pSubmitBlock);
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
