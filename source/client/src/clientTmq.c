@@ -662,7 +662,6 @@ static void asyncCommitAllOffsets(tmq_t* tmq, tmq_commit_cb* pCommitFp, void* us
   // init as 1 to prevent concurrency issue
   pParamSet->waitingRspNum = 1;
 
-  taosThreadMutexLock(&tmq->lock);
   int32_t numOfTopics = taosArrayGetSize(tmq->clientTopics);
   tscDebug("consumer:0x%" PRIx64 " start to commit offset for %d topics", tmq->consumerId, numOfTopics);
 
