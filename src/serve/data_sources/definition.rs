@@ -77,6 +77,10 @@ pub enum DataSourceOptions {
         #[serde(default)]
         subject: OptionDef,
     },
+    Endpoint {
+        #[serde(default)]
+        endpoint: OptionDef,
+    }
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -246,7 +250,30 @@ impl DataSourceDefinition {
                         if let Some(value) = dsn.subject.as_ref() {
                             subject.value.replace(value.to_string());
                         }
-                    }
+                    },
+                    DataSourceOptions::Endpoint { endpoint } => {
+                        match dsn.protocol.as_deref() {
+                            Some("ua") => {
+                                if let Some(addr) = dsn.addresses.first() {
+                                    let endpoint_str = format!("opc.tcp://{}:{}/{}", addr.host.as_ref().unwrap_or(&"".to_string())
+                                        , addr.port.as_ref().unwrap_or(&484), dsn.subject.as_ref().unwrap_or(&"".to_string()));
+                                    endpoint.value.replace(endpoint_str);
+                                }
+                            },
+                            Some("da") => {
+                                if let Some(addr) = dsn.addresses.first() {
+                                    if let Some(value) = addr.host.as_ref() {
+                                        endpoint.value.replace(value.to_string());
+                                    }
+                                }
+                            },
+                            _ => {
+                                panic!("wrong opc protocol");
+                            }
+                        }
+                        
+                        
+                    },
                 },
                 None => (),
             },
@@ -258,10 +285,11 @@ impl DataSourceDefinition {
                                 path.value.replace(value.to_string());
                             }
                             DataSourceOptions::Uri {
-                                host,
-                                port,
-                                subject,
+                                host: _,
+                                port: _,
+                                subject: _,
                             } => panic!("mixed path and uri type of DSN"),
+                            DataSourceOptions::Endpoint { endpoint : _ } => panic!("mixed path and uri type of DSN"),
                         },
                         None => {
                             self.options.replace(DataSourceOptions::Path {
