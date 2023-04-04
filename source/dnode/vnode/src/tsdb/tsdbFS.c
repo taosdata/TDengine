@@ -88,98 +88,6 @@ _exit:
   return code;
 }
 
-extern int32_t tsdbDelFileToJson(const SDelFile *pDelFile, cJSON *pJson);
-extern int32_t tsdbJsonToDelFile(const cJSON *pJson, SDelFile *pDelFile);
-extern int32_t tsdbDFileSetToJson(const SDFileSet *pSet, cJSON *pJson);
-extern int32_t tsdbJsonToDFileSet(const cJSON *pJson, SDFileSet *pDelFile);
-
-static int32_t tsdbFSToJsonStr(STsdbFS *pFS, char **ppStr) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  cJSON  *pJson;
-
-  ppStr[0] = NULL;
-
-  pJson = cJSON_CreateObject();
-  TSDB_CHECK_NULL(pJson, code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
-
-  // format version
-  TSDB_CHECK_NULL(cJSON_AddNumberToObject(pJson, "format", 1), code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
-
-  // SDelFile
-  if (pFS->pDelFile) {
-    code = tsdbDelFileToJson(pFS->pDelFile, cJSON_AddObjectToObject(pJson, "del"));
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  // aDFileSet
-  cJSON *aSetJson = cJSON_AddArrayToObject(pJson, "file set");
-  TSDB_CHECK_NULL(aSetJson, code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
-  for (int32_t iSet = 0; iSet < taosArrayGetSize(pFS->aDFileSet); iSet++) {
-    cJSON *pSetJson = cJSON_CreateObject();
-    TSDB_CHECK_NULL(pSetJson, code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
-
-    cJSON_AddItemToArray(aSetJson, pSetJson);
-
-    code = tsdbDFileSetToJson(taosArrayGet(pFS->aDFileSet, iSet), pSetJson);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  // print
-  ppStr[0] = cJSON_Print(pJson);
-  TSDB_CHECK_NULL(ppStr[0], code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
-
-_exit:
-  cJSON_Delete(pJson);
-  if (code) tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  return code;
-}
-
-static int32_t tsdbJsonStrToFS(const char *pStr, STsdbFS *pFS) {
-  int32_t code = 0;
-  int32_t lino;
-
-  cJSON *pJson = cJSON_Parse(pStr);
-  TSDB_CHECK(pJson, code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
-
-  const cJSON *pItem;
-
-  // format version
-  TSDB_CHECK(cJSON_IsNumber(pItem = cJSON_GetObjectItem(pJson, "format")), code, lino, _exit, TSDB_CODE_FILE_CORRUPTED);
-
-  // SDelFile
-  if (cJSON_IsObject(pItem = cJSON_GetObjectItem(pJson, "del"))) {
-    pFS->pDelFile = (SDelFile *)taosMemoryCalloc(1, sizeof(SDelFile));
-    TSDB_CHECK_NULL(pFS->pDelFile, code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
-
-    code = tsdbJsonToDelFile(pItem, pFS->pDelFile);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    pFS->pDelFile->nRef = 1;
-  } else {
-    pFS->pDelFile = NULL;
-  }
-
-  // aDFileSet
-  taosArrayClear(pFS->aDFileSet);
-
-  const cJSON *pSetJson;
-  TSDB_CHECK(cJSON_IsArray(pItem = cJSON_GetObjectItem(pJson, "file set")), code, lino, _exit,
-             TSDB_CODE_FILE_CORRUPTED);
-  cJSON_ArrayForEach(pSetJson, pItem) {
-    SDFileSet *pSet = (SDFileSet *)taosArrayReserve(pFS->aDFileSet, 1);
-    TSDB_CHECK_NULL(pSet, code, lino, _exit, TSDB_CODE_OUT_OF_MEMORY);
-
-    code = tsdbJsonToDFileSet(pSetJson, pSet);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-_exit:
-  cJSON_Delete(pJson);
-  if (code) tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  return code;
-}
-
 static int32_t tsdbSaveFSToFile(STsdbFS *pFS, const char *fname) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -221,84 +129,6 @@ _exit:
   if (code) {
     tsdbError("%s failed at line %d since %s, fname:%s", __func__, lino, tstrerror(code), fname);
   }
-  return code;
-}
-
-static int32_t tsdbSaveFSToJsonFile(STsdbFS *pFS, const char *fname) {
-  int32_t code;
-  int32_t lino;
-  char   *pData;
-
-  code = tsdbFSToJsonStr(pFS, &pData);
-  if (code) return code;
-
-  TdFilePtr pFD = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
-  if (pFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  int64_t n = taosWriteFile(pFD, pData, strlen(pData) + 1);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  if (taosFsyncFile(pFD) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  taosCloseFile(&pFD);
-
-_exit:
-  taosMemoryFree(pData);
-  if (code) {
-    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-
-  return code;
-}
-
-static int32_t tsdbLoadFSFromJsonFile(const char *fname, STsdbFS *pFS) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  char   *pData = NULL;
-
-  TdFilePtr pFD = taosOpenFile(fname, TD_FILE_READ);
-  if (pFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  int64_t size;
-  if (taosFStatFile(pFD, &size, NULL) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  if ((pData = taosMemoryMalloc(size)) == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  if (taosReadFile(pFD, pData, size) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    taosCloseFile(&pFD);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  taosCloseFile(&pFD);
-
-  TSDB_CHECK_CODE(code = tsdbJsonStrToFS(pData, pFS), lino, _exit);
-
-_exit:
-  if (pData) taosMemoryFree(pData);
-  if (code) tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
 }
 
@@ -439,8 +269,7 @@ int32_t tDFileSetCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
-static void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t, char *current_json,
-                                char *current_json_t) {
+static void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
   SVnode *pVnode = pTsdb->pVnode;
   if (pVnode->pTfs) {
     if (current) {
@@ -451,26 +280,12 @@ static void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t, ch
       snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%s%s%sCURRENT.t", tfsGetPrimaryPath(pTsdb->pVnode->pTfs), TD_DIRSEP,
                pTsdb->path, TD_DIRSEP);
     }
-    if (current_json) {
-      snprintf(current_json, TSDB_FILENAME_LEN - 1, "%s%s%s%scurrent.json", tfsGetPrimaryPath(pTsdb->pVnode->pTfs),
-               TD_DIRSEP, pTsdb->path, TD_DIRSEP);
-    }
-    if (current_json_t) {
-      snprintf(current_json_t, TSDB_FILENAME_LEN - 1, "%s%s%s%scurrent.json.t", tfsGetPrimaryPath(pTsdb->pVnode->pTfs),
-               TD_DIRSEP, pTsdb->path, TD_DIRSEP);
-    }
   } else {
     if (current) {
       snprintf(current, TSDB_FILENAME_LEN - 1, "%s%sCURRENT", pTsdb->path, TD_DIRSEP);
     }
     if (current_t) {
       snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%sCURRENT.t", pTsdb->path, TD_DIRSEP);
-    }
-    if (current_json) {
-      snprintf(current_json, TSDB_FILENAME_LEN - 1, "%s%scurrent.json", pTsdb->path, TD_DIRSEP);
-    }
-    if (current_json_t) {
-      snprintf(current_json_t, TSDB_FILENAME_LEN - 1, "%s%scurrent.json.t", pTsdb->path, TD_DIRSEP);
     }
   }
 }
@@ -887,15 +702,20 @@ _exit:
   return code;
 }
 
-static int32_t tsdbFSCommitImpl(STsdb *pTsdb, const char *fname, const char *tfname, bool isJson) {
+// EXPOSED APIS ====================================================================================
+int32_t tsdbFSCommit(STsdb *pTsdb) {
   int32_t code = 0;
   int32_t lino = 0;
   STsdbFS fs = {0};
 
-  if (!taosCheckExistFile(tfname)) goto _exit;
+  char current[TSDB_FILENAME_LEN] = {0};
+  char current_t[TSDB_FILENAME_LEN] = {0};
+  tsdbGetCurrentFName(pTsdb, current, current_t);
+
+  if (!taosCheckExistFile(current_t)) goto _exit;
 
   // rename the file
-  if (taosRenameFile(tfname, fname) < 0) {
+  if (taosRenameFile(current_t, current) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -904,11 +724,7 @@ static int32_t tsdbFSCommitImpl(STsdb *pTsdb, const char *fname, const char *tfn
   code = tsdbFSCreate(&fs);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  if (isJson) {
-    code = tsdbLoadFSFromJsonFile(fname, &fs);
-  } else {
-    code = tsdbLoadFSFromFile(fname, &fs);
-  }
+  code = tsdbLoadFSFromFile(current, &fs);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // apply file change
@@ -923,19 +739,18 @@ _exit:
   return code;
 }
 
-// EXPOSED APIS ====================================================================================
-int32_t tsdbFSCommit(STsdb *pTsdb) {
-  char current_json[TSDB_FILENAME_LEN] = {0};
-  char current_json_t[TSDB_FILENAME_LEN] = {0};
-  tsdbGetCurrentFName(pTsdb, NULL, NULL, current_json, current_json_t);
-  return tsdbFSCommitImpl(pTsdb, current_json, current_json_t, true);
-}
-
 int32_t tsdbFSRollback(STsdb *pTsdb) {
   int32_t code = 0;
-  char    current_json_t[TSDB_FILENAME_LEN] = {0};
-  tsdbGetCurrentFName(pTsdb, NULL, NULL, NULL, current_json_t);
-  (void)taosRemoveFile(current_json_t);
+  int32_t lino = 0;
+
+  char current_t[TSDB_FILENAME_LEN] = {0};
+  tsdbGetCurrentFName(pTsdb, NULL, current_t);
+  (void)taosRemoveFile(current_t);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(errno));
+  }
   return code;
 }
 
@@ -951,33 +766,13 @@ int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback) {
   // open impl
   char current[TSDB_FILENAME_LEN] = {0};
   char current_t[TSDB_FILENAME_LEN] = {0};
-  char current_json[TSDB_FILENAME_LEN] = {0};
-  char current_json_t[TSDB_FILENAME_LEN] = {0};
-  tsdbGetCurrentFName(pTsdb, current, current_t, current_json, current_json_t);
+  tsdbGetCurrentFName(pTsdb, current, current_t);
 
   if (taosCheckExistFile(current)) {
-    // CURRENT file exists
     code = tsdbLoadFSFromFile(current, &pTsdb->fs);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (taosCheckExistFile(current_t)) {
-      if (rollback) {
-        (void)taosRemoveFile(current_t);
-      } else {
-        code = tsdbFSCommitImpl(pTsdb, current, current_t, false);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-    }
-
-    code = tsdbSaveFSToJsonFile(&pTsdb->fs, current_json);
-    TSDB_CHECK_CODE(code, lino, _exit);
-    (void)taosRemoveFile(current);
-  } else if (taosCheckExistFile(current_json)) {
-    // current.json exists
-    code = tsdbLoadFSFromJsonFile(current_json, &pTsdb->fs);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    if (taosCheckExistFile(current_json_t)) {
       if (rollback) {
         code = tsdbFSRollback(pTsdb);
         TSDB_CHECK_CODE(code, lino, _exit);
@@ -987,10 +782,11 @@ int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback) {
       }
     }
   } else {
-    // empty TSDB
-    ASSERT(!rollback);
-    code = tsdbSaveFSToJsonFile(&pTsdb->fs, current_json);
+    // empty one
+    code = tsdbSaveFSToFile(&pTsdb->fs, current);
     TSDB_CHECK_CODE(code, lino, _exit);
+
+    ASSERT(!rollback);
   }
 
   // scan and fix FS
@@ -1228,12 +1024,12 @@ _exit:
 int32_t tsdbFSPrepareCommit(STsdb *pTsdb, STsdbFS *pFSNew) {
   int32_t code = 0;
   int32_t lino = 0;
-  char    current_json_t[TSDB_FILENAME_LEN];
+  char    tfname[TSDB_FILENAME_LEN];
 
-  tsdbGetCurrentFName(pTsdb, NULL, NULL, NULL, current_json_t);
+  tsdbGetCurrentFName(pTsdb, NULL, tfname);
 
-  // generate current.json
-  code = tsdbSaveFSToJsonFile(pFSNew, current_json_t);
+  // gnrt CURRENT.t
+  code = tsdbSaveFSToFile(pFSNew, tfname);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
