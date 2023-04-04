@@ -2173,22 +2173,23 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
   // adjust vgroup replica
   if (pDb->cfg.replications != newVg1.replica) {
     if (mndBuildAlterVgroupAction(pMnode, pTrans, pDb, pDb, &newVg1, pArray) != 0) goto _OVER;
+  } else {
+    pRaw = mndVgroupActionEncode(&newVg1);
+    if (pRaw == NULL) goto _OVER;
+    if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    pRaw = NULL;
   }
+
   if (pDb->cfg.replications != newVg2.replica) {
     if (mndBuildAlterVgroupAction(pMnode, pTrans, pDb, pDb, &newVg2, pArray) != 0) goto _OVER;
+  } else {
+    pRaw = mndVgroupActionEncode(&newVg2);
+    if (pRaw == NULL) goto _OVER;
+    if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    pRaw = NULL;
   }
-
-  pRaw = mndVgroupActionEncode(&newVg1);
-  if (pRaw == NULL) goto _OVER;
-  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-  pRaw = NULL;
-
-  pRaw = mndVgroupActionEncode(&newVg2);
-  if (pRaw == NULL) goto _OVER;
-  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
-  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-  pRaw = NULL;
 
   pRaw = mndVgroupActionEncode(pVgroup);
   if (pRaw == NULL) goto _OVER;
