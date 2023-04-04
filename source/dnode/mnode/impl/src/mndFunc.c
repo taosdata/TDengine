@@ -21,7 +21,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 
-#define SDB_FUNC_VER          1
+#define SDB_FUNC_VER          2
 #define SDB_FUNC_RESERVE_SIZE 64
 
 static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc);
@@ -83,6 +83,7 @@ static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc) {
     SDB_SET_BINARY(pRaw, dataPos, pFunc->pComment, pFunc->commentSize, _OVER)
   }
   SDB_SET_BINARY(pRaw, dataPos, pFunc->pCode, pFunc->codeSize, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pFunc->funcVersions, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, SDB_FUNC_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER);
 
@@ -107,7 +108,7 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver != SDB_FUNC_VER) {
+  if (sver != 1 && sver != 2) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto _OVER;
   }
@@ -144,6 +145,11 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
   SDB_GET_BINARY(pRaw, dataPos, pFunc->pCode, pFunc->codeSize, _OVER)
+  
+  if(sver >= 2){
+    SDB_GET_INT32(pRaw, dataPos, &pFunc->funcVersions, _OVER)
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, SDB_FUNC_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -222,6 +228,15 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
     memcpy(func.pComment, pCreate->pComment, func.commentSize);
   }
   memcpy(func.pCode, pCreate->pCode, func.codeSize);
+  
+  if(pCreate->orReplace == 1){
+    SFuncObj *oldFunc = mndAcquireFunc(pMnode, pCreate->name);
+    if(oldFunc == NULL){
+      goto _OVER;
+    }
+    func.funcVersions = oldFunc->funcVersions + 1;
+    mndReleaseFunc(pMnode, oldFunc);
+  }
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-func");
   if (pTrans == NULL) goto _OVER;
@@ -413,6 +428,12 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
     goto RETRIEVE_FUNC_OVER;
   }
 
+  retrieveRsp.pFuncVersions = taosArrayInit(retrieveReq.numOfFuncs, sizeof(int32_t));
+  if (retrieveRsp.pFuncVersions == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto RETRIEVE_FUNC_OVER;
+  }
+
   for (int32_t i = 0; i < retrieveReq.numOfFuncs; ++i) {
     char *funcName = taosArrayGet(retrieveReq.pFuncNames, i);
 
@@ -451,6 +472,9 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
       }
     }
     taosArrayPush(retrieveRsp.pFuncInfos, &funcInfo);
+
+    taosArrayPush(retrieveRsp.pFuncVersions, &pFunc->funcVersions);
+
     mndReleaseFunc(pMnode, pFunc);
   }
 
