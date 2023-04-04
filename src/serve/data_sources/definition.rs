@@ -252,27 +252,21 @@ impl DataSourceDefinition {
                         }
                     },
                     DataSourceOptions::Endpoint { endpoint } => {
-                        match dsn.protocol.as_deref() {
-                            Some("ua") => {
-                                if let Some(addr) = dsn.addresses.first() {
-                                    let endpoint_str = format!("opc.tcp://{}:{}/{}", addr.host.as_ref().unwrap_or(&"".to_string())
-                                        , addr.port.as_ref().unwrap_or(&484), dsn.subject.as_ref().unwrap_or(&"".to_string()));
-                                    endpoint.value.replace(endpoint_str);
-                                }
-                            },
-                            Some("da") => {
-                                if let Some(addr) = dsn.addresses.first() {
-                                    if let Some(value) = addr.host.as_ref() {
-                                        endpoint.value.replace(value.to_string());
-                                    }
-                                }
-                            },
-                            _ => {
-                                panic!("wrong opc protocol");
+                        let mut endpoint_str = String::new();
+                        if let Some(addr) = dsn.addresses.first() {
+                            if let Some(value) = addr.host.as_ref() {
+                                endpoint_str.push_str(value.as_str());
+                            }
+                            if let Some(value) = addr.port.as_ref() {
+                                endpoint_str.push_str(":");
+                                endpoint_str.push_str(value.to_string().as_str());
                             }
                         }
-                        
-                        
+                        if let Some(value) = dsn.subject.as_ref() {
+                            endpoint_str.push_str("/");
+                            endpoint_str.push_str(value.as_str());
+                        }
+                        endpoint.value.replace(endpoint_str);
                     },
                 },
                 None => (),
