@@ -275,34 +275,34 @@ const adminRoute = [
     path: "calculator",
     component: () => import("@/views/calculator"),
   },
-  {
-    path: "network",
-    component: () => import("@/views/5_VPC"),
-    meta: {
-      role: ["1"],
-    },
-  },
-  {
-    path: "activity",
-    component: () => import("@/views/activity"),
-    meta: {
-      role: ["1"],
-    },
-  },
-  {
-    path: "alert",
-    component: () => import("@/views/alert"),
-    children: [
-      {
-        path: "",
-        name: "alertList",
-        component: () => import("@/views/alert/views/list"),
-        meta: {
-          role: ["1"],
-        },
-      },
-    ],
-  },
+  // {
+  //   path: "network",
+  //   component: () => import("@/views/5_VPC"),
+  //   meta: {
+  //     role: ["1"],
+  //   },
+  // },
+  // {
+  //   path: "activity",
+  //   component: () => import("@/views/activity"),
+  //   meta: {
+  //     role: ["1"],
+  //   },
+  // },
+  // {
+  //   path: "alert",
+  //   component: () => import("@/views/alert"),
+  //   children: [
+  //     {
+  //       path: "",
+  //       name: "alertList",
+  //       component: () => import("@/views/alert/views/list"),
+  //       meta: {
+  //         role: ["1"],
+  //       },
+  //     },
+  //   ],
+  // },
 ];
 const costantRoutes = [
   {
