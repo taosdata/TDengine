@@ -69,6 +69,9 @@ pub enum DataSourceOptions {
     Path {
         path: OptionDef,
     },
+    Endpoint {
+        endpoint: OptionDef,
+    },
     Uri {
         #[serde(default)]
         host: OptionDef,
@@ -77,10 +80,6 @@ pub enum DataSourceOptions {
         #[serde(default)]
         subject: OptionDef,
     },
-    Endpoint {
-        #[serde(default)]
-        endpoint: OptionDef,
-    }
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -378,7 +377,23 @@ fn test() {
     tmq.clone().values_from(dsn);
     dbg!(tmq);
 }
+#[test]
+fn opc() {
+    use std::str::FromStr;
+    let json = include_str!("opc.yaml");
+    let mut def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let json2 = serde_yaml::to_string(&def).unwrap();
+    dbg!(&json2);
+    let toml = toml::to_string_pretty(&def).unwrap();
+    println!("{}", &toml);
 
+    let dsn = "opc+ua://localhost:123/opcua/server1?ua.nodes=a::b::c::d";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    // let tmq = &mut def[0];
+    let dsn = def.values_from(dsn);
+    dbg!(&dsn);
+    
+}
 #[test]
 fn test_values() {
     use std::str::FromStr;

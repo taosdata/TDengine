@@ -39,6 +39,7 @@ protocol:
 options:
   endpoint:
     display: Server endpoint
+    required: true
     description: |
       OPC server endpoint.
 
