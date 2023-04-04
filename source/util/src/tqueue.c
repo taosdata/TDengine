@@ -169,7 +169,7 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
 
     taosThreadMutexUnlock(&queue->mutex);
     return code;
-  } else if (queue->itemLimit > 0 && queue->itemLimit + 1 > queue->itemLimit) {
+  } else if (queue->itemLimit > 0 && queue->numOfItems + 1 > queue->itemLimit) {
     code = TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY;
     uError("item:%p failed to put into queue:%p, queue size limit: %" PRId64 ", reason: %s" PRId64, pItem, queue,
            queue->itemLimit, tstrerror(code));
