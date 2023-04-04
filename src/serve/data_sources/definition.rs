@@ -69,6 +69,9 @@ pub enum DataSourceOptions {
     Path {
         path: OptionDef,
     },
+    Endpoint {
+        endpoint: OptionDef,
+    },
     Uri {
         #[serde(default)]
         host: OptionDef,
@@ -246,7 +249,24 @@ impl DataSourceDefinition {
                         if let Some(value) = dsn.subject.as_ref() {
                             subject.value.replace(value.to_string());
                         }
-                    }
+                    },
+                    DataSourceOptions::Endpoint { endpoint } => {
+                        let mut endpoint_str = String::new();
+                        if let Some(addr) = dsn.addresses.first() {
+                            if let Some(value) = addr.host.as_ref() {
+                                endpoint_str.push_str(value.as_str());
+                            }
+                            if let Some(value) = addr.port.as_ref() {
+                                endpoint_str.push_str(":");
+                                endpoint_str.push_str(value.to_string().as_str());
+                            }
+                        }
+                        if let Some(value) = dsn.subject.as_ref() {
+                            endpoint_str.push_str("/");
+                            endpoint_str.push_str(value.as_str());
+                        }
+                        endpoint.value.replace(endpoint_str);
+                    },
                 },
                 None => (),
             },
@@ -258,10 +278,11 @@ impl DataSourceDefinition {
                                 path.value.replace(value.to_string());
                             }
                             DataSourceOptions::Uri {
-                                host,
-                                port,
-                                subject,
+                                host: _,
+                                port: _,
+                                subject: _,
                             } => panic!("mixed path and uri type of DSN"),
+                            DataSourceOptions::Endpoint { endpoint : _ } => panic!("mixed path and uri type of DSN"),
                         },
                         None => {
                             self.options.replace(DataSourceOptions::Path {
@@ -356,7 +377,23 @@ fn test() {
     tmq.clone().values_from(dsn);
     dbg!(tmq);
 }
+#[test]
+fn opc() {
+    use std::str::FromStr;
+    let json = include_str!("opc.yaml");
+    let mut def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let json2 = serde_yaml::to_string(&def).unwrap();
+    dbg!(&json2);
+    let toml = toml::to_string_pretty(&def).unwrap();
+    println!("{}", &toml);
 
+    let dsn = "opc+ua://localhost:123/opcua/server1?ua.nodes=a::b::c::d";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    // let tmq = &mut def[0];
+    let dsn = def.values_from(dsn);
+    dbg!(&dsn);
+    
+}
 #[test]
 fn test_values() {
     use std::str::FromStr;
