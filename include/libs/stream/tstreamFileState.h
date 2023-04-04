@@ -35,13 +35,16 @@ typedef struct SRowBuffPos {
 
 typedef SList SStreamSnapshot;
 
-typedef bool (*ExpiredFun)(void*, TSKEY);
+typedef TSKEY (*GetTsFun)(void*);
 
-SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t rowSize, ExpiredFun fp, void* pFile);
-void              destroyStreamFileState(SStreamFileState* pFileState);
+SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t rowSize, GetTsFun fp, void* pFile, TSKEY delMark);
+void              streamFileStateDestroy(SStreamFileState* pFileState);
+void              streamFileStateClear(SStreamFileState* pFileState);
 
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen);
-void* getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos);
+int32_t deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
+int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** pVal);
+bool hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen);
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState);
 int32_t flushSnapshot(void* pFile, SStreamSnapshot* pSnapshot, int32_t rowSize);

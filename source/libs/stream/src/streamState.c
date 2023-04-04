@@ -132,6 +132,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
   }
   qWarn("open stream state2, %s", statePath);
   pState->pTdbState->pOwner = pTask;
+  pState->pFileState = NULL;
   return pState;
 
 #else
@@ -297,20 +298,32 @@ int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* val
 #endif
 }
 
-// todo refactor
 int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
   return getRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey), pVal, pVLen);
-  // return streamStateGet_rocksdb(pState, key, pVal, pVLen);
 #else
   SStateKey sKey = {.key = *key, .opNum = pState->number};
   return tdbTbGet(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), pVal, pVLen);
 #endif
 }
+
+bool streamStateCheck(SStreamState* pState, const SWinKey* key) {
+  #ifdef USE_ROCKSDB
+  return hasRowBuff(pState->pFileState, (void*)key, sizeof(SWinKey));
+#else
+  SStateKey sKey = {.key = *key, .opNum = pState->number};
+  return tdbTbGet(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), pVal, pVLen);
+#endif
+}
+
+int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal) {
+  return getRowBuffByPos(pState->pFileState, pos, pVal);
+}
+
 // todo refactor
 int32_t streamStateDel(SStreamState* pState, const SWinKey* key) {
 #ifdef USE_ROCKSDB
-  return streamStateDel_rocksdb(pState, key);
+  return deleteRowBuff(pState->pFileState, key, sizeof(SWinKey));
 #else
   SStateKey sKey = {.key = *key, .opNum = pState->number};
   return tdbTbDelete(pState->pTdbState->pStateDb, &sKey, sizeof(SStateKey), pState->pTdbState->txn);
@@ -346,6 +359,7 @@ int32_t streamStateFillDel(SStreamState* pState, const SWinKey* key) {
 
 int32_t streamStateClear(SStreamState* pState) {
 #ifdef USE_ROCKSDB
+  streamFileStateClear(pState->pFileState);
   return streamStateClear_rocksdb(pState);
 #else
   SWinKey key = {.ts = 0, .groupId = 0};
@@ -369,7 +383,7 @@ void streamStateSetNumber(SStreamState* pState, int32_t number) { pState->number
 
 int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
-  return streamStateAddIfNotExist_rocksdb(pState, key, pVal, pVLen);
+  return streamStateGet(pState, key, pVal, pVLen);
 #else
   // todo refactor
   int32_t size = *pVLen;
@@ -1040,6 +1054,7 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
 
 void streamStateDestroy(SStreamState* pState) {
 #ifdef USE_ROCKSDB
+  streamFileStateDestroy(pState->pFileState);
   streamStateDestroy_rocksdb(pState);
   // do nothong
 #endif

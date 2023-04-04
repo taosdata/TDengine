@@ -81,6 +81,8 @@ int32_t streamStateFuncDel(SStreamState* pState, const STupleKey* key);
 
 int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
 int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
+bool streamStateCheck(SStreamState* pState, const SWinKey* key);
+int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal);
 int32_t streamStateDel(SStreamState* pState, const SWinKey* key);
 int32_t streamStateClear(SStreamState* pState);
 void    streamStateSetNumber(SStreamState* pState, int32_t number);
