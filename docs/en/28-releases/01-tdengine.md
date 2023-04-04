@@ -14,6 +14,10 @@ import Release from "/components/ReleaseV3";
 
 <Release type="tdengine" version="3.0.3.1" />
 
+## 3.0.3.1
+
+<Release type="tdengine" version="3.0.3.1" />
+
 ## 3.0.3.0
 
 <Release type="tdengine" version="3.0.3.0" />
