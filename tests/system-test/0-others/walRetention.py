@@ -223,8 +223,8 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("community")]
         else:
             projPath = selfPath[:selfPath.find("tests")]
-        self.projDir += f"{projPath}sim/"
-        tdLog.info(f" init projPath={projPath}")
+        self.projDir = f"{projPath}sim/"
+        tdLog.info(f" init projPath={self.projDir}")
 
         self.column_dict = {
             'ts': 'timestamp',
