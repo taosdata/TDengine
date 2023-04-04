@@ -1559,6 +1559,8 @@ int32_t vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
     return 0;
+  } else {
+    tDeleteStreamDispatchReq(&req);
   }
 
   code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
