@@ -3,7 +3,7 @@ use std::time::Duration;
 use anyhow::{bail, Context, Result};
 use taos::*;
 
-use taosx::{
+use taosx_core::{
     legacy_to_taos, local_to_taos, pi_to_taos, query_to_csv, query_to_parquet, tmq_to_local,
     tmq_to_td, opc_to_taos, utils::port_pool::PortPool, Action, QueryOpts,
 };

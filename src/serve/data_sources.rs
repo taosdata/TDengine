@@ -4,6 +4,7 @@ use actix_web::{get, http::header::ContentType, post, web::Json, HttpResponse, R
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
+use taosx_core::list_datasets_from;
 use utoipa::*;
 
 mod definition;
@@ -125,7 +126,7 @@ pub(super) struct DataSetsReq {
 )]
 #[post("/ds/in/sets")]
 pub(super) async fn data_source_collection(data: Json<DataSetsReq>) -> impl Responder {
-    match taosx::list_datasets_from(&data.from).await {
+    match list_datasets_from(&data.from).await {
         Ok(data) => HttpResponse::Ok()
             .content_type(ContentType::json())
             .json(&data),

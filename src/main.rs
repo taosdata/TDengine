@@ -94,17 +94,12 @@ enum Commands {
     External(Vec<String>),
 }
 
-/// TDengine streaming data transfer tool.
-///
-/// Service mode:
-///
-/// $ taosx serve --help
-///
-/// Batch mode:
-///
-/// $ taosx run -f <FROM> -t <TO>
 #[derive(Parser, Debug)]
-#[clap(author, version = CLAP_SHORT_VERSION, about)]
+#[clap(
+    name = build::CUS_CLI_NAME,
+    author, version = CLAP_SHORT_VERSION,
+    about = build::CUS_CLI_ABOUT,
+    long_about = build::CUS_CLI_ABOUT)]
 struct Args {
     #[clap(flatten)]
     globals: GlobalOpts,
@@ -132,7 +127,7 @@ fn main() -> Result<()> {
                     match level {
                         Level::Trace => style.set_color(Color::Magenta).value("TRACE"),
                         Level::Debug => style.set_color(Color::Blue).value("DEBUG"),
-                        Level::Info => style.set_color(Color::Green).value("INFO"),
+                        Level::Info => style.set_color(Color::Green).value("INFO "),
                         Level::Warn => style.set_color(Color::Yellow).value("WARN "),
                         Level::Error => style.set_color(Color::Red).value("ERROR"),
                     }

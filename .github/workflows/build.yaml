@@ -47,7 +47,7 @@ jobs:
 
       - name: Build taosX
         run: |
-          cargo build --release --no-default-features --features optin --features native-tls
+          cargo build --release
           strip target/release/taosx
           mv target/release/taosx target/release/taosx-amd64
 
