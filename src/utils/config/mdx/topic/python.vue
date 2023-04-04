@@ -18,7 +18,7 @@
       :id="'py-config'"
       :url="endpoint"
       :token="token"
-      :url-key="'TDENGINE_CLOUD_ENDPOINT'"
+      :url-key="'TDENGINE_ENDPOINT'"
       :url-des="$t('component.docConfig.endpoint')"
     ></doc-config>
     <h2 id="py-create-consumer">{{ $t("docs.topic.step3") }}</h2>
@@ -60,8 +60,8 @@ while 1:
         `import os
 from taosws import Consumer
 
-endpoint = os.environ[&quot;TDENGINE_CLOUD_ENDPOINT&quot;]
-token = os.environ[&quot;TDENGINE_CLOUD_TOKEN&quot;]
+endpoint = os.environ[&quot;TDENGINE_ENDPOINT&quot;]
+token = os.environ[&quot;TDENGINE_TOKEN&quot;]
 
 conf = {
   # auth options
@@ -143,8 +143,8 @@ export default {
       return `import os
 from taosws import Consumer
 
-endpoint = os.environ["TDENGINE_CLOUD_ENDPOINT"]
-token = os.environ["TDENGINE_CLOUD_TOKEN"]
+endpoint = os.environ["TDENGINE_ENDPOINT"]
+token = os.environ["TDENGINE_TOKEN"]
 
 conf = {
   # auth options

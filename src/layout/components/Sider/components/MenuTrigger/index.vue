@@ -37,7 +37,7 @@ export default {
   justify-content: center;
   border-radius: 50%;
   background: white;
-  box-shadow: rgb(0 0 0 / 10%) 2px 0px 9px;
+  box-shadow: rgb(0 0 0 , 10%) 2px 0px 9px;
   z-index: 2;
 }
 

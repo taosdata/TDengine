@@ -472,7 +472,7 @@ export default {
       width: 480px;
       padding: 15px;
       padding-top: 30px;
-      box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
+      box-shadow: 0 2px 12px 0 rgba(0, 0, 0 , 10%);
       .login-title {
         font-size: 28px;
         font-weight: 500;

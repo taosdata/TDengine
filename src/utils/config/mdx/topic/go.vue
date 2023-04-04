@@ -14,7 +14,7 @@ require github.com/taosdata/driver-go/v3 latest
       :id="'go-config'"
       :url="tmq"
       :need-token="false"
-      :url-key="'TDENGINE_CLOUD_TMQ'"
+      :url-key="'TDENGINE_TMQ'"
       :url-des="$t('component.docConfig.tmq')"
     ></doc-config>
     <h2 id="go-create-consumer">{{ $t("docs.topic.step3") }}</h2>
@@ -24,7 +24,7 @@ require github.com/taosdata/driver-go/v3 latest
   tmqcommon "github.com/taosdata/driver-go/v3/common/tmq"
   "github.com/taosdata/driver-go/v3/ws/tmq"
 )
-tmqStr := os.Getenv("TDENGINE_CLOUD_TMQ")
+tmqStr := os.Getenv("TDENGINE_TMQ")
 consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
   "ws.url":                tmqStr,
   "ws.message.channelLen": uint(0),
@@ -87,7 +87,7 @@ import (
 )
 
 func main() {
-  tmqStr := os.Getenv(&quot;TDENGINE_CLOUD_TMQ&quot;)
+  tmqStr := os.Getenv(&quot;TDENGINE_TMQ&quot;)
   consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
     &quot;ws.url&quot;:                tmqStr,
     &quot;ws.message.channelLen&quot;: uint(0),

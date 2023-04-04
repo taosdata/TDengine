@@ -10,14 +10,14 @@ export function getDatain(id){
  export function getPI(id){
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url: `/tasks?detail=true&labels=type::pi,cluster-id::${id}`,
+        url: `/tasks?detail=true&labels=type::datain,cluster-id::${id}`,
         method: "get"
     });
  }
  export function getOPC(id){
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url: `/tasks?detail=true&labels=type::opc,cluster-id::${id}`,
+        url: `/tasks?detail=true&labels=type::datain,cluster-id::${id}`,
         method: "get"
     });
  }

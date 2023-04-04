@@ -86,8 +86,6 @@ export default {
   },
   methods: {
     changePri() {
-      console.log()
-      console.log(this.selectedDatabasePrivileges);
     },
     getDatabaseList() {
       try {
@@ -108,7 +106,6 @@ export default {
                 this.$set(this.selectedDatabasePrivileges, item.name, []);
               }
             });
-            console.log(this.databaseList);
           })
           .catch((err) => {
             this.$emit("close")
@@ -138,7 +135,6 @@ export default {
               this.topicList.push(item.topic_name);
               this.$set(this.selectedTopicPrivileges, item.topic_name, []);
             });
-            console.log(this.topicList);
           })
           .catch((err) => {
             this.$emit("close")

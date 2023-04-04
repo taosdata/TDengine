@@ -163,7 +163,6 @@ export default {
             `ALTER USER ${username} PASS '${this.changeForm.new_password}'`
           )
             .then((res) => {
-              console.log(res, "修改密码");
               if (res) {
                 this.changeForm = {
                   old_password: "",

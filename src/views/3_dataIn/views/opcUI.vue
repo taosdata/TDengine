@@ -7,9 +7,10 @@
         <!-- <h3>{{ dbsource[0].description }}</h3> -->
       </section>
       <section class="basics">
-        <div class="block-title">
-          <span>{{ dbsource[0].options.display }}</span>
-        </div>
+        <!-- <div class="block-title" v-if="dbsource[0].options.endpoint">
+          <span>{{ dbsource[0].options.endpoint.display }}</span>
+          <el-input v-model="dbsource[0].options.endpoint.value" :placeholder="dbsource[0].options.endpoint.placeholder"></el-input>
+        </div> -->
         <div class="protocol" v-if="dbsource[0].protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
           <div class="label-value">
@@ -31,27 +32,27 @@
           </div>
         </div>
         <div class="first">
-          <div style="width: 100%" v-if="JSON.stringify(dbsource[0].options.host)!=='{}'">
+          <div style="width: 100%" v-if="JSON.stringify(dbsource[0].options)!=='{}'&&JSON.stringify(dbsource[0].options.endpoint)!=='{}'">
             <span
               :class="[
                 'label',
-                dbsource[0].options.host.required ? 'required' : '',
+                (dbsource[0].options.endpoint&&dbsource[0].options.endpoint.required) ? 'required' : '',
               ]"
-              >{{ dbsource[0].options.host.display }}</span
+              >{{ dbsource[0].options.endpoint?dbsource[0].options.endpoint.display:'' }}</span
             >
-            <div class="label-value">
+            <div class="label-value" v-if="dbsource[0].options.endpoint">
               <el-input
-                v-model="dbsource[0].options.host.value"
+                v-model="dbsource[0].options.endpoint.value"
                 oninput="value=>value.replace()"
-                :placeholder="dbsource[0].options.host.placeholder"
+                :placeholder="dbsource[0].options.endpoint?dbsource[0].options.endpoint.placeholder:''"
               ></el-input>
               <div
-                v-html="transforHtml(dbsource[0].options.host.description)"
+                v-html="transforHtml(dbsource[0].options.endpoint.description)"
                 class="description"
               ></div>
             </div>
           </div>
-          <div style="width: 100%" v-if="JSON.stringify(dbsource[0].options.port)!=='{}'">
+          <!-- <div style="width: 100%" v-if="JSON.stringify(dbsource[0].options.port)!=='{}'">
             <span
               :class="[
                 'label',
@@ -70,7 +71,7 @@
                 class="description"
               ></div>
             </div>
-          </div>
+          </div> -->
         </div>
         <!-- <div style="width: 100%">
           <span
@@ -346,6 +347,7 @@ import { AddSource, EditSource } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import marked from "marked";
 import { decrypt } from "@/utils/index";
+
 export default {
   name: "DbSourceUI",
   props: {
@@ -371,7 +373,7 @@ export default {
   data() {
     return {
       decryptPwd: "", //解密的密码
-      //   dbsource,
+        // dbsource,
       disable: false,
       address: "",
       port: "",
@@ -457,15 +459,14 @@ export default {
         //   data.options.host.value ? data.options.host.value : ""
         // }
         // `;
-        dns +=`://${
-            data.options.host.value ? data.options.host.value : ""
+        
+        if (data.options.endpoint&&JSON.stringify(data.options.endpoint)!=='{}' ) {
+          dns +=`://${
+            data.options.endpoint.value ? data.options.endpoint.value : "/"
           }`
-        if (data.options.port) {
-          dns +=
-            (Object.is(data.options.port.value, null) ? "" : ":") +
-            `${data.options.port.value ? data.options.port.value : ""}`;
+        }else{
+          dns+=`:///`
         }
-
         // dns += data.options.subject.value
         //   ? "/" + data.options.subject.value
         //   : "";
@@ -499,10 +500,7 @@ export default {
         }
 
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-        console.log(data, "pppp");
         
-        
-          console.log("opc的接口");
           let piParams = {
             from:
               "opc" +
@@ -517,15 +515,26 @@ export default {
               "taos+" +
               localStorage.getItem("base_url") +
               (this.dbname ? "/" + this.dbname : ""),
-            labels: ["type::opc", `cluster-id::${id}`],
+            labels: ["type::datain", `cluster-id::${id}`],
           };
-          await AddSource(piParams).then((res) => {
-            console.log(res, "opc的接口返回");
-            if (res && res.id) {
+          if (this.isEditable) {
+            await EditSource(piParams, this.editId).then(() => {
+              this.$parent.toggleComponent("opctable");
+            });
+          } else {
+            await AddSource(piParams).then((res) => {
+              if (res && res.id) {
               this.$parent.toggleComponent("opctable", "");
               Message.success("Operation Successfully!");
             }
-          });
+            });
+          }
+          // await AddSource(piParams).then((res) => {
+          //   if (res && res.id) {
+          //     this.$parent.toggleComponent("opctable", "");
+          //     Message.success("Operation Successfully!");
+          //   }
+          // });
         
       } catch (error) {
         console.log(error);

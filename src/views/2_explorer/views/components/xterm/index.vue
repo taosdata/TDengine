@@ -180,7 +180,7 @@
             fitAddon.fit();
             term.scrollToBottom();
           } catch (e) {
-            console.log("e", e.message);
+            console.log(e);
           }
         };
         window.addEventListener("resize", resizeScreen);

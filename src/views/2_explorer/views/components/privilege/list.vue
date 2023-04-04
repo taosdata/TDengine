@@ -208,7 +208,6 @@ export default {
             );
           });
 
-        console.log(this.list,'当前选中db----',this.$store.state.dbs);
         })
       } catch (error) {
         console.log(error);
@@ -236,7 +235,6 @@ export default {
       this.dialog = false;
     },
     statusChange(val, data) {
-      console.log(val,data,'OPERATION----ROW');
       this.$confirm(
         this.getTipName(data, val ? "enable" : "disable"),
         this.$t("tips"),
@@ -248,7 +246,7 @@ export default {
       ).then(async () => {
         this.requesting = true;
         sendSQLReq(`REVOKE ${data.privilege} ON ${this.$store.state.dbs.selected_db} FROM ${data.user_name}`).then(res=>{
-          console.log(res,'撤销权限===');
+          
           if(res&&res.rows==1){
             Message.success('Opeartion Successfully')
             this.refresh()

@@ -72,6 +72,11 @@ module.exports = {
 					@import "@/styles/global.scss";
 				`,
       },
+      sass:{
+        sassoptions:{
+          javascriptEnabled:true
+        }
+      }
     },
   },
   chainWebpack(config) {

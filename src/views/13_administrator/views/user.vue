@@ -153,7 +153,6 @@ export default {
   methods: {
      getCurrentUser() {
        this.$store.dispatch("app/getUserInfo").then((res) => {
-        console.log(res)
          this.currentUser = res;
        });
     },
@@ -207,7 +206,6 @@ export default {
     },
     edit(data) {
       this.$set(this, 'editUser', data.name);
-      console.log(this.editUser)
       // this.editUser = data.name,
       this.editDialog = true
     },

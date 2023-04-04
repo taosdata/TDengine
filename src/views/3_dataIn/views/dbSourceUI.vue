@@ -357,7 +357,6 @@ export default {
   },
   filters:{
     transtozh(val){
-      console.log(val,'转移成中文');
     }
   },
   data() {
@@ -422,6 +421,7 @@ export default {
     },
 
     async submit() {
+      debugger
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
@@ -495,7 +495,6 @@ export default {
         }
 
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-        console.log(data, "pppp");
         let apiParams = {
           from:
             "tmq" +
@@ -515,15 +514,14 @@ export default {
         if (this.tagName === "datasource") {
           if (this.isEditable) {
             await EditSource(apiParams, this.editId).then(() => {
-              this.$parent.toggleComponent("dbsource", "");
+              this.$parent.toggleComponent("tmqtable");
             });
           } else {
             await AddSource(apiParams).then((res) => {
-              this.$parent.toggleComponent("dbsource", "");
+              this.$parent.toggleComponent('tmqtable');
             });
           }
         } else {
-          console.log("pi的接口", dns);
           let piParams = {
             from: "pi" + dns,
             name: localStorage.getItem("datainName"),
@@ -533,14 +531,26 @@ export default {
               "taos+" +
               localStorage.getItem("base_url") +
               (this.dbname ? "/" + this.dbname : ""),
-            labels: ["type::pi", `cluster-id::${id}`],
+            labels: ["type::datain", `cluster-id::${id}`],
           };
-          await AddSource(piParams).then((res) => {
-            if (res && res.id) {
-              this.$parent.toggleComponent("pitable", "");
+          if (this.isEditable) {
+            await EditSource(piParams, this.editId).then(() => {
+              this.$parent.toggleComponent("pitable");
+            });
+          } else {
+            await AddSource(piParams).then((res) => {
+              if (res && res.id) {
+              this.$parent.toggleComponent('pitable');
               Message.success("Operation Successfully!");
             }
-          });
+            });
+          }
+          // await AddSource(piParams).then((res) => {
+          //   if (res && res.id) {
+          //     this.$parent.toggleComponent('pitable');
+          //     Message.success("Operation Successfully!");
+          //   }
+          // });
         }
       } catch (error) {
         console.log(error);

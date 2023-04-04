@@ -56,10 +56,12 @@
       },
       url() {
         // return this.$store.state.app.current_cluster.urlPath;
-        return this.$store.state.app.current_cluster.gateway_url;
+        // return this.$store.state.app.current_cluster.gateway_url;
+        return localStorage.getItem('base_url')
       },
       token() {
-        return this.$store.state.app.current_cluster?.token || "";
+        // return this.$store.state.app.current_cluster?.token || "";
+        return localStorage.getItem('TDengine-Token')?localStorage.getItem('TDengine-Token'):''
       },
     },
     data() {
@@ -132,6 +134,15 @@
         return topList;
       },
       getImg(name, icon) {
+        if(name=='REST API'){
+          name='restapi'
+        }
+        if(name=='TDengine CLI'){
+          name='tdenginecli'
+        }
+        if(name=='Google Data Studio'){
+          name='gdStudio'
+        }
         try {
           return require(`@/assets/images/${icon || name}.svg`);
         } catch (err) {

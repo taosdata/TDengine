@@ -38,7 +38,6 @@
       },
       config() {
         let lang = window.decodeURIComponent(this.lang);
-        console.log(this.lang,'---java----',config,this.category);
         return (
           config[this.category].find(item => {
             return item.name == lang;
@@ -130,6 +129,12 @@
       getImg(name, icon) {
         if(name=='REST API'){
           name='restapi'
+        }
+        if(name=='TDengine CLI'){
+          name='tdenginecli'
+        }
+        if(name=='Google Data Studio'){
+          name='gdStudio'
         }
         try {
           return require(`@/assets/images/${icon || name}.svg`);

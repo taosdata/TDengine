@@ -316,7 +316,6 @@ export default {
       // });
     },
     handleAdd() {
-      console.log('获取参数',this.ruleForm);
       this.$parent.toggleComponent("ui");
     },
     async getList() {
