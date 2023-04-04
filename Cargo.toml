@@ -87,7 +87,7 @@ reqwest = "0.11.15"
 taosx-ipc = { path = "./taosx-ipc" }
 
 taos = { workspace = true }
-taosx-core = { path = "./taosx-core" }
+taosx-core = { path = "./taosx-core", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
@@ -101,9 +101,9 @@ dotenv = "0.15.0"
 shadow-rs = "0.21.0"
 
 [features]
-default = ["optin", "rustls"]
-optin = ["taos/optin"]
-sys = ["taos/native"]
-rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls"]
-native-tls = ["sqlx/runtime-tokio-native-tls", "taos/ws-native-tls"]
-disable-enterprise-only-validation = []
+default = ["sys", "rustls"]
+optin = ["taos/optin", "taosx-core/optin"]
+sys = ["taos/native", "taosx-core/sys"]
+rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls", "taosx-core/rustls"]
+native-tls = ["sqlx/runtime-tokio-native-tls", "taos/ws-native-tls", "taosx-core/native-tls"]
+disable-enterprise-only-validation = ["taosx-core/disable-enterprise-only-validation"]

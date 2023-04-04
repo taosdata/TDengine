@@ -82,7 +82,6 @@ impl Cli {
                     TaskDetail,
                     NewTask,
                     UpdateTask,
-                    Cluster,
                     Labels,
                     Task,
                     Failed,

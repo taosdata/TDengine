@@ -87,25 +87,8 @@ mod option_datetime_format {
     }
 }
 
-mod labels_serde {
-    use serde::{self, Deserialize, Deserializer, Serializer};
-    type Target = Option<Vec<String>>;
-
-    // The signature of a deserialize_with function must follow the pattern:
-    //
-    //    fn deserialize<D>(D) -> Result<T, D::Error> where D: Deserializer
-    //
-    // although it may also be generic over the output types T.
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Target, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Target::deserialize(deserializer)
-    }
-}
 
 use super::data_sources::DataSourceDefinition;
-use super::metrics::metrics_exporter;
 
 static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 
@@ -699,23 +682,6 @@ impl TaskController {
         } else {
             Ok(None)
         }
-    }
-
-    pub async fn start_all(&self) -> anyhow::Result<usize> {
-        let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
-            "select * from task_with_labels where status not in (?, ?, ?) and `deleted` != TRUE order by created_at desc")
-            .bind(      Status::Completed)
-            .bind(            Status::Failed)
-            .bind(            Status::Stopped)
-
-                    .fetch_all(&self.pool)
-        .   await?;
-        // Ok(tasks)
-        let len = tasks.len();
-        for task in &tasks {
-            self.start_task(task).await?;
-        }
-        Ok(len)
     }
 
     pub async fn start(&self, id: i64) -> anyhow::Result<Option<()>> {
