@@ -130,7 +130,6 @@ export default {
     //没有配置grafana地址需要走接口展示页面
     async getDashData() {
       try {
-        console.log('dashboard ---api');
         await sendSQLReq(`show cluster`).then((res) => {
           let result = res.data.map((data) => {
             return Object.fromEntries(

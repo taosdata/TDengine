@@ -185,7 +185,6 @@ export default {
       });
     },
     refresh(){
-        console.log('刷新操作')
     },
     addUdf(){
 

@@ -91,6 +91,8 @@ request.interceptors.response.use(
         Message.error(navigator.language.includes('zh') ? taosx500 : taosx500en)
       }
     }
+
+    console.log(error.config,error.response,'监控taosx');
     return Promise.reject(error);
   }
 );

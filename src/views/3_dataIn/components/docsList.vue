@@ -37,14 +37,18 @@ export default {
   computed: {},
   methods: {
     getUrl(name) {
-      console.log(this.parentUrl + this.urlPre + encodeURIComponent(name),'跳转的地址');
       return this.parentUrl + this.urlPre + encodeURIComponent(name);
     },
     getImg(name, icon) {
-      console.log(name,icon,'图标');
       if(name=='REST API'){
         name='restapi'
       }
+      if(name=='TDengine CLI'){
+        name='tdenginecli'
+      }
+      if(name=='Google Data Studio'){
+          name='gdStudio'
+        }
       try {
           return require(`@/assets/images/${icon || name}.svg`);
         } catch (err) {
@@ -95,7 +99,7 @@ export default {
       }
       &:hover {
         border: 1px solid $color-primary;
-        box-shadow: 0 3px 6px 0 rgb(0 0 0 / 20%);
+        box-shadow: rgba(0, 0, 0, 0.05) 0px -9px 9px;
       }
     }
   }

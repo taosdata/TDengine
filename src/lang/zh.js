@@ -220,6 +220,7 @@ export default {
     rememberMe: "记住我",
   },
   dashboard: {
+    warnigtip:`请点击左侧<a href="/dashboard">仪表盘</a>查看TDinsight的设置`,
     version: "版本",
     expiretime: "过期时间",
     createtime: "创建时间",

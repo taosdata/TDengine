@@ -123,7 +123,6 @@ export default {
       deep:true,
       handler(val){
         this.getData()
-        console.log(val,'舰艇');
       }
     }
   },
@@ -159,7 +158,6 @@ export default {
               );
             });
 
-            console.log(this.userList, "全部的users");
           })
           .catch((err) => {
             err.desc && Message.error(err.desc);

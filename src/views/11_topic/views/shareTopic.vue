@@ -50,7 +50,6 @@ export default {
             return data.join('')
             });
             this.currentTopic=this.topicList[0]
-            console.log(this.topicList, this.currentTopic,"全部的topics");
           })
           .catch((err) => {
             err.desc && Message.error(err.desc);

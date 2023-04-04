@@ -1,22 +1,22 @@
 <template>
   <div class="page-wrapper">
     <div class="content">
-      <el-tabs :value="active">
+      <el-tabs v-model="active" @tab-click='clickTab'>
         <el-tab-pane name="datacollection" :label="$t('topic.datacollection')" v-if="!isOem">
           <DataIn ></DataIn>
         </el-tab-pane>
         <el-tab-pane name="datasource" :label="$t('topic.datasource')" v-if="!isOem" :disabled='sourceDisabled'>
-          <DbSource ></DbSource>
+          <DbSource ref="dbsource"></DbSource>
         </el-tab-pane>
         <el-tab-pane name="csv" :label="$t('topic.csv')">
           <DataCSV></DataCSV>
         </el-tab-pane>
-        <el-tab-pane name='pi' label='PI' :disabled='piDisable'>
+        <!-- <el-tab-pane name='pi' label='PI' :disabled='piDisable'>
           <PlantInformation ></PlantInformation>
         </el-tab-pane>
         <el-tab-pane name="opc" label="OPC" :disabled='opcDisable'>
           <OpcView ></OpcView>
-        </el-tab-pane>
+        </el-tab-pane> -->
       </el-tabs>
     </div>
     
@@ -50,7 +50,12 @@ export default {
   },
   
   watch: {},
-  methods: {},
+  methods: {
+    clickTab(){
+      this.$refs.dbsource.currentName='dbsource'
+      console.log('点击tab',this.active,this.$refs.dbsource.currentName);
+    }
+  },
 };
 </script>
 

@@ -294,6 +294,7 @@ export default {
     rememberMe: "Remember me",
   },
   dashboard: {
+    warnigtip:`Please click on the left <a href="/dashboard"> dashboard</a> to view the settings for TDinsight`,
     createtime: 'Create Time',
     expiretime: 'Expire Time',
     version: 'Version',

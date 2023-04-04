@@ -1,191 +1,178 @@
 {
-    "id": "opc",
-    "name": "OPC-UA/DA",
-    "description": "OPC is one of interoperability standard for the secure and reliable exchange of data\nin the industrial automation space and in other industries.\n\nOPC DA (Data Access) is a classic COM-based specification that works only on Windows.\nOPC DA is widely used even though it isn’t the newest and most efficient data communication\nspecification out there. This is mainly because of older devices that only support the OPC DA.\n\nOPC UA is the next generation beyond the classic OPC specification, a platform-independent,\nservice-oriented architecture specification that\nintegrates all functionality from the existing OPC Classic specifications,\nproviding a migration path to a more secure and scalable solution.\n\nFor more about OPC UA/DA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/),\nand some useful blogs, such as\n\n1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)\n2. [What is OPC DA](https://plcynergy.com/opc-da/),\n3. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/).\n4. [WHEN TO USE OPC-UA VS OPC-DA](https://www.vertech.com/blog/opc-ua-vs-opc-da).\n\ntaosX could pull data from OPC server by a OPC connector plugin.\n\nCheck the help message in each part to see the details.\n",
-    "type": "uri",
-    "protocol": {
-      "display": "Protocol",
-      "description": "Choose to use OPC UA or DA protocol.",
-      "choices": [
-        {
-          "name": "ua",
-          "display": "UA",
-          "description": "For OPC-UA connections."
-        },
-        {
-          "name": "da",
-          "display": "DA",
-          "description": "For OPC-DA(Classic) connections."
-        }
-      ]
-    },
-    "options": {
-      "host": {
-        "display": "Server",
-        "description": "OPC server name.",
-        "placeholder": "server"
+  "id": "opc",
+  "type": "uri",
+  "name": "OPC-UA/DA",
+  "description": "OPC is one of interoperability standard for the secure and reliable exchange of data\nin the industrial automation space and in other industries.\n\nOPC DA (Data Access) is a classic COM-based specification that works only on Windows.\nOPC DA is widely used even though it isn’t the newest and most efficient data communication\nspecification out there. This is mainly because of older devices that only support the OPC DA.\n\nOPC UA is the next generation beyond the classic OPC specification, a platform-independent,\nservice-oriented architecture specification that\nintegrates all functionality from the existing OPC Classic specifications,\nproviding a migration path to a more secure and scalable solution.\n\nFor more about OPC UA/DA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/),\nand some useful blogs, such as\n\n1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)\n2. [What is OPC DA](https://plcynergy.com/opc-da/),\n3. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/).\n4. [WHEN TO USE OPC-UA VS OPC-DA](https://www.vertech.com/blog/opc-ua-vs-opc-da).\n\ntaosX could pull data from OPC server by a OPC connector plugin.\n\nCheck the help message in each part to see the details.\n",
+  "options": {
+    "endpoint": {
+      "display": "Endpoint",
+      "description": "OPC server endpoint.",
+      "placeholder": "host:5055/OPCUA/server1"
+    }
+  },
+  "protocol": {
+    "display": "Protocol",
+    "description": "Choose to use OPC UA or DA protocol.",
+    "choices": [
+      {
+        "name": "ua",
+        "display": "UA",
+        "description": "For OPC-UA connections."
       },
-      "port": {
-        "display": "Port",
-        "description": "OPC server ip."
+      {
+        "name": "da",
+        "display": "DA",
+        "description": "For OPC-DA(Classic) connections."
       }
-    },
-    "strict": false,
-    "authentication": {
-      "display": "Authentication",
-      "description": "Use username/password plain authentication or with certificate files, or anonymous(default).",
-      "value": "anonymous",
-      "alternatives": [
-        {
-          "name": "anonymous",
-          "display": "Anonymous",
-          "description": "Logging in anonymously without any configurations (if available).",
-          "value": true
+    ],
+    "value": null
+  },
+  "authentication": {
+    "display": "Authentication",
+    "description": "Use username/password plain authentication or with certificate files, or anonymous(default).",
+    "value": "anonymous",
+    "alternatives": [
+      {
+        "name": "anonymous",
+        "display": "Anonymous"
+      },
+      {
+        "name": "plain",
+        "display": "Username",
+        "username": {
+          "required": true,
+          "display": "Username",
+          "description": "OPC server username.",
+          "placeholder": "username"
         },
-        {
-          "name": "plain",
-          "display": "Plain",
-          "description": "Use username and password.",
-          "username": {
-            "display": "Username",
-            "description": "OPC server username.",
-            "placeholder": "username"
-          },
-          "password": {
-            "display": "Password",
-            "description": "OPC server password.",
-            "placeholder": "password"
-          }
-        },
-        {
-          "name": "certificates",
-          "display": "Certificates",
-          "description": "Use certificate file and private key.",
-          "params": [
-            {
-              "name": "certificate",
-              "display": "Certificate",
-              "description": "Path to cert.pem. Required when security mode or policy isn't \"None\".",
-              "hint": "file"
-            },
-            {
-              "name": "private_key",
-              "display": "Private key",
-              "description": "Path to private key.pem. Required when security mode or policy isn't \"None\"",
-              "hint": "file"
-            },
-            {
-              "name": "security_mode",
-              "display": "Security Mode",
-              "description": "Available value is one of None / Sign / SignAndEncrypt.\n\n- **None**:\n- **Sign**:\n- **SingAndEncrypt**:\n",
-              "hint": {
-                "type": "str",
-                "choices": [
-                  "None",
-                  "Sign",
-                  "SignAndEncrypt"
-                ]
-              }
-            },
-            {
-              "name": "security_policy",
-              "display": "Security Policy",
-              "description": "Available value is one of None/Basic128Rsa15/Basic256/Basic256Sha256.\n",
-              "hint": {
-                "type": "str",
-                "choices": [
-                  "None",
-                  "Basic128Rsa15",
-                  "Basic256",
-                  "Basic256Sha256"
-                ]
-              }
-            }
-          ]
+        "password": {
+          "required": true,
+          "display": "Password",
+          "description": "OPC server password.",
+          "placeholder": "password"
         }
-      ]
-    },
-    "groups": [
-      {
-        "name": "Data Sets",
-        "display_order": 1,
-        "description": "Data points in OPC server to collect.",
-        "params": [
-          {
-            "name": "ua.nodes",
-            "display": "Nodes",
-            "description": "Node id list separated by a ','.",
-            "placeholder": "ns=2;i=2, ns=2;i=3",
-            "hint": "str",
-            "if": "protocol.ua"
-          },
-          {
-            "name": "da.nodes",
-            "display": "DA Nodes",
-            "description": "A OPC DA node list separated by ','.",
-            "hint": "str",
-            "placeholder": "localhost",
-            "if": "protocol.da"
-          },
-          {
-            "name": "da.tags",
-            "display": "DA Tags",
-            "description": "A OPC DA tags list separated by ','.",
-            "placeholder": "ns=2;i=2, ns=2;i=3",
-            "hint": "str",
-            "if": "protocol.da"
-          }
-        ]
       },
       {
-        "name": "Connection",
-        "display_order": 2,
-        "description": "Some configurations used in connecting step.",
+        "name": "certificates",
+        "display": "Certificates",
         "params": [
           {
-            "name": "connect_timeout",
-            "display": "Connect Timeout",
-            "description": "Timeout for connect to endpoint in seconds.",
-            "placeholder": 10,
-            "hint": "integer"
+            "name": "certificate",
+            "display": "Certificate",
+            "hint": "file",
+            "description": "Path to cert.pem. Required when security mode or policy isn't \"None\"."
           },
           {
-            "name": "request_timeout",
-            "display": "Request Timeout",
-            "hint": "integer",
-            "description": "Timeout for a request in seconds.",
-            "placeholder": 10
-          }
-        ]
-      },
-      {
-        "name": "Others",
-        "display_order": 3,
-        "description": "Other configurations.",
-        "params": [
+            "name": "private_key",
+            "display": "Private key",
+            "hint": "file",
+            "description": "Path to private key.pem. Required when security mode or policy isn't \"None\""
+          },
           {
-            "name": "concurrent",
-            "display": "Concurrency",
-            "description": "Number of concurrency while collecting.",
+            "name": "security_mode",
+            "display": "Security Mode",
             "hint": {
-              "type": "integer"
-            }
+              "type": "str",
+              "choices": [
+                "None",
+                "Sign",
+                "SignAndEncrypt"
+              ]
+            },
+            "description": "Available value is one of None / Sign / SignAndEncrypt.\n\n- **None**:\n- **Sign**:\n- **SingAndEncrypt**:\n"
           },
           {
-            "name": "batch_size",
-            "display": "Batch Size",
-            "hint": "integer",
-            "description": "Max batch size for each record batch while reporting to target.",
-            "placeholder": 100
-          },
-          {
-            "name": "batch_timeout",
-            "display": "Batch Timeout",
-            "hint": "integer",
-            "description": "Reporting timeout for a batch in seconds.",
-            "placeholder": 20
+            "name": "security_policy",
+            "display": "Security Policy",
+            "hint": {
+              "type": "str",
+              "choices": [
+                "None",
+                "Basic128Rsa15",
+                "Basic256",
+                "Basic256Sha256"
+              ]
+            },
+            "description": "Available value is one of None/Basic128Rsa15/Basic256/Basic256Sha256.\n"
           }
         ]
       }
     ]
-  }
+  },
+  "groups": [
+    {
+      "name": "Data Sets",
+      "display_order": 1,
+      "description": "Data points in OPC server to collect.",
+      "params": [
+        {
+          "name": "ua.nodes",
+          "display": "Nodes",
+          "hint": "str",
+          "description": "Node id list separated by a ','.",
+          "if": "protocol.ua"
+        },
+        {
+          "name": "da.nodes",
+          "display": "DA Nodes",
+          "hint": "str",
+          "description": "A OPC DA node list separated by ','.",
+          "if": "protocol.da"
+        },
+        {
+          "name": "da.tags",
+          "display": "DA Tags",
+          "hint": "str",
+          "description": "A OPC DA tags list separated by ','.",
+          "if": "protocol.da"
+        }
+      ]
+    },
+    {
+      "name": "Connection",
+      "display_order": 2,
+      "description": "Some configurations used in connecting step.",
+      "params": [
+        {
+          "name": "connect_timeout",
+          "display": "Connect Timeout",
+          "hint": "integer",
+          "description": "Timeout for connect to endpoint in seconds."
+        },
+        {
+          "name": "request_timeout",
+          "display": "Request Timeout",
+          "hint": "integer",
+          "description": "Timeout for a request in seconds."
+        }
+      ]
+    },
+    {
+      "name": "Others",
+      "display_order": 3,
+      "description": "Other configurations.",
+      "params": [
+        {
+          "name": "concurrent",
+          "display": "Concurrency",
+          "hint": {
+            "type": "integer"
+          },
+          "description": "Number of concurrency while collecting."
+        },
+        {
+          "name": "batch_size",
+          "display": "Batch Size",
+          "hint": "integer",
+          "description": "Max batch size for each record batch while reporting to target."
+        },
+        {
+          "name": "batch_timeout",
+          "display": "Batch Timeout",
+          "hint": "integer",
+          "description": "Reporting timeout for a batch in seconds."
+        }
+      ]
+    }
+  ]
+}

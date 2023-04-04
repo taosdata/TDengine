@@ -20,14 +20,14 @@ anyhow = &quot;1.0.0&quot;
       :id="'rust-config'"
       :url="tmq"
       :need-token="false"
-      :url-key="'TDENGINE_CLOUD_TMQ'"
+      :url-key="'TDENGINE_TMQ'"
       :url-des="$t('component.docConfig.tmq')"
     ></doc-config>
     <h2 id="rust-create-consumer">{{ $t("docs.topic.step3") }}</h2>
     <p>{{ $t("docs.topic.step3desc") }}</p>
     <pre
       v-highlight
-    ><code class="language-rust">let tmq_str = std::env::var("TDENGINE_CLOUD_TMQ")?;
+    ><code class="language-rust">let tmq_str = std::env::var("TDENGINE_TMQ")?;
 let tmq_uri = format!( "{}&\
 group.id=test_group_rs&\
 client.id=test_consumer_ws", tmq_str);
@@ -80,7 +80,7 @@ consumer
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
   // subscribe
-  let tmq_str = std::env::var(&quot;TDENGINE_CLOUD_TMQ&quot;)?;
+  let tmq_str = std::env::var(&quot;TDENGINE_TMQ&quot;)?;
   let tmq_uri = format!( &quot;{}&\\
   group.id=test_group_rs&\\
   client.id=test_consumer_ws&quot;, tmq_str);

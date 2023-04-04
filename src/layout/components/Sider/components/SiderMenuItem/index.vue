@@ -55,14 +55,26 @@ export default {
     menuRight(path) {
       OpenNewTab(path);
     },
+     open2() {
+        this.$notify({
+          title: '警告',
+          dangerouslyUseHTMLString:true,
+          duration: 0,
+          message: `<div>
+          ${this.$t('dashboard.warnigtip')}
+          </div>`,
+          type: 'warning'
+        });
+      },
     menuClick(val) {
       let url = localStorage.getItem("local_grafana");
-      if (val === "Dashboard") {
-        window.open('https://docs.taosdata.com/reference/tdinsight/#','_blank')
+      if (val === "Dashboard"||val==='面板') {
+        // window.open('https://docs.taosdata.com/reference/tdinsight/#','_blank')
         if (url) {
           OpenNewTab(url);
         } else {
           // OpenNewTab(null);
+          this.open2()
         }
       }
     },

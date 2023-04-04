@@ -376,7 +376,6 @@ export default {
     },
     // 处理全局db和stb
     async handleVar(data, node) {
-      console.log(data.node, "0000");
       switch (data.typeName) {
         case "database":
           this.$store.commit("dbs/SET_SELECTED_DB", data.name);
@@ -569,7 +568,6 @@ export default {
       this.changePartActive();
     },
     async manage(data, node) {
-      console.log("数据库管理，只有管理员可以看到该功能", data, node);
       await this.handleVar(data);
       this.$store.state.console.currentInfoType = data.typeName;
       this.$store.commit("console/SET_CURRENT_INFO_DATA", data);
@@ -614,8 +612,6 @@ export default {
           del: this.$t("data.delTable"),
         },
       };
-
-      console.log(data, operate,obj[data.typeName], "toolitp-----ss");
       return obj[data.typeName][operate];
     },
   },

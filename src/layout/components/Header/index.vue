@@ -16,8 +16,8 @@
     <div class="headerRight">
 
       
-      <Support v-if="supportUrl"></Support>
-      <Document v-if="docUrl"></Document>
+      <!-- <Support v-if="supportUrl"></Support>
+      <Document v-if="docUrl"></Document> -->
       <!-- <Github></Github> -->
       <!-- <International></International> -->
 
@@ -76,7 +76,6 @@ export default {
               })
             );
           });
-          console.log(this.license,'license---');
         });
       } catch (error) {
         console.log(error);

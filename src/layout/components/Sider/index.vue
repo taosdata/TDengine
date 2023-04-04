@@ -239,7 +239,7 @@ export default {
 
 <style lang="scss" scoped>
 .sider {
-  box-shadow: rgb(0 0 0 / 5%) 0px -9px 9px;
+  box-shadow: rgba(0, 0, 0, 0.05) 0px -9px 9px;
   position: relative;
   height: 100%;
   background-color: #fff;

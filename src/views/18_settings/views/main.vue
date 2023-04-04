@@ -138,8 +138,7 @@ export default {
         img {
           border-radius: 20px;
           cursor: pointer;
-          box-shadow: 0 3px 6px -4px rgb(0 0 0 / 12%),
-            0 6px 16px 0 rgb(0 0 0 / 8%), 0 9px 28px 8px rgb(0 0 0 / 5%);
+          box-shadow: rgba(0, 0, 0, 0.05) 0px -9px 9px;
           &:hover {
             scale: (1.1);
           }

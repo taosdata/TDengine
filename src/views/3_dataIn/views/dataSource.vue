@@ -3,17 +3,29 @@
     <div class="flexEnd">
       <el-button
         plain
-        @click="dialog=true"
+        @click="dialog = true"
         size="small"
         icon="el-icon-plus"
         >{{ $t("datasource.addsource") }}</el-button
       >
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column :label="$t('datasource.name')" prop="localname"></el-table-column>
-      <el-table-column :label="$t('datasource.type')" prop="localtype"></el-table-column>
-      <el-table-column :label="$t('datasource.target')" prop="target"></el-table-column>
-      <el-table-column :label="$t('datasource.createat')" prop="created_at"></el-table-column>
+      <el-table-column
+        :label="$t('datasource.name')"
+        prop="localname"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('datasource.type')"
+        prop="localtype"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('datasource.target')"
+        prop="target"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('datasource.createat')"
+        prop="created_at"
+      ></el-table-column>
       <!-- <el-table-column label="Finished At" prop="finished_at"></el-table-column> -->
 
       <el-table-column :label="$t('datasource.status')" prop="status">
@@ -73,7 +85,11 @@
           </template> -->
         </template>
       </el-table-column>
-      <el-table-column :label="$t('datasource.operation')" width="100" class="action">
+      <el-table-column
+        :label="$t('datasource.operation')"
+        width="100"
+        class="action"
+      >
         <template slot-scope="scope">
           <el-button
             type="primay"
@@ -105,7 +121,7 @@
       :title="$t('datasource.addsource')"
       width="400px"
       :visible.sync="dialog"
-      @closed='closeDialog'
+      @closed="closeDialog"
     >
       <el-form
         :model="ruleForm"
@@ -164,8 +180,9 @@
 </template>
 <script>
 import { Message } from "element-ui";
-import { getDatain } from "@/api/explorer/datain";
+import { getDatain, getOPC, getPI } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
+
 export default {
   name: "DataSource",
   props: {
@@ -174,6 +191,10 @@ export default {
       default() {
         return [];
       },
+    },
+    tagName: {
+      type: String,
+      default: "datasource",
     },
   },
   computed: {
@@ -205,7 +226,7 @@ export default {
     handlePageChange() {},
     closeDialog() {
       this.$refs.ruleForm.resetFields();
-        this.dialog=false
+      this.dialog = false;
     },
     del(data) {
       this.$confirm("Are you sure  to delete " + data.name + "?", "Warning", {
@@ -219,7 +240,7 @@ export default {
               type: "success",
               message: "Deleted Successfully",
             });
-            this.getList();
+            this.refresh()
           })
           .catch((err) => {
             err.desc && Message.error(err.desc);
@@ -230,9 +251,25 @@ export default {
     edit(data) {
       if (data.from_detail) {
         let editDdata = [].concat(data.from_detail);
-        let dbname=data.to_expand&&data.to_expand.subject?data.to_expand.subject:''
+        let dbname =
+          data.to_expand && data.to_expand.subject
+            ? data.to_expand.subject
+            : "";
         this.$parent.uidata = editDdata;
-        this.$parent.toggleComponent("ui", this.ruleForm.type, data.id,dbname);
+        console.log(
+          this.ruleForm,
+          data,
+          data.from_detail.id,
+          dbname,
+          this.tagName,
+          "编辑"
+        );
+        this.$parent.toggleComponent(
+          this.ruleForm.type,
+          data.from_detail.id,
+          data.id,
+          dbname
+        );
       }
 
       // this.$router.push({
@@ -240,17 +277,55 @@ export default {
       // });
     },
     handleAdd() {
-      
       localStorage.setItem("datainName", this.ruleForm.name);
-      this.$parent.toggleComponent("ui", this.ruleForm.type);
+      this.$parent.toggleComponent(this.ruleForm.type, "", "");
     },
     async getList() {
       try {
+        this.topicList = [];
         let id = localStorage.getItem("local_clusterID");
         await getDatain(id).then((res) => {
           if (res) {
             this.topicList = res.map((item) => {
               item["localname"] = item.name ? item.name : "tmq+" + item.id;
+              item["localtype"] = item.from_detail ? item.from_detail.name : "";
+              item["target"] = item.to_expand ? item.to_expand.subject : "";
+              return item;
+            });
+          }
+        });
+      } catch (err) {
+        err.desc && Message.error(err.desc);
+        return Promise.reject(err);
+      }
+    },
+    async getOPCList() {
+      try {
+        this.topicList = [];
+        let id = localStorage.getItem("local_clusterID");
+        await getOPC(id).then((res) => {
+          if (res) {
+            this.topicList = res.map((item) => {
+              item["localname"] = item.name ? item.name : "opc+" + item.id;
+              item["localtype"] = item.from_detail ? item.from_detail.name : "";
+              item["target"] = item.to_expand ? item.to_expand.subject : "";
+              return item;
+            });
+          }
+        });
+      } catch (err) {
+        // err.desc && Message.error(err.desc);
+        return Promise.reject(err);
+      }
+    },
+    async getPIList() {
+      try {
+        this.topicList = [];
+        let id = localStorage.getItem("local_clusterID");
+        await getPI(id).then((res) => {
+          if (res) {
+            this.topicList = res.map((item) => {
+              item["localname"] = item.name ? item.name : "pi+" + item.id;
               item["localtype"] = item.from_detail ? item.from_detail.name : "";
               item["target"] = item.to_expand ? item.to_expand.subject : "";
               return item;
@@ -274,7 +349,7 @@ export default {
           }
         ).then(async () => {
           await excuteStart(data.id).then((res) => {
-            this.getList();
+            this.refresh()
           });
         });
       } catch (err) {
@@ -294,7 +369,7 @@ export default {
           }
         ).then(async () => {
           await excuteStop(data.id).then((res) => {
-            this.getList();
+            this.refresh()
           });
         });
       } catch (err) {
@@ -302,9 +377,22 @@ export default {
         return Promise.reject(err);
       }
     },
+    refresh() {
+      switch (this.tagName) {
+        case "datasource":
+          this.getList();
+          break;
+        case "pi":
+          this.getPIList();
+          break;
+        case "opc":
+          this.getOPCList();
+          break;
+      }
+    },
   },
-  created() {
-    this.getList();
+  mounted() {
+    this.refresh()
   },
 };
 </script>

@@ -504,7 +504,6 @@ export default {
       });
     },
     handleAdd() {
-      console.log("获取参数", this.ruleForm);
       this.$parent.toggleComponent("ui", this.ruleForm.type);
     },
     async getList() {
@@ -566,7 +565,6 @@ export default {
       }
     },
     async getNodesOrTags() {
-      console.log(this.ruleForm.endpoint, "获取变量", this.ruleForm.opc_type);
       try {
         let params = null;
         if (this.ruleForm.opc_type === "opcua") {
@@ -585,8 +583,6 @@ export default {
           } else {
             this.tagsLists = res;
           }
-
-          console.log(res, "nodes or tags====");
         });
       } catch (error) {
         console.log(error);
