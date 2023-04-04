@@ -166,22 +166,22 @@ if [ -n "${taostools_bin_files}" ]; then
     cp ${taostools_bin_files} ${taostools_install_dir}/bin &&
     chmod a+x ${taostools_install_dir}/bin/* || :
 
-  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-${toolsName}.sh ]; then
-    cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-${toolsName}.sh \
+  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-tools.sh ]; then
+    cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-tools.sh \
       ${taostools_install_dir}/ >/dev/null &&
-      chmod a+x ${taostools_install_dir}/install-${toolsName}.sh ||
-      echo -e "failed to copy install-${toolsName}.sh"
+      chmod a+x ${taostools_install_dir}/install-tools.sh ||
+      echo -e "failed to copy install-tools.sh"
   else
-    echo -e "install-${toolsName}.sh not found"
+    echo -e "install-tools.sh not found"
   fi
 
-  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-${toolsName}.sh ]; then
-    cp ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-${toolsName}.sh \
+  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-tools.sh ]; then
+    cp ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-tools.sh \
       ${taostools_install_dir}/ >/dev/null &&
-      chmod a+x ${taostools_install_dir}/uninstall-${toolsName}.sh ||
-      echo -e "failed to copy uninstall-${toolsName}.sh"
+      chmod a+x ${taostools_install_dir}/uninstall-tools.sh ||
+      echo -e "failed to copy uninstall-tools.sh"
   else
-    echo -e "uninstall-${toolsName}.sh not found"
+    echo -e "uninstall-tools.sh not found"
   fi
 
   if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
