@@ -1,0 +1,76 @@
+---
+id: pi
+name: PI
+description: |
+  A data source plugin for PI system.
+type: uri
+options:
+  host:
+    display: Server
+    description: PI server name (hostname).
+    placeholder: server
+    required: true
+  subject:
+    required: true
+    display: AFDatabaseName
+    description: AF database name
+    placeholder: 'Example: Met1'
+strict: false
+groups:
+- name: Data Sets
+  display_order: 1
+  description: "Choose data sets in the system"
+  params:
+  - name: TemplateForPIPoint
+    display: Template For Point
+    description: Choose one or more templates for data transfer.
+    hint: str
+
+  - name: TemplateForAFElement
+    display: Template For AF Element
+    description: Choose one or more templates for data transfer.
+    hint: str
+
+- name: PI System
+  display_order: 2
+  description: PI system configurations.
+  params:
+  - name: PISystemName
+    display: PI System Name
+    description: |-
+      PI System name, leave it empty to use the same hostname with **Server**.
+    hint:
+      type: str
+  - name: PIDataPipesInstances
+    display: PI Data Pipes Instances
+    hint: integer
+    description: |
+      Default 1.
+    placeholder: 1
+  - name: AFDataPipesInstances
+    display: AF Data Pipes Instances
+    hint: integer
+    description: |
+      Default 1.
+    placeholder: 1
+
+- name: Data Queue
+  display_order: 3
+  description: Other configurations.
+  params:
+  - name: MaxWaitLen
+    display: Max Wait Length
+    description: |-
+      Message Wait queue max length
+    hint:
+      type: integer
+  - name: UpdateInterval
+    display: Update Interval (in ms)
+    hint: integer
+    description: Pull Data from PI System Interval in `ms`.
+    placeholder: 10000
+  - name: MaxBackfillRangeDays
+    display: Max Backfill Range(in days)
+    hint: integer
+    description: Max backfill time range in days.
+    placeholder: 1

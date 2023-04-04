@@ -1,0 +1,12 @@
+[Unit]
+Description=taosX - Data Replication and Streaming Data Integration Toolset.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/taosx serve -v
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
