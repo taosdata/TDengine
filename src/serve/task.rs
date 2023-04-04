@@ -223,52 +223,6 @@ pub(super) struct NewReplicate {
     force: bool,
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-
-pub(super) struct Cluster {
-    #[schema(example = false)]
-    #[serde(default)]
-    websocket: bool,
-    #[schema(example = "root")]
-    username: Option<String>,
-    #[schema(example = "taosdata")]
-    password: Option<String>,
-    #[schema(example = "")]
-    #[serde(default)]
-    address: Option<String>,
-    #[schema(example = "test")]
-    database: Option<String>,
-}
-
-impl Cluster {
-    fn into_dsn(self) -> Dsn {
-        let Self {
-            websocket,
-            username,
-            password,
-            address,
-            database,
-        } = self;
-        Dsn {
-            username: username,
-            driver: "taos".to_string(),
-            protocol: if websocket {
-                Some("ws".to_string())
-            } else {
-                None
-            },
-            password: password,
-            addresses: address
-                .and_then(|s| s.parse().ok())
-                .map(|addr| vec![addr])
-                .unwrap_or_default(),
-            path: None,
-            subject: database,
-            params: Default::default(),
-        }
-    }
-}
-
 /// Update Task by given path variable id.
 ///
 /// This endpoint needs `api_key` authentication in order to call. Api key can be found from README.md.
