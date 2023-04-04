@@ -181,7 +181,7 @@ export default {
     };
     this.notAdd = ["column", "tag"];
     return {
-      isRoot: sessionStorage.getItem("username"),
+      isRoot: localStorage.getItem("username"),
       defaultProps: {
         children: "children",
         label: "label",

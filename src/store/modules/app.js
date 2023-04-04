@@ -133,7 +133,7 @@ const mutations = {
 const actions = {
   async getUserInfo({ commit, dispatch }) {
     if (!state.userInfo) {
-      let userName = sessionStorage.getItem("username");
+      let userName = localStorage.getItem("username");
       await sendSQLReq(`select * from information_schema.ins_users where name='${userName}'`)
         .then((res) => {
           let user = res.data.map((data) => {

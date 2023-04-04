@@ -32,19 +32,36 @@
           </div>
         </div>
         <div class="first">
-          <div style="width: 100%" v-if="JSON.stringify(dbsource[0].options)!=='{}'&&JSON.stringify(dbsource[0].options.endpoint)!=='{}'">
+          <div
+            style="width: 100%"
+            v-if="
+              JSON.stringify(dbsource[0].options) !== '{}' &&
+              JSON.stringify(dbsource[0].options.endpoint) !== '{}'
+            "
+          >
             <span
               :class="[
                 'label',
-                (dbsource[0].options.endpoint&&dbsource[0].options.endpoint.required) ? 'required' : '',
+                dbsource[0].options.endpoint &&
+                dbsource[0].options.endpoint.required
+                  ? 'required'
+                  : '',
               ]"
-              >{{ dbsource[0].options.endpoint?dbsource[0].options.endpoint.display:'' }}</span
+              >{{
+                dbsource[0].options.endpoint
+                  ? dbsource[0].options.endpoint.display
+                  : ""
+              }}</span
             >
             <div class="label-value" v-if="dbsource[0].options.endpoint">
               <el-input
                 v-model="dbsource[0].options.endpoint.value"
                 oninput="value=>value.replace()"
-                :placeholder="dbsource[0].options.endpoint?dbsource[0].options.endpoint.placeholder:''"
+                :placeholder="
+                  dbsource[0].options.endpoint
+                    ? dbsource[0].options.endpoint.placeholder
+                    : ''
+                "
               ></el-input>
               <div
                 v-html="transforHtml(dbsource[0].options.endpoint.description)"
@@ -229,8 +246,13 @@
                     <el-input v-model="p.value" type="textarea"></el-input
                   ></template>
                   <template v-if="p.hint.choices">
-                    <el-select v-model="p.value" style="width:100%;">
-                        <el-option v-for="item in p.hint.choices" :key="item" :label="item" :value="item"></el-option>
+                    <el-select v-model="p.value" style="width: 100%">
+                      <el-option
+                        v-for="item in p.hint.choices"
+                        :key="item"
+                        :label="item"
+                        :value="item"
+                      ></el-option>
                     </el-select>
                   </template>
                   <div
@@ -243,7 +265,7 @@
           </div>
         </div>
       </section>
-      <template v-for="(item,gindex) in dbsource[0].groups">
+      <template v-for="(item, gindex) in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
           <div style="flex-direction: column; align-items: baseline">
             <div class="block-title">
@@ -254,8 +276,14 @@
               v-html="transforHtml(item.description)"
             ></div>
           </div>
-          <template v-for="(p,pind) in item.params">
-            <div :key="pind" v-if="(p.if&&p.if.includes(dbsource[0].protocol.value))||gindex>0">
+          <template v-for="(p, pind) in item.params">
+            <div
+              :key="pind"
+              v-if="
+                (p.if && p.if.includes(dbsource[0].protocol.value)) ||
+                gindex > 0
+              "
+            >
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
               </span>
@@ -373,7 +401,7 @@ export default {
   data() {
     return {
       decryptPwd: "", //解密的密码
-        // dbsource,
+      // dbsource,
       disable: false,
       address: "",
       port: "",
@@ -454,18 +482,21 @@ export default {
             return;
           }
         }
-        this.decryptPwd = decrypt(sessionStorage.getItem("pwd"));
+        this.decryptPwd = decrypt(localStorage.getItem("pwd"));
         // dns += `://${sessionStorage.getItem("username")}:${this.decryptPwd}@${
         //   data.options.host.value ? data.options.host.value : ""
         // }
         // `;
-        
-        if (data.options.endpoint&&JSON.stringify(data.options.endpoint)!=='{}' ) {
-          dns +=`://${
+
+        if (
+          data.options.endpoint &&
+          JSON.stringify(data.options.endpoint) !== "{}"
+        ) {
+          dns += `://${
             data.options.endpoint.value ? data.options.endpoint.value : "/"
-          }`
-        }else{
-          dns+=`:///`
+          }`;
+        } else {
+          dns += `:///`;
         }
         // dns += data.options.subject.value
         //   ? "/" + data.options.subject.value
@@ -500,42 +531,41 @@ export default {
         }
 
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-        
-          let piParams = {
-            from:
-              "opc" +
-              (data.protocol
-                ? Object.is(data.protocol.value, "--")
-                  ? ""
-                  : "+"
-                : "") +
-              dns,
-            name: localStorage.getItem("datainName"),
-            to:
-              "taos+" +
-              localStorage.getItem("base_url") +
-              (this.dbname ? "/" + this.dbname : ""),
-            labels: ["type::datain", `cluster-id::${id}`],
-          };
-          if (this.isEditable) {
-            await EditSource(piParams, this.editId).then(() => {
-              this.$parent.toggleComponent("opctable");
-            });
-          } else {
-            await AddSource(piParams).then((res) => {
-              if (res && res.id) {
+
+        let piParams = {
+          from:
+            "opc" +
+            (data.protocol
+              ? Object.is(data.protocol.value, "--")
+                ? ""
+                : "+"
+              : "") +
+            dns,
+          name: localStorage.getItem("datainName"),
+          to:
+            "taos+" +
+            localStorage.getItem("base_url") +
+            (this.dbname ? "/" + this.dbname : ""),
+          labels: ["type::datain", `cluster-id::${id}`],
+        };
+        if (this.isEditable) {
+          await EditSource(piParams, this.editId).then(() => {
+            this.$parent.toggleComponent("opctable");
+          });
+        } else {
+          await AddSource(piParams).then((res) => {
+            if (res && res.id) {
               this.$parent.toggleComponent("opctable", "");
               Message.success("Operation Successfully!");
             }
-            });
-          }
-          // await AddSource(piParams).then((res) => {
-          //   if (res && res.id) {
-          //     this.$parent.toggleComponent("opctable", "");
-          //     Message.success("Operation Successfully!");
-          //   }
-          // });
-        
+          });
+        }
+        // await AddSource(piParams).then((res) => {
+        //   if (res && res.id) {
+        //     this.$parent.toggleComponent("opctable", "");
+        //     Message.success("Operation Successfully!");
+        //   }
+        // });
       } catch (error) {
         console.log(error);
       }

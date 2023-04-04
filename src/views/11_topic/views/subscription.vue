@@ -75,7 +75,7 @@
           ></el-date-picker>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" style="width: 100%" @click="submotForm('ruleForm')"
+          <el-button type="primary" style="width: 100%;height:32px;padding:4px 20px;" @click="submotForm('ruleForm')"
             >新增</el-button
           >
         </el-form-item>
@@ -156,8 +156,8 @@ export default {
                   return [item[0], data[index]];
                 })
               );
-            });
-
+            }).filter(val=>val.name!='root');
+console.log(this.userList,'---');
           })
           .catch((err) => {
             err.desc && Message.error(err.desc);

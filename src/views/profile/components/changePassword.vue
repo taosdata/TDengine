@@ -91,7 +91,7 @@ export default {
       if (!value) {
         return callback(new Error("Old password is required."));
       } else {
-        if (value != decrypt(sessionStorage.getItem("pwd"))) {
+        if (value != decrypt(localStorage.getItem("pwd"))) {
           return callback(new Error("Old password is wrong."));
         } else {
           return callback();
@@ -158,7 +158,7 @@ export default {
       this.$refs["changeForm"].validate(async (valid) => {
         if (valid) {
           this.requestIng = true;
-          let username = sessionStorage.getItem("username");
+          let username = localStorage.getItem("username");
           await sendSQLReq(
             `ALTER USER ${username} PASS '${this.changeForm.new_password}'`
           )
@@ -171,8 +171,8 @@ export default {
                 };
                 this.$message.success(this.$t("login.changeSucc"));
                 this.requestIng = false;
-                sessionStorage.removeItem('username')
-                sessionStorage.removeItem('pwd')
+                localStorage.removeItem('username')
+                localStorage.removeItem('pwd')
                 deleteCookieItem()
                 
               }

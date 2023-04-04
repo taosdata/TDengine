@@ -40,13 +40,12 @@ export default {
     this.getData();
   },
   methods: {
-    async getData(val) {
+    async getData() {
       try {
         await getUIData().then((result) => {
-          this.sourceList = val
-            ? result.filter((item) => item.id == val)
-            : result;
+          this.sourceList =  result;
         });
+        console.log(this.sourceList,'this.sourceList');
         this.$parent.$parent.$parent.sourceDisabled = false;
       } catch (error) {
         if (error.response.status == 404) {
@@ -108,7 +107,7 @@ export default {
         this.isEditable = true;
         this.editId = editid;
         this.dbName = dbname;
-        this.getData(id);
+        this.getData();
         if (id === "tmq") {
           if (!this.uidata[0].protocol.value) {
             this.uidata[0].protocol.value =
