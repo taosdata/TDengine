@@ -21,6 +21,9 @@
 int64_t tsRpcQueueMemoryAllowed = 0;
 int64_t tsRpcQueueMemoryUsed = 0;
 
+void taosSetQueueMemoryCapacity(STaosQueue *queue, int64_t cap) { queue->memLimit = cap; }
+void taosSetQueueCapacity(STaosQueue *queue, int64_t size) { queue->itemLimit = size; }
+
 STaosQueue *taosOpenQueue() {
   STaosQueue *queue = taosMemoryCalloc(1, sizeof(STaosQueue));
   if (queue == NULL) {
@@ -153,11 +156,26 @@ void taosFreeQitem(void *pItem) {
   taosMemoryFree(pNode);
 }
 
-void taosWriteQitem(STaosQueue *queue, void *pItem) {
+int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
+  int32_t     code = 0;
   STaosQnode *pNode = (STaosQnode *)(((char *)pItem) - sizeof(STaosQnode));
   pNode->next = NULL;
 
   taosThreadMutexLock(&queue->mutex);
+  if (queue->memLimit > 0 && queue->memOfItems + pNode->size > queue->memLimit) {
+    code = TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY;
+    uError("item:%p failed to put into queue:%p, queue mem limit: %" PRId64 ", reason: %s" PRId64, pItem, queue,
+           queue->memLimit, tstrerror(code));
+
+    taosThreadMutexUnlock(&queue->mutex);
+    return code;
+  } else if (queue->itemLimit > 0 && queue->itemLimit + 1 > queue->itemLimit) {
+    code = TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY;
+    uError("item:%p failed to put into queue:%p, queue size limit: %" PRId64 ", reason: %s" PRId64, pItem, queue,
+           queue->itemLimit, tstrerror(code));
+    taosThreadMutexUnlock(&queue->mutex);
+    return code;
+  }
 
   if (queue->tail) {
     queue->tail->next = pNode;
@@ -166,15 +184,16 @@ void taosWriteQitem(STaosQueue *queue, void *pItem) {
     queue->head = pNode;
     queue->tail = pNode;
   }
-
   queue->numOfItems++;
   queue->memOfItems += pNode->size;
   if (queue->qset) atomic_add_fetch_32(&queue->qset->numOfItems, 1);
+
   uTrace("item:%p is put into queue:%p, items:%d mem:%" PRId64, pItem, queue, queue->numOfItems, queue->memOfItems);
 
   taosThreadMutexUnlock(&queue->mutex);
 
   if (queue->qset) tsem_post(&queue->qset->sem);
+  return code;
 }
 
 int32_t taosReadQitem(STaosQueue *queue, void **ppItem) {

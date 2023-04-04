@@ -934,8 +934,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   pTask->refCnt = 1;
   pTask->schedStatus = TASK_SCHED_STATUS__INACTIVE;
 
-  pTask->inputQueue = streamQueueOpen();
-  pTask->outputQueue = streamQueueOpen();
+  pTask->inputQueue = streamQueueOpen(128 << 10);
+  pTask->outputQueue = streamQueueOpen(128 << 10);
 
   if (pTask->inputQueue == NULL || pTask->outputQueue == NULL) {
     return -1;

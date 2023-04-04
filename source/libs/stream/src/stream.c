@@ -188,6 +188,7 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 }
 
 int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
+  int32_t code = 0;
   if (pTask->outputType == TASK_OUTPUT__TABLE) {
     pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
     taosArrayDestroyEx(pBlock->blocks, (FDelete)blockDataFreeRes);
@@ -198,7 +199,10 @@ int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
     taosFreeQitem(pBlock);
   } else {
     ASSERT(pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH);
-    taosWriteQitem(pTask->outputQueue->queue, pBlock);
+    code = taosWriteQitem(pTask->outputQueue->queue, pBlock);
+    if (code != 0) {
+      return code;
+    }
     streamDispatch(pTask);
   }
   return 0;

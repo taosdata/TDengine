@@ -20,7 +20,7 @@
 static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* pRes) {
   int32_t code;
   void*   exec = pTask->exec.executor;
-  while(atomic_load_8(&pTask->taskStatus) != TASK_STATUS__NORMAL) {
+  while (atomic_load_8(&pTask->taskStatus) != TASK_STATUS__NORMAL) {
     qError("stream task wait for the end of fill history");
     taosMsleep(2);
     continue;
@@ -105,8 +105,9 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
 }
 
 int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
-  ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
+  int32_t code = 0;
 
+  ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
   void* exec = pTask->exec.executor;
 
   qSetStreamOpOpen(exec);
@@ -164,7 +165,11 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
     qRes->type = STREAM_INPUT__DATA_BLOCK;
     qRes->blocks = pRes;
-    streamTaskOutput(pTask, qRes);
+    code = streamTaskOutput(pTask, qRes);
+    if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {
+      taosFreeQitem(pRes);
+      return code;
+    }
 
     if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       qDebug("task %d scan exec dispatch block num %d", pTask->taskId, batchCnt);
@@ -214,6 +219,7 @@ int32_t streamBatchExec(SStreamTask* pTask, int32_t batchLimit) {
 #endif
 
 int32_t streamExecForAll(SStreamTask* pTask) {
+  int32_t code = 0;
   while (1) {
     int32_t batchCnt = 1;
     void*   input = NULL;
@@ -256,7 +262,10 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     if (pTask->taskLevel == TASK_LEVEL__SINK) {
       ASSERT(((SStreamQueueItem*)input)->type == STREAM_INPUT__DATA_BLOCK);
-      streamTaskOutput(pTask, input);
+      code = streamTaskOutput(pTask, input);
+      if (code != 0) {
+        // backpressure and record position
+      }
       continue;
     }
 
@@ -286,7 +295,9 @@ int32_t streamExecForAll(SStreamTask* pTask) {
         qRes->sourceVer = pMerged->ver;
       }
 
-      if (streamTaskOutput(pTask, qRes) < 0) {
+      code = streamTaskOutput(pTask, qRes);
+      if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {
+        // backpressure and record position
         taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
         streamFreeQitem(input);
         taosFreeQitem(qRes);

@@ -204,7 +204,7 @@ typedef struct {
 int32_t streamInit();
 void    streamCleanUp();
 
-SStreamQueue* streamQueueOpen();
+SStreamQueue* streamQueueOpen(int64_t cap);
 void          streamQueueClose(SStreamQueue* queue);
 
 static FORCE_INLINE void streamQueueProcessSuccess(SStreamQueue* queue) {
@@ -374,7 +374,8 @@ int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
 
 static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
-  int8_t type = pItem->type;
+  int32_t code = 0;
+  int8_t  type = pItem->type;
   if (type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit2* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit2*)pItem);
     if (pSubmitClone == NULL) {
@@ -385,19 +386,20 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
     }
     qDebug("task %d %p submit enqueue %p %p %p %d %" PRId64, pTask->taskId, pTask, pItem, pSubmitClone,
            pSubmitClone->submit.msgStr, pSubmitClone->submit.msgLen, pSubmitClone->submit.ver);
-    taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
+    code = taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
     // qStreamInput(pTask->exec.executor, pSubmitClone);
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
-    taosWriteQitem(pTask->inputQueue->queue, pItem);
+    code = taosWriteQitem(pTask->inputQueue->queue, pItem);
     // qStreamInput(pTask->exec.executor, pItem);
   } else if (type == STREAM_INPUT__CHECKPOINT) {
-    taosWriteQitem(pTask->inputQueue->queue, pItem);
+    code = taosWriteQitem(pTask->inputQueue->queue, pItem);
     // qStreamInput(pTask->exec.executor, pItem);
   } else if (type == STREAM_INPUT__GET_RES) {
-    taosWriteQitem(pTask->inputQueue->queue, pItem);
+    code = taosWriteQitem(pTask->inputQueue->queue, pItem);
     // qStreamInput(pTask->exec.executor, pItem);
   }
+  if (code != 0) return code;
 
   if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
     atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
@@ -637,9 +639,9 @@ typedef struct SStreamMeta {
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId);
 void         streamMetaClose(SStreamMeta* streamMeta);
 
-int32_t      streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);
-int32_t      streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask);
-int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* msg, int32_t msgLen);
+int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);
+int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask);
+int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* msg, int32_t msgLen);
 // SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);
