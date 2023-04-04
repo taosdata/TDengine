@@ -407,12 +407,21 @@ time_t taosMktime(struct tm *timep) {
 #endif
 }
 
-struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
+struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf) {
+  struct tm *res = NULL;
+
   if (result == NULL) {
-    return localtime(timep);
+    res = localtime(timep);
+    if (res == NULL && buf != NULL) {
+      sprintf(buf, "NaN");
+    }
+    return res;
   }
 #ifdef WINDOWS
   if (*timep < 0) {
+    if (buf != NULL) {
+      sprintf(buf, "NaN");
+    }
     return NULL;
     // TODO: bugs in following code
     SYSTEMTIME    ss, s;
@@ -421,6 +430,9 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
     struct tm     tm1;
     time_t        tt = 0;
     if (localtime_s(&tm1, &tt) != 0 ) {
+      if (buf != NULL) {
+        sprintf(buf, "NaN");
+      }
       return NULL;
     }
     ss.wYear = tm1.tm_year + 1900;
@@ -449,11 +461,17 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
     result->tm_isdst = 0;
   } else {
     if (localtime_s(result, timep) != 0) {
+      if (buf != NULL) {
+        sprintf(buf, "NaN");
+      }
       return NULL;
     }
   }
 #else
-  localtime_r(timep, result);
+  res = localtime_r(timep, result);
+  if (res == NULL && buf != NULL) {
+    sprintf(buf, "NaN");
+  }
 #endif
   return result;
 }
