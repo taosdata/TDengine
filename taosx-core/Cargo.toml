@@ -1,25 +1,10 @@
-[workspace]
-members = [
-  "taosx-ipc",
-  "taosx-core",
-]
-
-[workspace.dependencies]
-arrow = { version = "36.0.0" }
-parquet = "36.0.0"
-
-taos = { version = "0.7.1", default-features = false, features = ["ws", "deadpool"] }
-taos-query = { version = "0.7.1", default-features = false, features = ["deadpool"] }
-
 [package]
-name = "taosx"
+name = "taosx-core"
 version = "0.5.0"
-build = "build.rs"
 edition = "2021"
-exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 homepage = "https://taosdata.com"
+publish = false
 description = "taosX - TDengine data integration tool"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1"
@@ -84,21 +69,15 @@ port-selector = "0.1.5"
 tempfile = "3"
 
 reqwest = "0.11.15"
-taosx-ipc = { path = "./taosx-ipc" }
+taosx-ipc = { path = "../taosx-ipc" }
 
 taos = { workspace = true }
-taosx-core = { path = "./taosx-core" }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
-
-[build-dependencies]
-sqlx = { version = "0.6", features = ["sqlite", "chrono"] }
-dotenv = "0.15.0"
-shadow-rs = "0.21.0"
 
 [features]
 default = ["optin", "rustls"]
@@ -107,3 +86,6 @@ sys = ["taos/native"]
 rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls"]
 native-tls = ["sqlx/runtime-tokio-native-tls", "taos/ws-native-tls"]
 disable-enterprise-only-validation = []
+
+[build-dependencies]
+dotenv = "0.15.0"
