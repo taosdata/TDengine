@@ -19,6 +19,21 @@
 #include "tconfig.h"
 #include "tglobal.h"
 
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#include "cus_name.h"
+#else
+#ifndef CUS_NAME
+    #define CUS_NAME      "TDengine"
+#endif
+
+#ifndef CUS_PROMPT
+    #define CUS_PROMPT    "taos"
+#endif
+
+#ifndef CUS_EMAIL
+    #define CUS_EMAIL     "<support@taosdata.com>"
+#endif
+#endif
 // clang-format off
 #define DM_APOLLO_URL    "The apollo string to use when configuring the server, such as: -a 'jsonFile:./tests/cfg.json', cfg.json text can be '{\"fqdn\":\"td1\"}'."
 #define DM_CFG_DIR       "Configuration directory."
