@@ -1859,6 +1859,8 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb
     return -1;
   }
 
+  mndSortVnodeGid(&newVgroup);
+
   {
     SSdbRaw *pVgRaw = mndVgroupActionEncode(&newVgroup);
     if (pVgRaw == NULL) return -1;
