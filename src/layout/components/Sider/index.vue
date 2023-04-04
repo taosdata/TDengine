@@ -30,7 +30,7 @@ export default {
   data() {
     return {
       isCollapse: false,
-      isRoot:sessionStorage.getItem('username')
+      isRoot:localStorage.getItem('username')
     };
   },
 

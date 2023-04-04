@@ -444,9 +444,9 @@ export default {
             return;
           }
         }
-        this.decryptPwd = decrypt(sessionStorage.getItem("pwd"));
+        this.decryptPwd = decrypt(localStorage.getItem("pwd"));
         if (this.tagName === "datasource") {
-          dns += `://${sessionStorage.getItem("username")}:${this.decryptPwd}@${
+          dns += `://${localStorage.getItem("username")}:${this.decryptPwd}@${
             data.options.host.value ? data.options.host.value : ""
           }
         `;
