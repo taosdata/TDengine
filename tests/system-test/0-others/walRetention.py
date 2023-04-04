@@ -78,13 +78,16 @@ class WalFile:
 # VNode object
 class VNode :
     # init
-    def __init__(self, dnodeId, path, walPeriod, walSize):
+    def __init__(self, dnodeId, path, walPeriod, walSize, walStayRange):
         self.path = path
         self.dnodeId = dnodeId
         self.vgId = 0
         self.snapVer = 0
+        self.firstVer = 0
+        self.lastVer = -1
         self.walPeriod = walPeriod
         self.walSize   = walSize
+        self.walStayRange = walStayRange
         self.walFiles = []
         self.load(path)
 
@@ -108,7 +111,9 @@ class VNode :
         if metaFile != "":
             jsonVer = jsonFromFile(metaFile)
             metaNode = jsonVer["meta"]
-            self.snapVer = int(metaNode["snapshotVer"])
+            self.snapVer  = int(metaNode["snapshotVer"])
+            self.firstVer = int(metaNode["firstVer"])
+            self.lastVer  = int(metaNode["lastVer"])            
 
         # sort with startVer
         self.walFiles = sorted(self.walFiles, key=lambda x : x.startVer, reverse=True)
@@ -122,7 +127,7 @@ class VNode :
             startVer = walFile.startVer
 
         # print total
-        tdLog.info(f" ----  dnode{self.dnodeId} snapVer={self.snapVer} {self.path}  --------")
+        tdLog.info(f" ----  dnode{self.dnodeId} snapVer={self.snapVer} firstVer={self.firstVer} lastVer={self.lastVer} {self.path}  --------")
         for walFile in self.walFiles:
             mt = datetime.fromtimestamp(walFile.mtime)
             tdLog.info(f" {walFile.pathFile} {mt} startVer={walFile.startVer} endVer={walFile.endVer}")
@@ -132,10 +137,26 @@ class VNode :
         if walFile.endVer == -1:
             # end file
             return False
-
+                
+        # check snapVer
+        ret = False
         if  self.snapVer > walFile.endVer:
-            return True
-        return False
+            ret = True
+
+        # check stayRange
+        if self.lastVer != -1 and ret:
+            # first wal file ignore
+            if walFile.startVer == self.firstVer:
+                tdLog.info(f"  {walFile.pathFile} can del, but is first. snapVer={self.snapVer} firstVer={self.firstVer}")
+                return False
+
+            # ver in stay range 
+            smallVer = self.snapVer - self.walStayRange -1
+            if walFile.startVer >= smallVer:
+                tdLog.info(f"  {walFile.pathFile} can del, but range not arrived. snapVer={self.snapVer} smallVer={smallVer}")
+                return False
+
+        return ret
     
     # get log size
     def getWalsSize(self):
@@ -341,7 +362,7 @@ class TDTestCase:
         tdSql.execute(sql)
         #tdLog.info(sql)
 
-    def check_retention(self):
+    def check_retention(self, walStayRange):
         # flash database
         tdSql.execute(f"flush database {self.dbname}")
         time.sleep(0.5)
@@ -359,7 +380,7 @@ class TDTestCase:
                 
                 if os.path.isdir(entryPath):
                     if path.exists(path.join(entryPath, "vnode.json")):
-                        vnode = VNode(int(dnode[5:]), entryPath, self.wal_period, self.wal_size)
+                        vnode = VNode(int(dnode[5:]), entryPath, self.wal_period, self.wal_size, walStayRange)
                         vnodes.append(vnode)
         
         # do check
@@ -423,7 +444,7 @@ class TDTestCase:
 
         # check retention 
         tdLog.info(f" -------------- do check retention ---------------")
-        self.check_retention()
+        self.check_retention(walStayRange = 256)
 
 
         # stop insert and wait exit
