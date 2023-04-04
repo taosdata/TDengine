@@ -1054,6 +1054,7 @@ typedef struct {
   int64_t signature;
   char*   pComment;
   char*   pCode;
+  int8_t  orReplace;
 } SCreateFuncReq;
 
 int32_t tSerializeSCreateFuncReq(void* buf, int32_t bufLen, SCreateFuncReq* pReq);
@@ -1669,7 +1670,7 @@ int32_t tSerializeSBalanceVgroupLeaderReq(void* buf, int32_t bufLen, SBalanceVgr
 int32_t tDeserializeSBalanceVgroupLeaderReq(void* buf, int32_t bufLen, SBalanceVgroupLeaderReq* pReq);
 
 typedef struct {
-  int32_t  vgId;
+  int32_t vgId;
 } SForceBecomeFollowerReq;
 
 int32_t tSerializeSForceBecomeFollowerReq(void* buf, int32_t bufLen, SForceBecomeFollowerReq* pReq);
@@ -3206,9 +3207,9 @@ typedef struct {
   SArray*      blockTbName;
   SArray*      blockSchema;
   // the following attributes are extended from SMqDataRsp
-  int32_t      createTableNum;
-  SArray*      createTableLen;
-  SArray*      createTableReq;
+  int32_t createTableNum;
+  SArray* createTableLen;
+  SArray* createTableReq;
 } STaosxRsp;
 
 int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const STaosxRsp* pRsp);

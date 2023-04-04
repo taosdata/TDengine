@@ -1342,8 +1342,8 @@ static bool isCountNotNullValue(SFunctionNode* pFunc) {
 // count(1) is rewritten as count(ts) for scannning optimization
 static int32_t rewriteCountNotNullValue(STranslateContext* pCxt, SFunctionNode* pCount) {
   SValueNode* pValue = (SValueNode*)nodesListGetNode(pCount->pParameterList, 0);
-  STableNode*  pTable = NULL;
-  int32_t      code = findTable(pCxt, NULL, &pTable);
+  STableNode* pTable = NULL;
+  int32_t     code = findTable(pCxt, NULL, &pTable);
   if (TSDB_CODE_SUCCESS == code && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
     if (NULL == pCol) {
@@ -6434,6 +6434,7 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
 
   SCreateFuncReq req = {0};
   strcpy(req.name, pStmt->funcName);
+  req.orReplace = pStmt->orReplace;
   req.igExists = pStmt->ignoreExists;
   req.funcType = pStmt->isAgg ? TSDB_FUNC_TYPE_AGGREGATE : TSDB_FUNC_TYPE_SCALAR;
   req.scriptType = pStmt->language;
