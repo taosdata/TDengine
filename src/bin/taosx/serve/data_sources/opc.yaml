@@ -43,7 +43,7 @@ options:
       OPC server endpoint.
 
       - For OPC-UA, it is like: `127.0.0.1:6666/OPCUA/ServerPath`.
-      - For OPC-DA, it is like: `127.0.0.1:6666`.
+      - For OPC-DA, it is like: `Matrikon.OPC.Simulation.1?nodes=localhost`.
     placeholder: 127.0.0.1:6666/OPCUA/ServerPath
 
 strict: false
@@ -122,7 +122,7 @@ groups:
         hint: str
         if: protocol.ua
 
-      - name: da.nodes
+      - name: nodes
         display: DA Nodes
         description: A OPC DA node list separated by ','.
         hint: str
