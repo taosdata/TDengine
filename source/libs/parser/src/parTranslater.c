@@ -6454,11 +6454,11 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
       (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ) &&
        BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE))) {
-    req.alterType = TSDB_ALTER_USER_ADD_ALL_DB;
+    req.alterType = ('\0' == pStmt->tabName[0] ? TSDB_ALTER_USER_ADD_ALL_DB : TSDB_ALTER_USER_ADD_ALL_TABLE);
   } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ)) {
-    req.alterType = TSDB_ALTER_USER_ADD_READ_DB;
+    req.alterType = ('\0' == pStmt->tabName[0] ? TSDB_ALTER_USER_ADD_READ_DB : TSDB_ALTER_USER_ADD_READ_TABLE);
   } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE)) {
-    req.alterType = TSDB_ALTER_USER_ADD_WRITE_DB;
+    req.alterType = ('\0' == pStmt->tabName[0] ? TSDB_ALTER_USER_ADD_WRITE_DB : TSDB_ALTER_USER_ADD_WRITE_TABLE);
   } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_SUBSCRIBE)) {
     req.alterType = TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC;
   }
@@ -6480,11 +6480,11 @@ static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
   if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
       (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ) &&
        BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE))) {
-    req.alterType = TSDB_ALTER_USER_REMOVE_ALL_DB;
+    req.alterType = ('\0' == pStmt->tabName[0] ? TSDB_ALTER_USER_REMOVE_ALL_DB : TSDB_ALTER_USER_REMOVE_ALL_TABLE);
   } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ)) {
-    req.alterType = TSDB_ALTER_USER_REMOVE_READ_DB;
+    req.alterType = ('\0' == pStmt->tabName[0] ? TSDB_ALTER_USER_REMOVE_READ_DB : TSDB_ALTER_USER_REMOVE_READ_TABLE);
   } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE)) {
-    req.alterType = TSDB_ALTER_USER_REMOVE_WRITE_DB;
+    req.alterType = ('\0' == pStmt->tabName[0] ? TSDB_ALTER_USER_REMOVE_WRITE_DB : TSDB_ALTER_USER_REMOVE_WRITE_TABLE);
   } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_SUBSCRIBE)) {
     req.alterType = TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC;
   }
