@@ -74,7 +74,7 @@ export default {
           OpenNewTab(url);
         } else {
           // OpenNewTab(null);
-          this.open2()
+          // this.open2()
         }
       }
     },
