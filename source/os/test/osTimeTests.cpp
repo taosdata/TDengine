@@ -77,8 +77,8 @@ TEST(osTimeTests, taosLocalTime) {
   local_time = taosLocalTime(&pos_timep, &result);
   ASSERT_NE(local_time, nullptr);
   ASSERT_EQ(local_time->tm_year, 121);
-  ASSERT_EQ(local_time->tm_mon, 1);
-  ASSERT_EQ(local_time->tm_mday, 0);
+  ASSERT_EQ(local_time->tm_mon, 0);
+  ASSERT_EQ(local_time->tm_mday, 1);
   ASSERT_EQ(local_time->tm_hour, 8);
   ASSERT_EQ(local_time->tm_min, 0);
   ASSERT_EQ(local_time->tm_sec, 0);
