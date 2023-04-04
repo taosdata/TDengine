@@ -218,16 +218,14 @@ class TDTestCase:
         self.conn = conn
 
         # init cluster path
-        projDir =  __file__
-        pos = projDir.find("tests")
-        if pos != -1:
-            self.projDir = projDir[:pos]
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
         else:
-            self.projDir = __file__
-        self.projDir += "sim/"
+            projPath = selfPath[:selfPath.find("tests")]
+        self.projDir += f"{projPath}sim/"
+        tdLog.info(f" init projPath={projPath}")
 
-        # udf path
-        self.udf_path = os.path.dirname(os.path.realpath(__file__)) + "/udfpy"
         self.column_dict = {
             'ts': 'timestamp',
             'col1': 'tinyint',
