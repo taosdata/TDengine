@@ -610,6 +610,13 @@ static int32_t collectMetaKeyFromCompactDatabase(SCollectMetaKeyCxt* pCxt, SComp
   return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromGrant(SCollectMetaKeyCxt* pCxt, SGrantStmt* pStmt) {
+  if ('\0' == pStmt->tabName[0]) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
   pCxt->pStmt = pStmt;
   switch (nodeType(pStmt)) {
@@ -645,6 +652,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromCompactDatabase(pCxt, (SCompactDatabaseStmt*)pStmt);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return collectMetaKeyFromCreateStream(pCxt, (SCreateStreamStmt*)pStmt);
+    case QUERY_NODE_GRANT_STMT:
+      return collectMetaKeyFromGrant(pCxt, (SGrantStmt*)pStmt);
     case QUERY_NODE_SHOW_DNODES_STMT:
       return collectMetaKeyFromShowDnodes(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_MNODES_STMT:
