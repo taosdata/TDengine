@@ -1035,6 +1035,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 typedef struct SHelper {
   int32_t index;
   union {
@@ -1083,59 +1084,20 @@ SHelper* createTupleIndex_rv(int32_t numOfRows, SArray* pOrderInfo, SSDataBlock*
 int32_t dataBlockCompar_rv(const void* p1, const void* p2, const void* param) {
   const SSDataBlockSortHelper* pHelper = (const SSDataBlockSortHelper*)param;
 
-  //  SSDataBlock* pDataBlock = pHelper->pDataBlock;
-
   SHelper* left = (SHelper*)p1;
   SHelper* right = (SHelper*)p2;
 
   SArray* pInfo = pHelper->orderInfo;
 
   int32_t offset = 0;
-  //  for(int32_t i = 0; i < pInfo->size; ++i) {
-  //    SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, 0);
-  //    SColumnInfoData* pColInfoData = pOrder->pColData;//TARRAY_GET_ELEM(pDataBlock->pDataBlock, pOrder->colIndex);
-
-  //    if (pColInfoData->hasNull) {
-  //      bool leftNull  = colDataIsNull(pColInfoData, pDataBlock->info.rows, left, pDataBlock->pBlockAgg);
-  //      bool rightNull = colDataIsNull(pColInfoData, pDataBlock->info.rows, right, pDataBlock->pBlockAgg);
-  //      if (leftNull && rightNull) {
-  //        continue; // continue to next slot
-  //      }
-  //
-  //      if (rightNull) {
-  //        return pHelper->nullFirst? 1:-1;
-  //      }
-  //
-  //      if (leftNull) {
-  //        return pHelper->nullFirst? -1:1;
-  //      }
-  //    }
-
-  //    void* left1  = colDataGetData(pColInfoData, left);
-  //    void* right1 = colDataGetData(pColInfoData, right);
-
-  //    switch(pColInfoData->info.type) {
-  //      case TSDB_DATA_TYPE_INT: {
   int32_t leftx = *(int32_t*)left->pData;    //*(int32_t*)(left->pData + offset);
   int32_t rightx = *(int32_t*)right->pData;  //*(int32_t*)(right->pData + offset);
 
-  //        offset += pColInfoData->info.bytes;
   if (leftx == rightx) {
-    //          break;
     return 0;
   } else {
-    //          if (pOrder->order == TSDB_ORDER_ASC) {
     return (leftx < rightx) ? -1 : 1;
-    //          } else {
-    //            return (leftx < rightx)? 1:-1;
-    //          }
   }
-  //      }
-  //      default:
-  //        assert(0);
-  //    }
-  //  }
-
   return 0;
 }
 
@@ -1179,6 +1141,7 @@ int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullF
   //  destroyTupleIndex(index);
   return 0;
 }
+#endif
 
 void blockDataCleanup(SSDataBlock* pDataBlock) {
   blockDataEmpty(pDataBlock);
@@ -1887,6 +1850,7 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
   return buf;
 }
 
+#if 0
 void blockDebugShowDataBlock(SSDataBlock* pBlock, const char* flag) {
   SArray* dataBlocks = taosArrayInit(1, sizeof(SSDataBlock*));
   taosArrayPush(dataBlocks, &pBlock);
@@ -1978,6 +1942,8 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
     }
   }
 }
+
+#endif
 
 // for debug
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) {

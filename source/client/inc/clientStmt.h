@@ -102,6 +102,7 @@ typedef struct STscStmt {
   SStmtBindInfo bInfo;
 
   int64_t reqid;
+  int32_t errCode;
 } STscStmt;
 
 extern char *gStmtStatusStr[];
@@ -121,6 +122,7 @@ extern char *gStmtStatusStr[];
     int32_t _code = c;                \
     if (_code != TSDB_CODE_SUCCESS) { \
       terrno = _code;                 \
+      pStmt->errCode = _code;         \
       return _code;                   \
     }                                 \
   } while (0)
@@ -129,6 +131,7 @@ extern char *gStmtStatusStr[];
     int32_t _code = c;                \
     if (_code != TSDB_CODE_SUCCESS) { \
       terrno = _code;                 \
+      pStmt->errCode = _code;         \
     }                                 \
     return _code;                     \
   } while (0)
@@ -137,6 +140,7 @@ extern char *gStmtStatusStr[];
     code = c;                        \
     if (code != TSDB_CODE_SUCCESS) { \
       terrno = code;                 \
+      pStmt->errCode = code;         \
       goto _return;                  \
     }                                \
   } while (0)

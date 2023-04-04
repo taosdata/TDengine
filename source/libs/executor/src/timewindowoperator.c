@@ -938,6 +938,7 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   if (ret != TSDB_CODE_SUCCESS || pResult == NULL) {
     T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
   }
+
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
   int32_t forwardRows =
       getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, pInfo->inputOrder);
@@ -2173,13 +2174,6 @@ static void rebuildIntervalWindow(SOperatorInfo* pOperator, SArray* pWinArray, S
       releaseOutputBuf(pInfo->pState, pWinRes, pCurResult);
     }
   }
-}
-
-bool isDeletedWindow(STimeWindow* pWin, uint64_t groupId, SAggSupporter* pSup) {
-  SET_RES_WINDOW_KEY(pSup->keyBuf, &pWin->skey, sizeof(int64_t), groupId);
-  SResultRowPosition* p1 = (SResultRowPosition*)tSimpleHashGet(pSup->pResultRowHashTable, pSup->keyBuf,
-                                                               GET_RES_WINDOW_KEY_LEN(sizeof(int64_t)));
-  return p1 == NULL;
 }
 
 bool isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, SStreamState* pState, STimeWindowAggSupp* pTwSup) {
