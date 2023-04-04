@@ -263,7 +263,7 @@ if [ "$osType" != "Darwin" ]; then
       if [[ "$pagMode" == "full" ]]; then
         if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
           cd ${top_dir}/src/kit/taos-tools/packaging/deb
-          taos_tools_ver=$(git tag |grep -v taos | sort | tail -1)
+          taos_tools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
           ${csudo}./make-taos-tools-deb.sh ${top_dir} \
@@ -288,7 +288,7 @@ if [ "$osType" != "Darwin" ]; then
       if [[ "$pagMode" == "full" ]]; then
         if [ -d ${top_dir}/src/kit/taos-tools/packaging/rpm ]; then
           cd ${top_dir}/src/kit/taos-tools/packaging/rpm
-          taos_tools_ver=$(git tag |grep -v taos | sort | tail -1)
+          taos_tools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
           ${csudo}./make-taos-tools-rpm.sh ${top_dir} \
