@@ -17,7 +17,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, Code, Dsn, TaosBuilder};
-use taosx::TaskOpts;
+use taosx_core::TaskOpts;
 use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler, JobToRun};
 use tokio_util::sync::CancellationToken;

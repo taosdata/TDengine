@@ -12,8 +12,8 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
-use taosx::utils::port_pool::PortPool;
-use taosx::TaskOpts;
+use taosx_core::utils::port_pool::PortPool;
+use taosx_core::TaskOpts;
 use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tokio_util::sync::CancellationToken;
@@ -609,7 +609,7 @@ impl TaskController {
         if task.clear {
             let to: Dsn = task.to.parse()?;
             if to.driver == "taos" {
-                taosx::utils::clear_database(&to)
+                taosx_core::utils::clear_database(&to)
                     .await
                     .with_context(|| format!("Failed to clear target database with {to}"))?;
             }
@@ -797,7 +797,7 @@ impl TaskController {
             if task.to.starts_with("local") && action == "clear" {
                 let dsn: Dsn = task.to.parse()?;
                 // std::mem::drop(task);
-                tokio::spawn(async move { taosx::utils::clear_local(&dsn).await });
+                tokio::spawn(async move { taosx_core::utils::clear_local(&dsn).await });
             }
         }
         Ok(Some(task.into()))
