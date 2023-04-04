@@ -63,7 +63,7 @@ export default {
 section{
     border-radius: 10px;
     padding: 15px;
-    box-shadow: 0 2px 12px 0 rgba(0,0,0,.1);
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
     margin-bottom:15px;
     &:nth-child(2){
         height:300px;
