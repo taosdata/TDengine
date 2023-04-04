@@ -68,7 +68,7 @@ void streamSchedByTimer(void* param, void* tmrId) {
 
     atomic_store_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE);
 
-    if (streamTaskInput(pTask, (SStreamQueueItem*)trigger) < 0) {
+    if (tAppendDataForStream(pTask, (SStreamQueueItem*)trigger) < 0) {
       taosFreeQitem(trigger);
       taosTmrReset(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->timer);
       return;
@@ -92,22 +92,22 @@ int32_t streamSetupTrigger(SStreamTask* pTask) {
 int32_t streamSchedExec(SStreamTask* pTask) {
   int8_t schedStatus =
       atomic_val_compare_exchange_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE, TASK_SCHED_STATUS__WAITING);
+
   if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
     SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
     if (pRunReq == NULL) {
       atomic_store_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE);
       return -1;
     }
+
     pRunReq->head.vgId = pTask->nodeId;
     pRunReq->streamId = pTask->streamId;
     pRunReq->taskId = pTask->taskId;
-    SRpcMsg msg = {
-        .msgType = TDMT_STREAM_TASK_RUN,
-        .pCont = pRunReq,
-        .contLen = sizeof(SStreamTaskRunReq),
-    };
+
+    SRpcMsg msg = { .msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq) };
     tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &msg);
   }
+
   return 0;
 }
 
@@ -123,7 +123,7 @@ int32_t streamTaskEnqueue(SStreamTask* pTask, const SStreamDispatchReq* pReq, SR
     /*pData->blocks = pReq->data;*/
     /*pBlock->sourceVer = pReq->sourceVer;*/
     streamDispatchReqToData(pReq, pData);
-    if (streamTaskInput(pTask, (SStreamQueueItem*)pData) == 0) {
+    if (tAppendDataForStream(pTask, (SStreamQueueItem*)pData) == 0) {
       status = TASK_INPUT_STATUS__NORMAL;
     } else {
       status = TASK_INPUT_STATUS__FAILED;
@@ -164,7 +164,7 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
     /*pData->blocks = pReq->data;*/
     /*pBlock->sourceVer = pReq->sourceVer;*/
     streamRetrieveReqToData(pReq, pData);
-    if (streamTaskInput(pTask, (SStreamQueueItem*)pData) == 0) {
+    if (tAppendDataForStream(pTask, (SStreamQueueItem*)pData) == 0) {
       status = TASK_INPUT_STATUS__NORMAL;
     } else {
       status = TASK_INPUT_STATUS__FAILED;
@@ -275,7 +275,57 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
   return 0;
 }
 
-// int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp) {
-//   //
-//   return 0;
-// }
+int32_t tAppendDataForStream(SStreamTask* pTask, SStreamQueueItem* pItem) {
+  int8_t type = pItem->type;
+
+  if (type == STREAM_INPUT__DATA_SUBMIT) {
+    SStreamDataSubmit2* pSubmitBlock = streamSubmitBlockClone((SStreamDataSubmit2*)pItem);
+    if (pSubmitBlock == NULL) {
+      qDebug("task %d %p submit enqueue failed since out of memory", pTask->taskId, pTask);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
+      return -1;
+    }
+
+    int32_t total = taosQueueItemSize(pTask->inputQueue->queue) + 1;
+    qDebug("stream task:%d %p submit enqueue %p %p %p msgLen:%d ver:%" PRId64 ", total in queue:%d", pTask->taskId,
+           pTask, pItem, pSubmitBlock, pSubmitBlock->submit.msgStr, pSubmitBlock->submit.msgLen,
+           pSubmitBlock->submit.ver, total);
+
+    taosWriteQitem(pTask->inputQueue->queue, pSubmitBlock);
+  } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
+             type == STREAM_INPUT__REF_DATA_BLOCK) {
+    taosWriteQitem(pTask->inputQueue->queue, pItem);
+  } else if (type == STREAM_INPUT__CHECKPOINT) {
+    taosWriteQitem(pTask->inputQueue->queue, pItem);
+  } else if (type == STREAM_INPUT__GET_RES) {
+    taosWriteQitem(pTask->inputQueue->queue, pItem);
+  }
+
+  if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
+    atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
+  }
+
+#if 0
+  // TODO: back pressure
+  atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL);
+#endif
+
+  return 0;
+}
+
+void* streamQueueNextItem(SStreamQueue* queue) {
+  int8_t dequeueFlag = atomic_exchange_8(&queue->status, STREAM_QUEUE__PROCESSING);
+  if (dequeueFlag == STREAM_QUEUE__FAILED) {
+    ASSERT(queue->qItem != NULL);
+    return streamQueueCurItem(queue);
+  } else {
+    queue->qItem = NULL;
+    taosGetQitem(queue->qall, &queue->qItem);
+    if (queue->qItem == NULL) {
+      taosReadAllQitems(queue->queue, queue->qall);
+      taosGetQitem(queue->qall, &queue->qItem);
+    }
+    return streamQueueCurItem(queue);
+  }
+}

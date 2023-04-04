@@ -502,31 +502,11 @@ typedef struct STableCountScanSupp {
   char    stbNameFilter[TSDB_TABLE_NAME_LEN];
 } STableCountScanSupp;
 
-typedef struct STableCountScanOperatorInfo {
-  SReadHandle  readHandle;
-  SSDataBlock* pRes;
-
-  STableCountScanSupp supp;
-
-  int32_t currGrpIdx;
-  SArray* stbUidList;  // when group by db_name and/or stable_name
-} STableCountScanOperatorInfo;
-
 typedef struct SOptrBasicInfo {
   SResultRowInfo resultRowInfo;
   SSDataBlock*   pRes;
   bool           mergeResultBlock;
 } SOptrBasicInfo;
-
-typedef struct SAggOperatorInfo {
-  SOptrBasicInfo   binfo;
-  SAggSupporter    aggSup;
-  STableQueryInfo* current;
-  uint64_t         groupId;
-  SGroupResInfo    groupResInfo;
-  SExprSupp        scalarExprSup;
-  bool             groupKeyOptimized;
-} SAggOperatorInfo;
 
 typedef struct SIntervalAggOperatorInfo {
   SOptrBasicInfo     binfo;              // basic info
