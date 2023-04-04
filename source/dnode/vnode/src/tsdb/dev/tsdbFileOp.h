@@ -30,8 +30,9 @@ typedef enum {
 } EFileOpType;
 
 struct SFileOp {
-  EFileOpType op;
-  // TODO
+  EFileOpType   op;
+  struct STFile oFile;  // old file state
+  struct STFile nFile;  // new file state
 };
 
 /* Exposed APIs */

@@ -327,7 +327,6 @@ _exit:
   return code;
 }
 
-#if 0
 int32_t tsdbCommitCommit(STsdb *pTsdb) {
   int32_t    code = 0;
   int32_t    lino = 0;
@@ -374,4 +373,3 @@ _exit:
   }
   return code;
 }
-#endif
