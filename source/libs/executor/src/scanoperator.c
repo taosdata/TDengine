@@ -33,7 +33,6 @@
 
 int32_t scanDebug = 0;
 
-
 #define MULTI_READER_MAX_TABLE_NUM 5000
 #define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
 #define SWITCH_ORDER(n)              (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
@@ -51,6 +50,16 @@ typedef struct STableMergeScanSortSourceParam {
   bool           multiReader;
   STsdbReader*   dataReader;
 } STableMergeScanSortSourceParam;
+
+typedef struct STableCountScanOperatorInfo {
+  SReadHandle  readHandle;
+  SSDataBlock* pRes;
+
+  STableCountScanSupp supp;
+
+  int32_t currGrpIdx;
+  SArray* stbUidList;  // when group by db_name and/or stable_name
+} STableCountScanOperatorInfo;
 
 static bool processBlockWithProbability(const SSampleExecInfo* pInfo);
 
