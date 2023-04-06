@@ -185,6 +185,8 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_USER_REMOVE_READ_TAG        0x12
 #define TSDB_ALTER_USER_ADD_WRITE_TAG          0x13
 #define TSDB_ALTER_USER_REMOVE_WRITE_TAG       0x14
+#define TSDB_ALTER_USER_ADD_ALL_TABLE          0x15
+#define TSDB_ALTER_USER_REMOVE_ALL_TABLE       0x16
 
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 

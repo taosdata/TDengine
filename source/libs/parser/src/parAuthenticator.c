@@ -23,6 +23,11 @@ typedef struct SAuthCxt {
   int32_t          errCode;
 } SAuthCxt;
 
+typedef struct SSelectAuthCxt {
+  SAuthCxt*    pAuthCxt;
+  SSelectStmt* pSelect;
+} SSelectAuthCxt;
+
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt);
 
 static int32_t checkAuth(SAuthCxt* pCxt, const char* pDbName, AUTH_TYPE type) {
@@ -56,19 +61,60 @@ static EDealRes authSubquery(SAuthCxt* pCxt, SNode* pStmt) {
   return TSDB_CODE_SUCCESS == authQuery(pCxt, pStmt) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
+static int32_t mergeStableTagCond(SNode** pWhere, SNode** pTagCond) {
+  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  if (NULL == pLogicCond) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pLogicCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pLogicCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  pLogicCond->condType = LOGIC_COND_TYPE_AND;
+  int32_t code = nodesListMakeStrictAppend(&pLogicCond->pParameterList, *pTagCond);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeAppend(&pLogicCond->pParameterList, *pWhere);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    *pWhere = (SNode*)pLogicCond;
+  } else {
+    nodesDestroyNode((SNode*)pLogicCond);
+  }
+  return code;
+}
+
+static int32_t appendStableTagCond(SSelectStmt* pSelect, SNode* pTagCond) {
+  SNode* pTagCondCopy = nodesCloneNode(pTagCond);
+  if (NULL == pTagCondCopy) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (NULL == pSelect->pWhere) {
+    pSelect->pWhere = pTagCondCopy;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pSelect->pWhere) &&
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)pSelect->pWhere)->condType) {
+    return nodesListStrictAppend(((SLogicConditionNode*)pSelect->pWhere)->pParameterList, pTagCondCopy);
+  }
+
+  return mergeStableTagCond(&pSelect->pWhere, &pTagCondCopy);
+}
+
 static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
-  SAuthCxt* pCxt = pContext;
+  SSelectAuthCxt* pCxt = pContext;
+  SAuthCxt*       pAuthCxt = pCxt->pAuthCxt;
   if (QUERY_NODE_REAL_TABLE == nodeType(pNode)) {
-    pCxt->errCode = checkAuth(pCxt, ((SRealTableNode*)pNode)->table.dbName, AUTH_TYPE_READ);
-    return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
+    pAuthCxt->errCode = checkAuth(pAuthCxt, ((SRealTableNode*)pNode)->table.dbName, AUTH_TYPE_READ);
+    return TSDB_CODE_SUCCESS == pAuthCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
   } else if (QUERY_NODE_TEMP_TABLE == nodeType(pNode)) {
-    return authSubquery(pCxt, ((STempTableNode*)pNode)->pSubquery);
+    return authSubquery(pAuthCxt, ((STempTableNode*)pNode)->pSubquery);
   }
   return DEAL_RES_CONTINUE;
 }
 
 static int32_t authSelect(SAuthCxt* pCxt, SSelectStmt* pSelect) {
-  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, authSelectImpl, pCxt);
+  SSelectAuthCxt cxt = {.pAuthCxt = pCxt, .pSelect = pSelect};
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, authSelectImpl, &cxt);
   return pCxt->errCode;
 }
 
@@ -149,7 +195,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:    
+    case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:

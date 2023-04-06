@@ -685,8 +685,22 @@ static int32_t mndTablePriviledge(SMnode *pMnode, SHashObj *hash, SAlterUserReq 
   snprintf(tbFName, sizeof(tbFName), "%s.%s", alterReq->objname, alterReq->tabName);
   int32_t len = strlen(tbFName) + 1;
 
-  if (taosHashPut(hash, tbFName, len, "t", 2) != 0) {
-    return -1;
+  if(alterReq->tagCond != NULL && alterReq->tagCondLen != 0){
+    char *value = taosHashGet(hash, tbFName, len);
+    if(value != NULL){
+      terrno = TSDB_CODE_MND_PRIVILEDGE_EXIST;
+      return -1;
+    }
+
+    int32_t condLen = alterReq->tagCondLen + 1;
+    if (taosHashPut(hash, tbFName, len, alterReq->tagCond, condLen) != 0) {
+      return -1;
+    }
+  }
+  else{
+    if (taosHashPut(hash, tbFName, len, "t", 2) != 0) {
+      return -1;
+    }
   }
 
   return 0;
