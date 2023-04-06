@@ -1529,8 +1529,8 @@ int32_t askEpCallbackFn(void* param, SDataBuf* pMsg, int32_t code) {
   } else {
     tscDebug("consumer:0x%" PRIx64 ", recv ep, msg epoch %d, current epoch %d, update local ep", tmq->consumerId,
              head->epoch, epoch);
-    pParam->pUserFn(tmq, code, pMsg, pParam->pParam);
   }
+  pParam->pUserFn(tmq, code, pMsg, pParam->pParam);
 
   taosReleaseRef(tmqMgmt.rsetId, pParam->refId);
 
