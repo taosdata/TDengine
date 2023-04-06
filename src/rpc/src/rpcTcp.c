@@ -15,6 +15,7 @@
 
 // clang-format off
 
+#include <pthread.h>
 #include "os.h"
 #include "tsocket.h"
 #include "tutil.h"
@@ -644,6 +645,7 @@ static SFdObj *taosMallocFdObj(SThreadObj *pThreadObj, SOCKET fd) {
   if (pFdObj == NULL) {
     return NULL;
   }
+  pthread_mutex_lock(&(pThreadObj->mutex));
 
   pFdObj->closedByApp = 0;
   pFdObj->fd = fd;
@@ -654,12 +656,12 @@ static SFdObj *taosMallocFdObj(SThreadObj *pThreadObj, SOCKET fd) {
   event.data.ptr = pFdObj;
   if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
     tfree(pFdObj);
+    pthread_mutex_unlock(&(pThreadObj->mutex));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;
   }
 
   // notify the data process, add into the FdObj list
-  pthread_mutex_lock(&(pThreadObj->mutex));
   pFdObj->next = pThreadObj->pHead;
   if (pThreadObj->pHead) (pThreadObj->pHead)->prev = pFdObj;
   pThreadObj->pHead = pFdObj;
