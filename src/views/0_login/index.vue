@@ -346,7 +346,7 @@ export default {
           if (res && res.x_api) {
             this.taosxStatus = true;
           } else {
-            this.taosxStatus = true;
+            this.taosxStatus = false;
           }
         });
       } catch (error) {
