@@ -79,6 +79,13 @@ if command -v sudo >/dev/null; then
   csudo="sudo "
 fi
 
+if command -v install >/dev/null; then
+  echo "${GREEN} found install utility! ${NC}"
+else
+  echo "${RED} Not found install utility, exit! ${NC}"
+  exit 1
+fi
+
 update_flag=0
 prompt_force=0
 
