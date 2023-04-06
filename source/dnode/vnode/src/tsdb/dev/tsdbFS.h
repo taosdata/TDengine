@@ -25,16 +25,24 @@ extern "C" {
 /* Exposed Handle */
 struct STFileSystem;
 
+typedef enum {
+  TSDB_FS_EDIT_COMMIT = 0,
+  TSDB_FS_EDIT_MERGE,
+} EFsEditType;
+
 /* Exposed APIs */
 // open/close
 int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS, int8_t rollback);
 int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS);
 // txn
-// int32_t tsdb
+int32_t tsdbFileSystemEditBegin(struct STFileSystem *pFS, const SArray *aFileOp, EFsEditType etype);
+int32_t tsdbFileSystemEditCommit(struct STFileSystem *pFS, EFsEditType etype);
+int32_t tsdbFileSystemEditAbort(struct STFileSystem *pFS, EFsEditType etype);
 
 /* Exposed Structs */
 struct STFileSystem {
   STsdb           *pTsdb;
+  tsem_t           canEdit;
   int32_t          nFileSet;
   struct SFileSet *aFileSet;
 };
