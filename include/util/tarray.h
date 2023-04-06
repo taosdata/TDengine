@@ -70,14 +70,6 @@ void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles);
 void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)(void*));
 
 /**
- *
- * @param pArray
- * @param comparFn
- * @param fp
- */
-void taosArrayRemoveDuplicateP(SArray* pArray, __compar_fn_t comparFn, void (*fp)(void*));
-
-/**
  *  add all element from the source array list into the destination
  * @param pArray
  * @param pInput
@@ -216,6 +208,8 @@ void  taosArrayDestroyP(SArray* pArray, FDelete fp);
 
 void  taosArrayDestroyEx(SArray* pArray, FDelete fp);
 
+void taosArraySwap(SArray* a, SArray* b);
+
 /**
  * sort the array
  * @param pArray
@@ -251,14 +245,6 @@ void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* par
 
 int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode);
 void*   taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t dataSz);
-
-/**
- * swap array
- * @param a
- * @param b
- * @return
- */
-void taosArraySwap(SArray* a, SArray* b);
 
 #ifdef __cplusplus
 }

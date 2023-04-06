@@ -161,13 +161,10 @@ int vnodeShouldCommit(SVnode *pVnode) {
   bool           needCommit = false;
 
   taosThreadMutexLock(&pVnode->mutex);
-  if (!pVnode->inUse || !diskAvail) {
-    goto _out;
+  if (pVnode->inUse && diskAvail) {
+    needCommit =
+        ((pVnode->inUse->size > pVnode->inUse->node.size) && (pSched->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs));
   }
-  needCommit =
-      (((pVnode->inUse->size > pVnode->inUse->node.size) && (pSched->commitMs + SYNC_VND_COMMIT_MIN_MS < nowMs)) ||
-       (pVnode->inUse->size > 0 && pSched->commitMs + pSched->maxWaitMs < nowMs));
-_out:
   taosThreadMutexUnlock(&pVnode->mutex);
   return needCommit;
 }

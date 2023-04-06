@@ -52,17 +52,17 @@ set(
   "src/tsdb/tsdbMergeTree.c"
   "src/tsdb/tsdbDataIter.c"
 
-  # tq
-  "src/tq/tq.c"
-  "src/tq/tqExec.c"
-  "src/tq/tqMeta.c"
-  "src/tq/tqRead.c"
-  "src/tq/tqOffset.c"
-  "src/tq/tqPush.c"
-  "src/tq/tqSink.c"
-  "src/tq/tqCommit.c"
-  "src/tq/tqSnapshot.c"
-  "src/tq/tqOffsetSnapshot.c"
+    # tq
+    "src/tq/tq.c"
+    "src/tq/tqScan.c"
+    "src/tq/tqMeta.c"
+    "src/tq/tqRead.c"
+    "src/tq/tqOffset.c"
+    "src/tq/tqPush.c"
+    "src/tq/tqSink.c"
+    "src/tq/tqCommit.c"
+    "src/tq/tqSnapshot.c"
+    "src/tq/tqOffsetSnapshot.c"
 )
 
 if (USE_DEV_CODE)

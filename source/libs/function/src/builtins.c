@@ -213,8 +213,9 @@ static int32_t addTimezoneParam(SNodeList* pList) {
   char      buf[6] = {0};
   time_t    t = taosTime(NULL);
   struct tm tmInfo;
-  taosLocalTime(&t, &tmInfo);
-  strftime(buf, sizeof(buf), "%z", &tmInfo);
+  if (taosLocalTime(&t, &tmInfo, buf) != NULL) {
+    strftime(buf, sizeof(buf), "%z", &tmInfo);
+  }
   int32_t len = (int32_t)strlen(buf);
 
   SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
@@ -480,14 +481,16 @@ static int32_t translateNowToday(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     return code;
   }
 
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateTimePseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
 
-  pFunc->node.resType = (SDataType){.bytes =tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -509,12 +512,10 @@ static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-
   uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(para1Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
-
 
   for (int32_t i = 1; i < numOfParams; ++i) {
     SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
@@ -2375,7 +2376,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "spread",
     .type = FUNCTION_TYPE_SPREAD,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
     .translateFunc = translateSpread,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getSpreadFuncEnv,
@@ -2417,7 +2418,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "elapsed",
     .type = FUNCTION_TYPE_ELAPSED,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
     .dataRequiredFunc = statisDataRequired,
     .translateFunc = translateElapsed,
     .getEnvFunc   = getElapsedFuncEnv,
@@ -2457,7 +2458,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "interp",
     .type = FUNCTION_TYPE_INTERP,
     .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_FORBID_STREAM_FUNC,
+                      FUNC_MGT_FORBID_STREAM_FUNC|FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateInterp,
     .getEnvFunc    = getSelectivityFuncEnv,
     .initFunc      = functionSetup,
@@ -2480,7 +2481,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "irate",
     .type = FUNCTION_TYPE_IRATE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateIrate,
     .getEnvFunc   = getIrateFuncEnv,
     .initFunc     = irateFuncSetup,
@@ -2491,7 +2492,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "last_row",
     .type = FUNCTION_TYPE_LAST_ROW,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateFirstLast,
     .dynDataRequiredFunc = lastDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
@@ -2500,7 +2501,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = firstLastScalarFunction,
     .pPartialFunc = "_last_row_partial",
     .pMergeFunc   = "_last_row_merge",
-    .finalizeFunc = firstLastFinalize
+    .finalizeFunc = firstLastFinalize,
+    .combineFunc  = lastCombine
   },
   {
     .name = "_cache_last_row",
@@ -2809,7 +2811,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "mode",
     .type = FUNCTION_TYPE_MODE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateMode,
     .getEnvFunc   = getModeFuncEnv,
     .initFunc     = modeFunctionSetup,
@@ -3212,7 +3214,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_block_dist",
     .type = FUNCTION_TYPE_BLOCK_DIST,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateBlockDistFunc,
     .getEnvFunc   = getBlockDistFuncEnv,
     .initFunc     = blockDistSetup,
@@ -3234,6 +3236,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = groupKeyFunction,
     .finalizeFunc = groupKeyFinalize,
+    .combineFunc  = groupKeyCombine,
     .pPartialFunc = "_group_key",
     .pMergeFunc   = "_group_key"
   },
@@ -3276,7 +3279,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_irowts",
     .type = FUNCTION_TYPE_IROWTS,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC|FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,

@@ -438,6 +438,7 @@ typedef struct SDropStreamStmt {
 
 typedef struct SCreateFunctionStmt {
   ENodeType type;
+  bool      orReplace;
   bool      ignoreExists;
   char      funcName[TSDB_FUNC_NAME_LEN];
   bool      isAgg;

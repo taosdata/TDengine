@@ -755,9 +755,11 @@ static bool isPrimaryKeyImpl(SNode* pExpr) {
   } else if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
     SFunctionNode* pFunc = (SFunctionNode*)pExpr;
     if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType || FUNCTION_TYPE_GROUP_KEY == pFunc->funcType ||
-        FUNCTION_TYPE_FIRST == pFunc->funcType || FUNCTION_TYPE_LAST == pFunc->funcType) {
+        FUNCTION_TYPE_FIRST == pFunc->funcType || FUNCTION_TYPE_LAST == pFunc->funcType ||
+        FUNCTION_TYPE_LAST_ROW == pFunc->funcType) {
       return isPrimaryKeyImpl(nodesListGetNode(pFunc->pParameterList, 0));
-    } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType) {
+    } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
+               FUNCTION_TYPE_IROWTS == pFunc->funcType) {
       return true;
     }
   }
@@ -1342,8 +1344,8 @@ static bool isCountNotNullValue(SFunctionNode* pFunc) {
 // count(1) is rewritten as count(ts) for scannning optimization
 static int32_t rewriteCountNotNullValue(STranslateContext* pCxt, SFunctionNode* pCount) {
   SValueNode* pValue = (SValueNode*)nodesListGetNode(pCount->pParameterList, 0);
-  STableNode*  pTable = NULL;
-  int32_t      code = findTable(pCxt, NULL, &pTable);
+  STableNode* pTable = NULL;
+  int32_t     code = findTable(pCxt, NULL, &pTable);
   if (TSDB_CODE_SUCCESS == code && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
     if (NULL == pCol) {
@@ -1421,6 +1423,9 @@ static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
 
   if (isCountStar(pFunc)) {
     return rewriteCountStar(pCxt, pFunc);
+  }
+  if (isCountNotNullValue(pFunc)) {
+    return rewriteCountNotNullValue(pCxt, pFunc);
   }
   if (isCountTbname(pFunc)) {
     return rewriteCountTbname(pCxt, pFunc);
@@ -1631,13 +1636,15 @@ static bool isTableStar(SNode* pNode) {
          (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
 }
 
+static bool isStarParam(SNode* pNode) { return isStar(pNode) || isTableStar(pNode); }
+
 static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (!fmIsMultiResFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
   if (SQL_CLAUSE_SELECT != pCxt->currClause) {
     SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
-    if (isStar(pPara) || isTableStar(pPara)) {
+    if (isStarParam(pPara)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                      "%s(*) is only supported in SELECTed list", pFunc->functionName);
     }
@@ -1651,7 +1658,7 @@ static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFu
 
 static int32_t getMultiResFuncNum(SNodeList* pParameterList) {
   if (1 == LIST_LENGTH(pParameterList)) {
-    return isStar(nodesListGetNode(pParameterList, 0)) ? 2 : 1;
+    return isStarParam(nodesListGetNode(pParameterList, 0)) ? 2 : 1;
   }
   return LIST_LENGTH(pParameterList);
 }
@@ -3114,6 +3121,19 @@ static const char* getPrecisionStr(uint8_t precision) {
   return "unknown";
 }
 
+static void convertVarDuration(SValueNode* pOffset, uint8_t precision) {
+  const int64_t factors[3] = {NANOSECOND_PER_MSEC, NANOSECOND_PER_USEC, 1};
+  const int8_t  units[3] = {TIME_UNIT_MILLISECOND, TIME_UNIT_MICROSECOND, TIME_UNIT_NANOSECOND};
+
+  if (pOffset->unit == 'n') {
+    pOffset->datum.i = pOffset->datum.i * 31 * (NANOSECOND_PER_DAY / factors[precision]);
+  } else {
+    pOffset->datum.i = pOffset->datum.i * 365 * (NANOSECOND_PER_DAY / factors[precision]);
+  }
+
+  pOffset->unit = units[precision];
+}
+
 static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
   uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
 
@@ -3137,6 +3157,10 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
         (!fixed && getMonthsFromTimeVal(pOffset->datum.i, precision, pOffset->unit) >=
                        getMonthsFromTimeVal(pInter->datum.i, precision, pInter->unit))) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
+    }
+
+    if (pOffset->unit == 'n' || pOffset->unit == 'y') {
+      convertVarDuration(pOffset, precision);
     }
   }
 
@@ -5922,11 +5946,15 @@ static int32_t addSubtableInfoToCreateStreamQuery(STranslateContext* pCxt, STabl
   return code;
 }
 
+static bool isEventWindowQuery(SSelectStmt* pSelect) {
+  return NULL != pSelect->pWindow && QUERY_NODE_EVENT_WINDOW == nodeType(pSelect->pWindow);
+}
+
 static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
   if (TSDB_DATA_TYPE_TIMESTAMP != ((SExprNode*)nodesListGetNode(pSelect->pProjectionList, 0))->resType.type ||
       !pSelect->isTimeLineResult || crossTableWithoutAggOper(pSelect) || NULL != pSelect->pOrderByList ||
-      crossTableWithUdaf(pSelect)) {
+      crossTableWithUdaf(pSelect) || isEventWindowQuery(pSelect)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
   if (NULL != pSelect->pSubtable && TSDB_DATA_TYPE_VARCHAR != ((SExprNode*)pSelect->pSubtable)->resType.type) {
@@ -6434,6 +6462,7 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
 
   SCreateFuncReq req = {0};
   strcpy(req.name, pStmt->funcName);
+  req.orReplace = pStmt->orReplace;
   req.igExists = pStmt->ignoreExists;
   req.funcType = pStmt->isAgg ? TSDB_FUNC_TYPE_AGGREGATE : TSDB_FUNC_TYPE_SCALAR;
   req.scriptType = pStmt->language;
