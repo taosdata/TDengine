@@ -53,15 +53,7 @@ int32_t udfdCPluginOpen(SScriptUdfEnvItem *items, int numItems) { return 0; }
 
 int32_t udfdCPluginClose() { return 0; }
 
-int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
-  int32_t         err = 0;
-  SUdfCPluginCtx *udfCtx = taosMemoryCalloc(1, sizeof(SUdfCPluginCtx));
-  err = uv_dlopen(udf->path, &udfCtx->lib);
-  if (err != 0) {
-    fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
-    return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
-  }
-  const char *udfName = udf->name;
+const char *udfdCPluginUdfInitLoadInitDestoryFuncs(SUdfCPluginCtx *udfCtx, const char* udfName) {
   char        initFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
   char       *initSuffix = "_init";
   strcpy(initFuncName, udfName);
@@ -73,31 +65,53 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
   strcpy(destroyFuncName, udfName);
   strncat(destroyFuncName, destroySuffix, strlen(destroySuffix));
   uv_dlsym(&udfCtx->lib, destroyFuncName, (void **)(&udfCtx->destroyFunc));
+  return udfName;
+}
+
+void udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfName) {
+  char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
+  strcpy(processFuncName, udfName);
+  uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->aggProcFunc));
+
+  char  startFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
+  char *startSuffix = "_start";
+  strncpy(startFuncName, processFuncName, sizeof(startFuncName));
+  strncat(startFuncName, startSuffix, strlen(startSuffix));
+  uv_dlsym(&udfCtx->lib, startFuncName, (void **)(&udfCtx->aggStartFunc));
+
+  char  finishFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
+  char *finishSuffix = "_finish";
+  strncpy(finishFuncName, processFuncName, sizeof(finishFuncName));
+  strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
+  uv_dlsym(&udfCtx->lib, finishFuncName, (void **)(&udfCtx->aggFinishFunc));
+  
+  char  mergeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
+  char *mergeSuffix = "_merge";
+  strncpy(mergeFuncName, processFuncName, sizeof(mergeFuncName));
+  strncat(mergeFuncName, mergeSuffix, strlen(mergeSuffix));
+  uv_dlsym(&udfCtx->lib, mergeFuncName, (void **)(&udfCtx->aggMergeFunc));
+}
+
+int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
+  int32_t         err = 0;
+  SUdfCPluginCtx *udfCtx = taosMemoryCalloc(1, sizeof(SUdfCPluginCtx));
+  err = uv_dlopen(udf->path, &udfCtx->lib);
+  if (err != 0) {
+    fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
+    return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
+  }
+  const char* udfName = udf->name;
+
+  udfdCPluginUdfInitLoadInitDestoryFuncs(udfCtx, udfName);
 
   if (udf->funcType == UDF_FUNC_TYPE_SCALAR) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
     strcpy(processFuncName, udfName);
     uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->scalarProcFunc));
   } else if (udf->funcType == UDF_FUNC_TYPE_AGG) {
-    char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
-    strcpy(processFuncName, udfName);
-    uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->aggProcFunc));
-    char  startFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
-    char *startSuffix = "_start";
-    strncpy(startFuncName, processFuncName, sizeof(startFuncName));
-    strncat(startFuncName, startSuffix, strlen(startSuffix));
-    uv_dlsym(&udfCtx->lib, startFuncName, (void **)(&udfCtx->aggStartFunc));
-    char  finishFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
-    char *finishSuffix = "_finish";
-    strncpy(finishFuncName, processFuncName, sizeof(finishFuncName));
-    strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
-    uv_dlsym(&udfCtx->lib, finishFuncName, (void **)(&udfCtx->aggFinishFunc));
-    char  mergeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
-    char *mergeSuffix = "_merge";
-    strncpy(mergeFuncName, processFuncName, sizeof(mergeFuncName));
-    strncat(mergeFuncName, mergeSuffix, strlen(mergeSuffix));
-    uv_dlsym(&udfCtx->lib, mergeFuncName, (void **)(&udfCtx->aggMergeFunc));
+    udfdCPluginUdfInitLoadAggFuncs(udfCtx, udfName);
   }
+
   int32_t code = 0;
   if (udfCtx->initFunc) {
     code = (udfCtx->initFunc)();
