@@ -1027,15 +1027,9 @@ SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
   return &pTaskInfo->streamInfo.metaRsp;
 }
 
-int64_t qStreamExtractPrepareUid(qTaskInfo_t tinfo) {
+void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  return pTaskInfo->streamInfo.prepareStatus.uid;
-}
-
-int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  memcpy(pOffset, &pTaskInfo->streamInfo.lastStatus, sizeof(STqOffsetVal));
-  return 0;
+  memcpy(pOffset, &pTaskInfo->streamInfo.currentOffset, sizeof(STqOffsetVal));
 }
 
 int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* sContext, SMetaTableInfo* pMtInfo) {
@@ -1081,22 +1075,27 @@ int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit) {
   return 0;
 }
 
+void qStreamSetOpen(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  SOperatorInfo*  pOperator = pTaskInfo->pRoot;
+  pOperator->status = OP_NOT_OPENED;
+}
+
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {
   SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo*  pOperator = pTaskInfo->pRoot;
   const char*     id = GET_TASKID(pTaskInfo);
 
-  pTaskInfo->streamInfo.prepareStatus = *pOffset;
-  pTaskInfo->streamInfo.returned = 0;
-
-  if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus)) {
+  // if pOffset equal to current offset, means continue consume
+  if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.currentOffset)) {
     return 0;
   }
 
   if (subType == TOPIC_SUB_TYPE__COLUMN) {
-    pOperator->status = OP_OPENED;
     pOperator = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id);
-
+    if (pOperator == NULL) {
+      return -1;
+    }
     SStreamScanInfo* pInfo = pOperator->info;
     STableScanInfo*  pScanInfo = pInfo->pTableScanOp->info;
     STableScanBase*  pScanBaseInfo = &pScanInfo->base;
@@ -1106,7 +1105,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       tsdbReaderClose(pScanBaseInfo->dataReader);
       pScanBaseInfo->dataReader = NULL;
 
-      // let's seek to the next version in wal file
+      // set version to read for wal is next, so +1
       if (tqSeekVer(pInfo->tqReader, pOffset->version + 1, pTaskInfo->id.str) < 0) {
         qError("tqSeekVer failed ver:%"PRId64", %s", pOffset->version + 1, id);
         return -1;
@@ -1135,6 +1134,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         }
       }
 
+      qDebug("switch to table uid:%" PRId64 " ts:%" PRId64 "% "PRId64 " rows returned", uid, ts, pInfo->pTableScanOp->resultInfo.totalRows);
       pInfo->pTableScanOp->resultInfo.totalRows = 0;
 
       // start from current accessed position
@@ -1239,6 +1239,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       qDebug("tmqsnap qStreamPrepareScan snapshot log, %s", id);
     }
   }
+  pTaskInfo->streamInfo.currentOffset = *pOffset;
 
   return 0;
 }

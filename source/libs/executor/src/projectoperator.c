@@ -227,17 +227,8 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   blockDataCleanup(pFinalRes);
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  if (pTaskInfo->streamInfo.submit.msgStr) {
-    pOperator->status = OP_OPENED;
-  }
 
   if (pOperator->status == OP_EXEC_DONE) {
-    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
-      pOperator->status = OP_OPENED;
-      qDebug("projection in queue model, set status open and return null");
-      return NULL;
-    }
-
     return NULL;
   }
 
@@ -263,23 +254,14 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       // The downstream exec may change the value of the newgroup, so use a local variable instead.
       SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
       if (pBlock == NULL) {
-        if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE && pFinalRes->info.rows == 0) {
-          pOperator->status = OP_OPENED;
-          if (pOperator->status == OP_EXEC_RECV) {
-            continue;
-          } else {
-            return NULL;
-          }
-        }
-        qDebug("set op close, exec %d, status %d rows %" PRId64 , pTaskInfo->execModel, pOperator->status,
-               pFinalRes->info.rows);
+        qDebug("set op close, exec %d, status %d rows %" PRId64 , pTaskInfo->execModel, pOperator->status, pFinalRes->info.rows);
         setOperatorCompleted(pOperator);
         break;
       }
-      if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
-        qDebug("set status recv");
-        pOperator->status = OP_EXEC_RECV;
-      }
+//      if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
+//        qDebug("set status recv");
+//        pOperator->status = OP_EXEC_RECV;
+//      }
 
       // for stream interval
       if (pBlock->info.type == STREAM_RETRIEVE || pBlock->info.type == STREAM_DELETE_RESULT ||
