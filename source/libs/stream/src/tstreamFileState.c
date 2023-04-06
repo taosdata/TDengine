@@ -279,9 +279,9 @@ void streamFileStateDecode(SStreamFileState* pFileState, void* pBuff, int32_t le
 
 void streamFileStateEncode(SStreamFileState* pFileState, void** pVal, int32_t* pLen) {
   *pLen = sizeof(TSKEY);
-  *pVal = taosMemoryCalloc(1, *pLen);
-  void** buff = pVal; 
-  taosEncodeFixedI64(buff, pFileState->flushMark);
+  (*pVal) = taosMemoryCalloc(1, *pLen);
+  void* buff = *pVal; 
+  taosEncodeFixedI64(&buff, pFileState->flushMark);
 }
 
 int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, bool flushState) {
@@ -300,6 +300,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
     streamFileStateEncode(pFileState, &buff, &len);
     SWinKey key = {.ts = -1, .groupId = 0}; // dengyihao
     streamStatePut_rocksdb(pFileState->pFileStore, &key, buff, len);
+    taosMemoryFree(buff);
   }
   return code;
 }
