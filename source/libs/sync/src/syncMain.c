@@ -183,6 +183,9 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
     case TDMT_SYNC_TIMEOUT:
       code = syncNodeOnTimeout(pSyncNode, pMsg);
       break;
+    case TDMT_SYNC_TIMEOUT_ELECTION:
+      code = syncNodeOnTimeout(pSyncNode, pMsg);
+      break;
     case TDMT_SYNC_CLIENT_REQUEST:
       code = syncNodeOnClientRequest(pSyncNode, pMsg, NULL);
       break;
@@ -1611,8 +1614,8 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   syncNodeStopHeartbeatTimer(pSyncNode);
 
-  // reset elect timer
-  syncNodeResetElectTimer(pSyncNode);
+  // trace log
+  sNTrace(pSyncNode, "become follower %s", debugStr);
 
   // send rsp to client
   syncNodeLeaderChangeRsp(pSyncNode);
@@ -1628,8 +1631,8 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
   // reset log buffer
   syncLogBufferReset(pSyncNode->pLogBuf, pSyncNode);
 
-  // trace log
-  sNTrace(pSyncNode, "become follower %s", debugStr);
+  // reset elect timer
+  syncNodeResetElectTimer(pSyncNode);
 }
 
 // TLA+ Spec
@@ -2295,6 +2298,7 @@ static int32_t syncNodeAppendNoopOld(SSyncNode* ths) {
 
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
+  bool           resetElect = false;
 
   const STraceId* trace = &pRpcMsg->info.traceId;
   char            tbuf[40] = {0};
@@ -2326,12 +2330,11 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   if (pMsg->term == currentTerm && ths->state != TAOS_SYNC_STATE_LEADER) {
     syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
+    resetElect = true;
 
-    syncNodeResetElectTimer(ths);
     ths->minMatchIndex = pMsg->minMatchIndex;
 
     if (ths->state == TAOS_SYNC_STATE_FOLLOWER) {
-      // syncNodeFollowerCommit(ths, pMsg->commitIndex);
       SRpcMsg rpcMsgLocalCmd = {0};
       (void)syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId);
 
@@ -2354,7 +2357,6 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   if (pMsg->term >= currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {
-    // syncNodeStepDown(ths, pMsg->term);
     SRpcMsg rpcMsgLocalCmd = {0};
     (void)syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId);
 
@@ -2374,15 +2376,10 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     }
   }
 
-  /*
-    // htonl
-    SMsgHead* pHead = rpcMsg.pCont;
-    pHead->contLen = htonl(pHead->contLen);
-    pHead->vgId = htonl(pHead->vgId);
-  */
-
   // reply
   syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
+
+  if (resetElect) syncNodeResetElectTimer(ths);
   return 0;
 }
 

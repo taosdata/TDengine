@@ -1762,7 +1762,11 @@ int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   char* p = colDataGetVarData(pInput->columnData, 0);
 
-  colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows);
+  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, true);
+  if (code) {
+    return code;
+  }
+  
   pOutput->numOfRows += pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
