@@ -137,7 +137,7 @@ impl FromStr for IpcDataType {
                 match (items.get(0), items.get(1)) {
                     (Some(t), Some(l)) => match *t {
                         "binary" | "varchar" => Ok(Self::VarChar(l.parse().unwrap())),
-                        "nchar" => Ok(Self::VarChar(l.parse().unwrap())),
+                        "nchar" => Ok(Self::NChar(l.parse().unwrap())),
                         _ => Err(s.to_string()),
                     },
                     _ => Err(s.to_string()),
