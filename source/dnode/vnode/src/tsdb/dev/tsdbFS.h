@@ -26,8 +26,11 @@ extern "C" {
 struct STFileSystem;
 
 /* Exposed APIs */
+// open/close
 int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS, int8_t rollback);
 int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS);
+// txn
+// int32_t tsdb
 
 /* Exposed Structs */
 struct STFileSystem {

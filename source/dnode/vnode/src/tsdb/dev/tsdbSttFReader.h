@@ -16,15 +16,24 @@
 #ifndef _TD_TSDB_STT_FILE_READER_H
 #define _TD_TSDB_STT_FILE_READER_H
 
+#include "tsdb.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* Exposed Handle */
+struct SSttFReader;
+struct SSttFReaderConf;
 
 /* Exposed APIs */
+int32_t tsdbSttFReaderOpen(const struct SSttFReaderConf *pConf, struct SSttFReader **ppReader);
+int32_t tsdbSttFReaderClose(struct SSttFReader *pReader);
 
 /* Exposed Structs */
+struct SSttFReaderConf {
+  // TODO
+};
 
 #ifdef __cplusplus
 }
