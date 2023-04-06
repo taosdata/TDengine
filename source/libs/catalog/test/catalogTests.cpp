@@ -2800,15 +2800,19 @@ TEST(apiTest, catalogChkAuth_test) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  bool pass = false;
+  SUserAuthInfo authInfo = {0};
+  SUserAuthRes authRes = {0};
+  strcpy(authInfo.user, ctgTestUsername);
+  toName(1, ctgTestDbname, ctgTestSTablename, &authInfo.tbName);
+  authInfo.type = AUTH_TYPE_READ;
   bool exists = false;
-  code = catalogChkAuthFromCache(pCtg, ctgTestUsername, ctgTestDbname, AUTH_TYPE_READ, &pass, &exists);
+  code = catalogChkAuthFromCache(pCtg, &authInfo, &authRes, &exists);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(exists, false);
-  
-  code = catalogChkAuth(pCtg, mockPointer, ctgTestUsername, ctgTestDbname, AUTH_TYPE_READ, &pass);
+
+  code = catalogChkAuth(pCtg, mockPointer, &authInfo, &authRes);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(pass, true);
+  ASSERT_EQ(authRes.pass, true);
 
   while (true) {
     uint64_t n = 0;
@@ -2820,9 +2824,9 @@ TEST(apiTest, catalogChkAuth_test) {
     }
   }
 
-  code = catalogChkAuthFromCache(pCtg, ctgTestUsername, ctgTestDbname, AUTH_TYPE_READ, &pass, &exists);
+  code = catalogChkAuthFromCache(pCtg, &authInfo, &authRes, &exists);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(pass, true);
+  ASSERT_EQ(authRes.pass, true);
   ASSERT_EQ(exists, true);
 
   catalogDestroy();

@@ -44,7 +44,10 @@ static int32_t checkAuth(SAuthCxt* pCxt, const char* pDbName, AUTH_TYPE type) {
                              .requestObjRefId = pParseCxt->requestRid,
                              .mgmtEps = pParseCxt->mgmtEpSet};
 
-    code = catalogChkAuth(pParseCxt->pCatalog, &conn, pParseCxt->pUser, dbFname, type, &pass);
+    SUserAuthInfo authInfo = {0};
+    SUserAuthRes  authRes = {0};
+    //code = catalogChkAuth(pParseCxt->pCatalog, &conn, pParseCxt->pUser, dbFname, type, &pass);
+    code = catalogChkAuth(pParseCxt->pCatalog, &conn, &authInfo, &authRes);
   }
   return TSDB_CODE_SUCCESS == code ? (pass ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED) : code;
 }

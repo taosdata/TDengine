@@ -678,55 +678,40 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgChkAuthFromCache(SCatalog *pCtg, char *user, char *dbFName, AUTH_TYPE type, bool *inCache, bool *pass) {
-  char *p = strchr(dbFName, '.');
-  if (p) {
-    ++p;
-  } else {
-    p = dbFName;
-  }
-
-  if (IS_SYS_DBNAME(p)) {
+int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool *inCache, SCtgAuthRsp* pRes) {
+  if (IS_SYS_DBNAME(pReq->tbName.dbname)) {
     *inCache = true;
-    *pass = true;
-    ctgDebug("sysdb %s, pass", dbFName);
+    pRes->pRawRes->pass = true;
+    ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
     return TSDB_CODE_SUCCESS;
   }
 
-  SCtgUserAuth *pUser = (SCtgUserAuth *)taosHashGet(pCtg->userCache, user, strlen(user));
+  SCtgUserAuth *pUser = (SCtgUserAuth *)taosHashGet(pCtg->userCache, pReq->user, strlen(pReq->user));
   if (NULL == pUser) {
-    ctgDebug("user not in cache, user:%s", user);
+    ctgDebug("user not in cache, user:%s", pReq->user);
     goto _return;
   }
 
   *inCache = true;
 
-  ctgDebug("Got user from cache, user:%s", user);
+  ctgDebug("Got user from cache, user:%s", pReq->user);
   CTG_CACHE_STAT_INC(numOfUserHit, 1);
 
-  if (pUser->superUser) {
-    *pass = true;
-    return TSDB_CODE_SUCCESS;
-  }
+  SCtgAuthReq req = {0};
+  req.pRawReq = pReq;
+  req.onlyCache = true;
 
   CTG_LOCK(CTG_READ, &pUser->lock);
-  if (pUser->createdDbs && taosHashGet(pUser->createdDbs, dbFName, strlen(dbFName))) {
-    *pass = true;
-    CTG_UNLOCK(CTG_READ, &pUser->lock);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pUser->readDbs && taosHashGet(pUser->readDbs, dbFName, strlen(dbFName)) && CTG_AUTH_READ(type)) {
-    *pass = true;
-  }
-
-  if (pUser->writeDbs && taosHashGet(pUser->writeDbs, dbFName, strlen(dbFName)) && CTG_AUTH_WRITE(type)) {
-    *pass = true;
-  }
-
+  memcpy(&req.authInfo, &pUser->userAuth, sizeof(pUser->userAuth));
+  int32_t code = ctgChkSetAuthRes(pCtg, &req, pRes);
   CTG_UNLOCK(CTG_READ, &pUser->lock);
+  CTG_ERR_JRET(code);
+  
+  if (pRes->metaNotExists) {
+    goto _return;
+  }
 
-  return TSDB_CODE_SUCCESS;
+  CTG_RET(code);
 
 _return:
 
@@ -2024,11 +2009,7 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
   if (NULL == pUser) {
     SCtgUserAuth userAuth = {0};
 
-    userAuth.version = msg->userAuth.version;
-    userAuth.superUser = msg->userAuth.superAuth;
-    userAuth.createdDbs = msg->userAuth.createdDbs;
-    userAuth.readDbs = msg->userAuth.readDbs;
-    userAuth.writeDbs = msg->userAuth.writeDbs;
+    memcpy(&userAuth.userAuth, &msg->userAuth, sizeof(msg->userAuth));
 
     if (taosHashPut(pCtg->userCache, msg->userAuth.user, strlen(msg->userAuth.user), &userAuth, sizeof(userAuth))) {
       ctgError("taosHashPut user %s to cache failed", msg->userAuth.user);
@@ -2040,20 +2021,18 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pUser->version = msg->userAuth.version;
-
   CTG_LOCK(CTG_WRITE, &pUser->lock);
 
-  taosHashCleanup(pUser->createdDbs);
-  pUser->createdDbs = msg->userAuth.createdDbs;
+  taosHashCleanup(pUser->userAuth.createdDbs);
+  pUser->userAuth.createdDbs = msg->userAuth.createdDbs;
   msg->userAuth.createdDbs = NULL;
 
-  taosHashCleanup(pUser->readDbs);
-  pUser->readDbs = msg->userAuth.readDbs;
+  taosHashCleanup(pUser->userAuth.readDbs);
+  pUser->userAuth.readDbs = msg->userAuth.readDbs;
   msg->userAuth.readDbs = NULL;
 
-  taosHashCleanup(pUser->writeDbs);
-  pUser->writeDbs = msg->userAuth.writeDbs;
+  taosHashCleanup(pUser->userAuth.writeDbs);
+  pUser->userAuth.writeDbs = msg->userAuth.writeDbs;
   msg->userAuth.writeDbs = NULL;
 
   CTG_UNLOCK(CTG_WRITE, &pUser->lock);

@@ -509,7 +509,7 @@ static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUser
   strncpy(pUserAuth->user, pStr, p1 - pStr);
   ++p1;
   char* p2 = strchr(p1, '*');
-  strncpy(pUserAuth->dbFName, p1, p2 - p1);
+  //strncpy(pUserAuth->dbFName, p1, p2 - p1);
   ++p2;
   char buf[10] = {0};
   strncpy(buf, p2, len - (p2 - pStr));
@@ -712,7 +712,8 @@ static int32_t putUserAuthToCache(const SArray* pUserAuthReq, const SArray* pUse
   for (int32_t i = 0; i < nvgs; ++i) {
     SUserAuthInfo* pUser = taosArrayGet(pUserAuthReq, i);
     char           key[USER_AUTH_KEY_MAX_LEN] = {0};
-    int32_t        len = userAuthToStringExt(pUser->user, pUser->dbFName, pUser->type, key);
+    //int32_t        len = userAuthToStringExt(pUser->user, pUser->dbFName, pUser->type, key);
+    int32_t        len = 0;
     if (TSDB_CODE_SUCCESS != putMetaDataToHash(key, len, pUserAuthData, i, pUserAuth)) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }

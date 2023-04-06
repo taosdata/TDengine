@@ -99,6 +99,20 @@ typedef struct SCtgDebug {
   uint32_t showCachePeriodSec;
 } SCtgDebug;
 
+typedef struct SCtgAuthReq {
+  SRequestConnInfo* pConn;
+  SUserAuthInfo*    pRawReq;
+  SGetUserAuthRsp   authInfo;
+  AUTH_TYPE         singleType;
+  bool              onlyCache;
+} SCtgAuthReq;
+
+typedef struct SCtgAuthRsp {
+  SUserAuthRes* pRawRes;
+  bool          metaNotExists;
+} SCtgAuthRsp;
+
+
 typedef struct SCtgTbCacheInfo {
   bool     inCache;
   uint64_t dbId;
@@ -214,12 +228,8 @@ typedef struct SCtgRentMgmt {
 } SCtgRentMgmt;
 
 typedef struct SCtgUserAuth {
-  int32_t   version;
-  SRWLatch  lock;
-  bool      superUser;
-  SHashObj* createdDbs;
-  SHashObj* readDbs;
-  SHashObj* writeDbs;
+  SRWLatch        lock;
+  SGetUserAuthRsp userAuth;
 } SCtgUserAuth;
 
 typedef struct SCatalog {
@@ -703,7 +713,7 @@ int32_t ctgTbMetaExistInCache(SCatalog* pCtg, char* dbFName, char* tbName, int32
 int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgReadTbVerFromCache(SCatalog* pCtg, SName* pTableName, int32_t* sver, int32_t* tver, int32_t* tbType,
                               uint64_t* suid, char* stbName);
-int32_t ctgChkAuthFromCache(SCatalog* pCtg, char* user, char* dbFName, AUTH_TYPE type, bool* inCache, bool* pass);
+int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool *inCache, SCtgAuthRsp* pRes);
 int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char* dbFName, int64_t dbId);
 int32_t ctgDropDbVgroupEnqueue(SCatalog* pCtg, const char* dbFName, bool syncReq);
 int32_t ctgDropStbMetaEnqueue(SCatalog* pCtg, const char* dbFName, int64_t dbId, const char* stbName, uint64_t suid,
@@ -806,6 +816,7 @@ int32_t ctgAcquireVgMetaFromCache(SCatalog *pCtg, const char *dbFName, const cha
 int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCtgTbCache **pTb, STableMeta **pTableMeta, char* dbFName);
 void    ctgReleaseVgMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, SCtgTbCache *pCache);
 void    ctgReleaseTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, SCtgTbCache *pCache);
+int32_t ctgChkSetAuthRes(SCatalog *pCtg, SCtgAuthReq *req, SCtgAuthRsp* res);
 
 extern SCatalogMgmt gCtgMgmt;
 extern SCtgDebug    gCTGDebug;

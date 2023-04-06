@@ -729,13 +729,20 @@ static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache) 
   bool    pass = true;
   bool    exists = true;
   if (pCxt->async) {
-    code = catalogChkAuthFromCache(pCxt->pCatalog, pCxt->pUser, dbFName, AUTH_TYPE_WRITE, &pass, &exists);
+    SUserAuthInfo authInfo = {0};
+    SUserAuthRes  authRes = {0};
+//    code = catalogChkAuthFromCache(pCxt->pCatalog, pCxt->pUser, dbFName, AUTH_TYPE_WRITE, &pass, &exists);
+    code = catalogChkAuthFromCache(pCxt->pCatalog, &authInfo, &authRes, &exists);
   } else {
     SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
                              .requestId = pCxt->requestId,
                              .requestObjRefId = pCxt->requestRid,
                              .mgmtEps = pCxt->mgmtEpSet};
-    code = catalogChkAuth(pCxt->pCatalog, &conn, pCxt->pUser, dbFName, AUTH_TYPE_WRITE, &pass);
+    SUserAuthInfo authInfo = {0};
+    SUserAuthRes  authRes = {0};
+    //code = catalogChkAuth(pCxt->pCatalog, &conn, pCxt->pUser, dbFName, AUTH_TYPE_WRITE, &pass);
+    code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);
+
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (!exists) {
@@ -1901,7 +1908,7 @@ static int32_t buildInsertUserAuthReq(const char* pUser, SName* pName, SArray** 
 
   SUserAuthInfo userAuth = {.type = AUTH_TYPE_WRITE};
   snprintf(userAuth.user, sizeof(userAuth.user), "%s", pUser);
-  tNameGetFullDbName(pName, userAuth.dbFName);
+  //tNameGetFullDbName(pName, userAuth.dbFName);
   taosArrayPush(*pUserAuth, &userAuth);
 
   return TSDB_CODE_SUCCESS;

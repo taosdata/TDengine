@@ -1550,44 +1550,19 @@ _return:
 int32_t ctgHandleGetUserRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg, int32_t rspCode) {
   int32_t          code = 0;
   SCtgTask*        pTask = tReq->pTask;
-  SCtgUserCtx*     ctx = (SCtgUserCtx*)pTask->taskCtx;
   SCatalog*        pCtg = pTask->pJob->pCtg;
-  bool             pass = false;
   SGetUserAuthRsp* pOut = (SGetUserAuthRsp*)pTask->msgCtx.out;
 
   CTG_ERR_JRET(ctgProcessRspMsg(pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
 
-  if (pOut->superAuth) {
-    pass = true;
-    goto _return;
-  }
+  ctgUpdateUserEnqueue(pCtg, pOut, true);
+  taosMemoryFreeClear(pTask->msgCtx.out);
 
-  if (pOut->createdDbs && taosHashGet(pOut->createdDbs, ctx->user.dbFName, strlen(ctx->user.dbFName))) {
-    pass = true;
-    goto _return;
-  }
+  CTG_ERR_JRET((*gCtgAsyncFps[pTask->type].launchFp)(pTask));
 
-  if (CTG_AUTH_READ(ctx->user.type) && pOut->readDbs &&
-      taosHashGet(pOut->readDbs, ctx->user.dbFName, strlen(ctx->user.dbFName))) {
-    pass = true;
-  } else if (CTG_AUTH_WRITE(ctx->user.type) && pOut->writeDbs &&
-             taosHashGet(pOut->writeDbs, ctx->user.dbFName, strlen(ctx->user.dbFName))) {
-    pass = true;
-  }
+  return TSDB_CODE_SUCCESS;
 
 _return:
-
-  if (TSDB_CODE_SUCCESS == code) {
-    pTask->res = taosMemoryCalloc(1, sizeof(bool));
-    if (NULL == pTask->res) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    } else {
-      *(bool*)pTask->res = pass;
-    }
-  }
-
-  ctgUpdateUserEnqueue(pCtg, pOut, false);
-  taosMemoryFreeClear(pTask->msgCtx.out);
 
   ctgHandleTaskEnd(pTask, code);
 
@@ -2067,31 +2042,39 @@ int32_t ctgLaunchGetUdfTask(SCtgTask* pTask) {
 }
 
 int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
+  int32_t           code = 0;
   SCatalog*         pCtg = pTask->pJob->pCtg;
   SRequestConnInfo* pConn = &pTask->pJob->conn;
   SCtgUserCtx*      pCtx = (SCtgUserCtx*)pTask->taskCtx;
   bool              inCache = false;
-  bool              pass = false;
+  SCtgAuthRsp       rsp = {0};
   SCtgJob*          pJob = pTask->pJob;
   SCtgMsgCtx*       pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
   if (NULL == pMsgCtx->pBatchs) {
     pMsgCtx->pBatchs = pJob->pBatchs;
   }
 
-  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, pCtx->user.user, pCtx->user.dbFName, pCtx->user.type, &inCache, &pass));
+  rsp.pRawRes = taosMemoryCalloc(1, sizeof(SUserAuthRes));
+  if (NULL == rsp.pRawRes) {
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  
+  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, &pCtx->user, &inCache, &rsp));
   if (inCache) {
-    pTask->res = taosMemoryCalloc(1, sizeof(bool));
-    if (NULL == pTask->res) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
-    }
-    *(bool*)pTask->res = pass;
+    pTask->res = rsp.pRawRes;
 
     CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
     return TSDB_CODE_SUCCESS;
   }
 
-  CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pConn, pCtx->user.user, NULL, pTask));
+  taosMemoryFreeClear(rsp.pRawRes);
 
+  if (rsp.metaNotExists) {
+    CTG_ERR_RET(ctgLaunchSubTask(pTask, CTG_TASK_GET_TB_META, ctgGetTbCfgCb, &pCtx->user.tbName));
+  } else {
+    CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pConn, pCtx->user.user, NULL, pTask));
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2138,6 +2121,20 @@ _return:
 
   CTG_RET(ctgHandleTaskEnd(pTask, pTask->subRes.code));
 }
+
+
+int32_t ctgGetUserCb(SCtgTask* pTask) {
+  int32_t code = 0;
+
+  CTG_ERR_JRET(pTask->subRes.code);
+
+  CTG_RET(ctgLaunchGetUserTask(pTask));
+
+_return:
+
+  CTG_RET(ctgHandleTaskEnd(pTask, pTask->subRes.code));
+}
+
 
 int32_t ctgCompDbVgTasks(SCtgTask* pTask, void* param, bool* equal) {
   SCtgDbVgCtx* ctx = pTask->taskCtx;

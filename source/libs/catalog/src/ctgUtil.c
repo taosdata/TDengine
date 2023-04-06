@@ -174,9 +174,11 @@ void ctgFreeSMetaData(SMetaData* pData) {
 }
 
 void ctgFreeSCtgUserAuth(SCtgUserAuth* userCache) {
-  taosHashCleanup(userCache->createdDbs);
-  taosHashCleanup(userCache->readDbs);
-  taosHashCleanup(userCache->writeDbs);
+  taosHashCleanup(userCache->userAuth.createdDbs);
+  taosHashCleanup(userCache->userAuth.readDbs);
+  taosHashCleanup(userCache->userAuth.writeDbs);
+  taosHashCleanup(userCache->userAuth.readTbs);
+  taosHashCleanup(userCache->userAuth.writeTbs);
 }
 
 void ctgFreeMetaRent(SCtgRentMgmt* mgmt) {
@@ -1329,6 +1331,131 @@ static void ctgFreeTableCfg(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 static void* ctgCloneDnodeList(void* pSrc) { return taosArrayDup((const SArray*)pSrc, NULL); }
 
 static void ctgFreeDnodeList(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
+
+int32_t ctgChkSetTbAuthRes(SCatalog *pCtg, SCtgAuthReq *req, SCtgAuthRsp* res) {
+  int32_t code = 0;
+  STableMeta *pMeta = NULL;
+  SGetUserAuthRsp *pInfo = &req->authInfo;
+  SHashObj *pTbs = (AUTH_TYPE_READ == req->singleType) ? pInfo->readTbs : pInfo->writeTbs;
+  
+  char *pCond = taosHashGet(pTbs, req->pRawReq->tbName.tname, strlen(req->pRawReq->tbName.tname));
+  if (pCond) {
+    if (strlen(pCond) > 1) {
+      CTG_RET(nodesStringToNode(pCond, &res->pRawRes->pCond));
+    }
+    
+    res->pRawRes->pass = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CTG_ERR_RET(catalogGetCachedTableMeta(pCtg, &req->pRawReq->tbName, &pMeta));
+  if (NULL == pMeta) {
+    if (req->onlyCache) {
+      res->metaNotExists = true;
+      ctgDebug("db %s tb %s meta not in cache for auth", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    CTG_ERR_RET(catalogGetTableMeta(pCtg, req->pConn, &req->pRawReq->tbName, &pMeta));
+  }
+
+  if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType) {
+    res->pRawRes->pass = false;
+    goto _return;
+  }
+
+  if (TSDB_CHILD_TABLE == pMeta->tableType) {
+    res->pRawRes->pass = true;
+
+/*  
+    char stbName[TSDB_TABLE_NAME_LEN] = {0};
+    CTG_ERR_JRET(ctgGetCachedStbNameFromSuid(pCtg, pMeta->suid, stbName));
+    if (0 == stbName[0]) {
+      if (req->onlyCache) {
+        res->notExists = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      
+      CTG_ERR_RET(catalogRefreshTableMeta(pCtg, req->pConn, &req->pRawReq->tbName, 0));
+    }
+*/    
+  }
+
+_return:
+
+  taosMemoryFree(pMeta);
+  
+  CTG_RET(code);
+}
+
+int32_t ctgChkSetAuthRes(SCatalog *pCtg, SCtgAuthReq *req, SCtgAuthRsp* res) {
+  int32_t code = 0;
+  SUserAuthInfo* pReq = req->pRawReq;  
+  SUserAuthRes* pRes = res->pRawRes;
+  SGetUserAuthRsp *pInfo = &req->authInfo;
+  
+  pRes->pass = false;
+  pRes->pCond = NULL;  
+
+  if (!pInfo->enable) {
+    pRes->pass = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pInfo->superAuth) {
+    pRes->pass = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char dbFName[TSDB_DB_FNAME_LEN];
+  tNameGetFullDbName(&pReq->tbName, dbFName);
+
+  if (pInfo->createdDbs && taosHashGet(pInfo->createdDbs, dbFName, strlen(dbFName))) {
+    pRes->pass = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  switch (pReq->type) {
+    case AUTH_TYPE_READ: {
+      if (pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, strlen(dbFName))) {
+        pRes->pass = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      if (pInfo->readTbs && taosHashGetSize(pInfo->readTbs) > 0) {
+        req->singleType = AUTH_TYPE_READ;
+        CTG_RET(ctgChkSetTbAuthRes(pCtg, req, res));
+      }
+      
+      break;
+    }
+    case AUTH_TYPE_WRITE: {
+      if (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, strlen(dbFName))) {
+        pRes->pass = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      if (pInfo->writeTbs && taosHashGetSize(pInfo->writeTbs) > 0) {
+        req->singleType = AUTH_TYPE_WRITE;
+        CTG_RET(ctgChkSetTbAuthRes(pCtg, req, res));
+      }
+      
+      break;
+    }
+    case AUTH_TYPE_READ_OR_WRITE: {
+      if ((pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, strlen(dbFName))) ||
+           (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, strlen(dbFName)))){
+        pRes->pass = true;
+        return TSDB_CODE_SUCCESS;
+      }
+     
+      break;
+    }
+    default:
+      break;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 #if 0
 static int32_t ctgCloneMetaDataArray(SArray* pSrc, __array_item_dup_fn_t copyFunc, SArray** pDst) {
