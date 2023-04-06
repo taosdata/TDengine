@@ -80,9 +80,9 @@ if command -v sudo >/dev/null; then
 fi
 
 if command -v install >/dev/null; then
-  echo "${GREEN} found install utility! ${NC}"
+  echo "" > /dev/null
 else
-  echo "${RED} Not found install utility, exit! ${NC}"
+  echo -e "${RED} Not found install utility, exit! ${NC}"
   exit 1
 fi
 
