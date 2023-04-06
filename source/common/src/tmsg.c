@@ -1949,6 +1949,7 @@ void tFreeSRetrieveFuncRsp(SRetrieveFuncRsp *pRsp) {
     tFreeSFuncInfo(pInfo);
   }
   taosArrayDestroy(pRsp->pFuncInfos);
+  taosArrayDestroy(pRsp->pFuncVersions);
 }
 
 int32_t tSerializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq) {

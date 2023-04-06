@@ -84,7 +84,7 @@ void udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfName)
   strncpy(finishFuncName, processFuncName, sizeof(finishFuncName));
   strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
   uv_dlsym(&udfCtx->lib, finishFuncName, (void **)(&udfCtx->aggFinishFunc));
-  
+
   char  mergeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
   char *mergeSuffix = "_merge";
   strncpy(mergeFuncName, processFuncName, sizeof(mergeFuncName));
