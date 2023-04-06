@@ -513,9 +513,9 @@ void convertUdf2UdfInfo(SUdf *udf, SScriptUdfInfo *udfInfo) {
 int32_t udfdRenameUdfFile(SUdf *udf) {
   char newPath[PATH_MAX];
   if (udf->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
-    snprintf(newPath, PATH_MAX, "%s/lib%s_%d_%"PRId64".so", tsTempDir, udf->name, udf->version, udf->lastFetchTime);
+    snprintf(newPath, PATH_MAX, "%s/lib%s_%d_%" PRId64 ".so", tsTempDir, udf->name, udf->version, udf->lastFetchTime);
   } else if (udf->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
-    snprintf(newPath, PATH_MAX, "%s/%s_%d_%"PRId64".py", tsTempDir, udf->name, udf->version, udf->lastFetchTime);
+    snprintf(newPath, PATH_MAX, "%s/%s_%d_%" PRId64 ".py", tsTempDir, udf->name, udf->version, udf->lastFetchTime);
   } else {
     return TSDB_CODE_UDF_SCRIPT_NOT_SUPPORTED;
   }
@@ -589,17 +589,18 @@ SUdf *udfdGetOrCreateUdf(const char *udfName) {
   uv_mutex_lock(&global.udfsMutex);
   SUdf  **pUdfHash = taosHashGet(global.udfsHash, udfName, strlen(udfName));
   int64_t currTime = taosGetTimestampSec();
-  bool    expired = currTime - (*pUdfHash)->lastFetchTime > 10 * 1000;
-  if (pUdfHash && !expired) {
-    ++(*pUdfHash)->refCount;
-    SUdf *udf = *pUdfHash;
-    uv_mutex_unlock(&global.udfsMutex);
-    return udf;
-  }
-
-  if (pUdfHash && expired) {
-    (*pUdfHash)->expired = true;
-    taosHashRemove(global.udfsHash, udfName, strlen(udfName));
+  bool    expired = false;
+  if (pUdfHash) {
+    expired = currTime - (*pUdfHash)->lastFetchTime > 10 * 1000;
+    if (!expired) {
+      ++(*pUdfHash)->refCount;
+      SUdf *udf = *pUdfHash;
+      uv_mutex_unlock(&global.udfsMutex);
+      return udf;
+    } else {
+      (*pUdfHash)->expired = true;
+      taosHashRemove(global.udfsHash, udfName, strlen(udfName));
+    }
   }
 
   SUdf  *udf = udfdNewUdf(udfName);
@@ -809,7 +810,7 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   return;
 }
 
-int32_t udfdSaveFuncBodyToFile(SFuncInfo* pFuncInfo, SUdf* udf) {
+int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
   if (!osTempSpaceAvailable()) {
     terrno = TSDB_CODE_NO_AVAIL_DISK;
     fnError("udfd create shared library failed since %s", terrstr(terrno));
