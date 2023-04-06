@@ -1921,11 +1921,17 @@ int32_t tDeserializeSRetrieveFuncRsp(void *buf, int32_t bufLen, SRetrieveFuncRsp
 
   pRsp->pFuncVersions = taosArrayInit(pRsp->numOfFuncs, sizeof(int32_t));
   if (pRsp->pFuncVersions == NULL) return -1;
-
-  for (int32_t i = 0; i < pRsp->numOfFuncs; ++i) {
-    int32_t version = 0;
-    if (tDecodeI32(&decoder, &version) < 0) return -1;
-    taosArrayPush(pRsp->pFuncVersions, &version);
+  if (tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < pRsp->numOfFuncs; ++i) {
+      int32_t version = 0;
+      taosArrayPush(pRsp->pFuncVersions, &version);
+    }
+  } else {
+    for (int32_t i = 0; i < pRsp->numOfFuncs; ++i) {
+      int32_t version = 0;
+      if (tDecodeI32(&decoder, &version) < 0) return -1;
+      taosArrayPush(pRsp->pFuncVersions, &version);
+    }
   }
   tEndDecode(&decoder);
 

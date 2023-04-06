@@ -116,6 +116,7 @@ static const SSysDbTableSchema userFuncSchema[] = {
     {.name = "bufsize", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "func_language", .bytes = TSDB_TYPE_STR_MAX_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "func_body", .bytes = TSDB_MAX_BINARY_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "func_version", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
 };
 
 static const SSysDbTableSchema userIdxSchema[] = {

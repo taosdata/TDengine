@@ -83,7 +83,7 @@ static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc) {
     SDB_SET_BINARY(pRaw, dataPos, pFunc->pComment, pFunc->commentSize, _OVER)
   }
   SDB_SET_BINARY(pRaw, dataPos, pFunc->pCode, pFunc->codeSize, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pFunc->funcVersions, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pFunc->funcVersion, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, SDB_FUNC_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER);
 
@@ -147,7 +147,7 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, pFunc->pCode, pFunc->codeSize, _OVER)
   
   if(sver >= 2){
-    SDB_GET_INT32(pRaw, dataPos, &pFunc->funcVersions, _OVER)
+    SDB_GET_INT32(pRaw, dataPos, &pFunc->funcVersion, _OVER)
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, SDB_FUNC_RESERVE_SIZE, _OVER)
@@ -234,7 +234,7 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
     if(oldFunc == NULL){
       goto _OVER;
     }
-    func.funcVersions = oldFunc->funcVersions + 1;
+    func.funcVersion = oldFunc->funcVersion + 1;
     mndReleaseFunc(pMnode, oldFunc);
   }
 
@@ -473,7 +473,7 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
     }
     taosArrayPush(retrieveRsp.pFuncInfos, &funcInfo);
 
-    taosArrayPush(retrieveRsp.pFuncVersions, &pFunc->funcVersions);
+    taosArrayPush(retrieveRsp.pFuncVersions, &pFunc->funcVersion);
 
     mndReleaseFunc(pMnode, pFunc);
   }
@@ -589,6 +589,9 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     varDataSetLen(b4, varCodeLen - VARSTR_HEADER_SIZE);
     colDataSetVal(pColInfo, numOfRows, (const char*)b4, false);
     taosMemoryFree(b4);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char*)&pFunc->funcVersion, false);
 
     numOfRows++;
     sdbRelease(pSdb, pFunc);
