@@ -238,7 +238,7 @@ static void doPushDataForEntry(void* pIter, STqExecHandle* pExec, STQ* pTq, int6
   if (qStreamSetScanMemData(pTaskInfo, submit) != 0) {
     return;
   }
-
+  qStreamSetOpen(pTaskInfo);
   // here start to scan submit block to extract the subscribed data
   int32_t totalRows = 0;
 
