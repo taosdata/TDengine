@@ -55,6 +55,7 @@ class TDTestCase:
 
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1,wal_retention_size=-1, wal_retention_period=-1)
+        tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
         tdLog.info("create stb")
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         tdLog.info("create ctb")
@@ -145,7 +146,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        tdSql.query(queryString)
+        tdSql.query(queryString, None, 50)
         totalRowsFromQury = tdSql.getRows()
 
         tdLog.info("act consume rows: %d, act query rows: %d"%(totalConsumeRows, totalRowsFromQury))
@@ -186,6 +187,7 @@ class TDTestCase:
 
         tmqCom.initConsumerTable()
         # tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
+        # tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
         # tdLog.info("create stb")
         # tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         # tdLog.info("create ctb")
@@ -234,7 +236,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        tdSql.query(queryString)
+        tdSql.query(queryString, None, 50)
         totalRowsFromQuery = tdSql.getRows()
 
         tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, totalRowsFromQuery))

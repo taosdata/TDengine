@@ -13,14 +13,12 @@ taosKeeper is a tool for TDengine that exports monitoring metrics. With taosKeep
 
 ## Installation
 
-<!-- There are two ways to install taosKeeper: -->
+There are two ways to install taosKeeper:
 Methods of installing taosKeeper:
 
-<!--- Installing the official TDengine installer will automatically install taosKeeper. Please refer to [TDengine installation](/operation/pkg-install) for details. -->
+- Installing the official TDengine installer will automatically install taosKeeper. Please refer to [TDengine installation](/operation/pkg-install) for details.
 
-- You can compile taosKeeper separately and install it. Please refer to the [taosKeeper](https://github.com/taosdata/taoskeeper) repository for details. -->
-You can compile taosKeeper separately and install it. Please refer to the [taosKeeper](https://github.com/taosdata/taoskeeper) repository for details.
-
+- You can compile taosKeeper separately and install it. Please refer to the [taosKeeper](https://github.com/taosdata/taoskeeper) repository for details.
 ## Configuration and Launch
 
 ### Configuration
@@ -110,7 +108,7 @@ The following `launchctl` commands can help you manage taoskeeper service:
 
 #### Launch With Configuration File
 
-You can quickly launch taosKeeper with the following commands. If you do not specify a configuration file, `/etc/taos/keeper.toml` is used by default. If this file does not specify configurations, the default values are used. 
+You can quickly launch taosKeeper with the following commands. If you do not specify a configuration file, `/etc/taos/keeper.toml` is used by default. If this file does not specify configurations, the default values are used.
 
 ```shell
 $ taoskeeper -c <keeper config file>
@@ -188,19 +186,36 @@ $ curl http://127.0.0.1:6043/metrics
 Sample result set (excerpt):
 
 ```shell
-# HELP taos_cluster_info_connections_total 
+# HELP taos_cluster_info_connections_total
 # TYPE taos_cluster_info_connections_total counter
 taos_cluster_info_connections_total{cluster_id="5981392874047724755"} 16
-# HELP taos_cluster_info_dbs_total 
+# HELP taos_cluster_info_dbs_total
 # TYPE taos_cluster_info_dbs_total counter
 taos_cluster_info_dbs_total{cluster_id="5981392874047724755"} 2
-# HELP taos_cluster_info_dnodes_alive 
+# HELP taos_cluster_info_dnodes_alive
 # TYPE taos_cluster_info_dnodes_alive counter
 taos_cluster_info_dnodes_alive{cluster_id="5981392874047724755"} 1
-# HELP taos_cluster_info_dnodes_total 
+# HELP taos_cluster_info_dnodes_total
 # TYPE taos_cluster_info_dnodes_total counter
 taos_cluster_info_dnodes_total{cluster_id="5981392874047724755"} 1
-# HELP taos_cluster_info_first_ep 
+# HELP taos_cluster_info_first_ep
 # TYPE taos_cluster_info_first_ep gauge
 taos_cluster_info_first_ep{cluster_id="5981392874047724755",value="hlb:6030"} 1
+```
+
+### check_health 
+
+```
+$ curl -i http://127.0.0.1:6043/check_health
+```
+
+Response:
+
+```
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Date: Mon, 03 Apr 2023 07:20:38 GMT
+Content-Length: 19
+
+{"version":"1.0.0"}
 ```

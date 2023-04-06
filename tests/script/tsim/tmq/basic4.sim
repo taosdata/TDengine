@@ -34,6 +34,9 @@ $showRow      = 0
 sql connect
 sql use $dbName
 
+print == alter database
+sql alter database $dbName wal_retention_period 3600
+
 print == create topics from super table
 sql create topic topic_stb_column as select ts, c3 from stb
 sql create topic topic_stb_all as select ts, c1, c2, c3 from stb
@@ -115,6 +118,9 @@ sql create database $cdbName vgroups 1
 sleep 500
 sql use $cdbName
 
+print == alter database
+sql alter database $cdbName wal_retention_period 3600
+
 print == create consume info table and consume result table
 sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)
 sql create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)
@@ -171,6 +177,9 @@ $cdbName = cdb2
 sql create database $cdbName vgroups 1
 sleep 500
 sql use $cdbName
+
+print == alter database
+sql alter database $cdbName wal_retention_period 3600
 
 print == create consume info table and consume result table
 sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)

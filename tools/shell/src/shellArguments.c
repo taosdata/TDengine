@@ -19,18 +19,6 @@
 
 #include "shellInt.h"
 
-#ifndef CUS_NAME
-    char cusName[] = "TDengine";
-#endif
-
-#ifndef CUS_PROMPT
-    char cusPrompt[] = "taos";
-#endif
-
-#ifndef CUS_EMAIL
-    char cusEmail[] = "<support@taosdata.com>";
-#endif
-
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
 #endif
@@ -58,7 +46,7 @@
 #define SHELL_VERSION  "Print program version."
 
 #ifdef WEBSOCKET
-#define SHELL_DSN      "Use dsn to connect to the TDengine cloud server or to a remote server which provides WebSocket connection."
+#define SHELL_DSN      "Use dsn to connect to the cloud server or to a remote server which provides WebSocket connection."
 #define SHELL_REST     "Use RESTful mode when connecting."
 #define SHELL_TIMEOUT  "Set the timeout for websocket query in seconds, default is 30."
 #endif
@@ -92,7 +80,11 @@ void shellPrintHelp() {
 #endif
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
   printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
-  printf("\r\n\r\nReport bugs to %s.\r\n", cusEmail);
+#ifdef CUS_EMAIL
+  printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
+#else
+  printf("\r\n\r\nReport bugs to %s.\r\n", "support@taosdata.com");
+#endif
 }
 
 #ifdef LINUX
@@ -104,7 +96,11 @@ void shellPrintHelp() {
 #endif
 
 const char *argp_program_version = version;
-const char *argp_program_bug_address = cusEmail;
+#ifdef CUS_EMAIL
+const char *argp_program_bug_address = CUS_EMAIL;
+#else
+const char *argp_program_bug_address = "support@taosdata.com";
+#endif
 
 static struct argp_option shellOptions[] = {
     {"host", 'h', "HOST", 0, SHELL_HOST},
@@ -414,10 +410,19 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shell.info.clientVersion =
       "Welcome to the %s Command Line Interface, Client Version:%s\r\n"
       "Copyright (c) 2022 by %s, all rights reserved.\r\n\r\n";
-  strcpy(shell.info.cusName, cusName);
-  sprintf(shell.info.promptHeader, "%s> ", cusPrompt);
+#ifdef CUS_NAME
+  strcpy(shell.info.cusName, CUS_NAME);
+#else
+  strcpy(shell.info.cusName, "TDengine");
+#endif
   char promptContinueFormat[32] = {0};
-  sprintf(promptContinueFormat, "%%%zus> ", strlen(cusPrompt));
+#ifdef CUS_PROMPT
+  sprintf(shell.info.promptHeader, "%s> ", CUS_PROMPT);
+  sprintf(promptContinueFormat, "%%%zus> ", strlen(CUS_PROMPT));
+#else
+  sprintf(shell.info.promptHeader, "taos> ");
+  sprintf(promptContinueFormat, "%%%zus> ", strlen("taos"));
+#endif
   sprintf(shell.info.promptContinue, promptContinueFormat, " ");
   shell.info.promptSize = strlen(shell.info.promptHeader);
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
