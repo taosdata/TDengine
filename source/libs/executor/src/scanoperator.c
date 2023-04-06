@@ -90,7 +90,7 @@ static void getNextTimeWindow(SInterval* pInterval, STimeWindow* tw, int32_t ord
 
   struct tm tm;
   time_t    t = (time_t)key;
-  taosLocalTime(&t, &tm);
+  taosLocalTime(&t, &tm, NULL);
 
   int mon = (int)(tm.tm_year * 12 + tm.tm_mon + interval * factor);
   tm.tm_year = mon / 12;

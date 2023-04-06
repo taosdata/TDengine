@@ -59,8 +59,7 @@ char cusEmail[] = "<support@taosdata.com>";
 #define SHELL_VERSION  "Print program version."
 
 #ifdef WEBSOCKET
-#define SHELL_DSN \
-  "Use dsn to connect to the TDengine cloud server or to a remote server which provides WebSocket connection."
+#define SHELL_DSN     "Use dsn to connect to the cloud server or to a remote server which provides WebSocket connection."
 #define SHELL_REST    "Use RESTful mode when connecting."
 #define SHELL_TIMEOUT "Set the timeout for websocket query in seconds, default is 30."
 #endif
