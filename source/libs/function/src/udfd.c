@@ -605,7 +605,7 @@ SUdf *udfdGetOrCreateUdf(const char *udfName) {
   int64_t currTime = taosGetTimestampSec();
   bool    expired = false;
   if (pUdfHash) {
-    expired = currTime - (*pUdfHash)->lastFetchTime > 10 * 1000;
+    expired = currTime - (*pUdfHash)->lastFetchTime > 10 * 1000 * 1000; // 10s
     if (!expired) {
       ++(*pUdfHash)->refCount;
       SUdf *udf = *pUdfHash;
@@ -903,7 +903,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
     msgInfo->code = udfdSaveFuncBodyToFile(pFuncInfo, udf);
     if (msgInfo->code == 0) {
-      udf->lastFetchTime = taosGetTimestampMs();
+      udf->lastFetchTime = taosGetTimestampUs();
     }
     tFreeSFuncInfo(pFuncInfo);
     taosArrayDestroy(retrieveRsp.pFuncInfos);
