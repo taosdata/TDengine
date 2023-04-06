@@ -261,7 +261,7 @@ export default {
           );
         }
         if (data.typeName === "table") {
-          db = data.parent;
+          db =data.stable_name?data.parent.split(".")[0]: data.parent;
           let sdata = await getTableStructReq({
             selected_db: db,
             tableName:

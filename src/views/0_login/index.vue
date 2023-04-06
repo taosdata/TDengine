@@ -318,7 +318,7 @@ export default {
             // this.$router.push({
             //   path: "/explorer",
             // });
-            this.getUserAuthority();
+             this.getUserAuthority();
           } else {
             Message.error(res.desc);
           }
