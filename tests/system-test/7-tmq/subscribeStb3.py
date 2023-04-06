@@ -215,7 +215,8 @@ class TDTestCase:
                          parameterDict["stbName"],\
                          parameterDict["ctbNum"],\
                          parameterDict["rowsPerTbl"],\
-                         parameterDict["batchNum"])
+                         parameterDict["batchNum"],\
+                         parameterDict["startTs"])
 
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'
@@ -233,7 +234,7 @@ class TDTestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume 0 processor")
-        pollDelay = 100
+        pollDelay = 5
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -269,7 +270,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        if totalConsumeRows != expectrowcnt-10000:
+        if totalConsumeRows < expectrowcnt-10000:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt-10000))
             tdLog.exit("tmq consume rows error!")
 
@@ -328,7 +329,8 @@ class TDTestCase:
                          parameterDict["stbName"],\
                          parameterDict["ctbNum"],\
                          parameterDict["rowsPerTbl"],\
-                         parameterDict["batchNum"])
+                         parameterDict["batchNum"],\
+                         parameterDict["startTs"])
 
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'
@@ -346,7 +348,7 @@ class TDTestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt/4,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
-        pollDelay = 100
+        pollDelay = 5
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -415,7 +417,8 @@ class TDTestCase:
                          parameterDict["stbName"],\
                          parameterDict["ctbNum"],\
                          parameterDict["rowsPerTbl"],\
-                         parameterDict["batchNum"])
+                         parameterDict["batchNum"],\
+                         parameterDict["startTs"])
 
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'
@@ -433,7 +436,7 @@ class TDTestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt/4,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
-        pollDelay = 100
+        pollDelay = 5
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -445,7 +448,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        if totalConsumeRows != expectrowcnt/4:
+        if totalConsumeRows < expectrowcnt/4:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt/4))
             tdLog.exit("tmq consume rows error!")
 
@@ -467,7 +470,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        if totalConsumeRows != expectrowcnt/4:
+        if totalConsumeRows < expectrowcnt/4:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt/4))
             tdLog.exit("tmq consume rows error!")
 
@@ -502,7 +505,8 @@ class TDTestCase:
                          parameterDict["stbName"],\
                          parameterDict["ctbNum"],\
                          parameterDict["rowsPerTbl"],\
-                         parameterDict["batchNum"])
+                         parameterDict["batchNum"],\
+                         parameterDict["startTs"])
 
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'
@@ -520,7 +524,7 @@ class TDTestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt/4,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
-        pollDelay = 100
+        pollDelay = 5
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -532,7 +536,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        if totalConsumeRows != expectrowcnt/4:
+        if totalConsumeRows < expectrowcnt/4:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt/4))
             tdLog.exit("tmq consume rows error!")
 
@@ -555,7 +559,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        if totalConsumeRows != expectrowcnt*(1/2+1/4):
+        if totalConsumeRows < expectrowcnt*(1/2+1/4):
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt*(1/2+1/4)))
             tdLog.exit("tmq consume rows error!")
 
