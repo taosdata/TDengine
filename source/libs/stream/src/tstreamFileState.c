@@ -71,6 +71,7 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t rowSize, GetTsFu
   pFileState->curRowCount = 0;
   pFileState->deleteMark = delMark;
   pFileState->flushMark = -1;
+  recoverSnapshot(pFileState);
   return pFileState;
 
 _error:
@@ -152,7 +153,7 @@ int32_t flushRowBuff(SStreamFileState* pFileState) {
       i++;
     }
   }
-  flushSnapshot(pFileState->pFileStore, pFlushList, pFileState->rowSize);
+  flushSnapshot(pFileState, pFlushList, false);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -272,7 +273,18 @@ SStreamSnapshot* getSnapshot(SStreamFileState* pFileState) {
   return pFileState->usedBuffs;
 }
 
-int32_t flushSnapshot(void* pFile, SStreamSnapshot* pSnapshot, int32_t rowSize) {
+void streamFileStateDecode(SStreamFileState* pFileState, void* pBuff, int32_t len) {
+  pBuff = taosDecodeFixedI64(pBuff, &pFileState->flushMark);
+}
+
+void streamFileStateEncode(SStreamFileState* pFileState, void** pVal, int32_t* pLen) {
+  *pLen = sizeof(TSKEY);
+  *pVal = taosMemoryCalloc(1, *pLen);
+  void** buff = pVal; 
+  taosEncodeFixedI64(buff, pFileState->flushMark);
+}
+
+int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, bool flushState) {
   int32_t code = TSDB_CODE_SUCCESS;
   SListIter iter = {0};
   tdListInitIter(pSnapshot, &iter, TD_LIST_FORWARD);
@@ -280,11 +292,60 @@ int32_t flushSnapshot(void* pFile, SStreamSnapshot* pSnapshot, int32_t rowSize) 
   SListNode* pNode = NULL;
   while ((pNode = tdListNext(&iter)) != NULL && code == TSDB_CODE_SUCCESS) {
     SRowBuffPos* pPos = *(SRowBuffPos**)pNode->data;
-    code = streamStatePut_rocksdb(pFile, pPos->pKey, pPos->pRowBuff, rowSize);
+    code = streamStatePut_rocksdb(pFileState->pFileStore, pPos->pKey, pPos->pRowBuff, pFileState->rowSize);
+  }
+  if (flushState) {
+    int32_t len = 0;
+    void* buff = NULL;
+    streamFileStateEncode(pFileState, &buff, &len);
+    SWinKey key = {.ts = -1, .groupId = 0}; // dengyihao
+    streamStatePut_rocksdb(pFileState->pFileStore, &key, buff, len);
   }
   return code;
 }
 
 int32_t recoverSnapshot(SStreamFileState* pFileState) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SWinKey stkey = {.ts = -1, .groupId = 0}; // dengyihao
+  void* pStVal = NULL;
+  int32_t len = 0;
+  code = streamStateGet_rocksdb(pFileState->pFileStore, &stkey, &pStVal, &len);
+  if (code == TSDB_CODE_SUCCESS) {
+    streamFileStateDecode(pFileState, pStVal, len);
+  } else {
+    return TSDB_CODE_FAILED;
+  }
+
+  SWinKey key = {.groupId = 0, .ts = 0};
+  SStreamStateCur* pCur = streamStateGetCur_rocksdb(pFileState->pFileStore, &key);
+  if (!pCur) {
+    return TSDB_CODE_FAILED;
+  }
+  code = streamStateSeekLast(pFileState->pFileStore, pCur);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  while (code == TSDB_CODE_SUCCESS) {
+    if (pFileState->curRowCount == pFileState->maxRowCount) {
+      break;
+    }
+    void* pVal = NULL;
+    int32_t pVLen = 0;
+    SRowBuffPos* pNewPos = getNewRowPos(pFileState);
+    code = streamStateGetKVByCur_rocksdb(pCur, pNewPos->pKey, (const void **)&pVal, &pVLen);
+    if (code != TSDB_CODE_SUCCESS || pFileState->getTs(pNewPos->pKey) < pFileState->flushMark) {
+      destroyRowBuffPos(pNewPos);
+      break;
+    }
+    memcpy(pNewPos->pRowBuff, pVal, pVLen);
+    taosMemoryFree(pVal);
+    code = tSimpleHashPut(pFileState->rowBuffMap, pNewPos->pKey, pFileState->rowSize, &pNewPos, POINTER_BYTES);
+    if (code != TSDB_CODE_SUCCESS) {
+      destroyRowBuffPos(pNewPos);
+      break;
+    }
+    code = streamStateCurPrev_rocksdb(pFileState->pFileStore, pCur);
+  }
+
   return TSDB_CODE_SUCCESS;
 }

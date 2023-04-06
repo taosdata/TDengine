@@ -109,7 +109,6 @@ int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void*
 int32_t streamStateReleaseBuf(SStreamState* pState, const SWinKey* key, void* pVal);
 void    streamFreeVal(void* val);
 
-SStreamStateCur* streamStateGetCur(SStreamState* pState, const SWinKey* key);
 SStreamStateCur* streamStateGetAndCheckCur(SStreamState* pState, SWinKey* key);
 SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key);
 SStreamStateCur* streamStateFillSeekKeyNext(SStreamState* pState, const SWinKey* key);

@@ -58,15 +58,15 @@ static inline int winKeyCmprImpl(const void* pKey1, const void* pKey2) {
   SWinKey* pWin1 = (SWinKey*)pKey1;
   SWinKey* pWin2 = (SWinKey*)pKey2;
 
-  if (pWin1->groupId > pWin2->groupId) {
-    return 1;
-  } else if (pWin1->groupId < pWin2->groupId) {
-    return -1;
-  }
-
   if (pWin1->ts > pWin2->ts) {
     return 1;
   } else if (pWin1->ts < pWin2->ts) {
+    return -1;
+  }
+
+  if (pWin1->groupId > pWin2->groupId) {
+    return 1;
+  } else if (pWin1->groupId < pWin2->groupId) {
     return -1;
   }
 

@@ -197,7 +197,7 @@ char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udf
 char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
-int64_t tsCheckpointInterval = 24 * 60 * 60 * 1000;
+int64_t tsCheckpointInterval = 3 * 60 * 60 * 1000;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {

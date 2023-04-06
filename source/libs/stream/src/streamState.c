@@ -247,6 +247,8 @@ int32_t streamStateBegin(SStreamState* pState) {
 
 int32_t streamStateCommit(SStreamState* pState) {
 #ifdef USE_ROCKSDB
+  SStreamSnapshot* pShot = getSnapshot(pState->pFileState);
+  flushSnapshot(pState->pFileState, pShot, true);
   return 0;
 #else
   if (tdbCommit(pState->pTdbState->db, pState->pTdbState->txn) < 0) {
@@ -408,26 +410,6 @@ int32_t streamStateReleaseBuf(SStreamState* pState, const SWinKey* key, void* pV
   streamFreeVal(pVal);
 #endif
   return 0;
-}
-
-SStreamStateCur* streamStateGetCur(SStreamState* pState, const SWinKey* key) {
-#ifdef USE_ROCKSDB
-  return streamStateGetCur_rocksdb(pState, key);
-#else
-  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
-  if (pCur == NULL) return NULL;
-  tdbTbcOpen(pState->pTdbState->pStateDb, &pCur->pCur, NULL);
-
-  int32_t c = 0;
-  SStateKey sKey = {.key = *key, .opNum = pState->number};
-  tdbTbcMoveTo(pCur->pCur, &sKey, sizeof(SStateKey), &c);
-  if (c != 0) {
-    streamStateFreeCur(pCur);
-    return NULL;
-  }
-  pCur->number = pState->number;
-  return pCur;
-#endif
 }
 
 SStreamStateCur* streamStateFillGetCur(SStreamState* pState, const SWinKey* key) {

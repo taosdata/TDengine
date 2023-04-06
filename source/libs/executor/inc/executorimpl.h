@@ -426,6 +426,8 @@ typedef struct STimeWindowAggSupp {
   int64_t         waterMark;
   TSKEY           maxTs;
   TSKEY           minTs;
+  TSKEY           checkPointTs;
+  TSKEY           checkPointInterval;
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
 } STimeWindowAggSupp;
 
