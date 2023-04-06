@@ -266,6 +266,8 @@ export default {
     response: "响应",
   },
   data: {
+    appendEditor: "追加到编辑器",
+    viewData: "查看200行数据",
     changeDBPrivilegeTip: "你想从{dbName}数据库{type} {listType}吗?",
     exportDataViaCli: '通过TDengine CLI交互',
     noDatabase: "暂无数据库",
@@ -646,6 +648,19 @@ export default {
     learnMoreTip: "要了解更多关于流计算的信息，请查看<a target='_blank' href=\"docsUrl\">文档</a>",
   },
   topic: {
+    accounts: '账户',
+    connections: '连接点',
+    cpu_cores: 'CPU核',
+    databases: '数据库',
+    expired: '是否过期',
+    querytime: '查询时间',
+    speed: '速度',
+    storage: '存储',
+    streams: '数据流',
+    timeseries: '时间序列',
+    version: '版本',
+    users:'用户',
+    license:'许可证',
     select_topic_tip:'请选择订阅主题',
     add_new_user:'添加新用户',
     expire_time:'过期时间',
@@ -1390,5 +1405,8 @@ export default {
     groupRoleDisabledReasonTip: "该用户通过组访问资源，请通过用户组管理资源访问控制。",
   },
   taosx404:'未配置 TaosX API，请检查 Explorer 配置',
-  taosx500:'TaosX API 无法访问，请检查 taosx 服务状态'
+  taosx500:'TaosX API 无法访问，请检查 taosx 服务状态',
+  header:{
+    version:'TDengine服务版本'
+  }
 };

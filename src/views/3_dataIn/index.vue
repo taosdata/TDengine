@@ -2,9 +2,9 @@
   <div class="page-wrapper">
     <MainContentHeader :title="routeTitle"></MainContentHeader>
     
-    <div class="content">
+    <section class="content" style="border:none!important;">
       <router-view></router-view>
-    </div>
+    </section>
   </div>
 </template>
 
@@ -36,8 +36,11 @@ export default {
 };
 </script>
 
-<style lang="scss">
+<style lang="scss" scoped>
 ::v-deep.el-form-item__content {
   margin-left: 0px !important;
+}
+.content{
+  border: none!important;
 }
 </style>

@@ -59,8 +59,12 @@ export default {
 };
 </script>
 
-<style lang="scss">
+<style lang="scss" scoped>
 ::v-deep.el-form-item__content {
   margin-left: 0px !important;
+}
+.content{
+  border:none;
+  padding:0px;
 }
 </style>

@@ -119,3 +119,32 @@ function handleStringTagValue(tag) {
     return tag.value;
   }
 }
+
+
+export function getTableStructReq(payload) {
+  let { selected_db, tableName } = payload;
+  return sendSQLReq(`DESCRIBE ${selected_db}.${tableName};`, true)
+    .then(list => {
+      let ts_field_name = list[0]?.field;
+      let columns = [];
+      let tags = [];
+      for (let i = 1; i < list.length; i++) {
+        const item = list[i];
+        console.log(item,'普通表结构');
+        if (item.note == "TAG") {
+          tags.push({ type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
+        } else {
+          columns.push({ type: handleBinaryType(item.type, item.length), field: item.field, value: "" });
+        }
+      }
+      return {
+        ts_field_name: ts_field_name,
+        columns: columns,
+        tags: tags,
+      };
+    })
+    .catch(err => {
+      err.desc && Message.error(err.desc);
+      return Promise.reject(err);
+    });
+}
