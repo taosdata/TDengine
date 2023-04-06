@@ -3,12 +3,12 @@
     <div class="headerLeft">
       <!-- <ClusterSelector></ClusterSelector> -->
       <ul class="license" v-if="this.license[0]">
-        <li>
+        <!-- <li>
           <span>{{ $t("dashboard.expiretime") }}：</span>
           <span class="value">{{this.license[0].expire_time | filterNull}}</span>
-        </li>
+        </li> -->
         <li>
-          <span>{{ $t("dashboard.version") }}：</span>
+          <span>{{ $t("header.version") }}：</span>
           <span class="value">{{this.license[0].version}}</span>
         </li>
       </ul>
@@ -16,8 +16,8 @@
     <div class="headerRight">
 
       
-      <!-- <Support v-if="supportUrl"></Support>
-      <Document v-if="docUrl"></Document> -->
+      <Support v-if="supportUrl"></Support>
+      <Document v-if="docUrl"></Document>
       <!-- <Github></Github> -->
       <!-- <International></International> -->
 

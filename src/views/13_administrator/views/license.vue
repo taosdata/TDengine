@@ -1,45 +1,81 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button
+      <!-- <el-button
         plain
         @click="dialog = true"
         size="small"
         icon="el-icon-plus"
         >{{ $t("add") }}</el-button
+      > -->
+      <el-button
+        plain
+        @click="refresh"
+        size="small"
+        icon="el-icon-refresh"
+        :disabled="loading"
+        >{{ $t("refresh") }}</el-button
       >
-      <el-button plain @click="refresh" size="small" icon="el-icon-refresh">{{
-        $t("refresh")
-      }}</el-button>
     </div>
-    <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column :label="$t('topic.name')" prop="name"></el-table-column>
+    <el-table style="margin-top: 20px" :data="licenseList" size="mini">
       <el-table-column
-        :label="$t('topic.comment')"
-        prop="comment"
+        :label="$t('topic.accounts')"
+        prop="accounts"
       ></el-table-column>
       <el-table-column
-        :label="$t('topic.aggregate')"
-        prop="aggregate"
+        :label="$t('topic.connections')"
+        prop="connections"
       ></el-table-column>
       <el-table-column
-        :label="$t('topic.output_type')"
-        prop="output_type"
+        :label="$t('topic.cpu_cores')"
+        prop="cpu_cores"
       ></el-table-column>
       <el-table-column
-        :label="$t('topic.create_time')"
-        prop="create_time"
+        :label="$t('topic.databases')"
+        prop="databases"
       ></el-table-column>
       <el-table-column
-        :label="$t('topic.code_len')"
-        prop="code_len"
+        :label="$t('topic.dnodes')"
+        prop="dnodes"
       ></el-table-column>
       <el-table-column
-        :label="$t('topic.bufsize')"
-        prop="bufsize"
+        :label="$t('topic.expire_time')"
+        prop="expire_time"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('topic.expired')"
+        prop="expired"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('topic.querytime')"
+        prop="querytime"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('topic.speed')"
+        prop="speed"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('topic.storage')"
+        prop="storage"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('topic.streams')"
+        prop="streams"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('topic.timeseries')"
+        prop="timeseries"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('topic.users')"
+        prop="users"
+      ></el-table-column>
+      <el-table-column
+        :label="$t('topic.version')"
+        prop="version"
       ></el-table-column>
 
-      <el-table-column label="Action" width="65">
+      <!-- <el-table-column label="Action" width="65">
         <template slot-scope="scope">
           <el-button
             plain
@@ -48,7 +84,7 @@
             icon="el-icon-delete"
           ></el-button>
         </template>
-      </el-table-column>
+      </el-table-column> -->
     </el-table>
     <el-pagination
       class="pagination"
@@ -92,7 +128,7 @@
       </el-form>
 
       <el-row style="margin-top: 20px">
-        <el-col :span="5" :offset=6>
+        <el-col :span="5" :offset="6">
           <el-button size="small" @click="dialog = false" class="w100">{{
             $t("cancel")
           }}</el-button>
@@ -120,6 +156,7 @@ export default {
       currentPage: 1,
       total: 10,
       dialog: false,
+      loading: false,
       ruleForm: {
         name: "",
         language: "",
@@ -138,66 +175,64 @@ export default {
             trigger: "change",
           },
         ],
-        content:[
-            {
-                message:'Please enter the content',
-                trigger:'blur'
-            }
-        ]
+        content: [
+          {
+            message: "Please enter the content",
+            trigger: "blur",
+          },
+        ],
       },
-      topicList: [
-        {
-          name: "function1",
-          comment: "comment1",
-          aggregate: 20,
-          output_type: "float",
-          create_time: "2022-12-28 15:06:00.098",
-          code_len: 20,
-          bufsize: 100,
-        },
-      ],
+      licenseList: [],
     };
   },
-  computed:{
-    confirmStatus(){
-        if(!this.ruleForm.name){
-            return true
-        }
-        if(!this.ruleForm.language){
-            return true
-        }
-        if(!this.ruleForm.content){
-            return true
-        }
-        return false
-    }
+  computed: {
+    confirmStatus() {
+      if (!this.ruleForm.name) {
+        return true;
+      }
+      if (!this.ruleForm.language) {
+        return true;
+      }
+      if (!this.ruleForm.content) {
+        return true;
+      }
+      return false;
+    },
   },
-   created(){
-    this.getData()
-   },
+  created() {
+    this.getData();
+  },
   methods: {
     handlePageChange() {},
     del(data) {
-      this.$confirm("Are you sure  to delete " + data.name + '?', "Warning", {
+      this.$confirm("Are you sure  to delete " + data.name + "?", "Warning", {
         confirmButtonText: "Ok",
         cancelButtonText: "Cancle",
         type: "warning",
       });
     },
-    refresh(){
+    refresh() {
+      this.loading = true;
+      this.getData();
     },
-    addUdf(){
-
-    },
-    async getData(){
+    addUdf() {},
+    async getData() {
       try {
-        await sendSQLReq(`select * from logs order by ts desc limit 100`).then(res=>{
-          console.log(res,'查询历史登录----');
-        })
+        await sendSQLReq(`show grants;`).then((res) => {
+          this.licenseList = res.data.map((data) => {
+            return Object.fromEntries(
+              res.column_meta.map((item, index) => {
+                return [item[0], data[index]];
+              })
+            );
+          });
+        });
+        this.loading = false;
       } catch (error) {
+        this.loading = false;
         console.log();
       }
-    }
+    },
   },
 };
 </script>

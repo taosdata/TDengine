@@ -62,11 +62,16 @@ export default {
 <style lang="scss" scoped>
 section{
     border-radius: 10px;
-    padding: 15px;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+    // box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
     margin-bottom:15px;
     &:nth-child(2){
-        height:300px;
+        height:220px;
+    }
+    &:first-child{
+      flex:1;
+    }
+    &:nth-child(3){
+      flex:auto;
     }
 }
 .title{
@@ -79,5 +84,14 @@ section{
     font-size: 16px;
     margin: 10px 0;
     padding: 8px 16px;
+}
+.content{
+  border:none;
+  padding:0px;
+  :deep{
+    .el-button{
+      font-size:14px;
+    }
+  }
 }
 </style>

@@ -65,7 +65,6 @@
                   <i
                     class="el-icon-view operate-icon"
                     @click.stop="view(data)"
-                    
                   ></i>
                 </el-tooltip>
                 <template v-if="!data.noOperate">
@@ -73,70 +72,94 @@
                     effect="light"
                     placement="top"
                     :content="getTooltip(data, 'add')"
-                    v-if="
-                        data.typeName !== 'table' &&
-                        data.typeName !== 'database'
-                      "
+                    v-if="['sfile', 'nfile'].includes(data.typeName)"
                   >
                     <i
                       v-permission
-                      
                       class="el-icon-plus operate-icon"
                       @click.stop="add(data, node)"
                     ></i>
                   </el-tooltip>
-                  <i
-                    v-permission
-                    class="el-icon-edit operate-icon"
-                    @click.stop="edit(data, node)"
+                  <el-tooltip
+                    effect="light"
+                    placement="top"
+                    :content="getTooltip(data, 'edit')"
                     v-if="!['sfile', 'nfile'].includes(data.typeName)"
-                  ></i>
-                  <template v-if="isRoot === 'root'">
+                  >
                     <i
                       v-permission
-                      class="el-icon-unlock operate-icon"
-                      @click.stop="manage(data, node)"
-                      v-if="data.typeName === 'database'"
+                      class="el-icon-edit operate-icon"
+                      @click.stop="edit(data, node)"
+                      v-if="!['sfile', 'nfile'].includes(data.typeName)"
                     ></i>
+                  </el-tooltip>
+                  <template v-if="isRoot === 'root'">
+                    <el-tooltip
+                      effect="light"
+                      placement="top"
+                      :content="getTooltip(data, 'manage')"
+                      v-if="data.typeName === 'database'"
+                    >
+                      <i
+                        v-permission
+                        class="el-icon-unlock operate-icon"
+                        @click.stop="manage(data, node)"
+                        v-if="data.typeName === 'database'"
+                      ></i>
+                    </el-tooltip>
                   </template>
-
-                  <i
-                    v-permission
-                    class="el-icon-delete operate-icon"
-                    @click.stop="del(data, node)"
+                  <el-tooltip
+                    effect="light"
+                    placement="top"
+                    :content="getTooltip(data, 'del')"
                     v-if="!['sfile', 'nfile'].includes(data.typeName)"
-                  ></i>
+                  >
+                    <i
+                      v-permission
+                      class="el-icon-delete operate-icon"
+                      @click.stop="del(data, node)"
+                      v-if="!['sfile', 'nfile'].includes(data.typeName)"
+                    ></i>
+                  </el-tooltip>
                 </template>
               </template>
-              <div
+              <el-tooltip
                 v-if="data.typeName == 'table' || data.typeName == 'stable'"
-                class="tablebutton"
-                @click.stop="clickAdd(data, true)"
+                effect="light"
+                :content="$t('data.viewData')"
               >
-                <i class="el-icon-search"></i>
-              </div>
-              <div
-                class="tablebutton"
-                @click.stop="clickAdd(data)"
-                v-if="!['sfile', 'nfile'].includes(data.typeName)"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  height="16px"
-                  width="16px"
-                  aria-hidden="true"
-                  focusable="false"
-                  fill="currentColor"
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="StyledIconBase-ea9ulj-0 iKhrnw"
+                <div
+                  v-if="data.typeName == 'table' || data.typeName == 'stable'"
+                  class="tablebutton"
+                  @click.stop="clickAdd(data, true)"
                 >
-                  <path fill="none" d="M0 0h24v24H0z"></path>
-                  <path
-                    d="M24 12l-5.657 5.657-1.414-1.414L21.172 12l-4.243-4.243 1.414-1.414L24 12zM2.828 12l4.243 4.243-1.414 1.414L0 12l5.657-5.657L7.07 7.757 2.828 12zm6.96 9H7.66l6.552-18h2.128L9.788 21z"
-                  ></path>
-                </svg>
-                <!-- <span>Add</span> -->
-              </div>
+                  <i class="el-icon-search"></i>
+                </div>
+              </el-tooltip>
+              <el-tooltip effect="light" :content="$t('data.appendEditor')">
+                <div
+                  class="tablebutton"
+                  @click.stop="clickAdd(data)"
+                  v-if="!['sfile', 'nfile'].includes(data.typeName)"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    height="16px"
+                    width="16px"
+                    aria-hidden="true"
+                    focusable="false"
+                    fill="currentColor"
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="StyledIconBase-ea9ulj-0 iKhrnw"
+                  >
+                    <path fill="none" d="M0 0h24v24H0z"></path>
+                    <path
+                      d="M24 12l-5.657 5.657-1.414-1.414L21.172 12l-4.243-4.243 1.414-1.414L24 12zM2.828 12l4.243 4.243-1.414 1.414L0 12l5.657-5.657L7.07 7.757 2.828 12zm6.96 9H7.66l6.552-18h2.128L9.788 21z"
+                    ></path>
+                  </svg>
+                  <!-- <span>Add</span> -->
+                </div>
+              </el-tooltip>
             </section>
           </div>
         </el-tooltip>
@@ -155,6 +178,7 @@ import {
 import {
   getTableListReq,
   getMatrixStructReq,
+  getTableStructReq,
 } from "@/api/gateway/data/tables.js";
 import PanelHeader from "./components/panelHeader.vue";
 import VueEasyTree from "@/components/Tree";
@@ -216,30 +240,53 @@ export default {
       this.$store.commit("console/CHANGE_TREE_KEY");
     },
     async clickAdd(data, all) {
+      console.log(data, all, "普通表的查询测试");
       if (all) {
-        let db = data.parent.split(".")[0];
-        let sdata = await getStableStructReq({
-          selected_db: db,
-          stableName:
-            data.typeName == "stable" ? data.name : data.parent.split(".")[1],
-        }).catch(() => ({
-          ts_field_name: "",
-          columns: [],
-          tags: [],
-        }));
-        let columns = [`\`${sdata.ts_field_name}\``].concat(
-          sdata.columns.map((item) => `\`${item.field}\``)
-        );
+        let columns = [];
+        let db=''
+        
+        if (data.typeName === "stable") {
+          db = data.parent.split(".")[0];
+          let sdata = await getStableStructReq({
+            selected_db: db,
+            stableName:
+              data.typeName == "stable" ? data.name : data.parent.split(".")[1],
+          }).catch(() => ({
+            ts_field_name: "",
+            columns: [],
+            tags: [],
+          }));
+          columns = [`\`${sdata.ts_field_name}\``].concat(
+            sdata.columns.map((item) => `\`${item.field}\``)
+          );
+        }
+        if (data.typeName === "table") {
+          db = data.parent;
+          let sdata = await getTableStructReq({
+            selected_db: db,
+            tableName:
+              data.typeName == "table" ? data.name : data.parent.split(".")[1],
+          }).catch(() => ({
+            ts_field_name: "",
+            columns: [],
+            tags: [],
+          }));
+          columns = [`\`${sdata.ts_field_name}\``].concat(
+            sdata.columns.map((item) => `\`${item.field}\``)
+          );
+        }
+
         this.$store.state.console.addSql = `${
           this.$store.state.console.sqlStr ? "\n" : ""
-        }SELECT ${columns.join(",") || "*"} FROM ${
-          db + "." + data.name
-        } limit 200;`;
+        }SELECT ${columns.join(",") || "*"} FROM  \`${
+          db 
+        }\``+"." +`\`${data.name}\` limit 200;`;
         this.$store.state.console.sqlStr += this.$store.state.console.addSql;
+        console.log(this.$store.state.console.sqlStr, "最终sql", columns);
       } else {
         let code = data.parent
-          ? data.parent.split(".")[0] + "." + data.name
-          : data.name;
+          ? `\`${data.parent.split(".")[0]}\`.\`${data.name}\``
+          : `\`${data.name}\``;
         this.$store.state.console.addSql = " " + code + " ";
       }
       this.changePartActive();
@@ -259,9 +306,9 @@ export default {
           await this.$store
             .dispatch(
               "console/sendConsoleSQL",
-              `select * from ${
-                data.parent.split(".")[0] + "." + data.name
-              } order by _C0 desc limit 200`
+              `select * from  \`${data.parent.split(".")[0]}\`` +
+                "." +
+                `\`${data.name}\`  order by _C0 desc limit 200`
             )
             .catch(() => false);
           break;

@@ -15,9 +15,9 @@
         <el-tab-pane name="cluster" :label="$t('route.cluster')">
           <Cluster></Cluster>
         </el-tab-pane>
-        <!-- <el-tab-pane name="udf" :label="$t('topic.udf')" >
-          <MgUdf></MgUdf>
-        </el-tab-pane> -->
+        <el-tab-pane name="license" :label="$t('topic.license')" >
+          <License></License>
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -27,13 +27,13 @@ import MgUser from './views/user.vue'
 import AdBackup from './views/backup.vue'
 import AdReplication from './views/replication.vue'
 // import MgQnodes from '../14_cluster/views/qnodes.vue'
-import MgUdf from './views/udf.vue'
+import License from './views/license.vue'
 import Activities from './views/activities.vue'
 import Cluster from '@/views/14_cluster/index.vue'
 export default {
   name: "Admin",
   components:{
-    MgUser,AdBackup,AdReplication,MgUdf,Activities,Cluster
+    MgUser,AdBackup,AdReplication,License,Activities,Cluster
   },
   data() {
     return {

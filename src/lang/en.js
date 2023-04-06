@@ -237,11 +237,11 @@ export default {
     cluster: 'Cluster'
   },
   login: {
-    signin:'Sign In',
-    taosxtip:'Please configure Taosx in /et/taos/explorer.toml first',
-    loginTitle:'Log in TaosExplorer',
-    username:'User Name',
-    password:'Password',
+    signin: 'Sign In',
+    taosxtip: 'Please configure Taosx in /et/taos/explorer.toml first',
+    loginTitle: 'Log in TaosExplorer',
+    username: 'User Name',
+    password: 'Password',
     loginLeftMessage: {
       title: "With $200, you can manage data generated from 10,000 smart meters in a month",
       list: [
@@ -294,7 +294,7 @@ export default {
     rememberMe: "Remember me",
   },
   dashboard: {
-    warnigtip:`Please click on the left <a href="/dashboard"> dashboard</a> to view the settings for TDinsight`,
+    warnigtip: `Please click on the left <a href="/dashboard"> dashboard</a> to view the settings for TDinsight`,
     createtime: 'Create Time',
     expiretime: 'Expire Time',
     version: 'Version',
@@ -341,6 +341,8 @@ export default {
     latencyDesc: "The latency which ranks at {per}% from low to high in all requests",
   },
   data: {
+    appendEditor: "Append Editor",
+    viewData: "view 200 rows of data",
     changeDBPrivilegeTip: "Do you want to {type} the {listType} from the {dbName} DB ?",
     exportDataViaCli: "Explorer data via TDengine CLI",
     noDatabase: "No Database",
@@ -862,10 +864,22 @@ export default {
     learnMoreTip: `To learn more about stream processing, please check <a target='_blank' href="docsUrl">documentation</a>`,
   },
   topic: {
-    select_topic_tip:'Please select the topic',
-    add_new_user:'Add New User',
-    expire_time:'Expire Time',
-    user_name:'User Name',
+    accounts: 'Accounts',
+    connections: 'Connections',
+    cpu_cores: 'CPU Cores',
+    databases: 'Databases',
+    expired: 'Expired',
+    querytime: 'Query Time',
+    speed: 'Speed',
+    storage: 'Storage',
+    streams: 'Streams',
+    timeseries: 'Time Series',
+    version: 'Version',
+    license: 'License',
+    select_topic_tip: 'Please select the topic',
+    add_new_user: 'Add New User',
+    expire_time: 'Expire Time',
+    user_name: 'User Name',
     shareTopic: 'Share Topic',
     sampleCode: 'Smaple Code',
     addShareTopicUser: "Add user to consume this topic",
@@ -1047,8 +1061,8 @@ export default {
   },
   explorer: {
     databases: 'Databases',
-    user_name:'User Name',
-    privilege:'Privilege'
+    user_name: 'User Name',
+    privilege: 'Privilege'
   },
   docs: {
     connector: {
@@ -1638,8 +1652,8 @@ export default {
     SQLAPI: 'SQLAPI'
   },
   taosopc: {
-    searchtag:'Search Tag',
-    searchnodes:'Search Nodes',
+    searchtag: 'Search Tag',
+    searchnodes: 'Search Nodes',
     da_config: 'DA Config',
     ua_config: 'UA Config',
     addopc: 'Add New OPC',
@@ -1730,6 +1744,9 @@ export default {
     currentDB: "Current Database",
     groupRoleDisabledReasonTip: "This user accessed the resources via groups, please manage the resources access control through user groups.",
   },
-  taosx404:'The Taosx API is not configured. Please check the explorer configuration',
-  taosx500:'The Taosx API cannot be accessed. Please check the Taosx service status'
+  taosx404: 'The Taosx API is not configured. Please check the explorer configuration',
+  taosx500: 'The Taosx API cannot be accessed. Please check the Taosx service status',
+  header: {
+    version: 'TDengine Server Version'
+  }
 };

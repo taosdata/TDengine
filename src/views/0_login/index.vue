@@ -2,6 +2,7 @@
   <div class="login">
     <section class="header">
       <div class="inside-header">
+        <h1>TDengine Management System</h1>
         <div class="site-logo">
           <a
             :href="dataJson.officialWebsite"
@@ -345,7 +346,7 @@ export default {
           if (res && res.x_api) {
             this.taosxStatus = true;
           } else {
-            this.taosxStatus = false;
+            this.taosxStatus = true;
           }
         });
       } catch (error) {
@@ -407,25 +408,34 @@ export default {
     position: relative;
     height: 123px;
     display: flex;
+    justify-content: center;
+    align-content: center;
     background-position: 50%;
     background-image: url("https://cloud.tdengine.com/static/img/banner-bg.aedcb8e7.webp");
     background-repeat: no-repeat;
     background-size: cover;
+    h1{
+      font-size: 38px;
+      color:#fff;
+    }
     .inside-header {
       display: flex;
+      justify-content: center;
+      height:123px;
       max-width: 1240px;
       padding: 20px;
-      justify-content: space-between;
+      // justify-content: space-between;
       align-items: center;
       margin-left: auto;
       margin-right: auto;
       flex: 1;
       .site-logo {
         width: 200px;
+        display:none;
       }
       .site-navigation {
         flex: auto;
-        display: flex;
+        display: none;
         justify-content: end;
       }
       .main-navigation {
@@ -470,6 +480,7 @@ export default {
     }
     .login-content {
       width: 480px;
+      height:500px;
       padding: 15px;
       padding-top: 30px;
       box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
@@ -487,7 +498,7 @@ export default {
   .footer {
     height: 250px;
     background: rgb(65, 138, 217);
-    display: flex;
+    display: none;
     flex-direction: column;
     .footer-contract {
       display: flex;
