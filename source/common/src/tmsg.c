@@ -1524,6 +1524,8 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
   pRsp->createdDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   pRsp->readDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   pRsp->writeDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  pRsp->readTbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  pRsp->writeTbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pRsp->readDbs == NULL || pRsp->writeDbs == NULL) {
     return -1;
   }
@@ -1579,7 +1581,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
     char *value = taosMemoryCalloc(valuelen + 1, sizeof(char));
     if (tDecodeCStrTo(pDecoder, value) < 0) return -1;
 
-    taosHashPut(pRsp->readTbs, key, keyLen, value, valuelen);
+    taosHashPut(pRsp->readTbs, key, strlen(key), value, valuelen);
 
     taosMemoryFree(key);
     taosMemoryFree(value);
@@ -1597,7 +1599,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
     char *value = taosMemoryCalloc(valuelen + 1, sizeof(char));
     if (tDecodeCStrTo(pDecoder, value) < 0) return -1;
 
-    taosHashPut(pRsp->writeTbs, key, keyLen, value, valuelen);
+    taosHashPut(pRsp->writeTbs, key, strlen(key), value, valuelen);
 
     taosMemoryFree(key);
     taosMemoryFree(value);
