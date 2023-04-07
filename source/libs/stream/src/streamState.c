@@ -319,7 +319,9 @@ bool streamStateCheck(SStreamState* pState, const SWinKey* key) {
 }
 
 int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal) {
-  return getRowBuffByPos(pState->pFileState, pos, pVal);
+  int32_t code = getRowBuffByPos(pState->pFileState, pos, pVal);
+  releaseRowBuffPos(pos);
+  return code;
 }
 
 // todo refactor

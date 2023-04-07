@@ -845,6 +845,8 @@ sql create stream streams7 trigger at_once IGNORE EXPIRED 0 into streamt7 as sel
 sql insert into ts1 values(1648791211000,1,2,3);
 sql_error insert into ts1 values(-1648791211000,1,2,3);
 
+$loop_count = 0
+
 loop18:
 
 sleep 200

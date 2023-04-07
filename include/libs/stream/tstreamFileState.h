@@ -37,13 +37,14 @@ typedef SList SStreamSnapshot;
 
 typedef TSKEY (*GetTsFun)(void*);
 
-SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t rowSize, GetTsFun fp, void* pFile, TSKEY delMark);
+SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, GetTsFun fp, void* pFile, TSKEY delMark);
 void              streamFileStateDestroy(SStreamFileState* pFileState);
 void              streamFileStateClear(SStreamFileState* pFileState);
 
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen);
 int32_t deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
 int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** pVal);
+void releaseRowBuffPos(SRowBuffPos* pBuff);
 bool hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen);
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState);

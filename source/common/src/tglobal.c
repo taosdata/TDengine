@@ -828,7 +828,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
 
-  tsDisableStream = cfgGetItem(pCfg, "disableStream")->i64;
+  tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
+  tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
+  tsCheckpointInterval = cfgGetItem(pCfg, "checkpointInterval")->i64;
 
   GRANT_CFG_GET;
   return 0;
