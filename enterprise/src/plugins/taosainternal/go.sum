@@ -2629,8 +2629,8 @@ github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2/go.mod h1:hkRG
 github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
 github.com/taosdata/driver-go/v3 v3.1.1-0.20230223094157-1e3d76461430 h1:ORVw1dCKqccmw1iN96J513/84NSJmBQIcva1ZVK/To0=
 github.com/taosdata/driver-go/v3 v3.1.1-0.20230223094157-1e3d76461430/go.mod h1:H2vo/At+rOPY1aMzUV9P49SVX7NlXb3LAbKw+MCLrmU=
-github.com/taosdata/taosadapter/v3 v3.0.0-20230329095424-cb1e89c82fde h1:67Thl3DQtpzSVukUxgLEEE1fCaTgaVzQme2uDwkAE9I=
-github.com/taosdata/taosadapter/v3 v3.0.0-20230329095424-cb1e89c82fde/go.mod h1:fWR7r/xL7AmajXvjrVhTx29P0ki9/AzoBL264Yhln+c=
+github.com/taosdata/taosadapter/v3 v3.0.0-20230407011144-311a352c16fd h1:3KrRo4Om3R8nEZEEK0gpGJBfUrnCPqAtKlaAxbf9+QQ=
+github.com/taosdata/taosadapter/v3 v3.0.0-20230407011144-311a352c16fd/go.mod h1:fWR7r/xL7AmajXvjrVhTx29P0ki9/AzoBL264Yhln+c=
 github.com/tbrandon/mbserver v0.0.0-20170611213546-993e1772cc62/go.mod h1:qUzPVlSj2UgxJkVbH0ZwuuiR46U8RBMDT5KLY78Ifpw=
 github.com/tchap/go-patricia v2.2.6+incompatible/go.mod h1:bmLyhP68RS6kStMGxByiQ23RP/odRBOTVjwp2cDyi6I=
 github.com/tdakkota/asciicheck v0.0.0-20200416200610-e657995f937b/go.mod h1:yHp0ai0Z9gUljN3o0xMhYJnH/IcvkdTBOX2fmJ93JEM=
