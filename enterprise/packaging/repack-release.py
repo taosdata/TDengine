@@ -56,6 +56,7 @@ def replace_contents(dir, args):
                 fin = open(file_path, "r")
                 content = fin.read()
                 content = content.replace("taos", args.prompt)
+                content = content.replace("Taos", args.prompt)
                 content = content.replace("TDengine", args.name)
                 fin.close()
 
