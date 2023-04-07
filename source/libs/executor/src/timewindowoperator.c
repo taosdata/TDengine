@@ -2881,7 +2881,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->numOfDatapack = 0;
   pInfo->pUpdated = NULL;
   pInfo->pUpdatedMap = NULL;
-  pInfo->pState->pFileState = streamFileStateInit(tsStreamBufferSize, pInfo->aggSup.resultRowSize, compareTs,
+  pInfo->pState->pFileState = streamFileStateInit(tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, compareTs,
       pInfo->pState, pInfo->twAggSup.deleteMark);
 
   pOperator->operatorType = pPhyNode->type;
@@ -5042,7 +5042,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->numOfDatapack = 0;
   pInfo->pUpdated = NULL;
   pInfo->pUpdatedMap = NULL;
-  pInfo->pState->pFileState = streamFileStateInit(tsStreamBufferSize, pInfo->aggSup.resultRowSize, compareTs,
+  pInfo->pState->pFileState = streamFileStateInit(tsStreamBufferSize, sizeof(SWinKey), pInfo->aggSup.resultRowSize, compareTs,
       pInfo->pState, pInfo->twAggSup.deleteMark);
 
   setOperatorInfo(pOperator, "StreamIntervalOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL, true, OP_NOT_OPENED,
