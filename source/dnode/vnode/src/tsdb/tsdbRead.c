@@ -3885,13 +3885,12 @@ int32_t doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* p
                            SRow** pTSRow) {
   SRowMerger merge = {0};
 
-  TSDBKEY k = TSDBROW_KEY(pRow);
-  TSDBKEY ik = TSDBROW_KEY(piRow);
+  TSDBKEY   k = TSDBROW_KEY(pRow);
+  TSDBKEY   ik = TSDBROW_KEY(piRow);
+  STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
+  STSchema* piSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(piRow), pReader, pBlockScanInfo->uid);
 
   if (ASCENDING_TRAVERSE(pReader->order)) {  // ascending order imem --> mem
-    STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
-    STSchema* piSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(piRow), pReader, pBlockScanInfo->uid);
-
     int32_t code = tsdbRowMergerInit(&merge, pSchema, piRow, piSchema);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -3911,8 +3910,6 @@ int32_t doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* p
     }
 
   } else {
-    STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
-
     int32_t code = tsdbRowMergerInit(&merge, NULL, pRow, pSchema);
     if (code != TSDB_CODE_SUCCESS || merge.pTSchema == NULL) {
       return code;
@@ -3924,7 +3921,7 @@ int32_t doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* p
       return code;
     }
 
-    tsdbRowMergerAdd(&merge, piRow, NULL);
+    tsdbRowMergerAdd(&merge, piRow, piSchema);
     code = doMergeRowsInBuf(&pBlockScanInfo->iiter, pBlockScanInfo->uid, ik.ts, pBlockScanInfo->delSkyline, &merge,
                             pReader);
     if (code != TSDB_CODE_SUCCESS) {
