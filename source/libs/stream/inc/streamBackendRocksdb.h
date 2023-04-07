@@ -77,4 +77,12 @@ int32_t          streamStateGetParTag_rocksdb(SStreamState* pState, int64_t grou
 int32_t streamStatePutParName_rocksdb(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]);
 int32_t streamStateGetParName_rocksdb(SStreamState* pState, int64_t groupId, void** pVal);
 void    streamStateDestroy_rocksdb(SStreamState* pState);
+
+void*   streamStateCreateBatch();
+int32_t streamStateGetBatchSize(void* pBatch);
+void    streamStateClearBatch(void* pBatch);
+void    streamStateDestroyBatch(void* pBatch);
+int32_t streamStatePutBatch(SStreamState* pState, const char* cfName, rocksdb_writebatch_t* pBatch, void* key,
+                            void* val, int32_t vlen);
+int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch);
 #endif
