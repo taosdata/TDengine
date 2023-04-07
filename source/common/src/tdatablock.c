@@ -1590,7 +1590,7 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
         i += 1;
       }
     } else if (n > 8) {
-      int32_t remain = (total % 8 <= tail) ? 1 : 0;
+      int32_t remain = (total % 8 != 0 && total % 8 <= tail) ? 1 : 0;
       int32_t gap = len - newLen - remain;
       while (i < newLen) {
         uint8_t v = p[i + gap];

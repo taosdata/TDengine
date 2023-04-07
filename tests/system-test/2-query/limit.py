@@ -288,7 +288,7 @@ class TDTestCase:
         tdSql.checkData(0, 3, 5.000000000)
         tdSql.checkData(0, 4, 5.000000000)
         tdSql.checkData(0, 5, 0.000000000)
-        tdSql.checkData(0, 7, None)
+        tdSql.checkData(0, 7, 1)
         tdSql.checkData(0, 8, "binary5")
         tdSql.checkData(0, 9, "nchar5")
         tdSql.checkData(1, 8, None)
