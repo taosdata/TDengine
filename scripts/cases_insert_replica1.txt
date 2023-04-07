@@ -45,9 +45,9 @@ taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_json_protoco
 taostest --use=common_insert.yaml --case=schemaless_insert/influxdb_line_protocol_restful_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_telnet_protocol_restful_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_json_protocol_restful_insert.py --keep --containers
-#taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
-#taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
-#taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep --containers
+taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
+taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
+taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep --containers
 
 taostest --use=common_insert.yaml --case=stream_computing/stream_computing_test.py --keep --containers
 
@@ -59,6 +59,7 @@ taostest --use=common_insert.yaml --case=bug_regression/bug_ts2919.py --keep --c
 taostest --use=common_insert.yaml --case=bug_regression/bug_ts2920.py --keep --containers
 taostest --use=common_insert.yaml --case=bug_regression/bug_ts2989.py --keep --containers
 taostest --use=common_insert.yaml --case=bug_regression/bug_ts3090.py --keep --containers
+taostest --use=common_insert.yaml --case=bug_regression/bug_ts3099.py --keep --containers
 taostest --setup=td_22981.yaml --case=bug_regression/improve_td22981.py --keep --containers
 #taostest --use=common_insert.yaml --case=bug_regression/improve_ts2986.py --keep --containers
 #taostest --use=common_insert.yaml --case=bug_regression/bug_ts2988.py --keep --containers
