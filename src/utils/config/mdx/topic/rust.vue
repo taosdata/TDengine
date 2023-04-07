@@ -163,7 +163,7 @@ export default {
       return this.$store.state.app?.current_cluster?.alias || "";
     },
     urlPart() {
-      return navigator.language=='en' ?"tdengine": "taosdata";
+      return navigator.language.includes('en') ?"tdengine": "taosdata";
     },
     topicName() {
       return this.topic ? this.topic : this.$t("docs.topic.defaultTopic");

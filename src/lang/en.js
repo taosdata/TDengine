@@ -238,7 +238,7 @@ export default {
   },
   login: {
     signin: 'Sign In',
-    taosxtip: 'Please configure Taosx in /et/taos/explorer.toml first',
+    taosxtip: 'Please configure Taosx in /etc/taos/explorer.toml first',
     loginTitle: 'Log in TaosExplorer',
     username: 'User Name',
     password: 'Password',
