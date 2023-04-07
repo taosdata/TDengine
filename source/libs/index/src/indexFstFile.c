@@ -127,8 +127,6 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
         blk->blockId = blkId;
         blk->nread = taosPReadFile(ctx->file.pFile, blk->buf, kBlockSize, blkId * kBlockSize);
         ASSERTS(blk->nread <= kBlockSize, "index read incomplete data");
-        if (blk->nread > kBlockSize) break;
-
         if (blk->nread < kBlockSize && blk->nread < len) {
           taosMemoryFree(blk);
           break;

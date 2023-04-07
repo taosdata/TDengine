@@ -136,7 +136,7 @@ class TDTestCase:
         tdLog.info("================= restart dnode ===========================")
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
-        # time.sleep(3)
+        time.sleep(5)
 
         tdLog.info(" restart taosd end and wait to check consume result")
         expectRows = 1
@@ -220,7 +220,7 @@ class TDTestCase:
         tdLog.info("================= restart dnode ===========================")
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
-        # time.sleep(3)
+        time.sleep(5)
 
         tdLog.info("create some new child table and insert data ")
         paraDict["batchNum"] = 100

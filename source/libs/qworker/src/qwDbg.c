@@ -259,15 +259,26 @@ void qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped) {
   static int32_t ignoreTime = 0;
 
   if (++ignoreTime > 10 && 0 == taosRand() % 9) {
+    if (ctx->msgType == TDMT_SCH_FETCH) {
+      qwBuildAndSendErrorRsp(TDMT_SCH_LINK_BROKEN, &ctx->ctrlConnInfo, TSDB_CODE_RPC_BROKEN_LINK);
+      qwBuildAndSendErrorRsp(ctx->msgType + 1, &ctx->dataConnInfo, TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
+      *rsped = true;
+      
+      taosSsleep(3);
+      return;
+    }
+
+#if 0
     SRpcHandleInfo *pConn =
         ((ctx->msgType == TDMT_SCH_FETCH || ctx->msgType == TDMT_SCH_MERGE_FETCH) ? &ctx->dataConnInfo
-                                                                                  : &ctx->ctrlConnInfo);
+                                                                                  : &ctx->ctrlConnInfo);                                                                              
     qwBuildAndSendErrorRsp(ctx->msgType + 1, pConn, TSDB_CODE_RPC_BROKEN_LINK);
-
+    
     qwBuildAndSendDropMsg(QW_FPARAMS(), pConn);
     *rsped = true;
-
+    
     return;
+#endif    
   }
 }
 

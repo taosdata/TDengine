@@ -1238,13 +1238,13 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   }
 
   if (taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl) != 0) {
-    uError("failed to load cfg since %s", terrstr());
+    printf("failed to load cfg since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
 
   if (cfgLoadFromArray(pCfg, pArgs) != 0) {
-    uError("failed to load cfg from array since %s", terrstr());
+    printf("failed to load cfg from array since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
@@ -1260,13 +1260,13 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   if (taosMulModeMkDir(tsLogDir, 0777) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to create dir:%s since %s", tsLogDir, terrstr());
+    printf("failed to create dir:%s since %s", tsLogDir, terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
 
   if (taosInitLog(logname, logFileNum) != 0) {
-    uError("failed to init log file since %s", terrstr());
+    printf("failed to init log file since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }

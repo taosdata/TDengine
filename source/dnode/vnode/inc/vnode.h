@@ -157,7 +157,7 @@ typedef struct SMTbCursor SMTbCursor;
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
 int32_t     metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType);
-int32_t     metaTbCursorPrev(SMTbCursor *pTbCur);
+int32_t     metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType);
 
 #endif
 
@@ -178,11 +178,11 @@ typedef struct STsdbReader STsdbReader;
 
 int32_t tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int32_t num);
 int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
-                       SSDataBlock *pResBlock, STsdbReader **ppReader, const char *idstr);
+                       SSDataBlock *pResBlock, STsdbReader **ppReader, const char *idstr, bool countOnly);
 
 void         tsdbReaderSetId(STsdbReader* pReader, const char* idstr);
 void         tsdbReaderClose(STsdbReader *pReader);
-bool         tsdbNextDataBlock(STsdbReader *pReader);
+int32_t      tsdbNextDataBlock(STsdbReader *pReader, bool *hasNext);
 int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave);
 void         tsdbReleaseDataBlock(STsdbReader *pReader);
 SSDataBlock *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);

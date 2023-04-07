@@ -115,6 +115,5 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   ASSERT(ret == 0);
 
   syncNodeResetElectTimer(pSyncNode);
-
   return ret;
 }

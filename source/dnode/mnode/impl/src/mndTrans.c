@@ -1091,10 +1091,13 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
     pAction->msgReceived = 1;
     pAction->errCode = pRsp->code;
     pTrans->lastErrorNo = pRsp->code;
+
+    mInfo("trans:%d, %s:%d response is received, code:0x%x, accept:0x%x retry:0x%x", transId,
+          mndTransStr(pAction->stage), action, pRsp->code, pAction->acceptableCode, pAction->retryCode);
+  } else {
+    mInfo("trans:%d, invalid action, index:%d, code:0x%x", transId, action, pRsp->code);
   }
 
-  mInfo("trans:%d, %s:%d response is received, code:0x%x, accept:0x%x retry:0x%x", transId, mndTransStr(pAction->stage),
-        action, pRsp->code, pAction->acceptableCode, pAction->retryCode);
   mndTransExecute(pMnode, pTrans, true);
 
 _OVER:
