@@ -17,6 +17,7 @@
 
 #include "rocksdb/c.h"
 #include "tdbInt.h"
+#include "tsimplehash.h"
 #include "tstreamFileState.h"
 
 #ifdef __cplusplus
@@ -54,9 +55,10 @@ typedef struct STdbState {
 
 // incremental state storage
 typedef struct {
-  STdbState* pTdbState;
+  STdbState*        pTdbState;
   SStreamFileState* pFileState;
-  int32_t    number;
+  int32_t           number;
+  SSHashObj*        parNameMap;
 } SStreamState;
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages);

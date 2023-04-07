@@ -26,6 +26,8 @@
 #include "tcompare.h"
 #include "ttimer.h"
 
+#define MAX_TABLE_NAME_NUM  100000
+
 int sessionRangeKeyCmpr(const SSessionKey* pWin1, const SSessionKey* pWin2) {
   if (pWin1->groupId > pWin2->groupId) {
     return 1;
@@ -133,6 +135,8 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
   qWarn("open stream state2, %s", statePath);
   pState->pTdbState->pOwner = pTask;
   pState->pFileState = NULL;
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT);
+  pState->parNameMap = tSimpleHashInit(1024, hashFn);
   return pState;
 
 #else
@@ -1020,7 +1024,14 @@ _end:
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
   qWarn("try to write to cf parname");
 #ifdef USE_ROCKSDB
-  return streamStatePutParName_rocksdb(pState, groupId, tbname);
+  if (tSimpleHashGetSize(pState->parNameMap) > MAX_TABLE_NAME_NUM) {
+    if (tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t)) == NULL) {
+      streamStatePutParName_rocksdb(pState, groupId, tbname);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  tSimpleHashPut(pState->parNameMap, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN);
+  return TSDB_CODE_SUCCESS;
 #else
   return tdbTbUpsert(pState->pTdbState->pParNameDb, &groupId, sizeof(int64_t), tbname, TSDB_TABLE_NAME_LEN,
                      pState->pTdbState->txn);
@@ -1029,7 +1040,16 @@ int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char 
 
 int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal) {
 #ifdef USE_ROCKSDB
-  return streamStateGetParName_rocksdb(pState, groupId, pVal);
+  void* pStr = tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t));
+  if (!pStr) {
+    if (tSimpleHashGetSize(pState->parNameMap) > MAX_TABLE_NAME_NUM) {
+      return streamStateGetParName_rocksdb(pState, groupId, pVal);
+    }
+    return TSDB_CODE_FAILED;
+  }
+  *pVal = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
+  memcpy(*pVal, pStr, TSDB_TABLE_NAME_LEN);
+  return TSDB_CODE_SUCCESS;
 #else
   int32_t len;
   return tdbTbGet(pState->pTdbState->pParNameDb, &groupId, sizeof(int64_t), pVal, &len);

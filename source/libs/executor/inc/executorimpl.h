@@ -714,9 +714,6 @@ int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo
 void    cleanupAggSup(SAggSupporter* pAggSup);
 
 void initResultSizeInfo(SResultInfo* pResultInfo, int32_t numOfRows);
-
-void doBuildStreamResBlock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
-                           SDiskbasedBuf* pBuf);
 void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
                             SDiskbasedBuf* pBuf);
 
