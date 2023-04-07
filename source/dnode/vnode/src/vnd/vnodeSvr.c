@@ -1471,10 +1471,11 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
   }
 
   vInfo("vgId:%d, start to alter vnode config, page:%d pageSize:%d buffer:%d szPage:%d szBuf:%" PRIu64
-        " cacheLast:%d cacheLastSize:%d days:%d keep0:%d keep1:%d keep2:%d fsync:%d level:%d",
+        " cacheLast:%d cacheLastSize:%d days:%d keep0:%d keep1:%d keep2:%d fsync:%d level:%d walRetentionPeriod:%d "
+        "walRetentionSize:%d",
         TD_VID(pVnode), req.pages, req.pageSize, req.buffer, req.pageSize * 1024, (uint64_t)req.buffer * 1024 * 1024,
         req.cacheLast, req.cacheLastSize, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
-        req.walFsyncPeriod, req.walLevel);
+        req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod, req.walRetentionSize);
 
   if (pVnode->config.cacheLastSize != req.cacheLastSize) {
     pVnode->config.cacheLastSize = req.cacheLastSize;
@@ -1504,13 +1505,21 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
 
   if (pVnode->config.walCfg.fsyncPeriod != req.walFsyncPeriod) {
     pVnode->config.walCfg.fsyncPeriod = req.walFsyncPeriod;
-
     walChanged = true;
   }
 
   if (pVnode->config.walCfg.level != req.walLevel) {
     pVnode->config.walCfg.level = req.walLevel;
+    walChanged = true;
+  }
 
+  if (pVnode->config.walCfg.retentionPeriod != req.walRetentionPeriod) {
+    pVnode->config.walCfg.retentionPeriod = req.walRetentionPeriod;
+    walChanged = true;
+  }
+
+  if (pVnode->config.walCfg.retentionSize != req.walRetentionSize) {
+    pVnode->config.walCfg.retentionSize = req.walRetentionSize;
     walChanged = true;
   }
 

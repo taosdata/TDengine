@@ -68,7 +68,7 @@ The following return value results indicate that the verification passed.
 ## HTTP request URL format
 
 ```text
-http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone]
+http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id]]
 ```
 
 Parameter Description:
@@ -77,6 +77,7 @@ Parameter Description:
 - port: httpPort configuration item in the configuration file, default is 6041.
 - db_name: Optional parameter that specifies the default database name for the executed SQL command.
 - tz: Optional parameter that specifies the timezone of the returned time, following the IANA Time Zone rules, e.g. `America/New_York`.
+- req_id: Optional parameter that specifies the request id for tracing.
 
 For example, `http://h1.taos.com:6041/rest/sql/test` is a URL to `h1.taos.com:6041` and sets the default database name to `test`.
 
@@ -99,13 +100,13 @@ The HTTP request's BODY is a complete SQL command, and the data table in the SQL
 Use `curl` to initiate an HTTP request with a custom authentication method, with the following syntax.
 
 ```bash
-curl -L -H "Authorization: Basic <TOKEN>" -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone]
+curl -L -H "Authorization: Basic <TOKEN>" -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone[&req_id=req_id]]
 ```
 
 or
 
 ```bash
-curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone]
+curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name][?tz=timezone[&req_id=req_id]]
 ```
 
 where `TOKEN` is the string after Base64 encoding of `{username}:{password}`, e.g. `root:taosdata` is encoded as `cm9vdDp0YW9zZGF0YQ==`..
@@ -114,14 +115,41 @@ where `TOKEN` is the string after Base64 encoding of `{username}:{password}`, e.
 
 ### HTTP Response Code
 
-| **Response Code** | **Description**         |
-|-------------------|----------------|
-| 200               | Success. (Also used for C interface errors.) |
-| 400               | Parameter error         |
-| 401               | Authentication failure           |
-| 404               | Interface not found          |
-| 500               | Internal error           |
-| 503               | Insufficient system resources         |
+Starting from `TDengine 3.0.3.0`, `taosAdapter` provides a configuration parameter `httpCodeServerError` to set whether to return a non-200 http status code when the C interface returns an error
+
+| **Description** | **httpCodeServerError false** | **httpCodeServerError true** |
+|--------------------|---------------------------- ------|---------------------------------------|
+| taos_errno() returns 0 | 200 | 200 |
+| taos_errno() returns non-0 | 200 (except authentication error) | 500 (except authentication error and 400/502 error) |
+| Parameter error | 400 (only handle HTTP request URL parameter error) | 400 (handle HTTP request URL parameter error and taosd return error) |
+| Authentication error | 401 | 401 |
+| Interface does not exist | 404 | 404 |
+| Cluster unavailable error | 502 | 502 |
+| Insufficient system resources | 503 | 503 |
+
+The C error codes that return http code 400 are:
+
+- TSDB_CODE_TSC_SQL_SYNTAX_ERROR ( 0x0216 )
+- TSDB_CODE_TSC_LINE_SYNTAX_ERROR (0x021B)
+- TSDB_CODE_PAR_SYNTAX_ERROR (0x2600)
+- TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE (0x060B)
+- TSDB_CODE_TSC_VALUE_OUT_OF_RANGE (0x0224)
+- TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE (0x263B)
+
+The error code that returns http code 401 are:
+
+- TSDB_CODE_MND_USER_ALREADY_EXIST (0x0350)
+- TSDB_CODE_MND_USER_NOT_EXIST (0x0351)
+- TSDB_CODE_MND_INVALID_USER_FORMAT (0x0352)
+- TSDB_CODE_MND_INVALID_PASS_FORMAT (0x0353)
+- TSDB_CODE_MND_NO_USER_FROM_CONN (0x0354)
+- TSDB_CODE_MND_TOO_MANY_USERS (0x0355)
+- TSDB_CODE_MND_INVALID_ALTER_OPER (0x0356)
+- TSDB_CODE_MND_AUTH_FAILURE (0x0357)
+
+The error code that returns http code 403 are:
+
+- TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED (0x0020)
 
 ### HTTP body structure
 
@@ -269,7 +297,6 @@ Response body:
 
 ```json
 {
-  "status": "succ",
   "code": 0,
   "desc": "/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04"
 }

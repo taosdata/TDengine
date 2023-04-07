@@ -200,6 +200,7 @@ class TDTestCase:
         tdLog.info("async insert data")
         pThread = tmqCom.asyncInsertData(paraDict)
 
+        tdSql.execute("alter database %s wal_retention_period 3600" %(paraDict['dbName']))
         tdLog.info("create topics from stb with filter")
         # queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
         

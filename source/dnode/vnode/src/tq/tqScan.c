@@ -74,14 +74,14 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   qTaskInfo_t          task = pExec->task;
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-    tqDebug("prepare scan failed, vgId:%d, consumer:0x%"PRIx64, vgId, pHandle->consumerId);
+    tqDebug("prepare scan failed, vgId:%d, consumer:0x%" PRIx64, vgId, pHandle->consumerId);
     if (pOffset->type == TMQ_OFFSET__LOG) {
       pRsp->rspOffset = *pOffset;
       return code;
     } else {
       tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
       if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-        tqDebug("prepare scan failed, vgId:%d, consumer:0x%"PRIx64, vgId, pHandle->consumerId);
+        tqDebug("prepare scan failed, vgId:%d, consumer:0x%" PRIx64, vgId, pHandle->consumerId);
         pRsp->rspOffset = *pOffset;
         return code;
       }
@@ -92,12 +92,11 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
 
-    tqDebug("vgId:%d, tmq task start to execute, consumer:0x%"PRIx64, vgId, pHandle->consumerId);
+    tqDebug("vgId:%d, tmq task start to execute, consumer:0x%" PRIx64, vgId, pHandle->consumerId);
 
     code = qExecTask(task, &pDataBlock, &ts);
     if (code != TSDB_CODE_SUCCESS) {
-      tqError("vgId:%d, task exec error since %s, consumer:0x%" PRIx64, vgId, terrstr(),
-              pHandle->consumerId);
+      tqError("vgId:%d, task exec error since %s, consumer:0x%" PRIx64, vgId, terrstr(), pHandle->consumerId);
       return code;
     }
 
@@ -114,8 +113,8 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
 
     pRsp->blockNum++;
 
-    tqDebug("vgId:%d, consumer:0x%" PRIx64 " tmq task executed, rows:%" PRId64 ", total blocks:%d", vgId, pHandle->consumerId,
-            pDataBlock->info.rows, pRsp->blockNum);
+    tqDebug("vgId:%d, consumer:0x%" PRIx64 " tmq task executed, rows:%" PRId64 ", total blocks:%d", vgId,
+            pHandle->consumerId, pDataBlock->info.rows, pRsp->blockNum);
 
     if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
       totalRows += pDataBlock->info.rows;
@@ -251,8 +250,8 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
 
 int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp, int32_t* totalRows) {
   STqExecHandle* pExec = &pHandle->execHandle;
-  SArray* pBlocks = taosArrayInit(0, sizeof(SSDataBlock));
-  SArray* pSchemas = taosArrayInit(0, sizeof(void*));
+  SArray*        pBlocks = taosArrayInit(0, sizeof(SSDataBlock));
+  SArray*        pSchemas = taosArrayInit(0, sizeof(void*));
 
   if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
     STqReader* pReader = pExec->pExecReader;
@@ -286,7 +285,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         if (TSDB_CODE_SUCCESS != code) {
           continue;
         }
-        void* createReq = taosMemoryCalloc(1, len);
+        void*    createReq = taosMemoryCalloc(1, len);
         SEncoder encoder = {0};
         tEncoderInit(&encoder, createReq, len);
         code = tEncodeSVCreateTbReq(&encoder, pSubmitTbDataRet->pCreateTbReq);
@@ -345,7 +344,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         if (TSDB_CODE_SUCCESS != code) {
           continue;
         }
-        void* createReq = taosMemoryCalloc(1, len);
+        void*    createReq = taosMemoryCalloc(1, len);
         SEncoder encoder = {0};
         tEncoderInit(&encoder, createReq, len);
         code = tEncodeSVCreateTbReq(&encoder, pSubmitTbDataRet->pCreateTbReq);

@@ -67,7 +67,7 @@ static int l_connect(lua_State *L){
 
   taos = taos_connect(host, user,password,database, port);
   if (taos == NULL) {
-    printf("failed to connect server, reason:%s\n", taos_errstr(taos));
+    //printf("failed to connect server, reason:%s\n", taos_errstr(taos));
     
     lua_pushinteger(L, -1);
     lua_setfield(L, table_index, "code");
@@ -79,7 +79,7 @@ static int l_connect(lua_State *L){
     // printf("success to connect server\n");
     lua_pushinteger(L, 0);
     lua_setfield(L, table_index, "code");
-    lua_pushstring(L, taos_errstr(taos));
+    lua_pushstring(L, "success");
     lua_setfield(L, table_index, "error");    
     lua_pushlightuserdata(L,taos);
     lua_setfield(L, table_index, "conn");

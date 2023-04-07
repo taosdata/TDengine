@@ -176,6 +176,7 @@ typedef struct {
   char        opername[TSDB_TRANS_OPER_LEN];
   SArray*     pRpcArray;
   SRWLatch    lockRpcArray;
+  int64_t     mTraceId;
 } STrans;
 
 typedef struct {

@@ -376,7 +376,7 @@ typedef struct SUdfcUvSession {
   uv_pipe_t  *udfUvPipe;
 
   int8_t  outputType;
-  int32_t outputLen;
+  int32_t bytes;
   int32_t bufSize;
 
   char udfName[TSDB_FUNC_NAME_LEN + 1];
@@ -614,7 +614,7 @@ int32_t encodeUdfSetupResponse(void **buf, const SUdfSetupResponse *setupRsp) {
   int32_t len = 0;
   len += taosEncodeFixedI64(buf, setupRsp->udfHandle);
   len += taosEncodeFixedI8(buf, setupRsp->outputType);
-  len += taosEncodeFixedI32(buf, setupRsp->outputLen);
+  len += taosEncodeFixedI32(buf, setupRsp->bytes);
   len += taosEncodeFixedI32(buf, setupRsp->bufSize);
   return len;
 }
@@ -622,7 +622,7 @@ int32_t encodeUdfSetupResponse(void **buf, const SUdfSetupResponse *setupRsp) {
 void *decodeUdfSetupResponse(const void *buf, SUdfSetupResponse *setupRsp) {
   buf = taosDecodeFixedI64(buf, &setupRsp->udfHandle);
   buf = taosDecodeFixedI8(buf, &setupRsp->outputType);
-  buf = taosDecodeFixedI32(buf, &setupRsp->outputLen);
+  buf = taosDecodeFixedI32(buf, &setupRsp->bytes);
   buf = taosDecodeFixedI32(buf, &setupRsp->bufSize);
   return (void *)buf;
 }
@@ -808,6 +808,26 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
 }
 
 int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
+  SUdfColumnMeta* meta = &udfCol->colMeta;
+
+  SColumnInfoData colInfoData = createColumnInfoData(meta->type, meta->bytes, 1);
+  blockDataAppendColInfo(block, &colInfoData);
+  blockDataEnsureCapacity(block, udfCol->colData.numOfRows);
+
+  SColumnInfoData *col = bdGetColumnInfoData(block, 0);
+  for (int i = 0; i < udfCol->colData.numOfRows; ++i) {
+    if (udfColDataIsNull(udfCol, i)) {
+      colDataSetNULL(col, i);
+    } else {
+      char* data = udfColDataGetData(udfCol, i);
+      colDataSetVal(col, i, data, false);
+    }
+  }
+  block->info.rows = udfCol->colData.numOfRows;
+  return 0;
+}
+
+int32_t convertUdfColumnToDataBlock2(SUdfColumn *udfCol, SSDataBlock *block) {
   block->info.rows = udfCol->colData.numOfRows;
   block->info.hasVarCol = IS_VAR_DATA_TYPE(udfCol->colMeta.type);
 
@@ -899,9 +919,11 @@ int32_t convertDataBlockToScalarParm(SSDataBlock *input, SScalarParam *output) {
 typedef struct SUdfAggRes {
   int8_t finalResNum;
   int8_t interResNum;
+  int32_t interResBufLen;
   char  *finalResBuf;
   char  *interResBuf;
 } SUdfAggRes;
+
 void    onUdfcPipeClose(uv_handle_t *handle);
 int32_t udfcGetUdfTaskResultFromUvTask(SClientUdfTask *task, SClientUvTaskNode *uvTask);
 void    udfcAllocateBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf);
@@ -1048,15 +1070,22 @@ int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols,
   if (code != 0) {
     return code;
   }
+
   SUdfcUvSession *session = handle;
   code = doCallUdfScalarFunc(handle, input, numOfCols, output);
+  if (code != TSDB_CODE_SUCCESS) {
+    fnError("udfc scalar function execution failure");
+    releaseUdfFuncHandle(udfName);
+    return code;
+  }
+
   if (output->columnData == NULL) {
     fnError("udfc scalar function calculate error. no column data");
     code = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;
   } else {
-    if (session->outputType != output->columnData->info.type || session->outputLen != output->columnData->info.bytes) {
+    if (session->outputType != output->columnData->info.type || session->bytes != output->columnData->info.bytes) {
       fnError("udfc scalar function calculate error. type mismatch. session type: %d(%d), output type: %d(%d)",
-              session->outputType, session->outputLen, output->columnData->info.type, output->columnData->info.bytes);
+              session->outputType, session->bytes, output->columnData->info.type, output->columnData->info.bytes);
       code = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;
     }
   }
@@ -1084,11 +1113,11 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResult
   }
   SUdfcUvSession *session = (SUdfcUvSession *)handle;
   SUdfAggRes     *udfRes = (SUdfAggRes *)GET_ROWCELL_INTERBUF(pResultCellInfo);
-  int32_t         envSize = sizeof(SUdfAggRes) + session->outputLen + session->bufSize;
+  int32_t         envSize = sizeof(SUdfAggRes) + session->bytes + session->bufSize;
   memset(udfRes, 0, envSize);
 
   udfRes->finalResBuf = (char *)udfRes + sizeof(SUdfAggRes);
-  udfRes->interResBuf = (char *)udfRes + sizeof(SUdfAggRes) + session->outputLen;
+  udfRes->interResBuf = (char *)udfRes + sizeof(SUdfAggRes) + session->bytes;
 
   SUdfInterBuf buf = {0};
   if ((udfCode = doCallUdfAggInit(handle, &buf)) != 0) {
@@ -1096,9 +1125,10 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResult
     releaseUdfFuncHandle(pCtx->udfName);
     return false;
   }
-  udfRes->interResNum = buf.numOfResult;
   if (buf.bufLen <= session->bufSize) {
     memcpy(udfRes->interResBuf, buf.buf, buf.bufLen);
+    udfRes->interResBufLen = buf.bufLen;
+    udfRes->interResNum = buf.numOfResult;
   } else {
     fnError("udfc inter buf size %d is greater than function bufSize %d", buf.bufLen, session->bufSize);
     releaseUdfFuncHandle(pCtx->udfName);
@@ -1120,7 +1150,7 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
   SUdfcUvSession *session = handle;
   SUdfAggRes     *udfRes = (SUdfAggRes *)GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   udfRes->finalResBuf = (char *)udfRes + sizeof(SUdfAggRes);
-  udfRes->interResBuf = (char *)udfRes + sizeof(SUdfAggRes) + session->outputLen;
+  udfRes->interResBuf = (char *)udfRes + sizeof(SUdfAggRes) + session->bytes;
 
   SInputColumnInfoData *pInput = &pCtx->input;
   int32_t               numOfCols = pInput->numOfInputCols;
@@ -1136,7 +1166,7 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
 
   SSDataBlock *inputBlock = blockDataExtractBlock(pTempBlock, start, numOfRows);
 
-  SUdfInterBuf state = {.buf = udfRes->interResBuf, .bufLen = session->bufSize, .numOfResult = udfRes->interResNum};
+  SUdfInterBuf state = {.buf = udfRes->interResBuf, .bufLen = udfRes->interResBufLen, .numOfResult = udfRes->interResNum};
   SUdfInterBuf newState = {0};
 
   udfCode = doCallUdfAggProcess(session, inputBlock, &state, &newState);
@@ -1144,17 +1174,17 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
     fnError("udfAggProcess error. code: %d", udfCode);
     newState.numOfResult = 0;
   } else {
-    udfRes->interResNum = newState.numOfResult;
     if (newState.bufLen <= session->bufSize) {
       memcpy(udfRes->interResBuf, newState.buf, newState.bufLen);
+      udfRes->interResBufLen = newState.bufLen;
+      udfRes->interResNum = newState.numOfResult;
     } else {
       fnError("udfc inter buf size %d is greater than function bufSize %d", newState.bufLen, session->bufSize);
       udfCode = TSDB_CODE_UDF_INVALID_BUFSIZE;
     }
   }
-  if (newState.numOfResult == 1 || state.numOfResult == 1) {
-    GET_RES_INFO(pCtx)->numOfRes = 1;
-  }
+
+  GET_RES_INFO(pCtx)->numOfRes = udfRes->interResNum;
 
   blockDataDestroy(inputBlock);
 
@@ -1177,24 +1207,29 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock) {
   SUdfcUvSession *session = handle;
   SUdfAggRes     *udfRes = (SUdfAggRes *)GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   udfRes->finalResBuf = (char *)udfRes + sizeof(SUdfAggRes);
-  udfRes->interResBuf = (char *)udfRes + sizeof(SUdfAggRes) + session->outputLen;
+  udfRes->interResBuf = (char *)udfRes + sizeof(SUdfAggRes) + session->bytes;
 
   SUdfInterBuf resultBuf = {0};
-  SUdfInterBuf state = {.buf = udfRes->interResBuf, .bufLen = session->bufSize, .numOfResult = udfRes->interResNum};
+  SUdfInterBuf state = {.buf = udfRes->interResBuf, .bufLen = udfRes->interResBufLen, .numOfResult = udfRes->interResNum};
   int32_t      udfCallCode = 0;
   udfCallCode = doCallUdfAggFinalize(session, &state, &resultBuf);
   if (udfCallCode != 0) {
     fnError("udfAggFinalize error. doCallUdfAggFinalize step. udf code:%d", udfCallCode);
     GET_RES_INFO(pCtx)->numOfRes = 0;
   } else {
-    if (resultBuf.bufLen <= session->outputLen) {
-      memcpy(udfRes->finalResBuf, resultBuf.buf, session->outputLen);
-      udfRes->finalResNum = resultBuf.numOfResult;
-      GET_RES_INFO(pCtx)->numOfRes = udfRes->finalResNum;
-    } else {
-      fnError("udfc inter buf size %d is greater than function output size %d", resultBuf.bufLen, session->outputLen);
+    if (resultBuf.numOfResult == 0) {
+      udfRes->finalResNum = 0;
       GET_RES_INFO(pCtx)->numOfRes = 0;
-      udfCallCode = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;
+    } else {
+      if (resultBuf.bufLen <= session->bytes) {
+        memcpy(udfRes->finalResBuf, resultBuf.buf, resultBuf.bufLen);
+        udfRes->finalResNum = resultBuf.numOfResult;
+        GET_RES_INFO(pCtx)->numOfRes = udfRes->finalResNum;
+      } else {
+        fnError("udfc inter buf size %d is greater than function output size %d", resultBuf.bufLen, session->bytes);
+        GET_RES_INFO(pCtx)->numOfRes = 0;
+        udfCallCode = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;
+      }
     }
   }
 
@@ -1696,13 +1731,13 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   SUdfSetupResponse *rsp = &task->_setup.rsp;
   task->session->severHandle = rsp->udfHandle;
   task->session->outputType = rsp->outputType;
-  task->session->outputLen = rsp->outputLen;
+  task->session->bytes = rsp->bytes;
   task->session->bufSize = rsp->bufSize;
   strncpy(task->session->udfName, udfName, TSDB_FUNC_NAME_LEN);
   if (task->errCode != 0) {
     fnError("failed to setup udf. udfname: %s, err: %d", udfName, task->errCode)
   } else {
-    fnInfo("sucessfully setup udf func handle. udfName: %s, handle: %p", udfName, task->session);
+    fnInfo("successfully setup udf func handle. udfName: %s, handle: %p", udfName, task->session);
     *funcHandle = task->session;
   }
   int32_t err = task->errCode;
