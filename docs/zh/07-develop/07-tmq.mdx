@@ -367,7 +367,6 @@ conf := &tmq.ConfigMap{
  "td.connect.port":              "6030",
  "client.id":                    "test_tmq_c",
  "enable.auto.commit":           "false",
- "enable.heartbeat.background":  "true",
  "experimental.snapshot.enable": "true",
  "msg.with.table.name":          "true",
 }
@@ -419,7 +418,6 @@ consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
 | `auto.commit.interval.ms` | string | 以毫秒为单位的自动提交时间间隔 | 默认值：5000 ms |
 | `auto.offset.reset` | string | 消费组订阅的初始位置 | 可选：`earliest`(default), `latest`, `none` |
 | `experimental.snapshot.enable` | string | 是否允许从 TSDB 消费数据 | 合法值：`true`, `false` |
-| `enable.heartbeat.background` | string | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 合法值：`true`, `false` |
 
 </TabItem>
 

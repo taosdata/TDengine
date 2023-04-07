@@ -51,6 +51,11 @@ if $data00 != @ins_stables@ then
 	return -1
 endi
 
+sql select * from information_schema.ins_tables where table_name='';
+if $rows != 0 then 
+        return -1
+endi
+
 sql select tbname from information_schema.ins_tables;
 print $rows $data00
 if $rows != 33 then

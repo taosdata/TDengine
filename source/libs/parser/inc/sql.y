@@ -553,8 +553,9 @@ explain_options(A) ::= explain_options(B) VERBOSE NK_BOOL(C).                   
 explain_options(A) ::= explain_options(B) RATIO NK_FLOAT(C).                      { A = setExplainRatio(pCxt, B, &C); }
 
 /************************************************ create/drop function ************************************************/
-cmd ::= CREATE agg_func_opt(A) FUNCTION not_exists_opt(F) function_name(B) 
-  AS NK_STRING(C) OUTPUTTYPE type_name(D) bufsize_opt(E) language_opt(G).         { pCxt->pRootNode = createCreateFunctionStmt(pCxt, F, A, &B, &C, D, E, &G); }
+cmd ::= CREATE or_replace_opt(H) agg_func_opt(A) FUNCTION not_exists_opt(F)
+  function_name(B) AS NK_STRING(C) OUTPUTTYPE type_name(D) bufsize_opt(E) 
+  language_opt(G).                                                                { pCxt->pRootNode = createCreateFunctionStmt(pCxt, F, A, &B, &C, D, E, &G, H); }
 cmd ::= DROP FUNCTION exists_opt(B) function_name(A).                             { pCxt->pRootNode = createDropFunctionStmt(pCxt, B, &A); }
 
 %type agg_func_opt                                                                { bool }
@@ -571,6 +572,11 @@ bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                       
 %destructor language_opt                                                           { }
 language_opt(A) ::= .                                                              { A = nil_token; }
 language_opt(A) ::= LANGUAGE NK_STRING(B).                                         { A = B; }
+
+%type or_replace_opt                                                               { bool }
+%destructor or_replace_opt                                                         { }
+or_replace_opt(A) ::= .                                                            { A = false; }
+or_replace_opt(A) ::= OR REPLACE.                                                  { A = true; }
 
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A) stream_options(B) INTO
@@ -1136,5 +1142,5 @@ null_ordering_opt(A) ::= NULLS FIRST.                                           
 null_ordering_opt(A) ::= NULLS LAST.                                              { A = NULL_ORDER_LAST; }
 
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL 
-  FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE REPLACE RESTRICT ROW SEMI STAR STATEMENT
+  FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE RESTRICT ROW SEMI STAR STATEMENT
   STRICT STRING TIMES VALUES VARIABLE VIEW WAL.

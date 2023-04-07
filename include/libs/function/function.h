@@ -112,7 +112,7 @@ typedef struct SResultDataInfo {
 typedef struct SInputColumnInfoData {
   int32_t           totalRows;        // total rows in current columnar data
   int32_t           startRowIndex;    // handle started row index
-  int32_t           numOfRows;        // the number of rows needs to be handled
+  int64_t           numOfRows;        // the number of rows needs to be handled
   int32_t           numOfInputCols;   // PTS is not included
   bool              colDataSMAIsSet;  // if agg is set or not
   SColumnInfoData  *pPTS;             // primary timestamp column
