@@ -2,37 +2,28 @@
   <div class="login">
     <section class="header">
       <div class="inside-header">
-        <h1>TDengine Management System</h1>
+        <div class="dynamic-title">TDengine Management System</div>
         <div class="site-logo">
-          <a
-            :href="dataJson.officialWebsite"
-            target="_blank"
-            title="TD Hero"
-            rel="home"
-          >
-            <img :src="dataJson.logo" alt="" title="TD Hero" width="200" />
+          <a :href="dataJson.officialWebsite" target="_blank" title="TD Hero" rel="home">
+            <img :src="dataJson.logo" alt title="TD Hero" width="200" />
           </a>
         </div>
         <div class="site-navigation">
           <nav class="main-navigation">
             <ul id="menu-menu">
               <li class="gitIframe" v-if="!oemName">
-                <a href="https://github.com/taosdata/TDengine"
-                  ><iframe
+                <a href="https://github.com/taosdata/TDengine">
+                  <iframe
                     src="https://tdengine.com/star.html?user=taosdata&amp;repo=TDengine&amp;type=star&amp;count=true"
-                    frameBorder="0"
+                    frameborder="0"
                     scrolling="0"
                     width="180"
                     height="32"
                     title="GitHub"
-                  ></iframe
-                ></a>
+                  ></iframe>
+                </a>
               </li>
-              <li
-                v-for="item in dataJson.externalLinks"
-                :key="item.name"
-                class="link"
-              >
+              <li v-for="item in dataJson.externalLinks" :key="item.name" class="link">
                 <a :href="item.url">{{ item.name }}</a>
               </li>
 
@@ -48,10 +39,10 @@
                     data-rl-src="https://62edbda222ff1144494a0b29.cdn.rabbitloader.com/62edbda222ff1144494a0b29/rls.s-nw-a28/wp-content/uploads/2022/09/26.03-7-language-menu.png"
                     loading="lazy"
                     class="ls-is-cached rl-lazyloaded"
-                  /> -->
+              />-->
               <!-- <img src="https://62edbda222ff1144494a0b29.cdn.rabbitloader.com/62edbda222ff1144494a0b29/rls.s-nw-a28/wp-content/uploads/2022/09/26.03-7-language-menu.png" alt="" width="100"> -->
               <!-- </a>
-              </li> -->
+              </li>-->
             </ul>
           </nav>
         </div>
@@ -65,11 +56,10 @@
           <p v-for="(item, index) in dataJson.welcome.mainContent" :key="index">
             <span>{{ index + 1 }}.</span>
             <strong>
-              <a :href="item.url" style="text-decoration: underline"
-                ><span class="anchor">{{ item.achorTitle }}</span></a
-              >
+              <a :href="item.url" style="text-decoration: underline">
+                <span class="anchor">{{ item.achorTitle }}</span>
+              </a>
             </strong>
-
             {{ item.paragraph }}
           </p>
         </article>
@@ -77,7 +67,7 @@
 
       <div class="login-content">
         <div class="login-title">
-          <span>{{ $t("login.loginTitle") }}</span>
+          <span>{{$t("login.loginTitle") }}</span>
         </div>
         <el-form
           :model="dynamicValidateForm"
@@ -90,7 +80,7 @@
             <p class="lable-form">
               <span>{{ $t("login.username") }}</span>
             </p>
-            <el-form-item prop="username" label="">
+            <el-form-item prop="username" label>
               <el-input v-model="dynamicValidateForm.username"></el-input>
             </el-form-item>
           </div>
@@ -98,11 +88,8 @@
             <p class="lable-form">
               <span>{{ $t("login.password") }}</span>
             </p>
-            <el-form-item label="" prop="password">
-              <el-input
-                v-model="dynamicValidateForm.password"
-                type="password"
-              ></el-input>
+            <el-form-item label prop="password">
+              <el-input v-model="dynamicValidateForm.password" type="password"></el-input>
             </el-form-item>
           </div>
 
@@ -112,8 +99,7 @@
               @click="submitForm('dynamicValidateForm')"
               class="signin"
               v-loading="loading"
-              >{{ $t("login.signin") }}</el-button
-            >
+            >{{ $t("login.signin") }}</el-button>
           </el-form-item>
         </el-form>
       </div>
@@ -125,18 +111,8 @@
           <div class="foot-top">
             <div class="left">
               <figure class="logo">
-                <a
-                  :href="dataJson.officialWebsite"
-                  target="_blank"
-                  title="TD Hero"
-                  rel="home"
-                >
-                  <img
-                    :src="dataJson.logo"
-                    alt=""
-                    title="TD Hero"
-                    width="100"
-                  />
+                <a :href="dataJson.officialWebsite" target="_blank" title="TD Hero" rel="home">
+                  <img :src="dataJson.logo" alt title="TD Hero" width="100" />
                 </a>
               </figure>
               <p class="profile">{{ dataJson.footer.profile }}</p>
@@ -156,9 +132,7 @@
           </div>
           <div class="foot-bottom">
             <!-- <div class="copy-right"> -->
-            <div class="cp-left">
-              {{ dataJson.footer.copyright }}
-            </div>
+            <div class="cp-left">{{ dataJson.footer.copyright }}</div>
             <div class="cp-right">
               <template v-for="(item, index) in dataJson.footer.policies">
                 <a :href="item.url" :key="index">{{ item.name }}</a>
@@ -184,7 +158,7 @@ import { encrypt } from "@/utils/index";
 export default {
   name: "Login",
   components: {
-    SearchPop,
+    SearchPop
   },
   data() {
     var validatePass = (rule, value, callback) => {
@@ -202,40 +176,42 @@ export default {
     };
     return {
       taosxStatus: true,
-      oemName: process.env.VUE_APP_CUS_NAME,
+      oemName:
+        process.env.VUE_APP_CUS_NAME &&
+        process.env.VUE_APP_CUS_NAME !== "TDengine",
       loading: false,
       earch: require("@/assets/earth.webp"),
       hidden: false,
       dynamicValidateForm: {
         cluster: "",
         password: "",
-        username: "",
+        username: ""
       },
       formRules: {
         cluster: [
           {
             required: true,
             message: "Please enter the Cluster",
-            trigger: "blur",
-          },
+            trigger: "blur"
+          }
         ],
         password: [
           {
             required: true,
             validator: validatePass,
-            trigger: "blur",
-          },
+            trigger: "blur"
+          }
         ],
         username: [
           {
             required: true,
             message: "Please enter the UserName",
-            trigger: "blur",
-          },
-        ],
+            trigger: "blur"
+          }
+        ]
       },
       dataJson,
-      encryptedPwd: "",
+      encryptedPwd: ""
     };
   },
   methods: {
@@ -250,7 +226,7 @@ export default {
       //   Message.error("Please enter the correct cluster url .");
       //   return;
       // }
-      this.$refs[formName].validate((valid) => {
+      this.$refs[formName].validate(valid => {
         if (valid) {
           this.loading = true;
           this.encryptedPwd = encrypt(this.dynamicValidateForm.password);
@@ -276,11 +252,11 @@ export default {
     async getClusterID() {
       try {
         return sendSQLReq(` select id from information_schema.ins_cluster;`)
-          .then((res) => {
+          .then(res => {
             let id = res.data.flat(Infinity).toString();
             localStorage.setItem("local_clusterID", id);
           })
-          .catch((err) => {
+          .catch(err => {
             localStorage.removeItem("TDengine-Token");
             err.desc && Message.error(err.desc);
             return Promise.reject(err);
@@ -303,20 +279,20 @@ export default {
 
       this.$store.commit("app/SAVE_LOGIN_INFO", {
         username: this.dynamicValidateForm.username,
-        pwd: this.dynamicValidateForm.password,
+        pwd: this.dynamicValidateForm.password
       });
       try {
-        let sql='select server_version()'
+        let sql = "select server_version()";
         await fetchApiByCluster(
           this.dynamicValidateForm.cluster,
           token,
           sql
-        ).then((res) => {
+        ).then(res => {
           if (res && res.code == 0 && !res.desc) {
             localStorage.setItem("TDengine-Token", token);
             this.getClusterID();
             // this.$router.push({
-            //   path: "/explorer",
+            //   path: "/explorer"
             // });
              this.getUserAuthority();
           } else {
@@ -331,7 +307,7 @@ export default {
     },
     async getClusterAndDashboardUrl() {
       try {
-        await getUrls().then((res) => {
+        await getUrls().then(res => {
           if (res && res.cluster) {
             this.dynamicValidateForm.cluster = res.cluster;
             localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
@@ -358,9 +334,9 @@ export default {
       try {
         return await sendSQLReq(
           `select version, (expire_time < now) as valid from information_schema.ins_cluster`
-        ).then((res) => {
+        ).then(res => {
           if (res) {
-            let result = res.data.map((data) => {
+            let result = res.data.map(data => {
               return Object.fromEntries(
                 res.column_meta.map((item, index) => {
                   return [item[0], data[index]];
@@ -372,7 +348,7 @@ export default {
               ["official", "trial"].includes(result[0].version)
             ) {
               this.$router.push({
-                path: "/explorer",
+                path: "/explorer"
               });
             } else {
               Message.error("Only enterprise edition is supported!");
@@ -382,13 +358,29 @@ export default {
       } catch (err) {
         Message.error("Only enterprise edition is supported");
       }
-    },
+    }
   },
   created() {
     this.getClusterAndDashboardUrl();
     localStorage.setItem("supportWebsite", this.dataJson.supportWebsite);
     localStorage.setItem("documentWebsite", this.dataJson.documentWebsite);
   },
+  mounted() {
+    this.$nextTick(() => {
+      if (
+        process.env.VUE_APP_CUS_NAME &&
+        process.env.VUE_APP_CUS_NAME !== "TDengine"
+      ) {
+        let dynamic = document.querySelector(".dynamic-title");
+        dynamic.innerText = process.env.VUE_APP_CUS_NAME + " Management System";
+        console.log(
+          dynamic,
+          "---",
+          process.env.VUE_APP_CUS_NAME
+        );
+      }
+    });
+  }
 };
 </script>
 <style lang="scss" scoped>
@@ -414,14 +406,14 @@ export default {
     background-image: url("https://cloud.tdengine.com/static/img/banner-bg.aedcb8e7.webp");
     background-repeat: no-repeat;
     background-size: cover;
-    h1{
+    .dynamic-title {
       font-size: 38px;
-      color:#fff;
+      color: #fff;
     }
     .inside-header {
       display: flex;
       justify-content: center;
-      height:123px;
+      height: 123px;
       max-width: 1240px;
       padding: 20px;
       // justify-content: space-between;
@@ -431,7 +423,7 @@ export default {
       flex: 1;
       .site-logo {
         width: 200px;
-        display:none;
+        display: none;
       }
       .site-navigation {
         flex: auto;
@@ -480,7 +472,7 @@ export default {
     }
     .login-content {
       width: 480px;
-      height:500px;
+      height: 500px;
       padding: 15px;
       padding-top: 30px;
       box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
