@@ -30,6 +30,10 @@
 #include "tsched.h"
 #include "ttime.h"
 
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#include "cus_name.h"
+#endif
+
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
 
@@ -542,9 +546,15 @@ void taos_init_imp(void) {
 
   deltaToUtcInitOnce();
 
-  if (taosCreateLog("taoslog", 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
+  char logDirName[64] = {0};
+#ifdef CUS_PROMPT
+  snprintf(logDirName, 64, "%slog", CUS_PROMPT);
+#else
+  snprintf(logDirName, 64, "taoslog");
+#endif
+  if (taosCreateLog(logDirName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
     // ignore create log failed, only print
-    printf(" WARING: Create taoslog failed:%s. configDir=%s\n", strerror(errno), configDir);
+    printf(" WARING: Create %s failed:%s. configDir=%s\n", logDirName, strerror(errno), configDir);
   }
 
   if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1) != 0) {
