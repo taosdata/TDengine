@@ -1426,6 +1426,9 @@ static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
   char vgKey[TSDB_TOPIC_FNAME_LEN + 22];
   tscDebug("consumer:0x%" PRIx64 " update ep epoch from %d to epoch %d, incoming topics:%d, existed topics:%d",
            tmq->consumerId, tmq->epoch, epoch, topicNumGet, topicNumCur);
+  if (epoch <= tmq->epoch) {
+    return false;
+  }
 
   SArray* newTopics = taosArrayInit(topicNumGet, sizeof(SMqClientTopic));
   if (newTopics == NULL) {
@@ -1529,8 +1532,8 @@ int32_t askEpCallbackFn(void* param, SDataBuf* pMsg, int32_t code) {
   } else {
     tscDebug("consumer:0x%" PRIx64 ", recv ep, msg epoch %d, current epoch %d, update local ep", tmq->consumerId,
              head->epoch, epoch);
-    pParam->pUserFn(tmq, code, pMsg, pParam->pParam);
   }
+  pParam->pUserFn(tmq, code, pMsg, pParam->pParam);
 
   taosReleaseRef(tmqMgmt.rsetId, pParam->refId);
 
