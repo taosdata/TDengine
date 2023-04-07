@@ -149,7 +149,7 @@ IF(TD_BULID_TAOSX)
                 COMMAND git stash && git checkout main && git pull
                 BUILD_COMMAND
                 COMMAND git stash && git checkout main && git pull
-                COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} cargo build --release
+                COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build --release
                 INSTALL_COMMAND
                 COMMAND cmake -E copy target/release/taosx ${CMAKE_BINARY_DIR}/build/bin
             )
@@ -164,7 +164,7 @@ IF(TD_BULID_TAOSX)
                COMMAND git stash && git checkout main && git pull
                BUILD_COMMAND
                COMMAND git stash && git checkout main && git pull
-               COMMAND ${TAOSX_BULID_COMMAND}
+               COMMAND CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} ${TAOSX_BULID_COMMAND}
                INSTALL_COMMAND
                COMMAND cmake -E copy ${TAOSX_BINARY} ${CMAKE_BINARY_DIR}/build/bin
                )
@@ -180,7 +180,7 @@ IF(TD_BULID_TAOSX)
             COMMAND git stash && git checkout main && git pull
             BUILD_COMMAND
             COMMAND git stash && git checkout main && git pull
-            COMMAND set LIBPATH=$ENV{LIBRARY_PATH} && set LIB=$ENV{LIBRARY_PATH} && cargo build --release
+            COMMAND set LIBPATH=$ENV{LIBRARY_PATH} && set LIB=$ENV{LIBRARY_PATH} && set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && cargo build --release
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taosx.exe ${CMAKE_BINARY_DIR}/build/bin
         )
