@@ -170,7 +170,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
       qStreamExtractOffset(task, &tmp->rspOffset);
       *pMetaRsp = *tmp;
 
-      tqDebug("tmqsnap task get data");
+      tqDebug("tmqsnap task get meta");
       break;
     }
 
