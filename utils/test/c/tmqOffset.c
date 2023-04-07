@@ -48,7 +48,7 @@ int32_t tqOffsetRestoreFromFile(const char* fname) {
       }
 
       tDecoderClear(&decoder);
-      printf("subkey:%s, type:%d, uid/version:%lld, ts:%"PRId64"\n",
+      printf("subkey:%s, type:%d, uid/version:%"PRId64", ts:%"PRId64"\n",
              offset.subKey, offset.val.type, offset.val.uid, offset.val.ts);
       taosMemoryFree(memBuf);
     }
