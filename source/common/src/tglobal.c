@@ -20,18 +20,6 @@
 #include "tlog.h"
 #include "tmisce.h"
 
-#ifndef CUS_NAME
-char cusName[] = "TDengine";
-#endif
-
-#ifndef CUS_PROMPT
-char cusPrompt[] = "taos";
-#endif
-
-#ifndef CUS_EMAIL
-char cusEmail[] = "<support@taosdata.com>";
-#endif
-
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
 #endif
