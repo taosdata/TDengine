@@ -52,7 +52,7 @@ int32_t syncNodeReplicateReset(SSyncNode* pNode, SRaftId* pDestId) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
   taosThreadMutexLock(&pBuf->mutex);
   SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, pDestId);
-  syncLogReplMgrReset(pMgr);
+  syncLogReplReset(pMgr);
   taosThreadMutexUnlock(&pBuf->mutex);
   return 0;
 }
@@ -74,7 +74,7 @@ int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
       continue;
     }
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
-    (void)syncLogReplMgrReplicateOnce(pMgr, pNode);
+    (void)syncLogReplReplicateOnce(pMgr, pNode);
   }
   return 0;
 }
