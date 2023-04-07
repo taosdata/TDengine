@@ -18,6 +18,7 @@
 static int32_t create_file_system(STsdb *pTsdb, struct STFileSystem **ppFS) {
   ppFS[0] = taosMemoryCalloc(1, sizeof(*ppFS[0]));
   if (ppFS[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
   ppFS[0]->pTsdb = pTsdb;
   return 0;
 }
