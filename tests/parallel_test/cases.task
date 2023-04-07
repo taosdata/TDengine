@@ -130,6 +130,7 @@
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
+,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
