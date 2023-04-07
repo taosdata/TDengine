@@ -128,7 +128,7 @@ export default {
   computed: {
     schemelessUrl(){
       return (
-        (navigator.language=='en'?this.enDomain:this.zhDomain)+'/reference/schemaless/#Schemaless-Line-Protocol'
+        (navigator.language.includes('en')?this.enDomain:this.zhDomain)+'/reference/schemaless/#Schemaless-Line-Protocol'
       )
     },
     jdbcURL() {

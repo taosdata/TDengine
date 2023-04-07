@@ -66,10 +66,10 @@ export default {
   },
   computed: {
     urlPart() {
-      return navigator.language=='en' ?"tdengine": "taosdata";
+      return navigator.language.includes('en') ?"tdengine": "taosdata";
     },
     restapi(){
-      return navigator.language=='en' ?"reference": "connector";
+      return navigator.language.includes('en') ?"reference": "connector";
     }
   },
 };

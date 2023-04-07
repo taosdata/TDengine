@@ -121,7 +121,7 @@ export default {
       return this.url + "?token=" + this.token;
     },
     urlPart() {
-      return navigator.language=='en' ?"tdengine": "taosdata";
+      return navigator.language.includes('en') ?"tdengine": "taosdata";
     },
     installUrlLinux() {
       const urlPart = this.urlPart;
