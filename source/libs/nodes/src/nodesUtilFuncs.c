@@ -923,9 +923,15 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFree(((SDescribeStmt*)pNode)->pMeta);
       break;
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:  // no pointer field
-    case QUERY_NODE_COMPACT_DATABASE_STMT:   // no pointer field
-    case QUERY_NODE_CREATE_FUNCTION_STMT:    // no pointer field
-    case QUERY_NODE_DROP_FUNCTION_STMT:      // no pointer field
+      break;
+    case QUERY_NODE_COMPACT_DATABASE_STMT: {
+      SCompactDatabaseStmt* pStmt = (SCompactDatabaseStmt*)pNode;
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
+    case QUERY_NODE_CREATE_FUNCTION_STMT:  // no pointer field
+    case QUERY_NODE_DROP_FUNCTION_STMT:    // no pointer field
       break;
     case QUERY_NODE_CREATE_STREAM_STMT: {
       SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pNode;
