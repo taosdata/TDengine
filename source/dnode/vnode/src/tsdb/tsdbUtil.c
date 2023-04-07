@@ -712,6 +712,9 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
   STColumn *pTColumn;
   int32_t   iCol, jCol = 1;
 
+  if (NULL == pTSchema) {
+    pTSchema = pMerger->pTSchema;
+  }
   ASSERT(((SColVal *)pMerger->pArray->pData)->value.val == key.ts);
 
   for (iCol = 1; iCol < pMerger->pTSchema->numOfCols && jCol < pTSchema->numOfCols; ++iCol) {
@@ -833,7 +836,7 @@ void tsdbRowMergerClear(SRowMerger *pMerger) {
 
   taosArrayDestroy(pMerger->pArray);
 }
-
+/*
 int32_t tsdbRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
   int32_t  code = 0;
   TSDBKEY  key = TSDBROW_KEY(pRow);
@@ -898,7 +901,7 @@ int32_t tsdbRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
 _exit:
   return code;
 }
-
+*/
 int32_t tsdbRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow) {
   return tRowBuild(pMerger->pArray, pMerger->pTSchema, ppRow);
 }

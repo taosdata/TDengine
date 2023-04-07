@@ -128,7 +128,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
 
 int32_t tsdbRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
 void    tsdbRowMergerClear(SRowMerger *pMerger);
-int32_t tsdbRowMerge(SRowMerger *pMerger, TSDBROW *pRow);
+// int32_t tsdbRowMerge(SRowMerger *pMerger, TSDBROW *pRow);
 int32_t tsdbRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow);
 // TABLEID
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
@@ -224,7 +224,7 @@ int32_t tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, 
 void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
 void    tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
 bool    tsdbTbDataIterNext(STbDataIter *pIter);
-void    tsdbMemTableCountRows(SMemTable *pMemTable, SHashObj*        pTableMap, int64_t *rowsNum);
+void    tsdbMemTableCountRows(SMemTable *pMemTable, SHashObj *pTableMap, int64_t *rowsNum);
 
 // STbData
 int32_t tsdbGetNRowsInTbData(STbData *pTbData);
