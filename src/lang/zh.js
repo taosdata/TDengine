@@ -172,7 +172,7 @@ export default {
   },
   login: {
     signin:'登录',
-    taosxtip:'请先在 /et/taos/explorer.toml 中配置Taosx',
+    taosxtip:'请先在 /etc/taos/explorer.toml 中配置Taosx',
     username:'用户名',
     password:'密码',
     loginTitle:'登录 TaosExplorer',
