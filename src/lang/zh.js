@@ -175,7 +175,7 @@ export default {
     taosxtip:'请先在 /etc/taos/explorer.toml 中配置Taosx',
     username:'用户名',
     password:'密码',
-    loginTitle:'登录 TaosExplorer',
+    loginTitle:'登录 Explorer',
     login: "登陆",
     loginLeftMessage: {
       title: "只需 200 美元，您就可以在一个月内管理 10,000 个智能电表生成的数据",

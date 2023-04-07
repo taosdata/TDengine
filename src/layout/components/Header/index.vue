@@ -16,8 +16,8 @@
     <div class="headerRight">
 
       
-      <Support v-if="supportUrl"></Support>
-      <Document v-if="docUrl"></Document>
+      <!-- <Support v-if="supportUrl"></Support>
+      <Document v-if="docUrl"></Document> -->
       <!-- <Github></Github> -->
       <!-- <International></International> -->
 
