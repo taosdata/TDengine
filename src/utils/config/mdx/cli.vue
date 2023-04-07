@@ -5,7 +5,7 @@
     <p>
       {{ $t("docs.tool.cli.step1desc") }}
       <b>{{ $t("docs.tool.cli.step1desc1") }}</b
-      >{{ $t("docs.tool.cli.step1desc2") }}<a :href="installUrlLinux">Linux</a
+      >&nbsp;{{ $t("docs.tool.cli.step1desc2") }}<a :href="installUrlLinux">Linux</a
       >{{ $t("docs.tool.cli.step1desc3")
       }}<a :href="installUrlWindows">Windows</a
       >{{ $t("docs.tool.cli.step1desc3") }} <a :href="installUrlMac">Mac</a
@@ -89,18 +89,17 @@ Successfully connect to cloud.tdengine.com:8085 in restful mode
 taos&gt;
 </code></pre>
     <p>
-      {{ $t("docs.tool.cli.step4desc1") }}
+      {{ $t("docs.tool.cli.step4desc1") }}&nbsp;
       <a
         :href="`https://docs.${urlPart}.com/reference/taos-shell#execute-sql-script-file`"
         >{{ $t("docs.tool.cli.step4desc2") }}</a
-      >{{ $t("docs.tool.cli.step4desc3") }}
+      >&nbsp;{{ $t("docs.tool.cli.step4desc3") }}
     </p>
   </div>
 </template>
 
 <script>
 import { TdengineVersion } from "@/const";
-import { IsAliyun } from "@/const";
 export default {
   props: {
     token: {
@@ -122,7 +121,7 @@ export default {
       return this.url + "?token=" + this.token;
     },
     urlPart() {
-      return IsAliyun ? "taosdata" : "tdengine";
+      return navigator.language=='en' ?"tdengine": "taosdata";
     },
     installUrlLinux() {
       const urlPart = this.urlPart;

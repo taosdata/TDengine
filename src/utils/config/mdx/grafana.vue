@@ -77,7 +77,7 @@ export default {
   },
   computed: {
     urlPart() {
-      return IsAliyun ? "taosdata" : "tdengine";
+      return navigator.language=='en' ?"tdengine": "taosdata";
     },
   },
 };

@@ -12,7 +12,7 @@
         :href="`https://${urlPart}.com/assets-download/3.0/taosTools-2.4.9-Linux-x64-comp3.tar.gz`"
         >taosTools</a
       >{{ $t("docs.tool.benchmark.step2desc1") }}
-      <a :href="`https://docs.${urlPart}.com/cloud/tools/cli/#installation`">{{
+      <a :href="`https://docs.${urlPart}.com/operation/pkg-install/`">{{
         $t("docs.tool.benchmark.step2desc2")
       }}</a
       >{{ $t("docs.connector.bottom3end") }}
@@ -604,7 +604,6 @@ sudo ./install-taostools.sh
 </template>
 
 <script>
-import { IsAliyun } from "@/const";
 export default {
   props: {
     token: {
@@ -624,8 +623,8 @@ export default {
       return this.url + "?token=" + this.token;
     },
     urlPart() {
-      return IsAliyun ? "taosdata" : "tdengine";
-    },
+      return navigator.language=='en' ?"tdengine": "taosdata";
+    }
   },
 };
 </script>

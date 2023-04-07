@@ -68,7 +68,7 @@ func main() {
     <p>
       {{ $t("docs.connector.bottom3") }}
       <a
-        :href="`https://docs.${urlPart}.com/reference/rest-api/`"
+        :href="`https://docs.${urlPart}.com/${restapi}/rest-api/`"
         >REST API</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>
@@ -76,7 +76,6 @@ func main() {
 </template>
 
 <script>
-import { IsAliyun } from "@/const";
 import DocConfig from "@/components/DocConfig/index.vue";
 export default {
   components: { DocConfig },
@@ -100,8 +99,11 @@ export default {
       return `${uri})/?token=${tokenStr}`;
     },
     urlPart() {
-      return IsAliyun ? "taosdata" : "tdengine";
+      return navigator.language=='en' ?"tdengine": "taosdata";
     },
+    restapi(){
+      return navigator.language=='en' ?"reference": "connector";
+    }
   },
 };
 </script>

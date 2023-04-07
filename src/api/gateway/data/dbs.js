@@ -79,7 +79,6 @@ export function deleteDBReq(payload, appId = store.getters.appId) {
 
 export function createDB(data, name, appId = store.getters.appId) {
   return request({
-    // url: `/private/data/sql/createdb/${appId}/${name}`,
     baseURL:'',
     url: '/rest/sql',
     headers: {

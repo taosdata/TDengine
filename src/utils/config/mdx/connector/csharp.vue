@@ -133,7 +133,7 @@ namespace Cloud.Examples
     <p>
       {{ $t("docs.connector.bottom3") }}
       <a
-        :href="`https://docs.${urlPart}.com/reference/rest-api/`"
+        :href="`https://docs.${urlPart}.com/${restapi}/rest-api/`"
         >REST API</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>
@@ -141,7 +141,6 @@ namespace Cloud.Examples
 </template>
 
 <script>
-import { IsAliyun } from "@/const";
 export default {
   props: {
     token: {
@@ -161,8 +160,11 @@ export default {
       return this.url + "?token=" + this.token;
     },
     urlPart() {
-      return IsAliyun ? "taosdata" : "tdengine";
+      return navigator.language=='en' ?"tdengine": "taosdata";
     },
+    restapi(){
+      return navigator.language=='en' ?"reference": "connector";
+    }
   },
 };
 </script>

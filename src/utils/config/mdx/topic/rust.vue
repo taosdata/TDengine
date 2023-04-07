@@ -122,8 +122,8 @@ async fn main() -> anyhow::Result<()> {
     ><code class="language-rust"></code></pre>
     <p>
       {{ $t("docs.topic.enddesc") }}
-      <a :href="`https://docs.tdengine.com/develop/tmq/#data-subscription`">{{
-        `https://docs.tdengine.com/develop/tmq/#data-subscription`
+      <a :href="`https://docs.${urlPart}.com/develop/tmq/#data-subscription`">{{
+        `https://docs.${urlPart}.com/develop/tmq/#data-subscription`
       }}</a>
       {{ $t("docs.topic.enddesc1") }}
     </p>
@@ -163,7 +163,7 @@ export default {
       return this.$store.state.app?.current_cluster?.alias || "";
     },
     urlPart() {
-      return IsAliyun ? "taosdata" : "tdengine";
+      return navigator.language=='en' ?"tdengine": "taosdata";
     },
     topicName() {
       return this.topic ? this.topic : this.$t("docs.topic.defaultTopic");
