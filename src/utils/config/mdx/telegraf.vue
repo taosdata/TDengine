@@ -98,7 +98,7 @@ export TDENGINE_TOKEN=&quot;${token}&quot;
       </li>
       <li>
         {{ $t("docs.party.telegraf.step5desc3") }}
-        <a href="/reference/schemaless/#Schemaless-Line-Protocol">{{
+        <a :href="schemelessUrl">{{
           $t("docs.party.telegraf.step5desc3end")
         }}</a>
       </li>
@@ -119,9 +119,18 @@ export default {
     },
   },
   data() {
-    return {};
+    return {
+      nativeLanguage:navigator.language,
+      zhDomain:'https://docs.taosdata.com',
+      enDomain:'https://docs.tdengine.com'
+    };
   },
   computed: {
+    schemelessUrl(){
+      return (
+        (navigator.language=='en'?this.enDomain:this.zhDomain)+'/reference/schemaless/#Schemaless-Line-Protocol'
+      )
+    },
     jdbcURL() {
       return (
         "jdbc:TAOS-RS://" +

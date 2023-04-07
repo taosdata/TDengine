@@ -13,11 +13,11 @@
     <h2 id="installation">{{ $t("docs.dataout.dump.step2") }}</h2>
     <p>
       {{ $t("docs.dataout.dump.step2desc")
-      }}<a
+      }}&nbsp;&nbsp;<a
         :href="`https://${urlPart}.com/assets-download/3.0/taosTools-2.4.9-Linux-x64-comp3.tar.gz`"
         >taosTools</a
       >{{ $t("docs.dataout.dump.step2desc1")
-      }}<a :href="`https://docs.${urlPart}.com/cloud/tools/cli/#installation`"
+      }}&nbsp;&nbsp;<a :href="`https://docs.${urlPart}.com/reference/taos-shell`"
         >TDengine CLI</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>
@@ -42,7 +42,7 @@ sudo ./install-taostools.sh
       <li>{{ $t("docs.dataout.dump.step31desc3") }}</li>
       <li>
         {{ $t("docs.dataout.dump.step31desc4")
-        }}<a :href="`https://docs.${urlPart}.com/taos-sql/escape/`">{{
+        }}&nbsp;&nbsp;<a :href="`https://docs.${urlPart}.com/taos-sql/escape/`">{{
           $t("docs.dataout.dump.step31desc5")
         }}</a>
         {{ $t("docs.dataout.dump.step31desc6") }}
@@ -141,7 +141,7 @@ export default {
       return this.url + "?token=" + this.token;
     },
     urlPart() {
-      return IsAliyun ? "taosdata" : "tdengine";
+      return navigator.language=='en' ?"tdengine": "taosdata";
     },
   },
 };

@@ -1,5 +1,4 @@
 import { request } from "@/utils/request";
-// import { jsonToObj } from "@/utils";
 import store from "@/store";
 import { compHeadAndData } from "@/utils";
 import { Message } from "element-ui";
@@ -13,16 +12,11 @@ export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.ap
       "Content-Type": "text/plain"
     },
     data: sqlStr
-    // data:type==='s'?{ sql: sqlStr }:''
-    // data: { sql: sqlStr },
   }).then(data => {
-    // return data;
-    // let cData = jsonToObj(data);
     let cData = JSON.parse(JSON.stringify(data))
     if (cData.code == 0) return composeData ? compHeadAndData(cData.column_meta, cData.data) : cData;
     return Promise.reject(cData?.desc ? cData : { desc: data || "Service Unavailable, please try again later!" });
   }).catch(err => {
-    // err.desc && Message.error(err.desc);
     return Promise.reject(err);
   });
 }
