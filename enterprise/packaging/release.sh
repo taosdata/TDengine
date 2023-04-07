@@ -29,7 +29,7 @@ verNumber=""
 verNumberComp="3.0.0.0"
 httpdBuild=false
 
-while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:" arg; do
+while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:" arg; do
   case $arg in
   v)
     #echo "verMode=$OPTARG"
@@ -87,6 +87,9 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:" arg; do
     #echo "cusEmail=$OPTARG"
     cusEmail=$(echo $OPTARG)
     ;;
+  G)
+    grantValue=$(echo $OPTARG)
+    ;;
   h)
     echo "Usage: $(basename $0) -v [cluster | edge] "
     echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...] "
@@ -102,6 +105,7 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:" arg; do
     echo "                  -N <custom name>"
     echo "                  -P <custom prompt>"
     echo "                  -M <custom email>"
+    echo "                     -G <grant days>"
     exit 0
     ;;
   ?) #unknow option
@@ -184,7 +188,6 @@ echo "=======================new version number: ${verNumber}, compatible versio
 build_time=$(date +"%F %R")
 
 # get commint id from git
-cd "${top_dir}/community"
 gitinfo=$(git rev-parse --verify HEAD)
 
 if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
@@ -206,11 +209,10 @@ fi
 mkdir -p ${compile_dir}
 cd ${compile_dir}
  
- 
-if [ "$cpuType" == "arm64" ] || [ "${osType}" == "Darwin" ] || [ "${cpuType}" == "mips64" ]; then
-   allocator_macro=""
-else
+if [[ "$allocator" == "jemalloc" ]]; then
    allocator_macro="-DJEMALLOC_ENABLED=true"
+else
+   allocator_macro=""
 fi
 
 #if [[ "$dbName" != "taos" ]]; then
@@ -251,7 +253,7 @@ if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" =
 #    if [[ "$dbName" != "taos" ]]; then
 #      replace_enterprise_$dbName
 #    fi
-    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=true ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail}
+    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=true ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DGRANT_VALUE=${grantValue}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"

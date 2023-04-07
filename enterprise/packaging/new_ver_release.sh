@@ -22,8 +22,9 @@ verType=stable      # -V [stable, beta]
 versionComp=3.0.0.0
 dockerMode="no"
 dockerProject="tdengine"
+grantValue=60
 
-while getopts "hb:c:n:l:v:d:V:N:P:M:D:" arg
+while getopts "hb:c:n:l:v:d:V:N:P:M:D:G:" arg
 do
   case $arg in
     c)
@@ -70,6 +71,9 @@ do
       #echo "cusEmail=$OPTARG"
       dockerProject=$(echo $OPTARG)
       ;;
+    G)
+      grantValue=$(echo $OPTARG)
+      ;;
     h)
       echo "Usage: `basename $0` -b [develop | master] "
       echo "                     -c [aarch32 | aarch64 | x64 ...] "
@@ -82,6 +86,7 @@ do
       echo "                     -P <custom prompt>"
       echo "                     -M <custom email>"
       echo "                     -D <harbor docker project>"
+      echo "                     -G <grant days>"
       exit 0
       ;;
     ?) #unknow option
@@ -106,11 +111,12 @@ fi
 
 if [ "$verMode" == "all" ];then
   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
-  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $cusName $cusPrompt $cusEmail
+  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $cusName $cusPrompt $cusEmail
 elif [ "$verMode" == "edge" ];then
   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
 elif [ "$verMode" == "cluster" ];then
-  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $cusName $cusPrompt $cusEmail
+  echo  "bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $cusName $cusPrompt $cusEmail"
+  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $cusName $cusPrompt $cusEmail
 elif [ "$verMode" == "cloud" ];then
   bash generate_cloud.sh $version $versionComp $branchName $verType $cpuType
 else
@@ -124,4 +130,10 @@ if [ "$dockerMode" == "build" ] || [ "$dockerMode" == "push" ];then
   else
     bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode
   fi
+fi
+
+if [[ ! -z "${cusName}" || ! -z "${cusPrompt}" || ! -z "${cusEmail}" ]];then
+    echo "custom name: ${cusName}, custom prompt: ${cusPrompt}, custom email: ${cusEmail}"
+    echo "communityDir: ${communityDir}, enterpriseDir: ${enterpriseDir}"
+    python3 ./repack-release.py -n ${cusName} -p ${cusPrompt} -e ${cusEmail} -d ${communityDir} -v ${version}
 fi
