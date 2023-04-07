@@ -51,10 +51,7 @@ class AutoGen:
         metas = []
         for i in range(cnt):
             colname = f"{pre}{i}"
-            if i < len(types):
-               sel = i
-            else:
-               sel = random.randint(0, len(types)-1)
+            sel = len(types) % len(types)
             coltype = types[sel]
             sql = f"{colname} {coltype}"
             if sqls != "":
