@@ -42,7 +42,8 @@ static int32_t destroy_file_system(struct STFileSystem **ppFS) {
 }
 
 static int32_t get_current_json(STsdb *pTsdb, char fname[]) {
-  return snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", pTsdb->path, TD_DIRSEP, "current.json"), 0;
+  snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", pTsdb->path, TD_DIRSEP, "current.json");
+  return 0;
 }
 
 static int32_t get_current_temp(STsdb *pTsdb, char fname[], EFsEditType etype) {
@@ -69,12 +70,43 @@ static int32_t load_fs_from_file(const char *fname, struct STFileSystem *pFS) {
 }
 
 static int32_t commit_edit(struct STFileSystem *pFS, EFsEditType etype) {
-  ASSERTS(0, "TODO: Not implemented yet");
+  int32_t code;
+  char    ofname[TSDB_FILENAME_LEN];
+  char    nfname[TSDB_FILENAME_LEN];
+
+  get_current_json(pFS->pTsdb, nfname);
+  get_current_temp(pFS->pTsdb, ofname, etype);
+
+  code = taosRenameFile(ofname, nfname);
+  if (code) {
+    code = TAOS_SYSTEM_ERROR(code);
+    return code;
+  }
+
+  ASSERTS(0, "TODO: Do changes to pFS");
+
   return 0;
 }
 
 static int32_t abort_edit(struct STFileSystem *pFS, EFsEditType etype) {
-  ASSERTS(0, "TODO: Not implemented yet");
+  int32_t code;
+  char    fname[TSDB_FILENAME_LEN];
+
+  get_current_temp(pFS->pTsdb, fname, etype);
+
+  code = taosRemoveFile(fname);
+  if (code) code = TAOS_SYSTEM_ERROR(code);
+
+  return code;
+}
+
+static int32_t scan_file_system(struct STFileSystem *pFS) {
+  // ASSERTS(0, "TODO: Not implemented yet");
+  return 0;
+}
+
+static int32_t scan_and_schedule_merge(struct STFileSystem *pFS) {
+  // ASSERTS(0, "TODO: Not implemented yet");
   return 0;
 }
 
@@ -107,8 +139,6 @@ static int32_t open_file_system(struct STFileSystem *pFS, int8_t rollback) {
           code = abort_edit(pFS, TSDB_FS_EDIT_COMMIT);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
-      } else {
-        ASSERTS(1, "Do nothing");
       }
 
       // check current.json.t existence
@@ -121,6 +151,12 @@ static int32_t open_file_system(struct STFileSystem *pFS, int8_t rollback) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
+
+  code = scan_file_system(pFS);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = scan_and_schedule_merge(pFS);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -182,7 +218,6 @@ _exit:
 
 int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS) {
   if (ppFS[0] == NULL) return 0;
-
   close_file_system(ppFS[0]);
   destroy_file_system(ppFS);
   return 0;
@@ -207,55 +242,43 @@ _exit:
               __func__,                                 //
               lino,                                     //
               tstrerror(code));
+  } else {
+    tsdbInfo("vgId:%d %s done, etype:%d",  //
+             TD_VID(pFS->pTsdb->pVnode),   //
+             __func__,                     //
+             etype);
   }
   return code;
 }
 
 int32_t tsdbFileSystemEditCommit(struct STFileSystem *pFS, EFsEditType etype) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  char    ofname[TSDB_FILENAME_LEN];
-  char    nfname[TSDB_FILENAME_LEN];
-
-  get_current_json(pFS->pTsdb, nfname);
-  get_current_temp(pFS->pTsdb, ofname, etype);
-
-  code = taosRenameFile(ofname, nfname);
-  if (code) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-_exit:
-  if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s",  //
-              TD_VID(pFS->pTsdb->pVnode),               //
-              __func__,                                 //
-              lino,                                     //
-              tstrerror(code));
-  }
+  int32_t code = commit_edit(pFS, etype);
   tsem_post(&pFS->canEdit);
+  if (code) {
+    tsdbError("vgId:%d %s failed since %s",  //
+              TD_VID(pFS->pTsdb->pVnode),    //
+              __func__,                      //
+              tstrerror(code));
+  } else {
+    tsdbInfo("vgId:%d %s done, etype:%d",  //
+             TD_VID(pFS->pTsdb->pVnode),   //
+             __func__,                     //
+             etype);
+  }
   return code;
 }
 
 int32_t tsdbFileSystemEditAbort(struct STFileSystem *pFS, EFsEditType etype) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  char    fname[TSDB_FILENAME_LEN];
-
-  get_current_temp(pFS->pTsdb, fname, etype);
-
-  code = taosRemoveFile(fname);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  int32_t code = abort_edit(pFS, etype);
+  tsem_post(&pFS->canEdit);
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s",  //
-              TD_VID(pFS->pTsdb->pVnode),               //
-              __func__,                                 //
-              lino,                                     //
-              tstrerror(code));
+    tsdbError("vgId:%d %s failed since %s, etype:%d",  //
+              TD_VID(pFS->pTsdb->pVnode),              //
+              __func__,                                //
+              tstrerror(code),                         //
+              etype);
   }
-  tsem_post(&pFS->canEdit);
   return code;
 }

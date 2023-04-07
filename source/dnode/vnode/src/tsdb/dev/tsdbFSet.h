@@ -24,11 +24,6 @@ extern "C" {
 
 /* Exposed Handle */
 struct SFileSet;
-struct SSttFileLayer {
-  int32_t        level;
-  int32_t        nFile;
-  struct STFile *fileList;
-};
 
 #define TSDB_STT_FILE_LEVEL_MAX 3
 
@@ -36,10 +31,17 @@ struct SSttFileLayer {
 
 /* Exposed Structs */
 struct SFileSet {
-  int32_t              fid;
-  int64_t              nextid;
-  struct STFile       *files[TSDB_FTYPE_MAX];
-  struct SSttFileLayer sttLayers[TSDB_STT_FILE_LEVEL_MAX];
+  int32_t        fid;
+  int64_t        nextid;
+  struct STFile *fHead;  // .head
+  struct STFile *fData;  // .data
+  struct STFile *fSma;   // .sma
+  struct STFile *fTomb;  // .tomb
+  struct {
+    int32_t        level;
+    int32_t        nFile;
+    struct STFile *fileList;
+  } lStt[TSDB_STT_FILE_LEVEL_MAX];
 };
 
 #ifdef __cplusplus
