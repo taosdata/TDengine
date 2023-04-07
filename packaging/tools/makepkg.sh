@@ -3,7 +3,7 @@
 # Generate tar.gz package for all os system
 
 set -e
-set -x
+# set -x
 
 curr_dir=$(pwd)
 compile_dir=$1
