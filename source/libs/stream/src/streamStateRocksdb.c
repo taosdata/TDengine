@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "rocksdb/c.h"
 #include "streamBackendRocksdb.h"
 #include "tcommon.h"
 #include "tlog.h"
@@ -543,6 +542,44 @@ int32_t streamStatePut_rocksdb(SStreamState* pState, const SWinKey* key, const v
   SStateKey sKey = {.key = *key, .opNum = pState->number};
   STREAM_STATE_PUT_ROCKSDB(pState, "default", &sKey, value, vLen);
   return code;
+}
+int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch) {
+  char* err = NULL;
+  rocksdb_write(pState->pTdbState->rocksdb, pState->pTdbState->writeOpts, (rocksdb_writebatch_t*)pBatch, &err);
+  if (err != NULL) {
+    qError("streamState failed to write batch, err:%s", err);
+    taosMemoryFree(err);
+    return -1;
+  }
+  return 0;
+}
+
+void* streamStateCreateBatch() {
+  rocksdb_writebatch_t* pBatch = rocksdb_writebatch_create();
+  return pBatch;
+}
+int32_t streamStateGetBatchSize(void* pBatch) {
+  if (pBatch == NULL) return -1;
+
+  return rocksdb_writebatch_count((rocksdb_writebatch_t*)pBatch);
+}
+
+void    streamStateClearBatch(void* pBatch) { rocksdb_writebatch_clear((rocksdb_writebatch_t*)pBatch); }
+void    streamStateDestroyBatch(void* pBatch) { rocksdb_writebatch_destroy((rocksdb_writebatch_t*)pBatch); }
+int32_t streamStatePutBatch(SStreamState* pState, const char* cfName, rocksdb_writebatch_t* pBatch, void* key,
+                            void* val, int32_t vlen) {
+  int i = streamGetInit(cfName);
+
+  if (i < 0) {
+    qError("streamState failed to put to cf name:%s", cfName);
+    return -1;
+  }
+  char    buf[128] = {0};
+  int32_t klen = ginitDict[i].enFunc((void*)key, buf);
+
+  rocksdb_column_family_handle_t* pCf = pState->pTdbState->pHandle[ginitDict[i].idx];
+  rocksdb_writebatch_put_cf((rocksdb_writebatch_t*)pBatch, pCf, buf, (size_t)klen, val, (size_t)vlen);
+  return 0;
 }
 int32_t streamStateGet_rocksdb(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
   int       code = 0;

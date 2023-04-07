@@ -54,9 +54,9 @@ typedef struct STdbState {
 
 // incremental state storage
 typedef struct {
-  STdbState* pTdbState;
+  STdbState*        pTdbState;
   SStreamFileState* pFileState;
-  int32_t    number;
+  int32_t           number;
 } SStreamState;
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages);
@@ -81,7 +81,7 @@ int32_t streamStateFuncDel(SStreamState* pState, const STupleKey* key);
 
 int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
 int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
-bool streamStateCheck(SStreamState* pState, const SWinKey* key);
+bool    streamStateCheck(SStreamState* pState, const SWinKey* key);
 int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal);
 int32_t streamStateDel(SStreamState* pState, const SWinKey* key);
 int32_t streamStateClear(SStreamState* pState);
