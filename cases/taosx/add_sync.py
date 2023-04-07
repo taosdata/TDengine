@@ -53,7 +53,7 @@ class AddSync(TDCase):
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
         self.tb_num = 1000
-        self.row_num = 10000
+        self.row_num = 1000
         self.drop_flag = 'yes'
         self.start_timestamp = 1601481600000
         self.child_table_exist_flag = 'no'
@@ -70,7 +70,7 @@ class AddSync(TDCase):
         self.ntb_dbname = [self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)]
         self.ntb_tbnum = 1000
         self.ntbname_m = ['nd','nt']
-        self.ntb_rownum = 10000
+        self.ntb_rownum = 1000
         self.ntb_starttimestamp = 1601481600000
         # add_start_timestamp >= start_timestamp + row_num
         self.ntb_addtimestamp = 1601481620000

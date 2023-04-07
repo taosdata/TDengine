@@ -50,8 +50,8 @@ class AddSync(TDCase):
         self.target_taosadapter = self.taosadapter_list[-1]
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
-        self.tb_num = 10
-        self.row_num = 100
+        self.tb_num = 1000
+        self.row_num = 1000
         self.drop_flag = 'yes'
         self.start_timestamp = 1601481600000
         self.child_table_exist_flag = 'no'
@@ -63,8 +63,8 @@ class AddSync(TDCase):
         # param for taosBenchmark with ntb check
         self.ntb_dbname = ['test1','test2']
         self.ntb_name_m = ['nd','nt']
-        self.ntb_num = 10
-        self.ntb_row_num = 100
+        self.ntb_num = 1000
+        self.ntb_row_num = 1000
         #param for taosx
         self.timeout = '5s'
     

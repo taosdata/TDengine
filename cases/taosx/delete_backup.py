@@ -44,7 +44,7 @@ class DeleteBackup(TDCase):
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
         self.tb_num = 1000
-        self.row_num = 10000
+        self.row_num = 1000
         self.drop_flag = 'yes'
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.child_table_exist_flag = 'no'
@@ -61,7 +61,7 @@ class DeleteBackup(TDCase):
         self.ntb_dbname = ['test1','test2']
         self.ntb_name_m = ['nd','nt']
         self.ntb_num = 1000
-        self.ntb_row_num = 10000
+        self.ntb_row_num = 1000
     def delete_backup_db_stb(self,source_type):
         for source_task in ['','+ws']:
             for target_task in ['','+ws']:

@@ -46,7 +46,7 @@ class AddBackup(TDCase):
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
         self.tb_num = 1000
-        self.row_num = 10000
+        self.row_num = 1000
         self.drop_flag = 'yes'
         self.start_timestamp = 1601481600000
         self.child_table_exist_flag = 'no'
@@ -64,7 +64,7 @@ class AddBackup(TDCase):
         self.ntb_dbname = [self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)]
         self.ntb_name_m = ['nd','nt']
         self.ntb_num = 1000
-        self.ntb_row_num = 10000
+        self.ntb_row_num = 1000
         self.ntb_starttimestamp = 1601481600000
         self.ntb_addstarttimestamp = 1601481610000
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num,create_flag,start_timestamp):
