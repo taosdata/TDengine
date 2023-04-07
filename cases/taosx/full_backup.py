@@ -48,7 +48,7 @@ class FullBackup(TDCase):
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
         self.tb_num = 1000
-        self.row_num = 10000
+        self.row_num = 1000
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
@@ -56,7 +56,7 @@ class FullBackup(TDCase):
         self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
         self.ntb_name_m = ['nd','nt']
         self.ntb_num = 1000
-        self.ntb_row_num = 10000
+        self.ntb_row_num = 1000
         # param for taosx
         self.timeout = '5s'
         self.target_dbname = 'target'
