@@ -581,6 +581,7 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
 SUdf *udfdNewUdf(const char *udfName) {
   SUdf *udfNew = taosMemoryCalloc(1, sizeof(SUdf));
   udfNew->refCount = 1;
+  udfNew->lastFetchTime = taosGetTimestampUs();
   strncpy(udfNew->name, udfName, TSDB_FUNC_NAME_LEN);
 
   udfNew->state = UDF_STATE_INIT;
@@ -618,6 +619,7 @@ SUdf *udfdGetOrCreateUdf(const char *udfName) {
   }
 
   SUdf  *udf = udfdNewUdf(udfName);
+
   SUdf **pUdf = &udf;
   taosHashPut(global.udfsHash, udfName, strlen(udfName), pUdf, POINTER_BYTES);
   uv_mutex_unlock(&global.udfsMutex);
@@ -902,8 +904,8 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     udf->version = *(int32_t *)taosArrayGet(retrieveRsp.pFuncVersions, 0);
 
     msgInfo->code = udfdSaveFuncBodyToFile(pFuncInfo, udf);
-    if (msgInfo->code == 0) {
-      udf->lastFetchTime = taosGetTimestampUs();
+    if (msgInfo->code != 0) {
+      udf->lastFetchTime = 0;
     }
     tFreeSFuncInfo(pFuncInfo);
     taosArrayDestroy(retrieveRsp.pFuncInfos);

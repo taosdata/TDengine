@@ -672,12 +672,15 @@ void ctgTestRspUdfInfo(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pR
   SRetrieveFuncRsp funcRsp = {0};
   funcRsp.numOfFuncs = 1;
   funcRsp.pFuncInfos = taosArrayInit(1, sizeof(SFuncInfo));
+  funcRsp.pFuncVersions = taosArrayInit(1, sizeof(int32_t));
   SFuncInfo funcInfo = {0};
   strcpy(funcInfo.name, "func1");
   funcInfo.funcType = ctgTestFuncType;
     
   (void)taosArrayPush(funcRsp.pFuncInfos, &funcInfo);
-
+  int32_t version = 0;
+  (void)taosArrayPush(funcRsp.pFuncVersions, &version);
+  
   int32_t rspLen = tSerializeSRetrieveFuncRsp(NULL, 0, &funcRsp);
   void   *pReq = rpcMallocCont(rspLen);
   tSerializeSRetrieveFuncRsp(pReq, rspLen, &funcRsp);
