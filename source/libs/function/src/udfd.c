@@ -387,12 +387,12 @@ int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
   }
 
   if (plugin->openFunc) {
-    int16_t lenPythonPath = strlen(tsUdfdLdLibPath) + strlen(tsTempDir) + 1 + 1;  // tsTempDir:tsUdfdLdLibPath
+    int16_t lenPythonPath = strlen(tsUdfdLdLibPath) + strlen(tsDataDir) + 1 + 1;  // tsDataDir:tsUdfdLdLibPath
     char   *pythonPath = taosMemoryMalloc(lenPythonPath);
 #ifdef WINDOWS
-    snprintf(pythonPath, lenPythonPath, "%s;%s", tsTempDir, tsUdfdLdLibPath);
+    snprintf(pythonPath, lenPythonPath, "%s;%s", tsDataDir, tsUdfdLdLibPath);
 #else
-    snprintf(pythonPath, lenPythonPath, "%s:%s", tsTempDir, tsUdfdLdLibPath);
+    snprintf(pythonPath, lenPythonPath, "%s:%s", tsDataDir, tsUdfdLdLibPath);
 #endif
     SScriptUdfEnvItem items[] = {{"PYTHONPATH", pythonPath}, {"LOGDIR", tsLogDir}};
     err = plugin->openFunc(items, 2);
@@ -527,9 +527,9 @@ void convertUdf2UdfInfo(SUdf *udf, SScriptUdfInfo *udfInfo) {
 int32_t udfdRenameUdfFile(SUdf *udf) {
   char newPath[PATH_MAX];
   if (udf->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
-    snprintf(newPath, PATH_MAX, "%s/lib%s_%d_%" PRId64 ".so", tsTempDir, udf->name, udf->version, udf->lastFetchTime);
+    snprintf(newPath, PATH_MAX, "%s/lib%s_%d_%" PRIx64 ".so", tsDataDir, udf->name, udf->version, udf->lastFetchTime);
   } else if (udf->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
-    snprintf(newPath, PATH_MAX, "%s/%s_%d_%" PRId64 ".py", tsTempDir, udf->name, udf->version, udf->lastFetchTime);
+    snprintf(newPath, PATH_MAX, "%s/%s_%d_%" PRIx64 ".py", tsDataDir, udf->name, udf->version, udf->lastFetchTime);
   } else {
     return TSDB_CODE_UDF_SCRIPT_NOT_SUPPORTED;
   }
@@ -827,7 +827,7 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 }
 
 int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
-  if (!osTempSpaceAvailable()) {
+  if (!osDataSpaceAvailable()) {
     terrno = TSDB_CODE_NO_AVAIL_DISK;
     fnError("udfd create shared library failed since %s", terrstr(terrno));
     return terrno;
@@ -835,9 +835,9 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
 
   char path[PATH_MAX] = {0};
 #ifdef WINDOWS
-  snprintf(path, sizeof(path), "%s%s_%d_%" PRId64, tsTempDir, pFuncInfo->name, udf->version, udf->lastFetchTime);
+  snprintf(path, sizeof(path), "%s%s_%d_%" PRIx64, tsDataDir, pFuncInfo->name, udf->version, udf->lastFetchTime);
 #else
-  snprintf(path, sizeof(path), "%s/%s_%d_%" PRId64, tsTempDir, pFuncInfo->name, udf->version, udf->lastFetchTime);
+  snprintf(path, sizeof(path), "%s/%s_%d_%" PRIx64, tsDataDir, pFuncInfo->name, udf->version, udf->lastFetchTime);
 #endif
   TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   if (file == NULL) {
