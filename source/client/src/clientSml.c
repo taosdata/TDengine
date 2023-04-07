@@ -174,6 +174,7 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName) {
     if (childTableNameLen == tag->keyLen && strncmp(tag->key, tsSmlChildTableName, tag->keyLen) == 0) {
       memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
       strncpy(childTableName, tag->value, (tag->length < TSDB_TABLE_NAME_LEN ? tag->length : TSDB_TABLE_NAME_LEN));
+      taosArrayRemove(tags, i);
       break;
     }
   }
