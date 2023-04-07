@@ -35,6 +35,7 @@ int32_t mndCheckTopicPrivilegeByName(SMnode *pMnode, const char *user, EOperType
 int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp) {
   memcpy(pRsp->user, pUser->user, TSDB_USER_LEN);
   pRsp->superAuth = 1;
+  pRsp->enable = pUser->enable;
   pRsp->version = pUser->authVersion;
   return 0;
 }

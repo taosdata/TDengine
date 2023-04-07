@@ -1337,11 +1337,13 @@ int32_t ctgChkSetTbAuthRes(SCatalog *pCtg, SCtgAuthReq *req, SCtgAuthRsp* res) {
   STableMeta *pMeta = NULL;
   SGetUserAuthRsp *pInfo = &req->authInfo;
   SHashObj *pTbs = (AUTH_TYPE_READ == req->singleType) ? pInfo->readTbs : pInfo->writeTbs;
-  
-  char *pCond = taosHashGet(pTbs, req->pRawReq->tbName.tname, strlen(req->pRawReq->tbName.tname));
+
+  char tbFullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(&req->pRawReq->tbName, tbFullName);
+  char *pCond = taosHashGet(pTbs, tbFullName, strlen(tbFullName));
   if (pCond) {
     if (strlen(pCond) > 1) {
-      CTG_RET(nodesStringToNode(pCond, &res->pRawRes->pCond));
+      CTG_ERR_RET(nodesStringToNode(pCond, &res->pRawRes->pCond));
     }
     
     res->pRawRes->pass = true;
