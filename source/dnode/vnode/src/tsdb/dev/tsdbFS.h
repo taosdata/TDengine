@@ -41,10 +41,9 @@ int32_t tsdbFileSystemEditAbort(struct STFileSystem *pFS, EFsEditType etype);
 
 /* Exposed Structs */
 struct STFileSystem {
-  STsdb           *pTsdb;
-  tsem_t           canEdit;
-  int32_t          nFileSet;
-  struct SFileSet *aFileSet;
+  STsdb  *pTsdb;
+  tsem_t  canEdit;
+  SArray *aFileSet;  // SArray<struct SFileSet>
 };
 
 #ifdef __cplusplus

@@ -28,6 +28,8 @@ extern "C" {
 
 #include "tsdbFileOp.h"
 
+#include "tsdbFSet.h"
+
 #include "tsdbFS.h"
 
 #include "tsdbSttFWriter.h"
