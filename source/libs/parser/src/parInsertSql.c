@@ -837,32 +837,31 @@ static int32_t parseUsingClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpS
   return code;
 }
 
+static void setUserAuthInfo(SParseContext* pCxt, SName* pTbName, SUserAuthInfo* pInfo) {
+  snprintf(pInfo->user, sizeof(pInfo->user), "%s", pCxt->pUser);
+  memcpy(&pInfo->tbName, pTbName, sizeof(SName));
+  pInfo->type = AUTH_TYPE_WRITE;
+}
+
 static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache) {
-  char dbFName[TSDB_DB_FNAME_LEN];
-  tNameGetFullDbName(pTbName, dbFName);
-  int32_t code = TSDB_CODE_SUCCESS;
-  bool    pass = true;
-  bool    exists = true;
+  int32_t       code = TSDB_CODE_SUCCESS;
+  SUserAuthInfo authInfo = {0};
+  setUserAuthInfo(pCxt, pTbName, &authInfo);
+  SUserAuthRes authRes = {0};
+  bool         exists = true;
   if (pCxt->async) {
-    SUserAuthInfo authInfo = {0};
-    SUserAuthRes  authRes = {0};
-//    code = catalogChkAuthFromCache(pCxt->pCatalog, pCxt->pUser, dbFName, AUTH_TYPE_WRITE, &pass, &exists);
     code = catalogChkAuthFromCache(pCxt->pCatalog, &authInfo, &authRes, &exists);
   } else {
     SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
                              .requestId = pCxt->requestId,
                              .requestObjRefId = pCxt->requestRid,
                              .mgmtEps = pCxt->mgmtEpSet};
-    SUserAuthInfo authInfo = {0};
-    SUserAuthRes  authRes = {0};
-    //code = catalogChkAuth(pCxt->pCatalog, &conn, pCxt->pUser, dbFName, AUTH_TYPE_WRITE, &pass);
     code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);
-
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (!exists) {
       *pMissCache = true;
-    } else if (!pass) {
+    } else if (!authRes.pass) {
       code = TSDB_CODE_PAR_PERMISSION_DENIED;
     }
   }
@@ -2023,7 +2022,7 @@ static int32_t buildInsertUserAuthReq(const char* pUser, SName* pName, SArray** 
 
   SUserAuthInfo userAuth = {.type = AUTH_TYPE_WRITE};
   snprintf(userAuth.user, sizeof(userAuth.user), "%s", pUser);
-  //tNameGetFullDbName(pName, userAuth.dbFName);
+  // tNameGetFullDbName(pName, userAuth.dbFName);
   taosArrayPush(*pUserAuth, &userAuth);
 
   return TSDB_CODE_SUCCESS;

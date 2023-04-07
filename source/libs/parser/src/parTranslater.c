@@ -976,7 +976,8 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
 }
 
 static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
-  if (NULL == pCxt->pCurrStmt || isSelectStmt(pCxt->pCurrStmt) && NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
+  if (NULL == pCxt->pCurrStmt ||
+      (isSelectStmt(pCxt->pCurrStmt) && NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
   }
 
@@ -6449,6 +6450,48 @@ static int32_t translateDropFunction(STranslateContext* pCxt, SDropFunctionStmt*
   return buildCmdMsg(pCxt, TDMT_MND_DROP_FUNC, (FSerializeFunc)tSerializeSDropFuncReq, &req);
 }
 
+static int32_t createRealTableForGrantTable(SGrantStmt* pStmt, SRealTableNode** pTable) {
+  SRealTableNode* pRealTable = (SRealTableNode*)nodesMakeNode(QUERY_NODE_REAL_TABLE);
+  if (NULL == pRealTable) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  strcpy(pRealTable->table.dbName, pStmt->objName);
+  strcpy(pRealTable->table.tableName, pStmt->tabName);
+  strcpy(pRealTable->table.tableAlias, pStmt->tabName);
+  *pTable = pRealTable;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt, SAlterUserReq* pReq) {
+  if (NULL == pStmt->pTagCond) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if ('\0' == pStmt->tabName[0] || '*' == pStmt->tabName[0]) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "The With clause can only be used for table level privilege");
+  }
+
+  pCxt->pCurrStmt = (SNode*)pStmt;
+  SRealTableNode* pTable = NULL;
+  int32_t         code = createRealTableForGrantTable(pStmt, &pTable);
+  if (TSDB_CODE_SUCCESS == code) {
+    SName name;
+    code = getTableMetaImpl(pCxt, toName(pCxt->pParseCxt->acctId, pTable->table.dbName, pTable->table.tableName, &name),
+                            &(pTable->pMeta));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addNamespace(pCxt, pTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateExpr(pCxt, &pStmt->pTagCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesNodeToString(pStmt->pTagCond, false, &pReq->tagCond, &pReq->tagCondLen);
+  }
+  nodesDestroyNode((SNode*)pTable);
+  return code;
+}
+
 static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   SAlterUserReq req = {0};
   if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
@@ -6465,10 +6508,7 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   strcpy(req.user, pStmt->userName);
   sprintf(req.objname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
   sprintf(req.tabName, "%s", pStmt->tabName);
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (NULL != pStmt->pTagCond) {
-    code = nodesNodeToString(pStmt->pTagCond, false, &req.tagCond, &req.tagCondLen);
-  }
+  int32_t code = translateGrantTagCond(pCxt, pStmt, &req);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
   }
