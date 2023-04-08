@@ -65,15 +65,18 @@ async fn main() -> anyhow::Result<()> {
         .clone()
         .or(args.verbose.clone().map(|v| v.log_level_filter()))
         .unwrap_or(log::LevelFilter::Info);
-    tracing_subscriber::fmt()
+    let subscriber = tracing_subscriber::fmt()
         .with_level(true)
-        .with_file(true)
         .with_thread_ids(true)
         .with_thread_names(true)
         .with_span_events(FmtSpan::ACTIVE)
         .with_max_level(log_level_to_tracing_level(log_level))
-        .pretty()
-        .init();
+        .compact();
+    if atty::is(atty::Stream::Stdout) {
+        subscriber.pretty().init();
+    } else {
+        subscriber.with_ansi(false).init();
+    }
 
     const EXPLORER_PORT: u16 = 6060;
     let port = args.port.unwrap_or(EXPLORER_PORT);
