@@ -13,6 +13,7 @@
 # pip install src/connector/python/
 
 # -*- coding: utf-8 -*-
+import os
 import sys
 import getopt
 import subprocess
@@ -22,6 +23,7 @@ import json
 import platform
 import socket
 import threading
+import importlib
 
 import toml
 sys.path.append("../pytest")
@@ -53,8 +55,39 @@ def checkRunTimeError():
         if hwnd:
             os.system("TASKKILL /F /IM taosd.exe")
 
+# 
+# run case on previous cluster
+#
+def runOnPreviousCluster(host, config, fileName):
+    print("enter run on previeous")
+    
+    # load case module
+    sep = "/"
+    if platform.system().lower() == 'windows':
+        sep = os.sep
+    moduleName = fileName.replace(".py", "").replace(sep, ".")
+    uModule = importlib.import_module(moduleName)
+    case = uModule.TDTestCase()
+
+    # create conn
+    conn = taos.connect(host, config)
+
+    # run case
+    case.init(conn, True)
+    try:
+        case.run()
+    except Exception as e:
+        tdLog.notice(repr(e))
+        tdLog.exit("%s failed" % (fileName))
+    # stop
+    case.stop()
+
+
 if __name__ == "__main__":
 
+    #
+    #  analysis paramaters
+    #
     fileName = "all"
     deployPath = ""
     masterIp = ""
@@ -75,8 +108,9 @@ if __name__ == "__main__":
     replicaVar = 1
     asan = False
     independentMnode = True
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RD:n:i:a', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','adaptercfgupdate','replicaVar','independentMnode'])
+    previousCluster = False
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RD:n:i:a:P', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','adaptercfgupdate','replicaVar','independentMnode','previous'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -101,6 +135,7 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-n the number of replicas')
             tdLog.printNoPrefix('-i independentMnode Mnode')
             tdLog.printNoPrefix('-a address sanitizer mode')
+            tdLog.printNoPrefix('-P run case with [P]revious cluster, do not create new cluster to run case.')
 
             sys.exit(0)
 
@@ -182,6 +217,12 @@ if __name__ == "__main__":
         if key in ['-n', '--replicaVar']:
             replicaVar = value
 
+        if key in ['-P', '--previous']:
+            previousCluster = True
+
+    #
+    # do exeCmd command
+    #
     if not execCmd == "":
         if restful:
             tAdapter.init(deployPath)
@@ -191,6 +232,9 @@ if __name__ == "__main__":
         exec(execCmd)
         quit()
 
+    #
+    # do stop option
+    #
     if (stop != 0):
         if (valgrind == 0):
             toBeKilled = "taosd"
@@ -248,6 +292,9 @@ if __name__ == "__main__":
 
         tdLog.info('stop All dnodes')
 
+    #
+    # get hostname
+    #
     if masterIp == "":
         host = socket.gethostname()
     else:
@@ -256,8 +303,20 @@ if __name__ == "__main__":
             host = config["host"]
         except Exception as r:
             host = masterIp
-
     tdLog.info("Procedures for tdengine deployed in %s" % (host))
+
+    #
+    # do previousCluster option
+    #
+    if previousCluster:
+        tdDnodes.init(deployPath, masterIp)
+        runOnPreviousCluster(host, tdDnodes.getSimCfgPath(), fileName)
+        tdLog.info("run on previous cluster end.")
+        quit()
+
+    #
+    # windows run
+    #
     if platform.system().lower() == 'windows':
         fileName = fileName.replace("/", os.sep)
         if (masterIp == "" and not fileName == "0-others\\udf_create.py"):
@@ -387,6 +446,10 @@ if __name__ == "__main__":
             tdCases.runOneWindows(conn, fileName)
         else:
             tdCases.runAllWindows(conn)
+
+    #
+    # linux run 
+    #         
     else:
         tdDnodes.setKillValgrind(killValgrind)
         tdDnodes.init(deployPath, masterIp)
@@ -418,6 +481,7 @@ if __name__ == "__main__":
             tAdapter.stop(force_kill=True)
 
         if dnodeNums == 1 :
+            # dnode is one
             tdDnodes.deploy(1,updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)
@@ -429,7 +493,7 @@ if __name__ == "__main__":
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
                 if not restful:
-                    conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+                    conn = taos.connect(host,config = tdDnodes.getSimCfgPath())
                 else:
                     conn = taosrest.connect(url=f"http://{host}:6041")
                 # tdSql.init(conn.cursor())
@@ -458,6 +522,7 @@ if __name__ == "__main__":
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
 
         else :
+            # dnode > 1 cluster
             tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
             dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums, mnodeNums=mnodeNums, independentMnode=independentMnode)
             tdDnodes = ClusterDnodes(dnodeslist)
@@ -476,6 +541,7 @@ if __name__ == "__main__":
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
+            # create taos connect
             if not restful:
                 conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
             else:
@@ -494,6 +560,7 @@ if __name__ == "__main__":
             except Exception as r:
                 print(r)
 
+            # do queryPolicy option
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
                 if restful:
@@ -515,6 +582,7 @@ if __name__ == "__main__":
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
                             
 
+        # run case
         if testCluster:
             tdLog.info("Procedures for testing cluster")
             if fileName == "all":
@@ -533,6 +601,7 @@ if __name__ == "__main__":
             else:
                 tdCases.runOneLinux(conn, fileName, replicaVar)
 
+        # do restart option
         if restart:
             if fileName == "all":
                 tdLog.info("not need to query ")
@@ -552,6 +621,7 @@ if __name__ == "__main__":
                 else:
                     tdLog.info("not need to query")
 
+    # close for end
     if conn is not None:
         conn.close()
     if asan:
