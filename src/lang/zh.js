@@ -1,4 +1,6 @@
 let agreementUrl = process.env.VUE_APP_AGREEMENT_URL;
+let oem=process.env.VUE_APP_CUS_NAME &&
+process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_NAME:'TDengine'
 export default {
   //通用部分
   download: "下载",
@@ -175,7 +177,7 @@ export default {
     taosxtip:'请先在 /etc/taos/explorer.toml 中配置Taosx',
     username:'用户名',
     password:'密码',
-    loginTitle:'登录 Explorer',
+    loginTitle:`登录 Explorer`,
     login: "登陆",
     loginLeftMessage: {
       title: "只需 200 美元，您就可以在一个月内管理 10,000 个智能电表生成的数据",
@@ -269,7 +271,7 @@ export default {
     appendEditor: "追加到编辑器",
     viewData: "查看200行数据",
     changeDBPrivilegeTip: "你想从{dbName}数据库{type} {listType}吗?",
-    exportDataViaCli: '通过TDengine CLI交互',
+    exportDataViaCli: `通过${oem} CLI交互`,
     noDatabase: "暂无数据库",
     dataExplorer: "数据浏览",
     createStable: "创建超级表",
@@ -1407,6 +1409,6 @@ export default {
   taosx404:'未配置 TaosX API，请检查 Explorer 配置',
   taosx500:'TaosX API 无法访问，请检查 taosx 服务状态',
   header:{
-    version:'TDengine服务版本'
+    version:`${oem}服务版本`
   }
 };

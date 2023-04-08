@@ -119,7 +119,7 @@ export default {
           }
         });
       } catch (error) {
-        Message.error(error)
+        console.log(error);
       }
     },
   },

@@ -1,7 +1,7 @@
 <template>
   <div class="page-wrapper">
     <MainContentHeader :title="$t('route.console')">
-      <router-link slot="right" to="/tools/docs/tool/TDengine%20CLI">{{ $t("data.exportDataViaCli") }}</router-link>
+      <router-link slot="right" to="/tools/docs/tool/TDengine%20CLI" v-if="!oemName">{{ $t("data.exportDataViaCli") }}</router-link>
     </MainContentHeader>
     <div class="console-content block-style">
       <div id="left" class="left">
@@ -26,6 +26,9 @@
       return {
         addSql: "",
         panelData: {},
+        oemName:
+        process.env.VUE_APP_CUS_NAME &&
+        process.env.VUE_APP_CUS_NAME !== "TDengine",
       };
     },
     computed: {},
