@@ -587,7 +587,7 @@ int32_t queryProcessRetrieveFuncRsp(void *output, char *msg, int32_t msgSize) {
 
   memcpy(output, funcInfo, sizeof(*funcInfo));
   taosArrayDestroy(out.pFuncInfos);
-  taosArrayDestroy(out.pFuncVersions);
+  taosArrayDestroy(out.pFuncExtraInfos);
   
   return TSDB_CODE_SUCCESS;
 }

@@ -428,8 +428,8 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
     goto RETRIEVE_FUNC_OVER;
   }
 
-  retrieveRsp.pFuncVersions = taosArrayInit(retrieveReq.numOfFuncs, sizeof(int32_t));
-  if (retrieveRsp.pFuncVersions == NULL) {
+  retrieveRsp.pFuncExtraInfos = taosArrayInit(retrieveReq.numOfFuncs, sizeof(SFuncExtraInfo));
+  if (retrieveRsp.pFuncExtraInfos == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto RETRIEVE_FUNC_OVER;
   }
@@ -472,8 +472,10 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
       }
     }
     taosArrayPush(retrieveRsp.pFuncInfos, &funcInfo);
-
-    taosArrayPush(retrieveRsp.pFuncVersions, &pFunc->funcVersion);
+    SFuncExtraInfo extraInfo = {0};
+    extraInfo.funcVersion = pFunc->funcVersion;
+    extraInfo.funcCreatedTime = pFunc->createdTime;
+    taosArrayPush(retrieveRsp.pFuncExtraInfos, &pFunc->funcVersion);
 
     mndReleaseFunc(pMnode, pFunc);
   }

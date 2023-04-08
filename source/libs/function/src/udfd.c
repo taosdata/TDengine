@@ -53,9 +53,9 @@ int32_t udfdCPluginOpen(SScriptUdfEnvItem *items, int numItems) { return 0; }
 
 int32_t udfdCPluginClose() { return 0; }
 
-const char *udfdCPluginUdfInitLoadInitDestoryFuncs(SUdfCPluginCtx *udfCtx, const char* udfName) {
-  char        initFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
-  char       *initSuffix = "_init";
+const char *udfdCPluginUdfInitLoadInitDestoryFuncs(SUdfCPluginCtx *udfCtx, const char *udfName) {
+  char  initFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
+  char *initSuffix = "_init";
   strcpy(initFuncName, udfName);
   strncat(initFuncName, initSuffix, strlen(initSuffix));
   uv_dlsym(&udfCtx->lib, initFuncName, (void **)(&udfCtx->initFunc));
@@ -100,7 +100,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
-  const char* udfName = udf->name;
+  const char *udfName = udf->name;
 
   udfdCPluginUdfInitLoadInitDestoryFuncs(udfCtx, udfName);
 
@@ -260,6 +260,7 @@ typedef enum { UDF_STATE_INIT = 0, UDF_STATE_LOADING, UDF_STATE_READY } EUdfStat
 typedef struct SUdf {
   char    name[TSDB_FUNC_NAME_LEN + 1];
   int32_t version;
+  int64_t createdTime;
 
   int8_t  funcType;
   int8_t  scriptType;
@@ -518,6 +519,7 @@ void convertUdf2UdfInfo(SUdf *udf, SScriptUdfInfo *udfInfo) {
   }
   udfInfo->name = udf->name;
   udfInfo->version = udf->version;
+  udfInfo->createdTime = udf->createdTime;
   udfInfo->outputLen = udf->outputLen;
   udfInfo->outputType = udf->outputType;
   udfInfo->path = udf->path;
@@ -527,9 +529,9 @@ void convertUdf2UdfInfo(SUdf *udf, SScriptUdfInfo *udfInfo) {
 int32_t udfdRenameUdfFile(SUdf *udf) {
   char newPath[PATH_MAX];
   if (udf->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
-    snprintf(newPath, PATH_MAX, "%s/lib%s_%d_%" PRIx64 ".so", tsDataDir, udf->name, udf->version, udf->lastFetchTime);
+    snprintf(newPath, PATH_MAX, "%s/lib%s_%d_%" PRIx64 ".so", tsDataDir, udf->name, udf->version, udf->createdTime);
   } else if (udf->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
-    snprintf(newPath, PATH_MAX, "%s/%s_%d_%" PRIx64 ".py", tsDataDir, udf->name, udf->version, udf->lastFetchTime);
+    snprintf(newPath, PATH_MAX, "%s/%s_%d_%" PRIx64 ".py", tsDataDir, udf->name, udf->version, udf->createdTime);
   } else {
     return TSDB_CODE_UDF_SCRIPT_NOT_SUPPORTED;
   }
@@ -606,7 +608,7 @@ SUdf *udfdGetOrCreateUdf(const char *udfName) {
   int64_t currTime = taosGetTimestampSec();
   bool    expired = false;
   if (pUdfHash) {
-    expired = currTime - (*pUdfHash)->lastFetchTime > 10 * 1000 * 1000; // 10s
+    expired = currTime - (*pUdfHash)->lastFetchTime > 10 * 1000 * 1000;  // 10s
     if (!expired) {
       ++(*pUdfHash)->refCount;
       SUdf *udf = *pUdfHash;
@@ -618,7 +620,7 @@ SUdf *udfdGetOrCreateUdf(const char *udfName) {
     }
   }
 
-  SUdf  *udf = udfdNewUdf(udfName);
+  SUdf *udf = udfdNewUdf(udfName);
 
   SUdf **pUdf = &udf;
   taosHashPut(global.udfsHash, udfName, strlen(udfName), pUdf, POINTER_BYTES);
@@ -805,7 +807,6 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     uv_mutex_destroy(&udf->lock);
     code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
     fnDebug("udfd destroy function returns %d", code);
-    taosRemoveFile(udf->path);
     taosMemoryFree(udf);
   }
   taosMemoryFree(handle);
@@ -835,22 +836,36 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
 
   char path[PATH_MAX] = {0};
 #ifdef WINDOWS
-  snprintf(path, sizeof(path), "%s%s_%d_%" PRIx64, tsDataDir, pFuncInfo->name, udf->version, udf->lastFetchTime);
+  snprintf(path, sizeof(path), "%s%s_%d_%" PRIx64, tsDataDir, pFuncInfo->name, udf->version, udf->createdTime);
 #else
-  snprintf(path, sizeof(path), "%s/%s_%d_%" PRIx64, tsDataDir, pFuncInfo->name, udf->version, udf->lastFetchTime);
+  snprintf(path, sizeof(path), "%s/%s_%d_%" PRIx64, tsDataDir, pFuncInfo->name, udf->version, udf->createdTime);
 #endif
+
+  bool fileExist = !(taosStatFile(path, NULL, NULL) < 0);
+  if (fileExist) {
+    // TODO: error processing
+    TdFilePtr file = taosOpenFile(path, TD_FILE_READ);
+    int64_t   size = 0;
+    taosFStatFile(file, &size, NULL);
+    taosCloseFile(file);
+    if (size == pFuncInfo->codeSize) {
+      strncpy(udf->path, path, PATH_MAX);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
   TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   if (file == NULL) {
     fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(errno));
     return TSDB_CODE_FILE_CORRUPTED;
   }
-
   int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
   if (count != pFuncInfo->codeSize) {
     fnError("udfd write udf shared library failed");
     return TSDB_CODE_FILE_CORRUPTED;
   }
   taosCloseFile(&file);
+
   strncpy(udf->path, path, PATH_MAX);
   return TSDB_CODE_SUCCESS;
 }
@@ -901,15 +916,17 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     udf->outputType = pFuncInfo->outputType;
     udf->outputLen = pFuncInfo->outputLen;
     udf->bufSize = pFuncInfo->bufSize;
-    udf->version = *(int32_t *)taosArrayGet(retrieveRsp.pFuncVersions, 0);
+    SFuncExtraInfo *pFuncExtraInfo = (SFuncExtraInfo *)taosArrayGet(retrieveRsp.pFuncExtraInfos, 0);
 
+    udf->version = pFuncExtraInfo->funcVersion;
+    udf->createdTime = pFuncExtraInfo->funcCreatedTime;
     msgInfo->code = udfdSaveFuncBodyToFile(pFuncInfo, udf);
     if (msgInfo->code != 0) {
       udf->lastFetchTime = 0;
     }
     tFreeSFuncInfo(pFuncInfo);
     taosArrayDestroy(retrieveRsp.pFuncInfos);
-    taosArrayDestroy(retrieveRsp.pFuncVersions);
+    taosArrayDestroy(retrieveRsp.pFuncExtraInfos);
   }
 
 _return:
