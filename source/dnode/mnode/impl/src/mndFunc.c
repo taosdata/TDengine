@@ -475,7 +475,7 @@ static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
     SFuncExtraInfo extraInfo = {0};
     extraInfo.funcVersion = pFunc->funcVersion;
     extraInfo.funcCreatedTime = pFunc->createdTime;
-    taosArrayPush(retrieveRsp.pFuncExtraInfos, &pFunc->funcVersion);
+    taosArrayPush(retrieveRsp.pFuncExtraInfos, &extraInfo);
 
     mndReleaseFunc(pMnode, pFunc);
   }

@@ -336,7 +336,8 @@ static int32_t udfdRun();
 static void    udfdConnectMnodeThreadFunc(void *args);
 
 SUdf *udfdNewUdf(const char *udfName);
-void  udfdGetFuncBodyPath(const SUdf *udf, const char *path);
+void  udfdGetFuncBodyPath(const SUdf *udf, char *path);
+
 void  udfdInitializeCPlugin(SUdfScriptPlugin *plugin) {
   plugin->scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
   plugin->openFunc = udfdCPluginOpen;
@@ -811,25 +812,25 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 }
 
 
-void udfdGetFuncBodyPath(const SUdf *udf, const char *path) {
+void udfdGetFuncBodyPath(const SUdf *udf, char *path) {
   if (udf->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
 #ifdef WINDOWS
-    snprintf(path, sizeof(path), "%s%s_%d_%" PRIx64 ".dll", tsDataDir, udf->name, udf->version, udf->createdTime);
+    snprintf(path, PATH_MAX, "%s%s_%d_%" PRIx64 ".dll", tsDataDir, udf->name, udf->version, udf->createdTime);
 #else
-    snprintf(path, sizeof(path), "%s/lib%s_%d_%" PRIx64 ".so", tsDataDir, udf->name, udf->version,
+    snprintf(path, PATH_MAX, "%s/lib%s_%d_%" PRIx64 ".so", tsDataDir, udf->name, udf->version,
              udf->createdTime);
 #endif
   } else if (udf->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
 #ifdef WINDOWS
-    snprintf(path, sizeof(path), "%s%s_%d_%" PRIx64 ".py", tsDataDir, udf->name, udf->version, udf->createdTime);
+    snprintf(path, PATH_MAX, "%s%s_%d_%" PRIx64 ".py", tsDataDir, udf->name, udf->version, udf->createdTime);
 #else
-    snprintf(path, sizeof(path), "%s/%s_%d_%" PRIx64 ".py", tsDataDir, udf->name, udf->version, udf->createdTime);
+    snprintf(path, PATH_MAX, "%s/%s_%d_%" PRIx64 ".py", tsDataDir, udf->name, udf->version, udf->createdTime);
 #endif
   } else {
 #ifdef WINDOWS
-    snprintf(path, sizeof(path), "%s%s_%d_%" PRIx64, tsDataDir, udf->name, udf->version, udf->createdTime);
+    snprintf(path, PATH_MAX, "%s%s_%d_%" PRIx64, tsDataDir, udf->name, udf->version, udf->createdTime);
 #else
-    snprintf(path, sizeof(path), "%s/lib%s_%d_%" PRIx64, tsDataDir, udf->name, udf->version, udf->createdTime);
+    snprintf(path, PATH_MAX, "%s/lib%s_%d_%" PRIx64, tsDataDir, udf->name, udf->version, udf->createdTime);
 #endif
   }
 }
@@ -849,7 +850,7 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
     TdFilePtr file = taosOpenFile(path, TD_FILE_READ);
     int64_t   size = 0;
     taosFStatFile(file, &size, NULL);
-    taosCloseFile(file);
+    taosCloseFile(&file);
     if (size == pFuncInfo->codeSize) {
       strncpy(udf->path, path, PATH_MAX);
       return TSDB_CODE_SUCCESS;
@@ -918,8 +919,8 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     udf->outputType = pFuncInfo->outputType;
     udf->outputLen = pFuncInfo->outputLen;
     udf->bufSize = pFuncInfo->bufSize;
-    SFuncExtraInfo *pFuncExtraInfo = (SFuncExtraInfo *)taosArrayGet(retrieveRsp.pFuncExtraInfos, 0);
 
+    SFuncExtraInfo *pFuncExtraInfo = (SFuncExtraInfo *)taosArrayGet(retrieveRsp.pFuncExtraInfos, 0);
     udf->version = pFuncExtraInfo->funcVersion;
     udf->createdTime = pFuncExtraInfo->funcCreatedTime;
     msgInfo->code = udfdSaveFuncBodyToFile(pFuncInfo, udf);
@@ -1478,7 +1479,7 @@ int main(int argc, char *argv[]) {
 
   uv_thread_t mnodeConnectThread;
   uv_thread_create(&mnodeConnectThread, udfdConnectMnodeThreadFunc, NULL);
-
+  
   udfdRun();
 
   removeListeningPipe();
