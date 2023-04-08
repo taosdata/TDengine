@@ -282,8 +282,8 @@ pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     // dbg!(output);
     log::info!("PI Connector exit with status {}", output.status);
 
-    // let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
-    let json: Value = serde_json::from_str(std::str::from_utf8(&output.stdout).unwrap()).unwrap();
+    let json: Value = serde_json::from_slice(&output.stdout)?;
+    // let json: Value = serde_json::from_str(std::str::from_utf8(&output.stdout).unwrap()).unwrap();
     let map = json.as_object().unwrap();
     let mut dataset = Vec::new();
     let mut point_names = map.get("pointsName").unwrap().as_array().unwrap().iter().map(|f| {
