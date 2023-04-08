@@ -158,7 +158,10 @@ void tFreeStreamObj(SStreamObj *pStream) {
   taosMemoryFree(pStream->sql);
   taosMemoryFree(pStream->ast);
   taosMemoryFree(pStream->physicalPlan);
-  if (pStream->outputSchema.nCols) taosMemoryFree(pStream->outputSchema.pSchema);
+
+  if (pStream->outputSchema.nCols) {
+    taosMemoryFree(pStream->outputSchema.pSchema);
+  }
 
   int32_t sz = taosArrayGetSize(pStream->tasks);
   for (int32_t i = 0; i < sz; i++) {
@@ -166,11 +169,14 @@ void tFreeStreamObj(SStreamObj *pStream) {
     int32_t taskSz = taosArrayGetSize(pLevel);
     for (int32_t j = 0; j < taskSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pLevel, j);
-      tFreeSStreamTask(pTask);
+      tFreeStreamTask(pTask);
     }
+
     taosArrayDestroy(pLevel);
   }
+
   taosArrayDestroy(pStream->tasks);
+
   // tagSchema.pSchema
   if (pStream->tagSchema.nCols > 0) {
     taosMemoryFree(pStream->tagSchema.pSchema);

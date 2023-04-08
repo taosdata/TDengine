@@ -121,9 +121,9 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
   int32_t actualLen = blockEncode(pBlock, pRetrieve->data, numOfCols);
 
   SStreamRetrieveReq req = {
-      .streamId = pTask->streamId,
+      .streamId = pTask->id.streamId,
       .srcNodeId = pTask->nodeId,
-      .srcTaskId = pTask->taskId,
+      .srcTaskId = pTask->id.taskId,
       .pRetrieve = pRetrieve,
       .retrieveLen = dataStrLen,
   };
@@ -168,7 +168,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
     }
     buf = NULL;
 
-    qDebug("task %d(child %d) send retrieve req to task %d at node %d, reqId %" PRId64, pTask->taskId,
+    qDebug("s-task:%s (child %d) send retrieve req to task %d at node %d, reqId %" PRId64, pTask->id.idStr,
            pTask->selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req.reqId);
   }
   code = 0;
@@ -238,7 +238,7 @@ int32_t streamDispatchOneCheckReq(SStreamTask* pTask, const SStreamTaskCheckReq*
   msg.pCont = buf;
   msg.msgType = TDMT_STREAM_TASK_CHECK;
 
-  qDebug("dispatch from task %d to task %d node %d: check msg", pTask->taskId, pReq->downstreamTaskId, nodeId);
+  qDebug("dispatch from task %d to task %d node %d: check msg", pTask->id.taskId, pReq->downstreamTaskId, nodeId);
 
   tmsgSendReq(pEpSet, &msg);
 
@@ -282,7 +282,7 @@ int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecov
 
   tmsgSendReq(pEpSet, &msg);
 
-  qDebug("dispatch from task %d to task %d node %d: recover finish msg", pTask->taskId, pReq->taskId, vgId);
+  qDebug("dispatch from task %d to task %d node %d: recover finish msg", pTask->id.taskId, pReq->taskId, vgId);
 
   return 0;
 FAIL:
@@ -319,7 +319,7 @@ int32_t streamDispatchOneDataReq(SStreamTask* pTask, const SStreamDispatchReq* p
   msg.pCont = buf;
   msg.msgType = pTask->dispatchMsgType;
 
-  qDebug("dispatch from task %d to task %d node %d: data msg", pTask->taskId, pReq->taskId, vgId);
+  qDebug("dispatch from task %d to task %d node %d: data msg", pTask->id.taskId, pReq->taskId, vgId);
 
   tmsgSendReq(pEpSet, &msg);
 
@@ -382,9 +382,9 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
 
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
     SStreamDispatchReq req = {
-        .streamId = pTask->streamId,
+        .streamId = pTask->id.streamId,
         .dataSrcVgId = pData->srcVgId,
-        .upstreamTaskId = pTask->taskId,
+        .upstreamTaskId = pTask->id.taskId,
         .upstreamChildId = pTask->selfChildId,
         .upstreamNodeId = pTask->nodeId,
         .blockNum = blockNum,
@@ -408,7 +408,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
 
     req.taskId = downstreamTaskId;
 
-    qDebug("dispatch from task %d (child id %d) to down stream task %d in vnode %d", pTask->taskId, pTask->selfChildId,
+    qDebug("dispatch from task %d (child id %d) to down stream task %d in vnode %d", pTask->id.taskId, pTask->selfChildId,
            downstreamTaskId, vgId);
 
     if (streamDispatchOneDataReq(pTask, &req, vgId, pEpSet) < 0) {
@@ -432,9 +432,9 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
     }
 
     for (int32_t i = 0; i < vgSz; i++) {
-      pReqs[i].streamId = pTask->streamId;
+      pReqs[i].streamId = pTask->id.streamId;
       pReqs[i].dataSrcVgId = pData->srcVgId;
-      pReqs[i].upstreamTaskId = pTask->taskId;
+      pReqs[i].upstreamTaskId = pTask->id.taskId;
       pReqs[i].upstreamChildId = pTask->selfChildId;
       pReqs[i].upstreamNodeId = pTask->nodeId;
       pReqs[i].blockNum = 0;
@@ -503,13 +503,13 @@ int32_t streamDispatch(SStreamTask* pTask) {
 
   SStreamDataBlock* pBlock = streamQueueNextItem(pTask->outputQueue);
   if (pBlock == NULL) {
-    qDebug("stream stop dispatching since no output: task %d", pTask->taskId);
+    qDebug("stream stop dispatching since no output: task %d", pTask->id.taskId);
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return 0;
   }
   ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
 
-  qDebug("stream dispatching: task %d", pTask->taskId);
+  qDebug("stream dispatching: task %d", pTask->id.taskId);
 
   int32_t code = 0;
   if (streamDispatchAllBlocks(pTask, pBlock) < 0) {

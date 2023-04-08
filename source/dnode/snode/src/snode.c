@@ -83,14 +83,11 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
     return -1;
   }
 
-  SReadHandle mgHandle = {
-      .vnode = NULL,
-      .numOfVgroups = (int32_t)taosArrayGetSize(pTask->childEpInfo),
-      .pStateBackend = pTask->pState,
-  };
+  int32_t numOfChildEp = taosArrayGetSize(pTask->childEpInfo);
+  SReadHandle mgHandle = { .vnode = NULL, .numOfVgroups = numOfChildEp, .pStateBackend = pTask->pState };
 
-  pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle, 0);
-  ASSERT(pTask->exec.executor);
+  pTask->exec.pExecutor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &mgHandle, 0);
+  ASSERT(pTask->exec.pExecutor);
 
   streamSetupTrigger(pTask);
   return 0;

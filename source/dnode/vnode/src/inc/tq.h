@@ -80,7 +80,7 @@ typedef struct {
 
 typedef struct {
   int8_t       subType;
-  STqReader*   pExecReader;
+  STqReader*   pTqReader;
   qTaskInfo_t  task;
   union {
     STqExecCol execCol;

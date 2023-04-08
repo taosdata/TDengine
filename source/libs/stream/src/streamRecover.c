@@ -16,7 +16,7 @@
 #include "streamInc.h"
 
 int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
-  qDebug("task %d at node %d launch recover", pTask->taskId, pTask->nodeId);
+  qDebug("s-task:%s at node %d launch recover", pTask->id.idStr, pTask->nodeId);
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
     atomic_store_8(&pTask->taskStatus, TASK_STATUS__RECOVER_PREPARE);
     streamSetParamForRecover(pTask);
@@ -56,8 +56,8 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
 // checkstatus
 int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version) {
   SStreamTaskCheckReq req = {
-      .streamId = pTask->streamId,
-      .upstreamTaskId = pTask->taskId,
+      .streamId = pTask->id.streamId,
+      .upstreamTaskId = pTask->id.taskId,
       .upstreamNodeId = pTask->nodeId,
       .childId = pTask->selfChildId,
   };
@@ -68,7 +68,7 @@ int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version) {
     req.downstreamTaskId = pTask->fixedEpDispatcher.taskId;
     pTask->checkReqId = req.reqId;
 
-    qDebug("task %d at node %d check downstream task %d at node %d", pTask->taskId, pTask->nodeId, req.downstreamTaskId,
+    qDebug("task %d at node %d check downstream task %d at node %d", pTask->id.taskId, pTask->nodeId, req.downstreamTaskId,
            req.downstreamNodeId);
     streamDispatchOneCheckReq(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
   } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
@@ -83,12 +83,12 @@ int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version) {
       taosArrayPush(pTask->checkReqIds, &req.reqId);
       req.downstreamNodeId = pVgInfo->vgId;
       req.downstreamTaskId = pVgInfo->taskId;
-      qDebug("task %d at node %d check downstream task %d at node %d (shuffle)", pTask->taskId, pTask->nodeId,
+      qDebug("task %d at node %d check downstream task %d at node %d (shuffle)", pTask->id.taskId, pTask->nodeId,
              req.downstreamTaskId, req.downstreamNodeId);
       streamDispatchOneCheckReq(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
   } else {
-    qDebug("task %d at node %d direct launch recover since no downstream", pTask->taskId, pTask->nodeId);
+    qDebug("task %d at node %d direct launch recover since no downstream", pTask->id.taskId, pTask->nodeId);
     streamTaskLaunchRecover(pTask, version);
   }
   return 0;
@@ -104,7 +104,7 @@ int32_t streamRecheckOneDownstream(SStreamTask* pTask, const SStreamTaskCheckRsp
       .downstreamNodeId = pRsp->downstreamNodeId,
       .childId = pRsp->childId,
   };
-  qDebug("task %d at node %d check downstream task %d at node %d (recheck)", pTask->taskId, pTask->nodeId,
+  qDebug("task %d at node %d check downstream task %d at node %d (recheck)", pTask->id.taskId, pTask->nodeId,
          req.downstreamTaskId, req.downstreamNodeId);
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
     streamDispatchOneCheckReq(pTask, &req, pRsp->downstreamNodeId, &pTask->fixedEpDispatcher.epSet);
@@ -160,11 +160,11 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
 
 // common
 int32_t streamSetParamForRecover(SStreamTask* pTask) {
-  void* exec = pTask->exec.executor;
+  void* exec = pTask->exec.pExecutor;
   return qStreamSetParamForRecover(exec);
 }
 int32_t streamRestoreParam(SStreamTask* pTask) {
-  void* exec = pTask->exec.executor;
+  void* exec = pTask->exec.pExecutor;
   return qStreamRestoreParam(exec);
 }
 int32_t streamSetStatusNormal(SStreamTask* pTask) {
@@ -174,14 +174,14 @@ int32_t streamSetStatusNormal(SStreamTask* pTask) {
 
 // source
 int32_t streamSourceRecoverPrepareStep1(SStreamTask* pTask, int64_t ver) {
-  void* exec = pTask->exec.executor;
+  void* exec = pTask->exec.pExecutor;
   return qStreamSourceRecoverStep1(exec, ver);
 }
 
 int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamRecoverStep1Req* pReq) {
   pReq->msgHead.vgId = pTask->nodeId;
-  pReq->streamId = pTask->streamId;
-  pReq->taskId = pTask->taskId;
+  pReq->streamId = pTask->id.streamId;
+  pReq->taskId = pTask->id.taskId;
   return 0;
 }
 
@@ -192,13 +192,13 @@ int32_t streamSourceRecoverScanStep1(SStreamTask* pTask) {
 
 int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req* pReq) {
   pReq->msgHead.vgId = pTask->nodeId;
-  pReq->streamId = pTask->streamId;
-  pReq->taskId = pTask->taskId;
+  pReq->streamId = pTask->id.streamId;
+  pReq->taskId = pTask->id.taskId;
   return 0;
 }
 
 int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver) {
-  void* exec = pTask->exec.executor;
+  void* exec = pTask->exec.pExecutor;
   if (qStreamSourceRecoverStep2(exec, ver) < 0) {
   }
   return streamScanExec(pTask, 100);
@@ -206,7 +206,7 @@ int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver) {
 
 int32_t streamDispatchRecoverFinishReq(SStreamTask* pTask) {
   SStreamRecoverFinishReq req = {
-      .streamId = pTask->streamId,
+      .streamId = pTask->id.streamId,
       .childId = pTask->selfChildId,
   };
   // serialize
@@ -227,13 +227,13 @@ int32_t streamDispatchRecoverFinishReq(SStreamTask* pTask) {
 
 // agg
 int32_t streamAggRecoverPrepare(SStreamTask* pTask) {
-  void* exec = pTask->exec.executor;
+  void* exec = pTask->exec.pExecutor;
   pTask->recoverWaitingUpstream = taosArrayGetSize(pTask->childEpInfo);
   return 0;
 }
 
 int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask) {
-  void* exec = pTask->exec.executor;
+  void* exec = pTask->exec.pExecutor;
   if (qStreamRestoreParam(exec) < 0) {
     return -1;
   }

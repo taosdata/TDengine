@@ -2432,10 +2432,8 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
     updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &nextWin, true);
     applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
                                     pSDataBlock->info.rows, numOfOutput);
-    SWinKey key = {
-        .ts = nextWin.skey,
-        .groupId = groupId,
-    };
+
+    SWinKey key = { .ts = nextWin.skey, .groupId = groupId };
     saveOutputBuf(pInfo->pState, &key, pResult, pInfo->aggSup.resultRowSize);
     releaseOutputBuf(pInfo->pState, &key, pResult);
     if (pInfo->delKey.ts > key.ts) {
@@ -4771,6 +4769,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       pInfo->numOfDatapack = 0;
       break;
     }
+
     pInfo->numOfDatapack++;
     printDataBlock(pBlock, "single interval recv");
 

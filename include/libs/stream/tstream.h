@@ -225,15 +225,15 @@ static FORCE_INLINE void* streamQueueCurItem(SStreamQueue* queue) {
 
 void* streamQueueNextItem(SStreamQueue* queue);
 
-SStreamDataSubmit2* streamDataSubmitNew(SPackedData submit);
+SStreamDataSubmit2* streamDataSubmitNew(SPackedData submit, int32_t type);
 void streamDataSubmitDestroy(SStreamDataSubmit2* pDataSubmit);
 
 SStreamDataSubmit2* streamSubmitBlockClone(SStreamDataSubmit2* pSubmit);
 
 typedef struct {
-  char* qmsg;
-  // followings are not applicable to encoder and decoder
-  void* executor;
+  char*             qmsg;
+  void*             pExecutor;   // not applicable to encoder and decoder
+  struct STqReader* pTqReader;  // not applicable to encoder and decoder
 } STaskExec;
 
 typedef struct {
@@ -280,16 +280,20 @@ typedef struct {
   SEpSet  epSet;
 } SStreamChildEpInfo;
 
-struct SStreamTask {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t totalLevel;
-  int8_t  taskLevel;
-  int8_t  outputType;
-  int16_t dispatchMsgType;
+typedef struct SStreamId {
+  int64_t     streamId;
+  int32_t     taskId;
+  const char* idStr;
+} SStreamId;
 
-  int8_t taskStatus;
-  int8_t schedStatus;
+struct SStreamTask {
+  SStreamId id;
+  int32_t   totalLevel;
+  int8_t    taskLevel;
+  int8_t    outputType;
+  int16_t   dispatchMsgType;
+  int8_t    taskStatus;
+  int8_t    schedStatus;
 
   // node info
   int32_t selfChildId;
@@ -319,11 +323,8 @@ struct SStreamTask {
     STaskSinkFetch         fetchSink;
   };
 
-  int8_t inputStatus;
-  int8_t outputStatus;
-
-  // STaosQueue*   inputQueue1;
-  // STaosQall*    inputQall;
+  int8_t        inputStatus;
+  int8_t        outputStatus;
   SStreamQueue* inputQueue;
   SStreamQueue* outputQueue;
 
@@ -345,8 +346,8 @@ struct SStreamTask {
   SArray* checkReqIds;  // shuffle
   int32_t refCnt;
 
-  int64_t checkpointingId;
-  int32_t checkpointAlignCnt;
+  int64_t    checkpointingId;
+  int32_t    checkpointAlignCnt;
 };
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -355,8 +356,9 @@ int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
 SStreamTask* tNewSStreamTask(int64_t streamId);
 int32_t      tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
-void         tFreeSStreamTask(SStreamTask* pTask);
+void         tFreeStreamTask(SStreamTask* pTask);
 int32_t      tAppendDataForStream(SStreamTask* pTask, SStreamQueueItem* pItem);
+bool         tInputQueueIsFull(const SStreamTask* pTask);
 
 static FORCE_INLINE void streamTaskInputFail(SStreamTask* pTask) {
   atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);

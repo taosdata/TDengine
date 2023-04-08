@@ -2001,7 +2001,11 @@ void qStreamCloseTsdbReader(void* task) {
 }
 
 static void extractTableList(SArray* pList, const SOperatorInfo* pOperator) {
-  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    SStreamScanInfo* pScanInfo = pOperator->info;
+    STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
+    taosArrayPush(pList, &pTableScanInfo->base.pTableListInfo);
+  } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pScanInfo = pOperator->info;
     taosArrayPush(pList, &pScanInfo->base.pTableListInfo);
   } else {

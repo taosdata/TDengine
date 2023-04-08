@@ -600,7 +600,7 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
     return -1;
   }
   pReq->head.vgId = htonl(pTask->nodeId);
-  pReq->taskId = pTask->taskId;
+  pReq->taskId = pTask->id.taskId;
   STransAction action = {0};
   memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
   action.pCont = pReq;
@@ -1208,7 +1208,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
         // task id
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataSetVal(pColInfo, numOfRows, (const char *)&pTask->taskId, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)&pTask->id.taskId, false);
 
         // node type
         char nodeType[20 + VARSTR_HEADER_SIZE] = {0};

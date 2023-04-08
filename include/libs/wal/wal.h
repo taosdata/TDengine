@@ -138,6 +138,7 @@ typedef struct {
   int8_t enableRef;
 } SWalFilterCond;
 
+// todo hide this struct
 typedef struct {
   SWal          *pWal;
   int64_t        readerId;
