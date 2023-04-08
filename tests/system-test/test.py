@@ -73,7 +73,7 @@ def runOnPreviousCluster(host, config, fileName):
     conn = taos.connect(host, config)
 
     # run case
-    case.init(conn, True)
+    case.init(conn, False)
     try:
         case.run()
     except Exception as e:
@@ -493,7 +493,7 @@ if __name__ == "__main__":
             if queryPolicy != 1:
                 queryPolicy=int(queryPolicy)
                 if not restful:
-                    conn = taos.connect(host,config = tdDnodes.getSimCfgPath())
+                    conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
                 else:
                     conn = taosrest.connect(url=f"http://{host}:6041")
                 # tdSql.init(conn.cursor())
