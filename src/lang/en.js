@@ -1,4 +1,6 @@
 let agreementUrl = process.env.VUE_APP_AGREEMENT_URL;
+let oem=process.env.VUE_APP_CUS_NAME &&
+process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_NAME:'TDengine'
 export default {
   //通用部分
   sqlPreview: "SQL Preview",
@@ -344,7 +346,7 @@ export default {
     appendEditor: "Append Editor",
     viewData: "view 200 rows of data",
     changeDBPrivilegeTip: "Do you want to {type} the {listType} from the {dbName} DB ?",
-    exportDataViaCli: "Explorer data via TDengine CLI",
+    exportDataViaCli: `Explorer data via ${oem} CLI`,
     noDatabase: "No Database",
     dataExplorer: "Data Explorer",
     createStable: "Create STable",
@@ -1747,6 +1749,6 @@ export default {
   taosx404: 'The Taosx API is not configured. Please check the explorer configuration',
   taosx500: 'The Taosx API cannot be accessed. Please check the Taosx service status',
   header: {
-    version: 'TDengine Server Version'
+    version: `${oem} Server Version`
   }
 };
