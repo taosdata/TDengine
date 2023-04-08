@@ -266,9 +266,9 @@ pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     );
 
     let point_filter = if let Some(pf) = config.point_filter {
-        pf.as_str()
+        pf
     } else {
-        "*"
+        String::from("*")
     };
 
     let output = command
