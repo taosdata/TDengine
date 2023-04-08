@@ -122,6 +122,15 @@ ELSE ()
     SET(TD_BULID_TAOSX FALSE)
 ENDIF ()
 
+IF ("${CUS_PROMPT}" STREQUAL "")
+    MESSAGE("CUS_PROMPT EMPTY set: ${CUS_PROMPT}")
+    SET(TAOSX_NAME "taosx")
+ELSE()
+    MESSAGE("CUS_PROMPT:${CUS_PROMPT}")
+    SET(TAOSX_NAME "${CUS_PROMPT}x")
+ENDIF()
+
+
 SET(OUTPUT_SERVICE_DIR ${CMAKE_BINARY_DIR}/build/share/srv)
 FILE(MAKE_DIRECTORY ${OUTPUT_SERVICE_DIR})
 
@@ -152,6 +161,7 @@ IF(TD_BULID_TAOSX)
                 COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build --release
                 INSTALL_COMMAND
                 COMMAND cmake -E copy target/release/taosx ${CMAKE_BINARY_DIR}/build/bin
+                COMMAND cmake -E copy target/${TAOSX_NAME}.service ${OUTPUT_SERVICE_DIR}
             )
         ELSE()
             ExternalProject_Add(taosx
@@ -167,6 +177,7 @@ IF(TD_BULID_TAOSX)
                COMMAND CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} ${TAOSX_BULID_COMMAND}
                INSTALL_COMMAND
                COMMAND cmake -E copy ${TAOSX_BINARY} ${CMAKE_BINARY_DIR}/build/bin
+               COMMAND cmake -E copy target/${TAOSX_NAME}.service ${OUTPUT_SERVICE_DIR}
                )
         ENDIF()
     ELSEIF (TD_WINDOWS)
