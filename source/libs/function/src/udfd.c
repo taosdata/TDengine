@@ -336,6 +336,7 @@ static int32_t udfdRun();
 static void    udfdConnectMnodeThreadFunc(void *args);
 
 SUdf *udfdNewUdf(const char *udfName);
+void  udfdGetFuncBodyPath(const SUdf *udf, const char *path);
 void  udfdInitializeCPlugin(SUdfScriptPlugin *plugin) {
   plugin->scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
   plugin->openFunc = udfdCPluginOpen;
@@ -526,22 +527,6 @@ void convertUdf2UdfInfo(SUdf *udf, SScriptUdfInfo *udfInfo) {
   udfInfo->scriptType = udf->scriptType;
 }
 
-int32_t udfdRenameUdfFile(SUdf *udf) {
-  char newPath[PATH_MAX];
-  if (udf->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
-    snprintf(newPath, PATH_MAX, "%s/lib%s_%d_%" PRIx64 ".so", tsDataDir, udf->name, udf->version, udf->createdTime);
-  } else if (udf->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
-    snprintf(newPath, PATH_MAX, "%s/%s_%d_%" PRIx64 ".py", tsDataDir, udf->name, udf->version, udf->createdTime);
-  } else {
-    return TSDB_CODE_UDF_SCRIPT_NOT_SUPPORTED;
-  }
-  int32_t code = taosRenameFile(udf->path, newPath);
-  if (code == 0) {
-    sprintf(udf->path, "%s", newPath);
-  }
-  return 0;
-}
-
 int32_t udfdInitUdf(char *udfName, SUdf *udf) {
   int32_t err = 0;
   err = udfdFillUdfInfoFromMNode(global.clientRpc, udfName, udf);
@@ -565,9 +550,7 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
   }
   uv_mutex_unlock(&global.scriptPluginsMutex);
   udf->scriptPlugin = global.scriptPlugins[udf->scriptType];
-
-  udfdRenameUdfFile(udf);
-
+  
   SScriptUdfInfo info = {0};
   convertUdf2UdfInfo(udf, &info);
   err = udf->scriptPlugin->udfInitFunc(&info, &udf->scriptUdfCtx);
@@ -827,6 +810,30 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   return;
 }
 
+
+void udfdGetFuncBodyPath(const SUdf *udf, const char *path) {
+  if (udf->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
+#ifdef WINDOWS
+    snprintf(path, sizeof(path), "%s%s_%d_%" PRIx64 ".dll", tsDataDir, udf->name, udf->version, udf->createdTime);
+#else
+    snprintf(path, sizeof(path), "%s/lib%s_%d_%" PRIx64 ".so", tsDataDir, udf->name, udf->version,
+             udf->createdTime);
+#endif
+  } else if (udf->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
+#ifdef WINDOWS
+    snprintf(path, sizeof(path), "%s%s_%d_%" PRIx64 ".py", tsDataDir, udf->name, udf->version, udf->createdTime);
+#else
+    snprintf(path, sizeof(path), "%s/%s_%d_%" PRIx64 ".py", tsDataDir, udf->name, udf->version, udf->createdTime);
+#endif
+  } else {
+#ifdef WINDOWS
+    snprintf(path, sizeof(path), "%s%s_%d_%" PRIx64, tsDataDir, udf->name, udf->version, udf->createdTime);
+#else
+    snprintf(path, sizeof(path), "%s/lib%s_%d_%" PRIx64, tsDataDir, udf->name, udf->version, udf->createdTime);
+#endif
+  }
+}
+
 int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
   if (!osDataSpaceAvailable()) {
     terrno = TSDB_CODE_NO_AVAIL_DISK;
@@ -835,12 +842,7 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
   }
 
   char path[PATH_MAX] = {0};
-#ifdef WINDOWS
-  snprintf(path, sizeof(path), "%s%s_%d_%" PRIx64, tsDataDir, pFuncInfo->name, udf->version, udf->createdTime);
-#else
-  snprintf(path, sizeof(path), "%s/%s_%d_%" PRIx64, tsDataDir, pFuncInfo->name, udf->version, udf->createdTime);
-#endif
-
+  udfdGetFuncBodyPath(udf, path);
   bool fileExist = !(taosStatFile(path, NULL, NULL) < 0);
   if (fileExist) {
     // TODO: error processing
