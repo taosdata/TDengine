@@ -338,7 +338,7 @@ static void    udfdConnectMnodeThreadFunc(void *args);
 SUdf *udfdNewUdf(const char *udfName);
 void  udfdGetFuncBodyPath(const SUdf *udf, char *path);
 
-void  udfdInitializeCPlugin(SUdfScriptPlugin *plugin) {
+void udfdInitializeCPlugin(SUdfScriptPlugin *plugin) {
   plugin->scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
   plugin->openFunc = udfdCPluginOpen;
   plugin->closeFunc = udfdCPluginClose;
@@ -551,7 +551,7 @@ int32_t udfdInitUdf(char *udfName, SUdf *udf) {
   }
   uv_mutex_unlock(&global.scriptPluginsMutex);
   udf->scriptPlugin = global.scriptPlugins[udf->scriptType];
-  
+
   SScriptUdfInfo info = {0};
   convertUdf2UdfInfo(udf, &info);
   err = udf->scriptPlugin->udfInitFunc(&info, &udf->scriptUdfCtx);
@@ -811,14 +811,12 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   return;
 }
 
-
 void udfdGetFuncBodyPath(const SUdf *udf, char *path) {
   if (udf->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
 #ifdef WINDOWS
     snprintf(path, PATH_MAX, "%s%s_%d_%" PRIx64 ".dll", tsDataDir, udf->name, udf->version, udf->createdTime);
 #else
-    snprintf(path, PATH_MAX, "%s/lib%s_%d_%" PRIx64 ".so", tsDataDir, udf->name, udf->version,
-             udf->createdTime);
+    snprintf(path, PATH_MAX, "%s/lib%s_%d_%" PRIx64 ".so", tsDataDir, udf->name, udf->version, udf->createdTime);
 #endif
   } else if (udf->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
 #ifdef WINDOWS
@@ -846,15 +844,8 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
   udfdGetFuncBodyPath(udf, path);
   bool fileExist = !(taosStatFile(path, NULL, NULL) < 0);
   if (fileExist) {
-    // TODO: error processing
-    TdFilePtr file = taosOpenFile(path, TD_FILE_READ);
-    int64_t   size = 0;
-    taosFStatFile(file, &size, NULL);
-    taosCloseFile(&file);
-    if (size == pFuncInfo->codeSize) {
-      strncpy(udf->path, path, PATH_MAX);
-      return TSDB_CODE_SUCCESS;
-    }
+    strncpy(udf->path, path, PATH_MAX);
+    return TSDB_CODE_SUCCESS;
   }
 
   TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
@@ -1479,7 +1470,7 @@ int main(int argc, char *argv[]) {
 
   uv_thread_t mnodeConnectThread;
   uv_thread_create(&mnodeConnectThread, udfdConnectMnodeThreadFunc, NULL);
-  
+
   udfdRun();
 
   removeListeningPipe();
