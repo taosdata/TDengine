@@ -22,10 +22,10 @@ def replace_contents(dir, args):
                 content = fin.read()
                 if "support@taosdata.com" in content:
                     content = content.replace("support@taosdata.com", args.email)
-                    print("replaced support@taosdata.com with "+args.email+" in "+file_path)
+                    print("replaced _support@taosdata.com_ with _"+args.email+"_ in "+file_path)
                 if "taos" in content:
                     content = content.replace("taos", args.prompt)
-                    print("replaced taos with "+args.prompt+" in "+file_path)
+                    print("replaced _taos_ with _"+args.prompt+"_ in "+file_path)
                 fin.close()
 
                 fout = open(file_path, "w")
@@ -38,13 +38,16 @@ def replace_contents(dir, args):
                 content = fin.read()
                 if "log/taos" in content:
                     content = content.replace("log/taos", "log/"+args.prompt)
-                    print("replaced log/taos with log/"+args.prompt+" in "+file_path)
+                    print("replaced _log/taos_ with _log/"+args.prompt+"_ in "+file_path)
                 if "lib/taos" in content:
                     content = content.replace("lib/taos", "lib/"+args.prompt)
-                    print("replaced lib/taos with lib/"+args.prompt+" in "+file_path)
+                    print("replaced _lib/taos_ with _lib/"+args.prompt+"_ in "+file_path)
+                if "TDengine" in content:
+                    content = content.replace("TDengine", args.name)
+                    print("replaced _TDengine_ with _"+args.name+"_ in "+file_path)
                 if "taosAdapter" in content:
-                    content = content.replace("taosAdapter", args.prompt+"Adapter")
-                    print("replace taosAdapter with "+args.prompt+"Adapter in "+file_path)
+                    content = content.replace("taosAdapter that", args.prompt+"Adapter that")
+                    print("replace _taosAdapter that_ with _"+args.prompt+"Adapter that_ in "+file_path)
                 fin.close()
 
                 fout = open(file_path, "w")
