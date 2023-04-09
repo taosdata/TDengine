@@ -678,7 +678,9 @@ void ctgTestRspUdfInfo(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pR
   funcInfo.funcType = ctgTestFuncType;
     
   (void)taosArrayPush(funcRsp.pFuncInfos, &funcInfo);
-  SFuncExtraInfo extraInfo = {.funcVersion = 1, .funcCreatedTime = taosGetTimestampMs()};
+  SFuncExtraInfo extraInfo = {0};
+  extraInfo.funcVersion = 0;
+  extraInfo.funcCreatedTime = taosGetTimestampMs();
   (void)taosArrayPush(funcRsp.pFuncExtraInfos, &extraInfo);
   
   int32_t rspLen = tSerializeSRetrieveFuncRsp(NULL, 0, &funcRsp);
