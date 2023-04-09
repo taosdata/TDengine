@@ -1,6 +1,8 @@
 let agreementUrl = process.env.VUE_APP_AGREEMENT_URL;
 let oem=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_NAME:'TDengine'
+let grafanagds=process.env.VUE_APP_CUS_NAME &&
+process.env.VUE_APP_CUS_NAME !== "TDengine"?'':'TDengine'
 export default {
   //通用部分
   download: "下载",
@@ -707,7 +709,7 @@ export default {
   component: {
     docConfig: {
       title: "配置",
-      content: "请在您的终端先执行命令来保存 TDengine  的{0}为系统环境变量：",
+      content: `请在您的终端先执行命令来保存 ${grafanagds}  的{0}为系统环境变量：`,
       url: "网关URL和令牌",
       dsn: "DSN连接字符串",
       tmq: "TMQ连接字符串",
@@ -969,42 +971,42 @@ export default {
     },
     virtual: {
       grafana: {
-        desc: "TDengine 能够快速地与开源数据可视化系统 Grafana 集成来构件一个数据的监控和告警系统。整个过程无需进行任何代码开发，您就可以通过可视化您在 TDengine 的数据展示在仪表盘里面。",
-        topdesc: "TDengine 能够与开源数据可视化系统 ",
-        topdesc1: " 快速集成搭建数据监测报警系统，整个过程无需任何代码开发，TDengine 中数据表的内容可以在仪表盘(DashBoard)上进行可视化展现。",
-        topdesc2: "关于 TDengine 插件的使用您可以在 ",
+        desc: `${grafanagds} 能够快速地与开源数据可视化系统 Grafana 集成来构件一个数据的监控和告警系统。整个过程无需进行任何代码开发，您就可以通过可视化您在 TDengine 的数据展示在仪表盘里面。`,
+        topdesc: `${grafanagds} 能够与开源数据可视化系统 `,
+        topdesc1: `快速集成搭建数据监测报警系统，整个过程无需任何代码开发，${grafanagds} 中数据表的内容可以在仪表盘(DashBoard)上进行可视化展现。`,
+        topdesc2: `关于 ${grafanagds} 插件的使用您可以在 `,
         topdesc3: "中了解更多。",
         step1: "安装 Grafana",
-        step1desc: "目前 TDengine 支持 Grafana 7.5 以上的版本。用户可以根据当前的操作系统，到 Grafana 官网下载安装包，并执行安装。下载地址如下：",
-        step2: "安装 TDengine 插件",
-        step2desc: "请复制下面的脚本命令来为数据源安装设置 `TDENGINE_URL` 和 `TDENGINE_TOKEN` 的环境变量：",
-        step2desc1: "从 Linux 终端运行下面的脚本来安装 TDengine 数据源插件。",
+        step1desc: `目前 ${grafanagds} 支持 Grafana 7.5 以上的版本。用户可以根据当前的操作系统，到 Grafana 官网下载安装包，并执行安装。下载地址如下：`,
+        step2: `安装 ${grafanagds} 插件`,
+        step2desc: `请复制下面的脚本命令来为数据源安装设置 \`${grafanagds}_URL\` 和 \`${grafanagds}_TOKEN\` 的环境变量：`,
+        step2desc1: `从 Linux 终端运行下面的脚本来安装 ${grafanagds} 数据源插件。`,
         step2desc2: "安装结束以后，请重启 grafana-server。",
         step3: "验证插件",
         step3desc:
-          "用户可以通过 URL `http://localhost:3000`直接登录 Grafana 服务器（初始的用户名和密码是：admin/admin）。在左边点击`Configuration -> Data Sources`。然后点击 `Test` 按钮来验证 TDengine 数据源是否工作。如果测试通过，您应该可以看到成功消息。",
+          `用户可以通过 URL \`http://localhost:3000\`直接登录 Grafana 服务器（初始的用户名和密码是：admin/admin）。在左边点击\`Configuration -> Data Sources\`。然后点击 \`Test\` 按钮来验证 ${grafanagds} 数据源是否工作。如果测试通过，您应该可以看到成功消息。`,
         step4: "使用 Grafana",
-        step4desc: "请创建一个新的仪表盘，或者导入存在的仪表盘来展示 TDengine 里面的数据。",
+        step4desc: `请创建一个新的仪表盘，或者导入存在的仪表盘来展示 ${grafanagds} 里面的数据。`,
         step4desc1: "同时更多细节请参考",
         step4desc2: "文档",
         step4desc3: "。",
       },
       gds: {
-        desc: "Google Data Studio可以快速访问 TDengine， 并且通过基于网页的报表功能可以快速创建交互式的报表和仪表盘.",
+        desc: `Google Data Studio可以快速访问 ${grafanagds} 并且通过基于网页的报表功能可以快速创建交互式的报表和仪表盘.`,
         topdesc: "使用",
         topconnector: "第三方连接器",
         topdesc1:
-          "，Google Data Studio可以快速访问 TDengine， 并且通过基于网页的报表功能可以快速创建交互式的报表和仪表盘。整个过程不需要任何的代码编写过程。可以分享报表和仪表盘给不同的个人，团队以及全世界，还可以跟其他人员实时协作，另外在任何的网页里面嵌入您的报表。",
-        topdesc2: "更多使用 Data Studio 和 TDengine 集成可以参考",
+          `，Google Data Studio可以快速访问 ${grafanagds} 并且通过基于网页的报表功能可以快速创建交互式的报表和仪表盘。整个过程不需要任何的代码编写过程。可以分享报表和仪表盘给不同的个人，团队以及全世界，还可以跟其他人员实时协作，另外在任何的网页里面嵌入您的报表。`,
+        topdesc2: `更多使用 Data Studio 和 ${grafanagds} 集成可以参考`,
         topdesc3: "。",
         step1: "选择数据源",
         step1desc: "目前的",
         step1desc1: " 连接器",
-        step1desc2: " 支持两种不同的数据源：TDengine Server 和 TDengine 。首先选择”TDengine “类型然后点击”下一步“。",
+        step1desc2: ` 支持两种不同的数据源：${grafanagds} Server 和 ${grafanagds} 。首先选择”${grafanagds} “类型然后点击”下一步“。`,
         step2: "连接器配置",
         step21: "必须的配置",
-        step21desc: "TDengine  URL：",
-        step211: "TDengine 令牌：",
+        step21desc: `${grafanagds}  URL：`,
+        step211: `${grafanagds} 令牌：`,
         step212: "数据库",
         step212desc: "数据库的名称，该数据库包含您想查询数据和创建报表的的表，可以是一般表，超级表或者子表。",
         step213: "表",
@@ -1019,9 +1021,9 @@ export default {
         step221desc2:
           "`end time`输入框表明查询结束的时间戳。因此，在结束时间戳之后的数据也获取不到。这些条件是利用 SQL 的 where 语句来实现的。比如：",
         step221desc3: "事实上，您可通过一些过滤器来加快报表加载数据的速度。",
-        step221desc4: '在配置完成以后，点击"CONNECT"按钮，您就会连接上您的具有给定数据库和表的”TDengine  “。',
+        step221desc4: `在配置完成以后，点击"CONNECT"按钮，您就会连接上您的具有给定数据库和表的”${grafanagds}  “。`,
         step3: "创建报表和仪表盘",
-        step3desc: "使用交互式仪表盘和优美报表解锁您的 TDengine 数据能力，",
+        step3desc: `使用交互式仪表盘和优美报表解锁您的 ${grafanagds} 数据能力，`,
         step3desc1: "更多详情请参考",
         step3desc2: "文档",
         step3desc3: "。",
@@ -1189,7 +1191,7 @@ export default {
       },
     },
     topic: {
-      topdesc: "您可以按照下面的步骤消费组织的 TDengine 实例 中的主题。",
+      topdesc: `您可以按照下面的步骤消费组织的 ${grafanagds} 实例 中的主题。`,
       python: {
         step1: "安装模块",
         step1desc: "首先您需要安装 `taos-ws-py` 模块，版本需要大于 `0.2.1` 。在您的终端执行下面的命令。",

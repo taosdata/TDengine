@@ -22,7 +22,7 @@
       }}</a>
       {{ $t("docs.virtual.gds.step1desc2") }}
     </p>
-    <p>
+    <p v-if="!isOEM">
       <img
         src="./assets/gds/gds_data_source.webp"
         alt="Data Studio Data Source Selection"
@@ -63,7 +63,7 @@
 select * from test.demo where ts &gt;= &#39;2022-05-10 18:24:15&#39; and ts&lt;=&#39;2022-05-12 18:24:15&#39;
 </code></pre>
     <p>{{ $t("docs.virtual.gds.step221desc3") }}</p>
-    <p>
+    <p v-if="!isOEM">
       <img
         src="./assets/gds/gds_cloud_login.webp"
         alt="TDengine  Config Page"
@@ -72,7 +72,7 @@ select * from test.demo where ts &gt;= &#39;2022-05-10 18:24:15&#39; and ts&lt;=
     <p>{{ $t("docs.virtual.gds.step221desc4") }}</p>
     <h2 id="create-report-or-dashboard">{{ $t("docs.virtual.gds.step3") }}</h2>
     <p>{{ $t("docs.virtual.gds.step3desc") }}</p>
-    <p>
+    <p v-if="!isOEM">
       {{ $t("docs.virtual.gds.step3desc1")
       }}&nbsp;<a :href="`https://docs.${urlPart}.com/third-party/google-data-studio/`">{{
         $t("docs.virtual.gds.step3desc2")
@@ -94,8 +94,12 @@ export default {
       default: "",
     },
   },
-  data() {
-    return {};
+  data(){
+    return {
+      isOEM:
+        process.env.VUE_APP_CUS_NAME &&
+        process.env.VUE_APP_CUS_NAME !== "TDengine",
+    }
   },
   computed: {
     jdbcURL() {

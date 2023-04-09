@@ -3,7 +3,7 @@
     <MainContentHeader :title="$t('topic.pageTitle')"></MainContentHeader>
     <section class="content">
       <el-tabs value="topic">
-        <LinkTab :tabs="tabs" class="topic-heads" />
+        <LinkTab :tabs="isOEM?oemTabs:tabs" class="topic-heads" />
         <router-view></router-view>
         <!-- <el-tab-pane name="topic" :label="$t('topic.topic')">
           <Topic></Topic>
@@ -31,6 +31,9 @@ export default {
   },
   data() {
     return {
+      isOEM:
+        process.env.VUE_APP_CUS_NAME &&
+        process.env.VUE_APP_CUS_NAME !== "TDengine",
       tabs: [
         {
           label: this.$t("topic.topic"),
@@ -49,8 +52,23 @@ export default {
           name: "/topic/example",
         },
       ],
+      oemTabs:[
+        {
+          label: this.$t("topic.topic"),
+          name: "/topic",
+        },
+        {
+          label: this.$t("topic.consumer"),
+          name: "/topic/consumer",
+        },
+        {
+          label: this.$t("topic.shareTopic"),
+          name: "/topic/share",
+        }
+      ]
     };
   },
+  
 };
 </script>
 

@@ -59,7 +59,7 @@ export function deleteDBReq(payload, appId = store.getters.appId) {
   return request({
     baseURL:'',
     url: '/rest/sql',
-    data: `DROP DATABASE ${dbName};`,
+    data: `DROP DATABASE \`${dbName}\`;`,
     headers: {
       "Content-Type":"text/plain"
   },

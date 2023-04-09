@@ -27,6 +27,13 @@
         },
         immediate: true,
       },
+      tabs:{
+        deep:true,
+        handler(val){
+          console.log(val,'新tabs');
+          
+        }
+      }
     },
     created() {},
     mounted() {},
