@@ -14,9 +14,12 @@ use actix_embed::Embed;
 use actix_web::{
     error::{self, PayloadError},
     http::header::{ContentType, AUTHORIZATION},
-    middleware::Logger,
-    post, web, App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder,
+    middleware::{self, Logger},
+    post,
+    web::{self},
+    App, HttpMessage, HttpRequest, HttpResponse, HttpServer, Responder,
 };
+use awc::Client;
 
 use clap::Parser;
 use rust_embed::RustEmbed;
@@ -81,6 +84,7 @@ async fn main() -> anyhow::Result<()> {
     const EXPLORER_PORT: u16 = 6060;
     let port = args.port.unwrap_or(EXPLORER_PORT);
     let args = web::Data::new(args);
+    // let client = web::Data::new(Client::new());
 
     info!("Explorer service at http://0.0.0.0:{port}");
 
@@ -92,11 +96,12 @@ async fn main() -> anyhow::Result<()> {
         App::new()
             .wrap(TracingLogger::default())
             .wrap(Logger::default())
+            .wrap(middleware::Compress::default())
             .wrap(cors)
+            .app_data(web::Data::new(Client::new()))
             .app_data(args.clone())
             .route("/", web::get().to(index))
-            .service(rest_sql)
-            .service(rest_upload)
+            .route("/rest/{path:.*}", web::to(rest_proxy))
             .route("/api/x/{api:.*}", web::to(x_api))
             .route("/api/-/profile", web::to(profile))
             .route("/api-doc/openapi.json", web::to(x_api_doc))
@@ -135,52 +140,36 @@ async fn rest_sql_builtin(args: web::Data<Args>, req: HttpRequest, sql: String) 
     }
 }
 
-#[post("/rest/upload")]
-async fn rest_upload(
+// #[post("/rest/{path:.*}")]
+async fn rest_proxy(
     args: web::Data<Args>,
+    client: web::Data<Client>,
+    path: web::Path<(String,)>,
     req: HttpRequest,
-    mut body: web::Payload,
+    body: web::Payload,
 ) -> Result<HttpResponse, Error> {
-    req.method();
-    let mut bytes = web::BytesMut::new();
-    while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item?);
-    }
+    let (url,) = path.into_inner();
     let x = args.profile.cluster.as_deref().unwrap();
-    let url = format!("{x}/rest/upload?{}", req.query_string());
-    let client = awc::Client::builder().wrap(Tracing).finish();
+    let url = format!("{x}/rest/{url}");
     let method = req.method();
     let mut builder = client.request(method.clone(), url);
+    // .append_header((
+    //     AUTHORIZATION,
+    //     req.headers().get(AUTHORIZATION).map(Clone::clone).unwrap(),
+    // ))
+    // .append_header((ACCEPT, req.headers().get(ACCEPT).map(Clone::clone).unwrap()))
+    // .append_header((
+    //     ACCEPT_ENCODING,
+    //     req.headers()
+    //         .get(ACCEPT_ENCODING)
+    //         .map(Clone::clone)
+    //         .unwrap(),
+    // ))
+    // .content_type(req.content_type());
     *builder.headers_mut() = req.headers().clone();
-    let mut resp = builder
-        .content_type(req.content_type())
-        .send_body(bytes)
-        .await?;
-    Ok(HttpResponse::Ok().body(resp.body().await?))
-}
-
-#[post("/rest/sql")]
-async fn rest_sql(
-    args: web::Data<Args>,
-    req: HttpRequest,
-    mut body: web::Payload,
-) -> Result<HttpResponse, Error> {
-    req.method();
-    let mut bytes = web::BytesMut::new();
-    while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item?);
-    }
-    let x = args.profile.cluster.as_deref().unwrap();
-    let url = format!("{x}/rest/sql?{}", req.query_string());
-    let client = awc::Client::builder().wrap(Tracing).finish();
-    let method = req.method();
-    let mut builder = client.request(method.clone(), url);
-    *builder.headers_mut() = req.headers().clone();
-    let mut resp = builder
-        .content_type(req.content_type())
-        .send_body(bytes)
-        .await?;
-    Ok(HttpResponse::Ok().body(resp.body().await?))
+    // let bytes: BytesMut = body.try_collect().await?;
+    // Ok(dbg!(builder.send_body(bytes).await?.into_http_response()))
+    Ok(HttpResponse::Ok().body(builder.send_stream(body).await?.body().await?))
 }
 
 #[derive(Debug, thiserror::Error)]
