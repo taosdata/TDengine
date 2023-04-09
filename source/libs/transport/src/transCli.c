@@ -462,7 +462,6 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
   if (transQueueEmpty(&pConn->cliMsgs)) {
     if (pConn->broken == true && CONN_NO_PERSIST_BY_APP(pConn)) {
       tTrace("%s conn %p handle except, persist:0", CONN_GET_INST_LABEL(pConn), pConn);
-      if (T_REF_VAL_GET(pConn) > 1) transUnrefCliHandle(pConn);
       transUnrefCliHandle(pConn);
       return;
     }
@@ -522,7 +521,6 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
     destroyCmsg(pMsg);
     tTrace("%s conn %p start to destroy, ref:%d", CONN_GET_INST_LABEL(pConn), pConn, T_REF_VAL_GET(pConn));
   } while (!transQueueEmpty(&pConn->cliMsgs));
-  if (T_REF_VAL_GET(pConn) > 1) transUnrefCliHandle(pConn);
   transUnrefCliHandle(pConn);
 }
 void cliHandleExcept(SCliConn* conn) {
