@@ -223,27 +223,12 @@ static FORCE_INLINE void* streamQueueCurItem(SStreamQueue* queue) {
   return queue->qItem;
 }
 
-static FORCE_INLINE void* streamQueueNextItem(SStreamQueue* queue) {
-  int8_t dequeueFlag = atomic_exchange_8(&queue->status, STREAM_QUEUE__PROCESSING);
-  if (dequeueFlag == STREAM_QUEUE__FAILED) {
-    ASSERT(queue->qItem != NULL);
-    return streamQueueCurItem(queue);
-  } else {
-    queue->qItem = NULL;
-    taosGetQitem(queue->qall, &queue->qItem);
-    if (queue->qItem == NULL) {
-      taosReadAllQitems(queue->queue, queue->qall);
-      taosGetQitem(queue->qall, &queue->qItem);
-    }
-    return streamQueueCurItem(queue);
-  }
-}
+void* streamQueueNextItem(SStreamQueue* queue);
 
 SStreamDataSubmit2* streamDataSubmitNew(SPackedData submit);
+void streamDataSubmitDestroy(SStreamDataSubmit2* pDataSubmit);
 
-void streamDataSubmitRefDec(SStreamDataSubmit2* pDataSubmit);
-
-SStreamDataSubmit2* streamSubmitRefClone(SStreamDataSubmit2* pSubmit);
+SStreamDataSubmit2* streamSubmitBlockClone(SStreamDataSubmit2* pSubmit);
 
 typedef struct {
   char* qmsg;
@@ -371,43 +356,7 @@ SStreamTask* tNewSStreamTask(int64_t streamId);
 int32_t      tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
-
-static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
-  int8_t type = pItem->type;
-  if (type == STREAM_INPUT__DATA_SUBMIT) {
-    SStreamDataSubmit2* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit2*)pItem);
-    if (pSubmitClone == NULL) {
-      qDebug("task %d %p submit enqueue failed since out of memory", pTask->taskId, pTask);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
-      return -1;
-    }
-    qDebug("task %d %p submit enqueue %p %p %p %d %" PRId64, pTask->taskId, pTask, pItem, pSubmitClone,
-           pSubmitClone->submit.msgStr, pSubmitClone->submit.msgLen, pSubmitClone->submit.ver);
-    taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
-    // qStreamInput(pTask->exec.executor, pSubmitClone);
-  } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
-             type == STREAM_INPUT__REF_DATA_BLOCK) {
-    taosWriteQitem(pTask->inputQueue->queue, pItem);
-    // qStreamInput(pTask->exec.executor, pItem);
-  } else if (type == STREAM_INPUT__CHECKPOINT) {
-    taosWriteQitem(pTask->inputQueue->queue, pItem);
-    // qStreamInput(pTask->exec.executor, pItem);
-  } else if (type == STREAM_INPUT__GET_RES) {
-    taosWriteQitem(pTask->inputQueue->queue, pItem);
-    // qStreamInput(pTask->exec.executor, pItem);
-  }
-
-  if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0) {
-    atomic_val_compare_exchange_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
-  }
-
-#if 0
-  // TODO: back pressure
-  atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL);
-#endif
-  return 0;
-}
+int32_t      tAppendDataForStream(SStreamTask* pTask, SStreamQueueItem* pItem);
 
 static FORCE_INLINE void streamTaskInputFail(SStreamTask* pTask) {
   atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
