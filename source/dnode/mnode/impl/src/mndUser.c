@@ -791,50 +791,6 @@ _OVER:
 
   return code;
 }
-#if 0
-static int32_t mndProcessGetUserPassReq(SRpcMsg *pReq) {
-  SMnode         *pMnode = pReq->info.node;
-  int32_t         code = -1;
-  SUserObj       *pUser = NULL;
-  SGetUserPassReq req = {0};
-  SGetUserPassRsp rsp = {0};
-
-  if (tDeserializeSGetUserPassReq(pReq->pCont, pReq->contLen, &req) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
-
-  mTrace("user:%s, start to get pass", req.user);
-
-  pUser = mndAcquireUser(pMnode, req.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_USER_NOT_EXIST;
-    goto _OVER;
-  }
-
-  memcpy(rsp.user, pUser->user, TSDB_USER_LEN);
-  rsp.version = pUser->passVersion;
-
-  int32_t contLen = tSerializeSGetUserPassRsp(NULL, 0, &rsp);
-  void   *pRsp = rpcMallocCont(contLen);
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
-  }
-
-  tSerializeSGetUserPassRsp(pRsp, contLen, &rsp);
-
-  pReq->info.rsp = pRsp;
-  pReq->info.rspLen = contLen;
-  code = 0;
-
-_OVER:
-
-  mndReleaseUser(pMnode, pUser);
-
-  return code;
-}
-#endif
 
 static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode   *pMnode = pReq->info.node;

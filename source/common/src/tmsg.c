@@ -192,8 +192,6 @@ void *taosDecodeSEpSet(const void *buf, SEpSet *pEp) {
 static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pReq) {
   if (tEncodeSClientHbKey(pEncoder, &pReq->connKey) < 0) return -1;
 
-
-
   if (pReq->connKey.connType == CONN_TYPE__QUERY) {
     if (tEncodeI64(pEncoder, pReq->app.appId) < 0) return -1;
     if (tEncodeI32(pEncoder, pReq->app.pid) < 0) return -1;
@@ -214,7 +212,6 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
       queryNum = 1;
       if (tEncodeI32(pEncoder, queryNum) < 0) return -1;
       if (tEncodeU32(pEncoder, pReq->query->connId) < 0) return -1;
-      if (tEncodeI64(pEncoder, pReq->clusterId) < 0) return -1;
 
       int32_t num = taosArrayGetSize(pReq->query->queryDesc);
       if (tEncodeI32(pEncoder, num) < 0) return -1;
@@ -279,7 +276,6 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
       pReq->query = taosMemoryCalloc(1, sizeof(*pReq->query));
       if (NULL == pReq->query) return -1;
       if (tDecodeU32(pDecoder, &pReq->query->connId) < 0) return -1;
-      if (tDecodeI64(pDecoder, &pReq->clusterId) < 0) return -1;
       int32_t num = 0;
       if (tDecodeI32(pDecoder, &num) < 0) return -1;
       if (num > 0) {

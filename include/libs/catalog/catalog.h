@@ -325,8 +325,6 @@ int32_t catalogChkAuthFromCache(SCatalog* pCtg, const char* user, const char* db
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 
-// int32_t catalogUpdateUserPassInfo(SCatalog* pCtg, SGetUserPassRsp* pPass);
-
 int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet* epSet);
 
 int32_t catalogGetServerVersion(SCatalog* pCtg, SRequestConnInfo* pConn, char** pVersion);

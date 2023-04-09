@@ -133,6 +133,7 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t *fp, void *param) {
 
   pObj->passInfo.fp = fp;
 
+  releaseTscObj(*(int64_t *)taos);
   return 0;
 }
 
