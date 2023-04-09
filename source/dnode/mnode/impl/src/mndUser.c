@@ -22,7 +22,7 @@
 #include "mndTrans.h"
 #include "tbase64.h"
 
-#define USER_VER_NUMBER   2
+#define USER_VER_NUMBER   3
 #define USER_RESERVE_SIZE 64
 
 static int32_t  mndCreateDefaultUsers(SMnode *pMnode);
@@ -142,6 +142,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT8(pRaw, dataPos, pUser->enable, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->reserve, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pUser->authVersion, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pUser->passVersion, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfReadDbs, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfWriteDbs, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfTopics, _OVER)
@@ -188,7 +189,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver != 1 && sver != 2) {
+  if (sver < 1 || sver > USER_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto _OVER;
   }
@@ -210,6 +211,9 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pUser->enable, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pUser->reserve, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pUser->authVersion, _OVER)
+  if (sver >= 3) {
+    SDB_GET_INT32(pRaw, dataPos, &pUser->passVersion, _OVER)
+  }
 
   int32_t numOfReadDbs = 0;
   int32_t numOfWriteDbs = 0;
@@ -322,6 +326,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   taosWLockLatch(&pOld->lock);
   pOld->updateTime = pNew->updateTime;
   pOld->authVersion = pNew->authVersion;
+  pOld->passVersion = pNew->passVersion;
   pOld->sysInfo = pNew->sysInfo;
   pOld->enable = pNew->enable;
   memcpy(pOld->pass, pNew->pass, TSDB_PASSWORD_LEN);
@@ -543,10 +548,14 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
 
   if (mndUserDupObj(pUser, &newUser) != 0) goto _OVER;
 
+  newUser.passVersion = pUser->passVersion;
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
     char pass[TSDB_PASSWORD_LEN + 1] = {0};
     taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), pass);
     memcpy(newUser.pass, pass, TSDB_PASSWORD_LEN);
+    if (0 != strncmp(pUser->pass, pass, TSDB_PASSWORD_LEN)) {
+      ++newUser.passVersion;
+    }
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER) {
@@ -782,6 +791,50 @@ _OVER:
 
   return code;
 }
+#if 0
+static int32_t mndProcessGetUserPassReq(SRpcMsg *pReq) {
+  SMnode         *pMnode = pReq->info.node;
+  int32_t         code = -1;
+  SUserObj       *pUser = NULL;
+  SGetUserPassReq req = {0};
+  SGetUserPassRsp rsp = {0};
+
+  if (tDeserializeSGetUserPassReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mTrace("user:%s, start to get pass", req.user);
+
+  pUser = mndAcquireUser(pMnode, req.user);
+  if (pUser == NULL) {
+    terrno = TSDB_CODE_MND_USER_NOT_EXIST;
+    goto _OVER;
+  }
+
+  memcpy(rsp.user, pUser->user, TSDB_USER_LEN);
+  rsp.version = pUser->passVersion;
+
+  int32_t contLen = tSerializeSGetUserPassRsp(NULL, 0, &rsp);
+  void   *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  tSerializeSGetUserPassRsp(pRsp, contLen, &rsp);
+
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = contLen;
+  code = 0;
+
+_OVER:
+
+  mndReleaseUser(pMnode, pUser);
+
+  return code;
+}
+#endif
 
 static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode   *pMnode = pReq->info.node;
@@ -1016,6 +1069,72 @@ _OVER:
   *pRspLen = 0;
 
   tFreeSUserAuthBatchRsp(&batchRsp);
+  return code;
+}
+
+int32_t mndValidateUserPassInfo(SMnode *pMnode, SUserPassVersion *pUsers, int32_t numOfUses, void **ppRsp,
+                                int32_t *pRspLen) {
+  int32_t           code = 0;
+  SUserPassBatchRsp batchRsp = {0};
+
+  for (int32_t i = 0; i < numOfUses; ++i) {
+    SUserObj *pUser = mndAcquireUser(pMnode, pUsers[i].user);
+    if (pUser == NULL) {
+      mError("user:%s, failed to validate user pass since %s", pUsers[i].user, terrstr());
+      continue;
+    }
+
+    pUsers[i].version = ntohl(pUsers[i].version);
+    if (pUser->passVersion <= pUsers[i].version) {
+      mDebug("user:%s, not update since mnd passVer %d <= client passVer %d", pUsers[i].user, pUser->passVersion,
+             pUsers[i].version);
+      mndReleaseUser(pMnode, pUser);
+      continue;
+    }
+
+    SGetUserPassRsp rsp = {0};
+    memcpy(rsp.user, pUser->user, TSDB_USER_LEN);
+    rsp.version = pUser->passVersion;
+
+    if (!batchRsp.pArray && !(batchRsp.pArray = taosArrayInit(numOfUses, sizeof(SGetUserPassRsp)))) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      assert(0);
+      goto _OVER;
+    }
+
+    taosArrayPush(batchRsp.pArray, &rsp);
+    mndReleaseUser(pMnode, pUser);
+  }
+
+  if (taosArrayGetSize(batchRsp.pArray) <= 0) {
+    goto _OVER;
+  }
+
+  int32_t rspLen = tSerializeSUserPassBatchRsp(NULL, 0, &batchRsp);
+  if (rspLen < 0) {
+    assert(0);
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+  void   *pRsp = taosMemoryMalloc(rspLen);
+  if (pRsp == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    assert(0);
+    goto _OVER;
+  }
+  tSerializeSUserPassBatchRsp(pRsp, rspLen, &batchRsp);
+
+  *ppRsp = pRsp;
+  *pRspLen = rspLen;
+
+_OVER:
+  if (code) {
+    *ppRsp = NULL;
+    *pRspLen = 0;
+    assert(0);
+  }
+
+  tFreeSUserPassBatchRsp(&batchRsp);
   return code;
 }
 

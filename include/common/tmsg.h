@@ -106,6 +106,7 @@ enum {
   HEARTBEAT_KEY_DBINFO,
   HEARTBEAT_KEY_STBINFO,
   HEARTBEAT_KEY_TMQ,
+  HEARTBEAT_KEY_USER_PASSINFO,
 };
 
 typedef enum _mgmt_table {
@@ -704,6 +705,13 @@ int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pR
 int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
 
+typedef SGetUserAuthReq SGetUserPassReq;
+
+typedef struct {
+  char    user[TSDB_USER_LEN];
+  int32_t version;
+} SGetUserPassRsp;
+
 /*
  * for client side struct, only column id, type, bytes are necessary
  * But for data in vnode side, we need all the following information.
@@ -1033,6 +1041,14 @@ typedef struct {
 int32_t tSerializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp);
 int32_t tDeserializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp);
 void    tFreeSUserAuthBatchRsp(SUserAuthBatchRsp* pRsp);
+
+typedef struct {
+  SArray* pArray;  // Array of SGetUserPassRsp
+} SUserPassBatchRsp;
+
+int32_t tSerializeSUserPassBatchRsp(void* buf, int32_t bufLen, SUserPassBatchRsp* pRsp);
+int32_t tDeserializeSUserPassBatchRsp(void* buf, int32_t bufLen, SUserPassBatchRsp* pRsp);
+void    tFreeSUserPassBatchRsp(SUserPassBatchRsp* pRsp);
 
 typedef struct {
   char        db[TSDB_DB_FNAME_LEN];

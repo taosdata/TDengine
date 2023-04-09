@@ -133,6 +133,11 @@ typedef struct SAppInfo {
   TdThreadMutex mutex;
 } SAppInfo;
 
+typedef struct {
+  int32_t             ver;
+  __taos_notify_fn_t* fp;
+} SPassInfo;
+
 typedef struct STscObj {
   char          user[TSDB_USER_LEN];
   char          pass[TSDB_PASSWORD_LEN];
@@ -148,6 +153,7 @@ typedef struct STscObj {
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
+  SPassInfo     passInfo;
 } STscObj;
 
 typedef struct STscDbg {

@@ -119,6 +119,23 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   return NULL;
 }
 
+int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t *fp, void *param) {
+  if (taos == NULL) {
+    return 0;
+  }
+
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    tscError("invalid parameter for %s", __func__);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return -1;
+  }
+
+  pObj->passInfo.fp = fp;
+
+  return 0;
+}
+
 void taos_close_internal(void *taos) {
   if (taos == NULL) {
     return;

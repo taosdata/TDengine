@@ -547,6 +547,16 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         }
         break;
       }
+      case HEARTBEAT_KEY_USER_PASSINFO: {
+        void   *rspMsg = NULL;
+        int32_t rspLen = 0;
+        mndValidateUserPassInfo(pMnode, kv->value, kv->valueLen / sizeof(SUserPassVersion), &rspMsg, &rspLen);
+        if (rspMsg && rspLen > 0) {
+          SKv kv1 = {.key = HEARTBEAT_KEY_USER_PASSINFO, .valueLen = rspLen, .value = rspMsg};
+          taosArrayPush(hbRsp.info, &kv1);
+        }
+        break;
+      }
       default:
         mError("invalid kv key:%d", kv->key);
         hbRsp.status = TSDB_CODE_APP_ERROR;

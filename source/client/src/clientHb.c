@@ -49,6 +49,42 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t hbProcessUserPassInfoRsp(void *value, int32_t valueLen, SClientHbKey *connKey) {
+  int32_t  code = 0;
+  STscObj *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
+  if (NULL == pTscObj) {
+    tscWarn("tscObj rid %" PRIx64 " not exist", connKey->tscRid);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SUserPassBatchRsp batchRsp = {0};
+  if (tDeserializeSUserPassBatchRsp(value, valueLen, &batchRsp) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    releaseTscObj(connKey->tscRid);
+    assert(0);
+    return -1;
+  }
+
+  SPassInfo *passInfo = &pTscObj->passInfo;
+  int32_t    numOfBatchs = taosArrayGetSize(batchRsp.pArray);
+  for (int32_t i = 0; i < numOfBatchs; ++i) {
+    SGetUserPassRsp *rsp = taosArrayGet(batchRsp.pArray, i);
+    if (0 == strncmp(rsp->user, pTscObj->user, TSDB_USER_LEN)) {
+      tscError("update user:%s passVer from %d to %d", rsp->user, passInfo->ver, rsp->version);
+      if (atomic_load_32(&passInfo->ver) < rsp->version) {
+        atomic_store_32(&passInfo->ver, rsp->version);
+        if (passInfo->fp) {
+          (*passInfo->fp)(NULL);
+        }
+      }
+    }
+  }
+
+  taosArrayDestroy(batchRsp.pArray);
+  releaseTscObj(connKey->tscRid);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {
   int32_t code = 0;
   SDBVgInfo *vgInfo = taosMemoryCalloc(1, sizeof(SDBVgInfo));
@@ -291,6 +327,15 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
         hbProcessStbInfoRsp(kv->value, kv->valueLen, pCatalog);
         break;
       }
+      case HEARTBEAT_KEY_USER_PASSINFO: {
+        if (kv->valueLen <= 0 || NULL == kv->value) {
+          tscError("invalid hb user pass info, len:%d, value:%p", kv->valueLen, kv->value);
+          break;
+        }
+
+        hbProcessUserPassInfoRsp(kv->value, kv->valueLen, &pRsp->connKey);
+        break;
+      }
       default:
         tscError("invalid hb key type:%d", kv->key);
         break;
@@ -472,6 +517,48 @@ int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t hbGetUserBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
+  STscObj *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
+  if (!pTscObj) {
+    tscWarn("tscObj rid %" PRIx64 " not exist", connKey->tscRid);
+    return TSDB_CODE_APP_ERROR;
+  }
+
+  int32_t           code = 0;
+  SUserPassVersion *user = taosMemoryMalloc(sizeof(SUserPassVersion));
+  if (!user) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _return;
+  }
+  strncpy(user->user, pTscObj->user, TSDB_USER_LEN);
+  user->version = htonl(pTscObj->passInfo.ver);
+
+  SKv kv = {
+      .key = HEARTBEAT_KEY_USER_PASSINFO,
+      .valueLen = sizeof(SUserPassVersion),
+      .value = user,
+  };
+
+  tscDebug("hb got user basic info, valueLen:%d", kv.valueLen);
+
+  if (!req->info) {
+    req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+  }
+
+  if (taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv)) < 0) {
+    code = terrno ? terrno : TSDB_CODE_APP_ERROR;
+    goto _return;
+  }
+
+_return:
+  releaseTscObj(connKey->tscRid);
+  if (code) {
+    tscError("hb got user basic info failed since %s", terrstr(code));
+  }
+
+  return code;
+}
+
 int32_t hbGetExpiredUserInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req) {
   SUserAuthVersion *users = NULL;
   uint32_t          userNum = 0;
@@ -619,6 +706,8 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
   hbGetAppInfo(*clusterId, req);
 
   hbGetQueryBasicInfo(connKey, req);
+
+  hbGetUserBasicInfo(connKey, req);
 
   code = hbGetExpiredUserInfo(connKey, pCatalog, req);
   if (TSDB_CODE_SUCCESS != code) {

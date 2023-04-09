@@ -140,6 +140,11 @@ typedef struct SUserAuthVersion {
   int32_t version;
 } SUserAuthVersion;
 
+typedef struct SUserPassVersion {
+  char    user[TSDB_USER_LEN];
+  int32_t version;
+} SUserPassVersion;
+
 typedef SDbCfgRsp     SDbCfgInfo;
 typedef SUserIndexRsp SIndexInfo;
 
@@ -319,6 +324,8 @@ int32_t catalogChkAuthFromCache(SCatalog* pCtg, const char* user, const char* db
                                 bool* exists);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
+
+// int32_t catalogUpdateUserPassInfo(SCatalog* pCtg, SGetUserPassRsp* pPass);
 
 int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet* epSet);
 
