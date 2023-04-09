@@ -140,11 +140,6 @@ typedef struct SUserAuthVersion {
   int32_t version;
 } SUserAuthVersion;
 
-typedef struct SUserPassVersion {
-  char    user[TSDB_USER_LEN];
-  int32_t version;
-} SUserPassVersion;
-
 typedef SDbCfgRsp     SDbCfgInfo;
 typedef SUserIndexRsp SIndexInfo;
 

@@ -705,12 +705,13 @@ int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pR
 int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
 
-typedef SGetUserAuthReq SGetUserPassReq;
-
-typedef struct {
+typedef struct SUserPassVersion {
   char    user[TSDB_USER_LEN];
   int32_t version;
-} SGetUserPassRsp;
+} SUserPassVersion;
+
+typedef SGetUserAuthReq SGetUserPassReq;
+typedef SUserPassVersion SGetUserPassRsp;
 
 /*
  * for client side struct, only column id, type, bytes are necessary
