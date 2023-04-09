@@ -120,7 +120,7 @@ async fn main() -> anyhow::Result<()> {
 }`
       "
     ><code class="language-rust"></code></pre>
-    <p>
+    <p v-if="!isOEM">
       {{ $t("docs.topic.enddesc") }}
       <a :href="`https://docs.${urlPart}.com/develop/tmq/#data-subscription`">{{
         `https://docs.${urlPart}.com/develop/tmq/#data-subscription`
@@ -148,6 +148,13 @@ export default {
       type: String,
       default: "",
     },
+  },
+  data(){
+    return {
+      isOEM:
+        process.env.VUE_APP_CUS_NAME &&
+        process.env.VUE_APP_CUS_NAME !== "TDengine",
+    }
   },
   computed: {
     tmq() {

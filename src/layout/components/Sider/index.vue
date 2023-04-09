@@ -81,7 +81,7 @@ export default {
           title: this.$t("route.visualize"),
           icon: "visualize",
           meta:{
-            show:true
+            show: flag ? false : true,
           }
         },
         {

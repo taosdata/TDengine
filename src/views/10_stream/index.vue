@@ -41,7 +41,7 @@
           @current-change="handlePageChange"
         >
         </el-pagination>
-        <p class="default-tip" v-html="learnMoreTip"></p>
+        <p class="default-tip" v-html="learnMoreTip" v-if="!isOEM"></p>
       </div>
     </section>
     <!-- <el-dialog align="center" :title="$t('stream.createStream')" width="800px" :visible.sync="dialog">
@@ -89,6 +89,9 @@
     },
     data() {
       return {
+        isOEM:
+        process.env.VUE_APP_CUS_NAME &&
+        process.env.VUE_APP_CUS_NAME !== "TDengine",
         dialog: false,
         sql: "",
         sqlPrefix: "CREATE STREAM ",

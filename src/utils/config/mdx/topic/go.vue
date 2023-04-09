@@ -24,7 +24,7 @@ require github.com/taosdata/driver-go/v3 latest
   tmqcommon "github.com/taosdata/driver-go/v3/common/tmq"
   "github.com/taosdata/driver-go/v3/ws/tmq"
 )
-tmqStr := os.Getenv("TDENGINE_TMQ")
+tmqStr := os.Getenv(`TDENGINE_TMQ`)
 consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
   "ws.url":                tmqStr,
   "ws.message.channelLen": uint(0),
@@ -126,7 +126,7 @@ func main() {
       "
     ><code class="language-go">
 </code></pre>
-    <p>
+    <p v-if="!isOEM">
       {{ $t("docs.topic.enddesc") }}
       <a :href="`https://docs.${urlPart}.com/develop/tmq/#data-subscription`">{{
         `https://docs.${urlPart}.com/develop/tmq/#data-subscription`
@@ -154,6 +154,13 @@ export default {
       type: String,
       default: "",
     },
+  },
+  data(){
+    return {
+      isOEM:
+        process.env.VUE_APP_CUS_NAME &&
+        process.env.VUE_APP_CUS_NAME !== "TDengine",
+    }
   },
   computed: {
     tmq() {

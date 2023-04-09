@@ -23,8 +23,9 @@
     <p>{{ $t("docs.virtual.grafana.step2desc") }}</p>
     <pre
       v-highlight="
-        `export TDENGINE_TOKEN=&quot;${token}&quot;
-export TDENGINE_URL=&quot;${url}&quot;
+    
+        `export ${replaceTDENGINE}_TOKEN=&quot;${token}&quot;
+export ${replaceTDENGINE}_URL=&quot;${url}&quot;
 `
       "
     ><code class="language-bash"></code></pre>
@@ -44,7 +45,7 @@ export TDENGINE_URL=&quot;${url}&quot;
     ><code class="language-bash"></code></pre>
     <h2 id="verify-plugin">{{ $t("docs.virtual.grafana.step3") }}</h2>
     <p>{{ $t("docs.virtual.grafana.step3desc") }}</p>
-    <p>
+    <p v-if="!isOEM">
       <img
         src="./assets/grafana/verifying-tdengine-datasource.webp"
         alt="Verify TDengine data source"
@@ -52,7 +53,7 @@ export TDENGINE_URL=&quot;${url}&quot;
     </p>
     <h2 id="use-grafana">{{ $t("docs.virtual.grafana.step4") }}</h2>
     <p>{{ $t("docs.virtual.grafana.step4desc") }}</p>
-    <p>
+    <p v-if="!isOEM">
       {{ $t("docs.virtual.grafana.step4desc1")
       }}<a
         :href="`https://docs.${urlPart}.com/third-party/grafana#create-dashboard`"
@@ -75,10 +76,20 @@ export default {
       default: "",
     },
   },
+  data(){
+    return {
+      isOEM:
+        process.env.VUE_APP_CUS_NAME &&
+        process.env.VUE_APP_CUS_NAME !== "TDengine",
+    }
+  },
   computed: {
     urlPart() {
       return navigator.language.includes('en') ?"tdengine": "taosdata";
     },
+    replaceTDENGINE(){
+      return this.isOEM?'':'TDENGINE'
+    }
   },
 };
 </script>

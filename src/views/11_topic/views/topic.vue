@@ -33,7 +33,7 @@
       @current-change="handlePageChange"
     >
     </el-pagination>
-    <p class="default-tip" v-html="learnMoreTip"></p>
+    <p class="default-tip" v-html="learnMoreTip" v-if="!isOEM"></p>
      <el-dialog align="center" :close-on-click-modal="false" :title="title" :width="width" :visible.sync="dialog" @close='closeDialog'
       :destroy-on-close='true'>
       <component :is="dialogComp" v-bind="dialogParams" @close="close"></component>
@@ -74,6 +74,9 @@
     },
     data() {
       return {
+        isOEM:
+        process.env.VUE_APP_CUS_NAME &&
+        process.env.VUE_APP_CUS_NAME !== "TDengine",
         requestIng: false,
         dialog: false,
         sql: "",

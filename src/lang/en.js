@@ -1,6 +1,8 @@
 let agreementUrl = process.env.VUE_APP_AGREEMENT_URL;
 let oem=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_NAME:'TDengine'
+let grafanagds=process.env.VUE_APP_CUS_NAME &&
+process.env.VUE_APP_CUS_NAME !== "TDengine"?'':'TDengine'
 export default {
   //通用部分
   sqlPreview: "SQL Preview",
@@ -1294,46 +1296,46 @@ export default {
     },
     virtual: {
       grafana: {
-        desc: "TDengine can be quickly integrated with the open-source data visualization system Grafana to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in TDengine on a dashboard.",
-        topdesc: "TDengine can be quickly integrated with the open-source data visualization system ",
+        desc: `${grafanagds} can be quickly integrated with the open-source data visualization system Grafana to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in ${grafanagds} on a dashboard.`,
+        topdesc: `${grafanagds} can be quickly integrated with the open-source data visualization system `,
         topdesc1:
-          " to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in TDengine on a dashboard.",
-        topdesc2: "You can learn more about using the TDengine plugin on ",
+          `  to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in ${grafanagds} on a dashboard.`,
+        topdesc2: `You can learn more about using the ${grafanagds} plugin on `,
         topdesc3: ".",
         step1: "Install Grafana",
         step1desc:
-          "TDengine currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows:",
-        step2: "Install TDengine plugin",
+          `${grafanagds} currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows:`,
+        step2: `Install ${grafanagds} plugin`,
         step2desc:
-          "Please copy the following shell commands to export `TDENGINE_URL` and  `TDENGINE_TOKEN` for the data source installation.",
-        step2desc1: "Run below script from Linux terminal to install TDengine data source plugin.",
+          `Please copy the following shell commands to export \`${grafanagds}_URL\` and  \`${grafanagds}_TOKEN\` for the data source installation.`,
+        step2desc1: `Run below script from Linux terminal to install ${grafanagds} data source plugin.`,
         step2desc2: "After that completed, please restart grafana-server.",
         step3: "Verify Plugin",
         step3desc:
-          "Users can log in to the Grafana server (initial username/password:admin/admin) directly through the URL `http://localhost:3000`. Click `Configuration -&gt; Data Sources` on the left side. Then click `Test` button to verify if TDengine data source works. You should see a success message if the test worked.",
+          `Users can log in to the Grafana server (initial username/password:admin/admin) directly through the URL \`http://localhost:3000\`. Click \`Configuration -&gt; Data Sources\` on the left side. Then click \`Test\` button to verify if ${grafanagds} data source works. You should see a success message if the test worked.`,
         step4: "Use Grafana",
-        step4desc: "Please add new dashboard or import exist dashboard to illustrate the data you store in the TDengine.",
+        step4desc: `Please add new dashboard or import exist dashboard to illustrate the data you store in the ${grafanagds}.`,
         step4desc1: "And refer to the ",
         step4desc2: "documentation",
         step4desc3: "for more details.",
       },
       gds: {
-        desc: "Google Data Studio can quickly access TDengine and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development.",
+        desc: `Google Data Studio can quickly access ${grafanagds} and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development.`,
         topdesc: "Using its ",
         topconnector: "partner connector",
         topdesc1:
-          ", Google Data Studio can quickly access TDengine and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development. Share your reports and dashboards with individuals, teams, or the world. Collaborate in real time. Embed your report on any web page.",
+          ` , Google Data Studio can quickly access ${grafanagds} and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development. Share your reports and dashboards with individuals, teams, or the world. Collaborate in real time. Embed your report on any web page.`,
         topdesc2: "Refer to ",
-        topdesc3: "for additional information on utilizing the Data Studio with TDengine.",
+        topdesc3: `for additional information on utilizing the Data Studio with ${grafanagds}.`,
         step1: "Choose Data Source",
         step1desc: "The current ",
         step1desc1: "connector",
         step1desc2:
-          "supports two different types of data sources: TDengine Server and TDengine . Select &quot;TDengine &quot; and then click &quot;NEXT&quot;.",
+          `supports two different types of data sources: ${grafanagds} Server and ${grafanagds} . Select &quot;${grafanagds} &quot; and then click &quot;NEXT&quot;.`,
         step2: "Connector Configuration",
         step21: "Mandatory Config",
-        step21desc: "TDengine  URL:",
-        step211: "TDengine  Token:",
+        step21desc: `${grafanagds}  URL:`,
+        step211: `${grafanagds}  Token:`,
         step212: "database",
         step212desc:
           "The database name that contains the table(no matter if it is a normal table, a super table or a child table) is the one you want to query for data and make reports on.",
@@ -1351,9 +1353,9 @@ export default {
           "The `end time` indicates the query result&#39;s end timestamp. Therefore, records that were written after this end date cannot be retrieved. These conditions are utilized in the where clause in SQL statements, such as:",
         step221desc3: "In fact, you can speed up the data loading in your report by using these filters.",
         step221desc4:
-          "Click &quot;CONNECT&quot; once configuration is complete, then you can connect to your &quot;TDengine &quot; with the given database and table.",
+          `Click &quot;CONNECT&quot; once configuration is complete, then you can connect to your &quot;${grafanagds} &quot; with the given database and table.`,
         step3: "Connector Configuration",
-        step3desc: "Unlock the power of your data with interactive dashboards and beautiful reports with the data stored in TDengine.",
+        step3desc: `Unlock the power of your data with interactive dashboards and beautiful reports with the data stored in ${grafanagds}.`,
         step3desc1: "And refer to",
         step3desc2: "documentation",
         step3desc3: "for more details.",
