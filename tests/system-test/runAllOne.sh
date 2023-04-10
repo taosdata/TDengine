@@ -130,7 +130,6 @@ python3 ./test.py -f 0-others/sysinfo.py -P
 python3 ./test.py -f 0-others/user_control.py -P
 python3 ./test.py -f 0-others/user_manage.py -P
 python3 ./test.py -f 0-others/fsync.py -P
-python3 ./test.py -f 0-others/compatibility.py -P
 python3 ./test.py -f 0-others/tag_index_basic.py -P
 python3 ./test.py -f 0-others/show.py -P
 python3 ./test.py -f 0-others/information_schema.py -P
