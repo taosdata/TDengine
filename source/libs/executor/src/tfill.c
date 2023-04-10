@@ -44,7 +44,7 @@ static void setNotFillColumn(SFillInfo* pFillInfo, SColumnInfoData* pDstColInfo,
   } else {
     p = FILL_IS_ASC_FILL(pFillInfo) ? &pFillInfo->prev : &pFillInfo->next;
   }
-  
+
   SGroupKeys* pKey = taosArrayGet(p->pRowVal, colIdx);
   doSetVal(pDstColInfo, rowIndex, pKey);
 }
@@ -578,7 +578,12 @@ int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint*
   GET_TYPED_DATA(v1, double, inputType, point1->val);
   GET_TYPED_DATA(v2, double, inputType, point2->val);
 
-  double r = DO_INTERPOLATION(v1, v2, point1->key, point2->key, point->key);
+  double r = 0;
+  if (!IS_BOOLEAN_TYPE(inputType)) {
+    r = DO_INTERPOLATION(v1, v2, point1->key, point2->key, point->key);
+  } else {
+    r = (v1 < 1 || v2 < 1) ? 0 : 1;
+  }
   SET_TYPED_DATA(point->val, outputType, r);
 
   return TSDB_CODE_SUCCESS;
