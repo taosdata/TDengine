@@ -20,6 +20,10 @@
 #include "tlog.h"
 #include "tmisce.h"
 
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#include "cus_name.h"
+#endif
+
 GRANT_CFG_DECLARE;
 
 SConfig *tsCfg = NULL;
@@ -228,7 +232,11 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
 
   taosExpandDir(inputCfgDir, cfgDir, PATH_MAX);
   if (taosIsDir(cfgDir)) {
+#ifdef CUS_PROMPT
+    snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "%s.cfg", cfgDir, CUS_PROMPT);
+#else
     snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
+#endif
   } else {
     tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
   }

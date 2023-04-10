@@ -1961,29 +1961,39 @@ SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
   return pStmt;
 }
 
-SNode* createGrantStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDbName, SToken* pUserName) {
+SNode* createGrantStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair* pPrivLevel, SToken* pUserName,
+                       SNode* pTagCond) {
   CHECK_PARSER_STATUS(pCxt);
-  if (!checkDbName(pCxt, pDbName, false) || !checkUserName(pCxt, pUserName)) {
+  if (!checkDbName(pCxt, &pPrivLevel->first, false) || !checkUserName(pCxt, pUserName)) {
     return NULL;
   }
   SGrantStmt* pStmt = (SGrantStmt*)nodesMakeNode(QUERY_NODE_GRANT_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->privileges = privileges;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->objName, pDbName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
+  if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
+  }
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
+  pStmt->pTagCond = pTagCond;
   return (SNode*)pStmt;
 }
 
-SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDbName, SToken* pUserName) {
+SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair* pPrivLevel, SToken* pUserName,
+                        SNode* pTagCond) {
   CHECK_PARSER_STATUS(pCxt);
-  if (!checkDbName(pCxt, pDbName, false) || !checkUserName(pCxt, pUserName)) {
+  if (!checkDbName(pCxt, &pPrivLevel->first, false) || !checkUserName(pCxt, pUserName)) {
     return NULL;
   }
   SRevokeStmt* pStmt = (SRevokeStmt*)nodesMakeNode(QUERY_NODE_REVOKE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->privileges = privileges;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->objName, pDbName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
+  if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
+  }
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
+  pStmt->pTagCond = pTagCond;
   return (SNode*)pStmt;
 }
 

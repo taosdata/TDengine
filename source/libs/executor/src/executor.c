@@ -1188,7 +1188,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       tableListClear(pTableListInfo);
 
       if (mtInfo.uid == 0) {
-        return 0;  // no data
+        goto end;  // no data
       }
 
       initQueryTableDataCondForTmq(&pTaskInfo->streamInfo.tableCond, sContext, &mtInfo);
@@ -1222,6 +1222,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       qDebug("tmqsnap qStreamPrepareScan snapshot log, %s", id);
     }
   }
+
+end:
   pTaskInfo->streamInfo.currentOffset = *pOffset;
 
   return 0;

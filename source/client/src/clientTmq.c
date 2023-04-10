@@ -1148,6 +1148,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   };
 
   if (tsem_init(&param.rspSem, 0, 0) != 0) {
+    code = TSDB_CODE_TSC_INTERNAL_ERROR;
     goto FAIL;
   }
 
@@ -1183,6 +1184,8 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   int32_t retryCnt = 0;
   while (TSDB_CODE_MND_CONSUMER_NOT_READY == doAskEp(tmq)) {
     if (retryCnt++ > MAX_RETRY_COUNT) {
+      tscError("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry:%d in 500ms", tmq->consumerId, retryCnt);
+      code = TSDB_CODE_TSC_INTERNAL_ERROR;
       goto FAIL;
     }
 
@@ -1423,6 +1426,9 @@ static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
   char vgKey[TSDB_TOPIC_FNAME_LEN + 22];
   tscDebug("consumer:0x%" PRIx64 " update ep epoch from %d to epoch %d, incoming topics:%d, existed topics:%d",
            tmq->consumerId, tmq->epoch, epoch, topicNumGet, topicNumCur);
+  if (epoch <= tmq->epoch) {
+    return false;
+  }
 
   SArray* newTopics = taosArrayInit(topicNumGet, sizeof(SMqClientTopic));
   if (newTopics == NULL) {
@@ -1526,8 +1532,8 @@ int32_t askEpCallbackFn(void* param, SDataBuf* pMsg, int32_t code) {
   } else {
     tscDebug("consumer:0x%" PRIx64 ", recv ep, msg epoch %d, current epoch %d, update local ep", tmq->consumerId,
              head->epoch, epoch);
-    pParam->pUserFn(tmq, code, pMsg, pParam->pParam);
   }
+  pParam->pUserFn(tmq, code, pMsg, pParam->pParam);
 
   taosReleaseRef(tmqMgmt.rsetId, pParam->refId);
 
