@@ -231,11 +231,10 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
   
   if(pCreate->orReplace == 1){
     SFuncObj *oldFunc = mndAcquireFunc(pMnode, pCreate->name);
-    if(oldFunc == NULL){
-      goto _OVER;
+    if(oldFunc != NULL){
+      func.funcVersion = oldFunc->funcVersion + 1;
+      mndReleaseFunc(pMnode, oldFunc);
     }
-    func.funcVersion = oldFunc->funcVersion + 1;
-    mndReleaseFunc(pMnode, oldFunc);
   }
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-func");
@@ -319,6 +318,9 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
       mInfo("func:%s, already exist, ignore exist is set", createReq.name);
       code = 0;
       goto _OVER;
+    } else if (createReq.orReplace) {
+      mInfo("func:%s, replace function is set", createReq.name);
+      code = 0;
     } else {
       terrno = TSDB_CODE_MND_FUNC_ALREADY_EXIST;
       goto _OVER;
