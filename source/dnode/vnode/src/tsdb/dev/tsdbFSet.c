@@ -14,3 +14,12 @@
  */
 
 #include "dev.h"
+
+int32_t tsdbFileSetToJson(SJson *pJson, const struct SFileSet *pSet) {
+  int32_t code = 0;
+
+  ASSERTS(0, "TODO: Not implemented yet");
+
+_exit:
+  return code;
+}

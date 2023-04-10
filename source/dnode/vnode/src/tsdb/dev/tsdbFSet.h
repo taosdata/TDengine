@@ -52,6 +52,8 @@ struct SFileSet {
   } lStt[TSDB_STT_FILE_LEVEL_MAX];
 };
 
+int32_t tsdbFileSetToJson(SJson *pJson, const struct SFileSet *pSet);
+
 #ifdef __cplusplus
 }
 #endif
