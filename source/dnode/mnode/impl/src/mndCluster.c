@@ -104,11 +104,11 @@ int64_t mndGetClusterId(SMnode *pMnode) {
 
 int64_t mndGetClusterCreateTime(SMnode *pMnode) {
   int64_t      createTime = 0;
-  void       **ppIter = NULL;
-  SClusterObj *pCluster = mndAcquireCluster(pMnode, ppIter);
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
   if (pCluster != NULL) {
     createTime = pCluster->createdTime;
-    mndReleaseCluster(pMnode, pCluster, *ppIter);
+    mndReleaseCluster(pMnode, pCluster, pIter);
   }
 
   return createTime;
