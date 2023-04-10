@@ -57,10 +57,12 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   if (!pFileState) {
     goto _error;
   }
+  pFileState->maxRowCount = TMAX( (uint64_t)memSize / rowSize, FLUSH_NUM * 2);
   pFileState->usedBuffs = tdListNew(POINTER_BYTES);
   pFileState->freeBuffs = tdListNew(POINTER_BYTES);
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
-  pFileState->rowBuffMap = tSimpleHashInit(1024, hashFn);
+  int32_t cap = TMIN(10240, pFileState->maxRowCount);
+  pFileState->rowBuffMap = tSimpleHashInit(cap, hashFn);
   if (!pFileState->usedBuffs || !pFileState->freeBuffs || !pFileState->rowBuffMap) {
     goto _error;
   }
@@ -126,7 +128,9 @@ void clearExpiredRowBuff(SStreamFileState* pFileState, TSKEY ts, bool all) {
       ASSERT(pPos->pRowBuff != NULL);
       tdListAppend(pFileState->freeBuffs, &(pPos->pRowBuff));
       pPos->pRowBuff = NULL;
-      tSimpleHashRemove(pFileState->rowBuffMap, pPos->pKey, pFileState->keyLen);
+      if (!all) {
+        tSimpleHashRemove(pFileState->rowBuffMap, pPos->pKey, pFileState->keyLen);
+      }
       destroyRowBuffPos(pPos);
       tdListPopNode(pFileState->usedBuffs, pNode);
       taosMemoryFreeClear(pNode);
@@ -156,6 +160,7 @@ void popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, uin
       i++;
     }
   }
+  qInfo("do stream state flush %d rows to disck. is used: %d", listNEles(pFlushList), used);
 }
 
 int32_t flushRowBuff(SStreamFileState* pFileState) {

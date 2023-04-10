@@ -1218,33 +1218,6 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprS
   return 0;
 }
 
-void doBuildStreamResBlock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
-                           SDiskbasedBuf* pBuf) {
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  SSDataBlock*   pBlock = pbInfo->pRes;
-
-  // set output datablock version
-  pBlock->info.version = pTaskInfo->version;
-
-  blockDataCleanup(pBlock);
-  if (!hasRemainResults(pGroupResInfo)) {
-    return;
-  }
-
-  // clear the existed group id
-  pBlock->info.id.groupId = 0;
-  ASSERT(!pbInfo->mergeResultBlock);
-  doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo);
-
-  void* tbname = NULL;
-  if (streamStateGetParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, &tbname) < 0) {
-    pBlock->info.parTbName[0] = 0;
-  } else {
-    memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
-  }
-  streamFreeVal(tbname);
-}
-
 void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
                             SDiskbasedBuf* pBuf) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;

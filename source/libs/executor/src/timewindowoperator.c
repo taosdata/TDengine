@@ -2627,11 +2627,11 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   }
 
   if (!pInfo->pUpdated) {
-    pInfo->pUpdated = taosArrayInit(4, POINTER_BYTES);
+    pInfo->pUpdated = taosArrayInit(4096, POINTER_BYTES);
   }
   if (!pInfo->pUpdatedMap) {
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
-    pInfo->pUpdatedMap = tSimpleHashInit(1024, hashFn);
+    pInfo->pUpdatedMap = tSimpleHashInit(4096, hashFn);
   }
 
   while (1) {
@@ -4864,11 +4864,11 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   if (!pInfo->pUpdated) {
-    pInfo->pUpdated = taosArrayInit(4, POINTER_BYTES);
+    pInfo->pUpdated = taosArrayInit(4096, POINTER_BYTES);
   }
   if (!pInfo->pUpdatedMap) {
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
-    pInfo->pUpdatedMap = tSimpleHashInit(1024, hashFn);
+    pInfo->pUpdatedMap = tSimpleHashInit(4096, hashFn);
   }
 
   while (1) {

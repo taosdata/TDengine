@@ -15,7 +15,7 @@
 
 #include "streamInc.h"
 
-#define STREAM_EXEC_MAX_BATCH_NUM 100
+#define STREAM_EXEC_MAX_BATCH_NUM 1024
 
 static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* pRes) {
   int32_t code;
