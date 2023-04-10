@@ -126,7 +126,8 @@ jobs:
             target/release/taos-explorer.exe
 
   linux-x86_64:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
+    container: docker.io/zitsen/explorer-dev
     needs: web
     steps:
       - uses: actions/checkout@v3
@@ -171,7 +172,7 @@ jobs:
           path: target/x86_64-unknown-linux-gnu/release/*.tar.gz
 
   linux-aarch64:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     needs: web
     steps:
       - uses: actions/checkout@v3
