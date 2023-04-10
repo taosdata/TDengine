@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-EnvironmentFile=/etc/default/taosx
+EnvironmentFile=-/etc/default/taosx
 ExecStart=/usr/bin/taosx serve -v
 Restart=always
 
