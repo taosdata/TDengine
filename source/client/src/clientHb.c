@@ -54,15 +54,14 @@ static int32_t hbProcessUserPassInfoRsp(void *value, int32_t valueLen, SClientHb
   STscObj *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
   if (NULL == pTscObj) {
     tscWarn("tscObj rid %" PRIx64 " not exist", connKey->tscRid);
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
 
   SUserPassBatchRsp batchRsp = {0};
   if (tDeserializeSUserPassBatchRsp(value, valueLen, &batchRsp) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
     releaseTscObj(connKey->tscRid);
-    assert(0);
-    return -1;
+    return code;
   }
 
   SPassInfo *passInfo = &pTscObj->passInfo;
@@ -70,11 +69,11 @@ static int32_t hbProcessUserPassInfoRsp(void *value, int32_t valueLen, SClientHb
   for (int32_t i = 0; i < numOfBatchs; ++i) {
     SGetUserPassRsp *rsp = taosArrayGet(batchRsp.pArray, i);
     if (0 == strncmp(rsp->user, pTscObj->user, TSDB_USER_LEN)) {
-      tscError("update user:%s passVer from %d to %d", rsp->user, passInfo->ver, rsp->version);
+      tscDebug("update passVer of user %s from %d to %d", rsp->user, passInfo->ver, rsp->version);
       if (atomic_load_32(&passInfo->ver) < rsp->version) {
         atomic_store_32(&passInfo->ver, rsp->version);
         if (passInfo->fp) {
-          (*passInfo->fp)(NULL);
+          (*passInfo->fp)(&pTscObj->id, NULL, TAOS_NOTIFY_PASSVER);
         }
       }
     }
@@ -82,7 +81,7 @@ static int32_t hbProcessUserPassInfoRsp(void *value, int32_t valueLen, SClientHb
 
   taosArrayDestroy(batchRsp.pArray);
   releaseTscObj(connKey->tscRid);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t hbGenerateVgInfoFromRsp(SDBVgInfo **pInfo, SUseDbRsp *rsp) {

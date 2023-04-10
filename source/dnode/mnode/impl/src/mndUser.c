@@ -1042,7 +1042,7 @@ int32_t mndValidateUserPassInfo(SMnode *pMnode, SUserPassVersion *pUsers, int32_
 
     pUsers[i].version = ntohl(pUsers[i].version);
     if (pUser->passVersion <= pUsers[i].version) {
-      mDebug("user:%s, not update since mnd passVer %d <= client passVer %d", pUsers[i].user, pUser->passVersion,
+      mTrace("user:%s, not update since mnd passVer %d <= client passVer %d", pUsers[i].user, pUser->passVersion,
              pUsers[i].version);
       mndReleaseUser(pMnode, pUser);
       continue;

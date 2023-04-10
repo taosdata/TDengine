@@ -101,7 +101,7 @@ typedef struct TAOS_FIELD_E {
 #endif
 
 typedef void (*__taos_async_fn_t)(void *param, TAOS_RES *res, int code);
-typedef void (*__taos_notify_fn_t)(void *param);
+typedef void (*__taos_notify_fn_t)(void *param, void *ext, int type);
 
 typedef struct TAOS_MULTI_BIND {
   int       buffer_type;
@@ -121,6 +121,10 @@ typedef enum {
   SET_CONF_RET_ERR_ONLY_ONCE = -5,
   SET_CONF_RET_ERR_TOO_LONG = -6
 } SET_CONF_RET_CODE;
+
+typedef enum {
+  TAOS_NOTIFY_PASSVER = 1,
+} TAOS_NOTIFY_TYPE;
 
 #define RET_MSG_LENGTH 1024
 typedef struct setConfRet {
