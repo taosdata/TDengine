@@ -161,10 +161,10 @@ void *queryThread(void *arg) {
   return NULL;
 }
 
-static int32_t numOfThreads = 1;
+int32_t numOfThreads = 1;
 
 void tmq_commit_cb_print(tmq_t *pTmq, int32_t code, void *param) {
-  printf("success, code:%d\n", code);
+  printf("auto commit success, code:%d\n\n\n\n", code);
 }
 
 void* doConsumeData(void* param) {
@@ -173,7 +173,7 @@ void* doConsumeData(void* param) {
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-  tmq_conf_set(conf, "group.id", "cgrpName12");
+  tmq_conf_set(conf, "group.id", "cgrpName41");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
@@ -998,7 +998,8 @@ TEST(clientCase, sub_db_test) {
 
   // 创建订阅 topics 列表
   tmq_list_t* topicList = tmq_list_new();
-  tmq_list_append(topicList, "topic_db1");
+  tmq_list_append(topicList, "topic_t1");
+  tmq_list_append(topicList, "topic_s2");
 
   // 启动订阅
   tmq_subscribe(tmq, topicList);
@@ -1059,7 +1060,7 @@ TEST(clientCase, sub_tb_test) {
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-  tmq_conf_set(conf, "group.id", "cgrpName27");
+  tmq_conf_set(conf, "group.id", "cgrpName45");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");

@@ -162,19 +162,18 @@ class TDTestCase:
 
         sql = "select count(*) from (select distinct(tbname) from %s.meters)" %dbname
         tdSql.query(sql)
-        num = tdSql.getData(0,0)
+        # 目前不需要了
+        # num = tdSql.getData(0,0)
 
-        for i in range(0,num):
-            sql1 = "select count(*) from %s.d%d" %(dbname,i)
-            tdSql.query(sql1)
-            sql1_result = tdSql.getData(0,0)
-            tdLog.info("sql:%s , result: %s" %(sql1,sql1_result))
+        # for i in range(0,num):
+        #     sql1 = "select count(*) from %s.d%d" %(dbname,i)
+        #     tdSql.query(sql1)
+        #     sql1_result = tdSql.getData(0,0)
+        #     tdLog.info("sql:%s , result: %s" %(sql1,sql1_result))
+            
 
     def check_out_of_order(self,dbname,tables,per_table_num,order,replica):
         self.run_benchmark(dbname,tables,per_table_num,order,replica)
-        print("sleep 10 seconds")
-        #time.sleep(10)
-        print("sleep 10 seconds finish")
 
         self.run_sql(dbname)
 
@@ -182,7 +181,7 @@ class TDTestCase:
         startTime = time.time()
 
         #self.check_out_of_order('db1',10,random.randint(10000,50000),random.randint(1,10),1)
-        self.check_out_of_order('db1',random.randint(50,200),random.randint(10000,20000),random.randint(1,5),1)
+        self.check_out_of_order('db1',random.randint(50,100),random.randint(10000,20000),random.randint(1,5),1)
 
         # self.check_out_of_order('db2',random.randint(50,200),random.randint(10000,50000),random.randint(5,50),1)
 

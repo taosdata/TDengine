@@ -282,7 +282,6 @@ int32_t schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask) {
   }
 
   int32_t code = schLaunchTasksInFlowCtrlListImpl(pJob, ctrl);
-  ;
   SCH_ERR_RET(code);
 
   return code;  // to avoid compiler error

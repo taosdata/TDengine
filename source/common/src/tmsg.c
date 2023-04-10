@@ -7305,6 +7305,7 @@ void tDestroySSubmitReq2(SSubmitReq2 *pReq, int32_t flag) {
     tDestroySSubmitTbData(&aSubmitTbData[i], flag);
   }
   taosArrayDestroy(pReq->aSubmitTbData);
+  pReq->aSubmitTbData = NULL;
 }
 
 int32_t tEncodeSSubmitRsp2(SEncoder *pCoder, const SSubmitRsp2 *pRsp) {
