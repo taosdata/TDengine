@@ -21,7 +21,7 @@ export function getStableListReq(params, dbName) {
 export function deleteStableReq(payload) {
   let { selected_db, stableName } = payload;
   return sendSQLReq(`DROP STABLE ${selected_db}.${stableName};`).catch(err => {
-    err.desc && Message.error(err.desc);
+    
     return Promise.reject(err);
   });
 }
@@ -48,7 +48,6 @@ export function getStableStructReq(payload) {
       };
     })
     .catch(err => {
-      err.desc && Message.error(err.desc);
       return Promise.reject(err);
     });
 }
@@ -73,7 +72,6 @@ export function createStableReq(payload) {
       .join(",")}) TAGS (${tags.map(item => `\`${item.field}\` ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
       'NCHAR('+`${item.ncharLength}`+')':item.type}`).join(",")}) ${rollupValue};`
   ).catch(err => {
-    err.desc && Message.error(err.desc);
     return Promise.reject(err);
   });
 }
@@ -85,7 +83,6 @@ export function changeStableStruct(data, stableName) {
   let sql = "";
   sql = `ALTER STABLE  ${stableName} ${operation} \`${first_field}\` ${second_field};`;
   return sendSQLReq(sql).catch(err => {
-    err.desc && Message.error(err.desc);
     return Promise.reject(err);
   });
 }

@@ -118,7 +118,6 @@ export function uploadCsv(data) {
       if (currentData.code != 0) return Promise.reject(currentData);
     })
     .catch(err => {
-      Message.error(err.desc);
       return Promise.reject(err);
     });
 }

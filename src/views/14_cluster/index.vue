@@ -64,15 +64,17 @@ section{
     border-radius: 10px;
     // box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
     margin-bottom:15px;
-    &:nth-child(2){
-        height:220px;
-    }
-    &:first-child{
-      flex:1;
-    }
-    &:nth-child(3){
-      flex:auto;
-    }
+    position: relative;
+    height:200px;
+    // &:nth-child(2){
+    //     height:220px;
+    // }
+    // &:first-child{
+    //   flex:1;
+    // }
+    // &:nth-child(3){
+    //   flex:auto;
+    // }
 }
 .title{
     background-color: #ecf8ff;

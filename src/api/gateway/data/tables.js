@@ -27,7 +27,7 @@ export function searchTable(prefix, dbname) {
 export function deleteTableReq(payload) {
   let { selected_db, tableName } = payload;
   return sendSQLReq(`DROP TABLE ${selected_db}.${tableName};`).catch(err => {
-    err.desc && Message.error(err.desc);
+   
     return Promise.reject(err);
   });
 }
@@ -42,13 +42,12 @@ export function createTableReq(payload) {
         .map(item => handleStringTagValue(item))
         .join(",")});`
     ).catch(err => {
-      err.desc && Message.error(err.desc);
       return Promise.reject(err);
     });
   } else {
     return sendSQLReq(`CREATE TABLE ${selected_db}.${name} (${columns.map(item => `\`${item.field}\` ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
     'NCHAR('+`${item.ncharLength}`+')':item.type}`).join(",")});`).catch(err => {
-      err.desc && Message.error(err.desc);
+      
       return Promise.reject(err);
     });
   }
@@ -62,7 +61,6 @@ export function changeTableStruct(data, tableName) {
   let sql = "";
   sql = `ALTER TABLE  ${tableName} ${operation} ${first_field} ${second_field};`;
   return sendSQLReq(sql).catch(err => {
-    err.desc && Message.error(err.desc);
     return Promise.reject(err);
   });
 }
@@ -82,7 +80,6 @@ export function getTagValue(tags, database, stable_name, table_name) {
       return result;
     })
     .catch(err => {
-      err.desc && Message.error(err.desc);
       return {};
     });
 }
@@ -144,7 +141,6 @@ export function getTableStructReq(payload) {
       };
     })
     .catch(err => {
-      err.desc && Message.error(err.desc);
       return Promise.reject(err);
     });
 }

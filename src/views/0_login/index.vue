@@ -2,7 +2,7 @@
   <div class="login">
     <section class="header">
       <div class="inside-header">
-        <div class="dynamic-title">TDengine Management System</div>
+        <!-- <div class="dynamic-title">TDengine Management System</div> -->
         <div class="site-logo">
           <a :href="dataJson.officialWebsite" target="_blank" title="TD Hero" rel="home">
             <img :src="dataJson.logo" alt title="TD Hero" width="200" />
@@ -67,7 +67,7 @@
 
       <div class="login-content">
         <div class="login-title">
-          <span>{{$t("login.loginTitle") }}</span>
+          <span class="dynamic-title">TDengine Management System</span>
         </div>
         <el-form
           :model="dynamicValidateForm"
@@ -231,12 +231,12 @@ export default {
           this.loading = true;
           this.encryptedPwd = encrypt(this.dynamicValidateForm.password);
           setTimeout(() => {
-            if (!this.taosxStatus) {
-              Message.error(this.$t("login.taosxtip"));
-              this.loading = false;
-            } else {
+            // if (!this.taosxStatus) {
+            //   Message.error(this.$t("login.taosxtip"));
+            //   this.loading = false;
+            // } else {
               this.login();
-            }
+            // }
           }, 1000);
         } else {
           return false;
@@ -258,7 +258,6 @@ export default {
           })
           .catch(err => {
             localStorage.removeItem("TDengine-Token");
-            err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
       } catch (error) {
@@ -296,7 +295,7 @@ export default {
             // });
              this.getUserAuthority();
           } else {
-            Message.error(res.desc);
+            console.log();
           }
         });
         this.loading = false;
@@ -396,6 +395,7 @@ export default {
     margin-bottom: 10px;
   }
   .header {
+    display: none!important;
     width: 100%;
     position: relative;
     height: 123px;
@@ -407,11 +407,11 @@ export default {
     background-repeat: no-repeat;
     background-size: cover;
     .dynamic-title {
-      font-size: 38px;
+      font-size: 28px;
       color: #fff;
     }
     .inside-header {
-      display: flex;
+      display: none;
       justify-content: center;
       height: 123px;
       max-width: 1240px;
@@ -451,7 +451,7 @@ export default {
   .content {
     display: flex;
     flex-direction: row;
-    padding: 20px calc(50vw - 600px);
+    padding: 90px calc(50vw - 600px);
     justify-content: center;
     .article {
       padding: 15px;
@@ -471,16 +471,18 @@ export default {
       }
     }
     .login-content {
-      width: 480px;
+      width: 700px;
       height: 500px;
-      padding: 15px;
-      padding-top: 30px;
+      padding: 70px 45px 45px 45px;
       box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
       .login-title {
         font-size: 28px;
         font-weight: 500;
         text-align: center;
         margin-bottom: 30px;
+        span{
+          font-size: 28px;
+        }
       }
     }
   }
@@ -611,7 +613,7 @@ export default {
     font-weight: 700;
     padding: 8px 20px;
     font-size: 16px;
-    margin-top: 50px;
+    margin-top: 30px;
   }
 }
 </style>

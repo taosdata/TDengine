@@ -3,6 +3,8 @@ let oem=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_NAME:'TDengine'
 let grafanagds=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?'':'TDengine'
+let taosname=process.env.VUE_APP_CUS_NAME &&
+process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
   download: "下载",
@@ -176,7 +178,7 @@ export default {
   },
   login: {
     signin:'登录',
-    taosxtip:'请先在 /etc/taos/explorer.toml 中配置Taosx',
+    taosxtip:`请先在 /etc/${taosname}/explorer.toml 中配置Taosx`,
     username:'用户名',
     password:'密码',
     loginTitle:`登录 Explorer`,
@@ -652,6 +654,7 @@ export default {
     learnMoreTip: "要了解更多关于流计算的信息，请查看<a target='_blank' href=\"docsUrl\">文档</a>",
   },
   topic: {
+    fieldSet: "字段设置",
     accounts: '账户',
     connections: '连接点',
     cpu_cores: 'CPU核',
@@ -749,7 +752,8 @@ export default {
   dataOut: {
     connectorTip: "使用您选择的编程语言<a target='_blank' href='https://docs.taosdata.com/taos-sql/select/'>使用SQL</a>查询数据。",
     toolsTip: "数据转储——使用taosDump将表、表的一部分或超级表写入文件。",
-    subscriptionTitle: "订阅数据更新使用<a href='https://docs.taosdata.com/develop/tmq/#' target='_blank'>数据订阅</a>。",
+    subscriptionTitle: `订阅数据更新使用`,
+    subscriptions:'数据订阅'
   },
   docs: {
     connector: {

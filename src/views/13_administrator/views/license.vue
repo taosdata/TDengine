@@ -201,6 +201,7 @@ export default {
   },
   created() {
     this.getData();
+    console.log('初始化license');
   },
   methods: {
     handlePageChange() {},

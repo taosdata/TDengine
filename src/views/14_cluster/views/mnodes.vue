@@ -9,6 +9,7 @@
       <el-table-column
         :label="$t('taoscluster.endpoint')"
         prop="endpoint"
+        width="400"
       ></el-table-column>
       <el-table-column :label="$t('taoscluster.role')" prop="role"></el-table-column>
       <el-table-column
@@ -18,6 +19,7 @@
       <el-table-column
         :label="$t('taoscluster.createtime')"
         prop="create_time"
+        width="200"
       ></el-table-column>
 
       <el-table-column :label="$t('taoscluster.action')" width="65">
@@ -145,7 +147,6 @@ export default {
             }
           })
           .catch((err) => {
-            err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
       });
@@ -161,7 +162,6 @@ export default {
           }
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -194,4 +194,14 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+.flexEnd{
+  position: absolute;
+  top:15px;
+  z-index: 9999;
+  right: 10px;
+  .el-button{
+    border: none;
+    background: transparent;
+  }
+}
 </style>

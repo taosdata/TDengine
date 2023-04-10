@@ -316,7 +316,6 @@ export default {
           this.getBackData();
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -327,7 +326,6 @@ export default {
           this.getBackData();
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -383,7 +381,6 @@ export default {
         });
         this.dialog = false;
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -407,7 +404,6 @@ export default {
           }
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -424,7 +420,6 @@ export default {
         });
         this.requestIng = false;
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -432,7 +427,6 @@ export default {
       try {
         this.dblist = await getDBListReq();
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -440,6 +434,7 @@ export default {
   created() {
     this.getDatabases();
     this.getBackData();
+    console.log('初始化backup');
   },
 };
 </script>

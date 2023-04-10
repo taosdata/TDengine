@@ -20,7 +20,6 @@ export async function getDBListReq(appId) {
       ));
     })
     .catch(err => {
-      err.desc && Message.error(err.desc);
       return (dbCache = []);
     });
   /**
@@ -72,7 +71,6 @@ export function deleteDBReq(payload, appId = store.getters.appId) {
       return Promise.reject(data);
     })
     .catch(err => {
-      err.desc && Message.error(err.desc);
       return Promise.reject(err);
     });
 }
@@ -106,7 +104,6 @@ export function createDB(data, name, appId = store.getters.appId) {
       return Promise.reject(data);
     })
     .catch(err => {
-      err.desc && Message.error(err.desc);
       return Promise.reject(err);
     });
 }

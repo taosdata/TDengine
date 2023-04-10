@@ -37,7 +37,6 @@ export function executeDBOperations(sql, appId = store.getters.appId) {
       return Promise.reject(data);
     })
     .catch(err => {
-      Message.error(err.desc);
       return Promise.reject(err);
     });
 }
@@ -48,7 +47,6 @@ export async function getPaginationData(countSql, dataSql, currentPage, pageSize
       return data?.[0]?.[0] || 0;
     })
     .catch(err => {
-      Message.error(err.desc);
       return 0;
     });
   if (!count || !currentPage || !pageSize) return [[], 0];
@@ -61,7 +59,7 @@ export async function getPaginationData(countSql, dataSql, currentPage, pageSize
   //   dataSql= '( '+dataSql + `limit ${startIndex},${pageSize}`+ ')  union '+normalSql
   // }
   let data = await sendSQLReq(`${dataSql} limit ${startIndex},${pageSize};`, true, appId).catch(err => {
-    Message.error(err.desc);
+   
     return [];
   });
   if (typeof handleDataFn === "function") {
@@ -90,7 +88,6 @@ export function executeSQLByToken(sql, token) {
       return Promise.reject(data);
     })
     .catch(err => {
-      err.desc && Message.error(err.desc);
       return Promise.reject(err);
     });
 }

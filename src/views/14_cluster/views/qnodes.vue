@@ -154,7 +154,6 @@ export default {
           }
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -194,6 +193,16 @@ export default {
   .el-select {
     flex: 1;
     width: 100%;
+  }
+}
+.flexEnd{
+  position: absolute;
+  top:15px;
+  z-index: 9999;
+  right: 10px;
+  .el-button{
+    border: none;
+    background: transparent;
   }
 }
 </style>

@@ -134,12 +134,10 @@ export default {
           })
           .catch((err) => {
             this.$emit("close")
-            err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
       } catch (error) {
         console.log(error);
-        Message.error(error.desc);
       }
     },
     getTopicList() {
@@ -164,12 +162,12 @@ export default {
           })
           .catch((err) => {
             this.$emit("close")
-            err.desc && Message.error(err.desc);
+            // err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
       } catch (error) {
         console.log(error);
-        Message.error(error.desc);
+        // Message.error(error.desc);
       }
     },
     getUserPrivileges() {
@@ -196,7 +194,6 @@ export default {
       })
         .catch((err) => {
           this.$emit("close")
-          err.desc && Message.error(err.desc);
           return Promise.reject(err);
         });
     },
@@ -211,7 +208,6 @@ export default {
       })
         .catch((err) => {
           this.$emit("close")
-          err.desc && Message.error(err.desc);
           return Promise.reject(err);
         });
     },
@@ -228,7 +224,6 @@ export default {
       })
         .catch((err) => {
           this.$emit("close")
-          err.desc && Message.error(err.desc);
           return Promise.reject(err);
         });
     },
@@ -241,7 +236,6 @@ export default {
       })
         .catch((err) => {
           this.$emit("close")
-          err.desc && Message.error(err.desc);
           return Promise.reject(err);
         });
     },
@@ -255,7 +249,6 @@ export default {
         })
         .catch((err) => {
           this.$emit("close")
-          err.desc && Message.error(err.desc);
           return Promise.reject(err);
         });
     },
@@ -269,7 +262,6 @@ export default {
         })
         .catch((err) => {
           this.$emit("close")
-          err.desc && Message.error(err.desc);
           return Promise.reject(err);
         });
     },
@@ -283,7 +275,6 @@ export default {
         })
         .catch((err) => {
           this.$emit("close")
-          err.desc && Message.error(err.desc);
           return Promise.reject(err);
         });
     },
@@ -340,7 +331,6 @@ export default {
             this.$emit("close")
           } catch (error) {
             console.log(error);
-            Message.error(error.desc)
           }
         } else {
           console.log('error submit!!');
