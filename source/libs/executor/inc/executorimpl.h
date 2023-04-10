@@ -142,9 +142,7 @@ typedef struct {
   SQueryTableDataCond tableCond;
   int64_t             fillHistoryVer1;
   int64_t             fillHistoryVer2;
-
-  // int8_t        triggerSaved;
-  // int64_t       deleteMarkSaved;
+  int64_t             dataVersion;
   SStreamState* pState;
 } SStreamTaskInfo;
 
@@ -575,6 +573,7 @@ typedef struct SStreamIntervalOperatorInfo {
   uint64_t           numOfDatapack;
   SArray*            pUpdated;
   SSHashObj*         pUpdatedMap;
+  int64_t            dataVersion;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -623,6 +622,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   bool                ignoreExpiredData;
   SArray*             pUpdated;
   SSHashObj*          pStUpdated;
+  int64_t             dataVersion;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -640,6 +640,7 @@ typedef struct SStreamStateAggOperatorInfo {
   bool                ignoreExpiredData;
   SArray*             pUpdated;
   SSHashObj*          pSeUpdated;
+  int64_t             dataVersion;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
