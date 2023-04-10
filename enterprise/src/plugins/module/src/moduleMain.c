@@ -20,6 +20,10 @@
 #include "tutil.h"
 #include <dlfcn.h>
 
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#include "cus_name.h"
+#endif
+
 typedef int32_t (*ModuleStartFp)();
 typedef void (*ModuleStopFp)();
 
@@ -39,7 +43,11 @@ static bool moduleReadCfg() {
   int   moduleNum = 0;
   char  fileName[PATH_MAX] = {0};
 
-  sprintf(fileName, "%s/taos.cfg", configDir);
+#ifdef CUS_PROMPT
+  sprintf(fileName, "%s/%s.cfg", configDir, CUS_PROMPT);
+#else
+  sprintf(cfgFile, "%s/taos.cfg", configDir);
+#endif
   FILE* fp = fopen(fileName, "r");
   if (fp == NULL) {
     struct stat s;

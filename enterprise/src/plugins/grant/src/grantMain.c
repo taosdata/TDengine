@@ -36,6 +36,10 @@
 #include "ttimer.h"
 #include "tutil.h"
 
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#include "cus_name.h"
+#endif
+
 #define COMPARE_SET_VAL(a, b, _comp_sign_) \
   do {                                     \
     if ((a)_comp_sign_(b)) {               \
@@ -295,7 +299,11 @@ _err:
 
 static void dmRefreshGrantCfg() {
   char cfgFile[PATH_MAX] = {0};
+#ifdef CUS_PROMPT
+  sprintf(cfgFile, "%s/%s.cfg", configDir, CUS_PROMPT);
+#else
   sprintf(cfgFile, "%s/taos.cfg", configDir);
+#endif
   grantActiveSystem(cfgFile);
 }
 
