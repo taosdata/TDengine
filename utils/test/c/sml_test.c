@@ -850,7 +850,7 @@ int smlProcess_18784_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "disk,device=sdc inodes_used=176059i,total=1081101176832i 1661943960000000000",
+      "disk,device=sdc inodes_used=176059i,total=1076048383523889174i 1661943960000000000",
       "disk,device=sdc inodes_free=66932805i 1661943960000000000",
   };
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
@@ -875,7 +875,7 @@ int smlProcess_18784_Test() {
     if (rowIndex == 0) {
       ASSERT(ts == 1661943960000);
       ASSERT(used == 176059);
-      ASSERT(total == 1081101176832);
+      ASSERT(total == 1076048383523889174);
       ASSERT(freed == 66932805);
       //      ASSERT_EQ(latitude, 24.5208);
       //      ASSERT_EQ(longitude, 28.09377);
@@ -939,6 +939,9 @@ int sml_ts2164_Test() {
       //      "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
       "meters,location=la,groupid=ca current=11.8,voltage=221",
       "meters,location=la,groupid=ca current=11.8,voltage=221,phase=0.27",
+      "ts3038,location=l2a,groupid=ca current=L\"11.8\"",
+      "ts3038,location=l2a,groupid=ca voltage=L\"221\"",
+      "ts3038,location=l2a,groupid=ca phase=L\"221\"",
       //      "meters,location=la,groupid=cb current=11.8,voltage=221,phase=0.27",
   };
 

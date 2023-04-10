@@ -13,12 +13,11 @@ create_definition:
     col_name column_definition
  
 column_definition:
-    type_name [COMMENT 'string_value']
+    type_name
 ```
 
 **More explanations**
 - Each supertable can have a maximum of 4096 columns, including tags. The minimum number of columns is 3: a timestamp column used as the key, one tag column, and one data column.
-- When you create a supertable, you can add comments to columns and tags.
 - The TAGS keyword defines the tag columns for the supertable. The following restrictions apply to tag columns:
     - A tag column can use the TIMESTAMP data type, but the values in the column must be fixed numbers. Timestamps including formulae, such as "now + 10s", cannot be stored in a tag column.
     - The name of a tag column cannot be the same as the name of any other column.

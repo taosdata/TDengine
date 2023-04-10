@@ -35,8 +35,8 @@ database_option: {
   | TABLE_SUFFIX value
   | TSDB_PAGESIZE value
   | WAL_RETENTION_PERIOD value
-  | WAL_ROLL_PERIOD value
   | WAL_RETENTION_SIZE value
+  | WAL_ROLL_PERIOD value
   | WAL_SEGMENT_SIZE value
 }
 ```
@@ -75,11 +75,10 @@ database_option: {
 - TABLE_PREFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。
 - TABLE_SUFFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。
 - TSDB_PAGESIZE：一个 VNODE 中时序数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB到 16 MB。
-- WAL_RETENTION_PERIOD：数据订阅已消费WAL日志，WAL文件的最大额外保留的时长策略。单位为 s。默认为 0，表示无需额外保留。-1, 表示额外保留，时间无上限。
-- WAL_RETENTION_SIZE：数据订阅已消费WAL日志，WAL文件的最大额外保留的累计大小策略。单位为 KB。默认为 0，表示无需额外保留。-1, 表示额外保留，累计大小无上限。
+- WAL_RETENTION_PERIOD: 为了数据订阅消费，需要WAL日志文件额外保留的最大时长策略。WAL日志清理，不受订阅客户端消费状态影响。单位为 s。默认为 0，表示无需为订阅保留。新建订阅，应先设置恰当的时长策略。
+- WAL_RETENTION_SIZE：为了数据订阅消费，需要WAL日志文件额外保留的最大累计大小策略。单位为 KB。默认为 0，表示累计大小无上限。
 - WAL_ROLL_PERIOD：wal 文件切换时长，单位为 s。当WAL文件创建并写入后，经过该时间，会自动创建一个新的WAL文件。默认为 0，即仅在TSDB落盘时创建新文件。
 - WAL_SEGMENT_SIZE：wal 单个文件大小，单位为 KB。当前写入文件大小超过上限后会自动创建一个新的WAL文件。默认为 0，即仅在TSDB落盘时创建新文件。
-
 ### 创建数据库示例
 
 ```sql

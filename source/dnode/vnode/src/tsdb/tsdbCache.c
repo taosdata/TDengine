@@ -590,6 +590,7 @@ typedef struct {
   SDataFReader       **pDataFReader;
   TSDBROW              row;
 
+  bool               checkRemainingRow;
   SMergeTree         mergeTree;
   SMergeTree        *pMergeTree;
   SSttBlockLoadInfo *pLoadInfo;
@@ -633,12 +634,25 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
         if (code) goto _err;
       }
 
-      state->pLoadInfo->colIds = aCols;
-      state->pLoadInfo->numOfCols = nCols;
+      for (int i = 0; i < state->pLoadInfo->numOfStt; ++i) {
+        state->pLoadInfo[i].colIds = aCols;
+        state->pLoadInfo[i].numOfCols = nCols;
+        state->pLoadInfo[i].isLast = isLast;
+      }
       tMergeTreeOpen(&state->mergeTree, 1, *state->pDataFReader, state->suid, state->uid,
                      &(STimeWindow){.skey = state->lastTs, .ekey = TSKEY_MAX},
                      &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, state->pLoadInfo, false, NULL, true);
       state->pMergeTree = &state->mergeTree;
+      state->state = SFSLASTNEXTROW_BLOCKROW;
+    }
+    case SFSLASTNEXTROW_BLOCKROW: {
+      if (nCols != state->pLoadInfo->numOfCols) {
+        for (int i = 0; i < state->pLoadInfo->numOfStt; ++i) {
+          state->pLoadInfo[i].numOfCols = nCols;
+
+          state->pLoadInfo[i].checkRemainingRow = state->checkRemainingRow;
+        }
+      }
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
         if (tMergeTreeIgnoreEarlierTs(&state->mergeTree)) {
@@ -649,76 +663,23 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
         state->state = SFSLASTNEXTROW_FILESET;
         goto _next_fileset;
       }
-      state->state = SFSLASTNEXTROW_BLOCKROW;
-      checkRemainingRow = false;
-    }
-    case SFSLASTNEXTROW_BLOCKROW: {
-      bool skipRow = false;
-      do {
-        bool hasVal = false;
-        state->row = tMergeTreeGetRow(&state->mergeTree);
-        *ppRow = &state->row;
-        if (nCols != state->pLoadInfo->numOfCols) {
-          state->pLoadInfo->numOfCols = nCols;
-        }
-        hasVal = tMergeTreeNext(&state->mergeTree);
-        if (TSDBROW_TS(&state->row) <= state->lastTs) {
-          *pIgnoreEarlierTs = true;
-          *ppRow = NULL;
-          return code;
-        }
+      state->row = tMergeTreeGetRow(&state->mergeTree);
+      *ppRow = &state->row;
 
-        *pIgnoreEarlierTs = false;
-        if (!hasVal) {
-          state->state = SFSLASTNEXTROW_FILESET;
-          break;
-        }
+      if (TSDBROW_TS(&state->row) <= state->lastTs) {
+        *pIgnoreEarlierTs = true;
+        *ppRow = NULL;
+        return code;
+      }
 
-        if (checkRemainingRow) {
-          bool skipBlock = true;
+      *pIgnoreEarlierTs = false;
+      if (!hasVal) {
+        state->state = SFSLASTNEXTROW_FILESET;
+      }
 
-          SBlockData *pBlockData = state->row.pBlockData;
-
-          for (int inputColIndex = 0; inputColIndex < nCols; ++inputColIndex) {
-            for (int colIndex = 0; colIndex < pBlockData->nColData; ++colIndex) {
-              SColData *pColData = &pBlockData->aColData[colIndex];
-              int16_t   cid = pColData->cid;
-
-              if (cid == aCols[inputColIndex]) {
-                if (isLast && (pColData->flag & HAS_VALUE)) {
-                  skipBlock = false;
-                  break;
-                } else if (pColData->flag & (HAS_VALUE | HAS_NULL)) {
-                  skipBlock = false;
-                  break;
-                }
-              }
-            }
-          }
-          /*
-          for (int colIndex = 0; colIndex < pBlockData->nColData; ++colIndex) {
-            SColData *pColData = &pBlockData->aColData[colIndex];
-            int16_t   cid = pColData->cid;
-
-            if (inputColIndex < nCols && cid == aCols[inputColIndex]) {
-              if (isLast && (pColData->flag & HAS_VALUE)) {
-                skipBlock = false;
-                break;
-              } else if (pColData->flag & (HAS_VALUE | HAS_NULL)) {
-                skipBlock = false;
-                break;
-              }
-
-              ++inputColIndex;
-            }
-          }
-          */
-          if (skipBlock) {
-            skipRow = true;
-          }
-        }
-      } while (skipRow);
-
+      if (!state->checkRemainingRow) {
+        state->checkRemainingRow = true;
+      }
       return code;
     }
     default:

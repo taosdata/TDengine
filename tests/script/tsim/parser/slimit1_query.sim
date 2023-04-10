@@ -70,7 +70,7 @@ endi
 
 ### empty result set
 sql select count(*) from stb partition by t2,t1 order by t2 asc slimit 0 soffset 0
-if $rows != 9 then
+if $rows != 0 then
   return -1
 endi
 

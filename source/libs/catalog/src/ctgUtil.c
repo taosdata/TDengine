@@ -865,19 +865,19 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, const SName
 
   vgInfo = taosArraySearch(dbInfo->vgArray, &hashValue, ctgHashValueComp, TD_EQ);
 
-/*
-  void* pIter = taosHashIterate(dbInfo->vgHash, NULL);
-  while (pIter) {
-    vgInfo = pIter;
-    if (hashValue >= vgInfo->hashBegin && hashValue <= vgInfo->hashEnd) {
-      taosHashCancelIterate(dbInfo->vgHash, pIter);
-      break;
-    }
+  /*
+    void* pIter = taosHashIterate(dbInfo->vgHash, NULL);
+    while (pIter) {
+      vgInfo = pIter;
+      if (hashValue >= vgInfo->hashBegin && hashValue <= vgInfo->hashEnd) {
+        taosHashCancelIterate(dbInfo->vgHash, pIter);
+        break;
+      }
 
-    pIter = taosHashIterate(dbInfo->vgHash, pIter);
-    vgInfo = NULL;
-  }
-*/
+      pIter = taosHashIterate(dbInfo->vgHash, pIter);
+      vgInfo = NULL;
+    }
+  */
 
   if (NULL == vgInfo) {
     ctgError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, db,
@@ -902,7 +902,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SCtgTaskReq* tReq, SDBVgInfo*
 
   CTG_ERR_RET(ctgMakeVgArray(dbInfo));
 
-  int32_t   vgNum = taosArrayGetSize(dbInfo->vgArray);
+  int32_t vgNum = taosArrayGetSize(dbInfo->vgArray);
   if (vgNum <= 0) {
     ctgError("db vgroup cache invalid, db:%s, vgroup number:%d", dbFName, vgNum);
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
@@ -982,42 +982,42 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SCtgTaskReq* tReq, SDBVgInfo*
   CTG_RET(code);
 }
 
-int32_t ctgGetVgIdsFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, char* dbFName, const char* pTbs[], int32_t tbNum, int32_t* vgId) {
- int32_t code = 0;
- CTG_ERR_RET(ctgMakeVgArray(dbInfo));
+int32_t ctgGetVgIdsFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, char* dbFName, const char* pTbs[], int32_t tbNum,
+                                 int32_t* vgId) {
+  int32_t code = 0;
+  CTG_ERR_RET(ctgMakeVgArray(dbInfo));
 
- int32_t vgNum = taosArrayGetSize(dbInfo->vgArray);
+  int32_t vgNum = taosArrayGetSize(dbInfo->vgArray);
 
- if (vgNum <= 0) {
-   ctgError("db vgroup cache invalid, db:%s, vgroup number:%d", dbFName, vgNum);
-   CTG_ERR_RET(TSDB_CODE_TSC_DB_NOT_SELECTED);
- }
+  if (vgNum <= 0) {
+    ctgError("db vgroup cache invalid, db:%s, vgroup number:%d", dbFName, vgNum);
+    CTG_ERR_RET(TSDB_CODE_TSC_DB_NOT_SELECTED);
+  }
 
- SVgroupInfo* vgInfo = NULL;
- char         tbFullName[TSDB_TABLE_FNAME_LEN];
- snprintf(tbFullName, sizeof(tbFullName), "%s.", dbFName);
- int32_t offset = strlen(tbFullName);
- 
- for (int32_t i = 0; i < tbNum; ++i) {
-   snprintf(tbFullName + offset, sizeof(tbFullName) - offset, "%s", pTbs[i]);
-   uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
-                                         dbInfo->hashPrefix, dbInfo->hashSuffix);
+  SVgroupInfo* vgInfo = NULL;
+  char         tbFullName[TSDB_TABLE_FNAME_LEN];
+  snprintf(tbFullName, sizeof(tbFullName), "%s.", dbFName);
+  int32_t offset = strlen(tbFullName);
 
-   vgInfo = taosArraySearch(dbInfo->vgArray, &hashValue, ctgHashValueComp, TD_EQ);
-   if (NULL == vgInfo) {
-     ctgError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, dbFName,
-              (int32_t)taosArrayGetSize(dbInfo->vgArray));
-     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
-   }
+  for (int32_t i = 0; i < tbNum; ++i) {
+    snprintf(tbFullName + offset, sizeof(tbFullName) - offset, "%s", pTbs[i]);
+    uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
+                                          dbInfo->hashPrefix, dbInfo->hashSuffix);
 
-   vgId[i] = vgInfo->vgId;
+    vgInfo = taosArraySearch(dbInfo->vgArray, &hashValue, ctgHashValueComp, TD_EQ);
+    if (NULL == vgInfo) {
+      ctgError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, dbFName,
+               (int32_t)taosArrayGetSize(dbInfo->vgArray));
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
 
-   ctgDebug("Got tb %s vgId:%d", tbFullName, vgInfo->vgId);
- }
+    vgId[i] = vgInfo->vgId;
 
- CTG_RET(code);
+    ctgDebug("Got tb %s vgId:%d", tbFullName, vgInfo->vgId);
+  }
+
+  CTG_RET(code);
 }
-
 
 int32_t ctgStbVersionSearchCompare(const void* key1, const void* key2) {
   if (*(uint64_t*)key1 < ((SSTableVersion*)key2)->suid) {
@@ -1063,25 +1063,24 @@ int32_t ctgMakeVgArray(SDBVgInfo* dbInfo) {
   if (NULL == dbInfo) {
     return TSDB_CODE_SUCCESS;
   }
-  
+
   if (dbInfo->vgHash && NULL == dbInfo->vgArray) {
     dbInfo->vgArray = taosArrayInit(100, sizeof(SVgroupInfo));
     if (NULL == dbInfo->vgArray) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
-    
-    void*   pIter = taosHashIterate(dbInfo->vgHash, NULL);
+
+    void* pIter = taosHashIterate(dbInfo->vgHash, NULL);
     while (pIter) {
       taosArrayPush(dbInfo->vgArray, pIter);
       pIter = taosHashIterate(dbInfo->vgHash, pIter);
     }
-    
+
     taosArraySort(dbInfo->vgArray, ctgVgInfoComp);
   }
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst) {
   CTG_ERR_RET(ctgMakeVgArray(src));
@@ -1425,15 +1424,15 @@ void ctgGetClusterCacheStat(SCatalog* pCtg) {
     if (0 == (gCtgStatItem[i].flag & CTG_CI_FLAG_LEVEL_DB)) {
       continue;
     }
-  
+
     pCtg->cacheStat.cacheNum[i] = 0;
   }
-  
-  SCtgDBCache *dbCache = NULL;
-  void        *pIter = taosHashIterate(pCtg->dbCache, NULL);
+
+  SCtgDBCache* dbCache = NULL;
+  void*        pIter = taosHashIterate(pCtg->dbCache, NULL);
   while (pIter) {
-    dbCache = (SCtgDBCache *)pIter;
-    
+    dbCache = (SCtgDBCache*)pIter;
+
     for (int32_t i = 0; i < CTG_CI_MAX_VALUE; ++i) {
       if (0 == (gCtgStatItem[i].flag & CTG_CI_FLAG_LEVEL_DB)) {
         continue;
@@ -1446,33 +1445,33 @@ void ctgGetClusterCacheStat(SCatalog* pCtg) {
   }
 }
 
-void ctgSummaryClusterCacheStat(SCatalog *pCtg) {
+void ctgSummaryClusterCacheStat(SCatalog* pCtg) {
   for (int32_t i = 0; i < CTG_CI_MAX_VALUE; ++i) {
     if (gCtgStatItem[i].flag & CTG_CI_FLAG_LEVEL_GLOBAL) {
       continue;
     }
-  
+
     gCtgMgmt.statInfo.cache.cacheNum[i] += pCtg->cacheStat.cacheNum[i];
     gCtgMgmt.statInfo.cache.cacheHit[i] += pCtg->cacheStat.cacheHit[i];
     gCtgMgmt.statInfo.cache.cacheNHit[i] += pCtg->cacheStat.cacheNHit[i];
   }
 }
 
-void ctgGetGlobalCacheStat(SCtgCacheStat *pStat) {
+void ctgGetGlobalCacheStat(SCtgCacheStat* pStat) {
   for (int32_t i = 0; i < CTG_CI_MAX_VALUE; ++i) {
     if (gCtgStatItem[i].flag & CTG_CI_FLAG_LEVEL_GLOBAL) {
       continue;
     }
-  
+
     gCtgMgmt.statInfo.cache.cacheNum[i] = 0;
     gCtgMgmt.statInfo.cache.cacheHit[i] = 0;
     gCtgMgmt.statInfo.cache.cacheNHit[i] = 0;
   }
-  
-  SCatalog *pCtg = NULL;
-  void     *pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
+
+  SCatalog* pCtg = NULL;
+  void*     pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
   while (pIter) {
-    pCtg = *(SCatalog **)pIter;
+    pCtg = *(SCatalog**)pIter;
 
     if (pCtg) {
       ctgGetClusterCacheStat(pCtg);
@@ -1484,4 +1483,3 @@ void ctgGetGlobalCacheStat(SCtgCacheStat *pStat) {
 
   memcpy(pStat, &gCtgMgmt.statInfo.cache, sizeof(gCtgMgmt.statInfo.cache));
 }
-

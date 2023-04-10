@@ -23,6 +23,7 @@ extern "C" {
 extern char version[];
 extern char compatible_version[];
 extern char gitinfo[];
+extern char gitinfoOfInternal[];
 extern char buildinfo[];
 
 #ifdef __cplusplus

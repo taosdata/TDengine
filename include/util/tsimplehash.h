@@ -48,6 +48,13 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn);
  */
 int32_t tSimpleHashGetSize(const SSHashObj *pHashObj);
 
+/**
+ * set the free function pointer
+ * @param pHashObj
+ * @param freeFp
+ */
+void tSimpleHashSetFreeFp(SSHashObj* pHashObj, _hash_free_fn_t freeFp);
+
 int32_t tSimpleHashPrint(const SSHashObj *pHashObj);
 
 /**
