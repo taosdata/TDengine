@@ -123,7 +123,7 @@ typedef enum {
 } SET_CONF_RET_CODE;
 
 typedef enum {
-  TAOS_NOTIFY_PASSVER = 1,
+  TAOS_NOTIFY_PASSVER = 0,
 } TAOS_NOTIFY_TYPE;
 
 #define RET_MSG_LENGTH 1024
