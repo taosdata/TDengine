@@ -187,8 +187,8 @@ class TDTestCase:
         # # 6. avg-daily-driving-session
         # #taosc core dumped
         tdSql.query(f"select _wstart as ts,name,floor(avg(velocity)/5) AS mv from {dbname}.readings   WHERE name is not null  AND ts > '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition by name interval(10m) fill(value,0);")
-        # tdSql.query(f"select name,diff(mv) AS difka  FROM (SELECT  ts,name,mv  FROM (SELECT _wstart as ts,name,floor(avg(velocity)/10)/floor(avg(velocity)/10) AS mv from {dbname}.readings   WHERE name!='' AND ts > '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition by name interval(10m) fill(value,0)))  group  BY name ;")
-        # tdSql.query(f"select _wstart,name,floor(avg(velocity)/10)/floor(avg(velocity)/10) AS mv from {dbname}.readings   WHERE name!='' AND ts > '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition by name interval(10m) fill(value,0)")
+        
+        tdSql.query(f"select _wstart as ts,name,avg(ela) from (select ts,name,ela from (SELECT ts,name, diff(difka) as dif, diff(cast(ts as bigint)) as ela FROM (SELECT ts,name,difka  FROM (SELECT ts,name,diff(mv) AS difka  FROM (SELECT _wstart as ts,name,cast(cast(floor(avg(velocity)/5) as bool) as int) AS mv FROM {dbname}.readings   WHERE name is not null  AND ts > 1451637149138 AND ts < 1451637749138   partition by name interval(10m))partition  BY name ) WHERE difka!=0   partition BY name ) partition BY name ) WHERE dif = -2   partition BY name )  partition BY name  interval(1d); ")
 
         # 7. avg-load
         tdSql.query(f"select fleet, model,avg(ml) AS mean_load_percentage FROM (SELECT fleet, model,current_load/load_capacity AS ml from {dbname}.diagnostics partition BY name, fleet, model) partition BY fleet, model order by  fleet ;")
