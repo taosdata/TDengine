@@ -31,7 +31,6 @@ typedef enum {
   TSDB_FTYPE_DATA,      // .data
   TSDB_FTYPE_SMA,       // .sma
   TSDB_FTYPE_TOMB,      // .tomb
-  TSDB_FTYPE_MAX,       // max file type
   TSDB_FTYPE_STT,       // .stt
 } tsdb_ftype_t;
 

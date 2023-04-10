@@ -60,6 +60,7 @@ static int32_t get_current_temp(STsdb *pTsdb, char fname[], EFsEditType etype) {
 }
 
 static int32_t save_fs_to_file(struct STFileSystem *pFS, const char *fname) {
+  cJSON *pJson = NULL;
   ASSERTS(0, "TODO: Not implemented yet");
   return 0;
 }
