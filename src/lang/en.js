@@ -3,6 +3,8 @@ let oem=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_NAME:'TDengine'
 let grafanagds=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?'':'TDengine'
+let taosname=process.env.VUE_APP_CUS_NAME &&
+process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
   sqlPreview: "SQL Preview",
@@ -242,7 +244,7 @@ export default {
   },
   login: {
     signin: 'Sign In',
-    taosxtip: 'Please configure Taosx in /etc/taos/explorer.toml first',
+    taosxtip: `Please configure Taosx in /etc/${taosname}/explorer.toml first`,
     loginTitle: 'Log in Explorer',
     username: 'User Name',
     password: 'Password',
@@ -717,7 +719,8 @@ export default {
     tools: "Tools",
     connectorTip: `Use the programming language of your choice to <a target='_blank' href='https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation'>query data using SQL</a>`,
     toolsTip: "Data Dump - use taosDump to write a table, a portion of a table, or a super table to a file.",
-    subscriptionTitle: `Subscribe to data updates using <a href='https://docs.tdengine.com/develop/tmq/#' target='_blank'>data subscriptions</a>.`,
+    subscriptionTitle: `Subscribe to data updates using`,
+    subscriptions:'data subscriptions'
   },
   dataout: {
     dump: {

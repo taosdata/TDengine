@@ -160,7 +160,10 @@
       handlePageChange() {
         this.getStreams();
       },
-      close(){}
+      close(){
+        this.getStreams();
+        this.dialog = false;
+      }
     },
   };
 </script>

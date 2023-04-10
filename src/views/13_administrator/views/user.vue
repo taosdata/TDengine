@@ -242,7 +242,6 @@ export default {
             });
           })
           .catch((err) => {
-            err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
         await sendSQLReq(`select * from information_schema.ins_user_privileges;`)
@@ -277,7 +276,6 @@ export default {
             this.usersList = permissionMap;
           })
           .catch((err) => {
-            err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
       } catch (error) {

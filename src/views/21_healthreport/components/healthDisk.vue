@@ -78,7 +78,6 @@ export default {
         });
       } catch (err) {
         this.requestIng = false;
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },

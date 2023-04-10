@@ -75,7 +75,10 @@
           ></el-date-picker>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" style="width: 100%;height:32px;padding:4px 20px;" @click="submotForm('ruleForm')"
+          <el-button
+            type="primary"
+            style="width: 100%; height: 32px; padding: 4px 20px"
+            @click="submotForm('ruleForm')"
             >新增</el-button
           >
         </el-form-item>
@@ -92,7 +95,7 @@ export default {
     topicId: {
       type: String,
       default: "",
-    }
+    },
   },
   data() {
     return {
@@ -118,13 +121,13 @@ export default {
     this.getData();
     this.getUserList();
   },
-  watch:{
-    topicId:{
-      deep:true,
-      handler(val){
-        this.getData()
-      }
-    }
+  watch: {
+    topicId: {
+      deep: true,
+      handler(val) {
+        this.getData();
+      },
+    },
   },
   methods: {
     async getData() {
@@ -150,17 +153,18 @@ export default {
       try {
         await sendSQLReq(`show users;`)
           .then((res) => {
-            this.userList = res.data.map((data) => {
-              return Object.fromEntries(
-                res.column_meta.map((item, index) => {
-                  return [item[0], data[index]];
-                })
-              );
-            }).filter(val=>val.name!='root');
-console.log(this.userList,'---');
+            this.userList = res.data
+              .map((data) => {
+                return Object.fromEntries(
+                  res.column_meta.map((item, index) => {
+                    return [item[0], data[index]];
+                  })
+                );
+              })
+              .filter((val) => val.name != "root");
+            console.log(this.userList, "---");
           })
           .catch((err) => {
-            err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
       } catch (error) {
@@ -172,32 +176,33 @@ console.log(this.userList,'---');
     async addUser() {
       try {
         if (this.topicId) {
-          await sendSQLReq(`grant subscribe on ${this.topicId}.* to ${this.ruleForm.user_name};`).then(res=>{
-            if(res.rows){
-              Message.success('Opeartion Successfully')
-              this.getData()
+          await sendSQLReq(
+            `grant subscribe on ${this.topicId}.* to ${this.ruleForm.user_name};`
+          ).then((res) => {
+            if (res.rows) {
+              Message.success("Opeartion Successfully");
+              this.getData();
             }
-            
           });
-        }else{
+        } else {
           Message({
-            type:'error',
-            message:this.$t('topic.select_topic_tip')
-          })
+            type: "error",
+            message: this.$t("topic.select_topic_tip"),
+          });
         }
-        this.dialog=false
+        this.dialog = false;
       } catch (error) {
         console.log(error);
       }
     },
-    submotForm(formName){
-      this.$refs[formName].validate(valid=>{
-        if(valid){
-          this.addUser()
-        }else{
-          return false
+    submotForm(formName) {
+      this.$refs[formName].validate((valid) => {
+        if (valid) {
+          this.addUser();
+        } else {
+          return false;
         }
-      })
+      });
     },
     del() {},
     handlePageChange() {},

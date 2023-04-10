@@ -227,7 +227,6 @@ export default {
           this.dialog = false;
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -243,7 +242,6 @@ export default {
           this.getReplication();
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -254,7 +252,6 @@ export default {
           this.getReplication();
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -294,7 +291,6 @@ export default {
           });
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
       this.refreshable = false;
@@ -311,6 +307,7 @@ export default {
   created() {
     this.getDatabases();
     this.getReplication();
+    console.log('初始化replication');
   },
 };
 </script>

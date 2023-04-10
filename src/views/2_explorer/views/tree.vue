@@ -243,8 +243,8 @@ export default {
       console.log(data, all, "普通表的查询测试");
       if (all) {
         let columns = [];
-        let db=''
-        
+        let db = "";
+
         if (data.typeName === "stable") {
           db = data.parent.split(".")[0];
           let sdata = await getStableStructReq({
@@ -261,7 +261,7 @@ export default {
           );
         }
         if (data.typeName === "table") {
-          db =data.stable_name?data.parent.split(".")[0]: data.parent;
+          db = data.stable_name ? data.parent.split(".")[0] : data.parent;
           let sdata = await getTableStructReq({
             selected_db: db,
             tableName:
@@ -276,11 +276,12 @@ export default {
           );
         }
 
-        this.$store.state.console.addSql = `${
-          this.$store.state.console.sqlStr ? "\n" : ""
-        }SELECT ${columns.join(",") || "*"} FROM  \`${
-          db 
-        }\``+"." +`\`${data.name}\` limit 200;`;
+        this.$store.state.console.addSql =
+          `${this.$store.state.console.sqlStr ? "\n" : ""}SELECT ${
+            columns.join(",") || "*"
+          } FROM  \`${db}\`` +
+          "." +
+          `\`${data.name}\` limit 200;`;
         this.$store.state.console.sqlStr += this.$store.state.console.addSql;
         console.log(this.$store.state.console.sqlStr, "最终sql", columns);
       } else {
@@ -425,7 +426,12 @@ export default {
     async handleVar(data, node) {
       switch (data.typeName) {
         case "database":
+          const name = data.name;
+          Object.assign(data, await getDBStruct(data.name));
+          data.name = name;
           this.$store.commit("dbs/SET_SELECTED_DB", data.name);
+          this.$store.commit("stables/SET_SELECTED_STB", "");
+          this.$store.commit("tables/SET_SELECTED_TB", "");
           break;
         case "sfile":
           //操作数据库时，获取数据库配置

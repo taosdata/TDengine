@@ -96,11 +96,11 @@ export default {
       if (tmpEl1) {
         this.exTabEl = tmpEl1;
       }
-      const tmpEl2 = tmpEl.querySelector(".topic-example-select");
-      if (tmpEl2) {
-        this.topicSelEl = tmpEl2;
-        this.topicSelTop = this.topicSelEl.offsetTop;
-      }
+      // const tmpEl2 = tmpEl.querySelector(".topic-example-select");
+      // if (tmpEl2) {
+      //   this.topicSelEl = tmpEl2;
+      //   this.topicSelTop = this.topicSelEl.offsetTop;
+      // }
     }
   },
   beforeDestroy() {
@@ -123,12 +123,11 @@ export default {
             this.currentTopic=this.topicList[0]
           })
           .catch((err) => {
-            err.desc && Message.error(err.desc);
+            // err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
       } catch (error) {
         console.log(error);
-        Message.error(error.desc);
       }
     },
     changeLang() {
@@ -179,7 +178,7 @@ export default {
       ) {
         viewEl.style.position = "fixed";
         viewEl.style.top = "14rem";
-        viewEl.style.width = "72%";
+        viewEl.style.width = "63%";
         viewEl.style["z-index"] = "900";
         this.langFixed[acLang].fixed = true;
       } else if (
@@ -189,7 +188,7 @@ export default {
       ) {
         viewEl.style.position = "relative";
         viewEl.style.top = "0";
-        viewEl.style.width = "85%";
+        viewEl.style.width = "83%";
         viewEl.style["z-index"] = "0";
         this.langFixed[acLang].fixed = false;
       }
@@ -243,9 +242,12 @@ export default {
     margin-right: 1rem;
   }
   .topic-example-select {
-    position: fixed;
-    top: 22rem;
-    right: 5.5rem;
+    // position: fixed;
+    // top: 22rem;
+    // right: 5.5rem;
+    position: absolute;
+    top: -5px;
+    right: 0px;
     z-index: 1000;
     background-color: white;
     .topic-select-content {

@@ -7,6 +7,7 @@
         <Icon class="icon-topic" name="topic"></Icon>
       </router-link>
       <span v-html="$t('dataOut.subscriptionTitle')"></span>
+      <span style="color:#4259ce;cursor:pointer;" id="directTopic" @click="directTopic">&nbsp;{{$t('dataOut.subscriptions')}}</span>
     </p>
   </div>
 </template>
@@ -37,6 +38,13 @@
         return this.$route.path.slice(1).split("/")[1] || "";
       },
     },
+    methods:{
+      directTopic(){
+        this.$router.push({
+          path:'/topic'
+        })
+      }
+    }
   };
 </script>
 

@@ -146,7 +146,6 @@ const actions = {
           commit("SET_USERINFO", user[0]);
         })
         .catch((err) => {
-          err.desc && Message.error(err.desc);
           return Promise.reject(err);
         });
     }

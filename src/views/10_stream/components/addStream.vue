@@ -211,11 +211,11 @@ export default {
       }
     };
     const validateTargetStb = async (_, val, callback) => {
-      if (await isStableExist(val, this.info.target_db)) {
-        callback(new Error(this.$t("stream.stableExist")));
-      } else {
+      // if (await isStableExist(val, this.info.target_db)) {
+      //   callback(new Error(this.$t("stream.stableExist")));
+      // } else {
         callback();
-      }
+      // }
     };
     return {
       sqlPrefix: "CREATE STREAM ",
@@ -393,12 +393,7 @@ export default {
           if (valid) {
             try {
               const subquery = this.$refs.subquery.getResultSet() || "";
-              let previewSql =
-                this.sqlPrefix +
-                this.info.stream_name +
-                " TRIGGER " +
-                this.info.trigger +
-                " ";
+              let previewSql = this.sqlPrefix + "`" + this.info.stream_name + "`" + " TRIGGER " + this.info.trigger + " ";
               if (this.info.trigger === "MAX_DELAY") {
                 previewSql +=
                   this.info.max_delay_time + this.info.max_delay_unit;
@@ -419,6 +414,7 @@ export default {
                 previewSql += ` SUBTABLE(CONCAT('${this.info.subtale}',tbname))`;
               }
               previewSql += " AS " + subquery;
+              console.log(subquery,'subquerysubquerysubquery');
               if (this.info.parttionSet) {
                 previewSql += " PARTITION BY " + this.info.parttionSet;
               }

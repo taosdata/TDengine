@@ -7,28 +7,26 @@
     </div>
     <el-table style="margin-top: 20px" :data="dnodesList" size="mini">
       <el-table-column
-        width="250"
+        width="400"
         :label="$t('taoscluster.endpoint')"
         prop="endpoint"
       ></el-table-column>
       <el-table-column
-        width="250"
         :label="$t('taoscluster.vnodes')"
         prop="vnodes"
       ></el-table-column>
       <el-table-column
-        width="250"
         :label="$t('taoscluster.supportvnodes')"
         prop="support_vnodes"
       ></el-table-column>
       <el-table-column
-        width="250"
         :label="$t('taoscluster.status')"
         prop="status"
       ></el-table-column>
       <el-table-column
         :label="$t('taoscluster.createtime')"
         prop="create_time"
+        width="200"
       ></el-table-column>
       <!-- <el-table-column :label="$t('topic.note')" prop="note"></el-table-column> -->
 
@@ -147,7 +145,6 @@ export default {
           }
         );
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -173,4 +170,14 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+.flexEnd{
+  position: absolute;
+  top:15px;
+  z-index: 9999;
+  right: 10px;
+  .el-button{
+    border: none;
+    background: transparent;
+  }
+}
 </style>

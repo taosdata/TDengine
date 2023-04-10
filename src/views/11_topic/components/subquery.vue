@@ -261,9 +261,9 @@
         const name = this.level == 1 ? this.info.stbName : this.info.tbName;
         let result = "";
         if (!isResultSet && (!resultSet.length || resultSet.length == this.info.resultSet.length)) {
-          resultSet = ["*"];
+          resultSet = this.avgFn ? ["count(*)"] : ["*"];
         }
-        result = `SELECT ${resultSet.join(",")} FROM \`${this.info[this.dbFiled]?.toLowerCase()}\`.\`${name}\``;
+        result = `SELECT ${resultSet.join(",")} FROM \`${this.info[this.dbFiled]}\`.\`${name}\``;
         if (conditionSet.length) {
           result += ` WHERE ${conditionSet.join(" AND ")}`;
         }

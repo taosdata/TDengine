@@ -243,7 +243,6 @@ export default {
             this.refresh()
           })
           .catch((err) => {
-            err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
       });
@@ -295,7 +294,6 @@ export default {
           }
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -333,7 +331,6 @@ export default {
           }
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -353,7 +350,6 @@ export default {
           });
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -373,7 +369,6 @@ export default {
           });
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },

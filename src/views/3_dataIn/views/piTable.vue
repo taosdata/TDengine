@@ -295,7 +295,6 @@ export default {
             this.getList();
           })
           .catch((err) => {
-            err.desc && Message.error(err.desc);
             return Promise.reject(err);
           });
       });
@@ -332,7 +331,6 @@ export default {
           }
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -352,7 +350,6 @@ export default {
           });
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
@@ -372,7 +369,6 @@ export default {
           });
         });
       } catch (err) {
-        err.desc && Message.error(err.desc);
         return Promise.reject(err);
       }
     },
