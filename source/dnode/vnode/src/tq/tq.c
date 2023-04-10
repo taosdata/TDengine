@@ -16,6 +16,7 @@
 #include "tq.h"
 
 #define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
+#define ALL_STREAM_TASKS_ID       (-1)
 
 int32_t tqInit() {
   int8_t old;
@@ -83,21 +84,6 @@ static void tqPushEntryFree(void* data) {
 static bool tqOffsetLessOrEqual(const STqOffset* pLeft, const STqOffset* pRight) {
   return pLeft->val.type == TMQ_OFFSET__LOG && pRight->val.type == TMQ_OFFSET__LOG &&
          pLeft->val.version <= pRight->val.version;
-}
-
-// stream_task:stream_id:task_id
-static void createStreamTaskOffsetKey(char* dst, uint64_t streamId, uint32_t taskId) {
-  int32_t n = 12;
-  char* p = dst;
-
-  memcpy(p, "stream_task:", n);
-  p += n;
-
-  int32_t inc = tintToHex(streamId, p);
-  p += inc;
-
-  *(p++) = ':';
-  tintToHex(taskId, p);
 }
 
 STQ* tqOpen(const char* path, SVnode* pVnode) {
@@ -470,7 +456,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   // till now, all data has been transferred to consumer, new data needs to push client once arrived.
   if (dataRsp.blockNum == 0 && dataRsp.reqOffset.type == TMQ_OFFSET__LOG &&
       dataRsp.reqOffset.version == dataRsp.rspOffset.version && pHandle->consumerId == pRequest->consumerId) {
-    code = tqRegisterPushEntry(pTq, pHandle, pRequest, pMsg, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
+    code = tqRegisterPushHandle(pTq, pHandle, pRequest, pMsg, &dataRsp, TMQ_MSG_TYPE__POLL_RSP);
     taosWUnLockLatch(&pTq->lock);
     return code;
   }
@@ -880,7 +866,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       atomic_store_32(&pHandle->epoch, -1);
 
       // remove if it has been register in the push manager, and return one empty block to consumer
-      tqUnregisterPushEntry(pTq, req.subKey, (int32_t)strlen(req.subKey), pHandle->consumerId, true);
+      tqUnregisterPushHandle(pTq, req.subKey, (int32_t)strlen(req.subKey), pHandle->consumerId, true);
 
       atomic_store_64(&pHandle->consumerId, req.newConsumerId);
       atomic_add_fetch_32(&pHandle->epoch, 1);
@@ -925,6 +911,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   // expand executor
   if (pTask->fillHistory) {
     pTask->taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;
+  } else {
+    pTask->taskStatus = TASK_STATUS_RESTORE;
   }
 
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
@@ -1382,21 +1370,6 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   return 0;
 }
 
-static int32_t doAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver) {
-  int32_t code = tAppendDataForStream(pTask, pQueueItem);
-  if (code < 0) {
-    tqError("s-task:%s failed to put into queue, too many, next start ver:%" PRId64, pTask->id.idStr, ver);
-    return -1;
-  }
-
-  if (streamSchedExec(pTask) < 0) {
-    tqError("stream task:%d failed to be launched, code:%s", pTask->id.taskId, tstrerror(terrno));
-    return -1;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static void doSaveTaskOffset(STqOffsetStore* pOffsetStore, const char* pKey, int64_t ver) {
   STqOffset offset = {0};
   tqOffsetResetToLog(&offset.val, ver);
@@ -1410,7 +1383,7 @@ static void doSaveTaskOffset(STqOffsetStore* pOffsetStore, const char* pKey, int
 static int32_t addSubmitBlockNLaunchTask(STqOffsetStore* pOffsetStore, SStreamTask* pTask, SStreamDataSubmit2* pSubmit,
                                          const char* key, int64_t ver) {
   doSaveTaskOffset(pOffsetStore, key, ver);
-  int32_t code = doAddInputBlockNLaunchTask(pTask, (SStreamQueueItem*)pSubmit, ver);
+  int32_t code = tqAddInputBlockNLaunchTask(pTask, (SStreamQueueItem*)pSubmit, ver);
 
   // remove the offset, if all functions are completed successfully.
   if (code == TSDB_CODE_SUCCESS) {
@@ -1504,33 +1477,15 @@ int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
       // all data has been retrieved from WAL, let's try submit block directly.
       if (code == TSDB_CODE_SUCCESS) {  // all data retrieved, abort
         // append the data for the stream
-        SFetchRet ret = {0};
+        SFetchRet ret = {.data.info.type = STREAM_NORMAL};
         terrno = 0;
 
         tqNextBlock(pTask->exec.pTqReader, &ret);
         if (ret.fetchType == FETCH_TYPE__DATA) {
-          SStreamDataBlock* pBlocks = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
-          if (pBlocks == NULL) { // failed, do nothing
-            terrno = TSDB_CODE_OUT_OF_MEMORY;
+          code = launchTaskForWalBlock(pTask, &ret, pOffset);
+          if (code != TSDB_CODE_SUCCESS) {
             continue;
           }
-
-          ret.data.info.type = STREAM_NORMAL;
-          pBlocks->type = STREAM_INPUT__DATA_BLOCK;
-          pBlocks->sourceVer = pOffset->val.version;
-          pBlocks->blocks = taosArrayInit(0, sizeof(SSDataBlock));
-          taosArrayPush(pBlocks->blocks, &ret.data);
-
-          int64_t* ts = (int64_t*)(((SColumnInfoData*)ret.data.pDataBlock->pData)->pData);
-//          tqDebug("-----------%ld\n", ts[0]);
-
-          code = doAddInputBlockNLaunchTask(pTask, (SStreamQueueItem*)pBlocks, pBlocks->sourceVer);
-          if (code == TSDB_CODE_SUCCESS) {
-            pOffset->val.version = pTask->exec.pTqReader->pWalReader->curVersion;
-            tqDebug("s-task:%s set the ver:%" PRId64 " from WALReader after extract block from WAL", pTask->id.idStr,
-                    pOffset->val.version);
-          }
-
         } else {  // FETCH_TYPE__NONE, let's try submit block directly
           tqDebug("s-task:%s data in WAL are all consumed, try data in submit message", pTask->id.idStr);
           addSubmitBlockNLaunchTask(pTq->pOffsetStore, pTask, pSubmit, key, submit.ver);
@@ -1555,15 +1510,29 @@ int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
 
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRunReq* pReq = pMsg->pCont;
-  int32_t            taskId = pReq->taskId;
-  SStreamTask*       pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
-  if (pTask) {
-    tqDebug("stream task:%d start to process run req", pTask->id.taskId);
-    streamProcessRunReq(pTask);
-    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+
+  int32_t taskId = pReq->taskId;
+  int32_t vgId = TD_VID(pTq->pVnode);
+
+  if (taskId == ALL_STREAM_TASKS_ID) {  // all tasks are restored from the wal
+    tqDoRestoreSourceStreamTasks(pTq);
     return 0;
   } else {
-    return -1;
+    SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
+    if (pTask != NULL) {
+      if (pTask->taskStatus == TASK_STATUS__NORMAL) {
+        tqDebug("vgId:%d s-task:%s start to process run req", vgId, pTask->id.idStr);
+        streamProcessRunReq(pTask);
+      } else {
+        tqDebug("vgId:%d s-task:%s ignore run req since not in ready state", vgId, pTask->id.idStr);
+      }
+
+      streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+      return 0;
+    } else {
+      tqError("vgId:%d failed to found s-task, taskId:%d", vgId, taskId);
+      return -1;
+    }
   }
 }
 
@@ -1703,3 +1672,25 @@ FAIL:
 }
 
 int32_t tqCheckLogInWal(STQ* pTq, int64_t sversion) { return sversion <= pTq->walLogLastVer; }
+
+int32_t tqRestoreStreamTasks(STQ* pTq) {
+  int32_t vgId = TD_VID(pTq->pVnode);
+
+  SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
+  if (pRunReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    tqError("vgId:%d failed restore stream tasks, code:%s", vgId, terrstr(terrno));
+    return -1;
+  }
+
+  tqInfo("vgId:%d start to restore all stream tasks", vgId);
+  
+  pRunReq->head.vgId = vgId;
+  pRunReq->streamId = 0;
+  pRunReq->taskId = ALL_STREAM_TASKS_ID;
+
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
+  tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);
+
+  return 0;
+}

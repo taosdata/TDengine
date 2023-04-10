@@ -45,8 +45,14 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     goto _err;
   }
 
-  pMeta->pTasks = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  _hash_fn_t fp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
+  pMeta->pTasks = taosHashInit(64, fp, true, HASH_ENTRY_LOCK);
   if (pMeta->pTasks == NULL) {
+    goto _err;
+  }
+
+  pMeta->pRestoreTasks = taosHashInit(64, fp, true, HASH_ENTRY_LOCK);
+  if (pMeta->pRestoreTasks == NULL) {
     goto _err;
   }
 
@@ -62,6 +68,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 _err:
   taosMemoryFree(pMeta->path);
   if (pMeta->pTasks) taosHashCleanup(pMeta->pTasks);
+  if (pMeta->pRestoreTasks) taosHashCleanup(pMeta->pRestoreTasks);
   if (pMeta->pTaskDb) tdbTbClose(pMeta->pTaskDb);
   if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
@@ -87,8 +94,9 @@ void streamMetaClose(SStreamMeta* pMeta) {
     tFreeStreamTask(pTask);
     /*streamMetaReleaseTask(pMeta, pTask);*/
   }
+
   taosHashCleanup(pMeta->pTasks);
-  taosHashCleanup(pMeta->pRecoverStatus);
+  taosHashCleanup(pMeta->pRestoreTasks);
   taosMemoryFree(pMeta->path);
   taosMemoryFree(pMeta);
 }
@@ -166,8 +174,7 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
     return -1;
   }
 
-  taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(int32_t), &pTask, sizeof(void*));
-
+  taosHashPut(pMeta->pRestoreTasks, &pTask->id.taskId, sizeof(int32_t), &pTask, POINTER_BYTES);
   return 0;
 }
 #endif
@@ -298,12 +305,13 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
       return -1;
     }
 
-    if (taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(int32_t), &pTask, sizeof(void*)) < 0) {
+    if (taosHashPut(pMeta->pRestoreTasks, &pTask->id.taskId, sizeof(int32_t), &pTask, sizeof(void*)) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
       tdbTbcClose(pCur);
       return -1;
     }
+
     /*pTask->taskStatus = TASK_STATUS__NORMAL;*/
     if (pTask->fillHistory) {
       pTask->taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;

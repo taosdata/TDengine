@@ -322,8 +322,11 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
     taosWUnLockLatch(&pTq->lock);
   }
 
-  // push data for stream processing
-  if (!tsDisableStream && vnodeIsRoleLeader(pTq->pVnode)) {
+  // push data for stream processing:
+  // 1. the vnode isn't in the restore procedure.
+  // 2. the vnode should be the leader.
+  // 3. the stream is not suspended yet.
+  if (!tsDisableStream && vnodeIsRoleLeader(pTq->pVnode) && (!pTq->pVnode->restored)) {
     if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) {
       return 0;
     }
@@ -352,7 +355,7 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
   return 0;
 }
 
-int32_t tqRegisterPushEntry(STQ* pTq, void* pHandle, const SMqPollReq* pRequest, SRpcMsg* pRpcMsg,
+int32_t tqRegisterPushHandle(STQ* pTq, void* pHandle, const SMqPollReq* pRequest, SRpcMsg* pRpcMsg,
                             SMqDataRsp* pDataRsp, int32_t type) {
   uint64_t   consumerId = pRequest->consumerId;
   int32_t    vgId = TD_VID(pTq->pVnode);
@@ -389,7 +392,7 @@ int32_t tqRegisterPushEntry(STQ* pTq, void* pHandle, const SMqPollReq* pRequest,
   return 0;
 }
 
-int32_t tqUnregisterPushEntry(STQ* pTq, const char* pKey, int32_t keyLen, uint64_t consumerId, bool rspConsumer) {
+int32_t tqUnregisterPushHandle(STQ* pTq, const char* pKey, int32_t keyLen, uint64_t consumerId, bool rspConsumer) {
   int32_t        vgId = TD_VID(pTq->pVnode);
   STqPushEntry** pEntry = taosHashGet(pTq->pPushMgr, pKey, keyLen);
 

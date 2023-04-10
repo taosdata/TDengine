@@ -100,6 +100,8 @@ int32_t walNextValidMsg(SWalReader *pReader) {
   return -1;
 }
 
+int64_t walReaderGetCurrentVer(const SWalReader *pReader) { return pReader->curVersion; }
+
 static int64_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int64_t ver) {
   int64_t ret = 0;
 

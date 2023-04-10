@@ -50,6 +50,7 @@ enum {
   TASK_STATUS__RECOVER_PREPARE,
   TASK_STATUS__RECOVER1,
   TASK_STATUS__RECOVER2,
+  TASK_STATUS_RESTORE,  // only available for source task to replay WAL from the checkpoint
 };
 
 enum {
@@ -576,7 +577,7 @@ typedef struct SStreamMeta {
   TTB*         pTaskDb;
   TTB*         pCheckpointDb;
   SHashObj*    pTasks;
-  SHashObj*    pRecoverStatus;
+  SHashObj*    pRestoreTasks;
   void*        ahandle;
   TXN*         txn;
   FTaskExpand* expandFunc;

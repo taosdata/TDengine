@@ -128,6 +128,10 @@ typedef struct {
   tmr_h  timer;
 } STqMgmt;
 
+typedef struct {
+  int32_t size;
+} STqOffsetHead;
+
 static STqMgmt tqMgmt = {0};
 
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
@@ -154,10 +158,6 @@ int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_
 int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key);
 int32_t tqMetaRestoreCheckInfo(STQ* pTq);
 
-typedef struct {
-  int32_t size;
-} STqOffsetHead;
-
 STqOffsetStore* tqOffsetOpen(STQ* pTq);
 void            tqOffsetClose(STqOffsetStore*);
 STqOffset*      tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey);
@@ -176,6 +176,12 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 
 // tqStream
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
+int32_t tqDoRestoreSourceStreamTasks(STQ* pTq);
+
+// tq util
+void    createStreamTaskOffsetKey(char* dst, uint64_t streamId, uint32_t taskId);
+int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver);
+int32_t launchTaskForWalBlock(SStreamTask* pTask, SFetchRet* pRet, STqOffset* pOffset);
 
 #ifdef __cplusplus
 }
