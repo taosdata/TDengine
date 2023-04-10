@@ -425,6 +425,8 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       taosHashCleanup(pOut->createdDbs);
       taosHashCleanup(pOut->readDbs);
       taosHashCleanup(pOut->writeDbs);
+      taosHashCleanup(pOut->readTbs);
+      taosHashCleanup(pOut->writeTbs);
       taosMemoryFreeClear(pCtx->out);
       break;
     }
