@@ -15,13 +15,18 @@
   "num_of_records_per_req": 10,
   "databases": [{
     "dbinfo": {
-      "name": "db"
+      "name": "db",
+      "drop": "yes"
+
     },
     "super_tables": [{
+      "child_table_exists":"no",
       "name": "stb",
       "childtable_prefix": "stb_",
       "childtable_count": 10,
       "insert_rows": 10,
+      "childtable_from": 1,
+      "childtable_to": 9,
       "columns": [{"type": "INT"}],
       "tags": [{"type": "INT"}]
     }]
