@@ -17,6 +17,7 @@
 
 #include "streamBackendRocksdb.h"
 #include "taos.h"
+#include "tcommon.h"
 #include "thash.h"
 #include "tsimplehash.h"
 
@@ -334,8 +335,9 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
       code = streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
       streamStateClearBatch(batch);
     }
-    code =
-        streamStatePutBatch(pFileState->pFileStore, "default", batch, pPos->pKey, pPos->pRowBuff, pFileState->rowSize);
+
+    SStateKey sKey = {.key = *((SWinKey*)pPos->pKey), .opNum = ((SStreamState*)pFileState->pFileStore)->number};
+    code = streamStatePutBatch(pFileState->pFileStore, "default", batch, &sKey, pPos->pRowBuff, pFileState->rowSize);
   }
   if (streamStateGetBatchSize(batch) > 0) {
     code = streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
