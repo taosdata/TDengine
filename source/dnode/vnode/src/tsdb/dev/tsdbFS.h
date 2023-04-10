@@ -23,29 +23,30 @@ extern "C" {
 #endif
 
 /* Exposed Handle */
-struct STFileSystem;
+struct STFileSystem {
+  STsdb  *pTsdb;
+  tsem_t  can_edit;
+  int64_t eidt_id;
+  SArray *aFileSet;  // SArray<struct SFileSet>
+};
 
 typedef enum {
-  TSDB_FS_EDIT_COMMIT = 0,
+  TSDB_FS_EDIT_NONE = 0,
+  TSDB_FS_EDIT_COMMIT,
   TSDB_FS_EDIT_MERGE,
-} EFsEditType;
+  TSDB_FS_EDIT_MAX,
+} tsdb_fs_edit_t;
 
 /* Exposed APIs */
 // open/close
 int32_t tsdbOpenFileSystem(STsdb *pTsdb, struct STFileSystem **ppFS, int8_t rollback);
 int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS);
 // txn
-int32_t tsdbFileSystemEditBegin(struct STFileSystem *pFS, const SArray *aFileOp, EFsEditType etype);
-int32_t tsdbFileSystemEditCommit(struct STFileSystem *pFS, EFsEditType etype);
-int32_t tsdbFileSystemEditAbort(struct STFileSystem *pFS, EFsEditType etype);
+int32_t tsdbFileSystemEditBegin(struct STFileSystem *pFS, const SArray *aFileOp, tsdb_fs_edit_t etype);
+int32_t tsdbFileSystemEditCommit(struct STFileSystem *pFS, tsdb_fs_edit_t etype);
+int32_t tsdbFileSystemEditAbort(struct STFileSystem *pFS, tsdb_fs_edit_t etype);
 
 /* Exposed Structs */
-struct STFileSystem {
-  STsdb  *pTsdb;
-  tsem_t  canEdit;
-  SArray *aFileSet;  // SArray<struct SFileSet>
-};
-
 #ifdef __cplusplus
 }
 #endif

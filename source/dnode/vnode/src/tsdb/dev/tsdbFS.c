@@ -26,7 +26,7 @@ static int32_t create_file_system(STsdb *pTsdb, struct STFileSystem **ppFS) {
   }
 
   ppFS[0]->pTsdb = pTsdb;
-  tsem_init(&ppFS[0]->canEdit, 0, 1);
+  tsem_init(&ppFS[0]->can_edit, 0, 1);
 
   return 0;
 }
@@ -34,7 +34,7 @@ static int32_t create_file_system(STsdb *pTsdb, struct STFileSystem **ppFS) {
 static int32_t destroy_file_system(struct STFileSystem **ppFS) {
   if (ppFS[0]) {
     taosArrayDestroy(ppFS[0]->aFileSet);
-    tsem_destroy(&ppFS[0]->canEdit);
+    tsem_destroy(&ppFS[0]->can_edit);
     taosMemoryFree(ppFS[0]);
     ppFS[0] = NULL;
   }
@@ -46,7 +46,7 @@ static int32_t get_current_json(STsdb *pTsdb, char fname[]) {
   return 0;
 }
 
-static int32_t get_current_temp(STsdb *pTsdb, char fname[], EFsEditType etype) {
+static int32_t get_current_temp(STsdb *pTsdb, char fname[], tsdb_fs_edit_t etype) {
   switch (etype) {
     case TSDB_FS_EDIT_COMMIT:
       snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", pTsdb->path, TD_DIRSEP, "current.json.commit");
@@ -70,7 +70,7 @@ static int32_t load_fs_from_file(const char *fname, struct STFileSystem *pFS) {
   return 0;
 }
 
-static int32_t commit_edit(struct STFileSystem *pFS, EFsEditType etype) {
+static int32_t commit_edit(struct STFileSystem *pFS, tsdb_fs_edit_t etype) {
   int32_t code;
   char    ofname[TSDB_FILENAME_LEN];
   char    nfname[TSDB_FILENAME_LEN];
@@ -89,7 +89,7 @@ static int32_t commit_edit(struct STFileSystem *pFS, EFsEditType etype) {
   return 0;
 }
 
-static int32_t abort_edit(struct STFileSystem *pFS, EFsEditType etype) {
+static int32_t abort_edit(struct STFileSystem *pFS, tsdb_fs_edit_t etype) {
   int32_t code;
   char    fname[TSDB_FILENAME_LEN];
 
@@ -224,14 +224,14 @@ int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS) {
   return 0;
 }
 
-int32_t tsdbFileSystemEditBegin(struct STFileSystem *pFS, const SArray *aFileOp, EFsEditType etype) {
+int32_t tsdbFileSystemEditBegin(struct STFileSystem *pFS, const SArray *aFileOp, tsdb_fs_edit_t etype) {
   int32_t code = 0;
   int32_t lino = 0;
   char    fname[TSDB_FILENAME_LEN];
 
   get_current_temp(pFS->pTsdb, fname, etype);
 
-  tsem_wait(&pFS->canEdit);
+  tsem_wait(&pFS->can_edit);
 
   code = write_fs_to_file(pFS, fname);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -252,9 +252,9 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileSystemEditCommit(struct STFileSystem *pFS, EFsEditType etype) {
+int32_t tsdbFileSystemEditCommit(struct STFileSystem *pFS, tsdb_fs_edit_t etype) {
   int32_t code = commit_edit(pFS, etype);
-  tsem_post(&pFS->canEdit);
+  tsem_post(&pFS->can_edit);
   if (code) {
     tsdbError("vgId:%d %s failed since %s",  //
               TD_VID(pFS->pTsdb->pVnode),    //
@@ -269,17 +269,16 @@ int32_t tsdbFileSystemEditCommit(struct STFileSystem *pFS, EFsEditType etype) {
   return code;
 }
 
-int32_t tsdbFileSystemEditAbort(struct STFileSystem *pFS, EFsEditType etype) {
+int32_t tsdbFileSystemEditAbort(struct STFileSystem *pFS, tsdb_fs_edit_t etype) {
   int32_t code = abort_edit(pFS, etype);
-  tsem_post(&pFS->canEdit);
-
-_exit:
   if (code) {
     tsdbError("vgId:%d %s failed since %s, etype:%d",  //
               TD_VID(pFS->pTsdb->pVnode),              //
               __func__,                                //
               tstrerror(code),                         //
               etype);
+  } else {
   }
+  tsem_post(&pFS->can_edit);
   return code;
 }
