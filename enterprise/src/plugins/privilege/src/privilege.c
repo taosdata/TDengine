@@ -244,9 +244,12 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   memcpy(pRsp->user, pUser->user, TSDB_USER_LEN);
   pRsp->superAuth = pUser->superUser;
   pRsp->version = pUser->authVersion;
+  pRsp->enable = pUser->enable;
   taosRLockLatch(&pUser->lock);
   pRsp->readDbs = mndDupDbHash(pUser->readDbs);
   pRsp->writeDbs = mndDupDbHash(pUser->writeDbs);
+  // pRsp->readTbs = mndDupTableHash(pUser->readTbs);
+  // pRsp->writeTbs = mndDupTableHash(pUser->writeTbs);
   taosRUnLockLatch(&pUser->lock);
   pRsp->createdDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == pRsp->createdDbs) {
