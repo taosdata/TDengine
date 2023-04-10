@@ -254,7 +254,6 @@ struct Profile {
         short,
         long,
         env = "EXPLORER_CLUSTER",
-        default_value = "http://localhost:6041"
     )]
     cluster: Option<String>,
 
@@ -284,7 +283,6 @@ struct Args {
     #[clap(
         short,
         long,
-        default_value = "6060",
         global = true,
         env = "EXPLORER_PORT"
     )]
