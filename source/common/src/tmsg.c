@@ -1626,6 +1626,8 @@ void tFreeSGetUserAuthRsp(SGetUserAuthRsp *pRsp) {
   taosHashCleanup(pRsp->createdDbs);
   taosHashCleanup(pRsp->readDbs);
   taosHashCleanup(pRsp->writeDbs);
+  taosHashCleanup(pRsp->writeTbs);
+  taosHashCleanup(pRsp->readTbs);
 }
 
 int32_t tSerializeSCreateDropMQSNodeReq(void *buf, int32_t bufLen, SMCreateQnodeReq *pReq) {
