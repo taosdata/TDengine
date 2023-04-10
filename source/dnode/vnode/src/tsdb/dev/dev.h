@@ -26,8 +26,6 @@ extern "C" {
 
 #include "tsdbFile.h"
 
-#include "tsdbFileOp.h"
-
 #include "tsdbFSet.h"
 
 #include "tsdbFS.h"

@@ -16,12 +16,12 @@
 #include "dev.h"
 
 const char *tsdb_ftype_suffix[] = {
+    NULL,     // TSDB_FTYPE_NONE
     ".head",  // TSDB_FTYPE_HEAD
     ".data",  // TSDB_FTYPE_DATA
     ".sma",   // TSDB_FTYPE_SMA
     ".tomb",  // TSDB_FTYPE_TOMB
-    NULL,     // TSDB_FTYPE_MAX
-    ".stt",
+    ".stt",   // TSDB_FTYPE_STT
 };
 
 int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile) {
@@ -29,18 +29,30 @@ int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile) {
   STfs   *pTfs = pVnode->pTfs;
 
   if (pTfs) {
-    snprintf(pFile->fname, TSDB_FILENAME_LEN, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTfs, pFile->diskId),
-             TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pVnode), pFile->fid, pFile->cid, tsdb_ftype_suffix[pFile->type]);
+    snprintf(pFile->fname,                         //
+             TSDB_FILENAME_LEN,                    //
+             "%s%s%s%sv%df%dver%" PRId64 "%s",     //
+             tfsGetDiskPath(pTfs, pFile->diskId),  //
+             TD_DIRSEP,                            //
+             pTsdb->path,                          //
+             TD_DIRSEP,                            //
+             TD_VID(pVnode),                       //
+             pFile->fid,                           //
+             pFile->cid,                           //
+             tsdb_ftype_suffix[pFile->type]);
   } else {
-    snprintf(pFile->fname, TSDB_FILENAME_LEN, "%s%sv%df%dver%" PRId64 "%s", pTsdb->path, TD_DIRSEP, TD_VID(pVnode),
-             pFile->fid, pFile->cid, tsdb_ftype_suffix[pFile->type]);
+    snprintf(pFile->fname,                  //
+             TSDB_FILENAME_LEN,             //
+             "%s%sv%df%dver%" PRId64 "%s",  //
+             pTsdb->path,                   //
+             TD_DIRSEP,                     //
+             TD_VID(pVnode),                //
+             pFile->fid,                    //
+             pFile->cid,                    //
+             tsdb_ftype_suffix[pFile->type]);
   }
   pFile->ref = 1;
   return 0;
 }
 
-int32_t tsdbTFileClear(struct STFile *pFile) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
+int32_t tsdbTFileClear(struct STFile *pFile) { return 0; }

@@ -22,36 +22,28 @@
 extern "C" {
 #endif
 
-/* Exposed Handle */
-struct STFile;
-struct SFileOp;
-
 typedef enum {
-  TSDB_FTYPE_HEAD = 0,  // .head
+  TSDB_FTYPE_NONE = 0,  // NONE
+  TSDB_FTYPE_HEAD,      // .head
   TSDB_FTYPE_DATA,      // .data
   TSDB_FTYPE_SMA,       // .sma
   TSDB_FTYPE_TOMB,      // .tomb
   TSDB_FTYPE_STT,       // .stt
 } tsdb_ftype_t;
 
-/* Exposed APIs */
-int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile);
-int32_t tsdbTFileClear(struct STFile *pFile);
-
-/* Exposed Structs */
-struct FStt {
-  int32_t level;
-  int32_t nStt;
-};
 struct STFile {
-  char         fname[TSDB_FILENAME_LEN];
+  tsdb_ftype_t type;
   SDiskID      diskId;
   int64_t      size;
   int64_t      cid;
   int32_t      fid;
-  int32_t      ref;
-  tsdb_ftype_t type;
+
+  int32_t ref;
+  char    fname[TSDB_FILENAME_LEN];
 };
+
+int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile);
+int32_t tsdbTFileClear(struct STFile *pFile);
 
 #ifdef __cplusplus
 }

@@ -22,14 +22,22 @@
 extern "C" {
 #endif
 
-/* Exposed Handle */
-struct SFileSet;
-
 #define TSDB_STT_FILE_LEVEL_MAX 3
 
-/* Exposed APIs */
+typedef enum {
+  TSDB_FOP_EXTEND = -2,
+  TSDB_FOP_CREATE,
+  TSDB_FOP_NONE,
+  TSDB_FOP_DELETE,
+  TSDB_FOP_TRUNCATE,
+} tsdb_fop_t;
 
-/* Exposed Structs */
+struct SFileOp {
+  tsdb_fop_t    op;
+  struct STFile oFile;  // old file state
+  struct STFile nFile;  // new file state
+};
+
 struct SFileSet {
   int32_t        fid;
   int64_t        nextid;
