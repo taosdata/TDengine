@@ -2040,6 +2040,8 @@ class TDTestCase:
         #tdSql.query(f"select _irowts,interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:04', '2020-02-02 00:00:16') every(1h) fill(prev)")
         #tdSql.query(f"select tbname,_irowts,interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:04', '2020-02-02 00:00:16') every(1h) fill(prev)")
 
+        tdLog.printNoPrefix("======step 14: test interp pseudo columns")
+        tdSql.error(f"select _irowts, c6 from {dbname}.{tbname}")
 
     def stop(self):
         tdSql.close()

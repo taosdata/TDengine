@@ -61,9 +61,9 @@ class TDTestCase:
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("show db.tables")
-        tdSql.checkRows(10)
+        tdSql.checkRows(8)
         tdSql.query("select count(*) from db.stb")
-        tdSql.checkData(0, 0, 100)
+        tdSql.checkData(0, 0, 80)
 
     def stop(self):
         tdSql.close()

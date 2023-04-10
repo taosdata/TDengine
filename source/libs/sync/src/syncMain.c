@@ -182,6 +182,9 @@ int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
     case TDMT_SYNC_TIMEOUT:
       code = syncNodeOnTimeout(pSyncNode, pMsg);
       break;
+    case TDMT_SYNC_TIMEOUT_ELECTION:
+      code = syncNodeOnTimeout(pSyncNode, pMsg);
+      break;
     case TDMT_SYNC_CLIENT_REQUEST:
       code = syncNodeOnClientRequest(pSyncNode, pMsg, NULL);
       break;
@@ -946,7 +949,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   pSyncNode->changing = false;
 
   // replication mgr
-  if (syncNodeLogReplMgrInit(pSyncNode) < 0) {
+  if (syncNodeLogReplInit(pSyncNode) < 0) {
     sError("vgId:%d, failed to init repl mgr since %s.", pSyncNode->vgId, terrstr());
     goto _error;
   }
@@ -1119,7 +1122,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   syncNodeStopPingTimer(pSyncNode);
   syncNodeStopElectTimer(pSyncNode);
   syncNodeStopHeartbeatTimer(pSyncNode);
-  syncNodeLogReplMgrDestroy(pSyncNode);
+  syncNodeLogReplDestroy(pSyncNode);
 
   syncRespMgrDestroy(pSyncNode->pSyncRespMgr);
   pSyncNode->pSyncRespMgr = NULL;
@@ -1593,8 +1596,8 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   syncNodeStopHeartbeatTimer(pSyncNode);
 
-  // reset elect timer
-  syncNodeResetElectTimer(pSyncNode);
+  // trace log
+  sNTrace(pSyncNode, "become follower %s", debugStr);
 
   // send rsp to client
   syncNodeLeaderChangeRsp(pSyncNode);
@@ -1610,8 +1613,8 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
   // reset log buffer
   syncLogBufferReset(pSyncNode->pLogBuf, pSyncNode);
 
-  // trace log
-  sNTrace(pSyncNode, "become follower %s", debugStr);
+  // reset elect timer
+  syncNodeResetElectTimer(pSyncNode);
 }
 
 // TLA+ Spec
@@ -2161,7 +2164,7 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   if (syncLogBufferAppend(ths->pLogBuf, ths, pEntry) < 0) {
     sError("vgId:%d, failed to enqueue sync log buffer, index:%" PRId64, ths->vgId, pEntry->index);
     ASSERT(terrno != 0);
-    (void)syncLogFsmExecute(ths, ths->pFsm, ths->state, raftStoreGetTerm(ths), pEntry, terrno);
+    (void)syncFsmExecute(ths, ths->pFsm, ths->state, raftStoreGetTerm(ths), pEntry, terrno);
     syncEntryDestroy(pEntry);
     return -1;
   }
@@ -2277,6 +2280,7 @@ static int32_t syncNodeAppendNoopOld(SSyncNode* ths) {
 
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
+  bool           resetElect = false;
 
   const STraceId* trace = &pRpcMsg->info.traceId;
   char            tbuf[40] = {0};
@@ -2300,12 +2304,11 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   if (pMsg->term == currentTerm && ths->state != TAOS_SYNC_STATE_LEADER) {
     syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
+    resetElect = true;
 
-    syncNodeResetElectTimer(ths);
     ths->minMatchIndex = pMsg->minMatchIndex;
 
     if (ths->state == TAOS_SYNC_STATE_FOLLOWER) {
-      // syncNodeFollowerCommit(ths, pMsg->commitIndex);
       SRpcMsg rpcMsgLocalCmd = {0};
       (void)syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId);
 
@@ -2328,7 +2331,6 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   if (pMsg->term >= currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {
-    // syncNodeStepDown(ths, pMsg->term);
     SRpcMsg rpcMsgLocalCmd = {0};
     (void)syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId);
 
@@ -2348,15 +2350,10 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     }
   }
 
-  /*
-    // htonl
-    SMsgHead* pHead = rpcMsg.pCont;
-    pHead->contLen = htonl(pHead->contLen);
-    pHead->vgId = htonl(pHead->vgId);
-  */
-
   // reply
   syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
+
+  if (resetElect) syncNodeResetElectTimer(ths);
   return 0;
 }
 
@@ -2377,7 +2374,7 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
 
-  return syncLogReplMgrProcessHeartbeatReply(pMgr, ths, pMsg);
+  return syncLogReplProcessHeartbeatReply(pMgr, ths, pMsg);
 }
 
 int32_t syncNodeOnHeartbeatReplyOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {

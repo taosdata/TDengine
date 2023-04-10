@@ -138,7 +138,7 @@ static void *mndBuildDropIdxReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStbOb
   mInfo("idx: %s start to build drop index req", pIdx->name);
 
   len = tSerializeSDropIdxReq(NULL, 0, &req);
-  if (ret < 0) {
+  if (len < 0) {
     goto _err;
   }
 
@@ -672,7 +672,7 @@ _OVER:
 static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *req, SDbObj *pDb, SStbObj *pStb) {
   int32_t code = -1;
   SIdxObj idxObj = {0};
-  memcpy(idxObj.name, req->idxName, TSDB_TABLE_FNAME_LEN);
+  memcpy(idxObj.name, req->idxName, TSDB_INDEX_FNAME_LEN);
   memcpy(idxObj.stb, pStb->name, TSDB_TABLE_FNAME_LEN);
   memcpy(idxObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   memcpy(idxObj.colName, req->colName, TSDB_COL_NAME_LEN);
