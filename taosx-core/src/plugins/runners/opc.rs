@@ -570,7 +570,7 @@ pub struct OpcTableConfig {
     pub(crate) ts_cloumn_name: HashMap<String, String>,
 }
 
-pub async fn ops_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
+pub async fn opc_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     let config = OPCConfig::new(from.clone(), 0, OPCConfigMode::Points)?;
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;

@@ -9,10 +9,10 @@ mod runners;
 use anyhow::bail;
 use futures::TryStreamExt;
 pub use runners::opc::opc_to_taos;
-use runners::opc::ops_datasets;
+use runners::opc::opc_datasets;
 pub use runners::pi::pi_to_taos;
 use serde::{Deserialize, Serialize};
-use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
 
 use crate::plugins::runners::pi::pi_datasets;
 
@@ -67,7 +67,7 @@ pub async fn list_datasets_from(from: impl IntoDsn) -> anyhow::Result<Vec<DataSe
         }
         "opc" => {
             // opc
-            return ops_datasets(&from).await;
+            return opc_datasets(&from).await;
         }
         _ => {
             bail!("Unsupported data source: {}", from);

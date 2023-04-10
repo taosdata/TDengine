@@ -7,6 +7,7 @@ use std::{
 
 use anyhow::Context;
 use itertools::Itertools;
+use serde_json::Value;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 
 use crate::{
@@ -57,6 +58,8 @@ struct PiConfig {
     #[serde(rename = "Points")]
     #[serde(skip_serializing_if = "Option::is_none")]
     points: Option<PathBuf>,
+    #[serde(skip)]
+    point_filter: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -121,6 +124,8 @@ impl PiConfig {
         let ipc_stream = format!("127.0.0.1:{ipc}");
         let sql_api = format!("http://127.0.0.1:{sql}");
 
+        let point_filter = dsn.remove("PointFilter");
+
         // dsn.addresses
         Ok(Self {
             server_name,
@@ -137,6 +142,7 @@ impl PiConfig {
             template_for_pi_point,
             template_for_af_element,
             points,
+            point_filter,
         })
     }
 }
@@ -244,35 +250,60 @@ pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     {
         anyhow::bail!("PI connector support only windows platform");
     }
-    return Ok(vec![]);
 
-    // todo: add a command to get list of all available data sets.
+    let config = PiConfig::new(from.clone(), String::new(), 0, 0)?;
 
-    // let config = PiConfig::new(from.clone(), 0, 0)?;
+    let toml = toml::to_string(&config)?;
+    let mut config_file = tempfile::NamedTempFile::new()?;
+    write!(config_file, "{}", &toml)?;
+    let config_path = config_file.path().to_path_buf();
+    let temp_path = config_file.into_temp_path();
 
-    // let toml = toml::to_string(&config)?;
-    // let mut config_file = tempfile::NamedTempFile::new()?;
-    // write!(config_file, "{}", &toml)?;
-    // let config_path = config_file.path().to_path_buf();
-    // let temp_path = config_file.into_temp_path();
+    log::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    // log::info!("Using config file {} \n{}", config_path.display(), toml);
+    let mut command = std::process::Command::new(
+        "C:\\Program Files (x86)\\TD PI Connector\\TDPIConnector.Service.exe",
+    );
 
-    //     let mut command = std::process::Command::new(
-    //         "C:\\Program Files (x86)\\TD PI Connector\\TDPIConnector.Service.exe",
-    //         // "target/debug/examples/pi",
-    //     );
-    // let output = command
-    //     .arg("points")
-    //     .arg(format!("--conf={}", &config_path.display()))
-    //     .stdout(std::process::Stdio::piped())
-    //     .stderr(std::process::Stdio::piped())
-    //     .output()?;
-    // // dbg!(output);
-    // log::info!("OPC exit with status {}", output.status);
+    let point_filter = if let Some(pf) = config.point_filter {
+        pf
+    } else {
+        String::from("*")
+    };
 
-    // // let json = String::from_utf8_lossy(&output.stdout);
-    // let res: Vec<DataSets> = serde_json::from_slice(&output.stdout)?;
-    // temp_path.close()?;
-    // Ok(res)
+    let output = command
+        .arg("-f")
+        .arg(&config_path)
+        .arg("-p")
+        .arg(point_filter)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()?;
+    // dbg!(output);
+    log::info!("PI Connector exit with status {}", output.status);
+
+    let json: Value = serde_json::from_slice(&output.stdout)?;
+    // let json: Value = serde_json::from_str(std::str::from_utf8(&output.stdout).unwrap()).unwrap();
+    let map = json.as_object().unwrap();
+    let mut dataset = Vec::new();
+    let mut point_names = map.get("pointsName").unwrap().as_array().unwrap().iter().map(|f| {
+        DataSet {
+            id: String::from(f.as_str().unwrap()),
+            name: None,
+            category: Some(String::from("pointsName")),
+            r#type: None,
+        }
+    }).collect_vec();
+    dataset.append(&mut point_names);
+    let mut template_names = map.get("templateName").unwrap().as_array().unwrap().iter().map(|f| {
+        DataSet {
+            id: String::from(f.as_str().unwrap()),
+            name: None,
+            category: Some(String::from("templateName")),
+            r#type: None,
+        }
+    }).collect_vec();
+    dataset.append(&mut template_names);
+    temp_path.close()?;
+    Ok(dataset)
 }
