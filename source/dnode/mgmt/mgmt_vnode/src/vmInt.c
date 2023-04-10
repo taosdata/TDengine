@@ -98,9 +98,9 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
         pVnode->pSyncW.queue->threadId);
   tMultiWorkerCleanup(&pVnode->pSyncW);
 
-  dInfo("vgId:%d, wait for vnode sync ctrl queue:%p is empty, thread:%08" PRId64, pVnode->vgId,
-        pVnode->pSyncCtrlW.queue, pVnode->pSyncCtrlW.queue->threadId);
-  tMultiWorkerCleanup(&pVnode->pSyncCtrlW);
+  dInfo("vgId:%d, wait for vnode sync rd queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncRdW.queue,
+        pVnode->pSyncRdW.queue->threadId);
+  tMultiWorkerCleanup(&pVnode->pSyncRdW);
 
   dInfo("vgId:%d, wait for vnode apply queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pApplyW.queue,
         pVnode->pApplyW.queue->threadId);

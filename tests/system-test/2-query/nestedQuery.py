@@ -6144,7 +6144,7 @@ class TDTestCase:
 
         startTime = time.time()
 
-        self.function_before_26()
+        #self.function_before_26()
 
         self.math_nest(['UNIQUE'])
         self.math_nest(['MODE'])
@@ -6157,9 +6157,9 @@ class TDTestCase:
         # self.math_nest(['MAVG'])
         # self.math_nest(['HYPERLOGLOG'])
         # self.math_nest(['TAIL'])
-        # self.math_nest(['CSUM'])
-        # self.math_nest(['statecount','stateduration'])
-        # self.math_nest(['HISTOGRAM'])
+        self.math_nest(['CSUM'])
+        self.math_nest(['statecount','stateduration'])
+        self.math_nest(['HISTOGRAM'])
 
         # self.str_nest(['LTRIM','RTRIM','LOWER','UPPER'])
         # self.str_nest(['LENGTH','CHAR_LENGTH'])

@@ -82,10 +82,10 @@ $topicList = $topicList . '
 $consumerId    = 0
 $totalMsgOfStb = $ctbNum * $rowsPerCtb
 $totalMsgOfStb = $totalMsgOfStb * $topicNum
-$expectmsgcnt  = $totalMsgOfStb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+$expectmsgcnt  = $topicNum
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $totalMsgOfStb , $ifcheckdata , $ifmanualcommit )
 $consumerId    = 1
-sql insert into consumeinfo values (now+1s , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+sql insert into consumeinfo values (now+1s , $consumerId , $topicList , $keyList , $totalMsgOfStb , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from stb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $dbName -s start
@@ -112,14 +112,14 @@ if $data[0][1] == 1 then
   endi
 endi
 
-# either $data[0][2] == $totalMsgOfStb and $data[1][2] == 0
-# or     $data[0][2] == 0              and $data[1][2] == $totalMsgOfStb
-if $data[0][2] == $totalMsgOfStb then
+# either $data[0][2] == $expectmsgcnt and $data[1][2] == 0
+# or     $data[0][2] == 0              and $data[1][2] == $expectmsgcnt
+if $data[0][2] == $expectmsgcnt then
   if $data[1][2] == 0 then
     goto check_ok_0
   endi
 elif $data[0][2] == 0 then
-  if $data[1][2] == $totalMsgOfStb then
+  if $data[1][2] == $expectmsgcnt then
     goto check_ok_0
   endi
 endi
@@ -169,10 +169,10 @@ $topicList = $topicList . '
 
 $consumerId    = 0
 $totalMsgOfCtb = $rowsPerCtb * $topicNum
-$expectmsgcnt  = $totalMsgOfCtb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+$expectmsgcnt  = $topicNum
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $totalMsgOfCtb , $ifcheckdata , $ifmanualcommit )
 $consumerId    = 1
-sql insert into consumeinfo values (now+1s , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+sql insert into consumeinfo values (now+1s , $consumerId , $topicList , $keyList , $totalMsgOfCtb , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ctb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start
@@ -199,14 +199,14 @@ if $data[0][1] == 1 then
   endi
 endi
 
-# either $data[0][2] == $totalMsgOfCtb and $data[1][2] == 0
-# or     $data[0][2] == 0              and $data[1][2] == $totalMsgOfCtb
-if $data[0][2] == $totalMsgOfCtb then
+# either $data[0][2] == $expectmsgcnt and $data[1][2] == 0
+# or     $data[0][2] == 0              and $data[1][2] == $expectmsgcnt
+if $data[0][2] == $expectmsgcnt then
   if $data[1][2] == 0 then
     goto check_ok_2
   endi
 elif $data[0][2] == 0 then
-  if $data[1][2] == $totalMsgOfCtb then
+  if $data[1][2] == $expectmsgcnt then
     goto check_ok_2
   endi
 endi
@@ -256,10 +256,10 @@ $topicList = $topicList . '
 
 $consumerId    = 0
 $totalMsgOfNtb = $rowsPerCtb * $topicNum
-$expectmsgcnt  = $totalMsgOfNtb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+$expectmsgcnt  = $topicNum
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $totalMsgOfNtb , $ifcheckdata , $ifmanualcommit )
 $consumerId    = 1
-sql insert into consumeinfo values (now+1s , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+sql insert into consumeinfo values (now+1s , $consumerId , $topicList , $keyList , $totalMsgOfNtb , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ntb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start
@@ -286,14 +286,14 @@ if $data[1][1] == 0 then
   endi
 endi
 
-# either $data[0][2] == $totalMsgOfNtb and $data[1][2] == 0
-# or     $data[0][2] == 0              and $data[1][2] == $totalMsgOfNtb
-if $data[0][2] == $totalMsgOfNtb then
+# either $data[0][2] == $expectmsgcnt and $data[1][2] == 0
+# or     $data[0][2] == 0              and $data[1][2] == $expectmsgcnt
+if $data[0][2] == $expectmsgcnt then
   if $data[1][2] == 0 then
     goto check_ok_4
   endi
 elif $data[0][2] == 0 then
-  if $data[1][2] == $totalMsgOfNtb then
+  if $data[1][2] == $expectmsgcnt then
     goto check_ok_4
   endi
 endi

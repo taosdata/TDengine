@@ -755,9 +755,11 @@ static bool isPrimaryKeyImpl(SNode* pExpr) {
   } else if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
     SFunctionNode* pFunc = (SFunctionNode*)pExpr;
     if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType || FUNCTION_TYPE_GROUP_KEY == pFunc->funcType ||
-        FUNCTION_TYPE_FIRST == pFunc->funcType || FUNCTION_TYPE_LAST == pFunc->funcType) {
+        FUNCTION_TYPE_FIRST == pFunc->funcType || FUNCTION_TYPE_LAST == pFunc->funcType ||
+        FUNCTION_TYPE_LAST_ROW == pFunc->funcType) {
       return isPrimaryKeyImpl(nodesListGetNode(pFunc->pParameterList, 0));
-    } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType) {
+    } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
+               FUNCTION_TYPE_IROWTS == pFunc->funcType) {
       return true;
     }
   }
@@ -1635,13 +1637,15 @@ static bool isTableStar(SNode* pNode) {
          (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
 }
 
+static bool isStarParam(SNode* pNode) { return isStar(pNode) || isTableStar(pNode); }
+
 static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (!fmIsMultiResFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
   if (SQL_CLAUSE_SELECT != pCxt->currClause) {
     SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
-    if (isStar(pPara) || isTableStar(pPara)) {
+    if (isStarParam(pPara)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                      "%s(*) is only supported in SELECTed list", pFunc->functionName);
     }
@@ -1655,7 +1659,7 @@ static int32_t translateMultiResFunc(STranslateContext* pCxt, SFunctionNode* pFu
 
 static int32_t getMultiResFuncNum(SNodeList* pParameterList) {
   if (1 == LIST_LENGTH(pParameterList)) {
-    return isStar(nodesListGetNode(pParameterList, 0)) ? 2 : 1;
+    return isStarParam(nodesListGetNode(pParameterList, 0)) ? 2 : 1;
   }
   return LIST_LENGTH(pParameterList);
 }
@@ -1688,6 +1692,7 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     pSelect->hasUniqueFunc = pSelect->hasUniqueFunc ? true : (FUNCTION_TYPE_UNIQUE == pFunc->funcType);
     pSelect->hasTailFunc = pSelect->hasTailFunc ? true : (FUNCTION_TYPE_TAIL == pFunc->funcType);
     pSelect->hasInterpFunc = pSelect->hasInterpFunc ? true : (FUNCTION_TYPE_INTERP == pFunc->funcType);
+    pSelect->hasInterpPseudoColFunc = pSelect->hasInterpPseudoColFunc ? true : fmIsInterpPseudoColumnFunc(pFunc->funcId);
     pSelect->hasLastRowFunc = pSelect->hasLastRowFunc ? true : (FUNCTION_TYPE_LAST_ROW == pFunc->funcType);
     pSelect->hasLastFunc = pSelect->hasLastFunc ? true : (FUNCTION_TYPE_LAST == pFunc->funcType);
     pSelect->hasTimeLineFunc = pSelect->hasTimeLineFunc ? true : fmIsTimelineFunc(pFunc->funcId);
@@ -3118,6 +3123,19 @@ static const char* getPrecisionStr(uint8_t precision) {
   return "unknown";
 }
 
+static void convertVarDuration(SValueNode* pOffset, uint8_t precision) {
+  const int64_t factors[3] = {NANOSECOND_PER_MSEC, NANOSECOND_PER_USEC, 1};
+  const int8_t  units[3] = {TIME_UNIT_MILLISECOND, TIME_UNIT_MICROSECOND, TIME_UNIT_NANOSECOND};
+
+  if (pOffset->unit == 'n') {
+    pOffset->datum.i = pOffset->datum.i * 31 * (NANOSECOND_PER_DAY / factors[precision]);
+  } else {
+    pOffset->datum.i = pOffset->datum.i * 365 * (NANOSECOND_PER_DAY / factors[precision]);
+  }
+
+  pOffset->unit = units[precision];
+}
+
 static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
   uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
 
@@ -3141,6 +3159,10 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
         (!fixed && getMonthsFromTimeVal(pOffset->datum.i, precision, pOffset->unit) >=
                        getMonthsFromTimeVal(pInter->datum.i, precision, pInter->unit))) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
+    }
+
+    if (pOffset->unit == 'n' || pOffset->unit == 'y') {
+      convertVarDuration(pOffset, precision);
     }
   }
 
@@ -3348,6 +3370,9 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (!pSelect->hasInterpFunc) {
     if (NULL != pSelect->pRange || NULL != pSelect->pEvery || NULL != pSelect->pFill) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE);
+    }
+    if (pSelect->hasInterpPseudoColFunc) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC, "Has Interp pseudo column(s) but missing interp function");
     }
     return TSDB_CODE_SUCCESS;
   }
