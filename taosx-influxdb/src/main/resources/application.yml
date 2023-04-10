@@ -1,0 +1,64 @@
+# 服务端口
+server:
+  port: 9080
+# 日志配置
+logging:
+  config: classpath:log4j2.yml
+spring:
+  profiles:
+    include: db-source, netty
+
+# task parameters
+task:
+  # empty is all, follow this principle
+  buckets:
+    - bucket: influxdb
+      measurements:
+        - measurement: 1a
+          cols: 1a
+        - measurement: 2a
+          cols: 2a
+    - bucket: test
+      measurements:
+        - measurement: 3a
+          cols: 3a
+        - measurement: 4a
+          cols: 4a
+  beginTime: 2023-04-01
+  # empty is now
+  endTime:
+  # specify the way of task assignment: 1-queue 2-average
+  sendType: 1
+
+#performance parameters
+performance:
+  limitConnect: 1
+  limitBatch: 100
+  limitSpeed: 50000
+  retryTimes: 3
+  # millisecond
+  retryInterval: 200
+  readWindow: d
+  maxThread: 30
+  queueSizeT: 100
+  queueSizeD: 10000
+  thread:
+    # MessageThread线程
+    processMessageInterval: 1
+    processMessageEmptyInterval: 10
+    # PushThread线程
+    readBucketDataBatch: 200
+    pushInterval: 0
+    pushEmptyInterval: 10
+    pushNotFullInterval: 5
+    # BucketThread线程
+    createBucketInterval: 200
+    createBucketFullInterval: 2000
+    # BucketDataThread线程
+    readBucketBatch: 50
+    readBucketInterval: 5
+    readBucketFullInterval: 200
+    # ScheduleThread线程
+    scheduleInterval: 200
+    # MonitorThread线程
+    monitorInterval: 1000

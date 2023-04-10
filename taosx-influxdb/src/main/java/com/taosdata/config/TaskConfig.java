@@ -1,0 +1,24 @@
+package com.taosdata.config;
+
+import com.taosdata.config.dto.BucketConfig;
+import lombok.Data;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+/**
+ * 任务配置
+ *
+ * @author ZYP
+ */
+@Component
+@ConfigurationProperties(prefix = "task")
+@Data
+public class TaskConfig {
+
+    private List<BucketConfig> buckets;
+    private String beginTime;
+    private String endTime;
+    private int sendType;
+}
