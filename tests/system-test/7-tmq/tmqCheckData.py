@@ -134,7 +134,7 @@ class TDTestCase:
         #     tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectRowsList[2], resultList[0]))
         #     tdLog.exit("2 tmq consume rows error!")
 
-        # self.checkFileContent(consumerId, queryString)
+        # tmqCom.checkFileContent(consumerId, queryString)
 
         time.sleep(10)
         for i in range(len(topicNameList)):

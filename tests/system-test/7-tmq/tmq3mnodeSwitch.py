@@ -228,7 +228,7 @@ class TDTestCase:
             tdLog.exit("0 tmq consume rows error!")
 
         if expectRowsList[0] == resultList[0]:
-            tqCom.checkFileContent(consumerId, queryString)
+            tmqCom.checkFileContent(consumerId, queryString)
 
         time.sleep(10)
         for i in range(len(topicNameList)):
