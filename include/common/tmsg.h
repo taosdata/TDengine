@@ -1106,8 +1106,14 @@ typedef struct {
 } SFuncInfo;
 
 typedef struct {
+  int32_t funcVersion;
+  int64_t funcCreatedTime;
+} SFuncExtraInfo;
+
+typedef struct {
   int32_t numOfFuncs;
   SArray* pFuncInfos;
+  SArray* pFuncExtraInfos;
 } SRetrieveFuncRsp;
 
 int32_t tSerializeSRetrieveFuncRsp(void* buf, int32_t bufLen, SRetrieveFuncRsp* pRsp);

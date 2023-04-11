@@ -280,7 +280,37 @@ if $data20 != 8.000000000 then
   return -1
 endi
 
+sql create or replace function bit_and as '/tmp/udf/libbitand.so' outputtype int
+sql select func_version from information_schema.ins_functions where name='bit_and'
+if $data00 != 1 then
+  return -1
+endi
+sql select bit_and(f1, f2) from t2;
+print $rows , $data00 , $data10 , $data20 , $data30 , $data40 , $data50
+if $rows != 6 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
 
+if $data20 != NULL then
+  return -1
+endi
+
+if $data30 != NULL then
+  return -1
+endi
+
+if $data40 != 0 then
+  return -1
+endi
+if $data50 != 1 then
+  return -1
+endi
 #sql drop function bit_and;
 #sql show functions;
 #if $rows != 1 then
