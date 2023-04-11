@@ -2333,9 +2333,14 @@ static int32_t getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pN
   return startPos;
 }
 
+static void setStreamDataVersion(SExecTaskInfo*  pTaskInfo, int64_t version) {
+  pTaskInfo->streamInfo.dataVersion = version;
+}
+
 static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* pSDataBlock, uint64_t groupId,
                                     SSHashObj* pUpdatedMap) {
   SStreamIntervalOperatorInfo* pInfo = (SStreamIntervalOperatorInfo*)pOperatorInfo->info;
+  pInfo->dataVersion = TMAX(pInfo->dataVersion, pSDataBlock->info.version);
 
   SResultRowInfo* pResultRowInfo = &(pInfo->binfo.resultRowInfo);
   SExecTaskInfo*  pTaskInfo = pOperatorInfo->pTaskInfo;
@@ -2501,6 +2506,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       clearFunctionContext(&pOperator->exprSupp);
       // semi interval operator clear disk buffer
       clearStreamIntervalOperator(pInfo);
+      setStreamDataVersion(pTaskInfo, pInfo->dataVersion);
       qDebug("===stream===clear semi operator");
     } else {
       deleteIntervalDiscBuf(pInfo->pState, pInfo->pPullDataMap, pInfo->twAggSup.maxTs - pInfo->twAggSup.deleteMark,
@@ -2774,6 +2780,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->numOfDatapack = 0;
   pInfo->pUpdated = NULL;
   pInfo->pUpdatedMap = NULL;
+  pInfo->dataVersion = 0;
 
   pOperator->operatorType = pPhyNode->type;
   pOperator->blocking = true;
@@ -3123,6 +3130,8 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
   SResultRow*                    pResult = NULL;
   int32_t                        rows = pSDataBlock->info.rows;
   int32_t                        winRows = 0;
+
+  pInfo->dataVersion = TMAX(pInfo->dataVersion, pSDataBlock->info.version);
 
   SColumnInfoData* pStartTsCol = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
   TSKEY*           startTsCols = (int64_t*)pStartTsCol->pData;
@@ -3587,6 +3596,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   pInfo->ignoreExpiredDataSaved = false;
   pInfo->pUpdated = NULL;
   pInfo->pStUpdated = NULL;
+  pInfo->dataVersion = 0;
 
   setOperatorInfo(pOperator, "StreamSessionWindowAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION, true,
                   OP_NOT_OPENED, pInfo, pTaskInfo);
@@ -3897,6 +3907,9 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
   TSKEY*                       tsCols = NULL;
   SResultRow*                  pResult = NULL;
   int32_t                      winRows = 0;
+
+  pInfo->dataVersion = TMAX(pInfo->dataVersion, pSDataBlock->info.version);
+
   if (pSDataBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
     tsCols = (int64_t*)pColDataInfo->pData;
@@ -4113,6 +4126,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->ignoreExpiredDataSaved = false;
   pInfo->pUpdated = NULL;
   pInfo->pSeUpdated = NULL;
+  pInfo->dataVersion = 0;
 
   setOperatorInfo(pOperator, "StreamStateAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
@@ -4748,6 +4762,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
                           &pInfo->delKey);
     setOperatorCompleted(pOperator);
     streamStateCommit(pTaskInfo->streamInfo.pState);
+    setStreamDataVersion(pTaskInfo, pInfo->dataVersion);
     return NULL;
   }
 

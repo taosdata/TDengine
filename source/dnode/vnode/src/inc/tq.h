@@ -183,6 +183,10 @@ void    createStreamTaskOffsetKey(char* dst, uint64_t streamId, uint32_t taskId)
 int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver);
 int32_t launchTaskForWalBlock(SStreamTask* pTask, SFetchRet* pRet, STqOffset* pOffset);
 
+void    doSaveTaskOffset(STqOffsetStore* pOffsetStore, const char* pKey, int64_t ver);
+void    saveOffsetForAllTasks(STQ* pTq, int64_t ver);
+void    initOffsetForAllRestoreTasks(STQ* pTq);
+
 #ifdef __cplusplus
 }
 #endif

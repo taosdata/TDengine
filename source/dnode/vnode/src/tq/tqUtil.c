@@ -70,3 +70,75 @@ int32_t launchTaskForWalBlock(SStreamTask* pTask, SFetchRet* pRet, STqOffset* pO
 
   return 0;
 }
+
+void initOffsetForAllRestoreTasks(STQ* pTq) {
+  void* pIter = NULL;
+
+  while(1) {
+    pIter = taosHashIterate(pTq->pStreamMeta->pRestoreTasks, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SStreamTask* pTask = *(SStreamTask**)pIter;
+    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
+      continue;
+    }
+
+    if (pTask->taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
+      tqDebug("stream task:%d skip push data, not ready for processing, status %d", pTask->id.taskId,
+              pTask->taskStatus);
+      continue;
+    }
+
+    char key[128] = {0};
+    createStreamTaskOffsetKey(key, pTask->id.streamId, pTask->id.taskId);
+
+    STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, key);
+    if (pOffset == NULL) {
+      doSaveTaskOffset(pTq->pOffsetStore, key, pTask->startVer);
+    }
+  }
+
+}
+
+void saveOffsetForAllTasks(STQ* pTq, int64_t ver) {
+  void* pIter = NULL;
+
+  while(1) {
+    pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SStreamTask* pTask = *(SStreamTask**)pIter;
+    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
+      continue;
+    }
+
+    if (pTask->taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
+      tqDebug("stream task:%d skip push data, not ready for processing, status %d", pTask->id.taskId,
+              pTask->taskStatus);
+      continue;
+    }
+
+    char key[128] = {0};
+    createStreamTaskOffsetKey(key, pTask->id.streamId, pTask->id.taskId);
+
+    STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, key);
+    if (pOffset == NULL) {
+      doSaveTaskOffset(pTq->pOffsetStore, key, ver);
+    }
+  }
+}
+
+void doSaveTaskOffset(STqOffsetStore* pOffsetStore, const char* pKey, int64_t ver) {
+  STqOffset offset = {0};
+  tqOffsetResetToLog(&offset.val, ver);
+
+  tstrncpy(offset.subKey, pKey, tListLen(offset.subKey));
+
+  // keep the offset info in the offset store
+  tqOffsetWrite(pOffsetStore, &offset);
+}
+

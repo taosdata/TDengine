@@ -15,25 +15,19 @@
 
 #include "tq.h"
 
-static int32_t restoreStreamTask(SStreamMeta* pStreamMeta, STqOffsetStore* pOffsetStore, SArray* pTaskList);
+static int32_t restoreStreamTaskImpl(SStreamMeta* pStreamMeta, STqOffsetStore* pOffsetStore, SArray* pTaskList);
 static int32_t transferToNormalTask(SStreamMeta* pStreamMeta, SArray* pTaskList);
 
 // this function should be executed by stream threads.
 // there is a case that the WAL increases more fast than the restore procedure, and this restore procedure
 // will not stop eventually.
 int tqDoRestoreSourceStreamTasks(STQ* pTq) {
-
-  // todo set the offset value from the previous check point offset
   int64_t st = taosGetTimestampMs();
-  int32_t vgId = TD_VID(pTq->pVnode);
-  int32_t numOfTasks = taosHashGetSize(pTq->pStreamMeta->pRestoreTasks);
-  tqInfo("vgId:%d start restoring stream tasks, total tasks:%d", vgId, numOfTasks);
-
   while (1) {
     SArray* pTaskList = taosArrayInit(4, POINTER_BYTES);
 
     // check all restore tasks
-    restoreStreamTask(pTq->pStreamMeta, pTq->pOffsetStore, pTaskList);
+    restoreStreamTaskImpl(pTq->pStreamMeta, pTq->pOffsetStore, pTaskList);
     transferToNormalTask(pTq->pStreamMeta, pTaskList);
     taosArrayDestroy(pTaskList);
 
@@ -44,7 +38,7 @@ int tqDoRestoreSourceStreamTasks(STQ* pTq) {
   }
 
   int64_t et = taosGetTimestampMs();
-  tqInfo("vgId:%d restoring task completed, elapsed time:%" PRId64 " sec.", vgId, (et - st));
+  tqInfo("vgId:%d restoring task completed, elapsed time:%" PRId64 " sec.", TD_VID(pTq->pVnode), (et - st));
   return 0;
 }
 
@@ -68,7 +62,7 @@ int32_t transferToNormalTask(SStreamMeta* pStreamMeta, SArray* pTaskList) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t restoreStreamTask(SStreamMeta* pStreamMeta, STqOffsetStore* pOffsetStore, SArray* pTaskList) {
+int32_t restoreStreamTaskImpl(SStreamMeta* pStreamMeta, STqOffsetStore* pOffsetStore, SArray* pTaskList) {
   // check all restore tasks
   void* pIter = NULL;
 
@@ -93,7 +87,8 @@ int32_t restoreStreamTask(SStreamMeta* pStreamMeta, STqOffsetStore* pOffsetStore
     createStreamTaskOffsetKey(key, pTask->id.streamId, pTask->id.taskId);
 
     if (tInputQueueIsFull(pTask)) {
-      tqDebug("s-task:%s input queue is full, do nothing" PRId64, pTask->id.idStr);
+      tqDebug("s-task:%s input queue is full, do nothing", pTask->id.idStr);
+      taosMsleep(10);
       continue;
     }
 

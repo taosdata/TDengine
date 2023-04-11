@@ -21,8 +21,9 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
   int32_t code = TSDB_CODE_SUCCESS;
   void*   pExecutor = pTask->exec.pExecutor;
 
-  while(pTask->taskLevel == TASK_LEVEL__SOURCE && atomic_load_8(&pTask->taskStatus) != TASK_STATUS__NORMAL) {
-    qError("stream task wait for the end of fill history");
+  while (pTask->taskLevel == TASK_LEVEL__SOURCE && atomic_load_8(&pTask->taskStatus) != TASK_STATUS__NORMAL) {
+    qError("stream task wait for the end of fill history, s-task:%s, status:%d", pTask->id.idStr,
+           atomic_load_8(&pTask->taskStatus));
     taosMsleep(2);
     continue;
   }
@@ -236,7 +237,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     while (1) {
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
       if (qItem == NULL) {
-        qDebug("stream task exec over, queue empty, task: %d", pTask->id.taskId);
+        qDebug("s-task:%s stream task exec over, queue empty", pTask->id.idStr);
         break;
       }
 
@@ -284,7 +285,19 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     streamTaskExecImpl(pTask, pInput, pRes);
 
-    qDebug("s-task:%s exec end", pTask->id.idStr);
+    int64_t ckVer = qGetCheckpointVersion(pTask->exec.pExecutor);
+    if (ckVer > pTask->startVer) {    // save it since the checkpoint is updated
+      qDebug("s-task:%s exec end, checkpoint ver from %"PRId64" to %"PRId64, pTask->id.idStr, pTask->startVer, ckVer);
+      pTask->startVer = ckVer;
+      streamMetaSaveTask(pTask->pMeta, pTask);
+
+      if (streamMetaCommit(pTask->pMeta) < 0) {
+        qError("failed to commit stream meta, since %s", terrstr());
+        return -1;
+      }
+    } else {
+      qDebug("s-task:%s exec end", pTask->id.idStr);
+    }
 
     if (taosArrayGetSize(pRes) != 0) {
       SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
@@ -333,6 +346,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
       return -1;
     }
 
+    // todo the task should be commit here
     atomic_store_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE);
 
     if (!taosQueueEmpty(pTask->inputQueue->queue)) {

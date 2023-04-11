@@ -198,6 +198,12 @@ int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   return code;
 }
 
+int64_t qGetCheckpointVersion(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = tinfo;
+  return pTaskInfo->streamInfo.dataVersion;
+}
+
+
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
     return TSDB_CODE_APP_ERROR;

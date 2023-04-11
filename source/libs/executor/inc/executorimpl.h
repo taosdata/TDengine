@@ -127,14 +127,9 @@ enum {
 };
 
 typedef struct {
-  // TODO remove prepareStatus
-//  STqOffsetVal prepareStatus;  // for tmq
-  STqOffsetVal currentOffset;     // for tmq
-  SMqMetaRsp   metaRsp;        // for tmq fetching meta
-//  int8_t       returned;
-  int64_t      snapshotVer;
-  // const SSubmitReq* pReq;
-
+  STqOffsetVal        currentOffset;  // for tmq
+  SMqMetaRsp          metaRsp;        // for tmq fetching meta
+  int64_t             snapshotVer;
   SPackedData         submit;
   SSchemaWrapper*     schema;
   char                tbName[TSDB_TABLE_NAME_LEN];
@@ -144,6 +139,7 @@ typedef struct {
   int64_t             fillHistoryVer1;
   int64_t             fillHistoryVer2;
   SStreamState*       pState;
+  int64_t             dataVersion;
 } SStreamTaskInfo;
 
 typedef struct {
@@ -191,7 +187,6 @@ enum {
   OP_OPENED = 0x1,
   OP_RES_TO_RETURN = 0x5,
   OP_EXEC_DONE = 0x9,
-//  OP_EXEC_RECV = 0x11,
 };
 
 typedef struct SOperatorFpSet {
@@ -560,6 +555,7 @@ typedef struct SStreamIntervalOperatorInfo {
   uint64_t           numOfDatapack;
   SArray*            pUpdated;
   SSHashObj*         pUpdatedMap;
+  int64_t            dataVersion;
 } SStreamIntervalOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -609,6 +605,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
   SSHashObj*          pStUpdated;
+  int64_t             dataVersion;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -627,6 +624,7 @@ typedef struct SStreamStateAggOperatorInfo {
   bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
   SSHashObj*          pSeUpdated;
+  int64_t             dataVersion;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {

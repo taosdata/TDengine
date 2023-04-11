@@ -295,14 +295,11 @@ struct SStreamTask {
   int16_t   dispatchMsgType;
   int8_t    taskStatus;
   int8_t    schedStatus;
-
-  // node info
-  int32_t selfChildId;
-  int32_t nodeId;
-  SEpSet  epSet;
-
-  int64_t recoverSnapVer;
-  int64_t startVer;
+  int32_t   selfChildId;
+  int32_t   nodeId;
+  SEpSet    epSet;
+  int64_t   recoverSnapVer;
+  int64_t   startVer;
 
   // fill history
   int8_t fillHistory;
@@ -340,15 +337,15 @@ struct SStreamTask {
   // state backend
   SStreamState* pState;
 
-  // do not serialize
-  int32_t recoverTryingDownstream;
-  int32_t recoverWaitingUpstream;
-  int64_t checkReqId;
-  SArray* checkReqIds;  // shuffle
-  int32_t refCnt;
-
-  int64_t    checkpointingId;
-  int32_t    checkpointAlignCnt;
+  // the followings attributes don't be serialized
+  int32_t             recoverTryingDownstream;
+  int32_t             recoverWaitingUpstream;
+  int64_t             checkReqId;
+  SArray*             checkReqIds;  // shuffle
+  int32_t             refCnt;
+  int64_t             checkpointingId;
+  int32_t             checkpointAlignCnt;
+  struct SStreamMeta* pMeta;
 };
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -596,6 +593,8 @@ int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, c
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 void         streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
+
+SStreamTask* streamMetaAcquireTaskEx(SStreamMeta* pMeta, int32_t taskId);
 
 int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);

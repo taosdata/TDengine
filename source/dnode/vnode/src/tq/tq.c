@@ -907,6 +907,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMsgCb = &pTq->pVnode->msgCb;
   pTask->startVer = ver;
+  pTask->pMeta = pTq->pStreamMeta;
 
   // expand executor
   if (pTask->fillHistory) {
@@ -979,7 +980,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   }
 
   streamSetupTrigger(pTask);
-  tqInfo("vgId:%d expand stream task, s-task:%s, child id %d, level %d", vgId, pTask->id.idStr, pTask->selfChildId, pTask->taskLevel);
+  tqInfo("vgId:%d expand stream task, s-task:%s, ver:%" PRId64 " child id:%d, level:%d", vgId, pTask->id.idStr,
+         pTask->startVer, pTask->selfChildId, pTask->taskLevel);
   return 0;
 }
 
@@ -1370,16 +1372,6 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   return 0;
 }
 
-static void doSaveTaskOffset(STqOffsetStore* pOffsetStore, const char* pKey, int64_t ver) {
-  STqOffset offset = {0};
-  tqOffsetResetToLog(&offset.val, ver);
-
-  tstrncpy(offset.subKey, pKey, tListLen(offset.subKey));
-
-  // keep the offset info in the offset store
-  tqOffsetWrite(pOffsetStore, &offset);
-}
-
 static int32_t addSubmitBlockNLaunchTask(STqOffsetStore* pOffsetStore, SStreamTask* pTask, SStreamDataSubmit2* pSubmit,
                                          const char* key, int64_t ver) {
   doSaveTaskOffset(pOffsetStore, key, ver);
@@ -1392,36 +1384,6 @@ static int32_t addSubmitBlockNLaunchTask(STqOffsetStore* pOffsetStore, SStreamTa
   return TSDB_CODE_SUCCESS;
 }
 
-static void saveOffsetForAllTasks(STQ* pTq, SPackedData submit) {
-  void* pIter = NULL;
-
-  while(1) {
-    pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
-    if (pIter == NULL) {
-      break;
-    }
-
-    SStreamTask* pTask = *(SStreamTask**)pIter;
-    if (pTask->taskLevel != TASK_LEVEL__SOURCE) {
-      continue;
-    }
-
-    if (pTask->taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
-      tqDebug("stream task:%d skip push data, not ready for processing, status %d", pTask->id.taskId,
-              pTask->taskStatus);
-      continue;
-    }
-
-    char key[128] = {0};
-    createStreamTaskOffsetKey(key, pTask->id.streamId, pTask->id.taskId);
-
-    STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, key);
-    if (pOffset == NULL) {
-      doSaveTaskOffset(pTq->pOffsetStore, key, submit.ver);
-    }
-  }
-}
-
 int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
   void* pIter = NULL;
 
@@ -1429,7 +1391,7 @@ int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
   if (pSubmit == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tqError("failed to create data submit for stream since out of memory");
-    saveOffsetForAllTasks(pTq, submit);
+    saveOffsetForAllTasks(pTq, submit.ver);
     return -1;
   }
 
@@ -1518,10 +1480,13 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
     tqDoRestoreSourceStreamTasks(pTq);
     return 0;
   } else {
-    SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
+    SStreamTask* pTask = streamMetaAcquireTaskEx(pTq->pStreamMeta, taskId);
     if (pTask != NULL) {
       if (pTask->taskStatus == TASK_STATUS__NORMAL) {
         tqDebug("vgId:%d s-task:%s start to process run req", vgId, pTask->id.idStr);
+        streamProcessRunReq(pTask);
+      } else if (pTask->taskStatus == TASK_STATUS_RESTORE) {
+        tqDebug("vgId:%d s-task:%s start to restore from last ck", vgId, pTask->id.idStr);
         streamProcessRunReq(pTask);
       } else {
         tqDebug("vgId:%d s-task:%s ignore run req since not in ready state", vgId, pTask->id.idStr);
@@ -1683,8 +1648,10 @@ int32_t tqRestoreStreamTasks(STQ* pTq) {
     return -1;
   }
 
-  tqInfo("vgId:%d start to restore all stream tasks", vgId);
-  
+  int32_t numOfTasks = taosHashGetSize(pTq->pStreamMeta->pRestoreTasks);
+  tqInfo("vgId:%d start restoring stream tasks, total tasks:%d", vgId, numOfTasks);
+  initOffsetForAllRestoreTasks(pTq);
+
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;
   pRunReq->taskId = ALL_STREAM_TASKS_ID;

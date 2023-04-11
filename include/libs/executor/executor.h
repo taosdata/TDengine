@@ -91,6 +91,9 @@ void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
 
+// todo refactor
+int64_t qGetCheckpointVersion(qTaskInfo_t tinfo);
+
 /**
  * Set multiple input data blocks for the stream scan.
  * @param tinfo

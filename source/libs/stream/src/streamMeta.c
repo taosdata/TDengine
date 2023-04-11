@@ -195,17 +195,12 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId) {
   taosRLockLatch(&pMeta->lock);
 
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
-  if (ppTask) {
-    SStreamTask* pTask = *ppTask;
-    if (atomic_load_8(&pTask->taskStatus) != TASK_STATUS__DROPPING) {
-      atomic_add_fetch_32(&pTask->refCnt, 1);
-      taosRUnLockLatch(&pMeta->lock);
-      return pTask;
-    } else {
-      taosRUnLockLatch(&pMeta->lock);
-      return NULL;
-    }
+  if (ppTask != NULL && (atomic_load_8(&((*ppTask)->taskStatus)) != TASK_STATUS__DROPPING)) {
+    atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
+    taosRUnLockLatch(&pMeta->lock);
+    return *ppTask;
   }
+
   taosRUnLockLatch(&pMeta->lock);
   return NULL;
 }
@@ -217,6 +212,37 @@ void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
     ASSERT(atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING);
     tFreeStreamTask(pTask);
   }
+}
+
+SStreamTask* streamMetaAcquireTaskEx(SStreamMeta* pMeta, int32_t taskId) {
+  taosRLockLatch(&pMeta->lock);
+
+  SStreamTask* pTask = NULL;
+  int32_t numOfRestored = taosHashGetSize(pMeta->pRestoreTasks);
+  if (numOfRestored > 0) {
+    SStreamTask** p = (SStreamTask**)taosHashGet(pMeta->pRestoreTasks, &taskId, sizeof(int32_t));
+    if (p != NULL) {
+      pTask = *p;
+      if (pTask != NULL && (atomic_load_8(&(pTask->taskStatus)) != TASK_STATUS__DROPPING)) {
+        atomic_add_fetch_32(&pTask->refCnt, 1);
+        taosRUnLockLatch(&pMeta->lock);
+        return pTask;
+      }
+    }
+  } else {
+    SStreamTask** p = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
+    if (p != NULL) {
+      pTask = *p;
+      if (pTask != NULL && atomic_load_8(&(pTask->taskStatus)) != TASK_STATUS__DROPPING) {
+        atomic_add_fetch_32(&pTask->refCnt, 1);
+        taosRUnLockLatch(&pMeta->lock);
+        return pTask;
+      }
+    }
+  }
+
+  taosRUnLockLatch(&pMeta->lock);
+  return NULL;
 }
 
 void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
