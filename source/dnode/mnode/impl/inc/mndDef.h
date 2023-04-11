@@ -282,6 +282,7 @@ typedef struct {
   SHashObj* topics;
   SHashObj* readTbs;
   SHashObj* writeTbs;
+  SHashObj* useDbs;
   SRWLatch  lock;
 } SUserObj;
 
