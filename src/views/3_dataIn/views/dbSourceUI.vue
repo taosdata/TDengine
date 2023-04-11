@@ -51,7 +51,7 @@
               ></div>
             </div>
           </div>
-          <div style="width: 100%" v-if="dbsource[0].options.port&&dbsource[0].options.port.diaplay">
+          <div style="width: 100%" v-if="dbsource[0].options.port&&dbsource[0].options.port.display">
             <span
               :class="[
                 'label',
@@ -421,7 +421,6 @@ export default {
     },
 
     async submit() {
-      debugger
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
@@ -458,10 +457,9 @@ export default {
 
         if (data.options.port) {
           dns +=
-            (Object.is(data.options.port.value, null) ? "" : ":") +
+            ((Object.is(data.options.port.value, null)||!data.options.port.value) ? "" : ":") +
             `${data.options.port.value ? data.options.port.value : ""}`;
         }
-
         dns += data.options.subject.value
           ? "/" + data.options.subject.value
           : "";

@@ -149,7 +149,7 @@
           </div>
         </div> -->
       </section>
-      <section class="authentication" v-if="dbsource[0].authentication">
+      <section class="authentication" v-if="dbsource[0].authentication.display">
         <div>
           <div class="block-title">
             <span>{{ dbsource[0].authentication.display }}</span>
@@ -265,7 +265,7 @@
           </div>
         </div>
       </section>
-      <template v-for="(item, gindex) in dbsource[0].groups">
+      <template v-for="(item) in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
           <div style="flex-direction: column; align-items: baseline">
             <div class="block-title">
@@ -279,10 +279,6 @@
           <template v-for="(p, pind) in item.params">
             <div
               :key="pind"
-              v-if="
-                (p.if && p.if.includes(dbsource[0].protocol.value)) ||
-                gindex > 0
-              "
             >
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
@@ -379,6 +375,10 @@ import { decrypt } from "@/utils/index";
 export default {
   name: "DbSourceUI",
   props: {
+    protocol:{
+      type:String,
+      default:'ua'
+    },
     dbsource: {
       type: Array,
       default() {
@@ -531,15 +531,15 @@ export default {
         }
 
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-
+        console.log(this.protocol,'协议---');
         let piParams = {
           from:
-            "opc" +
-            (data.protocol
-              ? Object.is(data.protocol.value, "--")
-                ? ""
-                : "+"
-              : "") +
+            "opc" + this.protocol+
+            // (data.protocol
+            //   ? Object.is(data.protocol.value, "--")
+            //     ? ""
+            //     : "+"
+            //   : "") +
             dns,
           name: localStorage.getItem("datainName"),
           to:
@@ -550,7 +550,8 @@ export default {
         };
         if (this.isEditable) {
           await EditSource(piParams, this.editId).then(() => {
-            this.$parent.toggleComponent("opctable");
+            console.log('编辑',this.protocol);
+            this.$parent.toggleComponent("opctable",this.protocol);
           });
         } else {
           await AddSource(piParams).then((res) => {

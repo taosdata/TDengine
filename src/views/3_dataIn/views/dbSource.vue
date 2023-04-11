@@ -7,6 +7,7 @@
       :editId="editId"
       :dbName="dbName"
       :tagName="tagName"
+      :protocol='protocol'
       :isEditable="isEditable"
     ></component>
   </div>
@@ -16,7 +17,6 @@ import DataSource from "./dataSource.vue";
 import DbSourceUI from "./dbSourceUI.vue";
 import OpcUI from "./opcUI.vue";
 import { getUIData } from "@/api/explorer/datain";
-import { Message } from "element-ui";
 
 export default {
   name: "DbSource",
@@ -27,6 +27,7 @@ export default {
   },
   data() {
     return {
+      protocol:'ua',//只针对opc的ua/da
       tagName: "datasource",
       currentName: "dbsource",
       sourceList: [],
@@ -70,8 +71,13 @@ export default {
             this.currentName = "ui";
             this.tagName = "datasource";
             break;
-          case "opc":
+          case "opcua":
             this.currentName = "opcui";
+            this.protocol='ua'
+            break;
+          case "opcda":
+            this.currentName = "opcui";
+            this.protocol='da'
             break;
           case "pi":
             this.currentName = "ui";
@@ -95,9 +101,15 @@ export default {
             this.currentName = "ui";
             this.tagName = "datasource";
             break;
-          case "opc":
+          case "opcua":
             this.currentName = "opcui";
             this.tagName='opc'
+            this.protocol='ua'
+            break;
+          case "opcda":
+            this.currentName = "opcui";
+            this.tagName='opc'
+            this.protocol='da'
             break;
           case "pi":
             this.currentName = "ui";

@@ -4,7 +4,12 @@
       <div class="inside-header">
         <!-- <div class="dynamic-title">TDengine Management System</div> -->
         <div class="site-logo">
-          <a :href="dataJson.officialWebsite" target="_blank" title="TD Hero" rel="home">
+          <a
+            :href="dataJson.officialWebsite"
+            target="_blank"
+            title="TD Hero"
+            rel="home"
+          >
             <img :src="dataJson.logo" alt title="TD Hero" width="200" />
           </a>
         </div>
@@ -23,7 +28,11 @@
                   ></iframe>
                 </a>
               </li>
-              <li v-for="item in dataJson.externalLinks" :key="item.name" class="link">
+              <li
+                v-for="item in dataJson.externalLinks"
+                :key="item.name"
+                class="link"
+              >
                 <a :href="item.url">{{ item.name }}</a>
               </li>
 
@@ -76,7 +85,7 @@
           label-width="0px"
           class="demo-dynamic"
         >
-          <div>
+          <div style="margin-bottom: 20px">
             <p class="lable-form">
               <span>{{ $t("login.username") }}</span>
             </p>
@@ -89,17 +98,21 @@
               <span>{{ $t("login.password") }}</span>
             </p>
             <el-form-item label prop="password">
-              <el-input v-model="dynamicValidateForm.password" type="password"></el-input>
+              <el-input
+                v-model="dynamicValidateForm.password"
+                type="password"
+              ></el-input>
             </el-form-item>
           </div>
 
-          <el-form-item>
+          <el-form-item style="margin-bottom: 30px">
             <el-button
               type="primary"
               @click="submitForm('dynamicValidateForm')"
               class="signin"
               v-loading="loading"
-            >{{ $t("login.signin") }}</el-button>
+              >{{ $t("login.signin") }}</el-button
+            >
           </el-form-item>
         </el-form>
       </div>
@@ -111,7 +124,12 @@
           <div class="foot-top">
             <div class="left">
               <figure class="logo">
-                <a :href="dataJson.officialWebsite" target="_blank" title="TD Hero" rel="home">
+                <a
+                  :href="dataJson.officialWebsite"
+                  target="_blank"
+                  title="TD Hero"
+                  rel="home"
+                >
                   <img :src="dataJson.logo" alt title="TD Hero" width="100" />
                 </a>
               </figure>
@@ -143,6 +161,24 @@
         </div>
       </div>
     </section>
+    <div class="copyright">
+      <!-- <span >©  2023</span>
+      <span >
+        涛思数据 |
+        <a
+          href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=11010502047618"
+          target="_blank"
+          rel="noopener"
+          >京公网安备 11010502047618号</a
+        >
+        |
+        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener"
+          >京ICP备17069529号-1</a
+        >
+        | 新版时序数据库 TDengine v3.0</span
+      > -->
+      <span>{{$t('copyright')}}</span>
+    </div>
     <SearchPop :hidden.sync="hidden"></SearchPop>
   </div>
 </template>
@@ -158,7 +194,7 @@ import { encrypt } from "@/utils/index";
 export default {
   name: "Login",
   components: {
-    SearchPop
+    SearchPop,
   },
   data() {
     var validatePass = (rule, value, callback) => {
@@ -185,33 +221,33 @@ export default {
       dynamicValidateForm: {
         cluster: "",
         password: "",
-        username: ""
+        username: "",
       },
       formRules: {
         cluster: [
           {
             required: true,
             message: "Please enter the Cluster",
-            trigger: "blur"
-          }
+            trigger: "blur",
+          },
         ],
         password: [
           {
             required: true,
             validator: validatePass,
-            trigger: "blur"
-          }
+            trigger: "blur",
+          },
         ],
         username: [
           {
             required: true,
             message: "Please enter the UserName",
-            trigger: "blur"
-          }
-        ]
+            trigger: "blur",
+          },
+        ],
       },
       dataJson,
-      encryptedPwd: ""
+      encryptedPwd: "",
     };
   },
   methods: {
@@ -226,7 +262,7 @@ export default {
       //   Message.error("Please enter the correct cluster url .");
       //   return;
       // }
-      this.$refs[formName].validate(valid => {
+      this.$refs[formName].validate((valid) => {
         if (valid) {
           this.loading = true;
           this.encryptedPwd = encrypt(this.dynamicValidateForm.password);
@@ -235,7 +271,7 @@ export default {
             //   Message.error(this.$t("login.taosxtip"));
             //   this.loading = false;
             // } else {
-              this.login();
+            this.login();
             // }
           }, 1000);
         } else {
@@ -252,11 +288,11 @@ export default {
     async getClusterID() {
       try {
         return sendSQLReq(` select id from information_schema.ins_cluster;`)
-          .then(res => {
+          .then((res) => {
             let id = res.data.flat(Infinity).toString();
             localStorage.setItem("local_clusterID", id);
           })
-          .catch(err => {
+          .catch((err) => {
             localStorage.removeItem("TDengine-Token");
             return Promise.reject(err);
           });
@@ -278,7 +314,7 @@ export default {
 
       this.$store.commit("app/SAVE_LOGIN_INFO", {
         username: this.dynamicValidateForm.username,
-        pwd: this.dynamicValidateForm.password
+        pwd: this.dynamicValidateForm.password,
       });
       try {
         let sql = "select server_version()";
@@ -286,14 +322,14 @@ export default {
           this.dynamicValidateForm.cluster,
           token,
           sql
-        ).then(res => {
+        ).then((res) => {
           if (res && res.code == 0 && !res.desc) {
             localStorage.setItem("TDengine-Token", token);
             this.getClusterID();
             // this.$router.push({
             //   path: "/explorer"
             // });
-             this.getUserAuthority();
+            this.getUserAuthority();
           } else {
             console.log();
           }
@@ -306,7 +342,7 @@ export default {
     },
     async getClusterAndDashboardUrl() {
       try {
-        await getUrls().then(res => {
+        await getUrls().then((res) => {
           if (res && res.cluster) {
             this.dynamicValidateForm.cluster = res.cluster;
             localStorage.setItem("base_url", this.dynamicValidateForm.cluster);
@@ -333,9 +369,9 @@ export default {
       try {
         return await sendSQLReq(
           `select version, (expire_time < now) as valid from information_schema.ins_cluster`
-        ).then(res => {
+        ).then((res) => {
           if (res) {
-            let result = res.data.map(data => {
+            let result = res.data.map((data) => {
               return Object.fromEntries(
                 res.column_meta.map((item, index) => {
                   return [item[0], data[index]];
@@ -347,7 +383,7 @@ export default {
               ["official", "trial"].includes(result[0].version)
             ) {
               this.$router.push({
-                path: "/explorer"
+                path: "/explorer",
               });
             } else {
               Message.error("Only enterprise edition is supported!");
@@ -357,7 +393,7 @@ export default {
       } catch (err) {
         Message.error("Only enterprise edition is supported");
       }
-    }
+    },
   },
   created() {
     this.getClusterAndDashboardUrl();
@@ -372,14 +408,10 @@ export default {
       ) {
         let dynamic = document.querySelector(".dynamic-title");
         dynamic.innerText = process.env.VUE_APP_CUS_NAME + " Management System";
-        console.log(
-          dynamic,
-          "---",
-          process.env.VUE_APP_CUS_NAME
-        );
+        console.log(dynamic, "---", process.env.VUE_APP_CUS_NAME);
       }
     });
-  }
+  },
 };
 </script>
 <style lang="scss" scoped>
@@ -395,7 +427,7 @@ export default {
     margin-bottom: 10px;
   }
   .header {
-    display: none!important;
+    display: none !important;
     width: 100%;
     position: relative;
     height: 123px;
@@ -453,6 +485,7 @@ export default {
     flex-direction: row;
     padding: 90px calc(50vw - 600px);
     justify-content: center;
+    border: none;
     .article {
       padding: 15px;
       flex: 1.5;
@@ -471,16 +504,16 @@ export default {
       }
     }
     .login-content {
-      width: 700px;
+      width: 600px;
       height: 500px;
-      padding: 70px 45px 45px 45px;
+      padding: 70px 55px 55px 55px;
       box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
       .login-title {
         font-size: 28px;
         font-weight: 500;
         text-align: center;
-        margin-bottom: 30px;
-        span{
+        margin-bottom: 40px;
+        span {
           font-size: 28px;
         }
       }
@@ -613,7 +646,15 @@ export default {
     font-weight: 700;
     padding: 8px 20px;
     font-size: 16px;
-    margin-top: 30px;
+    margin-top: 25px;
+  }
+  .copyright{
+    display: flex;
+    justify-content: center;
+    margin-bottom: 40px;
+    span{
+      color:#909399;
+    }
   }
 }
 </style>

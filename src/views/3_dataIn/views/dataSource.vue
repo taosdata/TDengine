@@ -231,7 +231,7 @@ export default {
     del(data) {
       this.$confirm("Are you sure  to delete " + data.name + "?", "Warning", {
         confirmButtonText: "Ok",
-        cancelButtonText: "Cancle",
+        cancelButtonText: "Cancel",
         type: "warning",
       }).then(async () => {
         await excuteDel(data.id)
@@ -277,6 +277,7 @@ export default {
     },
     handleAdd() {
       localStorage.setItem("datainName", this.ruleForm.name);
+      console.log(this.ruleForm.type,'this.ruleForm.type');
       this.$parent.toggleComponent(this.ruleForm.type, "", "");
     },
     async getList() {

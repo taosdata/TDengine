@@ -374,7 +374,7 @@
           <el-button size="small" :disabled="requestIng" :loading="requestIng" type="primary" @click="handleCreateDb">{{
             $t(!isEdit ? "create" : "change")
           }}</el-button>
-          <el-button size="small" :disabled="requestIng" @click="cancle">
+          <el-button size="small" :disabled="requestIng" @click="cancel">
             {{ $t("cancel") }}
           </el-button>
         </div>
@@ -447,7 +447,7 @@
           }
         });
       },
-      cancle() {
+      cancel() {
         this.$store.commit("console/CANCEL_DETAIL");
       },
     },

@@ -42,6 +42,9 @@
       // },
       config() {
         let lang = window.decodeURIComponent(this.lang);
+        console.log(config,lang,config[this.category].find(item => {
+            return item.name == lang;
+          }) || {},'文档===');
         return (
           config[this.category].find(item => {
             return item.name == lang;

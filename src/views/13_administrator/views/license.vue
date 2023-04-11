@@ -1,13 +1,6 @@
 <template>
   <div class="dnode-block">
-    <div class="flexEnd">
-      <!-- <el-button
-        plain
-        @click="dialog = true"
-        size="small"
-        icon="el-icon-plus"
-        >{{ $t("add") }}</el-button
-      > -->
+    <!-- <div class="flexEnd">
       <el-button
         plain
         @click="refresh"
@@ -16,8 +9,8 @@
         :disabled="loading"
         >{{ $t("refresh") }}</el-button
       >
-    </div>
-    <el-table style="margin-top: 20px" :data="licenseList" size="mini">
+    </div> -->
+    <!-- <el-table style="margin-top: 20px" :data="licenseList" size="mini">
       <el-table-column
         :label="$t('topic.accounts')"
         prop="accounts"
@@ -74,17 +67,15 @@
         :label="$t('topic.version')"
         prop="version"
       ></el-table-column>
-
-      <!-- <el-table-column label="Action" width="65">
-        <template slot-scope="scope">
-          <el-button
-            plain
-            size="small"
-            @click="del(scope.row)"
-            icon="el-icon-delete"
-          ></el-button>
-        </template>
-      </el-table-column> -->
+    </el-table> -->
+    <el-table :data="tableData" :show-header="false" border>
+      <el-table-column prop="header" label="表头"> </el-table-column>
+      <el-table-column
+        v-for="(item, index) in columns"
+        :key="index"
+        :prop="String(index)"
+      >
+      </el-table-column>
     </el-table>
     <el-pagination
       class="pagination"
@@ -183,6 +174,8 @@ export default {
         ],
       },
       licenseList: [],
+      columns: [],
+      tableData: [],
     };
   },
   computed: {
@@ -201,14 +194,14 @@ export default {
   },
   created() {
     this.getData();
-    console.log('初始化license');
+    console.log("初始化license");
   },
   methods: {
     handlePageChange() {},
     del(data) {
       this.$confirm("Are you sure  to delete " + data.name + "?", "Warning", {
         confirmButtonText: "Ok",
-        cancelButtonText: "Cancle",
+        cancelButtonText: "Cancel",
         type: "warning",
       });
     },
@@ -219,14 +212,36 @@ export default {
     addUdf() {},
     async getData() {
       try {
+        let cols = [];
         await sendSQLReq(`show grants;`).then((res) => {
           this.licenseList = res.data.map((data) => {
             return Object.fromEntries(
               res.column_meta.map((item, index) => {
+                cols.push({ header: item[0], value: item[0] });
                 return [item[0], data[index]];
               })
             );
           });
+          this.columns = new Array(this.licenseList.length).fill(0);
+          // this.tableData=JSON.parse(JSON.stringify(cols))
+          const tableData = cols.map((item) => {
+            const data = {
+              header: item.header,
+            };
+            this.licenseList.forEach((col, index) => {
+              data[index] = col[item.value];
+            });
+            return data;
+          });
+          this.tableData = tableData;
+          console.log(
+            this.tableData,
+            this.licenseList,
+            this.columns,
+            tableData,
+            cols,
+            "licesne---"
+          );
         });
         this.loading = false;
       } catch (error) {
@@ -238,12 +253,21 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
-:v-deep {
+::v-deep {
   .el-form-item__content {
     display: flex;
   }
   .el-select.el-select--mini {
     flex: 1;
+  }
+  tr.el-table__row {
+    td {
+      &:first-child {
+        background: #fafafa;
+        color:#333;
+        font-weight: 500;
+      }
+    }
   }
 }
 </style>
