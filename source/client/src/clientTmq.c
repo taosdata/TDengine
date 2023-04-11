@@ -1151,6 +1151,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   };
 
   if (tsem_init(&param.rspSem, 0, 0) != 0) {
+    code = TSDB_CODE_TSC_INTERNAL_ERROR;
     goto FAIL;
   }
 
@@ -1186,6 +1187,8 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   int32_t retryCnt = 0;
   while (TSDB_CODE_MND_CONSUMER_NOT_READY == doAskEp(tmq)) {
     if (retryCnt++ > MAX_RETRY_COUNT) {
+      tscError("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry:%d in 500ms", tmq->consumerId, retryCnt);
+      code = TSDB_CODE_TSC_INTERNAL_ERROR;
       goto FAIL;
     }
 

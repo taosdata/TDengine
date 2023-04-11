@@ -576,7 +576,6 @@ function install_share_etc() {
   for c in `ls ${script_dir}/share/etc/`; do
     if [ -e /etc/$c ]; then
       out=/etc/$c.new.`date +%F`
-      echo -e -n "${RED} /etc/$c exists, save a new cfg file as $out"
       ${csudo}cp -f ${script_dir}/share/etc/$c $out
     else
       ${csudo}cp -f ${script_dir}/share/etc/$c /etc/$c
