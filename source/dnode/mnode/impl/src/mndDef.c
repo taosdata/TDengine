@@ -70,7 +70,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
     if (tEncodeI32(pEncoder, innerSz) < 0) return -1;
     for (int32_t j = 0; j < innerSz; j++) {
       SStreamTask *pTask = taosArrayGetP(pArray, j);
-      if (tEncodeSStreamTask(pEncoder, pTask) < 0) return -1;
+      if (tEncodeStreamTask(pEncoder, pTask) < 0) return -1;
     }
   }
 
@@ -130,7 +130,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
           taosArrayDestroy(pArray);
           return -1;
         }
-        if (tDecodeSStreamTask(pDecoder, pTask) < 0) {
+        if (tDecodeStreamTask(pDecoder, pTask) < 0) {
           taosMemoryFree(pTask);
           taosArrayDestroy(pArray);
           return -1;

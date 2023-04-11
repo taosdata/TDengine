@@ -109,7 +109,7 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t ver, char* msg, 
   }
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
-  if (tDecodeSStreamTask(&decoder, pTask) < 0) {
+  if (tDecodeStreamTask(&decoder, pTask) < 0) {
     tDecoderClear(&decoder);
     goto FAIL;
   }
@@ -142,7 +142,7 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   void*   buf = NULL;
   int32_t len;
   int32_t code;
-  tEncodeSize(tEncodeSStreamTask, pTask, len, code);
+  tEncodeSize(tEncodeStreamTask, pTask, len, code);
   if (code < 0) {
     return -1;
   }
@@ -153,7 +153,7 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
 
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, len);
-  tEncodeSStreamTask(&encoder, pTask);
+  tEncodeStreamTask(&encoder, pTask);
   tEncoderClear(&encoder);
 
   if (tdbTbUpsert(pMeta->pTaskDb, &pTask->id.taskId, sizeof(int32_t), buf, len, pMeta->txn) < 0) {
@@ -321,7 +321,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
       return -1;
     }
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
-    tDecodeSStreamTask(&decoder, pTask);
+    tDecodeStreamTask(&decoder, pTask);
     tDecoderClear(&decoder);
 
     if (pMeta->expandFunc(pMeta->ahandle, pTask, -1) < 0) {

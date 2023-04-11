@@ -16,7 +16,7 @@
 #include "executor.h"
 #include "tstream.h"
 
-SStreamTask* tNewSStreamTask(int64_t streamId) {
+SStreamTask* tNewStreamTask(int64_t streamId) {
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     return NULL;
@@ -54,7 +54,7 @@ int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo) {
   return 0;
 }
 
-int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
+int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pTask->id.streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->id.taskId) < 0) return -1;
@@ -107,7 +107,7 @@ int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   return pEncoder->pos;
 }
 
-int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
+int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pTask->id.streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->id.taskId) < 0) return -1;

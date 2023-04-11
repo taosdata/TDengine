@@ -139,7 +139,7 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   }
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t *)msg, msgLen);
-  code = tDecodeSStreamTask(&decoder, pTask);
+  code = tDecodeStreamTask(&decoder, pTask);
   if (code < 0) {
     tDecoderClear(&decoder);
     taosMemoryFree(pTask);

@@ -224,7 +224,7 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, SStreamObj* pStream) {
       continue;
     }
 
-    SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+    SStreamTask* pTask = tNewStreamTask(pStream->uid);
     if (pTask == NULL) {
       sdbRelease(pSdb, pVgroup);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -260,7 +260,7 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, SStreamObj* pStream) {
 
 int32_t mndAddFixedSinkTaskToStream(SMnode* pMnode, SStreamObj* pStream) {
   SArray*      tasks = taosArrayGetP(pStream->tasks, 0);
-  SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+  SStreamTask* pTask = tNewStreamTask(pStream->uid);
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -350,7 +350,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         return -1;
       }
 
-      pInnerTask = tNewSStreamTask(pStream->uid);
+      pInnerTask = tNewStreamTask(pStream->uid);
       if (pInnerTask == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         qDestroyQueryPlan(pPlan);
@@ -421,7 +421,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         continue;
       }
 
-      SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+      SStreamTask* pTask = tNewStreamTask(pStream->uid);
       if (pTask == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         sdbRelease(pSdb, pVgroup);
@@ -491,7 +491,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         continue;
       }
 
-      SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+      SStreamTask* pTask = tNewStreamTask(pStream->uid);
       if (pTask == NULL) {
         sdbRelease(pSdb, pVgroup);
         qDestroyQueryPlan(pPlan);

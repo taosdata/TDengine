@@ -50,7 +50,7 @@ enum {
   TASK_STATUS__RECOVER_PREPARE,
   TASK_STATUS__RECOVER1,
   TASK_STATUS__RECOVER2,
-  TASK_STATUS_RESTORE,  // only available for source task to replay WAL from the checkpoint
+  TASK_STATUS__RESTORE,  // only available for source task to replay WAL from the checkpoint
 };
 
 enum {
@@ -353,9 +353,9 @@ struct SStreamTask {
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
 int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
 
-SStreamTask* tNewSStreamTask(int64_t streamId);
-int32_t      tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
-int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
+SStreamTask* tNewStreamTask(int64_t streamId);
+int32_t      tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
+int32_t      tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeStreamTask(SStreamTask* pTask);
 int32_t      tAppendDataForStream(SStreamTask* pTask, SStreamQueueItem* pItem);
 bool         tInputQueueIsFull(const SStreamTask* pTask);

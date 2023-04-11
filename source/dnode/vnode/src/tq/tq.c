@@ -906,14 +906,13 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMsgCb = &pTq->pVnode->msgCb;
-  pTask->chkInfo.version = ver;
   pTask->pMeta = pTq->pStreamMeta;
 
   // expand executor
   if (pTask->fillHistory) {
     pTask->taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;
   } else {
-    pTask->taskStatus = TASK_STATUS_RESTORE;
+    pTask->taskStatus = TASK_STATUS__RESTORE;
   }
 
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
@@ -1089,7 +1088,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
-  code = tDecodeSStreamTask(&decoder, pTask);
+  code = tDecodeStreamTask(&decoder, pTask);
   if (code < 0) {
     tDecoderClear(&decoder);
     taosMemoryFree(pTask);
@@ -1485,8 +1484,9 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
       if (pTask->taskStatus == TASK_STATUS__NORMAL) {
         tqDebug("vgId:%d s-task:%s start to process run req", vgId, pTask->id.idStr);
         streamProcessRunReq(pTask);
-      } else if (pTask->taskStatus == TASK_STATUS_RESTORE) {
-        tqDebug("vgId:%d s-task:%s start to restore from last ck", vgId, pTask->id.idStr);
+      } else if (pTask->taskStatus == TASK_STATUS__RESTORE) {
+        tqDebug("vgId:%d s-task:%s start to process in restore procedure from last chk point:%" PRId64, vgId,
+                pTask->id.idStr, pTask->chkInfo.version);
         streamProcessRunReq(pTask);
       } else {
         tqDebug("vgId:%d s-task:%s ignore run req since not in ready state", vgId, pTask->id.idStr);

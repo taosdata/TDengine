@@ -49,9 +49,10 @@ int32_t transferToNormalTask(SStreamMeta* pStreamMeta, SArray* pTaskList) {
   }
 
   // todo: add lock
-  for(int32_t i = 0; i < numOfTask; ++i){
+  for (int32_t i = 0; i < numOfTask; ++i) {
     SStreamTask* pTask = taosArrayGetP(pTaskList, i);
-    tqDebug("vgId:%d transfer s-task:%s state restore -> ready", pStreamMeta->vgId, pTask->id.idStr);
+    tqDebug("vgId:%d transfer s-task:%s state restore -> ready, checkpoint:%" PRId64 " checkpoint id:%" PRId64,
+            pStreamMeta->vgId, pTask->id.idStr, pTask->chkInfo.version, pTask->chkInfo.id);
     taosHashRemove(pStreamMeta->pRestoreTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
 
     // NOTE: do not change the following order
