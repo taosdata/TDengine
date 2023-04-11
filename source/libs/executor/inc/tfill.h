@@ -30,6 +30,7 @@ extern "C" {
 struct SSDataBlock;
 
 typedef struct SFillColInfo {
+  int32_t    numOfFillExpr;
   SExprInfo* pExpr;
   bool       notFillCol;  // denote if this column needs fill operation
   SVariant   fillVal;
