@@ -999,6 +999,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
 SOperatorInfo* extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, const char* id) {
   if (pOperator == NULL) {
     qError("invalid operator, failed to find tableScanOperator %s", id);
+    terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
     return NULL;
   }
 
@@ -1007,6 +1008,7 @@ SOperatorInfo* extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, con
   } else {
     if (pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL) {
       qError("invalid operator, failed to find tableScanOperator %s", id);
+      terrno = TSDB_CODE_PAR_INTERNAL_ERROR;
       return NULL;
     }
 
