@@ -197,6 +197,29 @@ static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStm
   return code;
 }
 
+static int32_t authDropTable(SAuthCxt* pCxt, SDropTableStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pStmt->pTables) {
+    SDropTableClause* pClause = (SDropTableClause*)pNode;
+    code = checkAuth(pCxt, pClause->dbName, pClause->tableName, AUTH_TYPE_WRITE, NULL);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
+}
+
+static int32_t authDropStable(SAuthCxt* pCxt, SDropSuperTableStmt* pStmt) {
+  return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_WRITE, NULL);
+}
+
+static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
+  SNode* pTagCond = NULL;
+  // todo check tag condition for subtable
+  return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_WRITE, NULL);
+}
+
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SET_OPERATOR:
@@ -213,6 +236,13 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authCreateTable(pCxt, (SCreateTableStmt*)pStmt);
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       return authCreateMultiTable(pCxt, (SCreateMultiTablesStmt*)pStmt);
+    case QUERY_NODE_DROP_TABLE_STMT:
+      return authDropTable(pCxt, (SDropTableStmt*)pStmt);
+    case QUERY_NODE_DROP_SUPER_TABLE_STMT:
+      return authDropStable(pCxt, (SDropSuperTableStmt*)pStmt);
+    case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
+      return authAlterTable(pCxt, (SAlterTableStmt*)pStmt);
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
