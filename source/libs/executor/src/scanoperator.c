@@ -2020,10 +2020,10 @@ FETCH_NEXT_BLOCK:
           updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
           doClearBufferedBlocks(pInfo);
           qDebug("stream scan return empty, consume block %d", totBlockNum);
-          void* buff = NULL;
-          int32_t len = streamScanOperatorEncode(pInfo, &buff);
+          // void* buff = NULL;
+          // int32_t len = streamScanOperatorEncode(pInfo, &buff);
           //todo(liuyao) save buff
-          taosMemoryFreeClear(buff);
+          // taosMemoryFreeClear(buff);
           return NULL;
         }
 
