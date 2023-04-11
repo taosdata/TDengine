@@ -145,8 +145,8 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
     goto _OVER;
   }
   SDB_GET_BINARY(pRaw, dataPos, pFunc->pCode, pFunc->codeSize, _OVER)
-  
-  if(sver >= 2){
+
+  if (sver >= 2) {
     SDB_GET_INT32(pRaw, dataPos, &pFunc->funcVersion, _OVER)
   }
 
@@ -181,7 +181,7 @@ static int32_t mndFuncActionDelete(SSdb *pSdb, SFuncObj *pFunc) {
 
 static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew) {
   mTrace("func:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
-  
+
   taosWLockLatch(&pOld->lock);
 
   pOld->align = pNew->align;
@@ -194,21 +194,21 @@ static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew) {
   pOld->outputLen = pNew->outputLen;
   pOld->outputType = pNew->outputType;
 
-  if(pOld->pComment != NULL){
+  if (pOld->pComment != NULL) {
     taosMemoryFree(pOld->pComment);
     pOld->pComment = NULL;
   }
-  if(pNew->commentSize > 0 && pNew->pComment != NULL){
+  if (pNew->commentSize > 0 && pNew->pComment != NULL) {
     pOld->commentSize = pNew->commentSize;
     pOld->pComment = taosMemoryMalloc(pOld->commentSize);
     memcpy(pOld->pComment, pNew->pComment, pOld->commentSize);
   }
 
-  if(pOld->pCode != NULL){
+  if (pOld->pCode != NULL) {
     taosMemoryFree(pOld->pCode);
     pOld->pCode = NULL;
   }
-  if(pNew->codeSize > 0 && pNew->pCode != NULL){
+  if (pNew->codeSize > 0 && pNew->pCode != NULL) {
     pOld->codeSize = pNew->codeSize;
     pOld->pCode = taosMemoryMalloc(pOld->codeSize);
     memcpy(pOld->pCode, pNew->pCode, pOld->codeSize);
@@ -216,7 +216,7 @@ static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew) {
 
   pOld->scriptType = pNew->scriptType;
   pOld->signature = pNew->signature;
-  
+
   taosWUnLockLatch(&pOld->lock);
 
   return 0;
@@ -268,14 +268,15 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
     memcpy(func.pComment, pCreate->pComment, func.commentSize);
   }
   memcpy(func.pCode, pCreate->pCode, func.codeSize);
-  
+
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-func");
   if (pTrans == NULL) goto _OVER;
   mInfo("trans:%d, used to create func:%s", pTrans->id, pCreate->name);
 
   SFuncObj *oldFunc = mndAcquireFunc(pMnode, pCreate->name);
-  if(pCreate->orReplace == 1 && oldFunc != NULL){
+  if (pCreate->orReplace == 1 && oldFunc != NULL) {
     func.funcVersion = oldFunc->funcVersion + 1;
+    func.createdTime = oldFunc->createdTime;
 
     SSdbRaw *pRedoRaw = mndFuncActionEncode(oldFunc);
     if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) goto _OVER;
@@ -288,8 +289,7 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
     SSdbRaw *pCommitRaw = mndFuncActionEncode(&func);
     if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) goto _OVER;
     if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) goto _OVER;
-  }
-  else{
+  } else {
     SSdbRaw *pRedoRaw = mndFuncActionEncode(&func);
     if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) goto _OVER;
     if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING) != 0) goto _OVER;
@@ -308,7 +308,7 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
   code = 0;
 
 _OVER:
-  if(oldFunc != NULL){
+  if (oldFunc != NULL) {
     mndReleaseFunc(pMnode, oldFunc);
   }
 
@@ -628,7 +628,7 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->bufSize, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    char* language = "";
+    char *language = "";
     if (pFunc->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
       language = "C";
     } else if (pFunc->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
@@ -640,15 +640,17 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     colDataSetVal(pColInfo, numOfRows, (const char *)varLang, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    int32_t varCodeLen = (pFunc->codeSize + VARSTR_HEADER_SIZE) > TSDB_MAX_BINARY_LEN ? TSDB_MAX_BINARY_LEN : pFunc->codeSize + VARSTR_HEADER_SIZE;
-    char *b4 = taosMemoryMalloc(varCodeLen);
+    int32_t varCodeLen = (pFunc->codeSize + VARSTR_HEADER_SIZE) > TSDB_MAX_BINARY_LEN
+                             ? TSDB_MAX_BINARY_LEN
+                             : pFunc->codeSize + VARSTR_HEADER_SIZE;
+    char   *b4 = taosMemoryMalloc(varCodeLen);
     memcpy(varDataVal(b4), pFunc->pCode, varCodeLen - VARSTR_HEADER_SIZE);
     varDataSetLen(b4, varCodeLen - VARSTR_HEADER_SIZE);
-    colDataSetVal(pColInfo, numOfRows, (const char*)b4, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)b4, false);
     taosMemoryFree(b4);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char*)&pFunc->funcVersion, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pFunc->funcVersion, false);
 
     numOfRows++;
     sdbRelease(pSdb, pFunc);
