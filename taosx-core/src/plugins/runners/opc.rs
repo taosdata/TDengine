@@ -1,4 +1,9 @@
-use std::{collections::HashMap, io::prelude::*, num::ParseIntError, str::FromStr};
+use std::{
+    collections::HashMap,
+    io::prelude::*,
+    num::ParseIntError,
+    str::FromStr,
+};
 
 use itertools::Itertools;
 use taos::{taos_query::helpers::ColumnMeta, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
@@ -503,54 +508,59 @@ pub async fn opc_to_taos(
 
     log::info!("Using opc config file {} \n{}", config_path.display(), toml);
 
+    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = std::thread::spawn(move || {
         sink::listen_tcp_socket(
             target_pool_for_ipc,
             config.report.remote,
+            sender,
             Some(OpcTableConfig {
                 table_info: config.param_mapping.clone(),
                 ts_cloumn_name: ts_cloumn_name_map.clone(),
             }),
         )
     });
+
     // TODO use unix socket on unix-like os
     // let ipc = if cfg!(target_os = "windows") {
     //     std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, socket))
     // } else {
     //     std::thread::spawn(move || sink::listen_unix_socket(target_pool_for_ipc, socket))
     // };
-    let v = tokio::task::spawn_blocking(move || {
-        #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-        let mut command =
-            std::process::Command::new("C:\\TDengine\\xplugins\\opc-collector_windows_amd64.exe");
-        #[cfg(all(target_os = "windows", target_arch = "x86"))]
-        let mut command =
-            std::process::Command::new("C:\\TDengine\\xplugins\\opc-collector_windows_386.exe");
-        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-        let mut command =
-            std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_amd64");
-        #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-        let mut command =
-            std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_arm64");
-        #[cfg(all(target_os = "linux", target_arch = "arm"))]
-        let mut command =
-            std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_arm");
-        #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-        let mut command =
-            std::process::Command::new("/usr/local/taos/xplugins/opc-collector_darwin_amd64");
-        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-        let mut command =
-            std::process::Command::new("/usr/local/taos/xplugins/opc-collector_darwin_arm64");
-        command
-            .arg("collect")
-            .arg(format!("--conf={}", &config_path.display()))
-            .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::inherit())
-            .output()
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    let mut command =
+        std::process::Command::new("C:\\TDengine\\xplugins\\opc-collector_windows_amd64.exe");
+    #[cfg(all(target_os = "windows", target_arch = "x86"))]
+    let mut command =
+        std::process::Command::new("C:\\TDengine\\xplugins\\opc-collector_windows_386.exe");
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    let mut command =
+        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_amd64");
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    let mut command =
+        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_arm64");
+    #[cfg(all(target_os = "linux", target_arch = "arm"))]
+    let mut command =
+        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_arm");
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    let mut command =
+        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_darwin_amd64");
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    let mut command =
+        std::process::Command::new("/usr/local/taos/xplugins/opc-collector_darwin_arm64");
+    let child = command
+        .arg("collect")
+        .arg(format!("--conf={}", &config_path.display()))
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .spawn()?;
+    let child_id = child.id();
+    let mut v = tokio::task::spawn_blocking(move || {
+        child.wait_with_output()
     });
 
     tokio::select! {
-        output = v => {
+        output = &mut v => {
             let output = output??;
             // dbg!(output);
             log::info!("OPC exit with status {}", output.status);
@@ -560,7 +570,21 @@ pub async fn opc_to_taos(
         _ = tokio::signal::ctrl_c() => {
             log::info!("Ctrl+C triggered, cancel tasks");
             // panic!();
-        }
+        },
+        _ = receiver.recv() => {
+            log::info!("have recieved worker thread panicked message, terminate child process");
+            v.abort();
+            let mut kill_command = if cfg!(target_os = "windows") {
+                let mut command = std::process::Command::new("taskkill");
+                command.arg("/F").arg("/PID").arg(child_id.to_string());
+                command
+            } else {
+                let mut command = std::process::Command::new("kill");
+                command.arg("-9").arg(child_id.to_string());
+                command
+            };
+            kill_command.spawn()?;
+        },
     };
 
     stop_thread(ipc);

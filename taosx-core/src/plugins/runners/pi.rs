@@ -185,11 +185,10 @@ pub async fn pi_to_taos(
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
     let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql));
-
+    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
     let ipc = std::thread::spawn(move || {
-        sink::listen_tcp_socket(target_pool_for_ipc, config.ipc_stream, None)
+        sink::listen_tcp_socket(target_pool_for_ipc, config.ipc_stream, sender, None)
     });
-
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let client = reqwest::Client::new();
@@ -206,17 +205,19 @@ pub async fn pi_to_taos(
         retries += 1;
     }
 
+    let mut command = std::process::Command::new(
+        "C:\\Program Files (x86)\\TD PI Connector\\TDPIConnector.Service.exe",
+        // "target/debug/examples/pi",
+    );
+    let child_command = command
+        .arg("-f")
+        .arg(&config_path)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .spawn()?;
+    let child_id = child_command.id();
     let v = tokio::task::spawn_blocking(move || {
-        let mut command = std::process::Command::new(
-            "C:\\Program Files (x86)\\TD PI Connector\\TDPIConnector.Service.exe",
-            // "target/debug/examples/pi",
-        );
-        command
-            .arg("-f")
-            .arg(&config_path)
-            .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::inherit())
-            .output()
+        child_command.wait_with_output()
     });
 
     log::info!("waiting for PI connector");
@@ -230,6 +231,11 @@ pub async fn pi_to_taos(
         _ = tokio::signal::ctrl_c() => {
             log::info!("Ctrl+C triggered, cancel tasks");
             // panic!();
+        },
+        _ = receiver.recv() => {
+            log::info!("receive worker thread stop message, terminate child process");
+            let mut kill_command = std::process::Command::new("TASKKILL");
+            kill_command.arg("/F").arg("/PID").arg(child_id.to_string()).spawn()?;
         }
     };
 

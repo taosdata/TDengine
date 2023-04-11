@@ -3,12 +3,12 @@ use std::{
     io::{Read, Write},
     net::{SocketAddr, TcpListener, TcpStream},
     path::Path,
-    sync::Arc,
+    sync::{Arc,}, panic,
 };
 use taos::{
     AsyncQueryable, Bindable, Itertools, Stmt, Taos, TaosPool,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, mpsc::Sender,};
 use tracing::{info, instrument};
 
 use taosx_ipc::{prelude::*, stream::point::PointMessage};
@@ -286,12 +286,20 @@ pub fn listen_unix_socket(
 pub fn listen_tcp_socket(
     target: TaosPool,
     socket: impl AsRef<str>,
+    sender: Sender<String>,
     config: Option<OpcTableConfig>,
 ) -> anyhow::Result<()> {
     let tcp_addr = socket.as_ref();
     let listener = TcpListener::bind(tcp_addr)?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
+        .on_thread_stop(move || {
+            log::warn!("worker thread stopped, stop task");
+            let se = sender.clone();
+            tokio::spawn(async move {
+                se.send(String::from("panicked")).await.unwrap();
+            });
+        })
         .worker_threads(16)
         .build()?;
     info!("listen on socket address: {tcp_addr}");
@@ -303,6 +311,7 @@ pub fn listen_tcp_socket(
                 let pool = target.clone();
                 let lock = sql_lock.clone();
                 let config = config.clone();
+
                 runtime.spawn(async move {
                     let res = ipc_tcp_read(addr, pool, stream, lock, config).await;
                     if let Err(err) = res {
