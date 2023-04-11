@@ -58,6 +58,28 @@ sql insert into ts2 values(1648791213002,NULL,NULL,NULL,NULL);
 sql insert into ts3 values(1648791213002,NULL,NULL,NULL,NULL);
 sql insert into ts4 values(1648791213002,NULL,NULL,NULL,NULL);
 
+$loop_count = 0
+loop0:
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sleep 300
+print 1 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop0
+endi
+
+if $data01 != 8 then
+  print =====data01=$data01
+  goto loop0
+endi
+
 sql insert into ts1 values(1648791223002,2,2,3,1.1);
 sql insert into ts1 values(1648791233003,3,2,3,2.1);
 sql insert into ts2 values(1648791243004,4,2,43,73.1);
@@ -66,9 +88,161 @@ sql insert into ts1 values(1648791243005,4,20,3,3.1);
 sql insert into ts2 values(1648791243006,4,2,3,3.1) (1648791243007,4,2,3,3.1) ;
 sql insert into ts1 values(1648791243008,4,2,30,3.1) (1648791243009,4,2,3,3.1)  (1648791243010,4,2,3,3.1)  ;
 sql insert into ts2 values(1648791243011,4,2,3,3.1) (1648791243012,34,32,33,3.1)  (1648791243013,4,2,3,3.1) (1648791243014,4,2,13,3.1);
+
+$loop_count = 0
+loop01:
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sleep 300
+print 2 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop01
+endi
+
+if $data01 != 8 then
+  print =====data01=$data01
+  goto loop01
+endi
+
+if $data11 != 1 then
+  print =====data11=$data11
+  goto loop01
+endi
+
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop01
+endi
+
+if $data31 != 11 then
+  print =====data31=$data31
+  goto loop01
+endi
+
 sql insert into ts1 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) (1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) (1648791223001,22,22,83,1.1) ;
+
+$loop_count = 0
+loop011:
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sleep 300
+print 3 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop011
+endi
+
+if $data01 != 8 then
+  print =====data01=$data01
+  goto loop011
+endi
+
+if $data11 != 2 then
+  print =====data11=$data11
+  goto loop011
+endi
+
+if $data21 != 1 then
+  print =====data21=$data21
+  goto loop011
+endi
+
+if $data31 != 13 then
+  print =====data31=$data31
+  goto loop011
+endi
+
 sql insert into ts2 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) (1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) (1648791223001,22,22,83,1.1) (1648791233004,13,12,13,2.1) ;
+
+$loop_count = 0
+loop02:
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sleep 300
+print 4 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop02
+endi
+
+if $data01 != 8 then
+  print =====data01=$data01
+  goto loop02
+endi
+
+if $data11 != 3 then
+  print =====data11=$data11
+  goto loop02
+endi
+
+if $data21 != 2 then
+  print =====data21=$data21
+  goto loop02
+endi
+
+if $data31 != 15 then
+  print =====data31=$data31
+  goto loop02
+endi
+
+
 sql insert into ts1 values(1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0)  (1648791223001,22,22,83,1.1) ;
+
+$loop_count = 0
+loop03:
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sleep 300
+print 5 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop03
+endi
+
+if $data01 != 8 then
+  print =====data01=$data01
+  goto loop03
+endi
+
+if $data11 != 3 then
+  print =====data11=$data11
+  goto loop03
+endi
+
+if $data21 != 2 then
+  print =====data21=$data21
+  goto loop03
+endi
+
+if $data31 != 15 then
+  print =====data31=$data31
+  goto loop03
+endi
 
 sql insert into ts3 values(1648791223002,2,2,3,1.1);
 sql insert into ts4 values(1648791233003,3,2,3,2.1);
@@ -79,6 +253,44 @@ sql insert into ts4 values(1648791243006,4,2,3,3.1) (1648791243007,4,2,3,3.1) ;
 sql insert into ts3 values(1648791243008,4,2,30,3.1) (1648791243009,4,2,3,3.1)  (1648791243010,4,2,3,3.1)  ;
 sql insert into ts4 values(1648791243011,4,2,3,3.1) (1648791243012,34,32,33,3.1)  (1648791243013,4,2,3,3.1) (1648791243014,4,2,13,3.1);
 sql insert into ts3 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) (1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) (1648791223001,22,22,83,1.1) ;
+
+$loop_count = 0
+loop04:
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sleep 300
+print 6 select * from streamtST1;
+sql select * from streamtST1;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop04
+endi
+
+if $data01 != 8 then
+  print =====data01=$data01
+  goto loop04
+endi
+
+if $data11 != 5 then
+  print =====data11=$data11
+  goto loop04
+endi
+
+if $data21 != 3 then
+  print =====data21=$data21
+  goto loop04
+endi
+
+if $data31 != 28 then
+  print =====data31=$data31
+  goto loop04
+endi
+
 sql insert into ts4 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) (1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) (1648791223001,22,22,83,1.1) (1648791233004,13,12,13,2.1) ;
 sql insert into ts3 values(1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0)  (1648791223001,22,22,83,1.1) ;
 

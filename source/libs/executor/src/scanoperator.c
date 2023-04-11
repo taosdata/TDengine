@@ -1965,6 +1965,7 @@ FETCH_NEXT_BLOCK:
         pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
         pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RETRIEVE;
         copyDataBlock(pInfo->pUpdateRes, pBlock);
+        pInfo->updateResIndex = 0;
         prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
         updateInfoAddCloseWindowSBF(pInfo->pUpdateInfo);
       } break;
