@@ -2333,8 +2333,9 @@ static int32_t getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pN
   return startPos;
 }
 
-static void setStreamDataVersion(SExecTaskInfo*  pTaskInfo, int64_t version) {
+static void setStreamDataVersion(SExecTaskInfo*  pTaskInfo, int64_t version, int64_t ckId) {
   pTaskInfo->streamInfo.dataVersion = version;
+  pTaskInfo->streamInfo.checkPointId = ckId;
 }
 
 static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* pSDataBlock, uint64_t groupId,
@@ -2506,7 +2507,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       clearFunctionContext(&pOperator->exprSupp);
       // semi interval operator clear disk buffer
       clearStreamIntervalOperator(pInfo);
-      setStreamDataVersion(pTaskInfo, pInfo->dataVersion);
+      setStreamDataVersion(pTaskInfo, pInfo->dataVersion, pInfo->pState->checkPointId);
       qDebug("===stream===clear semi operator");
     } else {
       deleteIntervalDiscBuf(pInfo->pState, pInfo->pPullDataMap, pInfo->twAggSup.maxTs - pInfo->twAggSup.deleteMark,
@@ -4762,7 +4763,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
                           &pInfo->delKey);
     setOperatorCompleted(pOperator);
     streamStateCommit(pTaskInfo->streamInfo.pState);
-    setStreamDataVersion(pTaskInfo, pInfo->dataVersion);
+    setStreamDataVersion(pTaskInfo, pInfo->dataVersion, pInfo->pState->checkPointId);
     return NULL;
   }
 

@@ -198,9 +198,10 @@ int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   return code;
 }
 
-int64_t qGetCheckpointVersion(qTaskInfo_t tinfo) {
+void qGetCheckpointVersion(qTaskInfo_t tinfo, int64_t* dataVer, int64_t* ckId) {
   SExecTaskInfo* pTaskInfo = tinfo;
-  return pTaskInfo->streamInfo.dataVersion;
+  *dataVer = pTaskInfo->streamInfo.dataVersion;
+  *ckId = pTaskInfo->streamInfo.checkPointId;
 }
 
 
