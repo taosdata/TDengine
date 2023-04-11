@@ -34,8 +34,8 @@ typedef enum {
 
 struct SFileOp {
   tsdb_fop_t    op;
-  struct STFile oFile;  // old file state
-  struct STFile nFile;  // new file state
+  struct STFile oState;  // old file state
+  struct STFile nState;  // new file state
 };
 
 struct SFileSet {

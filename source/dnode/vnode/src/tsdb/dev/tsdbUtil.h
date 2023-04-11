@@ -64,6 +64,7 @@ struct SDelBlk {
   int64_t   maxVer;
   SFDataPtr dp;
 };
+
 struct STbStatisBlock {
   int32_t  capacity;
   int32_t  nRow;
