@@ -16,15 +16,6 @@ public class InfluxdbConfig {
     @Value("${influx.url}")
     private String url;
 
-    @Value("${influx.authType}")
-    private String authType;
-
-    @Value("${influx.username}")
-    private String username;
-
-    @Value("${influx.password}")
-    private String password;
-
     @Value("${influx.token}")
     private String token;
 
@@ -33,4 +24,16 @@ public class InfluxdbConfig {
 
     @Value("${influx.buckets}")
     private String[] buckets;
+
+    @Value("${influx.maxTotal}")
+    private int maxTotal;
+
+    @Value("${influx.maxIdle}")
+    private int maxIdle;
+
+    @Value("${influx.minIdle}")
+    private int minIdle;
+
+    @Value("${influx.initialSize}")
+    private int initialSize;
 }

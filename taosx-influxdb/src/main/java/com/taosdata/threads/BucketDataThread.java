@@ -1,6 +1,5 @@
 package com.taosdata.threads;
 
-import com.influxdb.client.InfluxDBClient;
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatusCache;
@@ -10,6 +9,8 @@ import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.service.InfluxdbService;
 import com.taosdata.service.impl.InfluxdbServiceImpl;
 import com.taosdata.utils.DateUtils;
+import com.taosdata.utils.flux.FluxEnums;
+import com.taosdata.utils.flux.FluxManager;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -33,11 +34,6 @@ public class BucketDataThread implements Runnable {
     private String name;
 
     /**
-     * influxdb客户端
-     */
-    private InfluxDBClient influxDBClient;
-
-    /**
      * influxdb orgId
      */
     private String orgId;
@@ -53,8 +49,7 @@ public class BucketDataThread implements Runnable {
     private String startTime;
     private String stopTime;
 
-    public BucketDataThread(InfluxDBClient influxDBClient, String orgId, String bucket, String startTime, String stopTime) {
-        this.influxDBClient = influxDBClient;
+    public BucketDataThread(String orgId, String bucket, String startTime, String stopTime) {
         this.orgId = orgId;
         this.bucket = bucket;
         this.startTime = startTime;
@@ -93,7 +88,9 @@ public class BucketDataThread implements Runnable {
                     continue;
                 }
                 // 读取数据
-                List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = influxdbService.selectBucketData(this.influxDBClient, this.orgId, this.bucket, this.startTime, this.stopTime, this.performanceConfig.getThread().getReadBucketBatch(), this.offset);
+                List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = influxdbService.selectBucketData(this.orgId, this.bucket, this.startTime, this.stopTime, this.performanceConfig.getThread().getReadBucketBatch(), this.offset);
+                // 更新速度
+                FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).cycleCheck(influxdbBucketDataEntityList.size(), performanceConfig.getLimitSpeed());
                 // 写入数据队列
                 if (influxdbBucketDataEntityList != null && influxdbBucketDataEntityList.size() > 0) {
                     BucketDataCache.addBucketData(influxdbBucketDataEntityList);

@@ -69,8 +69,9 @@ public class PushThread implements Runnable {
                 }
                 // 筛选相同measurement的数据
                 List<InfluxdbBucketDataEntity> filteredList = filter(influxdbBucketDataEntityList);
-                // 推送数据
+                // 速度控制
                 FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).cycleCheck(filteredList.size(), performanceConfig.getLimitSpeed());
+                // 推送数据
                 push(filteredList);
                 // 线程结束，判断是否读满
                 if (influxdbBucketDataEntityList.size() < performanceConfig.getThread().getReadBucketDataBatch()) {

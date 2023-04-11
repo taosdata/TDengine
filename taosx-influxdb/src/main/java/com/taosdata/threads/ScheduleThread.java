@@ -37,7 +37,8 @@ public class ScheduleThread implements Runnable {
     private ThreadPoolExecutor threadPoolExecutor;
 
     public ScheduleThread(int threadPoolSize) {
-        this.threadPoolExecutor = new ThreadPoolExecutor(1, threadPoolSize, 0, TimeUnit.SECONDS, new LinkedBlockingDeque<>());
+        // 将corePoolSize与maxPoolSize设置为相同的线程数，这样可以减少在处理过程中创建线程的开销
+        this.threadPoolExecutor = new ThreadPoolExecutor(threadPoolSize, threadPoolSize, 0, TimeUnit.SECONDS, new LinkedBlockingDeque<>());
     }
 
     /**
@@ -60,8 +61,8 @@ public class ScheduleThread implements Runnable {
                     this.name = "ScheduleThread";
                 }
                 logger.debug(this.name + "#线程运行开始#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
-                // 判断线程池大小
-                if (this.threadPoolExecutor.getPoolSize() >= this.performanceConfig.getMaxThread()) {
+                // 判断线程池大小（等待队列超过线程数量）
+                if (this.threadPoolExecutor.getQueue().size() >= this.performanceConfig.getMaxThread()) {
                     // 睡眠后继续
                     sleep(this.performanceConfig.getThread().getScheduleInterval(), start, StatusEnums.NORMAL);
                     continue;
@@ -138,7 +139,7 @@ public class ScheduleThread implements Runnable {
         // 读取内存中Bucket子线程
         bucketMap.forEach((key, value) -> {
             // 队列方式，一直处理一个
-            while (BucketCache.getBucketDataThreadQueueSize(key) > 0 && this.threadPoolExecutor.getPoolSize() < this.performanceConfig.getMaxThread()) {
+            while (BucketCache.getBucketDataThreadQueueSize(key) > 0 && this.threadPoolExecutor.getQueue().size() < this.performanceConfig.getMaxThread()) {
                 // 取出一个子线程
                 BucketDataThread bucketDataThread = BucketCache.getBucketDataThread(key);
                 // 正常则启动

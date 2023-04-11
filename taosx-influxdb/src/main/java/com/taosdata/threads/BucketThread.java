@@ -1,6 +1,5 @@
 package com.taosdata.threads;
 
-import com.influxdb.client.InfluxDBClient;
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.StatusCache;
@@ -31,11 +30,6 @@ public class BucketThread implements Runnable {
     private String name;
 
     /**
-     * influxdb客户端
-     */
-    private InfluxDBClient influxDBClient;
-
-    /**
      * influxdb orgId
      */
     private String orgId;
@@ -45,8 +39,7 @@ public class BucketThread implements Runnable {
      */
     private String bucket;
 
-    public BucketThread(InfluxDBClient influxDBClient, String orgId, String bucket) {
-        this.influxDBClient = influxDBClient;
+    public BucketThread(String orgId, String bucket) {
         this.orgId = orgId;
         this.bucket = bucket;
     }
@@ -93,7 +86,7 @@ public class BucketThread implements Runnable {
                 // 拆分时间段
                 String[] timeRangeArr = timeRange.split(",");
                 // 生成bucket子线程并放入队列中
-                BucketCache.addBucketDataThread(this.bucket, new BucketDataThread(this.influxDBClient, this.orgId, this.bucket, timeRangeArr[0], timeRangeArr[1]));
+                BucketCache.addBucketDataThread(this.bucket, new BucketDataThread(this.orgId, this.bucket, timeRangeArr[0], timeRangeArr[1]));
                 // 更新序号
                 this.index++;
                 // 线程结束
@@ -277,10 +270,10 @@ public class BucketThread implements Runnable {
         curr.add(Calendar.HOUR, index);
         // 开始时间
         Calendar begin = Calendar.getInstance();
-        begin.set(curr.get(Calendar.YEAR), curr.get(Calendar.MONTH), curr.get(Calendar.DATE), curr.get(Calendar.HOUR), 0, 0);
+        begin.set(curr.get(Calendar.YEAR), curr.get(Calendar.MONTH), curr.get(Calendar.DATE), curr.get(Calendar.HOUR_OF_DAY), 0, 0);
         // 结束时间
         Calendar end = Calendar.getInstance();
-        end.set(curr.get(Calendar.YEAR), curr.get(Calendar.MONTH), curr.get(Calendar.DATE), curr.get(Calendar.HOUR), 59, 59);
+        end.set(curr.get(Calendar.YEAR), curr.get(Calendar.MONTH), curr.get(Calendar.DATE), curr.get(Calendar.HOUR_OF_DAY), 59, 59);
         // 判断是否超过指定时间范围
         if (begin.getTime().after(endTime)) {
             return null;

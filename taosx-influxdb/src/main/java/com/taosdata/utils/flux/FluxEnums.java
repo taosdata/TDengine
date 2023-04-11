@@ -7,6 +7,7 @@ package com.taosdata.utils.flux;
  */
 public enum FluxEnums {
 
+    ReadData("ReadData", "读取数据", "#ReadData#读取数据当前速度为"),
     PushData("PushData", "推送数据", "#PushData#推送数据当前速度为");
 
     /**

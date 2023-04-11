@@ -30,7 +30,7 @@ import java.util.Map;
  * @author ZYP
  */
 @RestController
-@RequestMapping(value = "/api/dashboard")
+@RequestMapping(value = "/dashboard")
 public class DashboardController {
 
     protected Logger logger = LoggerFactory.getLogger(getClass());
@@ -217,6 +217,7 @@ public class DashboardController {
             // TODO
             // 结果数据
             DataInfo<Map<String, Long>> dataInfo = new DataInfo<>(new HashMap<>());
+            dataInfo.getData().put(FluxEnums.ReadData.getDesc(), FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).getSpeed());
             dataInfo.getData().put(FluxEnums.PushData.getDesc(), FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).getSpeed());
             // 封装响应
             resDto.setCode(ResEnums.SUCCESS.getCode());

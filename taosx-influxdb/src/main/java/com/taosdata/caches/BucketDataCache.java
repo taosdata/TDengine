@@ -3,9 +3,9 @@ package com.taosdata.caches;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * 数据缓存
@@ -14,7 +14,7 @@ import java.util.Queue;
  */
 public class BucketDataCache {
 
-    private static Queue<InfluxdbBucketDataEntity> bucketDataQueue = new LinkedList<>();
+    private static Queue<InfluxdbBucketDataEntity> bucketDataQueue = new ConcurrentLinkedQueue<>();
 
     /**
      * 添加数据并获取队列大小

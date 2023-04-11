@@ -21,21 +21,6 @@ public class MessageBodyInfluxdbDto extends MessageBodyDto {
     private String url;
 
     /**
-     * 鉴权类型：1 账号密码、2 TOKEN
-     */
-    private String authType;
-
-    /**
-     * 数据库用户
-     */
-    private String username;
-
-    /**
-     * 数据库密码
-     */
-    private String password;
-
-    /**
      * 令牌
      */
     private String token;

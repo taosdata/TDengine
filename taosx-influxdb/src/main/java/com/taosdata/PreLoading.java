@@ -1,12 +1,10 @@
 package com.taosdata;
 
-import com.influxdb.client.InfluxDBClient;
 import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.InfluxdbConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.dto.bum.ThreadInfo;
-import com.taosdata.model.dto.init.InfluxdbConnectionParam;
 import com.taosdata.model.entity.InfluxdbBucketEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.model.enums.StatusEnums;
@@ -20,7 +18,6 @@ import com.taosdata.threads.ScheduleThread;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.BeanUtils;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
@@ -107,44 +104,37 @@ public class PreLoading implements CommandLineRunner {
      * 初始化influxdb及相关线程
      */
     private void initInfluxdb() {
-        // 异步线程
-        Thread waitThread = new Thread(() -> {
-            try {
-                // Influxdb连接参数
-                InfluxdbConnectionParam influxdbConnectionParam = new InfluxdbConnectionParam();
-                // 复制实体类属性
-                BeanUtils.copyProperties(influxdbConfig, influxdbConnectionParam);
-                // 获取Influxdb客户端
-                InfluxDBClient influxDBClient = influxdbService.getInfluxDBClient(influxdbConnectionParam);
-                // 获取所有bucket
-                List<InfluxdbBucketEntity> influxdbBucketEntityList = influxdbService.selectAllBuckets(influxDBClient);
-                // 跟据参数中的orgId与buckets进行过滤
-                influxdbBucketEntityList.stream().filter(influxdbBucketEntity -> {
-                    if (StringUtils.isEmpty(influxdbConnectionParam.getOrgId()) || influxdbBucketEntity.getOrgId().equals(influxdbConnectionParam.getOrgId())) {
+        try {
+            // 获取所有bucket
+            List<InfluxdbBucketEntity> influxdbBucketEntityList = influxdbService.selectAllBuckets();
+            // 跟据参数中的orgId与buckets进行过滤
+            influxdbBucketEntityList.stream().filter(influxdbBucketEntity -> {
+                if (StringUtils.isEmpty(influxdbConfig.getOrgId()) || influxdbBucketEntity.getOrgId().equals(influxdbConfig.getOrgId())) {
+                    return true;
+                }
+                return false;
+            }).filter(influxdbBucketEntity -> {
+                if (influxdbConfig.getBuckets() != null && influxdbConfig.getBuckets().length > 0) {
+                    Set<String> bucketSet = new HashSet<>(Arrays.asList(influxdbConfig.getBuckets()));
+                    if (bucketSet.contains(influxdbBucketEntity.getBucketName())) {
                         return true;
                     }
-                    return false;
-                }).filter(influxdbBucketEntity -> {
-                    if (influxdbConnectionParam.getBuckets() != null && influxdbConnectionParam.getBuckets().length > 0) {
-                        Set<String> bucketSet = new HashSet<>(Arrays.asList(influxdbConnectionParam.getBuckets()));
-                        if (bucketSet.contains(influxdbBucketEntity.getBucketName())) {
-                            return true;
-                        }
-                    } else {
-                        return true;
-                    }
-                    return false;
-                }).forEach(influxdbBucketEntity -> {
-                    // 放入缓存中
-                    BucketCache.bucketMap.put(influxdbBucketEntity.getBucketName(), influxdbBucketEntity);
+                } else {
+                    return true;
+                }
+                return false;
+            }).forEach(influxdbBucketEntity -> {
+                // 放入缓存中
+                BucketCache.bucketMap.put(influxdbBucketEntity.getBucketName(), influxdbBucketEntity);
+                try {
                     // 查询bucket中所有measurement信息
-                    List<InfluxdbMeasurementEntity> influxdbMeasurementEntityList = influxdbService.selectAllMeasurements(influxDBClient, influxdbBucketEntity.getBucketName());
+                    List<InfluxdbMeasurementEntity> influxdbMeasurementEntityList = influxdbService.selectAllMeasurements(influxdbBucketEntity.getBucketName());
                     // 放入缓存中
                     for (InfluxdbMeasurementEntity influxdbMeasurementEntity : influxdbMeasurementEntityList) {
                         BucketCache.measurementMap.put(influxdbMeasurementEntity.getBucket() + ":" + influxdbMeasurementEntity.getMeasurement(), influxdbMeasurementEntity);
                     }
                     // 启动BucketThread
-                    BucketThread bucket = new BucketThread(influxDBClient, influxdbConfig.getOrgId(), influxdbBucketEntity.getBucketName());
+                    BucketThread bucket = new BucketThread(influxdbConfig.getOrgId(), influxdbBucketEntity.getBucketName());
                     Thread bucketThread = new Thread(bucket);
                     bucketThread.setName("BucketThread-" + influxdbBucketEntity.getBucketName());
                     bucketThread.start();
@@ -154,22 +144,23 @@ public class PreLoading implements CommandLineRunner {
                     threadInfo.setStatus(StatusEnums.LOADING.getCode());
                     threadInfo.setDescription(StatusEnums.LOADING.getDesc());
                     StatusCache.noteThread(threadInfo);
-                });
-                // 启动ScheduleThread
-                ScheduleThread schedule = new ScheduleThread(performanceConfig.getMaxThread());
-                Thread scheduleThread = new Thread(schedule);
-                scheduleThread.setName("ScheduleThread");
-                scheduleThread.start();
-                ThreadInfo threadInfo = new ThreadInfo();
-                threadInfo.setName("ScheduleThread");
-                threadInfo.setStartTime(new Date());
-                threadInfo.setStatus(StatusEnums.LOADING.getCode());
-                threadInfo.setDescription(StatusEnums.LOADING.getDesc());
-                StatusCache.noteThread(threadInfo);
-            } catch (Exception e) {
-                logger.error("初始化influxdb及相关线程过程中发生异常", e);
-            }
-        });
-        waitThread.start();
+                } catch (Exception e) {
+                    logger.error("初始化influxdb及相关线程过程中发生异常", e);
+                }
+            });
+            // 启动ScheduleThread
+            ScheduleThread schedule = new ScheduleThread(performanceConfig.getMaxThread());
+            Thread scheduleThread = new Thread(schedule);
+            scheduleThread.setName("ScheduleThread");
+            scheduleThread.start();
+            ThreadInfo threadInfo = new ThreadInfo();
+            threadInfo.setName("ScheduleThread");
+            threadInfo.setStartTime(new Date());
+            threadInfo.setStatus(StatusEnums.LOADING.getCode());
+            threadInfo.setDescription(StatusEnums.LOADING.getDesc());
+            StatusCache.noteThread(threadInfo);
+        } catch (Exception e) {
+            logger.error("初始化influxdb及相关线程过程中发生异常", e);
+        }
     }
 }
