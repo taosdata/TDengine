@@ -163,8 +163,8 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) {
-    dGError("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg,
-            terrstr(), TMSG_INFO(pMsg->msgType), qtype, pHead->contLen);
+    dGWarn("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg,
+           terrstr(), TMSG_INFO(pMsg->msgType), qtype, pHead->contLen);
     terrno = (terrno != 0) ? terrno : -1;
     return terrno;
   }
