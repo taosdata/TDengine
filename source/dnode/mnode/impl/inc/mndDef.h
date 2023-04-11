@@ -447,6 +447,8 @@ typedef struct {
   int32_t codeSize;
   char*   pComment;
   char*   pCode;
+  int32_t funcVersion;
+  SRWLatch lock;
 } SFuncObj;
 
 typedef struct {

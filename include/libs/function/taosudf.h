@@ -276,6 +276,8 @@ typedef enum EUdfFuncType { UDF_FUNC_TYPE_SCALAR = 1, UDF_FUNC_TYPE_AGG = 2 } EU
 
 typedef struct SScriptUdfInfo {
   const char *name;
+  int32_t version;
+  int64_t createdTime;
 
   EUdfFuncType funcType;
   int8_t       scriptType;

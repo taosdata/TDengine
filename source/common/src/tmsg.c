@@ -1702,6 +1702,7 @@ int32_t tSerializeSCreateFuncReq(void *buf, int32_t bufLen, SCreateFuncReq *pReq
     if (tEncodeCStr(&encoder, pReq->pComment) < 0) return -1;
   }
 
+
   if (tEncodeI8(&encoder, pReq->orReplace) < 0) return -1;
 
   tEndEncode(&encoder);
@@ -1745,6 +1746,7 @@ int32_t tDeserializeSCreateFuncReq(void *buf, int32_t bufLen, SCreateFuncReq *pR
     }
     if (tDecodeCStrTo(&decoder, pReq->pComment) < 0) return -1;
   }
+
 
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI8(&decoder, &pReq->orReplace) < 0) return -1;
@@ -1863,6 +1865,13 @@ int32_t tSerializeSRetrieveFuncRsp(void *buf, int32_t bufLen, SRetrieveFuncRsp *
     }
   }
 
+  if (pRsp->numOfFuncs != (int32_t)taosArrayGetSize(pRsp->pFuncExtraInfos)) return -1;
+  for (int32_t i = 0; i < pRsp->numOfFuncs; ++i) {
+    SFuncExtraInfo *extraInfo = taosArrayGet(pRsp->pFuncExtraInfos, i);
+    if (tEncodeI32(&encoder, extraInfo->funcVersion) < 0) return -1;
+    if (tEncodeI64(&encoder, extraInfo->funcCreatedTime) < 0) return -1;
+  }
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1910,6 +1919,22 @@ int32_t tDeserializeSRetrieveFuncRsp(void *buf, int32_t bufLen, SRetrieveFuncRsp
 
     taosArrayPush(pRsp->pFuncInfos, &fInfo);
   }
+
+  pRsp->pFuncExtraInfos = taosArrayInit(pRsp->numOfFuncs, sizeof(SFuncExtraInfo));
+  if (pRsp->pFuncExtraInfos == NULL) return -1;
+  if (tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < pRsp->numOfFuncs; ++i) {
+      SFuncExtraInfo  extraInfo  = { 0 };
+      taosArrayPush(pRsp->pFuncExtraInfos, &extraInfo);
+    }
+  } else {
+    for (int32_t i = 0; i < pRsp->numOfFuncs; ++i) {
+      SFuncExtraInfo extraInfo = { 0 };
+      if (tDecodeI32(&decoder, &extraInfo.funcVersion) < 0) return -1;
+      if (tDecodeI64(&decoder, &extraInfo.funcCreatedTime) < 0) return -1;
+      taosArrayPush(pRsp->pFuncExtraInfos, &extraInfo);
+    }
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -1932,6 +1957,7 @@ void tFreeSRetrieveFuncRsp(SRetrieveFuncRsp *pRsp) {
     tFreeSFuncInfo(pInfo);
   }
   taosArrayDestroy(pRsp->pFuncInfos);
+  taosArrayDestroy(pRsp->pFuncExtraInfos);
 }
 
 int32_t tSerializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq) {
