@@ -28,6 +28,7 @@ struct STFileSystem {
   tsem_t  canEdit;
   int64_t nextEditId;
   SArray *aFileSet;  // SArray<struct SFileSet>
+  SArray *nState;    // SArray<struct SFileSet>
 };
 
 typedef enum {

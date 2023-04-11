@@ -356,12 +356,32 @@ static int32_t close_committer(SCommitter *pCommiter, int32_t eno) {
   int32_t code = 0;
   int32_t lino;
 
-  code = tsdbFileSystemEditBegin(pCommiter->pTsdb->pFS,  //
-                                 pCommiter->aFileOp,     //
-                                 TSDB_FS_EDIT_COMMIT);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  if (eno == 0) {
+    TSDB_CHECK_CODE(                     //
+        code = tsdbFileSystemEditBegin(  //
+            pCommiter->pTsdb->pFS,       //
+            pCommiter->aFileOp,          //
+            TSDB_FS_EDIT_COMMIT),
+        lino,  //
+        _exit);
+  } else {
+    ASSERTS(0, "TODO: Not implemented yet");
+  }
 
 _exit:
+  if (code) {
+    tsdbError(                                    //
+        "vgId:%d %s failed at line %d since %s",  //
+        TD_VID(pCommiter->pTsdb->pVnode),         //
+        __func__,                                 //
+        lino,                                     //
+        tstrerror(code));
+  } else {
+    tsdbDebug(                             //
+        "vgId:%d %s done",                 //
+        TD_VID(pCommiter->pTsdb->pVnode),  //
+        __func__);
+  }
   return code;
 }
 

@@ -345,13 +345,25 @@ static int32_t close_file_system(struct STFileSystem *pFS) {
   return 0;
 }
 
-static int32_t write_fs_to_file(struct STFileSystem *pFS, const char *fname) {
+static int32_t read_fs_from_file(struct STFileSystem *pFS, const char *fname) {
   ASSERTS(0, "TODO: Not implemented yet");
   return 0;
 }
 
-static int32_t read_fs_from_file(struct STFileSystem *pFS, const char *fname) {
+static int32_t edit_fs(struct STFileSystem *pFS, const SArray *aFileOp) {
   ASSERTS(0, "TODO: Not implemented yet");
+
+  for (int32_t iop = 0; iop < taosArrayGetSize(aFileOp); iop++) {
+    struct SFileOp *pOp = taosArrayGet(aFileOp, iop);
+    // if (pOp->op == TSDB_FS_OP_ADD) {
+    //   ASSERTS(0, "TODO: Not implemented yet");
+    // } else if (pOp->op == TSDB_FS_OP_DEL) {
+    //   ASSERTS(0, "TODO: Not implemented yet");
+    // } else {
+    //   ASSERTS(0, "TODO: Not implemented yet");
+    // }
+  }
+
   return 0;
 }
 
@@ -392,15 +404,22 @@ int32_t tsdbCloseFileSystem(struct STFileSystem **ppFS) {
 
 int32_t tsdbFileSystemEditBegin(struct STFileSystem *pFS, const SArray *aFileOp, tsdb_fs_edit_t etype) {
   int32_t code = 0;
-  int32_t lino = 0;
+  int32_t lino;
   char    fname[TSDB_FILENAME_LEN];
 
   get_current_temp(pFS->pTsdb, fname, etype);
 
   tsem_wait(&pFS->canEdit);
 
-  code = write_fs_to_file(pFS, fname);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TSDB_CHECK_CODE(                   //
+      code = edit_fs(pFS, aFileOp),  //
+      lino,                          //
+      _exit);
+
+  TSDB_CHECK_CODE(                         //
+      code = save_fs_to_file(pFS, fname),  //
+      lino,                                //
+      _exit);
 
 _exit:
   if (code) {
