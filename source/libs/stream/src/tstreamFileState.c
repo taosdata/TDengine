@@ -399,7 +399,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
     sscanf(val, "%" PRId64 "", &maxCheckPointId);
     taosMemoryFree(val);
   }
-  for (int64_t i = maxCheckPointId; i > 0; i++) {
+  for (int64_t i = maxCheckPointId; i > 0; i--) {
     char    buf[128] = {0};
     void*   val = 0;
     int32_t len = 0;
