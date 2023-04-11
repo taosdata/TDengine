@@ -21,6 +21,10 @@
 #include "httpAdminHandle.h"
 #include "httpAdminJson.h"
 
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#include "cus_name.h"
+#endif
+
 static HttpDecodeMethod adminDecodeMethod = {"admin", adminProcessRequest};
 static HttpEncodeMethod adminEncodeSqlMethod = {
   .startJsonFp          = adminStartSqlJson,         
@@ -127,7 +131,11 @@ bool adminProcessGrantRequest(HttpContext* pContext) {
 
   char       expire[22] = {0};
   char       cfgFile[PATH_MAX] = {0};
+#ifdef CUS_PROMPT
+  sprintf(cfgFile, "%s/%s.cfg", configDir, CUS_PROMPT);
+#else
   sprintf(cfgFile, "%s/taos.cfg", configDir);
+#endif
   grantActiveSystem(cfgFile);
 
   time_t     tt = grantObj.expireTimeSec;

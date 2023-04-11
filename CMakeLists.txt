@@ -31,6 +31,10 @@ IF (GRANT_VALUE)
     ADD_DEFINITIONS(-DGRANT_VALUE="${GRANT_VALUE}")
 ENDIF ()
 
+IF (CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
+    ADD_DEFINITIONS(-I${PROJECT_SOURCE_DIR}/enterprise/packaging)
+ENDIF (CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
+
 set( TD_SOURCE_DIR ${PROJECT_SOURCE_DIR} )
 include(${TD_SOURCE_DIR}/enterprise/cmake/cmake.options)
 add_subdirectory(enterprise/contrib)

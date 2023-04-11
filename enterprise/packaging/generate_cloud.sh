@@ -65,7 +65,7 @@ cp -f $(dirname $taoskeeper_binary)/config/keeper.toml $prefix/taos/cfg/
 cat $scriptDir/remove_taoskeeper.sh >> $prefix/taos/bin/remove.sh
 cat $scriptDir/install_taoskeeper.sh >> $prefix/install.sh
 cd $prefix/taos && tar acf ../package.tar.gz ./ && cd ../../
-rm -rf $prefix/taos
+rm -rf $prefix/taos $prefix/package.tar
 tar acf $server_tar $prefix
 echo "append taoskeeper to cloud server package"
 rm -rf $prefix/

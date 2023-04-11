@@ -36,6 +36,10 @@
 #include "ttimer.h"
 #include "tutil.h"
 
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#include "cus_name.h"
+#endif
+
 #define COMPARE_SET_VAL(a, b, _comp_sign_) \
   do {                                     \
     if ((a)_comp_sign_(b)) {               \
@@ -210,9 +214,9 @@ static void grantSetClusterInfo(SMnode *pMnode) {
   if (strncmp(tsVersionName, GRANT_VERSION, 16) != 0) {
     strncpy(tsVersionName, GRANT_VERSION, 16);
   }
-  if (tsExpireTime != (int64_t)grantStatus.expireTimeSec * 1000) {
-    tsExpireTime = (int64_t)grantStatus.expireTimeSec * 1000;
-  }
+  COMPARE_SET_VAL(tsExpireTime, (int64_t)grantStatus.expireTimeSec * 1000, !=);
+  COMPARE_SET_VAL(pMnode->grant.expireTimeMS, tsExpireTime, !=);
+  COMPARE_SET_VAL(pMnode->grant.timeseriesAllowed, (int64_t)grantStatus.limitTimeSeries, !=);
 }
 
 static FORCE_INLINE void grantSetClusterIdEx(int64_t clusterId) {
@@ -295,7 +299,11 @@ _err:
 
 static void dmRefreshGrantCfg() {
   char cfgFile[PATH_MAX] = {0};
+#ifdef CUS_PROMPT
+  sprintf(cfgFile, "%s/%s.cfg", configDir, CUS_PROMPT);
+#else
   sprintf(cfgFile, "%s/taos.cfg", configDir);
+#endif
   grantActiveSystem(cfgFile);
 }
 
