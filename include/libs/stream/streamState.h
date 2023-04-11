@@ -38,6 +38,8 @@ typedef struct STdbState {
   rocksdb_comparator_t**           pCompare;
   rocksdb_options_t*               dbOpt;
   struct SStreamTask*              pOwner;
+  void*                            param;
+  void*                            env;
 
   TDB* db;
   TTB* pStateDb;
