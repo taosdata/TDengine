@@ -635,6 +635,7 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
       nodesValueNodeToVariant(pv, &pFillCol[i].fillVal);
     }
   }
+  pFillCol->numOfFillExpr = numOfFillExpr;
 
   for (int32_t i = 0; i < numOfNoFillExpr; ++i) {
     SExprInfo* pExprInfo = &pNotFillExpr[i];

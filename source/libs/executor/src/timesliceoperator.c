@@ -661,6 +661,9 @@ void destroyTimeSliceOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pLinearInfo);
   cleanupExprSupp(&pInfo->scalarSup);
 
+  for (int32_t i = 0; i < pInfo->pFillColInfo->numOfFillExpr; ++i) {
+    taosVariantDestroy(&pInfo->pFillColInfo[i].fillVal);
+  }
   taosMemoryFree(pInfo->pFillColInfo);
   taosMemoryFreeClear(param);
 }
