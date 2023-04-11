@@ -13,6 +13,7 @@
     >
     <div class="content">
       <panelHeader :title="title"> </panelHeader>
+      <!-- <docs :category="'dashboard'" :lang="'dashboard'"></docs> -->
       <ClusterInfo />
       <!-- <docs :category="'tdinsight'" :lang="'tdinsight'" topic="TDinsight配置"></docs> -->
       <!-- <Query v-if="isQuery" />

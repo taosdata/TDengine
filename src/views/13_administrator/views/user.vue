@@ -193,7 +193,7 @@ export default {
     del(data) {
       this.$confirm("Are you sure to delete " + data.name + "?", "Warning", {
         confirmButtonText: "Ok",
-        cancelButtonText: "Cancle",
+        cancelButtonText: "Cancel",
         type: "warning",
       }).then(() => {
         sendSQLReq(`drop user ${data.name}`).then(res => {
@@ -218,7 +218,7 @@ export default {
       }
       this.$confirm("Are you sure to " + str + " " + data.name + "?", "Warning", {
         confirmButtonText: "Ok",
-        cancelButtonText: "Cancle",
+        cancelButtonText: "Cancel",
         type: "warning",
       }).then(() => {
         sendSQLReq(`alter user ${data.name} enable ${state}`).then(res => {

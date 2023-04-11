@@ -45,7 +45,6 @@
 <script>
 import { sendSQLReq } from "@/api/gateway/console";
 import Docs from "@/components/Docs/index.vue";
-import { Message } from "element-ui";
 export default {
   props: {},
   components: { Docs },

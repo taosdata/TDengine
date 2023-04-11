@@ -19,3 +19,5 @@ export { default as opentsTelnetDoc } from "./opentsdbjson.vue";
 export { default as topicGoDoc } from "./topic/go.vue";
 export { default as topicPythonDoc } from "./topic/python.vue";
 export { default as topicRustDoc } from "./topic/rust.vue";
+
+export {default as dashboard} from './dashboard.vue'

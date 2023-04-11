@@ -283,7 +283,7 @@ export default {
     del(data) {
       this.$confirm("Are you sure  to delete " + data.name + "?", "Warning", {
         confirmButtonText: "Ok",
-        cancelButtonText: "Cancle",
+        cancelButtonText: "Cancel",
         type: "warning",
       }).then(async () => {
         await excuteDel(data.id)

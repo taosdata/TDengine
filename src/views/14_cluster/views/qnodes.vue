@@ -131,7 +131,7 @@ export default {
         "Warning",
         {
           confirmButtonText: "Ok",
-          cancelButtonText: "Cancle",
+          cancelButtonText: "Cancel",
           type: "warning",
         }
       ).then(() => {
