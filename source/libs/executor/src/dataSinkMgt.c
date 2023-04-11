@@ -23,7 +23,6 @@ SDataSinkStat           gDataSinkStat = {0};
 
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg) {
   gDataSinkManager.cfg = *cfg;
-  taosThreadMutexInit(&gDataSinkManager.mutex, NULL);
   return 0;  // to avoid compiler eror
 }
 
