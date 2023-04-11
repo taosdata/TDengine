@@ -297,6 +297,8 @@ const char* compareFuncKeyName(void* name);
 const char* compareParKeyName(void* name);
 const char* comparePartagKeyName(void* name);
 
+void destroyFunc(void* stata) { return; }
+
 typedef struct {
   const char*    key;
   int32_t        len;
@@ -312,14 +314,19 @@ typedef struct {
 
 SCfInit ginitDict[] = {
     {"default", strlen("default"), 0, defaultKeyComp, defaultKeyEncode, defaultKeyDecode, defaultKeyToString,
-     compareDefaultName},
-    {"state", strlen("state"), 1, stateKeyDBComp, stateKeyEncode, stateKeyDecode, stateKeyToString, compareStateName},
-    {"fill", strlen("fill"), 2, winKeyDBComp, winKeyEncode, winKeyDecode, winKeyToString, compareWinKeyName},
+     compareDefaultName, destroyFunc},
+    {"state", strlen("state"), 1, stateKeyDBComp, stateKeyEncode, stateKeyDecode, stateKeyToString, compareStateName,
+     destroyFunc},
+    {"fill", strlen("fill"), 2, winKeyDBComp, winKeyEncode, winKeyDecode, winKeyToString, compareWinKeyName,
+     destroyFunc},
     {"sess", strlen("sess"), 3, stateSessionKeyDBComp, stateSessionKeyEncode, stateSessionKeyDecode,
-     stateSessionKeyToString, compareSessionKeyName},
-    {"func", strlen("func"), 4, tupleKeyDBComp, tupleKeyEncode, tupleKeyDecode, tupleKeyToString, compareFuncKeyName},
-    {"parname", strlen("parname"), 5, parKeyDBComp, parKeyEncode, parKeyDecode, parKeyToString, compareParKeyName},
-    {"partag", strlen("partag"), 6, parKeyDBComp, parKeyEncode, parKeyDecode, parKeyToString, comparePartagKeyName},
+     stateSessionKeyToString, compareSessionKeyName, destroyFunc},
+    {"func", strlen("func"), 4, tupleKeyDBComp, tupleKeyEncode, tupleKeyDecode, tupleKeyToString, compareFuncKeyName,
+     destroyFunc},
+    {"parname", strlen("parname"), 5, parKeyDBComp, parKeyEncode, parKeyDecode, parKeyToString, compareParKeyName,
+     destroyFunc},
+    {"partag", strlen("partag"), 6, parKeyDBComp, parKeyEncode, parKeyDecode, parKeyToString, comparePartagKeyName,
+     destroyFunc},
 };
 
 const char* compareDefaultName(void* name) { return ginitDict[0].key; }
@@ -329,8 +336,6 @@ const char* compareSessionKeyName(void* name) { return ginitDict[3].key; }
 const char* compareFuncKeyName(void* name) { return ginitDict[4].key; }
 const char* compareParKeyName(void* name) { return ginitDict[5].key; }
 const char* comparePartagKeyName(void* name) { return ginitDict[6].key; }
-
-void destroyFunc(void* stata) { return; }
 
 int streamInitBackend(SStreamState* pState, char* path) {
   rocksdb_env_t* env = rocksdb_create_default_env();  // rocksdb_envoptions_create();
