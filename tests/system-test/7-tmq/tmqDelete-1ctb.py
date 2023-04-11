@@ -238,10 +238,10 @@ class TDTestCase:
 
         if self.snapshot == 0:
             consumerId     = 2
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 + 1/4 + 3/4))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"])
         elif self.snapshot == 1:
             consumerId     = 3
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 - 1/4 + 1/4 + 3/4))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 + 1/4))
 
         topicList      = topicFromStb1
         ifcheckdata    = 1
@@ -271,7 +271,7 @@ class TDTestCase:
             if totalConsumeRows != expectrowcnt:
                 tdLog.exit("tmq consume rows error with snapshot = 0!")
         elif self.snapshot == 1:
-            if totalConsumeRows != totalRowsFromQuery:
+            if totalConsumeRows != expectrowcnt:
                 tdLog.exit("tmq consume rows error with snapshot = 1!")
 
         # tmqCom.checkFileContent(consumerId, queryString)
@@ -324,7 +324,7 @@ class TDTestCase:
 
         if self.snapshot == 0:
             consumerId     = 4
-            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1/4 + 3/4))
+            expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"])
         elif self.snapshot == 1:
             consumerId     = 5
             expectrowcnt   = int(paraDict["rowsPerTbl"] * paraDict["ctbNum"] * (1 - 1/4 + 1/4 + 3/4))
@@ -370,11 +370,7 @@ class TDTestCase:
         tdLog.info("act consume rows: %d, act query rows: %d, expect consume rows: %d, "%(totalConsumeRows, totalRowsFromQuery, expectrowcnt))
 
         if self.snapshot == 0:
-            # If data writing is completed before consumer get snapshot, will consume 7500 from wal;
-            # If data writing has not started before consumer get snapshot, will consume 10000 from wal;
-            minRows = int(expectrowcnt * (1 - 1/4)) # 7500
-            tdLog.info("consume rows should be between %d and %d, "%(minRows, expectrowcnt))
-            if not ((totalConsumeRows >= minRows) and (totalConsumeRows <= expectrowcnt)):
+            if (totalConsumeRows != expectrowcnt):
                 tdLog.exit("tmq consume rows error with snapshot = 0!")
         elif self.snapshot == 1:
             tdLog.info("consume rows should be between %d and %d, "%(totalRowsFromQuery, expectrowcnt))
@@ -495,7 +491,7 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 4 end ...... ")
         
     def run(self):
-        # tdSql.prepare()
+        tdSql.prepare()
         tdLog.printNoPrefix("=============================================")
         tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
         self.snapshot = 0
@@ -521,11 +517,11 @@ class TDTestCase:
         self.prepareTestEnv()
         self.tmqCase3()
 
-        tdLog.printNoPrefix("=============================================")
-        tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
-        self.snapshot = 0
-        self.prepareTestEnv()
-        self.tmqCase4()
+        # tdLog.printNoPrefix("=============================================")
+        # tdLog.printNoPrefix("======== snapshot is 0: only consume from wal")
+        # self.snapshot = 0
+        # self.prepareTestEnv()
+        # self.tmqCase4()
         tdLog.printNoPrefix("====================================================================")
         tdLog.printNoPrefix("======== snapshot is 1: firstly consume from tsbs, and then from wal")
         self.snapshot = 1

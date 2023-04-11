@@ -1591,8 +1591,7 @@ int32_t extractTableScanNode(SPhysiNode* pNode, STableScanPhysiNode** ppNode) {
   return -1;
 }
 
-int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, STableListInfo* pTableListInfo,
-                            SReadHandle* readHandle) {
+int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* pTask, SReadHandle* readHandle) {
   switch (pNode->type) {
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
       SInserterParam* pInserterParam = taosMemoryCalloc(1, sizeof(SInserterParam));
@@ -1610,23 +1609,26 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, STableListInfo*
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
-      int32_t tbNum = tableListGetSize(pTableListInfo);
+      SArray*         pInfoList = getTableListInfo(pTask);
+      STableListInfo* pTableListInfo = taosArrayGetP(pInfoList, 0);
+      taosArrayDestroy(pInfoList);
+
       pDeleterParam->suid = tableListGetSuid(pTableListInfo);
 
       // TODO extract uid list
-      pDeleterParam->pUidList = taosArrayInit(tbNum, sizeof(uint64_t));
+      int32_t numOfTables = tableListGetSize(pTableListInfo);
+      pDeleterParam->pUidList = taosArrayInit(numOfTables, sizeof(uint64_t));
       if (NULL == pDeleterParam->pUidList) {
         taosMemoryFree(pDeleterParam);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
-      for (int32_t i = 0; i < tbNum; ++i) {
+      for (int32_t i = 0; i < numOfTables; ++i) {
         STableKeyInfo* pTable = tableListGetInfo(pTableListInfo, i);
         taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
       }
 
       *pParam = pDeleterParam;
-
       break;
     }
     default:
@@ -1973,11 +1975,11 @@ void qStreamCloseTsdbReader(void* task) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)task;
   SOperatorInfo* pOp = pTaskInfo->pRoot;
 
-  qDebug("stream close tsdb reader, reset status uid:%" PRId64 " ts:%" PRId64, pTaskInfo->streamInfo.lastStatus.uid,
-         pTaskInfo->streamInfo.lastStatus.ts);
+  qDebug("stream close tsdb reader, reset status uid:%" PRId64 " ts:%" PRId64, pTaskInfo->streamInfo.currentOffset.uid,
+         pTaskInfo->streamInfo.currentOffset.ts);
 
   // todo refactor, other thread may already use this read to extract data.
-  pTaskInfo->streamInfo.lastStatus = (STqOffsetVal){0};
+  pTaskInfo->streamInfo.currentOffset = (STqOffsetVal){0};
   while (pOp->numOfDownstream == 1 && pOp->pDownstream[0]) {
     SOperatorInfo* pDownstreamOp = pOp->pDownstream[0];
     if (pDownstreamOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {

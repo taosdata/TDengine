@@ -162,9 +162,11 @@ void* queryThread(void* arg) {
   return NULL;
 }
 
-static int32_t numOfThreads = 1;
+int32_t numOfThreads = 1;
 
-void tmq_commit_cb_print(tmq_t* pTmq, int32_t code, void* param) { printf("success, code:%d\n", code); }
+void tmq_commit_cb_print(tmq_t* pTmq, int32_t code, void* param) {
+  printf("auto commit success, code:%d\n\n\n\n", code);
+}
 
 void* doConsumeData(void* param) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -172,7 +174,7 @@ void* doConsumeData(void* param) {
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-  tmq_conf_set(conf, "group.id", "cgrpName12");
+  tmq_conf_set(conf, "group.id", "cgrpName41");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
@@ -1059,7 +1061,7 @@ TEST(clientCase, sub_tb_test) {
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
-  tmq_conf_set(conf, "group.id", "cgrpName27");
+  tmq_conf_set(conf, "group.id", "cgrpName45");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
