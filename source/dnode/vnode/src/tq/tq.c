@@ -551,7 +551,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   int32_t vgId = TD_VID(pTq->pVnode);
   pTask->id.idStr = taosStrdup(buf);
   pTask->refCnt = 1;
-  pTask->schedStatus = TASK_SCHED_STATUS__INACTIVE;
+  pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->inputQueue = streamQueueOpen();
   pTask->outputQueue = streamQueueOpen();
 
@@ -566,9 +566,9 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
   // expand executor
   if (pTask->fillHistory) {
-    pTask->taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;
+    pTask->status.taskStatus = TASK_STATUS__WAIT_DOWNSTREAM;
   } else {
-    pTask->taskStatus = TASK_STATUS__RESTORE;
+    pTask->status.taskStatus = TASK_STATUS__RESTORE;
   }
 
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
@@ -661,7 +661,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   };
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
-  if (pTask && atomic_load_8(&pTask->taskStatus) == TASK_STATUS__NORMAL) {
+  if (pTask && atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__NORMAL) {
     rsp.status = 1;
   } else {
     rsp.status = 0;
@@ -788,7 +788,7 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   // do recovery step 1
   streamSourceRecoverScanStep1(pTask);
 
-  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+  if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   }
@@ -803,7 +803,7 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
 
   streamMetaReleaseTask(pTq->pStreamMeta, pTask);
 
-  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+  if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     return 0;
   }
 
@@ -845,7 +845,7 @@ int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t sversion, char* msg, int32_t 
     return -1;
   }
 
-  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+  if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   }
@@ -1061,9 +1061,9 @@ int32_t tqProcessSubmitReq(STQ* pTq, SPackedData submit) {
       continue;
     }
 
-    if (pTask->taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
+    if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
       tqDebug("stream task:%d skip push data, not ready for processing, status %d", pTask->id.taskId,
-              pTask->taskStatus);
+              pTask->status.taskStatus);
       continue;
     }
 
@@ -1137,10 +1137,10 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   } else {
     SStreamTask* pTask = streamMetaAcquireTaskEx(pTq->pStreamMeta, taskId);
     if (pTask != NULL) {
-      if (pTask->taskStatus == TASK_STATUS__NORMAL) {
+      if (pTask->status.taskStatus == TASK_STATUS__NORMAL) {
         tqDebug("vgId:%d s-task:%s start to process run req", vgId, pTask->id.idStr);
         streamProcessRunReq(pTask);
-      } else if (pTask->taskStatus == TASK_STATUS__RESTORE) {
+      } else if (pTask->status.taskStatus == TASK_STATUS__RESTORE) {
         tqDebug("vgId:%d s-task:%s start to process in restore procedure from last chk point:%" PRId64, vgId,
                 pTask->id.idStr, pTask->chkInfo.version);
         streamProcessRunReq(pTask);

@@ -89,9 +89,9 @@ void initOffsetForAllRestoreTasks(STQ* pTq) {
       continue;
     }
 
-    if (pTask->taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
+    if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
       tqDebug("stream task:%d skip push data, not ready for processing, status %d", pTask->id.taskId,
-              pTask->taskStatus);
+              pTask->status.taskStatus);
       continue;
     }
 
@@ -120,9 +120,9 @@ void saveOffsetForAllTasks(STQ* pTq, int64_t ver) {
       continue;
     }
 
-    if (pTask->taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
+    if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
       tqDebug("stream task:%d skip push data, not ready for processing, status %d", pTask->id.taskId,
-              pTask->taskStatus);
+              pTask->status.taskStatus);
       continue;
     }
 

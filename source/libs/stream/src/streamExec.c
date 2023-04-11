@@ -22,10 +22,10 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
   void*   pExecutor = pTask->exec.pExecutor;
 
   while (pTask->taskLevel == TASK_LEVEL__SOURCE) {
-    int8_t status = atomic_load_8(&pTask->taskStatus);
+    int8_t status = atomic_load_8(&pTask->status.taskStatus);
     if (status != TASK_STATUS__NORMAL && status != TASK_STATUS__RESTORE) {
       qError("stream task wait for the end of fill history, s-task:%s, status:%d", pTask->id.idStr,
-             atomic_load_8(&pTask->taskStatus));
+             atomic_load_8(&pTask->status.taskStatus));
       taosMsleep(2);
     } else {
       break;
@@ -66,7 +66,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
 
   // pExecutor
   while (1) {
-    if (pTask->taskStatus == TASK_STATUS__DROPPING) {
+    if (pTask->status.taskStatus == TASK_STATUS__DROPPING) {
       return 0;
     }
 
@@ -134,7 +134,7 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
     int32_t batchCnt = 0;
     while (1) {
-      if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+      if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
         taosArrayDestroy(pRes);
         return 0;
       }
@@ -267,7 +267,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       }
     }
 
-    if (pTask->taskStatus == TASK_STATUS__DROPPING) {
+    if (pTask->status.taskStatus == TASK_STATUS__DROPPING) {
       if (pInput) {
         streamFreeQitem(pInput);
       }
@@ -343,17 +343,17 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 int32_t streamTryExec(SStreamTask* pTask) {
   // this function may be executed by multi-threads, so status check is required.
   int8_t schedStatus =
-      atomic_val_compare_exchange_8(&pTask->schedStatus, TASK_SCHED_STATUS__WAITING, TASK_SCHED_STATUS__ACTIVE);
+      atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__WAITING, TASK_SCHED_STATUS__ACTIVE);
 
   if (schedStatus == TASK_SCHED_STATUS__WAITING) {
     int32_t code = streamExecForAll(pTask);
     if (code < 0) {
-      atomic_store_8(&pTask->schedStatus, TASK_SCHED_STATUS__FAILED);
+      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__FAILED);
       return -1;
     }
 
     // todo the task should be commit here
-    atomic_store_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE);
+    atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
 
     if (!taosQueueEmpty(pTask->inputQueue->queue)) {
       streamSchedExec(pTask);

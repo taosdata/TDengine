@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executor.h"
 #include "os.h"
+#include "executor.h"
 #include "query.h"
 #include "streamState.h"
 #include "tdatablock.h"
@@ -104,21 +104,8 @@ typedef struct {
   int8_t type;
 } SStreamQueueItem;
 
-#if 0
-typedef struct {
-  int8_t      type;
-  int64_t     ver;
-  int32_t*    dataRef;
-  SSubmitReq* data;
-} SStreamDataSubmit;
-
-typedef struct {
-  int8_t  type;
-  int64_t ver;
-  SArray* dataRefs;  // SArray<int32_t*>
-  SArray* reqs;      // SArray<SSubmitReq*>
-} SStreamMergedSubmit;
-#endif
+typedef void    FTbSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
+typedef int32_t FTaskExpand(void* ahandle, SStreamTask* pTask, int64_t ver);
 
 typedef struct {
   int8_t      type;
@@ -220,7 +207,6 @@ static FORCE_INLINE void streamQueueProcessFail(SStreamQueue* queue) {
 }
 
 static FORCE_INLINE void* streamQueueCurItem(SStreamQueue* queue) {
-  //
   return queue->qItem;
 }
 
@@ -249,16 +235,13 @@ typedef struct {
   SUseDbRsp dbInfo;
 } STaskDispatcherShuffle;
 
-typedef void FTbSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
-
 typedef struct {
   int64_t         stbUid;
   char            stbFullName[TSDB_TABLE_FNAME_LEN];
   SSchemaWrapper* pSchemaWrapper;
-  // not applicable to encoder and decoder
-  void*     vnode;
-  FTbSink*  tbSinkFunc;
-  STSchema* pTSchema;
+  void*           vnode;  // not available to encoder and decoder
+  FTbSink*        tbSinkFunc;
+  STSchema*       pTSchema;
 } STaskSinkTb;
 
 typedef void FSmaSink(void* vnode, int64_t smaId, const SArray* data);
@@ -292,14 +275,18 @@ typedef struct SCheckpointInfo {
   int64_t version;   // offset in WAL
 } SCheckpointInfo;
 
+typedef struct SStreamStatus {
+  int8_t taskStatus;
+  int8_t schedStatus;
+} SStreamStatus;
+
 struct SStreamTask {
   SStreamId       id;
   int32_t         totalLevel;
   int8_t          taskLevel;
   int8_t          outputType;
   int16_t         dispatchMsgType;
-  int8_t          taskStatus;
-  int8_t          schedStatus;
+  SStreamStatus   status;
   int32_t         selfChildId;
   int32_t         nodeId;
   SEpSet          epSet;
@@ -329,15 +316,11 @@ struct SStreamTask {
   SStreamQueue* outputQueue;
 
   // trigger
-  int8_t  triggerStatus;
-  int64_t triggerParam;
-  void*   timer;
-
-  // msg handle
-  SMsgCb* pMsgCb;
-
-  // state backend
-  SStreamState* pState;
+  int8_t        triggerStatus;
+  int64_t       triggerParam;
+  void*         timer;
+  SMsgCb*       pMsgCb;  // msg handle
+  SStreamState* pState;  // state backend
 
   // the followings attributes don't be serialized
   int32_t             recoverTryingDownstream;
@@ -349,6 +332,21 @@ struct SStreamTask {
   int32_t             checkpointAlignCnt;
   struct SStreamMeta* pMeta;
 };
+
+// meta
+typedef struct SStreamMeta {
+    char*        path;
+    TDB*         db;
+    TTB*         pTaskDb;
+    TTB*         pCheckpointDb;
+    SHashObj*    pTasks;
+    SHashObj*    pRestoreTasks;
+    void*        ahandle;
+    TXN*         txn;
+    FTaskExpand* expandFunc;
+    int32_t      vgId;
+    SRWLatch     lock;
+} SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
 int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
@@ -566,42 +564,22 @@ int32_t streamAggRecoverPrepare(SStreamTask* pTask);
 // int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask);
 int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId);
 
-// expand and deploy
-typedef int32_t FTaskExpand(void* ahandle, SStreamTask* pTask, int64_t ver);
-
-// meta
-typedef struct SStreamMeta {
-  char*        path;
-  TDB*         db;
-  TTB*         pTaskDb;
-  TTB*         pCheckpointDb;
-  SHashObj*    pTasks;
-  SHashObj*    pRestoreTasks;
-  void*        ahandle;
-  TXN*         txn;
-  FTaskExpand* expandFunc;
-  int32_t      vgId;
-  SRWLatch     lock;
-} SStreamMeta;
-
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId);
 void         streamMetaClose(SStreamMeta* streamMeta);
 
 int32_t      streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t      streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask);
 int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t checkpointVer, char* msg, int32_t msgLen);
-// SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 
+SStreamTask* streamMetaAcquireTaskEx(SStreamMeta* pMeta, int32_t taskId);
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 void         streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 
-SStreamTask* streamMetaAcquireTaskEx(SStreamMeta* pMeta, int32_t taskId);
-
-int32_t streamMetaBegin(SStreamMeta* pMeta);
-int32_t streamMetaCommit(SStreamMeta* pMeta);
-int32_t streamMetaRollBack(SStreamMeta* pMeta);
-int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver);
+int32_t      streamMetaBegin(SStreamMeta* pMeta);
+int32_t      streamMetaCommit(SStreamMeta* pMeta);
+int32_t      streamMetaRollBack(SStreamMeta* pMeta);
+int32_t      streamLoadTasks(SStreamMeta* pMeta, int64_t ver);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamMeta* pMeta, SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);

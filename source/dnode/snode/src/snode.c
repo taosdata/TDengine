@@ -65,7 +65,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
   ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
 
   pTask->refCnt = 1;
-  pTask->schedStatus = TASK_SCHED_STATUS__INACTIVE;
+  pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->inputQueue = streamQueueOpen();
   pTask->outputQueue = streamQueueOpen();
 

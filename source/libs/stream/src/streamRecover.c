@@ -18,7 +18,7 @@
 int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
   qDebug("s-task:%s at node %d launch recover", pTask->id.idStr, pTask->nodeId);
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
-    atomic_store_8(&pTask->taskStatus, TASK_STATUS__RECOVER_PREPARE);
+    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__RECOVER_PREPARE);
     streamSetParamForRecover(pTask);
     streamSourceRecoverPrepareStep1(pTask, version);
 
@@ -44,11 +44,11 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
     }
 
   } else if (pTask->taskLevel == TASK_LEVEL__AGG) {
-    atomic_store_8(&pTask->taskStatus, TASK_STATUS__NORMAL);
+    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__NORMAL);
     streamSetParamForRecover(pTask);
     streamAggRecoverPrepare(pTask);
   } else if (pTask->taskLevel == TASK_LEVEL__SINK) {
-    atomic_store_8(&pTask->taskStatus, TASK_STATUS__NORMAL);
+    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__NORMAL);
   }
   return 0;
 }
@@ -122,7 +122,7 @@ int32_t streamRecheckOneDownstream(SStreamTask* pTask, const SStreamTaskCheckRsp
 }
 
 int32_t streamProcessTaskCheckReq(SStreamTask* pTask, const SStreamTaskCheckReq* pReq) {
-  return atomic_load_8(&pTask->taskStatus) == TASK_STATUS__NORMAL;
+  return atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__NORMAL;
 }
 
 int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp, int64_t version) {
@@ -168,7 +168,7 @@ int32_t streamRestoreParam(SStreamTask* pTask) {
   return qStreamRestoreParam(exec);
 }
 int32_t streamSetStatusNormal(SStreamTask* pTask) {
-  atomic_store_8(&pTask->taskStatus, TASK_STATUS__NORMAL);
+  atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__NORMAL);
   return 0;
 }
 

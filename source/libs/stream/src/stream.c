@@ -52,7 +52,7 @@ void streamCleanUp() {
 void streamSchedByTimer(void* param, void* tmrId) {
   SStreamTask* pTask = (void*)param;
 
-  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+  if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
     streamMetaReleaseTask(NULL, pTask);
     return;
   }
@@ -66,8 +66,8 @@ void streamSchedByTimer(void* param, void* tmrId) {
       taosFreeQitem(trigger);
       return;
     }
-    trigger->pBlock->info.type = STREAM_GET_ALL;
 
+    trigger->pBlock->info.type = STREAM_GET_ALL;
     atomic_store_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__INACTIVE);
 
     if (tAppendDataForStream(pTask, (SStreamQueueItem*)trigger) < 0) {
@@ -75,6 +75,7 @@ void streamSchedByTimer(void* param, void* tmrId) {
       taosTmrReset(streamSchedByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->timer);
       return;
     }
+
     streamSchedExec(pTask);
   }
 
@@ -93,13 +94,13 @@ int32_t streamSetupTrigger(SStreamTask* pTask) {
 
 int32_t streamSchedExec(SStreamTask* pTask) {
   int8_t schedStatus =
-      atomic_val_compare_exchange_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE, TASK_SCHED_STATUS__WAITING);
+      atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE, TASK_SCHED_STATUS__WAITING);
 
   if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
     SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
     if (pRunReq == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      atomic_store_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE);
+      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
       return -1;
     }
 
