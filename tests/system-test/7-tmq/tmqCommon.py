@@ -468,10 +468,12 @@ class TMQCom:
             dstSplit = dst.split(',')
             srcSplit = src.split(',')
 
-            if len(dstSplit) != len(srcSplit):
-                tdLog.exit("consumerId %d consume rows len is not match the rows by direct query"%consumerId)
             if not dst or not src:
                 break
+            if len(dstSplit) != len(srcSplit):
+                tdLog.exit("consumerId %d consume rows len is not match the rows by direct query,len(dstSplit):%d != len(srcSplit):%d, dst:%s, src:%s"
+                           %(consumerId, len(dstSplit), len(srcSplit), dst, src))
+
             for i in range(len(dstSplit)):
                 if srcSplit[i] != dstSplit[i]:
                     srcFloat = float(srcSplit[i])
