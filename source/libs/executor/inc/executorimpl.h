@@ -143,7 +143,8 @@ typedef struct {
   int64_t             fillHistoryVer1;
   int64_t             fillHistoryVer2;
   int64_t             dataVersion;
-  SStreamState* pState;
+  SStreamState*       pState;
+  int64_t             checkPointId;
 } SStreamTaskInfo;
 
 typedef struct {

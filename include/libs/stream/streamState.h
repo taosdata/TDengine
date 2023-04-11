@@ -59,6 +59,7 @@ typedef struct {
   SStreamFileState* pFileState;
   int32_t           number;
   SSHashObj*        parNameMap;
+  int64_t           checkPointId;
 } SStreamState;
 
 SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages);

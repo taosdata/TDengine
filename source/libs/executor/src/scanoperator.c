@@ -1742,6 +1742,26 @@ static void doCheckUpdate(SStreamScanInfo* pInfo, TSKEY endKey, SSDataBlock* pBl
   }
 }
 
+int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff) {
+  int32_t len = updateInfoSerialize(NULL, 0, pInfo->pUpdateInfo);
+  *pBuff = taosMemoryCalloc(1, len);
+  updateInfoSerialize(*pBuff, len, pInfo->pUpdateInfo);
+  return len;
+}
+
+// other properties are recovered from the execution plan
+void streamScanOperatorDeocde(void* pBuff, int32_t len, SStreamScanInfo* pInfo) {
+  if (!pBuff) {
+    return;
+  }
+
+  SUpdateInfo *pUpInfo = updateInfoInit(0, TSDB_TIME_PRECISION_MILLI, 0);
+  int32_t code = updateInfoDeserialize(pBuff, len, pUpInfo);
+  if (code == TSDB_CODE_SUCCESS) {
+    pInfo->pUpdateInfo = pUpInfo;
+  }
+}
+
 static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
@@ -2000,6 +2020,10 @@ FETCH_NEXT_BLOCK:
           updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
           doClearBufferedBlocks(pInfo);
           qDebug("stream scan return empty, consume block %d", totBlockNum);
+          void* buff = NULL;
+          int32_t len = streamScanOperatorEncode(pInfo, &buff);
+          //todo(liuyao) save buff
+          taosMemoryFreeClear(buff);
           return NULL;
         }
 
@@ -2418,6 +2442,11 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->igCheckUpdate = pTableScanNode->igCheckUpdate;
   pInfo->igExpired = pTableScanNode->igExpired;
   pInfo->twAggSup.maxTs = INT64_MIN;
+
+  //todo(liuyao) get buff from rocks db;
+  void* buff = NULL;
+  int32_t len = 0;
+  streamScanOperatorDeocde(buff, len, pInfo);
 
   setOperatorInfo(pOperator, "StreamScanOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);

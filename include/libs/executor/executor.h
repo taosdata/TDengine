@@ -80,6 +80,10 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers);
 qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols, SSchemaWrapper** pSchema);
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
+
+// todo refactor
+void qGetCheckpointVersion(qTaskInfo_t tinfo, int64_t* dataVer, int64_t* ckId);
+
 /**
  * Set multiple input data blocks for the stream scan.
  * @param tinfo
