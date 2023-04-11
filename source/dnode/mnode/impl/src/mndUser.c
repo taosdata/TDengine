@@ -128,8 +128,9 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   int32_t numOfReadStbs = taosHashGetSize(pUser->readTbs);
   int32_t numOfWriteStbs = taosHashGetSize(pUser->writeTbs);
   int32_t numOfTopics = taosHashGetSize(pUser->topics);
-  int32_t size = sizeof(SUserObj) + USER_RESERVE_SIZE + (numOfReadDbs + numOfWriteDbs) * TSDB_DB_FNAME_LEN +
-                 numOfTopics * TSDB_TOPIC_FNAME_LEN;
+  int32_t numOfUseDbs = taosHashGetSize(pUser->useDbs);
+  int32_t size = sizeof(SUserObj) + USER_RESERVE_SIZE +
+                 (numOfReadDbs + numOfWriteDbs + numOfUseDbs) * TSDB_DB_FNAME_LEN + numOfTopics * TSDB_TOPIC_FNAME_LEN;
 
   char *stb = taosHashIterate(pUser->readTbs, NULL);
   while (stb != NULL) {
@@ -155,7 +156,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     size_t valueLen = 0;
     valueLen = strlen(stb);
     size += sizeof(int32_t);
-    size += keyLen;
+    size += valueLen;
     stb = taosHashIterate(pUser->writeTbs, stb);
   }
 
@@ -176,8 +177,6 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT32(pRaw, dataPos, numOfReadDbs, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfWriteDbs, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfTopics, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, numOfReadStbs, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, numOfWriteStbs, _OVER)
 
   char *db = taosHashIterate(pUser->readDbs, NULL);
   while (db != NULL) {
@@ -196,6 +195,10 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     SDB_SET_BINARY(pRaw, dataPos, topic, TSDB_TOPIC_FNAME_LEN, _OVER);
     topic = taosHashIterate(pUser->topics, topic);
   }
+
+  SDB_SET_INT32(pRaw, dataPos, numOfReadStbs, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, numOfWriteStbs, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, numOfUseDbs, _OVER)
 
   stb = taosHashIterate(pUser->readTbs, NULL);
   while (stb != NULL) {
@@ -223,6 +226,17 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     SDB_SET_INT32(pRaw, dataPos, valueLen, _OVER)
     SDB_SET_BINARY(pRaw, dataPos, stb, valueLen, _OVER);
     stb = taosHashIterate(pUser->writeTbs, stb);
+  }
+
+  int32_t *useDb = taosHashIterate(pUser->useDbs, NULL);
+  while (useDb != NULL) {
+    size_t keyLen = 0;
+    void  *key = taosHashGetKey(useDb, &keyLen);
+    SDB_SET_INT32(pRaw, dataPos, keyLen, _OVER)
+    SDB_SET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
+
+    SDB_SET_INT32(pRaw, dataPos, *useDb, _OVER)
+    useDb = taosHashIterate(pUser->writeTbs, useDb);
   }
 
   SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
@@ -275,26 +289,16 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   int32_t numOfReadDbs = 0;
   int32_t numOfWriteDbs = 0;
   int32_t numOfTopics = 0;
-  int32_t numOfReadStbs = 0;
-  int32_t numOfWriteStbs = 0;
   SDB_GET_INT32(pRaw, dataPos, &numOfReadDbs, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &numOfWriteDbs, _OVER)
   if (sver >= 2) {
     SDB_GET_INT32(pRaw, dataPos, &numOfTopics, _OVER)
-  }
-  if (sver >= 3) {
-    SDB_GET_INT32(pRaw, dataPos, &numOfReadStbs, _OVER)
-    SDB_GET_INT32(pRaw, dataPos, &numOfWriteStbs, _OVER)
   }
 
   pUser->readDbs = taosHashInit(numOfReadDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   pUser->writeDbs =
       taosHashInit(numOfWriteDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   pUser->topics = taosHashInit(numOfTopics, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  pUser->readTbs =
-      taosHashInit(numOfReadStbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  pUser->writeTbs =
-      taosHashInit(numOfWriteStbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pUser->readDbs == NULL || pUser->writeDbs == NULL || pUser->topics == NULL) goto _OVER;
 
   for (int32_t i = 0; i < numOfReadDbs; ++i) {
@@ -321,6 +325,19 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   }
 
   if (sver >= 3) {
+    int32_t numOfReadStbs = 0;
+    int32_t numOfWriteStbs = 0;
+    int32_t numOfUseDbs = 0;
+    SDB_GET_INT32(pRaw, dataPos, &numOfReadStbs, _OVER)
+    SDB_GET_INT32(pRaw, dataPos, &numOfWriteStbs, _OVER)
+    SDB_GET_INT32(pRaw, dataPos, &numOfUseDbs, _OVER)
+
+    pUser->readTbs =
+        taosHashInit(numOfReadStbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    pUser->writeTbs =
+        taosHashInit(numOfWriteStbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    pUser->useDbs = taosHashInit(numOfUseDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+
     for (int32_t i = 0; i < numOfReadStbs; ++i) {
       int32_t keyLen = 0;
       SDB_GET_INT32(pRaw, dataPos, &keyLen, _OVER);
@@ -332,7 +349,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       int32_t valuelen = 0;
       SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
       char *value = taosMemoryCalloc(valuelen, sizeof(char));
-      memset(value, 0, keyLen);
+      memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
       taosHashPut(pUser->readTbs, key, keyLen, value, valuelen);
@@ -352,13 +369,27 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       int32_t valuelen = 0;
       SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
       char *value = taosMemoryCalloc(valuelen, sizeof(char));
-      memset(value, 0, keyLen);
+      memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
       taosHashPut(pUser->writeTbs, key, keyLen, value, valuelen);
 
       taosMemoryFree(key);
       taosMemoryFree(value);
+    }
+
+    for (int32_t i = 0; i < numOfUseDbs; ++i) {
+      int32_t keyLen = 0;
+      SDB_GET_INT32(pRaw, dataPos, &keyLen, _OVER);
+
+      char *key = taosMemoryCalloc(keyLen, sizeof(char));
+      memset(key, 0, keyLen);
+      SDB_GET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
+
+      int32_t ref = 0;
+      SDB_GET_INT32(pRaw, dataPos, &ref, _OVER);
+
+      taosHashPut(pUser->useDbs, key, keyLen, &ref, sizeof(ref));
     }
   }
 
@@ -376,6 +407,7 @@ _OVER:
       taosHashCleanup(pUser->topics);
       taosHashCleanup(pUser->readTbs);
       taosHashCleanup(pUser->writeTbs);
+      taosHashCleanup(pUser->useDbs);
     }
     taosMemoryFreeClear(pRow);
     return NULL;
@@ -426,6 +458,31 @@ SHashObj *mndDupTableHash(SHashObj *pOld) {
   return pNew;
 }
 
+SHashObj *mndDupUseDbHash(SHashObj *pOld) {
+  SHashObj *pNew =
+      taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (pNew == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  int32_t *db = taosHashIterate(pOld, NULL);
+  while (db != NULL) {
+    size_t keyLen = 0;
+    char  *key = taosHashGetKey(db, &keyLen);
+
+    if (taosHashPut(pNew, key, keyLen, db, sizeof(*db)) != 0) {
+      taosHashCancelIterate(pOld, db);
+      taosHashCleanup(pNew);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    db = taosHashIterate(pOld, db);
+  }
+
+  return pNew;
+}
+
 static int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   memcpy(pNew, pUser, sizeof(SUserObj));
   pNew->authVersion++;
@@ -437,6 +494,7 @@ static int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   pNew->readTbs = mndDupTableHash(pUser->readTbs);
   pNew->writeTbs = mndDupTableHash(pUser->writeTbs);
   pNew->topics = mndDupTopicHash(pUser->topics);
+  pNew->useDbs = mndDupUseDbHash(pUser->useDbs);
   taosRUnLockLatch(&pUser->lock);
 
   if (pNew->readDbs == NULL || pNew->writeDbs == NULL || pNew->topics == NULL) {
@@ -451,11 +509,13 @@ static void mndUserFreeObj(SUserObj *pUser) {
   taosHashCleanup(pUser->topics);
   taosHashCleanup(pUser->readTbs);
   taosHashCleanup(pUser->writeTbs);
+  taosHashCleanup(pUser->useDbs);
   pUser->readDbs = NULL;
   pUser->writeDbs = NULL;
   pUser->topics = NULL;
   pUser->readTbs = NULL;
   pUser->writeTbs = NULL;
+  pUser->useDbs = NULL;
 }
 
 static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
@@ -477,6 +537,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   TSWAP(pOld->topics, pNew->topics);
   TSWAP(pOld->readTbs, pNew->readTbs);
   TSWAP(pOld->writeTbs, pNew->writeTbs);
+  TSWAP(pOld->useDbs, pNew->useDbs);
   taosWUnLockLatch(&pOld->lock);
 
   return 0;
@@ -647,38 +708,8 @@ SHashObj *mndDupDbHash(SHashObj *pOld) { return mndDupObjHash(pOld, TSDB_DB_FNAM
 
 SHashObj *mndDupTopicHash(SHashObj *pOld) { return mndDupObjHash(pOld, TSDB_TOPIC_FNAME_LEN); }
 
-static int32_t mndTagPriviledge(SMnode *pMnode, SHashObj *hash, SAlterUserReq *alterReq) {
-  char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
-  snprintf(tbFName, TSDB_TABLE_FNAME_LEN, "%s.%s", alterReq->objname, alterReq->tabName);
-  int32_t len = strlen(tbFName) + 1;
-
-  SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
-  if (pStb == NULL) {
-    mndReleaseStb(pMnode, pStb);
-    return -1;
-  }
-  if (alterReq->tagCond == NULL) {
-    mndReleaseStb(pMnode, pStb);
-    return -1;
-  }
-
-  char *value = taosHashGet(hash, tbFName, len);
-  if (value != NULL) {
-    mndReleaseStb(pMnode, pStb);
-    terrno = TSDB_CODE_MND_PRIVILEDGE_EXIST;
-    return -1;
-  }
-
-  int32_t condLen = alterReq->tagCondLen + 1;
-  if (taosHashPut(hash, tbFName, len, alterReq->tagCond, condLen) != 0) {
-    mndReleaseStb(pMnode, pStb);
-    return -1;
-  }
-  mndReleaseStb(pMnode, pStb);
-  return 0;
-}
-
-static int32_t mndTablePriviledge(SMnode *pMnode, SHashObj *hash, SAlterUserReq *alterReq, SSdb *pSdb) {
+static int32_t mndTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj *useDbHash, SAlterUserReq *alterReq,
+                                  SSdb *pSdb) {
   void *pIter = NULL;
   char  tbFName[TSDB_TABLE_FNAME_LEN] = {0};
 
@@ -692,7 +723,7 @@ static int32_t mndTablePriviledge(SMnode *pMnode, SHashObj *hash, SAlterUserReq 
       return -1;
     }
 
-    int32_t condLen = alterReq->tagCondLen + 1;
+    int32_t condLen = alterReq->tagCondLen;
     if (taosHashPut(hash, tbFName, len, alterReq->tagCond, condLen) != 0) {
       return -1;
     }
@@ -702,16 +733,40 @@ static int32_t mndTablePriviledge(SMnode *pMnode, SHashObj *hash, SAlterUserReq 
     }
   }
 
+  int32_t  dbKeyLen = strlen(alterReq->objname) + 1;
+  int32_t  ref = 1;
+  int32_t *currRef = taosHashGet(useDbHash, alterReq->objname, dbKeyLen);
+  if (NULL != currRef) {
+    ref = (*currRef) + 1;
+  }
+  if (taosHashPut(useDbHash, alterReq->objname, dbKeyLen, &ref, sizeof(ref)) != 0) {
+    return -1;
+  }
+
   return 0;
 }
 
-static int32_t mndRemoveTablePriviledge(SMnode *pMnode, SHashObj *hash, SAlterUserReq *alterReq, SSdb *pSdb) {
+static int32_t mndRemoveTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj *useDbHash, SAlterUserReq *alterReq,
+                                        SSdb *pSdb) {
   void *pIter = NULL;
   char  tbFName[TSDB_TABLE_FNAME_LEN] = {0};
   snprintf(tbFName, sizeof(tbFName), "%s.%s", alterReq->objname, alterReq->tabName);
   int32_t len = strlen(tbFName) + 1;
 
   if (taosHashRemove(hash, tbFName, len) != 0) {
+    return -1;
+  }
+
+  int32_t  dbKeyLen = strlen(alterReq->objname) + 1;
+  int32_t *currRef = taosHashGet(useDbHash, alterReq->objname, dbKeyLen);
+  if (NULL == currRef || 1 == *currRef) {
+    if (taosHashRemove(useDbHash, alterReq->objname, dbKeyLen) != 0) {
+      return -1;
+    }
+    return 0;
+  }
+  int32_t ref = (*currRef) - 1;
+  if (taosHashPut(useDbHash, alterReq->objname, dbKeyLen, &ref, sizeof(ref)) != 0) {
     return -1;
   }
 
@@ -858,21 +913,19 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_TABLE) {
-    if (mndTablePriviledge(pMnode, newUser.readTbs, &alterReq, pSdb) != 0) goto _OVER;
+    if (mndTablePriviledge(pMnode, newUser.readTbs, newUser.useDbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_TABLE) {
-    if (mndTablePriviledge(pMnode, newUser.writeTbs, &alterReq, pSdb) != 0) goto _OVER;
+    if (mndTablePriviledge(pMnode, newUser.writeTbs, newUser.useDbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
-  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_TABLE ||
-      alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_TAG) {
-    if (mndRemoveTablePriviledge(pMnode, newUser.readTbs, &alterReq, pSdb) != 0) goto _OVER;
+  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_TABLE) {
+    if (mndRemoveTablePriviledge(pMnode, newUser.readTbs, newUser.useDbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
-  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_TABLE ||
-      alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_TAG) {
-    if (mndRemoveTablePriviledge(pMnode, newUser.writeTbs, &alterReq, pSdb) != 0) goto _OVER;
+  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_TABLE) {
+    if (mndRemoveTablePriviledge(pMnode, newUser.writeTbs, newUser.useDbs, &alterReq, pSdb) != 0) goto _OVER;
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC) {
@@ -883,14 +936,6 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       goto _OVER;
     }
     taosHashPut(newUser.topics, pTopic->name, len, pTopic->name, TSDB_TOPIC_FNAME_LEN);
-  }
-
-  if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_TAG) {
-    if (mndTagPriviledge(pMnode, newUser.readTbs, &alterReq) != 0) goto _OVER;
-  }
-
-  if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_TAG) {
-    if (mndTagPriviledge(pMnode, newUser.writeTbs, &alterReq) != 0) goto _OVER;
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC) {
@@ -1397,8 +1442,6 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db) {
     if (inRead || inWrite) {
       (void)taosHashRemove(newUser.readDbs, db, len);
       (void)taosHashRemove(newUser.writeDbs, db, len);
-      (void)taosHashRemove(newUser.readTbs, db, len);
-      (void)taosHashRemove(newUser.writeTbs, db, len);
 
       SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
       if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) break;
