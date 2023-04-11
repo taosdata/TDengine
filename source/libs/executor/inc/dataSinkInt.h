@@ -29,7 +29,6 @@ struct SDataSinkHandle;
 
 typedef struct SDataSinkManager {
   SDataSinkMgtCfg cfg;
-  //TdThreadMutex   mutex;
 } SDataSinkManager;
 
 typedef int32_t (*FPutDataBlock)(struct SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue);
