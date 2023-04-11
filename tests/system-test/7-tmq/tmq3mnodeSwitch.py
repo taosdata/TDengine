@@ -138,34 +138,6 @@ class TDTestCase:
         else:
             tdLog.exit("three mnodes is not ready in 10s ")
 
-    def checkFileContent(self, consumerId, queryString):
-        buildPath = tdCom.getBuildPath()
-        cfgPath = tdCom.getClientCfgPath()
-        dstFile = '%s/../log/dstrows_%d.txt'%(cfgPath, consumerId)
-        cmdStr = '%s/build/bin/taos -c %s -s "%s >> %s"'%(buildPath, cfgPath, queryString, dstFile)
-        tdLog.info(cmdStr)
-        os.system(cmdStr)
-
-        consumeRowsFile = '%s/../log/consumerid_%d.txt'%(cfgPath, consumerId)
-        tdLog.info("rows file: %s, %s"%(consumeRowsFile, dstFile))
-
-        consumeFile = open(consumeRowsFile, mode='r')
-        queryFile = open(dstFile, mode='r')
-
-        # skip first line for it is schema
-        queryFile.readline()
-
-        while True:
-            dst = queryFile.readline()
-            src = consumeFile.readline()
-
-            if dst:
-                if dst != src:
-                    tdLog.exit("consumerId %d consume rows is not match the rows by direct query"%consumerId)
-            else:
-                break
-        return
-
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'db1',
@@ -256,7 +228,7 @@ class TDTestCase:
             tdLog.exit("0 tmq consume rows error!")
 
         if expectRowsList[0] == resultList[0]:
-            self.checkFileContent(consumerId, queryString)
+            tqCom.checkFileContent(consumerId, queryString)
 
         time.sleep(10)
         for i in range(len(topicNameList)):
