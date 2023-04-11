@@ -117,9 +117,9 @@ static int32_t fs_to_json_str(struct STFileSystem *pFS, char **ppData) {
   }
 
   /* format version */
-  TSDB_CHECK_NULL(                       //
-      cJSON_AddNumberToObject(pJson,     //
-                              "format",  //
+  TSDB_CHECK_NULL(                        //
+      cJSON_AddNumberToObject(pJson,      //
+                              "version",  //
                               1 /* TODO */),
       code,   //
       lino,   //
@@ -127,9 +127,9 @@ static int32_t fs_to_json_str(struct STFileSystem *pFS, char **ppData) {
       TSDB_CODE_OUT_OF_MEMORY);
 
   /* next edit id */
-  TSDB_CHECK_NULL(                             //
-      cJSON_AddNumberToObject(pJson,           //
-                              "next edit id",  //
+  TSDB_CHECK_NULL(                        //
+      cJSON_AddNumberToObject(pJson,      //
+                              "edit id",  //
                               pFS->nextEditId),
       code,   //
       lino,   //
