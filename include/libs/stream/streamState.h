@@ -133,6 +133,10 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
 
 /***compare func **/
 
+typedef struct SStateChekpoint {
+  char*   taskName;
+  int64_t checkpointId;
+} SStateChekpoint;
 // todo refactor
 typedef struct SStateKey {
   SWinKey key;

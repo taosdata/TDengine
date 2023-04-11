@@ -57,11 +57,11 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   if (!pFileState) {
     goto _error;
   }
-  pFileState->maxRowCount = TMAX( (uint64_t)memSize / rowSize, FLUSH_NUM * 2);
+  pFileState->maxRowCount = TMAX((uint64_t)memSize / rowSize, FLUSH_NUM * 2);
   pFileState->usedBuffs = tdListNew(POINTER_BYTES);
   pFileState->freeBuffs = tdListNew(POINTER_BYTES);
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
-  int32_t cap = TMIN(10240, pFileState->maxRowCount);
+  int32_t    cap = TMIN(10240, pFileState->maxRowCount);
   pFileState->rowBuffMap = tSimpleHashInit(cap, hashFn);
   if (!pFileState->usedBuffs || !pFileState->freeBuffs || !pFileState->rowBuffMap) {
     goto _error;
@@ -342,12 +342,11 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
     }
 
     SStateKey sKey = {.key = *((SWinKey*)pPos->pKey), .opNum = ((SStreamState*)pFileState->pFileStore)->number};
-    code = streamStatePutBatch(pFileState->pFileStore, "default", batch, &sKey, pPos->pRowBuff, pFileState->rowSize);
+    code = streamStatePutBatch(pFileState->pFileStore, "state", batch, &sKey, pPos->pRowBuff, pFileState->rowSize);
   }
   if (streamStateGetBatchSize(batch) > 0) {
     code = streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
   }
-  streamStateDestroyBatch(batch);
 
   if (flushState) {
     int32_t len = 0;
@@ -357,6 +356,8 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
     streamStatePut_rocksdb(pFileState->pFileStore, &key, buff, len);
     taosMemoryFree(buff);
   }
+
+  streamStateDestroyBatch(batch);
   return code;
 }
 
