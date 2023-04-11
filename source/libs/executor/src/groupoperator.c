@@ -1111,7 +1111,7 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
         return pInfo->pDelRes;
       } break;
       default:
-        ASSERTS(pBlock->info.type == STREAM_CREATE_CHILD_TABLE, "invalid SSDataBlock type");
+        ASSERTS(pBlock->info.type == STREAM_CREATE_CHILD_TABLE || pBlock->info.type == STREAM_RETRIEVE, "invalid SSDataBlock type");
         return pBlock;
     }
 

@@ -6,6 +6,32 @@ system sh/exec.sh -n dnode1 -s start
 sleep 50
 sql connect
 
+sql create dnode $hostname2 port 7200
+
+system sh/exec.sh -n dnode2 -s start
+
+print ===== step1
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+
 print ===== step2
 sql drop stream if exists stream_t1;
 sql drop database if exists test;
@@ -457,5 +483,123 @@ if $data12 != 2 then
   print =====data12=$data12
   goto loop3
 endi
+
+print ===== step3
+
+sql drop database if exists test4;
+sql create database test4  vgroups 10;
+sql use test4;
+sql create stable st(ts timestamp,a int,b int,c varchar(250) ) tags(ta int,tb int,tc int);
+sql create table aaa using st tags(1,1,1);
+sql create table bbb using st tags(2,2,2);
+sql create table ccc using st tags(3,2,2);
+sql create table ddd using st tags(4,2,2);
+
+
+sql create stream streams1 ignore expired 0 fill_history 0 watermark 3s into streamst subtable(c) as select  _wstart, c , count(*) c1, last_row(b) c2  from st partition by c interval(1s) ;
+
+sql insert into aaa values(1648791221001,2,2,"/a1/aa/aa");
+sql insert into bbb values(1648791221001,2,2,"/a1/aa/aa");
+sql insert into ccc values(1648791221001,2,2,"/a1/aa/aa");
+sql insert into ddd values(1648791221001,2,2,"/a1/aa/aa");
+
+sql insert into aaa values(1648791222002,2,2,"/a2/aa/aa");
+sql insert into bbb values(1648791222002,2,2,"/a2/aa/aa");
+sql insert into ccc values(1648791222002,2,2,"/a2/aa/aa");
+sql insert into ddd values(1648791222002,2,2,"/a2/aa/aa");
+
+sql insert into aaa values(1648791223003,2,2,"/a3/aa/aa");
+sql insert into bbb values(1648791223003,2,2,"/a3/aa/aa");
+sql insert into ccc values(1648791223003,2,2,"/a3/aa/aa");
+sql insert into ddd values(1648791223003,2,2,"/a3/aa/aa");
+
+sql insert into aaa values(1648791224003,2,2,"/a4/aa/aa");
+sql insert into bbb values(1648791224003,2,2,"/a4/aa/aa");
+sql insert into ccc values(1648791224003,2,2,"/a4/aa/aa");
+sql insert into ddd values(1648791224003,2,2,"/a4/aa/aa");
+
+
+sql insert into aaa values(1648791225003,2,2,"/a5/aa/aa");
+sql insert into bbb values(1648791225003,2,2,"/a5/aa/aa");
+sql insert into ccc values(1648791225003,2,2,"/a5/aa/aa");
+sql insert into ddd values(1648791225003,2,2,"/a5/aa/aa");
+
+sql insert into aaa values(1648791226003,2,2,"/a6/aa/aa");
+sql insert into bbb values(1648791226003,2,2,"/a6/aa/aa");
+sql insert into ccc values(1648791226003,2,2,"/a6/aa/aa");
+sql insert into ddd values(1648791226003,2,2,"/a6/aa/aa");
+
+$loop_count = 0
+
+loop4:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sql select * from streamst;
+
+if $rows == 0 then
+  goto loop4
+endi
+
+sql delete  from aaa where ts = 1648791223003 ;
+
+$loop_count = 0
+
+loop5:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sql select * from streamst;
+
+if $rows == 0 then
+  goto loop5
+endi
+
+
+sql delete  from ccc;
+
+$loop_count = 0
+
+loop6:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sql select * from streamst;
+
+if $rows == 0 then
+  goto loop6
+endi
+
+sql delete  from ddd;
+
+$loop_count = 0
+
+loop7:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sql select * from streamst;
+
+if $rows == 0 then
+  goto loop7
+endi
+
+print ===== over
 
 system sh/stop_dnodes.sh

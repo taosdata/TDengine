@@ -1364,8 +1364,13 @@ static void doDeleteWindows(SOperatorInfo* pOperator, SInterval* pInterval, SSDa
         continue;
       }
       uint64_t winGpId = pGpDatas[i];
-      bool     res = doDeleteWindow(pOperator, win.skey, winGpId);
       SWinKey  winRes = {.ts = win.skey, .groupId = winGpId};
+      void* chIds = taosHashGet(pInfo->pPullDataMap, &winRes, sizeof(SWinKey));
+      if (chIds) {
+        getNextTimeWindow(pInterval, pInterval->precision, TSDB_ORDER_ASC, &win);
+        continue;
+      }
+      bool     res = doDeleteWindow(pOperator, win.skey, winGpId);
       if (pUpWins && res) {
         taosArrayPush(pUpWins, &winRes);
       }
@@ -2615,6 +2620,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
         streamStateCommit(pInfo->pState);
         pInfo->twAggSup.checkPointTs = pInfo->twAggSup.maxTs;
       }
+      qDebug("===stream===interval final close");
     }
     return NULL;
   } else {
