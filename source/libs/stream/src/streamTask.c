@@ -70,8 +70,8 @@ int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeI32(pEncoder, pTask->nodeId) < 0) return -1;
   if (tEncodeSEpSet(pEncoder, &pTask->epSet) < 0) return -1;
 
-  if (tEncodeI64(pEncoder, pTask->recoverSnapVer) < 0) return -1;
-  if (tEncodeI64(pEncoder, pTask->startVer) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTask->chkInfo.id) < 0) return -1;
+  if (tEncodeI64(pEncoder, pTask->chkInfo.version) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->fillHistory) < 0) return -1;
 
   int32_t epSz = taosArrayGetSize(pTask->childEpInfo);
@@ -123,8 +123,8 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI32(pDecoder, &pTask->nodeId) < 0) return -1;
   if (tDecodeSEpSet(pDecoder, &pTask->epSet) < 0) return -1;
 
-  if (tDecodeI64(pDecoder, &pTask->recoverSnapVer) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pTask->startVer) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTask->chkInfo.id) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pTask->chkInfo.version) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->fillHistory) < 0) return -1;
 
   int32_t epSz;

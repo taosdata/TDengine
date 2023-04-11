@@ -906,7 +906,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMsgCb = &pTq->pVnode->msgCb;
-  pTask->startVer = ver;
+  pTask->chkInfo.version = ver;
   pTask->pMeta = pTq->pStreamMeta;
 
   // expand executor
@@ -981,7 +981,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
   streamSetupTrigger(pTask);
   tqInfo("vgId:%d expand stream task, s-task:%s, ver:%" PRId64 " child id:%d, level:%d", vgId, pTask->id.idStr,
-         pTask->startVer, pTask->selfChildId, pTask->taskLevel);
+         pTask->chkInfo.version, pTask->selfChildId, pTask->taskLevel);
   return 0;
 }
 
@@ -1124,7 +1124,7 @@ int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // check param
-  int64_t fillVer1 = pTask->startVer;
+  int64_t fillVer1 = pTask->chkInfo.version;
   if (fillVer1 <= 0) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return -1;

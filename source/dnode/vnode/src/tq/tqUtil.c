@@ -96,7 +96,7 @@ void initOffsetForAllRestoreTasks(STQ* pTq) {
 
     STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, key);
     if (pOffset == NULL) {
-      doSaveTaskOffset(pTq->pOffsetStore, key, pTask->startVer);
+      doSaveTaskOffset(pTq->pOffsetStore, key, pTask->chkInfo.version);
     }
   }
 

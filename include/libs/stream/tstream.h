@@ -287,19 +287,24 @@ typedef struct SStreamId {
   const char* idStr;
 } SStreamId;
 
+typedef struct SCheckpointInfo {
+  int64_t id;
+  int64_t version;   // offset in WAL
+} SCheckpointInfo;
+
 struct SStreamTask {
-  SStreamId id;
-  int32_t   totalLevel;
-  int8_t    taskLevel;
-  int8_t    outputType;
-  int16_t   dispatchMsgType;
-  int8_t    taskStatus;
-  int8_t    schedStatus;
-  int32_t   selfChildId;
-  int32_t   nodeId;
-  SEpSet    epSet;
-  int64_t   recoverSnapVer;
-  int64_t   startVer;
+  SStreamId       id;
+  int32_t         totalLevel;
+  int8_t          taskLevel;
+  int8_t          outputType;
+  int16_t         dispatchMsgType;
+  int8_t          taskStatus;
+  int8_t          schedStatus;
+  int32_t         selfChildId;
+  int32_t         nodeId;
+  SEpSet          epSet;
+  SCheckpointInfo chkInfo;
+  STaskExec       exec;
 
   // fill history
   int8_t fillHistory;
@@ -308,9 +313,6 @@ struct SStreamTask {
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
   int32_t nextCheckId;
   SArray* checkpointInfo;  // SArray<SStreamCheckpointInfo>
-
-  // exec
-  STaskExec exec;
 
   // output
   union {
@@ -587,7 +589,7 @@ void         streamMetaClose(SStreamMeta* streamMeta);
 
 int32_t      streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t      streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask);
-int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* msg, int32_t msgLen);
+int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t checkpointVer, char* msg, int32_t msgLen);
 // SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);

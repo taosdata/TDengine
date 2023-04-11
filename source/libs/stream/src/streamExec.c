@@ -288,9 +288,9 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     int64_t ckId = 0;
     int64_t dataVer = 0;
     qGetCheckpointVersion(pTask->exec.pExecutor, &dataVer, &ckId);
-    if (dataVer > pTask->startVer) {    // save it since the checkpoint is updated
-      qDebug("s-task:%s exec end, checkpoint ver from %"PRId64" to %"PRId64, pTask->id.idStr, pTask->startVer, dataVer);
-      pTask->startVer = dataVer;
+    if (dataVer > pTask->chkInfo.version) {    // save it since the checkpoint is updated
+      qDebug("s-task:%s exec end, checkpoint ver from %"PRId64" to %"PRId64, pTask->id.idStr, pTask->chkInfo.version, dataVer);
+      pTask->chkInfo = (SCheckpointInfo) {.version = dataVer, .id = ckId};
       streamMetaSaveTask(pTask->pMeta, pTask);
 
       if (streamMetaCommit(pTask->pMeta) < 0) {
