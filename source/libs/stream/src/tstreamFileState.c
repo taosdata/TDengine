@@ -313,15 +313,23 @@ SStreamSnapshot* getSnapshot(SStreamFileState* pFileState) {
   return pFileState->usedBuffs;
 }
 
-void streamFileStateDecode(SStreamFileState* pFileState, void* pBuff, int32_t len) {
-  pBuff = taosDecodeFixedI64(pBuff, &pFileState->flushMark);
-}
+// void streamFileStateDecode(SStreamFileState* pFileState, void* pBuff, int32_t len) {
+//   pBuff = taosDecodeFixedI64(pBuff, &pFileState->flushMark);
+// }
 
-void streamFileStateEncode(SStreamFileState* pFileState, void** pVal, int32_t* pLen) {
+// void streamFileStateEncode(SStreamFileState* pFileState, void** pVal, int32_t* pLen) {
+//   *pLen = sizeof(TSKEY);
+//   (*pVal) = taosMemoryCalloc(1, *pLen);
+//   void* buff = *pVal;
+//   taosEncodeFixedI64(&buff, pFileState->flushMark);
+// }
+void streamFileStateDecode(TSKEY* key, void* pBuff, int32_t len) { pBuff = taosDecodeFixedI64(pBuff, key); }
+
+void streamFileStateEncode(TSKEY* key, void** pVal, int32_t* pLen) {
   *pLen = sizeof(TSKEY);
   (*pVal) = taosMemoryCalloc(1, *pLen);
   void* buff = *pVal;
-  taosEncodeFixedI64(&buff, pFileState->flushMark);
+  taosEncodeFixedI64(&buff, *key);
 }
 
 int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, bool flushState) {
@@ -349,12 +357,26 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
   }
 
   if (flushState) {
-    int32_t len = 0;
-    void*   buff = NULL;
-    streamFileStateEncode(pFileState, &buff, &len);
-    SWinKey key = {.ts = -1, .groupId = 0};  // dengyihao
-    streamStatePut_rocksdb(pFileState->pFileStore, &key, buff, len);
-    taosMemoryFree(buff);
+    const char* taskKey = "streamFileState";
+    {
+      char    keyBuf[128] = {0};
+      void*   valBuf = NULL;
+      int32_t len = 0;
+      sprintf(keyBuf, "%s:%" PRId64 "", taskKey, ((SStreamState*)pFileState->pFileStore)->checkPointId);
+      streamFileStateEncode(&pFileState->flushMark, &valBuf, &len);
+      streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len);
+      taosMemoryFree(valBuf);
+    }
+    {
+      char    keyBuf[128] = {0};
+      char    valBuf[64] = {0};
+      int32_t len = 0;
+      sprintf(keyBuf, "%s:%" PRId64 "", taskKey, INT64_MIN);
+      sprintf(valBuf, "%" PRId64 "", ((SStreamState*)pFileState->pFileStore)->checkPointId);
+
+      streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, strlen(valBuf));
+    }
+    streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
   }
 
   streamStateDestroyBatch(batch);
@@ -362,16 +384,42 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
 }
 
 int32_t recoverSnapshot(SStreamFileState* pFileState) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SWinKey stkey = {.ts = -1, .groupId = 0};  // dengyihao
+  int32_t     code = TSDB_CODE_SUCCESS;
+  const char* taskKey = "streamFileState";
+  int64_t     maxCheckPointId = 0;
+  {
+    char    buf[128] = {0};
+    void*   val = NULL;
+    int32_t len = 0;
+    sprintf(buf, "%s:%" PRId64 "", taskKey, INT64_MIN);
+    code = streamDefaultGet_rocksdb(pFileState->pFileStore, buf, &val, &len);
+    if (code != 0) {
+      return TSDB_CODE_FAILED;
+    }
+    sscanf(val, "%" PRId64 "", &maxCheckPointId);
+    taosMemoryFree(val);
+  }
+  for (int64_t i = maxCheckPointId; i > 0; i++) {
+    char    buf[128] = {0};
+    void*   val = 0;
+    int32_t len = 0;
+    sprintf(buf, "%s:%" PRId64 "", taskKey, i);
+    code = streamDefaultGet_rocksdb(pFileState->pFileStore, buf, &val, &len);
+    if (code != 0) {
+      return TSDB_CODE_FAILED;
+    }
+    TSKEY ts;
+    sscanf(val, "%" PRId64 "", &ts);
+    taosMemoryFree(val);
+    if (ts < pFileState->flushMark) {
+      // forceRemoveCheckPoint(pFileState->pFileStore, i);
+    } else {
+      break;
+    }
+  }
+
   void*   pStVal = NULL;
   int32_t len = 0;
-  code = streamStateGet_rocksdb(pFileState->pFileStore, &stkey, &pStVal, &len);
-  if (code == TSDB_CODE_SUCCESS) {
-    streamFileStateDecode(pFileState, pStVal, len);
-  } else {
-    return TSDB_CODE_FAILED;
-  }
 
   SWinKey          key = {.groupId = 0, .ts = 0};
   SStreamStateCur* pCur = streamStateGetCur_rocksdb(pFileState->pFileStore, &key);

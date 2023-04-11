@@ -16,7 +16,6 @@
 #include "rocksdb/c.h"
 #include "streamBackendRocksdb.h"
 #include "tcommon.h"
-#include "tlog.h"
 
 int defaultKeyComp(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen) {
   //
