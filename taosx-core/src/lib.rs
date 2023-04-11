@@ -110,10 +110,17 @@ impl TaskOpts {
                         port_pool,
                     )
                     .await?;
-                },
-                ("opc", "taos") => {
-                    plugins::opc_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, port_pool).await?;
-                },
+                }
+                ("opc" | "opcda" | "opcua", "taos") => {
+                    plugins::opc_to_taos(
+                        from.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        *jobs,
+                        port_pool,
+                    )
+                    .await?;
+                }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
             Ok(())

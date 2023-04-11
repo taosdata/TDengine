@@ -374,8 +374,8 @@ fn test() {
     let dsn = "tmq+ws://root:taosdata@localhost:6041/database?token=abc";
     let dsn = Dsn::from_str(&dsn).unwrap();
     let tmq = &mut def[0];
-    tmq.clone().values_from(dsn);
-    dbg!(tmq);
+    let new = tmq.clone().values_from(dsn);
+    dbg!(tmq, new);
 }
 #[test]
 fn opc() {
@@ -392,7 +392,7 @@ fn opc() {
     // let tmq = &mut def[0];
     let dsn = def.values_from(dsn);
     dbg!(&dsn);
-    
+
 }
 #[test]
 fn test_values() {
