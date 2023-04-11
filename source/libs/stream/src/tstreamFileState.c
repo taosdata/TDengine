@@ -413,8 +413,8 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
     taosMemoryFree(val);
     if (ts < pFileState->flushMark) {
       // forceRemoveCheckPoint(pFileState->pFileStore, i);
-    } else {
       break;
+    } else {
     }
   }
 
