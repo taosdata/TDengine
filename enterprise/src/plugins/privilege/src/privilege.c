@@ -164,6 +164,7 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
     if (strcmp(pUser->user, pDb->createUser) == 0) goto _OVER;
     if (taosHashGet(pUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
     if (taosHashGet(pUser->writeDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+    if (taosHashGet(pUser->useDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
   }
 
   if (operType == MND_OPER_WRITE_DB) {
@@ -250,6 +251,7 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->writeDbs = mndDupDbHash(pUser->writeDbs);
   pRsp->readTbs = mndDupTableHash(pUser->readTbs);
   pRsp->writeTbs = mndDupTableHash(pUser->writeTbs);
+  pRsp->useDbs = mndDupTableHash(pUser->useDbs);
   taosRUnLockLatch(&pUser->lock);
   pRsp->createdDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == pRsp->createdDbs) {
