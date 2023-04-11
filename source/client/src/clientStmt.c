@@ -977,6 +977,7 @@ int stmtIsInsert(TAOS_STMT* stmt, int* insert) {
 int stmtGetTagFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
   int32_t code = 0;
   STscStmt* pStmt = (STscStmt*)stmt;
+  int32_t preCode = pStmt->errCode;
 
   STMT_DLOG_E("start to get tag fields");
 
@@ -1006,12 +1007,15 @@ int stmtGetTagFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
 
 _return:
 
+  pStmt->errCode = preCode;
+  
   return code;
 }
 
 int stmtGetColFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
   int32_t code = 0;
   STscStmt* pStmt = (STscStmt*)stmt;
+  int32_t preCode = pStmt->errCode;
 
   STMT_DLOG_E("start to get col fields");
 
@@ -1040,6 +1044,8 @@ int stmtGetColFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
   STMT_ERRI_JRET(stmtFetchColFields(stmt, nums, fields));
 
 _return:
+
+  pStmt->errCode = preCode;
 
   return code;
 }
