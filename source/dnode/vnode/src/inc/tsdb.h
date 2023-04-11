@@ -224,6 +224,8 @@ int32_t tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, 
 void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
 void    tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
 bool    tsdbTbDataIterNext(STbDataIter *pIter);
+void    tsdbMemTableCountRows(SMemTable *pMemTable, SHashObj*        pTableMap, int64_t *rowsNum);
+
 // STbData
 int32_t tsdbGetNRowsInTbData(STbData *pTbData);
 // tsdbFile.c ==============================================================================================
@@ -687,6 +689,8 @@ typedef struct SSttBlockLoadInfo {
   STSchema  *pSchema;
   int16_t   *colIds;
   int32_t    numOfCols;
+  bool       checkRemainingRow;
+  bool       isLast;
   bool       sttBlockLoaded;
   int32_t    numOfStt;
 
@@ -706,6 +710,7 @@ typedef struct SMergeTree {
   bool               destroyLoadInfo;
   SSttBlockLoadInfo *pLoadInfo;
   const char        *idStr;
+  bool               ignoreEarlierTs;
 } SMergeTree;
 
 typedef struct {
@@ -748,9 +753,10 @@ struct SDiskDataBuilder {
 
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
-                       bool destroyLoadInfo, const char *idStr);
+                       bool destroyLoadInfo, const char *idStr, bool strictTimeRange);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool    tMergeTreeNext(SMergeTree *pMTree);
+bool    tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
 TSDBROW tMergeTreeGetRow(SMergeTree *pMTree);
 void    tMergeTreeClose(SMergeTree *pMTree);
 

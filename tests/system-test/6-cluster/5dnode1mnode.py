@@ -32,7 +32,7 @@ class TDTestCase:
         self.master_dnode = self.TDDnodes.dnodes[0]
         self.host=self.master_dnode.cfgDict["fqdn"]
         conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
-        tdSql.init(conn1.cursor())
+        tdSql.init(conn1.cursor(), True)
 
 
     def getBuildPath(self):

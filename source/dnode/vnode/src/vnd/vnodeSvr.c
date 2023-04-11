@@ -306,13 +306,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   void   *pReq;
   int32_t len;
   int32_t ret;
-  /*
-  if (!pVnode->inUse) {
-    terrno = TSDB_CODE_VND_NO_AVAIL_BUFPOOL;
-    vError("vgId:%d, not ready to write since %s", TD_VID(pVnode), terrstr());
-    return -1;
-  }
-  */
+
   if (version <= pVnode->state.applied) {
     vError("vgId:%d, duplicate write request. version: %" PRId64 ", applied: %" PRId64 "", TD_VID(pVnode), version,
            pVnode->state.applied);
@@ -326,8 +320,8 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   ASSERT(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm);
   ASSERT(pVnode->state.applied + 1 == version);
 
-  pVnode->state.applied = version;
-  pVnode->state.applyTerm = pMsg->info.conn.applyTerm;
+  atomic_store_64(&pVnode->state.applied, version);
+  atomic_store_64(&pVnode->state.applyTerm, pMsg->info.conn.applyTerm);
 
   if (!syncUtilUserCommit(pMsg->msgType)) goto _exit;
 
@@ -516,7 +510,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
-       pMsg->msgType == TDMT_VND_BATCH_META) &&
+       pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TMQ_CONSUME) &&
       !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
@@ -1477,10 +1471,11 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
   }
 
   vInfo("vgId:%d, start to alter vnode config, page:%d pageSize:%d buffer:%d szPage:%d szBuf:%" PRIu64
-        " cacheLast:%d cacheLastSize:%d days:%d keep0:%d keep1:%d keep2:%d fsync:%d level:%d",
+        " cacheLast:%d cacheLastSize:%d days:%d keep0:%d keep1:%d keep2:%d fsync:%d level:%d walRetentionPeriod:%d "
+        "walRetentionSize:%d",
         TD_VID(pVnode), req.pages, req.pageSize, req.buffer, req.pageSize * 1024, (uint64_t)req.buffer * 1024 * 1024,
         req.cacheLast, req.cacheLastSize, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
-        req.walFsyncPeriod, req.walLevel);
+        req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod, req.walRetentionSize);
 
   if (pVnode->config.cacheLastSize != req.cacheLastSize) {
     pVnode->config.cacheLastSize = req.cacheLastSize;
@@ -1510,13 +1505,21 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
 
   if (pVnode->config.walCfg.fsyncPeriod != req.walFsyncPeriod) {
     pVnode->config.walCfg.fsyncPeriod = req.walFsyncPeriod;
-
     walChanged = true;
   }
 
   if (pVnode->config.walCfg.level != req.walLevel) {
     pVnode->config.walCfg.level = req.walLevel;
+    walChanged = true;
+  }
 
+  if (pVnode->config.walCfg.retentionPeriod != req.walRetentionPeriod) {
+    pVnode->config.walCfg.retentionPeriod = req.walRetentionPeriod;
+    walChanged = true;
+  }
+
+  if (pVnode->config.walCfg.retentionSize != req.walRetentionSize) {
+    pVnode->config.walCfg.retentionSize = req.walRetentionSize;
     walChanged = true;
   }
 

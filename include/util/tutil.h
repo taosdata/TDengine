@@ -29,7 +29,7 @@ extern "C" {
 int32_t strdequote(char *src);
 size_t  strtrim(char *src);
 char   *strnchr(const char *haystack, char needle, int32_t len, bool skipquote);
-TdUcs4 *wcsnchr(const TdUcs4 *haystack, TdUcs4 needle, size_t len);
+TdUcs4* wcsnchr(const TdUcs4* haystack, TdUcs4 needle, size_t len);
 
 char  **strsplit(char *src, const char *delim, int32_t *num);
 char   *strtolower(char *dst, const char *src);
@@ -37,11 +37,11 @@ char   *strntolower(char *dst, const char *src, int32_t n);
 char   *strntolower_s(char *dst, const char *src, int32_t n);
 int64_t strnatoi(char *num, int32_t len);
 
-size_t tstrncspn(const char *str, size_t ssize, const char *reject, size_t rsize);
-size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rsize);
+size_t  tstrncspn(const char *str, size_t ssize, const char *reject, size_t rsize);
+size_t  twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rsize);
 
-char *strbetween(char *string, char *begin, char *end);
-char *paGetToken(char *src, char **token, int32_t *tokenLen);
+char   *strbetween(char *string, char *begin, char *end);
+char   *paGetToken(char *src, char **token, int32_t *tokenLen);
 
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]);
 int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
@@ -92,24 +92,10 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
   }
 }
 
-#define TSDB_CHECK(condition, CODE, LINO, LABEL, ERRNO) \
-  if (!(condition)) {                                   \
-    (CODE) = (ERRNO);                                   \
-    (LINO) = __LINE__;                                  \
-    goto LABEL;                                         \
-  }
-
 #define TSDB_CHECK_CODE(CODE, LINO, LABEL) \
-  if ((CODE)) {                            \
-    (LINO) = __LINE__;                     \
+  if (CODE) {                              \
+    LINO = __LINE__;                       \
     goto LABEL;                            \
-  }
-
-#define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, ERRNO) \
-  if ((ptr) == NULL) {                                 \
-    (CODE) = (ERRNO);                                  \
-    (LINO) = __LINE__;                                 \
-    goto LABEL;                                        \
   }
 
 #ifdef __cplusplus

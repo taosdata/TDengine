@@ -183,22 +183,24 @@ end:
   return tbSuid == realTbSuid;
 }
 
-int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead) {
+int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead, uint64_t reqId) {
   int32_t code = 0;
+  int32_t vgId = TD_VID(pTq->pVnode);
+
   taosThreadMutexLock(&pHandle->pWalReader->mutex);
   int64_t offset = *fetchOffset;
 
   while (1) {
     if (walFetchHead(pHandle->pWalReader, offset, *ppCkHead) < 0) {
-      tqDebug("tmq poll: consumer:%" PRId64 ", (epoch %d) vgId:%d offset %" PRId64 ", no more log to return",
-              pHandle->consumerId, pHandle->epoch, TD_VID(pTq->pVnode), offset);
+      tqDebug("tmq poll: consumer:0x%" PRIx64 ", (epoch %d) vgId:%d offset %" PRId64 ", no more log to return, reqId:0x%"PRIx64,
+              pHandle->consumerId, pHandle->epoch, vgId, offset, reqId);
       *fetchOffset = offset - 1;
       code = -1;
       goto END;
     }
 
-    tqDebug("vgId:%d, taosx get msg ver %" PRId64 ", type: %s", pTq->pVnode->config.vgId, offset,
-            TMSG_INFO((*ppCkHead)->head.msgType));
+    tqDebug("vgId:%d, consumer:0x%" PRIx64 " taosx get msg ver %" PRId64 ", type: %s, reqId:0x%" PRIx64, vgId,
+            pHandle->consumerId, offset, TMSG_INFO((*ppCkHead)->head.msgType), reqId);
 
     if ((*ppCkHead)->head.msgType == TDMT_VND_SUBMIT) {
       code = walFetchBody(pHandle->pWalReader, ppCkHead);
@@ -241,6 +243,7 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
       offset++;
     }
   }
+
 END:
   taosThreadMutexUnlock(&pHandle->pWalReader->mutex);
   return code;
@@ -294,7 +297,7 @@ int32_t tqSeekVer(STqReader* pReader, int64_t ver, const char* id) {
   // todo set the correct vgId
   tqDebug("tmq poll: wal seek to version:%"PRId64" %s", ver, id);
   if (walReadSeekVer(pReader->pWalReader, ver) < 0) {
-    tqError("tmq poll: wal reader failed to seek to ver:%"PRId64" code:%s, %s", ver, tstrerror(terrno), id);
+    tqDebug("tmq poll: wal reader failed to seek to ver:%"PRId64" code:%s, %s", ver, tstrerror(terrno), id);
     return -1;
   } else {
     tqDebug("tmq poll: wal reader seek to ver:%"PRId64" %s", ver, id);
@@ -337,7 +340,7 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
         continue;
       }
       ret->fetchType = FETCH_TYPE__DATA;
-      tqDebug("return data rows %d", ret->data.info.rows);
+      tqDebug("return data rows %" PRId64, ret->data.info.rows);
       return 0;
     }
 
@@ -707,7 +710,10 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
           sourceIdx++;
           targetIdx++;
         } else {
-          ASSERT(0);
+          for (int32_t i = 0; i < pCol->nVal; i++) {
+            colDataSetNULL(pColData, i);
+          }
+          targetIdx++;
         }
       }
     } else {
@@ -749,7 +755,8 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
               sourceIdx++;
               break;
             } else {
-              ASSERT(0);
+              colDataSetNULL(pColData, i);
+              break;
             }
           }
         }

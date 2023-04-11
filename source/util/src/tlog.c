@@ -21,7 +21,7 @@
 #include "tjson.h"
 #include "tglobal.h"
 
-#define LOG_MAX_LINE_SIZE             (1024)
+#define LOG_MAX_LINE_SIZE             (10024)
 #define LOG_MAX_LINE_BUFFER_SIZE      (LOG_MAX_LINE_SIZE + 3)
 #define LOG_MAX_LINE_DUMP_SIZE        (1024 * 1024)
 #define LOG_MAX_LINE_DUMP_BUFFER_SIZE (LOG_MAX_LINE_DUMP_SIZE + 3)
@@ -121,7 +121,7 @@ static FORCE_INLINE void taosUpdateDaylight() {
   struct timeval timeSecs;
   taosGetTimeOfDay(&timeSecs);
   time_t curTime = timeSecs.tv_sec;
-  ptm = taosLocalTime(&curTime, &Tm);
+  ptm = taosLocalTime(&curTime, &Tm, NULL);
   tsDaylightActive = ptm->tm_isdst;
 }
 static FORCE_INLINE int32_t taosGetDaylight() { return tsDaylightActive; }
@@ -437,7 +437,7 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 
   taosGetTimeOfDay(&timeSecs);
   time_t curTime = timeSecs.tv_sec;
-  ptm = taosLocalTime(&curTime, &Tm);
+  ptm = taosLocalTime(&curTime, &Tm, NULL);
 
   return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                  ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(), flags);

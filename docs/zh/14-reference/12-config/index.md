@@ -99,6 +99,9 @@ taos --dump-config
 
 ## 监控相关
 
+:::note
+请注意，完整的监控功能需要安装并运行 `taoskeeper` 服务。taoskeeper 负责接收监控指标数据并创建 `log` 库。
+
 ### monitor
 
 | 属性     | 说明                                                                                                                                                                                               |

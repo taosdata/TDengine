@@ -307,7 +307,7 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, ch
 bool existLeaderRole(TAOS_ROW row, TAOS_FIELD* fields, int nFields) {
   // vgroup_id | db_name | tables | v1_dnode | v1_status | v2_dnode | v2_status | v3_dnode | v3_status | v4_dnode |
   // v4_status |  cacheload  | tsma |
-  if (nFields != 13) {
+  if (nFields != 14) {
     return false;
   }
 

@@ -637,6 +637,8 @@ int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
   int32_t code = 0;
   char  **pEnv = environ;
   line[1023] = 0;
+
+  if (pEnv == NULL) return 0;
   while (*pEnv != NULL) {
     name = value = value2 = value3 = NULL;
     olen = vlen = vlen2 = vlen3 = 0;

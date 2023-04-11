@@ -8,3 +8,4 @@ distro
 requests
 pexpect
 faker
+pyopenssl

@@ -29,8 +29,8 @@ static void cleanupRefPool() {
   taosCloseRef(ref);
 }
 
-static void initRefPool() { 
-  exchangeObjRefPool = taosOpenRef(1024, doDestroyExchangeOperatorInfo);   
+static void initRefPool() {
+  exchangeObjRefPool = taosOpenRef(1024, doDestroyExchangeOperatorInfo);
   atexit(cleanupRefPool);
 }
 
@@ -159,6 +159,30 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
   }
 }
 
+void doSetTaskId(SOperatorInfo* pOperator) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    SStreamScanInfo* pStreamScanInfo = pOperator->info;
+    STableScanInfo*  pScanInfo = pStreamScanInfo->pTableScanOp->info;
+    if (pScanInfo->base.dataReader != NULL) {
+      tsdbReaderSetId(pScanInfo->base.dataReader, pTaskInfo->id.str);
+    }
+  } else {
+    doSetTaskId(pOperator->pDownstream[0]);
+  }
+}
+
+void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
+  SExecTaskInfo* pTaskInfo = tinfo;
+  pTaskInfo->id.queryId = queryId;
+
+  taosMemoryFreeClear(pTaskInfo->id.str);
+  pTaskInfo->id.str = buildTaskId(taskId, queryId);
+
+  // set the idstr for tsdbReader
+  doSetTaskId(pTaskInfo->pRoot);
+}
+
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   if (tinfo == NULL) {
     return TSDB_CODE_APP_ERROR;
@@ -224,37 +248,35 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
   return code;
 }
 
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* numOfCols, SSchemaWrapper** pSchema) {
-  if (msg == NULL) {
-    // create raw scan
-
-    SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
+                                     uint64_t id) {
+  if (msg == NULL) {  // create raw scan
+    SExecTaskInfo* pTaskInfo = doCreateExecTaskInfo(0, id, vgId, OPTR_EXEC_MODEL_QUEUE, "");
     if (NULL == pTaskInfo) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
-    setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
-
-    pTaskInfo->cost.created = taosGetTimestampUs();
-    pTaskInfo->execModel = OPTR_EXEC_MODEL_QUEUE;
-    pTaskInfo->pRoot = createRawScanOperatorInfo(readers, pTaskInfo);
+    pTaskInfo->pRoot = createRawScanOperatorInfo(pReaderHandle, pTaskInfo);
     if (NULL == pTaskInfo->pRoot) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       taosMemoryFree(pTaskInfo);
       return NULL;
     }
+
+    qDebug("create raw scan task info completed, vgId:%d, %s", vgId, GET_TASKID(pTaskInfo));
     return pTaskInfo;
   }
 
   struct SSubplan* pPlan = NULL;
-  int32_t          code = qStringToSubplan(msg, &pPlan);
+
+  int32_t code = qStringToSubplan(msg, &pPlan);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return NULL;
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(readers, 0, 0, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_QUEUE);
+  code = qCreateExecTask(pReaderHandle, vgId, 0, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_QUEUE);
   if (code != TSDB_CODE_SUCCESS) {
     nodesDestroyNode((SNode*)pPlan);
     qDestroyTask(pTaskInfo);
@@ -274,18 +296,13 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
     }
   }
 
-  if (pSchema) {
-    *pSchema = tCloneSSchemaWrapper(((SExecTaskInfo*)pTaskInfo)->schemaInfo.qsw);
-  }
   return pTaskInfo;
 }
 
-qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers) {
+qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t vgId) {
   if (msg == NULL) {
     return NULL;
   }
-
-  /*qDebugL("stream task string %s", (const char*)msg);*/
 
   struct SSubplan* pPlan = NULL;
   int32_t          code = qStringToSubplan(msg, &pPlan);
@@ -295,7 +312,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers) {
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(readers, 0, 0, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_STREAM);
+  code = qCreateExecTask(readers, vgId, 0, pPlan, &pTaskInfo, NULL, NULL, OPTR_EXEC_MODEL_STREAM);
   if (code != TSDB_CODE_SUCCESS) {
     nodesDestroyNode((SNode*)pPlan);
     qDestroyTask(pTaskInfo);
@@ -393,7 +410,8 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       }
     }
 
-    STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
+    STableListInfo* pTableListInfo = ((STableScanInfo*)pScanInfo->pTableScanOp->info)->base.pTableListInfo;
+    taosWLockLatch(&pTaskInfo->lock);
 
     for (int32_t i = 0; i < numOfQualifiedTables; ++i) {
       uint64_t*     uid = taosArrayGet(qa, i);
@@ -408,6 +426,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
           if (code != TSDB_CODE_SUCCESS) {
             taosMemoryFree(keyBuf);
             taosArrayDestroy(qa);
+            taosWUnLockLatch(&pTaskInfo->lock);
             return code;
           }
         }
@@ -429,6 +448,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       tableListAddTableInfo(pTableListInfo, keyInfo.uid, keyInfo.groupId);
     }
 
+    taosWUnLockLatch(&pTaskInfo->lock);
     if (keyBuf != NULL) {
       taosMemoryFree(keyBuf);
     }
@@ -436,7 +456,9 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
     taosArrayDestroy(qa);
   } else {  // remove the table id in current list
     qDebug(" %d remove child tables from the stream scanner", (int32_t)taosArrayGetSize(tableIdList));
+    taosWLockLatch(&pTaskInfo->lock);
     code = tqReaderRemoveTbUidList(pScanInfo->tqReader, tableIdList);
+    taosWUnLockLatch(&pTaskInfo->lock);
   }
 
   return code;
@@ -469,16 +491,14 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
 
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, char* sql, EOPTR_EXEC_MODEL model) {
-  assert(pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
-
   taosThreadOnce(&initPoolOnce, initRefPool);
 
-  qDebug("start to create subplan task, TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, pSubplan->id.queryId);
+  qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
 
-  int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId, sql, model);
+  int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("failed to createExecTaskInfoImpl, code: %s", tstrerror(code));
+    qError("failed to createExecTaskInfo, code: %s", tstrerror(code));
     goto _error;
   }
 
@@ -491,7 +511,12 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
 
   if (handle) {
     void* pSinkParam = NULL;
-    code = createDataSinkParam(pSubplan->pDataSink, &pSinkParam, pTaskInfo, readHandle);
+
+    SArray*         pInfoList = getTableListInfo(*pTask);
+    STableListInfo* pTableListInfo = taosArrayGetP(pInfoList, 0);
+    taosArrayDestroy(pInfoList);
+
+    code = createDataSinkParam(pSubplan->pDataSink, &pSinkParam, pTableListInfo, readHandle);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to createDataSinkParam, vgId:%d, code:%s, %s", vgId, tstrerror(code), (*pTask)->id.str);
       goto _error;
@@ -721,7 +746,6 @@ void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
 
 int32_t qAsyncKillTask(qTaskInfo_t qinfo, int32_t rspCode) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qinfo;
-
   if (pTaskInfo == NULL) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
@@ -729,9 +753,25 @@ int32_t qAsyncKillTask(qTaskInfo_t qinfo, int32_t rspCode) {
   qDebug("%s execTask async killed", GET_TASKID(pTaskInfo));
 
   setTaskKilled(pTaskInfo, rspCode);
-
   qStopTaskOperators(pTaskInfo);
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (pTaskInfo == NULL) {
+    return TSDB_CODE_QRY_INVALID_QHANDLE;
+  }
+
+  qDebug("%s sync killed execTask", GET_TASKID(pTaskInfo));
+  setTaskKilled(pTaskInfo, TSDB_CODE_TSC_QUERY_KILLED);
+
+  while (qTaskIsExecuting(pTaskInfo)) {
+    taosMsleep(10);
+  }
+
+  pTaskInfo->code = rspCode;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -874,7 +914,8 @@ int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo) {
       pInfo->twAggSup.deleteMarkSaved = pInfo->twAggSup.deleteMark;
       pInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
       pInfo->twAggSup.deleteMark = INT64_MAX;
-
+      pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
+      pInfo->ignoreExpiredData = false;
     } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
                pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
                pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
@@ -890,6 +931,8 @@ int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo) {
       pInfo->twAggSup.deleteMarkSaved = pInfo->twAggSup.deleteMark;
       pInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
       pInfo->twAggSup.deleteMark = INT64_MAX;
+      pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
+      pInfo->ignoreExpiredData = false;
     } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
       SStreamStateAggOperatorInfo* pInfo = pOperator->info;
       ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
@@ -903,6 +946,8 @@ int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo) {
       pInfo->twAggSup.deleteMarkSaved = pInfo->twAggSup.deleteMark;
       pInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
       pInfo->twAggSup.deleteMark = INT64_MAX;
+      pInfo->ignoreExpiredDataSaved = pInfo->ignoreExpiredData;
+      pInfo->ignoreExpiredData = false;
     }
 
     // iterate operator tree
@@ -930,35 +975,23 @@ int32_t qStreamRestoreParam(qTaskInfo_t tinfo) {
         pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL ||
         pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL) {
       SStreamIntervalOperatorInfo* pInfo = pOperator->info;
-      /*ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE);*/
-      /*ASSERT(pInfo->twAggSup.deleteMark == INT64_MAX);*/
-
       pInfo->twAggSup.calTrigger = pInfo->twAggSup.calTriggerSaved;
       pInfo->twAggSup.deleteMark = pInfo->twAggSup.deleteMarkSaved;
-      /*ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||*/
-      /*pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);*/
+      pInfo->ignoreExpiredData = pInfo->ignoreExpiredDataSaved;
       qInfo("restore stream param for interval: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
     } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
                pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
                pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
       SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
-      /*ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE);*/
-      /*ASSERT(pInfo->twAggSup.deleteMark == INT64_MAX);*/
-
       pInfo->twAggSup.calTrigger = pInfo->twAggSup.calTriggerSaved;
       pInfo->twAggSup.deleteMark = pInfo->twAggSup.deleteMarkSaved;
-      /*ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||*/
-      /*pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);*/
+      pInfo->ignoreExpiredData = pInfo->ignoreExpiredDataSaved;
       qInfo("restore stream param for session: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
     } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
       SStreamStateAggOperatorInfo* pInfo = pOperator->info;
-      /*ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE);*/
-      /*ASSERT(pInfo->twAggSup.deleteMark == INT64_MAX);*/
-
       pInfo->twAggSup.calTrigger = pInfo->twAggSup.calTriggerSaved;
       pInfo->twAggSup.deleteMark = pInfo->twAggSup.deleteMarkSaved;
-      /*ASSERT(pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||*/
-      /*pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE);*/
+      pInfo->ignoreExpiredData = pInfo->ignoreExpiredDataSaved;
       qInfo("restore stream param for state: %d,  %" PRId64, pInfo->twAggSup.calTrigger, pInfo->twAggSup.deleteMark);
     }
 
@@ -976,6 +1009,7 @@ int32_t qStreamRestoreParam(qTaskInfo_t tinfo) {
   }
   return 0;
 }
+
 bool qStreamRecoverScanFinished(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   return pTaskInfo->streamInfo.recoverScanFinished;
@@ -998,19 +1032,16 @@ const char* qExtractTbnameFromTask(qTaskInfo_t tinfo) {
 
 SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
   return &pTaskInfo->streamInfo.metaRsp;
 }
 
 int64_t qStreamExtractPrepareUid(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
   return pTaskInfo->streamInfo.prepareStatus.uid;
 }
 
 int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
   memcpy(pOffset, &pTaskInfo->streamInfo.lastStatus, sizeof(STqOffsetVal));
   return 0;
 }
@@ -1046,20 +1077,12 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
   return TSDB_CODE_SUCCESS;
 }
 
-#if 0
-int32_t qStreamScanMemData(qTaskInfo_t tinfo, const SSubmitReq* pReq, int64_t scanVer) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
-  ASSERT(pTaskInfo->streamInfo.pReq == NULL);
-  pTaskInfo->streamInfo.pReq = pReq;
-  pTaskInfo->streamInfo.scanVer = scanVer;
-  return 0;
-}
-#endif
-
 int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  ASSERT((pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE )&& (pTaskInfo->streamInfo.submit.msgStr == NULL));
+  if ((pTaskInfo->execModel != OPTR_EXEC_MODEL_QUEUE) || (pTaskInfo->streamInfo.submit.msgStr != NULL)) {
+    qError("qStreamSetScanMemData err:%d,%p", pTaskInfo->execModel, pTaskInfo->streamInfo.submit.msgStr);
+    return -1;
+  }
   qDebug("set the submit block for future scan");
 
   pTaskInfo->streamInfo.submit = submit;
@@ -1069,7 +1092,8 @@ int32_t qStreamSetScanMemData(qTaskInfo_t tinfo, SPackedData submit) {
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
-  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
+  const char*    id = GET_TASKID(pTaskInfo);
+
   pTaskInfo->streamInfo.prepareStatus = *pOffset;
   pTaskInfo->streamInfo.returned = 0;
 
@@ -1079,20 +1103,20 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
   if (subType == TOPIC_SUB_TYPE__COLUMN) {
     pOperator->status = OP_OPENED;
-
-    // TODO add more check
-    if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-      ASSERT(pOperator->numOfDownstream == 1);
-      pOperator = pOperator->pDownstream[0];
-    }
+    pOperator = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id);
 
     SStreamScanInfo* pInfo = pOperator->info;
+    STableScanInfo*  pScanInfo = pInfo->pTableScanOp->info;
+    STableScanBase*  pScanBaseInfo = &pScanInfo->base;
+    STableListInfo*  pTableListInfo = pScanBaseInfo->pTableListInfo;
+
     if (pOffset->type == TMQ_OFFSET__LOG) {
-      STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
-      tsdbReaderClose(pTSInfo->base.dataReader);
-      pTSInfo->base.dataReader = NULL;
+      tsdbReaderClose(pScanBaseInfo->dataReader);
+      pScanBaseInfo->dataReader = NULL;
+
       // let's seek to the next version in wal file
       if (tqSeekVer(pInfo->tqReader, pOffset->version + 1, pTaskInfo->id.str) < 0) {
+        qError("tqSeekVer failed ver:%" PRId64 ", %s", pOffset->version + 1, id);
         return -1;
       }
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
@@ -1100,122 +1124,141 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       // those data are from the snapshot in tsdb, besides the data in the wal file.
       int64_t uid = pOffset->uid;
       int64_t ts = pOffset->ts;
+      int32_t index = 0;
+
+      // this value may be changed if new tables are created
+      taosRLockLatch(&pTaskInfo->lock);
+      int32_t numOfTables = tableListGetSize(pTableListInfo);
 
       if (uid == 0) {
-        if (tableListGetSize(pTaskInfo->pTableInfoList) != 0) {
-          STableKeyInfo* pTableInfo = tableListGetInfo(pTaskInfo->pTableInfoList, 0);
+        if (numOfTables != 0) {
+          STableKeyInfo* pTableInfo = tableListGetInfo(pTableListInfo, 0);
           uid = pTableInfo->uid;
           ts = INT64_MIN;
+          pScanInfo->currentTable = 0;
         } else {
+          taosRUnLockLatch(&pTaskInfo->lock);
+          qError("no table in table list, %s", id);
           return -1;
         }
       }
 
-      /*if (pTaskInfo->streamInfo.lastStatus.type != TMQ_OFFSET__SNAPSHOT_DATA ||*/
-      /*pTaskInfo->streamInfo.lastStatus.uid != uid || pTaskInfo->streamInfo.lastStatus.ts != ts) {*/
-      STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-      int32_t         numOfTables = tableListGetSize(pTaskInfo->pTableInfoList);
-
-      qDebug("switch to next table %" PRId64 " ts %" PRId64 "% "PRId64 " rows returned", uid, ts, pInfo->pTableScanOp->resultInfo.totalRows);
       pInfo->pTableScanOp->resultInfo.totalRows = 0;
 
-      bool found = false;
-      for (int32_t i = 0; i < numOfTables; i++) {
-        STableKeyInfo* pTableInfo = tableListGetInfo(pTaskInfo->pTableInfoList, i);
-        if (pTableInfo->uid == uid) {
-          found = true;
-          pTableScanInfo->currentTable = i;
-          break;
-        }
+      // start from current accessed position
+      // we cannot start from the pScanInfo->currentTable, since the commit offset may cause the rollback of the start
+      // position, let's find it from the beginning.
+      index = tableListFind(pTableListInfo, uid, 0);
+      taosRUnLockLatch(&pTaskInfo->lock);
+
+      if (index >= 0) {
+        pScanInfo->currentTable = index;
+      } else {
+        qError("vgId:%d uid:%" PRIu64 " not found in table list, total:%d, index:%d %s", pTaskInfo->id.vgId, uid,
+               numOfTables, pScanInfo->currentTable, id);
+        return -1;
       }
 
-      // TODO after dropping table, table may not found
-      ASSERT(found);
+      STableKeyInfo keyInfo = {.uid = uid};
+      int64_t       oldSkey = pScanBaseInfo->cond.twindows.skey;
 
-      if (pTableScanInfo->base.dataReader == NULL) {
-        STableKeyInfo* pList = tableListGetInfo(pTaskInfo->pTableInfoList, 0);
-        int32_t        num = tableListGetSize(pTaskInfo->pTableInfoList);
+      // let's start from the next ts that returned to consumer.
+      pScanBaseInfo->cond.twindows.skey = ts + 1;
+      pScanInfo->scanTimes = 0;
 
-        if (tsdbReaderOpen(pTableScanInfo->base.readHandle.vnode, &pTableScanInfo->base.cond, pList, num,
-                           pTableScanInfo->pResBlock, &pTableScanInfo->base.dataReader, NULL) < 0 ||
-            pTableScanInfo->base.dataReader == NULL) {
-          ASSERT(0);
+      if (pScanBaseInfo->dataReader == NULL) {
+        int32_t code = tsdbReaderOpen(pScanBaseInfo->readHandle.vnode, &pScanBaseInfo->cond, &keyInfo, 1,
+                                      pScanInfo->pResBlock, &pScanBaseInfo->dataReader, id, false);
+        if (code != TSDB_CODE_SUCCESS) {
+          qError("prepare read tsdb snapshot failed, uid:%" PRId64 ", code:%s %s", pOffset->uid, tstrerror(code), id);
+          terrno = code;
+          return -1;
         }
+
+        qDebug("tsdb reader created with offset(snapshot) uid:%" PRId64 " ts:%" PRId64 " table index:%d, total:%d, %s",
+               uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->currentTable, numOfTables, id);
+      } else {
+        tsdbSetTableList(pScanBaseInfo->dataReader, &keyInfo, 1);
+        tsdbReaderReset(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
+        qDebug("tsdb reader offset seek snapshot to uid:%" PRId64 " ts %" PRId64 "  table index:%d numOfTable:%d, %s",
+               uid, pScanBaseInfo->cond.twindows.skey, pScanInfo->currentTable, numOfTables, id);
       }
 
-      STableKeyInfo tki = {.uid = uid};
-      tsdbSetTableList(pTableScanInfo->base.dataReader, &tki, 1);
-      int64_t oldSkey = pTableScanInfo->base.cond.twindows.skey;
-      pTableScanInfo->base.cond.twindows.skey = ts + 1;
-      tsdbReaderReset(pTableScanInfo->base.dataReader, &pTableScanInfo->base.cond);
-      pTableScanInfo->base.cond.twindows.skey = oldSkey;
-      pTableScanInfo->scanTimes = 0;
-
-      qDebug("tsdb reader offset seek to uid %" PRId64 " ts %" PRId64 ", table cur set to %d , all table num %d", uid,
-             ts, pTableScanInfo->currentTable, numOfTables);
+      // restore the key value
+      pScanBaseInfo->cond.twindows.skey = oldSkey;
     } else {
-      ASSERT(0);
-    }
-  } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-    SStreamRawScanInfo* pInfo = pOperator->info;
-    SSnapContext*       sContext = pInfo->sContext;
-    if (setForSnapShot(sContext, pOffset->uid) != 0) {
-      qError("setDataForSnapShot error. uid:%" PRIi64, pOffset->uid);
+      qError("invalid pOffset->type:%d, %s", pOffset->type, id);
       return -1;
     }
 
-    SMetaTableInfo mtInfo = getUidfromSnapShot(sContext);
-    tsdbReaderClose(pInfo->dataReader);
-    pInfo->dataReader = NULL;
+  } else {  // subType == TOPIC_SUB_TYPE__TABLE/TOPIC_SUB_TYPE__DB
 
-    cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
-    tableListClear(pTaskInfo->pTableInfoList);
+    if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+      SStreamRawScanInfo* pInfo = pOperator->info;
+      SSnapContext*       sContext = pInfo->sContext;
 
-    if (mtInfo.uid == 0) {
-      return 0;  // no data
+      SOperatorInfo*  p = extractOperatorInTree(pOperator, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, id);
+      STableListInfo* pTableListInfo = ((SStreamRawScanInfo*)(p->info))->pTableListInfo;
+
+      if (setForSnapShot(sContext, pOffset->uid) != 0) {
+        qError("setDataForSnapShot error. uid:%" PRId64 " , %s", pOffset->uid, id);
+        return -1;
+      }
+
+      SMetaTableInfo mtInfo = getUidfromSnapShot(sContext);
+      tsdbReaderClose(pInfo->dataReader);
+      pInfo->dataReader = NULL;
+
+      cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
+      tableListClear(pTableListInfo);
+
+      if (mtInfo.uid == 0) {
+        return 0;  // no data
+      }
+
+      initQueryTableDataCondForTmq(&pTaskInfo->streamInfo.tableCond, sContext, &mtInfo);
+      pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts;
+
+      tableListAddTableInfo(pTableListInfo, mtInfo.uid, 0);
+
+      STableKeyInfo* pList = tableListGetInfo(pTableListInfo, 0);
+      int32_t        size = tableListGetSize(pTableListInfo);
+
+      tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, NULL, &pInfo->dataReader, NULL,
+                     false);
+
+      cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
+      strcpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName);
+      tDeleteSSchemaWrapper(pTaskInfo->streamInfo.schema);
+      pTaskInfo->streamInfo.schema = mtInfo.schema;
+
+      qDebug("tmqsnap qStreamPrepareScan snapshot data uid:%" PRId64 " ts %" PRId64 " %s", mtInfo.uid, pOffset->ts, id);
+    } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_META) {
+      SStreamRawScanInfo* pInfo = pOperator->info;
+      SSnapContext*       sContext = pInfo->sContext;
+      if (setForSnapShot(sContext, pOffset->uid) != 0) {
+        qError("setForSnapShot error. uid:%" PRIu64 " ,version:%" PRId64, pOffset->uid, pOffset->version);
+        return -1;
+      }
+      qDebug("tmqsnap qStreamPrepareScan snapshot meta uid:%" PRId64 " ts %" PRId64 " %s", pOffset->uid, pOffset->ts,
+             id);
+    } else if (pOffset->type == TMQ_OFFSET__LOG) {
+      SStreamRawScanInfo* pInfo = pOperator->info;
+      tsdbReaderClose(pInfo->dataReader);
+      pInfo->dataReader = NULL;
+      qDebug("tmqsnap qStreamPrepareScan snapshot log, %s", id);
     }
-
-    initQueryTableDataCondForTmq(&pTaskInfo->streamInfo.tableCond, sContext, &mtInfo);
-    pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts;
-
-    if (pTaskInfo->pTableInfoList == NULL) {
-      pTaskInfo->pTableInfoList = tableListCreate();
-    }
-
-    tableListAddTableInfo(pTaskInfo->pTableInfoList, mtInfo.uid, 0);
-
-    STableKeyInfo* pList = tableListGetInfo(pTaskInfo->pTableInfoList, 0);
-    int32_t        size = tableListGetSize(pTaskInfo->pTableInfoList);
-    ASSERT(size == 1);
-
-    tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, NULL, &pInfo->dataReader, NULL);
-
-    cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
-    strcpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName);
-    tDeleteSSchemaWrapper(pTaskInfo->streamInfo.schema);
-    pTaskInfo->streamInfo.schema = mtInfo.schema;
-
-    qDebug("tmqsnap qStreamPrepareScan snapshot data uid:%" PRId64 " ts %" PRId64, mtInfo.uid, pOffset->ts);
-  } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_META) {
-    SStreamRawScanInfo* pInfo = pOperator->info;
-    SSnapContext*       sContext = pInfo->sContext;
-    if (setForSnapShot(sContext, pOffset->uid) != 0) {
-      qError("setForSnapShot error. uid:%" PRIu64 " ,version:%" PRId64, pOffset->uid, pOffset->version);
-      return -1;
-    }
-    qDebug("tmqsnap qStreamPrepareScan snapshot meta uid:%" PRId64 " ts %" PRId64, pOffset->uid, pOffset->ts);
-  } else if (pOffset->type == TMQ_OFFSET__LOG) {
-    SStreamRawScanInfo* pInfo = pOperator->info;
-    tsdbReaderClose(pInfo->dataReader);
-    pInfo->dataReader = NULL;
-    qDebug("tmqsnap qStreamPrepareScan snapshot log");
   }
+
   return 0;
 }
 
 void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
-  assert(pMsg->info.ahandle != NULL);
+  if (pMsg->info.ahandle == NULL) {
+    qError("pMsg->info.ahandle is NULL");
+    return;
+  }
 
   SDataBuf buf = {.len = pMsg->contLen, .pData = NULL};
 
@@ -1233,4 +1276,3 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
 }
-

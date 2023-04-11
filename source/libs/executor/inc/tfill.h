@@ -30,6 +30,7 @@ extern "C" {
 struct SSDataBlock;
 
 typedef struct SFillColInfo {
+  int32_t    numOfFillExpr;
   SExprInfo* pExpr;
   bool       notFillCol;  // denote if this column needs fill operation
   SVariant   fillVal;
@@ -92,8 +93,8 @@ typedef struct SResultRowData {
 
 typedef struct SStreamFillLinearInfo {
   TSKEY   nextEnd;
-  SArray* pDeltaVal;      // double. value for Fill(linear).
-  SArray* pNextDeltaVal;  // double. value for Fill(linear).
+  SArray* pEndPoints;
+  SArray* pNextEndPoints;
   int64_t winIndex;
   bool    hasNext;
 } SStreamFillLinearInfo;

@@ -70,7 +70,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
     tsem_wait(&pExchangeInfo->ready);
 
     if (isTaskKilled(pTaskInfo)) {
-      longjmp(pTaskInfo->env, pTaskInfo->code);
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
     for (int32_t i = 0; i < totalSources; ++i) {
@@ -212,6 +212,11 @@ static SSDataBlock* loadRemoteData(SOperatorInfo* pOperator) {
       return NULL;
     }
 
+    doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+    if (blockDataGetNumOfRows(pBlock) == 0) {
+      continue;
+    }
+    
     SLimitInfo* pLimitInfo = &pExchangeInfo->limitInfo;
     if (hasLimitOffsetInfo(pLimitInfo)) {
       int32_t status = handleLimitOffset(pOperator, pLimitInfo, pBlock, false);
@@ -302,6 +307,11 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
   setOperatorInfo(pOperator, "ExchangeOperator", QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pDummyBlock->pDataBlock);
+
+  code = filterInitFromNode((SNode*)pExNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   pOperator->fpSet =
       createOperatorFpSet(prepareLoadRemoteData, loadRemoteData, NULL, destroyExchangeOperatorInfo, optrDefaultBufFn, NULL);
@@ -512,8 +522,6 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
     blockDataDestroy(pBlock);
   }
 
-  // todo move this to time window aggregator, since the primary timestamp may not be known by exchange operator.
-  blockDataUpdateTsWindow(pRes, 0);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -568,7 +576,7 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
   pOperator->status = OP_RES_TO_RETURN;
   pOperator->cost.openCost = taosGetTimestampUs() - startTs;
   if (isTaskKilled(pTaskInfo)) {
-    longjmp(pTaskInfo->env, pTaskInfo->code);
+    T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -621,7 +629,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
     tsem_wait(&pExchangeInfo->ready);
     if (isTaskKilled(pTaskInfo)) {
-      longjmp(pTaskInfo->env, pTaskInfo->code);
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
     SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);

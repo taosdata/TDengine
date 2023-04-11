@@ -20,7 +20,7 @@
 static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* pRes) {
   int32_t code;
   void*   exec = pTask->exec.executor;
-  while (atomic_load_8(&pTask->taskStatus) != TASK_STATUS__NORMAL) {
+  while (pTask->taskLevel == TASK_LEVEL__SOURCE && atomic_load_8(&pTask->taskStatus) != TASK_STATUS__NORMAL) {
     qError("stream task wait for the end of fill history");
     taosMsleep(2);
     continue;
@@ -153,8 +153,14 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
       if (batchCnt >= batchSz) break;
     }
     if (taosArrayGetSize(pRes) == 0) {
-      taosArrayDestroy(pRes);
-      break;
+      if (finished) {
+        taosArrayDestroy(pRes);
+        qDebug("task %d finish recover exec task ", pTask->taskId);
+        break;
+      } else {
+        qDebug("task %d continue recover exec task ", pTask->taskId);
+        continue;
+      }
     }
     SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
     if (qRes == NULL) {

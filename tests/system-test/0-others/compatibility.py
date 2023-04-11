@@ -98,7 +98,7 @@ class TDTestCase:
 
     def buildTaosd(self,bPath):
         # os.system(f"mv {bPath}/build_bak  {bPath}/build ")
-        os.system(f" cd {bPath}  &&  make install ")
+        os.system(f" cd {bPath}  ")
 
 
     def run(self):
@@ -146,6 +146,10 @@ class TDTestCase:
         tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
         os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
+        cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -h localhost ;"
+        if os.system(cmd) == 0:
+            raise Exception("failed to execute system command. cmd: %s" % cmd)
+                
         os.system("pkill  taosd")   # make sure all the data are saved in disk.
         self.checkProcessPid("taosd")
 
@@ -156,8 +160,10 @@ class TDTestCase:
         sleep(1)
         tdsql=tdCom.newTdSql()
         print(tdsql)
-
-
+        cmd = f" LD_LIBRARY_PATH=/usr/lib  taos -h localhost ;"
+        if os.system(cmd) == 0:
+            raise Exception("failed to execute system command. cmd: %s" % cmd)
+        
         tdsql.query(f"SELECT SERVER_VERSION();")
         nowServerVersion=tdsql.queryResult[0][0]
         tdLog.info(f"New server version is {nowServerVersion}")
@@ -181,6 +187,7 @@ class TDTestCase:
         tdsql.execute("drop database if exists db")
         tdsql.execute("create database db")
         tdsql.execute("use db")
+        tdsql.execute("alter database db wal_retention_period 3600")
         tdsql.execute("create stable db.stb1 (ts timestamp, c1 int) tags (t1 int);")
         tdsql.execute("insert into db.ct1 using db.stb1 TAGS(1) values(now(),11);")
         tdsql.error(" insert into `db.ct2` using db.stb1 TAGS(9) values(now(),11);")

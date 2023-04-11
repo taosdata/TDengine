@@ -57,7 +57,7 @@ target_sources(
 
     # tq
     "src/tq/tq.c"
-    "src/tq/tqExec.c"
+    "src/tq/tqScan.c"
     "src/tq/tqMeta.c"
     "src/tq/tqRead.c"
     "src/tq/tqOffset.c"

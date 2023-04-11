@@ -18,17 +18,18 @@
 #endif
 
 #include "shellInt.h"
+#include "version.h"
 
 #ifndef CUS_NAME
-    char cusName[] = "TDengine";
+char cusName[] = "TDengine";
 #endif
 
 #ifndef CUS_PROMPT
-    char cusPrompt[] = "taos";
+char cusPrompt[] = "taos";
 #endif
 
 #ifndef CUS_EMAIL
-    char cusEmail[] = "<support@taosdata.com>";
+char cusEmail[] = "<support@taosdata.com>";
 #endif
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
@@ -58,9 +59,9 @@
 #define SHELL_VERSION  "Print program version."
 
 #ifdef WEBSOCKET
-#define SHELL_DSN      "Use dsn to connect to the TDengine cloud server or to a remote server which provides WebSocket connection."
-#define SHELL_REST     "Use RESTful mode when connecting."
-#define SHELL_TIMEOUT  "Set the timeout for websocket query in seconds, default is 10."
+#define SHELL_DSN     "Use dsn to connect to the cloud server or to a remote server which provides WebSocket connection."
+#define SHELL_REST    "Use RESTful mode when connecting."
+#define SHELL_TIMEOUT "Set the timeout for websocket query in seconds, default is 30."
 #endif
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg);
@@ -92,7 +93,11 @@ void shellPrintHelp() {
 #endif
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
   printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
-  printf("\r\n\r\nReport bugs to %s.\r\n", cusEmail);
+#ifdef CUS_EMAIL
+  printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
+#else
+  printf("\r\n\r\nReport bugs to %s.\r\n", "support@taosdata.com");
+#endif
 }
 
 #ifdef LINUX
@@ -104,7 +109,11 @@ void shellPrintHelp() {
 #endif
 
 const char *argp_program_version = version;
-const char *argp_program_bug_address = cusEmail;
+#ifdef CUS_EMAIL
+const char *argp_program_bug_address = CUS_EMAIL;
+#else
+const char *argp_program_bug_address = "support@taosdata.com";
+#endif
 
 static struct argp_option shellOptions[] = {
     {"host", 'h', "HOST", 0, SHELL_HOST},
@@ -126,8 +135,8 @@ static struct argp_option shellOptions[] = {
     {"pktlen", 'l', "PKTLEN", 0, SHELL_PKT_LEN},
 #ifdef WEBSOCKET
     {"dsn", 'E', "DSN", 0, SHELL_DSN},
-    {"http", 'R', 0, 0, SHELL_REST},
-	  {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
+    {"restful", 'R', 0, 0, SHELL_REST},
+    {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
 #endif
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {0},
@@ -145,7 +154,7 @@ static void shellParseArgsUseArgp(int argc, char *argv[]) {
 #endif
 
 #ifndef ARGP_ERR_UNKNOWN
-  #define ARGP_ERR_UNKNOWN E2BIG
+#define ARGP_ERR_UNKNOWN E2BIG
 #endif
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg) {
@@ -223,9 +232,9 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       pArgs->dsn = arg;
       pArgs->cloud = true;
       break;
-	case 'T':
-	  pArgs->timeout = atoi(arg);
-	  break;
+    case 'T':
+      pArgs->timeout = atoi(arg);
+      break;
 #endif
     case 'V':
       pArgs->is_version = true;
@@ -246,7 +255,8 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
   SShellArgs *pArgs = &shell.args;
 
   for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 || strcmp(argv[i], "-?") == 0 || strcmp(argv[i], "/?") == 0) {
+    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 || strcmp(argv[i], "-?") == 0 ||
+        strcmp(argv[i], "/?") == 0) {
       shellParseSingleOpt('?', NULL);
       return 0;
     }
@@ -263,11 +273,11 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
     }
 
     if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u' || key[1] == 'a' || key[1] == 'c' || key[1] == 's' ||
-        key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N' 
+        key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N'
 #ifdef WEBSOCKET
-	   || key[1] == 'E' || key[1] == 'T'
+        || key[1] == 'E' || key[1] == 'T'
 #endif
-		) {
+    ) {
       if (i + 1 >= argc) {
         fprintf(stderr, "option %s requires an argument\r\n", key);
         return -1;
@@ -279,12 +289,12 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       }
       shellParseSingleOpt(key[1], val);
       i++;
-    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || 
-               key[1] == 't' || key[1] == 'V' || key[1] == '?' || key[1] == 1
+    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || key[1] == 't' ||
+               key[1] == 'V' || key[1] == '?' || key[1] == 1
 #ifdef WEBSOCKET
-			   ||key[1] == 'R'
+               || key[1] == 'R'
 #endif
-			   ) {
+    ) {
       shellParseSingleOpt(key[1], NULL);
     } else {
       fprintf(stderr, "invalid option %s\r\n", key);
@@ -406,18 +416,33 @@ static int32_t shellCheckArgs() {
 
 int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
-  shell.info.clientVersion = 
+  shell.info.clientVersion =
       "Welcome to the %s Command Line Interface, Client Version:%s\r\n"
       "Copyright (c) 2022 by %s, all rights reserved.\r\n\r\n";
-  strcpy(shell.info.cusName, cusName);
-  sprintf(shell.info.promptHeader, "%s> ", cusPrompt);
+#ifdef CUS_NAME
+  strcpy(shell.info.cusName, CUS_NAME);
+#else
+  strcpy(shell.info.cusName, "TDengine");
+#endif
   char promptContinueFormat[32] = {0};
-  sprintf(promptContinueFormat, "%%%zus> ", strlen(cusPrompt));
+#ifdef CUS_PROMPT
+  sprintf(shell.info.promptHeader, "%s> ", CUS_PROMPT);
+  sprintf(promptContinueFormat, "%%%zus> ", strlen(CUS_PROMPT));
+#else
+  sprintf(shell.info.promptHeader, "taos> ");
+  sprintf(promptContinueFormat, "%%%zus> ", strlen("taos"));
+#endif
   sprintf(shell.info.promptContinue, promptContinueFormat, " ");
   shell.info.promptSize = strlen(shell.info.promptHeader);
+#ifdef TD_ENTERPRISE
+  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
+           "version: %s compatible_version: %s\ngitinfo: %s\ngitinfoOfInternal: %s\nbuildInfo: %s", version,
+           compatible_version, gitinfo, gitinfoOfInternal, buildinfo);
+#else
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
            "version: %s compatible_version: %s\ngitinfo: %s\nbuildInfo: %s", version, compatible_version, gitinfo,
            buildinfo);
+#endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   shell.info.osname = "Windows";

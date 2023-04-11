@@ -25,13 +25,6 @@
 extern "C" {
 #endif
 
-// TODO remove it
-enum {
-  TMQ_CONF__RESET_OFFSET__NONE = -3,
-  TMQ_CONF__RESET_OFFSET__EARLIEAST = -2,
-  TMQ_CONF__RESET_OFFSET__LATEST = -1,
-};
-
 // clang-format off
 #define IS_META_MSG(x) ( \
      x == TDMT_VND_CREATE_STB     \
@@ -192,7 +185,7 @@ typedef struct SBlockID {
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rowSize;
-  int32_t     rows;  // todo hide this attribute
+  int64_t     rows;  // todo hide this attribute
   uint32_t    capacity;
   SBlockID    id;
   int16_t     hasVarCol;

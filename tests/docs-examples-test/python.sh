@@ -52,7 +52,7 @@ python3 conn_rest_pandas.py
 taos -s "drop database if exists power"
 
 # 11
-taos -s "create database if not exists test"
+taos -s "create database if not exists test wal_retention_period 3600"
 python3 connect_native_reference.py
 
 # 12

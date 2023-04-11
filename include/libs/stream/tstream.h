@@ -295,7 +295,7 @@ typedef struct {
   SEpSet  epSet;
 } SStreamChildEpInfo;
 
-typedef struct SStreamTask {
+struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
   int32_t totalLevel;
@@ -362,8 +362,7 @@ typedef struct SStreamTask {
 
   int64_t checkpointingId;
   int32_t checkpointAlignCnt;
-
-} SStreamTask;
+};
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
 int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
@@ -589,7 +588,7 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
-int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
+// int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
 
 int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);

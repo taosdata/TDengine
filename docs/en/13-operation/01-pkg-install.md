@@ -15,14 +15,14 @@ About details of installing TDenine, please refer to [Installation Guide](../../
 ## Uninstall
 
 <Tabs>
-<TabItem label="Uninstall apt-get" value="aptremove">
+<TabItem label="Uninstall by apt-get" value="aptremove">
 
-Apt-get package of TDengine can be uninstalled as below:
+Uninstall package of TDengine by apt-get can be uninstalled as below:
 
 ```bash
 $ sudo apt-get remove tdengine
 Reading package lists... Done
-Building dependency tree       
+Building dependency tree
 Reading state information... Done
 The following packages will be REMOVED:
   tdengine
@@ -35,7 +35,7 @@ TDengine is removed successfully!
 
 ```
 
-Apt-get package of taosTools can be uninstalled as below:
+If you have installed taos-tools, please uninstall it first before uninstall TDengine. The command of uninstall is following:
 
 ```
 $ sudo apt remove taostools
@@ -111,8 +111,20 @@ taos tools is uninstalled successfully!
 ```
 
 </TabItem>
+
 <TabItem label="Windows uninstall" value="windows">
 Run C:\TDengine\unins000.exe to uninstall TDengine on a Windows system.
+</TabItem>
+
+<TabItem label="Mac uninstall" value="mac">
+
+TDengine can be uninstalled as below:
+
+```
+$ rmtaos
+TDengine is removed successfully!
+```
+
 </TabItem>
 </Tabs>
 
@@ -156,7 +168,7 @@ Upgrading a running server is much more complex. First please check the version 
 - Stop the cluster of TDengine
 - Uninstall old version and install new version
 - Start the cluster of TDengine
-- Execute simple queries, such as the ones executed prior to installing the new package, to make sure there is no data loss 
+- Execute simple queries, such as the ones executed prior to installing the new package, to make sure there is no data loss
 - Run some simple data insertion statements to make sure the cluster works well
 - Restore business services
 

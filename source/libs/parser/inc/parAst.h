@@ -212,7 +212,8 @@ SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions,
 SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable);
 SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt);
 SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool aggFunc, const SToken* pFuncName,
-                                const SToken* pLibPath, SDataType dataType, int32_t bufSize, const SToken* pLanguage);
+                                const SToken* pLibPath, SDataType dataType, int32_t bufSize, const SToken* pLanguage,
+                                bool orReplace);
 SNode* createDropFunctionStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pFuncName);
 SNode* createStreamOptions(SAstCreateContext* pCxt);
 SNode* setStreamOptions(SAstCreateContext* pCxt, SNode* pOptions, EStreamOptionsSetFlag setflag, SToken* pToken,
@@ -223,6 +224,7 @@ SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToke
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId);
 SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId);
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt);
+SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt);
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2);
 SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);
 SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId);

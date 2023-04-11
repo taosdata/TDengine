@@ -140,7 +140,7 @@ class TDTestCase:
         val2 = paraDict["ctbNum"] - 1
         # select count(*), t1, t2, t3, t4, t5, t6 from $stb where t1 > $val1 and t1 < $val2 group by t1, t2, t3, t4, t5, t6 order by t1 asc limit 1 offset 0
         sqlStr = f"select count(*), t1, t2, t3, t4, t5, t6 from %s where t1 > %d and t1 < %d group by t1, t2, t3, t4, t5, t6 order by t1 asc limit 1 offset 0"%(paraDict["stbName"], val1, val2)
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, paraDict["rowsPerTbl"])
@@ -152,7 +152,7 @@ class TDTestCase:
                 
         # select count(*), t3, t4 from $stb where t2 like '%' and t1 > 2 and t1 < 5 group by t3, t4 order by t3 desc limit 2 offset 0        
         sqlStr = f"select count(*), t3, t4 from %s where t2 like '%%' and t1 > 2 and t1 < 5 group by t3, t4 order by t3 desc limit 2 offset 0"%(paraDict["stbName"])
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, paraDict["rowsPerTbl"])
@@ -164,7 +164,7 @@ class TDTestCase:
         
         # select count(*) from $stb where t2 like '%' and t1 > 2 and t1 < 5 group by t3, t4 order by t3 desc limit 1 offset 1
         sqlStr = f"select count(*) from %s where t2 like '%%' and t1 > 2 and t1 < 5 group by t3, t4 order by t3 desc limit 1 offset 1"%(paraDict["stbName"])
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(1)
         
@@ -179,18 +179,18 @@ class TDTestCase:
         tb = paraDict["ctbPrefix"] + '0'
         # select _wstart, max(c1) from $tb where ts >= $ts0 and ts <= $tsu interval(5m) fill(value, -1) limit 10 offset 1
         sqlStr = f"select _wstart, max(c1) from %s where ts >= %d and ts <= %d interval(5m) fill(value, -1) limit 10 offset 1"%(tb, ts0, tsu)
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(10)
-        tdSql.checkData(0, 0, "18-09-17 09:05:00.000")
+        tdSql.checkData(0, 0, "2018-09-17 09:05:00.000")
         tdSql.checkData(0, 1, -1)
         tdSql.checkData(1, 1, 1)
-        tdSql.checkData(9, 0, "18-09-17 09:50:00.000")
+        tdSql.checkData(9, 0, "2018-09-17 09:50:00.000")
         tdSql.checkData(9, 1, 5)
-  
+        
         tb5 = paraDict["ctbPrefix"] + '5'
         sqlStr = f"select max(c1), min(c2) from %s where ts >= %d and ts <= %d interval(5m) fill(value, -1, -2) limit 10 offset 1"%(tb5, ts0, tsu)
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(10)
         tdSql.checkData(0, 0, -1)
@@ -206,22 +206,22 @@ class TDTestCase:
         limit = paraDict["rowsPerTbl"]
         offset = limit / 2
         sqlStr = f"select max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from %s where ts >= %d and ts <= %d interval(5m) fill(value, -1, -2 ,-3, -4 , -5, -6 ,-7 ,'-8', '-9') limit %d offset %d"%(tb, ts0, tsu, limit, offset)
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(limit)
         tdSql.checkData(0, 1, 0)
 
         sqlStr = f"select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 8200"
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(8200)
 
         sqlStr = f"select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 100000;"
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
 
         sqlStr = f"select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 10 offset 8190;"
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(10)
         tdSql.checkData(0, 0, 5)
@@ -231,7 +231,7 @@ class TDTestCase:
 
 
         sqlStr = f"select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 10 offset 10001;"
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(10)
         tdSql.checkData(0, 0, -1000)
@@ -240,13 +240,13 @@ class TDTestCase:
         tdSql.checkData(3, 0, 2)
 
         sqlStr = f"select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 10000 offset 10001;"
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(9998)
 
 
         sqlStr = f"select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 100 offset 20001;"
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(0)
 
@@ -254,7 +254,7 @@ class TDTestCase:
         limit = paraDict["rowsPerTbl"]
         offset = limit / 2
         sqlStr = f"select _wstart,max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from %s where ts >= %d and ts <= %d interval(5m) fill(linear) limit %d offset %d"%(tb,ts0,tsu,limit, offset)
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(limit)
         tdSql.checkData(0, 1, 0)
@@ -272,7 +272,7 @@ class TDTestCase:
         limit = paraDict["rowsPerTbl"]
         offset = limit / 2
         sqlStr = f"select max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from %s where ts >= %d and ts <= %d interval(5m) fill(prev) limit %d offset %d"%(tb,ts0,tsu,limit, offset)
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(limit)
 
@@ -280,7 +280,7 @@ class TDTestCase:
         limit = paraDict["rowsPerTbl"]
         offset = limit / 2 + 10
         sqlStr = f"select _wstart,max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from %s where ts >= %d and ts <= %d and c1 = 5 interval(5m) fill(value, -1, -2 ,-3, -4 , -5, -6 ,-7 ,'-8', '-9') limit %d offset %d"%(tb,ts0,tsu,limit, offset)
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(limit)
         tdSql.checkData(0, 1, 5)
@@ -298,7 +298,7 @@ class TDTestCase:
         limit = paraDict["rowsPerTbl"]
         offset = limit * 2 - 11
         sqlStr = f"select _wstart,max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from %s where ts >= %d and ts <= %d and c1 = 5 interval(5m) fill(value, -1, -2 ,-3, -4 , -5, -6 ,-7 ,'-8', '-9') limit %d offset %d"%(tb,ts0,tsu,limit, offset)
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(10)
         tdSql.checkData(0, 1, -1)
@@ -314,7 +314,7 @@ class TDTestCase:
         ### [TBASE-350]
         ## stb + interval + fill + group by + limit offset
         sqlStr = f"select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 partition by t1 interval(5m) fill(value, -1, -2, -3, -4 ,-7 ,'-8', '-9') limit 2 offset 10"
-        print("====sql:%s"%(sqlStr))
+        tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(2)
 
@@ -322,7 +322,7 @@ class TDTestCase:
         offset = paraDict["rowsPerTbl"] * 2
         offset = offset - 2
         sqlStr = f"select max(c1), min(c2), sum(c3), avg(c4), first(c7), last(c8), first(c9) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000  partition by t1 interval(5m) fill(value, -1, -2, -3, -4 ,-7 ,'-8', '-9') order by t1 limit %d offset %d"%(limit, offset)
-        print("====sql:%s"%(sqlStr))
+        # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 9)
@@ -339,7 +339,7 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def run(self):
-        tdSql.prepare()
+        # tdSql.prepare()
         self.prepareTestEnv()
         self.tmqCase1()
 

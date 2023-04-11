@@ -173,8 +173,13 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
   size_t numOfGroupCols = taosArrayGetSize(pGroupCols);
 
   for (int32_t i = 0; i < numOfGroupCols; ++i) {
-    SColumn*         pCol = taosArrayGet(pGroupCols, i);
+    SColumn*         pCol = (SColumn*) taosArrayGet(pGroupCols, i);
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
+
+    // valid range check. todo: return error code.
+    if (pCol->slotId > taosArrayGetSize(pBlock->pDataBlock)) {
+      continue;
+    }
 
     if (pBlock->pBlockAgg != NULL) {
       pColAgg = pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?
@@ -277,6 +282,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   terrno = TSDB_CODE_SUCCESS;
 
   int32_t num = 0;
+  uint64_t groupId = 0;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (!pInfo->isInit) {
@@ -472,6 +478,8 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode*
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   setOperatorInfo(pOperator, "GroupbyAggOperator", 0, true, OP_NOT_OPENED, pInfo, pTaskInfo);
+
+  pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hashGroupbyAggregate, NULL, destroyGroupOperatorInfo,
                                          optrDefaultBufFn, NULL);
@@ -917,7 +925,7 @@ int32_t setGroupResultOutputBuf(SOperatorInfo* pOperator, SOptrBasicInfo* binfo,
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
 
   SResultRow* pResultRow =
-      doSetResultOutBufByKey(pBuf, pResultRowInfo, (char*)pData, bytes, true, groupId, pTaskInfo, false, pAggSup);
+      doSetResultOutBufByKey(pBuf, pResultRowInfo, (char*)pData, bytes, true, groupId, pTaskInfo, false, pAggSup, false);
   assert(pResultRow != NULL);
 
   setResultRowInitCtx(pResultRow, pCtx, numOfCols, pOperator->exprSupp.rowEntryInfoOffset);
