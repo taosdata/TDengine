@@ -249,14 +249,27 @@ static int32_t end_commit_file_set(SCommitter *pCommitter) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  code = tsdbSttFWriterClose(&pCommitter->pWriter, 0, pFileOp);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TSDB_CHECK_CODE(                 //
+      code = tsdbSttFWriterClose(  //
+          &pCommitter->pWriter,    //
+          0,                       //
+          pFileOp),                //
+      lino,                        //
+      _exit);
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d failed at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), lino, tstrerror(code));
+    tsdbError(                                 //
+        "vgId:%d failed at line %d since %s",  //
+        TD_VID(pCommitter->pTsdb->pVnode),     //
+        lino,                                  //
+        tstrerror(code));
   } else {
-    tsdbDebug("vgId:%d %s done, fid:%d", TD_VID(pCommitter->pTsdb->pVnode), __func__, pCommitter->fid);
+    tsdbDebug(                              //
+        "vgId:%d %s done, fid:%d",          //
+        TD_VID(pCommitter->pTsdb->pVnode),  //
+        __func__,                           //
+        pCommitter->fid);
   }
   return code;
 }
@@ -284,8 +297,12 @@ static int32_t commit_next_file_set(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
-              tstrerror(code));
+    tsdbError(                                    //
+        "vgId:%d %s failed at line %d since %s",  //
+        TD_VID(pCommitter->pTsdb->pVnode),        //
+        __func__,                                 //
+        lino,                                     //
+        tstrerror(code));
   }
   return code;
 }
