@@ -1457,7 +1457,8 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
     }
     case AUTH_TYPE_READ_OR_WRITE: {
       if ((pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, strlen(dbFName))) ||
-          (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, strlen(dbFName)))) {
+          (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, strlen(dbFName))) ||
+          (pInfo->useDbs && taosHashGet(pInfo->useDbs, dbFName, strlen(dbFName)))) {
         pRes->pass = true;
         return TSDB_CODE_SUCCESS;
       }
