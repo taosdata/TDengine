@@ -538,7 +538,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       printf("%*e", width, GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%.15e", GET_DOUBLE_VAL(val));
+      snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%.9e", GET_DOUBLE_VAL(val));
       printf("%*s", width, buf);
       break;
     case TSDB_DATA_TYPE_BINARY:
