@@ -1,12 +1,7 @@
-use std::{
-    collections::HashMap,
-    io::prelude::*,
-    num::ParseIntError,
-    str::FromStr, 
-};
+use std::{collections::HashMap, io::prelude::*, num::ParseIntError, str::FromStr};
 
 use itertools::Itertools;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder, taos_query::helpers::ColumnMeta, IntoDsn};
+use taos::{taos_query::helpers::ColumnMeta, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
@@ -37,6 +32,8 @@ impl FromStr for OpcType {
 
 #[derive(Debug, thiserror::Error)]
 enum OpcError {
+    #[error("One of `ua` `da` protocol should be set")]
+    ProtocolNotFound(Dsn),
     #[error("Endpoint is required in OPC dsn: {0} like `opc+..://localhost:4840?...`")]
     EndpointIsRequired(Dsn),
     #[error("Database name is required in OPC dsn: {0}")]
@@ -143,12 +140,12 @@ enum OPCConfigMode {
     /// just get points
     Points,
     /// collect point data
-    Collect
+    Collect,
 }
 
 impl OPCConfig {
     fn new(mut dsn: Dsn, ipc_port: u16, config_mode: OPCConfigMode) -> Result<Self, OpcError> {
-        debug_assert!(dsn.driver == "opc");
+        debug_assert!(dsn.driver == "opc" || dsn.driver == "opcua" || dsn.driver == "opcda");
         macro_rules! parse_int_at {
             ($n:expr) => {
                 dsn.remove($n)
@@ -164,6 +161,20 @@ impl OPCConfig {
         let collect;
         let mut param_mapping = HashMap::new();
         let mut table_info: HashMap<String, Vec<(String, String)>> = HashMap::new();
+        match dsn.driver.as_str() {
+            "opc" => {
+                if dsn.protocol.is_none() {
+                    return Err(OpcError::ProtocolNotFound(dsn));
+                }
+            }
+            "opcua" => {
+                dsn.protocol.replace("ua".to_string());
+            }
+            "opcda" => {
+                dsn.protocol.replace("da".to_string());
+            }
+            _ => unreachable!(),
+        }
         match dsn.protocol.as_deref() {
             Some("ua") => {
                 opc_type = OpcType::OPCUA;
@@ -306,9 +317,7 @@ impl OPCConfig {
                 collect = CollectConfig {
                     interval,
                     ua: None,
-                    da: Some(DaCollectConfig {
-                        tags: da_nodes_vec,
-                    }),
+                    da: Some(DaCollectConfig { tags: da_nodes_vec }),
                 }
             }
             _ => {
@@ -357,9 +366,13 @@ fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<Str
             if file_data.remove(0).is_err() {
                 log::warn!("file: {} content length < 1", file);
             }
-            
-            node_config.extend(file_data.iter().filter_map(|r| r.as_ref().ok()).map(|s| s.replace(",", "::")));
 
+            node_config.extend(
+                file_data
+                    .iter()
+                    .filter_map(|r| r.as_ref().ok())
+                    .map(|s| s.replace(",", "::")),
+            );
         }
         if node_config.len() == 0 {
             log::warn!("node config is empty");
@@ -424,14 +437,12 @@ pub async fn opc_to_taos(
             // table exists and check normal table or child table
             let desc = res.unwrap();
             let mut field_map = HashMap::new();
-                desc.iter().for_each(|c| {
-                    match c {
-                        ColumnMeta::Column(d) => {
-                            field_map.insert(d.field.clone(), d.ty.to_string());
-                        },
-                        _ => (),
-                    }
-                });
+            desc.iter().for_each(|c| match c {
+                ColumnMeta::Column(d) => {
+                    field_map.insert(d.field.clone(), d.ty.to_string());
+                }
+                _ => (),
+            });
             // insert ts column
             log::info!("table {table_name} use `{}` as ts column", desc[0].field);
             ts_cloumn_name_map.insert(table_name.clone(), desc[0].field.clone());
@@ -443,32 +454,45 @@ pub async fn opc_to_taos(
                         anyhow::bail!("field: {} not found in table: {}", field, table_name);
                     }
                     if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase()) {
-                        anyhow::bail!("field: {} type: {} not match in child table: {} which type is {}", field, field_type,table_name, field_get.unwrap());
+                        anyhow::bail!(
+                            "field: {} type: {} not match in child table: {} which type is {}",
+                            field,
+                            field_type,
+                            table_name,
+                            field_get.unwrap()
+                        );
                     }
-                    
                 }
             } else {
                 // ordinary table.
                 let mut columns_to_add = HashMap::new();
                 for (field, field_type) in field_info {
-                    let field_get = field_map.get(field); 
+                    let field_get = field_map.get(field);
                     if field_get.is_none() {
                         // column not exists and alter table
                         columns_to_add.insert(field, field_type);
-                    } else if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase()) {
-                        anyhow::bail!("field: {} type: {} not match in normal table: {} which type is {} ", field, field_type, table_name, field_get.unwrap());
+                    } else if !check_field_type(field_get.unwrap(), field_type.to_ascii_lowercase())
+                    {
+                        anyhow::bail!(
+                            "field: {} type: {} not match in normal table: {} which type is {} ",
+                            field,
+                            field_type,
+                            table_name,
+                            field_get.unwrap()
+                        );
                     }
                 }
                 if columns_to_add.len() > 0 {
                     for (field_name, field_type) in columns_to_add {
-                        let alter_sql = format!("ALTER TABLE {table_name} ADD COLUMN `{field_name}` {field_type}");
+                        let alter_sql = format!(
+                            "ALTER TABLE {table_name} ADD COLUMN `{field_name}` {field_type}"
+                        );
                         log::info!("alter table sql: {}", alter_sql);
                         taos.exec(alter_sql).await?;
                     }
                 }
             }
         }
-        
     }
 
     let toml = toml::to_string(&config)?;
@@ -484,10 +508,9 @@ pub async fn opc_to_taos(
             target_pool_for_ipc,
             config.report.remote,
             Some(OpcTableConfig {
-                    table_info: config.param_mapping.clone(),
-                    ts_cloumn_name: ts_cloumn_name_map.clone(),
-                }
-                ),
+                table_info: config.param_mapping.clone(),
+                ts_cloumn_name: ts_cloumn_name_map.clone(),
+            }),
         )
     });
     // TODO use unix socket on unix-like os
@@ -546,14 +569,19 @@ pub async fn opc_to_taos(
     Ok(())
 }
 
-/// check field type 
-/// return true if matched 
+/// check field type
+/// return true if matched
 /// if type equals return true else false
 /// if type is binary|varchar|nchar check whether type configed contains those characters
 fn check_field_type(field_type_config: &String, field_type: String) -> bool {
     let field_type_config = field_type_config.to_ascii_lowercase();
-    if field_type.contains("binary") || field_type.contains("varchar") || field_type.contains("nchar") {
-        field_type_config.contains("binary") || field_type_config.contains("varchar") || field_type_config.contains("nchar")
+    if field_type.contains("binary")
+        || field_type.contains("varchar")
+        || field_type.contains("nchar")
+    {
+        field_type_config.contains("binary")
+            || field_type_config.contains("varchar")
+            || field_type_config.contains("nchar")
     } else if field_type_config == field_type {
         true
     } else {
@@ -678,7 +706,8 @@ async fn test_opc_config_to_toml() -> anyhow::Result<()> {
         table_info: HashMap::new(),
     };
     let toml = toml::to_string(&config)?;
-    assert_eq!(r#"opc_type = "opcua"
+    assert_eq!(
+        r#"opc_type = "opcua"
 
 [connect.ua]
 endpoint = "endpoint.123"
@@ -707,17 +736,33 @@ value_type = "VARCHAR"
 remote = "remote.remote"
 concurrent = 10
 batch_timeout = 100
-"#, toml);
+"#,
+        toml
+    );
     Ok(())
 }
 
 #[tokio::test]
-async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> { 
+async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
     let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
     let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?;
-    assert_eq!(vec_string, vec![String::from("ns=3;i=1004::ntb1::c0::double"), String::from("ns=3;i=1008::ntb1::c1::double")]);
+    assert_eq!(
+        vec_string,
+        vec![
+            String::from("ns=3;i=1004::ntb1::c0::double"),
+            String::from("ns=3;i=1008::ntb1::c1::double")
+        ]
+    );
     let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
     let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?;
-    assert_eq!(vec_string, vec![String::from("ns=3;i=1004::ntb1::c0::double"), String::from("ns=3;i=1008::ntb1::c1::double"), String::from("ns=2;i=2::ntb2::c1::double"), String::from("ns=2;i=3::ntb3::c2::int")]);
+    assert_eq!(
+        vec_string,
+        vec![
+            String::from("ns=3;i=1004::ntb1::c0::double"),
+            String::from("ns=3;i=1008::ntb1::c1::double"),
+            String::from("ns=2;i=2::ntb2::c1::double"),
+            String::from("ns=2;i=3::ntb3::c2::int")
+        ]
+    );
     Ok(())
 }
