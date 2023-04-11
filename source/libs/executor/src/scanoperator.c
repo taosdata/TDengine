@@ -484,7 +484,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   int32_t code = 0;
 
   // backup the rows
-  int32_t backupRows = pBlock->info.rows;
+  int32_t backupRows = (rows == 1) ? rows : pBlock->info.rows;
   pBlock->info.rows = rows;
 
   bool            freeReader = false;
