@@ -586,12 +586,14 @@ function install_data() {
 }
 
 function install_connector() {
-  [ -d "${script_dir}/connector/" ] && ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
+  if [ -d "${script_dir}/connector/" ]; then
+    ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"
+  fi
 }
 
 function install_examples() {
   if [ -d ${script_dir}/examples ]; then
-    ${csudo}cp -rf ${script_dir}/examples/* ${install_main_dir}/examples
+    ${csudo}cp -rf ${script_dir}/examples/* ${install_main_dir}/examples || echo "failed to copy examples"
   fi
 }
 
