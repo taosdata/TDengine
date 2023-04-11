@@ -23,3 +23,10 @@ int32_t tsdbFileSetToJson(SJson *pJson, const struct SFileSet *pSet) {
 _exit:
   return code;
 }
+
+int32_t tsdbEditFileSet(struct SFileSet *pFileSet, const struct SFileOp *pOp) {
+  int32_t code = 0;
+  ASSERTS(0, "TODO: Not implemented yet");
+  // TODO
+  return code;
+}

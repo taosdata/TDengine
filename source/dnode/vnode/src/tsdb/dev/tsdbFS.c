@@ -345,25 +345,33 @@ static int32_t close_file_system(struct STFileSystem *pFS) {
   return 0;
 }
 
-static int32_t read_fs_from_file(struct STFileSystem *pFS, const char *fname) {
+static int32_t apply_edit(struct STFileSystem *pFS) {
+  int32_t code = 0;
   ASSERTS(0, "TODO: Not implemented yet");
-  return 0;
+  return code;
 }
 
 static int32_t edit_fs(struct STFileSystem *pFS, const SArray *aFileOp) {
+  int32_t code = 0;
+  int32_t lino;
+
   ASSERTS(0, "TODO: Not implemented yet");
+
+  taosArrayClearEx(pFS->nState, NULL /* TODO */);
+
+  // TODO: copy current state to new state
 
   for (int32_t iop = 0; iop < taosArrayGetSize(aFileOp); iop++) {
     struct SFileOp *pOp = taosArrayGet(aFileOp, iop);
-    // if (pOp->op == TSDB_FS_OP_ADD) {
-    //   ASSERTS(0, "TODO: Not implemented yet");
-    // } else if (pOp->op == TSDB_FS_OP_DEL) {
-    //   ASSERTS(0, "TODO: Not implemented yet");
-    // } else {
-    //   ASSERTS(0, "TODO: Not implemented yet");
-    // }
+
+    struct SFileSet *pSet = taosArraySearch(pFS->nState, NULL /* TODO */, NULL /* TODO */, TD_EQ);
+    TSDB_CHECK_CODE(                        //
+        code = tsdbEditFileSet(pSet, pOp),  //
+        lino,                               //
+        _exit);
   }
 
+_exit:
   return 0;
 }
 

@@ -53,6 +53,7 @@ struct SFileSet {
 };
 
 int32_t tsdbFileSetToJson(SJson *pJson, const struct SFileSet *pSet);
+int32_t tsdbEditFileSet(struct SFileSet *pFileSet, const struct SFileOp *pOp);
 
 #ifdef __cplusplus
 }

@@ -24,7 +24,8 @@ extern "C" {
 
 /* Exposed Handle */
 struct STFileSystem {
-  STsdb  *pTsdb;
+  STsdb *pTsdb;
+  // int32_t state; // TODO
   tsem_t  canEdit;
   int64_t nextEditId;
   SArray *aFileSet;  // SArray<struct SFileSet>
