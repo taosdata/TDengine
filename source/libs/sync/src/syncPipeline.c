@@ -1147,7 +1147,7 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
     }
     goto _err;
   }
-  *pBarrier = syncLogIsReplicationBarrier(pEntry);
+  *pBarrier = syncLogReplBarrier(pEntry);
 
   prevLogTerm = syncLogReplGetPrevLogTerm(pMgr, pNode, index);
   if (prevLogTerm < 0) {
