@@ -5,7 +5,7 @@ use taos::*;
 
 use taosx_core::{
     legacy_to_taos, local_to_taos, opc_to_taos, pi_to_taos, query_to_csv, query_to_parquet,
-    tmq_to_local, tmq_to_td, utils::port_pool::PortPool, Action, QueryOpts,
+    tmq_to_local, tmq_to_td, utils::port_pool::PortPool, Action,
 };
 
 use clap::Parser;

@@ -1,29 +1,21 @@
-use std::collections::BTreeMap;
-use std::str::FromStr;
-use std::sync::Arc;
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
-
 use actix_web::{
     delete, get, patch, post,
     web::{Data, Path, Query},
     HttpResponse, Responder,
 };
-use anyhow::Context;
-use chrono::{DateTime, Utc};
+
+
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
-use taos::{AsyncQueryable, Code, Dsn, TaosBuilder};
-use taosx_core::TaskOpts;
-use tokio::{runtime::Runtime, sync::RwLock};
-use tokio_cron_scheduler::{Job, JobScheduler, JobToRun};
-use tokio_util::sync::CancellationToken;
+
+use taos::{Code};
+
+
+use tokio_cron_scheduler::{Job};
+
 use utoipa::*;
 
-use crate::serve::{NewTask, TaskController, TaskDecorator, TaskDetail, TaskFilter, UpdateTask};
+use crate::serve::{NewTask, TaskController, TaskDecorator, TaskFilter, UpdateTask};
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -166,7 +158,7 @@ pub(super) async fn create_task(
                 }) {
                     Ok(job) => {
                         log::info!("add job for task: {task:?}");
-                        if let Err(err) = sched.add(job).await {
+                        if let Err(_err) = sched.add(job).await {
                             return HttpResponse::InternalServerError().json(Failed {
                                 code: Code::Failed,
                                 message: format!(

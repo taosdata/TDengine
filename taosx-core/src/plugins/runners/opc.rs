@@ -1,9 +1,4 @@
-use std::{
-    collections::HashMap,
-    io::prelude::*,
-    num::ParseIntError,
-    str::FromStr,
-};
+use std::{collections::HashMap, io::prelude::*, num::ParseIntError, str::FromStr};
 
 use itertools::Itertools;
 use taos::{taos_query::helpers::ColumnMeta, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
@@ -47,8 +42,6 @@ enum OpcError {
     UserPassRequired(Dsn),
     #[error("config file not found: {0}")]
     FileNotFound(String),
-    #[error("table cloumn not match in {0}")]
-    CloumnNotMatch(String),
     #[error("config file content is empty in {0}")]
     EmptyConfig(String),
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
@@ -414,7 +407,10 @@ pub async fn opc_to_taos(
     port_pool: &PortPool,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: OPC");
-    let target_pool = TaosBuilder::from_dsn(to)?.pool()?;
+    if to.subject.is_none() {
+        Err(OpcError::DatabaseIsRequired(to.clone()))?;
+    }
+    let target_pool = TaosBuilder::from_dsn(&to)?.pool()?;
     use taos::AsyncQueryable;
     let taos = target_pool.get().await?;
     let target_pool_for_ipc = target_pool.clone();
@@ -555,9 +551,7 @@ pub async fn opc_to_taos(
         .stderr(std::process::Stdio::inherit())
         .spawn()?;
     let child_id = child.id();
-    let mut v = tokio::task::spawn_blocking(move || {
-        child.wait_with_output()
-    });
+    let mut v = tokio::task::spawn_blocking(move || child.wait_with_output());
 
     tokio::select! {
         output = &mut v => {

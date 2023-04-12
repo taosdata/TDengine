@@ -1,19 +1,8 @@
-use std::{
-    any::{Any, TypeId},
-    collections::{BTreeMap, HashMap, VecDeque},
-    fmt::Display,
-    str::FromStr,
-    sync::Arc,
-};
+use std::{any::Any, collections::HashMap, fmt::Display, str::FromStr, sync::Arc};
 
 use arrow::{
-    array::{
-        make_builder, Array, ArrayBuilder, ArrayRef, BinaryBuilder, BooleanArray, BooleanBuilder,
-        ListArray, ListBuilder, StringBuilder, StructArray, StructBuilder,
-        TimestampMicrosecondBuilder, TimestampMillisecondBuilder, TimestampNanosecondBuilder,
-        TimestampSecondBuilder, UInt8Array,
-    },
-    datatypes::{ByteArrayType, DataType, Field, Schema, TimeUnit},
+    array::{Array, ArrayBuilder, ArrayRef, StructBuilder, UInt8Array},
+    datatypes::{DataType, Field, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
 };
@@ -30,7 +19,7 @@ use crate::{
 
 use self::attrs_builder::AttrsBuilder;
 
-use super::components::{ListOfStructBuilder, StructArrayBuilder};
+use super::components::ListOfStructBuilder;
 
 mod attrs_builder;
 
@@ -107,8 +96,8 @@ impl IpcDataType {
             IpcDataType::Float32 => Ty::Float,
             IpcDataType::Float64 => Ty::Double,
             IpcDataType::Timestamp => Ty::Timestamp,
-            IpcDataType::VarChar(len) => Ty::VarChar,
-            IpcDataType::NChar(len) => Ty::NChar,
+            IpcDataType::VarChar(_len) => Ty::VarChar,
+            IpcDataType::NChar(_len) => Ty::NChar,
             IpcDataType::Json => Ty::Json,
         }
     }
@@ -456,7 +445,7 @@ pub struct ChildTablesBuilder<'a> {
 }
 
 impl<'a> ChildTablesBuilder<'a> {
-    pub fn create_table_with_tags(&mut self, name: &str, tags: &[Value]) -> &mut Self {
+    pub fn create_table_with_tags(&mut self, _name: &str, _tags: &[Value]) -> &mut Self {
         self
     }
 
@@ -548,13 +537,13 @@ impl<'a> LushInsertBuilder<'a> {
     /// as normal table or last `name` field for child table.
     pub fn table(&mut self, table: impl Into<String>) -> &mut Self {
         let table: String = table.into();
-        self.attrs_builder.append(&table);
+        let _ = self.attrs_builder.append(&table);
         self.table.replace(table);
         self
     }
 
     /// Set anther stable if it could use consist schema with which initialized in `init` metadata.
-    pub fn using(&mut self, stable: impl Into<String>) -> &mut Self {
+    pub fn using(&mut self, _stable: impl Into<String>) -> &mut Self {
         // debug_assert!(self.table.is_some());
         // let stable = stable.into();
         // self.using.replace(stable.into());
@@ -565,7 +554,7 @@ impl<'a> LushInsertBuilder<'a> {
     /// Call it multiple times in order to add each tags declared in the `init` metadata.
     pub fn with_tag(&mut self, tag_value: &dyn Any) -> &mut Self {
         debug_assert!(self.table.is_some());
-        self.attrs_builder.append(tag_value);
+        let _ = self.attrs_builder.append(tag_value);
         self
     }
 

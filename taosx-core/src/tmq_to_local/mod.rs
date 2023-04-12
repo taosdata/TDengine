@@ -34,19 +34,6 @@ impl Drop for ZFileMan {
     }
 }
 
-fn block_in_place<F>(f: F) -> F::Output
-where
-    F: std::future::Future,
-{
-    use tokio::runtime::Handle;
-    use tokio::task;
-
-    match Handle::try_current() {
-        Ok(handle) => task::block_in_place(move || handle.block_on(f)),
-        Err(_) => unreachable!(),
-    }
-}
-
 impl ZFileMan {
     pub async fn shutdown(&self) -> Result<()> {
         for entry in self.writers.iter_mut() {

@@ -164,7 +164,7 @@ pub(super) async fn start_all_with_schedule(controller: Arc<TaskController>) -> 
 pub(super) struct TaskControllerRef(Arc<TaskController>);
 
 impl TaskControllerRef {
-    pub async fn start_all_with_schedule(&self) -> anyhow::Result<()> {
+    pub async fn _start_all_with_schedule(&self) -> anyhow::Result<()> {
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
             "select * from task_with_labels where status not in (?, ?, ?) and `deleted` != TRUE order by created_at desc")
             .bind(Status::Completed)
@@ -1153,7 +1153,7 @@ impl TaskDetail {
         self
     }
 
-    pub fn detail(mut self) -> Self {
+    pub fn _detail(mut self) -> Self {
         let value = &self.task;
         let from_dsn: Dsn = value.from.as_str().parse().unwrap();
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();

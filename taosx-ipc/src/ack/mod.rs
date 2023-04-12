@@ -14,7 +14,7 @@ use arrow::{
 };
 use thiserror::Error;
 
-use crate::prelude::IpcMetadata;
+
 
 pub struct LushAck {
     code: i32,

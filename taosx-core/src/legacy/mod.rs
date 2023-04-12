@@ -5,7 +5,7 @@ use std::{
     path::Path,
     str::FromStr,
     sync::{
-        atomic::{AtomicU16, AtomicU32, AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicU16, AtomicU32, AtomicU64, Ordering},
         Arc,
     },
     time::{Duration, Instant},
@@ -17,7 +17,7 @@ use linked_hash_map::LinkedHashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::*;
-use tokio::sync::{oneshot, Semaphore};
+use tokio::sync::oneshot;
 
 use crate::{legacy::scheduler::Todo, utils::is_available_enterprise_edition, Action};
 
@@ -157,6 +157,7 @@ struct Limit {
 }
 
 impl Limit {
+    #[cfg(test)]
     pub const fn new(limit: (u32, Option<u32>)) -> Self {
         Self {
             limit: limit.0,
@@ -164,15 +165,16 @@ impl Limit {
         }
     }
 
-    pub const fn limit(mut self, limit: u32) -> Self {
-        self.limit = limit;
-        self
-    }
-
-    pub const fn offset(mut self, offset: u32) -> Self {
-        self.offset = Some(offset);
-        self
-    }
+    // #[cfg(test)]
+    // pub const fn limit(mut self, limit: u32) -> Self {
+    //     self.limit = limit;
+    //     self
+    // }
+    // #[cfg(test)]
+    // pub const fn offset(mut self, offset: u32) -> Self {
+    //     self.offset = Some(offset);
+    //     self
+    // }
 
     pub fn is_none(&self) -> bool {
         match (self.limit, self.offset) {
@@ -612,7 +614,7 @@ async fn sync_super_table_schema_with_subs_without_pool(
         for (n, l) in &exists {
             let r = res_to.get(n).unwrap();
 
-            for (tag, l, r) in l
+            for (tag, _l, r) in l
                 .into_iter()
                 .zip(r)
                 .zip(&tag_name_vec)
@@ -764,7 +766,7 @@ async fn sync_super_table_schema_with_subs(
         for (n, l) in &exists {
             let r = res_to.get(n).unwrap();
 
-            for (tag, l, r) in l
+            for (tag, l, _r) in l
                 .into_iter()
                 .zip(r)
                 .zip(&tag_name_vec)
@@ -2274,7 +2276,7 @@ mod tests {
         //     /home/huolinhe/Projects/taosdata/taos-connector-rust/taos-optin/tests/cfg/v2"
         //     .parse()?;
 
-        let opts = QueryOpts {
+        let _ = QueryOpts {
             time_range: TimeRange::new()
                 .start(DateTime::parse_from_rfc3339("2022-12-12T08:00:00Z")?.with_timezone(&Utc)),
             limit: Limit::new((1, Some(1))),

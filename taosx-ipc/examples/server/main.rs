@@ -71,7 +71,7 @@ fn handle_lush_message<R: Read, W: Write>(
     taos: Taos,
     mut ipc_ack_writer: AckWriter<W>,
 ) -> anyhow::Result<()> {
-    let rt = Runtime::new().unwrap();
+    let _rt = Runtime::new().unwrap();
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
         info!("{sql}");
         taos.exec(&sql)?;

@@ -1,6 +1,6 @@
 use std::{
     any::Any,
-    collections::{BTreeMap, HashMap},
+    collections::{HashMap},
     io::Read,
     sync::Arc,
 };
@@ -206,7 +206,7 @@ impl<R: Read> IpcReader<R> {
             .downcast_ref::<BinaryArray>()
             .expect("get table name")
             .value(0);
-        let name = std::str::from_utf8(name).unwrap().to_string();
+        let _name = std::str::from_utf8(name).unwrap().to_string();
 
         let using = self.metadata.init().map(|init| init.name()).unwrap();
 

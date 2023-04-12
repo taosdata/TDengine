@@ -230,7 +230,7 @@ impl DataSourceDefinition {
         match self.r#type {
             DataSourceType::Uri => match self.options.as_mut() {
                 Some(options) => match options {
-                    DataSourceOptions::Path { path } => {
+                    DataSourceOptions::Path { path: _ } => {
                         panic!("mixed path and uri type of DSN");
                     }
                     DataSourceOptions::Uri {
@@ -381,7 +381,7 @@ fn test() {
 fn opc() {
     use std::str::FromStr;
     let json = include_str!("opc.yaml");
-    let mut def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
     let json2 = serde_yaml::to_string(&def).unwrap();
     dbg!(&json2);
     let toml = toml::to_string_pretty(&def).unwrap();
@@ -398,7 +398,7 @@ fn opc() {
 fn test_values() {
     use std::str::FromStr;
     let dsn = "tmq+ws://root:taosdata@localhost:6041/database?token=abc";
-    let dsn = Dsn::from_str(&dsn).unwrap();
+    let _dsn = Dsn::from_str(&dsn).unwrap();
 }
 
 const fn bool_is_false(v: &bool) -> bool {

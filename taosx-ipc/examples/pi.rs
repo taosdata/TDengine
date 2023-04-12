@@ -209,7 +209,6 @@ async fn process_tcp_stream(id: usize) -> Result<()> {
         std::thread::sleep(Duration::from_secs(1));
         ms += 1;
     }
-    Ok(())
 }
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 20)]
@@ -222,5 +221,4 @@ async fn main() -> Result<()> {
         h.await?.unwrap();
     }
     panic!("expect run forever");
-    Ok(())
 }

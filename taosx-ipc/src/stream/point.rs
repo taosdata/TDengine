@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{sync::Arc};
 
 use arrow::{
     array::{Array, ListArray, StructArray},
