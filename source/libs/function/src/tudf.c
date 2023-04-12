@@ -1400,8 +1400,9 @@ void udfcUvHandleError(SClientUvConn *conn) {
     QUEUE_REMOVE(&task->procTaskQueue);
     uv_sem_post(&task->taskSem);
   }
-
-  uv_close((uv_handle_t *)conn->pipe, onUdfcPipeClose);
+  if (!uv_is_closing((uv_handle_t *)conn->pipe)) {
+    uv_close((uv_handle_t *)conn->pipe, onUdfcPipeClose);
+  }
 }
 
 void onUdfcPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
@@ -1553,7 +1554,9 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
       } else {
         SClientUvConn *conn = pipe->data;
         QUEUE_INSERT_TAIL(&conn->taskQueue, &uvTask->connTaskQueue);
-        uv_close((uv_handle_t *)uvTask->pipe, onUdfcPipeClose);
+        if (!uv_is_closing((uv_handle_t *)uvTask->pipe)) {
+          uv_close((uv_handle_t *)uvTask->pipe, onUdfcPipeClose);
+        }
         code = 0;
       }
       break;

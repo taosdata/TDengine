@@ -268,7 +268,7 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
   ctx->snapVersion = snapVersion;
   ctx->suid = suid;
   ctx->subType = subType;
-  ctx->queryMetaOrData = withMeta;
+  ctx->queryMeta = withMeta;
   ctx->withMeta = withMeta;
   ctx->idVersion = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (ctx->idVersion == NULL) {
@@ -475,7 +475,7 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void** pBuf, int32_t* contLen, in
     if (ctx->index >= taosArrayGetSize(ctx->idList)) {
       metaDebug("tmqsnap get meta end");
       ctx->index = 0;
-      ctx->queryMetaOrData = false;  // change to get data
+      ctx->queryMeta = false;  // change to get data
       return 0;
     }
 
