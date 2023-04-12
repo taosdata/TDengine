@@ -122,6 +122,18 @@ ELSE ()
     SET(TD_BULID_TAOSX FALSE)
 ENDIF ()
 
+IF ("${CUS_PROMPT}" STREQUAL "")
+    MESSAGE("CUS_PROMPT EMPTY set: ${CUS_PROMPT}")
+    SET(TAOSX_NAME "taosx")
+ELSE()
+    MESSAGE("CUS_PROMPT:${CUS_PROMPT}")
+    SET(TAOSX_NAME "${CUS_PROMPT}x")
+ENDIF()
+
+
+SET(OUTPUT_SERVICE_DIR ${CMAKE_BINARY_DIR}/build/share/srv)
+FILE(MAKE_DIRECTORY ${OUTPUT_SERVICE_DIR})
+
 IF(TD_BULID_TAOSX)
     include(ExternalProject)
     set(ENV{TAOS_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib)
@@ -146,9 +158,10 @@ IF(TD_BULID_TAOSX)
                 COMMAND git stash && git checkout main && git pull
                 BUILD_COMMAND
                 COMMAND git stash && git checkout main && git pull
-                COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} cargo build --release
+                COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build --release
                 INSTALL_COMMAND
                 COMMAND cmake -E copy target/release/taosx ${CMAKE_BINARY_DIR}/build/bin
+                COMMAND cmake -E copy target/${TAOSX_NAME}.service ${OUTPUT_SERVICE_DIR}
             )
         ELSE()
             ExternalProject_Add(taosx
@@ -161,9 +174,10 @@ IF(TD_BULID_TAOSX)
                COMMAND git stash && git checkout main && git pull
                BUILD_COMMAND
                COMMAND git stash && git checkout main && git pull
-               COMMAND ${TAOSX_BULID_COMMAND}
+               COMMAND CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} ${TAOSX_BULID_COMMAND}
                INSTALL_COMMAND
                COMMAND cmake -E copy ${TAOSX_BINARY} ${CMAKE_BINARY_DIR}/build/bin
+               COMMAND cmake -E copy target/${TAOSX_NAME}.service ${OUTPUT_SERVICE_DIR}
                )
         ENDIF()
     ELSEIF (TD_WINDOWS)
@@ -177,7 +191,7 @@ IF(TD_BULID_TAOSX)
             COMMAND git stash && git checkout main && git pull
             BUILD_COMMAND
             COMMAND git stash && git checkout main && git pull
-            COMMAND set LIBPATH=$ENV{LIBRARY_PATH} && cargo build --release
+            COMMAND set LIBPATH=$ENV{LIBRARY_PATH} && set LIB=$ENV{LIBRARY_PATH} && set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && cargo build --release
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taosx.exe ${CMAKE_BINARY_DIR}/build/bin
         )
@@ -205,24 +219,9 @@ IF(TD_BULID_EXPLORER)
     set(ENV{TAOS_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib)
     set(ENV{LD_LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LD_LIBRARY_PATH})
     set(ENV{LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LIBRARY_PATH})
-    IF (TD_LINUX)
-        ExternalProject_Add(explorer
-            PREFIX              explorer
-            SOURCE_DIR          ${CMAKE_CURRENT_SOURCE_DIR}/explorer
-            BUILD_ALWAYS        off
-            BUILD_IN_SOURCE     1
-            CONFIGURE_COMMAND
-            COMMAND git checkout main
-            COMMAND git pull || true
-            BUILD_COMMAND
-            COMMAND git checkout main
-            COMMAND git pull || true
-            COMMAND yarn install && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} npm run build && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build --release
-            COMMAND git checkout .
-            INSTALL_COMMAND
-            COMMAND cmake -E copy target/release/taos-explorer ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer
-        )
-    ELSEIF (TD_WINDOWS)
+    set(EXPLORER_ETC_PATH ${CMAKE_BINARY_DIR}/build/share/etc)
+    file(MAKE_DIRECTORY ${EXPLORER_ETC_PATH})
+    IF (TD_WINDOWS)
         ExternalProject_Add(explorer
             PREFIX              explorer
             SOURCE_DIR          ${CMAKE_CURRENT_SOURCE_DIR}/explorer
@@ -233,11 +232,35 @@ IF(TD_BULID_EXPLORER)
             COMMAND git pull || true
             # COMMAND cargo update
             BUILD_COMMAND
+            COMMAND git checkout main
             COMMAND git pull || true
-            COMMAND set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && yarn install && npm run build && cargo build --release
+            COMMAND yarn --version || npm install -g yarn
+            COMMAND set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && yarn && yarn build && cargo build --release
             COMMAND git checkout .
             INSTALL_COMMAND
             COMMAND cmake -E copy target/release/taos-explorer.exe ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer.exe
+            COMMAND cmake -E copy server/examples/explorer.toml ${EXPLORER_ETC_PATH}/explorer.toml
+            COMMAND cmake -E copy target/${EXPLORER_PREFIX}-explorer.service ${OUTPUT_SERVICE_DIR}
+        )
+    ELSE()
+        ExternalProject_Add(explorer
+            PREFIX              explorer
+            SOURCE_DIR          ${CMAKE_CURRENT_SOURCE_DIR}/explorer
+            BUILD_ALWAYS        off
+            BUILD_IN_SOURCE     1
+            CONFIGURE_COMMAND
+            COMMAND git checkout main
+            COMMAND git pull || true
+            BUILD_COMMAND
+            COMMAND git checkout main
+            COMMAND git pull || true
+            COMMAND yarn --version || npm install -g yarn
+            COMMAND yarn && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} yarn build && CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build --release
+            COMMAND git checkout .
+            INSTALL_COMMAND
+            COMMAND cmake -E copy target/release/taos-explorer ${CMAKE_BINARY_DIR}/build/bin/${EXPLORER_PREFIX}-explorer
+            COMMAND cmake -E copy server/examples/explorer.toml ${EXPLORER_ETC_PATH}/explorer.toml
+            COMMAND cmake -E copy target/${EXPLORER_PREFIX}-explorer.service ${OUTPUT_SERVICE_DIR}
         )
     ENDIF ()
 ENDIF ()

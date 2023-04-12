@@ -10,7 +10,7 @@ verType=$4
 cpuType=$5
 grantValue=$6
 cusName=$7
-cusPrompt=$7
+cusPrompt=$8
 cusEmail=$9
 
 topDir=$scriptDir/../..         # TDinternal

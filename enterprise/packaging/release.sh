@@ -139,7 +139,7 @@ csudo=""
 function is_valid_version() {
   [ -z $1 ] && return 1 || :
 
-  rx='^([0-9]+\.){3}(\*|[0-9]+)$'
+  rx='^([0-9]+\.){3,4}(\*|[0-9]+)$'
   if [[ $1 =~ $rx ]]; then
     return 0
   fi

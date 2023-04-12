@@ -115,7 +115,7 @@ if [ "$verMode" == "all" ];then
 elif [ "$verMode" == "edge" ];then
   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
 elif [ "$verMode" == "cluster" ];then
-  echo  "bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $cusName $cusPrompt $cusEmail $grantValue"
+  echo  "bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $cusName $cusPrompt $cusEmail"
   bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $cusName $cusPrompt $cusEmail
 elif [ "$verMode" == "cloud" ];then
   bash generate_cloud.sh $version $versionComp $branchName $verType $cpuType
@@ -130,4 +130,10 @@ if [ "$dockerMode" == "build" ] || [ "$dockerMode" == "push" ];then
   else
     bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode
   fi
+fi
+
+if [[ ! -z "${cusName}" || ! -z "${cusPrompt}" || ! -z "${cusEmail}" ]];then
+    echo "custom name: ${cusName}, custom prompt: ${cusPrompt}, custom email: ${cusEmail}"
+    echo "communityDir: ${communityDir}, enterpriseDir: ${enterpriseDir}"
+    python3 ./repack-release.py -n ${cusName} -p ${cusPrompt} -e ${cusEmail} -d ${communityDir} -v ${version}
 fi

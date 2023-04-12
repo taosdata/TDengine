@@ -137,7 +137,7 @@ def pre_test(){
         '''
     } else {
         sh '''
-            echo "unmatched reposiotry ${CHANGE_URL}"
+            echo "unmatched repository ${CHANGE_URL}"
         '''
     }
     sh '''
@@ -255,7 +255,7 @@ def pre_test_win(){
             '''
         } else {
             bat '''
-                echo "unmatched reposiotry %CHANGE_URL%"
+                echo "unmatched repository %CHANGE_URL%"
             '''
         }
     }
@@ -350,6 +350,8 @@ pipeline {
         WK = '/var/lib/jenkins/workspace/TDinternal'
         WKC = '/var/lib/jenkins/workspace/TDinternal/community'
         WKPY = '/var/lib/jenkins/workspace/taos-connector-python'
+        RES_WK = '/var/lib/jenkins/workspace/release_test'
+        BRANCH = "${env.CHANGE_BRANCH}"
     }
     stages {
         stage('check') {
@@ -482,6 +484,250 @@ pipeline {
                 }
             }
         }
+        stage('generate package') {
+            when {
+                allOf {
+                    expression { env.CHANGE_BRANCH =~ /build\// }
+                }
+            }
+            parallel {
+                    stage('Ubuntu18.04 x64') {
+                        agent { label 'linux_x64' }
+
+                        steps {
+                            script {
+                            def release_test_ip = sh (
+                                script: 'ip addr|grep 192|grep -v virbr|awk "{print \\\$2}"|sed "s/\\/.*//"',
+                                returnStdout: true
+                            ).trim()
+                            echo "${release_test_ip}"
+                            echo "${RES_WK}/enterprise/packaging/new_ver_release.sh -b 3.0 -c x64 -n 3.9.9.9 -l full  -v edge -V stable -d no"
+                            }
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            echo "The current build number is ${env.BUILD_NUMBER}"
+                            echo "Another method is to use \${BUILD_NUMBER}, which is ${BUILD_NUMBER}"
+                            echo "change branch is ${env.CHANGE_BRANCH}"
+                            echo "change target is ${env.CHANGE_TARGET}"
+
+                            echo "git clone -b ${BRANCH} --depth=1 https://github.com/taosdata/TDinternal.git"
+
+                            sh '''
+                            cd ${RES_WK}
+                            pwd
+                            if [ -d TDinternal ]
+                            then
+                                rm -rf TDinternal
+                            fi
+                            git clone -b ${BRANCH} --depth=1 https://github.com/taosdata/TDinternal.git
+
+                            cd ${RES_WK}/TDinternal/enterprise/packaging
+                            echo "execute ./new_ver_release.sh -b 3.0 -c x64 -n 3.9.9.9 -l full  -v edge -V stable -d no"
+                            ./new_ver_release.sh -b 3.0 -c x64 -n 3.9.9.9 -l full  -v edge -V stable -d no
+                            '''
+                            }
+                        }
+                    }
+
+                    stage('Centos7 x64') {
+                        agent { label 'centos_x64' }
+                        steps {
+                            script {
+                            def release_test_ip = sh (
+                                script: 'ip addr|grep 192|grep -v virbr|awk "{print \\\$2}"|sed "s/\\/.*//"',
+                                returnStdout: true
+                            ).trim()
+                            echo "${release_test_ip}"
+                            echo "${RES_WK}/enterprise/packaging/new_ver_release.sh -b 3.0 -c x64 -n 3.9.9.9 -l full  -v all -V stable -d no"
+                            }
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            echo "The current build number is ${env.BUILD_NUMBER}"
+                            echo "change branch is ${env.CHANGE_BRANCH}"
+                            echo "change target is ${env.CHANGE_TARGET}"
+
+                            echo "git clone -b ${BRANCH} --depth=1 https://github.com/taosdata/TDinternal.git"
+
+                            sh '''
+                            cd ${RES_WK}
+                            pwd
+                            if [ -d TDinternal ]
+                            then
+                                rm -rf TDinternal
+                            fi
+                            git clone -b ${BRANCH} --depth=1 https://github.com/taosdata/TDinternal.git
+
+                            cd ${RES_WK}/TDinternal/enterprise/packaging
+                            echo "execute ./new_ver_release.sh -b 3.0 -c x64 -n 3.9.9.9 -l full  -v all -V stable -d no"
+                            ./new_ver_release.sh -b 3.0 -c x64 -n 3.9.9.9 -l full  -v all -V stable -d no
+                            '''
+                            }
+                        }
+                    }
+
+                    stage('Linux arm64') {
+                        agent { label 'huawei01_arm64' }
+                        steps {
+                            script {
+                            def release_test_ip = sh (
+                                script: 'ip addr|grep 192|grep -v virbr|awk "{print \\\$2}"|sed "s/\\/.*//"',
+                                returnStdout: true
+                            ).trim()
+                            echo "${release_test_ip}"
+                            echo "${RES_WK}/enterprise/packaging/new_ver_release.sh -b 3.0 -c arm64 -n 3.9.9.9 -l full  -v all -V stable -d no"
+                            }
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            echo "The current build number is ${env.BUILD_NUMBER}"
+                            echo "Another method is to use \${BUILD_NUMBER}, which is ${BUILD_NUMBER}"
+                            echo "change branch is ${env.CHANGE_BRANCH}"
+                            echo "change target is ${env.CHANGE_TARGET}"
+
+                            echo "git clone -b ${BRANCH} --depth=1 https://github.com/taosdata/TDinternal.git"
+
+                            sh '''
+                            cd ${RES_WK}
+                            pwd
+                            if [ -d TDinternal ]
+                            then
+                                rm -rf TDinternal
+                            fi
+                            git clone -b ${BRANCH} --depth=1 https://github.com/taosdata/TDinternal.git
+
+                            cd ${RES_WK}/TDinternal/enterprise/packaging
+                            echo "execute ./new_ver_release.sh -b 3.0 -c arm64 -n 3.9.9.9 -l full  -v all -V stable -d no"
+                            ./new_ver_release.sh -b 3.0 -c arm64 -n 3.9.9.9 -l full  -v all -V stable -d no
+                            '''
+                            }
+                        }
+                    }
+
+                    stage('Mips x64') {
+                        agent { label 'mips64' }
+                        steps {
+                            script {
+                            def release_test_ip = sh (
+                                script: 'ip addr|grep 192|grep -v virbr|awk "{print \\\$2}"|sed "s/\\/.*//"',
+                                returnStdout: true
+                            ).trim()
+                            echo "${release_test_ip}"
+                            echo "${RES_WK}/enterprise/packaging/new_ver_release.sh -b -b 3.0 -c mips64 -n 3.9.9.9 -l full  -v edge -V stable -d no"
+                            }
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            echo "The current build number is ${env.BUILD_NUMBER}"
+                            echo "Another method is to use \${BUILD_NUMBER}, which is ${BUILD_NUMBER}"
+                            echo "change branch is ${env.CHANGE_BRANCH}"
+                            echo "change target is ${env.CHANGE_TARGET}"
+
+                            echo "git clone -b ${BRANCH} --depth=1 https://github.com/taosdata/TDinternal.git"
+
+                            sh '''
+                            cd ${RES_WK}
+                            pwd
+                            if [ -d TDinternal ]
+                            then
+                                rm -rf TDinternal
+                            fi
+                            git clone -b ${BRANCH} --depth=1 https://github.com/taosdata/TDinternal.git
+
+                            cd ${RES_WK}/TDinternal/enterprise/packaging
+                            echo "execute ./new_ver_release.sh -b 3.0 -c mips64 -n $3.9.9.9 -l full  -v edge -V stable -d no"
+                            ./new_ver_release.sh -b 3.0 -c mips64 -n 3.9.9.9 -l full  -v edge -V stable -d no
+                            '''
+                            }
+                        }
+                    }
+            }
+        }
+        stage('test release package') {
+            when {
+                allOf {
+                    expression { env.CHANGE_BRANCH =~ /build\// }
+                }
+            }
+            parallel {
+                    stage('Ubuntu18.04 x64') {
+                        agent { label 'linux_x64' }
+
+                        steps {
+                            script {
+                                def release_test_ip = sh (
+                                script: 'ip addr|grep 192|grep -v virbr|awk "{print \\\$2}"|sed "s/\\/.*//"',
+                                returnStdout: true
+                            ).trim()
+                            echo "${release_test_ip}"
+                            echo "${RES_WK}/enterprise/packaging/check_release_package.sh 3.9.9.9 edge Linux-x64"
+                            }
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                sh '''
+                                cd ${RES_WK}/TDinternal/enterprise/packaging
+                                sh check_release_package.sh 3.9.9.9 edge Linux-x64
+                                '''
+                            }
+                        }
+                    }
+
+                    stage('Centos7 x64') {
+                        agent { label 'centos_x64' }
+
+                        steps {
+                            script {
+                                def release_test_ip = sh (
+                                script: 'ip addr|grep 192|grep -v virbr|awk "{print \\\$2}"|sed "s/\\/.*//"',
+                                returnStdout: true
+                            ).trim()
+                            echo "${release_test_ip}"
+                            echo "${RES_WK}/enterprise/packaging/check_release_package.sh 3.9.9.9 all Linux-x64"
+                            }
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                sh '''
+                                cd ${RES_WK}/TDinternal/enterprise/packaging
+                                sh check_release_package.sh 3.9.9.9 all Linux-x64
+                                '''
+                            }
+                        }
+                    }
+
+                    stage('Linux arm64') {
+                        agent { label 'huawei01_arm64' }
+
+                        steps {
+                            script {
+                                def release_test_ip = sh (
+                                script: 'ip addr|grep 192|grep -v virbr|awk "{print \\\$2}"|sed "s/\\/.*//"',
+                                returnStdout: true
+                            ).trim()
+                            echo "${release_test_ip}"
+                            echo "${RES_WK}/enterprise/packaging/check_release_package.sh 3.9.9.9 all Linux-arm64"
+                            }
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                sh '''
+                                cd ${RES_WK}/TDinternal/enterprise/packaging
+                                sh check_release_package.sh 3.9.9.9 all Linux-arm64
+                                '''
+                            }
+                        }
+                    }
+
+                    stage('Mips x64') {
+                        agent { label 'mips64' }
+                        steps {
+                            script {
+                                def release_test_ip = sh (
+                                script: 'ip addr|grep 192|grep -v virbr|awk "{print \\\$2}"|sed "s/\\/.*//"',
+                                returnStdout: true
+                            ).trim()
+                            echo "${release_test_ip}"
+                            echo "${RES_WK}/enterprise/packaging/check_release_package.sh 3.9.9.9 edge Linux-mips64"
+                            }
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                sh '''
+                                cd ${RES_WK}/TDinternal/enterprise/packaging
+                                sh check_release_package.sh 3.9.9.9 edge Linux-mips64
+                                '''
+                            }
+                        }
+                    }
+            }
+        }
+
     }
     post {  
         success {
