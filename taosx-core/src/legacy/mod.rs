@@ -1700,6 +1700,8 @@ pub async fn legacy_to_taos(
         } else {
             anyhow::bail!("Target database should be set!");
         }
+    } else {
+        to.subject = target_db;
     }
 
     let to_pool = TaosBuilder::from_dsn(&to)?.pool()?;
