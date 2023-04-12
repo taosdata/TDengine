@@ -2140,7 +2140,7 @@ static void rebuildIntervalWindow(SOperatorInfo* pOperator, SArray* pWinArray, S
 bool isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, SStreamState* pState, STimeWindowAggSupp* pTwSup) {
   if (pTwSup->maxTs != INT64_MIN && pWin->ekey < pTwSup->maxTs - pTwSup->deleteMark) {
     SWinKey key = {.ts = pWin->skey, .groupId = groupId};
-    if (streamStateCheck(pState, &key)) {
+    if (!hasIntervalWindow(pState, &key)) {
       return true;
     }
     return false;
