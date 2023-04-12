@@ -19,6 +19,10 @@ typedef struct {
   STsdb *pTsdb;
 } SMerger;
 
+typedef struct {
+  STsdb *pTsdb;
+} STsdbMergeInfo;
+
 int32_t tsdbMergeBegin(STsdb *pTsdb) {
   int32_t code = 0;
   // TODO
