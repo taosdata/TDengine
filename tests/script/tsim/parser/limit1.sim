@@ -55,6 +55,7 @@ print ====== tables created
 run tsim/parser/limit1_tb.sim
 run tsim/parser/limit1_stb.sim
 
+sql flush database $db
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
