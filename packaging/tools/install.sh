@@ -573,16 +573,18 @@ function install_config() {
 }
 
 function install_share_etc() {
+  [ ! -d ${script_dir}/share/etc ] && return
   for c in `ls ${script_dir}/share/etc/`; do
     if [ -e /etc/$c ]; then
       out=/etc/$c.new.`date +%F`
-      ${csudo}cp -f ${script_dir}/share/etc/$c $out
+      ${csudo}cp -f ${script_dir}/share/etc/$c $out ||:
     else
-      ${csudo}cp -f ${script_dir}/share/etc/$c /etc/$c
+      ${csudo}cp -f ${script_dir}/share/etc/$c /etc/$c ||:
     fi
   done
 
-  ${csudo} cp ${script_dir}/share/srv/* ${service_config_dir}
+  [ ! -d ${script_dir}/share/srv ] && return
+  ${csudo} cp ${script_dir}/share/srv/* ${service_config_dir} ||:
 }
 
 function install_log() {
@@ -612,7 +614,7 @@ function install_examples() {
 
 function install_web() {
   if [ -d "${script_dir}/share" ]; then
-    ${csudo}cp -rf ${script_dir}/share/* ${install_main_dir}/share
+    ${csudo}cp -rf ${script_dir}/share/* ${install_main_dir}/share > /dev/null 2>&1 ||:
   fi
 }
 

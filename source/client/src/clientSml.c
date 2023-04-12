@@ -699,7 +699,7 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
     pReq.numOfTags = 1;
     SField field = {0};
     field.type = TSDB_DATA_TYPE_NCHAR;
-    field.bytes = 1;
+    field.bytes = TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
     strcpy(field.name, tsSmlTagName);
     taosArrayPush(pReq.pTags, &field);
   }
