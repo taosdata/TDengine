@@ -29,7 +29,7 @@ export default {
     return {
       protocol:'ua',//只针对opc的ua/da
       tagName: "datasource",
-      currentName: "dbsource",
+      currentName: "",
       sourceList: [],
       uidata: null,
       editId: 0,
@@ -46,9 +46,11 @@ export default {
         await getUIData().then((result) => {
           this.sourceList =  result;
         });
-        console.log(this.sourceList,'this.sourceList');
+        this.currentName='dbsource'
         this.$parent.$parent.$parent.sourceDisabled = false;
       } catch (error) {
+        console.log(error,'报错信息');
+        this.currentName=''
         if (error.response.status == 404) {
           this.$parent.$parent.$parent.sourceDisabled = true;
         }
@@ -129,7 +131,6 @@ export default {
           }
         }
       }
-      console.log(this.sourceList,type,id,this.currentName, "数据源呢");
     },
     hasProp(obj, key) {
       return Object.hasOwnProperty.call(obj, key);

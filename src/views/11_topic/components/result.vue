@@ -1,6 +1,6 @@
 <template>
   <el-form style="text-align: left" size="mini" label-width="140px" label-position="left">
-    <el-form-item :label="$t('function')">
+    <el-form-item :label="$t('topic.function')">
       <el-select class="w100" v-model="result.fn" clearable placeholder="" size="mini">
         <el-option v-for="item in fnList" :key="item.lable" :value="item.label"></el-option>
       </el-select>

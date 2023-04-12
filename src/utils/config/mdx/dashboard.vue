@@ -1,18 +1,38 @@
 <template>
   <div>
-    <p>
-      {{ $t("docs.virtual.grafana.topdesc")
-      }}<a href="https://www.grafana.com/">Grafana</a
-      >{{ $t("docs.virtual.grafana.topdesc1") }}
-    </p>
-    <p>
-      {{ $t("docs.virtual.grafana.topdesc2")
-      }}<a
-        href="https://github.com/taosdata/grafanaplugin/blob/master/README.md"
-        >GitHub</a
-      >.
-    </p>
-    <h2 id="install-grafana">{{ $t("docs.virtual.grafana.step1") }}</h2>
+    <p v-html="$t('docs.dashboard.dashboarddesc')"></p>
+
+    <h2 id="install-grafana">{{ $t("docs.dashboard.step1") }}</h2>
+    <el-tabs value="tab1">
+      <el-tab-pane name="tab1" :label="$t('docs.dashboard.tab1')">
+        <pre
+          v-highlight
+        ><code class="language-bash">sudo apt-get install -y apt-transport-https
+sudo apt-get install -y software-properties-common wget
+wget -q -O - https://packages.grafana.com/gpg.key |\
+  sudo apt-key add -
+echo "deb https://packages.grafana.com/oss/deb stable main" |\
+  sudo tee -a /etc/apt/sources.list.d/grafana.list
+sudo apt-get update
+sudo apt-get install grafana
+</code></pre>
+      </el-tab-pane>
+      <el-tab-pane name="tab2" :label="$t('docs.dashboard.tab1')">
+        <pre v-highlight><code class="language-bash">sudo tee /etc/yum.repos.d/grafana.repo &lt;&lt; EOF
+[grafana]
+name=grafana
+baseurl=https://packages.grafana.com/oss/rpm
+repo_gpgcheck=1
+enabled=1
+gpgcheck=1
+gpgkey=https://packages.grafana.com/gpg.key
+sslverify=1
+sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+EOF
+sudo yum install grafana
+</code></pre>
+      </el-tab-pane>
+    </el-tabs>
     <p>
       {{ $t("docs.virtual.grafana.step1desc")
       }}<a href="https://grafana.com/grafana/download"
@@ -23,7 +43,6 @@
     <p>{{ $t("docs.virtual.grafana.step2desc") }}</p>
     <pre
       v-highlight="
-    
         `export ${replaceTDENGINE}_TOKEN=&quot;${token}&quot;
 export ${replaceTDENGINE}_URL=&quot;${url}&quot;
 `
@@ -75,20 +94,20 @@ export default {
       default: "",
     },
   },
-  data(){
+  data() {
     return {
       isOEM:
         process.env.VUE_APP_CUS_NAME &&
         process.env.VUE_APP_CUS_NAME !== "TDengine",
-    }
+    };
   },
   computed: {
     urlPart() {
-      return navigator.language.includes('en') ?"tdengine": "taosdata";
+      return navigator.language.includes("en") ? "tdengine" : "taosdata";
     },
-    replaceTDENGINE(){
-      return this.isOEM?'':'TDENGINE'
-    }
+    replaceTDENGINE() {
+      return this.isOEM ? "" : "TDENGINE";
+    },
   },
 };
 </script>

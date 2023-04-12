@@ -156,22 +156,22 @@
         >
           <el-input v-model="ruleForm.AFDatabaseName"></el-input>
         </el-form-item>
-        <el-form-item
+        <!-- <el-form-item
           :label="$t('taospi.PIDataPipesInstances')"
           prop="PIDataPipesInstances"
         >
           <el-input-number
             v-model="ruleForm.PIDataPipesInstances"
           ></el-input-number>
-        </el-form-item>
-        <el-form-item
+        </el-form-item> -->
+        <!-- <el-form-item
           :label="$t('taospi.AFDataPipesInstances')"
           prop="AFDataPipesInstances"
         >
           <el-input-number
             v-model="ruleForm.AFDataPipesInstances"
           ></el-input-number>
-        </el-form-item>
+        </el-form-item> -->
         <el-form-item
           :label="$t('taospi.MaxBackfillRangeDays')"
           prop="MaxBackfillRangeDays"
@@ -180,13 +180,13 @@
             v-model="ruleForm.MaxBackfillRangeDays"
           ></el-input-number>
         </el-form-item>
-        <el-form-item :label="$t('taospi.TaosXEnabled')" prop="TaosXEnabled">
+        <!-- <el-form-item :label="$t('taospi.TaosXEnabled')" prop="TaosXEnabled">
           <el-switch
             v-model="ruleForm.TaosXEnabled"
             active-color="#13ce66"
           >
           </el-switch>
-        </el-form-item>
+        </el-form-item> -->
         <el-form-item :label="$t('taospi.MaxWaitLen')" prop="MaxWaitLen">
           <el-input-number
             v-model="ruleForm.MaxWaitLen"
