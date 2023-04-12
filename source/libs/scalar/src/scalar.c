@@ -463,7 +463,6 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
     sclError("calloc %d failed", (int32_t)((*paramNum) * sizeof(SScalarParam)));
     SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
- 
   if (pParamList) {
     SNode  *tnode = NULL;
     int32_t i = 0;
