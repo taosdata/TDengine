@@ -1235,7 +1235,9 @@ export default {
       step5:'添加 TDengine 数据源',
       step6:'导入仪表盘',
       tab1:'基于 Debian 或 Ubuntu 系统',
-      tab2:'基于 CentOS / RHEL 系统'
+      tab2:'基于 CentOS / RHEL 系统',
+      tab2sub:'或者用 RPM 安装',
+      tab3:'安装 TDengine 数据源插件'
     }
   },
   health: {

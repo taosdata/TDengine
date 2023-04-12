@@ -48,12 +48,9 @@ export default {
       active:process.env.VUE_APP_CUS_NAME&&process.env.VUE_APP_CUS_NAME!=='TDengine'?'csv':'datacollection'
     };
   },
-  
-  watch: {},
   methods: {
     clickTab(){
       this.$refs.dbsource.currentName='dbsource'
-      console.log('点击tab',this.active,this.$refs.dbsource.currentName);
     }
   },
 };

@@ -6,11 +6,11 @@
         <el-tab-pane name="user" :label="$t('taosuser.users')">
           <MgUser></MgUser>
         </el-tab-pane>
-        <el-tab-pane name="backup" :label="$t('taosuser.backup')">
-          <AdBackup></AdBackup>
+        <el-tab-pane name="backup" :label="$t('taosuser.backup')" :disabled='taosxDisabled'>
+          <AdBackup ></AdBackup>
         </el-tab-pane>
-        <el-tab-pane name="replication" :label="$t('taosuser.datareplication')">
-          <AdReplication></AdReplication>
+        <el-tab-pane name="replication" :label="$t('taosuser.datareplication')" :disabled='taosxDisabled'>
+          <AdReplication ></AdReplication>
         </el-tab-pane>
         <el-tab-pane name="cluster" :label="$t('route.cluster')">
           <Cluster></Cluster>
@@ -38,7 +38,8 @@ export default {
   data() {
     return {
       message: "这是Admin页面",
+      taosxDisabled:false
     };
-  },
+  }
 };
 </script>
