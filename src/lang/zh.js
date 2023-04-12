@@ -427,7 +427,7 @@ export default {
     alertDetail: "告警详情",
   },
   setting: {
-    profile: "简介",
+    profile: "个人信息",
     invoice: "发票",
     saveChange: "保存修改",
     invoiceCode: "发票编号",
