@@ -4758,6 +4758,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   if (!pInfo->pUpdated) {
     pInfo->pUpdated = taosArrayInit(4, sizeof(SWinKey));
   }
+
   if (!pInfo->pUpdatedMap) {
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
     pInfo->pUpdatedMap = tSimpleHashInit(1024, hashFn);

@@ -1575,7 +1575,7 @@ static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
   uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, 0));
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_NUMERIC_TYPE(paraType) || QUERY_NODE_VALUE == nodeType) {
+  if ((!IS_NUMERIC_TYPE(paraType) && !IS_BOOLEAN_TYPE(paraType))|| QUERY_NODE_VALUE == nodeType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
