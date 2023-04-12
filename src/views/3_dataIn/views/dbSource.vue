@@ -9,6 +9,7 @@
       :tagName="tagName"
       :protocol='protocol'
       :isEditable="isEditable"
+      ref="table"
     ></component>
   </div>
 </template>
@@ -163,6 +164,11 @@ export default {
       });
       return targetObj;
     },
+    reloadTable(){
+      if(this.currentName=='dbsource'&&this.$refs.table){
+        this.$refs.table.refresh()
+      }
+    }
   },
 };
 </script>
