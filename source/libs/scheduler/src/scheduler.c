@@ -67,7 +67,7 @@ int32_t schedulerInit() {
 }
 
 int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
-  qDebug("scheduler %s exec job start", pReq->syncReq ? "SYNC" : "ASYNC");
+  qError("scheduler %s exec job start", pReq->syncReq ? "SYNC" : "ASYNC");
 
   int32_t  code = 0;
   SSchJob *pJob = NULL;
@@ -86,7 +86,7 @@ _return:
 }
 
 int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq) {
-  qDebug("scheduler %s fetch rows start", pReq->syncReq ? "SYNC" : "ASYNC");
+  qError("scheduler %s fetch rows start", pReq->syncReq ? "SYNC" : "ASYNC");
 
   int32_t  code = 0;
   SSchJob *pJob = NULL;

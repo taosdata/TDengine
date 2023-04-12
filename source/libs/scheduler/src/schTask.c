@@ -1064,7 +1064,7 @@ int32_t schLaunchTaskImpl(void *param) {
   pTask->retryTimes++;
   pTask->waitRetry = false;
 
-  SCH_TASK_DLOG("start to launch %s task, execId %d, retry %d",
+  SCH_TASK_ELOG("start to launch %s task, execId %d, retry %d",
                 SCH_IS_LOCAL_EXEC_TASK(pJob, pTask) ? "LOCAL" : "REMOTE", pTask->execId, pTask->retryTimes);
 
   SCH_LOG_TASK_START_TS(pTask);

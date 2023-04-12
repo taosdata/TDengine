@@ -1262,6 +1262,8 @@ int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SC
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
+  ctgError("%s", "catalog start async get all metas");
+
   int32_t  code = 0;
   SCtgJob* pJob = NULL;
   CTG_ERR_JRET(ctgInitJob(pCtg, pConn, &pJob, pReq, fp, param));

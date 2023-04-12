@@ -25,6 +25,7 @@ extern "C" {
 // clang-format off
 #define tscFatal(...)  do { if (cDebugFlag & DEBUG_FATAL) { taosPrintLog("TSC FATAL ", DEBUG_FATAL, cDebugFlag, __VA_ARGS__); }} while(0)
 #define tscError(...)  do { if (cDebugFlag & DEBUG_ERROR) { taosPrintLog("TSC ERROR ", DEBUG_ERROR, cDebugFlag, __VA_ARGS__); }} while(0)
+#define tscErrorL(...) do { if (cDebugFlag & DEBUG_ERROR) { taosPrintLongString("TSC ERROR ", DEBUG_ERROR, cDebugFlag, __VA_ARGS__); }} while(0)
 #define tscWarn(...)   do { if (cDebugFlag & DEBUG_WARN)  { taosPrintLog("TSC WARN ", DEBUG_WARN, cDebugFlag, __VA_ARGS__); }}  while(0)
 #define tscWarnL(...)  do { if (cDebugFlag & DEBUG_WARN)  { taosPrintLongString("TSC WARN ", DEBUG_WARN, cDebugFlag, __VA_ARGS__); }}  while(0)
 #define tscInfo(...)   do { if (cDebugFlag & DEBUG_INFO)  { taosPrintLog("TSC ", DEBUG_INFO, cDebugFlag, __VA_ARGS__); }} while(0)

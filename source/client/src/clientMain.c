@@ -760,7 +760,7 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
 
   int64_t analyseStart = taosGetTimestampUs();
   pRequest->metric.ctgCostUs = analyseStart - pRequest->metric.ctgStart;
-  qDebug("0x%" PRIx64 " start to semantic analysis, reqId:0x%" PRIx64, pRequest->self, pRequest->requestId);
+  qError("0x%" PRIx64 " start to semantic analysis, reqId:0x%" PRIx64, pRequest->self, pRequest->requestId);
 
   if (code == TSDB_CODE_SUCCESS) {
     code = qAnalyseSqlSemantic(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
