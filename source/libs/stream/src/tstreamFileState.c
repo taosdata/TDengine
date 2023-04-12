@@ -313,16 +313,6 @@ SStreamSnapshot* getSnapshot(SStreamFileState* pFileState) {
   return pFileState->usedBuffs;
 }
 
-// void streamFileStateDecode(SStreamFileState* pFileState, void* pBuff, int32_t len) {
-//   pBuff = taosDecodeFixedI64(pBuff, &pFileState->flushMark);
-// }
-
-// void streamFileStateEncode(SStreamFileState* pFileState, void** pVal, int32_t* pLen) {
-//   *pLen = sizeof(TSKEY);
-//   (*pVal) = taosMemoryCalloc(1, *pLen);
-//   void* buff = *pVal;
-//   taosEncodeFixedI64(&buff, pFileState->flushMark);
-// }
 void streamFileStateDecode(TSKEY* key, void* pBuff, int32_t len) { pBuff = taosDecodeFixedI64(pBuff, key); }
 
 void streamFileStateEncode(TSKEY* key, void** pVal, int32_t* pLen) {
@@ -420,7 +410,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
     TSKEY ts;
     sscanf(val, "%" PRId64 "", &ts);
     taosMemoryFree(val);
-    if (ts < pFileState->flushMark) {
+    if (ts < pFileState->deleteMark) {
       forceRemoveCheckpoint(pFileState, i);
       break;
     } else {
