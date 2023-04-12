@@ -144,6 +144,15 @@ extern char *gStmtStatusStr[];
       goto _return;                  \
     }                                \
   } while (0)
+#define STMT_ERRI_JRET(c)            \
+  do {                               \
+    code = c;                        \
+    if (code != TSDB_CODE_SUCCESS) { \
+      terrno = code;                 \
+      goto _return;                  \
+    }                                \
+  } while (0)
+
 
 #define STMT_ELOG(param, ...) qError("stmt:%p " param, pStmt, __VA_ARGS__)
 #define STMT_DLOG(param, ...) qDebug("stmt:%p " param, pStmt, __VA_ARGS__)

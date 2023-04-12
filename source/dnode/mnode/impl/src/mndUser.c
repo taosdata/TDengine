@@ -156,7 +156,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     size_t valueLen = 0;
     valueLen = strlen(stb);
     size += sizeof(int32_t);
-    size += keyLen;
+    size += valueLen;
     stb = taosHashIterate(pUser->writeTbs, stb);
   }
 
@@ -373,7 +373,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       int32_t valuelen = 0;
       SDB_GET_INT32(pRaw, dataPos, &valuelen, _OVER);
       char *value = taosMemoryCalloc(valuelen, sizeof(char));
-      memset(value, 0, keyLen);
+      memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
       taosHashPut(pUser->writeTbs, key, keyLen, value, valuelen);
@@ -462,6 +462,31 @@ SHashObj *mndDupTableHash(SHashObj *pOld) {
   return pNew;
 }
 
+SHashObj *mndDupUseDbHash(SHashObj *pOld) {
+  SHashObj *pNew =
+      taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (pNew == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  int32_t *db = taosHashIterate(pOld, NULL);
+  while (db != NULL) {
+    size_t keyLen = 0;
+    char  *key = taosHashGetKey(db, &keyLen);
+
+    if (taosHashPut(pNew, key, keyLen, db, sizeof(*db)) != 0) {
+      taosHashCancelIterate(pOld, db);
+      taosHashCleanup(pNew);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    db = taosHashIterate(pOld, db);
+  }
+
+  return pNew;
+}
+
 static int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   memcpy(pNew, pUser, sizeof(SUserObj));
   pNew->authVersion++;
@@ -473,7 +498,7 @@ static int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   pNew->readTbs = mndDupTableHash(pUser->readTbs);
   pNew->writeTbs = mndDupTableHash(pUser->writeTbs);
   pNew->topics = mndDupTopicHash(pUser->topics);
-  pNew->useDbs = mndDupDbHash(pUser->useDbs);
+  pNew->useDbs = mndDupUseDbHash(pUser->useDbs);
   taosRUnLockLatch(&pUser->lock);
 
   if (pNew->readDbs == NULL || pNew->writeDbs == NULL || pNew->topics == NULL) {
