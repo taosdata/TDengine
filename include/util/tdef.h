@@ -32,7 +32,7 @@ extern "C" {
 #define TD_VER_MAX UINT64_MAX  // TODO: use the real max version from query handle
 
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[16];
+extern const int32_t TYPE_BYTES[17];
 
 // TODO: replace and remove code below
 #define CHAR_BYTES      sizeof(char)
@@ -53,10 +53,11 @@ extern const int32_t TYPE_BYTES[16];
 #define TSDB_DATA_BIGINT_NULL    0x8000000000000000LL
 #define TSDB_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
 
-#define TSDB_DATA_FLOAT_NULL  0x7FF00000            // it is an NAN
-#define TSDB_DATA_DOUBLE_NULL 0x7FFFFF0000000000LL  // an NAN
-#define TSDB_DATA_NCHAR_NULL  0xFFFFFFFF
-#define TSDB_DATA_BINARY_NULL 0xFF
+#define TSDB_DATA_FLOAT_NULL    0x7FF00000            // it is an NAN
+#define TSDB_DATA_DOUBLE_NULL   0x7FFFFF0000000000LL  // an NAN
+#define TSDB_DATA_NCHAR_NULL    0xFFFFFFFF
+#define TSDB_DATA_BINARY_NULL   0xFF
+#define TSDB_DATA_GEOMETRY_NULL 0xFF
 
 #define TSDB_DATA_UTINYINT_NULL  0xFF
 #define TSDB_DATA_USMALLINT_NULL 0xFFFF
@@ -409,6 +410,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_FIELD_LEN             16384
 #define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN - TSDB_KEYSIZE)  // keep 16384
 #define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN - TSDB_KEYSIZE)  // keep 16384
+#define TSDB_MAX_GEOMETRY_LEN          (TSDB_MAX_FIELD_LEN - TSDB_KEYSIZE)  // keep 16384
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 

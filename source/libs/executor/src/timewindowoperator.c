@@ -335,7 +335,8 @@ void doTimeWindowInterpolation(SArray* pPrevValues, SArray* pDataBlock, TSKEY pr
         pCtx[k].end.key = curTs;
         pCtx[k].end.val = v2;
 
-        if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
+        if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR ||
+            pColInfo->info.type == TSDB_DATA_TYPE_GEOMETRY) {
           if (prevRowIndex == -1) {
             //            pCtx[k].start.ptr = (char*)pRuntimeEnv->prevRow[index];
           } else {

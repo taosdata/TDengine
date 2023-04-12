@@ -17,6 +17,7 @@
 #include "parToken.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "geosWrapper.h"
 
 #define NEXT_TOKEN_WITH_PREV(pSql, token)           \
   do {                                              \
@@ -303,6 +304,26 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
   return TSDB_CODE_SUCCESS;
 }
 
+// need to call geosFreeBuffer(*output) later
+static int parseGeometry(SToken *pToken, unsigned char **output, size_t *size) {
+  int32_t code = TSDB_CODE_FAILED;
+
+  //[ToDo] support to parse WKB as well as WKT
+  if (pToken->type == TK_NK_STRING) {
+    code = initCtxGeomFromText();
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    code = doGeomFromText(pToken->z, output, size);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  return code;
+}
+
 static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, STagVal* val,
                              SMsgBuf* pMsgBuf) {
   int64_t  iv;
@@ -444,7 +465,8 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       break;
     }
 
-    case TSDB_DATA_TYPE_BINARY: {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       // Too long values will raise the invalid sql error message
       if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
@@ -1190,6 +1212,37 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       }
       memcpy(pVal->value.pData, pToken->z, pToken->n);
       pVal->value.nData = pToken->n;
+      break;
+    }
+    case TSDB_DATA_TYPE_GEOMETRY: {
+      int32_t code = TSDB_CODE_FAILED;
+      unsigned char *output = NULL;
+      size_t size = 0;
+
+      code = parseGeometry(pToken, &output, &size);
+      if (code != TSDB_CODE_SUCCESS) {
+        code = buildSyntaxErrMsg(&pCxt->msg, getThreadLocalGeosCtx()->errMsg, pToken->z);
+      }
+      // Too long values will raise the invalid sql error message
+      else if (size > pSchema->bytes) {
+        code = generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
+      else {
+        pVal->value.pData = taosMemoryMalloc(size);
+        if (NULL == pVal->value.pData) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+        }
+        else {
+          memcpy(pVal->value.pData, output, size);
+          pVal->value.nData = size;
+        }
+      }
+
+      geosFreeBuffer(output);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {

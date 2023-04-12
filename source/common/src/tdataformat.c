@@ -1148,7 +1148,8 @@ static void debugPrintTagVal(int8_t type, const void *val, int32_t vlen, const c
   switch (type) {
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       char tmpVal[32] = {0};
       strncpy(tmpVal, val, vlen > 31 ? 31 : vlen);
       printf("%s:%d type:%d vlen:%d, val:\"%s\"\n", tag, ln, (int32_t)type, vlen, tmpVal);

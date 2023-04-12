@@ -1947,7 +1947,8 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
           case TSDB_DATA_TYPE_DOUBLE:
             printf(" %15lf |", *(double*)var);
             break;
-          case TSDB_DATA_TYPE_VARCHAR: {
+          case TSDB_DATA_TYPE_VARCHAR:
+          case TSDB_DATA_TYPE_GEOMETRY: {
             char*   pData = colDataGetVarData(pColInfoData, j);
             int32_t dataSize = TMIN(sizeof(pBuf) - 1, varDataLen(pData));
             memset(pBuf, 0, dataSize + 1);
@@ -2051,7 +2052,8 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
           len += snprintf(dumpBuf + len, size - len, " %15d |", *(bool*)var);
           if (len >= size - 1) return dumpBuf;
           break;
-        case TSDB_DATA_TYPE_VARCHAR: {
+        case TSDB_DATA_TYPE_VARCHAR:
+        case TSDB_DATA_TYPE_GEOMETRY: {
           memset(pBuf, 0, sizeof(pBuf));
           char*   pData = colDataGetVarData(pColInfoData, j);
           int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
@@ -2157,7 +2159,8 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
             }
             break;
           case TSDB_DATA_TYPE_NCHAR:
-          case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
+          case TSDB_DATA_TYPE_VARCHAR:  // TSDB_DATA_TYPE_BINARY
+          case TSDB_DATA_TYPE_GEOMETRY: {
             if (colDataIsNull_s(pColInfoData, j)) {
               tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pColInfoData->info.type, TD_VTYPE_NULL, NULL,
                                   false, offset, k);

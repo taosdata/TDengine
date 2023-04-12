@@ -15,10 +15,9 @@ target_link_libraries(
     util
     PUBLIC os
     PUBLIC lz4_static
-    PUBLIC api cjson
+    PUBLIC api cjson geos_c
 )
 
 if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)
 endif(${BUILD_TEST})
-
