@@ -1072,6 +1072,14 @@ void streamStateDestroy(SStreamState* pState) {
   taosMemoryFreeClear(pState);
 }
 
+int32_t streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark) {
+#ifdef USE_ROCKSDB
+  return deleteExpiredCheckPoint(pState->pFileState, mark);
+#else
+  return 0;
+#endif
+}
+
 #if 0
 char* streamStateSessionDump(SStreamState* pState) {
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));

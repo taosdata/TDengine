@@ -1454,10 +1454,6 @@ STimeWindow getFinalTimeWindow(int64_t ts, SInterval* pInterval) {
   return w;
 }
 
-static void deleteIntervalDiscBuf(SStreamState* pState, TSKEY mark) {
-  //todo(liuyao) delete expired check point
-}
-
 static void closeChildIntervalWindow(SOperatorInfo* pOperator, SArray* pChildren, TSKEY maxTs) {
   int32_t size = taosArrayGetSize(pChildren);
   for (int32_t i = 0; i < size; i++) {
@@ -2404,6 +2400,7 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
   STimeWindow nextWin = {0};
   if (IS_FINAL_OP(pInfo)) {
     nextWin = getFinalTimeWindow(ts, &pInfo->interval);
+    qDebug("===stream===final ts:%" PRId64 ", getFinalTimeWindow:%" PRId64,ts, nextWin.skey);
   } else {
     nextWin = getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, &pInfo->interval, TSDB_ORDER_ASC);
   }
@@ -2448,14 +2445,17 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
       }
 
       if (ignore) {
-        startPos = getNexWindowPos(&pInfo->interval, &pSDataBlock->info, tsCols, startPos, nextWin.ekey, &nextWin);
+        // startPos = getNexWindowPos(&pInfo->interval, &pSDataBlock->info, tsCols, startPos, nextWin.ekey, &nextWin);
+        int32_t prevEndPos = startPos;
+        startPos = getNextQualifiedFinalWindow(&pInfo->interval, &nextWin, &pSDataBlock->info, tsCols, prevEndPos);
         if (startPos < 0) {
           break;
         }
         continue;
       }
     }
-
+    
+    qDebug("===stream===final setIntervalOutputBuf:%" PRId64, nextWin.skey);
     int32_t code = setIntervalOutputBuf(pInfo->pState, &nextWin, &pResPos, groupId, pSup->pCtx, numOfOutput,
                                         pSup->rowEntryInfoOffset, &pInfo->aggSup);
     pResult = (SResultRow*)pResPos->pRowBuff;
@@ -2474,6 +2474,7 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
         .groupId = groupId,
     };
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE && pUpdatedMap) {
+       qDebug("===stream===is final%d saveWinResult:%" PRId64,  IS_FINAL_OP(pInfo), key.ts);
       saveWinResult(&key, pResPos, pUpdatedMap);
     }
 
@@ -2575,9 +2576,9 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       setStreamDataVersion(pTaskInfo, pInfo->dataVersion, pInfo->pState->checkPointId);
       qDebug("===stream===clear semi operator");
     } else {
-      deleteIntervalDiscBuf(pInfo->pState, pInfo->twAggSup.maxTs - pInfo->twAggSup.deleteMark);
       if (pInfo->twAggSup.maxTs - pInfo->twAggSup.checkPointInterval > pInfo->twAggSup.checkPointTs) {
         streamStateCommit(pInfo->pState);
+        streamStateDeleteCheckPoint(pInfo->pState, pInfo->twAggSup.maxTs - pInfo->twAggSup.deleteMark);
         pInfo->twAggSup.checkPointTs = pInfo->twAggSup.maxTs;
       }
       qDebug("===stream===interval final close");
@@ -4813,10 +4814,10 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       printDataBlock(pInfo->binfo.pRes, "single interval");
       return pInfo->binfo.pRes;
     }
-    deleteIntervalDiscBuf(pInfo->pState, pInfo->twAggSup.maxTs - pInfo->twAggSup.deleteMark);
     setOperatorCompleted(pOperator);
     if (pInfo->twAggSup.maxTs - pInfo->twAggSup.checkPointInterval > pInfo->twAggSup.checkPointTs) {
       streamStateCommit(pInfo->pState);
+      streamStateDeleteCheckPoint(pInfo->pState, pInfo->twAggSup.maxTs - pInfo->twAggSup.deleteMark);
       setStreamDataVersion(pTaskInfo, pInfo->dataVersion, pInfo->pState->checkPointId);
       pInfo->twAggSup.checkPointTs = pInfo->twAggSup.maxTs;
     }

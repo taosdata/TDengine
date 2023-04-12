@@ -54,7 +54,7 @@ int32_t          flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pS
 int32_t          recoverSnapshot(SStreamFileState* pFileState);
 
 int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list);
-int32_t forceRemoveCheckpoint(SStreamFileState* pFileState, int64_t checkpointId);
+int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark);
 
 #ifdef __cplusplus
 }

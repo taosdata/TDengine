@@ -65,6 +65,7 @@ void          streamStateClose(SStreamState* pState);
 int32_t       streamStateBegin(SStreamState* pState);
 int32_t       streamStateCommit(SStreamState* pState);
 void          streamStateDestroy(SStreamState* pState);
+int32_t       streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark);
 
 typedef struct {
   rocksdb_iterator_t*    iter;

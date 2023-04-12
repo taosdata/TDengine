@@ -372,17 +372,20 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
 
   return code;
 }
+
 int32_t forceRemoveCheckpoint(SStreamFileState* pFileState, int64_t checkpointId) {
   const char* taskKey = "streamFileState";
   char        keyBuf[128] = {0};
   sprintf(keyBuf, "%s:%" PRId64 "", taskKey, checkpointId);
   return streamDefaultDel_rocksdb(pFileState->pFileStore, keyBuf);
 }
+
 int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list) {
   const char* taskKey = "streamFileState";
   return streamDefaultIter_rocksdb(pFileState->pFileStore, taskKey, NULL, list);
 }
-int32_t recoverSnapshot(SStreamFileState* pFileState) {
+
+int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
   int32_t     code = TSDB_CODE_SUCCESS;
   const char* taskKey = "streamFileState";
   int64_t     maxCheckPointId = 0;
@@ -410,13 +413,18 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
     TSKEY ts;
     sscanf(val, "%" PRId64 "", &ts);
     taosMemoryFree(val);
-    if (ts < pFileState->deleteMark) {
+    if (ts < mark) {
       forceRemoveCheckpoint(pFileState, i);
       break;
     } else {
     }
   }
+  return code;
+}
 
+int32_t recoverSnapshot(SStreamFileState* pFileState) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  deleteExpiredCheckPoint(pFileState, pFileState->maxTs - pFileState->deleteMark);
   void*   pStVal = NULL;
   int32_t len = 0;
 
