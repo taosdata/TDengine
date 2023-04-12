@@ -382,6 +382,100 @@ Response body:
   }
   ```
 
+## REST API between TDengine 2.x and 3.0
+
+### URI
+
+| URI                  | TDengine 2.x         | TDengine 3.0                                         |
+| :--------------------| :------------------: | :--------------------------------------------------: |
+| /rest/sql            | Supported            | Supported (with different response code and body)    |
+| /rest/sqlt           | Supported            | No more supported                                    |
+| /rest/sqlutc         | Supported            | No more supported                                    |
+
+### HTTP code
+
+| HTTP code            | TDengine 2.x         | TDengine 3.0 | note                                  |
+| :--------------------| :------------------: | :----------: | :-----------------------------------: |
+| 200                  | Supported            | Supported    | Success or taosc return error         |
+| 400                  | Not supported        | Supported    | Parameter error                       |
+| 401                  | Not supported        | Supported    | Authentication failure                |
+| 404                  | Supported            | Supported    | URI not exist                         |
+| 500                  | Not supported        | Supported    | Internal error                        |
+| 503                  | Supported            | Supported    | Insufficient system resources         |
+
+### Response body
+
+| Response body        | TDengine 2.x         | TDengine 3.0 | note                                  |
+| :--------------------| :------------------: | :----------: | :-----------------------------------: |
+| Success              | "status": "succ",    | "code": 0,   |                                       |
+| Column meta          | "head": [
+    "name",
+    "created_time",
+    "ntables",
+    "vgroups",
+    "replica",
+    "quorum",
+    "days",
+    "keep1,keep2,keep(D)",
+    "cache(MB)",
+    "blocks",
+    "minrows",
+    "maxrows",
+    "wallevel",
+    "fsync",
+    "comp",
+    "precision",
+    "status"
+  ],                                        | "column_meta": [
+        [
+            "name",
+            "VARCHAR",
+            64
+        ],
+        [
+            "ntables",
+            "BIGINT",
+            8
+        ],
+        [
+            "status",
+            "VARCHAR",
+            10
+        ]
+    ],    |  |
+| Data           | "data": [
+    [
+      "log",
+      "2020-09-02 17:23:00.039",
+      4,
+      1,
+      1,
+      1,
+      10,
+      "30,30,30",
+      1,
+      3,
+      100,
+      4096,
+      1,
+      3000,
+      2,
+      "us",
+      "ready"
+    ]
+  ], |       "data": [
+        [
+            "information_schema",
+            16,
+            "ready"
+        ],
+        [
+            "performance_schema",
+            9,
+            "ready"
+        ]
+    ], |            |
+
 ## Reference
 
 [taosAdapter](/reference/taosadapter/)
