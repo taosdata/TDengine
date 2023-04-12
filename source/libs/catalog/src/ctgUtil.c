@@ -1400,10 +1400,10 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   pRes->pass = false;
   pRes->pCond = NULL;
 
-  // if (!pInfo->enable) {
-  //   pRes->pass = false;
-  //   return TSDB_CODE_SUCCESS;
-  // }
+  if (!pInfo->enable) {
+    pRes->pass = false;
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (pInfo->superAuth) {
     pRes->pass = true;
