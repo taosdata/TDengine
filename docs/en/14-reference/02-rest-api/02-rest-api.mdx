@@ -405,18 +405,12 @@ Response body:
 
 ### Response body
 
-<table>
-<tr>
-<td> Response body </td> <td> TDengine 2.x </td> <td> TDengine 3.0 </td>
-</tr>
-<tr>
-<td> Success </td> <td> "status": "succ",</td> <td> "code": 0,</td>
-/<tr>
-<tr>
-<td> Column meta </td>
-<td>
-```
-"head": [
+#### REST response body return from TDengine 2.x
+
+```JSON
+{
+  "status": "succ",
+  "head": [
     "name",
     "created_time",
     "ntables",
@@ -435,37 +429,7 @@ Response body:
     "precision",
     "status"
   ],
-```
-</td>
-<td>
-```
-"column_meta": [
-        [
-            "name",
-            "VARCHAR",
-            64
-        ],
-        [
-            "ntables",
-            "BIGINT",
-            8
-        ],
-        [
-            "status",
-            "VARCHAR",
-            10
-        ]
-    ],
-```
-</td>
-</tr>
-<tr>
-<td>
-Data
-</td>
-<td>
-```
-"data": [
+  "data": [
     [
       "log",
       "2020-09-02 17:23:00.039",
@@ -485,10 +449,10 @@ Data
       "us",
       "ready"
     ]
-  ], 
+  ],
+  "rows": 1
+}
 ```
-</td>
-<td>
 ```
   "data": [
         [
@@ -503,9 +467,44 @@ Data
         ]
     ],
 ```
-</td>
-</tr>
-</table>
+
+#### REST response body return from TDengine 3.0
+
+```JSON
+{
+    "code": 0,
+    "column_meta": [
+        [
+            "name",
+            "VARCHAR",
+            64
+        ],
+        [
+            "ntables",
+            "BIGINT",
+            8
+        ],
+        [
+            "status",
+            "VARCHAR",
+            10
+        ]
+    ],
+    "data": [
+        [
+            "information_schema",
+            16,
+            "ready"
+        ],
+        [
+            "performance_schema",
+            9,
+            "ready"
+        ]
+    ],
+    "rows": 2
+}
+```
 
 ## Reference
 
