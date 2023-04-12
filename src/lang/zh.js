@@ -655,6 +655,9 @@ export default {
     learnMoreTip: "要了解更多关于流计算的信息，请查看<a target='_blank' href=\"docsUrl\">文档</a>",
   },
   topic: {
+    conditionSet: "条件集",
+    resultSet:'结果集',
+    function:'函数',
     fieldSet: "字段设置",
     accounts: '账户',
     connections: '连接点',
@@ -1222,6 +1225,17 @@ export default {
       step6desc: "下面是如何消费这个共享主题 `{0}` 的完整的代码示例：",
       enddesc: "了解更多数据订阅的内容，请参考",
       enddesc1: "。",
+    },
+    dashboard:{
+      dashboarddesc:`我们建议在此处使用最新的<a href='https://grafana.com/'>Grafana</a> 8 或 9 版本。您可以在任何<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'>支持的操作系统</a>中，按照 <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>Grafana官方文档安装说明</a>  安装 <a href='https://grafana.com/'>Grafana</a>。`,
+      step1:'安装 Grafana',
+      step2:'安装 TDengine 数据源插件',
+      step3:'启动 Grafana 服务',
+      step4:'登录到 Grafana',
+      step5:'添加 TDengine 数据源',
+      step6:'导入仪表盘',
+      tab1:'基于 Debian 或 Ubuntu 系统',
+      tab2:'基于 CentOS / RHEL 系统'
     }
   },
   health: {

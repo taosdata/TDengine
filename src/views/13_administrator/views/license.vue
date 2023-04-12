@@ -68,7 +68,7 @@
         prop="version"
       ></el-table-column>
     </el-table> -->
-    <el-table :data="tableData" :show-header="false" border>
+    <!-- <el-table :data="tableData" :show-header="false" border>
       <el-table-column prop="header" label="表头"> </el-table-column>
       <el-table-column
         v-for="(item, index) in columns"
@@ -76,7 +76,18 @@
         :prop="String(index)"
       >
       </el-table-column>
-    </el-table>
+    </el-table> -->
+    <el-descriptions
+      class="margin-top"
+      title=""
+      :column="3"
+      :size="size"
+      border
+    >
+      <el-descriptions-item v-for="item in licenseList" :key="item.key" :label='$t(`topic.${item.key}`)' :labelStyle='style'>
+        <span style="color:#4d6992;"> {{item.value}}</span>
+      </el-descriptions-item>
+    </el-descriptions>
     <el-pagination
       class="pagination"
       layout="total, prev, pager, next"
@@ -86,56 +97,7 @@
       :total="total"
       @current-change="handlePageChange"
     ></el-pagination>
-    <el-dialog
-      align="center"
-      :title="$t('topic.addsource')"
-      width="600px"
-      :visible.sync="dialog"
-    >
-      <el-form
-        :model="ruleForm"
-        :rules="rules"
-        ref="ruleForm"
-        size="mini"
-        label-width="auto"
-        class="demo-ruleForm"
-      >
-        <el-form-item label="UDFName" prop="name" required>
-          <el-input v-model.trim="ruleForm.name"></el-input>
-        </el-form-item>
-        <el-form-item label="Language" prop="language" required>
-          <el-select
-            v-model="ruleForm.language"
-            placeholder="Please Select Language"
-          >
-            <el-option label="Nodejs" value="nodejs"></el-option>
-            <el-option label="Java" value="java"></el-option>
-            <el-option label="Rust" value="rust"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="Content" prop="content" required>
-          <el-input v-model.trim="ruleForm.content"></el-input>
-        </el-form-item>
-      </el-form>
-
-      <el-row style="margin-top: 20px">
-        <el-col :span="5" :offset="6">
-          <el-button size="small" @click="dialog = false" class="w100">{{
-            $t("cancel")
-          }}</el-button>
-        </el-col>
-        <el-col :span="5" :push="4">
-          <el-button
-            size="small"
-            :disabled="confirmStatus"
-            @click="addUdf"
-            class="w100"
-            type="primary"
-            >{{ $t("confirm") }}</el-button
-          >
-        </el-col>
-      </el-row>
-    </el-dialog>
+   
   </div>
 </template>
 <script>
@@ -179,6 +141,11 @@ export default {
     };
   },
   computed: {
+    style(){
+      return {
+        'font-size':'14px'
+      }
+    },
     confirmStatus() {
       if (!this.ruleForm.name) {
         return true;
@@ -212,36 +179,35 @@ export default {
     addUdf() {},
     async getData() {
       try {
-        let cols = [];
+        // let cols = [];
         await sendSQLReq(`show grants;`).then((res) => {
-          this.licenseList = res.data.map((data) => {
+         let  array = res.data.map((data) => {
             return Object.fromEntries(
               res.column_meta.map((item, index) => {
-                cols.push({ header: item[0], value: item[0] });
+                // cols.push({ header: item[0], value: item[0] });
                 return [item[0], data[index]];
               })
             );
           });
-          this.columns = new Array(this.licenseList.length).fill(0);
+          this.licenseList=array.length>0?Object.keys(array[0]).map(key=>{
+            return {
+              key:key,
+              value:array[0][key]
+            }
+          }):[]
+          // this.columns = new Array(this.licenseList.length).fill(0);
           // this.tableData=JSON.parse(JSON.stringify(cols))
-          const tableData = cols.map((item) => {
-            const data = {
-              header: item.header,
-            };
-            this.licenseList.forEach((col, index) => {
-              data[index] = col[item.value];
-            });
-            return data;
-          });
-          this.tableData = tableData;
-          console.log(
-            this.tableData,
-            this.licenseList,
-            this.columns,
-            tableData,
-            cols,
-            "licesne---"
-          );
+          // const tableData = cols.map((item) => {
+          //   const data = {
+          //     header: item.header,
+          //   };
+          //   this.licenseList.forEach((col, index) => {
+          //     data[index] = col[item.value];
+          //   });
+          //   return data;
+          // });
+          // this.tableData = tableData;
+          console.log(this.licenseList, "licesne---");
         });
         this.loading = false;
       } catch (error) {
@@ -253,6 +219,9 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+.dnode-block{
+  margin-top:10px;
+}
 ::v-deep {
   .el-form-item__content {
     display: flex;
@@ -264,7 +233,7 @@ export default {
     td {
       &:first-child {
         background: #fafafa;
-        color:#333;
+        color: #333;
         font-weight: 500;
       }
     }

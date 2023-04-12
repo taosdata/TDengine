@@ -7,7 +7,7 @@ let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
-  copyright:'Copyright 2023 TDengine',
+  copyright:'Copyright (c) 2022 by TDengine, All Rights Reserved.',
   sqlPreview: "SQL Preview",
   unknown: "Unknown Error!",
   download: "Download",

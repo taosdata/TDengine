@@ -388,6 +388,7 @@ export default {
     },
   },
   mounted() {
+    console.log('初始化task');
     this.refresh()
   },
 };

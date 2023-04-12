@@ -13,8 +13,8 @@
         </el-tab-pane>
         <!-- <el-tab-pane name='pi' label='PI' :disabled='piDisable'>
           <PlantInformation ></PlantInformation>
-        </el-tab-pane>
-        <el-tab-pane name="opc" label="OPC" :disabled='opcDisable'>
+        </el-tab-pane> -->
+        <!-- <el-tab-pane name="opc" label="OPC" :disabled='opcDisable'>
           <OpcView ></OpcView>
         </el-tab-pane> -->
       </el-tabs>

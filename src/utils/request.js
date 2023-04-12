@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Message } from "element-ui";
+import { Message, MessageBox } from "element-ui";
 import store from "../store";
 import { refreshTokenExpire } from "./token";
 import { ReLoginCode, SuccessCode, RequestCommonConfig } from "@/const";
@@ -81,7 +81,7 @@ request.interceptors.response.use(
     let taosx500en = 'The Taosx API cannot be accessed. Please check the Taosx service status'
     let taosx404 = '未配置 TaosX API，请检查 Explorer 配置'
     let taosx500 = 'TaosX API 无法访问，请检查 taosx 服务状态'
-    Message.close()
+    Message.closeAll()
     if (error.config.baseURL.includes('/api/x')) {
 
       if (error.response.status === 404) {
@@ -89,10 +89,12 @@ request.interceptors.response.use(
       }
       if (error.response.status === 500) {
         Message.error(navigator.language.includes('zh') ? taosx500 : taosx500en)
+
+
       }
     }
 
-    console.log(error.config,error.response,'监控taosx');
+    console.log(error.config, error.response, '监控taosx');
     return Promise.reject(error);
   }
 );
