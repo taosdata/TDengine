@@ -18,8 +18,17 @@
 #include "tcommon.h"
 
 int defaultKeyComp(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen) {
-  //
-  return memcmp(aBuf, bBuf, aLen);
+  int ret = memcmp(aBuf, bBuf, aLen);
+  if (ret == 0) {
+    if (aLen < bLen)
+      return -1;
+    else if (aLen > bLen)
+      return 1;
+    else
+      return 0;
+  } else {
+    return ret;
+  }
 }
 int defaultKeyEncode(void* k, char* buf) {
   int len = strlen((char*)k);

@@ -355,7 +355,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
       int32_t len = 0;
       sprintf(keyBuf, "%s:%" PRId64 "", taskKey, ((SStreamState*)pFileState->pFileStore)->checkPointId);
       streamFileStateEncode(&pFileState->flushMark, &valBuf, &len);
-      streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len);
+      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len);
       taosMemoryFree(valBuf);
     }
     {
@@ -363,14 +363,13 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
       char    valBuf[64] = {0};
       int32_t len = 0;
       memcpy(keyBuf, taskKey, strlen(taskKey));
-      sprintf(valBuf, "%" PRId64 "", ((SStreamState*)pFileState->pFileStore)->checkPointId);
-
-      streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, strlen(valBuf));
+      len = sprintf(valBuf, "%" PRId64 "", ((SStreamState*)pFileState->pFileStore)->checkPointId);
+      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len);
     }
     streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
   }
-
   streamStateDestroyBatch(batch);
+
   return code;
 }
 int32_t forceRemoveCheckpoint(SStreamFileState* pFileState, int64_t checkpointId) {
