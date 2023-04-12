@@ -967,7 +967,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   pSyncNode->changing = false;
 
   // replication mgr
-  if (syncNodeLogReplMgrInit(pSyncNode) < 0) {
+  if (syncNodeLogReplInit(pSyncNode) < 0) {
     sError("vgId:%d, failed to init repl mgr since %s.", pSyncNode->vgId, terrstr());
     goto _error;
   }
@@ -1140,7 +1140,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   syncNodeStopPingTimer(pSyncNode);
   syncNodeStopElectTimer(pSyncNode);
   syncNodeStopHeartbeatTimer(pSyncNode);
-  syncNodeLogReplMgrDestroy(pSyncNode);
+  syncNodeLogReplDestroy(pSyncNode);
 
   syncRespMgrDestroy(pSyncNode->pSyncRespMgr);
   pSyncNode->pSyncRespMgr = NULL;
@@ -2182,7 +2182,7 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   if (syncLogBufferAppend(ths->pLogBuf, ths, pEntry) < 0) {
     sError("vgId:%d, failed to enqueue sync log buffer, index:%" PRId64, ths->vgId, pEntry->index);
     ASSERT(terrno != 0);
-    (void)syncLogFsmExecute(ths, ths->pFsm, ths->state, raftStoreGetTerm(ths), pEntry, terrno);
+    (void)syncFsmExecute(ths, ths->pFsm, ths->state, raftStoreGetTerm(ths), pEntry, terrno);
     syncEntryDestroy(pEntry);
     return -1;
   }
@@ -2400,7 +2400,7 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
 
-  return syncLogReplMgrProcessHeartbeatReply(pMgr, ths, pMsg);
+  return syncLogReplProcessHeartbeatReply(pMgr, ths, pMsg);
 }
 
 int32_t syncNodeOnHeartbeatReplyOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {

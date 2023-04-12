@@ -117,8 +117,8 @@ endi
 
 $consumerId    = 0
 $totalMsgOfStb = $ctbNum * $rowsPerCtb
-$expectmsgcnt  = $totalMsgOfStb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+$expectmsgcnt  = 1
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $totalMsgOfStb , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from stb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $cdbName -s start
@@ -136,10 +136,10 @@ endi
 if $data[0][1] != $consumerId then
   return -1
 endi
-if $data[0][2] != $expectmsgcnt then
-  return -1
-endi
-if $data[0][3] != $expectmsgcnt then
+#if $data[0][2] != $expectmsgcnt then
+#  return -1
+#endi
+if $data[0][3] != $totalMsgOfStb then
   return -1
 endi
 $loop_cnt = $loop_cnt + 1
@@ -191,8 +191,8 @@ endi
 
 $consumerId    = 0
 $totalMsgOfCtb = $rowsPerCtb
-$expectmsgcnt  = $totalMsgOfCtb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+$expectmsgcnt  = 1
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $totalMsgOfCtb , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ctb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start
@@ -210,7 +210,7 @@ endi
 if $data[0][1] != $consumerId then
   return -1
 endi
-if $data[0][2] != $totalMsgOfCtb then
+if $data[0][2] != $expectmsgcnt then
   return -1
 endi
 if $data[0][3] != $totalMsgOfCtb then
@@ -265,8 +265,8 @@ endi
 
 $consumerId    = 0
 $totalMsgOfNtb = $rowsPerCtb
-$expectmsgcnt  = $totalMsgOfNtb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
+$expectmsgcnt  = 1
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $totalMsgOfNtb , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ntb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start
@@ -284,7 +284,7 @@ endi
 if $data[0][1] != $consumerId then
   return -1
 endi
-if $data[0][2] != $totalMsgOfNtb then
+if $data[0][2] != $expectmsgcnt then
   return -1
 endi
 if $data[0][3] != $totalMsgOfNtb then

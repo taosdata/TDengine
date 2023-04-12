@@ -34,7 +34,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
     const SStreamDataSubmit2* pSubmit = (const SStreamDataSubmit2*)data;
-    qDebug("task %d %p set submit input %p %p %d %" PRId64, pTask->taskId, pTask, pSubmit, pSubmit->submit.msgStr,
+    qDebug("stream task:%d %p set submit input %p %p %d %" PRId64, pTask->taskId, pTask, pSubmit, pSubmit->submit.msgStr,
            pSubmit->submit.msgLen, pSubmit->submit.ver);
     qSetMultiStreamInput(exec, &pSubmit->submit, 1, STREAM_INPUT__DATA_SUBMIT);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
@@ -268,9 +268,10 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
 
-    qDebug("stream task %d exec begin, msg batch: %d", pTask->taskId, batchCnt);
+    qDebug("stream task:%d exec begin, msg batch: %d", pTask->taskId, batchCnt);
     streamTaskExecImpl(pTask, input, pRes);
-    qDebug("stream task %d exec end", pTask->taskId);
+
+    qDebug("stream task:%d exec end", pTask->taskId);
 
     if (taosArrayGetSize(pRes) != 0) {
       SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);

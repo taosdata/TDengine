@@ -458,7 +458,9 @@ typedef struct SGrantStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
   char      objName[TSDB_DB_NAME_LEN];  // db or topic
+  char      tabName[TSDB_TABLE_NAME_LEN];
   int64_t   privileges;
+  SNode*    pTagCond;
 } SGrantStmt;
 
 typedef SGrantStmt SRevokeStmt;
