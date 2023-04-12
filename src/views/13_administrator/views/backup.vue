@@ -418,9 +418,15 @@ export default {
             return item;
           });
         });
+        this.$parent.$parent.$parent.taosxDisabled = false;
         this.requestIng = false;
-      } catch (err) {
-        return Promise.reject(err);
+      } catch (error) {
+        if (error.response.status == 404) {
+          this.$parent.$parent.$parent.taosxDisabled = true;
+        }
+        if (error.response.status === 500) {
+          this.$parent.$parent.$parent.taosxDisabled = true;
+        }
       }
     },
     async getDatabases() {
@@ -434,7 +440,6 @@ export default {
   created() {
     this.getDatabases();
     this.getBackData();
-    console.log('初始化backup');
   },
 };
 </script>

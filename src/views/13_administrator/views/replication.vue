@@ -290,8 +290,14 @@ export default {
             return item;
           });
         });
-      } catch (err) {
-        return Promise.reject(err);
+        this.$parent.$parent.$parent.taosxDisabled = false;
+      } catch (error) {
+        if (error.response.status == 404) {
+          this.$parent.$parent.$parent.taosxDisabled=true
+        }
+        if (error.response.status === 500) {
+          this.$parent.$parent.$parent.taosxDisabled=true
+        }
       }
       this.refreshable = false;
 

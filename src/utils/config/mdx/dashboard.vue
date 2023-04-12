@@ -31,6 +31,14 @@ sslcacert=/etc/pki/tls/certs/ca-bundle.crt
 EOF
 sudo yum install grafana
 </code></pre>
+<p>{{$t('docs.dashboard.tab2sub')}}</p>
+<pre v-highlight>
+<code lang="language-bash">wget https://dl.grafana.com/oss/release/grafana-7.5.11-1.x86_64.rpm
+sudo yum install grafana-7.5.11-1.x86_64.rpm
+# or
+sudo yum install \
+  https://dl.grafana.com/oss/release/grafana-7.5.11-1.x86_64.rpm</code>
+</pre>
       </el-tab-pane>
     </el-tabs>
     <p>
