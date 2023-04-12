@@ -1,8 +1,10 @@
 use bitvec::prelude::*;
-use port_selector::Port;
+// use port_selector::Port;
 use std::{
+    default,
+    net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, TcpListener, ToSocketAddrs},
     ops::Range,
-    sync::{Arc, Mutex}, net::{Ipv4Addr, SocketAddrV4, Ipv6Addr, ToSocketAddrs, SocketAddrV6, TcpListener}, default,
+    sync::{Arc, Mutex},
 };
 
 #[derive(Debug, Clone)]
@@ -52,6 +54,6 @@ fn is_free_tcp(port: u16) -> bool {
 }
 
 // Try to bind to a socket using TCP
-fn test_bind_tcp<A: ToSocketAddrs>(addr: A) -> Option<Port> {
+fn test_bind_tcp<A: ToSocketAddrs>(addr: A) -> Option<u16> {
     Some(TcpListener::bind(addr).ok()?.local_addr().ok()?.port())
 }
