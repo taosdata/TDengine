@@ -408,18 +408,12 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
 ### 响应代码和消息体
 
-<table>
-<tr>
-<td> 响应代码和消息体 </td> <td> TDengine 2.x </td> <td> TDengine 3.0 </td>
-</tr>
-<tr>
-<td> Success </td> <td> "status": "succ",</td> <td> "code": 0,</td>
-/<tr>
-<tr>
-<td> Column meta </td>
-<td>
-```
-"head": [
+#### TDengine 2.x 响应代码和消息体
+
+```JSON
+{
+  "status": "succ",
+  "head": [
     "name",
     "created_time",
     "ntables",
@@ -438,37 +432,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
     "precision",
     "status"
   ],
-```
-</td>
-<td>
-```
-"column_meta": [
-        [
-            "name",
-            "VARCHAR",
-            64
-        ],
-        [
-            "ntables",
-            "BIGINT",
-            8
-        ],
-        [
-            "status",
-            "VARCHAR",
-            10
-        ]
-    ],
-```
-</td>
-</tr>
-<tr>
-<td>
-Data
-</td>
-<td>
-```
-"data": [
+  "data": [
     [
       "log",
       "2020-09-02 17:23:00.039",
@@ -488,10 +452,10 @@ Data
       "us",
       "ready"
     ]
-  ], 
+  ],
+  "rows": 1
+}
 ```
-</td>
-<td>
 ```
   "data": [
         [
@@ -506,9 +470,45 @@ Data
         ]
     ],
 ```
-</td>
-</tr>
-</table>
+
+#### TDengine 3.0 响应代码和消息体
+
+
+```JSON
+{
+    "code": 0,
+    "column_meta": [
+        [
+            "name",
+            "VARCHAR",
+            64
+        ],
+        [
+            "ntables",
+            "BIGINT",
+            8
+        ],
+        [
+            "status",
+            "VARCHAR",
+            10
+        ]
+    ],
+    "data": [
+        [
+            "information_schema",
+            16,
+            "ready"
+        ],
+        [
+            "performance_schema",
+            9,
+            "ready"
+        ]
+    ],
+    "rows": 2
+}
+```
 
 ## 参考
 
