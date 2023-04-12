@@ -1,5 +1,10 @@
 <template>
   <div>
+    <div class="flexEnd">
+      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled="requestIng">{{
+        $t("refresh")
+      }}</el-button>
+    </div>
     <el-table size="mini" :data="consumerList">
       <el-table-column :label="$t('topic.consumerID')" prop="consumer_id"></el-table-column>
       <el-table-column :label="$t('topic.consumerGroup')" prop="consumer_group"></el-table-column>
@@ -67,6 +72,9 @@
       this.getConsumers();
     },
     methods: {
+      refresh(){
+        this.getConsumers();
+      },
       async getConsumers() {
         if (this.requestIng) return;
         this.requestIng = true;

@@ -388,8 +388,11 @@ export default {
     },
   },
   mounted() {
-    console.log('初始化task');
-    this.refresh()
+    console.log('初始化task',this.$parent.$parent.$parent);
+    if(this.$parent.$parent.$parent.currentName=='datasource'){
+      this.refresh()
+    }
+    
   },
 };
 </script>
