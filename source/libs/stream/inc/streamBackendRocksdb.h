@@ -89,4 +89,5 @@ int32_t streamStatePutBatch_rocksdb(SStreamState* pState, void* pBatch);
 int32_t streamDefaultPut_rocksdb(SStreamState* pState, const void* key, void* pVal, int32_t pVLen);
 int32_t streamDefaultGet_rocksdb(SStreamState* pState, const void* key, void** pVal, int32_t* pVLen);
 int32_t streamDefaultDel_rocksdb(SStreamState* pState, const void* key);
+int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
 #endif

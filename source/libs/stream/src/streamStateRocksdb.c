@@ -458,9 +458,8 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
                                           rocksdb_readoptions_t** readOpt) {
   int idx = streamGetInit(cfName);
 
-  //*snapshot = (rocksdb_snapshot_t*)rocksdb_create_snapshot(pState->pTdbState->rocksdb);
   if (snapshot != NULL) {
-    *snapshot = NULL;
+    *snapshot = (rocksdb_snapshot_t*)rocksdb_create_snapshot(pState->pTdbState->rocksdb);
   }
 
   rocksdb_readoptions_t* rOpt = rocksdb_readoptions_create();
@@ -635,6 +634,39 @@ int32_t streamDefaultGet_rocksdb(SStreamState* pState, const void* key, void** p
 int32_t streamDefaultDel_rocksdb(SStreamState* pState, const void* key) {
   int code = 0;
   STREAM_STATE_DEL_ROCKSDB(pState, "default", &key);
+  return code;
+}
+
+int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result) {
+  int   code = 0;
+  char* err = NULL;
+
+  rocksdb_snapshot_t*    snapshot = NULL;
+  rocksdb_readoptions_t* readopts = NULL;
+  rocksdb_iterator_t*    pIter = streamStateIterCreate(pState, "default", &snapshot, &readopts);
+  if (pIter == NULL) {
+    return -1;
+  }
+
+  rocksdb_iter_seek(pIter, start, strlen(start));
+  while (rocksdb_iter_valid(pIter)) {
+    const char* key = rocksdb_iter_key(pIter, NULL);
+    if (end != NULL && strcmp(key, end) > 0) {
+      break;
+    }
+    if (strncmp(key, start, strlen(start)) == 0 && strlen(key) >= strlen(start) + 1) {
+      int64_t checkPoint = 0;
+      if (sscanf(key + strlen(key), ":%" PRId64 "", &checkPoint) == 1) {
+        taosArrayPush(result, &checkPoint);
+      }
+    } else {
+      break;
+    }
+    rocksdb_iter_next(pIter);
+  }
+  rocksdb_release_snapshot(pState->pTdbState->rocksdb, snapshot);
+  rocksdb_readoptions_destroy(readopts);
+  rocksdb_iter_destroy(pIter);
   return code;
 }
 

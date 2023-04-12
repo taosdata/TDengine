@@ -371,7 +371,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
       char    keyBuf[128] = {0};
       char    valBuf[64] = {0};
       int32_t len = 0;
-      sprintf(keyBuf, "%s:%" PRId64 "", taskKey, INT64_MIN);
+      memcpy(keyBuf, taskKey, strlen(taskKey));
       sprintf(valBuf, "%" PRId64 "", ((SStreamState*)pFileState->pFileStore)->checkPointId);
 
       streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, strlen(valBuf));
@@ -382,7 +382,16 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
   streamStateDestroyBatch(batch);
   return code;
 }
-
+int32_t forceRemoveCheckpoint(SStreamFileState* pFileState, int64_t checkpointId) {
+  const char* taskKey = "streamFileState";
+  char        keyBuf[128] = {0};
+  sprintf(keyBuf, "%s:%" PRId64 "", taskKey, checkpointId);
+  return streamDefaultDel_rocksdb(pFileState->pFileStore, keyBuf);
+}
+int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list) {
+  const char* taskKey = "streamFileState";
+  return streamDefaultIter_rocksdb(pFileState->pFileStore, taskKey, NULL, list);
+}
 int32_t recoverSnapshot(SStreamFileState* pFileState) {
   int32_t     code = TSDB_CODE_SUCCESS;
   const char* taskKey = "streamFileState";
@@ -391,7 +400,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
     char    buf[128] = {0};
     void*   val = NULL;
     int32_t len = 0;
-    sprintf(buf, "%s:%" PRId64 "", taskKey, INT64_MIN);
+    memcpy(buf, taskKey, strlen(taskKey));
     code = streamDefaultGet_rocksdb(pFileState->pFileStore, buf, &val, &len);
     if (code != 0) {
       return TSDB_CODE_FAILED;
@@ -412,7 +421,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
     sscanf(val, "%" PRId64 "", &ts);
     taosMemoryFree(val);
     if (ts < pFileState->flushMark) {
-      // forceRemoveCheckPoint(pFileState->pFileStore, i);
+      forceRemoveCheckpoint(pFileState, i);
       break;
     } else {
     }

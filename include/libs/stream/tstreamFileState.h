@@ -18,6 +18,7 @@
 
 #include "os.h"
 
+#include "tarray.h"
 #include "tdef.h"
 #include "tlist.h"
 
@@ -27,29 +28,33 @@ extern "C" {
 
 typedef struct SStreamFileState SStreamFileState;
 typedef struct SRowBuffPos {
-  void*    pRowBuff;
-  void*    pKey;
-  bool     beFlushed;
-  bool     beUsed;
+  void* pRowBuff;
+  void* pKey;
+  bool  beFlushed;
+  bool  beUsed;
 } SRowBuffPos;
 
 typedef SList SStreamSnapshot;
 
 typedef TSKEY (*GetTsFun)(void*);
 
-SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, GetTsFun fp, void* pFile, TSKEY delMark);
+SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, GetTsFun fp, void* pFile,
+                                      TSKEY delMark);
 void              streamFileStateDestroy(SStreamFileState* pFileState);
 void              streamFileStateClear(SStreamFileState* pFileState);
 
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen);
 int32_t deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
 int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** pVal);
-void releaseRowBuffPos(SRowBuffPos* pBuff);
-bool hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen);
+void    releaseRowBuffPos(SRowBuffPos* pBuff);
+bool    hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen);
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState);
-int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, bool flushState);
-int32_t recoverSnapshot(SStreamFileState* pFileState);
+int32_t          flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, bool flushState);
+int32_t          recoverSnapshot(SStreamFileState* pFileState);
+
+int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list);
+int32_t forceRemoveCheckpoint(SStreamFileState* pFileState, int64_t checkpointId);
 
 #ifdef __cplusplus
 }
