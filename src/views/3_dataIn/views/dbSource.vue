@@ -29,7 +29,7 @@ export default {
     return {
       protocol:'ua',//只针对opc的ua/da
       tagName: "datasource",
-      currentName: "dbsource",
+      currentName: "",
       sourceList: [],
       uidata: null,
       editId: 0,
