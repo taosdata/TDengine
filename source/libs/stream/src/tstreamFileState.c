@@ -355,6 +355,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
   if (streamStateGetBatchSize(batch) > 0) {
     code = streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
   }
+  streamStateClearBatch(batch);
 
   if (flushState) {
     const char* taskKey = "streamFileState";
