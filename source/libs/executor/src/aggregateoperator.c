@@ -172,9 +172,9 @@ int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   int32_t scanFlag = MAIN_SCAN;
 
   bool hasValidBlock = false;
-  bool blockAllocated = false;
 
   while (1) {
+    bool blockAllocated = false;
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
       if (!hasValidBlock) {

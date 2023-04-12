@@ -31,7 +31,7 @@ DLL_EXPORT int32_t udf1(SUdfDataBlock *block, SUdfColumn *resultCol) {
       }
     }
     if (j == block->numOfCols) {
-      int32_t luckyNum = 88;
+      int32_t luckyNum = 1;
       udfColDataSet(resultCol, i, (char *)&luckyNum, false);
     }
   }

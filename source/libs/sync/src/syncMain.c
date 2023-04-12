@@ -599,7 +599,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_
     sNTrace(pSyncNode, "propose msg, type:%s", TMSG_INFO(pMsg->msgType));
     code = (*pSyncNode->syncEqMsg)(pSyncNode->msgcb, &rpcMsg);
     if (code != 0) {
-      sError("vgId:%d, failed to propose msg while enqueue since %s", pSyncNode->vgId, terrstr());
+      sWarn("vgId:%d, failed to propose msg while enqueue since %s", pSyncNode->vgId, terrstr());
       (void)syncRespMgrDel(pSyncNode->pSyncRespMgr, seqNum);
     }
 

@@ -177,6 +177,12 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_USER_SYSINFO                0xA
 #define TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC    0xB
 #define TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC 0xC
+#define TSDB_ALTER_USER_ADD_READ_TABLE         0xD
+#define TSDB_ALTER_USER_REMOVE_READ_TABLE      0xE
+#define TSDB_ALTER_USER_ADD_WRITE_TABLE        0xF
+#define TSDB_ALTER_USER_REMOVE_WRITE_TABLE     0x10
+#define TSDB_ALTER_USER_ADD_ALL_TABLE          0x11
+#define TSDB_ALTER_USER_REMOVE_ALL_TABLE       0x12
 
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 
@@ -669,13 +675,16 @@ int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq
 int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
 
 typedef struct {
-  int8_t alterType;
-  int8_t superUser;
-  int8_t sysInfo;
-  int8_t enable;
-  char   user[TSDB_USER_LEN];
-  char   pass[TSDB_USET_PASSWORD_LEN];
-  char   objname[TSDB_DB_FNAME_LEN];  // db or topic
+  int8_t  alterType;
+  int8_t  superUser;
+  int8_t  sysInfo;
+  int8_t  enable;
+  char    user[TSDB_USER_LEN];
+  char    pass[TSDB_USET_PASSWORD_LEN];
+  char    objname[TSDB_DB_FNAME_LEN];  // db or topic
+  char    tabName[TSDB_TABLE_NAME_LEN];
+  char*   tagCond;
+  int32_t tagCondLen;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
@@ -698,6 +707,9 @@ typedef struct {
   SHashObj* createdDbs;
   SHashObj* readDbs;
   SHashObj* writeDbs;
+  SHashObj* readTbs;
+  SHashObj* writeTbs;
+  SHashObj* useDbs;
 } SGetUserAuthRsp;
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
@@ -3187,9 +3199,9 @@ typedef struct {
   SArray*      blockTbName;
   SArray*      blockSchema;
   // the following attributes are extended from SMqDataRsp
-  int32_t      createTableNum;
-  SArray*      createTableLen;
-  SArray*      createTableReq;
+  int32_t createTableNum;
+  SArray* createTableLen;
+  SArray* createTableReq;
 } STaosxRsp;
 
 int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const STaosxRsp* pRsp);

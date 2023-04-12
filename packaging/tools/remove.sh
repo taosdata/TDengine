@@ -192,7 +192,27 @@ function clean_service_on_systemd() {
     ${csudo}systemctl stop ${tarbitrator_service_name} &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable ${tarbitrator_service_name} &>/dev/null || echo &>/dev/null
-  ${csudo}rm -f ${tarbitratord_service_config}
+
+  x_service_config="${service_config_dir}/${xName2}.service"
+  if [ -e "$x_service_config" ]; then
+    if systemctl is-active --quiet ${xName2}; then
+      echo "${productName2} ${xName2} is running, stopping it..."
+      ${csudo}systemctl stop ${xName2} &>/dev/null || echo &>/dev/null
+    fi
+    ${csudo}systemctl disable ${xName2} &>/dev/null || echo &>/dev/null
+    ${csudo}rm -f ${x_service_config}
+  fi
+
+  explorer_service_config="${service_config_dir}/${explorerName2}.service"
+  if [ -e "$explorer_service_config" ]; then
+    if systemctl is-active --quiet ${explorerName2}; then
+      echo "${productName2} ${explorerName2} is running, stopping it..."
+      ${csudo}systemctl stop ${explorerName2} &>/dev/null || echo &>/dev/null
+    fi
+    ${csudo}systemctl disable ${explorerName2} &>/dev/null || echo &>/dev/null
+    ${csudo}rm -f ${explorer_service_config}
+    ${csudo}rm -f /etc/${clientName2}/explorer.toml
+  fi
 }
 
 function clean_service_on_sysvinit() {
