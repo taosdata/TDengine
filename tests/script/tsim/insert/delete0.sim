@@ -4,10 +4,10 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print =============== create database with different precision
-sql create database d0 keep 365000
-sql create database d1 keep 365000 precision 'ms'
-sql create database d2 keep 365000 precision 'us'
-sql create database d3 keep 50000 precision 'ns'
+sql create database d0 keep 365
+sql create database d1 keep 365 precision 'ms'
+sql create database d2 keep 365 precision 'us'
+sql create database d3 keep 365 precision 'ns'
 
 sql select * from information_schema.ins_databases
 if $rows != 6 then
