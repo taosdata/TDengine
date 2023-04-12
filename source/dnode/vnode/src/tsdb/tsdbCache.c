@@ -1469,11 +1469,14 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
 
     hasRow = true;
 
-    code = updateTSchema(TSDBROW_SVERSION(pRow), pr, uid);
-    if (TSDB_CODE_SUCCESS != code) {
-      goto _err;
+    int32_t sversion = TSDBROW_SVERSION(pRow);
+    if (sversion != -1) {
+      code = updateTSchema(sversion, pr, uid);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _err;
+      }
+      pTSchema = pr->pCurrSchema;
     }
-    pTSchema = pr->pCurrSchema;
     int16_t nCol = pTSchema->numOfCols;
 
     TSKEY rowTs = TSDBROW_TS(pRow);
@@ -1623,11 +1626,14 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
 
     hasRow = true;
 
-    code = updateTSchema(TSDBROW_SVERSION(pRow), pr, uid);
-    if (TSDB_CODE_SUCCESS != code) {
-      goto _err;
+    int32_t sversion = TSDBROW_SVERSION(pRow);
+    if (sversion != -1) {
+      code = updateTSchema(sversion, pr, uid);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _err;
+      }
+      pTSchema = pr->pCurrSchema;
     }
-    pTSchema = pr->pCurrSchema;
     int16_t nCol = pTSchema->numOfCols;
 
     TSKEY rowTs = TSDBROW_TS(pRow);
