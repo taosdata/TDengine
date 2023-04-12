@@ -670,7 +670,7 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
     // possibly no vg is changed
     // when each topic is re-balanced, issue an trans to save the results in sdb.
     if (mndPersistRebResult(pMnode, pMsg, &rebOutput) < 0) {
-      mError("mq re-balance persist output error, possibly vnode splitted or dropped");
+      mError("mq re-balance persist output error, possibly vnode splitted or dropped,msg:%s", terrstr());
     }
 
     taosArrayDestroy(rebOutput.newConsumers);
