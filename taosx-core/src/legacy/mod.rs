@@ -890,6 +890,14 @@ async fn sync_schema(
         .context("Get server version of source error")?
         .unwrap();
     let is_v3 = if v1.starts_with("2") { false } else { true };
+
+    let mut readers = Vec::new();
+    for stable in &todo.stables {
+        let (sender, reader) = oneshot::channel();
+        scheduler.send(Todo::Meta(Some(stable.clone()), vec![], Some(sender)))?;
+        readers.push((vec![], reader));
+    }
+
     // if opts.query.select_from_stable {
     let chunk_size = 400;
     let chunks = todo
@@ -918,7 +926,6 @@ async fn sync_schema(
             .unwrap_or(8)
     };
 
-    let mut readers = Vec::new();
     for chunk in chunks {
         let (sender, reader) = oneshot::channel();
         let (stable, tables) = chunk;
@@ -1615,7 +1622,8 @@ pub async fn legacy_to_taos(
     let metrics = Arc::new(LegacyMetrics::default());
     let from_database = from.subject.clone().unwrap();
     let mut source_opts = SourceOpts::from_params(&mut from)?;
-    let target_opts = TargetOpts::from_params(&mut to)?;
+
+    let target_db = to.subject.take();
 
     let from_builder = TaosBuilder::from_dsn(&from)?;
     let to_builder = TaosBuilder::from_dsn(&to)?;
@@ -1626,6 +1634,7 @@ pub async fn legacy_to_taos(
         bail!("Only enterprise edition is supported. If it's not your case, please contact us.")
     }
 
+    let target_opts = TargetOpts::from_params(&mut to)?;
     let connect_timeout = Duration::from_secs(10);
     let from_pool = TaosBuilder::from_dsn(&from)?.pool()?;
     let from = from_pool.get().await?;
@@ -1633,7 +1642,7 @@ pub async fn legacy_to_taos(
     let source_taos = from_pool.get().await?;
     if target_opts.assert {
         // use take there to avoid [Error: [0x0383] Invalid database name] when execute sql with no database
-        if let Some(db) = to.subject.take() {
+        if let Some(db) = target_db {
             let target = to_builder.build().await?;
             if target.exec(format!("use `{db}`")).await.is_err() {
                 if let Some(database_options) = target_opts.database_options.clone() {
