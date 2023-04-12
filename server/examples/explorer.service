@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-EnvironmentFile=/etc/default/taos-explorer
+EnvironmentFile=-/etc/default/taos-explorer
 ExecStart=/usr/bin/taos-explorer
 Restart=always
 
