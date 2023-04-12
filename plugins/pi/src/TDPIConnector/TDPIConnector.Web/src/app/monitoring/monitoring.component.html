@@ -1,0 +1,39 @@
+<div class="container">
+    <br />
+    <br />
+    <h1>Monitoring</h1>
+    <br />
+    <br />
+    <div *ngIf="monitoringData != null">
+        <h3>PI Data Archive</h3>
+        <p>Host: {{monitoringData.piConnection.host}}</p>
+        <p>Port: {{monitoringData.piConnection.port}}</p>
+        <p>Server Version: {{monitoringData.piConnection.serverVersion}}</p>
+        <p>Is Connected: {{monitoringData.piConnection.isConnected}}</p>
+    
+
+        <h3>TDengine</h3>
+        <p>Host: {{monitoringData.tdEngineInfo.host}}</p>
+        <p>Port: {{monitoringData.tdEngineInfo.port}}</p>
+        <p>Server Version: {{monitoringData.tdEngineInfo.version}}</p>
+ 
+
+        <h3 *ngIf="monitoringData.eventsPerPoint.length > 0">Events Per PI Point</h3>
+        <p *ngFor="let ev of monitoringData.eventsPerPoint">PI Point: {{ev.pointName}}, Events Number: {{ev.events}}</p>
+
+        <h3 *ngIf="monitoringData.eventsPerAttribute.length > 0">Events Per AF Attribute</h3>
+        <p *ngFor="let ev of monitoringData.eventsPerAttribute">AF Attribute: {{ev.attributePath}}, Events Number: {{ev.events}}</p>
+
+        <h3>Responses Per Code</h3>
+        <p *ngFor="let resp of monitoringData.responsesPerCode">Http Status Code: {{resp.httpCode}}, TDengine Code: {{resp.tdEngineCode}}, Events Number: {{resp.events}}</p>
+
+        <h3 *ngIf="monitoringData.lastPIEvents.length > 0">PI Events</h3>
+        <p *ngFor="let ev of monitoringData.lastPIEvents">PI Point: {{ev.point}}, Value: {{ev.value}}, Timestamp: {{ev.timestamp}}</p>
+
+        <h3 *ngIf="monitoringData.lastAFEvents.length > 0">AF Events</h3>
+        <p *ngFor="let ev of monitoringData.lastAFEvents">AF Attribute: {{ev.attributePath}}, Value: {{ev.value}}, Timestamp: {{ev.timestamp}}</p>
+
+        <h3>TDengine Http Responses</h3>
+        <p *ngFor="let httpResponse of monitoringData.tdEngineHttpResponses">Url: {{httpResponse.url}}, Http Status Code: {{httpResponse.httpStatusCode}}, Code: {{httpResponse.tdEngineCode}}, Timestamp: {{httpResponse.timestamp}}</p>
+    </div>
+</div>

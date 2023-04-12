@@ -1,0 +1,22 @@
+<div class="container">
+    <br />
+    <br />
+    <h1>Exceptions</h1>
+    <br />
+    <br />
+    <div *ngIf="exceptions.length == 0">
+        <p>No exceptions thrown!</p>
+    </div>
+    <div *ngFor="let exceptionSummary of exceptions">
+        <h2>Type: {{exceptionSummary.type}}</h2>
+        <p>Message: {{exceptionSummary.message}}</p>   
+        <p>Stack: {{exceptionSummary.stack}}</p>
+        <p>Inner Exception Type: {{exceptionSummary.innerExceptionType}}</p>
+        <p>Inner Exception Message: {{exceptionSummary.innerExceptionMessage}}</p>   
+        <p>Inner Exception Stack: {{exceptionSummary.innerExceptionStack}}</p>
+        <p>Timestamp: {{exceptionSummary.timestamp}}</p>
+        <br />
+        <br />
+        <br />
+    </div>
+</div>

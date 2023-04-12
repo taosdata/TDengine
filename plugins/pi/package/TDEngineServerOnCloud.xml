@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<AF xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="OSIsoft.AF.xsd" SchemaVersion="2.0" SoftwareVersion="2.10.9.593" ExportMode="NoUniqueID" PISystem="MARC-PI2018" Database="Configuration" Description="A store for configuration data." Created="2022-11-04T11:33:12.2861915Z" id="872f62d1-35b6-45d1-9ca2-f6d038943772" ParentKey="dee1a62d-9eac-4945-82e1-4a1e9baa9d8e" ExportedObject="TDEngineServerOnCloud" ExportedType="AFElementTemplate" Identity="ElementTemplate" PIPersist="206 {9895150E-085D-4fcb-A16D-5EF5D2527196} 2\{6019741f-c194-405d-b800-adb10218e7ff}\ElementTemplates[{872f62d1-35b6-45d1-9ca2-f6d038943772}]*MARC-PI2018\Configuration\ElementTemplates[TDEngineServerOnCloud]">
+  <AFElementTemplate>
+    <Name>TDEngineServerOnCloud</Name>
+    <BaseTemplateOnly>false</BaseTemplateOnly>
+    <Type>None</Type>
+    <InstanceType>Element</InstanceType>
+    <AllowElementToExtend>false</AllowElementToExtend>
+    <AFAttributeTemplate>
+      <Name>Host</Name>
+      <Type>String</Type>
+      <Value type="String">0</Value>
+    </AFAttributeTemplate>
+    <AFAttributeTemplate>
+      <Name>Is Cloud</Name>
+      <Type>Boolean</Type>
+      <Value type="Boolean">True</Value>
+    </AFAttributeTemplate>
+    <AFAttributeTemplate>
+      <Name>Port</Name>
+      <Type>Int16</Type>
+      <Value type="Int16">0</Value>
+    </AFAttributeTemplate>
+    <AFAttributeTemplate>
+      <Name>Token</Name>
+      <Type>String</Type>
+      <Value type="String">0</Value>
+    </AFAttributeTemplate>
+  </AFElementTemplate>
+</AF>

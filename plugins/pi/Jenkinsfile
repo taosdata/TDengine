@@ -1,0 +1,135 @@
+def pre_test_connector(){
+    bat '''
+        cd %WIN_TDPICONNECTOR_REPO_ROOT%
+        git reset --hard
+        git remote prune origin
+        git fetch
+    '''
+    script {
+        bat '''
+            cd %WIN_TDPICONNECTOR_REPO_ROOT%
+            git checkout ''' + env.CHANGE_TARGET + '''
+        '''
+        bat '''
+            cd %WIN_TDPICONNECTOR_REPO_ROOT%
+            git remote prune origin
+            git pull  origin ''' + env.CHANGE_TARGET + '''
+        '''
+        bat '''
+            cd %WIN_TDPICONNECTOR_REPO_ROOT%
+            git fetch origin +refs/pull/%CHANGE_ID%/merge
+        '''
+        bat '''
+            cd %WIN_TDPICONNECTOR_REPO_ROOT%
+            git checkout -qf FETCH_HEAD
+        '''
+    }
+}
+
+def pre_test_tdengine(){
+    bat '''
+        hostname
+        taskkill /f /t /im bash.exe
+        ipconfig
+        set
+        date /t
+        time /t
+        rd /s /Q %WIN_INTERNAL_ROOT%\\debug || exit 0
+    '''
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git reset --hard
+        git remote prune origin
+        git fetch
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git clean -fxd
+        git reset --hard
+        git remote prune origin
+        git fetch
+    '''
+    script {
+        bat '''
+            cd %WIN_INTERNAL_ROOT%
+            git checkout %TD_INTERNAL_BRANCH%
+        '''
+        bat '''
+            cd %WIN_COMMUNITY_ROOT%
+            git checkout %TD_ENGINE_BRANCH%
+        '''
+    }
+}
+
+def pre_test_build_tdinternal() {
+    bat '''
+        chcp 65001
+        echo "building ..."
+        time /t
+        cd %WIN_INTERNAL_ROOT%
+        mkdir debug
+        cd debug
+        time /t
+        call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64
+        set CL=/MP8
+        echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> cmake"
+        time /t
+        cmake .. -G "NMake Makefiles JOM" -DBUILD_TEST=true || exit 7
+        echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> jom -j 6"
+        time /t
+        jom -j 6 || exit 8
+        time /t
+    '''
+    return 1
+}
+
+def pre_test_build_connector() {
+    bat '''
+        echo "building connector ..."
+        time /t
+        cd %WIN_TDPICONNECTOR_ROOT%
+        echo "solution clean..."
+        devenv TDPIConnector.sln /clean
+        echo "solution build..."
+        devenv TDPIConnector.sln /build
+    '''
+    return 1
+}
+
+pipeline {
+    agent{label " pi_ci_windows_server_2019 "}
+    environment{
+        TD_ENGINE_BRANCH="3.0"
+        TD_INTERNAL_BRANCH="3.0"
+        WIN_INTERNAL_ROOT="C:\\workspace\\pi\\TDinternal"
+        WIN_COMMUNITY_ROOT="C:\\workspace\\pi\\TDinternal\\community"
+        WIN_TDPICONNECTOR_REPO_ROOT="C:\\workspace\\pi\\td-pi-connector"
+        WIN_TDPICONNECTOR_ROOT="C:\\workspace\\pi\\td-pi-connector\\src\\TDPIConnector"
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Building...'
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                    timeout(time: 55, unit: 'MINUTES'){
+                        pre_test_tdengine()
+                        pre_test_connector()
+                        pre_test_build_tdinternal()
+                        pre_test_build_connector()
+                    }
+                }
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Testing..'
+            }
+        }
+        stage('Deploy') {
+            steps {
+                echo 'Deploying....'
+            }
+        }
+    }
+}

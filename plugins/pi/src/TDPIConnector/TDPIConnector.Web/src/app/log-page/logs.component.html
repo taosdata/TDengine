@@ -1,0 +1,14 @@
+<div class="container">
+    <br />
+    <br />
+    <h1>Logs</h1>
+    <br />
+    <br />
+    <h3>Please select one of the log files available:</h3>
+    <br />
+    <ul>
+        <li *ngFor="let logFile of logFiles">
+            <a class="button" routerLink="/log-content" [queryParams]="{fileName: logFile}">{{logFile}}</a>
+        </li>
+    </ul>   
+  </div>
