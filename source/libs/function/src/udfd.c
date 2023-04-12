@@ -571,13 +571,13 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
   char  initFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
   char *initSuffix = "_init";
   strcpy(initFuncName, udfName);
-  strncat(initFuncName, initSuffix, strlen(initSuffix));
+  strncat(initFuncName, initSuffix, TSDB_FUNC_NAME_LEN + 5 - strlen(initFuncName) - 1);
   uv_dlsym(&udf->lib, initFuncName, (void **)(&udf->initFunc));
 
   char  destroyFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
   char *destroySuffix = "_destroy";
   strcpy(destroyFuncName, udfName);
-  strncat(destroyFuncName, destroySuffix, strlen(destroySuffix));
+  strncat(destroyFuncName, destroySuffix, TSDB_FUNC_NAME_LEN + 5 - strlen(destroyFuncName) - 1);
   uv_dlsym(&udf->lib, destroyFuncName, (void **)(&udf->destroyFunc));
 
   if (udf->funcType == TSDB_FUNC_TYPE_SCALAR) {
@@ -591,17 +591,17 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     char  startFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
     char *startSuffix = "_start";
     strncpy(startFuncName, processFuncName, sizeof(startFuncName));
-    strncat(startFuncName, startSuffix, strlen(startSuffix));
+    strncat(startFuncName, startSuffix, TSDB_FUNC_NAME_LEN + 6 - strlen(startSuffix) - 1);
     uv_dlsym(&udf->lib, startFuncName, (void **)(&udf->aggStartFunc));
     char  finishFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
     char *finishSuffix = "_finish";
     strncpy(finishFuncName, processFuncName, sizeof(finishFuncName));
-    strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
+    strncat(finishFuncName, finishSuffix, TSDB_FUNC_NAME_LEN + 7 - strlen(finishFuncName) - 1);
     uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggFinishFunc));
     char  mergeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
     char *mergeSuffix = "_merge";
     strncpy(mergeFuncName, processFuncName, sizeof(mergeFuncName));
-    strncat(mergeFuncName, mergeSuffix, strlen(mergeSuffix));
+    strncat(mergeFuncName, mergeSuffix, TSDB_FUNC_NAME_LEN + 6 - strlen(mergeFuncName) - 1);
     uv_dlsym(&udf->lib, mergeFuncName, (void **)(&udf->aggMergeFunc));
   }
   return 0;
