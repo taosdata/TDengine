@@ -2151,7 +2151,7 @@ FETCH_NEXT_BLOCK:
     // record the scan action.
     pInfo->numOfExec++;
     pOperator->resultInfo.totalRows += pBlockInfo->rows;
-    printDataBlock(pInfo->pRes, "stream scan");
+    // printDataBlock(pInfo->pRes, "stream scan");
 
     qDebug("scan rows: %" PRId64, pBlockInfo->rows);
     if (pBlockInfo->rows > 0) {

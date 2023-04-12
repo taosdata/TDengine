@@ -2400,7 +2400,6 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
   STimeWindow nextWin = {0};
   if (IS_FINAL_OP(pInfo)) {
     nextWin = getFinalTimeWindow(ts, &pInfo->interval);
-    qDebug("===stream===final ts:%" PRId64 ", getFinalTimeWindow:%" PRId64,ts, nextWin.skey);
   } else {
     nextWin = getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, &pInfo->interval, TSDB_ORDER_ASC);
   }
@@ -2428,7 +2427,6 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
         if (savePullWindow(&pull, pInfo->pPullWins) == TSDB_CODE_SUCCESS) {
           int32_t size = taosArrayGetSize(pInfo->pChildren);
           addPullWindow(pInfo->pPullDataMap, &winRes, size);
-          qDebug("===stream===prepare retrive %" PRId64 ", size:%d", winRes.ts, size);
         }
       } else {
         int32_t index = -1;
@@ -2445,17 +2443,14 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
       }
 
       if (ignore) {
-        // startPos = getNexWindowPos(&pInfo->interval, &pSDataBlock->info, tsCols, startPos, nextWin.ekey, &nextWin);
-        int32_t prevEndPos = startPos;
-        startPos = getNextQualifiedFinalWindow(&pInfo->interval, &nextWin, &pSDataBlock->info, tsCols, prevEndPos);
+        startPos = getNextQualifiedFinalWindow(&pInfo->interval, &nextWin, &pSDataBlock->info, tsCols, startPos);
         if (startPos < 0) {
           break;
         }
         continue;
       }
     }
-    
-    qDebug("===stream===final setIntervalOutputBuf:%" PRId64, nextWin.skey);
+
     int32_t code = setIntervalOutputBuf(pInfo->pState, &nextWin, &pResPos, groupId, pSup->pCtx, numOfOutput,
                                         pSup->rowEntryInfoOffset, &pInfo->aggSup);
     pResult = (SResultRow*)pResPos->pRowBuff;
@@ -2474,7 +2469,6 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
         .groupId = groupId,
     };
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE && pUpdatedMap) {
-       qDebug("===stream===is final%d saveWinResult:%" PRId64,  IS_FINAL_OP(pInfo), key.ts);
       saveWinResult(&key, pResPos, pUpdatedMap);
     }
 
