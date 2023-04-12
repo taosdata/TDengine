@@ -816,7 +816,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setBindTableNameI
     (*env)->ReleaseStringUTFChars(env, jname, name);
 
     jniError("bindTableName jobj:%p, conn:%p, code: 0x%x", jobj, tsconn, code);
-    return JNI_TDENGINE_ERROR;
+    return code;
   }
 
   jniDebug("jobj:%p, conn:%p, set stmt bind table name:%s", jobj, tsconn, name);
@@ -891,7 +891,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsI
 
   if (code != TSDB_CODE_SUCCESS) {
     jniError("tableNameTags jobj:%p, conn:%p, code: 0x%x", jobj, tsconn, code);
-    return JNI_TDENGINE_ERROR;
+    return code;
   }
   return JNI_SUCCESS;
 }
@@ -957,7 +957,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(
 
   if (code != TSDB_CODE_SUCCESS) {
     jniError("bindColData jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
-    return JNI_TDENGINE_ERROR;
+    return code;
   }
 
   return JNI_SUCCESS;
@@ -980,7 +980,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_addBatchImp(JNIEn
   int32_t code = taos_stmt_add_batch(pStmt);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("add batch jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
-    return JNI_TDENGINE_ERROR;
+    return code;
   }
 
   jniDebug("jobj:%p, conn:%p, stmt closed", jobj, tscon);
@@ -1004,7 +1004,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeBatchImp(J
   int32_t code = taos_stmt_execute(pStmt);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("excute batch jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
-    return JNI_TDENGINE_ERROR;
+    return code;
   }
 
   jniDebug("jobj:%p, conn:%p, batch execute", jobj, tscon);
@@ -1028,7 +1028,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_closeStmt(JNIEnv 
   int32_t code = taos_stmt_close(pStmt);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("close stmt jobj:%p, conn:%p, code: 0x%x", jobj, tscon, code);
-    return JNI_TDENGINE_ERROR;
+    return code;
   }
 
   jniDebug("jobj:%p, conn:%p, stmt closed", jobj, tscon);
