@@ -20,7 +20,10 @@ static int32_t create_file_system(STsdb *pTsdb, struct STFileSystem **ppFS) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if ((ppFS[0]->aFileSet = taosArrayInit(16, sizeof(struct SFileSet))) == NULL) {
+  if ((ppFS[0]->aFileSet = taosArrayInit(16, sizeof(struct SFileSet))) == NULL ||
+      (ppFS[0]->nState = taosArrayInit(16, sizeof(struct SFileSet))) == NULL) {
+    taosArrayDestroy(ppFS[0]->nState);
+    taosArrayDestroy(ppFS[0]->aFileSet);
     taosMemoryFree(ppFS[0]);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -351,11 +354,18 @@ static int32_t apply_edit(struct STFileSystem *pFS) {
   return code;
 }
 
+static int32_t fset_cmpr_fn(const struct SFileSet *pSet1, const struct SFileSet *pSet2) {
+  if (pSet1->fid < pSet2->fid) {
+    return -1;
+  } else if (pSet1->fid > pSet2->fid) {
+    return 1;
+  }
+  return 0;
+}
+
 static int32_t edit_fs(struct STFileSystem *pFS, const SArray *aFileOp) {
   int32_t code = 0;
   int32_t lino;
-
-  ASSERTS(0, "TODO: Not implemented yet");
 
   taosArrayClearEx(pFS->nState, NULL /* TODO */);
 
@@ -364,9 +374,38 @@ static int32_t edit_fs(struct STFileSystem *pFS, const SArray *aFileOp) {
   for (int32_t iop = 0; iop < taosArrayGetSize(aFileOp); iop++) {
     struct SFileOp *pOp = taosArrayGet(aFileOp, iop);
 
-    struct SFileSet *pSet = taosArraySearch(pFS->nState, NULL /* TODO */, NULL /* TODO */, TD_EQ);
+    struct SFileSet tmpSet = {.fid = pOp->fid};
+
+    int32_t idx = taosArraySearchIdx(  //
+        pFS->nState,                   //
+        &tmpSet,                       //
+        (__compar_fn_t)fset_cmpr_fn,   //
+        TD_GE);
+
+    struct SFileSet *pSet;
+    if (idx < 0) {
+      pSet = NULL;
+      idx = taosArrayGetSize(pFS->nState);
+    } else {
+      pSet = taosArrayGet(pFS->nState, idx);
+    }
+
+    if (pSet == NULL || pSet->fid != pOp->fid) {
+      ASSERTS(pOp->op == TSDB_FOP_CREATE, "BUG: Invalid file operation");
+      TSDB_CHECK_CODE(                                //
+          code = tsdbFileSetCreate(pOp->fid, &pSet),  //
+          lino,                                       //
+          _exit);
+
+      if (taosArrayInsert(pFS->nState, idx, pSet) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+    }
+
+    // do opration on file set
     TSDB_CHECK_CODE(                        //
-        code = tsdbEditFileSet(pSet, pOp),  //
+        code = tsdbFileSetEdit(pSet, pOp),  //
         lino,                               //
         _exit);
   }

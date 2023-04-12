@@ -368,6 +368,8 @@ static int32_t close_committer(SCommitter *pCommiter, int32_t eno) {
     ASSERTS(0, "TODO: Not implemented yet");
   }
 
+  // TODO: clear the committer
+
 _exit:
   if (code) {
     tsdbError(                                    //

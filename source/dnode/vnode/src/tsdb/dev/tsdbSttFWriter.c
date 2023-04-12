@@ -538,6 +538,7 @@ int32_t tsdbSttFWriterClose(struct SSttFWriter **ppWriter, int8_t abort, struct 
         _exit);
 
     if (op) {
+      op->fid = ppWriter[0]->config.file.fid;
       op->oState = ppWriter[0]->config.file;
       op->nState = ppWriter[0]->tFile;
       if (op->oState.size == 0) {

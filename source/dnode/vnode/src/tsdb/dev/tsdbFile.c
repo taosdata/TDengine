@@ -24,6 +24,28 @@ const char *tsdb_ftype_suffix[] = {
     ".stt",   // TSDB_FTYPE_STT
 };
 
+int32_t tsdbTFileCreate(const struct STFile *config, struct STFile **ppFile) {
+  int32_t code = 0;
+  int32_t lino;
+
+  ppFile[0] = (struct STFile *)taosMemoryCalloc(1, sizeof(struct STFile));
+  if (ppFile[0] == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  ppFile[0][0] = config[0];
+
+_exit:
+  return code;
+}
+
+int32_t tsdbTFileDestroy(struct STFile *pFile) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
 int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile) {
   SVnode *pVnode = pTsdb->pVnode;
   STfs   *pTfs = pVnode->pTfs;

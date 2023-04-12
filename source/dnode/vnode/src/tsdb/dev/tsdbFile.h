@@ -42,6 +42,8 @@ struct STFile {
   char    fname[TSDB_FILENAME_LEN];
 };
 
+int32_t tsdbTFileCreate(const struct STFile *config, struct STFile **ppFile);
+int32_t tsdbTFileDestroy(struct STFile *pFile);
 int32_t tsdbTFileInit(STsdb *pTsdb, struct STFile *pFile);
 int32_t tsdbTFileClear(struct STFile *pFile);
 
