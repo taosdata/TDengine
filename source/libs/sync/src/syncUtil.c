@@ -125,7 +125,7 @@ static void syncLogBufferStates2Str(SSyncNode* pSyncNode, char* buf, int32_t buf
                   pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
 }
 
-static void syncLogReplMgrStates2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
+static void syncLogReplStates2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
   int len = 0;
   len += snprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; i++) {
@@ -178,7 +178,7 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
   syncCfg2SimpleStr(&pNode->raftCfg.cfg, cfgStr, sizeof(cfgStr));
 
   char replMgrStatesStr[1024] = "";
-  syncLogReplMgrStates2Str(pNode, replMgrStatesStr, sizeof(replMgrStatesStr));
+  syncLogReplStates2Str(pNode, replMgrStatesStr, sizeof(replMgrStatesStr));
 
   char bufferStatesStr[256] = "";
   syncLogBufferStates2Str(pNode, bufferStatesStr, sizeof(bufferStatesStr));

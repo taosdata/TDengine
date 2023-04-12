@@ -470,11 +470,11 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
     if (TSDB_CODE_SUCCESS == code) {
       SVgroupDataCxt* pVgCxt = NULL;
       int32_t         vgId = pTableCxt->pMeta->vgId;
-      void**          p = taosHashGet(pVgroupHash, &vgId, sizeof(vgId));
-      if (NULL == p) {
+      void**          pp = taosHashGet(pVgroupHash, &vgId, sizeof(vgId));
+      if (NULL == pp) {
         code = createVgroupDataCxt(pTableCxt, pVgroupHash, pVgroupList, &pVgCxt);
       } else {
-        pVgCxt = *(SVgroupDataCxt**)p;
+        pVgCxt = *(SVgroupDataCxt**)pp;
       }
       if (TSDB_CODE_SUCCESS == code) {
         code = fillVgroupDataCxt(pTableCxt, pVgCxt);
