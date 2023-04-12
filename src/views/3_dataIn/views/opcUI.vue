@@ -534,7 +534,7 @@ export default {
         console.log(this.protocol,'协议---');
         let piParams = {
           from:
-            "opc" + this.protocol+
+            "opc" + '+'+this.protocol+
             // (data.protocol
             //   ? Object.is(data.protocol.value, "--")
             //     ? ""
