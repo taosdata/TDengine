@@ -783,6 +783,7 @@
 ,,y,script,./test.sh -f tsim/insert/query_multi_file.sim
 ,,y,script,./test.sh -f tsim/insert/tcp.sim
 ,,y,script,./test.sh -f tsim/insert/update0.sim
+,,y,script,./test.sh -f tsim/insert/delete0.sim
 ,,y,script,./test.sh -f tsim/insert/update1_sort_merge.sim
 ,,y,script,./test.sh -f tsim/insert/update2.sim
 ,,y,script,./test.sh -f tsim/parser/alter__for_community_version.sim
