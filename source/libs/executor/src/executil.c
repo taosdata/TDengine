@@ -2040,7 +2040,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
 
   int64_t st1 = taosGetTimestampUs();
   pTaskInfo->cost.extractListTime = (st1 - st) / 1000.0;
-  qDebug("extract queried table list completed, %d tables, elapsed time:%.2f ms %s", numOfTables,
+  qError("extract queried table list completed, %d tables, elapsed time:%.2f ms %s", numOfTables,
          pTaskInfo->cost.extractListTime, idStr);
 
   if (numOfTables == 0) {
@@ -2054,7 +2054,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   }
 
   pTaskInfo->cost.groupIdMapTime = (taosGetTimestampUs() - st1) / 1000.0;
-  qDebug("generate group id map completed, elapsed time:%.2f ms %s", pTaskInfo->cost.groupIdMapTime, idStr);
+  qError("generate group id map completed, elapsed time:%.2f ms %s", pTaskInfo->cost.groupIdMapTime, idStr);
 
   return TSDB_CODE_SUCCESS;
 }

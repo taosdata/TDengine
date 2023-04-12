@@ -138,7 +138,7 @@ int32_t qwSendQueryRsp(QW_FPARAMS_DEF, int32_t msgType, SQWTaskCtx *ctx, int32_t
   if ((!quickRsp) || QUERY_RSP_POLICY_QUICK == tsQueryRspPolicy) {
     if (!ctx->localExec) {
       qwBuildAndSendQueryRsp(msgType, &ctx->ctrlConnInfo, rspCode, ctx);
-      QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, rspCode, tstrerror(rspCode));
+      QW_TASK_ELOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, rspCode, tstrerror(rspCode));
     }
 
     ctx->queryRsped = true;

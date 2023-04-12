@@ -51,6 +51,7 @@ typedef struct {
   int32_t       stop;
   TdThread      asyncThread;
   TdThreadMutex buffMutex;
+  SRWLatch      buffLock;
 } SLogBuff;
 
 typedef struct {
@@ -569,7 +570,7 @@ static SLogBuff *taosLogBuffNew(int32_t bufSize) {
   pLogBuf->minBuffSize = bufSize / 10;
   pLogBuf->stop = 0;
 
-  if (taosThreadMutexInit(&LOG_BUF_MUTEX(pLogBuf), NULL) < 0) goto _err;
+  //if (taosThreadMutexInit(&LOG_BUF_MUTEX(pLogBuf), NULL) < 0) goto _err;
   // tsem_init(&(pLogBuf->buffNotEmpty), 0, 0);
 
   return pLogBuf;
@@ -599,12 +600,13 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   int32_t        end = 0;
   int32_t        remainSize = 0;
   static int64_t lostLine = 0;
-  char           tmpBuf[128] = {0};
+  char           tmpBuf[128];
   int32_t        tmpBufLen = 0;
 
   if (pLogBuf == NULL || pLogBuf->stop) return -1;
 
-  taosThreadMutexLock(&LOG_BUF_MUTEX(pLogBuf));
+  //taosThreadMutexLock(&LOG_BUF_MUTEX(pLogBuf));
+  taosWLockLatch(&pLogBuf->buffLock);
   start = LOG_BUF_START(pLogBuf);
   end = LOG_BUF_END(pLogBuf);
 
@@ -618,7 +620,8 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   if (remainSize <= msgLen || ((lostLine > 0) && (remainSize <= (msgLen + tmpBufLen)))) {
     lostLine++;
     tsAsyncLogLostLines++;
-    taosThreadMutexUnlock(&LOG_BUF_MUTEX(pLogBuf));
+    //taosThreadMutexUnlock(&LOG_BUF_MUTEX(pLogBuf));
+    taosWUnLockLatch(&pLogBuf->buffLock);
     return -1;
   }
 
@@ -639,7 +642,8 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   }
   */
 
-  taosThreadMutexUnlock(&LOG_BUF_MUTEX(pLogBuf));
+  //taosThreadMutexUnlock(&LOG_BUF_MUTEX(pLogBuf));
+  taosWUnLockLatch(&pLogBuf->buffLock);
 
   return 0;
 }

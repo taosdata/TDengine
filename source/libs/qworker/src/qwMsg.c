@@ -381,9 +381,9 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
   SQWMsg qwMsg = {
       .msgType = pMsg->msgType, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info};
 
-  QW_SCH_TASK_DLOG("prerocessQuery start, handle:%p, SQL:%s", pMsg->info.handle, msg.sql);
+  QW_SCH_TASK_ELOG("prerocessQuery start, handle:%p, SQL:%s", pMsg->info.handle, msg.sql);
   code = qwPreprocessQuery(QW_FPARAMS(), &qwMsg);
-  QW_SCH_TASK_DLOG("prerocessQuery end, handle:%p, code:%x", pMsg->info.handle, code);
+  QW_SCH_TASK_ELOG("prerocessQuery end, handle:%p, code:%x", pMsg->info.handle, code);
 
   tFreeSSubQueryMsg(&msg);
 
@@ -449,11 +449,11 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   qwMsg.msgInfo.taskType = msg.taskType;
   qwMsg.msgInfo.needFetch = msg.needFetch;
 
-  QW_SCH_TASK_DLOG("processQuery start, node:%p, type:%s, handle:%p, SQL:%s", node, TMSG_INFO(pMsg->msgType),
+  QW_SCH_TASK_ELOG("processQuery start, node:%p, type:%s, handle:%p, SQL:%s", node, TMSG_INFO(pMsg->msgType),
                    pMsg->info.handle, msg.sql);
   code = qwProcessQuery(QW_FPARAMS(), &qwMsg, msg.sql);
   msg.sql = NULL;
-  QW_SCH_TASK_DLOG("processQuery end, node:%p, code:%x", node, code);
+  QW_SCH_TASK_ELOG("processQuery end, node:%p, code:%x", node, code);
 
   tFreeSSubQueryMsg(&msg);
 
