@@ -1054,6 +1054,12 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, None)
         self.tdSql.query('select count(*) from meters;')
 
+    def ts_3146(self):
+        lines = ['1000E0DC000124 /NC_LINK_ROOT/MACHINE/CONTROLLER/WARNING="[]",/NC_LINK_ROOT/MACHINE/PART_COUNT=5900000i,/NC_LINK_ROOT/MACHINE/STATUS=1i,/NC_LINK_ROOT/MACHINE/VARIABLE@PROCESS_TIME_RECORD="[]" 1680918783010000000']
+        self.tdSql._conn.schemaless_insert(lines, TDSmlProtocolType.LINE.value, None)
+        self.tdSql.query("desc `1000E0DC000124`")
+        self.tdSql.checkEqual(self.tdSql.query_data[-1], ('_tag_null', 'NCHAR', 1, 'TAG'))
+
     def test(self):
         # for i in range(100):
         self.multi_insert_check(500)
@@ -1148,6 +1154,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
 
             self.ts_2828(10, 10, 5)
             self.ts_3053()
+            self.ts_3146()
 
     def cleanup(self):
         pass
