@@ -1038,23 +1038,29 @@ bool sclContainsAggFuncNode(SNode *pNode) {
   return aggFunc;
 }
 
+static int8_t sclGetOpValueNodeTsPrecision(SNode *pLeft, SNode *pRight) {
+  int8_t lPrec = ((SExprNode *)pLeft)->resType.precision;
+  int8_t rPrec = ((SExprNode *)pRight)->resType.precision;
+
+  return TMAX(lPrec, rPrec);
+}
 
 int32_t sclConvertOpValueNodeTs(SOperatorNode *node, SScalarCtx *ctx) {
   int32_t code = 0;
-  
+
   if (node->pLeft && SCL_IS_VAR_VALUE_NODE(node->pLeft)) {
     if (node->pRight && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pRight)->resType.type)) {
-      SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pRight)->resType.precision, (SValueNode*)node->pLeft));
+      SCL_ERR_JRET(sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight), (SValueNode*)node->pLeft));
     }
   } else if (node->pRight && SCL_IS_NOTNULL_CONST_NODE(node->pRight)) {
     if (node->pLeft && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode *)node->pLeft)->resType.type)) {
       if (SCL_IS_VAR_VALUE_NODE(node->pRight)) {
-        SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pLeft)->resType.precision, (SValueNode*)node->pRight));
+        SCL_ERR_JRET(sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, node->pRight), (SValueNode*)node->pRight));
       } else if (QUERY_NODE_NODE_LIST == node->pRight->type) {
         SNode* pNode;
         FOREACH(pNode, ((SNodeListNode*)node->pRight)->pNodeList) {
           if (SCL_IS_VAR_VALUE_NODE(pNode)) {
-            SCL_ERR_JRET(sclConvertToTsValueNode(((SExprNode *)node->pLeft)->resType.precision, (SValueNode*)pNode));
+            SCL_ERR_JRET(sclConvertToTsValueNode(sclGetOpValueNodeTsPrecision(node->pLeft, pNode), (SValueNode*)pNode));
           }
         }
       }
@@ -1077,7 +1083,7 @@ int32_t sclConvertCaseWhenValueNodeTs(SCaseWhenNode *node, SScalarCtx *ctx) {
   if (NULL == node->pCase) {
     return TSDB_CODE_SUCCESS;
   }
-  
+
   if (SCL_IS_VAR_VALUE_NODE(node->pCase)) {
     SNode* pNode;
     FOREACH(pNode, node->pWhenThenList) {
