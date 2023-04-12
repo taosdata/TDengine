@@ -2027,7 +2027,7 @@ static int32_t buildInsertUserAuthReq(const char* pUser, SName* pName, SArray** 
 
   SUserAuthInfo userAuth = {.type = AUTH_TYPE_WRITE};
   snprintf(userAuth.user, sizeof(userAuth.user), "%s", pUser);
-  // tNameGetFullDbName(pName, userAuth.dbFName);
+  memcpy(&userAuth.tbName, pName, sizeof(SName));
   taosArrayPush(*pUserAuth, &userAuth);
 
   return TSDB_CODE_SUCCESS;
