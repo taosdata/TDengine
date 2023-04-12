@@ -408,10 +408,18 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
 ### 响应代码和消息体
 
-| 响应代码和消息体     | TDengine 2.x         | TDengine 3.0 | note                                  |
-| :--------------------| :------------------: | :----------: | :-----------------------------------: |
-| Success              | "status": "succ",    | "code": 0,   |                                       |
-| Column meta          | "head": [
+<table>
+<tr>
+<td> 响应代码和消息体 </td> <td> TDengine 2.x </td> <td> TDengine 3.0 </td>
+</tr>
+<tr>
+<td> Success </td> <td> "status": "succ",</td> <td> "code": 0,</td>
+/<tr>
+<tr>
+<td> Column meta </td>
+<td>
+```
+"head": [
     "name",
     "created_time",
     "ntables",
@@ -429,7 +437,12 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
     "comp",
     "precision",
     "status"
-  ],                                        | "column_meta": [
+  ],
+```
+</td>
+<td>
+```
+"column_meta": [
         [
             "name",
             "VARCHAR",
@@ -445,8 +458,17 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
             "VARCHAR",
             10
         ]
-    ],    |  |
-| Data           | "data": [
+    ],
+```
+</td>
+</tr>
+<tr>
+<td>
+Data
+</td>
+<td>
+```
+"data": [
     [
       "log",
       "2020-09-02 17:23:00.039",
@@ -466,7 +488,12 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
       "us",
       "ready"
     ]
-  ], |       "data": [
+  ], 
+```
+</td>
+<td>
+```
+  "data": [
         [
             "information_schema",
             16,
@@ -477,8 +504,11 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
             9,
             "ready"
         ]
-    ], |            |
-
+    ],
+```
+</td>
+</tr>
+</table>
 
 ## 参考
 

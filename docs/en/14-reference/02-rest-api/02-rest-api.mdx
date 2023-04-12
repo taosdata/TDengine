@@ -405,10 +405,18 @@ Response body:
 
 ### Response body
 
-| Response body        | TDengine 2.x         | TDengine 3.0 | note                                  |
-| :--------------------| :------------------: | :----------: | :-----------------------------------: |
-| Success              | "status": "succ",    | "code": 0,   |                                       |
-| Column meta          | "head": [
+<table>
+<tr>
+<td> Response body </td> <td> TDengine 2.x </td> <td> TDengine 3.0 </td>
+</tr>
+<tr>
+<td> Success </td> <td> "status": "succ",</td> <td> "code": 0,</td>
+/<tr>
+<tr>
+<td> Column meta </td>
+<td>
+```
+"head": [
     "name",
     "created_time",
     "ntables",
@@ -426,7 +434,12 @@ Response body:
     "comp",
     "precision",
     "status"
-  ],                                        | "column_meta": [
+  ],
+```
+</td>
+<td>
+```
+"column_meta": [
         [
             "name",
             "VARCHAR",
@@ -442,8 +455,17 @@ Response body:
             "VARCHAR",
             10
         ]
-    ],    |  |
-| Data           | "data": [
+    ],
+```
+</td>
+</tr>
+<tr>
+<td>
+Data
+</td>
+<td>
+```
+"data": [
     [
       "log",
       "2020-09-02 17:23:00.039",
@@ -463,7 +485,12 @@ Response body:
       "us",
       "ready"
     ]
-  ], |       "data": [
+  ], 
+```
+</td>
+<td>
+```
+  "data": [
         [
             "information_schema",
             16,
@@ -474,7 +501,11 @@ Response body:
             9,
             "ready"
         ]
-    ], |            |
+    ],
+```
+</td>
+</tr>
+</table>
 
 ## Reference
 
