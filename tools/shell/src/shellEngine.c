@@ -506,8 +506,6 @@ void shellPrintNChar(const char *str, int32_t length, int32_t width) {
   }
 }
 
-#define FLOAT_NORMAL_MIN  -100000000 
-#define FLOAT_NORMAL_MAX   100000000 
 void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision) {
   if (val == NULL) {
     int32_t w = width;
