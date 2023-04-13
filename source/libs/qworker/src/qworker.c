@@ -443,14 +443,13 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
 int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx    * ctx, SQWMsg *qwMsg, int32_t code) {
   if (QUERY_RSP_POLICY_QUICK == tsQueryRspPolicy && ctx != NULL) {
     QW_LOCK(QW_WRITE, &ctx->lock);
+    
     if (QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
-      QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);
-      QW_UNLOCK(QW_WRITE, &ctx->lock);
-      
       void       *rsp = NULL;
       int32_t     dataLen = 0;
       SOutputData sOutput = {0};
       if (qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput)) {
+        QW_UNLOCK(QW_WRITE, &ctx->lock);
         return TSDB_CODE_SUCCESS;
       }
 
@@ -470,12 +469,10 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx    * ctx, SQWMsg *qwMsg, i
 
         QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code),
                      dataLen);
-      } else {
-        QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
       }
-    } else {
-      QW_UNLOCK(QW_WRITE, &ctx->lock);
-    }
+    } 
+    
+    QW_UNLOCK(QW_WRITE, &ctx->lock);
   }
 
   return TSDB_CODE_SUCCESS;
