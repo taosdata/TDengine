@@ -188,9 +188,14 @@ pub async fn pi_to_taos(
 
     let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql));
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = std::thread::spawn(move || {
-        sink::listen_tcp_socket(target_pool_for_ipc, config.ipc_stream, sender, None)
-    });
+    let cancel2 = cancel;
+    let ipc = sink::listen_tcp_socket(
+        target_pool_for_ipc,
+        config.ipc_stream,
+        sender,
+        None,
+        cancel2,
+    )?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let client = reqwest::Client::new();
@@ -207,55 +212,66 @@ pub async fn pi_to_taos(
         retries += 1;
     }
 
-    let mut command = std::process::Command::new(
-        "C:\\Program Files (x86)\\TD PI Connector\\TDPIConnector.Service.exe",
+    let mut command = async_process::Command::new(
+        "C:\\Program Files (x86)\\xplugins\\pi\\TDPIConnector.Service.exe",
         // "target/debug/examples/pi",
     );
     let child_command = command
         .arg("-f")
         .arg(&config_path)
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
-        .spawn()?;
-    let child_id = child_command.id();
-    let mut v = tokio::task::spawn_blocking(move || {
-        child_command.wait_with_output()
-    });
+        .stdout(async_process::Stdio::inherit())
+        .stderr(async_process::Stdio::inherit())
+        .spawn()
+        .context("Start PI collector error")?;
 
     log::info!("waiting for PI connector");
-    tokio::spawn(async move {
-        tokio::select! {
-            output = &mut v => {
-                let output = output.context("join error").unwrap().context("PI connector run error").unwrap();
-                log::info!("PI exit with status {}", output.status);
-            },
-            _ = tokio::signal::ctrl_c() => {
-                log::info!("Ctrl+C triggered, cancel tasks");
-                // panic!();
-            },
-            _ = receiver.recv() => {
-                log::info!("receive worker thread stop message, terminate child process");
-                v.abort();
-                terminate_child_process(child_id).unwrap();
-            },
-            _ = cancel.cancelled() => {
-                log::info!("pi task cancelled");
-                v.abort();
-                terminate_child_process(child_id).unwrap();
-            }
-        };
 
-        stop_thread(ipc);
-        stop_thread(server);
-        log::info!("pi task Done");
-        temp_path.close().unwrap();
-    }).await?;
+    tokio::select! {
+        output = child_command.output() => {
+            let output = output.context("PI connector run error")?;
+            log::info!("PI exit with status {}", output.status);
+            if !output.status.success() {
+                let len = output.stdout.len();
+                let err = if len > 200 {
+                    String::from_utf8_lossy(&output.stdout[len - 200..])
+                } else {
+                    String::from_utf8_lossy(&output.stdout[..])
+                };
+
+                let _ = ipc.send(());
+                stop_thread(server);
+                anyhow::bail!("PI error: {}", err);
+            }
+        },
+        _ = tokio::signal::ctrl_c() => {
+            log::info!("Ctrl+C triggered, cancel tasks");
+            cancel.cancel();
+            // panic!();
+        },
+        err = receiver.recv() => {
+            if let Some(err) = err {
+                log::warn!("PI writer error occurred: {err}");
+                let _ = ipc.send(());
+                stop_thread(server);
+                anyhow::bail!("PI writer error: {err}");
+            }
+        },
+        _ = cancel.cancelled() => {
+            log::info!("pi task cancelled");
+        }
+    };
+
+    // stop_thread(ipc);
+    let _ = ipc.send(());
+    stop_thread(server);
+    log::info!("pi task Done");
+    temp_path.close().unwrap();
 
     Ok(())
 }
 
 fn terminate_child_process(id: u32) -> anyhow::Result<()> {
-    let mut kill_command = std::process::Command::new("TASKKILL");
+    let mut kill_command = async_process::Command::new("TASKKILL");
     kill_command
         .arg("/F")
         .arg("/PID")
@@ -281,7 +297,7 @@ pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
 
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    let mut command = std::process::Command::new(
+    let mut command = async_process::Command::new(
         "C:\\Program Files (x86)\\TD PI Connector\\TDPIConnector.Service.exe",
     );
 
@@ -296,9 +312,11 @@ pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
         .arg(&config_path)
         .arg("-p")
         .arg(point_filter)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .output()?;
+        .stdout(async_process::Stdio::piped())
+        .stderr(async_process::Stdio::piped())
+        .output()
+        .await
+        .context("Start PI collector error")?;
     // dbg!(output);
     log::info!("PI Connector exit with status {}", output.status);
 
@@ -306,23 +324,33 @@ pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     // let json: Value = serde_json::from_str(std::str::from_utf8(&output.stdout).unwrap()).unwrap();
     let map = json.as_object().unwrap();
     let mut dataset = Vec::new();
-    let mut point_names = map.get("pointsName").unwrap().as_array().unwrap().iter().map(|f| {
-        DataSet {
+    let mut point_names = map
+        .get("pointsName")
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| DataSet {
             id: String::from(f.as_str().unwrap()),
             name: None,
             category: Some(String::from("pointsName")),
             r#type: None,
-        }
-    }).collect_vec();
+        })
+        .collect_vec();
     dataset.append(&mut point_names);
-    let mut template_names = map.get("templateName").unwrap().as_array().unwrap().iter().map(|f| {
-        DataSet {
+    let mut template_names = map
+        .get("templateName")
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| DataSet {
             id: String::from(f.as_str().unwrap()),
             name: None,
             category: Some(String::from("templateName")),
             r#type: None,
-        }
-    }).collect_vec();
+        })
+        .collect_vec();
     dataset.append(&mut template_names);
     temp_path.close()?;
     Ok(dataset)

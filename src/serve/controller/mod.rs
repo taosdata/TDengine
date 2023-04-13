@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{
@@ -93,7 +94,6 @@ static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 
 // const TASK_SELECT: &str = "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks";
 
-#[derive()]
 pub(super) struct TaskController {
     pub pool: SqlitePool,
     pub runtime: Option<Runtime>,
@@ -108,6 +108,17 @@ pub(super) struct TaskController {
     >,
     pub scheduler: Arc<JobScheduler>,
     // tasks: Mutex<Vec<Task>>,
+}
+
+impl Debug for TaskController {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TaskController")
+            .field("pool", &self.pool)
+            .field("runtime", &self.runtime)
+            .field("tasks", &self.tasks)
+            .field("scheduler", &"..")
+            .finish()
+    }
 }
 
 pub(super) async fn start_all_with_schedule(controller: Arc<TaskController>) -> anyhow::Result<()> {
@@ -390,15 +401,31 @@ impl TaskController {
                     log::debug!("cancel task {id}");
                     let now = Utc::now();
                     let status = Status::Cancelled;
-                    let _ = sqlx::query!(
-                        "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status not in (?, ?, ?)",
-                        now,
-                        status,
-                        id,
-                        Status::Completed, Status::Stopped, Status::Failed
-                    )
-                    .execute(&pool)
-                    .await?;
+                    match opts.from.driver.as_str() {
+                        "opc" | "opcua" | "opcda" | "pi" => {
+                            let _ = sqlx::query!(
+                                "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status not in (?, ?)",
+                                now,
+                                status,
+                                id,
+                                Status::Stopped, Status::Failed
+                            )
+                            .execute(&pool)
+                            .await?;
+                        },
+                        _ => {
+                            let _ = sqlx::query!(
+                                "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status not in (?, ?, ?)",
+                                now,
+                                status,
+                                id,
+                                Status::Completed, Status::Stopped, Status::Failed
+                            )
+                            .execute(&pool)
+                            .await?;
+                        }
+                    }
+
                 }
                 result = async {
                     if opts.from.driver == "tmq" && opts.from.get("timeout").map(|s| s == "never").unwrap_or(false) {

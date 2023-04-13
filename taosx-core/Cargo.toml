@@ -67,6 +67,7 @@ bitvec = "1"
 mimalloc = { version = "0.1.34", default-features = false, optional = true }
 port-selector = "0.1.5"
 tempfile = "3"
+socket2 = "0.5"
 
 reqwest = "0.11.15"
 taosx-ipc = { path = "../taosx-ipc" }

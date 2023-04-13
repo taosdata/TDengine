@@ -1,31 +1,43 @@
+use anyhow::Context;
 use std::{
     any::Any,
     io::{Read, Write},
-    net::{SocketAddr, TcpListener, TcpStream},
+    net::SocketAddr,
+    panic,
     path::Path,
-    sync::{Arc,}, panic,
+    sync::{atomic::AtomicBool, Arc},
 };
-use taos::{
-    AsyncQueryable, Bindable, Itertools, Stmt, Taos, TaosPool,
-};
-use tokio::sync::{Mutex, mpsc::Sender,};
+use taos::{AsyncQueryable, Bindable, Itertools, Stmt, Taos, TaosPool};
+use tokio::sync::{mpsc::Sender, Mutex};
+use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument};
 
-use taosx_ipc::{prelude::*, stream::point::PointMessage};
 use super::runners::opc::OpcTableConfig;
+use taosx_ipc::{prelude::*, stream::point::PointMessage};
 
-#[instrument(skip(pool, config))]
+// #[instrument(skip_all)]
 async fn ipc_tcp_read(
-    client: SocketAddr,
+    client: String,
     pool: TaosPool,
-    stream: TcpStream,
+    stream: socket2::Socket,
     lock: Arc<Mutex<()>>,
     config: Option<OpcTableConfig>,
+    cancel: CancellationToken,
 ) -> anyhow::Result<()> {
+    // let stream = Arc::new(stream);
+    // let reader = stream.clone();
     let ipc_reader = IpcReader::new(&stream)?;
     let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
     let client = client.to_string();
-    ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config).await
+    tokio::select! {
+        _ = cancel.cancelled() => {
+            log::debug!("cancel IPC worker");
+            Ok(())
+        },
+        done = ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config) => {
+            done
+        }
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -34,14 +46,14 @@ async fn ipc_unix_read(
     pool: TaosPool,
     stream: std::os::unix::net::UnixStream,
     lock: Arc<Mutex<()>>,
-    config: Option<OpcTableConfig>
+    config: Option<OpcTableConfig>,
 ) -> anyhow::Result<()> {
     let ipc_reader = IpcReader::new(&stream).unwrap();
     let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
     ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config).await
 }
 
-#[instrument(skip(taos, record, names, marks))]
+// #[instrument(skip(taos, record, names, marks))]
 async fn consume_lush_record(
     taos: &Taos,
     record: LushMessage,
@@ -104,7 +116,7 @@ async fn consume_point_record(
     taos: &Taos,
     record: &PointMessage,
     count: &mut usize,
-    config: &OpcTableConfig
+    config: &OpcTableConfig,
 ) -> anyhow::Result<()> {
     for message in record.records() {
         let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
@@ -136,18 +148,17 @@ async fn consume_point_record(
                 .iter()
                 .map(|t_cv| t_cv.slice(i..i + 1).unwrap())
                 .collect_vec();
-            info!(sql);
-            dbg!(&new_cv_vec);
-            stmt.bind(&new_cv_vec.as_slice())?;
-            stmt.add_batch()?;
-            let n = stmt.execute()?;
+            stmt.bind(&new_cv_vec.as_slice())
+                .context("STMT binding error")?;
+            stmt.add_batch().context("STMT adding batch error")?;
+            let n = stmt.execute().context("STMT executing error")?;
             *count += n;
         }
     }
     Ok(())
 }
 
-#[instrument(skip_all)]
+// #[instrument(skip_all)]
 async fn ipc_lush_stream_reader<R: Read, W: Write>(
     taos: &Taos,
     ipc_reader: IpcReader<R>,
@@ -173,12 +184,12 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
     Ok(())
 }
 
-#[instrument(skip_all)]
+// #[instrument(skip_all)]
 async fn ipc_point_reader<R: Read, W: Write>(
     taos: &Taos,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
-    config: Option<OpcTableConfig>
+    config: Option<OpcTableConfig>,
 ) -> anyhow::Result<()> {
     let mut count = 0;
     for record in ipc_reader {
@@ -203,7 +214,7 @@ async fn ipc_process<R: Read, W: Write>(
     ipc_reader: IpcReader<R>,
     ipc_ack_writer: AckWriter<W>,
     lock: Arc<Mutex<()>>,
-    config: Option<OpcTableConfig>
+    config: Option<OpcTableConfig>,
 ) -> anyhow::Result<()> {
     let taos = pool.get().await?;
     let metadata = ipc_reader.metadata();
@@ -235,9 +246,8 @@ async fn ipc_process<R: Read, W: Write>(
 pub fn listen_unix_socket(
     target: TaosPool,
     socket: impl AsRef<Path>,
-    config: Option<OpcTableConfig>
+    config: Option<OpcTableConfig>,
 ) -> anyhow::Result<()> {
-
     let path = socket.as_ref();
     if path.exists() {
         std::fs::remove_file(path).unwrap();
@@ -249,8 +259,6 @@ pub fn listen_unix_socket(
     let listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
     let sql_lock = Arc::new(Mutex::new(()));
     info!("listen on socket address: {}", path.display());
-
-    // let pool = TaosBuilder::from_dsn("taos:///test3")?.pool()?;
     loop {
         match listener.accept() {
             Ok((stream, addr)) => {
@@ -272,7 +280,7 @@ pub fn listen_unix_socket(
             }
             Err(e) => {
                 /* connection failed */
-                tracing::error!("Connection error {e}");
+                tracing::debug!("IPC stream acceptation error {e}, might be stopped");
             }
         }
     }
@@ -283,38 +291,75 @@ pub fn listen_tcp_socket(
     socket: impl AsRef<str>,
     sender: Sender<String>,
     config: Option<OpcTableConfig>,
-) -> anyhow::Result<()> {
-    let tcp_addr = socket.as_ref();
-    let listener = TcpListener::bind(tcp_addr)?;
+    cancel: CancellationToken,
+) -> anyhow::Result<std::sync::mpsc::Sender<()>> {
+    let addr = socket.as_ref();
+    use socket2::{Domain, Socket, Type};
+    let socket = Socket::new(Domain::IPV4, Type::STREAM, None)?;
+    let addr: SocketAddr = addr.parse()?;
+    socket.bind(&addr.into())?;
+    socket.set_keepalive(true)?;
+    socket.set_nonblocking(false)?;
+    socket.listen(128)?;
+
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .worker_threads(16)
         .build()?;
-    info!("listen on socket address: {tcp_addr}");
+    // info!("listen on socket address: {tcp_addr}");
     let sql_lock = Arc::new(Mutex::new(()));
-    loop {
-        match listener.accept() {
-            Ok((stream, addr)) => {
-                log::info!("new tcp client!: {:?}", addr);
-                let pool = target.clone();
-                let lock = sql_lock.clone();
-                let config = config.clone();
-                let se = sender.clone();
-                runtime.spawn(async move {
-                    let res = ipc_tcp_read(addr, pool, stream, lock, config).await;
-                    if let Err(err) = res {
-                        // panic!("{err:?}");
-                        log::error!("ipc read err: {}", err);
-                        se.send(String::from("panicked")).await.unwrap();
-                    }
-                });
+    let socket = Arc::new(socket);
+    let closer_socket = socket.clone();
+
+    let (closer, receiver) = std::sync::mpsc::channel::<()>();
+    let closed = Arc::new(AtomicBool::new(false));
+    let closed2 = closed.clone();
+
+    std::thread::spawn(move || {
+        let _ = receiver.recv();
+        tracing::debug!("shutdown socket");
+        closed.store(true, std::sync::atomic::Ordering::SeqCst);
+        let _ = closer_socket.shutdown(std::net::Shutdown::Both);
+        // runtime.shutdown_background();
+    });
+
+    std::thread::spawn(move || {
+        loop {
+            if closed2.load(std::sync::atomic::Ordering::SeqCst) {
+                break;
             }
-            Err(e) => {
-                /* connection failed */
-                tracing::error!("Connection error {e}");
-                panic!("Error: {:?}", e);
+            match socket.accept() {
+                Ok((stream, addr)) => {
+                    log::info!("new tcp client!: {:?}", addr);
+                    let pool = target.clone();
+                    let lock = sql_lock.clone();
+                    let config = config.clone();
+                    let se = sender.clone();
+                    let cancel = cancel.clone();
+                    runtime.spawn(async move {
+                        let res = ipc_tcp_read(
+                            addr.as_socket_ipv4().unwrap().to_string(),
+                            pool,
+                            stream,
+                            lock,
+                            config,
+                            cancel,
+                        )
+                        .await;
+                        if let Err(err) = res {
+                            // panic!("{err:?}");
+                            log::error!("ipc read err: {}", err);
+                            let _ = se.send(err.to_string()).await;
+                        }
+                    });
+                }
+                Err(e) => {
+                    /* connection failed */
+                    tracing::debug!("IPC stream acceptation error {e}, might be stopped");
+                }
             }
         }
-    }
-    Ok(())
+    });
+
+    Ok(closer)
 }
