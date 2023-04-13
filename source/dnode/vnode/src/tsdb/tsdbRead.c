@@ -831,6 +831,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
       // this block belongs to a table that is not queried.
       STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockIdx->uid, pReader->idStr);
       if (pScanInfo == NULL) {
+        tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
         return terrno;
       }
 
