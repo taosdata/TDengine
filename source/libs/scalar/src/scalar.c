@@ -1038,11 +1038,22 @@ bool sclContainsAggFuncNode(SNode *pNode) {
   return aggFunc;
 }
 
-static int8_t sclGetOpValueNodeTsPrecision(SNode *pLeft, SNode *pRight) {
-  int8_t lPrec = ((SExprNode *)pLeft)->resType.precision;
-  int8_t rPrec = ((SExprNode *)pRight)->resType.precision;
+static uint8_t sclGetOpValueNodeTsPrecision(SNode *pLeft, SNode *pRight) {
+  uint8_t lPrec = ((SExprNode *)pLeft)->resType.precision;
+  uint8_t rPrec = ((SExprNode *)pRight)->resType.precision;
 
-  return TMAX(lPrec, rPrec);
+  uint8_t lType = ((SExprNode *)pLeft)->resType.type;
+  uint8_t rType = ((SExprNode *)pRight)->resType.type;
+
+  if (TSDB_DATA_TYPE_TIMESTAMP == lType && TSDB_DATA_TYPE_TIMESTAMP == rType) {
+    return TMAX(lPrec, rPrec);
+  } else if (TSDB_DATA_TYPE_TIMESTAMP == lType && TSDB_DATA_TYPE_TIMESTAMP != rType) {
+    return lPrec;
+  } else if (TSDB_DATA_TYPE_TIMESTAMP == rType && TSDB_DATA_TYPE_TIMESTAMP != lType) {
+    return rPrec;
+  }
+
+  return 0;
 }
 
 int32_t sclConvertOpValueNodeTs(SOperatorNode *node, SScalarCtx *ctx) {
