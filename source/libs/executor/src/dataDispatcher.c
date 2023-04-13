@@ -225,6 +225,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
     SDataDispatchBuf* pBuf = NULL;
     taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
     if (pBuf != NULL) {
+      mprotect(pBuf->pData, pBuf->allocSize, PROT_READ|PROT_WRITE|PROT_EXEC);
       taosMemoryFreeClear(pBuf->pData);
       taosFreeQitem(pBuf);
     }
