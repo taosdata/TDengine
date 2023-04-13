@@ -579,6 +579,7 @@ function install_share_etc() {
       out=/etc/${clientName2}/$c.new.`date +%F`
       ${csudo}cp -f ${script_dir}/share/etc/$c $out ||:
     else
+      mkdir -p /etc/${clientName2} >/dev/null 2>/dev/null ||:
       ${csudo}cp -f ${script_dir}/share/etc/$c /etc/${clientName2}/$c ||:
     fi
   done
