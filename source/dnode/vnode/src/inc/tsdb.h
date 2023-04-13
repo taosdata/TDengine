@@ -621,13 +621,14 @@ struct SRowMerger {
 };
 
 typedef struct {
-  char     *path;
-  int32_t   szPage;
-  int32_t   flag;
-  TdFilePtr pFD;
-  int64_t   pgno;
-  uint8_t  *pBuf;
-  int64_t   szFile;
+  const char *path;
+  int32_t     oflag;
+  int32_t     pageSize;
+  int32_t     nCachePage;
+  TdFilePtr   pFD;
+  int64_t     pgno;
+  uint8_t    *pBuf;
+  int64_t     szFile;
 } STsdbFD;
 
 struct SDelFWriter {
