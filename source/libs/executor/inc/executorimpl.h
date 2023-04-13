@@ -579,6 +579,7 @@ typedef struct SStreamIntervalOperatorInfo {
   SSDataBlock*       pPullDataRes;
   bool               isFinal;
   SArray*            pChildren;
+  int32_t            numOfChild;
   SStreamState*      pState;
   SWinKey            delKey;
   uint64_t           numOfDatapack;
