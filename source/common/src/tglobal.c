@@ -733,7 +733,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsNumOfTaskQueueThreads = cfgGetItem(pCfg, "numOfTaskQueueThreads")->i32;
   tsQueryPolicy = cfgGetItem(pCfg, "queryPolicy")->i32;
   tsEnableQueryHb = cfgGetItem(pCfg, "enableQueryHb")->bval;
-  tsEnableScience =  = cfgGetItem(pCfg, "enableScience")->bval;  
+  tsEnableScience = cfgGetItem(pCfg, "enableScience")->bval;  
   tsQuerySmaOptimize = cfgGetItem(pCfg, "querySmaOptimize")->i32;
   tsQueryPlannerTrace = cfgGetItem(pCfg, "queryPlannerTrace")->bval;
   tsQueryNodeChunkSize = cfgGetItem(pCfg, "queryNodeChunkSize")->i32;

@@ -555,7 +555,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       if (tsEnableScience) {
         printf("%*e", width, GET_FLOAT_VAL(val));
       } else {
-        printf("%.5f", GET_FLOAT_VAL(val));
+        printf("%*.5f", width, GET_FLOAT_VAL(val));
       }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
@@ -563,9 +563,9 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
         snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%.9e", GET_DOUBLE_VAL(val));
         printf("%*s", width, buf);
       } else {
-        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
-        if (n > TMAX(25, length)) {
-            printf("%*.15e", length, GET_DOUBLE_VAL(val));
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
+        if (n > TMAX(25, width)) {
+            printf("%*.15e", width, GET_DOUBLE_VAL(val));
         } else {
             printf("%s", buf);
         }
