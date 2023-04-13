@@ -35,7 +35,7 @@ void createStreamTaskOffsetKey(char* dst, uint64_t streamId, uint32_t taskId) {
 }
 
 int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueItem, int64_t ver) {
-  int32_t code = tAppendDataForStream(pTask, pQueueItem);
+  int32_t code = tAppendDataToInputQueue(pTask, pQueueItem);
   if (code < 0) {
     tqError("s-task:%s failed to put into queue, too many, next start ver:%" PRId64, pTask->id.idStr, ver);
     return -1;
@@ -79,7 +79,7 @@ void initOffsetForAllRestoreTasks(STQ* pTq) {
   void* pIter = NULL;
 
   while(1) {
-    pIter = taosHashIterate(pTq->pStreamMeta->pRestoreTasks, pIter);
+    pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
     if (pIter == NULL) {
       break;
     }
@@ -103,7 +103,6 @@ void initOffsetForAllRestoreTasks(STQ* pTq) {
       doSaveTaskOffset(pTq->pOffsetStore, key, pTask->chkInfo.version);
     }
   }
-
 }
 
 void saveOffsetForAllTasks(STQ* pTq, int64_t ver) {

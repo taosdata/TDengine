@@ -139,7 +139,7 @@ typedef struct {
 } SWalFilterCond;
 
 // todo hide this struct
-typedef struct {
+typedef struct SWalReader {
   SWal          *pWal;
   int64_t        readerId;
   TdFilePtr      pLogFile;

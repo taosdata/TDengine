@@ -31,6 +31,7 @@ extern "C" {
 #ifndef _STREAM_H_
 #define _STREAM_H_
 
+typedef void  (*_free_reader_fn_t)(void*);
 typedef struct SStreamTask SStreamTask;
 
 enum {
@@ -218,9 +219,10 @@ void streamDataSubmitDestroy(SStreamDataSubmit2* pDataSubmit);
 SStreamDataSubmit2* streamSubmitBlockClone(SStreamDataSubmit2* pSubmit);
 
 typedef struct {
-  char*             qmsg;
-  void*             pExecutor;   // not applicable to encoder and decoder
-  struct STqReader* pTqReader;  // not applicable to encoder and decoder
+  char*              qmsg;
+  void*              pExecutor;   // not applicable to encoder and decoder
+  struct STqReader*  pTqReader;   // not applicable to encoder and decoder
+  struct SWalReader* pWalReader;  // not applicable to encoder and decoder
 } STaskExec;
 
 typedef struct {
@@ -331,6 +333,7 @@ struct SStreamTask {
   int64_t             checkpointingId;
   int32_t             checkpointAlignCnt;
   struct SStreamMeta* pMeta;
+  _free_reader_fn_t   freeFp;
 };
 
 // meta
@@ -340,12 +343,14 @@ typedef struct SStreamMeta {
     TTB*         pTaskDb;
     TTB*         pCheckpointDb;
     SHashObj*    pTasks;
-    SHashObj*    pRestoreTasks;
+    SHashObj*    pWalReadTasks;
     void*        ahandle;
     TXN*         txn;
     FTaskExpand* expandFunc;
     int32_t      vgId;
     SRWLatch     lock;
+    int8_t       walScan;
+    bool         quit;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -355,7 +360,7 @@ SStreamTask* tNewStreamTask(int64_t streamId);
 int32_t      tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeStreamTask(SStreamTask* pTask);
-int32_t      tAppendDataForStream(SStreamTask* pTask, SStreamQueueItem* pItem);
+int32_t      tAppendDataToInputQueue(SStreamTask* pTask, SStreamQueueItem* pItem);
 bool         tInputQueueIsFull(const SStreamTask* pTask);
 
 static FORCE_INLINE void streamTaskInputFail(SStreamTask* pTask) {
@@ -568,8 +573,9 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 void         streamMetaClose(SStreamMeta* streamMeta);
 
 int32_t      streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask);
-int32_t      streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask);
+int32_t      streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask);
 int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t checkpointVer, char* msg, int32_t msgLen);
+int32_t      streamMetaGetNumOfTasks(const SStreamMeta* pMeta);
 
 SStreamTask* streamMetaAcquireTaskEx(SStreamMeta* pMeta, int32_t taskId);
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);

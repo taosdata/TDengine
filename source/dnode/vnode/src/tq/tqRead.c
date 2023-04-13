@@ -300,6 +300,28 @@ int32_t tqSeekVer(STqReader* pReader, int64_t ver, const char* id) {
   return 0;
 }
 
+int32_t extractSubmitMsgFromWal(SWalReader* pReader, SPackedData* pPackedData) {
+  if (walNextValidMsg(pReader) < 0) {
+    return -1;
+  }
+
+  void*   pBody = POINTER_SHIFT(pReader->pHead->head.body, sizeof(SSubmitReq2Msg));
+  int32_t len = pReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
+  int64_t ver = pReader->pHead->head.version;
+
+  void* data = taosMemoryMalloc(len);
+  if (data == NULL) {
+    // todo: for all stream in this vnode, keep this offset in the offset files, and wait for a moment, and then retry
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    tqError("vgId:%d, failed to copy submit data for stream processing, since out of memory", 0);
+    return -1;
+  }
+
+  memcpy(data, pBody, len);
+  *pPackedData = (SPackedData){.ver = ver, .msgLen = len, .msgStr = data};
+  return 0;
+}
+
 void tqNextBlock(STqReader* pReader, SFetchRet* ret) {
   while (1) {
     if (pReader->msg2.msgStr == NULL) {
@@ -434,7 +456,10 @@ int32_t tqRetrieveDataBlock2(SSDataBlock* pBlock, STqReader* pReader, SSubmitTbD
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
   pReader->nextBlk++;
 
-  if (pSubmitTbDataRet) *pSubmitTbDataRet = pSubmitTbData;
+  if (pSubmitTbDataRet) {
+    *pSubmitTbDataRet = pSubmitTbData;
+  }
+
   int32_t sversion = pSubmitTbData->sver;
   int64_t suid = pSubmitTbData->suid;
   int64_t uid = pSubmitTbData->uid;

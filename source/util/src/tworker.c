@@ -248,7 +248,8 @@ STaosQueue *tAutoQWorkerAllocQueue(SAutoQWorkerPool *pool, void *ahandle, FItem 
     }
 
     taosThreadAttrDestroy(&thAttr);
-    uInfo("worker:%s:%d is launched, total:%d", pool->name, worker->id, (int32_t)taosArrayGetSize(pool->workers));
+    int32_t numOfThreads = taosArrayGetSize(pool->workers);
+    uInfo("worker:%s:%d is launched, total:%d, expect:%d", pool->name, worker->id, numOfThreads, dstWorkerNum);
 
     curWorkerNum++;
   }

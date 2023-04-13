@@ -322,16 +322,19 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
     taosWUnLockLatch(&pTq->lock);
   }
 
+  tqDebug("handle submit, restore:%d, size:%d", pTq->pVnode->restored, (int)taosHashGetSize(pTq->pStreamMeta->pTasks));
+
   // push data for stream processing:
-  // 1. the vnode isn't in the restore procedure.
+  // 1. the vnode has already been restored.
   // 2. the vnode should be the leader.
   // 3. the stream is not suspended yet.
-  if (!tsDisableStream && vnodeIsRoleLeader(pTq->pVnode) && (!pTq->pVnode->restored)) {
+  if (!tsDisableStream && vnodeIsRoleLeader(pTq->pVnode) && pTq->pVnode->restored) {
     if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) {
       return 0;
     }
 
     if (msgType == TDMT_VND_SUBMIT) {
+#if 0
       void* data = taosMemoryMalloc(len);
       if (data == NULL) {
         // todo: for all stream in this vnode, keep this offset in the offset files, and wait for a moment, and then retry
@@ -343,7 +346,10 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
       memcpy(data, pReq, len);
       SPackedData submit = {.msgStr = data, .msgLen = len, .ver = ver};
 
-      tqDebug("tq copy submit msg:%p len:%d ver:%" PRId64 " from %p for stream", data, len, ver, pReq);
+      tqDebug("vgId:%d tq copy submit msg:%p len:%d ver:%" PRId64 " from %p for stream", vgId, data, len, ver, pReq);
+      tqProcessSubmitReq(pTq, submit);
+#endif
+      SPackedData submit = {0};
       tqProcessSubmitReq(pTq, submit);
     }
 

@@ -186,7 +186,8 @@ void tFreeStreamTask(SStreamTask* pTask) {
     pTask->exec.pExecutor = NULL;
   }
 
-  if (pTask->exec.pTqReader != NULL) {
+  if (pTask->exec.pTqReader != NULL && pTask->freeFp != NULL) {
+    pTask->freeFp(pTask->exec.pTqReader);
     pTask->exec.pTqReader = NULL;
   }
 
@@ -204,6 +205,10 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   if (pTask->pState) {
     streamStateClose(pTask->pState);
+  }
+
+  if (pTask->id.idStr != NULL)  {
+    taosMemoryFree((void*)pTask->id.idStr);
   }
 
   taosMemoryFree(pTask);

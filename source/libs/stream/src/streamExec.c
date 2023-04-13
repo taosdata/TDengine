@@ -40,9 +40,9 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
     const SStreamDataSubmit2* pSubmit = (const SStreamDataSubmit2*)data;
-    qDebug("s-task:%s set submit blocks as input %p %p %d ver:%" PRId64, pTask->id.idStr, pSubmit, pSubmit->submit.msgStr,
-           pSubmit->submit.msgLen, pSubmit->submit.ver);
     qSetMultiStreamInput(pExecutor, &pSubmit->submit, 1, STREAM_INPUT__DATA_SUBMIT);
+    qDebug("s-task:%s set submit blocks as source block completed, %p %p len:%d ver:%" PRId64, pTask->id.idStr, pSubmit, pSubmit->submit.msgStr,
+           pSubmit->submit.msgLen, pSubmit->submit.ver);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
     const SStreamDataBlock* pBlock = (const SStreamDataBlock*)data;
 
@@ -241,7 +241,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     while (1) {
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputQueue);
       if (qItem == NULL) {
-        qDebug("s-task:%s stream task exec over, queue empty", pTask->id.idStr);
+//        qDebug("s-task:%s extract data from input queue, queue is empty, abort", pTask->id.idStr);
         break;
       }
 
@@ -280,12 +280,13 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     if (pTask->taskLevel == TASK_LEVEL__SINK) {
       ASSERT(((SStreamQueueItem*)pInput)->type == STREAM_INPUT__DATA_BLOCK);
+      qDebug("s-task:%s sink node start to sink result. numOfBlocks:%d", pTask->id.idStr, batchSize);
       streamTaskOutput(pTask, pInput);
       continue;
     }
 
     SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
-    qDebug("s-task:%s exec begin, msg batch: %d", pTask->id.idStr, batchSize);
+    qDebug("s-task:%s exec begin, numOfBlocks:%d", pTask->id.idStr, batchSize);
 
     streamTaskExecImpl(pTask, pInput, pRes);
 
@@ -293,13 +294,21 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     int64_t dataVer = 0;
     qGetCheckpointVersion(pTask->exec.pExecutor, &dataVer, &ckId);
     if (dataVer > pTask->chkInfo.version) {    // save it since the checkpoint is updated
-      qDebug("s-task:%s exec end, checkpoint ver from %"PRId64" to %"PRId64, pTask->id.idStr, pTask->chkInfo.version, dataVer);
-      pTask->chkInfo = (SCheckpointInfo) {.version = dataVer, .id = ckId};
-      streamMetaSaveTask(pTask->pMeta, pTask);
+      qDebug("s-task:%s exec end, start to update check point, ver from %" PRId64 " to %" PRId64
+             ", checkPoint id:%" PRId64 " -> %" PRId64,
+             pTask->id.idStr, pTask->chkInfo.version, dataVer, pTask->chkInfo.id, ckId);
 
+      pTask->chkInfo = (SCheckpointInfo) {.version = dataVer, .id = ckId};
+
+      taosWLockLatch(&pTask->pMeta->lock);
+      streamMetaSaveTask(pTask->pMeta, pTask);
       if (streamMetaCommit(pTask->pMeta) < 0) {
-        qError("failed to commit stream meta, since %s", terrstr());
+        taosWUnLockLatch(&pTask->pMeta->lock);
+        qError("s-task:%s failed to commit stream meta, since %s", pTask->id.idStr, terrstr());
         return -1;
+      } else {
+        taosWUnLockLatch(&pTask->pMeta->lock);
+        qDebug("s-task:%s update checkpoint ver succeed", pTask->id.idStr);
       }
     } else {
       qDebug("s-task:%s exec end", pTask->id.idStr);
@@ -354,6 +363,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
 
     // todo the task should be commit here
     atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+    qDebug("s-task:%s exec completed", pTask->id.idStr);
 
     if (!taosQueueEmpty(pTask->inputQueue->queue)) {
       streamSchedExec(pTask);

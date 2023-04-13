@@ -539,13 +539,10 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetBatchMeta(pVnode, pMsg);
     case TDMT_VND_TMQ_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
-
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
-#if 1
     case TDMT_STREAM_TASK_DISPATCH:
       return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
-#endif
     case TDMT_STREAM_TASK_CHECK:
       return tqProcessStreamTaskCheckReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH_RSP:

@@ -150,7 +150,7 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   ASSERT(pTask->taskLevel == TASK_LEVEL__AGG);
 
   // 2.save task
-  code = streamMetaAddTask(pSnode->pMeta, -1, pTask);
+  code = streamMetaAddDeployedTask(pSnode->pMeta, -1, pTask);
   if (code < 0) {
     return -1;
   }

@@ -69,7 +69,6 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
 
 SStreamDataSubmit2* streamDataSubmitNew(SPackedData submit, int32_t type) {
   SStreamDataSubmit2* pDataSubmit = (SStreamDataSubmit2*)taosAllocateQitem(sizeof(SStreamDataSubmit2), DEF_QITEM, 0);
-
   if (pDataSubmit == NULL) {
     return NULL;
   }
