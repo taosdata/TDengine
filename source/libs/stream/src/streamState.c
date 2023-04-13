@@ -1066,6 +1066,7 @@ void streamStateDestroy(SStreamState* pState) {
 #ifdef USE_ROCKSDB
   streamFileStateDestroy(pState->pFileState);
   streamStateDestroy_rocksdb(pState);
+  taosMemoryFreeClear(pState->parNameMap);
   // do nothong
 #endif
   taosMemoryFreeClear(pState->pTdbState);
