@@ -148,8 +148,8 @@ static int32_t fs_to_json_str(struct STFileSystem *pFS, char **ppData) {
       _exit,                                                      //
       TSDB_CODE_OUT_OF_MEMORY);
 
-  for (int32_t i = 0; i < taosArrayGetSize(pFS->aFileSet); i++) {
-    struct SFileSet *pFileSet = taosArrayGet(pFS->aFileSet, i);
+  for (int32_t i = 0; i < taosArrayGetSize(pFS->nState); i++) {
+    struct SFileSet *pFileSet = taosArrayGet(pFS->nState, i);
 
     code = tsdbFileSetToJson(aFileSetJson, pFileSet);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -409,6 +409,8 @@ static int32_t edit_fs(struct STFileSystem *pFS, const SArray *aFileOp) {
         lino,                               //
         _exit);
   }
+
+  // TODO: write new state to file
 
 _exit:
   return 0;
