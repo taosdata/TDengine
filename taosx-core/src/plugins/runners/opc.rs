@@ -400,6 +400,36 @@ fn process_table_info(
     };
 }
 
+const OPC_CONNECTOR_PATH: &str = {
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    {
+        "C:\\TDengine\\xplugins\\opc\\opc-collector_windows_amd64.exe"
+    }
+    #[cfg(all(target_os = "windows", target_arch = "x86"))]
+    {
+        "C:\\TDengine\\xplugins\\opc\\opc-collector_windows_386.exe"
+    }
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        "/usr/local/taos/xplugins/opc/opc-collector_linux_amd64"
+    }
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    {
+        "/usr/local/taos/xplugins/opc/opc-collector_linux_arm64"
+    }
+    #[cfg(all(target_os = "linux", target_arch = "arm"))]
+    {
+        "/usr/local/taos/xplugins/opc/opc-collector_linux_arm"
+    }
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    {
+        "/usr/local/taos/xplugins/opc/opc-collector_darwin_amd64"
+    }
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        "/usr/local/taos/xplugins/opc/opc-collector_darwin_arm64"
+    }
+};
 #[instrument(skip(port_pool))]
 pub async fn opc_to_taos(
     from: Dsn,
@@ -426,7 +456,6 @@ pub async fn opc_to_taos(
     let mut ts_cloumn_name_map = HashMap::new();
     for (table_name, field_info) in &config.table_info {
         let res = taos.describe(&table_name).await;
-        log::info!("------------------------------------: {res:?}");
         if res.is_err() {
             // table not exists, will create normal table
             let mut sql = format!("CREATE TABLE IF NOT EXISTS {table_name} (`ts` TIMESTAMP");
@@ -526,27 +555,8 @@ pub async fn opc_to_taos(
     // } else {
     //     std::thread::spawn(move || sink::listen_unix_socket(target_pool_for_ipc, socket))
     // };
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    let mut command =
-        async_process::Command::new("C:\\TDengine\\xplugins\\opc\\opc-collector_windows_amd64.exe");
-    #[cfg(all(target_os = "windows", target_arch = "x86"))]
-    let mut command =
-        async_process::Command::new("C:\\TDengine\\xplugins\\opc\\opc-collector_windows_386.exe");
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    let mut command =
-        async_process::Command::new("/usr/local/taos/xplugins/opc/opc-collector_linux_amd64");
-    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-    let mut command =
-        async_process::Command::new("/usr/local/taos/xplugins/opc/opc-collector_linux_arm64");
-    #[cfg(all(target_os = "linux", target_arch = "arm"))]
-    let mut command =
-        async_process::Command::new("/usr/local/taos/xplugins/opc/opc-collector_linux_arm");
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    let mut command =
-        async_process::Command::new("/usr/local/taos/xplugins/opc/opc-collector_darwin_amd64");
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    let mut command =
-        async_process::Command::new("/usr/local/taos/xplugins/opc/opc-collector_darwin_arm64");
+
+    let mut command = async_process::Command::new(OPC_CONNECTOR_PATH);
     let child = command
         .arg("collect")
         .arg(format!("--conf={}", &config_path.display()))
@@ -633,27 +643,7 @@ pub async fn opc_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     // } else {
     //     std::thread::spawn(move || sink::listen_unix_socket(target_pool_for_ipc, socket))
     // };
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    let mut command =
-        async_process::Command::new("C:\\TDengine\\xplugins\\opc-collector_windows_amd64.exe");
-    #[cfg(all(target_os = "windows", target_arch = "x86"))]
-    let mut command =
-        async_process::Command::new("C:\\TDengine\\xplugins\\opc-collector_windows_386.exe");
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    let mut command =
-        async_process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_amd64");
-    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-    let mut command =
-        async_process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_arm64");
-    #[cfg(all(target_os = "linux", target_arch = "arm"))]
-    let mut command =
-        async_process::Command::new("/usr/local/taos/xplugins/opc-collector_linux_arm");
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    let mut command =
-        async_process::Command::new("/usr/local/taos/xplugins/opc-collector_darwin_amd64");
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    let mut command =
-        async_process::Command::new("/usr/local/taos/xplugins/opc-collector_darwin_arm64");
+    let mut command = async_process::Command::new(OPC_CONNECTOR_PATH);
     let output = command
         .arg("points")
         .arg(format!("--conf={}", &config_path.display()))

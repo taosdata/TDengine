@@ -148,6 +148,8 @@ impl PiConfig {
     }
 }
 
+const PI_CONNECTOR_PATH: &'static str = "C:\\TDengine\\xplugins\\pi\\TDPIConnector.Service.exe";
+
 /// PI DSN example: "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&points=@<file>"
 pub async fn pi_to_taos(
     mut from: Dsn,
@@ -212,10 +214,7 @@ pub async fn pi_to_taos(
         retries += 1;
     }
 
-    let mut command = async_process::Command::new(
-        "C:\\Program Files (x86)\\xplugins\\pi\\TDPIConnector.Service.exe",
-        // "target/debug/examples/pi",
-    );
+    let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
     let child_command = command
         .arg("-f")
         .arg(&config_path)
@@ -270,15 +269,6 @@ pub async fn pi_to_taos(
     Ok(())
 }
 
-fn terminate_child_process(id: u32) -> anyhow::Result<()> {
-    let mut kill_command = async_process::Command::new("TASKKILL");
-    kill_command
-        .arg("/F")
-        .arg("/PID")
-        .arg(id.to_string())
-        .spawn()?;
-    Ok(())
-}
 
 pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
     println!("# loading plugin: PI");
@@ -297,9 +287,7 @@ pub async fn pi_datasets(from: &Dsn) -> anyhow::Result<Vec<DataSet>> {
 
     log::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    let mut command = async_process::Command::new(
-        "C:\\Program Files (x86)\\TD PI Connector\\TDPIConnector.Service.exe",
-    );
+    let mut command = async_process::Command::new(PI_CONNECTOR_PATH);
 
     let point_filter = if let Some(pf) = config.point_filter {
         pf
