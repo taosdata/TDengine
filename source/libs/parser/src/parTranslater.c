@@ -1543,6 +1543,11 @@ static int32_t translateDateTimeFunc(STranslateContext* pCxt, SFunctionNode* pFu
   if (!fmIsDateTimeFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
+
+  if (!isSelectStmt(pCxt->pCurrStmt)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
   pFunc->node.resType.precision = pSelect->precision;
 
