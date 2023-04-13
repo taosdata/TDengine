@@ -292,7 +292,7 @@ class TDTestCase:
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
         # time.sleep(2)
-        vgroups = "8"
+        vgroups = "4"
         sql = "create database db3 vgroups " + vgroups
         tdSql.query(sql)
         sql = "create table db3.stb (ts timestamp, f int) tags (t int)"

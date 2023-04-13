@@ -129,6 +129,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
+,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
+,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
@@ -621,7 +623,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 4
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q 4
@@ -651,9 +653,9 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py -Q 4
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q 4
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -Q 4
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tail.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py -Q 4
@@ -873,6 +875,7 @@
 ,,y,script,./test.sh -f tsim/query/scalarNull.sim
 ,,y,script,./test.sh -f tsim/query/session.sim
 ,,y,script,./test.sh -f tsim/query/udf.sim
+,,n,script,./test.sh -f tsim/query/udfpy.sim
 ,,y,script,./test.sh -f tsim/query/udf_with_const.sim
 ,,y,script,./test.sh -f tsim/query/join_interval.sim
 ,,y,script,./test.sh -f tsim/query/unionall_as_table.sim

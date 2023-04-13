@@ -86,10 +86,10 @@ SHOW FUNCTIONS;
 
 显示用户定义的自定义函数。
 
-## SHOW LICENSE
+## SHOW LICENCES
 
 ```sql
-SHOW LICENSE;
+SHOW LICENCES;
 SHOW GRANTS;
 ```
 
@@ -204,7 +204,7 @@ Compression_Ratio: 数据压缩率 23.98%
 
 _block_dist: Total_Rows=[20000] Inmem_Rows=[0] MinRows=[3616] MaxRows=[4096] Average_Rows=[4000]
 
-Total_Rows:  统计表 d0 的所有行数 为20000 行（该数值仅供参考，不是精确的行数。获得精确的行数需要使用 count 函数）
+Total_Rows:  统计表 d0 的存储在磁盘上行数 20000 行（该数值仅供参考，不是精确的行数。获得精确的行数需要使用 count 函数）
 
 Inmem_Rows： 存储在写缓存中的数据行数（没有落盘），0 行表示内存缓存中没有数据
 
@@ -253,8 +253,9 @@ Query OK, 24 row(s) in set (0.002444s)
 </code></pre>
  </details>
 
-  上面是块中包含数据行数的块儿分布情况图，这里的 0100 0299 0498 … 表示的是每个块中包含的数据行数，上面的意思就是这个表的 5 个块，分布在 3483 ~3681 行的块有 1 个，占整个块的 20%，分布在 3881 ~ 4096（最大行数）的块数为 4 个，占整个块的 80%， 其它区域内分布块数为 0。
+上面是块中包含数据行数的块儿分布情况图，这里的 0100 0299 0498 … 表示的是每个块中包含的数据行数，上面的意思就是这个表的 5 个块，分布在 3483 ~3681 行的块有 1 个，占整个块的 20%，分布在 3881 ~ 4096（最大行数）的块数为 4 个，占整个块的 80%， 其它区域内分布块数为 0。
 
+需要注意，这里只会显示 data 文件中数据块的信息，stt 文件中的数据的信息不会被显示。
 
 ## SHOW TAGS
 
@@ -303,7 +304,7 @@ SHOW DNODE dnode_id VARIABLES;
 SHOW [db_name.]VGROUPS;
 ```
 
-显示当前系统中所有 VGROUP 或某个 db 的 VGROUPS 的信息。
+显示当前数据库中所有 VGROUP 的信息。
 
 ## SHOW VNODES
 

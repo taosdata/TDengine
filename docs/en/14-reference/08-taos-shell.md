@@ -61,12 +61,14 @@ And many more parameters.
 - -c CONFIGDIR: Specify the directory where configuration file exists. The default is `/etc/taos`, and the default name of the configuration file in this directory is `taos.cfg`
 - -C: Print the configuration parameters of `taos.cfg` in the default directory or specified by -c
 - -d DATABASE: Specify the database to use when connecting to the server
+- -E dsn: connect to the TDengine Cloud or a server which provides WebSocket connection
 - -f FILE: Execute the SQL script file in non-interactive mode Note that each SQL statement in the script file must be only one line.
 - -k: Test the operational status of the server. 0: unavailable; 1: network ok; 2: service ok; 3: service degraded; 4: exiting
 - -l PKTLEN: Test package size to be used for network testing
 - -n NETROLE: test scope for network connection test, default is `client`. The value can be `client` or `server`.
 - -N PKTNUM: Number of packets used for network testing
 - -r: output the timestamp format as unsigned 64-bits integer (uint64_t in C language)
+- -R: Use RESTful mode when connecting
 - -s COMMAND: execute SQL commands in non-interactive mode
 - -t: Test the boot status of the server. The statuses of -k apply.
 - -w DISPLAYWIDTH: Specify the number of columns of the server display.

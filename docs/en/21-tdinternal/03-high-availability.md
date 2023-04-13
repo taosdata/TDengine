@@ -28,4 +28,4 @@ SHOW MNODES;
 
 The end point and role/status (leader, follower, candidate, offline) of all mnodes can be shown by the above command. When the first dnode is started in a cluster, there must be one mnode in this dnode. Without at least one mnode, the cluster cannot work.
 
-From TDengine 3.0.0, RAFT procotol is used to guarantee the high availability, so the number of mnodes is should be 1 or 3.
+From TDengine 3.0.0, RAFT protocol is used to guarantee the high availability, so the number of mnodes is should be 1 or 3.

@@ -605,6 +605,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
                                     int nCols) {
   SFSLastNextRowIter *state = (SFSLastNextRowIter *)iter;
   int32_t             code = 0;
+  bool                checkRemainingRow = true;
 
   switch (state->state) {
     case SFSLASTNEXTROW_FS:

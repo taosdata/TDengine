@@ -4,23 +4,25 @@ title: taosKeeper
 description: TDengine 3.0 版本监控指标的导出工具
 ---
 
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+
 ## 简介
 
-TaosKeeper 是 TDengine 3.0 版本监控指标的导出工具，通过简单的几项配置即可获取 TDengine 的运行状态。taosKeeper 使用 TDengine RESTful 接口，所以不需要安装 TDengine 客户端即可使用。
+taosKeeper 是 TDengine 3.0 版本监控指标的导出工具，通过简单的几项配置即可获取 TDengine 的运行状态。taosKeeper 使用 TDengine RESTful 接口，所以不需要安装 TDengine 客户端即可使用。
 
 ## 安装
 
-<!-- taosKeeper 有两种安装方式: -->
+taosKeeper 有两种安装方式：
 taosKeeper 安装方式：
 
-<!-- - 安装 TDengine 官方安装包的同时会自动安装 taosKeeper, 详情请参考[ TDengine 安装](/operation/pkg-install)。-->
+- 安装 TDengine 官方安装包的同时会自动安装 taosKeeper, 详情请参考[ TDengine 安装](/operation/pkg-install)。
 
-<!-- - 单独编译 taosKeeper 并安装，详情请参考 [taosKeeper](https://github.com/taosdata/taoskeeper) 仓库。-->
 - 单独编译 taosKeeper 并安装，详情请参考 [taosKeeper](https://github.com/taosdata/taoskeeper) 仓库。
 
-## 运行
+## 配置和运行方式
 
-### 配置和运行方式
+### 配置
 
 taosKeeper 需要在操作系统终端执行，该工具支持三种配置方式：[命令行参数](#命令行参数启动)、[环境变量](#环境变量启动) 和 [配置文件](#配置文件启动)。优先级为：命令行参数、环境变量、配置文件参数。
 
@@ -34,29 +36,82 @@ monitorFqdn localhost # taoskeeper 服务的 FQDN
 TDengine 监控配置相关，具体请参考：[TDengine 监控配置](../config/#监控相关)。
 
 
-### 命令行参数启动
+### 启动
 
-在使用命令行参数运行 taosKeeper 并控制其行为。
+<Tabs>
+<TabItem label="Linux" value="linux">
 
-```shell
-$ taosKeeper
+安装后，请使用 `systemctl` 命令来启动 taoskeeper 的服务进程。
+
+```bash
+systemctl start taoskeeper
 ```
 
-### 环境变量启动
+检查服务是否正常工作：
 
-通过设置环境变量达到控制启动参数的目的，通常在容器中运行时使用。
-
-```shell
-$ export TAOS_KEEPER_TDENGINE_HOST=192.168.64.3
- 
-$ taoskeeper
+```bash
+systemctl status taoskeeper
 ```
 
-具体参数列表请参照 `taoskeeper -h` 输入结果。
+如果服务进程处于活动状态，则 status 指令会显示如下的相关信息：
 
-### 配置文件启动
+```
+Active: active (running)
+```
 
-执行以下命令即可快速体验 taosKeeper。当不指定 taosKeeper 配置文件时，优先使用 `/etc/taos/keeper.toml` 配置，否则将使用默认配置。 
+如果后台服务进程处于停止状态，则 status 指令会显示如下的相关信息：
+
+```
+Active: inactive (dead)
+```
+
+如下 `systemctl` 命令可以帮助你管理 taoskeeper 服务：
+
+- 启动服务进程：`systemctl start taoskeeper`
+
+- 停止服务进程：`systemctl stop taoskeeper`
+
+- 重启服务进程：`systemctl restart taoskeeper`
+
+- 查看服务状态：`systemctl status taoskeeper`
+
+:::info
+
+- `systemctl` 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 `sudo`。
+- 如果系统中不支持 `systemd`，也可以用手动运行 `/usr/local/taos/bin/taoskeeper` 方式启动 taoskeeper 服务。
+- 故障排查：
+- 如果服务异常请查看系统日志获取更多信息。
+:::
+</TabItem>
+
+<TabItem label="macOS" value="macOS">
+
+安装后，可以运行 `sudo launchctl start com.tdengine.taoskeeper` 来启动 taoskeeper 服务进程。
+
+如下 `launchctl` 命令用于管理 taoskeeper 服务：
+
+- 启动服务进程：`sudo launchctl start com.tdengine.taoskeeper`
+
+- 停止服务进程：`sudo launchctl stop com.tdengine.taoskeeper`
+
+- 查看服务状态：`sudo launchctl list | grep taoskeeper`
+
+:::info
+
+- `launchctl` 命令管理`com.tdengine.taoskeeper`需要管理员权限，务必在前面加 `sudo` 来增强安全性。
+- `sudo launchctl list | grep taoskeeper` 指令返回的第一列是 `taoskeeper` 程序的 PID，若为 `-` 则说明 taoskeeper 服务未运行。
+- 故障排查：
+- 如果服务异常请查看系统日志获取更多信息。
+
+:::
+
+</TabItem>
+</Tabs>
+
+
+#### 配置文件启动
+
+执行以下命令即可快速体验 taosKeeper。当不指定 taosKeeper 配置文件时，优先使用 `/etc/taos/keeper.toml` 配置，否则将使用默认配置。
 
 ```shell
 $ taoskeeper -c <keeper config file>
@@ -134,19 +189,36 @@ $ curl http://127.0.0.1:6043/metrics
 部分结果集：
 
 ```shell
-# HELP taos_cluster_info_connections_total 
+# HELP taos_cluster_info_connections_total
 # TYPE taos_cluster_info_connections_total counter
 taos_cluster_info_connections_total{cluster_id="5981392874047724755"} 16
-# HELP taos_cluster_info_dbs_total 
+# HELP taos_cluster_info_dbs_total
 # TYPE taos_cluster_info_dbs_total counter
 taos_cluster_info_dbs_total{cluster_id="5981392874047724755"} 2
-# HELP taos_cluster_info_dnodes_alive 
+# HELP taos_cluster_info_dnodes_alive
 # TYPE taos_cluster_info_dnodes_alive counter
 taos_cluster_info_dnodes_alive{cluster_id="5981392874047724755"} 1
-# HELP taos_cluster_info_dnodes_total 
+# HELP taos_cluster_info_dnodes_total
 # TYPE taos_cluster_info_dnodes_total counter
 taos_cluster_info_dnodes_total{cluster_id="5981392874047724755"} 1
-# HELP taos_cluster_info_first_ep 
+# HELP taos_cluster_info_first_ep
 # TYPE taos_cluster_info_first_ep gauge
 taos_cluster_info_first_ep{cluster_id="5981392874047724755",value="hlb:6030"} 1
+```
+
+### check_health 
+
+```
+$ curl -i http://127.0.0.1:6043/check_health
+```
+
+返回结果：
+
+```
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Date: Mon, 03 Apr 2023 07:20:38 GMT
+Content-Length: 19
+
+{"version":"1.0.0"}
 ```

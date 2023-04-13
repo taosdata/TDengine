@@ -170,6 +170,20 @@ if  $leaderExist != 1 then
   goto step35
 endi
 
+$wt = 0
+stepwt1:
+ 	$wt = $wt + 1
+ 	sleep 1000
+ 	if $wt == 200 then
+ 	  print ====> dnode not ready!
+ 		return -1
+ 	endi
+sql show transactions
+if $rows != 0 then
+  print wait 1 seconds to alter
+  goto stepwt1
+endi
+
 print =============== step36: create table
 sql use d1
 sql create table d1.st (ts timestamp, i int) tags (j int)
