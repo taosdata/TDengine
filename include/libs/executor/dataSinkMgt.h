@@ -70,6 +70,7 @@ typedef struct SOutputData {
   int32_t numOfBlocks;
   int64_t numOfRows; // int32_t changed to int64_t
   int32_t numOfCols;
+  int32_t dataSize;
   int8_t  compressed;
   char*   pData;
   bool    queryEnd;

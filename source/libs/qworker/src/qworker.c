@@ -322,6 +322,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
 
     if (len == 0) {
       if (queryEnd) {
+        output.dataSize = 0;
         code = dsGetDataBlock(ctx->sinkHandle, &output);
         if (code) {
           QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
@@ -357,6 +358,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     QW_ERR_RET(qwMallocFetchRsp(!ctx->localExec, *dataLen, &rsp));
 
     output.pData = rsp->data + *dataLen - len;
+    output.dataSize = len;
     code = dsGetDataBlock(ctx->sinkHandle, &output);
     if (code) {
       QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
