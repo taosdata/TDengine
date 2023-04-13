@@ -975,15 +975,17 @@ int stmtIsInsert(TAOS_STMT* stmt, int* insert) {
 }
 
 int stmtGetTagFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
+  int32_t code = 0;
   STscStmt* pStmt = (STscStmt*)stmt;
+  int32_t preCode = pStmt->errCode;
 
   STMT_DLOG_E("start to get tag fields");
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    STMT_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+    STMT_ERRI_JRET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
 
-  STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
+  STMT_ERRI_JRET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
 
   if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
       STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
@@ -995,27 +997,33 @@ int stmtGetTagFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
     pStmt->exec.pRequest = NULL;
   }
 
-  STMT_ERR_RET(stmtCreateRequest(pStmt));
+  STMT_ERRI_JRET(stmtCreateRequest(pStmt));
 
   if (pStmt->bInfo.needParse) {
-    STMT_ERR_RET(stmtParseSql(pStmt));
+    STMT_ERRI_JRET(stmtParseSql(pStmt));
   }
 
-  STMT_ERR_RET(stmtFetchTagFields(stmt, nums, fields));
+  STMT_ERRI_JRET(stmtFetchTagFields(stmt, nums, fields));
 
-  return TSDB_CODE_SUCCESS;
+_return:
+
+  pStmt->errCode = preCode;
+  
+  return code;
 }
 
 int stmtGetColFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
+  int32_t code = 0;
   STscStmt* pStmt = (STscStmt*)stmt;
+  int32_t preCode = pStmt->errCode;
 
   STMT_DLOG_E("start to get col fields");
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    STMT_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+    STMT_ERRI_JRET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
 
-  STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
+  STMT_ERRI_JRET(stmtSwitchStatus(pStmt, STMT_FETCH_FIELDS));
 
   if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
       STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
@@ -1027,15 +1035,19 @@ int stmtGetColFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
     pStmt->exec.pRequest = NULL;
   }
 
-  STMT_ERR_RET(stmtCreateRequest(pStmt));
+  STMT_ERRI_JRET(stmtCreateRequest(pStmt));
 
   if (pStmt->bInfo.needParse) {
-    STMT_ERR_RET(stmtParseSql(pStmt));
+    STMT_ERRI_JRET(stmtParseSql(pStmt));
   }
 
-  STMT_ERR_RET(stmtFetchColFields(stmt, nums, fields));
+  STMT_ERRI_JRET(stmtFetchColFields(stmt, nums, fields));
 
-  return TSDB_CODE_SUCCESS;
+_return:
+
+  pStmt->errCode = preCode;
+
+  return code;
 }
 
 int stmtGetParamNum(TAOS_STMT* stmt, int* nums) {
