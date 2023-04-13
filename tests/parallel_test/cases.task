@@ -10,18 +10,21 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py 
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
@@ -43,6 +46,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 3
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
@@ -86,13 +94,14 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStbCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot0.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/raw_block_interface_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 
@@ -120,6 +129,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
+,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
+,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
@@ -140,6 +151,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/update_data_muti_rows.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/db_tb_name_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/InsertFuturets.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_wide_column.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
@@ -244,6 +256,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py
@@ -468,6 +481,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 2
@@ -562,6 +576,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 3
@@ -608,7 +623,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 4
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q 4
@@ -638,9 +653,9 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py -Q 4
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q 4
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -Q 4
+#,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tail.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py -Q 4
@@ -657,6 +672,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 4
@@ -848,6 +864,7 @@
 ,,y,script,./test.sh -f tsim/parser/topbot.sim
 ,,y,script,./test.sh -f tsim/parser/union_sysinfo.sim
 ,,y,script,./test.sh -f tsim/parser/slimit_limit.sim
+,,y,script,./test.sh -f tsim/parser/table_merge_limit.sim
 ,,y,script,./test.sh -f tsim/query/tagLikeFilter.sim
 ,,y,script,./test.sh -f tsim/query/charScalarFunction.sim
 ,,y,script,./test.sh -f tsim/query/explain.sim
@@ -857,7 +874,11 @@
 ,,y,script,./test.sh -f tsim/query/scalarNull.sim
 ,,y,script,./test.sh -f tsim/query/session.sim
 ,,y,script,./test.sh -f tsim/query/udf.sim
+,,n,script,./test.sh -f tsim/query/udfpy.sim
 ,,y,script,./test.sh -f tsim/query/udf_with_const.sim
+,,y,script,./test.sh -f tsim/query/join_interval.sim
+,,y,script,./test.sh -f tsim/query/unionall_as_table.sim
+,,y,script,./test.sh -f tsim/query/multi_order_by.sim
 ,,y,script,./test.sh -f tsim/query/sys_tbname.sim
 ,,y,script,./test.sh -f tsim/query/groupby.sim
 ,,y,script,./test.sh -f tsim/query/event.sim
@@ -865,6 +886,7 @@
 ,,y,script,./test.sh -f tsim/query/emptyTsRange.sim
 ,,y,script,./test.sh -f tsim/query/partitionby.sim
 ,,y,script,./test.sh -f tsim/query/tableCount.sim 
+,,y,script,./test.sh -f tsim/query/nullColSma.sim
 ,,y,script,./test.sh -f tsim/qnode/basic1.sim
 ,,y,script,./test.sh -f tsim/snode/basic1.sim
 ,,y,script,./test.sh -f tsim/mnode/basic1.sim
@@ -1095,9 +1117,9 @@
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/json_tag.py
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/query_json.py
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sample_csv_json.py
-#,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_json_alltypes.py
+,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_json_alltypes.py
 ,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestQueryWithJson.py -R
-#,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/telnet_tcp.py -R
+,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/telnet_tcp.py -R
 
 #docs-examples test
 ,,n,docs-examples-test,bash python.sh

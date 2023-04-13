@@ -20,6 +20,10 @@
 #include "tlog.h"
 #include "tmisce.h"
 
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#include "cus_name.h"
+#endif
+
 GRANT_CFG_DECLARE;
 
 SConfig *tsCfg = NULL;
@@ -99,6 +103,7 @@ char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table
 // query
 int32_t tsQueryPolicy = 1;
 int32_t tsQueryRspPolicy = 0;
+int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
 bool    tsEnableQueryHb = false;
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
@@ -228,7 +233,11 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
 
   taosExpandDir(inputCfgDir, cfgDir, PATH_MAX);
   if (taosIsDir(cfgDir)) {
+#ifdef CUS_PROMPT
+    snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "%s.cfg", cfgDir, CUS_PROMPT);
+#else
     snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
+#endif
   } else {
     tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
   }
@@ -332,6 +341,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "useAdapter", tsUseAdapter, true) != 0) return -1;
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, true) != 0) return -1;
+  if (cfgAddInt64(pCfg, "queryMaxConcurrentTables", tsQueryMaxConcurrentTables, INT64_MIN, INT64_MAX, 1) != 0) return -1;
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
@@ -727,6 +737,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
   tsUseAdapter = cfgGetItem(pCfg, "useAdapter")->bval;
   tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
+  tsQueryMaxConcurrentTables = cfgGetItem(pCfg, "queryMaxConcurrentTables")->i64;
 
   tsMaxRetryWaitTime = cfgGetItem(pCfg, "maxRetryWaitTime")->i32;
 
@@ -1238,13 +1249,13 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   }
 
   if (taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl) != 0) {
-    uError("failed to load cfg since %s", terrstr());
+    printf("failed to load cfg since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
 
   if (cfgLoadFromArray(pCfg, pArgs) != 0) {
-    uError("failed to load cfg from array since %s", terrstr());
+    printf("failed to load cfg from array since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
@@ -1260,13 +1271,13 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   if (taosMulModeMkDir(tsLogDir, 0777) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to create dir:%s since %s", tsLogDir, terrstr());
+    printf("failed to create dir:%s since %s", tsLogDir, terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
 
   if (taosInitLog(logname, logFileNum) != 0) {
-    uError("failed to init log file since %s", terrstr());
+    printf("failed to init log file since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }

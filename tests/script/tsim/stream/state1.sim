@@ -4,6 +4,7 @@ system sh/exec.sh -n dnode1 -s start
 sleep 50
 sql connect
 
+print step 1
 print =============== create database
 sql create database test vgroups 4;
 sql select * from information_schema.ins_databases;
@@ -33,8 +34,8 @@ if $loop_count == 10 then
 endi
 
 sql select * from streamt1;
-print data00 data01
-print data10 data11
+print $data00 $data01
+print $data10 $data11
 
 if $rows != 0 then
   print =====rows=$rows
@@ -52,8 +53,8 @@ if $loop_count == 10 then
 endi
 
 sql select * from streamt1;
-print data00 data01
-print data10 data11
+print $data00 $data01
+print $data10 $data11
 
 if $rows != 1 then
   print =====rows=$rows
@@ -92,9 +93,64 @@ endi
 sql select * from streamt1;
 if $rows != 2 then
   print =====rows=$rows
-  goto loop2
+  goto loop3
 endi
 
+print step 1 over
+print step 2
+
+sql create database test2  vgroups 1;
+sql use test2;
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+print create stream streams2 trigger at_once  watermark 1000s into streamt2 as select  _wstart, count(*) c1, count(d) c2 from t1 partition by b state_window(a)
+sql create stream streams2 trigger at_once  watermark 1000s into streamt2 as select  _wstart, count(*) c1, count(d) c2 from t1 partition by b state_window(a);
+
+sql insert into t1 values(1648791213000,1,2,3,1.0);
+sql insert into t1 values(1648791213010,1,2,3,1.1);
+
+$loop_count = 0
+loop4:
+
+sleep 300
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt2;
+print $data00 $data01
+print $data10 $data11
+
+if $rows != 1 then
+ print =====rows=$rows
+ goto loop4
+endi
+
+print insert into t1 values(1648791213005,2,2,3,1.1)
+sql insert into t1 values(1648791213005,2,2,3,1.1);
+
+$loop_count = 0
+loop5:
+
+sleep 300
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+print select * from streamt2
+sql select * from streamt2;
+print $data00 $data01
+print $data10 $data11
+print $data20 $data21
+print $data30 $data31
+
+if $rows != 3 then
+ print =====rows=$rows
+ goto loop5
+endi
+
+print step 2 over
 
 print state1 end
 

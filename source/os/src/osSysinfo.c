@@ -17,6 +17,10 @@
 #include "os.h"
 #include "taoserror.h"
 
+#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#include "cus_name.h"
+#endif
+
 #define PROCESS_ITEM 12
 #define UUIDLEN37 37
 
@@ -252,7 +256,11 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 #ifdef WINDOWS
   // ASSERT(0);
 #elif defined(_TD_DARWIN_64)
+#ifdef CUS_PROMPT
+  const char *filepath = "/usr/local/"CUS_PROMPT"/email";
+#else
   const char *filepath = "/usr/local/taos/email";
+#endif  // CUS_PROMPT
 
   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
   if (pFile == NULL) return false;
@@ -265,7 +273,11 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
   taosCloseFile(&pFile);
   return 0;
 #else
+#ifdef CUS_PROMPT
+  const char *filepath = "/usr/local/"CUS_PROMPT"/email";
+#else
   const char *filepath = "/usr/local/taos/email";
+#endif  // CUS_PROMPT
 
   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
   if (pFile == NULL) return false;

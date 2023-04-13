@@ -186,7 +186,7 @@
     },
     {
       "datasource": "TDengine",
-      "description": "taosd  max  memery  last 10 minutes",
+      "description": "taosd  max  memory  last 10 minutes",
       "gridPos": {
         "h": 6,
         "w": 8,
@@ -253,7 +253,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "taosd memery",
+      "title": "taosd memory",
       "type": "gauge"
     },
     {

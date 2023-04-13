@@ -1,16 +1,15 @@
 local _M = {}
 local driver = require "luaconnector51"
-local water_mark = 0
-local occupied = 0
-local connection_pool = {}
+td_pool_watermark = 0
+td_pool_occupied = 0
+td_connection_pool = {}
 
-function _M.new(o,config)
+function _M.new(o, config)
    o = o or {}
-   o.connection_pool = connection_pool
-   o.water_mark = water_mark
-   o.occupied = occupied
-   if #connection_pool == 0 then
-
+   o.connection_pool = td_connection_pool
+   o.watermark = td_pool_watermark
+   o.occupied = td_pool_occupied
+   if #td_connection_pool == 0 then
       for i = 1, config.connection_pool_size do
 	 local res = driver.connect(config)
 	 if res.code ~= 0 then
@@ -18,8 +17,8 @@ function _M.new(o,config)
 	    return nil
 	 else
 	    local object = {obj = res.conn, state = 0}
-	    table.insert(o.connection_pool,i, object)
-	    ngx.log(ngx.INFO, "add connection, now pool size:"..#(o.connection_pool))
+	    table.insert(td_connection_pool, i, object)
+	    ngx.log(ngx.INFO, "add connection, now pool size:"..#(td_connection_pool))
 	 end
       end
       
@@ -32,13 +31,13 @@ function _M:get_connection()
 
    local connection_obj
 
-   for i = 1, #connection_pool do
-      connection_obj = connection_pool[i]
+   for i = 1, #td_connection_pool do
+      connection_obj = td_connection_pool[i]
       if connection_obj.state == 0 then
 	 connection_obj.state = 1
-	 occupied = occupied +1
-	 if occupied > water_mark then
-	    water_mark = occupied
+	 td_pool_occupied = td_pool_occupied + 1
+	 if td_pool_occupied > td_pool_watermark then
+	    td_pool_watermark = td_pool_occupied
 	 end
 	 return connection_obj["obj"]	 
       end
@@ -49,21 +48,27 @@ function _M:get_connection()
    return nil
 end
 
-function _M:get_water_mark()
+function _M:get_watermark()
 
-   return water_mark
+   return td_pool_watermark
+end
+
+
+function _M:get_current_load()
+
+    return td_pool_occupied
 end
 
 function _M:release_connection(conn)
  
    local connection_obj
 
-   for i = 1, #connection_pool do
-      connection_obj = connection_pool[i]
+   for i = 1, #td_connection_pool do
+      connection_obj = td_connection_pool[i]
  
       if connection_obj["obj"] == conn then
 	 connection_obj["state"] = 0
-	 occupied = occupied -1
+	 td_pool_occupied = td_pool_occupied -1
 	 return
       end
    end

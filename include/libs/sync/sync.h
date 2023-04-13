@@ -48,7 +48,7 @@ extern "C" {
 #define SYNC_HEARTBEAT_REPLY_SLOW_MS 1500
 #define SYNC_SNAP_RESEND_MS          1000 * 60
 
-#define SYNC_VND_COMMIT_MIN_MS 1000
+#define SYNC_VND_COMMIT_MIN_MS 3000
 
 #define SYNC_MAX_BATCH_SIZE 1
 #define SYNC_INDEX_BEGIN    0
@@ -246,6 +246,7 @@ bool    syncIsReadyForRead(int64_t rid);
 bool    syncSnapshotSending(int64_t rid);
 bool    syncSnapshotRecving(int64_t rid);
 int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq);
+int32_t syncForceBecomeFollower(SSyncNode* ths, const SRpcMsg* pRpcMsg);
 
 SSyncState  syncGetState(int64_t rid);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);

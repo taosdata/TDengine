@@ -157,7 +157,7 @@ typedef struct SMTbCursor SMTbCursor;
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
 int32_t     metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType);
-int32_t     metaTbCursorPrev(SMTbCursor *pTbCur);
+int32_t     metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType);
 
 #endif
 
@@ -178,10 +178,11 @@ typedef struct STsdbReader STsdbReader;
 
 int32_t tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int32_t num);
 int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
-                       SSDataBlock *pResBlock, STsdbReader **ppReader, const char *idstr);
+                       SSDataBlock *pResBlock, STsdbReader **ppReader, const char *idstr, bool countOnly);
 
+void         tsdbReaderSetId(STsdbReader* pReader, const char* idstr);
 void         tsdbReaderClose(STsdbReader *pReader);
-bool         tsdbNextDataBlock(STsdbReader *pReader);
+int32_t      tsdbNextDataBlock(STsdbReader *pReader, bool *hasNext);
 int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave);
 void         tsdbReleaseDataBlock(STsdbReader *pReader);
 SSDataBlock *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
@@ -227,19 +228,12 @@ typedef struct SSnapContext {
   SArray   *idList;
   int32_t   index;
   bool      withMeta;
-  bool      queryMetaOrData;  // true-get meta, false-get data
+  bool      queryMeta;  // true-get meta, false-get data
 } SSnapContext;
 
 typedef struct STqReader {
-  // const SSubmitReq *pMsg;
-  //   SSubmitBlk       *pBlock;
-  //   SSubmitMsgIter    msgIter;
-  //   SSubmitBlkIter    blkIter;
-
-  int64_t     ver;
   SPackedData msg2;
 
-  int8_t      setMsg;
   SSubmitReq2 submit;
   int32_t     nextBlk;
 
@@ -266,7 +260,7 @@ int32_t tqReaderAddTbUidList(STqReader *pReader, const SArray *tbUidList);
 int32_t tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
 int32_t tqSeekVer(STqReader *pReader, int64_t ver, const char *id);
-int32_t tqNextBlock(STqReader *pReader, SFetchRet *ret);
+void tqNextBlock(STqReader *pReader, SFetchRet *ret);
 
 int32_t tqReaderSetSubmitReq2(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);
 // int32_t tqReaderSetDataMsg(STqReader *pReader, const SSubmitReq *pMsg, int64_t ver);

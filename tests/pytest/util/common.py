@@ -739,6 +739,11 @@ class TDCom:
         else:
             os.system("unset LD_PRELOAD; pkill %s " % processorName)
 
+    def gen_tag_col_str(self, gen_type, data_type, count):
+        """
+        gen multi tags or cols by gen_type
+        """
+        return ','.join(map(lambda i: f'{gen_type}{i} {data_type}', range(count)))
 
 def is_json(msg):
     if isinstance(msg, str):
@@ -774,5 +779,6 @@ def dict2toml(in_dict: dict, file:str):
         return ""
     with open(file, 'w') as f:
         toml.dump(in_dict, f)
+
 
 tdCom = TDCom()

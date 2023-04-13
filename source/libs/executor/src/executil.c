@@ -17,6 +17,7 @@
 #include "functionMgt.h"
 #include "index.h"
 #include "os.h"
+#include "query.h"
 #include "tdatablock.h"
 #include "thash.h"
 #include "tmsg.h"
@@ -33,7 +34,7 @@ struct STableListInfo {
   int32_t   numOfOuputGroups;  // the data block will be generated one by one
   int32_t*  groupOffset;       // keep the offset value for each group in the tableList
   SArray*   pTableList;
-  SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
+  SHashObj* map;               // speedup acquire the tableQueryInfo by table uid
   uint64_t  suid;
 };
 
@@ -570,6 +571,10 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
           memcpy(pStart, data, len);
           pStart += len;
         } else if (IS_VAR_DATA_TYPE(pValue->info.type)) {
+          if (varDataTLen(data) > pValue->info.bytes) {
+            code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+            goto end;
+          }
           memcpy(pStart, data, varDataTLen(data));
           pStart += varDataTLen(data);
         } else {
@@ -1058,10 +1063,10 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
         SIndexMetaArg metaArg = {
             .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = pIndex, .suid = pScanNode->uid};
 
-        SIdxFltStatus status = SFLT_NOT_INDEX;
+        status = SFLT_NOT_INDEX;
         code = doFilterTag(pTagIndexCond, &metaArg, pUidList, &status);
         if (code != 0 || status == SFLT_NOT_INDEX) {  // temporarily disable it for performance sake
-          //          qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
+          qWarn("failed to get tableIds from index, suid:%" PRIu64, pScanNode->uid);
           code = TDB_CODE_SUCCESS;
         } else {
           qInfo("succ to get filter result, table num: %d", (int)taosArrayGetSize(pUidList));
@@ -1799,6 +1804,21 @@ STableKeyInfo* tableListGetInfo(const STableListInfo* pTableList, int32_t index)
   return taosArrayGet(pTableList->pTableList, index);
 }
 
+int32_t tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex) {
+  int32_t numOfTables = taosArrayGetSize(pTableList->pTableList);
+  if (startIndex >= numOfTables) {
+    return -1;
+  }
+
+  for (int32_t i = startIndex; i < numOfTables; ++i) {
+    STableKeyInfo* p = taosArrayGet(pTableList->pTableList, i);
+    if (p->uid == uid) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
   int32_t* slot = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
   ASSERT(pTableList->map != NULL && slot != NULL);
@@ -2041,7 +2061,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag) {
   if (!pBlock || pBlock->info.rows == 0) {
-    qDebug("===stream===printDataBlock: Block is Null or Empty");
+    qDebug("===stream===%s: Block is Null or Empty", flag);
     return;
   }
   char* pBuf = NULL;

@@ -13,12 +13,11 @@ create_definition:
     col_name column_definition
  
 column_definition:
-    type_name [COMMENT 'string_value']
+    type_name
 ```
 
 **使用说明**
 - 超级表中列的最大个数为 4096，需要注意，这里的 4096 是包含 TAG 列在内的，最小个数为 3，包含一个时间戳主键、一个 TAG 列和一个数据列。
-- 建表时可以给列或标签附加注释。
 - TAGS语法指定超级表的标签列，标签列需要遵循以下约定：
     - TAGS 中的 TIMESTAMP 列写入数据时需要提供给定值，而暂不支持四则运算，例如 NOW + 10s 这类表达式。
     - TAGS 列名不能与其他列名相同。

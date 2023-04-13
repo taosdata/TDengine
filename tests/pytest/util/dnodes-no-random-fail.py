@@ -44,11 +44,11 @@ class TDSimClient:
         self.path = path
 
     def getLogDir(self):
-        self.logDir = "%s/sim/psim/log" % (self.path)
+        self.logDir = os.path.join(self.path,"sim","psim","log")
         return self.logDir
 
     def getCfgDir(self):
-        self.cfgDir = "%s/sim/psim/cfg" % (self.path)
+        self.cfgDir = os.path.join(self.path,"sim","psim","cfg")
         return self.cfgDir
 
     def setTestCluster(self, value):
@@ -63,9 +63,9 @@ class TDSimClient:
             tdLog.exit(cmd)
 
     def deploy(self):
-        self.logDir = "%s/sim/psim/log" % (self.path)
-        self.cfgDir = "%s/sim/psim/cfg" % (self.path)
-        self.cfgPath = "%s/sim/psim/cfg/taos.cfg" % (self.path)
+        self.logDir = os.path.join(self.path,"sim","psim","log")
+        self.cfgDir = os.path.join(self.path,"sim","psim","cfg")
+        self.cfgPath = os.path.join(self.path,"sim","psim","cfg","taos.cfg")
 
         cmd = "rm -rf " + self.logDir
         if os.system(cmd) != 0:
@@ -129,11 +129,10 @@ class TDDnode:
         return totalSize
 
     def deploy(self):
-        self.logDir = "%s/sim/dnode%d/log" % (self.path, self.index)
-        self.dataDir = "%s/sim/dnode%d/data" % (self.path, self.index)
-        self.cfgDir = "%s/sim/dnode%d/cfg" % (self.path, self.index)
-        self.cfgPath = "%s/sim/dnode%d/cfg/taos.cfg" % (
-            self.path, self.index)
+        self.logDir = os.path.join(self.path,"sim","dnode%d" % self.index, "log")
+        self.dataDir = os.path.join(self.path,"sim","dnode%d" % self.index, "data")
+        self.cfgDir = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg")
+        self.cfgPath = os.path.join(self.path,"sim","dnode%d" % self.index, "cfg","taos.cfg")
 
         cmd = "rm -rf " + self.dataDir
         if os.system(cmd) != 0:
@@ -323,11 +322,11 @@ class TDDnode:
             tdLog.exit(cmd)
 
     def getDnodeRootDir(self, index):
-        dnodeRootDir = "%s/sim/psim/dnode%d" % (self.path, index)
+        dnodeRootDir = os.path.join(self.path,"sim","psim","dnode%d" % index)
         return dnodeRootDir
 
     def getDnodesRootDir(self):
-        dnodesRootDir = "%s/sim/psim" % (self.path)
+        dnodesRootDir = os.path.join(self.path,"sim","psim")
         return dnodesRootDir
 
 

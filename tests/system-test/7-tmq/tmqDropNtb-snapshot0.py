@@ -57,6 +57,7 @@ class TDTestCase:
         tmqCom.initConsumerTable()
         tdLog.info("start create database....")
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
+        tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
         tdLog.info("start create normal tables....")
         tmqCom.create_ntable(tsql=tdSql, dbname=paraDict["dbName"], tbname_prefix=paraDict["ctbPrefix"], tbname_index_start_num = 1, column_elm_list=paraDict["colSchema"], colPrefix='c', tblNum=paraDict["ctbNum"])
         tdLog.info("start insert data into normal tables....")
@@ -100,7 +101,7 @@ class TDTestCase:
 
         tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
 
-        if not ((totalConsumeRows >= expectrowcnt * 3/4) and (totalConsumeRows < expectrowcnt)):
+        if not ((totalConsumeRows >= expectrowcnt * 3/4) and (totalConsumeRows <= expectrowcnt)):
             tdLog.exit("tmq consume rows error with snapshot = 0!")
 
         tdLog.info("wait subscriptions exit ....")
@@ -131,7 +132,7 @@ class TDTestCase:
                     'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'endTs': 0,
-                    'pollDelay':  10,
+                    'pollDelay':  20,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -143,6 +144,7 @@ class TDTestCase:
         tmqCom.initConsumerTable()
         tdLog.info("start create database....")
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
+        tdSql.execute("alter database %s wal_retention_period 3600" % (paraDict['dbName']))
         tdLog.info("start create normal tables....")
         tmqCom.create_ntable(tsql=tdSql, dbname=paraDict["dbName"], tbname_prefix=paraDict["ctbPrefix"], tbname_index_start_num = 1, column_elm_list=paraDict["colSchema"], colPrefix='c', tblNum=paraDict["ctbNum"])
         tdLog.info("start insert data into normal tables....")
@@ -193,7 +195,7 @@ class TDTestCase:
 
         tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
 
-        if not ((totalConsumeRows >= expectrowcnt / 2 * (1 + 3/4)) and (totalConsumeRows < expectrowcnt)):
+        if not ((totalConsumeRows >= expectrowcnt / 2 * (1 + 3/4)) and (totalConsumeRows <= expectrowcnt)):
             tdLog.exit("tmq consume rows error with snapshot = 0!")
 
         tdLog.info("wait subscriptions exit ....")

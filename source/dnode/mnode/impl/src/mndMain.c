@@ -653,7 +653,7 @@ _OVER:
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
       pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
-           pMnode->stopped, state.restored, syncStr(state.restored));
+           pMnode->stopped, state.restored, syncStr(state.state));
     return -1;
   }
 
@@ -761,6 +761,8 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   pClusterInfo->connections_total = mndGetNumOfConnections(pMnode);
   pClusterInfo->dbs_total = sdbGetSize(pSdb, SDB_DB);
   pClusterInfo->stbs_total = sdbGetSize(pSdb, SDB_STB);
+  pClusterInfo->topics_toal = sdbGetSize(pSdb, SDB_TOPIC);
+  pClusterInfo->streams_total = sdbGetSize(pSdb, SDB_STREAM);
 
   void *pIter = NULL;
   while (1) {
@@ -864,7 +866,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   }
 
   // grant info
-  pGrantInfo->expire_time = (pMnode->grant.expireTimeMS - ms) / 86400000.0f;
+  pGrantInfo->expire_time = (pMnode->grant.expireTimeMS - ms) / 1000;
   pGrantInfo->timeseries_total = pMnode->grant.timeseriesAllowed;
   if (pMnode->grant.expireTimeMS == 0) {
     pGrantInfo->expire_time = INT32_MAX;
