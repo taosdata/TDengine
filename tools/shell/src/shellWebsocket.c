@@ -24,7 +24,7 @@ int shell_conn_ws_server(bool first) {
            ((dsnLen-SHELL_WS_DSN_MASK) > SHELL_WS_DSN_BUFF)?
             SHELL_WS_DSN_BUFF:(dsnLen-SHELL_WS_DSN_MASK),
            "%s", shell.args.dsn);
-  fprintf(stdout, "trying to connect %s*** ", cuttedDsn);
+  fprintf(stdout, "trying to connect %s****** ", cuttedDsn);
   fflush(stdout);
   for (int i = 0; i < shell.args.timeout; i++) {
     shell.ws_conn = ws_connect_with_dsn(shell.args.dsn);
