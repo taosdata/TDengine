@@ -82,6 +82,8 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
 
   pBuf->useSize += pEntry->dataLen;
 
+  mprotect(pBuf->pData, pBuf->allocSize, PROT_READ);
+
   atomic_add_fetch_64(&pHandle->cachedSize, pEntry->dataLen);
   atomic_add_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen);
 }
@@ -98,7 +100,9 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
 
   pBuf->allocSize = sizeof(SDataCacheEntry) + blockGetEncodeSize(pInput->pData);
 
-  pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
+//  pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
+  pBuf->allocSize = (pBuf->allocSize > 4096) ? (pBuf->allocSize/4096 + 1)*4096 : 4096;
+  pBuf->pData = taosMemoryMallocAlign(4096, pBuf->allocSize);
   if (pBuf->pData == NULL) {
     qError("SinkNode failed to malloc memory, size:%d, code:%d", pBuf->allocSize, TAOS_SYSTEM_ERROR(errno));
   }
@@ -201,6 +205,7 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   atomic_sub_fetch_64(&pDispatcher->cachedSize, pEntry->dataLen);
   atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen);
 
+  mprotect(pDispatcher->nextOutput.pData, pDispatcher->nextOutput.allocSize, PROT_READ|PROT_WRITE|PROT_EXEC);
   taosMemoryFreeClear(pDispatcher->nextOutput.pData);  // todo persistent
   pOutput->bufStatus = updateStatus(pDispatcher);
   taosThreadMutexLock(&pDispatcher->mutex);
