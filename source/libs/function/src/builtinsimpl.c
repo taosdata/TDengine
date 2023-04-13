@@ -3357,7 +3357,7 @@ int32_t spreadFunction(SqlFunctionCtx* pCtx) {
       goto _spread_over;
     }
     double tmin = 0.0, tmax = 0.0;
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+    if (IS_SIGNED_NUMERIC_TYPE(type) || IS_TIMESTAMP_TYPE(type)) {
       tmin = (double)GET_INT64_VAL(&pAgg->min);
       tmax = (double)GET_INT64_VAL(&pAgg->max);
     } else if (IS_FLOAT_TYPE(type)) {
