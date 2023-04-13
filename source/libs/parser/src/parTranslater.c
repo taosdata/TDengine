@@ -645,6 +645,10 @@ static bool isSelectStmt(SNode* pCurrStmt) {
   return NULL != pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCurrStmt);
 }
 
+static bool isDeleteStmt(SNode* pCurrStmt) {
+  return NULL != pCurrStmt && QUERY_NODE_DELETE_STMT == nodeType(pCurrStmt);
+}
+
 static bool isSetOperator(SNode* pCurrStmt) {
   return NULL != pCurrStmt && QUERY_NODE_SET_OPERATOR == nodeType(pCurrStmt);
 }
@@ -668,6 +672,9 @@ static uint8_t getPrecisionFromCurrStmt(SNode* pCurrStmt, uint8_t defaultVal) {
   }
   if (NULL != pCurrStmt && QUERY_NODE_CREATE_STREAM_STMT == nodeType(pCurrStmt)) {
     return getPrecisionFromCurrStmt(((SCreateStreamStmt*)pCurrStmt)->pQuery, defaultVal);
+  }
+  if (isDeleteStmt(pCurrStmt)) {
+    return ((SDeleteStmt*)pCurrStmt)->precision;
   }
   return defaultVal;
 }
@@ -1235,6 +1242,10 @@ static int32_t calcTypeBytes(SDataType dt) {
 }
 
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
+  if (pVal->translate) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SDataType dt = pVal->node.resType;
   dt.bytes = calcTypeBytes(dt);
   return translateValueImpl(pCxt, pVal, dt, false);
@@ -1692,7 +1703,8 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     pSelect->hasUniqueFunc = pSelect->hasUniqueFunc ? true : (FUNCTION_TYPE_UNIQUE == pFunc->funcType);
     pSelect->hasTailFunc = pSelect->hasTailFunc ? true : (FUNCTION_TYPE_TAIL == pFunc->funcType);
     pSelect->hasInterpFunc = pSelect->hasInterpFunc ? true : (FUNCTION_TYPE_INTERP == pFunc->funcType);
-    pSelect->hasInterpPseudoColFunc = pSelect->hasInterpPseudoColFunc ? true : fmIsInterpPseudoColumnFunc(pFunc->funcId);
+    pSelect->hasInterpPseudoColFunc =
+        pSelect->hasInterpPseudoColFunc ? true : fmIsInterpPseudoColumnFunc(pFunc->funcId);
     pSelect->hasLastRowFunc = pSelect->hasLastRowFunc ? true : (FUNCTION_TYPE_LAST_ROW == pFunc->funcType);
     pSelect->hasLastFunc = pSelect->hasLastFunc ? true : (FUNCTION_TYPE_LAST == pFunc->funcType);
     pSelect->hasTimeLineFunc = pSelect->hasTimeLineFunc ? true : fmIsTimelineFunc(pFunc->funcId);
@@ -3372,7 +3384,8 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE);
     }
     if (pSelect->hasInterpPseudoColFunc) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC, "Has Interp pseudo column(s) but missing interp function");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "Has Interp pseudo column(s) but missing interp function");
     }
     return TSDB_CODE_SUCCESS;
   }
@@ -3741,6 +3754,7 @@ static int32_t translateDelete(STranslateContext* pCxt, SDeleteStmt* pDelete) {
   pCxt->pCurrStmt = (SNode*)pDelete;
   int32_t code = translateFrom(pCxt, pDelete->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
+    pDelete->precision = ((STableNode*)pDelete->pFromTable)->precision;
     code = translateDeleteWhere(pCxt, pDelete);
   }
   pCxt->currClause = SQL_CLAUSE_SELECT;
