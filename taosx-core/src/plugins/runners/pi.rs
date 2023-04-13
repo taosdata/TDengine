@@ -9,6 +9,7 @@ use anyhow::Context;
 use itertools::Itertools;
 use serde_json::Value;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     plugins::{service::spawn_rest_service, sink},
@@ -154,6 +155,7 @@ pub async fn pi_to_taos(
     mut to: Dsn,
     jobs: usize,
     port_pool: &PortPool,
+    cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: PI");
     #[cfg(not(target_os = "windows"))]
@@ -216,37 +218,49 @@ pub async fn pi_to_taos(
         .stderr(std::process::Stdio::inherit())
         .spawn()?;
     let child_id = child_command.id();
-    let v = tokio::task::spawn_blocking(move || {
+    let mut v = tokio::task::spawn_blocking(move || {
         child_command.wait_with_output()
     });
 
     log::info!("waiting for PI connector");
-    tokio::select! {
-        output = v => {
-            let output = output.context("join error")?.context("PI connector run error")?;
-            // log::info!("PI exit with stdout: {}", std::str::from_utf8(&output.stdout).unwrap());
-            // log::info!("PI exit with stderr: {}", std::str::from_utf8(&output.stderr).unwrap());
-            log::info!("PI exit with status {}", output.status);
-        },
-        _ = tokio::signal::ctrl_c() => {
-            log::info!("Ctrl+C triggered, cancel tasks");
-            // panic!();
-        },
-        _ = receiver.recv() => {
-            log::info!("receive worker thread stop message, terminate child process");
-            let mut kill_command = std::process::Command::new("TASKKILL");
-            kill_command.arg("/F").arg("/PID").arg(child_id.to_string()).spawn()?;
-        }
-    };
+    tokio::spawn(async move {
+        tokio::select! {
+            output = &mut v => {
+                let output = output.context("join error").unwrap().context("PI connector run error").unwrap();
+                log::info!("PI exit with status {}", output.status);
+            },
+            _ = tokio::signal::ctrl_c() => {
+                log::info!("Ctrl+C triggered, cancel tasks");
+                // panic!();
+            },
+            _ = receiver.recv() => {
+                log::info!("receive worker thread stop message, terminate child process");
+                v.abort();
+                terminate_child_process(child_id).unwrap();
+            },
+            _ = cancel.cancelled() => {
+                log::info!("pi task cancelled");
+                v.abort();
+                terminate_child_process(child_id).unwrap();
+            }
+        };
 
-    stop_thread(ipc);
-    stop_thread(server);
+        stop_thread(ipc);
+        stop_thread(server);
+        log::info!("pi task Done");
+        temp_path.close().unwrap();
+    }).await?;
 
-    temp_path.close()?;
-    // rt.handle();
-    // (&unsafe { *Arc::into_raw(rt) }).shutdown_background();
-    log::info!("Done");
-    // server.abort();
+    Ok(())
+}
+
+fn terminate_child_process(id: u32) -> anyhow::Result<()> {
+    let mut kill_command = std::process::Command::new("TASKKILL");
+    kill_command
+        .arg("/F")
+        .arg("/PID")
+        .arg(id.to_string())
+        .spawn()?;
     Ok(())
 }
 

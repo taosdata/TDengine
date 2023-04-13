@@ -3,6 +3,7 @@ use std::{collections::HashMap, io::prelude::*, num::ParseIntError, str::FromStr
 use itertools::Itertools;
 use taos::{taos_query::helpers::ColumnMeta, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use taosx_ipc::prelude::IpcDataType;
+use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::{
@@ -405,6 +406,7 @@ pub async fn opc_to_taos(
     to: Dsn,
     jobs: usize,
     port_pool: &PortPool,
+    cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: OPC");
     if to.subject.is_none() {
@@ -553,37 +555,47 @@ pub async fn opc_to_taos(
     let child_id = child.id();
     let mut v = tokio::task::spawn_blocking(move || child.wait_with_output());
 
-    tokio::select! {
-        output = &mut v => {
-            let output = output??;
-            // dbg!(output);
-            log::info!("OPC exit with status {}", output.status);
-            // server.abort();
-            panic!();
-        },
-        _ = tokio::signal::ctrl_c() => {
-            log::info!("Ctrl+C triggered, cancel tasks");
-            // panic!();
-        },
-        _ = receiver.recv() => {
-            log::info!("have recieved worker thread panicked message, terminate child process");
-            v.abort();
-            let mut kill_command = if cfg!(target_os = "windows") {
-                let mut command = std::process::Command::new("taskkill");
-                command.arg("/F").arg("/PID").arg(child_id.to_string());
-                command
-            } else {
-                let mut command = std::process::Command::new("kill");
-                command.arg("-9").arg(child_id.to_string());
-                command
-            };
-            kill_command.spawn()?;
-        },
-    };
+    tokio::spawn(async move {
+        tokio::select! {
+            output = &mut v => {
+                let output = output.unwrap().unwrap();
+                log::info!("OPC exit with status {}", output.status);
+                // panic!();
+            },
+            _ = tokio::signal::ctrl_c() => {
+                log::info!("Ctrl+C triggered, cancel tasks");
+                // panic!();
+            },
+            _ = receiver.recv() => {
+                log::info!("have recieved worker thread panicked message, terminate child process");
+                v.abort();
+                terminate_child_process(child_id).unwrap();
+            },
+            _ = cancel.cancelled() => {
+                log::info!("opc task cancelled");
+                v.abort();
+                terminate_child_process(child_id).unwrap();
+            },
+        };
+        stop_thread(ipc);
+        log::info!("OPC to taos task done");
+        temp_path.close().unwrap();
+    }).await?;
+        
+    Ok(())
+}
 
-    stop_thread(ipc);
-    temp_path.close()?;
-    log::info!("OPC to taos task done");
+fn terminate_child_process(id: u32) -> anyhow::Result<()> {
+    let mut kill_command = if cfg!(target_os = "windows") {
+        let mut command = std::process::Command::new("taskkill");
+        command.arg("/F").arg("/PID").arg(id.to_string());
+        command
+    } else {
+        let mut command = std::process::Command::new("kill");
+        command.arg("-9").arg(id.to_string());
+        command
+    };
+    kill_command.spawn()?;
     Ok(())
 }
 

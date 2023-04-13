@@ -22,7 +22,7 @@ async fn ipc_tcp_read(
     lock: Arc<Mutex<()>>,
     config: Option<OpcTableConfig>,
 ) -> anyhow::Result<()> {
-    let ipc_reader = IpcReader::new(&stream).unwrap();
+    let ipc_reader = IpcReader::new(&stream)?;
     let ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
     let client = client.to_string();
     ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config).await
@@ -54,15 +54,15 @@ async fn consume_lush_record(
             for table in tables {
                 let sql = table.to_sql(None).unwrap();
                 info!("Tables: {sql}");
-                taos.exec(&sql).await.unwrap();
+                taos.exec(&sql).await?;
             }
         }
         LushMessage::Insert(record) => {
-            let mut stmt = Stmt::init(&taos).unwrap();
+            let mut stmt = Stmt::init(&taos)?;
             info!("init stmt");
             let sql = format!("insert into ? ({names}) values({marks})");
             info!("prepare with sql: {sql}");
-            stmt.prepare(&sql).unwrap();
+            stmt.prepare(&sql)?;
             info!("prepare");
             for record in record {
                 *records += record.num_rows();
@@ -76,20 +76,20 @@ async fn consume_lush_record(
                             tracing::warn!("table name `{}` error {err}", table_name);
                             if let Some(tb) = record.meta_sql(Some(String::from(table_name))) {
                                 info!("sql: {tb}");
-                                taos.exec_sync(&tb).unwrap();
+                                taos.exec_sync(&tb)?;
                                 // rt.block_on(taos.exec(&tb))?;
-                                stmt.set_tbname(table_name).unwrap();
+                                stmt.set_tbname(table_name)?;
                             }
                         }
-                        stmt.bind(data_vec.as_slice()).unwrap();
+                        stmt.bind(data_vec.as_slice())?;
                         stmt.add_batch().unwrap();
-                        let n = stmt.execute().unwrap();
+                        let n = stmt.execute()?;
 
                         info!("written [{n}] records for table {table_name}");
                     } else {
-                        stmt.bind(data_vec.as_slice()).unwrap();
+                        stmt.bind(data_vec.as_slice())?;
                         stmt.add_batch().unwrap();
-                        let n = stmt.execute().unwrap();
+                        let n = stmt.execute()?;
 
                         info!("written : [{n}] records");
                     }
@@ -111,9 +111,9 @@ async fn consume_point_record(
         let mut stmt = Stmt::init(&taos)?;
         // process id, ts, value
         let schema = message.schema();
-        let id_index = schema.index_of("id").unwrap();
-        let ts_index = schema.index_of("ts").unwrap();
-        let value_index = schema.index_of("value").unwrap();
+        let id_index = schema.index_of("id")?;
+        let ts_index = schema.index_of("ts")?;
+        let value_index = schema.index_of("value")?;
         let id_cv = cv_vec.remove(id_index);
         let table_info = &config.table_info;
         let ts_cloumn = &config.ts_cloumn_name;
@@ -138,9 +138,9 @@ async fn consume_point_record(
                 .collect_vec();
             info!(sql);
             dbg!(&new_cv_vec);
-            stmt.bind(&new_cv_vec.as_slice()).unwrap();
-            stmt.add_batch().unwrap();
-            let n = stmt.execute().unwrap();
+            stmt.bind(&new_cv_vec.as_slice())?;
+            stmt.add_batch()?;
+            let n = stmt.execute()?;
             *count += n;
         }
     }
@@ -165,11 +165,8 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_lush_record(&taos, record, &names, &marks, &mut count)
-                .await
-                .unwrap();
-
-            ipc_ack_writer.write_ok().unwrap();
+            consume_lush_record(&taos, record, &names, &marks, &mut count).await?;
+            ipc_ack_writer.write_ok()?;
         }
     }
     println!("finished, totally {count} rows");
@@ -190,11 +187,9 @@ async fn ipc_point_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            consume_point_record(&taos, &record, &mut count, config.as_ref().unwrap())
-                .await
-                .unwrap();
+            consume_point_record(&taos, &record, &mut count, config.as_ref().unwrap()).await?;
 
-            ipc_ack_writer.write_ok().unwrap();
+            ipc_ack_writer.write_ok()?;
         }
     }
     println!("finished, totally {count} rows");
@@ -293,13 +288,6 @@ pub fn listen_tcp_socket(
     let listener = TcpListener::bind(tcp_addr)?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .on_thread_stop(move || {
-            log::warn!("worker thread stopped, stop task");
-            let se = sender.clone();
-            tokio::spawn(async move {
-                se.send(String::from("panicked")).await.unwrap();
-            });
-        })
         .worker_threads(16)
         .build()?;
     info!("listen on socket address: {tcp_addr}");
@@ -311,11 +299,13 @@ pub fn listen_tcp_socket(
                 let pool = target.clone();
                 let lock = sql_lock.clone();
                 let config = config.clone();
-
+                let se = sender.clone();
                 runtime.spawn(async move {
                     let res = ipc_tcp_read(addr, pool, stream, lock, config).await;
                     if let Err(err) = res {
-                        panic!("{err:?}");
+                        // panic!("{err:?}");
+                        log::error!("ipc read err: {}", err);
+                        se.send(String::from("panicked")).await.unwrap();
                     }
                 });
             }

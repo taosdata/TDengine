@@ -108,6 +108,7 @@ impl TaskOpts {
                         to.clone(),
                         *jobs,
                         port_pool,
+                        cancel.clone(),
                     )
                     .await?;
                 }
@@ -118,6 +119,7 @@ impl TaskOpts {
                         to.clone(),
                         *jobs,
                         port_pool,
+                        cancel.clone(),
                     )
                     .await?;
                 }

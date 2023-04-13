@@ -153,12 +153,12 @@ impl Cli {
             }
             ("pi", "taos") => {
                 let port_pool = PortPool::default();
-                pi_to_taos(args.from, args.transform, args.to, args.jobs, &port_pool).await?;
+                pi_to_taos(args.from, args.transform, args.to, args.jobs, &port_pool, Default::default(),).await?;
                 log::debug!("main scheduler done");
             }
             ("opc" | "opcua" | "opcda", "taos") => {
                 let port_pool = PortPool::default();
-                opc_to_taos(args.from, args.transform, args.to, args.jobs, &port_pool).await?;
+                opc_to_taos(args.from, args.transform, args.to, args.jobs, &port_pool, Default::default(),).await?;
                 log::debug!("opc main scheduler done");
             }
             (_, _) => bail!(
