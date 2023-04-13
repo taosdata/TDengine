@@ -635,6 +635,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->freeFp = (_free_reader_fn_t)tqCloseReader;
     SArray* pList = qGetQueriedTableListInfo(pTask->exec.pExecutor);
     tqReaderAddTbUidList(pTask->exec.pTqReader, pList);
+    taosArrayDestroy(pList);
   }
 
   streamSetupTrigger(pTask);

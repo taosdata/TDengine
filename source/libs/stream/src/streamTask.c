@@ -15,6 +15,7 @@
 
 #include "executor.h"
 #include "tstream.h"
+#include "wal.h"
 
 SStreamTask* tNewStreamTask(int64_t streamId) {
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
@@ -189,6 +190,10 @@ void tFreeStreamTask(SStreamTask* pTask) {
   if (pTask->exec.pTqReader != NULL && pTask->freeFp != NULL) {
     pTask->freeFp(pTask->exec.pTqReader);
     pTask->exec.pTqReader = NULL;
+  }
+
+  if (pTask->exec.pWalReader != NULL) {
+    walCloseReader(pTask->exec.pWalReader);
   }
 
   taosArrayDestroyP(pTask->childEpInfo, taosMemoryFree);
