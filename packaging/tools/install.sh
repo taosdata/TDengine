@@ -575,11 +575,12 @@ function install_config() {
 function install_share_etc() {
   [ ! -d ${script_dir}/share/etc ] && return
   for c in `ls ${script_dir}/share/etc/`; do
-    if [ -e /etc/$c ]; then
-      out=/etc/$c.new.`date +%F`
+    if [ -e /etc/${clientName2}/$c ]; then
+      out=/etc/${clientName2}/$c.new.`date +%F`
       ${csudo}cp -f ${script_dir}/share/etc/$c $out ||:
     else
-      ${csudo}cp -f ${script_dir}/share/etc/$c /etc/$c ||:
+      ${csudo}mkdir -p /etc/${clientName2} >/dev/null 2>/dev/null ||:
+      ${csudo}cp -f ${script_dir}/share/etc/$c /etc/${clientName2}/$c ||:
     fi
   done
 
