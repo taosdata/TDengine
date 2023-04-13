@@ -471,10 +471,10 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx    * ctx, SQWMsg *qwMsg, i
         QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code),
                      dataLen);
       } else {
-        QW_UNLOCK(QW_WRITE, &ctx->lock);
+        QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
       }
     } else {
-      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
+      QW_UNLOCK(QW_WRITE, &ctx->lock);
     }
   }
 
