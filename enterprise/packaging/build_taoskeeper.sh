@@ -34,16 +34,15 @@ prepare_repo_taoskeeper() {
     (rm -rf build-taoskeeper && git clone https://github.com/taosdata/$REPO.git build-taoskeeper && cd build-taoskeeper)
 }
 
- checkout_latest_tag() {
-   cd build-taoskeeper
-   latest="v1.0.8"
+checkout_latest_tag() {
+  cd build-taoskeeper
+  latest="v1.0.8"
 
    if [ "$REPO" = "taoskeeper" ]; then
      git checkout $latest
    fi
    echo $latest
- }
-
+}
 
 build_binary() {
   if [ "$FORCE" = "0" ] && [ -s taoskeeper ]; then
