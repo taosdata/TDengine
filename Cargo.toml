@@ -8,8 +8,8 @@ members = [
 arrow = { version = "36.0.0" }
 parquet = "36.0.0"
 
-taos = { version = "0.7.3", default-features = false, features = ["ws", "deadpool"] }
-taos-query = { version = "0.7.3", default-features = false, features = ["deadpool"] }
+taos = { version = "0.7.4", default-features = false, features = ["ws", "deadpool"] }
+taos-query = { version = "0.7.4", default-features = false, features = ["deadpool"] }
 
 [package]
 name = "taosx"
