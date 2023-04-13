@@ -110,7 +110,7 @@ if "%verType%" == "cluster" (
     xcopy /S %examples_dir%\C#  %install_dir%\examples\C#\*
     md %install_dir%\examples\taosbenchmark-json
     xcopy /S %internal_dir%\community\tools\taos-tools\example %install_dir%\examples\taosbenchmark-json\*
-	install_bin
+    install_bin
 )
 cd %package_dir%
 if "%cusName%" == "TDengine" (
@@ -151,35 +151,36 @@ goto :eof
 echo %cusName% is an open-source, cloud-native time-series database optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. With its built-in caching, stream processing, and data subscription capabilities, TDengine offers a simplified solution for time-series data processing.  > %internal_dir%\community\packaging\tools\windows_before_install.txt
 echo:  >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 echo %cusName% will be installed under C:\TDengine, users can modify configuration file C:\TDengine\cfg\taos.cfg, set the log file path or other parameters. >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo To start/stop %cusName% with administrator privileges:  sc start/stop taosd >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo To start/stop taosAdapter with administrator privileges: sc start/stop taosadapter >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo Please manually remove C:\TDengine from your system PATH environment after you remove %cusName% software.  >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo • To start/stop %cusName% with administrator privileges:  run sc start/stop taosd >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo • To start/stop taosAdapter with administrator privileges: run sc start/stop taosadapter >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo • To access %cusName% from your local machine, run %cusPrompt% >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo • Please manually remove C:\TDengine from your system PATH environment after you remove %cusName% software.  >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 exit /b
 
 :: TDengine taos install description
 :writeTDengineClientInstallFile
 echo %cusName% is an open-source, cloud-native time-series database optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. With its built-in caching, stream processing, and data subscription capabilities, TDengine offers a simplified solution for time-series data processing. > %internal_dir%\community\packaging\tools\windows_before_install.txt
 echo: >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo Once it's installed, please take the steps below: >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo 1: open a terminal on Windows >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo 2: if connecting to Cloud Service, follow the instructions on your cloud service account and configure the environment variable >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo 3: if connecting to another TDengine Service, you can also view help information via "%cusPrompt% --help" >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo 4: execute command taos >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo After the installation process is complete, perform the following steps to start using TDengine: >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo 1: Open Terminal on your local machine. >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo 2: To connect to a TDengine server using the default settings and credentials, run the taos command. >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo 3: To connect to a TDengine server using custom settings or credentials, run taos --help for more information. >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo 4: To connect to TDengine Cloud, follow the instructions on the Tools - TDengine CLI page in your TDengine Cloud account. >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 exit /b
 
 :: oem taosd install description
 :writeServerInstallFile
 echo %cusName% will be installed under C:\TDengine, users can modify configuration file C:\TDengine\cfg\taos.cfg, set the log file path or other parameters. > %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo To start/stop %cusName% with administrator privileges:  sc start/stop taosd >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo To start/stop taosAdapter with administrator privileges: sc start/stop taosadapter >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo Please manually remove C:\TDengine from your system PATH environment after you remove %cusName% software.  >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo • To start/stop %cusName% with administrator privileges:  sc start/stop taosd >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo • To start/stop taosAdapter with administrator privileges: sc start/stop taosadapter >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo • To access %cusName% from your local machine, run %cusPrompt% >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo • Please manually remove C:\TDengine from your system PATH environment after you remove %cusName% software.  >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 exit /b
 
 :: oem taos install description
 :writeClientInstallFile
 echo Once it's installed, please take the steps below: > %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo 1: open a terminal on Windows >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo 2: if connecting to Cloud Service, follow the instructions on your cloud service account and configure the environment variable >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo 3: if connecting to another  %cusName% Service, you can also view help information via "%cusPrompt% --help" >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo 4: execute command %cusPrompt% >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo 1: Open Terminal on your local machine. >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo 2: To connect to a %cusName% server using the default settings and credentials, run the %cusPrompt% command. >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo 3: To connect to a %cusName% server using custom settings or credentials, run %cusPrompt%  --help for more information. >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 exit /b
