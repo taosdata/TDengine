@@ -2166,27 +2166,19 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
   CTG_LOCK(CTG_WRITE, &pUser->lock);
 
   taosHashCleanup(pUser->userAuth.createdDbs);
-  pUser->userAuth.createdDbs = msg->userAuth.createdDbs;
-  msg->userAuth.createdDbs = NULL;
-
   taosHashCleanup(pUser->userAuth.readDbs);
-  pUser->userAuth.readDbs = msg->userAuth.readDbs;
-  msg->userAuth.readDbs = NULL;
-
   taosHashCleanup(pUser->userAuth.writeDbs);
-  pUser->userAuth.writeDbs = msg->userAuth.writeDbs;
-  msg->userAuth.writeDbs = NULL;
-
   taosHashCleanup(pUser->userAuth.readTbs);
-  pUser->userAuth.readTbs = msg->userAuth.readTbs;
-  msg->userAuth.readTbs = NULL;
-
   taosHashCleanup(pUser->userAuth.writeTbs);
-  pUser->userAuth.writeTbs = msg->userAuth.writeTbs;
-  msg->userAuth.writeTbs = NULL;
-
   taosHashCleanup(pUser->userAuth.useDbs);
-  pUser->userAuth.useDbs = msg->userAuth.useDbs;
+
+  memcpy(&pUser->userAuth, &msg->userAuth, sizeof(msg->userAuth));
+
+  msg->userAuth.createdDbs = NULL;
+  msg->userAuth.readDbs = NULL;
+  msg->userAuth.writeDbs = NULL;
+  msg->userAuth.readTbs = NULL;
+  msg->userAuth.writeTbs = NULL;
   msg->userAuth.useDbs = NULL;
 
   CTG_UNLOCK(CTG_WRITE, &pUser->lock);

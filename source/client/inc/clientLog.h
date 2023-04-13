@@ -33,6 +33,8 @@ extern "C" {
 #define tscTrace(...)  do { if (cDebugFlag & DEBUG_TRACE) { taosPrintLog("TSC ", DEBUG_TRACE, cDebugFlag, __VA_ARGS__); }} while(0)
 #define tscDebugL(...) do { if (cDebugFlag & DEBUG_DEBUG) { taosPrintLongString("TSC ", DEBUG_DEBUG, cDebugFlag, __VA_ARGS__); }} while(0)
 #define tscPerf(...)   do { if (cDebugFlag & DEBUG_INFO)  { taosPrintLog("TSC ", 0, cDebugFlag, __VA_ARGS__); }} while(0)
+#define tscLog(...)    do { taosPrintLog("TSC ", 0, DEBUG_FILE, __VA_ARGS__); } while(0)
+#define tscLogL(...)   do { taosPrintLongString("TSC ", 0, DEBUG_FILE, __VA_ARGS__); } while(0)
 // clang-format on
 
 #ifdef __cplusplus

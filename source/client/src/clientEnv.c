@@ -107,7 +107,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
 
   if (duration >= SLOW_QUERY_INTERVAL) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
-    tscWarnL("slow query: %s, duration:%" PRId64, pRequest->sqlstr, duration);
+    tscLogL("slow query: %s, duration:%" PRId64, pRequest->sqlstr, duration);
   }
 
   releaseTscObj(pTscObj->id);

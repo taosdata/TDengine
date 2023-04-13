@@ -1239,7 +1239,7 @@ void* ctgCloneDbCfgInfo(void* pSrc) {
     return NULL;
   }
   memcpy(pDst, pSrc, sizeof(SDbCfgInfo));
-  pDst->pRetensions = taosArrayDup((const SArray*)pSrc, NULL);
+  pDst->pRetensions = taosArrayDup(((SDbCfgInfo *)pSrc)->pRetensions, NULL);
   return pDst;
 }
 
