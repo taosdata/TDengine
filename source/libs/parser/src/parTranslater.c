@@ -5178,7 +5178,7 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
     }
 
     if ((TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType ||
-         TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType) &&
+         TSDB_ALTER_TABLE_UPDATE_TAG_BYTES == pStmt->alterType) &&
         (!IS_VAR_DATA_TYPE(pSchema->type) || pSchema->type != pStmt->dataType.type ||
          pSchema->bytes >= calcTypeBytes(pStmt->dataType))) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_MODIFY_COL);
