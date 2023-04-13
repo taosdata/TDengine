@@ -510,7 +510,7 @@ int32_t hbGetExpiredUserInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
 }
 
 int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req) {
-  SDbVgVersion *dbs = NULL;
+  SDbCacheInfo *dbs = NULL;
   uint32_t      dbNum = 0;
   int32_t       code = 0;
 
@@ -525,7 +525,7 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
   }
 
   for (int32_t i = 0; i < dbNum; ++i) {
-    SDbVgVersion *db = &dbs[i];
+    SDbCacheInfo *db = &dbs[i];
     tscDebug("the %dth expired dbFName:%s, dbId:%" PRId64 ", vgVersion:%d, numOfTable:%d, startTs:%" PRId64, 
       i, db->dbFName, db->dbId, db->vgVersion, db->numOfTable, db->stateTs);
 
@@ -537,7 +537,7 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
 
   SKv kv = {
       .key = HEARTBEAT_KEY_DBINFO,
-      .valueLen = sizeof(SDbVgVersion) * dbNum,
+      .valueLen = sizeof(SDbCacheInfo) * dbNum,
       .value = dbs,
   };
 

@@ -883,6 +883,8 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  cfgRsp.dbId = pDb->uid;
+  cfgRsp.cfgVersion = pDb->cfgVersion;
   cfgRsp.numOfVgroups = pDb->cfg.numOfVgroups;
   cfgRsp.numOfStables = pDb->cfg.numOfStables;
   cfgRsp.buffer = pDb->cfg.buffer;
@@ -1309,7 +1311,7 @@ _OVER:
   return code;
 }
 
-int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen) {
+int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen) {
   SUseDbBatchRsp batchUseRsp = {0};
   batchUseRsp.pArray = taosArrayInit(numOfDbs, sizeof(SUseDbRsp));
   if (batchUseRsp.pArray == NULL) {
@@ -1318,7 +1320,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
   }
 
   for (int32_t i = 0; i < numOfDbs; ++i) {
-    SDbVgVersion *pDbVgVersion = &pDbs[i];
+    SDbCacheInfo *pDbVgVersion = &pDbs[i];
     pDbVgVersion->dbId = be64toh(pDbVgVersion->dbId);
     pDbVgVersion->vgVersion = htonl(pDbVgVersion->vgVersion);
     pDbVgVersion->numOfTable = htonl(pDbVgVersion->numOfTable);

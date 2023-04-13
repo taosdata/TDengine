@@ -939,6 +939,8 @@ int32_t tSerializeSVDropTtlTableReq(void* buf, int32_t bufLen, SVDropTtlTableReq
 int32_t tDeserializeSVDropTtlTableReq(void* buf, int32_t bufLen, SVDropTtlTableReq* pReq);
 
 typedef struct {
+  int64_t dbId;
+  int32_t cfgVersion;
   int32_t numOfVgroups;
   int32_t numOfStables;
   int32_t buffer;
@@ -970,6 +972,8 @@ typedef struct {
   int8_t  schemaless;
   int16_t sstTrigger;
 } SDbCfgRsp;
+
+typedef SDbCfgRsp     SDbCfgInfo;
 
 int32_t tSerializeSDbCfgRsp(void* buf, int32_t bufLen, const SDbCfgRsp* pRsp);
 int32_t tDeserializeSDbCfgRsp(void* buf, int32_t bufLen, SDbCfgRsp* pRsp);

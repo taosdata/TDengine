@@ -1326,7 +1326,7 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  SDbVgVersion   *dbs = NULL;
+  SDbCacheInfo   *dbs = NULL;
   SSTableVersion *stb = NULL;
   uint32_t        dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
   int32_t         i = 0;
@@ -1438,7 +1438,7 @@ TEST(tableMeta, childTableCase) {
 
   taosMemoryFree(tableMeta);
 
-  SDbVgVersion   *dbs = NULL;
+  SDbCacheInfo   *dbs = NULL;
   SSTableVersion *stb = NULL;
   uint32_t        dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
   int32_t         i = 0;
@@ -1579,7 +1579,7 @@ TEST(tableMeta, superTableCase) {
 
   taosMemoryFree(tableMeta);
 
-  SDbVgVersion   *dbs = NULL;
+  SDbCacheInfo   *dbs = NULL;
   SSTableVersion *stb = NULL;
   uint32_t        dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
   int32_t         i = 0;
@@ -2675,7 +2675,7 @@ TEST(rentTest, allRent) {
   SDBVgInfo         dbVgroup = {0};
   SArray           *vgList = NULL;
   ctgTestStop = false;
-  SDbVgVersion   *dbs = NULL;
+  SDbCacheInfo   *dbs = NULL;
   SSTableVersion *stable = NULL;
   uint32_t        num = 0;
 
