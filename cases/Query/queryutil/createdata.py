@@ -213,11 +213,21 @@ class TDCreateData():
             #             fake.random_int(min=-32767, max=0, step=1) , fake.random_int(min=-127, max=0, step=1) , 
             #             fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
 
-        i = random.randint(0,1)
+        i = random.randint(0,4)
         if i ==0:
             self.logger.info("======this case test use flush database =========")
-            self.tdSql.execute("flush database %s;" %database)       
-        elif i ==1:
+            self.tdSql.execute("flush database %s;" %database) 
+        elif i ==1:  
+            self.logger.info("======this case test use flush database =========")
+            self.tdSql.execute("flush database %s;" %database)   
+            self.logger.info("======this case test keepcolumnname = 1 =========")  
+            self.tdSql.execute("alter local 'keepcolumnname' '1';")  
+        elif i ==2:  
+            self.logger.info("======this case test use flush database =========")
+            self.tdSql.execute("flush database %s;" %database)   
+            self.logger.info("======this case test keepcolumnname = 0 =========")  
+            self.tdSql.execute("alter local 'keepcolumnname' '0';")  
+        else:
             self.logger.info("===!!!===this case test not use flush database =====!!!====")
         
         self.tdSql.query("select count(*) from stable_1;")
