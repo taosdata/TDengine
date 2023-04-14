@@ -773,7 +773,9 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
                 tt = (*(int64_t *)row[i]) / 1000000000;
               }
 
-              taosLocalTime(&tt, &tp);
+              if (taosLocalTime(&tt, &tp, timeStr) == NULL) {
+                break;
+              }
               strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", &tp);
               if (precision == TSDB_TIME_PRECISION_MILLI) {
                 sprintf(value, "%s.%03d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000));

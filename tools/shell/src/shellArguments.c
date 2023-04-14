@@ -18,6 +18,7 @@
 #endif
 
 #include "shellInt.h"
+#include "version.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -46,9 +47,9 @@
 #define SHELL_VERSION  "Print program version."
 
 #ifdef WEBSOCKET
-#define SHELL_DSN      "Use dsn to connect to the TDengine cloud server or to a remote server which provides WebSocket connection."
-#define SHELL_REST     "Use RESTful mode when connecting."
-#define SHELL_TIMEOUT  "Set the timeout for websocket query in seconds, default is 30."
+#define SHELL_DSN     "Use dsn to connect to the cloud server or to a remote server which provides WebSocket connection."
+#define SHELL_REST    "Use RESTful mode when connecting."
+#define SHELL_TIMEOUT "Set the timeout for websocket query in seconds, default is 30."
 #endif
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg);
@@ -141,7 +142,7 @@ static void shellParseArgsUseArgp(int argc, char *argv[]) {
 #endif
 
 #ifndef ARGP_ERR_UNKNOWN
-  #define ARGP_ERR_UNKNOWN E2BIG
+#define ARGP_ERR_UNKNOWN E2BIG
 #endif
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg) {
@@ -425,9 +426,15 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #endif
   sprintf(shell.info.promptContinue, promptContinueFormat, " ");
   shell.info.promptSize = strlen(shell.info.promptHeader);
+#ifdef TD_ENTERPRISE
+  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
+           "version: %s compatible_version: %s\ngitinfo: %s\ngitinfoOfInternal: %s\nbuildInfo: %s", version,
+           compatible_version, gitinfo, gitinfoOfInternal, buildinfo);
+#else
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
            "version: %s compatible_version: %s\ngitinfo: %s\nbuildInfo: %s", version, compatible_version, gitinfo,
            buildinfo);
+#endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   shell.info.osname = "Windows";

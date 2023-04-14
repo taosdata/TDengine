@@ -122,9 +122,11 @@ int insertAUTOTest2(TAOS_STMT *stmt, TAOS *taos);
 int insertAUTOTest3(TAOS_STMT *stmt, TAOS *taos);
 int queryColumnTest(TAOS_STMT *stmt, TAOS *taos);
 int queryMiscTest(TAOS_STMT *stmt, TAOS *taos);
+int insertNonExistsTb(TAOS_STMT *stmt, TAOS *taos);
 
 enum {
   TTYPE_INSERT = 1,
+  TTYPE_INSERT_NG,
   TTYPE_QUERY,
 };
 
@@ -186,6 +188,8 @@ CaseCfg gCase[] = {
 
   {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2},
   {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryMiscTest, 10, 10, 1, 3, 0, 0, 1, 2},
+
+  {"query:NG-TBNEXISTS",tListLen(fullColList), fullColList, TTYPE_INSERT_NG,0, false, false, insertNonExistsTb, 10, 10, 1, 3, 0, 0, 1, -1},
 
 //  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryColumnTest, 1, 10, 1, 1, 0, 0, 1, 2},
 //  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, 0, false, false, queryMiscTest, 2, 10, 1, 1, 0, 0, 1, 2},
@@ -250,7 +254,7 @@ CaseCtrl gCaseCtrl = {
   .funcIdxList = NULL,
   .checkParamNum = false,
   .runTimes = 0,
-  .caseIdx = 24,
+  .caseIdx = 26,
   .caseNum = 1,
   .caseRunIdx = -1,
   .caseRunNum = -1,
@@ -2202,6 +2206,47 @@ int queryMiscTest(TAOS_STMT *stmt, TAOS *taos) {
 }
 
 
+int insertNonExistsTb(TAOS_STMT *stmt, TAOS *taos) {
+  BindData data = {0};
+  prepareInsertData(&data);
+  
+  int code = taos_stmt_prepare(stmt, data.sql, 0);
+  if (code != 0){
+    printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+    exit(1);
+  }
+
+  bpCheckIsInsert(stmt, 1);
+
+  char *buf = "tbnexist";
+  code = bpSetTableNameTags(&data, 0, buf, stmt);
+  if (code == 0){
+    printf("!!!taos_stmt_set_tbname expected error not occurred\n");
+    exit(1);
+  }  
+
+  if (0 == taos_stmt_bind_param_batch(stmt, data.pBind)) {
+    printf("!!!taos_stmt_bind_param_batch expected error not occurred\n");
+    exit(1);
+  }
+  
+  if (0 == taos_stmt_add_batch(stmt)) {
+    printf("!!!taos_stmt_add_batch expected error not occurred\n");
+    exit(1);
+  }
+
+  if (0 == taos_stmt_execute(stmt)) {
+    printf("!!!taos_stmt_execute expected error not occurred\n");
+    exit(1);
+  }
+
+  destroyData(&data);
+
+  return 0;
+}
+
+
+
 int errorSQLTest1(TAOS_STMT *stmt, TAOS *taos) {
   BindData data = {0};
 
@@ -2224,6 +2269,10 @@ int errorSQLTest1(TAOS_STMT *stmt, TAOS *taos) {
 }
 
 void prepareCheckResultImpl(TAOS     * taos, char *tname, bool printr, int expected, bool silent) {
+  if (TTYPE_INSERT_NG == gCurCase->testType) {
+    return;
+  }
+  
   char sql[255] = "SELECT * FROM ";
   int32_t rows = 0;
   

@@ -18,7 +18,9 @@
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision) {
   int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
   void*   buf = taosMemoryCalloc(1, dataStrLen);
-  if (buf == NULL) return -1;
+  if (buf == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
   pRetrieve->useconds = 0;
@@ -31,7 +33,8 @@ int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t
   actualLen += sizeof(SRetrieveTableRsp);
   taosArrayPush(pRsp->blockDataLen, &actualLen);
   taosArrayPush(pRsp->blockData, &buf);
-  return 0;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, STaosxRsp* pRsp) {
@@ -62,68 +65,52 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, in
 }
 
 int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset) {
-  const STqExecHandle* pExec = &pHandle->execHandle;
+  const int32_t MAX_ROWS_TO_RETURN = 4096;
+  int32_t       vgId = TD_VID(pTq->pVnode);
+  int32_t       code = 0;
+  int32_t       totalRows = 0;
 
-  qTaskInfo_t task = pExec->task;
+  const STqExecHandle* pExec = &pHandle->execHandle;
+  qTaskInfo_t          task = pExec->task;
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-    tqDebug("prepare scan failed, return");
-    if (pOffset->type == TMQ_OFFSET__LOG) {
-      pRsp->rspOffset = *pOffset;
-      return 0;
-    } else {
-      tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
-      if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-        tqDebug("prepare scan failed, return");
-        pRsp->rspOffset = *pOffset;
-        return 0;
-      }
-    }
+    tqError("prepare scan failed, return");
+    return -1;
   }
 
-  int32_t rowCnt = 0;
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
-
-    tqDebug("vgId:%d, tmq task start to execute", pTq->pVnode->config.vgId);
-    if (qExecTask(task, &pDataBlock, &ts) < 0) {
-      tqError("vgId:%d, task exec error since %s", pTq->pVnode->config.vgId, terrstr());
+    qStreamSetOpen(task);
+    tqDebug("consumer:0x%" PRIx64 " vgId:%d, tmq one task start execute", pHandle->consumerId, vgId);
+    if (qExecTask(task, &pDataBlock, &ts) != TSDB_CODE_SUCCESS) {
+      tqError("consumer:0x%" PRIx64 " vgId:%d, task exec error since %s", pHandle->consumerId, vgId, terrstr());
       return -1;
     }
 
-    tqDebug("consumer:0x%"PRIx64" vgId:%d, tmq task executed, get %p", pHandle->consumerId, pTq->pVnode->config.vgId, pDataBlock);
-
+    tqDebug("consumer:0x%" PRIx64 " vgId:%d tmq one task end executed, pDataBlock:%p", pHandle->consumerId, vgId,
+            pDataBlock);
     // current scan should be stopped asap, since the rebalance occurs.
     if (pDataBlock == NULL) {
       break;
     }
 
-    tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols, pTq->pVnode->config.tsdbCfg.precision);
-    pRsp->blockNum++;
+    code = tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols, pTq->pVnode->config.tsdbCfg.precision);
+    if (code != TSDB_CODE_SUCCESS) {
+      tqError("vgId:%d, failed to add block to rsp msg", vgId);
+      return code;
+    }
 
-    if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-      rowCnt += pDataBlock->info.rows;
-      if (rowCnt >= 4096) {
-        break;
-      }
+    pRsp->blockNum++;
+    totalRows += pDataBlock->info.rows;
+    if (totalRows >= MAX_ROWS_TO_RETURN) {
+      break;
     }
   }
 
-  if (qStreamExtractOffset(task, &pRsp->rspOffset) < 0) {
-    return -1;
-  }
-
-  if (pRsp->rspOffset.type == 0) {
-    tqError("expected rsp offset: type %d %" PRId64 " %" PRId64 " %" PRId64, pRsp->rspOffset.type, pRsp->rspOffset.ts,
-            pRsp->rspOffset.uid, pRsp->rspOffset.version);
-    return -1;
-  }
-
-  if (pRsp->withTbName || pRsp->withSchema) {
-    tqError("get column should not with meta:%d,%d", pRsp->withTbName, pRsp->withSchema);
-    return -1;
-  }
+  tqDebug("consumer:0x%" PRIx64 " vgId:%d tmq task executed finished, total blocks:%d, totalRows:%d",
+          pHandle->consumerId, vgId, pRsp->blockNum, totalRows);
+  qStreamExtractOffset(task, &pRsp->rspOffset);
   return 0;
 }
 
@@ -132,18 +119,8 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
   qTaskInfo_t          task = pExec->task;
 
   if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-    tqDebug("prepare scan failed, return");
-    if (pOffset->type == TMQ_OFFSET__LOG) {
-      pRsp->rspOffset = *pOffset;
-      return 0;
-    } else {
-      tqOffsetResetToLog(pOffset, pHandle->snapshotVer);
-      if (qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType) < 0) {
-        tqDebug("prepare scan failed, return");
-        pRsp->rspOffset = *pOffset;
-        return 0;
-      }
-    }
+    tqDebug("tqScanTaosx prepare scan failed, return");
+    return -1;
   }
 
   int32_t rowCnt = 0;
@@ -189,64 +166,46 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMeta
       }
     }
 
-    if (pDataBlock == NULL && pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
-      if (qStreamExtractPrepareUid(task) != 0) {
+    // get meta
+    SMqMetaRsp* tmp = qStreamExtractMetaMsg(task);
+    if (tmp->metaRspLen > 0) {
+      qStreamExtractOffset(task, &tmp->rspOffset);
+      *pMetaRsp = *tmp;
+
+      tqDebug("tmqsnap task get meta");
+      break;
+    }
+
+    if (pDataBlock == NULL) {
+      qStreamExtractOffset(task, pOffset);
+      if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
         continue;
       }
       tqDebug("tmqsnap vgId: %d, tsdb consume over, switch to wal, ver %" PRId64, TD_VID(pTq->pVnode),
               pHandle->snapshotVer + 1);
+      qStreamExtractOffset(task, &pRsp->rspOffset);
       break;
     }
 
     if (pRsp->blockNum > 0) {
       tqDebug("tmqsnap task exec exited, get data");
+      qStreamExtractOffset(task, &pRsp->rspOffset);
       break;
     }
-
-    SMqMetaRsp* tmp = qStreamExtractMetaMsg(task);
-    if (tmp->rspOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
-      tqOffsetResetToData(pOffset, tmp->rspOffset.uid, tmp->rspOffset.ts);
-      qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
-      tmp->rspOffset.type = TMQ_OFFSET__SNAPSHOT_META;
-      tqDebug("tmqsnap task exec change to get data");
-      continue;
-    }
-
-    *pMetaRsp = *tmp;
-    tqDebug("tmqsnap task exec exited, get meta");
-
-    tqDebug("task exec exited");
-    break;
-  }
-
-  qStreamExtractOffset(task, &pRsp->rspOffset);
-
-  if (pRsp->rspOffset.type == 0) {
-    tqError("expected rsp offset: type %d %" PRId64 " %" PRId64 " %" PRId64, pRsp->rspOffset.type, pRsp->rspOffset.ts,
-            pRsp->rspOffset.uid, pRsp->rspOffset.version);
-    return -1;
   }
 
   return 0;
 }
 
-int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp) {
+int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxRsp* pRsp, int32_t* totalRows) {
   STqExecHandle* pExec = &pHandle->execHandle;
-  /*A(pExec->subType != TOPIC_SUB_TYPE__COLUMN);*/
-
-  SArray* pBlocks = taosArrayInit(0, sizeof(SSDataBlock));
-  SArray* pSchemas = taosArrayInit(0, sizeof(void*));
+  SArray*        pBlocks = taosArrayInit(0, sizeof(SSDataBlock));
+  SArray*        pSchemas = taosArrayInit(0, sizeof(void*));
 
   if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
     STqReader* pReader = pExec->pExecReader;
-    /*tqReaderSetDataMsg(pReader, pReq, 0);*/
     tqReaderSetSubmitReq2(pReader, submit.msgStr, submit.msgLen, submit.ver);
     while (tqNextDataBlock2(pReader)) {
-      /*SSDataBlock block = {0};*/
-      /*if (tqRetrieveDataBlock(&block, pReader) < 0) {*/
-      /*if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;*/
-      /*}*/
-
       taosArrayClear(pBlocks);
       taosArrayClear(pSchemas);
       SSubmitTbData* pSubmitTbDataRet = NULL;
@@ -254,7 +213,6 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
       }
       if (pRsp->withTbName) {
-        /*int64_t uid = pExec->pExecReader->msgIter.uid;*/
         int64_t uid = pExec->pExecReader->lastBlkUid;
         if (tqAddTbNameToRsp(pTq, uid, pRsp, taosArrayGetSize(pBlocks)) < 0) {
           taosArrayDestroyEx(pBlocks, (FDelete)blockDataFreeRes);
@@ -276,7 +234,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         if (TSDB_CODE_SUCCESS != code) {
           continue;
         }
-        void* createReq = taosMemoryCalloc(1, len);
+        void*    createReq = taosMemoryCalloc(1, len);
         SEncoder encoder = {0};
         tEncoderInit(&encoder, createReq, len);
         code = tEncodeSVCreateTbReq(&encoder, pSubmitTbDataRet->pCreateTbReq);
@@ -296,6 +254,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         SSDataBlock* pBlock = taosArrayGet(pBlocks, i);
         tqAddBlockDataToRsp(pBlock, (SMqDataRsp*)pRsp, taosArrayGetSize(pBlock->pDataBlock),
                             pTq->pVnode->config.tsdbCfg.precision);
+        totalRows += pBlock->info.rows;
         blockDataFreeRes(pBlock);
         SSchemaWrapper* pSW = taosArrayGetP(pSchemas, i);
         taosArrayPush(pRsp->blockSchema, &pSW);
@@ -304,13 +263,8 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
     }
   } else if (pExec->subType == TOPIC_SUB_TYPE__DB) {
     STqReader* pReader = pExec->pExecReader;
-    /*tqReaderSetDataMsg(pReader, pReq, 0);*/
     tqReaderSetSubmitReq2(pReader, submit.msgStr, submit.msgLen, submit.ver);
     while (tqNextDataBlockFilterOut2(pReader, pExec->execDb.pFilterOutTbUid)) {
-      /*SSDataBlock block = {0};*/
-      /*if (tqRetrieveDataBlock(&block, pReader) < 0) {*/
-      /*if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;*/
-      /*}*/
       taosArrayClear(pBlocks);
       taosArrayClear(pSchemas);
       SSubmitTbData* pSubmitTbDataRet = NULL;
@@ -339,7 +293,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
         if (TSDB_CODE_SUCCESS != code) {
           continue;
         }
-        void* createReq = taosMemoryCalloc(1, len);
+        void*    createReq = taosMemoryCalloc(1, len);
         SEncoder encoder = {0};
         tEncoderInit(&encoder, createReq, len);
         code = tEncodeSVCreateTbReq(&encoder, pSubmitTbDataRet->pCreateTbReq);
@@ -355,15 +309,11 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
 
         tEncoderClear(&encoder);
       }
-      /*tqAddBlockDataToRsp(&block, (SMqDataRsp*)pRsp, taosArrayGetSize(block.pDataBlock),*/
-      /*pTq->pVnode->config.tsdbCfg.precision);*/
-      /*blockDataFreeRes(&block);*/
-      /*tqAddBlockSchemaToRsp(pExec, (SMqDataRsp*)pRsp);*/
-      /*pRsp->blockNum++;*/
       for (int32_t i = 0; i < taosArrayGetSize(pBlocks); i++) {
         SSDataBlock* pBlock = taosArrayGet(pBlocks, i);
         tqAddBlockDataToRsp(pBlock, (SMqDataRsp*)pRsp, taosArrayGetSize(pBlock->pDataBlock),
                             pTq->pVnode->config.tsdbCfg.precision);
+        *totalRows += pBlock->info.rows;
         blockDataFreeRes(pBlock);
         SSchemaWrapper* pSW = taosArrayGetP(pSchemas, i);
         taosArrayPush(pRsp->blockSchema, &pSW);
@@ -373,9 +323,5 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
   }
   taosArrayDestroy(pBlocks);
   taosArrayDestroy(pSchemas);
-//  if (pRsp->blockNum == 0) {
-//    return -1;
-//  }
-
   return 0;
 }

@@ -281,6 +281,9 @@ typedef struct {
   SHashObj* readDbs;
   SHashObj* writeDbs;
   SHashObj* topics;
+  SHashObj* readTbs;
+  SHashObj* writeTbs;
+  SHashObj* useDbs;
   SRWLatch  lock;
 } SUserObj;
 
@@ -393,7 +396,7 @@ typedef struct {
 } SSmaObj;
 
 typedef struct {
-  char    name[TSDB_TABLE_FNAME_LEN];
+  char    name[TSDB_INDEX_FNAME_LEN];
   char    stb[TSDB_TABLE_FNAME_LEN];
   char    db[TSDB_DB_FNAME_LEN];
   char    dstTbName[TSDB_TABLE_FNAME_LEN];
@@ -447,6 +450,8 @@ typedef struct {
   int32_t codeSize;
   char*   pComment;
   char*   pCode;
+  int32_t funcVersion;
+  SRWLatch lock;
 } SFuncObj;
 
 typedef struct {

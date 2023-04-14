@@ -25,6 +25,8 @@ static void clearColValArray(SArray* pCols) {
     if (TSDB_DATA_TYPE_NCHAR == pCol->type) {
       taosMemoryFreeClear(pCol->value.pData);
     }
+    pCol->flag = CV_FLAG_NONE;
+    pCol->value.val = 0;
   }
 }
 
@@ -122,6 +124,12 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
   for (int i = 0; i < tags->numOfBound; ++i) {
     SSchema* pTagSchema = &pSchema[tags->pColIndex[i]];
     SSmlKv*  kv = taosArrayGet(cols, i);
+
+    if(kv->keyLen != strlen(pTagSchema->name) || memcmp(kv->key, pTagSchema->name, kv->keyLen) != 0 || kv->type != pTagSchema->type){
+      code = TSDB_CODE_SML_INVALID_DATA;
+      uError("SML smlBuildCol error col not same %s", pTagSchema->name);
+      goto end;
+    }
 
     taosArrayPush(*tagName, pTagSchema->name);
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};

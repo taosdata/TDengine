@@ -1079,11 +1079,23 @@ static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode) {
   if (!sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys) || 1 != LIST_LENGTH(pSort->node.pChildren)) {
     return false;
   }
+  SNode* pChild;
+  FOREACH(pChild, pSort->node.pChildren) {
+    SLogicNode* pSortDescendent = optFindPossibleNode((SLogicNode*)pChild, sortPriKeyOptMayBeOptimized);
+    if (pSortDescendent != NULL) {
+      return false;
+    }
+  }
   return true;
 }
 
 static int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, bool* pNotOptimize,
                                                    SNodeList** pSequencingNodes) {
+  if (NULL != pNode->pLimit || NULL != pNode->pSlimit) {
+    *pNotOptimize = false;
+    return TSDB_CODE_SUCCESS;
+  }
+  
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pScan = (SScanLogicNode*)pNode;
@@ -2279,7 +2291,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   if (NULL != cxt.pLastCols) {
     cxt.doAgg = false;
     lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols);
-    nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
+    NODES_DESTORY_LIST(pScan->pScanPseudoCols);
     lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols);
     nodesClearList(cxt.pLastCols);
   }

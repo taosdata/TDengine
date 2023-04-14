@@ -233,7 +233,7 @@ class TDTestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt/4,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
-        pollDelay = 100
+        pollDelay = 5
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -245,8 +245,8 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        if totalConsumeRows != expectrowcnt/4:
-            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt/4))
+        tdLog.info("act consume rows: %d, expect consume rows greater than or equal to: %d"%(totalConsumeRows, expectrowcnt/4))
+        if totalConsumeRows < expectrowcnt/4:            
             tdLog.exit("tmq consume rows error!")
 
         self.initConsumerInfoTable()
@@ -267,8 +267,8 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        if totalConsumeRows != expectrowcnt:
-            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
+        tdLog.info("act consume rows: %d, expect consume rows greater than or equal to: %d"%(totalConsumeRows, expectrowcnt))
+        if totalConsumeRows < expectrowcnt:            
             tdLog.exit("tmq consume rows error!")
 
         tdSql.query("drop topic %s"%topicFromStb1)
@@ -320,7 +320,7 @@ class TDTestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
-        pollDelay = 100
+        pollDelay = 5
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)

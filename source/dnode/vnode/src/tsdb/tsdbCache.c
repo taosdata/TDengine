@@ -35,7 +35,11 @@ _err:
 static void tsdbCloseBICache(STsdb *pTsdb) {
   SLRUCache *pCache = pTsdb->biCache;
   if (pCache) {
+    int32_t elems = taosLRUCacheGetElems(pCache);
+    tsdbTrace("vgId:%d, elems: %d", TD_VID(pTsdb->pVnode), elems);
     taosLRUCacheEraseUnrefEntries(pCache);
+    elems = taosLRUCacheGetElems(pCache);
+    tsdbTrace("vgId:%d, elems: %d", TD_VID(pTsdb->pVnode), elems);
 
     taosLRUCacheCleanup(pCache);
 
@@ -590,6 +594,7 @@ typedef struct {
   SDataFReader       **pDataFReader;
   TSDBROW              row;
 
+  bool               checkRemainingRow;
   SMergeTree         mergeTree;
   SMergeTree        *pMergeTree;
   SSttBlockLoadInfo *pLoadInfo;
@@ -633,12 +638,25 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
         if (code) goto _err;
       }
 
-      state->pLoadInfo->colIds = aCols;
-      state->pLoadInfo->numOfCols = nCols;
+      for (int i = 0; i < state->pLoadInfo->numOfStt; ++i) {
+        state->pLoadInfo[i].colIds = aCols;
+        state->pLoadInfo[i].numOfCols = nCols;
+        state->pLoadInfo[i].isLast = isLast;
+      }
       tMergeTreeOpen(&state->mergeTree, 1, *state->pDataFReader, state->suid, state->uid,
                      &(STimeWindow){.skey = state->lastTs, .ekey = TSKEY_MAX},
                      &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, state->pLoadInfo, false, NULL, true);
       state->pMergeTree = &state->mergeTree;
+      state->state = SFSLASTNEXTROW_BLOCKROW;
+    }
+    case SFSLASTNEXTROW_BLOCKROW: {
+      if (nCols != state->pLoadInfo->numOfCols) {
+        for (int i = 0; i < state->pLoadInfo->numOfStt; ++i) {
+          state->pLoadInfo[i].numOfCols = nCols;
+
+          state->pLoadInfo[i].checkRemainingRow = state->checkRemainingRow;
+        }
+      }
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
         if (tMergeTreeIgnoreEarlierTs(&state->mergeTree)) {
@@ -649,76 +667,23 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow, bool *pIgnoreEa
         state->state = SFSLASTNEXTROW_FILESET;
         goto _next_fileset;
       }
-      state->state = SFSLASTNEXTROW_BLOCKROW;
-      checkRemainingRow = false;
-    }
-    case SFSLASTNEXTROW_BLOCKROW: {
-      bool skipRow = false;
-      do {
-        bool hasVal = false;
-        state->row = tMergeTreeGetRow(&state->mergeTree);
-        *ppRow = &state->row;
-        if (nCols != state->pLoadInfo->numOfCols) {
-          state->pLoadInfo->numOfCols = nCols;
-        }
-        hasVal = tMergeTreeNext(&state->mergeTree);
-        if (TSDBROW_TS(&state->row) <= state->lastTs) {
-          *pIgnoreEarlierTs = true;
-          *ppRow = NULL;
-          return code;
-        }
+      state->row = tMergeTreeGetRow(&state->mergeTree);
+      *ppRow = &state->row;
 
-        *pIgnoreEarlierTs = false;
-        if (!hasVal) {
-          state->state = SFSLASTNEXTROW_FILESET;
-          break;
-        }
+      if (TSDBROW_TS(&state->row) <= state->lastTs) {
+        *pIgnoreEarlierTs = true;
+        *ppRow = NULL;
+        return code;
+      }
 
-        if (checkRemainingRow) {
-          bool skipBlock = true;
+      *pIgnoreEarlierTs = false;
+      if (!hasVal) {
+        state->state = SFSLASTNEXTROW_FILESET;
+      }
 
-          SBlockData *pBlockData = state->row.pBlockData;
-
-          for (int inputColIndex = 0; inputColIndex < nCols; ++inputColIndex) {
-            for (int colIndex = 0; colIndex < pBlockData->nColData; ++colIndex) {
-              SColData *pColData = &pBlockData->aColData[colIndex];
-              int16_t   cid = pColData->cid;
-
-              if (cid == aCols[inputColIndex]) {
-                if (isLast && (pColData->flag & HAS_VALUE)) {
-                  skipBlock = false;
-                  break;
-                } else if (pColData->flag & (HAS_VALUE | HAS_NULL)) {
-                  skipBlock = false;
-                  break;
-                }
-              }
-            }
-          }
-          /*
-          for (int colIndex = 0; colIndex < pBlockData->nColData; ++colIndex) {
-            SColData *pColData = &pBlockData->aColData[colIndex];
-            int16_t   cid = pColData->cid;
-
-            if (inputColIndex < nCols && cid == aCols[inputColIndex]) {
-              if (isLast && (pColData->flag & HAS_VALUE)) {
-                skipBlock = false;
-                break;
-              } else if (pColData->flag & (HAS_VALUE | HAS_NULL)) {
-                skipBlock = false;
-                break;
-              }
-
-              ++inputColIndex;
-            }
-          }
-          */
-          if (skipBlock) {
-            skipRow = true;
-          }
-        }
-      } while (skipRow);
-
+      if (!state->checkRemainingRow) {
+        state->checkRemainingRow = true;
+      }
       return code;
     }
     default:
@@ -859,7 +824,12 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow, bool *pIgnoreEarlie
        * &state->blockIdx);
        */
       state->pBlockIdx = taosArraySearch(state->aBlockIdx, state->pBlockIdxExp, tCmprBlockIdx, TD_EQ);
-      if (!state->pBlockIdx) { /*
+      if (!state->pBlockIdx) {
+        tsdbBICacheRelease(state->pTsdb->biCache, state->aBlockIdxHandle);
+
+        state->aBlockIdxHandle = NULL;
+        state->aBlockIdx = NULL;
+        /*
          tsdbDataFReaderClose(state->pDataFReader);
          *state->pDataFReader = NULL;
          resetLastBlockLoadInfo(state->pLoadInfo);*/
@@ -1508,11 +1478,14 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
 
     hasRow = true;
 
-    code = updateTSchema(TSDBROW_SVERSION(pRow), pr, uid);
-    if (TSDB_CODE_SUCCESS != code) {
-      goto _err;
+    int32_t sversion = TSDBROW_SVERSION(pRow);
+    if (sversion != -1) {
+      code = updateTSchema(sversion, pr, uid);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _err;
+      }
+      pTSchema = pr->pCurrSchema;
     }
-    pTSchema = pr->pCurrSchema;
     int16_t nCol = pTSchema->numOfCols;
 
     TSKEY rowTs = TSDBROW_TS(pRow);
@@ -1662,11 +1635,14 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
 
     hasRow = true;
 
-    code = updateTSchema(TSDBROW_SVERSION(pRow), pr, uid);
-    if (TSDB_CODE_SUCCESS != code) {
-      goto _err;
+    int32_t sversion = TSDBROW_SVERSION(pRow);
+    if (sversion != -1) {
+      code = updateTSchema(sversion, pr, uid);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _err;
+      }
+      pTSchema = pr->pCurrSchema;
     }
-    pTSchema = pr->pCurrSchema;
     int16_t nCol = pTSchema->numOfCols;
 
     TSKEY rowTs = TSDBROW_TS(pRow);
@@ -1970,6 +1946,7 @@ int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHa
     taosThreadMutexUnlock(&pTsdb->biMutex);
   }
 
+  tsdbTrace("bi cache:%p, ref", pCache);
   *handle = h;
 
   return code;
@@ -1979,6 +1956,7 @@ int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h) {
   int32_t code = 0;
 
   taosLRUCacheRelease(pCache, h, false);
+  tsdbTrace("bi cache:%p, release", pCache);
 
   return code;
 }

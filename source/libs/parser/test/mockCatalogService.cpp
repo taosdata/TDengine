@@ -589,8 +589,8 @@ class MockCatalogServiceImpl {
       *pUserAuthData = taosArrayInit(num, sizeof(SMetaRes));
       for (int32_t i = 0; i < num; ++i) {
         SMetaRes res = {0};
-        res.pRes = taosMemoryCalloc(1, sizeof(bool));
-        *(bool*)(res.pRes) = true;
+        res.pRes = taosMemoryCalloc(1, sizeof(SUserAuthRes));
+        ((SUserAuthRes*)res.pRes)->pass = true;
         taosArrayPush(*pUserAuthData, &res);
       }
     }

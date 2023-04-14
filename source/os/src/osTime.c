@@ -37,6 +37,9 @@
 // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
 // until 00:00:00 January 1, 1970
 static const uint64_t TIMEEPOCH = ((uint64_t)116444736000000000ULL);
+// This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
+// until 00:00:00 January 1, 1900
+static const uint64_t TIMEEPOCH1900 = ((uint64_t)116445024000000000ULL);
 
 /*
  * We do not implement alternate representations. However, we always
@@ -407,33 +410,39 @@ time_t taosMktime(struct tm *timep) {
 #endif
 }
 
-struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
+struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf) {
+  struct tm *res = NULL;
+  if (timep == NULL) {
+    return NULL;
+  }
   if (result == NULL) {
-    return localtime(timep);
+    res = localtime(timep);
+    if (res == NULL && buf != NULL) {
+      sprintf(buf, "NaN");
+    }
+    return res;
   }
 #ifdef WINDOWS
   if (*timep < 0) {
-    return NULL;
-    // TODO: bugs in following code
-    SYSTEMTIME    ss, s;
-    FILETIME      ff, f;
+    if (*timep < -2208988800LL) {
+      if (buf != NULL) {
+        sprintf(buf, "NaN");
+      }
+      return NULL;
+    }
+
+    SYSTEMTIME    s;
+    FILETIME      f;
     LARGE_INTEGER offset;
     struct tm     tm1;
     time_t        tt = 0;
     if (localtime_s(&tm1, &tt) != 0 ) {
+      if (buf != NULL) {
+        sprintf(buf, "NaN");
+      }
       return NULL;
     }
-    ss.wYear = tm1.tm_year + 1900;
-    ss.wMonth = tm1.tm_mon + 1;
-    ss.wDay = tm1.tm_mday;
-    ss.wHour = tm1.tm_hour;
-    ss.wMinute = tm1.tm_min;
-    ss.wSecond = tm1.tm_sec;
-    ss.wMilliseconds = 0;
-    SystemTimeToFileTime(&ss, &ff);
-    offset.QuadPart = ff.dwHighDateTime;
-    offset.QuadPart <<= 32;
-    offset.QuadPart |= ff.dwLowDateTime;
+    offset.QuadPart = TIMEEPOCH1900;
     offset.QuadPart += *timep * 10000000;
     f.dwLowDateTime = offset.QuadPart & 0xffffffff;
     f.dwHighDateTime = (offset.QuadPart >> 32) & 0xffffffff;
@@ -449,11 +458,17 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
     result->tm_isdst = 0;
   } else {
     if (localtime_s(result, timep) != 0) {
+      if (buf != NULL) {
+        sprintf(buf, "NaN");
+      }
       return NULL;
     }
   }
 #else
-  localtime_r(timep, result);
+  res = localtime_r(timep, result);
+  if (res == NULL && buf != NULL) {
+    sprintf(buf, "NaN");
+  }
 #endif
   return result;
 }

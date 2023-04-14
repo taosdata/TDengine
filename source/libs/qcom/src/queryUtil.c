@@ -198,6 +198,8 @@ char* jobTaskStatusStr(int32_t status) {
       return "EXECUTING";
     case JOB_TASK_STATUS_PART_SUCC:
       return "PARTIAL_SUCCEED";
+    case JOB_TASK_STATUS_FETCH:
+      return "FETCHING";
     case JOB_TASK_STATUS_SUCC:
       return "SUCCEED";
     case JOB_TASK_STATUS_FAIL:
