@@ -284,8 +284,8 @@ bool tsdbTbDataIterNext(STbDataIter *pIter) {
 
 int64_t tsdbCountTbDataRows(STbData *pTbData) {
   SMemSkipListNode *pNode = pTbData->sl.pHead;
-  int64_t rowsNum = 0;
-  
+  int64_t           rowsNum = 0;
+
   while (NULL != pNode) {
     pNode = SL_GET_NODE_FORWARD(pNode, 0);
     if (pNode == pTbData->sl.pTail) {
@@ -298,17 +298,17 @@ int64_t tsdbCountTbDataRows(STbData *pTbData) {
   return rowsNum;
 }
 
-void tsdbMemTableCountRows(SMemTable *pMemTable, SHashObj*        pTableMap, int64_t *rowsNum) {
+void tsdbMemTableCountRows(SMemTable *pMemTable, SHashObj *pTableMap, int64_t *rowsNum) {
   taosRLockLatch(&pMemTable->latch);
   for (int32_t i = 0; i < pMemTable->nBucket; ++i) {
     STbData *pTbData = pMemTable->aBucket[i];
     while (pTbData) {
-      void* p = taosHashGet(pTableMap, &pTbData->uid, sizeof(pTbData->uid));
+      void *p = taosHashGet(pTableMap, &pTbData->uid, sizeof(pTbData->uid));
       if (p == NULL) {
         pTbData = pTbData->next;
         continue;
       }
-      
+
       *rowsNum += tsdbCountTbDataRows(pTbData);
       pTbData = pTbData->next;
     }
@@ -668,15 +668,17 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
 
   if (key.ts >= pTbData->maxKey) {
     pTbData->maxKey = key.ts;
-
+    /*
     if (TSDB_CACHE_LAST_ROW(pMemTable->pTsdb->pVnode->config)) {
       tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pMemTable->pTsdb, pTbData->uid, &lRow, true);
-    }
+      }*/
   }
-
+  /*
   if (TSDB_CACHE_LAST(pMemTable->pTsdb->pVnode->config)) {
     tsdbCacheInsertLast(pMemTable->pTsdb->lruCache, pTbData->uid, &lRow, pMemTable->pTsdb);
   }
+  */
+  tsdbCacheUpdate(pMemTable->pTsdb, pTbData->uid, &lRow);
 
   // SMemTable
   pMemTable->minKey = TMIN(pMemTable->minKey, pTbData->minKey);
@@ -736,15 +738,17 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
 
   if (key.ts >= pTbData->maxKey) {
     pTbData->maxKey = key.ts;
-
+    /*
     if (TSDB_CACHE_LAST_ROW(pMemTable->pTsdb->pVnode->config)) {
       tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pMemTable->pTsdb, pTbData->uid, &lRow, true);
-    }
+      }*/
   }
-
+  /*
   if (TSDB_CACHE_LAST(pMemTable->pTsdb->pVnode->config)) {
     tsdbCacheInsertLast(pMemTable->pTsdb->lruCache, pTbData->uid, &lRow, pMemTable->pTsdb);
   }
+  */
+  tsdbCacheUpdate(pMemTable->pTsdb, pTbData->uid, &lRow);
 
   // SMemTable
   pMemTable->minKey = TMIN(pMemTable->minKey, pTbData->minKey);

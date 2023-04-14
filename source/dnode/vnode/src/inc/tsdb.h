@@ -343,6 +343,14 @@ struct STsdbFS {
   SArray   *aDFileSet;  // SArray<SDFileSet>
 };
 
+typedef struct {
+  rocksdb_t              *db;
+  rocksdb_options_t      *options;
+  rocksdb_writeoptions_t *writeoptions;
+  rocksdb_readoptions_t  *readoptions;
+  TdThreadMutex           rMutex;
+} SRocksCache;
+
 struct STsdb {
   char          *path;
   SVnode        *pVnode;
@@ -355,6 +363,7 @@ struct STsdb {
   TdThreadMutex  lruMutex;
   SLRUCache     *biCache;
   TdThreadMutex  biMutex;
+  SRocksCache    rCache;
 };
 
 struct TSDBKEY {
@@ -796,6 +805,7 @@ typedef struct {
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
+int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t uid, TSDBROW *row);
 int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, TSDBROW *row, STsdb *pTsdb);
 int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, TSDBROW *row, bool dup);
 int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);

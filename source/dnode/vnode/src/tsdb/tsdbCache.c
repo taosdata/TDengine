@@ -43,6 +43,110 @@ static void tsdbCloseBICache(STsdb *pTsdb) {
   }
 }
 
+static void tsdbGetRocksPath(STsdb *pTsdb, char *path) {
+  SVnode *pVnode = pTsdb->pVnode;
+  if (pVnode->pTfs) {
+    if (path) {
+      snprintf(path, TSDB_FILENAME_LEN, "%s%s%s%scache.rdb", tfsGetPrimaryPath(pTsdb->pVnode->pTfs), TD_DIRSEP,
+               pTsdb->path, TD_DIRSEP);
+    }
+  } else {
+    if (path) {
+      snprintf(path, TSDB_FILENAME_LEN, "%s%scache.rdb", pTsdb->path, TD_DIRSEP);
+    }
+  }
+}
+
+static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
+  int32_t code = 0;
+
+  rocksdb_options_t *options = rocksdb_options_create();
+  if (NULL == options) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  rocksdb_options_set_create_if_missing(options, 1);
+  rocksdb_options_set_inplace_update_support(options, 1);
+  rocksdb_options_set_allow_concurrent_memtable_write(options, 0);
+
+  rocksdb_writeoptions_t *writeoptions = rocksdb_writeoptions_create();
+  if (NULL == writeoptions) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err2;
+  }
+
+  rocksdb_readoptions_t *readoptions = rocksdb_readoptions_create();
+  if (NULL == readoptions) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err2;
+  }
+
+  char *err = NULL;
+  char  cachePath[TSDB_FILENAME_LEN] = {0};
+  tsdbGetRocksPath(pTsdb, cachePath);
+
+  rocksdb_t *db = rocksdb_open(options, cachePath, &err);
+  if (NULL == db) {
+    code = -1;
+    goto _err3;
+  }
+
+  taosThreadMutexInit(&pTsdb->rCache.rMutex, NULL);
+
+  pTsdb->rCache.options = options;
+  pTsdb->rCache.writeoptions = writeoptions;
+  pTsdb->rCache.readoptions = readoptions;
+  pTsdb->rCache.db = db;
+
+  return code;
+
+_err4:
+  rocksdb_readoptions_destroy(readoptions);
+_err3:
+  rocksdb_writeoptions_destroy(writeoptions);
+_err2:
+  rocksdb_options_destroy(options);
+_err:
+  return code;
+}
+
+static void tsdbCloseRocksCache(STsdb *pTsdb) {
+  rocksdb_close(pTsdb->rCache.db);
+  rocksdb_readoptions_destroy(pTsdb->rCache.readoptions);
+  rocksdb_writeoptions_destroy(pTsdb->rCache.writeoptions);
+  rocksdb_options_destroy(pTsdb->rCache.options);
+}
+
+int32_t tsdbCacheUpdate(STsdb *pTsdb, tb_uid_t uid, TSDBROW *pRow) {
+  int32_t code = 0;
+
+  STSDBRowIter iter = {0};
+  tsdbRowIterOpen(&iter, pRow, pTSchema);
+
+  for (SColVal *pColVal = tsdbRowIterNext(&iter); pColVal; pColVal = tsdbRowIterNext(&iter)) {
+    SColVal *pRColVal = tsdbCacheGetRColVal(pTsdb);
+    if (pRColVal) {
+      // merge pColVal with pRColVal
+    }
+
+    tsdbCachePutRColVal(pColVal);
+  }
+
+  tsdbRowClose(&iter);
+
+  char  *err = NULL;
+  char   buf[256] = {0};
+  size_t vallen = 0;
+  char  *val = rocksdb_get(pTsdb->rCache.db, pTsdb->rCache.readoptions, "key", 3, &vallen, &err);
+  if (val) {
+  } else {
+  }
+  rocksdb_put(pTsdb->rCache.db, pTsdb->rCache.writeoptions, "key", 3, "value", 5, &err);
+
+  return code;
+}
+
 int32_t tsdbOpenCache(STsdb *pTsdb) {
   int32_t    code = 0;
   SLRUCache *pCache = NULL;
@@ -55,6 +159,12 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
   }
 
   code = tsdbOpenBICache(pTsdb);
+  if (code != TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  code = tsdbOpenRocksCache(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -80,6 +190,7 @@ void tsdbCloseCache(STsdb *pTsdb) {
   }
 
   tsdbCloseBICache(pTsdb);
+  tsdbCloseRocksCache(pTsdb);
 }
 
 static void getTableCacheKey(tb_uid_t uid, int cacheType, char *key, int *len) {

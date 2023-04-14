@@ -19,6 +19,7 @@
 #include "executor.h"
 #include "filter.h"
 #include "qworker.h"
+#include "rocksdb/c.h"
 #include "sync.h"
 #include "tRealloc.h"
 #include "tchecksum.h"
