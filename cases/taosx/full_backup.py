@@ -14,6 +14,7 @@
 
 import json
 import os
+from random import randint
 from socket import timeout
 import threading
 import time
@@ -88,6 +89,7 @@ class FullBackup(TDCase):
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     group_id = self.tdCom.get_long_name(5)
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(self.source_taosd_list[source][1]))
+                    
                     taosd_backup.execute(f'drop database if exists {self.dbname[source]}')
                     count_rows = taosd_master.query(f'select count(*) from {self.dbname[source]}.{self.stbname[source]}').fetch_all_into_dict()
                     master_count_rows.append(count_rows)
@@ -194,6 +196,8 @@ class FullBackup(TDCase):
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     group_id = self.tdCom.get_long_name(5)
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(self.source_taosd_list[source][1]))
+                    wal_value = randint(1, 1000)
+                    taosd_master.execute(f'alter database {self.ntb_dbname[source]} WAL_RETENTION_PERIOD {wal_value}')
                     count_rows = taosd_master.query(f'select count(*) from {self.ntb_dbname[source]}.{self.ntb_name_m[source]}0').fetch_all_into_dict()
                     master_count_rows.append(count_rows)
                     sum_rows = taosd_master.query(f'select sum(c1) from {self.ntb_dbname[source]}.{self.ntb_name_m[source]}0').fetch_all_into_dict()
@@ -235,9 +239,9 @@ class FullBackup(TDCase):
             self.full_backup_db_stb('db')
             self.full_backup_db_stb('stb')
             self.full_backup_ctb()
-            # self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
-            # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
-            # self.full_backup_ntb()
+            self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+            self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
+            self.full_backup_ntb()
     def cleanup(self):
         pass
 
