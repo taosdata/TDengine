@@ -27,10 +27,18 @@ fn main() {
     let readme_out = out_dir.join("README.md");
     std::fs::write(&readme_out, content).unwrap();
 
-    let service = std::fs::read_to_string(manifest_dir.join("examples").join("explorer.service")).unwrap().replace("taos", &cus_prompt).replace("TDengine", &cus_name);
-    std::fs::write(&target_dir.join(format!("{cus_prompt}-explorer.service")), service).unwrap();
+    let service = std::fs::read_to_string(manifest_dir.join("examples").join("explorer.service"))
+        .unwrap()
+        .replace("taos", &cus_prompt)
+        .replace("TDengine", &cus_name);
+    std::fs::write(
+        &target_dir.join(format!("{cus_prompt}-explorer.service")),
+        service,
+    )
+    .unwrap();
     println!("cargo:rustc-env=CUS_NAME={cus_name}");
     println!("cargo:rustc-env=CUS_PROMPT={cus_prompt}");
+    println!("cargo:rustc-env=CUS_CLI_NAME={cus_prompt}-explorer");
     println!("cargo:rustc-env=CUS_README={}", readme_out.display());
     println!("cargo:rerun-if-env-changed=CUS_NAME");
     println!("cargo:rerun-if-env-changed=CUS_PROMPT");
