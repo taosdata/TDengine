@@ -48,7 +48,7 @@ namespace TDPIConnector.Core
             }
             try
             {
-                ConfigureMonitoring();
+                //ConfigureMonitoring();
 
                 if (piServerManager != null)
                 {
@@ -113,7 +113,7 @@ namespace TDPIConnector.Core
             }
         }
         public void InitializeConnections() {
-            InitMonitoring();
+            //InitMonitoring();
             InitializePIConnections();
             InitializeTaosConnections();
             InitObserver();
@@ -148,7 +148,7 @@ namespace TDPIConnector.Core
         }
         public async void Start()
         {
-            startWebService();
+            //startWebService();
             InitializeConnections();
 
             this.tablesCreator = new TablesCreator(piSystemManager, piServerManager, tdEngineProxy);
@@ -313,8 +313,8 @@ namespace TDPIConnector.Core
         }
 
         public void PrintPIInfo(string pointFilter) {
-            startWebService();
-            InitMonitoring();
+            //startWebService();
+            //InitMonitoring();
             InitializePIConnections();
             var scanner = new PIInfoScanner(piServerManager, piSystemManager);
             string info = scanner.GetInfo(pointFilter);
