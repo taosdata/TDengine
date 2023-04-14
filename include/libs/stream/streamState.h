@@ -88,6 +88,8 @@ int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal);
 int32_t streamStateDel(SStreamState* pState, const SWinKey* key);
 int32_t streamStateClear(SStreamState* pState);
 void    streamStateSetNumber(SStreamState* pState, int32_t number);
+int32_t streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, void* pVal, int32_t vLen);
+int32_t streamStateGetInfo(SStreamState* pState, void* pKey, int32_t keyLen, void** pVal, int32_t* pLen);
 
 int32_t streamStateSessionAddIfNotExist(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal, int32_t* pVLen);
 int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, const void* value, int32_t vLen);

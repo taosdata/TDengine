@@ -36,6 +36,7 @@ int32_t scanDebug = 0;
 #define MULTI_READER_MAX_TABLE_NUM   5000
 #define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
 #define SWITCH_ORDER(n)              (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
+#define STREAM_SCAN_OP_NAME          "StreamScanOperator"
 
 typedef struct STableMergeScanExecInfo {
   SFileBlockLoadRecorder blockRecorder;
@@ -1771,7 +1772,7 @@ int32_t streamScanOperatorEncode(SStreamScanInfo* pInfo, void** pBuff) {
 
 // other properties are recovered from the execution plan
 void streamScanOperatorDeocde(void* pBuff, int32_t len, SStreamScanInfo* pInfo) {
-  if (!pBuff) {
+  if (!pBuff || len == 0) {
     return;
   }
 
@@ -2054,10 +2055,12 @@ FETCH_NEXT_BLOCK:
           updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
           doClearBufferedBlocks(pInfo);
           qDebug("stream scan return empty, consume block %d", totBlockNum);
-          // void* buff = NULL;
-          // int32_t len = streamScanOperatorEncode(pInfo, &buff);
-          // todo(liuyao) save buff
-          // taosMemoryFreeClear(buff);
+          void* buff = NULL;
+          int32_t len = streamScanOperatorEncode(pInfo, &buff);
+          if (len > 0) {
+            streamStateSaveInfo(pInfo->pState, STREAM_SCAN_OP_NAME, strlen(STREAM_SCAN_OP_NAME), buff, len);
+          }
+          taosMemoryFreeClear(buff);
           return NULL;
         }
 
@@ -2484,12 +2487,12 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->twAggSup.maxTs = INT64_MIN;
   pInfo->pState = NULL;
 
-  // todo(liuyao) get buff from rocks db;
   void*   buff = NULL;
   int32_t len = 0;
+  streamStateGetInfo(pTaskInfo->streamInfo.pState, STREAM_SCAN_OP_NAME, strlen(STREAM_SCAN_OP_NAME), &buff, &len);
   streamScanOperatorDeocde(buff, len, pInfo);
 
-  setOperatorInfo(pOperator, "StreamScanOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, false, OP_NOT_OPENED, pInfo,
+  setOperatorInfo(pOperator, STREAM_SCAN_OP_NAME, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
 
