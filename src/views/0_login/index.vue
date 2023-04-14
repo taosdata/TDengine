@@ -161,7 +161,7 @@
         </div>
       </div>
     </section>
-    <div class="copyright">
+    <div class="copyright" v-if="!oemName">
       <!-- <span >©  2023</span>
       <span >
         涛思数据 |
