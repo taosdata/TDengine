@@ -1569,6 +1569,21 @@ static int32_t translateTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFu
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateDateTimeFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (!fmIsDateTimeFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!isSelectStmt(pCxt->pCurrStmt)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  pFunc->node.resType.precision = pSelect->precision;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool hasFillClause(SNode* pCurrStmt) {
   if (!isSelectStmt(pCurrStmt)) {
     return false;
@@ -1708,6 +1723,7 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
     pSelect->hasAggFuncs = pSelect->hasAggFuncs ? true : fmIsAggFunc(pFunc->funcId);
     pSelect->hasRepeatScanFuncs = pSelect->hasRepeatScanFuncs ? true : fmIsRepeatScanFunc(pFunc->funcId);
+
     if (fmIsIndefiniteRowsFunc(pFunc->funcId)) {
       pSelect->hasIndefiniteRowsFunc = true;
       pSelect->returnRows = fmGetFuncReturnRows(pFunc);
@@ -1855,6 +1871,9 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SFunctionNode* p
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateTimelineFunc(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateDateTimeFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateBlockDistFunc(pCxt, pFunc);
