@@ -31,7 +31,6 @@ extern "C" {
 #ifndef _STREAM_H_
 #define _STREAM_H_
 
-typedef void  (*_free_reader_fn_t)(void*);
 typedef struct SStreamTask SStreamTask;
 
 enum {
@@ -221,7 +220,6 @@ SStreamDataSubmit2* streamSubmitBlockClone(SStreamDataSubmit2* pSubmit);
 typedef struct {
   char*              qmsg;
   void*              pExecutor;   // not applicable to encoder and decoder
-  struct STqReader*  pTqReader;   // not applicable to encoder and decoder
   struct SWalReader* pWalReader;  // not applicable to encoder and decoder
 } STaskExec;
 
@@ -333,7 +331,6 @@ struct SStreamTask {
   int64_t             checkpointingId;
   int32_t             checkpointAlignCnt;
   struct SStreamMeta* pMeta;
-  _free_reader_fn_t   freeFp;
 };
 
 // meta
@@ -343,7 +340,6 @@ typedef struct SStreamMeta {
     TTB*         pTaskDb;
     TTB*         pCheckpointDb;
     SHashObj*    pTasks;
-    SHashObj*    pWalReadTasks;
     void*        ahandle;
     TXN*         txn;
     FTaskExpand* expandFunc;
@@ -577,7 +573,6 @@ int32_t      streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamT
 int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t checkpointVer, char* msg, int32_t msgLen);
 int32_t      streamMetaGetNumOfTasks(const SStreamMeta* pMeta);
 
-SStreamTask* streamMetaAcquireTaskEx(SStreamMeta* pMeta, int32_t taskId);
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 void         streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);

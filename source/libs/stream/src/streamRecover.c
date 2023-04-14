@@ -17,6 +17,7 @@
 
 int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
   qDebug("s-task:%s at node %d launch recover", pTask->id.idStr, pTask->nodeId);
+
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__RECOVER_PREPARE);
     streamSetParamForRecover(pTask);
@@ -33,12 +34,7 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
 
     memcpy(serializedReq, &req, len);
 
-    SRpcMsg rpcMsg = {
-        .contLen = len,
-        .pCont = serializedReq,
-        .msgType = TDMT_VND_STREAM_RECOVER_NONBLOCKING_STAGE,
-    };
-
+    SRpcMsg rpcMsg = { .contLen = len, .pCont = serializedReq, .msgType = TDMT_VND_STREAM_RECOVER_NONBLOCKING_STAGE };
     if (tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &rpcMsg) < 0) {
       /*ASSERT(0);*/
     }
@@ -50,6 +46,7 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
   } else if (pTask->taskLevel == TASK_LEVEL__SINK) {
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__NORMAL);
   }
+
   return 0;
 }
 
@@ -61,6 +58,7 @@ int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version) {
       .upstreamNodeId = pTask->nodeId,
       .childId = pTask->selfChildId,
   };
+
   // serialize
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
     req.reqId = tGenIdPI64();
@@ -128,6 +126,7 @@ int32_t streamProcessTaskCheckReq(SStreamTask* pTask, const SStreamTaskCheckReq*
 int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp, int64_t version) {
   qDebug("task %d at node %d recv check rsp from task %d at node %d: status %d", pRsp->upstreamTaskId,
          pRsp->upstreamNodeId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->status);
+
   if (pRsp->status == 1) {
     if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       bool found = false;
@@ -138,7 +137,11 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
           break;
         }
       }
-      if (!found) return -1;
+
+      if (!found) {
+        return -1;
+      }
+
       int32_t left = atomic_sub_fetch_32(&pTask->recoverTryingDownstream, 1);
       ASSERT(left >= 0);
       if (left == 0) {
@@ -147,7 +150,10 @@ int32_t streamProcessTaskCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
         streamTaskLaunchRecover(pTask, version);
       }
     } else if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
-      if (pRsp->reqId != pTask->checkReqId) return -1;
+      if (pRsp->reqId != pTask->checkReqId) {
+        return -1;
+      }
+
       streamTaskLaunchRecover(pTask, version);
     } else {
       ASSERT(0);
@@ -167,6 +173,7 @@ int32_t streamRestoreParam(SStreamTask* pTask) {
   void* exec = pTask->exec.pExecutor;
   return qStreamRestoreParam(exec);
 }
+
 int32_t streamSetStatusNormal(SStreamTask* pTask) {
   atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__NORMAL);
   return 0;
@@ -227,8 +234,8 @@ int32_t streamDispatchRecoverFinishReq(SStreamTask* pTask) {
 
 // agg
 int32_t streamAggRecoverPrepare(SStreamTask* pTask) {
-  void* exec = pTask->exec.pExecutor;
   pTask->recoverWaitingUpstream = taosArrayGetSize(pTask->childEpInfo);
+  qDebug("s-task:%s wait for %d upstreams", pTask->id.idStr, pTask->recoverWaitingUpstream);
   return 0;
 }
 
@@ -247,6 +254,7 @@ int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask) {
 int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId) {
   if (pTask->taskLevel == TASK_LEVEL__AGG) {
     int32_t left = atomic_sub_fetch_32(&pTask->recoverWaitingUpstream, 1);
+    qDebug("s-task:%s remain unfinished child tasks:%d", pTask->id.idStr, left);
     ASSERT(left >= 0);
     if (left == 0) {
       streamAggChildrenRecoverFinish(pTask);

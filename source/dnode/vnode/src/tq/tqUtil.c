@@ -49,32 +49,6 @@ int32_t tqAddInputBlockNLaunchTask(SStreamTask* pTask, SStreamQueueItem* pQueueI
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t launchTaskForWalBlock(SStreamTask* pTask, SFetchRet* pRet, STqOffset* pOffset) {
-  SStreamDataBlock* pBlocks = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
-  if (pBlocks == NULL) { // failed, do nothing
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  pRet->data.info.type = STREAM_NORMAL;
-  pBlocks->type = STREAM_INPUT__DATA_BLOCK;
-  pBlocks->sourceVer = pOffset->val.version;
-  pBlocks->blocks = taosArrayInit(0, sizeof(SSDataBlock));
-  taosArrayPush(pBlocks->blocks, &pRet->data);
-
-//          int64_t* ts = (int64_t*)(((SColumnInfoData*)ret.data.pDataBlock->pData)->pData);
-//          tqDebug("-----------%ld\n", ts[0]);
-
-  int32_t code = tqAddInputBlockNLaunchTask(pTask, (SStreamQueueItem*)pBlocks, pBlocks->sourceVer);
-  if (code == TSDB_CODE_SUCCESS) {
-    pOffset->val.version = walReaderGetCurrentVer(pTask->exec.pTqReader->pWalReader);
-    tqDebug("s-task:%s set the ver:%" PRId64 " from WALReader after extract block from WAL", pTask->id.idStr,
-            pOffset->val.version);
-  }
-
-  return 0;
-}
-
 void initOffsetForAllRestoreTasks(STQ* pTq) {
   void* pIter = NULL;
 
@@ -90,8 +64,7 @@ void initOffsetForAllRestoreTasks(STQ* pTq) {
     }
 
     if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
-      tqDebug("stream task:%d skip push data, not ready for processing, status %d", pTask->id.taskId,
-              pTask->status.taskStatus);
+      tqDebug("s-task:%s skip push data, since not ready, status %d", pTask->id.idStr, pTask->status.taskStatus);
       continue;
     }
 
@@ -120,7 +93,7 @@ void saveOffsetForAllTasks(STQ* pTq, int64_t ver) {
     }
 
     if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
-      tqDebug("stream task:%d skip push data, not ready for processing, status %d", pTask->id.taskId,
+      tqDebug("s-task:%s skip push data, not ready for processing, status %d", pTask->id.idStr,
               pTask->status.taskStatus);
       continue;
     }

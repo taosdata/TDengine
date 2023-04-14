@@ -973,7 +973,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
 
     STqHandle* pTqHandle = (STqHandle*)pIter;
     if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      int32_t code = qUpdateTableListForStreamScanner(pTqHandle->execHandle.task, tbUidList, isAdd, NULL);
+      int32_t code = qUpdateTableListForStreamScanner(pTqHandle->execHandle.task, tbUidList, isAdd);
       if (code != 0) {
         tqError("update qualified table error for %s", pTqHandle->subKey);
         continue;
@@ -1031,17 +1031,10 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
 
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
-      SArray* pList = NULL;
-      int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd, pList);
+      int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
       if (code != 0) {
         tqError("vgId:%d, s-task:%s update qualified table error for stream task", vgId, pTask->id.idStr);
         continue;
-      }
-
-      if (isAdd) { // only add qualified tables
-        tqReaderAddTbUidList(pTask->exec.pTqReader, pList);
-      } else {
-        tqReaderRemoveTbUidList(pTask->exec.pTqReader, tbUidList);
       }
     }
   }
