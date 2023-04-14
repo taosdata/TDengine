@@ -1003,7 +1003,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       src = "unlimited";
     }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSet(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -1042,7 +1042,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     const char      *src = GRANT_VERSION;
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    colDataSet(pColInfo, numOfRows, tmp, false);
+    colDataSetVal(pColInfo, numOfRows, tmp, false);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
