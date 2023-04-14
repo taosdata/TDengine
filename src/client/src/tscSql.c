@@ -628,7 +628,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
-  if (pRes == NULL || pRes->qId == 0) {
+  if (pRes == NULL || pRes->qId == 0 || (pRes->qId == 0x1 && pCmd->payloadLen == 0)) {
     return true;
   }
 
