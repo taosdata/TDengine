@@ -274,7 +274,10 @@ void updateInfoDestoryColseWinSBF(SUpdateInfo *pInfo) {
 }
 
 int32_t updateInfoSerialize(void *buf, int32_t bufLen, const SUpdateInfo *pInfo) {
-  ASSERT(pInfo);
+  if(!pInfo) {
+    return 0;
+  }
+
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
   if (tStartEncode(&encoder) < 0) return -1;
