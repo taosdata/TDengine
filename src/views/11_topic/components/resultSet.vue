@@ -286,12 +286,12 @@ export default {
         .map((item) => item.options)
         .flat(1)
         .map((val) => {
-          row.type = row.type.toLowerCase().includes("varchar")
+          let type = row.type.toLowerCase().includes("varchar")
             ? "varchar"
             : row.type.toLowerCase().includes("nchar")
             ? "nchar"
-            : row.type;
-          if (!val.supportDatatype.includes(row.type.toLowerCase())) {
+            : row.type.toLowerCase();
+          if (!val.supportDatatype.includes(type)) {
             if (
               val.supportDatatype[0] == "all" ||
               val.supportDatatype[0] == "system"
