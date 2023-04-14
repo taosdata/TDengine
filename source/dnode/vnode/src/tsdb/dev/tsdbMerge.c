@@ -17,26 +17,74 @@
 
 typedef struct {
   STsdb *pTsdb;
+
+  SArray *aFileOp;  // SArray<struct SFileOp>
 } SMerger;
 
-typedef struct {
-  STsdb *pTsdb;
-} STsdbMergeInfo;
-
-int32_t tsdbMergeBegin(STsdb *pTsdb) {
-  int32_t code = 0;
+static int32_t tsdbFileSystemShouldMerge(STsdb *pTsdb) {
+  ASSERTS(0, "TODO: not implemented yet");
   // TODO
-  return code;
+  return 0;
 }
 
-int32_t tsdbMergeCommit(STsdb *pTsdb) {
-  int32_t code = 0;
+static int32_t tsdbFileSetShouldMerge(struct SFileSet *pSet) {
+  ASSERTS(0, "TODO: not implemented yet");
   // TODO
-  return code;
+  return 0;
 }
 
-int32_t tsdbMergeAbort(STsdb *pTsdb) {
-  int32_t code = 0;
+static int32_t tsdbFileSetMerge(struct SFileSet *pFileSet) {
+  ASSERTS(0, "TODO: not implemented yet");
   // TODO
-  return code;
+  return 0;
+}
+static int32_t tsdbOpenMerger(STsdb *pTsdb, SMerger *merger) {
+  ASSERTS(0, "TODO: not implemented yet");
+  // TODO
+  return 0;
+}
+
+int32_t tsdbMerge(STsdb *pTsdb) {
+  int32_t code = 0;
+  int32_t lino;
+
+  if (!tsdbFileSystemShouldMerge(pTsdb)) {
+    goto _exit;
+  }
+
+  // do merge
+  SMerger merger = {0};
+
+  TSDB_CHECK_CODE(                            //
+      code = tsdbOpenMerger(pTsdb, &merger),  //
+      lino,                                   //
+      _exit);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pTsdb->pFS->aFileSet); i++) {
+    struct SFileSet *pFileSet = taosArrayGet(pTsdb->pFS->aFileSet, i);
+    if (!tsdbFileSetShouldMerge(pFileSet)) {
+      continue;
+    }
+
+    TSDB_CHECK_CODE(                        //
+        code = tsdbFileSetMerge(pFileSet),  //
+        lino,                               //
+        _exit);
+  }
+
+  TSDB_CHECK_CODE(                                                                     //
+      code = tsdbFileSystemEditBegin(pTsdb->pFS, merger.aFileOp, TSDB_FS_EDIT_MERGE),  //
+      lino,                                                                            //
+      _exit);
+
+  TSDB_CHECK_CODE(                                                      //
+      code = tsdbFileSystemEditCommit(pTsdb->pFS, TSDB_FS_EDIT_MERGE),  //
+      lino,                                                             //
+      _exit);
+
+_exit:
+  if (code) {
+  } else {
+  }
+  return 0;
 }
