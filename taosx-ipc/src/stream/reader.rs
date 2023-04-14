@@ -18,7 +18,7 @@ use arrow::{
 };
 use taos_query::prelude::Itertools;
 use taos_query::prelude::{ColumnView, Ty, Value};
-use tracing::{error, info, };
+use tracing::{error, debug};
 
 use crate::{
     ack::AckType,
@@ -1171,7 +1171,7 @@ impl<R: Read> Iterator for IpcReader<R> {
     type Item = Result<Box<dyn IpcMessage>, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        info!("Next message in the stream");
+        debug!("Next message in the stream");
         // let res = self.reader.next()?;
         let res = loop {
             if let Some(res) = self.reader.next() {

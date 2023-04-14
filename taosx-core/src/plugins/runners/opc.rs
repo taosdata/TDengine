@@ -46,6 +46,8 @@ enum OpcError {
     FileNotFound(String),
     #[error("config file content is empty in {0}")]
     EmptyConfig(String),
+    #[error("node config length is not 4, length is {0}")]
+    NodeConfig(String),
     #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
     ParseNumberError(&'static str, String, ParseIntError),
 }
@@ -238,7 +240,9 @@ impl OPCConfig {
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
-                    assert_eq!(4, pair.len());
+                    if pair.len() != 4 {
+                        return Err(OpcError::NodeConfig(pair.len().to_string()));
+                    }
                     let id = String::from(pair[0]);
                     let table = String::from(pair[1]);
                     let field = String::from(pair[2]);

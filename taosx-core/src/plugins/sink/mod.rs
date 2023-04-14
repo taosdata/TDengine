@@ -10,7 +10,7 @@ use std::{
 use taos::{AsyncQueryable, Bindable, Itertools, Stmt, Taos, TaosPool};
 use tokio::sync::{mpsc::Sender, Mutex};
 use tokio_util::sync::CancellationToken;
-use tracing::{info, instrument};
+use tracing::{info, instrument, debug};
 
 use super::runners::opc::OpcTableConfig;
 use taosx_ipc::{prelude::*, stream::point::PointMessage};
@@ -143,7 +143,7 @@ async fn consume_point_record(
             } else {
                 format!("insert into {table} ({ts_cloumn_name}, {field}) values (?, ?)")
             };
-            info!("sql: {}", sql);
+            debug!("sql: {}", sql);
             stmt.prepare(&sql).unwrap();
             let new_cv_vec = cv_vec
                 .iter()
