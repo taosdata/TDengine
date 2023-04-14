@@ -1447,39 +1447,8 @@ static int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock,
   return code;
 }
 
-#if 0
-void calBlockTag(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
-  SExprSupp*    pTagCalSup = &pInfo->tagCalSup;
-  SStreamState* pState = pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState;
-  if (pTagCalSup == NULL || pTagCalSup->numOfExprs == 0) return;
-  if (pBlock == NULL || pBlock->info.rows == 0) return;
-
-  void*   tag = NULL;
-  int32_t tagLen = 0;
-  if (streamStateGetParTag(pState, pBlock->info.id.groupId, &tag, &tagLen) == 0) {
-    pBlock->info.tagLen = tagLen;
-    void* pTag = taosMemoryRealloc(pBlock->info.pTag, tagLen);
-    if (pTag == NULL) {
-      tdbFree(tag);
-      taosMemoryFree(pBlock->info.pTag);
-      pBlock->info.pTag = NULL;
-      pBlock->info.tagLen = 0;
-      return;
-    }
-    pBlock->info.pTag = pTag;
-    memcpy(pBlock->info.pTag, tag, tagLen);
-    tdbFree(tag);
-    return;
-  } else {
-    pBlock->info.pTag = NULL;
-  }
-  tdbFree(tag);
-}
-#endif
-
 static void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
   SExprSupp*    pTbNameCalSup = &pInfo->tbnameCalSup;
-  SStreamState* pState = pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState;
   blockDataCleanup(pInfo->pCreateTbRes);
   if (pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0) {
     pBlock->info.parTbName[0] = 0;
@@ -1535,7 +1504,7 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
     bool update = updateInfoIsUpdated(pInfo->pUpdateInfo, pBlock->info.id.uid, tsCol[rowId]);
     bool closedWin = isClosed && isSignleIntervalWindow(pInfo) &&
                      isDeletedStreamWindow(&win, pBlock->info.id.groupId,
-                                           pInfo->pTableScanOp->pTaskInfo->streamInfo.pState, &pInfo->twAggSup);
+                                           pInfo->pState, &pInfo->twAggSup);
     if ((update || closedWin) && out) {
       qDebug("stream update check not pass, update %d, closedWin %d", update, closedWin);
       uint64_t gpId = 0;
@@ -2534,6 +2503,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->igCheckUpdate = pTableScanNode->igCheckUpdate;
   pInfo->igExpired = pTableScanNode->igExpired;
   pInfo->twAggSup.maxTs = INT64_MIN;
+  pInfo->pState = NULL;
 
   // todo(liuyao) get buff from rocks db;
   void*   buff = NULL;

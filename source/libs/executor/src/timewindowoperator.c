@@ -25,7 +25,9 @@
 #include "ttime.h"
 
 #define IS_FINAL_OP(op)    ((op)->isFinal)
-#define DEAULT_DELETE_MARK (1000LL * 60LL * 60LL * 24LL * 365LL * 10LL);
+// #define DEAULT_DELETE_MARK (1000LL * 60LL * 60LL * 24LL * 365LL * 10LL);
+
+#define DEAULT_DELETE_MARK (1000LL * 60LL * 60LL);
 
 typedef struct SSessionAggOperatorInfo {
   SOptrBasicInfo     binfo;
@@ -1612,20 +1614,20 @@ static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SInt
   return needed;
 }
 
-void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SAggSupporter* pSup, SInterval* pInterval,
-                            STimeWindowAggSupp* pTwSup) {
+void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SStreamIntervalOperatorInfo* pInfo) {
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    initIntervalDownStream(downstream->pDownstream[0], type, pSup, pInterval, pTwSup);
+    initIntervalDownStream(downstream->pDownstream[0], type, pInfo);
     return;
   }
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->windowSup.parentType = type;
-  pScanInfo->windowSup.pIntervalAggSup = pSup;
+  pScanInfo->windowSup.pIntervalAggSup =  &pInfo->aggSup;
   if (!pScanInfo->igCheckUpdate && !pScanInfo->pUpdateInfo) {
-    pScanInfo->pUpdateInfo = updateInfoInitP(pInterval, pTwSup->waterMark);
+    pScanInfo->pUpdateInfo = updateInfoInitP(&pInfo->interval, pInfo->twAggSup.waterMark);
   }
-  pScanInfo->interval = *pInterval;
-  pScanInfo->twAggSup = *pTwSup;
+  pScanInfo->interval = pInfo->interval;
+  pScanInfo->twAggSup = pInfo->twAggSup;
+  pScanInfo->pState = pInfo->pState;
 }
 
 void initStreamFunciton(SqlFunctionCtx* pCtx, int32_t numOfExpr) {
@@ -2761,7 +2763,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pOperator->fpSet = createOperatorFpSet(NULL, doStreamFinalIntervalAgg, NULL, destroyStreamFinalIntervalOperatorInfo,
                                          optrDefaultBufFn, NULL);
   if (pPhyNode->type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL) {
-    initIntervalDownStream(downstream, pPhyNode->type, &pInfo->aggSup, &pInfo->interval, &pInfo->twAggSup);
+    initIntervalDownStream(downstream, pPhyNode->type, pInfo);
   }
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -4930,7 +4932,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamIntervalAgg, NULL,
                                          destroyStreamFinalIntervalOperatorInfo, optrDefaultBufFn, NULL);
 
-  initIntervalDownStream(downstream, pPhyNode->type, &pInfo->aggSup, &pInfo->interval, &pInfo->twAggSup);
+  initIntervalDownStream(downstream, pPhyNode->type, pInfo);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
