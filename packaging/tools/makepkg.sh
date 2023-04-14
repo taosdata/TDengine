@@ -150,7 +150,7 @@ fi
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${serverName}.deb
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${serverName}.rpm
-mkdir -p ${install_dir}/share && cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
+# mkdir -p ${install_dir}/share && cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
 
 if [ $adapterName != "taosadapter" ]; then
   mv ${install_dir}/cfg/${clientName2}adapter.toml ${install_dir}/cfg/$adapterName.toml
@@ -322,6 +322,7 @@ if [[ $dbName == "taos" ]]; then
       mkdir -p ${install_dir}/share/
       cp -Rfap ${web_dir}/admin ${install_dir}/share/
       cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
+      cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
     else
       echo "directory not found for enterprise release: ${web_dir}/admin"
     fi
