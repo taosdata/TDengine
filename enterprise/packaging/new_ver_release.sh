@@ -135,5 +135,5 @@ fi
 if [[ ! -z "${cusName}" || ! -z "${cusPrompt}" || ! -z "${cusEmail}" ]];then
     echo "custom name: ${cusName}, custom prompt: ${cusPrompt}, custom email: ${cusEmail}"
     echo "communityDir: ${communityDir}, enterpriseDir: ${enterpriseDir}"
-    python3 ./repack-release.py -n ${cusName} -p ${cusPrompt} -e ${cusEmail} -d ${communityDir} -v ${version}
+    python3 ./repack-release.py -n ${cusName} -p ${cusPrompt} -e ${cusEmail} -d ../../community/release -v ${version}
 fi

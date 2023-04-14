@@ -1,0 +1,24 @@
+---
+name: TDengine Lite
+type: feature
+grade: stable
+cputype: amd64
+format: tar.gz
+buildOption:
+  - BUILD_HTTP: false
+  - BUILD_TOOLS: false
+  - WEBSOCKET: false
+  - JEMALLOC_ENABLED: false
+  - CMAKE_BUILD_TYPE: Release
+parts:
+  taosd:
+  taos:
+  libtaos:
+  taosdump:
+  install.sh:
+  uninstall.sh:
+  taosd.service:
+
+prepareAction:
+
+postAction:

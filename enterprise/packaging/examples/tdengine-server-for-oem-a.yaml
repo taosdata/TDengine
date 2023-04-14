@@ -1,0 +1,41 @@
+---
+name: TDengine Server for OEM_A
+type: feature
+grade: stable
+cputype: amd64
+format: tar.gz
+buildOption:
+  - BUILD_HTTP: true
+  - BUILD_TOOLS: true
+  - WEBSOCKET: false
+  - JEMALLOC_ENABLED: false
+  - CMAKE_BUILD_TYPE: Release
+  - OEM_PREFIX: oemA
+parts:
+  taosd:
+    oemName: oem_a_taosd
+  taos:
+    oemName: oem_a_taos
+  libtaos:
+  libtaosws:
+  taosBenchmark:
+  taosAdapter:
+  taosKeeper:
+  taosdump:
+  examples:
+    isFolder: true
+    location: ../../community/examples
+  install.sh:
+  uninstall.sh:
+  taosd.service:
+  taosadapter.service:
+
+prepareAction:
+  - name: install_package.sh
+    param1: rust
+    param2: go
+
+postAction:
+  - name: upload_to_website.py
+    param1: $PASSWORD_TO_UPLOAD
+    param2: ../../community
