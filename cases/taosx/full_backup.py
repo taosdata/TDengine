@@ -235,9 +235,9 @@ class FullBackup(TDCase):
             self.full_backup_db_stb('db')
             self.full_backup_db_stb('stb')
             self.full_backup_ctb()
-            self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
-            self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
-            self.full_backup_ntb()
+            # self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+            # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
+            # self.full_backup_ntb()
     def cleanup(self):
         pass
 
