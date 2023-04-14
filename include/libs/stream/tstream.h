@@ -31,7 +31,6 @@ extern "C" {
 #ifndef _STREAM_H_
 #define _STREAM_H_
 
-typedef void  (*_free_reader_fn_t)(void*);
 typedef struct SStreamTask SStreamTask;
 
 enum {
@@ -574,7 +573,6 @@ int32_t      streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamT
 int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t checkpointVer, char* msg, int32_t msgLen);
 int32_t      streamMetaGetNumOfTasks(const SStreamMeta* pMeta);
 
-SStreamTask* streamMetaAcquireTaskEx(SStreamMeta* pMeta, int32_t taskId);
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 void         streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);

@@ -183,7 +183,6 @@ int32_t streamMetaAddDeployedTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* 
     return -1;
   }
 
-  pTask->status.taskStatus = STREAM_STATUS__NORMAL;
   taosHashPut(pMeta->pTasks, &pTask->id.taskId, sizeof(int32_t), &pTask, POINTER_BYTES);
   return 0;
 }
@@ -213,22 +212,6 @@ void streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask) {
     ASSERT(atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING);
     tFreeStreamTask(pTask);
   }
-}
-
-SStreamTask* streamMetaAcquireTaskEx(SStreamMeta* pMeta, int32_t taskId) {
-  SStreamTask* pTask = NULL;
-  taosRLockLatch(&pMeta->lock);
-
-  SStreamTask** p = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
-  if (p != NULL) {
-    if ((*p) != NULL && atomic_load_8(&((*p)->status.taskStatus)) != TASK_STATUS__DROPPING) {
-      pTask = *p;
-      atomic_add_fetch_32(&pTask->refCnt, 1);
-    }
-  }
-
-  taosRUnLockLatch(&pMeta->lock);
-  return pTask;
 }
 
 void streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {

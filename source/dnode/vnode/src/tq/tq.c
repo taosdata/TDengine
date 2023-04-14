@@ -659,16 +659,21 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   };
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
-  if (pTask && atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__NORMAL) {
-    rsp.status = 1;
+  if (pTask) {
+    rsp.status = (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__NORMAL) ? 1 : 0;
+    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+
+    tqDebug("tq recv task check req(reqId:0x%" PRIx64
+            ") %d at node %d task status:%d, check req from task %d at node %d, rsp status %d",
+            rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, pTask->status.taskStatus, rsp.upstreamTaskId,
+            rsp.upstreamNodeId, rsp.status);
   } else {
     rsp.status = 0;
+    tqDebug("tq recv task check(taskId:%d not built yet) req(reqId:0x%" PRIx64
+            ") %d at node %d, check req from task %d at node %d, rsp status %d",
+            taskId, rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.upstreamTaskId, rsp.upstreamNodeId,
+            rsp.status);
   }
-
-  if (pTask) streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-
-  tqDebug("tq recv task check req(reqId:0x%" PRIx64 ") %d at node %d check req from task %d at node %d, status %d",
-          rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
 
   SEncoder encoder;
   int32_t  code;
@@ -687,13 +692,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   tEncodeSStreamTaskCheckRsp(&encoder, &rsp);
   tEncoderClear(&encoder);
 
-  SRpcMsg rspMsg = {
-      .code = 0,
-      .pCont = buf,
-      .contLen = sizeof(SMsgHead) + len,
-      .info = pMsg->info,
-  };
-
+  SRpcMsg rspMsg = { .code = 0, .pCont = buf, .contLen = sizeof(SMsgHead) + len, .info = pMsg->info };
   tmsgSendRsp(&rspMsg);
   return 0;
 }
@@ -709,8 +708,8 @@ int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t sversion, char* msg, int32
     tDecoderClear(&decoder);
     return -1;
   }
-  tDecoderClear(&decoder);
 
+  tDecoderClear(&decoder);
   tqDebug("tq recv task check rsp(reqId:0x%" PRIx64 ") %d at node %d check req from task %d at node %d, status %d",
           rsp.reqId, rsp.downstreamTaskId, rsp.downstreamNodeId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
 
@@ -764,8 +763,8 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
     streamTaskCheckDownstream(pTask, sversion);
   }
 
-  tqDebug("vgId:%d s-task:%s is deployed from mnd, status:%d, total:%d", TD_VID(pTq->pVnode), pTask->id.idStr,
-          pTask->status.taskStatus, streamMetaGetNumOfTasks(pTq->pStreamMeta));
+  tqDebug("vgId:%d s-task:%s is deployed and add meta from mnd, status:%d, total:%d", TD_VID(pTq->pVnode),
+          pTask->id.idStr, pTask->status.taskStatus, streamMetaGetNumOfTasks(pTq->pStreamMeta));
   return 0;
 }
 
@@ -1117,7 +1116,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
     return 0;
   }
 
-  SStreamTask* pTask = streamMetaAcquireTaskEx(pTq->pStreamMeta, taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, taskId);
   if (pTask != NULL) {
     if (pTask->status.taskStatus == TASK_STATUS__NORMAL) {
       tqDebug("vgId:%d s-task:%s start to process run req", vgId, pTask->id.idStr);
