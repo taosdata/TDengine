@@ -4865,6 +4865,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   if (!pInfo->pUpdated) {
     pInfo->pUpdated = taosArrayInit(4096, POINTER_BYTES);
   }
+
   if (!pInfo->pUpdatedMap) {
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
     pInfo->pUpdatedMap = tSimpleHashInit(4096, hashFn);
@@ -4877,6 +4878,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       pInfo->numOfDatapack = 0;
       break;
     }
+
     pInfo->numOfDatapack++;
     printDataBlock(pBlock, "single interval recv");
 

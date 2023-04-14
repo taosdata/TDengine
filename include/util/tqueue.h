@@ -61,7 +61,7 @@ typedef void (*FItems)(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfItems);
 
 typedef struct STaosQnode STaosQnode;
 
-typedef struct STaosQnode {
+struct STaosQnode {
   STaosQnode *next;
   STaosQueue *queue;
   int64_t     timestamp;
@@ -70,9 +70,9 @@ typedef struct STaosQnode {
   int8_t      itype;
   int8_t      reserved[3];
   char        item[];
-} STaosQnode;
+};
 
-typedef struct STaosQueue {
+struct STaosQueue {
   STaosQnode   *head;
   STaosQnode   *tail;
   STaosQueue   *next;     // for queue set
@@ -86,22 +86,22 @@ typedef struct STaosQueue {
   int64_t       threadId;
   int64_t       memLimit;
   int64_t       itemLimit;
-} STaosQueue;
+};
 
-typedef struct STaosQset {
+struct STaosQset {
   STaosQueue   *head;
   STaosQueue   *current;
   TdThreadMutex mutex;
   tsem_t        sem;
   int32_t       numOfQueues;
   int32_t       numOfItems;
-} STaosQset;
+};
 
-typedef struct STaosQall {
+struct STaosQall {
   STaosQnode *current;
   STaosQnode *start;
   int32_t     numOfItems;
-} STaosQall;
+};
 
 STaosQueue *taosOpenQueue();
 void        taosCloseQueue(STaosQueue *queue);

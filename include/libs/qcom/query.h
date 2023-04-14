@@ -194,6 +194,7 @@ typedef struct SRequestConnInfo {
 
 typedef void (*__freeFunc)(void* param);
 
+// todo add creator/destroyer function
 typedef struct SMsgSendInfo {
   __async_send_cb_fn_t fp;      // async callback function
   STargetInfo          target;  // for update epset
