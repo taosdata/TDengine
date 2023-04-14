@@ -314,7 +314,8 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
         if (btmp == NULL) {
           return TSDB_CODE_OUT_OF_MEMORY;
         }
-
+        uint32_t extend = BitmapLen(finalNumOfRows) - BitmapLen(numOfRow1);
+        memset(btmp + BitmapLen(numOfRow1), 0, extend);
         pColumnInfoData->nullbitmap = btmp;
       }
 

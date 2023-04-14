@@ -166,6 +166,8 @@ static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn *pColumn, int32_t ne
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    uint32_t extend = BitmapLen(allocCapacity) - BitmapLen(data->rowsAlloc);
+    memset(tmp + BitmapLen(data->rowsAlloc), 0, extend);
     data->fixLenCol.nullBitmap = tmp;
     data->fixLenCol.nullBitmapLen = BitmapLen(allocCapacity);
     if (meta->type == TSDB_DATA_TYPE_NULL) {
