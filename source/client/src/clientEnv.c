@@ -96,7 +96,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
                pRequest->metric.planCostUs, pRequest->metric.execCostUs);
       atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
     } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-      tscDebug("query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
+      tscError("query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
                "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
                duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
                pRequest->metric.planCostUs, pRequest->metric.execCostUs);

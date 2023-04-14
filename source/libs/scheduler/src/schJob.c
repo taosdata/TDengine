@@ -440,7 +440,7 @@ int32_t schNotifyUserExecRes(SSchJob *pJob) {
     schDumpJobExecRes(pJob, pRes);
   }
 
-  SCH_JOB_DLOG("sch start to invoke exec cb, code: %s", tstrerror(pJob->errCode));
+  SCH_JOB_ELOG("sch start to invoke exec cb, code: %s", tstrerror(pJob->errCode));
   (*pJob->userRes.execFp)(pRes, pJob->userRes.cbParam, atomic_load_32(&pJob->errCode));
   SCH_JOB_DLOG("sch end from exec cb, code: %s", tstrerror(pJob->errCode));
 
