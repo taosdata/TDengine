@@ -246,7 +246,7 @@ if [ ! -f  debRpmAutoInstall.sh  ];then
     echo '#!/usr/bin/expect ' >  debRpmAutoInstall.sh
     echo 'set packageName [lindex $argv 0]' >>  debRpmAutoInstall.sh
     echo 'set packageSuffix [lindex $argv 1]' >>  debRpmAutoInstall.sh
-    echo 'set timeout 3 ' >>  debRpmAutoInstall.sh
+    echo 'set timeout 30 ' >>  debRpmAutoInstall.sh
     echo 'if { ${packageSuffix} == "deb" } {' >>  debRpmAutoInstall.sh
     echo '    spawn  dpkg -i ${packageName} '  >>  debRpmAutoInstall.sh
     echo '} elseif { ${packageSuffix} == "rpm"} {' >>  debRpmAutoInstall.sh
