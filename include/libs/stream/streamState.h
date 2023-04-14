@@ -38,6 +38,8 @@ typedef struct STdbState {
   rocksdb_comparator_t**           pCompare;
   rocksdb_options_t*               dbOpt;
   struct SStreamTask*              pOwner;
+  void*                            param;
+  void*                            env;
 
   TDB* db;
   TTB* pStateDb;
@@ -63,6 +65,7 @@ void          streamStateClose(SStreamState* pState);
 int32_t       streamStateBegin(SStreamState* pState);
 int32_t       streamStateCommit(SStreamState* pState);
 void          streamStateDestroy(SStreamState* pState);
+int32_t       streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark);
 
 typedef struct {
   rocksdb_iterator_t*    iter;

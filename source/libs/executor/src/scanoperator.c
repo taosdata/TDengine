@@ -1034,8 +1034,9 @@ static void setGroupId(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t grou
   pInfo->groupId = groupCol[rowIndex];
 }
 
-void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin) {
+void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin, uint64_t version) {
   pTableScanInfo->base.cond.twindows = *pWin;
+  pTableScanInfo->base.cond.endVersion = version;
   pTableScanInfo->scanTimes = 0;
   pTableScanInfo->currentGroupId = -1;
   tsdbReaderClose(pTableScanInfo->base.dataReader);
@@ -1154,7 +1155,7 @@ static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
     break;
   }
 
-  resetTableScanInfo(pInfo->pTableScanOp->info, &win);
+  resetTableScanInfo(pInfo->pTableScanOp->info, &win, pInfo->pUpdateInfo->maxDataVersion);
   pInfo->pTableScanOp->status = OP_OPENED;
   return true;
 }
@@ -1195,14 +1196,19 @@ static STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t
 
 static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_t tsColIndex, int32_t* pRowIndex) {
   qInfo("do stream range scan. windows index:%d", *pRowIndex);
+  bool prepareRes = true;
   while (1) {
     SSDataBlock* pResult = NULL;
     pResult = doTableScan(pInfo->pTableScanOp);
-    if (!pResult && prepareRangeScan(pInfo, pSDB, pRowIndex)) {
+    if (!pResult) {
+      prepareRes = prepareRangeScan(pInfo, pSDB, pRowIndex);
       // scan next window data
       pResult = doTableScan(pInfo->pTableScanOp);
     }
     if (!pResult) {
+      if (prepareRes) {
+        continue;
+      }
       blockDataCleanup(pSDB);
       *pRowIndex = 0;
       pInfo->updateWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
@@ -1453,39 +1459,8 @@ static int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock,
   return code;
 }
 
-#if 0
-void calBlockTag(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
-  SExprSupp*    pTagCalSup = &pInfo->tagCalSup;
-  SStreamState* pState = pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState;
-  if (pTagCalSup == NULL || pTagCalSup->numOfExprs == 0) return;
-  if (pBlock == NULL || pBlock->info.rows == 0) return;
-
-  void*   tag = NULL;
-  int32_t tagLen = 0;
-  if (streamStateGetParTag(pState, pBlock->info.id.groupId, &tag, &tagLen) == 0) {
-    pBlock->info.tagLen = tagLen;
-    void* pTag = taosMemoryRealloc(pBlock->info.pTag, tagLen);
-    if (pTag == NULL) {
-      tdbFree(tag);
-      taosMemoryFree(pBlock->info.pTag);
-      pBlock->info.pTag = NULL;
-      pBlock->info.tagLen = 0;
-      return;
-    }
-    pBlock->info.pTag = pTag;
-    memcpy(pBlock->info.pTag, tag, tagLen);
-    tdbFree(tag);
-    return;
-  } else {
-    pBlock->info.pTag = NULL;
-  }
-  tdbFree(tag);
-}
-#endif
-
 static void calBlockTbName(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
   SExprSupp*    pTbNameCalSup = &pInfo->tbnameCalSup;
-  SStreamState* pState = pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState;
   blockDataCleanup(pInfo->pCreateTbRes);
   if (pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0) {
     pBlock->info.parTbName[0] = 0;
@@ -1541,7 +1516,7 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
     bool update = updateInfoIsUpdated(pInfo->pUpdateInfo, pBlock->info.id.uid, tsCol[rowId]);
     bool closedWin = isClosed && isSignleIntervalWindow(pInfo) &&
                      isDeletedStreamWindow(&win, pBlock->info.id.groupId,
-                                           pInfo->pTableScanOp->pTaskInfo->streamInfo.pState, &pInfo->twAggSup);
+                                           pInfo->pState, &pInfo->twAggSup);
     if ((update || closedWin) && out) {
       qDebug("stream update check not pass, update %d, closedWin %d", update, closedWin);
       uint64_t gpId = 0;
@@ -1770,6 +1745,7 @@ static void setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
 
 static void doCheckUpdate(SStreamScanInfo* pInfo, TSKEY endKey, SSDataBlock* pBlock) {
   if (pInfo->pUpdateInfo) {
+    pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pBlock->info.version);
     checkUpdateData(pInfo, true, pBlock, true);
     pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, endKey);
     if (pInfo->pUpdateDataRes->info.rows > 0) {
@@ -1831,7 +1807,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN2;
     }
 
-    /*resetTableScanInfo(pTSInfo, pWin);*/
     tsdbReaderClose(pTSInfo->base.dataReader);
 
     pTSInfo->base.dataReader = NULL;
@@ -1876,8 +1851,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
         SSDataBlock* pSDB = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
         if (pSDB) {
           STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-          uint64_t        version = getReaderMaxVersion(pTableScanInfo->base.dataReader);
-          updateInfoSetScanRange(pInfo->pUpdateInfo, &pTableScanInfo->base.cond.twindows, pInfo->groupId, version);
           pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
           checkUpdateData(pInfo, true, pSDB, false);
           printDataBlock(pSDB, "scan recover update");
@@ -1946,6 +1919,9 @@ FETCH_NEXT_BLOCK:
     pBlock->info.calWin.skey = INT64_MIN;
     pBlock->info.calWin.ekey = INT64_MAX;
     pBlock->info.dataLoad = 1;
+    if (pInfo->pUpdateInfo) {
+      pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pBlock->info.version);
+    }
     blockDataUpdateTsWindow(pBlock, 0);
     switch (pBlock->info.type) {
       case STREAM_NORMAL:
@@ -2043,11 +2019,9 @@ FETCH_NEXT_BLOCK:
         SSDataBlock* pSDB = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex);
         if (pSDB) {
           STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-          uint64_t        version = getReaderMaxVersion(pTableScanInfo->base.dataReader);
-          updateInfoSetScanRange(pInfo->pUpdateInfo, &pTableScanInfo->base.cond.twindows, pInfo->groupId, version);
           pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
           checkUpdateData(pInfo, true, pSDB, false);
-          // printDataBlock(pSDB, "stream scan update");
+          printDataBlock(pSDB, "stream scan update");
           calBlockTbName(pInfo, pSDB);
           return pSDB;
         }
@@ -2108,13 +2082,6 @@ FETCH_NEXT_BLOCK:
         }
 
         setBlockIntoRes(pInfo, &block, false);
-
-        if (updateInfoIgnore(pInfo->pUpdateInfo, &pInfo->pRes->info.window, pInfo->pRes->info.id.groupId,
-                             pInfo->pRes->info.version)) {
-          printDataBlock(pInfo->pRes, "stream scan ignore");
-          blockDataCleanup(pInfo->pRes);
-          continue;
-        }
 
         if (pInfo->pCreateTbRes->info.rows > 0) {
           pInfo->scanMode = STREAM_SCAN_FROM_RES;
@@ -2515,6 +2482,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->igCheckUpdate = pTableScanNode->igCheckUpdate;
   pInfo->igExpired = pTableScanNode->igExpired;
   pInfo->twAggSup.maxTs = INT64_MIN;
+  pInfo->pState = NULL;
 
   // todo(liuyao) get buff from rocks db;
   void*   buff = NULL;

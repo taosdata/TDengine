@@ -1066,10 +1066,19 @@ void streamStateDestroy(SStreamState* pState) {
 #ifdef USE_ROCKSDB
   streamFileStateDestroy(pState->pFileState);
   streamStateDestroy_rocksdb(pState);
+  taosMemoryFreeClear(pState->parNameMap);
   // do nothong
 #endif
   taosMemoryFreeClear(pState->pTdbState);
   taosMemoryFreeClear(pState);
+}
+
+int32_t streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark) {
+#ifdef USE_ROCKSDB
+  return deleteExpiredCheckPoint(pState->pFileState, mark);
+#else
+  return 0;
+#endif
 }
 
 #if 0

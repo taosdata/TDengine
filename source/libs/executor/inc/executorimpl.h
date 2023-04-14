@@ -477,9 +477,10 @@ typedef struct SStreamScanInfo {
   int32_t      blockRecoverTotCnt;
   SSDataBlock* pRecoverRes;
 
-  SSDataBlock* pCreateTbRes;
-  int8_t       igCheckUpdate;
-  int8_t       igExpired;
+  SSDataBlock*  pCreateTbRes;
+  int8_t        igCheckUpdate;
+  int8_t        igExpired;
+  SStreamState* pState;
 } SStreamScanInfo;
 
 typedef struct {
@@ -553,6 +554,7 @@ typedef struct SStreamIntervalOperatorInfo {
   SSDataBlock*       pPullDataRes;
   bool               isFinal;
   SArray*            pChildren;
+  int32_t            numOfChild;
   SStreamState*      pState;
   SWinKey            delKey;
   uint64_t           numOfDatapack;

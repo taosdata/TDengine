@@ -13,13 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "rocksdb/c.h"
 #include "streamBackendRocksdb.h"
 #include "tcommon.h"
-#include "tlog.h"
 
 int defaultKeyComp(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen) {
-  //
-  return memcmp(aBuf, bBuf, aLen);
+  int ret = memcmp(aBuf, bBuf, aLen);
+  if (ret == 0) {
+    if (aLen < bLen)
+      return -1;
+    else if (aLen > bLen)
+      return 1;
+    else
+      return 0;
+  } else {
+    return ret;
+  }
 }
 int defaultKeyEncode(void* k, char* buf) {
   int len = strlen((char*)k);
@@ -280,6 +289,10 @@ int parKeyToString(void* k, char* buf) {
   return n;
 }
 
+typedef struct {
+  void* tableOpt;
+  void* lru;  // global or not
+} rocksdbCfParam;
 const char* cfName[] = {"default", "state", "fill", "sess", "func", "parname", "partag"};
 
 typedef int (*EncodeFunc)(void* key, char* buf);
@@ -297,6 +310,8 @@ const char* compareFuncKeyName(void* name);
 const char* compareParKeyName(void* name);
 const char* comparePartagKeyName(void* name);
 
+void destroyFunc(void* stata) { return; }
+
 typedef struct {
   const char*    key;
   int32_t        len;
@@ -312,14 +327,19 @@ typedef struct {
 
 SCfInit ginitDict[] = {
     {"default", strlen("default"), 0, defaultKeyComp, defaultKeyEncode, defaultKeyDecode, defaultKeyToString,
-     compareDefaultName},
-    {"state", strlen("state"), 1, stateKeyDBComp, stateKeyEncode, stateKeyDecode, stateKeyToString, compareStateName},
-    {"fill", strlen("fill"), 2, winKeyDBComp, winKeyEncode, winKeyDecode, winKeyToString, compareWinKeyName},
+     compareDefaultName, destroyFunc},
+    {"state", strlen("state"), 1, stateKeyDBComp, stateKeyEncode, stateKeyDecode, stateKeyToString, compareStateName,
+     destroyFunc},
+    {"fill", strlen("fill"), 2, winKeyDBComp, winKeyEncode, winKeyDecode, winKeyToString, compareWinKeyName,
+     destroyFunc},
     {"sess", strlen("sess"), 3, stateSessionKeyDBComp, stateSessionKeyEncode, stateSessionKeyDecode,
-     stateSessionKeyToString, compareSessionKeyName},
-    {"func", strlen("func"), 4, tupleKeyDBComp, tupleKeyEncode, tupleKeyDecode, tupleKeyToString, compareFuncKeyName},
-    {"parname", strlen("parname"), 5, parKeyDBComp, parKeyEncode, parKeyDecode, parKeyToString, compareParKeyName},
-    {"partag", strlen("partag"), 6, parKeyDBComp, parKeyEncode, parKeyDecode, parKeyToString, comparePartagKeyName},
+     stateSessionKeyToString, compareSessionKeyName, destroyFunc},
+    {"func", strlen("func"), 4, tupleKeyDBComp, tupleKeyEncode, tupleKeyDecode, tupleKeyToString, compareFuncKeyName,
+     destroyFunc},
+    {"parname", strlen("parname"), 5, parKeyDBComp, parKeyEncode, parKeyDecode, parKeyToString, compareParKeyName,
+     destroyFunc},
+    {"partag", strlen("partag"), 6, parKeyDBComp, parKeyEncode, parKeyDecode, parKeyToString, comparePartagKeyName,
+     destroyFunc},
 };
 
 const char* compareDefaultName(void* name) { return ginitDict[0].key; }
@@ -329,8 +349,6 @@ const char* compareSessionKeyName(void* name) { return ginitDict[3].key; }
 const char* compareFuncKeyName(void* name) { return ginitDict[4].key; }
 const char* compareParKeyName(void* name) { return ginitDict[5].key; }
 const char* comparePartagKeyName(void* name) { return ginitDict[6].key; }
-
-void destroyFunc(void* stata) { return; }
 
 int streamInitBackend(SStreamState* pState, char* path) {
   rocksdb_env_t* env = rocksdb_create_default_env();  // rocksdb_envoptions_create();
@@ -349,6 +367,7 @@ int streamInitBackend(SStreamState* pState, char* path) {
   char* err = NULL;
   int   cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
 
+  rocksdbCfParam*           param = taosMemoryCalloc(cfLen, sizeof(rocksdbCfParam));
   const rocksdb_options_t** cfOpt = taosMemoryCalloc(cfLen, sizeof(rocksdb_options_t*));
   for (int i = 0; i < cfLen; i++) {
     cfOpt[i] = rocksdb_options_create_copy(opts);
@@ -362,6 +381,8 @@ int streamInitBackend(SStreamState* pState, char* path) {
 
     rocksdb_options_set_block_based_table_factory((rocksdb_options_t*)cfOpt[i], tableOpt);
 
+    param[i].tableOpt = tableOpt;
+    param[i].lru = cache;
     // rocksdb_slicetransform_t* trans = rocksdb_slicetransform_create_fixed_prefix(8);
     // rocksdb_options_set_prefix_extractor((rocksdb_options_t*)cfOpt[i], trans);
   };
@@ -386,6 +407,8 @@ int streamInitBackend(SStreamState* pState, char* path) {
   pState->pTdbState->cfOpts = (rocksdb_options_t**)cfOpt;
   pState->pTdbState->pCompare = pCompare;
   pState->pTdbState->dbOpt = opts;
+  pState->pTdbState->param = param;
+  pState->pTdbState->env = env;
   return 0;
 }
 void streamCleanBackend(SStreamState* pState) {
@@ -393,12 +416,17 @@ void streamCleanBackend(SStreamState* pState) {
     qInfo("rocksdb already free");
     return;
   }
-  int cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
+  int             cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
+  rocksdbCfParam* param = pState->pTdbState->param;
   for (int i = 0; i < cfLen; i++) {
     rocksdb_column_family_handle_destroy(pState->pTdbState->pHandle[i]);
     rocksdb_options_destroy(pState->pTdbState->cfOpts[i]);
     rocksdb_comparator_destroy(pState->pTdbState->pCompare[i]);
+
+    rocksdb_cache_destroy(param[i].lru);
+    rocksdb_block_based_options_destroy(param[i].tableOpt);
   }
+  taosMemoryFree(pState->pTdbState->param);
   rocksdb_options_destroy(pState->pTdbState->dbOpt);
 
   taosMemoryFreeClear(pState->pTdbState->pHandle);
@@ -412,6 +440,7 @@ void streamCleanBackend(SStreamState* pState) {
   pState->pTdbState->readOpts = NULL;
 
   rocksdb_close(pState->pTdbState->rocksdb);
+  rocksdb_env_destroy(pState->pTdbState->env);
   pState->pTdbState->rocksdb = NULL;
 }
 
@@ -438,9 +467,8 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
                                           rocksdb_readoptions_t** readOpt) {
   int idx = streamGetInit(cfName);
 
-  //*snapshot = (rocksdb_snapshot_t*)rocksdb_create_snapshot(pState->pTdbState->rocksdb);
   if (snapshot != NULL) {
-    *snapshot = NULL;
+    *snapshot = (rocksdb_snapshot_t*)rocksdb_create_snapshot(pState->pTdbState->rocksdb);
   }
 
   rocksdb_readoptions_t* rOpt = rocksdb_readoptions_create();
@@ -615,6 +643,39 @@ int32_t streamDefaultGet_rocksdb(SStreamState* pState, const void* key, void** p
 int32_t streamDefaultDel_rocksdb(SStreamState* pState, const void* key) {
   int code = 0;
   STREAM_STATE_DEL_ROCKSDB(pState, "default", &key);
+  return code;
+}
+
+int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result) {
+  int   code = 0;
+  char* err = NULL;
+
+  rocksdb_snapshot_t*    snapshot = NULL;
+  rocksdb_readoptions_t* readopts = NULL;
+  rocksdb_iterator_t*    pIter = streamStateIterCreate(pState, "default", &snapshot, &readopts);
+  if (pIter == NULL) {
+    return -1;
+  }
+
+  rocksdb_iter_seek(pIter, start, strlen(start));
+  while (rocksdb_iter_valid(pIter)) {
+    const char* key = rocksdb_iter_key(pIter, NULL);
+    if (end != NULL && strcmp(key, end) > 0) {
+      break;
+    }
+    if (strncmp(key, start, strlen(start)) == 0 && strlen(key) >= strlen(start) + 1) {
+      int64_t checkPoint = 0;
+      if (sscanf(key + strlen(key), ":%" PRId64 "", &checkPoint) == 1) {
+        taosArrayPush(result, &checkPoint);
+      }
+    } else {
+      break;
+    }
+    rocksdb_iter_next(pIter);
+  }
+  rocksdb_release_snapshot(pState->pTdbState->rocksdb, snapshot);
+  rocksdb_readoptions_destroy(readopts);
+  rocksdb_iter_destroy(pIter);
   return code;
 }
 
