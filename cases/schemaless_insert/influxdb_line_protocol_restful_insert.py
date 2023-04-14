@@ -608,6 +608,9 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         self.tdRest.request("show databases")
         self.tdSql.checkIn([self.dbname], self.tdRest.resp["data"])
 
+        self.taosadapter_setting["spec"]["adapter_config"]["SMLAutoCreateDB"] = "false"
+        self.taosadapter.update_taosa_toml(self.taosadapter_setting, self.endpoint.split(":")[0], True)
+
 
 
     def run(self):
