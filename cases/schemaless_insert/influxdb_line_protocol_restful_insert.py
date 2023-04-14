@@ -15,6 +15,7 @@ from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
 from taostest.util.remote import Remote
 import sys
+from taostest.components import TaosAdapter
 class TestInfluxdbLineRestfulInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql, env_setting=self.env_setting)
@@ -24,6 +25,11 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         self.dbname = self.tdCom.get_long_name()
         self.tdCom.createDb(dbname=self.dbname, precision="us")
         self._remote: Remote = Remote(self.logger)
+        self.taosadapter = TaosAdapter(self._remote)
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosadapter":
+                self.taosadapter_setting = env_setting
+                self.endpoint = self.taosadapter_setting["spec"]["taos_config"]["firstEP"]
 
     def init_check(self):
         """
@@ -577,7 +583,38 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         input_sql, stb_name = self.tdCom.gen_full_type_sql(chinese_tag=True)
         self.tdCom.check_res(input_sql, stb_name, dbname=self.dbname)
 
+    def db_auto_create_test(self):
+        """
+        check smlAutoCreateDB
+        """
+        self.dbname = "auto_create_default"
+        input_sql = self.tdCom.gen_full_type_sql()[0]
+        res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
+        self.tdSql.checkIn("Database not exist", res.text)
+
+        self.taosadapter_setting["spec"]["adapter_config"]["SMLAutoCreateDB"] = "false"
+        self.taosadapter.update_taosa_toml(self.taosadapter_setting, self.endpoint.split(":")[0], True)
+        self.dbname = "auto_create_false"
+        input_sql = self.tdCom.gen_full_type_sql()[0]
+        res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
+        self.tdSql.checkIn("Database not exist", res.text)
+
+        self.dbname = "auto_create_true"
+        self.taosadapter_setting["spec"]["adapter_config"]["SMLAutoCreateDB"] = "true"
+        self.taosadapter.update_taosa_toml(self.taosadapter_setting, self.endpoint.split(":")[0], True)
+        input_sql = self.tdCom.gen_full_type_sql()[0]
+        res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
+        self.tdSql.checkEqual(res.status_code, 204)
+        self.tdRest.request("show databases")
+        self.tdSql.checkIn([self.dbname], self.tdRest.resp["data"])
+
+        self.taosadapter_setting["spec"]["adapter_config"]["SMLAutoCreateDB"] = "false"
+        self.taosadapter.update_taosa_toml(self.taosadapter_setting, self.endpoint.split(":")[0], True)
+
+
+
     def run(self):
+        # return
         self.init_check()
         self.bool_check()
         self.symbols_check()
@@ -608,6 +645,7 @@ st123456,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=fal
         self.blank_col_insert_check()
         self.blank_tag_insert_check()
         self.chinese_check()
+        self.db_auto_create_test()
 
     def cleanup(self):
         pass
