@@ -190,13 +190,12 @@ pub async fn pi_to_taos(
 
     let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql));
     let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let cancel2 = cancel;
     let ipc = sink::listen_tcp_socket(
         target_pool_for_ipc,
         config.ipc_stream,
         sender,
         None,
-        cancel2,
+        cancel.clone(),
     )?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
