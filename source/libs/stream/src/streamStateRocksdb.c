@@ -489,7 +489,8 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
     int   i = streamGetInit(funcname);                                                                 \
     if (i < 0) {                                                                                       \
       qWarn("streamState failed to get cf name: %s", funcname);                                        \
-      return -1;                                                                                       \
+      code = -1;                                                                                       \
+      break;                                                                                           \
     }                                                                                                  \
     char toString[128] = {0};                                                                          \
     if (qDebugFlag & DEBUG_TRACE) ginitDict[i].toStrFunc((void*)key, toString);                        \
@@ -515,7 +516,8 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
     int   i = streamGetInit(funcname);                                                          \
     if (i < 0) {                                                                                \
       qWarn("streamState failed to get cf name: %s", funcname);                                 \
-      return -1;                                                                                \
+      code = -1;                                                                                \
+      break;                                                                                    \
     }                                                                                           \
     char toString[128] = {0};                                                                   \
     if (qDebugFlag & DEBUG_TRACE) ginitDict[i].toStrFunc((void*)key, toString);                 \
@@ -550,7 +552,8 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfNa
     int   i = streamGetInit(funcname);                                                       \
     if (i < 0) {                                                                             \
       qWarn("streamState failed to get cf name: %s", funcname);                              \
-      return -1;                                                                             \
+      code = -1;                                                                             \
+      break;                                                                                 \
     }                                                                                        \
     char toString[128] = {0};                                                                \
     if (qDebugFlag & DEBUG_TRACE) ginitDict[i].toStrFunc((void*)key, toString);              \
@@ -970,36 +973,20 @@ int32_t streamStateAddIfNotExist_rocksdb(SStreamState* pState, const SWinKey* ke
 }
 SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinKey* key) {
   qDebug("streamStateGetCur_rocksdb");
-  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
+  int32_t         code = 0;
+  const SStateKey maxStateKey = {.key = {.groupId = UINT64_MAX, .ts = INT64_MAX}, .opNum = INT64_MAX};
+  STREAM_STATE_PUT_ROCKSDB(pState, "state", &maxStateKey, "", 0);
+  char    buf[128] = {0};
+  int32_t klen = stateKeyEncode((void*)&maxStateKey, buf);
 
+  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) return NULL;
   pCur->db = pState->pTdbState->rocksdb;
   pCur->iter = streamStateIterCreate(pState, "state", &pCur->snapshot, &pCur->readOpt);
+  rocksdb_iter_seek(pCur->iter, buf, (size_t)klen);
+  rocksdb_iter_prev(pCur->iter);
 
-  SStateKey sKey = {.key = *key, .opNum = pState->number};
-  char      buf[128] = {0};
-  int       len = stateKeyEncode((void*)&sKey, buf);
-  rocksdb_iter_seek(pCur->iter, buf, len);
-  if (!rocksdb_iter_valid(pCur->iter)) {
-    rocksdb_iter_seek_to_last(pCur->iter);
-  } else {
-    rocksdb_iter_seek_to_last(pCur->iter);
-  }
-  return pCur;
-
-  // rocksdb_iter_seek(pCur->iter, buf, len);
-  // if (rocksdb_iter_valid(pCur->iter)) {
-  //   SStateKey curKey;
-  //   size_t    kLen = 0;
-  //   char*     keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
-  //   stateKeyDecode((void*)&curKey, keyStr);
-
-  //   if (stateKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) == 0) {
-  //     pCur->number = pState->number;
-  //     return pCur;
-  //   }
-  // }
-  // streamStateFreeCur(pCur);
+  STREAM_STATE_DEL_ROCKSDB(pState, "state", &maxStateKey);
   return pCur;
 }
 SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* key) {
