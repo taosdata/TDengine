@@ -25,9 +25,8 @@
 #include "ttime.h"
 
 #define IS_FINAL_OP(op)    ((op)->isFinal)
-// #define DEAULT_DELETE_MARK (1000LL * 60LL * 60LL * 24LL * 365LL * 10LL);
+#define DEAULT_DELETE_MARK (1000LL * 60LL * 60LL * 24LL * 365LL * 10LL);
 
-#define DEAULT_DELETE_MARK (1000LL * 60LL * 60LL);
 
 typedef struct SSessionAggOperatorInfo {
   SOptrBasicInfo     binfo;
