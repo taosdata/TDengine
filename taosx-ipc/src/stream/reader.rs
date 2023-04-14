@@ -18,7 +18,7 @@ use arrow::{
 };
 use taos_query::prelude::Itertools;
 use taos_query::prelude::{ColumnView, Ty, Value};
-use tracing::{error, info};
+use tracing::{error, info, };
 
 use crate::{
     ack::AckType,
@@ -1179,9 +1179,9 @@ impl<R: Read> Iterator for IpcReader<R> {
             }
         };
         
-        if res.is_err() {
-            dbg!(&res);
-        }
+        // if res.is_err() {
+        //     dbg!(&res);
+        // }
 
         if let Ok(record) = res {
             match self.metadata().stream_type() {
@@ -1235,7 +1235,7 @@ impl<R: Read> Iterator for IpcReader<R> {
                                 let mut message = Vec::with_capacity(values.len());
                                 for i in 0..values.len() {
                                     let records: LushInsertRecords = values.slice(i, 1).into();
-                                    dbg!(&records);
+                                    // dbg!(&records);
                                     let i = LushMessageInsert {
                                         attrs: None,
                                         records,

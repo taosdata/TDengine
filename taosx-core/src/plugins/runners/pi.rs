@@ -221,50 +221,66 @@ pub async fn pi_to_taos(
         .stderr(async_process::Stdio::inherit())
         .spawn()
         .context("Start PI collector error")?;
-
+    let pid = child_command.id();
     log::info!("waiting for PI connector");
+    tokio::spawn(async move {
+        tokio::select! {
+            output = child_command.output() => {
+                let output = output.context("PI connector run error")?;
+                log::info!("PI exit with status {}", output.status);
+                if !output.status.success() {
+                    let len = output.stdout.len();
+                    let err = if len > 200 {
+                        String::from_utf8_lossy(&output.stdout[len - 200..])
+                    } else {
+                        String::from_utf8_lossy(&output.stdout[..])
+                    };
 
-    tokio::select! {
-        output = child_command.output() => {
-            let output = output.context("PI connector run error")?;
-            log::info!("PI exit with status {}", output.status);
-            if !output.status.success() {
-                let len = output.stdout.len();
-                let err = if len > 200 {
-                    String::from_utf8_lossy(&output.stdout[len - 200..])
-                } else {
-                    String::from_utf8_lossy(&output.stdout[..])
-                };
-
-                let _ = ipc.send(());
-                stop_thread(server);
-                anyhow::bail!("PI error: {}", err);
+                    let _ = ipc.send(());
+                    stop_thread(server);
+                    anyhow::bail!("PI error: {}", err);
+                }
+            },
+            _ = tokio::signal::ctrl_c() => {
+                log::info!("Ctrl+C triggered, cancel tasks");
+                cancel.cancel();
+                // panic!();
+            },
+            err = receiver.recv() => {
+                if let Some(err) = err {
+                    log::warn!("PI writer error occurred: {err}");
+                    let _ = ipc.send(());
+                    stop_thread(server);
+                    anyhow::bail!("PI writer error: {err}");
+                }
+            },
+            _ = cancel.cancelled() => {
+                log::info!("pi task cancelled");
             }
-        },
-        _ = tokio::signal::ctrl_c() => {
-            log::info!("Ctrl+C triggered, cancel tasks");
-            cancel.cancel();
-            // panic!();
-        },
-        err = receiver.recv() => {
-            if let Some(err) = err {
-                log::warn!("PI writer error occurred: {err}");
-                let _ = ipc.send(());
-                stop_thread(server);
-                anyhow::bail!("PI writer error: {err}");
-            }
-        },
-        _ = cancel.cancelled() => {
-            log::info!("pi task cancelled");
         }
-    };
-
+        let _ = ipc.send(());
+        stop_thread(server);
+        terminate_child_process(pid)?;
+        log::info!("pi task Done");
+        temp_path.close().unwrap();
+        Ok(())
+    }).await??;
     // stop_thread(ipc);
-    let _ = ipc.send(());
-    stop_thread(server);
-    log::info!("pi task Done");
-    temp_path.close().unwrap();
+    // let _ = ipc.send(());
+    // stop_thread(server);
+    // log::info!("pi task Done");
+    // temp_path.close().unwrap();
 
+    Ok(())
+}
+
+fn terminate_child_process(id: u32) -> anyhow::Result<()> {
+    let mut kill_command = std::process::Command::new("TASKKILL");
+    kill_command
+        .arg("/F")
+        .arg("/PID")
+        .arg(id.to_string())
+        .spawn()?;
     Ok(())
 }
 

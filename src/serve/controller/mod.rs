@@ -192,10 +192,10 @@ impl TaskControllerRef {
             .bind(Status::Stopped)
             .fetch_all(&self.pool)
             .await?;
-        dbg!(&tasks);
+        // dbg!(&tasks);
         let sched = self.scheduler.clone();
         for task in tasks {
-            dbg!(&task.trigger);
+            // dbg!(&task.trigger);
             if let Some(trigger) = task.trigger.as_deref() {
                 let schedule = trigger.trim_start_matches("schedule:");
                 let id = task.id;
