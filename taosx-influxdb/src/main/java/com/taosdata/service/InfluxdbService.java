@@ -31,10 +31,11 @@ public interface InfluxdbService {
     List<InfluxdbMeasurementEntity> selectAllMeasurements(String bucket) throws ArtificialException;
 
     /**
-     * 获取influxdb中指定bucket与时间段的数据
+     * 获取influxdb中指定bucket、measurement与时间段的数据
      *
      * @param orgId
      * @param bucket
+     * @param measurement
      * @param startTime
      * @param stopTime
      * @param batch
@@ -42,5 +43,5 @@ public interface InfluxdbService {
      * @return
      * @throws ArtificialException
      */
-    List<InfluxdbBucketDataEntity> selectBucketData(String orgId, String bucket, String startTime, String stopTime, long batch, long offset) throws ArtificialException;
+    List<InfluxdbBucketDataEntity> selectBucketData(String orgId, String bucket, String measurement, String startTime, String stopTime, long batch, long offset) throws ArtificialException;
 }

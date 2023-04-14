@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
  * @author ZYP
  */
 @Component
-@ConfigurationProperties(prefix = "netty-client")
+@ConfigurationProperties(prefix = "taosx")
 @Data
 public class NettyClientConfig {
 

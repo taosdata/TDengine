@@ -2,6 +2,7 @@ package com.taosdata.threads;
 
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.BucketDataCache;
+import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
@@ -44,14 +45,20 @@ public class BucketDataThread implements Runnable {
     private String bucket;
 
     /**
+     * influxdb measurement
+     */
+    private String measurement;
+
+    /**
      * 读取开始时间、结束时间
      */
     private String startTime;
     private String stopTime;
 
-    public BucketDataThread(String orgId, String bucket, String startTime, String stopTime) {
+    public BucketDataThread(String orgId, String bucket, String measurement, String startTime, String stopTime) {
         this.orgId = orgId;
         this.bucket = bucket;
+        this.measurement = measurement;
         this.startTime = startTime;
         this.stopTime = stopTime;
     }
@@ -88,18 +95,22 @@ public class BucketDataThread implements Runnable {
                     continue;
                 }
                 // 读取数据
-                List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = influxdbService.selectBucketData(this.orgId, this.bucket, this.startTime, this.stopTime, this.performanceConfig.getThread().getReadBucketBatch(), this.offset);
+                List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = influxdbService.selectBucketData(this.orgId, this.bucket, this.measurement, this.startTime, this.stopTime, this.performanceConfig.getThread().getReadBucketBatch(), this.offset);
                 // 更新速度
-                FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).cycleCheck(influxdbBucketDataEntityList.size(), performanceConfig.getLimitSpeed());
-                // 写入数据队列
+                FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).cycleCheck(influxdbBucketDataEntityList.size(), -1);
+                // 判断数据长度
                 if (influxdbBucketDataEntityList != null && influxdbBucketDataEntityList.size() > 0) {
+                    // 写入数据队列
                     BucketDataCache.addBucketData(influxdbBucketDataEntityList);
-                }
-                // 终止或更新offset
-                if (influxdbBucketDataEntityList == null || influxdbBucketDataEntityList.size() == 0) {
-                    break;
-                } else {
+                    // 记录统计信息
+                    StatisticCache.totalRead.addAndGet(influxdbBucketDataEntityList.size());
+                    // 更新offset
                     this.offset += influxdbBucketDataEntityList.size();
+                } else {
+                    // 记录任务完成信息
+                    StatisticCache.noteCompletedTask(this.bucket, this.measurement, this.startTime, this.stopTime);
+                    // 终止
+                    break;
                 }
                 // 线程结束
                 sleep(performanceConfig.getThread().getReadBucketInterval(), start, StatusEnums.NORMAL);

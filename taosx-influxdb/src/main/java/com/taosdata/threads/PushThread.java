@@ -2,6 +2,7 @@ package com.taosdata.threads;
 
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.BucketDataCache;
+import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
@@ -175,6 +176,8 @@ public class PushThread implements Runnable {
             messageDto.setMsgType(MessageTypeEnums.MSG_REQ.getValue());
             messageDto.setBody(ArrowUtils.transform(influxdbBucketDataEntityList));
             this.channel.writeAndFlush(messageDto);
+            // 记录统计信息
+            StatisticCache.totalPush.addAndGet(influxdbBucketDataEntityList.size());
         } catch (Exception e) {
             logger.error("推送数据失败，重新写回内存队列", e);
             // 写回

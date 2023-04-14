@@ -61,7 +61,7 @@ public class FluxControl {
         // 距离上次校准时间的时间间隔
         long time_interval = time_now - this.time_aline;
         // 是否可发（根据限速）
-        boolean allowSend_limit = true;
+        boolean allowSend_limit = false;
         // 是否可发（根据速度计算）
         boolean allowSend_speed = true;
         // 不限速，可以一直发
@@ -82,7 +82,7 @@ public class FluxControl {
                 allowSend_speed = false;
             }
             // 按一个窗口计算速度
-            refreshSpeed(amount, WINDOW, time_now, true, allowSend_limit && allowSend_speed);
+            refreshSpeed(amount, WINDOW, time_now, true, allowSend_limit || allowSend_speed);
         } else if (time_interval < WINDOW / 2) {
             /* 间隔过短，使用校准中值 */
             time_interval = time_now - this.time_aline_middle;
@@ -93,7 +93,7 @@ public class FluxControl {
                 allowSend_speed = false;
             }
             // 计算速度
-            refreshSpeed(amount, time_interval, time_now, false, allowSend_limit && allowSend_speed);
+            refreshSpeed(amount, time_interval, time_now, false, allowSend_limit || allowSend_speed);
         } else if (time_interval < WINDOW) {
             /* 普通间隔，使用校准 */
             // 间隔内允许发送量
@@ -103,7 +103,7 @@ public class FluxControl {
                 allowSend_speed = false;
             }
             // 计算速度
-            refreshSpeed(amount, time_interval, time_now, true, allowSend_limit && allowSend_speed);
+            refreshSpeed(amount, time_interval, time_now, true, allowSend_limit || allowSend_speed);
         } else if (time_interval < WINDOW * 2) {
             /* 超过一个窗口，校准中值 */
             time_interval = time_now - this.time_aline_middle;
@@ -114,7 +114,7 @@ public class FluxControl {
                 allowSend_speed = false;
             }
             // 计算速度
-            refreshSpeed(amount, time_interval, time_now, false, allowSend_limit && allowSend_speed);
+            refreshSpeed(amount, time_interval, time_now, false, allowSend_limit || allowSend_speed);
         } else {
             /* 超过两个窗口，使用校准 */
             // 重置校准量与校准中值量
@@ -127,9 +127,9 @@ public class FluxControl {
                 allowSend_speed = false;
             }
             // 按一个窗口计算速度
-            refreshSpeed(amount, WINDOW, time_now, true, allowSend_limit && allowSend_speed);
+            refreshSpeed(amount, WINDOW, time_now, true, allowSend_limit || allowSend_speed);
         }
-        return allowSend_limit && allowSend_speed;
+        return allowSend_limit || allowSend_speed;
     }
 
     /**

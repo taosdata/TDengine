@@ -30,4 +30,9 @@ public class ArtificialException extends Exception {
         this.msg = msg;
         this.e = e;
     }
+
+    @Override
+    public String getMessage() {
+        return this.e.getMessage();
+    }
 }

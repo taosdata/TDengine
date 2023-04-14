@@ -3,7 +3,7 @@ package com.taosdata.model.dto.bum;
 import lombok.Data;
 
 import java.util.Date;
-import java.util.LinkedHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Netty信息
@@ -15,7 +15,7 @@ public class NettyInfo {
 
     private String serverAddr;
 
-    private LinkedHashMap<String, Connection> connectionMap;
+    private ConcurrentHashMap<String, Connection> connectionMap;
 
     @Data
     public class Connection {

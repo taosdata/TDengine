@@ -152,10 +152,11 @@ public class InfluxdbServiceImpl implements InfluxdbService {
     }
 
     /**
-     * 获取influxdb中指定bucket与时间段的数据
+     * 获取influxdb中指定bucket、measurement与时间段的数据
      *
      * @param orgId
      * @param bucket
+     * @param measurement
      * @param startTime
      * @param stopTime
      * @param batch
@@ -164,7 +165,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
      * @throws ArtificialException
      */
     @Override
-    public List<InfluxdbBucketDataEntity> selectBucketData(String orgId, String bucket, String startTime, String stopTime, long batch, long offset) throws ArtificialException {
+    public List<InfluxdbBucketDataEntity> selectBucketData(String orgId, String bucket, String measurement, String startTime, String stopTime, long batch, long offset) throws ArtificialException {
         // influxdb客户端
         InfluxDBClient influxDBClient = null;
         try {
@@ -175,6 +176,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             // 查询语句
             String sql = "from(bucket: \"" + bucket + "\")" +
                     "|> range(start: " + startTime + ", stop: " + stopTime + ")" +
+                    "|> filter(fn: (r) => r._measurement == \"" + measurement + "\")" +
                     "|> limit(n: " + batch + ", offset: " + offset + ")";
             // 执行查询
             List<FluxTable> tables = influxDBClient.getQueryApi().query(sql, orgId);

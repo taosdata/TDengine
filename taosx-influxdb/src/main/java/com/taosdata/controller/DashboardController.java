@@ -1,6 +1,7 @@
 package com.taosdata.controller;
 
 import com.alibaba.fastjson.JSONObject;
+import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.model.dto.DataInfo;
 import com.taosdata.model.dto.ReqDto;
@@ -227,6 +228,106 @@ public class DashboardController {
             sys_user_logger.info(resDto.toString());
         } catch (Exception e) {
             logger.error("查询速度信息过程中发生异常，exception={}", e.getMessage());
+            // 封装响应
+            resDto.setCode(ResEnums.EXCEPTION.getCode());
+            resDto.setMsg(ResEnums.EXCEPTION.getMsg() + ": " + e.getMessage());
+        }
+        return resDto;
+    }
+
+    /**
+     * 获取任务统计
+     *
+     * @param reqDto
+     * @param request
+     * @return
+     */
+    @RequestMapping(value = "/getTaskStatistic")
+    @ResponseBody
+    public ResDto getTaskStatistic(@RequestBody ReqDto reqDto, HttpServletRequest request) {
+        // 定义响应内容
+        ResDto resDto = new ResDto();
+        try {
+            // 获取请求源ip
+            reqDto.setIp(request.getRemoteAddr());
+            // 请求日志
+            sys_user_logger.info(reqDto.toString());
+            // 验证账号等信息
+            // TODO
+            // 获取请求包体（泛型转化）
+            // TODO
+            // 结果数据
+            DataInfo<JSONObject> dataInfo = new DataInfo<>(new JSONObject());
+            dataInfo.getData().put("TotalRead", StatisticCache.totalRead);
+            dataInfo.getData().put("TotalPush", StatisticCache.totalPush);
+            // 封装响应
+            resDto.setCode(ResEnums.SUCCESS.getCode());
+            resDto.setMsg(ResEnums.SUCCESS.getMsg());
+            resDto.setData(dataInfo);
+            // 响应日志
+            sys_user_logger.info(resDto.toString());
+        } catch (Exception e) {
+            logger.error("查询任务统计过程中发生异常，exception={}", e.getMessage());
+            // 封装响应
+            resDto.setCode(ResEnums.EXCEPTION.getCode());
+            resDto.setMsg(ResEnums.EXCEPTION.getMsg() + ": " + e.getMessage());
+        }
+        return resDto;
+    }
+
+    /**
+     * 获取全部监控数据
+     *
+     * @param reqDto
+     * @param request
+     * @return
+     */
+    @RequestMapping(value = "/getAll")
+    @ResponseBody
+    public ResDto getAll(@RequestBody ReqDto reqDto, HttpServletRequest request) {
+        // 定义响应内容
+        ResDto resDto = new ResDto();
+        try {
+            // 获取请求源ip
+            reqDto.setIp(request.getRemoteAddr());
+            // 请求日志
+            sys_user_logger.info(reqDto.toString());
+            // 验证账号等信息
+            // TODO
+            // 获取请求包体（泛型转化）
+            // TODO
+            // 结果数据
+            DataInfo<JSONObject> dataInfo = new DataInfo<>(new JSONObject());
+            // 进程信息
+            JSONObject processInfo = new JSONObject();
+            processInfo.put("startTime", StatusCache.getStartTime());
+            processInfo.put("status", StatusCache.getStatus());
+            processInfo.put("description", StatusCache.getDescription());
+            dataInfo.getData().put("processInfo", processInfo);
+            // 线程信息
+            dataInfo.getData().put("threadInfo", StatusCache.getThreadInfo());
+            // 队列信息
+            dataInfo.getData().put("queueInfo", StatusCache.getQueueInfo());
+            // 连接信息
+            dataInfo.getData().put("nettyInfo", StatusCache.getNettyInfo());
+            // 速度信息
+            Map<String, Long> speedInfo = new HashMap<>();
+            speedInfo.put(FluxEnums.ReadData.getDesc(), FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).getSpeed());
+            speedInfo.put(FluxEnums.PushData.getDesc(), FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).getSpeed());
+            dataInfo.getData().put("speedInfo", speedInfo);
+            // 任务统计
+            JSONObject taskStatistic = new JSONObject();
+            taskStatistic.put("totalRead", StatisticCache.totalRead);
+            taskStatistic.put("totalPush", StatisticCache.totalPush);
+            dataInfo.getData().put("taskStatistic", taskStatistic);
+            // 封装响应
+            resDto.setCode(ResEnums.SUCCESS.getCode());
+            resDto.setMsg(ResEnums.SUCCESS.getMsg());
+            resDto.setData(dataInfo);
+            // 响应日志
+            sys_user_logger.info(resDto.toString());
+        } catch (Exception e) {
+            logger.error("查询全部监控数据过程中发生异常，exception={}", e.getMessage());
             // 封装响应
             resDto.setCode(ResEnums.EXCEPTION.getCode());
             resDto.setMsg(ResEnums.EXCEPTION.getMsg() + ": " + e.getMessage());

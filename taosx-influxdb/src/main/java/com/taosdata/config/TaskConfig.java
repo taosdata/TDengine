@@ -20,5 +20,5 @@ public class TaskConfig {
     private List<BucketConfig> buckets;
     private String beginTime;
     private String endTime;
-    private int sendType;
+    private int assignmentType;
 }

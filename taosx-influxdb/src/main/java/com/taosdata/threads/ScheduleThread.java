@@ -68,7 +68,7 @@ public class ScheduleThread implements Runnable {
                     continue;
                 }
                 // 判断任务分配方式：1队列 2平均
-                if (this.taskConfig.getSendType() == 1) {
+                if (this.taskConfig.getAssignmentType() == 1) {
                     createByQueue();
                 } else {
                     createByAverage();

@@ -12,7 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.format.DateTimeFormatter;
-import java.util.Calendar;
 import java.util.Date;
 
 /**
@@ -86,7 +85,11 @@ public class BucketThread implements Runnable {
                 // 拆分时间段
                 String[] timeRangeArr = timeRange.split(",");
                 // 生成bucket子线程并放入队列中
-                BucketCache.addBucketDataThread(this.bucket, new BucketDataThread(this.orgId, this.bucket, timeRangeArr[0], timeRangeArr[1]));
+                BucketCache.measurementMap.forEach((k, v) -> {
+                    if (this.bucket.equals(v.getBucket()) && StringUtils.isNotEmpty(v.getMeasurement())) {
+                        BucketCache.addBucketDataThread(this.bucket, new BucketDataThread(this.orgId, this.bucket, v.getMeasurement(), timeRangeArr[0], timeRangeArr[1]));
+                    }
+                });
                 // 更新序号
                 this.index++;
                 // 线程结束
@@ -181,47 +184,15 @@ public class BucketThread implements Runnable {
             readWindow = "D";
         }
         // 根据不同拆分方式得到相应计算结果
-        if (readWindow.equalsIgnoreCase("M")) {
-            return getTimeRangeByMonth(begin, end, index);
-        } else if (readWindow.equalsIgnoreCase("D")) {
+        if (readWindow.equalsIgnoreCase("D")) {
             return getTimeRangeByDay(begin, end, index);
         } else if (readWindow.equalsIgnoreCase("H")) {
             return getTimeRangeByHour(begin, end, index);
+        } else if (readWindow.equalsIgnoreCase("M")) {
+            return getTimeRangeByMinute(begin, end, index);
         } else {
             throw new Exception("parameter readWindow configuration error.");
         }
-    }
-
-    /**
-     * 根据月得到时间段
-     *
-     * @param beginTime
-     * @param endTime
-     * @param index
-     * @return
-     */
-    private String getTimeRangeByMonth(Date beginTime, Date endTime, int index) {
-        Calendar curr = Calendar.getInstance();
-        curr.setTime(beginTime);
-        curr.add(Calendar.MONTH, index);
-        // 开始时间
-        Calendar begin = Calendar.getInstance();
-        begin.set(curr.get(Calendar.YEAR), curr.get(Calendar.MONTH), 1, 0, 0, 0);
-        // 结束时间
-        Calendar end = Calendar.getInstance();
-        end.set(curr.get(Calendar.YEAR), curr.get(Calendar.MONTH), 31, 23, 59, 59);
-        // 判断是否超过指定时间范围
-        if (begin.getTime().after(endTime)) {
-            return null;
-        }
-        // 调整开始时间与结束时间
-        if (begin.getTime().before(beginTime)) {
-            begin.setTime(beginTime);
-        }
-        if (end.getTime().after(endTime)) {
-            end.setTime(endTime);
-        }
-        return DateUtils.toOffsetDateTime(begin.getTime()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(end.getTime()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
 
     /**
@@ -233,27 +204,18 @@ public class BucketThread implements Runnable {
      * @return
      */
     private String getTimeRangeByDay(Date beginTime, Date endTime, int index) {
-        Calendar curr = Calendar.getInstance();
-        curr.setTime(beginTime);
-        curr.add(Calendar.DATE, index);
-        // 开始时间
-        Calendar begin = Calendar.getInstance();
-        begin.set(curr.get(Calendar.YEAR), curr.get(Calendar.MONTH), curr.get(Calendar.DATE), 0, 0, 0);
-        // 结束时间
-        Calendar end = Calendar.getInstance();
-        end.set(curr.get(Calendar.YEAR), curr.get(Calendar.MONTH), curr.get(Calendar.DATE), 23, 59, 59);
+        // 根据index计算开始时间与结束时间
+        long begin = beginTime.getTime() + index * 24 * 60 * 60 * 1000;
+        long end = begin + 24 * 60 * 60 * 1000;
         // 判断是否超过指定时间范围
-        if (begin.getTime().after(endTime)) {
+        if (begin > endTime.getTime()) {
             return null;
         }
-        // 调整开始时间与结束时间
-        if (begin.getTime().before(beginTime)) {
-            begin.setTime(beginTime);
+        // 调整结束时间
+        if (end > endTime.getTime()) {
+            end = endTime.getTime();
         }
-        if (end.getTime().after(endTime)) {
-            end.setTime(endTime);
-        }
-        return DateUtils.toOffsetDateTime(begin.getTime()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(end.getTime()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+        return DateUtils.toOffsetDateTime(new Date(begin)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(new Date(end)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
 
     /**
@@ -265,26 +227,40 @@ public class BucketThread implements Runnable {
      * @return
      */
     private String getTimeRangeByHour(Date beginTime, Date endTime, int index) {
-        Calendar curr = Calendar.getInstance();
-        curr.setTime(beginTime);
-        curr.add(Calendar.HOUR, index);
-        // 开始时间
-        Calendar begin = Calendar.getInstance();
-        begin.set(curr.get(Calendar.YEAR), curr.get(Calendar.MONTH), curr.get(Calendar.DATE), curr.get(Calendar.HOUR_OF_DAY), 0, 0);
-        // 结束时间
-        Calendar end = Calendar.getInstance();
-        end.set(curr.get(Calendar.YEAR), curr.get(Calendar.MONTH), curr.get(Calendar.DATE), curr.get(Calendar.HOUR_OF_DAY), 59, 59);
+        // 根据index计算开始时间与结束时间
+        long begin = beginTime.getTime() + index * 60 * 60 * 1000;
+        long end = begin + 60 * 60 * 1000;
         // 判断是否超过指定时间范围
-        if (begin.getTime().after(endTime)) {
+        if (begin > endTime.getTime()) {
             return null;
         }
-        // 调整开始时间与结束时间
-        if (begin.getTime().before(beginTime)) {
-            begin.setTime(beginTime);
+        // 调整结束时间
+        if (end > endTime.getTime()) {
+            end = endTime.getTime();
         }
-        if (end.getTime().after(endTime)) {
-            end.setTime(endTime);
+        return DateUtils.toOffsetDateTime(new Date(begin)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(new Date(end)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+    }
+
+    /**
+     * 根据分钟得到时间段
+     *
+     * @param beginTime
+     * @param endTime
+     * @param index
+     * @return
+     */
+    private String getTimeRangeByMinute(Date beginTime, Date endTime, int index) {
+        // 根据index计算开始时间与结束时间
+        long begin = beginTime.getTime() + index * 60 * 1000;
+        long end = begin + 60 * 1000;
+        // 判断是否超过指定时间范围
+        if (begin > endTime.getTime()) {
+            return null;
         }
-        return DateUtils.toOffsetDateTime(begin.getTime()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(end.getTime()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+        // 调整结束时间
+        if (end > endTime.getTime()) {
+            end = endTime.getTime();
+        }
+        return DateUtils.toOffsetDateTime(new Date(begin)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(new Date(end)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
 }

@@ -128,7 +128,7 @@ public class StatusCache {
      */
     public static void noteNetty(String ip, int port) {
         nettyInfo.setServerAddr(ip + ":" + port);
-        nettyInfo.setConnectionMap(new LinkedHashMap<>());
+        nettyInfo.setConnectionMap(new ConcurrentHashMap<>());
     }
 
     /**
@@ -195,7 +195,9 @@ public class StatusCache {
         sb.append("系统状态：" + status + ", " + description + "\n");
         sb.append("线程信息：" + threadInfoMap + "\n");
         sb.append("Netty信息：" + nettyInfo + "\n");
+        sb.append("Read Speed：" + FluxManager.getInstance().getFluxControl(FluxEnums.ReadData.getCode()).getSpeed() + "\n");
         sb.append("Push Speed：" + FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).getSpeed() + "\n");
+        sb.append("Total Read：" + StatisticCache.totalRead.get() + ", Total Push: " + StatisticCache.totalPush.get() + "\n");
         return sb.toString();
     }
 

@@ -3,7 +3,6 @@ influx:
   url: http://192.168.217.130:8086/
   token: _pvAyLL6gqoupsXEzhvUS6EhETmG-0eE8yRIEdJknmvPos8DTDJ1Tg3K2W6O7qqGEXsg6OkjkRUfQrqpxBS8Gg==
   orgId: 3233855dc7e37d8d
-  buckets: influxdb
   maxTotal: 20
   maxIdle: 10
   minIdle: 5

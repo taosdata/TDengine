@@ -4,6 +4,8 @@ import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.InfluxdbConfig;
 import com.taosdata.config.PerformanceConfig;
+import com.taosdata.config.TaskConfig;
+import com.taosdata.config.dto.BucketConfig;
 import com.taosdata.model.dto.bum.ThreadInfo;
 import com.taosdata.model.entity.InfluxdbBucketEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
@@ -22,7 +24,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
-import java.util.*;
+import java.util.Date;
+import java.util.List;
 
 /**
  * 预加载
@@ -33,6 +36,9 @@ import java.util.*;
 public class PreLoading implements CommandLineRunner {
 
     protected Logger logger = LoggerFactory.getLogger(getClass());
+
+    @Resource
+    private TaskConfig taskConfig;
 
     @Resource
     private PerformanceConfig performanceConfig;
@@ -114,10 +120,11 @@ public class PreLoading implements CommandLineRunner {
                 }
                 return false;
             }).filter(influxdbBucketEntity -> {
-                if (influxdbConfig.getBuckets() != null && influxdbConfig.getBuckets().length > 0) {
-                    Set<String> bucketSet = new HashSet<>(Arrays.asList(influxdbConfig.getBuckets()));
-                    if (bucketSet.contains(influxdbBucketEntity.getBucketName())) {
-                        return true;
+                if (taskConfig.getBuckets() != null && taskConfig.getBuckets().size() > 0) {
+                    for (BucketConfig bucketConfig : taskConfig.getBuckets()) {
+                        if (influxdbBucketEntity.getBucketName().equals(bucketConfig.getBucket())) {
+                            return true;
+                        }
                     }
                 } else {
                     return true;

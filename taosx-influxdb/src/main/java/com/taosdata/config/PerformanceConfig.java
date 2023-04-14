@@ -22,7 +22,7 @@ public class PerformanceConfig {
     private long retryInterval;
     private String readWindow;
     private int maxThread;
-    private int queueSizeT;
-    private int queueSizeD;
+    private long queueSizeT;
+    private long queueSizeD;
     private ThreadConfig thread;
 }

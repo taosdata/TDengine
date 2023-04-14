@@ -26,39 +26,39 @@ task:
           cols: 4a
   beginTime: 2023-04-01
   # empty is now
-  endTime:
+  endTime: 2023-04-05
   # specify the way of task assignment: 1-queue 2-average
-  sendType: 1
+  assignmentType: 1
 
 #performance parameters
 performance:
-  limitConnect: 1
-  limitBatch: 100
-  limitSpeed: 50000
+  limitConnect: 2
+  limitBatch: 1000
+  limitSpeed: 100000
   retryTimes: 3
   # millisecond
   retryInterval: 200
-  readWindow: d
-  maxThread: 30
-  queueSizeT: 100
-  queueSizeD: 10000
+  readWindow: m
+  maxThread: 50
+  queueSizeT: 1000
+  queueSizeD: 500000
   thread:
     # MessageThread线程
     processMessageInterval: 1
     processMessageEmptyInterval: 10
     # PushThread线程
-    readBucketDataBatch: 200
+    readBucketDataBatch: 1000
     pushInterval: 0
     pushEmptyInterval: 10
     pushNotFullInterval: 5
     # BucketThread线程
-    createBucketInterval: 200
-    createBucketFullInterval: 2000
+    createBucketInterval: 5
+    createBucketFullInterval: 200
     # BucketDataThread线程
-    readBucketBatch: 50
-    readBucketInterval: 5
+    readBucketBatch: 2000
+    readBucketInterval: 1
     readBucketFullInterval: 200
     # ScheduleThread线程
-    scheduleInterval: 200
+    scheduleInterval: 5
     # MonitorThread线程
-    monitorInterval: 1000
+    monitorInterval: 500

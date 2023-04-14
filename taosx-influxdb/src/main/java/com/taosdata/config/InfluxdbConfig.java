@@ -22,9 +22,6 @@ public class InfluxdbConfig {
     @Value("${influx.orgId}")
     private String orgId;
 
-    @Value("${influx.buckets}")
-    private String[] buckets;
-
     @Value("${influx.maxTotal}")
     private int maxTotal;
 

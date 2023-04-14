@@ -1,5 +1,5 @@
-# netty配置
-netty-client:
+# taosx连接配置
+taosx:
   host: 127.0.0.1
   port: 6051
   soKeepalive: true

@@ -2,8 +2,8 @@ package com.taosdata.caches;
 
 import com.taosdata.netty.model.dto.MessageDto;
 
-import java.util.LinkedList;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * 消息缓存
@@ -12,9 +12,9 @@ import java.util.Queue;
  */
 public class MessageCache {
 
-    private static Queue<MessageDto> reqMessageQueue = new LinkedList<>();
+    private static Queue<MessageDto> reqMessageQueue = new ConcurrentLinkedQueue<>();
 
-    private static Queue<MessageDto> resMessageQueue = new LinkedList<>();
+    private static Queue<MessageDto> resMessageQueue = new ConcurrentLinkedQueue<>();
 
     /**
      * 添加请求消息并获取队列大小
