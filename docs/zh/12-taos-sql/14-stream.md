@@ -10,8 +10,11 @@ description: 流式计算的相关 SQL 的详细语法
 ```sql
 CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
 stream_options: {
- TRIGGER    [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
- WATERMARK   time
+ TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
+ WATERMARK      time
+ IGNORE EXPIRED [0|1]
+ DELETE_MARK    time
+ FILL_HISTORY   [0|1]
 }
 
 ```
@@ -202,3 +205,11 @@ PARTITION 子句中，为 concat("tag-", tbname)定义了一个别名cc, 对应�
 会对TAG信息进行如下检查
 1.检查tag的schema信息是否匹配，对于不匹配的，则自动进行数据类型转换，当前只有数据长度大于4096byte时才报错，其余场景都能进行类型转换。
 2.检查tag的个数是否相同，如果不同，需要显示的指定超级表与subquery的tag的对应关系，否则报错；如果相同，可以指定对应关系，也可以不指定，不指定则按位置顺序对应。
+
+## 清理中间状态
+
+```
+DELETE_MARK    time
+```
+DELETE_MARK用于删除缓存的窗口状态，也就是删除流计算的中间结果。如果不设置，默认值是10年
+T = 最新事件时间 - DELETE_MARK
