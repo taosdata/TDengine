@@ -224,13 +224,17 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
 
-      code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
-                                     taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader,
-                                     pTaskInfo->id.str);
-      if (code != TSDB_CODE_SUCCESS) {
-        pInfo->currentGroupIndex += 1;
-        taosArrayClear(pInfo->pUidList);
-        continue;
+      if (NULL == pInfo->pLastrowReader) {
+        code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
+                                       taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader,
+                                       pTaskInfo->id.str);
+        if (code != TSDB_CODE_SUCCESS) {
+          pInfo->currentGroupIndex += 1;
+          taosArrayClear(pInfo->pUidList);
+          continue;
+        }
+      } else {
+        tsdbReuseCacherowsReader(pInfo->pLastrowReader, pList, num);
       }
 
       taosArrayClear(pInfo->pUidList);
@@ -263,13 +267,14 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
           }
         }
 
-        pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
+        //pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
         return pInfo->pRes;
       } else {
-        pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
+        //pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
       }
     }
 
+    pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
     setOperatorCompleted(pOperator);
     return NULL;
   }
