@@ -356,6 +356,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         qDestroyQueryPlan(pPlan);
         return -1;
       }
+
       pInnerTask->fillHistory = pStream->fillHistory;
       mndAddTaskToTaskSet(taskInnerLevel, pInnerTask);
 

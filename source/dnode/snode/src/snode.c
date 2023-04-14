@@ -32,6 +32,7 @@ void sndEnqueueStreamDispatch(SSnode *pSnode, SRpcMsg *pMsg) {
     tDecoderClear(&decoder);
     goto FAIL;
   }
+
   tDecoderClear(&decoder);
 
   int32_t taskId = req.taskId;
@@ -78,6 +79,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMsgCb = &pSnode->msgCb;
   pTask->chkInfo.version = ver;
+  pTask->pMeta = pSnode->pMeta;
 
   pTask->pState = streamStateOpen(pSnode->path, pTask, false, -1, -1);
   if (pTask->pState == NULL) {
@@ -138,6 +140,7 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   if (pTask == NULL) {
     return -1;
   }
+
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t *)msg, msgLen);
   code = tDecodeStreamTask(&decoder, pTask);
