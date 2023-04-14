@@ -57,9 +57,10 @@ int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKe
 int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey* key, char* pKeyData,
                                               int32_t keyDataLen, state_key_cmpr_fn fn, void** pVal, int32_t* pVLen);
 
-int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key);
-int32_t streamStateSessionClear_rocksdb(SStreamState* pState);
-int32_t streamStateCurPrev_rocksdb(SStreamState* pState, SStreamStateCur* pCur);
+int32_t          streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key);
+int32_t          streamStateSessionClear_rocksdb(SStreamState* pState);
+int32_t          streamStateCurPrev_rocksdb(SStreamState* pState, SStreamStateCur* pCur);
+SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinKey* key);
 
 int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 
@@ -90,6 +91,7 @@ int32_t streamDefaultPut_rocksdb(SStreamState* pState, const void* key, void* pV
 int32_t streamDefaultGet_rocksdb(SStreamState* pState, const void* key, void** pVal, int32_t* pVLen);
 int32_t streamDefaultDel_rocksdb(SStreamState* pState, const void* key);
 
+int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
 void*   streamDefaultIterCreate_rocksdb(SStreamState* pState);
 int32_t streamDefaultIterValid_rocksdb(void* iter);
 void    streamDefaultIterSeek_rocksdb(void* iter, const char* key);

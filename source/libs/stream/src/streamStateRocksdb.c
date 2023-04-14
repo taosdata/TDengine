@@ -718,37 +718,37 @@ char* streamDefaultIterVal_rocksdb(void* iter, int32_t* len) {
 //   rocksdb_iter_destroy(pIter);
 //   return code;
 // }
-int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result) {
-  // int   code = 0;
-  // char* err = NULL;
+int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result) {
+  int   code = 0;
+  char* err = NULL;
 
-  // rocksdb_snapshot_t*    snapshot = NULL;
-  // rocksdb_readoptions_t* readopts = NULL;
-  // rocksdb_iterator_t*    pIter = streamStateIterCreate(pState, "default", &snapshot, &readopts);
-  // if (pIter == NULL) {
-  //   return -1;
-  // }
+  rocksdb_snapshot_t*    snapshot = NULL;
+  rocksdb_readoptions_t* readopts = NULL;
+  rocksdb_iterator_t*    pIter = streamStateIterCreate(pState, "default", &snapshot, &readopts);
+  if (pIter == NULL) {
+    return -1;
+  }
 
-  // rocksdb_iter_seek(pIter, start, strlen(start));
-  // while (rocksdb_iter_valid(pIter)) {
-  //   const char* key = rocksdb_iter_key(pIter, NULL);
-  //   if (end != NULL && strcmp(key, end) > 0) {
-  //     break;
-  //   }
-  //   if (strncmp(key, start, strlen(start)) == 0 && strlen(key) >= strlen(start) + 1) {
-  //     int64_t checkPoint = 0;
-  //     if (sscanf(key + strlen(key), ":%" PRId64 "", &checkPoint) == 1) {
-  //       taosArrayPush(result, &checkPoint);
-  //     }
-  //   } else {
-  //     break;
-  //   }
-  //   rocksdb_iter_next(pIter);
-  // }
-  // rocksdb_release_snapshot(pState->pTdbState->rocksdb, snapshot);
-  // rocksdb_readoptions_destroy(readopts);
-  // rocksdb_iter_destroy(pIter);
-  // return code;
+  rocksdb_iter_seek(pIter, start, strlen(start));
+  while (rocksdb_iter_valid(pIter)) {
+    const char* key = rocksdb_iter_key(pIter, NULL);
+    if (end != NULL && strcmp(key, end) > 0) {
+      break;
+    }
+    if (strncmp(key, start, strlen(start)) == 0 && strlen(key) >= strlen(start) + 1) {
+      int64_t checkPoint = 0;
+      if (sscanf(key + strlen(key), ":%" PRId64 "", &checkPoint) == 1) {
+        taosArrayPush(result, &checkPoint);
+      }
+    } else {
+      break;
+    }
+    rocksdb_iter_next(pIter);
+  }
+  rocksdb_release_snapshot(pState->pTdbState->rocksdb, snapshot);
+  rocksdb_readoptions_destroy(readopts);
+  rocksdb_iter_destroy(pIter);
+  return code;
 }
 
 int32_t streamStateGet_rocksdb(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
@@ -967,6 +967,40 @@ int32_t streamStateAddIfNotExist_rocksdb(SStreamState* pState, const SWinKey* ke
   *pVal = taosMemoryMalloc(size);
   memset(*pVal, 0, size);
   return 0;
+}
+SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinKey* key) {
+  qDebug("streamStateGetCur_rocksdb");
+  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
+
+  if (pCur == NULL) return NULL;
+  pCur->db = pState->pTdbState->rocksdb;
+  pCur->iter = streamStateIterCreate(pState, "state", &pCur->snapshot, &pCur->readOpt);
+
+  SStateKey sKey = {.key = *key, .opNum = pState->number};
+  char      buf[128] = {0};
+  int       len = stateKeyEncode((void*)&sKey, buf);
+  rocksdb_iter_seek(pCur->iter, buf, len);
+  if (!rocksdb_iter_valid(pCur->iter)) {
+    rocksdb_iter_seek_to_last(pCur->iter);
+  } else {
+    rocksdb_iter_seek_to_last(pCur->iter);
+  }
+  return pCur;
+
+  // rocksdb_iter_seek(pCur->iter, buf, len);
+  // if (rocksdb_iter_valid(pCur->iter)) {
+  //   SStateKey curKey;
+  //   size_t    kLen = 0;
+  //   char*     keyStr = (char*)rocksdb_iter_key(pCur->iter, &kLen);
+  //   stateKeyDecode((void*)&curKey, keyStr);
+
+  //   if (stateKeyCmpr(&sKey, sizeof(sKey), &curKey, sizeof(curKey)) == 0) {
+  //     pCur->number = pState->number;
+  //     return pCur;
+  //   }
+  // }
+  // streamStateFreeCur(pCur);
+  return pCur;
 }
 SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* key) {
   qDebug("streamStateGetCur_rocksdb");
