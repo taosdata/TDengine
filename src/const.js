@@ -874,11 +874,11 @@ export const AggregationFn = [
     supportTopic:false,
     supportDatatype:['all']
   },
-  {
-    label: "HIPERLOGLOG",
-    supportTopic:false,
-    supportDatatype:['all']
-  },
+  // {
+  //   label: "HIPERLOGLOG",
+  //   supportTopic:false,
+  //   supportDatatype:['all']
+  // },
   {
     label: "HISTOGRAM",
     supportTopic:false,
