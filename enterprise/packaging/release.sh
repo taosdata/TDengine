@@ -238,6 +238,7 @@ else
   BUILD_TOOLS=false
   BUILD_EXPLORER=false
   BUILD_WEBSOCKET=false
+  allocator_macro=""
 fi
 
 [ -z "${cusName}" ] && cusName="TDengine"
