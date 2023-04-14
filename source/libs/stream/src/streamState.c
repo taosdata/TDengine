@@ -120,7 +120,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
 
   char statePath[1024];
   if (!specPath) {
-    sprintf(statePath, "%s/%d", path, pTask->taskId);
+    sprintf(statePath, "%s/%d", path, pTask->id.taskId);
   } else {
     memset(statePath, 0, 1024);
     tstrncpy(statePath, path, 1024);
@@ -394,6 +394,32 @@ int32_t streamStateClear(SStreamState* pState) {
 }
 
 void streamStateSetNumber(SStreamState* pState, int32_t number) { pState->number = number; }
+
+int32_t streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, void* pVal, int32_t vLen) {
+#ifdef USE_ROCKSDB
+  int32_t code = 0;
+  void* batch = streamStateCreateBatch();
+  code = streamStatePutBatch(pState, "default", batch, pKey, pVal, vLen);
+  if (code != 0) {
+    return code;
+  }
+  code = streamStatePutBatch_rocksdb(pState, batch);
+  streamStateDestroyBatch(batch);
+  return code;
+#else
+ return 0;
+#endif
+}
+
+int32_t streamStateGetInfo(SStreamState* pState, void* pKey, int32_t keyLen, void** pVal, int32_t* pLen) {
+#ifdef USE_ROCKSDB
+ int32_t code = 0;
+ code = streamDefaultGet_rocksdb(pState, pKey, pVal, pLen);
+ return code;
+#else
+ return 0;
+#endif
+}
 
 int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
@@ -1066,7 +1092,7 @@ void streamStateDestroy(SStreamState* pState) {
 #ifdef USE_ROCKSDB
   streamFileStateDestroy(pState->pFileState);
   streamStateDestroy_rocksdb(pState);
-  taosMemoryFreeClear(pState->parNameMap);
+  tSimpleHashCleanup(pState->parNameMap);
   // do nothong
 #endif
   taosMemoryFreeClear(pState->pTdbState);

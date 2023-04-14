@@ -131,7 +131,7 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
 
   int32_t blockSz = taosArrayGetSize(pBlocks);
 
-  tqDebug("vgId:%d, task %d write into table, block num: %d", TD_VID(pVnode), pTask->taskId, blockSz);
+  tqDebug("vgId:%d, s-task:%s write results blocks:%d into table", TD_VID(pVnode), pTask->id.idStr, blockSz);
 
   void*   pBuf = NULL;
   SArray* tagArray = NULL;
@@ -224,11 +224,9 @@ void tqSinkToTablePipeline2(SStreamTask* pTask, void* vnode, int64_t ver, void* 
           }
           for (int32_t tagId = UD_TAG_COLUMN_INDEX, step = 1; tagId < size; tagId++, step++) {
             SColumnInfoData* pTagData = taosArrayGet(pDataBlock->pDataBlock, tagId);
-            STagVal          tagVal = {
-                         .cid = pTSchema->numOfCols + step,
-                         .type = pTagData->info.type,
-            };
-            void* pData = colDataGetData(pTagData, rowId);
+
+            STagVal tagVal = {.cid = pTSchema->numOfCols + step, .type = pTagData->info.type};
+            void*   pData = colDataGetData(pTagData, rowId);
             if (colDataIsNull_s(pTagData, rowId)) {
               continue;
             } else if (IS_VAR_DATA_TYPE(pTagData->info.type)) {

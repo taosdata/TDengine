@@ -51,11 +51,9 @@ fi
 
 if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
   cd ${top_dir}/tools/taos-tools/packaging/deb
-  
-  taostools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
-  [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
   taostools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
+  [ -z "$taostools_ver" ] && taostools_ver="0.1.0"
   taostools_install_dir="${release_dir}/${clientName2}Tools-${taostools_ver}"
 
   cd ${curr_dir}
@@ -152,6 +150,7 @@ fi
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${serverName}.deb
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${serverName}.rpm
+mkdir -p ${install_dir}/share && cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
 
 if [ $adapterName != "taosadapter" ]; then
   mv ${install_dir}/cfg/${clientName2}adapter.toml ${install_dir}/cfg/$adapterName.toml

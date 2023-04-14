@@ -549,6 +549,9 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
 
   pVnode->restored = true;
   vInfo("vgId:%d, sync restore finished", pVnode->config.vgId);
+
+  // start to restore all stream tasks
+  tqStartStreamTasks(pVnode->pTq);
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {

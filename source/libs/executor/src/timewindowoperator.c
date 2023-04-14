@@ -2846,6 +2846,7 @@ void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uin
   }
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->windowSup = (SWindowSupporter){.pStreamAggSup = pAggSup, .gap = pAggSup->gap, .parentType = type};
+  pScanInfo->pState = pAggSup->pState;
   if (!pScanInfo->igCheckUpdate && !pScanInfo->pUpdateInfo) {
     pScanInfo->pUpdateInfo = updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, pTwSup->waterMark);
   }
@@ -4745,6 +4746,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   if (!pInfo->pUpdated) {
     pInfo->pUpdated = taosArrayInit(4096, POINTER_BYTES);
   }
+
   if (!pInfo->pUpdatedMap) {
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
     pInfo->pUpdatedMap = tSimpleHashInit(4096, hashFn);
@@ -4757,6 +4759,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       pInfo->numOfDatapack = 0;
       break;
     }
+
     pInfo->numOfDatapack++;
     printDataBlock(pBlock, "single interval recv");
 

@@ -572,6 +572,22 @@ function install_config() {
   done
 }
 
+function install_share_etc() {
+  [ ! -d ${script_dir}/share/etc ] && return
+  for c in `ls ${script_dir}/share/etc/`; do
+    if [ -e /etc/${clientName2}/$c ]; then
+      out=/etc/${clientName2}/$c.new.`date +%F`
+      ${csudo}cp -f ${script_dir}/share/etc/$c $out ||:
+    else
+      ${csudo}mkdir -p /etc/${clientName2} >/dev/null 2>/dev/null ||:
+      ${csudo}cp -f ${script_dir}/share/etc/$c /etc/${clientName2}/$c ||:
+    fi
+  done
+
+  [ ! -d ${script_dir}/share/srv ] && return
+  ${csudo} cp ${script_dir}/share/srv/* ${service_config_dir} ||:
+}
+
 function install_log() {
   ${csudo}rm -rf ${log_dir} || :
   ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
@@ -599,7 +615,7 @@ function install_examples() {
 
 function install_web() {
   if [ -d "${script_dir}/share" ]; then
-    ${csudo}cp -rf ${script_dir}/share/* ${install_main_dir}/share
+    ${csudo}cp -rf ${script_dir}/share/* ${install_main_dir}/share > /dev/null 2>&1 ||:
   fi
 }
 
@@ -687,10 +703,32 @@ function clean_service_on_systemd() {
   # if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
   #     ${csudo}rm -f ${service_config_dir}/${serverName2}.service
   # fi
+  x_service_config="${service_config_dir}/${xName2}.service"
+  if [ -e "$x_service_config" ]; then
+    if systemctl is-active --quiet ${xName2}; then
+      echo "${productName2} ${xName2} is running, stopping it..."
+      ${csudo}systemctl stop ${xName2} &>/dev/null || echo &>/dev/null
+    fi
+    ${csudo}systemctl disable ${xName2} &>/dev/null || echo &>/dev/null
+    ${csudo}rm -f ${x_service_config}
+  fi
+
+  explorer_service_config="${service_config_dir}/${explorerName2}.service"
+  if [ -e "$explorer_service_config" ]; then
+    if systemctl is-active --quiet ${explorerName2}; then
+      echo "${productName2} ${explorerName2} is running, stopping it..."
+      ${csudo}systemctl stop ${explorerName2} &>/dev/null || echo &>/dev/null
+    fi
+    ${csudo}systemctl disable ${explorerName2} &>/dev/null || echo &>/dev/null
+    ${csudo}rm -f ${explorer_service_config}
+    ${csudo}rm -f /etc/${clientName2}/explorer.toml
+  fi
 }
 
 function install_service_on_systemd() {
   clean_service_on_systemd
+
+  install_share_etc
 
   [ -f ${script_dir}/cfg/${serverName2}.service ] &&
     ${csudo}cp ${script_dir}/cfg/${serverName2}.service \

@@ -8,15 +8,16 @@ target_include_directories(
 
 if(${BUILD_WITH_ROCKSDB})
   target_link_libraries(
-    stream 
-    PUBLIC rocksdb tdb 
-    PRIVATE  os util transport qcom executor
+    stream
+    PUBLIC rocksdb tdb
+    PRIVATE  os util transport qcom executor wal
   )
+
   target_include_directories(
     stream
     PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
   )
-  
+
   add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
 

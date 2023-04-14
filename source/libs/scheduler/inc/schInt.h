@@ -54,7 +54,6 @@ typedef enum {
 
 #define SCHEDULE_DEFAULT_MAX_JOB_NUM        1000
 #define SCHEDULE_DEFAULT_MAX_TASK_NUM       1000
-#define SCHEDULE_DEFAULT_MAX_NODE_TABLE_NUM 200  // unit is TSDB_TABLE_NUM_UNIT
 #define SCHEDULE_DEFAULT_POLICY             SCH_LOAD_SEQ
 #define SCHEDULE_DEFAULT_MAX_NODE_NUM       20
 
@@ -134,7 +133,7 @@ typedef struct SSchStatusFps {
 
 typedef struct SSchedulerCfg {
   uint32_t   maxJobNum;
-  int32_t    maxNodeTableNum;
+  int64_t    maxNodeTableNum;
   SCH_POLICY schPolicy;
   bool       enableReSchedule;
 } SSchedulerCfg;
@@ -175,7 +174,7 @@ typedef struct SSchHbCallbackParam {
 typedef struct SSchFlowControl {
   SRWLatch lock;
   bool     sorted;
-  int32_t  tableNumSum;
+  int64_t  tableNumSum;
   uint32_t execTaskNum;
   SArray  *taskList;  // Element is SSchTask*
 } SSchFlowControl;
