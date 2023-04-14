@@ -442,14 +442,11 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
 
 int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx    * ctx, SQWMsg *qwMsg, int32_t code) {
   if (QUERY_RSP_POLICY_QUICK == tsQueryRspPolicy && ctx != NULL) {
-    QW_LOCK(QW_WRITE, &ctx->lock);
-    
     if (QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       void       *rsp = NULL;
       int32_t     dataLen = 0;
       SOutputData sOutput = {0};
       if (qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput)) {
-        QW_UNLOCK(QW_WRITE, &ctx->lock);
         return TSDB_CODE_SUCCESS;
       }
 
@@ -471,8 +468,6 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWTaskCtx    * ctx, SQWMsg *qwMsg, i
                      dataLen);
       }
     } 
-    
-    QW_UNLOCK(QW_WRITE, &ctx->lock);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -916,7 +911,7 @@ _return:
       rsp = NULL;
     }
   } else {    
-    qwQuickRspFetchReq(QW_FPARAMS(), ctx, qwMsg, code);
+    //qwQuickRspFetchReq(QW_FPARAMS(), ctx, qwMsg, code);
   }
 
   QW_RET(TSDB_CODE_SUCCESS);
