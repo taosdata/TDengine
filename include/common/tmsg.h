@@ -858,6 +858,8 @@ typedef struct {
   int8_t  replications;
   int32_t sstTrigger;
   int32_t minRows;
+  int32_t walRetentionPeriod;
+  int32_t walRetentionSize;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -1064,6 +1066,7 @@ typedef struct {
   int64_t signature;
   char*   pComment;
   char*   pCode;
+  int8_t  orReplace;
 } SCreateFuncReq;
 
 int32_t tSerializeSCreateFuncReq(void* buf, int32_t bufLen, SCreateFuncReq* pReq);
@@ -1103,8 +1106,14 @@ typedef struct {
 } SFuncInfo;
 
 typedef struct {
+  int32_t funcVersion;
+  int64_t funcCreatedTime;
+} SFuncExtraInfo;
+
+typedef struct {
   int32_t numOfFuncs;
   SArray* pFuncInfos;
+  SArray* pFuncExtraInfos;
 } SRetrieveFuncRsp;
 
 int32_t tSerializeSRetrieveFuncRsp(void* buf, int32_t bufLen, SRetrieveFuncRsp* pRsp);
@@ -1333,6 +1342,9 @@ typedef struct {
   // 1st modification
   int16_t sttTrigger;
   int32_t minRows;
+  // 2nd modification
+  int32_t walRetentionPeriod;
+  int32_t walRetentionSize;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
@@ -1667,6 +1679,20 @@ typedef struct {
 
 int32_t tSerializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistributeVgroupReq* pReq);
 int32_t tDeserializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistributeVgroupReq* pReq);
+
+typedef struct {
+  int32_t useless;
+} SBalanceVgroupLeaderReq;
+
+int32_t tSerializeSBalanceVgroupLeaderReq(void* buf, int32_t bufLen, SBalanceVgroupLeaderReq* pReq);
+int32_t tDeserializeSBalanceVgroupLeaderReq(void* buf, int32_t bufLen, SBalanceVgroupLeaderReq* pReq);
+
+typedef struct {
+  int32_t vgId;
+} SForceBecomeFollowerReq;
+
+int32_t tSerializeSForceBecomeFollowerReq(void* buf, int32_t bufLen, SForceBecomeFollowerReq* pReq);
+int32_t tDeserializeSForceBecomeFollowerReq(void* buf, int32_t bufLen, SForceBecomeFollowerReq* pReq);
 
 typedef struct {
   int32_t vgId;

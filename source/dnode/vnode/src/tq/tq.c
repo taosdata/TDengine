@@ -15,6 +15,9 @@
 
 #include "tq.h"
 
+// 0: not init
+// 1: already inited
+// 2: wait to be inited or cleaup
 #define WAL_READ_TASKS_ID       (-1)
 
 int32_t tqInit() {
@@ -175,7 +178,7 @@ static int32_t doSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqData
   if (type == TMQ_MSG_TYPE__POLL_RSP) {
     tEncodeSMqDataRsp(&encoder, pRsp);
   } else if (type == TMQ_MSG_TYPE__TAOSX_RSP) {
-    tEncodeSTaosxRsp(&encoder, (STaosxRsp*) pRsp);
+    tEncodeSTaosxRsp(&encoder, (STaosxRsp*)pRsp);
   }
 
   tEncoderClear(&encoder);
@@ -213,7 +216,7 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   tFormatOffset(buf1, 80, &pRsp->reqOffset);
   tFormatOffset(buf2, 80, &pRsp->rspOffset);
 
-  tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s, reqId:0x%"PRIx64,
+  tqDebug("vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s, reqId:0x%" PRIx64,
           TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2, pReq->reqId);
 
   return 0;
@@ -221,7 +224,7 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
 
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   STqOffset offset = {0};
-  int32_t vgId = TD_VID(pTq->pVnode);
+  int32_t   vgId = TD_VID(pTq->pVnode);
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
@@ -235,8 +238,8 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
     tqDebug("receive offset commit msg to %s on vgId:%d, offset(type:snapshot) uid:%" PRId64 ", ts:%" PRId64,
             offset.subKey, vgId, offset.val.uid, offset.val.ts);
   } else if (offset.val.type == TMQ_OFFSET__LOG) {
-    tqDebug("receive offset commit msg to %s on vgId:%d, offset(type:log) version:%" PRId64, offset.subKey,
-            vgId, offset.val.version);
+    tqDebug("receive offset commit msg to %s on vgId:%d, offset(type:log) version:%" PRId64, offset.subKey, vgId,
+            offset.val.version);
     if (offset.val.version + 1 == sversion) {
       offset.val.version += 1;
     }
@@ -292,7 +295,7 @@ int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
 }
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
-  SMqPollReq   req = {0};
+  SMqPollReq req = {0};
   if (tDeserializeSMqPollReq(pMsg->pCont, pMsg->contLen, &req) < 0) {
     tqError("tDeserializeSMqPollReq %d failed", pMsg->contLen);
     terrno = TSDB_CODE_INVALID_MSG;
@@ -327,7 +330,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   taosWLockLatch(&pTq->lock);
   int32_t savedEpoch = pHandle->epoch;
   if (savedEpoch < reqEpoch) {
-    tqDebug("tmq poll: consumer:0x%" PRIx64 " epoch update from %d to %d by poll req", consumerId, savedEpoch, reqEpoch);
+    tqDebug("tmq poll: consumer:0x%" PRIx64 " epoch update from %d to %d by poll req", consumerId, savedEpoch,
+            reqEpoch);
     pHandle->epoch = reqEpoch;
   }
   taosWUnLockLatch(&pTq->lock);
@@ -459,8 +463,8 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       pHandle->execHandle.execCol.qmsg = req.qmsg;
       req.qmsg = NULL;
 
-      pHandle->execHandle.task =
-          qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, vgId, &pHandle->execHandle.numOfCols, req.newConsumerId);
+      pHandle->execHandle.task = qCreateQueueExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle, vgId,
+                                                          &pHandle->execHandle.numOfCols, req.newConsumerId);
       void* scanner = NULL;
       qExtractStreamScanner(pHandle->execHandle.task, &scanner);
       pHandle->execHandle.pTqReader = qExtractReaderFromStreamScanner(scanner);
@@ -609,9 +613,9 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->tbSink.vnode = pTq->pVnode;
     pTask->tbSink.tbSinkFunc = tqSinkToTablePipeline2;
 
-    int32_t ver1 = 1;
+    int32_t   ver1 = 1;
     SMetaInfo info = {0};
-    int32_t code = metaGetInfo(pTq->pVnode->pMeta, pTask->tbSink.stbUid, &info, NULL);
+    int32_t   code = metaGetInfo(pTq->pVnode->pMeta, pTask->tbSink.stbUid, &info, NULL);
     if (code == TSDB_CODE_SUCCESS) {
       ver1 = info.skmVer;
     }
@@ -643,8 +647,6 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
          pTask->chkInfo.version, pTask->selfChildId, pTask->taskLevel);
   return 0;
 }
-
-void tFreeStreamTask(SStreamTask* pTask);
 
 int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   char*               msgStr = pMsg->pCont;

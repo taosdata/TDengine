@@ -54,7 +54,7 @@ namespace TDengineExample
 
         static void PrepareDatabase(IntPtr conn)
         {
-            IntPtr res = TDengine.Query(conn, "CREATE DATABASE test");
+            IntPtr res = TDengine.Query(conn, "CREATE DATABASE test WAL_RETENTION_PERIOD 3600");
             if (TDengine.ErrorNo(res) != 0)
             {
                 throw new Exception("failed to create database, reason: " + TDengine.Error(res));

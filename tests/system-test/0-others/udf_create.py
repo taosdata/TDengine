@@ -148,7 +148,7 @@ class TDTestCase:
 
         for i in range(5):
             # create  scalar functions
-            tdSql.execute("create function udf1 as '%s' outputtype int bufSize 8;"%self.libudf1)
+            tdSql.execute("create function udf1 as '%s' outputtype int;"%self.libudf1)
 
             # create aggregate functions
 
@@ -173,7 +173,7 @@ class TDTestCase:
                 tdLog.info("drop two udf functions success ")
 
         # create  scalar functions
-        tdSql.execute("create function udf1 as '%s' outputtype int bufSize 8;"%self.libudf1)
+        tdSql.execute("create function udf1 as '%s' outputtype int;"%self.libudf1)
 
         # create aggregate functions
 
@@ -193,20 +193,20 @@ class TDTestCase:
         tdSql.checkData(0,0,None)
         tdSql.checkData(0,1,None)
         tdSql.checkData(0,2,1)
-        tdSql.checkData(0,3,88)
+        tdSql.checkData(0,3,1)
         tdSql.checkData(0,4,1.000000000)
-        tdSql.checkData(0,5,88)
+        tdSql.checkData(0,5,1)
         tdSql.checkData(0,6,"binary1")
-        tdSql.checkData(0,7,88)
+        tdSql.checkData(0,7,1)
 
         tdSql.checkData(3,0,3)
-        tdSql.checkData(3,1,88)
+        tdSql.checkData(3,1,1)
         tdSql.checkData(3,2,33333)
-        tdSql.checkData(3,3,88)
+        tdSql.checkData(3,3,1)
         tdSql.checkData(3,4,33.000000000)
-        tdSql.checkData(3,5,88)
+        tdSql.checkData(3,5,1)
         tdSql.checkData(3,6,"binary1")
-        tdSql.checkData(3,7,88)
+        tdSql.checkData(3,7,1)
 
         tdSql.checkData(11,0,None)
         tdSql.checkData(11,1,None)
@@ -215,7 +215,7 @@ class TDTestCase:
         tdSql.checkData(11,4,None)
         tdSql.checkData(11,5,None)
         tdSql.checkData(11,6,"binary1")
-        tdSql.checkData(11,7,88)
+        tdSql.checkData(11,7,1)
 
         tdSql.query("select c1 , udf1(c1) ,c2 ,udf1(c2), c3 ,udf1(c3), c4 ,udf1(c4) from stb1 order by c1")
         tdSql.checkData(0,0,None)
@@ -228,13 +228,13 @@ class TDTestCase:
         tdSql.checkData(0,7,None)
 
         tdSql.checkData(20,0,8)
-        tdSql.checkData(20,1,88)
+        tdSql.checkData(20,1,1)
         tdSql.checkData(20,2,88888)
-        tdSql.checkData(20,3,88)
+        tdSql.checkData(20,3,1)
         tdSql.checkData(20,4,888)
-        tdSql.checkData(20,5,88)
+        tdSql.checkData(20,5,1)
         tdSql.checkData(20,6,88)
-        tdSql.checkData(20,7,88)
+        tdSql.checkData(20,7,1)
 
 
         # aggregate functions
@@ -377,14 +377,14 @@ class TDTestCase:
         tdSql.checkRows(25)
         tdSql.checkData(0,0,None)
         tdSql.checkData(0,1,None)
-        tdSql.checkData(1,0,88)
+        tdSql.checkData(1,0,1)
         tdSql.checkData(1,1,8)
 
         tdSql.query("select abs(udf1(c1)) , abs(ceil(c1)) from ct1 order by ts;")
         tdSql.checkRows(13)
-        tdSql.checkData(0,0,88)
+        tdSql.checkData(0,0,1)
         tdSql.checkData(0,1,8)
-        tdSql.checkData(1,0,88)
+        tdSql.checkData(1,0,1)
         tdSql.checkData(1,1,7)
 
         # bug fix for crash
@@ -403,9 +403,9 @@ class TDTestCase:
         tdSql.query("select c1 ,udf1(c1) , c6 ,udf1(c6) from stb1 where c1 > 8  order by ts")
         tdSql.checkRows(3)
         tdSql.checkData(0,0,9)
-        tdSql.checkData(0,1,88)
+        tdSql.checkData(0,1,1)
         tdSql.checkData(0,2,-99.990000000)
-        tdSql.checkData(0,3,88)
+        tdSql.checkData(0,3,1)
 
         tdSql.query("select sub1.c1, sub2.c2 from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null")
         tdSql.checkData(0,0,0)
@@ -414,20 +414,20 @@ class TDTestCase:
         tdSql.checkData(1,1,10)
 
         tdSql.query("select udf1(sub1.c1), udf1(sub2.c2) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null")
-        tdSql.checkData(0,0,88)
-        tdSql.checkData(0,1,88)
-        tdSql.checkData(1,0,88)
-        tdSql.checkData(1,1,88)
+        tdSql.checkData(0,0,1)
+        tdSql.checkData(0,1,1)
+        tdSql.checkData(1,0,1)
+        tdSql.checkData(1,1,1)
 
         tdSql.query("select sub1.c1 , udf1(sub1.c1), sub2.c2 ,udf1(sub2.c2) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null")
         tdSql.checkData(0,0,0)
-        tdSql.checkData(0,1,88)
+        tdSql.checkData(0,1,1)
         tdSql.checkData(0,2,0)
-        tdSql.checkData(0,3,88)
+        tdSql.checkData(0,3,1)
         tdSql.checkData(1,0,1)
-        tdSql.checkData(1,1,88)
+        tdSql.checkData(1,1,1)
         tdSql.checkData(1,2,10)
-        tdSql.checkData(1,3,88)
+        tdSql.checkData(1,3,1)
 
         tdSql.query("select udf2(sub1.c1), udf2(sub2.c2) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null")
         tdSql.checkData(0,0,16.881943016)
@@ -574,7 +574,7 @@ class TDTestCase:
 
         # create function without buffer
         tdSql.execute("create  aggregate function udf1 as '%s' outputtype int bufSize 8 "%self.libudf1)
-        tdSql.execute("create  function udf2 as '%s' outputtype double bufSize 8"%self.libudf2)
+        tdSql.execute("create  function udf2 as '%s' outputtype double "%self.libudf2)
         udf1_sqls ,udf2_sqls = self.try_query_sql()
 
         for scalar_sql in udf1_sqls:
@@ -582,7 +582,7 @@ class TDTestCase:
         for aggregate_sql in udf2_sqls:
             tdSql.error(aggregate_sql)
 
-        tdSql.execute(" create function db as '%s' outputtype int bufSize 8 "%self.libudf1)
+        tdSql.execute(" create function db as '%s' outputtype int "%self.libudf1)
         tdSql.execute(" create aggregate function test as '%s' outputtype int bufSize 8 "%self.libudf1)
         tdSql.error(" select db(c1) from stb1 ")
         tdSql.error(" select db(c1,c6), db(c6) from stb1 ")
@@ -631,9 +631,9 @@ class TDTestCase:
         tdLog.info(" create function name is not build_in functions ")
         tdSql.execute(" drop function udf1 ")
         tdSql.execute(" drop function udf2 ")
-        tdSql.error("create function max as '%s' outputtype int bufSize 8"%self.libudf1)
+        tdSql.error("create function max as '%s' outputtype int"%self.libudf1)
         tdSql.error("create aggregate function sum as '%s' outputtype double bufSize 8"%self.libudf2)
-        tdSql.error("create function max as '%s' outputtype int bufSize 8"%self.libudf1)
+        tdSql.error("create function max as '%s' outputtype int"%self.libudf1)
         tdSql.error("create aggregate function sum as '%s' outputtype double bufSize 8"%self.libudf2)
         tdSql.error("create aggregate function tbname as '%s' outputtype double bufSize 8"%self.libudf2)
         tdSql.error("create aggregate function function as '%s' outputtype double bufSize 8"%self.libudf2)

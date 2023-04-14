@@ -10,7 +10,7 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-
+import math
 from asyncore import loop
 from collections import defaultdict
 import subprocess
@@ -129,11 +129,16 @@ class TMQCom:
 
     def stopTmqSimProcess(self, processorName):
         psCmd = "unset LD_PRELOAD; ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
+        if platform.system().lower() == 'windows':
+            psCmd = "ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         onlyKillOnceWindows = 0
         while(processID):
             if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
-                killCmd = "unset LD_PRELOAD; kill -INT %s > /dev/null 2>&1" % processID
+                if platform.system().lower() == 'windows':
+                    killCmd = "kill -INT %s > /dev/nul 2>&1" % processID
+                else:
+                    killCmd = "unset LD_PRELOAD; kill -INT %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 onlyKillOnceWindows = 1
             time.sleep(0.2)
@@ -462,18 +467,24 @@ class TMQCom:
         for i in range(0,skipRowsOfCons):
             consumeFile.readline()
 
-        lines = 0
         while True:
             dst = queryFile.readline()
             src = consumeFile.readline()
-            lines += 1
-            if dst:
-                if dst != src:
-                    tdLog.info("src row: %s"%src)
-                    tdLog.info("dst row: %s"%dst)
-                    tdLog.exit("consumerId %d consume rows[%d] is not match the rows by direct query"%(consumerId, lines))
-            else:
+            dstSplit = dst.split(',')
+            srcSplit = src.split(',')
+
+            if not dst or not src:
                 break
+            if len(dstSplit) != len(srcSplit):
+                tdLog.exit("consumerId %d consume rows len is not match the rows by direct query,len(dstSplit):%d != len(srcSplit):%d, dst:%s, src:%s"
+                           %(consumerId, len(dstSplit), len(srcSplit), dst, src))
+
+            for i in range(len(dstSplit)):
+                if srcSplit[i] != dstSplit[i]:
+                    srcFloat = float(srcSplit[i])
+                    dstFloat = float(dstSplit[i])
+                    if not math.isclose(srcFloat, dstFloat, abs_tol=1e-9):
+                        tdLog.exit("consumerId %d consume rows is not match the rows by direct query"%consumerId)
         return
 
     def getResultFileByTaosShell(self, consumerId, queryString):

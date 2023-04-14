@@ -434,6 +434,7 @@ int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
   tEncoderClear(&encoder);
 
   STransAction action = {0};
+  action.mTraceId = pTrans->mTraceId;
   memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
   action.pCont = buf;
   action.contLen = tlen;

@@ -18,6 +18,7 @@
 #include "ttimer.h"
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId) {
+  int32_t      code = -1;
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
   if (pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -34,7 +35,12 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
 
   sprintf(streamPath, "%s/%s", pMeta->path, "checkpoints");
-  taosMulModeMkDir(streamPath, 0755);
+  code = taosMulModeMkDir(streamPath, 0755);
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    taosMemoryFree(streamPath);
+    goto _err;
+  }
   taosMemoryFree(streamPath);
 
   if (tdbTbOpen("task.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pTaskDb, 0) < 0) {

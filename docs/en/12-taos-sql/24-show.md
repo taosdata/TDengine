@@ -4,7 +4,7 @@ sidebar_label: SHOW Statement
 description: This document describes how to use the SHOW statement in TDengine.
 ---
 
-`SHOW` command can be used to get brief system information. To get details about metatadata, information, and status in the system, please use `select` to query the tables in database `INFORMATION_SCHEMA`. 
+`SHOW` command can be used to get brief system information. To get details about metadata, information, and status in the system, please use `select` to query the tables in database `INFORMATION_SCHEMA`. 
 
 ## SHOW APPS
 
@@ -86,10 +86,10 @@ SHOW FUNCTIONS;
 
 Shows all user-defined functions in the system.
 
-## SHOW LICENSE
+## SHOW LICENCES
 
 ```sql
-SHOW LICENSE;
+SHOW LICENCES;
 SHOW GRANTS;
 ```
 
@@ -308,9 +308,11 @@ Query OK, 24 row(s) in set (0.002444s)
 </code></pre>
 </details>
 
-  The above show the block distribution percentage according to the number of rows in each block. In the above example, we can get below information:
-  - `_block_dist: 3483 |||||||||||||||||  1 (20.00%)` means there is one block whose rows is between 3,483 and 3,681.
-  -  `_block_dist: 3881 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||  4 (80.00%)` means there are 4 blocks whose rows is between 3,881 and 4,096.   -  The number of blocks whose rows fall in other range is zero.
+The above show the block distribution percentage according to the number of rows in each block. In the above example, we can get below information:
+- `_block_dist: 3483 |||||||||||||||||  1 (20.00%)` means there is one block whose rows is between 3,483 and 3,681.
+-  `_block_dist: 3881 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||  4 (80.00%)` means there are 4 blocks whose rows is between 3,881 and 4,096.   -  The number of blocks whose rows fall in other range is zero.
+
+Note that only the information about the data blocks in the data file will be displayed here, and the information about the data in the stt file will not be displayed.
 
 ## SHOW TAGS
 
@@ -359,7 +361,7 @@ Shows the working configuration of the parameters that must be the same on each 
 SHOW [db_name.]VGROUPS;
 ```
 
-Shows information about all vgroups in the system or about the vgroups for a specified database.
+Shows information about all vgroups in the current database. 
 
 ## SHOW VNODES
 

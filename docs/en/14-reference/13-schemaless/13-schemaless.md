@@ -84,7 +84,7 @@ You can configure smlChildTableName in taos.cfg to specify table names, for exam
 
 :::tip
 All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed
-16KB. See [TDengine SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
+48KB, and the total length of tag value cannot exceed 16KB. See [TDengine SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
 
 :::
 
@@ -131,7 +131,7 @@ create stable st (_ts timestamp, c1 bigint, c2 bool, c3 binary(6), c4 bigint) ta
 
 This section describes the impact on the schema caused by different data being written.
 
-If you use line protocol to write to a specific tag field and then later change the field type, a schema error will ocur. This triggers an error on the write API. This is shown as follows:
+If you use line protocol to write to a specific tag field and then later change the field type, a schema error will occur. This triggers an error on the write API. This is shown as follows:
 
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4    1626006833639000000
