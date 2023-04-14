@@ -167,12 +167,12 @@ class AddSync(TDCase):
     def run(self):
         for replica in self.replica:
             self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
-            self.ntb_dbname = [self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)]
+            # self.ntb_dbname = [self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)]
             self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica)
-            self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntbname_m,self.ntb_tbnum,self.ntb_rownum,'create',self.ntb_starttimestamp)
+            # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntbname_m,self.ntb_tbnum,self.ntb_rownum,'create',self.ntb_starttimestamp)
             self.add_sync_db_stb('db')
             self.add_sync_db_stb('stable')
-            self.add_sync_ntb()
+            # self.add_sync_ntb()
     def cleanup(self):
         pass
 
