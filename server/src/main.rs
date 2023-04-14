@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
             file_path = value;
         }
     }
-    let args = if let Ok(mut file) = File::open(&file_path) {
+    let mut args = if let Ok(mut file) = File::open(&file_path) {
         println!("Use configuration file path: {}", file_path.display());
         let mut content = String::new();
         file.read_to_string(&mut content)?;
@@ -82,9 +82,16 @@ async fn main() -> anyhow::Result<()> {
     }
 
     const EXPLORER_PORT: u16 = 6060;
-    let port = args.port.unwrap_or(EXPLORER_PORT);
+    const EXPLORER_CLUSTER: &'static str = "http://localhost:6041";
+    const EXPLORER_X_PAI: &'static str = "http://localhost:6050";
+    args.port.get_or_insert(EXPLORER_PORT);
+    args.profile
+        .cluster
+        .get_or_insert(EXPLORER_CLUSTER.to_string());
+    args.profile.x_api.get_or_insert(EXPLORER_X_PAI.to_string());
+
+    let port = args.port.unwrap();
     let args = web::Data::new(args);
-    // let client = web::Data::new(Client::new());
 
     info!("Explorer service at http://0.0.0.0:{port}");
 
@@ -153,22 +160,7 @@ async fn rest_proxy(
     let url = format!("{x}/rest/{url}");
     let method = req.method();
     let mut builder = client.request(method.clone(), url);
-    // .append_header((
-    //     AUTHORIZATION,
-    //     req.headers().get(AUTHORIZATION).map(Clone::clone).unwrap(),
-    // ))
-    // .append_header((ACCEPT, req.headers().get(ACCEPT).map(Clone::clone).unwrap()))
-    // .append_header((
-    //     ACCEPT_ENCODING,
-    //     req.headers()
-    //         .get(ACCEPT_ENCODING)
-    //         .map(Clone::clone)
-    //         .unwrap(),
-    // ))
-    // .content_type(req.content_type());
     *builder.headers_mut() = req.headers().clone();
-    // let bytes: BytesMut = body.try_collect().await?;
-    // Ok(dbg!(builder.send_body(bytes).await?.into_http_response()))
     Ok(HttpResponse::Ok().body(builder.send_stream(body).await?.body().await?))
 }
 
@@ -250,11 +242,7 @@ struct Asset;
 #[derive(Parser, Debug, Clone, Deserialize, Serialize)]
 struct Profile {
     /// Cluster endpoint. Use taosAdapter endpoint like `http://192.168.0.201:16041`.
-    #[clap(
-        short,
-        long,
-        env = "EXPLORER_CLUSTER",
-    )]
+    #[clap(short, long, env = "EXPLORER_CLUSTER")]
     cluster: Option<String>,
 
     /// External link for Grafana TDinsight dashboard, use direct ip or hostname like: http://grafana:3000/d/tdinsight-3x/tdinsight-for-3-x?orgId=1&refresh=30s
@@ -280,12 +268,7 @@ struct Args {
     #[clap(short = 'C', long, env = "EXPLORER_CONFIG_FILE")]
     config_file: Option<PathBuf>,
     /// Port
-    #[clap(
-        short,
-        long,
-        global = true,
-        env = "EXPLORER_PORT"
-    )]
+    #[clap(short, long, global = true, env = "EXPLORER_PORT")]
     #[serde(default)]
     port: Option<u16>,
 
