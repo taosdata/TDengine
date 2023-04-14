@@ -9,3 +9,12 @@ release.py脚本为taosx打包服务，当前仅支持windows打包
     - -t opc: 测试pi编译安装
     - -t taosx: 测试taosx编译安装
     - -t package: 已经安装好的服务打包测试(taosx必须已经编译安装过)
+## 安装说明
+- 输出路径：taosx\release
+- 文件名：
+    - taosX and OPC:   taosX-v{version}-opc-installer.exe
+    - taosX and PI:   taosX-v{version}-pi-installer.exe
+- 均安装在默认安装目录(C:\TDengine)下
+    - taosX   C:\TDengine\bin
+    - pi      C:\xplugins\pi
+    - opc     C:\xplugins\opc
