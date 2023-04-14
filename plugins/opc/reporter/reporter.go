@@ -9,10 +9,10 @@ import (
 	"net"
 	"sync"
 
-	"github.com/apache/arrow/go/arrow"
-	"github.com/apache/arrow/go/arrow/array"
-	"github.com/apache/arrow/go/arrow/ipc"
-	"github.com/apache/arrow/go/arrow/memory"
+	"github.com/apache/arrow/go/v12/arrow"
+	"github.com/apache/arrow/go/v12/arrow/array"
+	"github.com/apache/arrow/go/v12/arrow/ipc"
+	"github.com/apache/arrow/go/v12/arrow/memory"
 )
 
 type Reporter interface {
@@ -22,7 +22,6 @@ type Reporter interface {
 
 type ArrowReporter struct {
 	address   *net.TCPAddr
-	allocator memory.Allocator
 	ipcWriter sync.Map // key-valueType, value- *schema
 	debug     bool
 }
@@ -37,7 +36,7 @@ func NewArrowReporter(config common.Config) (*ArrowReporter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve remote address error %v", err)
 	}
-	return &ArrowReporter{address: address, allocator: memory.NewGoAllocator(), debug: config.Debug}, nil
+	return &ArrowReporter{address: address, debug: config.Debug}, nil
 }
 
 func (r *ArrowReporter) Report(_ context.Context, values []*common.NodeValue) error {
@@ -84,8 +83,8 @@ func (r *ArrowReporter) report(values []*common.NodeValue) error {
 	return nil
 }
 
-func (r *ArrowReporter) packData(values []*common.NodeValue, schema *arrow.Schema) (array.Record, error) {
-	recordBuilder := array.NewRecordBuilder(r.allocator, schema)
+func (r *ArrowReporter) packData(values []*common.NodeValue, schema *arrow.Schema) (arrow.Record, error) {
+	recordBuilder := array.NewRecordBuilder(memory.NewGoAllocator(), schema)
 	defer recordBuilder.Release()
 
 	field0 := recordBuilder.Field(0).(*array.StringBuilder)

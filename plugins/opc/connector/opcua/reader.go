@@ -33,7 +33,6 @@ type reader struct {
 	done           chan struct{}
 	debug          bool
 	mutex          sync.Mutex
-	readRequest    *ua.ReadRequest
 }
 
 func newReader(config common.Config) (*reader, error) {
