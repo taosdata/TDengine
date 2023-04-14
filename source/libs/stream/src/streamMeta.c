@@ -296,7 +296,8 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
     tDecodeStreamTask(&decoder, pTask);
     tDecoderClear(&decoder);
 
-    if (pMeta->expandFunc(pMeta->ahandle, pTask, -1) < 0) {
+    // todo set correct initial version.
+    if (pMeta->expandFunc(pMeta->ahandle, pTask, 0) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
       tdbTbcClose(pCur);
