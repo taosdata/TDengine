@@ -646,12 +646,35 @@ int32_t streamDefaultDel_rocksdb(SStreamState* pState, const void* key) {
   return code;
 }
 
-void*   streamDefaultIterCreate_rocksdb(SStreamState* pState) {}
-int32_t streamDefaultIterValid_rocksdb(void* iter);
-void*   streamDefaultIterSeek_rocksdb(void* iter, const char* key);
-int32_t streamDefaultIter_rocksdb(void* iter);
-char**  streamDefaultIterKey_rocksdb(void* iter);
-char*   streamDefaultIterVal_rocksdb(void* iter);
+void* streamDefaultIterCreate_rocksdb(SStreamState* pState) {
+  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
+
+  pCur->db = pState->pTdbState->rocksdb;
+  pCur->iter = streamStateIterCreate(pState, "default", &pCur->snapshot, &pCur->readOpt);
+  return pCur;
+}
+int32_t streamDefaultIterValid_rocksdb(void* iter) {
+  SStreamStateCur* pCur = iter;
+  bool             val = rocksdb_iter_valid(pCur->iter);
+
+  return val ? 0 : -1;
+}
+void streamDefaultIterSeek_rocksdb(void* iter, const char* key) {
+  SStreamStateCur* pCur = iter;
+  rocksdb_iter_seek(pCur->iter, key, strlen(key));
+}
+void streamDefaultIterNext_rocksdb(void* iter) {
+  SStreamStateCur* pCur = iter;
+  rocksdb_iter_next(pCur->iter);
+}
+char* streamDefaultIterKey_rocksdb(void* iter, int32_t* len) {
+  SStreamStateCur* pCur = iter;
+  return (char*)rocksdb_iter_key(pCur->iter, (size_t*)len);
+}
+char* streamDefaultIterVal_rocksdb(void* iter, int32_t* len) {
+  SStreamStateCur* pCur = iter;
+  return (char*)rocksdb_iter_value(pCur->iter, (size_t*)len);
+}
 // typedef struct {
 //   char* start;
 //   char* end;

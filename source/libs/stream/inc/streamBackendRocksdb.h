@@ -92,10 +92,10 @@ int32_t streamDefaultDel_rocksdb(SStreamState* pState, const void* key);
 
 void*   streamDefaultIterCreate_rocksdb(SStreamState* pState);
 int32_t streamDefaultIterValid_rocksdb(void* iter);
-void*   streamDefaultIterSeek_rocksdb(void* iter, const char* key);
-int32_t streamDefaultIter_rocksdb(void* iter);
-char**  streamDefaultIterKey_rocksdb(void* iter);
-char*   streamDefaultIterVal_rocksdb(void* iter);
+void    streamDefaultIterSeek_rocksdb(void* iter, const char* key);
+void    streamDefaultIterNext_rocksdb(void* iter);
+char*   streamDefaultIterKey_rocksdb(void* iter, int32_t* len);
+char*   streamDefaultIterVal_rocksdb(void* iter, int32_t* len);
 
 // int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
 #endif
