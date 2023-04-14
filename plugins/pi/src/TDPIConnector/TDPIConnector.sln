@@ -15,27 +15,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TDPIConnector.TDEngine", "T
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TDPIConnector.CsvPointBuilder", "TDPIConnector.CsvPointBuilder\TDPIConnector.CsvPointBuilder.csproj", "{22EC6C37-9FE8-4269-B7EC-1F7520A503C1}"
 EndProject
-Project("{E24C65DC-7377-472B-9ABA-BC803B73C61A}") = "wwwroot", "TDPIConnector.Service\wwwroot\", "{A9BCF824-871E-42B4-86A3-B8C4599B2D56}"
-	ProjectSection(WebsiteProperties) = preProject
-		TargetFrameworkMoniker = ".NETFramework,Version%3Dv4.8"
-		Debug.AspNetCompiler.VirtualPath = "/localhost_59261"
-		Debug.AspNetCompiler.PhysicalPath = "TDPIConnector.Service\wwwroot\"
-		Debug.AspNetCompiler.TargetPath = "PrecompiledWeb\localhost_59261\"
-		Debug.AspNetCompiler.Updateable = "true"
-		Debug.AspNetCompiler.ForceOverwrite = "true"
-		Debug.AspNetCompiler.FixedNames = "false"
-		Debug.AspNetCompiler.Debug = "True"
-		Release.AspNetCompiler.VirtualPath = "/localhost_59261"
-		Release.AspNetCompiler.PhysicalPath = "TDPIConnector.Service\wwwroot\"
-		Release.AspNetCompiler.TargetPath = "PrecompiledWeb\localhost_59261\"
-		Release.AspNetCompiler.Updateable = "true"
-		Release.AspNetCompiler.ForceOverwrite = "true"
-		Release.AspNetCompiler.FixedNames = "false"
-		Release.AspNetCompiler.Debug = "False"
-		VWDPort = "59261"
-		SlnRelativePath = "TDPIConnector.Service\wwwroot\"
-	EndProjectSection
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TDBackfill", "TDBackfill\TDBackfill.csproj", "{07CC0037-853B-4417-B42D-C3A211F77FB5}"
 EndProject
 Global
@@ -66,10 +45,6 @@ Global
 		{22EC6C37-9FE8-4269-B7EC-1F7520A503C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{22EC6C37-9FE8-4269-B7EC-1F7520A503C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{22EC6C37-9FE8-4269-B7EC-1F7520A503C1}.Release|Any CPU.Build.0 = Release|Any CPU
-		{A9BCF824-871E-42B4-86A3-B8C4599B2D56}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A9BCF824-871E-42B4-86A3-B8C4599B2D56}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A9BCF824-871E-42B4-86A3-B8C4599B2D56}.Release|Any CPU.ActiveCfg = Debug|Any CPU
-		{A9BCF824-871E-42B4-86A3-B8C4599B2D56}.Release|Any CPU.Build.0 = Debug|Any CPU
 		{07CC0037-853B-4417-B42D-C3A211F77FB5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{07CC0037-853B-4417-B42D-C3A211F77FB5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{07CC0037-853B-4417-B42D-C3A211F77FB5}.Release|Any CPU.ActiveCfg = Release|Any CPU
