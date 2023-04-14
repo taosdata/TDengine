@@ -1151,8 +1151,8 @@ void cleanupExprSupp(SExprSupp* pSupp) {
 
 void cleanupBasicInfo(SOptrBasicInfo* pInfo) { pInfo->pRes = blockDataDestroy(pInfo->pRes); }
 
-char* buildTaskId(uint64_t taskId, uint64_t queryId) {
-  char* p = taosMemoryMalloc(64);
+void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst) {
+  char* p = dst;
 
   int32_t offset = 6;
   memcpy(p, "TID:0x", offset);
@@ -1163,7 +1163,6 @@ char* buildTaskId(uint64_t taskId, uint64_t queryId) {
   offset += tintToHex(queryId, &p[offset]);
 
   p[offset] = 0;
-  return p;
 }
 
 SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model,
@@ -1185,7 +1184,9 @@ SExecTaskInfo* doCreateExecTaskInfo(uint64_t queryId, uint64_t taskId, int32_t v
   taosInitRWLatch(&pTaskInfo->lock);
   pTaskInfo->id.vgId = vgId;
   pTaskInfo->id.queryId = queryId;
-  pTaskInfo->id.str = buildTaskId(taskId, queryId);
+
+  pTaskInfo->id.str = taosMemoryMalloc(64);
+  buildTaskId(taskId, queryId, pTaskInfo->id.str);
   return pTaskInfo;
 }
 

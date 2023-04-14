@@ -173,9 +173,7 @@ void doSetTaskId(SOperatorInfo* pOperator) {
 void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
   SExecTaskInfo* pTaskInfo = tinfo;
   pTaskInfo->id.queryId = queryId;
-
-  taosMemoryFreeClear(pTaskInfo->id.str);
-  pTaskInfo->id.str = buildTaskId(taskId, queryId);
+  buildTaskId(taskId, queryId, pTaskInfo->id.str);
 
   // set the idstr for tsdbReader
   doSetTaskId(pTaskInfo->pRoot);
