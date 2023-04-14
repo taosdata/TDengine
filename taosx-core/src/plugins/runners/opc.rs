@@ -564,37 +564,88 @@ pub async fn opc_to_taos(
         .stderr(async_process::Stdio::inherit())
         .spawn()
         .context("Start OPC collector error")?;
+    #[cfg(target_os = "linux")]
+    {
+        tokio::select! {
+            output = child.output() => {
+                let output = output?;
+                log::info!("OPC exit with status {}", output.status);
+                if !output.status.success() {
+                    let _ = ipc.send(());
+                    anyhow::bail!("OPC error: {}", String::from_utf8_lossy(&output.stderr));
+                }
+            },
+            _ = tokio::signal::ctrl_c() => {
+                log::info!("Ctrl+C triggered, cancel tasks");
+                cancel.cancel();
+            },
+            err = receiver.recv() => {
+                log::info!("have received worker thread panicked message, terminate child process");
+                if let Some(err) = err {
+                    let _ = ipc.send(());
+                    anyhow::bail!("OPC writer error: {err}");
+                }
+            },
+            _ = cancel.cancelled() => {
+                log::info!("opc task cancelled");
+            },
+        };
+        // stop_thread(ipc);
+        ipc.send(())?;
+        log::info!("OPC to taos task done");
+        temp_path.close().unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let pid = child.id();
+        tokio::spawn(async move {
+            tokio::select! {
+                output = child.output() => {
+                    let output = output?;
+                    log::info!("OPC exit with status {}", output.status);
+                    if !output.status.success() {
+                        let _ = ipc.send(());
+                        anyhow::bail!("OPC error: {}", String::from_utf8_lossy(&output.stderr));
+                    }
+                },
+                _ = tokio::signal::ctrl_c() => {
+                    log::info!("Ctrl+C triggered, cancel tasks");
+                    cancel.cancel();
+                },
+                err = receiver.recv() => {
+                    log::info!("have received worker thread panicked message, terminate child process");
+                    if let Some(err) = err {
+                        let _ = ipc.send(());
+                        anyhow::bail!("OPC writer error: {err}");
+                    }
+                },
+                _ = cancel.cancelled() => {
+                    log::info!("opc task cancelled");
+                },
+            };
+            ipc.send(())?;
+            terminate_child_process(pid)?;
+            log::info!("OPC to taos task done");
+            temp_path.close().unwrap();
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            Ok(())
+        }).await??;
+    }
+    Ok(())
+}
 
-    tokio::select! {
-        output = child.output() => {
-            let output = output?;
-            log::info!("OPC exit with status {}", output.status);
-            if !output.status.success() {
-                let _ = ipc.send(());
-                anyhow::bail!("OPC error: {}", String::from_utf8_lossy(&output.stderr));
-            }
-        },
-        _ = tokio::signal::ctrl_c() => {
-            log::info!("Ctrl+C triggered, cancel tasks");
-            cancel.cancel();
-        },
-        err = receiver.recv() => {
-            log::info!("have received worker thread panicked message, terminate child process");
-            if let Some(err) = err {
-                let _ = ipc.send(());
-                anyhow::bail!("OPC writer error: {err}");
-            }
-        },
-        _ = cancel.cancelled() => {
-            log::info!("opc task cancelled");
-        },
+fn terminate_child_process(id: u32) -> anyhow::Result<()> {
+    let mut kill_command = if cfg!(target_os = "windows") {
+        let mut command = std::process::Command::new("taskkill");
+        command.arg("/F").arg("/PID").arg(id.to_string());
+        command
+    } else {
+        let mut command = std::process::Command::new("kill");
+        command.arg("-9").arg(id.to_string());
+        command
     };
-    // stop_thread(ipc);
-    ipc.send(())?;
-    log::info!("OPC to taos task done");
-    temp_path.close().unwrap();
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
+    kill_command.spawn()?;
     Ok(())
 }
 

@@ -143,6 +143,7 @@ async fn consume_point_record(
             } else {
                 format!("insert into {table} ({ts_cloumn_name}, {field}) values (?, ?)")
             };
+            info!("sql: {}", sql);
             stmt.prepare(&sql).unwrap();
             let new_cv_vec = cv_vec
                 .iter()

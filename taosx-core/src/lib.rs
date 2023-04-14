@@ -21,8 +21,10 @@ pub use parquets::*;
 pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::tmq_to_td;
+use tokio::sync::OnceCell;
 use tokio_util::sync::CancellationToken;
 pub use transform::Action;
+use utils::port_pool::{self, PortPool};
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {
@@ -46,7 +48,7 @@ pub struct TaskOpts {
     pub compression_level: Option<usize>,
     pub force: bool,
     pub cancel: CancellationToken,
-    pub port_pool: crate::utils::port_pool::PortPool,
+    // pub port_pool: OnceCell<PortPool>
 }
 
 impl Drop for TaskOpts {
@@ -62,7 +64,7 @@ impl TaskOpts {
         self.cancel.cancel();
     }
 
-    pub async fn run(&self) -> Result<(), anyhow::Error> {
+    pub async fn run(&self, port_pool: &PortPool) -> Result<(), anyhow::Error> {
         let Self {
             from,
             transform,
@@ -71,7 +73,7 @@ impl TaskOpts {
             compression_level: _,
             force,
             cancel,
-            port_pool,
+            // port_pool,
         } = self;
 
         {

@@ -15,6 +15,7 @@ use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::port_pool::PortPool;
 use taosx_core::TaskOpts;
+use tokio::sync::OnceCell;
 use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tokio_util::sync::CancellationToken;
@@ -318,6 +319,9 @@ pub(super) enum Schedule {
 //     }
 // }
 
+// static ONCE: OnceCell<PortPool> = OnceCell::const_new();
+static ONCE: OnceCell<PortPool> = OnceCell::const_new();
+
 impl TaskController {
     pub async fn from_sqlite(sqlite: &str) -> anyhow::Result<Self> {
         let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?
@@ -343,6 +347,7 @@ impl TaskController {
 
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
         let id = task.id;
+        
         let mut remove_finished_task = false;
         {
             // for read guard lifetime
@@ -381,7 +386,7 @@ impl TaskController {
             compression_level: task.compression_level.map(Into::into),
             force: task.force,
             cancel: CancellationToken::new(),
-            port_pool: PortPool::default(),
+            // port_pool: ONCE,
         };
 
         let pool = self.pool.clone();
@@ -448,7 +453,7 @@ impl TaskController {
                             } else {
                                 log::info!("start task {id}");
                             }
-                            let result = opts.run().await;
+                            let result = opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await;
                             match result {
                                 Ok(_) => {
                                     let now = Utc::now();
@@ -537,7 +542,7 @@ impl TaskController {
                         )
                         .execute(&pool)
                         .await?;
-                        let result = opts.run().await;
+                        let result = opts.run(ONCE.get_or_init(|| async { PortPool::default() }).await).await;
                         match result {
                             Ok(_) => {
                                 let now = Utc::now();

@@ -2,7 +2,7 @@ use bitvec::prelude::*;
 use port_selector::Port;
 use std::{
     ops::Range,
-    sync::{Arc, Mutex}, net::{Ipv4Addr, SocketAddrV4, Ipv6Addr, ToSocketAddrs, SocketAddrV6, TcpListener},
+    sync::{Arc, Mutex}, net::{Ipv4Addr, SocketAddrV4, Ipv6Addr, ToSocketAddrs, SocketAddrV6, TcpListener}, default,
 };
 
 #[derive(Debug, Clone)]
@@ -10,6 +10,7 @@ pub struct PortPool {
     range: Range<u16>,
     bitmap: Arc<Mutex<BitVec>>,
 }
+
 impl Default for PortPool {
     fn default() -> Self {
         let range = 6051..16050;
