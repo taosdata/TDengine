@@ -17,6 +17,7 @@
 
 int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
   qDebug("s-task:%s at node %d launch recover", pTask->id.idStr, pTask->nodeId);
+
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__RECOVER_PREPARE);
     streamSetParamForRecover(pTask);
@@ -33,12 +34,7 @@ int32_t streamTaskLaunchRecover(SStreamTask* pTask, int64_t version) {
 
     memcpy(serializedReq, &req, len);
 
-    SRpcMsg rpcMsg = {
-        .contLen = len,
-        .pCont = serializedReq,
-        .msgType = TDMT_VND_STREAM_RECOVER_NONBLOCKING_STAGE,
-    };
-
+    SRpcMsg rpcMsg = { .contLen = len, .pCont = serializedReq, .msgType = TDMT_VND_STREAM_RECOVER_NONBLOCKING_STAGE };
     if (tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &rpcMsg) < 0) {
       /*ASSERT(0);*/
     }
@@ -61,6 +57,7 @@ int32_t streamTaskCheckDownstream(SStreamTask* pTask, int64_t version) {
       .upstreamNodeId = pTask->nodeId,
       .childId = pTask->selfChildId,
   };
+
   // serialize
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
     req.reqId = tGenIdPI64();

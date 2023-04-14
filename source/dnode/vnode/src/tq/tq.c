@@ -567,6 +567,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMsgCb = &pTq->pVnode->msgCb;
   pTask->pMeta = pTq->pStreamMeta;
+  pTask->chkInfo.version = ver;
 
   // expand executor
   if (pTask->fillHistory) {
@@ -628,18 +629,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   }
 
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
-    pTask->exec.pTqReader = tqOpenReader(pTq->pVnode);
-    if (pTask->exec.pTqReader == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-
     pTask->exec.pWalReader = walOpenReader(pTq->pVnode->pWal, NULL);
-
-    pTask->freeFp = (_free_reader_fn_t)tqCloseReader;
-    SArray* pList = qGetQueriedTableListInfo(pTask->exec.pExecutor);
-    tqReaderAddTbUidList(pTask->exec.pTqReader, pList);
-    taosArrayDestroy(pList);
   }
 
   streamSetupTrigger(pTask);
@@ -1141,7 +1131,6 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
     }
 
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-
     tqStartStreamTasks(pTq);
     return 0;
   } else {

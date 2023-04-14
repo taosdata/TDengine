@@ -187,11 +187,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
     pTask->exec.pExecutor = NULL;
   }
 
-  if (pTask->exec.pTqReader != NULL && pTask->freeFp != NULL) {
-    pTask->freeFp(pTask->exec.pTqReader);
-    pTask->exec.pTqReader = NULL;
-  }
-
   if (pTask->exec.pWalReader != NULL) {
     walCloseReader(pTask->exec.pWalReader);
   }

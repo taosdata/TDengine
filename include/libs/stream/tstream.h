@@ -221,7 +221,6 @@ SStreamDataSubmit2* streamSubmitBlockClone(SStreamDataSubmit2* pSubmit);
 typedef struct {
   char*              qmsg;
   void*              pExecutor;   // not applicable to encoder and decoder
-  struct STqReader*  pTqReader;   // not applicable to encoder and decoder
   struct SWalReader* pWalReader;  // not applicable to encoder and decoder
 } STaskExec;
 
@@ -333,7 +332,6 @@ struct SStreamTask {
   int64_t             checkpointingId;
   int32_t             checkpointAlignCnt;
   struct SStreamMeta* pMeta;
-  _free_reader_fn_t   freeFp;
 };
 
 // meta
@@ -343,7 +341,6 @@ typedef struct SStreamMeta {
     TTB*         pTaskDb;
     TTB*         pCheckpointDb;
     SHashObj*    pTasks;
-    SHashObj*    pWalReadTasks;
     void*        ahandle;
     TXN*         txn;
     FTaskExpand* expandFunc;
