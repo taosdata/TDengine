@@ -21,7 +21,7 @@ class TestTs2989(TDCase):
         self.tdCom.createDb("test_ts2989")
         self.tdSql.execute('create stable test_ts2989.a (ts timestamp, i int) tags (t1 int);')
         self.tdSql.error('insert into test_ts2989.a2 using test_ts2989.a tags(12) (ts,i ) values(now,11));')
-        self.tdSql.checkIn("insert data into super table is not supported", str(self.tdSql.error_msg))
+        self.tdSql.checkIn("table_name is expected", str(self.tdSql.error_msg))
 
     def cleanup(self):
         pass
