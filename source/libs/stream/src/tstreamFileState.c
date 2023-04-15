@@ -327,7 +327,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
   SListIter iter = {0};
   tdListInitIter(pSnapshot, &iter, TD_LIST_FORWARD);
 
-  const int32_t BATCH_LIMIT = 128;
+  const int32_t BATCH_LIMIT = 256;
   SListNode*    pNode = NULL;
 
   void* batch = streamStateCreateBatch();
@@ -382,7 +382,7 @@ int32_t forceRemoveCheckpoint(SStreamFileState* pFileState, int64_t checkpointId
 
 int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list) {
   const char* taskKey = "streamFileState";
-  return streamDefaultIter_rocksdb(pFileState->pFileStore, taskKey, NULL, list);
+  return streamDefaultIterGet_rocksdb(pFileState->pFileStore, taskKey, NULL, list);
 }
 
 int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
@@ -414,6 +414,7 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     sscanf(val, "%" PRId64 "", &ts);
     taosMemoryFree(val);
     if (ts < mark) {
+      // statekey winkey.ts < mark
       forceRemoveCheckpoint(pFileState, i);
       break;
     } else {
@@ -429,14 +430,11 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
   int32_t len = 0;
 
   SWinKey          key = {.groupId = 0, .ts = 0};
-  SStreamStateCur* pCur = streamStateGetCur_rocksdb(pFileState->pFileStore, &key);
-  if (!pCur) {
-    return TSDB_CODE_FAILED;
+  SStreamStateCur* pCur = streamStateSeekToLast_rocksdb(pFileState->pFileStore, &key);
+  if (pCur == NULL) {
+    return -1;
   }
-  code = streamStateSeekLast(pFileState->pFileStore, pCur);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
+
   while (code == TSDB_CODE_SUCCESS) {
     if (pFileState->curRowCount == pFileState->maxRowCount) {
       break;
