@@ -105,6 +105,7 @@ int32_t tsQueryPolicy = 1;
 int32_t tsQueryRspPolicy = 0;
 int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
 bool    tsEnableQueryHb = false;
+bool    tsEnableScience = false; // on taos-cli show float and doulbe with scientific notation if true 
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
@@ -116,6 +117,7 @@ int32_t tsRedirectFactor = 2;
 int32_t tsRedirectMaxPeriod = 1000;
 int32_t tsMaxRetryWaitTime = 10000;
 bool    tsUseAdapter = false;
+
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -330,6 +332,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 4, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "enableQueryHb", tsEnableQueryHb, false) != 0) return -1;
+  if (cfgAddBool(pCfg, "enableScience", tsEnableScience, false) != 0) return -1;
   if (cfgAddInt32(pCfg, "querySmaOptimize", tsQuerySmaOptimize, 0, 1, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "queryPlannerTrace", tsQueryPlannerTrace, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryNodeChunkSize", tsQueryNodeChunkSize, 1024, 128 * 1024, true) != 0) return -1;
@@ -734,6 +737,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsNumOfTaskQueueThreads = cfgGetItem(pCfg, "numOfTaskQueueThreads")->i32;
   tsQueryPolicy = cfgGetItem(pCfg, "queryPolicy")->i32;
   tsEnableQueryHb = cfgGetItem(pCfg, "enableQueryHb")->bval;
+  tsEnableScience = cfgGetItem(pCfg, "enableScience")->bval;  
   tsQuerySmaOptimize = cfgGetItem(pCfg, "querySmaOptimize")->i32;
   tsQueryPlannerTrace = cfgGetItem(pCfg, "queryPlannerTrace")->bval;
   tsQueryNodeChunkSize = cfgGetItem(pCfg, "queryNodeChunkSize")->i32;

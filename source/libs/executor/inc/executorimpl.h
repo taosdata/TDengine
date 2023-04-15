@@ -827,7 +827,7 @@ void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
 void doDestroyTask(SExecTaskInfo* pTaskInfo);
 void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 
-char* buildTaskId(uint64_t taskId, uint64_t queryId);
+void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);
 
 SArray* getTableListInfo(const SExecTaskInfo* pTaskInfo);
 

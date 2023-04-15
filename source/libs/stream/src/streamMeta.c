@@ -84,10 +84,10 @@ void streamMetaClose(SStreamMeta* pMeta) {
   tdbClose(pMeta->db);
 
   void* pIter = NULL;
-  while(pMeta->walScan) {
-    qDebug("wait stream daemon quit");
-    taosMsleep(100);
-  }
+//  while(pMeta->walScan) {
+//    qDebug("wait stream daemon quit");
+//    taosMsleep(100);
+//  }
 
   while (1) {
     pIter = taosHashIterate(pMeta->pTasks, pIter);
@@ -296,7 +296,8 @@ int32_t streamLoadTasks(SStreamMeta* pMeta, int64_t ver) {
     tDecodeStreamTask(&decoder, pTask);
     tDecoderClear(&decoder);
 
-    if (pMeta->expandFunc(pMeta->ahandle, pTask, -1) < 0) {
+    // todo set correct initial version.
+    if (pMeta->expandFunc(pMeta->ahandle, pTask, 0) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
       tdbTbcClose(pCur);
