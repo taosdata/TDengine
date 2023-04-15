@@ -35,10 +35,14 @@ rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
 
+if [ "$cpuType" == "x64" ]; then
+  allocator=jemalloc
+fi
+
 # generate lite version in x64
 if [ "$cpuType" == "x64" ]; then
-  echo "../enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true"
-  ../enterprise/packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true
+  echo "../enterprise/packaging/release.sh -a glibc -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true"
+  ../enterprise/packaging/release.sh -a glibc -n $version -m $versionComp -V $verType -c $cpuType -l lite -H true
 fi
 
 # need build lite package first. standard need rebuild to include blm3
