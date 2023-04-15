@@ -151,10 +151,10 @@ goto :eof
 echo %cusName% is an open-source, cloud-native time-series database optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. With its built-in caching, stream processing, and data subscription capabilities, TDengine offers a simplified solution for time-series data processing.  > %internal_dir%\community\packaging\tools\windows_before_install.txt
 echo:  >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 echo %cusName% will be installed under C:\TDengine, users can modify configuration file C:\TDengine\cfg\taos.cfg, set the log file path or other parameters. >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo • To start/stop %cusName% with administrator privileges:  run sc start/stop taosd >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo • To start/stop taosAdapter with administrator privileges: run sc start/stop taosadapter >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo • To access %cusName% from your local machine, run %cusPrompt% >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo • Please manually remove C:\TDengine from your system PATH environment after you remove %cusName% software.  >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo - To start/stop %cusName% with administrator privileges:  run sc start/stop taosd >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo - To start/stop taosAdapter with administrator privileges: run sc start/stop taosadapter >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo - To access %cusName% from your local machine, run %cusPrompt% >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo - Please manually remove C:\TDengine from your system PATH environment after you remove %cusName% software.  >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 exit /b
 
 :: TDengine taos install description
@@ -171,10 +171,10 @@ exit /b
 :: oem taosd install description
 :writeServerInstallFile
 echo %cusName% will be installed under C:\TDengine, users can modify configuration file C:\TDengine\cfg\taos.cfg, set the log file path or other parameters. > %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo • To start/stop %cusName% with administrator privileges:  sc start/stop taosd >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo • To start/stop taosAdapter with administrator privileges: sc start/stop taosadapter >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo • To access %cusName% from your local machine, run %cusPrompt% >> %internal_dir%\community\packaging\tools\windows_before_install.txt
-echo • Please manually remove C:\TDengine from your system PATH environment after you remove %cusName% software.  >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo - To start/stop %cusName% with administrator privileges:  sc start/stop taosd >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo - To start/stop taosAdapter with administrator privileges: sc start/stop taosadapter >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo - To access %cusName% from your local machine, run %cusPrompt% >> %internal_dir%\community\packaging\tools\windows_before_install.txt
+echo - Please manually remove C:\TDengine from your system PATH environment after you remove %cusName% software.  >> %internal_dir%\community\packaging\tools\windows_before_install.txt
 exit /b
 
 :: oem taos install description
