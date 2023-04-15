@@ -2089,7 +2089,7 @@ static int32_t doMergeFileBlockAndLastBlock(SLastBlockReader* pLastBlockReader, 
       pBlockScanInfo->lastKey = tsLastBlock;
       return TSDB_CODE_SUCCESS;
     } else {
-      int32_t code = tsdbRowMergerInit(&merge, NULL, &fRow, pReader->pSchema);
+      code = tsdbRowMergerInit(&merge, NULL, &fRow, pReader->pSchema);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -2113,7 +2113,7 @@ static int32_t doMergeFileBlockAndLastBlock(SLastBlockReader* pLastBlockReader, 
       }
     }
   } else {  // not merge block data
-    int32_t code = tsdbRowMergerInit(&merge, NULL, &fRow, pReader->pSchema);
+    code = tsdbRowMergerInit(&merge, NULL, &fRow, pReader->pSchema);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -2576,7 +2576,7 @@ int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pBloc
     SRow*      pTSRow = NULL;
     SRowMerger merge = {0};
 
-    int32_t code = tsdbRowMergerInit(&merge, NULL, &fRow, pReader->pSchema);
+    code = tsdbRowMergerInit(&merge, NULL, &fRow, pReader->pSchema);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -3243,8 +3243,8 @@ static int32_t readRowsCountFromFiles(STsdbReader* pReader) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   while (1) {
-    bool    hasNext = false;
-    int32_t code = filesetIteratorNext(&pReader->status.fileIter, pReader, &hasNext);
+    bool hasNext = false;
+    code = filesetIteratorNext(&pReader->status.fileIter, pReader, &hasNext);
     if (code) {
       return code;
     }
@@ -3516,8 +3516,8 @@ SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond, int8_
   int64_t startVer = (pCond->startVersion == -1) ? 0 : pCond->startVersion;
 
   int64_t endVer = 0;
-  if (pCond->endVersion ==
-      -1) {  // user not specified end version, set current maximum version of vnode as the endVersion
+  if (pCond->endVersion == -1) {
+    // user not specified end version, set current maximum version of vnode as the endVersion
     endVer = pVnode->state.applied;
   } else {
     endVer = (pCond->endVersion > pVnode->state.applied) ? pVnode->state.applied : pCond->endVersion;

@@ -1637,7 +1637,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.submit.msgStr != NULL) {
     if (pInfo->tqReader->msg2.msgStr == NULL) {
       SPackedData submit = pTaskInfo->streamInfo.submit;
-      if (tqReaderSetSubmitReq2(pInfo->tqReader, submit.msgStr, submit.msgLen, submit.ver) < 0) {
+      if (tqReaderSetSubmitMsg(pInfo->tqReader, submit.msgStr, submit.msgLen, submit.ver) < 0) {
         qError("submit msg messed up when initing stream submit block %p", submit.msgStr);
         return NULL;
       }
@@ -1646,7 +1646,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     blockDataCleanup(pInfo->pRes);
     SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
 
-    while (tqNextDataBlock2(pInfo->tqReader)) {
+    while (tqNextDataBlock(pInfo->tqReader)) {
       SSDataBlock block = {0};
 
       int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader, NULL);
@@ -1812,7 +1812,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
     /*resetTableScanInfo(pTSInfo, pWin);*/
     tsdbReaderClose(pTSInfo->base.dataReader);
-    qDebug("4");
 
     pTSInfo->base.dataReader = NULL;
     pInfo->pTableScanOp->status = OP_OPENED;
@@ -1895,7 +1894,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__NONE;
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
     tsdbReaderClose(pTSInfo->base.dataReader);
-    qDebug("5");
 
     pTSInfo->base.dataReader = NULL;
 
@@ -1922,6 +1920,7 @@ FETCH_NEXT_BLOCK:
     if (pBlock->info.parTbName[0]) {
       streamStatePutParName(pTaskInfo->streamInfo.pState, pBlock->info.id.groupId, pBlock->info.parTbName);
     }
+
     // TODO move into scan
     pBlock->info.calWin.skey = INT64_MIN;
     pBlock->info.calWin.ekey = INT64_MAX;
@@ -2064,7 +2063,7 @@ FETCH_NEXT_BLOCK:
 
         int32_t      current = pInfo->validBlockIndex++;
         SPackedData* pSubmit = taosArrayGet(pInfo->pBlockLists, current);
-        if (tqReaderSetSubmitReq2(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver) < 0) {
+        if (tqReaderSetSubmitMsg(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver) < 0) {
           qError("submit msg messed up when initing stream submit block %p, current %d, total %d", pSubmit, current,
                  totBlockNum);
           continue;
@@ -2073,7 +2072,7 @@ FETCH_NEXT_BLOCK:
 
       blockDataCleanup(pInfo->pRes);
 
-      while (tqNextDataBlock2(pInfo->tqReader)) {
+      while (tqNextDataBlock(pInfo->tqReader)) {
         SSDataBlock block = {0};
 
         int32_t code = tqRetrieveDataBlock2(&block, pInfo->tqReader, NULL);

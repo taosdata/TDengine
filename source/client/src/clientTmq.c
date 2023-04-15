@@ -210,6 +210,11 @@ typedef struct {
   tmq_t*               pTmq;
 } SMqCommitCbParam;
 
+typedef struct SSyncCommitInfo {
+  tsem_t  sem;
+  int32_t code;
+} SSyncCommitInfo;
+
 static int32_t doAskEp(tmq_t* tmq);
 static int32_t makeTopicVgroupKey(char* dst, const char* topicName, int32_t vg);
 static int32_t tmqCommitDone(SMqCommitCbParamSet* pParamSet);
@@ -521,11 +526,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, SMqClientVg* pVg, const char* pTopicN
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pMsgSendInfo->msgInfo = (SDataBuf){
-      .pData = buf,
-      .len = sizeof(SMsgHead) + len,
-      .handle = NULL,
-  };
+  pMsgSendInfo->msgInfo = (SDataBuf) { .pData = buf, .len = sizeof(SMsgHead) + len, .handle = NULL };
 
   pMsgSendInfo->requestId = generateRequestId();
   pMsgSendInfo->requestObjRefId = 0;
@@ -786,11 +787,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
     goto OVER;
   }
 
-  sendInfo->msgInfo = (SDataBuf){
-      .pData = pReq,
-      .len = tlen,
-      .handle = NULL,
-  };
+  sendInfo->msgInfo = (SDataBuf){ .pData = pReq, .len = tlen, .handle = NULL };
 
   sendInfo->requestId = generateRequestId();
   sendInfo->requestObjRefId = 0;
@@ -2126,13 +2123,8 @@ void tmq_commit_async(tmq_t* tmq, const TAOS_RES* pRes, tmq_commit_cb* cb, void*
   }
 }
 
-typedef struct SSyncCommitInfo {
-  tsem_t  sem;
-  int32_t code;
-} SSyncCommitInfo;
-
-static void commitCallBackFn(tmq_t* pTmq, int32_t code, void* param) {
-  SSyncCommitInfo* pInfo = (SSyncCommitInfo*)param;
+static void commitCallBackFn(tmq_t *pTmq, int32_t code, void* param) {
+  SSyncCommitInfo* pInfo = (SSyncCommitInfo*) param;
   pInfo->code = code;
   tsem_post(&pInfo->sem);
 }
@@ -2308,4 +2300,27 @@ void commitRspCountDown(SMqCommitCbParamSet* pParamSet, int64_t consumerId, cons
     tscDebug("consumer:0x%" PRIx64 " topic:%s vgId:%d commit-rsp received, remain:%d", consumerId, pTopic, vgId,
              waitingRspNum);
   }
+}
+
+SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4) {
+  SMqRspObj* pRspObj = (SMqRspObj*)res;
+  pRspObj->resIter++;
+
+  if (pRspObj->resIter < pRspObj->rsp.blockNum) {
+    SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(pRspObj->rsp.blockData, pRspObj->resIter);
+    if (pRspObj->rsp.withSchema) {
+      SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(pRspObj->rsp.blockSchema, pRspObj->resIter);
+      setResSchemaInfo(&pRspObj->resInfo, pSW->pSchema, pSW->nCols);
+      taosMemoryFreeClear(pRspObj->resInfo.row);
+      taosMemoryFreeClear(pRspObj->resInfo.pCol);
+      taosMemoryFreeClear(pRspObj->resInfo.length);
+      taosMemoryFreeClear(pRspObj->resInfo.convertBuf);
+      taosMemoryFreeClear(pRspObj->resInfo.convertJson);
+    }
+
+    setQueryResultFromRsp(&pRspObj->resInfo, pRetrieve, convertUcs4, false);
+    return &pRspObj->resInfo;
+  }
+
+  return NULL;
 }
