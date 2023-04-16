@@ -111,7 +111,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   pTq->pCheckInfo = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
 
-  tqInitialize(pVnode->pTq);
+  tqInitialize(pTq);
   return pTq;
 }
 
@@ -1281,6 +1281,13 @@ int32_t tqStartStreamTasks(STQ* pTq) {
 
   SStreamMeta* pMeta = pTq->pStreamMeta;
   taosWLockLatch(&pMeta->lock);
+  int32_t numOfTasks = taosHashGetSize(pTq->pStreamMeta->pTasks);
+  if (numOfTasks == 0) {
+    tqInfo("vgId:%d no stream tasks exists", vgId);
+    taosWUnLockLatch(&pTq->pStreamMeta->lock);
+    return 0;
+  }
+
   pMeta->walScan += 1;
 
   if (pMeta->walScan > 1) {
@@ -1296,8 +1303,6 @@ int32_t tqStartStreamTasks(STQ* pTq) {
     taosWUnLockLatch(&pTq->pStreamMeta->lock);
     return -1;
   }
-
-  int32_t numOfTasks = taosHashGetSize(pTq->pStreamMeta->pTasks);
 
   tqInfo("vgId:%d start wal scan stream tasks, tasks:%d", vgId, numOfTasks);
   initOffsetForAllRestoreTasks(pTq);
