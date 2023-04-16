@@ -2441,7 +2441,6 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     }
 
     pInfo->readHandle = *pHandle;
-    pInfo->tableUid = pScanPhyNode->uid;
     pTaskInfo->streamInfo.snapshotVer = pHandle->version;
     pInfo->pCreateTbRes = buildCreateTableBlock(&pInfo->tbnameCalSup, &pInfo->tagCalSup);
     blockDataEnsureCapacity(pInfo->pCreateTbRes, 8);

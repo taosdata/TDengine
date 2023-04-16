@@ -52,9 +52,6 @@ int tqStreamTasksScanWal(STQ* pTq) {
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
   tqInfo("vgId:%d scan wal for stream tasks completed, elapsed time:%.2f sec", vgId, el);
-
-  // restore wal scan flag
-//  atomic_store_8(&pTq->pStreamMeta->walScan, 0);
   return 0;
 }
 
@@ -99,8 +96,8 @@ int32_t streamTaskReplayWal(SStreamMeta* pStreamMeta, STqOffsetStore* pOffsetSto
       continue;
     }
 
-    if (pTask->status.taskStatus == TASK_STATUS__RECOVER_PREPARE ||
-        pTask->status.taskStatus == TASK_STATUS__WAIT_DOWNSTREAM) {
+    int8_t status = pTask->status.taskStatus;
+    if (status == TASK_STATUS__RECOVER_PREPARE || status == TASK_STATUS__WAIT_DOWNSTREAM) {
       tqDebug("s-task:%s skip push data, not ready for processing, status %d", pTask->id.idStr,
               pTask->status.taskStatus);
       continue;

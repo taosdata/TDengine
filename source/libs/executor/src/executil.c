@@ -36,6 +36,7 @@ struct STableListInfo {
   SArray*   pTableList;
   SHashObj* map;               // speedup acquire the tableQueryInfo by table uid
   uint64_t  suid;
+  int32_t   tableType;         // queried table type
 };
 
 typedef struct tagFilterAssist {
@@ -1026,14 +1027,17 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   size_t  numOfTables = 0;
 
   pListInfo->suid = pScanNode->suid;
+  pListInfo->tableType = pScanNode->tableType;
+
   SArray* pUidList = taosArrayInit(8, sizeof(uint64_t));
 
   SIdxFltStatus status = SFLT_NOT_INDEX;
   if (pScanNode->tableType != TSDB_SUPER_TABLE) {
+    pListInfo->suid = pScanNode->uid;
+
     if (metaIsTableExist(metaHandle, pScanNode->uid)) {
       taosArrayPush(pUidList, &pScanNode->uid);
     }
-
     code = doFilterByTagCond(pListInfo, pUidList, pTagCond, metaHandle, status);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
@@ -1817,6 +1821,11 @@ int32_t tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t st
     }
   }
   return -1;
+}
+
+void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psuid, int32_t* type) {
+  *psuid = pTableList->suid;
+  *type = pTableList->tableType;
 }
 
 uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {

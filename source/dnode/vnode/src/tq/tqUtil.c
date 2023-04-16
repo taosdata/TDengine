@@ -19,6 +19,12 @@
 
 static int32_t tqSendMetaPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqMetaRsp* pRsp);
 
+char* createStreamTaskIdStr(int64_t streamId, int32_t taskId) {
+  char buf[128] = {0};
+  sprintf(buf, "0x%" PRIx64 "-%d", streamId, taskId);
+  return taosStrdup(buf);
+}
+
 // stream_task:stream_id:task_id
 void createStreamTaskOffsetKey(char* dst, uint64_t streamId, uint32_t taskId) {
   int32_t n = 12;

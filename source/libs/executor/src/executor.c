@@ -14,6 +14,7 @@
  */
 
 #include "executor.h"
+#include <vnode.h>
 #include "executorimpl.h"
 #include "planner.h"
 #include "tdatablock.h"
@@ -327,6 +328,13 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
     return qa;
   }
 
+  STableScanInfo* pTableScanInfo = pScanInfo->pTableScanOp->info;
+
+  uint64_t suid = 0;
+  int32_t type = 0;
+  tableListGetSourceTableInfo(pTableScanInfo->base.pTableListInfo, &suid, &type);
+  int32_t numOfExisted = tableListGetSize(pTableScanInfo->base.pTableListInfo);
+
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
   metaReaderInit(&mr, pScanInfo->readHandle.meta, 0);
@@ -341,9 +349,21 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 
     tDecoderClear(&mr.coder);
 
-    // TODO handle ntb case
-    if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != pScanInfo->tableUid) {
+    if (mr.me.type == TSDB_SUPER_TABLE) {
       continue;
+    } else {
+      if (type == TSDB_SUPER_TABLE) {
+        // this new created child table does not belong to the scanned super table.
+        if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != suid) {
+          continue;
+        }
+      } else {  // ordinary table
+        // In case that the scanned target table is an ordinary table. When replay the WAL during restore the vnode, we
+        // should check all newly created ordinary table to make sure that this table isn't the destination table.
+        if (mr.me.uid != suid) {
+          continue;
+        }
+      }
     }
 
     if (pScanInfo->pTagCond != NULL) {
@@ -382,7 +402,7 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   SStreamScanInfo* pScanInfo = pInfo->info;
 
   if (isAdd) {  // add new table id
-    SArray* qa = filterUnqualifiedTables(pScanInfo, tableIdList, GET_TASKID(pTaskInfo));
+    SArray* qa = filterUnqualifiedTables(pScanInfo, tableIdList, id);
     int32_t numOfQualifiedTables = taosArrayGetSize(qa);
     qDebug("%d qualified child tables added into stream scanner, %s", numOfQualifiedTables, id);
     code = tqReaderAddTbUidList(pScanInfo->tqReader, qa);
