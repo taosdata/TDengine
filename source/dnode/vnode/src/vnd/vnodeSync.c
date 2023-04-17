@@ -129,8 +129,8 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
   return code;
 }
 
-void vnodeProposeCommitOnNeed(SVnode *pVnode) {
-  if (!vnodeShouldCommit(pVnode)) {
+void vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit) {
+  if (!vnodeShouldCommit(pVnode, atExit)) {
     return;
   }
 
@@ -145,18 +145,20 @@ void vnodeProposeCommitOnNeed(SVnode *pVnode) {
   rpcMsg.pCont = pHead;
   rpcMsg.info.noResp = 1;
 
+  vInfo("vgId:%d, propose vnode commit", pVnode->config.vgId);
   bool isWeak = false;
-  if (vnodeProposeMsg(pVnode, &rpcMsg, isWeak) < 0) {
-    vTrace("vgId:%d, failed to propose vnode commit since %s", pVnode->config.vgId, terrstr());
-    goto _out;
+
+  if (!atExit) {
+    if (vnodeProposeMsg(pVnode, &rpcMsg, isWeak) < 0) {
+      vTrace("vgId:%d, failed to propose vnode commit since %s", pVnode->config.vgId, terrstr());
+    }
+    rpcFreeCont(rpcMsg.pCont);
+    rpcMsg.pCont = NULL;
+  } else {
+    tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
 
-  vInfo("vgId:%d, proposed vnode commit", pVnode->config.vgId);
-
-_out:
   vnodeUpdCommitSched(pVnode);
-  rpcFreeCont(rpcMsg.pCont);
-  rpcMsg.pCont = NULL;
 }
 
 #if BATCH_ENABLE
@@ -236,7 +238,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
       continue;
     }
 
-    vnodeProposeCommitOnNeed(pVnode);
+    bool atExit = false;
+    vnodeProposeCommitOnNeed(pVnode, atExit);
 
     code = vnodePreProcessWriteMsg(pVnode, pMsg);
     if (code != 0) {
@@ -288,7 +291,8 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
       continue;
     }
 
-    vnodeProposeCommitOnNeed(pVnode);
+    bool atExit = false;
+    vnodeProposeCommitOnNeed(pVnode, atExit);
 
     code = vnodePreProcessWriteMsg(pVnode, pMsg);
     if (code != 0) {
@@ -549,6 +553,9 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
 
   pVnode->restored = true;
   vInfo("vgId:%d, sync restore finished", pVnode->config.vgId);
+
+  // start to restore all stream tasks
+  tqStartStreamTasks(pVnode->pTq);
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
