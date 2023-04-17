@@ -230,7 +230,7 @@ DLL_EXPORT int taos_get_tables_vgId(TAOS *taos, const char *db, const char *tabl
 
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char *tableNameList);
 
-DLL_EXPORT int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t *fp, void *param);
+DLL_EXPORT int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t *fp, void *param, int type);
 
 /*  --------------------------schemaless INTERFACE------------------------------- */
 

@@ -119,7 +119,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   return NULL;
 }
 
-int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t *fp, void *param) {
+int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t *fp, void *param, int type) {
   if (taos == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -130,10 +130,10 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t *fp, void *param) {
     return TSDB_CODE_TSC_DISCONNECTED;
   }
 
-  int32_t type = param ? *(int32_t *)param : 0;
   switch (type) {
     case TAOS_NOTIFY_PASSVER: {
       pObj->passInfo.fp = fp;
+      pObj->passInfo.param = param;
       break;
     }
     default:

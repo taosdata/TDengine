@@ -135,6 +135,7 @@ typedef struct SAppInfo {
 
 typedef struct {
   int32_t             ver;
+  void*               param;
   __taos_notify_fn_t* fp;
 } SPassInfo;
 
