@@ -74,7 +74,7 @@ int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
       continue;
     }
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
-    (void)syncLogReplReplicateOnce(pMgr, pNode);
+    (void)syncLogReplDoOnce(pMgr, pNode);
   }
   return 0;
 }

@@ -53,7 +53,7 @@ sql insert into tbc values ("2021-05-11 10:12:29",36,  37, NULL, -4005)
 sql insert into tbd values ("2021-05-11 10:12:29",NULL,NULL,NULL,NULL )
 
 run tsim/parser/last_cache_query.sim
-
+sql flush database $db
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
 system sh/exec.sh -n dnode1 -s start
