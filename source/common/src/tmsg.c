@@ -276,7 +276,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
       pReq->query = taosMemoryCalloc(1, sizeof(*pReq->query));
       if (NULL == pReq->query) return -1;
       if (tDecodeU32(pDecoder, &pReq->query->connId) < 0) return -1;
-      
+
       int32_t num = 0;
       if (tDecodeI32(pDecoder, &num) < 0) return -1;
       if (num > 0) {

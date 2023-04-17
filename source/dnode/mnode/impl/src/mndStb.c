@@ -2929,7 +2929,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     if (pDb != NULL && pStb->dbUid != pDb->uid) {
       sdbRelease(pSdb, pStb);
-    continue;
+      continue;
     }
 
     cols = 0;
