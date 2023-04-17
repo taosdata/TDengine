@@ -789,7 +789,10 @@ int tscBuildAndSendRequest(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
 
 int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SRetrieveTableMsg *pRetrieveMsg = (SRetrieveTableMsg *) pSql->cmd.payload;
-
+  if (NULL == pRetrieveMsg) {
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
+  
   SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
 
   pRetrieveMsg->free = htons(pQueryInfo->type);
