@@ -4236,7 +4236,7 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
 
 static void freeSchemaFunc(void* param) {
   void* p = *(void**)param;
-  taosMemoryFree(p);
+  taosMemoryFreeClear(p);
 }
 
 // ====================================== EXPOSED APIs ======================================
