@@ -486,7 +486,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
   SNodeListNode* listNode = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
   listNode->pNodeList = group;
   genTagFilterDigest((SNode *)listNode, &context);
-  taosMemoryFree(listNode);
+  nodesFree(listNode);
 
   if (lastTableList && (0 == memcmp(context.digest, lastMd5.digest, sizeof(lastMd5.digest)) && (taosArrayGetSize(pTableListInfo->pTableList) == taosArrayGetSize(lastTableList)))) {
     pTableListInfo->pTableList = taosArrayDup(lastTableList, NULL);
