@@ -445,6 +445,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
     code = streamStateGetKVByCur_rocksdb(pCur, pNewPos->pKey, (const void**)&pVal, &pVLen);
     if (code != TSDB_CODE_SUCCESS || pFileState->getTs(pNewPos->pKey) < pFileState->flushMark) {
       destroyRowBuffPos(pNewPos);
+      tdListPopTail(pFileState->usedBuffs);
       break;
     }
     memcpy(pNewPos->pRowBuff, pVal, pVLen);
