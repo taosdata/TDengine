@@ -448,7 +448,7 @@ static void genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
 }
 
 
-int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableListInfo* pTableListInfo) {
+int32_t getColInfoResultForGroupby(void* metaHandle, uint64_t suid, SNodeList* group, STableListInfo* pTableListInfo) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SArray*      pBlockList = NULL;
   SSDataBlock* pResBlock = NULL;
@@ -457,6 +457,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
   SArray*      pUidTagList = NULL;
   static T_MD5_CTX lastMd5 = {-1};
   static SArray*   lastTableList = NULL;
+  static SHashObj *pTableListHash = NULL;
 
   int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
   if (rows == 0) {
@@ -489,7 +490,8 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
   genTagFilterDigest((SNode *)listNode, &context);
   nodesFree(listNode);
 
-  if (lastTableList && (0 == memcmp(context.digest, lastMd5.digest, sizeof(lastMd5.digest)) && (taosArrayGetSize(pTableListInfo->pTableList) == taosArrayGetSize(lastTableList)))) {
+  SArray **pLastTableList = (SArray **)taosHashGet(pTableListHash, context.digest, sizeof(context.digest));
+  if (pLastTableList && *pLastTableList) {
     pTableListInfo->pTableList = taosArrayDup(lastTableList, NULL);
     goto end;
   } else {
@@ -622,9 +624,15 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
     info->groupId = calcGroupId(keyBuf, len);
   }
 
-  memcpy(&lastMd5.digest, &context.digest, sizeof(context.digest));
-  taosArrayDestroy(lastTableList);
+  if (NULL == pTableListHash) {
+    SHashObj *pHash = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (atomic_val_compare_exchange_ptr(&pTableListHash, NULL, pHash)) {
+      taosHashCleanup(pHash);
+    }
+  }
+  
   lastTableList = taosArrayDup(pTableListInfo->pTableList, NULL);
+  taosHashPut(pTableListHash, context.digest, sizeof(context.digest), &lastTableList, POINTER_BYTES);
 
   //  int64_t st2 = taosGetTimestampUs();
   //  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
@@ -2001,7 +2009,7 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   return TDB_CODE_SUCCESS;
 }
 
-int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group,
+int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode, SNodeList* group,
                                     bool groupSort) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -2022,7 +2030,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       pTableListInfo->numOfOuputGroups = 1;
     }
   } else {
-    code = getColInfoResultForGroupby(pHandle->meta, group, pTableListInfo);
+    code = getColInfoResultForGroupby(pHandle->meta, pScanNode->suid, group, pTableListInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -2071,7 +2079,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
     return TSDB_CODE_SUCCESS;
   }
 
-  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pGroupTags, groupSort);
+  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
