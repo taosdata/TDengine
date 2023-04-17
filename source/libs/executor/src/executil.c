@@ -454,7 +454,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
   SSDataBlock* pResBlock = NULL;
   void*        keyBuf = NULL;
   SArray*      groupData = NULL;
-  static T_MD5_CTX lastMd5 = {0};
+  static T_MD5_CTX lastMd5 = {-1};
   static SArray*   lastTableList = NULL;
 
   int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
@@ -483,14 +483,14 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
   }
 
   T_MD5_CTX context = {0};
-  if (lastTableList) {
-    SNodeListNode* listNode = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
-    listNode->pNodeList = group;
-    genTagFilterDigest((SNode *)listNode, &context);
-    if (0 == memcmp(context.digest, lastMd5.digest, sizeof(lastMd5.digest)) && (taosArrayGetSize(pTableListInfo->pTableList) == taosArrayGetSize(lastTableList))) {
-      pTableListInfo->pTableList = taosArrayDup(lastTableList, NULL);
-      goto end;
-    }
+  SNodeListNode* listNode = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  listNode->pNodeList = group;
+  genTagFilterDigest((SNode *)listNode, &context);
+  taosMemoryFree(listNode);
+
+  if (lastTableList && (0 == memcmp(context.digest, lastMd5.digest, sizeof(lastMd5.digest)) && (taosArrayGetSize(pTableListInfo->pTableList) == taosArrayGetSize(lastTableList)))) {
+    pTableListInfo->pTableList = taosArrayDup(lastTableList, NULL);
+    goto end;
   }
   
   SArray* pUidTagList = taosArrayInit(8, sizeof(STUidTagInfo));
