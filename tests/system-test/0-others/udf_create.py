@@ -148,7 +148,7 @@ class TDTestCase:
 
         for i in range(5):
             # create  scalar functions
-            tdSql.execute("create function udf1 as '%s' outputtype int bufSize 8;"%self.libudf1)
+            tdSql.execute("create function udf1 as '%s' outputtype int;"%self.libudf1)
 
             # create aggregate functions
 
@@ -173,7 +173,7 @@ class TDTestCase:
                 tdLog.info("drop two udf functions success ")
 
         # create  scalar functions
-        tdSql.execute("create function udf1 as '%s' outputtype int bufSize 8;"%self.libudf1)
+        tdSql.execute("create function udf1 as '%s' outputtype int;"%self.libudf1)
 
         # create aggregate functions
 
@@ -574,7 +574,7 @@ class TDTestCase:
 
         # create function without buffer
         tdSql.execute("create  aggregate function udf1 as '%s' outputtype int bufSize 8 "%self.libudf1)
-        tdSql.execute("create  function udf2 as '%s' outputtype double bufSize 8"%self.libudf2)
+        tdSql.execute("create  function udf2 as '%s' outputtype double "%self.libudf2)
         udf1_sqls ,udf2_sqls = self.try_query_sql()
 
         for scalar_sql in udf1_sqls:
@@ -582,7 +582,7 @@ class TDTestCase:
         for aggregate_sql in udf2_sqls:
             tdSql.error(aggregate_sql)
 
-        tdSql.execute(" create function db as '%s' outputtype int bufSize 8 "%self.libudf1)
+        tdSql.execute(" create function db as '%s' outputtype int "%self.libudf1)
         tdSql.execute(" create aggregate function test as '%s' outputtype int bufSize 8 "%self.libudf1)
         tdSql.error(" select db(c1) from stb1 ")
         tdSql.error(" select db(c1,c6), db(c6) from stb1 ")
@@ -631,9 +631,9 @@ class TDTestCase:
         tdLog.info(" create function name is not build_in functions ")
         tdSql.execute(" drop function udf1 ")
         tdSql.execute(" drop function udf2 ")
-        tdSql.error("create function max as '%s' outputtype int bufSize 8"%self.libudf1)
+        tdSql.error("create function max as '%s' outputtype int"%self.libudf1)
         tdSql.error("create aggregate function sum as '%s' outputtype double bufSize 8"%self.libudf2)
-        tdSql.error("create function max as '%s' outputtype int bufSize 8"%self.libudf1)
+        tdSql.error("create function max as '%s' outputtype int"%self.libudf1)
         tdSql.error("create aggregate function sum as '%s' outputtype double bufSize 8"%self.libudf2)
         tdSql.error("create aggregate function tbname as '%s' outputtype double bufSize 8"%self.libudf2)
         tdSql.error("create aggregate function function as '%s' outputtype double bufSize 8"%self.libudf2)

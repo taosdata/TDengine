@@ -712,9 +712,12 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
 
     if (ctg && (*ctg)) {
       *catalogHandle = *ctg;
+      CTG_STAT_HIT_INC(CTG_CI_CLUSTER, 1);
       qDebug("got catalog handle from cache, clusterId:0x%" PRIx64 ", CTG:%p", clusterId, *ctg);
       CTG_API_LEAVE(TSDB_CODE_SUCCESS);
     }
+
+    CTG_STAT_NHIT_INC(CTG_CI_CLUSTER, 1);
 
     clusterCtg = taosMemoryCalloc(1, sizeof(SCatalog));
     if (NULL == clusterCtg) {
@@ -759,7 +762,7 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
 
   *catalogHandle = clusterCtg;
 
-  CTG_CACHE_STAT_INC(numOfCluster, 1);
+  CTG_STAT_NUM_INC(CTG_CI_CLUSTER, 1);
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 
@@ -1292,6 +1295,7 @@ int32_t catalogGetQnodeList(SCatalog* pCtg, SRequestConnInfo* pConn, SArray* pQn
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
+  CTG_CACHE_NHIT_INC(CTG_CI_QNODE, 1);
   CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pConn, pQnodeList, NULL));
 
 _return:
@@ -1307,6 +1311,7 @@ int32_t catalogGetDnodeList(SCatalog* pCtg, SRequestConnInfo* pConn, SArray** pD
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
+  CTG_CACHE_NHIT_INC(CTG_CI_DNODE, 1);
   CTG_ERR_JRET(ctgGetDnodeListFromMnode(pCtg, pConn, pDnodeList, NULL));
 
 _return:
@@ -1379,6 +1384,8 @@ int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbF
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
+  CTG_CACHE_NHIT_INC(CTG_CI_DB_CFG, 1);
+
   CTG_API_LEAVE(ctgGetDBCfgFromMnode(pCtg, pConn, dbFName, pDbCfg, NULL));
 }
 
@@ -1431,6 +1438,8 @@ int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* f
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
+  CTG_CACHE_NHIT_INC(CTG_CI_UDF, 1);
+
   int32_t code = 0;
   CTG_ERR_JRET(ctgGetUdfInfoFromMnode(pCtg, pConn, funcName, pInfo, NULL));
 
@@ -1476,6 +1485,8 @@ int32_t catalogGetServerVersion(SCatalog* pCtg, SRequestConnInfo* pConn, char** 
   if (NULL == pCtg || NULL == pConn || NULL == pVersion) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
+
+  CTG_CACHE_NHIT_INC(CTG_CI_SVR_VER, 1);
 
   int32_t code = 0;
   CTG_ERR_JRET(ctgGetSvrVerFromMnode(pCtg, pConn, pVersion, NULL));

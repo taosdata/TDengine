@@ -10,6 +10,22 @@ For other historical version installers, please visit [here](https://www.taosdat
 
 import Release from "/components/ReleaseV3";
 
+## 2.4.11
+
+<Release type="tools" version="2.4.11" />
+
+## 2.4.10
+
+<Release type="tools" version="2.4.10" />
+
+## 2.4.9
+
+<Release type="tools" version="2.4.9" />
+
+## 2.4.8
+
+<Release type="tools" version="2.4.8" />
+
 ## 2.4.6
 
 <Release type="tools" version="2.4.6" />

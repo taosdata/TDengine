@@ -65,11 +65,11 @@ int32_t aggfn_init() {
 }
 
 // aggregate start function. The intermediate value or the state(@interBuf) is initialized in this function. The function name shall be concatenation of udf name and _start suffix
-// @param interbuf intermediate value to intialize
+// @param interbuf intermediate value to initialize
 // @return error number defined in taoserror.h
 int32_t aggfn_start(SUdfInterBuf* interBuf) {
     // initialize intermediate value in interBuf
-    return TSDB_CODE_SUCESS;
+    return TSDB_CODE_SUCCESS;
 }
 
 // aggregate reduce function. This function aggregate old state(@interbuf) and one data bock(inputBlock) and output a new state(@newInterBuf).
@@ -231,7 +231,7 @@ bit_add 实现多列的按位与功能。如果只有一列，返回这一列。
 
 </details>
 
-### 聚合函数示例 [l2norm](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/l2norm.c)
+### 聚合函数示例1 返回值为数值类型 [l2norm](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/l2norm.c)
 
 l2norm 实现了输入列的所有数据的二阶范数，即对每个数据先平方，再累加求和，最后开方。
 
@@ -240,6 +240,32 @@ l2norm 实现了输入列的所有数据的二阶范数，即对每个数据先�
 
 ```c
 {{#include tests/script/sh/l2norm.c}}
+```
+
+</details>
+
+### 聚合函数示例2 返回值为字符串类型 [max_vol](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/max_vol.c)
+
+max_vol 实现了从多个输入的电压列中找到最大电压，返回由设备ID + 最大电压所在（行，列）+ 最大电压值 组成的组合字符串值
+
+创建表：
+```bash
+create table battery(ts timestamp, vol1 float, vol2 float, vol3 float, deviceId varchar(16));
+```
+创建自定义函数：
+```bash
+create aggregate function max_vol as '/root/udf/libmaxvol.so' outputtype binary(64) bufsize 10240 language 'C'; 
+```
+使用自定义函数：
+```bash
+select max_vol(vol1,vol2,vol3,deviceid) from battery;
+```
+
+<details>
+<summary>max_vol.c</summary>
+
+```c
+{{#include tests/script/sh/max_vol.c}}
 ```
 
 </details>

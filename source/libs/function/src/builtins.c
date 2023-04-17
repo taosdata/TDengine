@@ -213,8 +213,9 @@ static int32_t addTimezoneParam(SNodeList* pList) {
   char      buf[6] = {0};
   time_t    t = taosTime(NULL);
   struct tm tmInfo;
-  taosLocalTime(&t, &tmInfo);
-  strftime(buf, sizeof(buf), "%z", &tmInfo);
+  if (taosLocalTime(&t, &tmInfo, buf) != NULL) {
+    strftime(buf, sizeof(buf), "%z", &tmInfo);
+  }
   int32_t len = (int32_t)strlen(buf);
 
   SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
@@ -1574,7 +1575,7 @@ static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
   uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, 0));
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_NUMERIC_TYPE(paraType) || QUERY_NODE_VALUE == nodeType) {
+  if ((!IS_NUMERIC_TYPE(paraType) && !IS_BOOLEAN_TYPE(paraType))|| QUERY_NODE_VALUE == nodeType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -3278,7 +3279,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_irowts",
     .type = FUNCTION_TYPE_IROWTS,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC|FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,

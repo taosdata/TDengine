@@ -2,7 +2,7 @@
 #
 # Generate tar.gz package for linux client in all os system
 set -e
-# set -x
+set -x
 
 curr_dir=$(pwd)
 compile_dir=$1

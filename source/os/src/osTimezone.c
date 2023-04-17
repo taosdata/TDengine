@@ -893,7 +893,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
    */
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
-  taosLocalTime(&tx1, &tm1);
+  taosLocalTime(&tx1, &tm1, NULL);
   daylight = tm1.tm_isdst;
 
   /*
@@ -921,7 +921,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
          */
         time_t    tx1 = taosGetTimestampSec();
         struct tm tm1;
-        taosLocalTime(&tx1, &tm1);
+        taosLocalTime(&tx1, &tm1, NULL);
         /* load time zone string from /etc/timezone */
         // FILE *f = fopen("/etc/timezone", "r");
         errno = 0;
@@ -1008,7 +1008,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
    */
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
-  taosLocalTime(&tx1, &tm1);
+  taosLocalTime(&tx1, &tm1, NULL);
 
   /*
    * format example:

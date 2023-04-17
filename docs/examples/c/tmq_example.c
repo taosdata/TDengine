@@ -70,7 +70,7 @@ static int32_t init_env() {
   taos_free_result(pRes);
 
   // create database
-  pRes = taos_query(pConn, "create database tmqdb");
+  pRes = taos_query(pConn, "create database tmqdb wal_retention_period 3600");
   if (taos_errno(pRes) != 0) {
     printf("error in create tmqdb, reason:%s\n", taos_errstr(pRes));
     return -1;

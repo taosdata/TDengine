@@ -925,8 +925,8 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->numOfVgroups = -1;
   pOptions->singleStable = -1;
   pOptions->schemaless = -1;
-  pOptions->walRetentionPeriod = -1;
-  pOptions->walRetentionSize = -1;
+  pOptions->walRetentionPeriod = -2;  // -1 is a valid value
+  pOptions->walRetentionSize = -2;    // -1 is a valid value
   pOptions->walRollPeriod = -1;
   pOptions->walSegmentSize = -1;
   pOptions->sstTrigger = -1;
@@ -935,7 +935,8 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   return (SNode*)pOptions;
 }
 
-SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, void* pVal) {
+static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, void* pVal,
+                                    bool alter) {
   CHECK_PARSER_STATUS(pCxt);
   SDatabaseOptions* pDbOptions = (SDatabaseOptions*)pOptions;
   switch (type) {
@@ -986,7 +987,9 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
       break;
     case DB_OPTION_REPLICA:
       pDbOptions->replica = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
-      updateWalOptionsDefault(pDbOptions);
+      if (!alter) {
+        updateWalOptionsDefault(pDbOptions);
+      }
       break;
     case DB_OPTION_STRICT:
       COPY_STRING_FORM_STR_TOKEN(pDbOptions->strictStr, (SToken*)pVal);
@@ -1033,16 +1036,20 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
   return pOptions;
 }
 
+SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, void* pVal) {
+  return setDatabaseOptionImpl(pCxt, pOptions, type, pVal, false);
+}
+
 SNode* setAlterDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption) {
   CHECK_PARSER_STATUS(pCxt);
   switch (pAlterOption->type) {
     case DB_OPTION_KEEP:
     case DB_OPTION_RETENTIONS:
-      return setDatabaseOption(pCxt, pOptions, pAlterOption->type, pAlterOption->pList);
+      return setDatabaseOptionImpl(pCxt, pOptions, pAlterOption->type, pAlterOption->pList, true);
     default:
       break;
   }
-  return setDatabaseOption(pCxt, pOptions, pAlterOption->type, &pAlterOption->val);
+  return setDatabaseOptionImpl(pCxt, pOptions, pAlterOption->type, &pAlterOption->val, true);
 }
 
 SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pDbName, SNode* pOptions) {
@@ -1781,21 +1788,40 @@ SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt) {
   return pStmt;
 }
 
+static int32_t convertUdfLanguageType(SAstCreateContext* pCxt, const SToken* pLanguageToken, int8_t* pLanguage) {
+  if (TK_NK_NIL == pLanguageToken->type || 0 == strncasecmp(pLanguageToken->z + 1, "c", pLanguageToken->n - 2)) {
+    *pLanguage = TSDB_FUNC_SCRIPT_BIN_LIB;
+  } else if (0 == strncasecmp(pLanguageToken->z + 1, "python", pLanguageToken->n - 2)) {
+    *pLanguage = TSDB_FUNC_SCRIPT_PYTHON;
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "udf programming language supports c and python");
+  }
+  return pCxt->errCode;
+}
+
 SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool aggFunc, const SToken* pFuncName,
-                                const SToken* pLibPath, SDataType dataType, int32_t bufSize) {
+                                const SToken* pLibPath, SDataType dataType, int32_t bufSize, const SToken* pLanguage,
+                                bool orReplace) {
   CHECK_PARSER_STATUS(pCxt);
   if (pLibPath->n <= 2) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     return NULL;
   }
+  int8_t language = 0;
+  if (TSDB_CODE_SUCCESS != convertUdfLanguageType(pCxt, pLanguage, &language)) {
+    return NULL;
+  }
   SCreateFunctionStmt* pStmt = (SCreateFunctionStmt*)nodesMakeNode(QUERY_NODE_CREATE_FUNCTION_STMT);
   CHECK_OUT_OF_MEM(pStmt);
+  pStmt->orReplace = orReplace;
   pStmt->ignoreExists = ignoreExists;
   COPY_STRING_FORM_ID_TOKEN(pStmt->funcName, pFuncName);
   pStmt->isAgg = aggFunc;
   COPY_STRING_FORM_STR_TOKEN(pStmt->libraryPath, pLibPath);
   pStmt->outputDt = dataType;
   pStmt->bufSize = bufSize;
+  pStmt->language = language;
   return (SNode*)pStmt;
 }
 
@@ -1924,6 +1950,13 @@ SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId) {
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   SBalanceVgroupStmt* pStmt = (SBalanceVgroupStmt*)nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return (SNode*)pStmt;
+}
+
+SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SBalanceVgroupLeaderStmt* pStmt = (SBalanceVgroupLeaderStmt*)nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_LEADER_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   return (SNode*)pStmt;
 }

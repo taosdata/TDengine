@@ -240,7 +240,7 @@ static void doRemoveExistedConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash, 
 }
 
 static void doAddNewConsumers(SMqRebOutputObj *pOutput, const SMqRebInputObj *pInput) {
-  int32_t numOfNewConsumers = taosArrayGetSize(pInput->pRebInfo->newConsumers);
+  int32_t     numOfNewConsumers = taosArrayGetSize(pInput->pRebInfo->newConsumers);
   const char *pSubKey = pOutput->pSub->key;
 
   for (int32_t i = 0; i < numOfNewConsumers; i++) {
@@ -256,9 +256,9 @@ static void doAddNewConsumers(SMqRebOutputObj *pOutput, const SMqRebInputObj *pI
   }
 }
 
-static void addUnassignedVgroups(SMqRebOutputObj *pOutput, SHashObj* pHash) {
+static void addUnassignedVgroups(SMqRebOutputObj *pOutput, SHashObj *pHash) {
   const char *pSubKey = pOutput->pSub->key;
-  int32_t numOfVgroups = taosArrayGetSize(pOutput->pSub->unassignedVgs);
+  int32_t     numOfVgroups = taosArrayGetSize(pOutput->pSub->unassignedVgs);
 
   for (int32_t i = 0; i < numOfVgroups; i++) {
     SMqVgEp       *pVgEp = *(SMqVgEp **)taosArrayPop(pOutput->pSub->unassignedVgs);
@@ -273,7 +273,8 @@ static void addUnassignedVgroups(SMqRebOutputObj *pOutput, SHashObj* pHash) {
   }
 }
 
-static void transferVgroupsForConsumers(SMqRebOutputObj *pOutput, SHashObj* pHash, int32_t minVgCnt, int32_t imbConsumerNum) {
+static void transferVgroupsForConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash, int32_t minVgCnt,
+                                        int32_t imbConsumerNum) {
   const char *pSubKey = pOutput->pSub->key;
 
   int32_t imbCnt = 0;
@@ -612,7 +613,7 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
     }
 
     // todo handle the malloc failure
-    SMqRebInputObj rebInput = {0};
+    SMqRebInputObj  rebInput = {0};
     SMqRebOutputObj rebOutput = {0};
     rebOutput.newConsumers = taosArrayInit(0, sizeof(int64_t));
     rebOutput.removedConsumers = taosArrayInit(0, sizeof(int64_t));

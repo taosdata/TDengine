@@ -12,12 +12,15 @@ DLL_EXPORT int32_t udf2_destroy() { return 0; }
 DLL_EXPORT int32_t udf2_start(SUdfInterBuf* buf) {
   *(int64_t*)(buf->buf) = 0;
   buf->bufLen = sizeof(double);
-  buf->numOfResult = 0;
+  buf->numOfResult = 1;
   return 0;
 }
 
 DLL_EXPORT int32_t udf2(SUdfDataBlock* block, SUdfInterBuf* interBuf, SUdfInterBuf* newInterBuf) {
-  double sumSquares = *(double*)interBuf->buf;
+  double sumSquares = 0;
+  if (interBuf->numOfResult == 1) {
+    sumSquares = *(double*)interBuf->buf;
+  }
   int8_t numNotNull = 0;
   for (int32_t i = 0; i < block->numOfCols; ++i) {
     SUdfColumn* col = block->udfCols[i];

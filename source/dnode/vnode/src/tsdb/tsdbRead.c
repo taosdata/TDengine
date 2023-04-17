@@ -831,6 +831,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
       // this block belongs to a table that is not queried.
       STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockIdx->uid, pReader->idStr);
       if (pScanInfo == NULL) {
+        tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
         return terrno;
       }
 
@@ -2320,7 +2321,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
 
         tsdbRowMergerAdd(&merge, pRow, pSchema);
       } else {
-        STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
+        // STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
         code = tsdbRowMergerInit(&merge, NULL, pRow, pSchema);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
@@ -2352,7 +2353,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
         tsdbRowMergerAdd(&merge, piRow, piSchema);
       } else {
         init = true;
-        STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(piRow), pReader, pBlockScanInfo->uid);
+        // STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(piRow), pReader, pBlockScanInfo->uid);
         code = tsdbRowMergerInit(&merge, pSchema, piRow, piSchema);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
@@ -5059,7 +5060,7 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
 }
 
 static int32_t getBucketIndex(int32_t startRow, int32_t bucketRange, int32_t numOfRows, int32_t numOfBucket) {
-  int32_t bucketIndex = (numOfRows - startRow) / bucketRange;
+  int32_t bucketIndex = ((numOfRows - startRow) / bucketRange);
   if (bucketIndex == numOfBucket) {
     bucketIndex -= 1;
   }
@@ -5072,7 +5073,9 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   pTableBlockInfo->totalRows = 0;
   pTableBlockInfo->numOfVgroups = 1;
 
-  const int32_t numOfBucket = 20.0;
+  const int32_t numOfBuckets = 20.0;
+
+  // find the start data block in file
 
   // find the start data block in file
   tsdbAcquireReader(pReader);
@@ -5085,7 +5088,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
   pTableBlockInfo->defMinRows = pc->minRows;
   pTableBlockInfo->defMaxRows = pc->maxRows;
 
-  int32_t bucketRange = ceil(((double)(pc->maxRows - pc->minRows)) / numOfBucket);
+  int32_t bucketRange = ceil(((double)(pc->maxRows - pc->minRows)) / numOfBuckets);
 
   pTableBlockInfo->numOfFiles += 1;
 
@@ -5123,7 +5126,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
 
       pTableBlockInfo->totalSize += pBlock->aSubBlock[0].szBlock;
 
-      int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows, numOfBucket);
+      int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows, numOfBuckets);
       pTableBlockInfo->blockRowsHisto[bucketIndex]++;
 
       hasNext = blockIteratorNext(&pStatus->blockIter, pReader->idStr);

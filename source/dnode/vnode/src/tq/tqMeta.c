@@ -269,7 +269,7 @@ int32_t tqMetaDeleteHandle(STQ* pTq, const char* key) {
 }
 
 int32_t tqMetaRestoreHandle(STQ* pTq) {
-  int code = 0;
+  int  code = 0;
   TBC* pCur = NULL;
   if (tdbTbcOpen(pTq->pExecStore, &pCur, NULL) < 0) {
     return -1;

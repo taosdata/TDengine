@@ -291,7 +291,9 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
   }
 
   struct tm ptm = {0};
-  taosLocalTime(&tt, &ptm);
+  if (taosLocalTime(&tt, &ptm, buf) == NULL) {
+    return buf;
+  }
   size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
 
   if (precision == TSDB_TIME_PRECISION_NANO) {
@@ -315,6 +317,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
   quotationStr[0] = '\"';
   quotationStr[1] = 0;
 
+  int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -345,11 +348,24 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       taosFprintfFile(pFile, "%" PRIu64, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      taosFprintfFile(pFile, "%e", GET_FLOAT_VAL(val));
+      if (tsEnableScience) {
+        taosFprintfFile(pFile, "%e", GET_FLOAT_VAL(val));
+      } else {
+        taosFprintfFile(pFile, "%.5f", GET_FLOAT_VAL(val));
+      }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.15e", 23, GET_DOUBLE_VAL(val));
-      taosFprintfFile(pFile, "%s", buf);
+      if (tsEnableScience) {
+        snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9e", 23, GET_DOUBLE_VAL(val));
+        taosFprintfFile(pFile, "%s", buf);
+      } else {
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
+        if (n > TMAX(25, length)) {
+          taosFprintfFile(pFile, "%*.15e", length, GET_DOUBLE_VAL(val));
+        } else {
+          taosFprintfFile(pFile, "%s", buf);
+        }
+      }
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
@@ -505,6 +521,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
     return;
   }
 
+  int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -535,11 +552,24 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       printf("%*" PRIu64, width, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      printf("%*e", width, GET_FLOAT_VAL(val));
+      if (tsEnableScience) {
+        printf("%*e", width, GET_FLOAT_VAL(val));
+      } else {
+        printf("%*.5f", width, GET_FLOAT_VAL(val));
+      }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%.9e", GET_DOUBLE_VAL(val));
-      printf("%*s", width, buf);
+      if (tsEnableScience) {
+        snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%.9e", GET_DOUBLE_VAL(val));
+        printf("%*s", width, buf);
+      } else {
+        n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
+        if (n > TMAX(25, width)) {
+            printf("%*.15e", width, GET_DOUBLE_VAL(val));
+        } else {
+            printf("%s", buf);
+        }
+      }
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:

@@ -67,7 +67,7 @@ sudo systemctl start telegraf
 
 使用 Web 浏览器访问 `IP:3000` 登录 Grafana 界面，系统初始用户名密码为 admin/admin。
 点击左侧齿轮图标并选择 `Plugins`，应该可以找到 TDengine data source 插件图标。
-点击左侧加号图标并选择 `Import`，从 `https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard-v0.1.0.json` 下载 dashboard JSON 文件后导入。之后可以看到如下界面的仪表盘：
+点击左侧加号图标并选择 `Import`，从 `https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard-v3.json` (适配 TDengine 3.0, 如果使用 TDengine 2.x， 请下载 `telegraf-dashboard-v2.json`) 下载 dashboard JSON 文件后导入。之后可以看到如下界面的仪表盘：
 
 ![TDengine Database IT-DevOps-Solutions-telegraf-dashboard](./IT-DevOps-Solutions-telegraf-dashboard.webp)
 

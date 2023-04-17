@@ -4,7 +4,7 @@ description: '快速设置 TDengine 环境并体验其高效写入和查询'
 ---
 
 import xiaot from './xiaot.webp'
-import xiaot_new from './xiaot-new.webp'
+import xiaot_new from './xiaot-03.webp'
 import channel from './channel.webp'
 import official_account from './official-account.webp'
 
@@ -18,17 +18,6 @@ import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 
 <DocCardList items={useCurrentSidebarCategory().items}/>
 ```
-
-## 学习 TDengine 知识地图
-
-TDengine 知识地图中涵盖了 TDengine 的各种知识点，揭示了各概念实体之间的调用关系和数据流向。学习和了解 TDengine 知识地图有助于你快速掌握 TDengine 的知识体系。
-
-<figure>
-<center>
-<a href="pathname:///img/tdengine-map.svg" target="_blank"><img src="/img/tdengine-map.svg" width="80%" /></a>
-<figcaption>图 1. TDengine 知识地图</figcaption>
-</center>
-</figure>
 
 ## 加入 TDengine 官方社区
 

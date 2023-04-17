@@ -645,6 +645,10 @@ static bool isSelectStmt(SNode* pCurrStmt) {
   return NULL != pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCurrStmt);
 }
 
+static bool isDeleteStmt(SNode* pCurrStmt) {
+  return NULL != pCurrStmt && QUERY_NODE_DELETE_STMT == nodeType(pCurrStmt);
+}
+
 static bool isSetOperator(SNode* pCurrStmt) {
   return NULL != pCurrStmt && QUERY_NODE_SET_OPERATOR == nodeType(pCurrStmt);
 }
@@ -669,6 +673,9 @@ static uint8_t getPrecisionFromCurrStmt(SNode* pCurrStmt, uint8_t defaultVal) {
   if (NULL != pCurrStmt && QUERY_NODE_CREATE_STREAM_STMT == nodeType(pCurrStmt)) {
     return getPrecisionFromCurrStmt(((SCreateStreamStmt*)pCurrStmt)->pQuery, defaultVal);
   }
+  if (isDeleteStmt(pCurrStmt)) {
+    return ((SDeleteStmt*)pCurrStmt)->precision;
+  }
   return defaultVal;
 }
 
@@ -686,6 +693,10 @@ static bool isSelectFunc(const SNode* pNode) {
 
 static bool isWindowPseudoColumnFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsWindowPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
+}
+
+static bool isInterpPseudoColumnFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsInterpPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
 }
 
 static bool isTimelineFunc(const SNode* pNode) {
@@ -1235,6 +1246,10 @@ static int32_t calcTypeBytes(SDataType dt) {
 }
 
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
+  if (pVal->translate) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SDataType dt = pVal->node.resType;
   dt.bytes = calcTypeBytes(dt);
   return translateValueImpl(pCxt, pVal, dt, false);
@@ -1295,7 +1310,7 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
 }
 
 static EDealRes haveVectorFunction(SNode* pNode, void* pContext) {
-  if (isAggFunc(pNode) || isIndefiniteRowsFunc(pNode) || isWindowPseudoColumnFunc(pNode)) {
+  if (isAggFunc(pNode) || isIndefiniteRowsFunc(pNode) || isWindowPseudoColumnFunc(pNode) || isInterpPseudoColumnFunc(pNode)) {
     *((bool*)pContext) = true;
     return DEAL_RES_END;
   }
@@ -1522,6 +1537,21 @@ static int32_t translateInterpFunc(STranslateContext* pCxt, SFunctionNode* pFunc
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateInterpPseudoColumnFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (!fmIsInterpPseudoColumnFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!isSelectStmt(pCxt->pCurrStmt)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "%s must be used in select statements", pFunc->functionName);
+  }
+  if (pCxt->currClause == SQL_CLAUSE_WHERE) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+                                   "%s is not allowed in where clause", pFunc->functionName);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (!fmIsTimelineFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -1536,6 +1566,21 @@ static int32_t translateTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFu
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s function requires valid time series input", pFunc->functionName);
   }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateDateTimeFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (!fmIsDateTimeFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!isSelectStmt(pCxt->pCurrStmt)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  pFunc->node.resType.precision = pSelect->precision;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1678,6 +1723,7 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
     pSelect->hasAggFuncs = pSelect->hasAggFuncs ? true : fmIsAggFunc(pFunc->funcId);
     pSelect->hasRepeatScanFuncs = pSelect->hasRepeatScanFuncs ? true : fmIsRepeatScanFunc(pFunc->funcId);
+
     if (fmIsIndefiniteRowsFunc(pFunc->funcId)) {
       pSelect->hasIndefiniteRowsFunc = true;
       pSelect->returnRows = fmGetFuncReturnRows(pFunc);
@@ -1692,7 +1738,8 @@ static void setFuncClassification(SNode* pCurrStmt, SFunctionNode* pFunc) {
     pSelect->hasUniqueFunc = pSelect->hasUniqueFunc ? true : (FUNCTION_TYPE_UNIQUE == pFunc->funcType);
     pSelect->hasTailFunc = pSelect->hasTailFunc ? true : (FUNCTION_TYPE_TAIL == pFunc->funcType);
     pSelect->hasInterpFunc = pSelect->hasInterpFunc ? true : (FUNCTION_TYPE_INTERP == pFunc->funcType);
-    pSelect->hasInterpPseudoColFunc = pSelect->hasInterpPseudoColFunc ? true : fmIsInterpPseudoColumnFunc(pFunc->funcId);
+    pSelect->hasInterpPseudoColFunc =
+        pSelect->hasInterpPseudoColFunc ? true : fmIsInterpPseudoColumnFunc(pFunc->funcId);
     pSelect->hasLastRowFunc = pSelect->hasLastRowFunc ? true : (FUNCTION_TYPE_LAST_ROW == pFunc->funcType);
     pSelect->hasLastFunc = pSelect->hasLastFunc ? true : (FUNCTION_TYPE_LAST == pFunc->funcType);
     pSelect->hasTimeLineFunc = pSelect->hasTimeLineFunc ? true : fmIsTimelineFunc(pFunc->funcId);
@@ -1820,7 +1867,13 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SFunctionNode* p
     code = translateInterpFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = translateInterpPseudoColumnFunc(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = translateTimelineFunc(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateDateTimeFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateBlockDistFunc(pCxt, pFunc);
@@ -3372,7 +3425,8 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE);
     }
     if (pSelect->hasInterpPseudoColFunc) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC, "Has Interp pseudo column(s) but missing interp function");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "Has Interp pseudo column(s) but missing interp function");
     }
     return TSDB_CODE_SUCCESS;
   }
@@ -3741,6 +3795,7 @@ static int32_t translateDelete(STranslateContext* pCxt, SDeleteStmt* pDelete) {
   pCxt->pCurrStmt = (SNode*)pDelete;
   int32_t code = translateFrom(pCxt, pDelete->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
+    pDelete->precision = ((STableNode*)pDelete->pFromTable)->precision;
     code = translateDeleteWhere(pCxt, pDelete);
   }
   pCxt->currClause = SQL_CLAUSE_SELECT;
@@ -4309,6 +4364,8 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->replications = pStmt->pOptions->replica;
   pReq->sstTrigger = pStmt->pOptions->sstTrigger;
   pReq->minRows = pStmt->pOptions->minRowsPerBlock;
+  pReq->walRetentionPeriod = pStmt->pOptions->walRetentionPeriod;
+  pReq->walRetentionSize = pStmt->pOptions->walRetentionSize;
   return;
 }
 
@@ -5141,26 +5198,32 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
   }
 
-  if (getNumOfTags(pTableMeta) == 1 && pStmt->alterType == TSDB_ALTER_TABLE_DROP_TAG) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "the only tag cannot be dropped");
-  }
-
   int32_t tagsLen = 0;
   for (int32_t i = 0; i < pTableMeta->tableInfo.numOfTags; ++i) {
     tagsLen += pTagsSchema[i].bytes;
   }
 
   if (TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType ||
-      TSDB_ALTER_TABLE_UPDATE_TAG_BYTES == pStmt->alterType) {
+      TSDB_ALTER_TABLE_UPDATE_TAG_BYTES == pStmt->alterType || TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType ||
+      TSDB_ALTER_TABLE_DROP_TAG == pStmt->alterType) {
     if (TSDB_SUPER_TABLE != pTableMeta->tableType) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Table is not super table");
     }
 
     const SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
     if (NULL == pSchema) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
-    } else if (!IS_VAR_DATA_TYPE(pSchema->type) || pSchema->type != pStmt->dataType.type ||
-               pSchema->bytes >= calcTypeBytes(pStmt->dataType)) {
+      return generateSyntaxErrMsg(
+          &pCxt->msgBuf,
+          (TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType || TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType)
+              ? TSDB_CODE_PAR_INVALID_COLUMN
+              : TSDB_CODE_PAR_INVALID_TAG_NAME,
+          pStmt->colName);
+    }
+
+    if ((TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType ||
+         TSDB_ALTER_TABLE_UPDATE_TAG_BYTES == pStmt->alterType) &&
+        (!IS_VAR_DATA_TYPE(pSchema->type) || pSchema->type != pStmt->dataType.type ||
+         pSchema->bytes >= calcTypeBytes(pStmt->dataType))) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_MODIFY_COL);
     }
 
@@ -5203,6 +5266,10 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
     if (tagsLen + calcTypeBytes(pStmt->dataType) > TSDB_MAX_TAGS_LEN) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN);
     }
+  }
+
+  if (getNumOfTags(pTableMeta) == 1 && pStmt->alterType == TSDB_ALTER_TABLE_DROP_TAG) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "the only tag cannot be dropped");
   }
 
   return TSDB_CODE_SUCCESS;
@@ -6452,12 +6519,25 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
   if (fmIsBuiltinFunc(pStmt->funcName)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FUNCTION_NAME);
   }
+
+  if (TSDB_DATA_TYPE_JSON == pStmt->outputDt.type || TSDB_DATA_TYPE_VARBINARY == pStmt->outputDt.type ||
+      TSDB_DATA_TYPE_DECIMAL == pStmt->outputDt.type || TSDB_DATA_TYPE_BLOB == pStmt->outputDt.type ||
+      TSDB_DATA_TYPE_MEDIUMBLOB == pStmt->outputDt.type) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Unsupported output type for UDF");
+  }
+
+  if (!pStmt->isAgg && pStmt->bufSize > 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "BUFSIZE can only be used with UDAF");
+  }
+
   SCreateFuncReq req = {0};
   strcpy(req.name, pStmt->funcName);
+  req.orReplace = pStmt->orReplace;
   req.igExists = pStmt->ignoreExists;
   req.funcType = pStmt->isAgg ? TSDB_FUNC_TYPE_AGGREGATE : TSDB_FUNC_TYPE_SCALAR;
-  req.scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
+  req.scriptType = pStmt->language;
   req.outputType = pStmt->outputDt.type;
+  pStmt->outputDt.bytes = calcTypeBytes(pStmt->outputDt);
   req.outputLen = pStmt->outputDt.bytes;
   req.bufSize = pStmt->bufSize;
   int32_t code = readFromFile(pStmt->libraryPath, &req.codeLen, &req.pCode);
@@ -6562,6 +6642,11 @@ static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
 static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStmt* pStmt) {
   SBalanceVgroupReq req = {0};
   return buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP, (FSerializeFunc)tSerializeSBalanceVgroupReq, &req);
+}
+
+static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgroupLeaderStmt* pStmt) {
+  SBalanceVgroupLeaderReq req = {0};
+  return buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP_LEADER, (FSerializeFunc)tSerializeSBalanceVgroupLeaderReq, &req);
 }
 
 static int32_t translateMergeVgroup(STranslateContext* pCxt, SMergeVgroupStmt* pStmt) {
@@ -6774,6 +6859,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       code = translateBalanceVgroup(pCxt, (SBalanceVgroupStmt*)pNode);
+      break;
+    case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
+      code = translateBalanceVgroupLeader(pCxt, (SBalanceVgroupLeaderStmt*)pNode);
       break;
     case QUERY_NODE_MERGE_VGROUP_STMT:
       code = translateMergeVgroup(pCxt, (SMergeVgroupStmt*)pNode);
@@ -8234,10 +8322,6 @@ static void destoryAlterTbReq(SVAlterTbReq* pReq) {
 
 static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                      SQuery* pQuery) {
-  if (getNumOfTags(pTableMeta) == 1 && pStmt->alterType == TSDB_ALTER_TABLE_DROP_TAG) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "the only tag cannot be dropped");
-  }
-
   if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
     return TSDB_CODE_SUCCESS;
   } else if (TSDB_CHILD_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType) {

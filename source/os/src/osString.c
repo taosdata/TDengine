@@ -94,21 +94,21 @@ int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
 
   return 0;
 
-#if 0
-  int32_t ucs4_max_len = bytes + 4;
-  char *f1_mbs = taosMemoryCalloc(bytes, 1);
-  char *f2_mbs = taosMemoryCalloc(bytes, 1);
-  if (taosUcs4ToMbs(f1_ucs4, ucs4_max_len, f1_mbs) < 0) {
-    return -1;
-  }
-  if (taosUcs4ToMbs(f2_ucs4, ucs4_max_len, f2_mbs) < 0) {
-    return -1;
-  }
-  int32_t ret = strcmp(f1_mbs, f2_mbs);
-  taosMemoryFree(f1_mbs);
-  taosMemoryFree(f2_mbs);
-  return ret;
-#endif
+//#if 0
+//  int32_t ucs4_max_len = bytes + 4;
+//  char *f1_mbs = taosMemoryCalloc(bytes, 1);
+//  char *f2_mbs = taosMemoryCalloc(bytes, 1);
+//  if (taosUcs4ToMbs(f1_ucs4, ucs4_max_len, f1_mbs) < 0) {
+//    return -1;
+//  }
+//  if (taosUcs4ToMbs(f2_ucs4, ucs4_max_len, f2_mbs) < 0) {
+//    return -1;
+//  }
+//  int32_t ret = strcmp(f1_mbs, f2_mbs);
+//  taosMemoryFree(f1_mbs);
+//  taosMemoryFree(f2_mbs);
+//  return ret;
+//#endif
 }
 
 TdUcs4 *tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4) {

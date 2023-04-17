@@ -10,7 +10,9 @@ import TabItem from "@theme/TabItem";
 `taospy` 是 TDengine 的官方 Python 连接器。`taospy` 提供了丰富的 API， 使得 Python 应用可以很方便地使用 TDengine。`taospy` 对 TDengine 的[原生接口](../cpp)和 [REST 接口](../rest-api)都进行了封装， 分别对应 `taospy` 包的 `taos` 模块 和 `taosrest` 模块。
 除了对原生接口和 REST 接口的封装，`taospy` 还提供了符合 [Python 数据访问规范(PEP 249)](https://peps.python.org/pep-0249/) 的编程接口。这使得 `taospy` 和很多第三方工具集成变得简单，比如 [SQLAlchemy](https://www.sqlalchemy.org/) 和 [pandas](https://pandas.pydata.org/)。
 
-使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 taosAdapter 提供的 REST 接口与服务端建立的连接的方式下文中称为“REST 连接”。
+`taos-ws-py` 是使用 WebSocket 方式连接 TDengine 的 Python 连接器包。可以选装。
+
+使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 taosAdapter 提供的 REST 接口或 WebSocket 接口与服务端建立的连接的方式下文中称为“REST 连接”或“WebSocket 连接”。
 
 Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-python)。
 
@@ -116,6 +118,15 @@ import taosrest
 ```
 
 </TabItem>
+<TabItem  value="ws" label="WebSocket 连接">
+
+对于 WebSocket 连接，只需验证是否能成功导入 `taosws` 模块。可在 Python 交互式 Shell 中输入：
+
+```python
+import taosws
+```
+
+</TabItem>
 </Tabs>
 
 :::tip
@@ -184,6 +195,27 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 ```
 
 </TabItem>
+<TabItem value="ws" label="WebSocket 连接" groupId="connect">
+
+对于 WebSocket 连接， 除了确保集群已经启动，还要确保 taosAdapter 组件已经启动。可以使用如下 curl 命令测试：
+
+```
+curl -i -N -d "show databases" -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Host: <FQDN>:<PORT>" -H "Origin: http://<FQDN>:<PORT>" http://<FQDN>:<PORT>/rest/sql
+```
+
+上面的 FQDN 为运行 taosAdapter 的机器的 FQDN， PORT 为 taosAdapter 配置的监听端口， 默认为 6041。
+如果测试成功，会输出服务器版本信息，比如：
+
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Date: Tue, 21 Mar 2023 09:29:17 GMT
+Transfer-Encoding: chunked
+
+{"status":"succ","head":["server_version()"],"column_meta":[["server_version()",8,8]],"data":[["2.6.0.27"]],"rows":1}
+```
+
+</TabItem>
 </Tabs>
 
 ### 使用连接器建立连接
@@ -228,6 +260,16 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 - `user`： TDengine 用户名。默认是 root。
 - `password`： TDengine 用户密码。默认是 taosdata。
 - `timeout`: HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。 一般无需配置。
+
+</TabItem>
+
+<TabItem value="websocket" label="WebSocket 连接">
+
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:connect}}
+```
+
+`connect()` 函数参数为连接 url，协议为 `taosws` 或 `ws`
 
 </TabItem>
 </Tabs>
@@ -298,8 +340,94 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 ```
 
 对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
+</TabItem>
+<TabItem value="websocket" label="WebSocket 连接">
 
+```python
+{{#include docs/examples/python/connect_websocket_examples.py:basic}}
+```
 
+- `conn.execute`: 用来执行任意 SQL 语句，返回影响的行数
+- `conn.query`: 用来执行查询 SQL 语句，返回查询结果
+
+</TabItem>
+</Tabs>
+
+### 与 req_id 一起使用
+
+使用可选的 req_id 参数，指定请求 id，可以用于 tracing
+
+<Tabs defaultValue="rest">
+<TabItem value="native" label="原生连接">
+
+##### TaosConnection 类的使用
+
+`TaosConnection` 类既包含对 PEP249 Connection 接口的实现(如：`cursor`方法和 `close` 方法)，也包含很多扩展功能（如： `execute`、 `query`、`schemaless_insert` 和 `subscribe` 方法。
+
+```python title="execute 方法"
+{{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:insert}}
+```
+
+```python title="query 方法"
+{{#include docs/examples/python/connection_usage_native_reference_with_req_id.py:query}}
+```
+
+:::tip
+查询结果只能获取一次。比如上面的示例中 `fetch_all()` 和 `fetch_all_into_dict()` 只能用一个。重复获取得到的结果为空列表。
+:::
+
+##### TaosResult 类的使用
+
+上面 `TaosConnection` 类的使用示例中，我们已经展示了两种获取查询结果的方法： `fetch_all()` 和 `fetch_all_into_dict()`。除此之外 `TaosResult` 还提供了按行迭代(`rows_iter`)或按数据块迭代(`blocks_iter`)结果集的方法。在查询数据量较大的场景，使用这两个方法会更高效。
+
+```python title="blocks_iter 方法"
+{{#include docs/examples/python/result_set_with_req_id_examples.py}}
+```
+##### TaosCursor 类的使用
+
+`TaosConnection` 类和 `TaosResult` 类已经实现了原生接口的所有功能。如果你对 PEP249 规范中的接口比较熟悉也可以使用 `TaosCursor` 类提供的方法。
+
+```python title="TaosCursor 的使用"
+{{#include docs/examples/python/cursor_usage_native_reference_with_req_id.py}}
+```
+
+:::note
+TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能跨线程共享使用，否则会导致返回结果出现错误。
+
+:::
+
+</TabItem>
+<TabItem value="rest" label="REST 连接">
+
+#####  TaosRestCursor 类的使用
+
+`TaosRestCursor` 类是对 PEP249 Cursor 接口的实现。
+
+```python title="TaosRestCursor 的使用"
+{{#include docs/examples/python/connect_rest_with_req_id_examples.py:basic}}
+```
+- `cursor.execute` ： 用来执行任意 SQL 语句。
+- `cursor.rowcount`： 对于写入操作返回写入成功记录数。对于查询操作，返回结果集行数。
+- `cursor.description` ： 返回字段的描述信息。关于描述信息的具体格式请参考[TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html)。
+
+##### RestClient 类的使用
+
+`RestClient` 类是对于 [REST API](../rest-api) 的直接封装。它只包含一个 `sql()` 方法用于执行任意 SQL 语句， 并返回执行结果。
+
+```python title="RestClient 的使用"
+{{#include docs/examples/python/rest_client_with_req_id_example.py}}
+```
+
+对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
+</TabItem>
+<TabItem value="websocket" label="WebSocket 连接">
+
+```python
+{{#include docs/examples/python/connect_websocket_with_req_id_examples.py:basic}}
+```
+
+- `conn.execute`: 用来执行任意 SQL 语句，返回影响的行数
+- `conn.query`: 用来执行查询 SQL 语句，返回查询结果
 
 </TabItem>
 </Tabs>
@@ -321,6 +449,13 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 ```
 
 </TabItem>
+<TabItem value="websocket" label="WebSocket 连接">
+
+```python
+{{#include docs/examples/python/conn_websocket_pandas.py}}
+```
+
+</TabItem>
 </Tabs>
 
 ### 数据订阅
@@ -335,15 +470,17 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 ```python
 {{#include docs/examples/python/tmq_example.py}}
 ```
+
 </TabItem>
 
-<TabItem value="rest" label="websocket 连接">
+<TabItem value="websocket" label="WebSocket 连接">
 
 除了原生的连接方式，Python 连接器还支持通过 websocket 订阅 TMQ 数据。
 
 ```python
 {{#include docs/examples/python/tmq_websocket_example.py}}
 ```
+
 </TabItem>
 </Tabs>
 
@@ -366,7 +503,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 ```python
 {{#include docs/examples/python/handle_exception.py}}
 ```
-
+``
 ### 关于纳秒 (nanosecond)
 
 由于目前 Python 对 nanosecond 支持的不完善(见下面的链接)，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，Python 连接器可能会修改相关接口。
