@@ -289,9 +289,9 @@ static void transferVgroupsForConsumers(SMqRebOutputObj *pOutput, SHashObj *pHas
     SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
     int32_t        consumerVgNum = taosArrayGetSize(pConsumerEp->vgs);
 
-    // all old consumers still existing are touched
-    // TODO optimize: touch only consumer whose vgs changed
-    taosArrayPush(pOutput->touchedConsumers, &pConsumerEp->consumerId);
+    // all old consumers still existing need to be modified
+    // TODO optimize: modify only consumer whose vgs changed
+    taosArrayPush(pOutput->modifyConsumers, &pConsumerEp->consumerId);
     if (consumerVgNum > minVgCnt) {
       if (imbCnt < imbConsumerNum) {
         if (consumerVgNum == minVgCnt + 1) {
@@ -409,7 +409,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
     if (taosArrayGetSize(pConsumerEp->vgs) == minVgCnt) {
       pRemovedIter = taosHashIterate(pHash, pRemovedIter);
       if (pRemovedIter == NULL) {
-        mError("sub:%s removed iter is null", pSubKey);
+        mInfo("sub:%s removed iter is null", pSubKey);
         break;
       }
 
@@ -496,9 +496,9 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
 
   // 3. commit log: consumer to update status and epoch
   // 3.1 set touched consumer
-  int32_t consumerNum = taosArrayGetSize(pOutput->touchedConsumers);
+  int32_t consumerNum = taosArrayGetSize(pOutput->modifyConsumers);
   for (int32_t i = 0; i < consumerNum; i++) {
-    int64_t         consumerId = *(int64_t *)taosArrayGet(pOutput->touchedConsumers, i);
+    int64_t         consumerId = *(int64_t *)taosArrayGet(pOutput->modifyConsumers, i);
     SMqConsumerObj *pConsumerOld = mndAcquireConsumer(pMnode, consumerId);
     SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(pConsumerOld->consumerId, pConsumerOld->cgroup);
     pConsumerNew->updateType = CONSUMER_UPDATE__TOUCH;
@@ -578,15 +578,15 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
   SMnode            *pMnode = pMsg->info.node;
   SMqDoRebalanceMsg *pReq = pMsg->pCont;
   void              *pIter = NULL;
-  bool               rebalanceOnce = false;  // to ensure only once.
+//  bool               rebalanceOnce = false;  // to ensure only once.
 
   mInfo("mq re-balance start, total required re-balanced trans:%d", taosHashGetSize(pReq->rebSubHash));
 
   // here we only handle one topic rebalance requirement to ensure the atomic execution of this transaction.
   while (1) {
-    if (rebalanceOnce) {
-      break;
-    }
+//    if (rebalanceOnce) {
+//      break;
+//    }
 
     pIter = taosHashIterate(pReq->rebSubHash, pIter);
     if (pIter == NULL) {
@@ -598,7 +598,7 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
     SMqRebOutputObj rebOutput = {0};
     rebOutput.newConsumers = taosArrayInit(0, sizeof(int64_t));
     rebOutput.removedConsumers = taosArrayInit(0, sizeof(int64_t));
-    rebOutput.touchedConsumers = taosArrayInit(0, sizeof(int64_t));
+    rebOutput.modifyConsumers = taosArrayInit(0, sizeof(int64_t));
     rebOutput.rebVgs = taosArrayInit(0, sizeof(SMqRebOutputVg));
 
     SMqRebInfo      *pRebInfo = (SMqRebInfo *)pIter;
@@ -656,13 +656,14 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
     }
 
     taosArrayDestroy(rebOutput.newConsumers);
-    taosArrayDestroy(rebOutput.touchedConsumers);
+    taosArrayDestroy(rebOutput.modifyConsumers);
     taosArrayDestroy(rebOutput.removedConsumers);
     taosArrayDestroy(rebOutput.rebVgs);
     tDeleteSubscribeObj(rebOutput.pSub);
     taosMemoryFree(rebOutput.pSub);
 
-    rebalanceOnce = true;
+//    taosSsleep(100);
+//    rebalanceOnce = true;
   }
 
   // reset flag
