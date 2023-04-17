@@ -330,10 +330,9 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 
   STableScanInfo* pTableScanInfo = pScanInfo->pTableScanOp->info;
 
-  uint64_t suid = 0;
+  uint64_t uid = 0;
   int32_t type = 0;
-  tableListGetSourceTableInfo(pTableScanInfo->base.pTableListInfo, &suid, &type);
-  int32_t numOfExisted = tableListGetSize(pTableScanInfo->base.pTableListInfo);
+  tableListGetSourceTableInfo(pTableScanInfo->base.pTableListInfo, &uid, &type);
 
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
@@ -354,13 +353,13 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
     } else {
       if (type == TSDB_SUPER_TABLE) {
         // this new created child table does not belong to the scanned super table.
-        if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != suid) {
+        if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != uid) {
           continue;
         }
       } else {  // ordinary table
         // In case that the scanned target table is an ordinary table. When replay the WAL during restore the vnode, we
         // should check all newly created ordinary table to make sure that this table isn't the destination table.
-        if (mr.me.uid != suid) {
+        if (mr.me.uid != uid) {
           continue;
         }
       }

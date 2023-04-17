@@ -690,7 +690,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     }
 
     uint32_t status = 0;
-    int32_t  code = loadDataBlock(pOperator, &pTableScanInfo->base, pBlock, &status);
+    code = loadDataBlock(pOperator, &pTableScanInfo->base, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }

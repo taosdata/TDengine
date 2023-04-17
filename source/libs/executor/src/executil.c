@@ -35,8 +35,11 @@ struct STableListInfo {
   int32_t*  groupOffset;       // keep the offset value for each group in the tableList
   SArray*   pTableList;
   SHashObj* map;               // speedup acquire the tableQueryInfo by table uid
-  uint64_t  suid;
-  int32_t   tableType;         // queried table type
+  union {
+    uint64_t suid;
+    uint64_t uid;
+  };                           // this maybe the super table or ordinary table
+  int32_t tableType;           // queried table type
 };
 
 typedef struct tagFilterAssist {
@@ -1033,8 +1036,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
   SIdxFltStatus status = SFLT_NOT_INDEX;
   if (pScanNode->tableType != TSDB_SUPER_TABLE) {
-    pListInfo->suid = pScanNode->uid;
-
+    pListInfo->uid = pScanNode->uid;
     if (metaIsTableExist(metaHandle, pScanNode->uid)) {
       taosArrayPush(pUidList, &pScanNode->uid);
     }
@@ -1798,7 +1800,13 @@ uint64_t tableListGetSize(const STableListInfo* pTableList) {
   return taosArrayGetSize(pTableList->pTableList);
 }
 
-uint64_t tableListGetSuid(const STableListInfo* pTableList) { return pTableList->suid; }
+uint64_t tableListGetSuid(const STableListInfo* pTableList) {
+  if (pTableList->tableType == TSDB_SUPER_TABLE) {
+    return pTableList->suid;
+  } else {  // query normal table, no suid exists.
+    return 0;
+  }
+}
 
 STableKeyInfo* tableListGetInfo(const STableListInfo* pTableList, int32_t index) {
   if (taosArrayGetSize(pTableList->pTableList) == 0) {
