@@ -330,9 +330,10 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 
   STableScanInfo* pTableScanInfo = pScanInfo->pTableScanOp->info;
 
+  uint64_t suid = 0;
   uint64_t uid = 0;
   int32_t type = 0;
-  tableListGetSourceTableInfo(pTableScanInfo->base.pTableListInfo, &uid, &type);
+  tableListGetSourceTableInfo(pTableScanInfo->base.pTableListInfo, &suid, &uid, &type);
 
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
@@ -353,7 +354,7 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
     } else {
       if (type == TSDB_SUPER_TABLE) {
         // this new created child table does not belong to the scanned super table.
-        if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != uid) {
+        if (mr.me.type != TSDB_CHILD_TABLE || mr.me.ctbEntry.suid != suid) {
           continue;
         }
       } else {  // ordinary table

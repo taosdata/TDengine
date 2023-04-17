@@ -27,19 +27,21 @@
 #include "executorimpl.h"
 #include "tcompression.h"
 
+typedef struct STableListIdInfo {
+  uint64_t suid;
+  uint64_t uid;
+  int32_t  tableType;
+} STableListIdInfo;
+
 // If the numOfOutputGroups is 1, the data blocks that belongs to different groups will be provided randomly
 // The numOfOutputGroups is specified by physical plan. and will not be affect by numOfGroups
 struct STableListInfo {
-  bool      oneTableForEachGroup;
-  int32_t   numOfOuputGroups;  // the data block will be generated one by one
-  int32_t*  groupOffset;       // keep the offset value for each group in the tableList
-  SArray*   pTableList;
-  SHashObj* map;               // speedup acquire the tableQueryInfo by table uid
-  union {
-    uint64_t suid;
-    uint64_t uid;
-  };                           // this maybe the super table or ordinary table
-  int32_t tableType;           // queried table type
+  bool             oneTableForEachGroup;
+  int32_t          numOfOuputGroups;  // the data block will be generated one by one
+  int32_t*         groupOffset;       // keep the offset value for each group in the tableList
+  SArray*          pTableList;
+  SHashObj*        map;     // speedup acquire the tableQueryInfo by table uid
+  STableListIdInfo idInfo;  // this maybe the super table or ordinary table
 };
 
 typedef struct tagFilterAssist {
@@ -474,7 +476,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
   }
 
   //  int64_t stt = taosGetTimestampUs();
-  code = metaGetTableTags(metaHandle, pTableListInfo->suid, pUidTagList);
+  code = metaGetTableTags(metaHandle, pTableListInfo->idInfo.suid, pUidTagList);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -957,7 +959,7 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
 
   FilterCondType condType = checkTagCond(pTagCond);
 
-  int32_t filter = optimizeTbnameInCond(metaHandle, pListInfo->suid, pUidTagList, pTagCond);
+  int32_t filter = optimizeTbnameInCond(metaHandle, pListInfo->idInfo.suid, pUidTagList, pTagCond);
   if (filter == 0) {  // tbname in filter is activated, do nothing and return
     taosArrayClear(pUidList);
 
@@ -970,12 +972,12 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
     terrno = 0;
   } else {
     if ((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) {
-      code = metaGetTableTagsByUids(metaHandle, pListInfo->suid, pUidTagList);
+      code = metaGetTableTagsByUids(metaHandle, pListInfo->idInfo.suid, pUidTagList);
     } else {
-      code = metaGetTableTags(metaHandle, pListInfo->suid, pUidTagList);
+      code = metaGetTableTags(metaHandle, pListInfo->idInfo.suid, pUidTagList);
     }
     if (code != TSDB_CODE_SUCCESS) {
-      qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code), pListInfo->suid);
+      qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code), pListInfo->idInfo.suid);
       terrno = code;
       goto end;
     }
@@ -1029,14 +1031,14 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   int32_t code = TSDB_CODE_SUCCESS;
   size_t  numOfTables = 0;
 
-  pListInfo->suid = pScanNode->suid;
-  pListInfo->tableType = pScanNode->tableType;
+  pListInfo->idInfo.suid = pScanNode->suid;
+  pListInfo->idInfo.tableType = pScanNode->tableType;
 
   SArray* pUidList = taosArrayInit(8, sizeof(uint64_t));
 
   SIdxFltStatus status = SFLT_NOT_INDEX;
   if (pScanNode->tableType != TSDB_SUPER_TABLE) {
-    pListInfo->uid = pScanNode->uid;
+    pListInfo->idInfo.uid = pScanNode->uid;
     if (metaIsTableExist(metaHandle, pScanNode->uid)) {
       taosArrayPush(pUidList, &pScanNode->uid);
     }
@@ -1801,11 +1803,7 @@ uint64_t tableListGetSize(const STableListInfo* pTableList) {
 }
 
 uint64_t tableListGetSuid(const STableListInfo* pTableList) {
-  if (pTableList->tableType == TSDB_SUPER_TABLE) {
-    return pTableList->suid;
-  } else {  // query normal table, no suid exists.
-    return 0;
-  }
+  return pTableList->idInfo.suid;
 }
 
 STableKeyInfo* tableListGetInfo(const STableListInfo* pTableList, int32_t index) {
@@ -1831,9 +1829,10 @@ int32_t tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t st
   return -1;
 }
 
-void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psuid, int32_t* type) {
-  *psuid = pTableList->suid;
-  *type = pTableList->tableType;
+void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psuid, uint64_t* uid, int32_t* type) {
+  *psuid = pTableList->idInfo.suid;
+  *uid = pTableList->idInfo.uid;
+  *type = pTableList->idInfo.tableType;
 }
 
 uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
