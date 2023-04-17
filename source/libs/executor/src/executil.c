@@ -492,6 +492,8 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
   if (lastTableList && (0 == memcmp(context.digest, lastMd5.digest, sizeof(lastMd5.digest)) && (taosArrayGetSize(pTableListInfo->pTableList) == taosArrayGetSize(lastTableList)))) {
     pTableListInfo->pTableList = taosArrayDup(lastTableList, NULL);
     goto end;
+  } else {
+    qError("group not hit, last:%p, lastSize:%d, newSize:%d", lastTableList, (int32_t)taosArrayGetSize(lastTableList), (int32_t)taosArrayGetSize(pTableListInfo->pTableList));
   }
   
   pUidTagList = taosArrayInit(8, sizeof(STUidTagInfo));
@@ -620,11 +622,9 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
     info->groupId = calcGroupId(keyBuf, len);
   }
 
-  if (memcmp(context.digest, lastMd5.digest, sizeof(lastMd5.digest))) {
-    memcpy(&lastMd5.digest, &context.digest, sizeof(context.digest));
-    taosArrayDestroy(lastTableList);
-    lastTableList = taosArrayDup(pTableListInfo->pTableList, NULL);
-  }
+  memcpy(&lastMd5.digest, &context.digest, sizeof(context.digest));
+  taosArrayDestroy(lastTableList);
+  lastTableList = taosArrayDup(pTableListInfo->pTableList, NULL);
 
   //  int64_t st2 = taosGetTimestampUs();
   //  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
