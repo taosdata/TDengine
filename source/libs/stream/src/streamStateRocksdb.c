@@ -1040,6 +1040,9 @@ int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, cons
     if (pKtmp->opNum != pCur->number) {
       return -1;
     }
+    size_t vlen = 0;
+    if (pVal != NULL) *pVal = (char*)rocksdb_iter_value(pCur->iter, &vlen);
+    if (pVLen != NULL) *pVLen = vlen;
     *pKey = pKtmp->key;
     return 0;
   }
