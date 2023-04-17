@@ -353,3 +353,7 @@ void* streamQueueNextItem(SStreamQueue* queue) {
     return streamQueueCurItem(queue);
   }
 }
+
+void streamTaskInputFail(SStreamTask* pTask) {
+  atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
+}
