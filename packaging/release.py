@@ -116,7 +116,7 @@ def buildAndInstallOPC():
 
 def buildAndInstallPI():
     if current_os != 'Windows':
-        print("PI  is not compatible with the Windows operating system.")
+        print(" PI Connector is only compatible with the Windows operating system.")
         sys.exit()
     print("buildAndInstallPI start...")
     pi_connector_path = os.path.join(taosx_dir, "plugins", "pi", "src", "TDPIConnector")

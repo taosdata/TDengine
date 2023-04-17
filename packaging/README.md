@@ -21,5 +21,5 @@ release.py脚本为taosx打包服务，当前仅支持windows打包
     - taosX and PI:   taosX-v{version}-pi-installer.exe
 - 均安装在默认安装目录(C:\TDengine)下
     - taosX   C:\TDengine\bin
-    - pi      C:\xplugins\pi
-    - opc     C:\xplugins\opc
+    - pi      C:\TDengine\xplugins\pi
+    - opc     C:\TDengine\xplugins\opc
