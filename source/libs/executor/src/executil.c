@@ -430,12 +430,32 @@ void freeItem(void* p) {
   }
 }
 
+
+static void genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
+  if (pTagCond == NULL) {
+    return;
+  }
+
+  char*   payload = NULL;
+  int32_t len = 0;
+  nodesNodeToMsg(pTagCond, &payload, &len);
+
+  tMD5Init(pContext);
+  tMD5Update(pContext, (uint8_t*)payload, (uint32_t)len);
+  tMD5Final(pContext);
+
+  taosMemoryFree(payload);
+}
+
+
 int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableListInfo* pTableListInfo) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SArray*      pBlockList = NULL;
   SSDataBlock* pResBlock = NULL;
   void*        keyBuf = NULL;
   SArray*      groupData = NULL;
+  static T_MD5_CTX lastMd5 = {0};
+  static SArray*   lastTableList = NULL;
 
   int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
   if (rows == 0) {
@@ -462,6 +482,17 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
     REPLACE_NODE(pNode);
   }
 
+  T_MD5_CTX context = {0};
+  if (lastTableList) {
+    SNodeListNode* listNode = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
+    listNode->pNodeList = group;
+    genTagFilterDigest((SNode *)listNode, &context);
+    if (0 == memcmp(context.digest, lastMd5.digest, sizeof(lastMd5.digest)) && (taosArrayGetSize(pTableListInfo->pTableList) == taosArrayGetSize(lastTableList))) {
+      pTableListInfo->pTableList = taosArrayDup(lastTableList, NULL);
+      goto end;
+    }
+  }
+  
   SArray* pUidTagList = taosArrayInit(8, sizeof(STUidTagInfo));
   for (int32_t i = 0; i < rows; ++i) {
     STableKeyInfo* pkeyInfo = taosArrayGet(pTableListInfo->pTableList, i);
@@ -586,6 +617,12 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
 
     int32_t len = (int32_t)(pStart - (char*)keyBuf);
     info->groupId = calcGroupId(keyBuf, len);
+  }
+
+  if (memcmp(context.digest, lastMd5.digest, sizeof(lastMd5.digest))) {
+    memcpy(&lastMd5.digest, &context.digest, sizeof(context.digest));
+    taosArrayDestroy(lastTableList);
+    lastTableList = taosArrayDup(pTableListInfo->pTableList, NULL);
   }
 
   //  int64_t st2 = taosGetTimestampUs();
@@ -792,21 +829,6 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, SArray* pExistedUidLis
   return -1;
 }
 
-static void genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
-  if (pTagCond == NULL) {
-    return;
-  }
-
-  char*   payload = NULL;
-  int32_t len = 0;
-  nodesNodeToMsg(pTagCond, &payload, &len);
-
-  tMD5Init(pContext);
-  tMD5Update(pContext, (uint8_t*)payload, (uint32_t)len);
-  tMD5Final(pContext);
-
-  taosMemoryFree(payload);
-}
 
 static SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList,
                                                void* metaHandle) {
