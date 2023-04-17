@@ -121,7 +121,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
 
   char statePath[1024];
   if (!specPath) {
-    sprintf(statePath, "%s/%d", path, pTask->taskId);
+    sprintf(statePath, "%s/%d", path, pTask->id.taskId);
   } else {
     memset(statePath, 0, 1024);
     tstrncpy(statePath, path, 1024);
@@ -193,6 +193,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
   }
 
   pState->pTdbState->pOwner = pTask;
+  pState->checkPointId = 0;
 
   return pState;
 
@@ -243,6 +244,7 @@ int32_t streamStateCommit(SStreamState* pState) {
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
+  pState->checkPointId++;
   return 0;
 }
 

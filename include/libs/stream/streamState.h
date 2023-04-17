@@ -42,6 +42,7 @@ typedef struct STdbState {
 typedef struct {
   STdbState* pTdbState;
   int32_t    number;
+  int64_t    checkPointId;
 } SStreamState;
 
 SStreamState* streamStateOpen(char* path, struct SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages);
