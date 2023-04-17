@@ -1891,56 +1891,17 @@ int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTra
   return 0;
 }
 
+extern int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq);
+
 int32_t mndProcessVgroupBalanceLeaderMsg(SRpcMsg *pReq) {
-  int32_t code = -1;
-  
-  SBalanceVgroupLeaderReq req = {0};
-  if (tDeserializeSBalanceVgroupLeaderReq(pReq->pCont, pReq->contLen, &req) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return code;
-  }
-
-  SMnode *pMnode = pReq->info.node;
-  SSdb *pSdb = pMnode->pSdb;
-
-  int32_t total = sdbGetSize(pSdb, SDB_VGROUP);
-  if(total <= 0) {
-    terrno = TSDB_CODE_TSC_INVALID_OPERATION;
-    return code;
-  }
-  
-  STrans *pTrans = NULL;
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "bal-vg-leader");
-  if (pTrans == NULL) goto _OVER;
-  mndTransSetSerial(pTrans);
-  mInfo("trans:%d, used to balance vgroup leader", pTrans->id);
-
-  void *pIter = NULL;
-  int32_t count = 0;
-  while (1) {
-    SVgObj *pVgroup = NULL;
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-
-    if(mndAddVgroupBalanceToTrans(pMnode, pVgroup, pTrans) == 0){
-      count++;
-    }
-
-    sdbRelease(pSdb, pVgroup);
-  }
-  
-  if(count == 0) {
-    terrno = TSDB_CODE_TSC_INVALID_OPERATION;
-    goto _OVER;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-  code = 0;
-
-_OVER:
-  mndTransDrop(pTrans);
-  return code;
+  return mndProcessVgroupBalanceLeaderMsgImp(pReq);
 }
+
+#ifndef TD_ENTERPRISE
+int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
+  return 0;
+}
+#endif
 
 static int32_t mndCheckDnodeMemory(SMnode *pMnode, SDbObj *pOldDb, SDbObj *pNewDb, SVgObj *pOldVgroup,
                                    SVgObj *pNewVgroup, SArray *pArray) {

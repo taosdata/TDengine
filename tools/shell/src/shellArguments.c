@@ -243,8 +243,8 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
   SShellArgs *pArgs = &shell.args;
 
   for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 || strcmp(argv[i], "-?") == 0 ||
-        strcmp(argv[i], "/?") == 0) {
+    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0
+            || strcmp(argv[i], "-?") == 0 || strcmp(argv[i], "/?") == 0) {
       shellParseSingleOpt('?', NULL);
       return 0;
     }
@@ -260,8 +260,10 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       return -1;
     }
 
-    if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u' || key[1] == 'a' || key[1] == 'c' || key[1] == 's' ||
-        key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N'
+    if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u'
+            || key[1] == 'a' || key[1] == 'c' || key[1] == 's'
+            || key[1] == 'f' || key[1] == 'd' || key[1] == 'w'
+            || key[1] == 'n' || key[1] == 'l' || key[1] == 'N'
 #ifdef WEBSOCKET
         || key[1] == 'E' || key[1] == 'T'
 #endif
@@ -277,10 +279,12 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       }
       shellParseSingleOpt(key[1], val);
       i++;
-    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || key[1] == 't' ||
-               key[1] == 'V' || key[1] == '?' || key[1] == 1
+    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C'
+                || key[1] == 'r' || key[1] == 'k'
+                || key[1] == 't' || key[1] == 'V'
+                || key[1] == '?' || key[1] == 1
 #ifdef WEBSOCKET
-               || key[1] == 'R'
+            ||key[1] == 'R'
 #endif
     ) {
       shellParseSingleOpt(key[1], NULL);
