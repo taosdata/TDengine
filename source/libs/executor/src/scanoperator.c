@@ -33,7 +33,7 @@
 
 int32_t scanDebug = 0;
 
-#define MULTI_READER_MAX_TABLE_NUM 5000
+#define MULTI_READER_MAX_TABLE_NUM   5000
 #define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
 #define SWITCH_ORDER(n)              (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
 
@@ -330,7 +330,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64 ", uid:%" PRIu64,
            GET_TASKID(pTaskInfo), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows,
            pBlockInfo->id.uid);
-    doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, 1);
+    doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
     pCost->skipBlocks += 1;
     tsdbReleaseDataBlock(pTableScanInfo->dataReader);
     return TSDB_CODE_SUCCESS;
@@ -341,7 +341,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     if (success) {  // failed to load the block sma data, data block statistics does not exist, load data block instead
       qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64, GET_TASKID(pTaskInfo),
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
-      doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, 1);
+      doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
       tsdbReleaseDataBlock(pTableScanInfo->dataReader);
       return TSDB_CODE_SUCCESS;
     } else {
@@ -708,9 +708,9 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     // todo refactor
     /*pTableScanInfo->lastStatus.uid = pBlock->info.id.uid;*/
     /*pTableScanInfo->lastStatus.ts = pBlock->info.window.ekey;*/
-//    pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__SNAPSHOT_DATA;
-//    pTaskInfo->streamInfo.lastStatus.uid = pBlock->info.id.uid;
-//    pTaskInfo->streamInfo.lastStatus.ts = pBlock->info.window.ekey;
+    //    pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__SNAPSHOT_DATA;
+    //    pTaskInfo->streamInfo.lastStatus.uid = pBlock->info.id.uid;
+    //    pTaskInfo->streamInfo.lastStatus.ts = pBlock->info.window.ekey;
 
     return pBlock;
   }
@@ -900,7 +900,7 @@ static void destroyTableScanOperatorInfo(void* param) {
 
 SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                            STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo) {
-  int32_t code = 0;
+  int32_t         code = 0;
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -912,7 +912,8 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   SDataBlockDescNode* pDescNode = pScanNode->node.pOutputDataBlockDesc;
 
   int32_t numOfCols = 0;
-  code = extractColMatchInfo(pScanNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID, &pInfo->base.matchInfo);
+  code =
+      extractColMatchInfo(pScanNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID, &pInfo->base.matchInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -1668,8 +1669,9 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
-      qDebug("queue scan tsdb return %"PRId64" rows min:%" PRId64 " max:%" PRId64 " wal curVersion:%" PRId64, pResult->info.rows,
-             pResult->info.window.skey, pResult->info.window.ekey, pInfo->tqReader->pWalReader->curVersion);
+      qDebug("queue scan tsdb return %" PRId64 " rows min:%" PRId64 " max:%" PRId64 " wal curVersion:%" PRId64,
+             pResult->info.rows, pResult->info.window.skey, pResult->info.window.ekey,
+             pInfo->tqReader->pWalReader->curVersion);
       tqOffsetResetToData(&pTaskInfo->streamInfo.currentOffset, pResult->info.id.uid, pResult->info.window.ekey);
       return pResult;
     }
@@ -1687,17 +1689,21 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     while (1) {
       SFetchRet ret = {0};
       tqNextBlock(pInfo->tqReader, &ret);
-      tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pInfo->tqReader->pWalReader->curVersion - 1); //curVersion move to next, so currentOffset = curVersion - 1
+      tqOffsetResetToLog(
+          &pTaskInfo->streamInfo.currentOffset,
+          pInfo->tqReader->pWalReader->curVersion - 1);  // curVersion move to next, so currentOffset = curVersion - 1
 
       if (ret.fetchType == FETCH_TYPE__DATA) {
-        qDebug("doQueueScan get data from log %"PRId64" rows, version:%" PRId64, ret.data.info.rows, pTaskInfo->streamInfo.currentOffset.version);
+        qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, ret.data.info.rows,
+               pTaskInfo->streamInfo.currentOffset.version);
         blockDataCleanup(pInfo->pRes);
         setBlockIntoRes(pInfo, &ret.data, true);
         if (pInfo->pRes->info.rows > 0) {
-          qDebug("doQueueScan get data from log %"PRId64" rows, return, version:%" PRId64, pInfo->pRes->info.rows, pTaskInfo->streamInfo.currentOffset.version);
+          qDebug("doQueueScan get data from log %" PRId64 " rows, return, version:%" PRId64, pInfo->pRes->info.rows,
+                 pTaskInfo->streamInfo.currentOffset.version);
           return pInfo->pRes;
         }
-      }else if(ret.fetchType == FETCH_TYPE__NONE){
+      } else if (ret.fetchType == FETCH_TYPE__NONE) {
         qDebug("doQueueScan get none from log, return, version:%" PRId64, pTaskInfo->streamInfo.currentOffset.version);
         return NULL;
       }
@@ -2176,7 +2182,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
     }
 
     SMetaTableInfo mtInfo = getUidfromSnapShot(pInfo->sContext);
-    STqOffsetVal offset = {0};
+    STqOffsetVal   offset = {0};
     if (mtInfo.uid == 0) {  // read snapshot done, change to get data from wal
       qDebug("tmqsnap read snapshot done, change to get data from wal");
       tqOffsetResetToLog(&offset, pInfo->sContext->snapVersion);
