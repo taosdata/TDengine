@@ -628,6 +628,16 @@ The charset that takes effect is UTF-8.
 | Default Value | 1                                                                                                                                                                       |
 | Note          | The core file is generated under root directory `systemctl start taosd`/`launchctl start com.tdengine.taosd` is used to start, or under the working directory if `taosd` is started directly on Linux/macOS Shell. |
 
+### enableScience
+
+| Attribute     | Description                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Applicable    |  Only taos-CLI client                                                                                                                                                      |
+| Meaning       | Whether to show float and double with the scientific notation                                                |
+| Value Range   | 0: false, 1: true                                                                                                                                                       |
+| Default Value | 0                                                                                                                                                                       |
+
+
 ### udf
 
 | Attribute     | Description                            |

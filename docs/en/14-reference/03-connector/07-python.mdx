@@ -459,6 +459,56 @@ For a more detailed description of the `sql()` method, please refer to [RestClie
 </TabItem>
 </Tabs>
 
+### Schemaless Insert
+
+Connector support schemaless insert.
+
+<Tabs defaultValue="list">
+<TabItem value="list" label="List Insert">
+
+Simple insert
+
+```python
+{{#include docs/examples/python/schemaless_insert.py}}
+```
+
+Insert with ttl argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_ttl.py}}
+```
+
+Insert with req_id argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_req_id.py}}
+```
+
+</TabItem>
+
+<TabItem value="raw" label="Raw Insert">
+
+Simple insert
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw.py}}
+```
+
+Insert with ttl argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_ttl.py}}
+```
+
+Insert with req_id argument
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
+```
+
+</TabItem>
+</Tabs>
+
 ### Other sample programs
 
 | Example program links | Example program content |
