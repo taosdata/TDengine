@@ -399,7 +399,6 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
       return TSDB_CODE_FAILED;
     }
     sscanf(val, "%" PRId64 "", &maxCheckPointId);
-    taosMemoryFree(val);
   }
   for (int64_t i = maxCheckPointId; i > 0; i--) {
     char    buf[128] = {0};
@@ -412,7 +411,6 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     }
     TSKEY ts;
     sscanf(val, "%" PRId64 "", &ts);
-    taosMemoryFree(val);
     if (ts < mark) {
       // statekey winkey.ts < mark
       forceRemoveCheckpoint(pFileState, i);
@@ -449,7 +447,6 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
       break;
     }
     memcpy(pNewPos->pRowBuff, pVal, pVLen);
-    taosMemoryFree(pVal);
     code = tSimpleHashPut(pFileState->rowBuffMap, pNewPos->pKey, pFileState->rowSize, &pNewPos, POINTER_BYTES);
     if (code != TSDB_CODE_SUCCESS) {
       destroyRowBuffPos(pNewPos);
@@ -457,6 +454,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
     }
     code = streamStateCurPrev_rocksdb(pFileState->pFileStore, pCur);
   }
+  streamStateFreeCur(pCur);
 
   return TSDB_CODE_SUCCESS;
 }
