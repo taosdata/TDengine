@@ -1154,6 +1154,7 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec) {
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   } else {
+    tDeleteStreamDispatchReq(&req);
     return -1;
   }
 }
@@ -1196,6 +1197,7 @@ int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg) {
     tDeleteStreamRetrieveReq(&req);
     return 0;
   } else {
+    tDeleteStreamRetrieveReq(&req);
     return -1;
   }
 }
