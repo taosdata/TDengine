@@ -9,30 +9,8 @@ import time
 import argparse
 import mkpkg
 import multiprocessing
+import sys
 
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(lineno)d - %(message)s ',
-                    level=logging.INFO,filename='draftlog.txt')
-# console = logging.StreamHandler()
-# console.setLevel(logging.INFO)
-# formatter = logging.Formatter('%(levelname)-8s %(message)s')
-# console.setFormatter(formatter)
-# logging.getLogger('').addHandler(console)
-
-def setLogLevel(level):
-    if level == 'debug':
-        logging.getLogger().setLevel(logging.DEBUG)
-    else:
-        logging.getLogger().setLevel(logging.INFO)
-
-def getGitHead(gitPath, repo):
-    os.chdir(gitPath)
-    logging.info(f"gitPath:{gitPath}")
-    code, output = subprocess.getstatusoutput('git rev-parse --verify HEAD')
-    if code == 0:
-        return output
-    else:
-        raise Exception(
-            "get repo {0} git info failed, reason {1}".format(repo, output))
 
 cpuCount = multiprocessing.cpu_count()
 # TDinternal/enterprise/packaging
@@ -52,8 +30,35 @@ compileDir = os.path.join(communityDir,'debug')
 
 buildTime = time.strftime("%Y-%m-%d %H:%M", time.localtime())
 
-internalGitInfo = getGitHead(topDir, "TDinternal")
-communityGitInfo = getGitHead(communityDir, "Community(TDengine)")
+# internalGitInfo = getGitHead(topDir, "TDinternal")
+# communityGitInfo = getGitHead(communityDir, "Community(TDengine)")
+
+logfile = f'release_py_{buildTime}.txt'
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(lineno)d - %(message)s ',
+                    level=logging.INFO,filename=logfile)
+
+# console = logging.StreamHandler()
+# console.setLevel(logging.INFO)
+# formatter = logging.Formatter('%(levelname)-8s %(message)s')
+# console.setFormatter(formatter)
+# logging.getLogger('').addHandler(console)
+
+def setLogLevel(level):
+    if level == 'debug':
+        logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        logging.getLogger().setLevel(logging.INFO)
+
+
+def getGitHead(gitPath, repo):
+    os.chdir(gitPath)
+    logging.info(f"gitPath:{gitPath}")
+    code, output = subprocess.getstatusoutput('git rev-parse --verify HEAD')
+    if code == 0:
+        return output
+    else:
+        raise Exception(
+            "get repo {0} git info failed, reason {1}".format(repo, output))
 
 
 def readOption(filecontent,option):
@@ -307,11 +312,13 @@ def generateCmakeCommand(buildOptions,verMode)->str:
     
     # 7
     command += f" -DVERDATE='{buildTime}' "
-    
-    # 8
+
+    # 8   
+    communityGitInfo = getGitHead(communityDir, "Community(TDengine)")
     command += f" -DGITINFO={communityGitInfo} "
     
     # 9
+    internalGitInfo = getGitHead(topDir, "TDinternal")
     command += f" -DGITINFOI={internalGitInfo} "
     
     # 10
@@ -520,25 +527,8 @@ def doActions(parePareOptions):
             values = action[key]
             logging.info('action name:{0} command:{1} will be executed'.format(key,' '.join(values)))
             executeCommand(' '.join(values))
-            
-if __name__ == "__main__":
-    parse = argparse.ArgumentParser(description='manual to this script')
-    parse.add_argument('--file', type=str, default='enterprise.yaml',help='Config file name,default enterprise.yaml',required=True)
-    parse.add_argument('--version', type=str, default=None,help='Release version',required=False)
-    parse.add_argument('--vermode', type=str, default='cluster',help='Release version mode,edge or cluster',required=False)
-    parse.add_argument('--loglevel', type=str, default='info',required=False)
 
-    args = parse.parse_args()
-    
-    setLogLevel(args.loglevel)
-    
-    logging.info(
-        f"base on config yaml {args.file} release for version:{args.version}")
-
-    with open(os.path.join(scriptDir, args.file), 'r') as file:
-        yamlfile = yaml.safe_load(file)
-    options = readOption(yamlfile,'parameters')
-
+def doRelease(options,verMode):
     targets = []
     if options['TDenginePackages']['tar.gz']['enable'] == True:
         targets.append('tar.gz')
@@ -581,6 +571,58 @@ if __name__ == "__main__":
         logging.info("post acotions done.")
     else:
         logging.info("No post acotions.")
+
+def readConfigFile(configFile):
+    with open(os.path.join(scriptDir, configFile), 'r') as file:
+        yamlfile = yaml.safe_load(file)
+        
+    if yamlfile.get('name') is not None:
+        logging.info(f"{yamlfile['name']}")
+    else:
+        logging.warning(f"{configFile} name is empty")
+
+
+    if yamlfile.get('type') is not None:
+        if yamlfile['type'] == 'workflow':
+            logging.info("This is a workflow config file")
+            if yamlfile.get('tasks') is not None:
+                for task in yamlfile['tasks']:
+                    logging.info(f"task:{task}")
+                    readConfigFile(task['task'])
+            else:
+                logging.warning("tasks are empty")
+                return ;
+        elif yamlfile['type'] == 'feature':
+            logging.info( f"config file:{configFile} verMode:{yamlfile['parameters']['verMode']}")
+            doRelease(yamlfile['parameters'],yamlfile['parameters']['verMode'])
+        else:
+            logging.error(f"unsupport config {configFile}'s type {yamlfile['type']}")
+            sys.exit(1)
+    else:
+        logging.error("config file type is empty")
+        sys.exit(1)
+    
+        
+if __name__ == "__main__":
+    parse = argparse.ArgumentParser(description='manual to this script')
+    parse.add_argument('--file', type=str, default='enterprise.yaml',help='Config file name,default enterprise.yaml',required=True)
+    parse.add_argument('--version', type=str, default=None,help='Release version, if empty will use version number define in config file.',required=False)
+    parse.add_argument('--vermode', type=str, default='enterprise',help='Release version mode enterprise or community, default enterprise.',required=False)
+    parse.add_argument('--loglevel', type=str, default='info',help = "default info, extra support debug",required=False)
+
+    args = parse.parse_args()
+    
+    setLogLevel(args.loglevel)
+    
+    logging.info(
+        f"base on config yaml {args.file}")
+
+    # with open(os.path.join(scriptDir, args.file), 'r') as file:
+    #     yamlfile = yaml.safe_load(file)
+    # options = readOption(yamlfile,'parameters')
+    readConfigFile(args.file)
+
+    
     
     
 

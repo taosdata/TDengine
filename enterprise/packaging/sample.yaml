@@ -1,4 +1,6 @@
-name: Release 3.0.3.0 enterprise
+name: Release TDengine enterprise
+type: feature
+logfile: new_release/log/
 
 
 prepareActions:
