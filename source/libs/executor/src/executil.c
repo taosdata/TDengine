@@ -454,6 +454,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
   SSDataBlock* pResBlock = NULL;
   void*        keyBuf = NULL;
   SArray*      groupData = NULL;
+  SArray*      pUidTagList = NULL;
   static T_MD5_CTX lastMd5 = {-1};
   static SArray*   lastTableList = NULL;
 
@@ -493,7 +494,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
     goto end;
   }
   
-  SArray* pUidTagList = taosArrayInit(8, sizeof(STUidTagInfo));
+  pUidTagList = taosArrayInit(8, sizeof(STUidTagInfo));
   for (int32_t i = 0; i < rows; ++i) {
     STableKeyInfo* pkeyInfo = taosArrayGet(pTableListInfo->pTableList, i);
     STUidTagInfo   info = {.uid = pkeyInfo->uid};
