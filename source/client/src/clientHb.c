@@ -523,7 +523,12 @@ static int32_t hbGetUserBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
     return TSDB_CODE_APP_ERROR;
   }
 
-  int32_t           code = 0;
+  int32_t code = 0;
+
+  if (!pTscObj->passInfo.fp) {
+    goto _return;
+  }
+
   SUserPassVersion *user = taosMemoryMalloc(sizeof(SUserPassVersion));
   if (!user) {
     code = TSDB_CODE_OUT_OF_MEMORY;

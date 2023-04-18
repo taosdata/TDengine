@@ -1455,6 +1455,7 @@ int32_t mndValidateUserPassInfo(SMnode *pMnode, SUserPassVersion *pUsers, int32_
 
     if (!batchRsp.pArray && !(batchRsp.pArray = taosArrayInit(numOfUses, sizeof(SGetUserPassRsp)))) {
       code = TSDB_CODE_OUT_OF_MEMORY;
+      mndReleaseUser(pMnode, pUser);
       goto _OVER;
     }
 

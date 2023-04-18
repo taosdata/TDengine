@@ -121,13 +121,15 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
 
 int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t *fp, void *param, int type) {
   if (taos == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
 
   STscObj *pObj = acquireTscObj(*(int64_t *)taos);
   if (NULL == pObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
     tscError("invalid parameter for %s", __func__);
-    return TSDB_CODE_TSC_DISCONNECTED;
+    return terrno;
   }
 
   switch (type) {
@@ -136,8 +138,11 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t *fp, void *param, int type
       pObj->passInfo.param = param;
       break;
     }
-    default:
-      break;
+    default: {
+      terrno = TSDB_CODE_INVALID_PARA;
+      releaseTscObj(*(int64_t *)taos);
+      return terrno;
+    }
   }
 
   releaseTscObj(*(int64_t *)taos);
