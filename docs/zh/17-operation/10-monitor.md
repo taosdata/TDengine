@@ -41,7 +41,7 @@ chmod +x TDinsight.sh
 
 ## log 库
 
-TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，可以在 taoskeeper 配置文件中修改，具体参考 [taoskeeper 文档](..../reference/taosKeeper)）。taoskeeper 启动后会自动创建 log 库，并将监控数据写入到该数据库中。
+TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，可以在 taoskeeper 配置文件中修改，具体参考 [taoskeeper 文档](/reference/taosKeeper)）。taoskeeper 启动后会自动创建 log 库，并将监控数据写入到该数据库中。
 
 ### cluster info 表
 
