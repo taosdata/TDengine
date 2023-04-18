@@ -43,7 +43,7 @@ chmod +x TDinsight.sh
 
 TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，可以在 taoskeeper 配置文件中修改，具体参考 [taoskeeper 文档](/reference/taosKeeper)）。taoskeeper 启动后会自动创建 log 库，并将监控数据写入到该数据库中。
 
-### cluster info 表
+### cluster\_info 表
 
 `cluster_info` 表记录集群信息。
 
@@ -72,7 +72,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |protocol|INT||协议版本，目前为 1|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### d info 表
+### d\_info 表
 
 `d_info` 表记录 dnode 状态信息。
 
@@ -83,7 +83,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### m info 表
+### m\_info 表
 
 `m_info` 表记录 mnode 角色信息。
 
@@ -95,7 +95,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |mnode\_ep|NCHAR|TAG|master node endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### dnodes info 表
+### dnodes\_info 表
 
 `dnodes_info` 记录 dnode 信息。
 
@@ -137,7 +137,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### data dir 表
+### data\_dir 表
 
 `data_dir` 表记录 data 目录信息。
 
@@ -153,7 +153,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### log dir 表
+### log\_dir 表
 
 `log_dir` 表记录 log 目录信息。
 
@@ -168,7 +168,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### tmp dir 表
+### temp\_dir 表
 
 `temp_dir` 表记录 temp 目录信息。
 
@@ -183,7 +183,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### vgroups info 表
+### vgroups\_info 表
 
 `vgroups_info` 表记录虚拟节点组信息。
 
@@ -198,7 +198,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### vnodes role 表
+### vnodes\_role 表
 
 `vnodes_role` 表记录虚拟节点角色信息。
 
@@ -223,7 +223,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### log summary 表
+### log\_summary 表
 
 `log_summary` 记录日志统计信息。
 
@@ -238,7 +238,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### grants info 表
+### grants\_info 表
 
 `grants_info` 记录授权信息。
 
@@ -252,7 +252,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
 
-### keeper monitor 表
+### keeper\_monitor 表
 
 `keeper_monitor` 记录 taoskeeper 监控数据。
 
@@ -263,7 +263,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |mem|FLOAT||内存使用率|
 |identify|NCHAR|TAG||
 
-### taosadapter restful http request total 表
+### taosadapter\_restful\_http\_request\_total 表
 
 `taosadapter_restful_http_request_total` 记录 taosadapter rest 请求信息，该表为 schemaless 方式创建的表，时间戳字段名为 `_ts`。
 
@@ -277,7 +277,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |request\_uri|NCHAR|TAG|request uri|
 |status\_code|NCHAR|TAG|status code|
 
-### taosadapter restful http request fail 表
+### taosadapter\_restful\_http\_request\_fail 表
 
 `taosadapter_restful_http_request_fail` 记录 taosadapter rest 请求失败信息，该表为 schemaless 方式创建的表，时间戳字段名为 `_ts`。
 
@@ -291,7 +291,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |request\_uri|NCHAR|TAG|request uri|
 |status\_code|NCHAR|TAG|status code|
 
-### taosadapter restful http request in flight 表
+### taosadapter\_restful\_http\_request\_in\_flight 表
 
 `taosadapter_restful_http_request_in_flight` 记录 taosadapter rest 实时请求信息，该表为 schemaless 方式创建的表，时间戳字段名为 `_ts`。
 
@@ -301,7 +301,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |guage|DOUBLE||监控指标值|
 |endpoint|NCHAR|TAG|taosadpater endpoint|
 
-### taosadapter restful http request summary milliseconds 表
+### taosadapter\_restful\_http\_request\_summary\_milliseconds 表
 
 `taosadapter_restful_http_request_summary_milliseconds` 记录 taosadapter rest 请求汇总信息，该表为 schemaless 方式创建的表，时间戳字段名为 `_ts`。
 
@@ -319,7 +319,7 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |request\_method|NCHAR|TAG|request method|
 |request\_uri|NCHAR|TAG|request uri|
 
-### taosadapter system mem percent 表
+### taosadapter\_system\_mem\_percent 表
 
 `taosadapter_system_mem_percent` 表记录 taosadapter 内存使用情况，该表为 schemaless 方式创建的表，时间戳字段名为 `_ts`。
 
@@ -329,11 +329,12 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |guage|DOUBLE||监控指标值|
 |endpoint|NCHAR|TAG|taosadpater endpoint|
 
-### taosadapter system cpu percent 表
+### taosadapter\_system\_cpu\_percent 表
+
+`taosadapter_system_cpu_percent` 表记录 taosadapter cpu 使用情况，该表为 schemaless 方式创建的表，时间戳字段名为 `_ts`。
 
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |\_ts|TIMESTAMP||timestamp|
 |guage|DOUBLE||监控指标值|
 |endpoint|NCHAR|TAG|taosadpater endpoint|
-
