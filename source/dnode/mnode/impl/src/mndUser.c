@@ -1455,7 +1455,6 @@ int32_t mndValidateUserPassInfo(SMnode *pMnode, SUserPassVersion *pUsers, int32_
 
     if (!batchRsp.pArray && !(batchRsp.pArray = taosArrayInit(numOfUses, sizeof(SGetUserPassRsp)))) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      assert(0);
       goto _OVER;
     }
 
@@ -1469,14 +1468,12 @@ int32_t mndValidateUserPassInfo(SMnode *pMnode, SUserPassVersion *pUsers, int32_
 
   int32_t rspLen = tSerializeSUserPassBatchRsp(NULL, 0, &batchRsp);
   if (rspLen < 0) {
-    assert(0);
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
   void   *pRsp = taosMemoryMalloc(rspLen);
   if (pRsp == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    assert(0);
     goto _OVER;
   }
   tSerializeSUserPassBatchRsp(pRsp, rspLen, &batchRsp);
@@ -1488,7 +1485,6 @@ _OVER:
   if (code) {
     *ppRsp = NULL;
     *pRspLen = 0;
-    assert(0);
   }
 
   tFreeSUserPassBatchRsp(&batchRsp);
