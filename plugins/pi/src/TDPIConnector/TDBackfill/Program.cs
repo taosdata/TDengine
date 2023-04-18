@@ -65,8 +65,16 @@ namespace TDBackfill
             {
                 AppSettings.Init(options.tomlFile);
 
-                var piSystemManager = new PISystemManager(AppSettings.tomlConfig.PISystemName);
-                var piServerManager = new PIServerManager(AppSettings.tomlConfig.PIServerName);
+                PISystemManager piSystemManager = null;
+                if (!string.IsNullOrEmpty(AppSettings.tomlConfig.PISystemName)) {
+                    piSystemManager = new PISystemManager(AppSettings.tomlConfig.PISystemName);
+                }
+                PIServerManager piServerManager = null;
+                if (!string.IsNullOrEmpty(AppSettings.tomlConfig.PIServerName))
+                {
+                    piServerManager = new PIServerManager(AppSettings.tomlConfig.PIServerName);
+                }
+
                 TDEngineProxy tdEngineProxy;
                 if (!AppSettings.TaosXEnabled)
                 {
@@ -100,8 +108,14 @@ namespace TDBackfill
                 try
 
                 {
-                    piServerManager.Connect();
-                    piSystemManager.Connect();
+                    if (piServerManager != null)
+                    {
+                        piServerManager.Connect();
+                    }
+                    if (piSystemManager != null)
+                    {
+                        piSystemManager.Connect();
+                    }
                     tdEngineProxy.Connect();
                 }
                 catch (Exception e)
@@ -114,7 +128,6 @@ namespace TDBackfill
 
                 try
                 {
-
                     backfillManager.BackfillPIPointsFromTool(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName, options.Start, options.End,
                          options.BackfillToFirstRecorded, options.BackfillFromLastRecorded,
                          options.DropTables).Wait();
@@ -126,19 +139,23 @@ namespace TDBackfill
 
                 try
                 {
-
-                    backfillManager.BackfillAFElementsFromTool(AppSettings.tomlConfig.TDDataBase, AppSettings.tomlConfig.AFDatabaseName, AppSettings.tomlConfig.TemplateForAFElement, options.Start, options.End,
-                                options.BackfillToFirstRecorded, options.BackfillFromLastRecorded,
+                    if (piSystemManager != null)
+                    {
+                        backfillManager.BackfillAFElementsFromTool(AppSettings.tomlConfig.TDDataBase,
+                                AppSettings.tomlConfig.AFDatabaseName,
+                                AppSettings.tomlConfig.TemplateForAFElement,
+                                options.Start,
+                                options.End,
+                                options.BackfillToFirstRecorded,
+                                options.BackfillFromLastRecorded,
                                 options.DropTables).Wait();
+                    }
 
                 }
                 catch (Exception e)
                 {
                     log.Error("Error backfilling AF Elements", e.InnerException);
                 }
-
-
-                log.Info("test");
 
                 Console.WriteLine("Press any key to exit...");
                 Console.ReadKey();
