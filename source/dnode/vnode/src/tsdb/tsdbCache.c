@@ -69,14 +69,15 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
   }
 
   rocksdb_options_set_create_if_missing(options, 1);
-  rocksdb_options_set_inplace_update_support(options, 1);
-  rocksdb_options_set_allow_concurrent_memtable_write(options, 0);
+  // rocksdb_options_set_inplace_update_support(options, 1);
+  // rocksdb_options_set_allow_concurrent_memtable_write(options, 0);
 
   rocksdb_writeoptions_t *writeoptions = rocksdb_writeoptions_create();
   if (NULL == writeoptions) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err2;
   }
+  // rocksdb_writeoptions_disable_WAL(writeoptions, 1);
 
   rocksdb_readoptions_t *readoptions = rocksdb_readoptions_create();
   if (NULL == readoptions) {
