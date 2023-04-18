@@ -48,6 +48,8 @@ int tqStreamTasksScanWal(STQ* pTq) {
 
       taosWUnLockLatch(&pMeta->lock);
       tqInfo("vgId:%d scan wal for stream tasks for %d times", vgId, times);
+    } else {
+      ASSERT(pMeta->walScan >= 1);
     }
   }
 
