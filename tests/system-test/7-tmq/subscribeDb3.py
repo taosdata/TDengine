@@ -226,7 +226,7 @@ class TDTestCase:
         event.wait()
 
         tdLog.info("start consume processor")
-        pollDelay = 100
+        pollDelay = 20
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
