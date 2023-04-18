@@ -1,5 +1,5 @@
 system sh/stop_dnodes.sh
-system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode1 -i 1 -v debugFlag 135
 system sh/exec.sh -n dnode1 -s start 
 sleep 50
 sql connect
@@ -701,14 +701,14 @@ endi
 sql create database test4  vgroups 1;
 sql use test4;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams4 trigger at_once IGNORE EXPIRED 0 into streamt4 as select  _wstart, count(*) c1 from t1 where a > 5 interval(10s);
+sql create stream streams4 trigger at_once IGNORE EXPIRED 0 into streamt__4 as select  _wstart, count(*) c1 from t1 where a > 5 interval(10s);
 sql insert into t1 values(1648791213000,1,2,3,1.0);
 
 $loop_count = 0
 loop13:
 sleep 200
 
-sql select * from streamt4;
+sql select * from streamt__4;
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -726,7 +726,7 @@ sql insert into t1 values(1648791213000,6,2,3,1.0);
 $loop_count = 0
 loop14:
 sleep 200
-sql select * from streamt4;
+sql select * from streamt__4;
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -743,7 +743,7 @@ sql insert into t1 values(1648791213000,2,2,3,1.0);
 $loop_count = 0
 loop15:
 sleep 200
-sql select * from streamt4;
+sql select * from streamt__4;
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -763,7 +763,7 @@ sql insert into t1 values(1648791233000,10,2,3,1.0);
 $loop_count = 0
 loop16:
 sleep 200
-sql select * from streamt4;
+sql select * from streamt__4;
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -780,7 +780,7 @@ sql insert into t1 values(1648791233000,2,2,3,1.0);
 $loop_count = 0
 loop17:
 sleep 200
-sql select * from streamt4;
+sql select * from streamt__4;
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
