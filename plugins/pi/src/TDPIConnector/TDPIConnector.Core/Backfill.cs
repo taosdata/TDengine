@@ -33,7 +33,7 @@ namespace TDPIConnector.Core
             {
                 stopwatch.Start();
                 PIPointWrapper piPoint = lastTDValue.Key;
-                List<AFValueWrapper> afValues = await piSystemManager.GetPIPointRecordedValuesByCountForward(piPoint, lastTDValue.Value, 5000);
+                List<AFValueWrapper> afValues = await PISystemManager.GetPIPointRecordedValuesByCountForward(piPoint, lastTDValue.Value, 5000);
                 log.Info($"Backfill PI point {piPoint.Name}, {afValues.Count} values retrieved in {stopwatch.ElapsedMilliseconds} ms");
                 stopwatch.Reset();
                 stopwatch.Start();
@@ -53,7 +53,7 @@ namespace TDPIConnector.Core
             {
                 stopwatch.Start();
                 PIPointWrapper piPoint = piServerManager.FindPIPoint(lastTDValue.Key);
-                List<AFValueWrapper> afValues = await piSystemManager.GetPIPointRecordedValuesByCountReverse(piPoint, lastTDValue.Value, 5000);
+                List<AFValueWrapper> afValues = await PISystemManager.GetPIPointRecordedValuesByCountReverse(piPoint, lastTDValue.Value, 5000);
                 log.Info($"Backfill PI point {piPoint.Name}, {afValues.Count} values retrieved in {stopwatch.ElapsedMilliseconds} ms");
                 stopwatch.Reset();
                 stopwatch.Start();
@@ -77,7 +77,7 @@ namespace TDPIConnector.Core
             foreach (var point in piPoints)
             {
                 stopwatch.Start();
-                List<AFValueWrapper> afValues = piSystemManager.GetPIPointRecordedValues(point, startTime, endTime, 5000);
+                List<AFValueWrapper> afValues = PISystemManager.GetPIPointRecordedValues(point, startTime, endTime, 5000);
                 log.Info($"PI point {point.Name}, {afValues.Count} values retrived in {stopwatch.ElapsedMilliseconds} ms");
                 stopwatch.Reset();
                 stopwatch.Start();
