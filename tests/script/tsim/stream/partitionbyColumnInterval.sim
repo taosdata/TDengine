@@ -372,7 +372,7 @@ sql insert into t2 values(1648791213002,1,2,3,1.0);
 $loop_count = 0
 
 loop10:
-sleep 50
+sleep 500
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -414,7 +414,7 @@ sql insert into t2 values(1648791213001,1,2,3,1.0) (1648791223001,2,2,3,1.0) (16
 $loop_count = 0
 
 loop11:
-sleep 50
+sleep 500
 sql select * from test.streamt2 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -492,7 +492,7 @@ sql insert into t4 values(1648791213000,1,2,3,1.0);
 $loop_count = 0
 
 loop13:
-sleep 50
+sleep 500
 sql select * from test.streamt4 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
@@ -534,7 +534,7 @@ sql insert into t1 values(1648791213000,1,2,3,1.0);
 $loop_count = 0
 
 loop14:
-sleep 50
+sleep 500
 sql select * from test.streamt4 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
