@@ -4,7 +4,8 @@ all: clean \
 	linux_amd64 \
 	linux_arm \
 	linux_arm_64 \
-	windows
+	windows \
+	windows_386
 
 version = "1.0.0"
 
