@@ -100,6 +100,14 @@ void destroyRowBuffPosPtr(void* ptr) {
   }
 }
 
+void destroyRowBuffAllPosPtr(void* ptr) {
+  if (!ptr) {
+    return;
+  }
+  SRowBuffPos* pPos = *(SRowBuffPos**)ptr;
+  destroyRowBuffPos(pPos);
+}
+
 void destroyRowBuff(void* ptr) {
   if (!ptr) {
     return;
@@ -111,7 +119,7 @@ void streamFileStateDestroy(SStreamFileState* pFileState) {
   if (!pFileState) {
     return;
   }
-  tdListFreeP(pFileState->usedBuffs, destroyRowBuffPosPtr);
+  tdListFreeP(pFileState->usedBuffs, destroyRowBuffAllPosPtr);
   tdListFreeP(pFileState->freeBuffs, destroyRowBuff);
   tSimpleHashCleanup(pFileState->rowBuffMap);
   taosMemoryFree(pFileState);
@@ -443,7 +451,8 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
     code = streamStateGetKVByCur_rocksdb(pCur, pNewPos->pKey, (const void**)&pVal, &pVLen);
     if (code != TSDB_CODE_SUCCESS || pFileState->getTs(pNewPos->pKey) < pFileState->flushMark) {
       destroyRowBuffPos(pNewPos);
-      tdListPopTail(pFileState->usedBuffs);
+      SListNode* pNode = tdListPopTail(pFileState->usedBuffs);
+      taosMemoryFreeClear(pNode);
       break;
     }
     memcpy(pNewPos->pRowBuff, pVal, pVLen);
