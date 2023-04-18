@@ -2487,10 +2487,13 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pInfo->twAggSup.maxTs = INT64_MIN;
   pInfo->pState = NULL;
 
-  void*   buff = NULL;
-  int32_t len = 0;
-  streamStateGetInfo(pTaskInfo->streamInfo.pState, STREAM_SCAN_OP_NAME, strlen(STREAM_SCAN_OP_NAME), &buff, &len);
-  streamScanOperatorDeocde(buff, len, pInfo);
+  // for stream
+  if (pTaskInfo->streamInfo.pState) {
+    void*   buff = NULL;
+    int32_t len = 0;
+    streamStateGetInfo(pTaskInfo->streamInfo.pState, STREAM_SCAN_OP_NAME, strlen(STREAM_SCAN_OP_NAME), &buff, &len);
+    streamScanOperatorDeocde(buff, len, pInfo);
+  }
 
   setOperatorInfo(pOperator, STREAM_SCAN_OP_NAME, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
