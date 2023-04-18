@@ -128,31 +128,35 @@ int32_t tqOffsetDelete(STqOffsetStore* pStore, const char* subscribeKey) {
 }
 
 int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
-  if (!pStore->needCommit) return 0;
+  if (!pStore->needCommit) {
+    return 0;
+  }
+
   // TODO file name should be with a newer version
   char*     fname = tqOffsetBuildFName(pStore->pTq->path, 0);
   TdFilePtr pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-
-    int32_t     err = terrno;
-    const char* errStr = tstrerror(err);
-    int32_t     sysErr = errno;
-    const char* sysErrStr = strerror(errno);
-    tqError("vgId:%d, cannot open file %s when commit offset since %s", pStore->pTq->pVnode->config.vgId, fname,
-            sysErrStr);
+    const char* err = strerror(errno);
+    tqError("vgId:%d, failed to open offset file %s, since %s", TD_VID(pStore->pTq->pVnode), fname, err);
     taosMemoryFree(fname);
     return -1;
   }
+
   taosMemoryFree(fname);
+
   void* pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pStore->pHash, pIter);
-    if (pIter == NULL) break;
+    if (pIter == NULL) {
+      break;
+    }
+
     STqOffset* pOffset = (STqOffset*)pIter;
     int32_t    bodyLen;
     int32_t    code;
     tEncodeSize(tEncodeSTqOffset, pOffset, bodyLen, code);
+
     if (code < 0) {
       taosHashCancelIterate(pStore->pHash, pIter);
       return -1;
@@ -166,6 +170,7 @@ int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
     SEncoder encoder;
     tEncoderInit(&encoder, abuf, bodyLen);
     tEncodeSTqOffset(&encoder, pOffset);
+
     // write file
     int64_t writeLen;
     if ((writeLen = taosWriteFile(pFile, buf, totLen)) != totLen) {
@@ -174,8 +179,10 @@ int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
       taosMemoryFree(buf);
       return -1;
     }
+
     taosMemoryFree(buf);
   }
+
   // close and rename file
   taosCloseFile(&pFile);
   pStore->needCommit = 0;
