@@ -127,7 +127,7 @@ export function delFavorite(id) {
 // 获取共享收藏列表
 export function getSharedFavorites(sql) {
   return request({
-    baseURL:'',
+    // baseURL:'',
     url: '/rest/sql',
     headers: {
       "Content-Type": "text/plain"
