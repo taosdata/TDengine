@@ -668,16 +668,7 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
 
   if (key.ts >= pTbData->maxKey) {
     pTbData->maxKey = key.ts;
-    /*
-    if (TSDB_CACHE_LAST_ROW(pMemTable->pTsdb->pVnode->config)) {
-      tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pMemTable->pTsdb, pTbData->uid, &lRow, true);
-      }*/
   }
-  /*
-  if (TSDB_CACHE_LAST(pMemTable->pTsdb->pVnode->config)) {
-    tsdbCacheInsertLast(pMemTable->pTsdb->lruCache, pTbData->uid, &lRow, pMemTable->pTsdb);
-  }
-  */
   tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
 
   // SMemTable
@@ -738,16 +729,7 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
 
   if (key.ts >= pTbData->maxKey) {
     pTbData->maxKey = key.ts;
-    /*
-    if (TSDB_CACHE_LAST_ROW(pMemTable->pTsdb->pVnode->config)) {
-      tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pMemTable->pTsdb, pTbData->uid, &lRow, true);
-      }*/
   }
-  /*
-  if (TSDB_CACHE_LAST(pMemTable->pTsdb->pVnode->config)) {
-    tsdbCacheInsertLast(pMemTable->pTsdb->lruCache, pTbData->uid, &lRow, pMemTable->pTsdb);
-  }
-  */
   tsdbCacheUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, &lRow);
 
   // SMemTable
