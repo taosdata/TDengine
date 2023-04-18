@@ -180,6 +180,7 @@
             } catch (error) {
               console.log(error);
             }
+            console.log(result,'结果集0000');
             this.$emit("change", result);
           })
           .catch(() => (this.options = []));

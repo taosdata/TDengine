@@ -503,6 +503,7 @@ export default {
       this.$store.state.console.partActive = "detail";
     },
     async view(data) {
+      console.log(data,'view');
       await this.handleVar(data);
       this.$store.state.console.currentInfoType = data.typeName;
       this.$store.commit("console/SET_CURRENT_INFO_DATA", data);

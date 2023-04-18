@@ -150,7 +150,7 @@ export default {
     },
     async grantPrivilege(privileges, dbName, userName) {
       return await sendSQLReq(
-        `GRANT ${privileges} ON ${dbName}.*  to ${userName}`
+        `GRANT ${privileges} ON \`${dbName}\`.*  to \`${userName}\``
       ).then((res) => {
         console.log(res)
         return Promise.resolve(res);
@@ -162,7 +162,7 @@ export default {
     },
     async grantTopic(topicName, userName) {
       return await sendSQLReq(
-        `GRANT subscribe ON ${topicName} to ${userName}`
+        `GRANT subscribe ON \`${topicName}\` to \`${userName}\``
       ).then((res) => {
         console.log(res)
         return Promise.resolve(res);

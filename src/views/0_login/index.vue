@@ -386,12 +386,12 @@ export default {
                 path: "/explorer",
               });
             } else {
-              Message.error("Only enterprise edition is supported!");
+              Message.error(this.$t('login.versiontip'));
             }
           }
         });
       } catch (err) {
-        Message.error("Only enterprise edition is supported");
+        Message.error(this.$t('login.versiontip'));
       }
     },
   },

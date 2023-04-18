@@ -56,7 +56,9 @@
     },
     watch: {},
     created() {},
-    mounted() {},
+    mounted() {
+      console.log(this.fnList,'函数列表',this.filed);
+    },
     methods: {
       getOptions(item) {
         let options = item.options;

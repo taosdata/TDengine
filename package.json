@@ -20,6 +20,7 @@
   "dependencies": {
     "@tdengine/websocket": "^3.0.0",
     "axios": "^0.21.1",
+    "babel-plugin-prismjs": "^2.1.0",
     "core-js": "^3.12.1",
     "crypto-js": "^4.1.1",
     "date-fns": "^2.29.3",
@@ -28,6 +29,7 @@
     "file-saver": "^2.0.5",
     "github-markdown-css": "^5.1.0",
     "highlight.js": "^11.4.0",
+    "highlightjs": "^9.16.2",
     "js-cookie": "^2.2.1",
     "json2csv": "^5.0.7",
     "lodash": "^4.17.21",
@@ -36,6 +38,7 @@
     "mitt": "^3.0.0",
     "moment": "^2.29.4",
     "node-sass": "^8.0.0",
+    "prismjs": "^1.29.0",
     "table": "^6.8.0",
     "validator": "^13.7.0",
     "vue": "^2.7.8",

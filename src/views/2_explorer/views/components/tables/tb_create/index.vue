@@ -373,6 +373,7 @@ export default {
         .catch(() => {});
     },
     async updateData(params, tag) {
+      console.log(tag,'tag');
       if (this.loading) return;
       this.loading = true;
       await changeTableStruct(

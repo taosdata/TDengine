@@ -1,7 +1,8 @@
 <template>
   <div class="page-wrapper">
     <MainContentHeader :title="$t('dashboard.overview')"
-      ><el-button
+      >
+      <!-- <el-button
         slot="right"
         class="change-btn"
         @click="change"
@@ -9,12 +10,13 @@
         size="small"
       >
         {{ btnTitle }}
-      </el-button></MainContentHeader
+      </el-button> -->
+      </MainContentHeader
     >
     <div class="content">
-      <panelHeader :title="title"> </panelHeader>
-      <!-- <docs :category="'dashboard'" :lang="'Dashboard'" ></docs> -->
-      <ClusterInfo />
+      <!-- <panelHeader :title="title"> </panelHeader> -->
+      <docs :category="'dashboard'" :lang="'Dashboard'" ></docs>
+      <!-- <ClusterInfo /> -->
       <!-- <docs :category="'tdinsight'" :lang="'tdinsight'" topic="TDinsight配置"></docs> -->
       <!-- <Query v-if="isQuery" />
       <template v-else>

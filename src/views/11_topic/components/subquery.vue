@@ -50,6 +50,7 @@
           ref="resultSet"
           :tags.sync="tags"
           :params="params"
+          multiple
           v-model="info.parttionSet"
         >
           <el-option v-for="item in partitionList" :key="item.field" :value="item.field"></el-option>
