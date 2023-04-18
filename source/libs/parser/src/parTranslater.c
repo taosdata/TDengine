@@ -1310,7 +1310,8 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
 }
 
 static EDealRes haveVectorFunction(SNode* pNode, void* pContext) {
-  if (isAggFunc(pNode) || isIndefiniteRowsFunc(pNode) || isWindowPseudoColumnFunc(pNode) || isInterpPseudoColumnFunc(pNode)) {
+  if (isAggFunc(pNode) || isIndefiniteRowsFunc(pNode) || isWindowPseudoColumnFunc(pNode) ||
+      isInterpPseudoColumnFunc(pNode)) {
     *((bool*)pContext) = true;
     return DEAL_RES_END;
   }
@@ -2911,6 +2912,11 @@ static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList
   if (TSDB_CODE_SUCCESS == code) {
     code = scalarCalculateConstants(pCaseFunc, &pCell->pNode);
   }
+  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_VALUE != nodeType(pCell->pNode)) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Fill value is just a constant");
+  } else if (TSDB_CODE_SUCCESS != code) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled data type mismatch");
+  }
   return code;
 }
 
@@ -2927,9 +2933,9 @@ static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeL
       if (fillNo >= LIST_LENGTH(pFillValues->pNodeList)) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
       }
-      if (TSDB_CODE_SUCCESS !=
-          convertFillValue(pCxt, ((SExprNode*)pProject)->resType, pFillValues->pNodeList, fillNo)) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled data type mismatch");
+      int32_t code = convertFillValue(pCxt, ((SExprNode*)pProject)->resType, pFillValues->pNodeList, fillNo);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
       }
       ++fillNo;
     }
@@ -5715,6 +5721,14 @@ static int32_t translateDropCGroup(STranslateContext* pCxt, SDropCGroupStmt* pSt
 
 static int32_t translateAlterLocal(STranslateContext* pCxt, SAlterLocalStmt* pStmt) {
   // The statement is executed directly on the client without constructing a message.
+  if ('\0' != pStmt->value[0]) {
+    return TSDB_CODE_SUCCESS;
+  }
+  char* p = strchr(pStmt->config, ' ');
+  if (NULL != p) {
+    *p = 0;
+    strcpy(pStmt->value, p + 1);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
