@@ -68,6 +68,7 @@ void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
 int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
+int32_t vnodeIsCatchUp(SVnode *pVnode);
 
 int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list);
 int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg), void *arg);

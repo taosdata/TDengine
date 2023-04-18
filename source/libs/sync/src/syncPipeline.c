@@ -242,6 +242,8 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   // update startIndex
   pBuf->startIndex = takeDummy ? index : index + 1;
 
+  pBuf->isCatchup = false;
+
   sInfo("vgId:%d, init sync log buffer. buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")", pNode->vgId,
         pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
 
@@ -322,6 +324,15 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
       ret = 0;
     }
     goto _out;
+  }
+
+  if(pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole == TAOS_SYNC_ROLE_LEARNER &&
+      index > 0 && index > pBuf->totalIndex){
+    pBuf->totalIndex = index;
+    sTrace("vgId:%d, update learner progress. index:%" PRId64 ", term:%" PRId64 ": prevterm:%" PRId64
+          " != lastmatch:%" PRId64 ". log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+          pNode->vgId, pEntry->index, pEntry->term, prevTerm, lastMatchTerm, pBuf->startIndex, pBuf->commitIndex,
+          pBuf->matchIndex, pBuf->endIndex);
   }
 
   if (index - pBuf->startIndex >= pBuf->size) {
@@ -483,7 +494,7 @@ _out:
 }
 
 int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry,
-                       int32_t applyCode) {
+                          int32_t applyCode) {
   if (pNode->replicaNum == 1 && pNode->restoreFinish && pNode->vgId != 1) {
     return 0;
   }
@@ -957,7 +968,7 @@ void syncLogReplDestroy(SSyncLogReplMgr* pMgr) {
 }
 
 int32_t syncNodeLogReplInit(SSyncNode* pNode) {
-  for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
+  for (int i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; i++) {
     ASSERT(pNode->logReplMgrs[i] == NULL);
     pNode->logReplMgrs[i] = syncLogReplCreate();
     if (pNode->logReplMgrs[i] == NULL) {
@@ -970,7 +981,7 @@ int32_t syncNodeLogReplInit(SSyncNode* pNode) {
 }
 
 void syncNodeLogReplDestroy(SSyncNode* pNode) {
-  for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
+  for (int i = 0; i < TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA; i++) {
     syncLogReplDestroy(pNode->logReplMgrs[i]);
     pNode->logReplMgrs[i] = NULL;
   }
@@ -1100,7 +1111,7 @@ int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   pBuf->endIndex = pBuf->matchIndex + 1;
 
   // reset repl mgr
-  for (int i = 0; i < pNode->replicaNum; i++) {
+  for (int i = 0; i < pNode->totalReplicaNum; i++) {
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
     syncLogReplReset(pMgr);
   }

@@ -56,6 +56,8 @@ typedef struct SSyncLogBuffer {
   int64_t          size;
   TdThreadMutex    mutex;
   TdThreadMutexAttr attr;
+  int64_t          totalIndex;
+  bool             isCatchup;
 } SSyncLogBuffer;
 
 // SSyncLogRepMgr

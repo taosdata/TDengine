@@ -285,6 +285,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DNODE_ROLE_VNODE 2
 
 #define TSDB_MAX_REPLICA               5
+#define TSDB_MAX_LEARNER_REPLICA       10
 #define TSDB_SYNC_LOG_BUFFER_SIZE      4096
 #define TSDB_SYNC_LOG_BUFFER_RETENTION (TSDB_SYNC_LOG_BUFFER_SIZE >> 4)
 
