@@ -341,6 +341,8 @@ typedef struct {
     float       f;
   };
   size_t length;
+  bool keyEscaped;
+  bool valueEscaped;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1

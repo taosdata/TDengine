@@ -765,8 +765,12 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 
     size_t superTableLen = 0;
     void  *superTable = taosHashGetKey(tmp, &superTableLen);
+    char* measure = taosMemoryMalloc(superTableLen);
+    memcpy(measure, superTable, superTableLen);
+    PROCESS_SLASH_IN_MEASUREMENT(measure, superTableLen);
     memset(pName.tname, 0, TSDB_TABLE_NAME_LEN);
-    memcpy(pName.tname, superTable, superTableLen);
+    memcpy(pName.tname, measure, superTableLen);
+    taosMemoryFree(measure);
 
     code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
 
@@ -1049,7 +1053,7 @@ void smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag) {
   //  }
   //  taosMemoryFree(tag->key);
   taosArrayDestroy(tag->cols);
-  taosArrayDestroy(tag->tags);
+  taosArrayDestroyEx(tag->tags, freeSSmlKv);
   taosMemoryFree(tag);
 }
 
@@ -1061,6 +1065,12 @@ void clearColValArray(SArray *pCols) {
       taosMemoryFreeClear(pCol->value.pData);
     }
   }
+}
+
+void freeSSmlKv(void* data){
+  SSmlKv *kv = (SSmlKv*)data;
+  if(kv->keyEscaped) taosMemoryFree((void*)(kv->key));
+  if(kv->valueEscaped) taosMemoryFree((void*)(kv->value));
 }
 
 void smlDestroyInfo(SSmlHandle *info) {
@@ -1098,11 +1108,11 @@ void smlDestroyInfo(SSmlHandle *info) {
   }
   taosArrayDestroy(info->valueJsonArray);
 
-  taosArrayDestroy(info->preLineTagKV);
+  taosArrayDestroyEx(info->preLineTagKV, freeSSmlKv);
 
   if (!info->dataFormat) {
     for (int i = 0; i < info->lineNum; i++) {
-      taosArrayDestroy(info->lines[i].colArray);
+      taosArrayDestroyEx(info->lines[i].colArray, freeSSmlKv);
       if (info->parseJsonByLib) {
         taosMemoryFree(info->lines[i].tags);
       }
@@ -1420,14 +1430,14 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
 
     char cTmp = 0;  // for print tmp if is raw
     if (info->isRawLine) {
-      cTmp = tmp[len - 1];
-      tmp[len - 1] = '\0';
+      cTmp = tmp[len];
+      tmp[len] = '\0';
     }
 
     uDebug("SML:0x%" PRIx64 " smlParseLine israw:%d, numLines:%d, protocol:%d, len:%d, sql:%s", info->id,
            info->isRawLine, numLines, info->protocol, len, tmp);
     if (info->isRawLine) {
-      tmp[len - 1] = cTmp;
+      tmp[len] = cTmp;
     }
 
     if (info->protocol == TSDB_SML_LINE_PROTOCOL) {
@@ -1449,6 +1459,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char *rawLine, char
       code = TSDB_CODE_SML_INVALID_PROTOCOL_TYPE;
     }
     if (code != TSDB_CODE_SUCCESS) {
+      tmp[len] = '\0';
       uError("SML:0x%" PRIx64 " smlParseLine failed. line %d : %s", info->id, i, tmp);
       return code;
     }

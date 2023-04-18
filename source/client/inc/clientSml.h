@@ -107,6 +107,7 @@ typedef struct {
   int32_t colsLen;
   int32_t timestampLen;
 
+  bool    measureEscaped;
   SArray *colArray;
 } SSmlLineInfo;
 
@@ -206,6 +207,19 @@ typedef struct {
 
 #define IS_SAME_KEY (maxKV->keyLen == kv.keyLen && memcmp(maxKV->key, kv.key, kv.keyLen) == 0)
 
+#define IS_SLASH_LETTER_IN_MEASUREMENT(sql)                                                           \
+  (*((sql)-1) == SLASH && (*(sql) == COMMA || *(sql) == SPACE))
+
+#define MOVE_FORWARD_ONE(sql, len) (memmove((void *)((sql)-1), (sql), len))
+
+#define PROCESS_SLASH_IN_MEASUREMENT(key, keyLen)           \
+  for (int i = 1; i < keyLen; ++i) {         \
+    if (IS_SLASH_LETTER_IN_MEASUREMENT(key + i)) {          \
+      MOVE_FORWARD_ONE(key + i, keyLen - i); \
+      keyLen--;                              \
+    }                                        \
+  }
+
 extern int64_t smlFactorNS[3];
 extern int64_t smlFactorS[3];
 
@@ -237,6 +251,7 @@ uint8_t           smlGetTimestampLen(int64_t num);
 void              clearColValArray(SArray* pCols);
 void              smlDestroyTableInfo(SSmlHandle *info, SSmlTableInfo *tag);
 
+void freeSSmlKv(void* data);
 int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseTelnetString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLineInfo *elements);
 int32_t smlParseJSON(SSmlHandle *info, char *payload);
