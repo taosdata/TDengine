@@ -345,7 +345,7 @@ typedef struct SStreamMeta {
     FTaskExpand* expandFunc;
     int32_t      vgId;
     SRWLatch     lock;
-    int8_t       walScan;
+    int32_t      walScan;
     bool         quit;
 } SStreamMeta;
 
