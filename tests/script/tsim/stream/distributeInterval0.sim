@@ -66,7 +66,7 @@ if $loop_count == 10 then
   return -1
 endi
 
-sleep 300
+sleep 1000
 print 1 select * from streamtST1;
 sql select * from streamtST1;
 
@@ -97,7 +97,7 @@ if $loop_count == 10 then
   return -1
 endi
 
-sleep 300
+sleep 20000
 print 2 select * from streamtST1;
 sql select * from streamtST1;
 
@@ -136,7 +136,7 @@ if $loop_count == 10 then
   return -1
 endi
 
-sleep 300
+sleep 2000
 print 3 select * from streamtST1;
 sql select * from streamtST1;
 
@@ -175,7 +175,7 @@ if $loop_count == 10 then
   return -1
 endi
 
-sleep 300
+sleep 2000
 print 4 select * from streamtST1;
 sql select * from streamtST1;
 
@@ -215,7 +215,7 @@ if $loop_count == 10 then
   return -1
 endi
 
-sleep 300
+sleep 2000
 print 5 select * from streamtST1;
 sql select * from streamtST1;
 
@@ -262,7 +262,7 @@ if $loop_count == 10 then
   return -1
 endi
 
-sleep 300
+sleep 2000
 print 6 select * from streamtST1;
 sql select * from streamtST1;
 
@@ -296,7 +296,7 @@ sql insert into ts3 values(1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) 
 
 $loop_count = 0
 loop1:
-sleep 300
+sleep 2000
 sql select * from streamtST1;
 
 $loop_count = $loop_count + 1
@@ -427,7 +427,7 @@ $loop_count = 0
 loop2:
 sql select * from streamtST1;
 
-sleep 300
+sleep 2000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -466,7 +466,7 @@ $loop_count = 0
 loop3:
 sql select * from streamtST3;
 
-sleep 300
+sleep 2000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -532,7 +532,7 @@ sql insert into ddd values(1648791226003,2,2,"/a6/aa/aa");
 $loop_count = 0
 
 loop4:
-sleep 200
+sleep 2000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -550,7 +550,7 @@ sql delete  from aaa where ts = 1648791223003 ;
 $loop_count = 0
 
 loop5:
-sleep 200
+sleep 2000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -569,7 +569,7 @@ sql delete  from ccc;
 $loop_count = 0
 
 loop6:
-sleep 200
+sleep 20000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -587,7 +587,7 @@ sql delete  from ddd;
 $loop_count = 0
 
 loop7:
-sleep 200
+sleep 20000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then

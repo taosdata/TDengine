@@ -1,5 +1,5 @@
 system sh/stop_dnodes.sh
-system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode1 -i 1 -v debugFlag 135
 system sh/exec.sh -n dnode1 -s start
 sleep 50
 sql connect
@@ -22,7 +22,7 @@ sql insert into t1 values(1648791210000,1,1,1,1.1,1);
 sql insert into t1 values(1648791220000,2,2,2,2.1,2);
 sql insert into t1 values(1648791230000,3,3,3,3.1,3);
 sql insert into t1 values(1648791240000,4,4,4,4.1,4);
-sleep 300
+sleep 1000
 sql select * from streamt order by s desc;
 
 # row 0
@@ -50,7 +50,7 @@ sql insert into t1 values(1648791250005,5,5,5,5.1,5);
 sql insert into t1 values(1648791260006,6,6,6,6.1,6);
 sql insert into t1 values(1648791270007,7,7,7,7.1,7);
 sql insert into t1 values(1648791240005,5,5,5,5.1,8) (1648791250006,6,6,6,6.1,9);
-sleep 300
+sleep 1000
 sql select * from streamt order by s desc;
 
 # row 0
@@ -100,7 +100,7 @@ sql insert into t1 values(1648791260007,7,7,7,7.1,12) (1648791290008,7,7,7,7.1,1
 sql insert into t1 values(1648791500000,7,7,7,7.1,15) (1648791520000,8,8,8,8.1,16) (1648791540000,8,8,8,8.1,17);
 sql insert into t1 values(1648791530000,8,8,8,8.1,18);
 sql insert into t1 values(1648791220000,10,10,10,10.1,19) (1648791290008,2,2,2,2.1,20) (1648791540000,17,17,17,17.1,21) (1648791500001,22,22,22,22.1,22);
-sleep 300
+sleep 1000
 sql select * from streamt order by s desc;
 
 # row 0
@@ -188,7 +188,7 @@ if $data34 != 19 then
 endi
 
 sql insert into t1 values(1648791000000,1,1,1,1.1,23);
-sleep 300
+sleep 1000
 sql select * from streamt order by s desc;
 
 # row 0
@@ -241,7 +241,7 @@ sql insert into t1 values(1648791213000,2,2,3,1.0);
 
 $loop_count = 0
 loop15:
-sleep 200
+sleep 1000
 sql select * from streamt3;
 
 $loop_count = $loop_count + 1
@@ -261,7 +261,7 @@ sql insert into t1 values(1648791233000,10,2,3,1.0);
 
 $loop_count = 0
 loop16:
-sleep 200
+sleep 1000
 sql select * from streamt3;
 
 $loop_count = $loop_count + 1
@@ -278,7 +278,7 @@ sql insert into t1 values(1648791233000,2,2,3,1.0);
 
 $loop_count = 0
 loop17:
-sleep 200
+sleep 1000
 sql select * from streamt3;
 
 $loop_count = $loop_count + 1
