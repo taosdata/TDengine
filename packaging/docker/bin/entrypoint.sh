@@ -53,15 +53,18 @@ else
         $@
         exit $?
     fi
-    while true; do
-        es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
-        echo ${es}
-        if [ "${es%%:*}" -eq 2 ]; then
-            echo "execute create dnode"
-            taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$FQDN:$SERVER_PORT\";"
-            break
-        fi
-        sleep 1s
-    done
+    # check if dnode has been created
+    if [ ! -f "$DATA_DIR/dnode/dnode.json" ]; then
+        while true; do
+            es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
+            echo ${es}
+            if [ "${es%%:*}" -eq 2 ]; then
+                echo "execute create dnode"
+                taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$FQDN:$SERVER_PORT\";"
+                break
+            fi
+            sleep 1s
+        done
+    fi
     $@
 fi
