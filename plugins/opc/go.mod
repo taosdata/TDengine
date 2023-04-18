@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/BurntSushi/toml v1.2.1
-	github.com/apache/arrow/go/v12 v12.0.0-20230416005842-cc20df187088
+	github.com/apache/arrow/go/v12 v12.0.0-20230417195444-9824ffcd48e4
 	github.com/huskar-t/opcua v0.0.0-20221116012318-63000ef63f36
 	github.com/konimarti/opc v0.3.1
 )
@@ -20,7 +20,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v23.3.3+incompatible // indirect
 	github.com/klauspost/asmfmt v1.3.2 // indirect
-	github.com/klauspost/compress v1.16.4 // indirect
+	github.com/klauspost/compress v1.16.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/minio/asm2plan9s v0.0.0-20200509001527-cdd76441f9d8 // indirect
@@ -38,5 +38,3 @@ require (
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 )
-
-replace github.com/apache/arrow/go/v12 v12.0.0-20230416005842-cc20df187088 => github.com/sunpe/arrow/go/v12 v12.0.0-20230416055451-6744b92b8886
