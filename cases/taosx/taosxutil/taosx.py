@@ -21,7 +21,7 @@ class Runtaosx():
     def __init__(self,logger):
         self.logger = logger
         self.remote: Remote = Remote(self.logger)
-    def get_json(self,json_path,host,port,dbname,stbname,tbname_m,tb_num,start_timestamp,row_num,drop_flag,child_table_exist,replica,vgroups,interlace_rows,insert_interval):
+    def get_json(self,json_path,host,port,dbname,stbname,tbname_m,tb_num,start_timestamp,row_num,drop_flag,child_table_exist,replica,vgroups,interlace_rows,insert_interval,num_of_records_per_req):
         dict = {}
         with open(json_path,'rb') as file:
             params = json.load(file)
@@ -39,6 +39,7 @@ class Runtaosx():
             params['databases'][0]['super_tables'][0]['start_timestamp'] = start_timestamp
             params['databases'][0]['super_tables'][0]['interlace_rows'] = interlace_rows
             params['databases'][0]['super_tables'][0]['insert_interval'] = insert_interval
+            params['num_of_records_per_req'] = num_of_records_per_req
             dict = params
         file.close()
         return dict
