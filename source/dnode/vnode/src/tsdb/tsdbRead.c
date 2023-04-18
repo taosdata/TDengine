@@ -1881,7 +1881,7 @@ static FORCE_INLINE STSchema* getLatestTableSchema(STsdbReader* pReader, uint64_
     return pReader->pSchema;
   }
 
-  int32_t code = metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, uid, -1, 1, &pReader->pSchema);
+  int32_t code = metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, -1, &pReader->pSchema);
   if (code != TSDB_CODE_SUCCESS || pReader->pSchema == NULL) {
     tsdbError("failed to get table schema, uid:%" PRIu64 ", it may have been dropped, ver:-1, %s", uid, pReader->idStr);
   }
@@ -1894,7 +1894,7 @@ static FORCE_INLINE STSchema* doGetSchemaForTSRow(int32_t sversion, STsdbReader*
 
   // always set the newest schema version in pReader->pSchema
   if (pReader->pSchema == NULL) {
-    code = metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, uid, -1, 1, &pReader->pSchema);
+    code = metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, -1, &pReader->pSchema);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = code;
       return NULL;
@@ -1975,7 +1975,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   // DESC: mem -----> imem -----> last block -----> file block
   if (pReader->order == TSDB_ORDER_ASC) {
     if (minKey == key) {
-      init = true;
+      init = true;  // todo check if pReader->pSchema is null or not
       int32_t code = tsdbRowMergerInit(&merge, NULL, &fRow, pReader->pSchema);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -5234,7 +5234,7 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
   metaReaderClear(&mr);
 
   // get the newest table schema version
-  code = metaGetTbTSchemaEx(pVnode->pMeta, uid, -1, 1, pSchema);
+  code = metaGetTbTSchemaEx(pVnode->pMeta, *suid, uid, -1, pSchema);
   return code;
 }
 

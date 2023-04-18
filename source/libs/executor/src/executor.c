@@ -517,10 +517,8 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
       goto _error;
     }
 
+    // pSinkParam has been freed during create sinker.
     code = dsCreateDataSinker(pSubplan->pDataSink, handle, pSinkParam, (*pTask)->id.str);
-    if (code != TSDB_CODE_SUCCESS) {
-      taosMemoryFreeClear(pSinkParam);
-    }
   }
 
   qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, pSubplan->id.queryId);

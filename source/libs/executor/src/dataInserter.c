@@ -408,6 +408,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
                            void* pParam) {
   SDataInserterHandle* inserter = taosMemoryCalloc(1, sizeof(SDataInserterHandle));
   if (NULL == inserter) {
+    taosMemoryFree(pParam);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
