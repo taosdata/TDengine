@@ -323,15 +323,22 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
     taosWUnLockLatch(&pTq->lock);
   }
 
-  // push data for stream processing
-  if (!tsDisableStream && vnodeIsRoleLeader(pTq->pVnode)) {
+  tqDebug("handle submit, restore:%d, size:%d", pTq->pVnode->restored, (int)taosHashGetSize(pTq->pStreamMeta->pTasks));
+
+  // push data for stream processing:
+  // 1. the vnode has already been restored.
+  // 2. the vnode should be the leader.
+  // 3. the stream is not suspended yet.
+  if (!tsDisableStream && vnodeIsRoleLeader(pTq->pVnode) && pTq->pVnode->restored) {
     if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) {
       return 0;
     }
 
     if (msgType == TDMT_VND_SUBMIT) {
+#if 0
       void* data = taosMemoryMalloc(len);
       if (data == NULL) {
+        // todo: for all stream in this vnode, keep this offset in the offset files, and wait for a moment, and then retry
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         tqError("vgId:%d, failed to copy submit data for stream processing, since out of memory", vgId);
         return -1;
@@ -340,7 +347,10 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
       memcpy(data, pReq, len);
       SPackedData submit = {.msgStr = data, .msgLen = len, .ver = ver};
 
-      tqDebug("tq copy write msg %p %d %" PRId64 " from %p", data, len, ver, pReq);
+      tqDebug("vgId:%d tq copy submit msg:%p len:%d ver:%" PRId64 " from %p for stream", vgId, data, len, ver, pReq);
+      tqProcessSubmitReq(pTq, submit);
+#endif
+      SPackedData submit = {0};
       tqProcessSubmitReq(pTq, submit);
     }
 
@@ -352,7 +362,7 @@ int32_t tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t v
   return 0;
 }
 
-int32_t tqRegisterPushEntry(STQ* pTq, void* pHandle, const SMqPollReq* pRequest, SRpcMsg* pRpcMsg, SMqDataRsp* pDataRsp,
+int32_t tqRegisterPushHandle(STQ* pTq, void* pHandle, const SMqPollReq* pRequest, SRpcMsg* pRpcMsg, SMqDataRsp* pDataRsp,
                             int32_t type) {
   uint64_t   consumerId = pRequest->consumerId;
   int32_t    vgId = TD_VID(pTq->pVnode);
@@ -389,7 +399,7 @@ int32_t tqRegisterPushEntry(STQ* pTq, void* pHandle, const SMqPollReq* pRequest,
   return 0;
 }
 
-int32_t tqUnregisterPushEntry(STQ* pTq, const char* pKey, int32_t keyLen, uint64_t consumerId, bool rspConsumer) {
+int32_t tqUnregisterPushHandle(STQ* pTq, const char* pKey, int32_t keyLen, uint64_t consumerId, bool rspConsumer) {
   int32_t        vgId = TD_VID(pTq->pVnode);
   STqPushEntry** pEntry = taosHashGet(pTq->pPushMgr, pKey, keyLen);
 

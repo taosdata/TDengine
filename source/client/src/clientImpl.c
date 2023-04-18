@@ -1039,8 +1039,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                       .sysInfo = pRequest->pTscObj->sysInfo,
                       .allocatorId = pRequest->allocatorRefId};
 
-  SAppInstInfo* pAppInfo = getAppInfo(pRequest);
-  SQueryPlan*   pDag = NULL;
+  SQueryPlan* pDag = NULL;
 
   int64_t st = taosGetTimestampUs();
   int32_t code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
@@ -1052,7 +1051,6 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   }
 
   pRequest->metric.execStart = taosGetTimestampUs();
-
   pRequest->metric.planCostUs = pRequest->metric.execStart - st;
 
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
