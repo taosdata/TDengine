@@ -7158,8 +7158,7 @@ int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, STaosxRsp *pRsp) {
 }
 
 void tDeleteSTaosxRsp(STaosxRsp *pRsp) {
-  taosArrayDestroy(pRsp->blockDataLen);
-  pRsp->blockDataLen = NULL;
+  pRsp->blockDataLen = taosArrayDestroy(pRsp->blockDataLen);
   taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
   pRsp->blockData = NULL;
   taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSSchemaWrapper);
@@ -7167,8 +7166,7 @@ void tDeleteSTaosxRsp(STaosxRsp *pRsp) {
   taosArrayDestroyP(pRsp->blockTbName, (FDelete)taosMemoryFree);
   pRsp->blockTbName = NULL;
 
-  taosArrayDestroy(pRsp->createTableLen);
-  pRsp->createTableLen = NULL;
+  pRsp->createTableLen = taosArrayDestroy(pRsp->createTableLen);
   taosArrayDestroyP(pRsp->createTableReq, (FDelete)taosMemoryFree);
   pRsp->createTableReq = NULL;
 }
