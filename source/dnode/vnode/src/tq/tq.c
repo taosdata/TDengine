@@ -1280,7 +1280,7 @@ int32_t tqStartStreamTasks(STQ* pTq) {
 
   if (pMeta->walScan > 1) {
     tqDebug("vgId:%d wal read task has been launched, remain scan times:%d", vgId, pMeta->walScan);
-    taosWUnLockLatch(&pTq->pStreamMeta->lock);
+    taosWUnLockLatch(&pMeta->lock);
     return 0;
   }
 
@@ -1294,7 +1294,7 @@ int32_t tqStartStreamTasks(STQ* pTq) {
 
   int32_t numOfTasks = taosHashGetSize(pTq->pStreamMeta->pTasks);
 
-  tqInfo("vgId:%d start wal scan stream tasks, tasks:%d", vgId, numOfTasks);
+  tqDebug("vgId:%d start wal scan stream tasks, tasks:%d", vgId, numOfTasks);
   initOffsetForAllRestoreTasks(pTq);
 
   pRunReq->head.vgId = vgId;

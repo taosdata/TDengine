@@ -27,7 +27,7 @@ int tqStreamTasksScanWal(STQ* pTq) {
   int64_t st = taosGetTimestampMs();
 
   while (1) {
-    tqInfo("vgId:%d continue check if data in wal are available", vgId);
+    tqDebug("vgId:%d continue check if data in wal are available", vgId);
 
     // check all restore tasks
     bool allFull = true;
@@ -50,8 +50,8 @@ int tqStreamTasksScanWal(STQ* pTq) {
     }
   }
 
-  double el = (taosGetTimestampMs() - st) / 1000.0;
-  tqInfo("vgId:%d scan wal for stream tasks completed, elapsed time:%.2f sec", vgId, el);
+  int64_t el = (taosGetTimestampMs() - st);
+  tqDebug("vgId:%d scan wal for stream tasks completed, elapsed time:%"PRId64" ms", vgId, el);
 
   // restore wal scan flag
 //  atomic_store_8(&pTq->pStreamMeta->walScan, 0);
