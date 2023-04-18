@@ -39,12 +39,8 @@
       addSql() {
         const newline = this.$store.state.console.sqlStr ? "\n" : "";
         this.$store.commit("console/ADD_SQLSTR", newline + this.record.sql);
-        console.log(this.record.sql,'this.record.sql');
       },
     },
-    mounted(){
-      console.log(this.record,'record-----0000');
-    }
   };
 </script>
 

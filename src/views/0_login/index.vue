@@ -331,7 +331,6 @@ export default {
             // });
             this.getUserAuthority();
           } else {
-            console.log();
             Message.error(this.$t("login.errorTip"));
           }
         });
