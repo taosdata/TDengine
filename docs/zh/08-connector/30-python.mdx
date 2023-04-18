@@ -484,6 +484,56 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 </TabItem>
 </Tabs>
 
+### 无模式写入
+
+连接器支持无模式写入功能。
+
+<Tabs defaultValue="list">
+<TabItem value="list" label="List 写入">
+
+简单写入
+
+```python
+{{#include docs/examples/python/schemaless_insert.py}}
+```
+
+带有 ttl 参数的写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_ttl.py}}
+```
+
+带有 req_id 参数的写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_req_id.py}}
+```
+
+</TabItem>
+
+<TabItem value="raw" label="Raw 写入">
+
+简单写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw.py}}
+```
+
+带有 ttl 参数的写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_ttl.py}}
+```
+
+带有 req_id 参数的写入
+
+```python
+{{#include docs/examples/python/schemaless_insert_raw_req_id.py}}
+```
+
+</TabItem>
+</Tabs>
+
 ### 其它示例程序
 
 | 示例程序链接                                                                                                  | 示例程序内容            |

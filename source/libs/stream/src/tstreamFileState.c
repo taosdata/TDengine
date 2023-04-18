@@ -100,6 +100,14 @@ void destroyRowBuffPosPtr(void* ptr) {
   }
 }
 
+void destroyRowBuffAllPosPtr(void* ptr) {
+  if (!ptr) {
+    return;
+  }
+  SRowBuffPos* pPos = *(SRowBuffPos**)ptr;
+  destroyRowBuffPos(pPos);
+}
+
 void destroyRowBuff(void* ptr) {
   if (!ptr) {
     return;
@@ -111,7 +119,7 @@ void streamFileStateDestroy(SStreamFileState* pFileState) {
   if (!pFileState) {
     return;
   }
-  tdListFreeP(pFileState->usedBuffs, destroyRowBuffPosPtr);
+  tdListFreeP(pFileState->usedBuffs, destroyRowBuffAllPosPtr);
   tdListFreeP(pFileState->freeBuffs, destroyRowBuff);
   tSimpleHashCleanup(pFileState->rowBuffMap);
   taosMemoryFree(pFileState);
@@ -399,7 +407,6 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
       return TSDB_CODE_FAILED;
     }
     sscanf(val, "%" PRId64 "", &maxCheckPointId);
-    taosMemoryFree(val);
   }
   for (int64_t i = maxCheckPointId; i > 0; i--) {
     char    buf[128] = {0};
@@ -412,7 +419,6 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
     }
     TSKEY ts;
     sscanf(val, "%" PRId64 "", &ts);
-    taosMemoryFree(val);
     if (ts < mark) {
       // statekey winkey.ts < mark
       forceRemoveCheckpoint(pFileState, i);
@@ -445,10 +451,11 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
     code = streamStateGetKVByCur_rocksdb(pCur, pNewPos->pKey, (const void**)&pVal, &pVLen);
     if (code != TSDB_CODE_SUCCESS || pFileState->getTs(pNewPos->pKey) < pFileState->flushMark) {
       destroyRowBuffPos(pNewPos);
+      SListNode* pNode = tdListPopTail(pFileState->usedBuffs);
+      taosMemoryFreeClear(pNode);
       break;
     }
     memcpy(pNewPos->pRowBuff, pVal, pVLen);
-    taosMemoryFree(pVal);
     code = tSimpleHashPut(pFileState->rowBuffMap, pNewPos->pKey, pFileState->rowSize, &pNewPos, POINTER_BYTES);
     if (code != TSDB_CODE_SUCCESS) {
       destroyRowBuffPos(pNewPos);
@@ -456,6 +463,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState) {
     }
     code = streamStateCurPrev_rocksdb(pFileState->pFileStore, pCur);
   }
+  streamStateFreeCur(pCur);
 
   return TSDB_CODE_SUCCESS;
 }
