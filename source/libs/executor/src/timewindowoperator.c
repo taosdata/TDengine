@@ -1275,15 +1275,20 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
     return NULL;
   }
 
+  int64_t st0 = taosGetTimestampUs();
   SSDataBlock* pBlock = pInfo->binfo.pRes;
   pTaskInfo->code = pOperator->fpSet._openFn(pOperator);
   if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
     return NULL;
   }
+  int64_t st1 = taosGetTimestampUs();
+  int64_t st2 = 0, st3 = 0;
 
   while (1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
+    st2 = taosGetTimestampUs();
     doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+    st3 = taosGetTimestampUs();
 
     bool hasRemain = hasRemainResults(&pInfo->groupResInfo);
     if (!hasRemain) {
@@ -1292,6 +1297,7 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
     }
 
     if (pBlock->info.rows > 0) {
+      qError("interval open:%" PRId64 "us, build:%" PRId64 "us, filter:%" PRId64 "us, rows:%" PRId64, st1-st0,st2-st1,st3-st2,pBlock->info.rows);
       break;
     }
   }
