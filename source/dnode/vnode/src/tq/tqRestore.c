@@ -27,7 +27,8 @@ int tqStreamTasksScanWal(STQ* pTq) {
   int64_t st = taosGetTimestampMs();
 
   while (1) {
-    tqDebug("vgId:%d continue check if data in wal are available", vgId);
+    int32_t scan = pMeta->walScan;
+    tqDebug("vgId:%d continue check if data in wal are available, scan:%d", vgId, scan);
 
     // check all restore tasks
     bool allFull = true;
