@@ -119,7 +119,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   return NULL;
 }
 
-int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t *fp, void *param, int type) {
+int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type) {
   if (taos == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
