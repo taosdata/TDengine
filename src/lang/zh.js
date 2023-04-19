@@ -229,7 +229,8 @@ export default {
     backLogin: "回到登录",
     rememberMe: "记住我",
     usernameTips: '请输入用户名',
-    passwordTips: '请输入密码'
+    passwordTips: '请输入密码',
+    errorTip: '用户名或者密码错误'
   },
   dashboard: {
     warnigtip:`请点击左侧<a href="/dashboard">仪表盘</a>查看TDinsight的设置`,

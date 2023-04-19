@@ -302,7 +302,8 @@ export default {
     backLogin: "Back to login",
     rememberMe: "Remember me",
     usernameTips: 'Please enter the Username',
-    passwordTips: 'Please enter the Password'
+    passwordTips: 'Please enter the Password',
+    errorTip: 'The user name or password is incorrect'
   },
   dashboard: {
     warnigtip: `Please click on the left <a href="/dashboard"> dashboard</a> to view the settings for TDinsight`,
