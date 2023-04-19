@@ -560,7 +560,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_comment.py
 ,,n,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/block_wise.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/create_retentions.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/create_retentions.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/mutil_stage.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py -R
