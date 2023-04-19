@@ -29,6 +29,7 @@ FAIL:
   if (pQueue->queue) taosCloseQueue(pQueue->queue);
   if (pQueue->qall) taosFreeQall(pQueue->qall);
   taosMemoryFree(pQueue);
+
   return NULL;
 }
 
