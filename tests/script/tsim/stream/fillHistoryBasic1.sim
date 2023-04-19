@@ -481,64 +481,73 @@ sql insert into t1 values(1648791213004,4,2,3,4.1);
 
 sql create stream stream2 trigger at_once fill_history 1 IGNORE EXPIRED 0 into streamt as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);
 
+$loop_count = 0
+loop0:
+
 sleep 5000
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 if $rows != 4 then
   print ======$rows
-  return -1
+  goto loop0
 endi
 
 # row 0
 if $data01 != 2 then
   print ======$data01
-  return -1
+  goto loop0
 endi
 
 if $data02 != 2 then
   print ======$data02
-  return -1
+  goto loop0
 endi
 
 if $data03 != 5 then
   print ======$data03
-  return -1
+  goto loop0
 endi
 
 if $data04 != 2 then
   print ======$data04
-  return -1
+  goto loop0
 endi
 
 if $data05 != 3 then
   print ======$data05
-  return -1
+  goto loop0
 endi
 
 # row 1
 if $data11 != 1 then
   print ======$data11
-  return -1
+  goto loop0
 endi
 
 if $data12 != 1 then
   print ======$data12
-  return -1
+  goto loop0
 endi
 
 if $data13 != 2 then
   print ======$data13
-  return -1
+  goto loop0
 endi
 
 if $data14 != 2 then
   print ======$data14
-  return -1
+  goto loop0
 endi
 
 if $data15 != 3 then
   print ======$data15
-  return -1
+  goto loop0
 endi
 
 # row 2
