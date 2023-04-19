@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, debug};
 
 use super::runners::opc::OpcTableConfig;
-use taosx_ipc::{prelude::*, stream::point::PointMessage};
+use taosx_ipc::{prelude::*, stream::{point::PointMessage, flat::FlatMessage}};
 
 // #[instrument(skip_all)]
 async fn ipc_tcp_read(
@@ -159,6 +159,21 @@ async fn consume_point_record(
     Ok(())
 }
 
+async fn consume_flat_record(
+    taos: &Taos,
+    record: &FlatMessage,
+    count: &mut usize,
+) -> anyhow::Result<()> {
+    for message in record.records() {
+        let mut cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
+        let mut stmt = Stmt::init(&taos)?;
+        // process id, ts, value
+        dbg!(&cv_vec);
+        // TODO transfer to transformer
+    }
+    Ok(())
+}
+
 // #[instrument(skip_all)]
 async fn ipc_lush_stream_reader<R: Read, W: Write>(
     taos: &Taos,
@@ -208,6 +223,27 @@ async fn ipc_point_reader<R: Read, W: Write>(
     Ok(())
 }
 
+async fn ipc_flat_stream_reader<R: Read, W: Write>(
+    taos: &Taos,
+    ipc_reader: IpcReader<R>,
+    mut ipc_ack_writer: AckWriter<W>,
+) -> anyhow::Result<()> {
+    let mut count = 0;
+    for record in ipc_reader {
+        if let Ok(record) = record {
+            let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
+                std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
+            })
+            .unwrap();
+            consume_flat_record(&taos, &record, &mut count, ).await?;
+
+            ipc_ack_writer.write_ok()?;
+        }
+    }
+    println!("finished, totally {count} rows");
+    Ok(())
+}
+
 #[instrument(skip(pool, ipc_reader, ipc_ack_writer, config))]
 async fn ipc_process<R: Read, W: Write>(
     client: String,
@@ -236,7 +272,7 @@ async fn ipc_process<R: Read, W: Write>(
     }
     match stream_type {
         StreamType::Line => todo!(),
-        StreamType::Flat => todo!(),
+        StreamType::Flat => ipc_flat_stream_reader(&taos, ipc_reader, ipc_ack_writer,).await?,
         StreamType::Lush => ipc_lush_stream_reader(&taos, ipc_reader, ipc_ack_writer).await?,
         StreamType::Point => ipc_point_reader(&taos, ipc_reader, ipc_ack_writer, config).await?,
     }

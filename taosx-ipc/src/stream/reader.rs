@@ -24,7 +24,7 @@ use crate::{
     ack::AckType,
     constants::{__ATTRS__, __RECORDS__, __TABLES__INDEX__, __TABLE_NAME__, __TYPE__},
     prelude::{IpcDataType, IpcMetadata, LushMessageType, StreamType},
-    stream::point::{PointMessage, RecordMessage},
+    stream::{point::{PointMessage, RecordMessage}, flat::FlatMessage},
 };
 
 pub struct IpcReader<R: Read> {
@@ -929,7 +929,6 @@ pub fn record_batch_to_column_view(record: &RecordBatch) -> Vec<ColumnView> {
         .columns()
         .iter()
         .map(|column| {
-            // dbg!(column);
             match column.data_type() {
                 DataType::Null => todo!(),
                 DataType::Boolean => {
@@ -1254,6 +1253,12 @@ impl<R: Read> Iterator for IpcReader<R> {
                         record
                     };
                     return Some(Ok(Box::new(PointMessage::new(vec![record]))));
+                }
+                StreamType::Flat => {
+                    let record = RecordMessage {
+                        record
+                    };
+                    return Some(Ok(Box::new(FlatMessage::new(vec![record]))));
                 }
                 _ => todo!(),
             }
