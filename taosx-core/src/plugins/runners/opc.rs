@@ -44,6 +44,8 @@ enum OpcError {
     UserPassRequired(Dsn),
     #[error("config file not found: {0}")]
     FileNotFound(String),
+    #[error("file parse error: {0}")]
+    FileParseFound(String),
     #[error("config file content is empty in {0}")]
     EmptyConfig(String),
     #[error("node config length is not 4, length is {0}")]
@@ -235,7 +237,7 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?
+                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
@@ -295,7 +297,7 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "da.tags")?
+                    get_string_vec_from_param_or_file(&mut dsn, "da.tags").map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut da_nodes_vec = Vec::new();
                 for i in 0..node_vec.len() {
@@ -350,7 +352,7 @@ impl OPCConfig {
     }
 }
 
-fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<String>, OpcError> {
+pub(super) fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<String>, String> {
     if let Some(nodes) = dsn.remove(key) {
         let (files, mut node_config): (Vec<_>, Vec<_>) = nodes
             .split(",")
@@ -361,8 +363,8 @@ fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<Str
         for file in files {
             let f = std::fs::File::open(&file[1..]);
             if f.is_err() {
-                log::warn!("file: {} read error", file);
-                return Err(OpcError::FileNotFound(file));
+                // log::warn!("file: {} read error", file);
+                return Err("file read error".to_string());
             }
             let buf = std::io::BufReader::new(f.unwrap());
             let mut file_data = buf.lines().collect_vec();
@@ -379,13 +381,13 @@ fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<Str
             );
         }
         if node_config.len() == 0 {
-            log::warn!("node config is empty");
-            return Err(OpcError::EmptyConfig(nodes));
+            // log::warn!("node config is empty");
+            return Err("node config is empty".to_string());
         }
         return Result::Ok(node_config);
     }
-    log::warn!("node config is empty");
-    return Err(OpcError::EmptyConfig(String::new()));
+    // log::warn!("node config is empty");
+    return Err("node config is empty".to_string());
 }
 
 fn process_table_info(
@@ -811,7 +813,7 @@ batch_timeout = 100
 #[tokio::test]
 async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
     let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
-    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?;
+    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").map_err(|s| OpcError::FileParseFound(s))?;
     assert_eq!(
         vec_string,
         vec![
@@ -820,7 +822,7 @@ async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
         ]
     );
     let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
-    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")?;
+    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").map_err(|s| OpcError::FileParseFound(s))?;
     assert_eq!(
         vec_string,
         vec![
