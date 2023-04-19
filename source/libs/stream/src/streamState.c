@@ -256,8 +256,10 @@ int32_t streamStateBegin(SStreamState* pState) {
 
 int32_t streamStateCommit(SStreamState* pState) {
 #ifdef USE_ROCKSDB
-  SStreamSnapshot* pShot = getSnapshot(pState->pFileState);
-  flushSnapshot(pState->pFileState, pShot, true);
+  if (pState->pFileState) {
+    SStreamSnapshot* pShot = getSnapshot(pState->pFileState);
+    flushSnapshot(pState->pFileState, pShot, true);
+  }
   return 0;
 #else
   if (tdbCommit(pState->pTdbState->db, pState->pTdbState->txn) < 0) {
