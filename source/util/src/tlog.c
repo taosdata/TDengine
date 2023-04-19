@@ -791,8 +791,10 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
   tjsonAddIntegerToObject(pJson, "clusterId", clusterId);
   tjsonAddIntegerToObject(pJson, "startTime", startTime);
 
-  taosGetFqdn(tmp);  
-  tjsonAddStringToObject(pJson, "fqdn", tmp);
+  // Do NOT invoke the taosGetFqdn here.
+  // this function may be invoked when memory exception occurs,so we should assume that it is running in a memory locked
+  // environment. The lock operation by taosGetFqdn may cause this program deadlock.
+  tjsonAddStringToObject(pJson, "fqdn", tsLocalFqdn);
   
   tjsonAddIntegerToObject(pJson, "pid", taosGetPId());
 
