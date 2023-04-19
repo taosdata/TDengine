@@ -293,8 +293,13 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     tjsonGetNumberValue(info, "clusterId", pNode->clusterId, code);
     if (code < 0) return -1;
     char role[10];
-    tjsonGetStringValue(info, "nodeRole", role);
-    pNode->nodeRole = vnodeStrToRole(role);
+    code = tjsonGetStringValue(info, "nodeRole", role);
+    if(code > 0){
+      pNode->nodeRole = vnodeStrToRole(role);
+    }
+    else{
+      pNode->nodeRole = TAOS_SYNC_ROLE_VOTER;
+    }
     vDebug("vgId:%d, decode config, replica:%d ep:%s:%u dnode:%d", pCfg->vgId, i, pNode->nodeFqdn, pNode->nodePort,
            pNode->nodeId);
   }
