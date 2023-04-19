@@ -7,9 +7,11 @@ let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
+  systemTitle: "TDengine 管理系统",
   copyright:' Copyright 2023 北京涛思数据科技有限公司',
   download: "下载",
-  isDel: "确定要删除吗？",
+  isDel: "确定要删除{isDelName}吗？",
+  isDisable: "确定要 {isDisable} {isDisableName}?",
   role: "角色",
   fullName: "全称",
   total: "全部",
@@ -60,6 +62,7 @@ export default {
   phoneError: "手机号格式有误!",
   oldPass: "旧密码",
   newPass: "新密码",
+  requiredMessage: "是必填的",
   passwordError: "密码格式错误",
   passwordTip: `<div>密码长度必须为8到16位，并且至少包含以下3中字符:</div><ul><li><el-icon class='el-icon-circle-check'></el-icon> 大写字母</li><li><el-icon class='el-icon-circle-check'></el-icon> 小写字母</li><li><el-icon class='el-icon-circle-check'></el-icon> 数字</li><li><el-icon class='el-icon-circle-check'></el-icon> 特殊字符</li></ul>`,
   twoPassError: "两次密码不一致",
@@ -97,6 +100,7 @@ export default {
   clusterInfo: "集群信息",
   clusterName: "集群名称",
   document: "文档",
+  docsUrl: "https://docs.taosdata.com/",
   discord: "意见反馈",
   hour: "时",
   formatWrong: "格式错误",
@@ -119,6 +123,8 @@ export default {
   backToPrev: "返回上一步",
   utcTip: "这里选择的是UTC时间",
   cloudError: "当前域名不在服务范围内!",
+  prev: "上一个",
+  next: "下一个",
   plan: {
     pricePlan: "价格方案",
     selectPlan: "选择方案",
@@ -226,6 +232,9 @@ export default {
     thankTip: `验证邮件已发送至<a class="mail-link" href="mailto:{email}">{email</a>，请检查您的电子邮件。 如果它没有在几分钟内出现，请检查您的垃圾邮件文件夹。 如果还是找不到，请使用同一邮箱重新注册或发送邮件至 <a class="mail-link" href="mailto:support@tdengine.com">support@tdengine.com</a> 寻求帮助。`,
     backLogin: "回到登录",
     rememberMe: "记住我",
+    usernameTips: '请输入用户名',
+    passwordTips: '请输入密码',
+    errorTip: '用户名或者密码错误'
   },
   dashboard: {
     warnigtip:`请点击左侧<a href="/dashboard">仪表盘</a>查看TDinsight的设置`,
@@ -626,6 +635,9 @@ export default {
     noConfigPermission: "未配置权限！",
     resendTip: "重新发送激活邮件",
     delUser: "删除用户",
+    createNewUserSucTip: '创建用户成功',
+    createNewUseErrTip: "创建用户失败",
+    createNewUseErrCause: '创建用户失败,用户名不合法或已经存在！',
   },
   stream: {
     tableType: '表类型',
@@ -713,6 +725,59 @@ export default {
     upTime: "在线时间",
     subscribeTime: "订阅时间",
     rebalanceTime: "平衡时间",
+  },
+  landing: {
+    title: "欢迎使用 TDengine Cloud ，让我们从了解基本概念开始。",
+    introduce: "TDengine Cloud 是一全托管的时间序列数据处理云服务。使用前，请阅读TDengine数据模型的关键概念。",
+    pageTip: "This page has some helpful references for getting started. You can reference it anytime by clicking the TDengine Logo in the top left.",
+    metricTitle: "采集量 (Metric)",
+    metricDesc:
+      "采集量是指传感器、设备或其他类型采集点采集的物理量，比如电流、电压、温度、压力、GPS 位置等，是随时间变化的，数据类型可以是整型、浮点型、布尔型，也可是字符串。随着时间的推移，存储的采集量的数据量越来越大。智能电表示例中的电流、电压、相位就是采集量。",
+    labelTitle: "标签 (Label/Tag)",
+    labelDesc:
+      "标签是指传感器、设备或其他类型采集点的静态属性，不是随时间变化的，比如设备型号、颜色、设备的所在地等，数据类型可以是任何类型。虽然是静态的，但 TDengine 容许用户修改、删除或增加标签值。与采集量不一样的是，随时间的推移，存储的标签的数据量不会有什么变化。智能电表示例中的 location 与 groupid 就是标签。",
+    dataCollectionTitle: "数据采集点 (Data Collection Point)",
+    dataCollectionDesc:
+    "数据采集点是指按照预设时间周期或受事件触发采集物理量的硬件或软件。一个数据采集点可以采集一个或多个采集量，但这些采集量都是同一时刻采集的，具有相同的时间戳。对于复杂的设备，往往有多个数据采集点，每个数据采集点采集的周期都可能不一样，而且完全独立，不同步。比如对于一台汽车，有数据采集点专门采集 GPS 位置，有数据采集点专门采集发动机状态，有数据采集点专门采集车内的环境，这样一台汽车就有三个数据采集点。智能电表示例中的 d1001、d1002、d1003、d1004 等就是数据采集点。",
+    tableTitle: "表 (Table)",
+    tableDesc:
+      `为充分利用其数据的时序性和其他数据特点，TDengine 采取一个数据采集点一张表的策略，要求对每个数据采集点单独建表（比如有一千万个智能电表，就需创建一千万张表），用来存储这个数据采集点所采集的时序数据。这种设计能最大程度的保证单个数据采集点的插入和查询的性能是最优的。
+      <br />
+      <br />
+      TDengine 建议用数据采集点的名字来做表名。每个数据采集点可能同时采集多个采集量（如智能电表的 current、voltage 和 phase），每个采集量对应一张表中的一列，数据类型可以是整型、浮点型、字符串等。除此之外，表的第一列必须是时间戳，即数据类型为 Timestamp。对采集量，TDengine 将自动按照时间戳建立索引，但对采集量本身不建任何索引。数据用列式存储方式保存。
+      <br />
+      <br />
+      对于复杂的设备，比如汽车，它有多个数据采集点，那么就需要为一辆汽车建立多张表。
+      `,
+    superTableTitle: "超级表 (STable)",
+    superTableDesc:
+    `由于一个数据采集点一张表，导致表的数量巨增，难以管理，而且应用经常需要做采集点之间的聚合操作，聚合的操作也变得复杂起来。为解决这个问题，TDengine 引入超级表（Super Table，简称为 STable）的概念。 超级表是指某一特定类型的数据采集点的集合。同一类型的数据采集点，其表的结构是完全一样的，但每个表（数据采集点）的静态属性（标签）是不一样的。描述一个超级表（某一特定类型的数据采集点的集合），除需要定义采集量的表结构之外，还需要定义其标签的 Schema，标签的数据类型可以是整数、浮点数、字符串、JSON，标签可以有多个，可以事后增加、删除或修改。如果整个系统有 N 个不同类型的数据采集点，就需要建立 N 个超级表。
+    <br />
+    <br />
+    在 TDengine 的设计里，表用来代表一个具体的数据采集点，超级表用来代表一组相同类型的数据采集点集合。
+    `,
+    subtableTitle: "子表 (Subtable)",
+    subtableDesc:
+      `当为某个具体数据采集点创建表时，用户可以使用超级表的定义做模板，同时指定该具体采集点（表）的具体标签值来创建该表。通过超级表创建的表称之为子表。
+      <br />
+      <br />
+      查询既可以在表上进行，也可以在超级表上进行。针对超级表的查询，TDengine 将把所有子表中的数据视为一个整体数据集进行处理，会先把满足标签过滤条件的表从超级表中找出来，然后再扫描这些表的时序数据，进行聚合操作，这样需要扫描的数据集会大幅减少，从而显著提高查询的性能。本质上，TDengine 通过对超级表查询的支持，实现了多个同类数据采集点的高效聚合。
+      <br />
+      <br />
+      TDengine 系统建议给一个数据采集点建表，需要通过超级表建表，而不是建普通表。
+      `,
+    databaseTitle: "库 (Database)",
+    databaseDesc:
+      `库是指一组表的集合。TDengine 容许一个运行实例有多个库，而且每个库可以配置不同的存储策略。不同类型的数据采集点往往具有不同的数据特征，包括数据采集频率的高低，数据保留时间的长短，副本的数目，数据块的大小，是否允许更新数据等等。为了在各种场景下 TDengine 都能最大效率的工作，TDengine 建议将不同数据特征的超级表创建在不同的库里。
+      <br />
+      <br />
+      一个库里，可以有一到多个超级表，但一个超级表只属于一个库。一个超级表所拥有的子表全部存在一个库里。
+      `,
+    instanceTitle: "实例 (Instance)、URL、Token (令牌)",
+    instanceDesc: `实例 (Instance) 是一个运行的TDengine实例，其中包含一个或多个数据库。一个实例不会跨越多个区域或多个云。两个实例之间没有任何关联。 TDengine Cloud 的牵涉到数据的操作，都是针对一个具体实例进行的。
+      <br />
+      <br />
+      TDengine Cloud 为每个实例提供唯一的URL，并使用令牌对访问进行身份验证。令牌由TDengine云为每个用户和每个实例生成。令牌有一个持续时间，一个组织的系统管理员可以在任何时候为每个实例重置令牌，以确保安全。`,
   },
   component: {
     docConfig: {
@@ -1302,6 +1367,7 @@ export default {
     finishat: '完成时间',
     createat: '开始时间',
     adduser: '新增用户',
+    edituser: '编辑用户',
     username: '用户名称',
     password: '密码',
     subscription: '订阅',

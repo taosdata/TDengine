@@ -569,7 +569,7 @@ export default {
     },
     minusColumn(index) {
       if (!this.isEdit) return this.stable_form.columns.remove(index);
-      this.$confirm(this.$t("isDel"), this.$t("tips"), {
+      this.$confirm(this.$t('isDel').replace('{isDelName}', ''), this.$t("tips"), {
         confirmButtonText: this.$t("confirm"),
         cancelButtonText: this.$t("cancel"),
         type: "warning",
@@ -622,7 +622,7 @@ export default {
     },
     minusTag(index) {
       if (!this.isEdit) return this.stable_form.tags.remove(index);
-      this.$confirm(this.$t("isDel"), this.$t("tips"), {
+      this.$confirm(this.$t('isDel').replace('{isDelName}', ''), this.$t("tips"), {
         confirmButtonText: this.$t("confirm"),
         cancelButtonText: this.$t("cancel"),
         type: "warning",

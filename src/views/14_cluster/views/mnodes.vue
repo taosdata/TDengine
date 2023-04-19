@@ -44,7 +44,7 @@
     ></el-pagination>
     <el-dialog
       align="center"
-      :title="$t('taoscluster.adddnodes')"
+      :title="$t('taoscluster.addmnodes')"
       width="600px"
       :visible.sync="dialog"
       @close='closeDialog'
@@ -131,18 +131,18 @@ export default {
     handlePageChange() {},
     del(data) {
       this.$confirm(
-        "Are you sure  to delete " + data.endpoint + "?",
+        this.$t('isDel').replace('{isDelName}',data.endpoint),
         "Warning",
         {
-          confirmButtonText: "Ok",
-          cancelButtonText: "Cancel",
+          confirmButtonText: this.$t('confirm'),
+          cancelButtonText: this.$t('cancel'),
           type: "warning",
         }
       ).then(() => {
         sendSQLReq(`drop mnode on dnode ${data.id};`)
           .then((res) => {
             if (res.code == 0) {
-              Message.success("Deleted Successfully!");
+              Message.success(this.$t('delSucc'));
               this.getAllMnodes();
             }
           })

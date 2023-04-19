@@ -76,7 +76,7 @@
 
       <div class="login-content">
         <div class="login-title">
-          <span class="dynamic-title">TDengine Management System</span>
+          <span class="dynamic-title">{{ $t('systemTitle') }}</span>
         </div>
         <el-form
           :model="dynamicValidateForm"
@@ -199,7 +199,7 @@ export default {
   data() {
     var validatePass = (rule, value, callback) => {
       if (value === "") {
-        callback(new Error("Please enter the Password"));
+        callback(new Error(this.$t('login.passwordTips')));
       } else {
         // setTimeout(() => {
         //   if (this.dynamicValidateForm.password !== "") {
@@ -241,7 +241,7 @@ export default {
         username: [
           {
             required: true,
-            message: "Please enter the UserName",
+            message: this.$t('login.usernameTips'),
             trigger: "blur",
           },
         ],
@@ -326,12 +326,13 @@ export default {
           if (res && res.code == 0 && !res.desc) {
             localStorage.setItem("TDengine-Token", token);
             this.getClusterID();
-            // this.$router.push({
-            //   path: "/explorer"
-            // });
-            this.getUserAuthority();
+            this.$router.push({
+              path: "/explorer"
+            });
+            // this.getUserAuthority();
           } else {
             console.log();
+            Message.error(this.$t("login.errorTip"));
           }
         });
         this.loading = false;

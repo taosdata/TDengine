@@ -71,10 +71,10 @@ export default {
       },
       rules: {
         user: [
-          { required: true, message: "Please input user name", trigger: "blur" }
+          { required: true, message: this.$t('taosuser.username') + this.$t('requiredMessage'), trigger: "blur" }
         ],
         pwd: [
-          { required: true, message: "Please input password", trigger: "blur" }
+          { required: true, message: this.$t('taosuser.password') + this.$t('requiredMessage'), trigger: "blur" }
         ]
       },
       databaseList: [],
@@ -196,10 +196,15 @@ export default {
                     });
                   }
                 }
-                Message.success("Create user successfully");
+                Message.success(this.$t('users.createNewUserSucTip'));
                 this.$emit("close")
               })
               .catch((err) => {
+                if(err && (err.code == '9728' || err.code == '848')) {
+                  Message.error(this.$t('users.createNewUseErrCause'));
+                  return
+                }
+                Message.error(this.$t('users.createNewUseErrTip'));
                 this.$emit("close")
                 return Promise.reject(err);
               });

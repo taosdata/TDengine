@@ -74,7 +74,7 @@
       <AddUser @close="closeDialog"></AddUser>
     </el-dialog>
 
-    <el-dialog align="center" title="Edit User" width="550px" :visible.sync="editDialog">
+    <el-dialog align="center" :title="$t('taosuser.edituser')" width="550px" :visible.sync="editDialog">
       <EditUser :user="this.editUser" @close="closeEditDialog"></EditUser>
     </el-dialog>
 
@@ -130,13 +130,13 @@ export default {
       rules: {
         user: [
           {
-            message: "Please enter the user name",
+            message: this.$t('login.usernameTips'),
             trigger: "blur",
           },
         ],
         pwd: [
           {
-            message: "Please enter the password",
+            message: this.$t('login.passwordTips'),
             trigger: "blur",
           },
         ],
@@ -191,9 +191,9 @@ export default {
 
     handlePageChange() { },
     del(data) {
-      this.$confirm("Are you sure to delete " + data.name + "?", "Warning", {
-        confirmButtonText: "Ok",
-        cancelButtonText: "Cancel",
+      this.$confirm(this.$t('isDel').replace('{isDelName}', data.name), "Warning", {
+        confirmButtonText: this.$t('confirm'),
+        cancelButtonText: this.$t('cancel'),
         type: "warning",
       }).then(() => {
         sendSQLReq(`drop user ${data.name}`).then(res => {
@@ -216,9 +216,10 @@ export default {
         str = "enable";
         state = 1;
       }
-      this.$confirm("Are you sure to " + str + " " + data.name + "?", "Warning", {
-        confirmButtonText: "Ok",
-        cancelButtonText: "Cancel",
+      let title = this.$t('isDisable').replace('{isDisable}',str).replace('{isDisableName}', data.name)
+      this.$confirm(title, {
+        confirmButtonText: this.$t('confirm'),
+        cancelButtonText: this.$t('cancel'),
         type: "warning",
       }).then(() => {
         sendSQLReq(`alter user ${data.name} enable ${state}`).then(res => {

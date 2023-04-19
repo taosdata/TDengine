@@ -7,11 +7,13 @@ let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
+  systemTitle: "TDengine Management system",
   copyright:'Copyright (c) 2022 by TDengine, All Rights Reserved.',
   sqlPreview: "SQL Preview",
   unknown: "Unknown Error!",
   download: "Download",
-  isDel: "Are you sure you want to delete?",
+  isDel: "Are you sure you want to delete {isDelName}?",
+  isDisable: "Are you sure to {isDisable} {isDisableName}?",
   role: "Role",
   total: "Total",
   fullName: "Full Name",
@@ -107,6 +109,7 @@ export default {
   clusterInfo: "Instance Information",
   clusterName: "Instance Name",
   document: "Documentation",
+  docsUrl: "https://docs.tdengine.com",
   discord: "Discord",
   hour: "Hour",
   formatWrong: "wrong format",
@@ -300,6 +303,9 @@ export default {
     thankTip: `A verification email is sent to <a  class="mail-link" href="mailto:{email}">{email}</a>, please check your email. If it doesn't appear in a few minutes, please check your spam folder. If you still can not find it, please use the same email to register again or send email to <a class="mail-link" href="mailto:support@tdengine.com">support@tdengine.com</a> for help.`,
     backLogin: "Back to login",
     rememberMe: "Remember me",
+    usernameTips: 'Please enter the Username',
+    passwordTips: 'Please enter the Password',
+    errorTip: 'The user name or password is incorrect'
   },
   dashboard: {
     warnigtip: `Please click on the left <a href="/dashboard"> dashboard</a> to view the settings for TDinsight`,
@@ -838,6 +844,9 @@ export default {
     noConfigPermission: "No permissions configured!",
     resendTip: "Resend activation email",
     delUser: "Delete User",
+    createNewUserSucTip: 'Succeeded in creating a user',
+    createNewUseErrTip: "User creation failure",
+    createNewUseErrCause: 'Description Failed to create a user because the user name is invalid or already exists！'
   },
   stream: {
     stable: 'Super Table',
@@ -981,20 +990,28 @@ export default {
     title: "Welcome, let's get started!",
     introduce: "TDengine is a fully managed service for time-series data processing. Take a moment to read the key concepts of TDengine data model.",
     pageTip: "This page has some helpful references for getting started. You can reference it anytime by clicking the TDengine Logo in the top left.",
+    metricTitle: "Metric",
     metricDesc:
-      "Metric refers to a physical quantity collected by sensors, equipment or other data collection devices. Current, voltage, temperature, pressure and GPS coordinates are examples of metrics. Metrics change with time and the data can be of type integer, float, boolean and string among others. The amount of collected metric data that is stored, increases with time.",
+    "Metric refers to a physical quantity collected by sensors, equipment or other data collection devices. Current, voltage, temperature, pressure and GPS coordinates are examples of metrics. Metrics change with time and the data can be of type integer, float, boolean and string among others. The amount of collected metric data that is stored, increases with time.",
+    labelTitle: "Label/Tag",
     labelDesc:
-      "A label, or a tag, refers to the static properties of sensors, equipment and data collection devices. By static, we mean that the properties do not change with time. Examples of tags or labels, include device model, device location or serial number. TDengine does allow users to add, delete and update tag values for flexibility with business scenarios. Unlike metric data, tag/label data does not increase with time.",
+    "A label, or a tag, refers to the static properties of sensors, equipment and data collection devices. By static, we mean that the properties do not change with time. Examples of tags or labels, include device model, device location or serial number. TDengine does allow users to add, delete and update tag values for flexibility with business scenarios. Unlike metric data, tag/label data does not increase with time.",
+    dataCollectionTitle: "Data Collection Point",
     dataCollectionDesc:
-      "A data collection point is typically a sensor which collects one or more metrics at some known interval. These metrics all have the same timestamp. Note that a data collection point may or may not correspond to a single device or instrument or equipment. For e.g., a vehicle will have many data collection points and these may collect metrics at different intervals.",
+    "A data collection point is typically a sensor which collects one or more metrics at some known interval. These metrics all have the same timestamp. Note that a data collection point may or may not correspond to a single device or instrument or equipment. For e.g., a vehicle will have many data collection points and these may collect metrics at different intervals.",
+    tableTitle: "Table",
     tableDesc:
-      "A table in TDengine stores data for a single device or data collection point. A table can store thousands of metrics and each metric is stored in a column. Each metric in a table must have the same sampling rate, i.e. the timestamps are aligned. This is why it is important to note that a data collection point does not necessarily correspond to a device, instrument or piece of equipment, as mentioned above. In TDengine, the concept of one table per data collection point is important because it allows more efficient storage and computation.",
+    "A table in TDengine stores data for a single device or data collection point. A table can store thousands of metrics and each metric is stored in a column. Each metric in a table must have the same sampling rate, i.e. the timestamps are aligned. This is why it is important to note that a data collection point does not necessarily correspond to a device, instrument or piece of equipment, as mentioned above. In TDengine, the concept of one table per data collection point is important because it allows more efficient storage and computation.",
+    superTableTitle: "Super Table (STable)",
     superTableDesc:
-      "A super table is a template for creating tables. It is similar to the concept of inheritance in object-oriented programming. Each table under a super table will have the same schema or data structure and the same tags/labels. TDengine takes advantage of the super table concept to query across, filter, and group similar devices. Instead of having to query individual tables, one can simply query the super table and filter using the tags/labels if one is looking for data from specific devices.",
+    "A super table is a template for creating tables. It is similar to the concept of inheritance in object-oriented programming. Each table under a super table will have the same schema or data structure and the same tags/labels. TDengine takes advantage of the super table concept to query across, filter, and group similar devices. Instead of having to query individual tables, one can simply query the super table and filter using the tags/labels if one is looking for data from specific devices.",
+    subtableTitle: "Subtable",
     subtableDesc:
-      "A subtable is a table created from a Super Table template with labels/tags associated with it. TDengine can also have regular tables that are not derived from Super Tables and the main difference is that a regular table does not have tags, while a subtable has tags. It is best practice to use subtables instead of regular tables to take full advantage of TDengine in terms of storage and compute efficiency.",
+    "A subtable is a table created from a Super Table template with labels/tags associated with it. TDengine can also have regular tables that are not derived from Super Tables and the main difference is that a regular table does not have tags, while a subtable has tags. It is best practice to use subtables instead of regular tables to take full advantage of TDengine in terms of storage and compute efficiency.",
+    databaseTitle: "Database",
     databaseDesc:
-      "A database in TDengine is a collection of tables. A running instance of TDengine can have multiple databases and each database can be configured with different storage policies. This allows optimization because one can create super tables for different types of devices or data collection points, in different databases with optimized storage and compute parameters.",
+    "A database in TDengine is a collection of tables. A running instance of TDengine can have multiple databases and each database can be configured with different storage policies. This allows optimization because one can create super tables for different types of devices or data collection points, in different databases with optimized storage and compute parameters.",
+    instanceTitle: "Instance, URL, Token",
     instanceDesc: `An instance is a running cluster of nodes of TDengine with one or more databases. An instance cannot span across multiple regions or multiple clouds, but a single account (organization) can have multiple instances. An account may invite multiple users into his/her organization to share the data, and each user can be configured with different access rights.
     <br />
     <br />
@@ -1639,6 +1656,7 @@ export default {
     finishat: 'Finish At',
     createat: 'Create At',
     adduser: 'Add New User',
+    edituser: 'Edit User',
     username: 'User Name',
     password: 'Password',
     subscription: 'Subscription',

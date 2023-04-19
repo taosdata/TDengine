@@ -230,9 +230,10 @@ export default {
         str = "enable";
         state = 1;
       }
-      this.$confirm("Are you sure to " + str + " " + data.name + "?", "Warning", {
-        confirmButtonText: "Ok",
-        cancelButtonText: "Cancel",
+      let title = this.$t('isDisable').replace('{isDisable}',str).replace('{isDisableName}', data.name)
+      this.$confirm(title, "Warning", {
+        confirmButtonText: this.$t('confirm'),
+        cancelButtonText: this.$t('cancel'),
         type: "warning",
       }).then(() => {
         sendSQLReq(`alter user ${data.name} enable ${state}`).then(res => {
