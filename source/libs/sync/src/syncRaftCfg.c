@@ -152,10 +152,15 @@ static int32_t syncDecodeSyncCfg(const SJson *pJson, void *pObj) {
     if (code < 0) return -1;
     tjsonGetNumberValue(info, "nodeId", pCfg->nodeInfo[i].nodeId, code);
     tjsonGetNumberValue(info, "clusterId", pCfg->nodeInfo[i].clusterId, code);
-    char role[10];
+    char role[10] = {0};
     code = tjsonGetStringValue(info, "nodeRole", role);
     if(code < 0) return -1;
-    pCfg->nodeInfo[i].nodeRole = syncStrToRole(role);
+    if(strlen(role) != 0){
+      pCfg->nodeInfo[i].nodeRole = syncStrToRole(role);
+    }
+    else{
+      pCfg->nodeInfo[i].nodeRole = TAOS_SYNC_ROLE_VOTER;
+    }
   }
 
   return 0;
