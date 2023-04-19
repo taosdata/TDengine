@@ -4,7 +4,7 @@ use anyhow::{bail, Context, Result};
 use taos::*;
 
 use taosx_core::{
-    legacy_to_taos, local_to_taos, opc_to_taos, pi_to_taos, query_to_csv, query_to_parquet,
+    legacy_to_taos, local_to_taos, opc_to_taos, pi_to_taos, mqtt_to_taos, query_to_csv, query_to_parquet,
     tmq_to_local, tmq_to_td, utils::port_pool::PortPool, Action,
 };
 
@@ -159,6 +159,11 @@ impl Cli {
             ("opc" | "opcua" | "opcda", "taos") => {
                 let port_pool = PortPool::default();
                 opc_to_taos(args.from, args.transform, args.to, args.jobs, &port_pool, Default::default(),).await?;
+                log::debug!("opc main scheduler done");
+            }
+            ("mqtt", "taos") => {
+                let port_pool = PortPool::default();
+                mqtt_to_taos(args.from, args.transform, args.to, args.jobs, &port_pool, Default::default(),).await?;
                 log::debug!("opc main scheduler done");
             }
             (_, _) => bail!(

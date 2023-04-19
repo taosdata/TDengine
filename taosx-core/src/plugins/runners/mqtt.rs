@@ -1,10 +1,14 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Write, num::ParseIntError, str::ParseBoolError};
 
-use serde_json::to_string;
+use itertools::Itertools;
+use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use tokio_util::sync::CancellationToken;
+
+use crate::{Action, utils::port_pool::PortPool};
 
 #[derive(Debug, serde::Serialize)]
 struct MqttConfig {
-    log_level: Option<String>,
+    log_level: String,
     remote: String,
     mqtt: MqttConnectConfig,
     topics: HashMap<String, u8>,
@@ -13,35 +17,152 @@ struct MqttConfig {
 #[derive(Debug, serde::Serialize)]
 struct MqttConnectConfig {
     address: String,
-    client_id: Option<String>,
-    username: Option<String>,
-    password: Option<String>,
-    keep_alive: Option<usize>,
-    clean_session: Option<bool>,
-    ca: Option<String>,
-    cert: Option<String>,
-    cert_key: Option<String>,
+    client_id: String,
+    username: String,
+    password: String,
+    keep_alive: usize,
+    clean_session: bool,
+    ca: String,
+    cert: String,
+    cert_key: String,
 }
+
+#[derive(Debug, thiserror::Error)]
+enum MqttConfigError {
+    // #[error("address is required in OPC dsn: {0} like")]
+    // MqttAddrIsRequired(Dsn),
+    #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
+    ParseIntError(&'static str, String, ParseIntError),
+    #[error("Parse bool error from {1} while parsing parameter {0}: {2:?}")]
+    ParseBoolError(&'static str, String, ParseBoolError),
+    #[error("Parse topics error from {1} while parsing parameter {0}")]
+    ParseTopicsError(&'static str, String,),
+    #[error("Database name is required in MQTT dsn: {0}")]
+    DatabaseIsRequired(Dsn),
+}
+
+impl MqttConfig {
+    fn new(mut dsn: Dsn, ipc_port: u16, ) -> Result<Self, MqttConfigError> {
+        let address = dsn.addresses.first().unwrap();
+        let host = if let Some(host) = address.host.clone() {
+            host
+        } else {
+            "127.0.0.1".to_string()
+        };
+        let port = if let Some(port) = address.port {
+            port
+        } else {
+            1883
+        };
+        let ca = dsn.remove("ca");
+        let address = if ca.is_some() {
+            format!("ssl://{host}:{port}")
+        } else {
+            format!("tcp://{host}:{port}")
+        };
+        let topics_vec = super::opc::get_string_vec_from_param_or_file(&mut dsn, "topics")
+            .map_err(|err| MqttConfigError::ParseTopicsError("topics", err))?;
+        let mut topics = HashMap::new();
+        for i in 0..topics_vec.len() {
+            let pair = topics_vec[i].split("::").collect_vec();
+            // if pair.len() != 4 {
+            //     return Err("");
+            // }
+            let topic = String::from(pair[0]);
+            let qos = pair[1].parse::<u8>().map_err(|err| MqttConfigError::ParseIntError("qos", pair[1].to_string(), err))?;
+            let table = String::from(pair[2]);
+            let field = String::from(pair[3]);
+            let value_type = String::from(pair[4]);
+            topics.insert(topic, qos);
+            // param_mapping.insert(
+            //     id,
+            //     (
+            //         table.clone(),
+            //         field.clone(),
+            //         IpcDataType::from_str(value_type.to_lowercase().as_str()).unwrap(),
+            //     ),
+            // );
+            // ua_node_config_vec.push(ua_node_config);
+            // process_table_info(&mut table_info, table, field, value_type);
+        }
+        Ok(MqttConfig {
+            log_level: dsn.remove("log_level").unwrap_or("info".to_string()),
+            remote: format!("127.0.0.1:{ipc_port}"),
+            mqtt: MqttConnectConfig { 
+                address, 
+                client_id: dsn.remove("client_id").unwrap_or("".to_string()), 
+                username: dsn.remove("username").unwrap_or("".to_string()),
+                password: dsn.remove("password").unwrap_or("".to_string()), 
+                keep_alive: dsn.remove("keep_alive").map(|v| 
+                    v.parse::<usize>()
+                    .map_err(|err| MqttConfigError::ParseIntError("keep_alive", v, err))
+                    ).transpose()?.unwrap_or(60), 
+                clean_session: dsn.remove("clean_session").map(
+                    |v| v.parse::<bool>().map_err(|err| MqttConfigError::ParseBoolError("clean_session", v, err))
+                ).transpose()?.unwrap_or(true), 
+                ca: ca.unwrap_or("".to_string()), 
+                cert: dsn.remove("cert").unwrap_or("".to_string()), 
+                cert_key: dsn.remove("cert_key").unwrap_or("".to_string()),
+            },
+            topics,
+        })
+    }
+}
+
+pub async fn mqtt_to_taos(
+    from: Dsn,
+    actions: Vec<Action>, 
+    to: Dsn, 
+    jobs: usize,
+    port_pool: &PortPool,
+    cancel: CancellationToken,
+) -> anyhow::Result<()>{
+    println!("# loading plugin: MQTT");
+    if to.subject.is_none() {
+        Err(MqttConfigError::DatabaseIsRequired(to.clone()))?;
+    }
+    let target_pool = TaosBuilder::from_dsn(&to)?.pool()?;
+    let taos = target_pool.get().await?;
+    let target_pool_for_ipc = target_pool.clone();
+
+    let ipc_port = port_pool
+        .get()
+        .ok_or_else(|| anyhow::format_err!("No available port for MQTT connection"))?;
+    
+    let config = MqttConfig::new(from, ipc_port)?;
+
+    let toml = toml::to_string(&config)?;
+    let mut config_file = tempfile::NamedTempFile::new()?;
+    write!(config_file, "{}", &toml)?;
+    let config_path = config_file.path().to_path_buf();
+    let temp_path = config_file.into_temp_path();
+    log::info!("Using mqtt config file {} \n{}", config_path.display(), toml);
+    // TODO generate mqtt process
+
+    Ok(())
+}
+
 
 #[test]
 fn test_mqtt_config() {
-    let log_level = Some("debug".to_string());
+    let log_level = "debug".to_string();
     let remote = "127.0.0.1:62307".to_string();
     let address = "tcp://127.0.0.1:1883".to_string();
-    let client_id = Some("12123".to_string());
-    let username = Some("mqtt_test".to_string());
-    let password = Some("123456".to_string());
-    let keep_alive = Some(60 as usize);
-    let clean_session = Some(true);
-    let ca = Some(r#"-----BEGIN CERTIFICATE-----
+    // let client_id = Some("12123".to_string());
+    let client_id = "".to_string();
+    let username = "mqtt_test".to_string();
+    let password = "123456".to_string();
+    let keep_alive = 60 as usize;
+    let clean_session = true;
+    let ca = r#"-----BEGIN CERTIFICATE-----
 MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt
------END CERTIFICATE-----"#.to_string());
-    let cert = Some(r#"-----BEGIN CERTIFICATE-----
+-----END CERTIFICATE-----"#.to_string();
+    let cert = r#"-----BEGIN CERTIFICATE-----
 MIIDEzCCAfugAwIBAgIBATANBgkqhkiG9w0BAQsFADA
------END CERTIFICATE-----"#.to_string());
-    let cert_key = Some(r#"-----BEGIN CERTIFICATE-----
+-----END CERTIFICATE-----"#.to_string();
+    let cert_key = r#"-----BEGIN CERTIFICATE-----
 MIIEpAIBAAKCAQEAzLiGiSwpxkENtjrzS7pNLblTnWe4HUUFwYyUX0H
------END RSA PRIVATE KEY-----"#.to_string());
+-----END RSA PRIVATE KEY-----"#.to_string();
     let mut topics = HashMap::new();
     topics.insert("topic-1".to_string(), 1);
     let mqtt_config = MqttConfig {

@@ -21,7 +21,6 @@ pub use parquets::*;
 pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::tmq_to_td;
-use tokio::sync::OnceCell;
 use tokio_util::sync::CancellationToken;
 pub use transform::Action;
 use utils::port_pool::{self, PortPool};
@@ -124,6 +123,9 @@ impl TaskOpts {
                         cancel.clone(),
                     )
                     .await?;
+                }
+                ("mqtt", "taos") => {
+                    plugins::mqtt_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, port_pool, cancel.clone()).await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
