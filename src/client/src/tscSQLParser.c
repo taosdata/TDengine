@@ -2661,7 +2661,7 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
     }
   } else if (f == TSDB_FUNC_INTERP) {
     int32_t t1 = pSchema->type;
-    if (!IS_NUMERIC_TYPE(t1)) {
+    if (!IS_NUMERIC_TYPE(t1) && (t1 != TSDB_DATA_TYPE_BOOL)) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       return -1;
     }
@@ -6875,7 +6875,7 @@ int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNo
   if ((!isTimeWindowQuery(pQueryInfo)) && (!pointInterp)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
   }
-  
+
   if (QUERY_IS_JOIN_QUERY(pQueryInfo->type) && (!pointInterp)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
@@ -6891,9 +6891,9 @@ int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNo
   if (pItem->pVar.nType != TSDB_DATA_TYPE_BINARY) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
-  
+
   size_t numOfFields = tscNumOfFields(pQueryInfo);
-  
+
   if (pQueryInfo->fillVal == NULL) {
     pQueryInfo->fillVal      = calloc(numOfFields, sizeof(int64_t));
     pQueryInfo->numOfFillVal = (int32_t)numOfFields;
@@ -6954,7 +6954,7 @@ int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNo
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
       }
     }
-    
+
     if ((num < numOfFields) || ((num - 1 < numOfFields) && pointInterp)) {
       tVariantListItem* lastItem = taosArrayGetLast(pFillToken);
 
@@ -6990,13 +6990,13 @@ int32_t validateRangeNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pSqlN
   const char *msg0 = "invalid usage of range clause";
   const char* msg1 = "invalid timestamp in range";
   SSqlCmd* pCmd = &pSql->cmd;
-  
+
   bool interpQuery = tscIsPointInterpQuery(pQueryInfo);
 
   if ((!interpQuery) && (pSqlNode->pRange.start || pSqlNode->pRange.end)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg0);
   }
-  
+
   if (pSqlNode->pRange.start == NULL || pSqlNode->pRange.end == NULL) {
     pQueryInfo->range.skey = INT64_MIN;
     pQueryInfo->range.ekey = INT64_MIN;

@@ -670,7 +670,7 @@ static int32_t convertToBool(tVariant *pVariant, int64_t *pDest) {
     if ((ret = convertToBoolImpl(pVariant->pz, pVariant->nLen)) < 0) {
       return ret;
     }
-    
+
     *pDest = ret;
   } else if (pVariant->nType == TSDB_DATA_TYPE_NCHAR) {
     int32_t ret = 0;
@@ -681,7 +681,7 @@ static int32_t convertToBool(tVariant *pVariant, int64_t *pDest) {
   } else if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
     *pDest = TSDB_DATA_BOOL_NULL;
   }
-  
+
   assert(*pDest == TSDB_TRUE || *pDest == TSDB_FALSE || *pDest == TSDB_DATA_BOOL_NULL);
   return 0;
 }
@@ -702,7 +702,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
   if (converted) {
     *converted = false;
   }
-  
+
   if (pVariant == NULL || (pVariant->nType != 0 && !isValidDataType(pVariant->nType))) {
     return -1;
   }
@@ -719,7 +719,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
       *(int8_t *)payload = (int8_t)result;
       break;
     }
-    
+
     case TSDB_DATA_TYPE_TINYINT: {
       if (convertToInteger(pVariant, &result, type, true, false, converted) < 0) {
         SET_EXT_INFO(converted, result, INT8_MIN + 1, INT8_MAX, extInfo);
@@ -730,14 +730,14 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
     }
 
     case TSDB_DATA_TYPE_UTINYINT: {
-      if (convertToInteger(pVariant, &result, type, false, false, converted) < 0) {        
+      if (convertToInteger(pVariant, &result, type, false, false, converted) < 0) {
         SET_EXT_INFO(converted, result, 0, UINT8_MAX - 1, extInfo);
         return -1;
       }
       *((uint8_t *)payload) = (uint8_t) result;
       break;
     }
-    
+
     case TSDB_DATA_TYPE_SMALLINT: {
       if (convertToInteger(pVariant, &result, type, true, false, converted) < 0) {
         SET_EXT_INFO(converted, result, INT16_MIN + 1, INT16_MAX, extInfo);
@@ -755,7 +755,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
       *((uint16_t *)payload) = (uint16_t)result;
       break;
     }
-    
+
     case TSDB_DATA_TYPE_INT: {
       if (convertToInteger(pVariant, &result, type, true, false, converted) < 0) {
         SET_EXT_INFO(converted, result, INT32_MIN + 1, INT32_MAX, extInfo);
@@ -773,7 +773,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
       *((uint32_t *)payload) = (uint32_t)result;
       break;
     }
-    
+
     case TSDB_DATA_TYPE_BIGINT: {
       if (convertToInteger(pVariant, &result, type, true, false, converted) < 0) {
         SET_EXT_INFO(converted, (int64_t)result, INT64_MIN + 1, INT64_MAX, extInfo);
