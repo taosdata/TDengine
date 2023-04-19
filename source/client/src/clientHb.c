@@ -73,7 +73,7 @@ static int32_t hbProcessUserPassInfoRsp(void *value, int32_t valueLen, SClientHb
       if (atomic_load_32(&passInfo->ver) < rsp->version) {
         atomic_store_32(&passInfo->ver, rsp->version);
         if (passInfo->fp) {
-          (*passInfo->fp)(&pTscObj->id, passInfo->param, TAOS_NOTIFY_PASSVER);
+          (*passInfo->fp)(passInfo->param, &passInfo->ver, TAOS_NOTIFY_PASSVER);
         }
       }
     }
