@@ -16,11 +16,7 @@
 #ifndef _STREAM_BACKEDN_ROCKSDB_H_
 #define _STREAM_BACKEDN_ROCKSDB_H_
 
-#include <bits/stdint-uintn.h>
-#include <string.h>
 #include "executor.h"
-#include "osMemory.h"
-#include "rocksdb/c.h"
 #include "streamInc.h"
 #include "streamState.h"
 #include "tcoding.h"
