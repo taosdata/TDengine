@@ -1,8 +1,19 @@
 <template>
   <el-form style="text-align: left" size="mini" label-width="140px" label-position="left">
     <el-form-item :label="$t('topic.function')">
-      <el-select class="w100" v-model="result.fn" clearable placeholder="" size="mini">
+      <!-- <el-select class="w100" v-model="result.fn" clearable placeholder="" size="mini">
         <el-option v-for="item in fnList" :key="item.lable" :value="item.label"></el-option>
+      </el-select> -->
+      <el-select class="w100" v-model="result.fn" clearable placeholder="" size="mini">
+        <el-option-group
+        v-for="group in fnList"
+        :key="group.label"
+        :label="group.label"
+        >
+        <el-option v-for="item in group.options" :key="item.label" :label="item.label" :value="item.label"
+        :disabled="(parentName=='Stream'&&item.hasOwnProperty('supportStream'))||(parentName=='Topic'&&item.hasOwnProperty('supportTopic'))" 
+        ></el-option>
+        </el-option-group>
       </el-select>
     </el-form-item>
     <template v-if="currentFn && currentFn.filters">
@@ -39,25 +50,30 @@
         default: "",
       },
     },
+    inject:['parentName'],
     components: {},
     data() {
       return {};
     },
     computed: {
       currentFn() {
-        if (this.fnList[0]?.label) {
-          return this.fnList.find(item => item.label == this.result.fn);
+        console.log(this.fnList,this.result.fn,'获取当前选中函数');
+        // if (this.fnList[0]?.label) {
+        //   return this.fnList.find(item => item.label == this.result.fn);
+        // }
+        if(this.fnList.length>0){
+          return this.fnList.map(fn=>fn.options).flat(1).find(item => item.label == this.result.fn)
         }
         return null;
       },
       options() {
-        return this.fieldList.filter(item => item.filed != this.field);
+        return this.fieldList.filter(item => item.field != this.field);
       },
     },
     watch: {},
     created() {},
     mounted() {
-      console.log(this.fnList,'函数列表',this.filed);
+      console.log(this.fnList,this.parentName,'函数列表',this.field,this.result,this.fieldList);
     },
     methods: {
       getOptions(item) {

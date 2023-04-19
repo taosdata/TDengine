@@ -10,7 +10,7 @@ export function getUrls() {
 }
 export function fetchApiByCluster(url, token, data) {
     return request({ 
-        baseURL:'',
+        baseURL:'http://39.107.123.129:6060',
         url: `/rest/sql`,
         method: "post",
         headers: {

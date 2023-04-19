@@ -214,7 +214,7 @@ export default {
       // if (await isStableExist(val, this.info.target_db)) {
       //   callback(new Error(this.$t("stream.stableExist")));
       // } else {
-        callback();
+      callback();
       // }
     };
     return {
@@ -353,7 +353,9 @@ export default {
   },
   watch: {},
   created() {},
-  mounted() {},
+  mounted() {
+    console.log(this.info, "初始化定义info");
+  },
   methods: {
     async handlecreateStream() {
       this.errorText = "";
@@ -365,6 +367,7 @@ export default {
         sql = this.sqlStr;
       }
       this.requestIng = true;
+      console.log(this.info,'全局---sql');
       createStream(sql)
         .then(() => {
           this.$refs.form.resetFields();
@@ -393,7 +396,15 @@ export default {
           if (valid) {
             try {
               const subquery = this.$refs.subquery.getResultSet() || "";
-              let previewSql = this.sqlPrefix + "`" + this.info.stream_name + "`" + " TRIGGER " + this.info.trigger + " ";
+              console.log(subquery,'subquery');
+              let previewSql =
+                this.sqlPrefix +
+                "`" +
+                this.info.stream_name +
+                "`" +
+                " TRIGGER " +
+                this.info.trigger +
+                " ";
               if (this.info.trigger === "MAX_DELAY") {
                 previewSql +=
                   this.info.max_delay_time + this.info.max_delay_unit;
@@ -414,7 +425,7 @@ export default {
                 previewSql += ` SUBTABLE(CONCAT('${this.info.subtale}',tbname))`;
               }
               previewSql += " AS " + subquery;
-              console.log(subquery,'subquerysubquerysubquery');
+              console.log(subquery, "subquerysubquerysubquery");
               if (this.info.parttionSet) {
                 previewSql += " PARTITION BY " + this.info.parttionSet;
               }
@@ -440,6 +451,7 @@ export default {
                     break;
                 }
               }
+              console.log(this.info, "生成的info");
               this.previewSql = previewSql;
               if (show) this.dialog = true;
               resolve(previewSql);
@@ -481,14 +493,14 @@ export default {
   }
 }
 :deep {
-    .el-input-number__increase,
-    .el-input-number__decrease {
-      height: 30px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
+  .el-input-number__increase,
+  .el-input-number__decrease {
+    height: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
+}
 </style>
 <style>
 .show-topic-sql .pre-code {
@@ -498,4 +510,11 @@ export default {
   white-space: break-spaces;
 }
 
+.el-input-number__increase,
+.el-input-number__decrease {
+  height: 26px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 </style>

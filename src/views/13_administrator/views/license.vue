@@ -81,7 +81,6 @@
       class="margin-top"
       title=""
       :column="3"
-      :size="size"
       border
     >
       <el-descriptions-item v-for="item in licenseList" :key="item.key" :label='$t(`topic.${item.key}`)' :labelStyle='style'>

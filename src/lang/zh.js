@@ -1454,5 +1454,15 @@ export default {
   taosx500:'TaosX API 无法访问，请检查 taosx 服务状态',
   header:{
     version:`${oem}服务版本`
+  },
+  explorerfns:{
+    NumbericFn:'数学函数',
+    StringFn:'字符串函数',
+    CoversionFn:'转换函数',
+    DatetimeFN:'时间和日期函数',
+    AggregationFn:'聚合函数',
+    SelectorFn:'选择函数',
+    SeriesSpecificFn:'时序数据特有函数',
+    SystemFn:'系统信息函数'
   }
 };

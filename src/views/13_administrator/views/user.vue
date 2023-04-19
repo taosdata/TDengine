@@ -1,7 +1,7 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="showDialog" size="small" icon="el-icon-plus">{{ $t("add") }}</el-button>
+      <el-button plain @click="showDialog" size="small" icon="el-icon-plus" :disabled='!isDisable'>{{ $t("add") }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="usersList" size="mini">
       <el-table-column :label="$t('userName')" prop="name"></el-table-column>
@@ -57,12 +57,12 @@
 
       <el-table-column :label="$t('taosuser.action')" width="150">
         <template slot-scope="scope">
-          <el-switch :value="scope.row.enable == 1" :disabled="scope.row.super === 1 || !currentUser.super"
+          <el-switch :value="scope.row.enable == 1" :disabled="(scope.row.super === 1 || !currentUser.super)||!isDisable"
             @change="changeState(scope.row)" active-color="#13ce66" inactive-color="#6D7074">
           </el-switch>&nbsp;&nbsp;
-          <el-button plain size="small" @click="edit(scope.row)" :disabled="scope.row.super === 1 || !currentUser.super"
+          <el-button plain size="small" @click="edit(scope.row)" :disabled="(scope.row.super === 1 || !currentUser.super)||!isDisable"
             icon="el-icon-edit"></el-button>
-          <el-button plain size="small" @click="del(scope.row)" :disabled="scope.row.super === 1 || !currentUser.super"
+          <el-button plain size="small" @click="del(scope.row)" :disabled="(scope.row.super === 1 || !currentUser.super)||!isDisable"
             icon="el-icon-delete"></el-button>
         </template>
       </el-table-column>
@@ -118,6 +118,7 @@ export default {
   },
   data() {
     return {
+      isDisable:localStorage.getItem('username')==='root',
       pageSize: 10,
       currentPage: 1,
       total: 10,
@@ -154,6 +155,7 @@ export default {
      getCurrentUser() {
        this.$store.dispatch("app/getUserInfo").then((res) => {
          this.currentUser = res;
+         console.log(res,'用户===');
        });
     },
     closeDialog() {

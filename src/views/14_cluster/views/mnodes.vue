@@ -1,7 +1,7 @@
 <template>
   <div class="mnode-block">
     <div class="flexEnd">
-      <el-button plain @click="add" size="small" icon="el-icon-plus">{{
+      <el-button plain @click="add" size="small" icon="el-icon-plus" :disabled='!isDisable'>{{
         $t("add")
       }}</el-button>
     </div>
@@ -29,6 +29,7 @@
             size="small"
             @click="del(scope.row)"
             icon="el-icon-delete"
+            :disabled='!isDisable'
           ></el-button>
         </template>
       </el-table-column>
@@ -44,7 +45,7 @@
     ></el-pagination>
     <el-dialog
       align="center"
-      :title="$t('taoscluster.adddnodes')"
+      :title="$t('taoscluster.addmnodes')"
       width="600px"
       :visible.sync="dialog"
       @close='closeDialog'
@@ -113,6 +114,7 @@ export default {
   },
   data() {
     return {
+      isDisable:localStorage.getItem('username')==='root',
       mnodesList: [],
     };
   },

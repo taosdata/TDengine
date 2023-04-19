@@ -1790,5 +1790,15 @@ export default {
   taosx500: 'The Taosx API cannot be accessed. Please check the Taosx service status',
   header: {
     version: `${oem} Server Version`
+  },
+  explorerfns:{
+    NumbericFn:'Mathematical Functions',
+    StringFn:'Concatenation Functions',
+    CoversionFn:'Conversion Functions',
+    DatetimeFN:'Time and Date Functions',
+    AggregationFn:'Aggregate Functions',
+    SelectorFn:'Selection Functions',
+    SeriesSpecificFn:'Time-Series Extensions',
+    SystemFn:'System Information Functions'
   }
 };
