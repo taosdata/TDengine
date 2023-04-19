@@ -190,15 +190,15 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_COLUMNS 4096
 #define TSDB_MIN_COLUMNS 2  // PRIMARY COLUMN(timestamp) + other columns
 
-#define TSDB_NODE_NAME_LEN   64
-#define TSDB_TABLE_NAME_LEN  193                                // it is a null-terminated string
-#define TSDB_TOPIC_NAME_LEN  193                                // it is a null-terminated string
-#define TSDB_CGROUP_LEN      193                                // it is a null-terminated string
-#define TSDB_USER_CGROUP_LEN (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
-#define TSDB_STREAM_NAME_LEN 193                                // it is a null-terminated string
-#define TSDB_DB_NAME_LEN     65
-#define TSDB_DB_FNAME_LEN    (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
-#define TSDB_PRIVILEDGE_CONDITION_LEN    200
+#define TSDB_NODE_NAME_LEN            64
+#define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
+#define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
+#define TSDB_CGROUP_LEN               193                                // it is a null-terminated string
+#define TSDB_USER_CGROUP_LEN          (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
+#define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
+#define TSDB_DB_NAME_LEN              65
+#define TSDB_DB_FNAME_LEN             (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_PRIVILEDGE_CONDITION_LEN 200
 
 #define TSDB_FUNC_NAME_LEN       65
 #define TSDB_FUNC_COMMENT_LEN    1024 * 1024
@@ -302,7 +302,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_PAGES_PER_VNODE    256
 #define TSDB_MIN_PAGESIZE_PER_VNODE     1  // unit KB
 #define TSDB_MAX_PAGESIZE_PER_VNODE     16384
-#define TSDB_DEFAULT_TSDB_PAGESIZE      4
+#define TSDB_DEFAULT_TSDB_PAGESIZE      64
 #define TSDB_MIN_TSDB_PAGESIZE          1  // unit KB
 #define TSDB_MAX_TSDB_PAGESIZE          16384
 #define TSDB_DEFAULT_PAGESIZE_PER_VNODE 4

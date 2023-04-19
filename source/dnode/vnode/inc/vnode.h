@@ -166,7 +166,7 @@ int32_t     metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType);
 typedef struct STsdbReader STsdbReader;
 
 #define TSDB_DEFAULT_STT_FILE  8
-#define TSDB_DEFAULT_PAGE_SIZE 4096
+#define TSDB_DEFAULT_PAGE_SIZE 65536  // 64K
 
 #define TIMEWINDOW_RANGE_CONTAINED 1
 #define TIMEWINDOW_RANGE_EXTERNAL  2
@@ -180,7 +180,7 @@ int32_t tsdbSetTableList(STsdbReader *pReader, const void *pTableList, int32_t n
 int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
                        SSDataBlock *pResBlock, STsdbReader **ppReader, const char *idstr, bool countOnly);
 
-void         tsdbReaderSetId(STsdbReader* pReader, const char* idstr);
+void         tsdbReaderSetId(STsdbReader *pReader, const char *idstr);
 void         tsdbReaderClose(STsdbReader *pReader);
 int32_t      tsdbNextDataBlock(STsdbReader *pReader, bool *hasNext);
 int32_t      tsdbRetrieveDatablockSMA(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave);
