@@ -2503,9 +2503,11 @@ _exit:
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind) {
   int32_t code = 0;
 
-  ASSERT(pColData->type == pBind->buffer_type);
-
-  if (IS_VAR_DATA_TYPE(pBind->buffer_type)) {  // var-length data type
+  if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
+    ASSERT(pColData->type == pBind->buffer_type);
+  }
+  
+  if (IS_VAR_DATA_TYPE(pColData->type)) {  // var-length data type
     for (int32_t i = 0; i < pBind->num; ++i) {
       if (pBind->is_null && pBind->is_null[i]) {
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
