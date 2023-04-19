@@ -277,6 +277,9 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
 
   SJson *nodeInfo = tjsonGetObjectItem(pJson, "syncCfg.nodeInfo");
   int    arraySize = tjsonGetArraySize(nodeInfo);
+  if(pCfg->syncCfg.totalReplicaNum == 0 && pCfg->syncCfg.replicaNum > 0){
+    pCfg->syncCfg.totalReplicaNum = pCfg->syncCfg.replicaNum;
+  }
   if (arraySize != pCfg->syncCfg.totalReplicaNum) return -1;
 
   vDebug("vgId:%d, decode config, replicas:%d totalReplicas:%d selfIndex:%d", pCfg->vgId, pCfg->syncCfg.replicaNum,
@@ -292,9 +295,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     if (code < 0) return -1;
     tjsonGetNumberValue(info, "clusterId", pNode->clusterId, code);
     if (code < 0) return -1;
-    char role[10];
+    char role[10] = {0};
     code = tjsonGetStringValue(info, "nodeRole", role);
-    if(code > 0){
+    if (code < 0) return -1;
+    if(strlen(role) != 0){
       pNode->nodeRole = vnodeStrToRole(role);
     }
     else{
