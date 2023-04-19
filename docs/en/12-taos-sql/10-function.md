@@ -459,12 +459,17 @@ TO_JSON(str_literal)
 #### TO_UNIXTIMESTAMP
 
 ```sql
-TO_UNIXTIMESTAMP(expr)
+TO_UNIXTIMESTAMP(expr [, return_timestamp])
+
+return_timestamp: {
+    0
+  | 1
+}
 ```
 
 **Description**: UNIX timestamp converted from a string of date/time format
 
-**Return value type**: BIGINT
+**Return value type**: BIGINT, TIMESTAMP
 
 **Applicable column types**: VARCHAR and NCHAR
 
@@ -476,6 +481,7 @@ TO_UNIXTIMESTAMP(expr)
 
 - The input string must be compatible with ISO8601/RFC3339 standard, NULL will be returned if the string can't be converted
 - The precision of the returned timestamp is same as the precision set for the current data base in use
+- return_timestamp indicates whether the returned value type is TIMESTAMP or not. If this parameter set to 1, function will return TIMESTAMP type. Otherwise function will return BIGINT type. If parameter is omitted, default return value type is BIGINT.
 
 
 ### Time and Date Functions
