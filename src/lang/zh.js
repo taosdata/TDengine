@@ -631,6 +631,9 @@ export default {
     noConfigPermission: "未配置权限！",
     resendTip: "重新发送激活邮件",
     delUser: "删除用户",
+    createNewUserSucTip: '创建用户成功',
+    createNewUseErrTip: "创建用户失败",
+    createNewUseErrCause: '创建用户失败,用户名不合法或已经存在！',
   },
   stream: {
     tableType: '表类型',

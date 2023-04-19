@@ -842,6 +842,9 @@ export default {
     noConfigPermission: "No permissions configured!",
     resendTip: "Resend activation email",
     delUser: "Delete User",
+    createNewUserSucTip: 'Succeeded in creating a user',
+    createNewUseErrTip: "User creation failure",
+    createNewUseErrCause: 'Description Failed to create a user because the user name is invalid or already exists！'
   },
   stream: {
     stable: 'Super Table',
