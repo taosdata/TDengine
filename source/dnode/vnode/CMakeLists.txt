@@ -54,6 +54,7 @@ set(
 
     # tq
     "src/tq/tq.c"
+    "src/tq/tqUtil.c"
     "src/tq/tqScan.c"
     "src/tq/tqMeta.c"
     "src/tq/tqRead.c"
@@ -61,6 +62,7 @@ set(
     "src/tq/tqPush.c"
     "src/tq/tqSink.c"
     "src/tq/tqCommit.c"
+    "src/tq/tqRestore.c"
     "src/tq/tqSnapshot.c"
     "src/tq/tqOffsetSnapshot.c"
 )

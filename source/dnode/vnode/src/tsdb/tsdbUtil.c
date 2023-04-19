@@ -1255,6 +1255,11 @@ void tBlockDataReset(SBlockData *pBlockData) {
   pBlockData->suid = 0;
   pBlockData->uid = 0;
   pBlockData->nRow = 0;
+  for (int32_t i = 0; i < pBlockData->nColData; i++) {
+    tColDataDestroy(&pBlockData->aColData[i]);
+  }
+  pBlockData->nColData = 0;
+  taosMemoryFreeClear(pBlockData->aColData);
 }
 
 void tBlockDataClear(SBlockData *pBlockData) {
