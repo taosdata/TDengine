@@ -362,7 +362,7 @@ int streamInitBackend(SStreamState* pState, char* path) {
   //   create the DB if it's not already present
   rocksdb_options_set_create_if_missing(opts, 1);
   rocksdb_options_set_create_missing_column_families(opts, 1);
-  rocksdb_options_set_write_buffer_size(opts, 128 << 20);
+  rocksdb_options_set_write_buffer_size(opts, 16 << 20);
 
   char* err = NULL;
   int   cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
@@ -373,7 +373,7 @@ int streamInitBackend(SStreamState* pState, char* path) {
     cfOpt[i] = rocksdb_options_create_copy(opts);
     // refactor later
     rocksdb_block_based_table_options_t* tableOpt = rocksdb_block_based_options_create();
-    rocksdb_cache_t*                     cache = rocksdb_cache_create_lru(128 << 20);
+    rocksdb_cache_t*                     cache = rocksdb_cache_create_lru(32 << 20);
     rocksdb_block_based_options_set_block_cache(tableOpt, cache);
 
     rocksdb_filterpolicy_t* filter = rocksdb_filterpolicy_create_bloom(15);

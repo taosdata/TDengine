@@ -10,7 +10,7 @@ if(${BUILD_WITH_ROCKSDB})
   target_link_libraries(
     stream
     PUBLIC rocksdb tdb
-    PRIVATE  os util transport qcom executor wal
+    PRIVATE  os util qcom executor wal
   )
 
   target_include_directories(
