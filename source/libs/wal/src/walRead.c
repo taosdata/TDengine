@@ -262,7 +262,7 @@ static int32_t walFetchBodyNew(SWalReader *pReader) {
   SWalCont *pReadHead = &pReader->pHead->head;
   int64_t   ver = pReadHead->version;
 
-  wInfo("vgId:%d, wal starts to fetch body, ver:%" PRId64 " ,len:%d, total cnt:%"PRId64 ", total size:%"PRId64, pReader->pWal->cfg.vgId, ver,
+  wDebug("vgId:%d, wal starts to fetch body, ver:%" PRId64 " ,len:%d, total cnt:%"PRId64 ", total size:%"PRId64, pReader->pWal->cfg.vgId, ver,
          pReadHead->bodyLen, pReader->bodyCnt, pReader->bodyTotalSize);
 
   if (pReader->capacity < pReadHead->bodyLen) {
