@@ -787,6 +787,7 @@ typedef struct SCacheRowsReader {
   uint64_t           suid;
   char             **transferBuf;  // todo remove it soon
   int32_t            numOfCols;
+  SArray            *pCidList;
   int32_t            type;
   int32_t            tableIndex;  // currently returned result tables
   STableKeyInfo     *pTableList;  // table id list

@@ -143,7 +143,7 @@ static int32_t setTableSchema(SCacheRowsReader* p, uint64_t suid, const char* id
 }
 
 int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, int32_t numOfTables, int32_t numOfCols,
-                                uint64_t suid, void** pReader, const char* idstr) {
+                                SArray* pCidList, uint64_t suid, void** pReader, const char* idstr) {
   *pReader = NULL;
   SCacheRowsReader* p = taosMemoryCalloc(1, sizeof(SCacheRowsReader));
   if (p == NULL) {
@@ -155,6 +155,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   p->pTsdb = p->pVnode->pTsdb;
   p->verRange = (SVersionRange){.minVer = 0, .maxVer = UINT64_MAX};
   p->numOfCols = numOfCols;
+  p->pCidList = pCidList;
   p->suid = suid;
 
   if (numOfTables == 0) {

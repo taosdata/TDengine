@@ -283,6 +283,14 @@ _exit:
   return code;
 }
 
+int32_t tsdbCacheGetLast(STsdb *pTsdb, tb_uid_t uid, SArray **ppLastArray, SCacheRowsReader *pr) {
+  int32_t code = 0;
+
+  SArray *pCidList = pr->pCidList;
+
+  return code;
+}
+
 int32_t tsdbOpenCache(STsdb *pTsdb) {
   int32_t    code = 0;
   SLRUCache *pCache = NULL;
