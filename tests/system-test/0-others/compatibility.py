@@ -98,9 +98,12 @@ class TDTestCase:
 
     def buildTaosd(self,bPath):
         # os.system(f"mv {bPath}/build_bak  {bPath}/build ")
-        os.system(f" cd {bPath}  ")
+        os.system(f" cd {bPath} ")
 
-
+    def is_list_same_as_ordered_list(self,unordered_list, ordered_list):
+        sorted_list = sorted(unordered_list)
+        return sorted_list == ordered_list
+        
     def run(self):
         scriptsPath = os.path.dirname(os.path.realpath(__file__))
         distro_id = distro.id()
@@ -146,6 +149,8 @@ class TDTestCase:
         tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
         os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f 0-others/TS-3131.tsql")
+
         cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -h localhost ;"
         if os.system(cmd) == 0:
             raise Exception("failed to execute system command. cmd: %s" % cmd)
@@ -220,6 +225,17 @@ class TDTestCase:
                 tdLog.exit("%s(%d) failed" % args)
         tdsql.query("show streams;")
         tdsql.checkRows(2)
+        tdsql.query("select *,tbname from d0.almlog where mcid='m0103';")
+        tdsql.checkRows(6)
+        expectList = [0,3003,20031,20032,20033,30031]
+        resultList = []
+        for i in range(6):
+            resultList.append(tdsql.queryResult[i][3])
+        print(resultList)
+        if self.is_list_same_as_ordered_list(resultList,expectList):
+            print("The unordered list is the same as the ordered list.")
+        else:
+            tdlog.error("The unordered list is not the same as the ordered list.")
         tdsql.execute("insert into test.d80 values (now+1s, 11, 103, 0.21);")
         tdsql.execute("insert into test.d9 values (now+5s, 4.3, 104, 0.4);")
 
