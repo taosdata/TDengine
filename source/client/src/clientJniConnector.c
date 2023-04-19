@@ -1259,8 +1259,9 @@ JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInse
   int code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("jobj:%p, conn:%p, code: 0x%x, msg:%s", jobj, taos, code, taos_errstr(tres));
+    jobject jobject = createSchemalessResp(env, 0, code, taos_errstr(tres));
     taos_free_result(tres);
-    return createSchemalessResp(env, 0, code, taos_errstr(tres));
+    return jobject;
   }
   taos_free_result(tres);
 
@@ -1286,8 +1287,9 @@ JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInse
   int code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("jobj:%p, conn:%p, code: 0x%x, msg:%s", jobj, taos, code, taos_errstr(tres));
+    jobject jobject = createSchemalessResp(env, 0, code, taos_errstr(tres));
     taos_free_result(tres);
-    return createSchemalessResp(env, 0, code, taos_errstr(tres));
+    return jobject;
   }
   taos_free_result(tres);
 
@@ -1315,8 +1317,9 @@ JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInse
   int code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("jobj:%p, conn:%p, code: 0x%x, msg:%s", jobj, taos, code, taos_errstr(tres));
+    jobject jobject = createSchemalessResp(env, 0, code, taos_errstr(tres));
     taos_free_result(tres);
-    return createSchemalessResp(env, 0, code, taos_errstr(tres));
+    return jobject;
   }
   taos_free_result(tres);
 
@@ -1343,8 +1346,9 @@ JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInse
   int code = taos_errno(tres);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("jobj:%p, conn:%p, code: 0x%x, msg:%s", jobj, taos, code, taos_errstr(tres));
+    jobject jobject = createSchemalessResp(env, 0, code, taos_errstr(tres));
     taos_free_result(tres);
-    return createSchemalessResp(env, 0, code, taos_errstr(tres));
+    return jobject;
   }
   taos_free_result(tres);
 
