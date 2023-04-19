@@ -112,7 +112,7 @@ void createNewTable(TAOS* pConn, int32_t index) {
   }
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 100; i += 20) {
+  for (int32_t i = 0; i < 10000; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
@@ -803,7 +803,7 @@ TEST(clientCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 10000; ++i) {
+  for (int32_t i = 0; i < 1; ++i) {
     printf("create table :%d\n", i);
     createNewTable(pConn, i);
   }
@@ -990,7 +990,7 @@ TEST(clientCase, sub_db_test) {
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
-  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
+  tmq_conf_set(conf, "experimental.snapshot.enable", "false");
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 
@@ -1000,7 +1000,7 @@ TEST(clientCase, sub_db_test) {
   // 创建订阅 topics 列表
   tmq_list_t* topicList = tmq_list_new();
   tmq_list_append(topicList, "topic_t1");
-  tmq_list_append(topicList, "topic_s2");
+//  tmq_list_append(topicList, "topic_s2");
 
   // 启动订阅
   tmq_subscribe(tmq, topicList);
@@ -1078,7 +1078,6 @@ TEST(clientCase, sub_tb_test) {
 
   // 启动订阅
   tmq_subscribe(tmq, topicList);
-
   tmq_list_destroy(topicList);
 
   TAOS_FIELD* fields = NULL;

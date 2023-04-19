@@ -2334,10 +2334,8 @@ SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4) {
   return NULL;
 }
 
-
-
 int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_assignment** assignment,
-                              int32_t* numOfAssignment) {
+                                 int32_t* numOfAssignment) {
   *numOfAssignment = 0;
   *assignment = NULL;
 
