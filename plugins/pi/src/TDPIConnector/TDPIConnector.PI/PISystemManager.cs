@@ -135,7 +135,7 @@ namespace TDPIConnector.PI
             }
         }
 
-        public async Task<List<AFValueWrapper>> GetPIPointRecordedValuesByCountForward(PIPointWrapper piPoint, DateTime startTime, int count)
+        public static async Task<List<AFValueWrapper>> GetPIPointRecordedValuesByCountForward(PIPointWrapper piPoint, DateTime startTime, int count)
         {
             DateTime currentDateTime = startTime;
             List<AFValueWrapper> valuesWrapper = new List<AFValueWrapper>();
@@ -169,7 +169,7 @@ namespace TDPIConnector.PI
             return valuesWrapper;
         }
 
-        public List<AFValueWrapper> GetPIPointRecordedValues(PIPointWrapper piPoint, DateTime startTime, DateTime endTime, int count)
+        public static List<AFValueWrapper> GetPIPointRecordedValues(PIPointWrapper piPoint, DateTime startTime, DateTime endTime, int count)
         {
             DateTime currentDateTime = startTime;
             List<AFValueWrapper> valuesWrapper = new List<AFValueWrapper>();
@@ -201,7 +201,7 @@ namespace TDPIConnector.PI
             return valuesWrapper;
         }
 
-        public async Task<List<AFValueWrapper>> GetPIPointRecordedValuesByCountReverse(PIPointWrapper piPoint, DateTime startTime, int count)
+        public static async Task<List<AFValueWrapper>> GetPIPointRecordedValuesByCountReverse(PIPointWrapper piPoint, DateTime startTime, int count)
         {
             DateTime currentDateTime = startTime;
             List<AFValueWrapper> valuesWrapper = new List<AFValueWrapper>();

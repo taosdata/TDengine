@@ -28,6 +28,12 @@ def getTaosxVersion():
         cargo_toml = toml.load(f)
         version = cargo_toml['package']['version']
 
+def getTaosxOutputName():
+    if current_os == 'Windows':  # Windows操作系统
+        return taosx_name + ".exe"
+    else:
+        return taosx_name
+
 def setDefaultParam():
     global install_path
 
@@ -93,7 +99,11 @@ def buildAndInstallOPCOnWindows():
     opc_install_path = os.path.join(install_path, "xplugins", "opc")
     initDirectory(opc_install_path)
     opc_path = os.path.join(opc_connector_path, "dist", opc_app_name)
-    shutil.copy2(opc_path, opc_install_path)
+    try:
+        shutil.copy2(opc_path, opc_install_path)
+    except FileNotFoundError as e:
+        print("Build OPC failed: ", e.strerror)
+        sys.exit()
 
 
 def buildAndInstallOPC():
@@ -105,6 +115,9 @@ def buildAndInstallOPC():
 
 
 def buildAndInstallPI():
+    if current_os != 'Windows':
+        print(" PI Connector is only compatible with the Windows operating system.")
+        sys.exit()
     print("buildAndInstallPI start...")
     pi_connector_path = os.path.join(taosx_dir, "plugins", "pi", "src", "TDPIConnector")
     os.chdir(pi_connector_path)
@@ -134,8 +147,12 @@ def buildAndInstallTaosX():
 
     taox_install_path = os.path.join(install_path, "bin")
     checkDirectory(taox_install_path)
-    taosx_path = os.path.join(taosx_dir, "target", "release", "taosx.exe")
-    shutil.copy2(taosx_path, taox_install_path)
+    taosx_path = os.path.join(taosx_dir, "target", "release", getTaosxOutputName())
+    try:
+        shutil.copy2(taosx_path, taox_install_path)
+    except FileNotFoundError as e:
+        print("Copy TaosX to {} failed: {}".format(taosx_path,  e.strerror))
+        sys.exit()
    
 def packageOnWindows():
     os.chdir(script_dir)
