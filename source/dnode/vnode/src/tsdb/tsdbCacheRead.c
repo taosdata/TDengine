@@ -408,12 +408,10 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         }
       }
 
-      if (0 == i) {
-        if (taosArrayGetSize(pTableUidList) == 0) {
-          taosArrayPush(pTableUidList, &pKeyInfo->uid);
-        } else {
-          taosArraySet(pTableUidList, 0, &pKeyInfo->uid);
-        }
+      if (taosArrayGetSize(pTableUidList) == 0) {
+        taosArrayPush(pTableUidList, &pKeyInfo->uid);
+      } else {
+        taosArraySet(pTableUidList, 0, &pKeyInfo->uid);
       }
 
       tsdbCacheRelease(lruCache, h);

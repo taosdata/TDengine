@@ -2195,7 +2195,7 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   FOREACH(pFunc, ((SAggLogicNode*)pNode)->pAggFuncs) {
     SFunctionNode* pAggFunc = (SFunctionNode*)pFunc;
     if (FUNCTION_TYPE_LAST == pAggFunc->funcType) {
-      if (hasSelectFunc) {
+      if (hasSelectFunc || QUERY_NODE_VALUE == nodeType(nodesListGetNode(pAggFunc->pParameterList, 0))) {
         return false;
       }
       hasLastFunc = true;
@@ -2241,7 +2241,7 @@ static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCols) {
+static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCols, bool erase) {
   SNode* pTarget = NULL;
   WHERE_EACH(pTarget, pTargets) {
     bool   found = false;
@@ -2253,7 +2253,7 @@ static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCo
         break;
       }
     }
-    if (!found) {
+    if (!found && erase) {
       ERASE_NODE(pTargets);
       continue;
     }
@@ -2286,8 +2286,6 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
         nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptSetColDataType, &cxt);
         nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
       }
-    } else if (FUNCTION_TYPE_GROUP_KEY == funcType) {
-      nodesListMakeAppend(&cxt.pLastCols, nodesListGetNode(pFunc->pParameterList, 0));
     }
   }
 
@@ -2296,8 +2294,8 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   pScan->igLastNull = pAgg->hasLast ? true : false;
   if (NULL != cxt.pLastCols) {
     cxt.doAgg = false;
-    lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols);
-    lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols);
+    lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols, true);
+    lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, false);
     nodesClearList(cxt.pLastCols);
   }
   pAgg->hasLastRow = false;
