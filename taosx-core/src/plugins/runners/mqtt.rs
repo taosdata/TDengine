@@ -1,7 +1,7 @@
-use std::{collections::HashMap, io::Write, num::ParseIntError, str::ParseBoolError};
+use std::{collections::HashMap, io::{Write, BufRead}, num::ParseIntError, str::ParseBoolError};
 
 use itertools::Itertools;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, TaosBuilder, IntoDsn};
 use tokio_util::sync::CancellationToken;
 
 use crate::{Action, utils::port_pool::PortPool};
@@ -39,6 +39,8 @@ enum MqttConfigError {
     ParseTopicsError(&'static str, String,),
     #[error("Database name is required in MQTT dsn: {0}")]
     DatabaseIsRequired(Dsn),
+    #[error("Mqtt ca config read error, cause: {0}")]
+    CAConfigReadError(String),
 }
 
 impl MqttConfig {
@@ -54,7 +56,9 @@ impl MqttConfig {
         } else {
             1883
         };
-        let ca = dsn.remove("ca");
+        let ca = get_string_from_param_or_file(&mut dsn, "ca", true).map_err(|s| MqttConfigError::CAConfigReadError(s))?;
+        let cert = get_string_from_param_or_file(&mut dsn, "cert", true).map_err(|s| MqttConfigError::CAConfigReadError(s))?;
+        let cert_key = get_string_from_param_or_file(&mut dsn, "cert_key", true).map_err(|s| MqttConfigError::CAConfigReadError(s))?;
         let address = if ca.is_some() {
             format!("ssl://{host}:{port}")
         } else {
@@ -65,25 +69,12 @@ impl MqttConfig {
         let mut topics = HashMap::new();
         for i in 0..topics_vec.len() {
             let pair = topics_vec[i].split("::").collect_vec();
-            // if pair.len() != 4 {
-            //     return Err("");
-            // }
             let topic = String::from(pair[0]);
             let qos = pair[1].parse::<u8>().map_err(|err| MqttConfigError::ParseIntError("qos", pair[1].to_string(), err))?;
             let table = String::from(pair[2]);
             let field = String::from(pair[3]);
             let value_type = String::from(pair[4]);
             topics.insert(topic, qos);
-            // param_mapping.insert(
-            //     id,
-            //     (
-            //         table.clone(),
-            //         field.clone(),
-            //         IpcDataType::from_str(value_type.to_lowercase().as_str()).unwrap(),
-            //     ),
-            // );
-            // ua_node_config_vec.push(ua_node_config);
-            // process_table_info(&mut table_info, table, field, value_type);
         }
         Ok(MqttConfig {
             log_level: dsn.remove("log_level").unwrap_or("info".to_string()),
@@ -101,8 +92,8 @@ impl MqttConfig {
                     |v| v.parse::<bool>().map_err(|err| MqttConfigError::ParseBoolError("clean_session", v, err))
                 ).transpose()?.unwrap_or(true), 
                 ca: ca.unwrap_or("".to_string()), 
-                cert: dsn.remove("cert").unwrap_or("".to_string()), 
-                cert_key: dsn.remove("cert_key").unwrap_or("".to_string()),
+                cert: cert.unwrap_or("".to_string()), 
+                cert_key: cert_key.unwrap_or("".to_string()),
             },
             topics,
         })
@@ -142,6 +133,41 @@ pub async fn mqtt_to_taos(
     Ok(())
 }
 
+fn get_string_from_param_or_file(dsn: &mut Dsn, key: &str, line_break: bool) -> Result<Option<String>, String> {
+    if let Some(value) = dsn.remove(key) {
+        let (files, config): (Vec<_>, Vec<_>) = value
+            .split(",")
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .partition(|v| v.starts_with("@"));
+        let mut result = String::new();
+        for config_str in config {
+            if line_break {
+                result.push_str("\n");
+            }
+            result.push_str(&config_str);
+        }
+        for file in files {
+            let f = std::fs::File::open(&file[1..]);
+            if f.is_err() {
+                return Err("file read error".to_string());
+            }
+            let buf = std::io::BufReader::new(f.unwrap());
+            // buf.read_line(&mut result);
+            let file_data = buf.lines().collect_vec();
+            file_data.iter().filter_map(|r| r.as_ref().ok()).for_each(|v| {
+                if line_break {
+                    result.push_str("\n");
+                }
+                result.push_str(v.as_str());
+            });
+        }
+        Ok(Some(result))
+    } else {
+        Ok(None)
+    }
+}
 
 #[test]
 fn test_mqtt_config() {
@@ -183,4 +209,28 @@ MIIEpAIBAAKCAQEAzLiGiSwpxkENtjrzS7pNLblTnWe4HUUFwYyUX0H
     };
     let toml = toml::to_string(&mqtt_config).unwrap();
     println!("{}", toml);
+}
+
+#[test]
+fn test_get_string_from_param_or_file() -> anyhow::Result<()> {
+    let ca = "-----BEGIN CERTIFICATE-----
+MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
+-----END CERTIFICATE-----";
+    let mut config_file = tempfile::NamedTempFile::new()?;
+    write!(config_file, "{}", ca)?;
+    let config_path = config_file.path().to_path_buf();
+    let temp_path = config_file.into_temp_path();
+    let mut dsn = format!("mqtt:///?ca=123,456,@{},@{}", &config_path.display(), &config_path.display()).into_dsn()?;
+    let result = get_string_from_param_or_file(&mut dsn, "ca", true).unwrap().unwrap();
+    assert_eq!("
+123
+456
+-----BEGIN CERTIFICATE-----
+MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
+-----END CERTIFICATE-----", result);
+    temp_path.close()?;
+    Ok(())
 }
