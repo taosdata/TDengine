@@ -27,7 +27,7 @@ sql insert into t1 values(1648791213004,4,2,3,4.1);
 $loop_count = 0
 
 loop0:
-sleep 200
+sleep 1000
 
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
@@ -149,7 +149,7 @@ sql insert into t1 values(1648791223001,12,14,13,11.1);
 
 $loop_count = 0
 loop1:
-sleep 200
+sleep 1000
 
 sql select * from streamt;
 
@@ -275,7 +275,7 @@ sql insert into t1 values(1648791223002,12,14,13,11.1);
 
 $loop_count = 0
 loop2:
-sleep 200
+sleep 1000
 
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
@@ -314,7 +314,7 @@ sql insert into t1 values(1648791223003,12,14,13,11.1);
 
 $loop_count = 0
 loop3:
-sleep 200
+sleep 1000
 
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
@@ -355,7 +355,7 @@ sql insert into t1 values(1648791223003,3,3,3,3.1);
 
 $loop_count = 0
 loop4:
-sleep 200
+sleep 1000
 
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
@@ -396,7 +396,7 @@ sql insert into t1 values(1648791233002,3,2,3,2.1);
 
 $loop_count = 0
 loop5:
-sleep 200
+sleep 1000
 
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
@@ -435,7 +435,7 @@ sql insert into t1 values(1648791213004,4,2,3,4.1) (1648791213006,5,4,7,9.1) (16
 
 $loop_count = 0
 loop6:
-sleep 200
+sleep 1000
 
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
@@ -474,7 +474,7 @@ sql insert into t1 values(1648791223004,4,2,3,4.1) (1648791233006,5,4,7,9.1) (16
 
 $loop_count = 0
 loop7:
-sleep 200
+sleep 1000
 
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
@@ -553,7 +553,7 @@ sql insert into t1 values(1648791213000,1,1,1,1.0) t2 values(1648791213000,2,2,2
 $loop_count = 0
 
 loop8:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -573,7 +573,7 @@ sql insert into t1 values(1648791213000,5,5,5,5.0) t2 values(1648791213000,6,6,6
 $loop_count = 0
 
 loop9:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -625,7 +625,7 @@ sql insert into t1 values(1648791213000,8,8,8,8.0);
 $loop_count = 0
 
 loop10:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 20 then
@@ -647,7 +647,7 @@ endi
 
 $loop_count = 0
 loop11:
-sleep 200
+sleep 1000
 
 sql select count(*) from streamt3;
 
@@ -676,7 +676,7 @@ sleep 50
 
 $loop_count = 0
 loop12:
-sleep 200
+sleep 1000
 
 sql select * from streamtST3;
 
@@ -706,7 +706,7 @@ sql insert into t1 values(1648791213000,1,2,3,1.0);
 
 $loop_count = 0
 loop13:
-sleep 200
+sleep 1000
 
 sql select * from streamt__4;
 
@@ -725,7 +725,7 @@ sql insert into t1 values(1648791213000,6,2,3,1.0);
 
 $loop_count = 0
 loop14:
-sleep 200
+sleep 1000
 sql select * from streamt__4;
 
 $loop_count = $loop_count + 1
@@ -742,7 +742,7 @@ sql insert into t1 values(1648791213000,2,2,3,1.0);
 
 $loop_count = 0
 loop15:
-sleep 200
+sleep 1000
 sql select * from streamt__4;
 
 $loop_count = $loop_count + 1
@@ -762,7 +762,7 @@ sql insert into t1 values(1648791233000,10,2,3,1.0);
 
 $loop_count = 0
 loop16:
-sleep 200
+sleep 1000
 sql select * from streamt__4;
 
 $loop_count = $loop_count + 1
@@ -779,7 +779,7 @@ sql insert into t1 values(1648791233000,2,2,3,1.0);
 
 $loop_count = 0
 loop17:
-sleep 200
+sleep 1000
 sql select * from streamt__4;
 
 $loop_count = $loop_count + 1
@@ -810,9 +810,9 @@ print ====== test _wstart
 
 $loop_count = 0
 
-loop17:
+loop170:
 
-sleep 200
+sleep 1000
 sql select * from streamt5;
 
 $loop_count = $loop_count + 1
@@ -822,14 +822,14 @@ endi
 
 if $rows != 1 then
   print =====rows=$rows
-  goto loop17
+  goto loop170
 endi
 
 sql select * from streamt6;
 
 if $rows != 1 then
   print =====rows=$rows
-  goto loop17
+  goto loop170
 endi
 
 print ====== test _wstart end
@@ -849,7 +849,7 @@ $loop_count = 0
 
 loop18:
 
-sleep 200
+sleep 1000
 sql select * from streamt7;
 
 $loop_count = $loop_count + 1
@@ -876,7 +876,7 @@ print $data10 $data11
 
 loop19:
 
-sleep 200
+sleep 1000
 sql select * from streamt7;
 
 $loop_count = $loop_count + 1
