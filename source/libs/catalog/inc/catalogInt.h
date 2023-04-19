@@ -58,6 +58,7 @@ typedef enum {
   CTG_CI_OTHERTABLE_META,
   CTG_CI_TBL_SMA,
   CTG_CI_TBL_CFG,
+  CTG_CI_TBL_TAG,
   CTG_CI_INDEX_INFO,
   CTG_CI_USER,
   CTG_CI_UDF,
@@ -110,6 +111,7 @@ typedef enum {
   CTG_TASK_GET_SVR_VER,
   CTG_TASK_GET_TB_META_BATCH,
   CTG_TASK_GET_TB_HASH_BATCH,
+  CTG_TASK_GET_TB_TAG,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -185,6 +187,11 @@ typedef struct SCtgTbCfgCtx {
   int32_t      tbType;
   SVgroupInfo* pVgInfo;
 } SCtgTbCfgCtx;
+
+typedef struct SCtgTbTagCtx {
+  SName*       pName;
+  SVgroupInfo* pVgInfo;
+} SCtgTbTagCtx;
 
 typedef struct SCtgDbVgCtx {
   char dbFName[TSDB_DB_FNAME_LEN];
@@ -304,6 +311,7 @@ typedef struct SCtgJob {
   catalogCallback  userFp;
   int32_t          tbMetaNum;
   int32_t          tbHashNum;
+  int32_t          tbTagNum;
   int32_t          dbVgNum;
   int32_t          udfNum;
   int32_t          qnodeNum;

@@ -82,6 +82,7 @@ typedef struct SCatalogReq {
   SArray* pUser;          // element is SUserAuthInfo
   SArray* pTableIndex;    // element is SNAME
   SArray* pTableCfg;      // element is SNAME
+  SArray* pTableTag;      // element is SNAME
   bool    qNodeRequired;  // valid qnode
   bool    dNodeRequired;  // valid dnode
   bool    svrVerRequired;
