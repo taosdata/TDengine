@@ -64,7 +64,7 @@ $loop_count = 0
 loop1:
 sql select * from target.streamtST1;
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1

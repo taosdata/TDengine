@@ -5,7 +5,7 @@ system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 
-sleep 200
+sleep 1000
 sql connect
 
 sql drop database if exists test;
@@ -25,7 +25,7 @@ sql insert into t1 values(1648791253000,1,2,3,1.0,'aaa');
 $loop_count = 0
 
 loop0:
-sleep 200
+sleep 1000
 sql select * from streamt order by ts;
 
 $loop_count = $loop_count + 1
@@ -84,7 +84,7 @@ print "force fill vaule"
 $loop_count = 0
 
 loop0a:
-sleep 200
+sleep 1000
 sql select * from streamta order by ts;
 
 $loop_count = $loop_count + 1
@@ -153,7 +153,7 @@ sql insert into t1 values(1648791213000,4,4,4,4.0,'aaa') (1648791215000,5,5,5,5.
 $loop_count = 0
 
 loop1:
-sleep 200
+sleep 1000
 sql select * from streamt2 order by ts;
 
 $loop_count = $loop_count + 1
@@ -291,7 +291,7 @@ sql insert into t1 values(1648791200000,1,1,1,1.0,'aaa');
 $loop_count = 0
 
 loop3:
-sleep 200
+sleep 1000
 sql select * from streamt3 order by ts;
 
 $loop_count = $loop_count + 1
@@ -484,7 +484,7 @@ sql insert into t2 values(1648791273000,1,2,3,1.0,'bbb');
 $loop_count = 0
 
 loop4:
-sleep 200
+sleep 1000
 sql select * from streamt4 order by pname, ts;
 
 print ===> $data[0][0] , $data[0][1] , $data[0][2] , $data[0][3]
@@ -583,7 +583,7 @@ print "force fill null"
 $loop_count = 0
 
 loop4a:
-sleep 200
+sleep 1000
 sql select * from streamt4a order by pname, ts;
 
 print ===> $data[0][0] , $data[0][1] , $data[0][2] , $data[0][3]

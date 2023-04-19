@@ -22,7 +22,7 @@ sql insert into t1 values(1648791213000,2,2,2);
 $loop_count = 0
 
 loop0:
-sleep 300
+sleep 1000
 sql select * from streamt order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -46,7 +46,7 @@ sql insert into t1 values(1648791213000,3,3,3);
 $loop_count = 0
 
 loop1:
-sleep 300
+sleep 1000
 sql select * from streamt order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -84,7 +84,7 @@ sql insert into t1 values(1648791213000,2,2,2);
 $loop_count = 0
 
 loop2:
-sleep 300
+sleep 1000
 sql select * from streamt1 order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -109,7 +109,7 @@ $loop_count = 0
 
 loop3:
 
-sleep 300
+sleep 1000
 sql select * from streamt1 order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -147,7 +147,7 @@ sql insert into t1 values(1648791213000,2,2,1);
 $loop_count = 0
 
 loop2:
-sleep 300
+sleep 1000
 sql select * from streamt2 order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -172,7 +172,7 @@ $loop_count = 0
 
 loop3:
 
-sleep 300
+sleep 1000
 sql select * from streamt2 order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -215,7 +215,7 @@ sql insert into t2 values(1648791213000,2,2,2);
 $loop_count = 0
 
 loop0:
-sleep 300
+sleep 1000
 sql select * from streamt3 order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -239,7 +239,7 @@ sql insert into t1 values(1648791213000,3,3,3);
 $loop_count = 0
 
 loop1:
-sleep 300
+sleep 1000
 sql select * from streamt3 order by 1,2,3;
 
 $loop_count = $loop_count + 1
@@ -262,7 +262,7 @@ sql insert into t2 values(1648791213000,4,4,4);
 $loop_count = 0
 
 loop1:
-sleep 300
+sleep 1000
 sql select * from streamt3 order by 1,2,3;
 
 $loop_count = $loop_count + 1

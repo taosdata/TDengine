@@ -85,7 +85,7 @@ sleep 1000
 
 $loop_count = 0
 loop1:
-sleep 300
+sleep 1000
 sql select * from streamtST1;
 
 $loop_count = $loop_count + 1
@@ -217,7 +217,7 @@ $loop_count = 0
 loop2:
 sql select * from streamtST1;
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -256,7 +256,7 @@ $loop_count = 0
 loop3:
 sql select * from streamtST3;
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1

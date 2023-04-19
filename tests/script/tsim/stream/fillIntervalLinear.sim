@@ -6,7 +6,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 #==system sh/exec.sh -n dnode1 -s start -v
 
-sleep 200
+sleep 1000
 sql connect
 
 print step 1 start
@@ -24,7 +24,7 @@ sql insert into t1 values(1648791210000,1,1,1,1.0,'ccc') (1648791219000,2,2,2,2.
 $loop_count = 0
 
 loop1:
-sleep 200
+sleep 1000
 sql use test1;
 sql select * from streamt1 order by ts;
 
@@ -214,7 +214,7 @@ $loop_count = 0
 
 loop2:
 
-sleep 200
+sleep 1000
 
 sql select * from streamt2 order by ts;
 
@@ -403,7 +403,7 @@ sql insert into t1 values(1648791213000,4,4,4,4.0,'ddd');
 $loop_count = 0
 
 loop3:
-sleep 300
+sleep 1000
 sql select * from streamt3 order by ts;
 
 $loop_count = $loop_count + 1
@@ -524,7 +524,7 @@ $loop_count = 0
 
 loop4:
 
-sleep 200
+sleep 1000
 
 sql select * from test3.streamt3 order by ts;
 

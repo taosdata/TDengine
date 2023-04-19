@@ -52,7 +52,7 @@ $loop_count = 0
 
 loop0:
 
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -92,7 +92,7 @@ $loop_count = 0
 
 loop1:
 
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then

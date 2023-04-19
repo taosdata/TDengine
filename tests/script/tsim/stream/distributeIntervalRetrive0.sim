@@ -274,7 +274,7 @@ sql insert into t2 values(1262275200000,1,2,3);
 
 $loop_count = 0
 loop4:
-sleep 300
+sleep 1000
 sql select * from streamt1 order by c0;
 
 $loop_count = $loop_count + 1

@@ -21,7 +21,7 @@ sql insert into ts4 values(1648791213001,1,12,3,1.0);
 $loop_count = 0
 
 loop0:
-sleep 300
+sleep 1000
 sql select * from streamtST1;
 
 $loop_count = $loop_count + 1
@@ -53,7 +53,7 @@ sql insert into ts2 values(1648791211000,1,2,3);
 $loop_count = 0
 
 loop1:
-sleep 300
+sleep 1000
 sql select * from streamt;
 
 $loop_count = $loop_count + 1
@@ -91,7 +91,7 @@ sql insert into ts2 values(1648791222001,2,2,3,4);
 $loop_count = 0
 
 loop2:
-sleep 300
+sleep 1000
 sql select * from streamtST;
 
 $loop_count = $loop_count + 1

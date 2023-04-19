@@ -27,7 +27,7 @@ sql insert into t1 values(1648791213002,NULL,NULL,NULL,NULL,5) (1648791233012,NU
 $loop_count = 0
 loop0:
 
-sleep 300
+sleep 1000
 sql select * from streamt order by s desc;
 
 $loop_count = $loop_count + 1
@@ -127,7 +127,7 @@ sql insert into t1 values(1648791213002,4,2,3,4.1,12) (1648791223009,4,2,3,4.1,1
 
 $loop_count = 0
 loop1:
-sleep 300
+sleep 1000
 sql select * from streamt order by s desc ;
 
 $loop_count = $loop_count + 1
@@ -192,7 +192,7 @@ sql insert into t2 values(1648791223003,20,7,3,10.1,7);
 
 $loop_count = 0
 loop2:
-sleep 300
+sleep 1000
 sql select * from streamt2 where c4=7;
 
 $loop_count = $loop_count + 1
@@ -251,7 +251,7 @@ sql insert into t1 values(1648791223004,20,7,9,10.1);
 
 $loop_count = 0
 loop3:
-sleep 300
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then

@@ -27,7 +27,7 @@ sql insert into t1(ts) values(1648791213000);
 $loop_count = 0
 loop0:
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -46,7 +46,7 @@ sql insert into t1 values(1648791214000,1,2,3,1.0,3);
 $loop_count = 0
 loop1:
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -66,7 +66,7 @@ sql insert into t1 values(1648791215000,2,2,3,1.0,4);
 $loop_count = 0
 loop2:
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -84,7 +84,7 @@ sql insert into t1(ts) values(1648791216000);
 $loop_count = 0
 loop3:
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -111,7 +111,7 @@ sql insert into t1 values(1648791213010,1,2,3,1.1);
 $loop_count = 0
 loop4:
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
@@ -132,7 +132,7 @@ sql insert into t1 values(1648791213005,2,2,3,1.1);
 $loop_count = 0
 loop5:
 
-sleep 300
+sleep 1000
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1

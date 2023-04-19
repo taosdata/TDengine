@@ -205,7 +205,7 @@ sql insert into t1 values(1648791213000,1,2,3,1.0);
 
 $loop_count = 0
 loop13:
-sleep 200
+sleep 1000
 
 sql select * from streamt3;
 
@@ -224,7 +224,7 @@ sql insert into t1 values(1648791213000,6,2,3,1.0);
 
 $loop_count = 0
 loop14:
-sleep 200
+sleep 1000
 sql select * from streamt3;
 
 $loop_count = $loop_count + 1

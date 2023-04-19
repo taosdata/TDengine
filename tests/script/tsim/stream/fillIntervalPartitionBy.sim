@@ -4,7 +4,7 @@ looptest:
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
-sleep 200
+sleep 1000
 sql connect
 
 sql drop stream if exists streams1;
@@ -36,7 +36,7 @@ sql insert into t2 values(1648791216000,10,6,6,6.0,'ddd');
 $loop_count = 0
 
 loop2:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -85,7 +85,7 @@ print ======delete from t1 where ts = 1648791216000;
 $loop_count = 0
 
 loop3:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -132,7 +132,7 @@ sql insert into t2 values(1648791217000,11,11,11,11.0,'eee') (1648791219000,11,1
 $loop_count = 0
 
 loop4:
-sleep 200
+sleep 1000
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
