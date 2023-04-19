@@ -55,27 +55,6 @@ int tqStreamTasksScanWal(STQ* pTq) {
   return 0;
 }
 
-//int32_t transferToNormalTask(SStreamMeta* pStreamMeta, SArray* pTaskList) {
-//  int32_t numOfTask = taosArrayGetSize(pTaskList);
-//  if (numOfTask <= 0)  {
-//    return TSDB_CODE_SUCCESS;
-//  }
-//
-//  // todo: add lock
-//  for (int32_t i = 0; i < numOfTask; ++i) {
-//    SStreamTask* pTask = taosArrayGetP(pTaskList, i);
-//    tqDebug("vgId:%d transfer s-task:%s state restore -> ready, checkpoint:%" PRId64 " checkpoint id:%" PRId64,
-//            pStreamMeta->vgId, pTask->id.idStr, pTask->chkInfo.version, pTask->chkInfo.id);
-//    taosHashRemove(pStreamMeta->pWalReadTasks, &pTask->id.taskId, sizeof(pTask->id.taskId));
-//
-//    // NOTE: do not change the following order
-//    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__NORMAL);
-//    taosHashPut(pStreamMeta->pTasks, &pTask->id.taskId, sizeof(pTask->id.taskId), &pTask, POINTER_BYTES);
-//  }
-//
-//  return TSDB_CODE_SUCCESS;
-//}
-
 int32_t streamTaskReplayWal(SStreamMeta* pStreamMeta, STqOffsetStore* pOffsetStore, bool* pScanIdle) {
   void*   pIter = NULL;
   int32_t vgId = pStreamMeta->vgId;
