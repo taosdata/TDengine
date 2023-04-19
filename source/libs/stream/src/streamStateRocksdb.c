@@ -438,7 +438,6 @@ void streamCleanBackend(SStreamState* pState) {
   pState->pTdbState->readOpts = NULL;
 
   rocksdb_close(pState->pTdbState->rocksdb);
-  rocksdb_env_destroy(pState->pTdbState->env);
   for (int i = 0; i < cfLen; i++) {
     // rocksdb_column_family_handle_destroy(pState->pTdbState->pHandle[i]);
     rocksdb_options_destroy(pState->pTdbState->cfOpts[i]);
@@ -450,6 +449,7 @@ void streamCleanBackend(SStreamState* pState) {
   taosMemoryFreeClear(pState->pTdbState->cfOpts);
   taosMemoryFree(pState->pTdbState->pCompare);
   taosMemoryFree(pState->pTdbState->param);
+  rocksdb_env_destroy(pState->pTdbState->env);
 
   pState->pTdbState->rocksdb = NULL;
 }
