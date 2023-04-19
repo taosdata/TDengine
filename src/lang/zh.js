@@ -7,9 +7,11 @@ let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
+  systemTitle: "TDengine 管理系统",
   copyright:' Copyright 2023 北京涛思数据科技有限公司',
   download: "下载",
-  isDel: "确定要删除吗？",
+  isDel: "确定要删除{isDelName}吗？",
+  isDisable: "确定要 {isDisable} {isDisableName}?",
   role: "角色",
   fullName: "全称",
   total: "全部",
@@ -60,6 +62,7 @@ export default {
   phoneError: "手机号格式有误!",
   oldPass: "旧密码",
   newPass: "新密码",
+  requiredMessage: "是必填的",
   passwordError: "密码格式错误",
   passwordTip: `<div>密码长度必须为8到16位，并且至少包含以下3中字符:</div><ul><li><el-icon class='el-icon-circle-check'></el-icon> 大写字母</li><li><el-icon class='el-icon-circle-check'></el-icon> 小写字母</li><li><el-icon class='el-icon-circle-check'></el-icon> 数字</li><li><el-icon class='el-icon-circle-check'></el-icon> 特殊字符</li></ul>`,
   twoPassError: "两次密码不一致",
@@ -225,6 +228,8 @@ export default {
     thankTip: `验证邮件已发送至<a class="mail-link" href="mailto:{email}">{email</a>，请检查您的电子邮件。 如果它没有在几分钟内出现，请检查您的垃圾邮件文件夹。 如果还是找不到，请使用同一邮箱重新注册或发送邮件至 <a class="mail-link" href="mailto:support@tdengine.com">support@tdengine.com</a> 寻求帮助。`,
     backLogin: "回到登录",
     rememberMe: "记住我",
+    usernameTips: '请输入用户名',
+    passwordTips: '请输入密码'
   },
   dashboard: {
     warnigtip:`请点击左侧<a href="/dashboard">仪表盘</a>查看TDinsight的设置`,
@@ -1281,6 +1286,7 @@ export default {
     finishat: '完成时间',
     createat: '开始时间',
     adduser: '新增用户',
+    edituser: '编辑用户',
     username: '用户名称',
     password: '密码',
     subscription: '订阅',

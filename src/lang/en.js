@@ -7,11 +7,13 @@ let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
+  systemTitle: "TDengine Management system",
   copyright:'Copyright (c) 2022 by TDengine, All Rights Reserved.',
   sqlPreview: "SQL Preview",
   unknown: "Unknown Error!",
   download: "Download",
-  isDel: "Are you sure you want to delete?",
+  isDel: "Are you sure you want to delete {isDelName}?",
+  isDisable: "Are you sure to {isDisable} {isDisableName}?",
   role: "Role",
   total: "Total",
   fullName: "Full Name",
@@ -299,6 +301,8 @@ export default {
     thankTip: `A verification email is sent to <a  class="mail-link" href="mailto:{email}">{email}</a>, please check your email. If it doesn't appear in a few minutes, please check your spam folder. If you still can not find it, please use the same email to register again or send email to <a class="mail-link" href="mailto:support@tdengine.com">support@tdengine.com</a> for help.`,
     backLogin: "Back to login",
     rememberMe: "Remember me",
+    usernameTips: 'Please enter the Username',
+    passwordTips: 'Please enter the Password'
   },
   dashboard: {
     warnigtip: `Please click on the left <a href="/dashboard"> dashboard</a> to view the settings for TDinsight`,
@@ -1605,6 +1609,7 @@ export default {
     finishat: 'Finish At',
     createat: 'Create At',
     adduser: 'Add New User',
+    edituser: 'Edit User',
     username: 'User Name',
     password: 'Password',
     subscription: 'Subscription',

@@ -71,10 +71,10 @@ export default {
       },
       rules: {
         user: [
-          { required: true, message: "Please input user name", trigger: "blur" }
+          { required: true, message: this.$t('taosuser.username') + this.$t('requiredMessage'), trigger: "blur" }
         ],
         pwd: [
-          { required: true, message: "Please input password", trigger: "blur" }
+          { required: true, message: this.$t('taosuser.password') + this.$t('requiredMessage'), trigger: "blur" }
         ]
       },
       databaseList: [],
