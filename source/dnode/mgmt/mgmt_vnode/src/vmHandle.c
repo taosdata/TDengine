@@ -333,7 +333,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, checking node catch up", req.vgId);
-  if(!vnodeIsCatchUp(pVnode->pImpl) == 0){
+  if(vnodeIsCatchUp(pVnode->pImpl) != 0){
     return -1;
   }
 
