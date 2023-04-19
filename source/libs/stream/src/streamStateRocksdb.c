@@ -416,22 +416,20 @@ void streamCleanBackend(SStreamState* pState) {
     qInfo("rocksdb already free");
     return;
   }
+
   int             cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
   rocksdbCfParam* param = pState->pTdbState->param;
   for (int i = 0; i < cfLen; i++) {
     rocksdb_column_family_handle_destroy(pState->pTdbState->pHandle[i]);
-    rocksdb_options_destroy(pState->pTdbState->cfOpts[i]);
-    rocksdb_comparator_destroy(pState->pTdbState->pCompare[i]);
+    // rocksdb_options_destroy(pState->pTdbState->cfOpts[i]);
+    // rocksdb_comparator_destroy(pState->pTdbState->pCompare[i]);
 
-    rocksdb_cache_destroy(param[i].lru);
-    rocksdb_block_based_options_destroy(param[i].tableOpt);
+    // rocksdb_cache_destroy(param[i].lru);
+    // rocksdb_block_based_options_destroy(param[i].tableOpt);
   }
-  taosMemoryFree(pState->pTdbState->param);
-  rocksdb_options_destroy(pState->pTdbState->dbOpt);
-
   taosMemoryFreeClear(pState->pTdbState->pHandle);
-  taosMemoryFreeClear(pState->pTdbState->cfOpts);
-  taosMemoryFree(pState->pTdbState->pCompare);
+
+  rocksdb_options_destroy(pState->pTdbState->dbOpt);
 
   rocksdb_writeoptions_destroy(pState->pTdbState->writeOpts);
   pState->pTdbState->writeOpts = NULL;
@@ -441,6 +439,18 @@ void streamCleanBackend(SStreamState* pState) {
 
   rocksdb_close(pState->pTdbState->rocksdb);
   rocksdb_env_destroy(pState->pTdbState->env);
+  for (int i = 0; i < cfLen; i++) {
+    // rocksdb_column_family_handle_destroy(pState->pTdbState->pHandle[i]);
+    rocksdb_options_destroy(pState->pTdbState->cfOpts[i]);
+    rocksdb_comparator_destroy(pState->pTdbState->pCompare[i]);
+
+    rocksdb_cache_destroy(param[i].lru);
+    rocksdb_block_based_options_destroy(param[i].tableOpt);
+  }
+  taosMemoryFreeClear(pState->pTdbState->cfOpts);
+  taosMemoryFree(pState->pTdbState->pCompare);
+  taosMemoryFree(pState->pTdbState->param);
+
   pState->pTdbState->rocksdb = NULL;
 }
 
