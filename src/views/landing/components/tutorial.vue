@@ -14,7 +14,7 @@
       </section>
       <section class="operate-btn">
         <div class="left">
-          <a :href="docsUrl" target="_blank">{{ $t("document") }}</a>
+          <a :href="$t('docsUrl')" target="_blank">{{ $t("document") }}</a>
         </div>
         <div class="right">
           <el-button size="small" v-show="step > 0" @click="step--" plan>{{ $t("prev") }}</el-button>
@@ -31,42 +31,42 @@
     data() {
       this.landing = [
         {
-          title: "Metric",
+          title: this.$t("landing.metricTitle"),
           desc: this.$t("landing.metricDesc"),
           img: "/static/landing/metric.jpg",
         },
         {
-          title: "Label/Tag",
+          title: this.$t("landing.labelTitle"),
           desc: this.$t("landing.labelDesc"),
           img: "/static/landing/label.jpg",
         },
         {
-          title: "Data Collection Point",
+          title: this.$t("landing.dataCollectionTitle"),
           desc: this.$t("landing.dataCollectionDesc"),
           img: "/static/landing/dcp.jpg",
         },
         {
-          title: "Table",
+          title: this.$t("landing.tableTitle"),
           desc: this.$t("landing.tableDesc"),
           img: "/static/landing/sample.png",
         },
         {
-          title: "Super Table (STable)",
+          title: this.$t("landing.superTableTitle"),
           desc: this.$t("landing.superTableDesc"),
           img: "/static/landing/stable.jpg",
         },
         {
-          title: "Subtable",
+          title: this.$t("landing.subtableTitle"),
           desc: this.$t("landing.subtableDesc"),
           img: "/static/landing/subtable.jpg",
         },
         {
-          title: "Database",
+          title: this.$t("landing.databaseTitle"),
           desc: this.$t("landing.databaseDesc"),
           img: "/static/landing/database.png",
         },
         {
-          title: "Instance, URL, Token",
+          title: this.$t("landing.instanceTitle"),
           desc: this.$t("landing.instanceDesc"),
           img: "/static/landing/instances.png",
         },
@@ -79,9 +79,6 @@
     computed: {
       currentLanding() {
         return this.landing[this.step];
-      },
-      docsUrl() {
-        return this.$store.state.language == "en" ? "https://docs.tdengine.com" : "https://docs.tdengine.com";
       },
     },
     created() {
