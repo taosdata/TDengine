@@ -337,6 +337,17 @@ mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo 
 if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
     connector_dir="${code_dir}/connector"
     mkdir -p ${install_dir}/connector
+    tmp_pwd=`pwd`
+    cd ${install_dir}/connector
+    if [ ! -d taos-connector-jdbc ];then
+    	git clone -b main --depth=1 https://github.com/taosdata/taos-connector-jdbc.git ||:
+    fi
+    cd taos-connector-jdbc
+    mvn clean package -Dmaven.test.skip=true
+    cp target/*.jar  ${build_dir}/lib/
+    cd ${install_dir}/connector
+    rm -rf taos-connector-jdbc
+    cd ${tmp_pwd}
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
         [ -f ${build_dir}/lib/*.jar ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
         git clone --depth 1 https://github.com/taosdata/driver-go ${install_dir}/connector/go
