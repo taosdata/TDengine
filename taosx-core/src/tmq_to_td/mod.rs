@@ -25,6 +25,25 @@ async fn write_data(
         .messages_of_data
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let mut has_blocks = false;
+    if target_is_v3 && actions.is_empty() {
+        let raw = data.as_raw_data().await?;
+        taos.write_raw_meta(&unsafe { std::mem::transmute(raw) })
+            .await?;
+        while let Some(raw) = data.fetch_raw_block().await? {
+            *rows += raw.nrows();
+            metrics
+                .blocks
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            metrics
+                .records
+                .fetch_add(raw.nrows() as _, std::sync::atomic::Ordering::SeqCst);
+            metrics.points.fetch_add(
+                raw.nrows() as u64 * raw.ncols() as u64,
+                std::sync::atomic::Ordering::SeqCst,
+            );
+        }
+        return Ok(0);
+    }
     while let Some(mut raw) = data.fetch_raw_block().await? {
         has_blocks = true;
         if let Some(name) = table {
