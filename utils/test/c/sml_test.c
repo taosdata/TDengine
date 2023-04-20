@@ -924,10 +924,10 @@ int sml_escape_Test() {
   int         numFields = taos_num_fields(pRes);
   TAOS_FIELD *fields = taos_fetch_fields(pRes);
   ASSERT(numFields == 5);
-  ASSERT(strcmp(fields[1].name, "inode\"i,= s_used") == 0);
-  ASSERT(strcmp(fields[2].name, "total") == 0);
-  ASSERT(strcmp(fields[3].name, "inode\"i,= s_f\\\\ree") == 0);
-  ASSERT(strcmp(fields[4].name, "dev\"i,= ce") == 0);
+  ASSERT(strncmp(fields[1].name, "inode\"i,= s_used", sizeof("inode\"i,= s_used") - 1) == 0);
+  ASSERT(strncmp(fields[2].name, "total", sizeof("total") - 1) == 0);
+  ASSERT(strncmp(fields[3].name, "inode\"i,= s_f\\\\ree", sizeof("inode\"i,= s_f\\\\ree") - 1) == 0);
+  ASSERT(strncmp(fields[4].name, "dev\"i,= ce", sizeof("dev\"i,= ce") - 1) == 0);
 
   TAOS_ROW row = NULL;
   int32_t  rowIndex = 0;
@@ -940,8 +940,8 @@ int sml_escape_Test() {
       ASSERT(ts == 1661943960000);
       ASSERT(used == 176059);
       ASSERT(total == 1076048383523889174);
-      ASSERT(strcmp(row[3], "\"id,= ei\\\\f") == 0);
-      ASSERT(strcmp(row[4], "s\"i,= dc") == 0);
+      ASSERT(strncmp(row[3], "\"id,= ei\\\\f", sizeof("\"id,= ei\\\\f") - 1) == 0);
+      ASSERT(strncmp(row[4], "s\"i,= dc", sizeof("s\"i,= dc") - 1) == 0);
 
     }
     rowIndex++;
