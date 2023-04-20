@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.0)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 set(TD_BUILD_TAOSA_INTERNAL FALSE)
-set(PORTABLE ON)
 
 #set output directory
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/lib)
@@ -79,7 +78,6 @@ ELSE ()
     SET(TD_TAOS_TOOLS TRUE)
 ENDIF ()
 
-SET(JEMALLOC_ENABLED OFF)
 IF (TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
     SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd")

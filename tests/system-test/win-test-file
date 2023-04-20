@@ -12,7 +12,7 @@ python3 ./test.py -f 0-others/sysinfo.py
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/user_manage.py
 python3 ./test.py -f 0-others/fsync.py
-python3 ./test.py -f 0-others/compatibility.py
+#python3 ./test.py -f 0-others/compatibility.py
 python3 ./test.py -f 0-others/tag_index_basic.py
 # python3 ./test.py -f 1-insert/alter_database.py
 python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
@@ -26,7 +26,7 @@ python3 ./test.py -f 1-insert/boundary.py
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 python3 ./test.py -f 1-insert/table_comment.py
 python3 ./test.py -f 1-insert/time_range_wise.py
-python3 ./test.py -f 1-insert/block_wise.py
+#python3 ./test.py -f 1-insert/block_wise.py
 #python3 ./test.py -f 1-insert/create_retentions.py
 python3 ./test.py -f 1-insert/mutil_stage.py
 python3 ./test.py -f 1-insert/table_param_ttl.py

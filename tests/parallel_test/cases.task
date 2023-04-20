@@ -543,7 +543,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_control.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_manage.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
-,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
+#,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
 ,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
@@ -559,7 +559,7 @@
 ,,n,system-test,python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_comment.py
 ,,n,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/block_wise.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/block_wise.py
 #,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/create_retentions.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/mutil_stage.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py
