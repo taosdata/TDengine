@@ -164,6 +164,8 @@ export default {
         return;
       }
       const acLang = this.activeLang;
+      const viewWrap = this.exTabEl.querySelector(`.topic-${acLang} `)
+      const viewWrapWith = viewWrap.clientWidth - 60
       const viewEl = this.exTabEl.querySelector(
         `.topic-${acLang} .view-header`
       );
@@ -176,8 +178,8 @@ export default {
         viewEl?.style?.position !== "fixed"
       ) {
         viewEl.style.position = "fixed";
-        viewEl.style.top = "14rem";
-        viewEl.style.width = "63%";
+        viewEl.style.top = "5.8rem";
+        viewEl.style.width = `${viewWrapWith}px`;
         viewEl.style["z-index"] = "900";
         this.langFixed[acLang].fixed = true;
       } else if (

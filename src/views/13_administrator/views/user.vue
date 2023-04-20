@@ -74,7 +74,7 @@
       <AddUser @close="closeDialog"></AddUser>
     </el-dialog>
 
-    <el-dialog align="center" title="Edit User" width="550px" :visible.sync="editDialog">
+    <el-dialog align="center" :title="$t('taosuser.edituser')" width="550px" :visible.sync="editDialog">
       <EditUser :user="this.editUser" @close="closeEditDialog"></EditUser>
     </el-dialog>
 
@@ -131,13 +131,13 @@ export default {
       rules: {
         user: [
           {
-            message: "Please enter the user name",
+            message: this.$t('login.usernameTips'),
             trigger: "blur",
           },
         ],
         pwd: [
           {
-            message: "Please enter the password",
+            message: this.$t('login.passwordTips'),
             trigger: "blur",
           },
         ],
@@ -192,14 +192,14 @@ export default {
 
     handlePageChange() { },
     del(data) {
-      this.$confirm("Are you sure to delete " + data.name + "?", "Warning", {
-        confirmButtonText: "Ok",
-        cancelButtonText: "Cancel",
+      this.$confirm(this.$t('isDel').replace('{isDelName}', data.name), this.$t('wraning'), {
+        confirmButtonText: this.$t('confirm'),
+        cancelButtonText: this.$t('cancel'),
         type: "warning",
       }).then(() => {
         sendSQLReq(`drop user ${data.name}`).then(res => {
           if (res.code == 0) {
-            Message.success('Deleted Successfully!')
+            Message.success(this.$t('delSucc'))
             this.getUserData()
           }
         })
@@ -211,20 +211,20 @@ export default {
       this.editDialog = true
     },
     changeState(data) {
-      let str = "disable";
+      let title = this.$t('isDisable').replace('{isDisableName}', data.name);
       let state = 0;
       if (data.enable == 0) {
-        str = "enable";
+        title = this.$t('isEnable').replace('{isDisableName}', data.name);
         state = 1;
       }
-      this.$confirm("Are you sure to " + str + " " + data.name + "?", "Warning", {
-        confirmButtonText: "Ok",
-        cancelButtonText: "Cancel",
+      this.$confirm(title, {
+        confirmButtonText: this.$t('confirm'),
+        cancelButtonText: this.$t('cancel'),
         type: "warning",
       }).then(() => {
         sendSQLReq(`alter user ${data.name} enable ${state}`).then(res => {
           if (res.code == 0) {
-            Message.success('Operation Successfully!')
+            Message.success(this.$t('operateSucc'))
             this.getUserData()
           }
         })
@@ -262,10 +262,10 @@ export default {
                 if (user.privilege === undefined) {
                   user.privilege = {};
                 }
-                if (user.privilege[data.object_name] === undefined) {
-                  user.privilege[data.object_name] = [data.privilege];
+                if (user.privilege[data.db_name] === undefined) {
+                  user.privilege[data.db_name] = [data.privilege];
                 } else {
-                  user.privilege[data.object_name].push(data.privilege);
+                  user.privilege[data.db_name].push(data.privilege);
                 }
               }
             });
