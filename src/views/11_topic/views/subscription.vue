@@ -149,7 +149,7 @@ export default {
     async getData() {
       try {
         await sendSQLReq(
-          `select user_name from information_schema.ins_user_privileges where privilege in ('all', 'subscribe') and object_name in ('${this.topicId}', 'all');`
+          `select user_name from information_schema.ins_user_privileges where privilege in ('all', 'subscribe') and db_name in ('${this.topicId}', 'all');`
         ).then((res) => {
           this.subscriptionList = res.data.map((data) => {
             return Object.fromEntries(
@@ -259,7 +259,7 @@ export default {
           .catch((err) => {
             return Promise.reject(err);
           });
-        await sendSQLReq(`select user_name from information_schema.ins_user_privileges where privilege in ('all', 'subscribe') and object_name in ('${this.topicId}', 'all');`)
+        await sendSQLReq(`select user_name from information_schema.ins_user_privileges where privilege in ('all', 'subscribe') and db_name in ('${this.topicId}', 'all');`)
           .then((res) => {
             let privilegeMap = res.data.map((data) => {
               return Object.fromEntries(
@@ -276,10 +276,10 @@ export default {
                 if (user.privilege === undefined) {
                   user.privilege = {};
                 }
-                if (user.privilege[data.object_name] === undefined) {
-                  user.privilege[data.object_name] = [data.privilege];
+                if (user.privilege[data.db_name] === undefined) {
+                  user.privilege[data.db_name] = [data.privilege];
                 } else {
-                  user.privilege[data.object_name].push(data.privilege);
+                  user.privilege[data.db_name].push(data.privilege);
                 }
               }
             });

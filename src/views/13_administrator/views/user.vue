@@ -262,10 +262,10 @@ export default {
                 if (user.privilege === undefined) {
                   user.privilege = {};
                 }
-                if (user.privilege[data.object_name] === undefined) {
-                  user.privilege[data.object_name] = [data.privilege];
+                if (user.privilege[data.db_name] === undefined) {
+                  user.privilege[data.db_name] = [data.privilege];
                 } else {
-                  user.privilege[data.object_name].push(data.privilege);
+                  user.privilege[data.db_name].push(data.privilege);
                 }
               }
             });
